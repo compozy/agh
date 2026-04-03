@@ -1,0 +1,874 @@
+package daemon
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"go/parser"
+	"go/token"
+	"io/fs"
+	"log/slog"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghlogger "github.com/pedronauck/agh/internal/logger"
+	"github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
+)
+
+const (
+	defaultShutdownTimeout = 10 * time.Second
+	moduleImportPath       = "github.com/pedronauck/agh"
+)
+
+// Option customizes daemon construction.
+type Option func(*Daemon)
+
+// ConfigLoader resolves the daemon-level runtime configuration.
+type ConfigLoader func() (aghconfig.Config, error)
+
+// SessionManager is the session lifecycle surface consumed by daemon/.
+type SessionManager interface {
+	List() []*session.SessionInfo
+	Stop(ctx context.Context, id string) error
+}
+
+// Observer is the observability surface consumed by daemon/.
+type Observer interface {
+	session.Notifier
+	Reconcile(ctx context.Context) (observe.ReconcileResult, error)
+}
+
+// Registry is the shared global database surface consumed by daemon/.
+type Registry interface {
+	store.SessionRegistry
+	Path() string
+	Close(ctx context.Context) error
+}
+
+// Server is a daemon-owned runtime component with explicit start and shutdown phases.
+type Server interface {
+	Start(ctx context.Context) error
+	Shutdown(ctx context.Context) error
+}
+
+// RuntimeDeps captures the composition-root dependencies available to server factories.
+type RuntimeDeps struct {
+	Config    aghconfig.Config
+	HomePaths aghconfig.HomePaths
+	Logger    *slog.Logger
+	Sessions  SessionManager
+	Observer  Observer
+	Registry  Registry
+	StartedAt time.Time
+}
+
+// ServerFactory constructs runtime components such as HTTP and UDS servers.
+type ServerFactory func(ctx context.Context, deps RuntimeDeps) (Server, error)
+
+type registryOpener func(ctx context.Context, path string) (Registry, error)
+type sessionManagerFactory func(ctx context.Context, homePaths aghconfig.HomePaths, logger *slog.Logger, notifier session.Notifier) (SessionManager, error)
+type observerFactory func(ctx context.Context, deps RuntimeDeps) (Observer, error)
+
+type processInfo struct {
+	PID  int
+	PPID int
+}
+
+type notifierFanout struct {
+	notifiers []session.Notifier
+}
+
+type nopServer struct{}
+
+// Daemon is the sole AGH composition root.
+type Daemon struct {
+	mu sync.Mutex
+
+	homePaths         aghconfig.HomePaths
+	loadConfig        ConfigLoader
+	logger            *slog.Logger
+	closeLogger       func() error
+	now               func() time.Time
+	pid               func() int
+	acquireLock       func(path string, pid int) (*Lock, error)
+	openRegistry      registryOpener
+	newSessionManager sessionManagerFactory
+	newObserver       observerFactory
+	httpFactory       ServerFactory
+	udsFactory        ServerFactory
+	listProcesses     func(context.Context) ([]processInfo, error)
+	signalProcess     func(int, syscall.Signal) error
+	processAlive      func(int) bool
+	signalCh          <-chan os.Signal
+	verifyBoundaries  bool
+	boundaryRoot      string
+	getenv            func(string) string
+	readyCh           chan struct{}
+	readyClosed       bool
+	config            aghconfig.Config
+	startedAt         time.Time
+	info              Info
+	lock              *Lock
+	registry          Registry
+	sessions          SessionManager
+	observer          Observer
+	httpServer        Server
+	udsServer         Server
+}
+
+// WithHomePaths overrides the resolved AGH home layout.
+func WithHomePaths(homePaths aghconfig.HomePaths) Option {
+	return func(d *Daemon) {
+		d.homePaths = homePaths
+	}
+}
+
+// WithConfig overrides daemon-level configuration loading.
+func WithConfig(cfg aghconfig.Config) Option {
+	return func(d *Daemon) {
+		d.loadConfig = func() (aghconfig.Config, error) {
+			return cfg, nil
+		}
+	}
+}
+
+// WithConfigLoader overrides daemon-level configuration loading.
+func WithConfigLoader(loader ConfigLoader) Option {
+	return func(d *Daemon) {
+		d.loadConfig = loader
+	}
+}
+
+// WithLogger injects the daemon logger.
+func WithLogger(logger *slog.Logger) Option {
+	return func(d *Daemon) {
+		d.logger = logger
+		d.closeLogger = func() error { return nil }
+	}
+}
+
+// WithNow overrides the daemon clock, mainly for tests.
+func WithNow(now func() time.Time) Option {
+	return func(d *Daemon) {
+		d.now = now
+	}
+}
+
+// WithHTTPServerFactory overrides HTTP server construction.
+func WithHTTPServerFactory(factory ServerFactory) Option {
+	return func(d *Daemon) {
+		d.httpFactory = factory
+	}
+}
+
+// WithUDSServerFactory overrides UDS server construction.
+func WithUDSServerFactory(factory ServerFactory) Option {
+	return func(d *Daemon) {
+		d.udsFactory = factory
+	}
+}
+
+// WithSignalChannel overrides OS signal delivery, mainly for tests.
+func WithSignalChannel(ch <-chan os.Signal) Option {
+	return func(d *Daemon) {
+		d.signalCh = ch
+	}
+}
+
+// WithBoundaryVerification enables best-effort import boundary verification on boot.
+func WithBoundaryVerification(enabled bool) Option {
+	return func(d *Daemon) {
+		d.verifyBoundaries = enabled
+	}
+}
+
+// New constructs the daemon composition root.
+func New(opts ...Option) (*Daemon, error) {
+	homePaths, err := aghconfig.ResolveHomePaths()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: resolve home paths: %w", err)
+	}
+
+	d := &Daemon{
+		homePaths: homePaths,
+		readyCh:   make(chan struct{}),
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(d)
+		}
+	}
+
+	if d.now == nil {
+		d.now = func() time.Time {
+			return time.Now().UTC()
+		}
+	}
+	if d.pid == nil {
+		d.pid = os.Getpid
+	}
+	if d.acquireLock == nil {
+		d.acquireLock = AcquireLock
+	}
+	if d.openRegistry == nil {
+		d.openRegistry = func(ctx context.Context, path string) (Registry, error) {
+			return store.OpenGlobalDB(ctx, path)
+		}
+	}
+	if d.newSessionManager == nil {
+		d.newSessionManager = func(ctx context.Context, homePaths aghconfig.HomePaths, logger *slog.Logger, notifier session.Notifier) (SessionManager, error) {
+			return session.NewManager(
+				session.WithHomePaths(homePaths),
+				session.WithLogger(logger),
+				session.WithNotifier(notifier),
+			)
+		}
+	}
+	if d.newObserver == nil {
+		d.newObserver = func(ctx context.Context, deps RuntimeDeps) (Observer, error) {
+			source, ok := deps.Sessions.(observe.SessionSource)
+			if !ok {
+				return nil, errors.New("daemon: session manager does not implement observe session source")
+			}
+			return observe.New(
+				ctx,
+				observe.WithRegistry(deps.Registry),
+				observe.WithHomePaths(deps.HomePaths),
+				observe.WithSessionSource(source),
+				observe.WithLogger(deps.Logger),
+				observe.WithStartTime(deps.StartedAt),
+			)
+		}
+	}
+	if d.httpFactory == nil {
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return nopServer{}, nil
+		}
+	}
+	if d.udsFactory == nil {
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return nopServer{}, nil
+		}
+	}
+	if d.listProcesses == nil {
+		d.listProcesses = listProcesses
+	}
+	if d.signalProcess == nil {
+		d.signalProcess = signalProcess
+	}
+	if d.processAlive == nil {
+		d.processAlive = processAlive
+	}
+	if d.getenv == nil {
+		d.getenv = os.Getenv
+	}
+	if d.closeLogger == nil {
+		d.closeLogger = func() error { return nil }
+	}
+	if d.loadConfig == nil {
+		d.loadConfig = func() (aghconfig.Config, error) {
+			return loadConfigFromHome(d.homePaths)
+		}
+	}
+
+	return d, nil
+}
+
+// Run boots the daemon, blocks until signal or context cancellation, then performs graceful shutdown.
+func (d *Daemon) Run(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("daemon: run context is required")
+	}
+	if err := d.boot(ctx); err != nil {
+		return err
+	}
+
+	sigCh, stopSignals := d.signalSource()
+	defer stopSignals()
+
+	select {
+	case <-ctx.Done():
+	case sig, ok := <-sigCh:
+		if ok && sig != nil {
+			d.runtimeLogger().Info("daemon: received shutdown signal", "signal", sig.String())
+		}
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+	defer cancel()
+
+	return d.Shutdown(shutdownCtx)
+}
+
+// Shutdown gracefully tears down the daemon in the required order.
+func (d *Daemon) Shutdown(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	d.mu.Lock()
+	sessions := d.sessions
+	httpServer := d.httpServer
+	udsServer := d.udsServer
+	registry := d.registry
+	lock := d.lock
+	closeLogger := d.closeLogger
+	infoPath := d.homePaths.DaemonInfo
+
+	d.sessions = nil
+	d.httpServer = nil
+	d.udsServer = nil
+	d.observer = nil
+	d.registry = nil
+	d.lock = nil
+	d.info = Info{}
+	d.startedAt = time.Time{}
+	d.closeLogger = func() error { return nil }
+	d.mu.Unlock()
+
+	var errs []error
+	if err := d.stopSessions(ctx, sessions); err != nil {
+		errs = append(errs, err)
+	}
+	if httpServer != nil {
+		if err := httpServer.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("daemon: shutdown http server: %w", err))
+		}
+	}
+	if udsServer != nil {
+		if err := udsServer.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("daemon: shutdown uds server: %w", err))
+		}
+	}
+	if err := RemoveInfo(infoPath); err != nil {
+		errs = append(errs, err)
+	}
+	if registry != nil {
+		if err := registry.Close(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("daemon: close global database: %w", err))
+		}
+	}
+	if lock != nil {
+		if err := lock.Release(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if closeLogger != nil {
+		if err := closeLogger(); err != nil {
+			errs = append(errs, fmt.Errorf("daemon: close logger: %w", err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+// Boundaries performs a best-effort import boundary verification for local source checkouts.
+func (d *Daemon) Boundaries(context.Context) error {
+	root := strings.TrimSpace(d.boundaryRoot)
+	if root == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("daemon: resolve working directory for boundary check: %w", err)
+		}
+		root = cwd
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("daemon: stat go.mod for boundary check: %w", err)
+	}
+
+	violations, err := verifyImportBoundaries(root)
+	if err != nil {
+		return err
+	}
+	if len(violations) == 0 {
+		return nil
+	}
+
+	return errors.Join(violations...)
+}
+
+func (d *Daemon) boot(ctx context.Context) (err error) {
+	if ctx == nil {
+		return errors.New("daemon: boot context is required")
+	}
+
+	d.mu.Lock()
+	if d.lock != nil || d.registry != nil || d.sessions != nil || d.observer != nil {
+		d.mu.Unlock()
+		return errors.New("daemon: already booted")
+	}
+	d.mu.Unlock()
+
+	cfg, err := d.loadConfig()
+	if err != nil {
+		return err
+	}
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("daemon: validate config: %w", err)
+	}
+	if err := aghconfig.EnsureHomeLayout(d.homePaths); err != nil {
+		return fmt.Errorf("daemon: ensure home layout: %w", err)
+	}
+
+	logger := d.logger
+	closeLogger := d.closeLogger
+	if logger == nil {
+		logger, closeLogger, err = aghlogger.New(
+			aghlogger.WithLevel(cfg.Log.Level),
+			aghlogger.WithFile(d.homePaths.LogFile),
+		)
+		if err != nil {
+			return fmt.Errorf("daemon: create logger: %w", err)
+		}
+	}
+	if closeLogger == nil {
+		closeLogger = func() error { return nil }
+	}
+
+	cleanupFns := make([]func(context.Context) error, 0, 8)
+	defer func() {
+		if err == nil {
+			return
+		}
+		var cleanupErrs []error
+		for i := len(cleanupFns) - 1; i >= 0; i-- {
+			if cleanupErr := cleanupFns[i](context.Background()); cleanupErr != nil {
+				cleanupErrs = append(cleanupErrs, cleanupErr)
+			}
+		}
+		err = errors.Join(err, errors.Join(cleanupErrs...))
+	}()
+	cleanupFns = append(cleanupFns, func(context.Context) error {
+		return closeLogger()
+	})
+
+	pid := d.pid()
+	lock, err := d.acquireLock(d.homePaths.DaemonLock, pid)
+	if err != nil {
+		return err
+	}
+	cleanupFns = append(cleanupFns, func(context.Context) error {
+		return lock.Release()
+	})
+
+	stalePID := lock.StalePID()
+	if stalePID == 0 {
+		existingInfo, readErr := ReadInfo(d.homePaths.DaemonInfo)
+		switch {
+		case readErr == nil && existingInfo.PID > 0 && existingInfo.PID != pid && !d.processAlive(existingInfo.PID):
+			stalePID = existingInfo.PID
+		case readErr != nil && !errors.Is(readErr, os.ErrNotExist):
+			logger.Warn("daemon: read stale daemon info failed", "path", d.homePaths.DaemonInfo, "error", readErr)
+		}
+	}
+	if stalePID > 0 {
+		if cleanupErr := d.cleanupOrphans(ctx, stalePID); cleanupErr != nil {
+			logger.Warn("daemon: cleanup orphan processes failed", "stale_pid", stalePID, "error", cleanupErr)
+		}
+	}
+
+	if err := removeStaleSocket(cfg.Daemon.Socket); err != nil {
+		return err
+	}
+
+	registry, err := d.openRegistry(ctx, d.homePaths.DatabaseFile)
+	if err != nil {
+		return fmt.Errorf("daemon: open global database %q: %w", d.homePaths.DatabaseFile, err)
+	}
+	cleanupFns = append(cleanupFns, func(ctx context.Context) error {
+		return registry.Close(ctx)
+	})
+
+	startedAt := d.now().UTC()
+	fanout := notifierFanout{}
+	sessions, err := d.newSessionManager(ctx, d.homePaths, logger, &fanout)
+	if err != nil {
+		return fmt.Errorf("daemon: create session manager: %w", err)
+	}
+
+	deps := RuntimeDeps{
+		Config:    cfg,
+		HomePaths: d.homePaths,
+		Logger:    logger,
+		Sessions:  sessions,
+		Registry:  registry,
+		StartedAt: startedAt,
+	}
+
+	observer, err := d.newObserver(ctx, deps)
+	if err != nil {
+		return fmt.Errorf("daemon: create observer: %w", err)
+	}
+	fanout.notifiers = append(fanout.notifiers, observer)
+	deps.Observer = observer
+
+	httpServer, err := d.httpFactory(ctx, deps)
+	if err != nil {
+		return fmt.Errorf("daemon: create http server: %w", err)
+	}
+	if err := httpServer.Start(ctx); err != nil {
+		return fmt.Errorf("daemon: start http server: %w", err)
+	}
+	cleanupFns = append(cleanupFns, func(ctx context.Context) error {
+		return httpServer.Shutdown(ctx)
+	})
+
+	udsServer, err := d.udsFactory(ctx, deps)
+	if err != nil {
+		return fmt.Errorf("daemon: create uds server: %w", err)
+	}
+	if err := udsServer.Start(ctx); err != nil {
+		return fmt.Errorf("daemon: start uds server: %w", err)
+	}
+	cleanupFns = append(cleanupFns, func(ctx context.Context) error {
+		return udsServer.Shutdown(ctx)
+	})
+
+	info := Info{
+		PID:       pid,
+		Port:      resolveDaemonPort(cfg.HTTP.Port, httpServer),
+		StartedAt: startedAt,
+	}
+	if err := WriteInfo(d.homePaths.DaemonInfo, info); err != nil {
+		return err
+	}
+	cleanupFns = append(cleanupFns, func(context.Context) error {
+		return RemoveInfo(d.homePaths.DaemonInfo)
+	})
+
+	reconcileResult, err := observer.Reconcile(ctx)
+	if err != nil {
+		return fmt.Errorf("daemon: reconcile sessions: %w", err)
+	}
+	logger.Info(
+		"daemon: boot reconciliation complete",
+		"indexed_sessions", len(reconcileResult.Indexed),
+		"orphaned_sessions", len(reconcileResult.Orphaned),
+	)
+
+	if d.shouldVerifyBoundaries() {
+		if boundaryErr := d.Boundaries(ctx); boundaryErr != nil {
+			logger.Warn("daemon: boundary verification warning", "error", boundaryErr)
+		}
+	}
+
+	d.mu.Lock()
+	d.config = cfg
+	d.logger = logger
+	d.closeLogger = closeLogger
+	d.lock = lock
+	d.registry = registry
+	d.sessions = sessions
+	d.observer = observer
+	d.httpServer = httpServer
+	d.udsServer = udsServer
+	d.startedAt = startedAt
+	d.info = info
+	if !d.readyClosed {
+		close(d.readyCh)
+		d.readyClosed = true
+	}
+	d.mu.Unlock()
+
+	return nil
+}
+
+func (d *Daemon) shouldVerifyBoundaries() bool {
+	if d.verifyBoundaries {
+		return true
+	}
+
+	value := strings.ToLower(strings.TrimSpace(d.getenv("AGH_DEV_VERIFY_BOUNDARIES")))
+	return value == "1" || value == "true" || value == "yes"
+}
+
+func (d *Daemon) runtimeLogger() *slog.Logger {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.logger != nil {
+		return d.logger
+	}
+	return slog.Default()
+}
+
+func (d *Daemon) signalSource() (<-chan os.Signal, func()) {
+	if d.signalCh != nil {
+		return d.signalCh, func() {}
+	}
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	return ch, func() {
+		signal.Stop(ch)
+	}
+}
+
+func (d *Daemon) stopSessions(ctx context.Context, sessions SessionManager) error {
+	if sessions == nil {
+		return nil
+	}
+
+	infos := sessions.List()
+	var errs []error
+	for _, info := range infos {
+		if info == nil {
+			continue
+		}
+		if err := sessions.Stop(ctx, info.ID); err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+			errs = append(errs, fmt.Errorf("daemon: stop session %q: %w", info.ID, err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func (d *Daemon) cleanupOrphans(ctx context.Context, stalePID int) error {
+	if stalePID <= 0 {
+		return nil
+	}
+
+	processes, err := d.listProcesses(ctx)
+	if err != nil {
+		return err
+	}
+
+	var errs []error
+	for _, proc := range processes {
+		if proc.PPID != stalePID || proc.PID <= 0 {
+			continue
+		}
+		if err := d.signalProcess(proc.PID, syscall.SIGTERM); err != nil {
+			errs = append(errs, fmt.Errorf("daemon: terminate orphan process %d: %w", proc.PID, err))
+			continue
+		}
+		if d.processAlive(proc.PID) {
+			if err := d.signalProcess(proc.PID, syscall.SIGKILL); err != nil {
+				errs = append(errs, fmt.Errorf("daemon: kill orphan process %d: %w", proc.PID, err))
+			}
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func removeStaleSocket(path string) error {
+	cleanPath := strings.TrimSpace(path)
+	if cleanPath == "" {
+		return nil
+	}
+
+	if err := os.Remove(cleanPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("daemon: remove stale socket %q: %w", cleanPath, err)
+	}
+	return nil
+}
+
+func resolveDaemonPort(defaultPort int, server Server) int {
+	type portReporter interface {
+		Port() int
+	}
+
+	if reporter, ok := server.(portReporter); ok && reporter.Port() >= 0 {
+		return reporter.Port()
+	}
+	return defaultPort
+}
+
+func loadConfigFromHome(homePaths aghconfig.HomePaths) (aghconfig.Config, error) {
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	if err := aghconfig.ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
+		return aghconfig.Config{}, fmt.Errorf("daemon: load global config: %w", err)
+	}
+
+	socketPath, err := normalizeAbsolutePath(cfg.Daemon.Socket)
+	if err != nil {
+		return aghconfig.Config{}, fmt.Errorf("daemon: normalize daemon socket path: %w", err)
+	}
+	if strings.TrimSpace(socketPath) != "" {
+		cfg.Daemon.Socket = socketPath
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return aghconfig.Config{}, fmt.Errorf("daemon: validate config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+func normalizeAbsolutePath(path string) (string, error) {
+	clean := strings.TrimSpace(path)
+	if clean == "" {
+		return "", nil
+	}
+	if clean == "~" || strings.HasPrefix(clean, "~/") {
+		userHome, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve user home directory: %w", err)
+		}
+		if clean == "~" {
+			clean = userHome
+		} else {
+			clean = filepath.Join(userHome, clean[2:])
+		}
+	}
+
+	absPath, err := filepath.Abs(clean)
+	if err != nil {
+		return "", fmt.Errorf("resolve absolute path %q: %w", path, err)
+	}
+	return absPath, nil
+}
+
+func listProcesses(ctx context.Context) ([]processInfo, error) {
+	command := exec.CommandContext(ctx, "ps", "-axo", "pid=,ppid=")
+	output, err := command.Output()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: list processes: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	processes := make([]processInfo, 0, len(lines))
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[0])
+		if err != nil {
+			continue
+		}
+		ppid, err := strconv.Atoi(fields[1])
+		if err != nil {
+			continue
+		}
+		processes = append(processes, processInfo{PID: pid, PPID: ppid})
+	}
+
+	return processes, nil
+}
+
+func signalProcess(pid int, sig syscall.Signal) error {
+	if pid <= 0 {
+		return fmt.Errorf("daemon: invalid process pid %d", pid)
+	}
+
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return fmt.Errorf("daemon: find process %d: %w", pid, err)
+	}
+	if err := process.Signal(sig); err != nil {
+		return fmt.Errorf("daemon: signal process %d with %s: %w", pid, sig.String(), err)
+	}
+	return nil
+}
+
+func verifyImportBoundaries(root string) ([]error, error) {
+	internalRoot := filepath.Join(root, "internal")
+	forbiddenImports := map[string]struct{}{
+		moduleImportPath + "/internal/daemon":  {},
+		moduleImportPath + "/internal/httpapi": {},
+		moduleImportPath + "/internal/udsapi":  {},
+		moduleImportPath + "/internal/cli":     {},
+	}
+	allowedPackages := map[string]struct{}{
+		moduleImportPath + "/internal/daemon":  {},
+		moduleImportPath + "/internal/httpapi": {},
+		moduleImportPath + "/internal/udsapi":  {},
+		moduleImportPath + "/internal/cli":     {},
+	}
+
+	violations := make([]error, 0)
+	fileSet := token.NewFileSet()
+	err := filepath.WalkDir(internalRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		parsed, err := parser.ParseFile(fileSet, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return fmt.Errorf("daemon: parse %q for boundary verification: %w", path, err)
+		}
+
+		dir := filepath.Dir(path)
+		relDir, err := filepath.Rel(root, dir)
+		if err != nil {
+			return fmt.Errorf("daemon: resolve relative package path for %q: %w", dir, err)
+		}
+		importer := moduleImportPath + "/" + filepath.ToSlash(relDir)
+		if _, ok := allowedPackages[importer]; ok {
+			return nil
+		}
+
+		for _, spec := range parsed.Imports {
+			target, err := strconv.Unquote(spec.Path.Value)
+			if err != nil {
+				return fmt.Errorf("daemon: decode import path in %q: %w", path, err)
+			}
+			if _, forbidden := forbiddenImports[target]; forbidden {
+				violations = append(violations, fmt.Errorf("daemon: boundary violation: %s imports %s", importer, target))
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return violations, nil
+}
+
+func (f *notifierFanout) OnSessionCreated(ctx context.Context, sess *session.Session) {
+	for _, notifier := range f.notifiers {
+		if notifier == nil {
+			continue
+		}
+		notifier.OnSessionCreated(ctx, sess)
+	}
+}
+
+func (f *notifierFanout) OnSessionStopped(ctx context.Context, sess *session.Session) {
+	for _, notifier := range f.notifiers {
+		if notifier == nil {
+			continue
+		}
+		notifier.OnSessionStopped(ctx, sess)
+	}
+}
+
+func (f *notifierFanout) OnAgentEvent(ctx context.Context, sessionID string, event session.AgentEvent) {
+	for _, notifier := range f.notifiers {
+		if notifier == nil {
+			continue
+		}
+		notifier.OnAgentEvent(ctx, sessionID, event)
+	}
+}
+
+func (nopServer) Start(context.Context) error {
+	return nil
+}
+
+func (nopServer) Shutdown(context.Context) error {
+	return nil
+}
