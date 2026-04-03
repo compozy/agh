@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.tmp/
+.cache/
+bin/
+dist/
+coverage.out
+coverage.html
+.codex/CONTINUITY*
+.codex/plans
+.resources/
+.old_project/
+node_modules/
