@@ -153,6 +153,8 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 	d.listProcesses = func(context.Context) ([]processInfo, error) {
 		return []processInfo{{PID: 1001, PPID: 444}, {PID: 2002, PPID: 111}}, nil
 	}
+	d.orphanGraceWait = 2 * time.Millisecond
+	d.orphanPollWait = time.Millisecond
 	d.signalProcess = func(pid int, sig syscall.Signal) error {
 		signals = append(signals, sig.String()+":"+strconvString(pid))
 		return nil
@@ -188,6 +190,84 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 	}
 	if got, want := info.PID, 777; got != want {
 		t.Fatalf("daemon info pid = %d, want %d", got, want)
+	}
+}
+
+func TestCleanupOrphansAllowsGracefulExitBeforeSIGKILL(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	d := newTestDaemon(t, homePaths, cfg)
+
+	var (
+		signals   []string
+		aliveCall int
+	)
+	d.listProcesses = func(context.Context) ([]processInfo, error) {
+		return []processInfo{{PID: 1001, PPID: 444}}, nil
+	}
+	d.orphanGraceWait = 10 * time.Millisecond
+	d.orphanPollWait = time.Millisecond
+	d.signalProcess = func(pid int, sig syscall.Signal) error {
+		signals = append(signals, sig.String()+":"+strconvString(pid))
+		return nil
+	}
+	d.processAlive = func(pid int) bool {
+		aliveCall++
+		return aliveCall == 1
+	}
+
+	if err := d.cleanupOrphans(testContext(t), 444); err != nil {
+		t.Fatalf("cleanupOrphans() error = %v", err)
+	}
+	if got, want := signals, []string{"terminated:1001"}; !equalStrings(got, want) {
+		t.Fatalf("cleanup orphan signals = %#v, want %#v", got, want)
+	}
+}
+
+func TestBootRejectsConcurrentCallWhileFirstBootIsInProgress(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	d := newTestDaemon(t, homePaths, cfg)
+
+	loadStarted := make(chan struct{})
+	releaseLoad := make(chan struct{})
+	d.loadConfig = func() (aghconfig.Config, error) {
+		close(loadStarted)
+		<-releaseLoad
+		return cfg, nil
+	}
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, aghconfig.HomePaths, *slog.Logger, session.Notifier) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return nopServer{}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return nopServer{}, nil
+	}
+
+	firstBoot := make(chan error, 1)
+	go func() {
+		firstBoot <- d.boot(testContext(t))
+	}()
+
+	<-loadStarted
+	if err := d.boot(testContext(t)); err == nil || !strings.Contains(err.Error(), "already booted") {
+		t.Fatalf("concurrent boot error = %v, want already booted", err)
+	}
+
+	close(releaseLoad)
+	if err := <-firstBoot; err != nil {
+		t.Fatalf("first boot error = %v", err)
+	}
+	if err := d.Shutdown(testContext(t)); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
 	}
 }
 

@@ -56,9 +56,10 @@ type Option func(*Manager)
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
-	mu       sync.RWMutex
-	sessions map[string]*Session
-	pending  map[string]struct{}
+	mu         sync.RWMutex
+	sessions   map[string]*Session
+	pending    map[string]struct{}
+	finalizing map[string]struct{}
 
 	logger        *slog.Logger
 	driver        AgentDriver
@@ -175,12 +176,13 @@ func NewManager(opts ...Option) (*Manager, error) {
 	}
 
 	manager := &Manager{
-		sessions:  make(map[string]*Session),
-		pending:   make(map[string]struct{}),
-		logger:    slog.Default(),
-		driver:    NewACPDriverAdapter(acp.New()),
-		notifier:  nopNotifier{},
-		homePaths: homePaths,
+		sessions:   make(map[string]*Session),
+		pending:    make(map[string]struct{}),
+		finalizing: make(map[string]struct{}),
+		logger:     slog.Default(),
+		driver:     NewACPDriverAdapter(acp.New()),
+		notifier:   nopNotifier{},
+		homePaths:  homePaths,
 		loadConfig: func(workspace string) (aghconfig.Config, error) {
 			if strings.TrimSpace(workspace) == "" {
 				return aghconfig.Load()
@@ -533,24 +535,25 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan Age
 		return nil, err
 	}
 
-	if session.Info().State != StateActive {
-		return nil, fmt.Errorf("session: session %q is not active", id)
-	}
-
-	proc := session.processHandle()
-	if proc == nil {
-		return nil, errors.New("session: agent process is not available")
-	}
-
 	turnID := strings.TrimSpace(m.newTurnID())
 	if turnID == "" {
 		turnID = newID("turn")
 	}
 
-	source, err := m.driver.Prompt(ctx, proc, PromptRequest{
-		TurnID:  turnID,
-		Message: message,
-	})
+	session.mu.RLock()
+	if session.State != StateActive {
+		session.mu.RUnlock()
+		return nil, fmt.Errorf("session: session %q is not active", id)
+	}
+
+	proc := session.process
+	if proc == nil {
+		session.mu.RUnlock()
+		return nil, errors.New("session: agent process is not available")
+	}
+
+	source, err := m.driver.Prompt(ctx, proc, PromptRequest{TurnID: turnID, Message: message})
+	session.mu.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("session: prompt session %q: %w", id, err)
 	}
@@ -661,6 +664,27 @@ func (m *Manager) remove(id string) {
 	defer m.mu.Unlock()
 	delete(m.sessions, id)
 	delete(m.pending, id)
+	delete(m.finalizing, id)
+}
+
+func (m *Manager) claimFinalization(session *Session) bool {
+	if session == nil {
+		return false
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	current, ok := m.sessions[session.ID]
+	if !ok || current != session {
+		return false
+	}
+	if _, ok := m.finalizing[session.ID]; ok {
+		return false
+	}
+
+	m.finalizing[session.ID] = struct{}{}
+	return true
 }
 
 func (m *Manager) effectiveMaxSessions(cfg aghconfig.Config) int {
@@ -705,7 +729,7 @@ func (m *Manager) normalizeEvent(session *Session, turnID string, event AgentEve
 	if strings.TrimSpace(normalized.TurnID) == "" {
 		normalized.TurnID = turnID
 	}
-	if strings.TrimSpace(normalized.Timestamp.Format(time.RFC3339Nano)) == "" || normalized.Timestamp.IsZero() {
+	if normalized.Timestamp.IsZero() {
 		normalized.Timestamp = m.now()
 	}
 	if session != nil {
@@ -780,7 +804,7 @@ func (m *Manager) handleProcessExit(session *Session, waitErr error) error {
 	}
 
 	state := session.Info().State
-	if state != StateActive {
+	if state != StateActive && state != StateStopping {
 		return nil
 	}
 
@@ -792,6 +816,9 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 		ctx = context.Background()
 	}
 	if session == nil {
+		return nil
+	}
+	if !m.claimFinalization(session) {
 		return nil
 	}
 

@@ -110,8 +110,16 @@ func (g *GlobalDB) UpdateSessionState(ctx context.Context, update SessionStateUp
 		}
 	}
 
-	if _, err := g.db.ExecContext(ctx, query, args...); err != nil {
+	result, err := g.db.ExecContext(ctx, query, args...)
+	if err != nil {
 		return fmt.Errorf("store: update session state %q: %w", update.ID, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: rows affected for session state %q: %w", update.ID, err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("store: session %q not found", update.ID)
 	}
 	return nil
 }
@@ -348,8 +356,7 @@ func (g *GlobalDB) UpdateTokenStats(ctx context.Context, update TokenStatsUpdate
 			id, session_id, agent_name, input_tokens, output_tokens, total_tokens,
 			total_cost, cost_currency, turn_count, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			agent_name = excluded.agent_name,
+		ON CONFLICT(session_id, agent_name) DO UPDATE SET
 			input_tokens = CASE
 				WHEN excluded.input_tokens IS NULL THEN token_stats.input_tokens
 				WHEN token_stats.input_tokens IS NULL THEN excluded.input_tokens
@@ -373,7 +380,7 @@ func (g *GlobalDB) UpdateTokenStats(ctx context.Context, update TokenStatsUpdate
 			cost_currency = COALESCE(excluded.cost_currency, token_stats.cost_currency),
 			turn_count = token_stats.turn_count + excluded.turn_count,
 			updated_at = excluded.updated_at`,
-		update.SessionID,
+		newID("tok"),
 		update.SessionID,
 		update.AgentName,
 		nullableInt64(update.InputTokens),

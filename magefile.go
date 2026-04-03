@@ -53,12 +53,14 @@ func Lint() error {
 
 // Test runs unit tests only (no integration tag).
 func Test() error {
-	return sh.RunV("go", "test", "-race", "./...")
+	return sh.RunV("go", "run", "gotest.tools/gotestsum@latest",
+		"--format", "pkgname", "--", "-race", "-parallel=4", "./...")
 }
 
 // TestIntegration runs all tests including integration tests.
 func TestIntegration() error {
-	return sh.RunV("go", "test", "-race", "-tags", "integration", "./...")
+	return sh.RunV("go", "run", "gotest.tools/gotestsum@latest",
+		"--format", "pkgname", "--", "-race", "-parallel=4", "-tags", "integration", "./...")
 }
 
 func Build() error {

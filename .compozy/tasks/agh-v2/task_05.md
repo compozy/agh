@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: Observability
 type: Feature Implementation
 scope: Full
@@ -34,12 +34,12 @@ Implement the `internal/observe` package that records session events to the glob
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Implement Notifier: OnSessionCreated registers session in global DB
-- [ ] 5.2 Implement Notifier: OnSessionStopped updates session state in global DB
-- [ ] 5.3 Implement Notifier: OnAgentEvent writes event summary + updates token stats
-- [ ] 5.4 Implement health metrics collection (active counts, uptime, DB sizes)
-- [ ] 5.5 Implement cross-session event query engine
-- [ ] 5.6 Implement boot-time reconciliation logic
+- [x] 5.1 Implement Notifier: OnSessionCreated registers session in global DB
+- [x] 5.2 Implement Notifier: OnSessionStopped updates session state in global DB
+- [x] 5.3 Implement Notifier: OnAgentEvent writes event summary + updates token stats
+- [x] 5.4 Implement health metrics collection (active counts, uptime, DB sizes)
+- [x] 5.5 Implement cross-session event query engine
+- [x] 5.6 Implement boot-time reconciliation logic
 
 ## Implementation Details
 
@@ -69,19 +69,19 @@ Create the following files:
 
 ## Tests
 - Unit tests:
-  - [ ] OnSessionCreated: registers session in global DB
-  - [ ] OnSessionStopped: updates session state to stopped
-  - [ ] OnAgentEvent: writes event summary to global DB
-  - [ ] OnAgentEvent: updates token_stats with nullable values
-  - [ ] Health metrics: returns correct active session/agent counts
-  - [ ] Cross-session query: filter by session ID
-  - [ ] Cross-session query: filter by event type
-  - [ ] Cross-session query: filter by time range
-  - [ ] Cross-session query: limit results
-  - [ ] Reconciliation: session dir not in DB gets indexed
-  - [ ] Reconciliation: DB entry with no dir gets marked orphaned
+  - [x] OnSessionCreated: registers session in global DB
+  - [x] OnSessionStopped: updates session state to stopped
+  - [x] OnAgentEvent: writes event summary to global DB
+  - [x] OnAgentEvent: updates token_stats with nullable values
+  - [x] Health metrics: returns correct active session/agent counts
+  - [x] Cross-session query: filter by session ID
+  - [x] Cross-session query: filter by event type
+  - [x] Cross-session query: filter by time range
+  - [x] Cross-session query: limit results
+  - [x] Reconciliation: session dir not in DB gets indexed
+  - [x] Reconciliation: DB entry with no dir gets marked orphaned
 - Integration tests:
-  - [ ] Full flow: notify events → query cross-session → verify results
+  - [x] Full flow: notify events → query cross-session → verify results
 - Test coverage target: >=80%
 - All tests must pass with `-race` flag
 

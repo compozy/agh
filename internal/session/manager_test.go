@@ -207,6 +207,126 @@ func TestAgentCrashTransitionsToStoppedAndNotifies(t *testing.T) {
 	}
 }
 
+func TestStopAndProcessExitFinalizeOnlyOnce(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+
+	proceed := make(chan struct{})
+	h.driver.stopHook = func(proc *fakeProcess) error {
+		proc.crash(errors.New("boom"), "stderr trace")
+		<-proceed
+		return nil
+	}
+
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- h.manager.Stop(testContext(t), session.ID)
+	}()
+
+	waitForCondition(t, "stop notification", func() bool {
+		return h.notifier.stoppedCount() == 1
+	})
+	close(proceed)
+
+	if err := <-stopDone; err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if got := h.notifier.stoppedCount(); got != 1 {
+		t.Fatalf("stopped notifications = %d, want 1", got)
+	}
+
+	reopened, err := store.OpenSessionDB(testContext(t), session.ID, session.DBPath())
+	if err != nil {
+		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
+	}
+	defer func() {
+		_ = reopened.Close(testContext(t))
+	}()
+
+	events, err := reopened.Query(testContext(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query(reopened) error = %v", err)
+	}
+	if got := countEventType(events, EventTypeSessionStopped); got != 1 {
+		t.Fatalf("countEventType(session_stopped) = %d, want 1", got)
+	}
+}
+
+func TestPromptSerializesSetupAgainstConcurrentStop(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+
+	promptEntered := make(chan struct{})
+	releasePrompt := make(chan struct{})
+	h.driver.promptHook = func(proc *fakeProcess, req PromptRequest) (<-chan AgentEvent, error) {
+		close(promptEntered)
+		<-releasePrompt
+		events := make(chan AgentEvent)
+		close(events)
+		return events, nil
+	}
+
+	promptDone := make(chan error, 1)
+	go func() {
+		eventsCh, err := h.manager.Prompt(testContext(t), session.ID, "hello")
+		if err != nil {
+			promptDone <- err
+			return
+		}
+		for range eventsCh {
+		}
+		promptDone <- nil
+	}()
+
+	<-promptEntered
+
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- h.manager.Stop(testContext(t), session.ID)
+	}()
+
+	select {
+	case err := <-stopDone:
+		t.Fatalf("Stop() returned before prompt setup finished: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(releasePrompt)
+
+	if err := <-promptDone; err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	if err := <-stopDone; err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+}
+
+func TestNormalizeEventSetsTimestampOnlyWhenZero(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	now := h.manager.now()
+
+	normalized := h.manager.normalizeEvent(session, "turn-1", AgentEvent{})
+	if normalized.Timestamp.IsZero() {
+		t.Fatal("normalizeEvent() left zero timestamp")
+	}
+
+	explicit := time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC)
+	preserved := h.manager.normalizeEvent(session, "turn-1", AgentEvent{Timestamp: explicit})
+	if !preserved.Timestamp.Equal(explicit) {
+		t.Fatalf("normalizeEvent() timestamp = %v, want %v", preserved.Timestamp, explicit)
+	}
+	if normalized.Timestamp.Before(now) {
+		t.Fatalf("normalizeEvent() timestamp = %v, want >= %v", normalized.Timestamp, now)
+	}
+}
+
 func TestListAndGet(t *testing.T) {
 	t.Parallel()
 
@@ -471,6 +591,16 @@ func containsEventType(events []store.SessionEvent, want string) bool {
 	return false
 }
 
+func countEventType(events []store.SessionEvent, want string) int {
+	count := 0
+	for _, event := range events {
+		if event.Type == want {
+			count++
+		}
+	}
+	return count
+}
+
 func waitForCondition(t *testing.T, label string, fn func() bool) {
 	t.Helper()
 
@@ -571,6 +701,7 @@ type fakeDriver struct {
 	processes        map[*AgentProcess]*fakeProcess
 	lastProc         *fakeProcess
 	promptHook       func(proc *fakeProcess, req PromptRequest) (<-chan AgentEvent, error)
+	stopHook         func(proc *fakeProcess) error
 	startHook        func(opts StartOpts, sequence int) (*fakeProcess, error)
 	fallbackOnResume bool
 }
@@ -668,10 +799,14 @@ func (d *fakeDriver) Stop(_ context.Context, proc *AgentProcess) error {
 	d.mu.Lock()
 	fakeProc := d.processes[proc]
 	d.stopCalls++
+	hook := d.stopHook
 	d.mu.Unlock()
 
 	if fakeProc == nil {
 		return errors.New("test: unknown fake process")
+	}
+	if hook != nil {
+		return hook(fakeProc)
 	}
 	fakeProc.exit()
 	return nil

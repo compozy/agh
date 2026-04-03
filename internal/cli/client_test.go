@@ -143,6 +143,13 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	if err := readAPIError(plain); err == nil || !strings.Contains(err.Error(), "plain failure") {
 		t.Fatalf("readAPIError(plain) = %v, want plain failure", err)
 	}
+
+	large := newHTTPResponse(http.StatusInternalServerError, strings.Repeat("x", 2<<20))
+	if err := readAPIError(large); err == nil {
+		t.Fatal("readAPIError(large) error = nil, want non-nil")
+	} else if len(err.Error()) > (1<<20)+128 {
+		t.Fatalf("readAPIError(large) len = %d, want capped body size", len(err.Error()))
+	}
 }
 
 func TestDecodeSSEStopsEarly(t *testing.T) {

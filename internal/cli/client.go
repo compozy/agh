@@ -571,7 +571,7 @@ func observeEventValues(query ObserveEventQuery) url.Values {
 }
 
 func readAPIError(response *http.Response) error {
-	body, err := io.ReadAll(response.Body)
+	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if err != nil {
 		return fmt.Errorf("cli: read api error response: %w", err)
 	}

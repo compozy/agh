@@ -460,6 +460,27 @@ func (h *Handlers) streamSession(c *gin.Context) {
 					return
 				}
 			}
+			if len(events) == 0 {
+				info, err := h.sessions.Status(c.Request.Context(), c.Param("id"))
+				if err != nil {
+					_ = writeSSE(writer, sseMessage{
+						Name: "error",
+						Data: errorPayload{Error: err.Error()},
+					})
+					return
+				}
+				if info != nil && info.State == session.StateStopped {
+					_ = writeSSE(writer, sseMessage{
+						Name: session.EventTypeSessionStopped,
+						Data: sessionEventPayload{
+							SessionID: info.ID,
+							Type:      session.EventTypeSessionStopped,
+							Timestamp: info.UpdatedAt,
+						},
+					})
+					return
+				}
+			}
 		}
 	}
 }

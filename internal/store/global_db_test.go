@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -153,6 +154,62 @@ func TestGlobalDBUpdateTokenStatsAggregation(t *testing.T) {
 	}
 	if stats[0].TurnCount != 2 {
 		t.Fatalf("TurnCount = %d, want 2", stats[0].TurnCount)
+	}
+}
+
+func TestGlobalDBUpdateTokenStatsKeepsPerAgentRows(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	registerSessionForGlobalTests(t, globalDB, "sess-multi-agent")
+
+	input := int64(10)
+	if err := globalDB.UpdateTokenStats(testContext(t), TokenStatsUpdate{
+		SessionID:   "sess-multi-agent",
+		AgentName:   "coder",
+		InputTokens: &input,
+	}); err != nil {
+		t.Fatalf("UpdateTokenStats(coder) error = %v", err)
+	}
+	if err := globalDB.UpdateTokenStats(testContext(t), TokenStatsUpdate{
+		SessionID:   "sess-multi-agent",
+		AgentName:   "reviewer",
+		InputTokens: &input,
+	}); err != nil {
+		t.Fatalf("UpdateTokenStats(reviewer) error = %v", err)
+	}
+
+	stats, err := globalDB.ListTokenStats(testContext(t), TokenStatsQuery{SessionID: "sess-multi-agent"})
+	if err != nil {
+		t.Fatalf("ListTokenStats() error = %v", err)
+	}
+	if got := len(stats); got != 2 {
+		t.Fatalf("len(stats) = %d, want 2", got)
+	}
+
+	byAgent := make(map[string]TokenStats, len(stats))
+	for _, stat := range stats {
+		byAgent[stat.AgentName] = stat
+	}
+	if _, ok := byAgent["coder"]; !ok {
+		t.Fatalf("missing coder stats: %#v", stats)
+	}
+	if _, ok := byAgent["reviewer"]; !ok {
+		t.Fatalf("missing reviewer stats: %#v", stats)
+	}
+}
+
+func TestGlobalDBUpdateSessionStateReturnsNotFoundForMissingSession(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+
+	err := globalDB.UpdateSessionState(testContext(t), SessionStateUpdate{
+		ID:    "missing",
+		State: "stopped",
+	})
+	if err == nil || !strings.Contains(err.Error(), `session "missing" not found`) {
+		t.Fatalf("UpdateSessionState(missing) error = %v, want missing session error", err)
 	}
 }
 

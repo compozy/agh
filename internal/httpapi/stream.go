@@ -115,6 +115,27 @@ func (h *Handlers) streamSession(c *gin.Context) {
 					return
 				}
 			}
+			if len(events) == 0 {
+				info, err := h.sessions.Status(c.Request.Context(), c.Param("id"))
+				if err != nil {
+					_ = writeSSE(writer, sseMessage{
+						Name: "error",
+						Data: errorPayload{Error: err.Error()},
+					})
+					return
+				}
+				if info != nil && info.State == session.StateStopped {
+					_ = writeSSE(writer, sseMessage{
+						Name: session.EventTypeSessionStopped,
+						Data: sessionEventPayload{
+							SessionID: info.ID,
+							Type:      session.EventTypeSessionStopped,
+							Timestamp: info.UpdatedAt,
+						},
+					})
+					return
+				}
+			}
 		}
 	}
 }
@@ -319,9 +340,15 @@ func writeSSERaw(writer flushWriter, id string, raw string, names ...string) err
 }
 
 func respondError(c *gin.Context, status int, err error) {
-	message := "unknown error"
-	if err != nil {
+	message := http.StatusText(status)
+	if status >= http.StatusInternalServerError {
+		if strings.TrimSpace(message) == "" {
+			message = "internal server error"
+		}
+	} else if err != nil && strings.TrimSpace(err.Error()) != "" {
 		message = err.Error()
+	} else if strings.TrimSpace(message) == "" {
+		message = "unknown error"
 	}
 	c.JSON(status, errorPayload{Error: message})
 }

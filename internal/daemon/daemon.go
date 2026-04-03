@@ -30,6 +30,8 @@ import (
 const (
 	defaultShutdownTimeout = 10 * time.Second
 	moduleImportPath       = "github.com/pedronauck/agh"
+	orphanCleanupGraceWait = 2 * time.Second
+	orphanCleanupPollWait  = 100 * time.Millisecond
 )
 
 // Option customizes daemon construction.
@@ -126,6 +128,9 @@ type Daemon struct {
 	getenv            func(string) string
 	readyCh           chan struct{}
 	readyClosed       bool
+	booting           bool
+	orphanGraceWait   time.Duration
+	orphanPollWait    time.Duration
 	config            aghconfig.Config
 	startedAt         time.Time
 	info              Info
@@ -305,6 +310,12 @@ func New(opts ...Option) (*Daemon, error) {
 			return loadConfigFromHome(d.homePaths)
 		}
 	}
+	if d.orphanGraceWait <= 0 {
+		d.orphanGraceWait = orphanCleanupGraceWait
+	}
+	if d.orphanPollWait <= 0 {
+		d.orphanPollWait = orphanCleanupPollWait
+	}
 
 	return d, nil
 }
@@ -356,6 +367,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	d.observer = nil
 	d.registry = nil
 	d.lock = nil
+	d.booting = false
 	d.info = Info{}
 	d.startedAt = time.Time{}
 	d.closeLogger = func() error { return nil }
@@ -432,11 +444,20 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 
 	d.mu.Lock()
-	if d.lock != nil || d.registry != nil || d.sessions != nil || d.observer != nil {
+	if d.booting || d.lock != nil || d.registry != nil || d.sessions != nil || d.observer != nil {
 		d.mu.Unlock()
 		return errors.New("daemon: already booted")
 	}
+	d.booting = true
 	d.mu.Unlock()
+	defer func() {
+		if err == nil {
+			return
+		}
+		d.mu.Lock()
+		d.booting = false
+		d.mu.Unlock()
+	}()
 
 	cfg, err := d.loadConfig()
 	if err != nil {
@@ -595,6 +616,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	d.config = cfg
 	d.logger = logger
 	d.closeLogger = closeLogger
+	d.booting = false
 	d.lock = lock
 	d.registry = registry
 	d.sessions = sessions
@@ -680,6 +702,9 @@ func (d *Daemon) cleanupOrphans(ctx context.Context, stalePID int) error {
 			errs = append(errs, fmt.Errorf("daemon: terminate orphan process %d: %w", proc.PID, err))
 			continue
 		}
+		if d.waitForProcessExit(ctx, proc.PID) {
+			continue
+		}
 		if d.processAlive(proc.PID) {
 			if err := d.signalProcess(proc.PID, syscall.SIGKILL); err != nil {
 				errs = append(errs, fmt.Errorf("daemon: kill orphan process %d: %w", proc.PID, err))
@@ -688,6 +713,36 @@ func (d *Daemon) cleanupOrphans(ctx context.Context, stalePID int) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+func (d *Daemon) waitForProcessExit(ctx context.Context, pid int) bool {
+	if pid <= 0 {
+		return true
+	}
+	if !d.processAlive(pid) {
+		return true
+	}
+	if d.orphanGraceWait <= 0 || d.orphanPollWait <= 0 {
+		return !d.processAlive(pid)
+	}
+
+	timer := time.NewTimer(d.orphanGraceWait)
+	ticker := time.NewTicker(d.orphanPollWait)
+	defer timer.Stop()
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return !d.processAlive(pid)
+		case <-ticker.C:
+			if !d.processAlive(pid) {
+				return true
+			}
+		case <-timer.C:
+			return !d.processAlive(pid)
+		}
+	}
 }
 
 func removeStaleSocket(path string) error {

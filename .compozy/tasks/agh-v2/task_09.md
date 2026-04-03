@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: API
 type: Feature Implementation
 scope: Full
@@ -41,15 +41,15 @@ Implement the `internal/httpapi` package — the Gin HTTP/SSE server that expose
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Implement Gin server setup with middleware (logging, error handling, CORS)
-- [ ] 9.2 Implement session REST endpoints (create, list, get, stop, resume, events, history)
-- [ ] 9.3 Implement session prompt endpoint with SSE streaming
-- [ ] 9.4 Implement session stream endpoint (long-lived SSE with Last-Event-ID)
-- [ ] 9.5 Implement agent endpoints (list, info)
-- [ ] 9.6 Implement observe endpoints (events, events/stream, health)
-- [ ] 9.7 Implement daemon status endpoint
-- [ ] 9.8 Implement permission approval endpoint
-- [ ] 9.9 Implement graceful shutdown
+- [x] 9.1 Implement Gin server setup with middleware (logging, error handling, CORS)
+- [x] 9.2 Implement session REST endpoints (create, list, get, stop, resume, events, history)
+- [x] 9.3 Implement session prompt endpoint with SSE streaming
+- [x] 9.4 Implement session stream endpoint (long-lived SSE with Last-Event-ID)
+- [x] 9.5 Implement agent endpoints (list, info)
+- [x] 9.6 Implement observe endpoints (events, events/stream, health)
+- [x] 9.7 Implement daemon status endpoint
+- [x] 9.8 Implement permission approval endpoint
+- [x] 9.9 Implement graceful shutdown
 
 ## Implementation Details
 
@@ -82,20 +82,20 @@ Create the following files:
 
 ## Tests
 - Unit tests:
-  - [ ] Route registration covers all endpoints from TechSpec
-  - [ ] Session create: valid request returns session ID with 201
-  - [ ] Session create: missing agent returns 400
-  - [ ] Session list: returns all sessions with correct format
-  - [ ] Session stop: returns 200, session state becomes stopped
-  - [ ] Agent list: returns available agents from config
-  - [ ] Health: returns correct metrics structure
-  - [ ] Error responses: consistent JSON error format
+  - [x] Route registration covers all endpoints from TechSpec
+  - [x] Session create: valid request returns session ID with 201
+  - [x] Session create: missing agent returns 400
+  - [x] Session list: returns all sessions with correct format
+  - [x] Session stop: returns 200, session state becomes stopped
+  - [x] Agent list: returns available agents from config
+  - [x] Health: returns correct metrics structure
+  - [x] Error responses: consistent JSON error format
 - Integration tests:
-  - [ ] Full HTTP round-trip: POST create → GET list → POST prompt (SSE) → GET events
-  - [ ] SSE prompt stream: receives agent_message, tool_call, done events
-  - [ ] SSE session stream: receives events with sequence IDs
-  - [ ] SSE reconnection: Last-Event-ID resumes from correct sequence
-  - [ ] CORS headers present on responses
+  - [x] Full HTTP round-trip: POST create → GET list → POST prompt (SSE) → GET events
+  - [x] SSE prompt stream: receives agent_message, tool_call, done events
+  - [x] SSE session stream: receives events with sequence IDs
+  - [x] SSE reconnection: Last-Event-ID resumes from correct sequence
+  - [x] CORS headers present on responses
 - Test coverage target: >=80%
 - All tests must pass with `-race` flag
 

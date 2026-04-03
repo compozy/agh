@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: CLI
 type: Feature Implementation
 scope: Full
@@ -45,16 +45,16 @@ Implement the `internal/cli` package — Cobra-based CLI commands that communica
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Implement root command and global flags (-o output format)
-- [ ] 8.2 Implement UDS client (HTTP client over unix socket)
-- [ ] 8.3 Implement daemon commands (start with detachment, stop, status)
-- [ ] 8.4 Implement session commands (new, list, stop, status, resume, wait, prompt, events, history)
-- [ ] 8.5 Implement agent commands (list, info)
-- [ ] 8.6 Implement observe commands (events with --follow, health)
-- [ ] 8.7 Implement whoami command (reads env vars)
-- [ ] 8.8 Implement output formatters: human, json, toon
-- [ ] 8.9 Implement --since time parsing (RFC3339 + relative durations)
-- [ ] 8.10 Implement --follow via SSE over UDS
+- [x] 8.1 Implement root command and global flags (-o output format)
+- [x] 8.2 Implement UDS client (HTTP client over unix socket)
+- [x] 8.3 Implement daemon commands (start with detachment, stop, status)
+- [x] 8.4 Implement session commands (new, list, stop, status, resume, wait, prompt, events, history)
+- [x] 8.5 Implement agent commands (list, info)
+- [x] 8.6 Implement observe commands (events with --follow, health)
+- [x] 8.7 Implement whoami command (reads env vars)
+- [x] 8.8 Implement output formatters: human, json, toon
+- [x] 8.9 Implement --since time parsing (RFC3339 + relative durations)
+- [x] 8.10 Implement --follow via SSE over UDS
 
 ## Implementation Details
 
@@ -91,18 +91,18 @@ Create the following files:
 
 ## Tests
 - Unit tests:
-  - [ ] Output formatter: human format produces styled table
-  - [ ] Output formatter: json format produces valid JSON
-  - [ ] Output formatter: toon format produces TOON output
-  - [ ] Time parsing: RFC3339 timestamps parsed correctly
-  - [ ] Time parsing: relative durations (5m, 1h, 24h) converted correctly
-  - [ ] Whoami: reads correct env vars
-  - [ ] Session new: requires --agent flag
-  - [ ] Session events: --follow flag sets SSE mode
+  - [x] Output formatter: human format produces styled table
+  - [x] Output formatter: json format produces valid JSON
+  - [x] Output formatter: toon format produces TOON output
+  - [x] Time parsing: RFC3339 timestamps parsed correctly
+  - [x] Time parsing: relative durations (5m, 1h, 24h) converted correctly
+  - [x] Whoami: reads correct env vars
+  - [x] Session new: requires --agent flag
+  - [x] Session events: --follow flag sets SSE mode
 - Integration tests:
-  - [ ] Full CLI round-trip: daemon start → session new → prompt → events → session stop → daemon stop
-  - [ ] All output formats produce valid output for session list
-  - [ ] --follow mode: receives streaming events and exits on disconnect
+  - [x] Full CLI round-trip: daemon start → session new → prompt → events → session stop → daemon stop
+  - [x] All output formats produce valid output for session list
+  - [x] --follow mode: receives streaming events and exits on disconnect
 - Test coverage target: >=80%
 - All tests must pass with `-race` flag
 

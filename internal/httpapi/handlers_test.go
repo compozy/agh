@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"sort"
 	"testing"
 	"time"
@@ -390,12 +391,15 @@ func TestCORSHeadersPresentOnResponses(t *testing.T) {
 		},
 	}, stubObserver{}, homePaths))
 
-	recorder := performRequestWithHeaders(t, engine, http.MethodGet, "/api/sessions", nil, map[string]string{"Origin": "https://example.com"})
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/sessions", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Fatalf("Access-Control-Allow-Origin = %q, want *", got)
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, "http://localhost:3000")
 	}
 }
 

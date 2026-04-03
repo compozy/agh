@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: API
 type: Feature Implementation
 scope: Full
@@ -37,13 +37,13 @@ Implement the `internal/udsapi` package — the Unix Domain Socket server that e
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Implement UDS server with Gin and unix socket listener
-- [ ] 7.2 Implement session endpoints (create, list, stop, status, resume, prompt, events, history, stream)
-- [ ] 7.3 Implement agent endpoints (list, info)
-- [ ] 7.4 Implement observe endpoints (events, events/stream, health)
-- [ ] 7.5 Implement daemon status endpoint
-- [ ] 7.6 Implement SSE streaming over UDS for follow/wait patterns
-- [ ] 7.7 Implement graceful shutdown with connection draining
+- [x] 7.1 Implement UDS server with Gin and unix socket listener
+- [x] 7.2 Implement session endpoints (create, list, stop, status, resume, prompt, events, history, stream)
+- [x] 7.3 Implement agent endpoints (list, info)
+- [x] 7.4 Implement observe endpoints (events, events/stream, health)
+- [x] 7.5 Implement daemon status endpoint
+- [x] 7.6 Implement SSE streaming over UDS for follow/wait patterns
+- [x] 7.7 Implement graceful shutdown with connection draining
 
 ## Implementation Details
 
@@ -69,20 +69,20 @@ Create the following files:
 
 ## Tests
 - Unit tests:
-  - [ ] Route registration covers all endpoints from TechSpec
-  - [ ] Session create handler: valid request returns session ID
-  - [ ] Session list handler: returns all sessions
-  - [ ] Session prompt handler: returns SSE stream
-  - [ ] Session events handler: returns filtered events
-  - [ ] Agent list handler: returns available agents
-  - [ ] Health handler: returns metrics
-  - [ ] Daemon status handler: returns running state
+  - [x] Route registration covers all endpoints from TechSpec
+  - [x] Session create handler: valid request returns session ID
+  - [x] Session list handler: returns all sessions
+  - [x] Session prompt handler: returns SSE stream
+  - [x] Session events handler: returns filtered events
+  - [x] Agent list handler: returns available agents
+  - [x] Health handler: returns metrics
+  - [x] Daemon status handler: returns running state
 - Integration tests:
-  - [ ] Full round-trip: client → UDS → handler → session Manager → response
-  - [ ] SSE streaming over UDS: subscribe, receive events, disconnect
-  - [ ] Server starts on socket path, client connects, exchanges messages
-  - [ ] Graceful shutdown: in-flight requests complete, then server stops
-  - [ ] SSE reconnection: Last-Event-ID resumes from correct sequence (parity with HTTP API)
+  - [x] Full round-trip: client → UDS → handler → session Manager → response
+  - [x] SSE streaming over UDS: subscribe, receive events, disconnect
+  - [x] Server starts on socket path, client connects, exchanges messages
+  - [x] Graceful shutdown: in-flight requests complete, then server stops
+  - [x] SSE reconnection: Last-Event-ID resumes from correct sequence (parity with HTTP API)
 - Test coverage target: >=80%
 - All tests must pass with `-race` flag
 

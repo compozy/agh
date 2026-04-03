@@ -158,7 +158,7 @@ func newTestRouter(t *testing.T, handlers *Handlers) *gin.Engine {
 	engine := gin.New()
 	engine.Use(gin.Recovery())
 	engine.Use(requestLoggingMiddleware(discardLogger()))
-	engine.Use(corsMiddleware())
+	engine.Use(corsMiddleware("127.0.0.1"))
 	engine.Use(errorMiddleware())
 	RegisterRoutes(engine, handlers)
 	return engine

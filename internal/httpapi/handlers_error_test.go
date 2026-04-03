@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -182,6 +183,64 @@ func TestAgentObserveHealthAndDaemonStatusErrorPaths(t *testing.T) {
 	statusResp := performRequest(t, statusEngine, http.MethodGet, "/api/daemon/status", nil)
 	if statusResp.Code != http.StatusInternalServerError {
 		t.Fatalf("daemon status = %d, want %d", statusResp.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestCORSMiddlewareRejectsDisallowedOrigins(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/sessions", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want empty", got)
+	}
+}
+
+func TestCORSMiddlewareAllowsLoopbackOrigins(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+			return nil, nil
+		},
+	}, stubObserver{}, homePaths))
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/sessions", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, "http://localhost:3000")
+	}
+}
+
+func TestRespondErrorSanitizesInternalFailures(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+			return nil, errors.New("secret internal path")
+		},
+	}, stubObserver{}, homePaths))
+
+	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions", nil)
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	}
+
+	var payload errorPayload
+	decodeJSONResponse(t, recorder, &payload)
+	if payload.Error != http.StatusText(http.StatusInternalServerError) {
+		t.Fatalf("error payload = %q, want %q", payload.Error, http.StatusText(http.StatusInternalServerError))
 	}
 }
 

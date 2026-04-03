@@ -80,6 +80,7 @@ var globalSchemaStatements = []string{
 		updated_at    TEXT NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_token_stats_session ON token_stats(session_id);`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_token_stats_session_agent ON token_stats(session_id, agent_name);`,
 	`CREATE TABLE IF NOT EXISTS permission_log (
 		id          TEXT PRIMARY KEY,
 		session_id  TEXT NOT NULL REFERENCES sessions(id),

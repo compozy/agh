@@ -205,6 +205,9 @@ type activePromptState struct {
 	events   chan AgentEvent
 	activity chan struct{}
 
+	sendMu sync.Mutex
+	closed bool
+
 	usageMu sync.Mutex
 	usage   TokenUsage
 }
@@ -280,10 +283,20 @@ func (p *AgentProcess) beginPrompt(turnID string, bufferSize int) (*activePrompt
 }
 
 func (p *AgentProcess) endPrompt(active *activePromptState) {
+	if active == nil {
+		return
+	}
+
 	p.promptMu.Lock()
-	defer p.promptMu.Unlock()
 	if p.activePrompt == active {
 		p.activePrompt = nil
+	}
+	p.promptMu.Unlock()
+
+	active.sendMu.Lock()
+	defer active.sendMu.Unlock()
+	if !active.closed {
+		active.closed = true
 		close(active.events)
 	}
 }
@@ -297,8 +310,14 @@ func (p *AgentProcess) currentPrompt() *activePromptState {
 func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
 	p.promptMu.RLock()
 	active := p.activePrompt
+	p.promptMu.RUnlock()
 	if active == nil {
-		p.promptMu.RUnlock()
+		return
+	}
+
+	active.sendMu.Lock()
+	defer active.sendMu.Unlock()
+	if active.closed {
 		return
 	}
 	active.events <- event
@@ -306,7 +325,6 @@ func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
 	case active.activity <- struct{}{}:
 	default:
 	}
-	p.promptMu.RUnlock()
 }
 
 func (p *AgentProcess) mergePromptUsage(update TokenUsage) TokenUsage {
@@ -327,7 +345,7 @@ func (p *AgentProcess) mergePromptUsage(update TokenUsage) TokenUsage {
 func (b *lockedBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.b = append(b.b, p...)
+	b.b = appendBounded(b.b, p, defaultTerminalOutputLimit)
 	return len(p), nil
 }
 
@@ -335,6 +353,19 @@ func (b *lockedBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return string(b.b)
+}
+
+func appendBounded(dst []byte, src []byte, limit int) []byte {
+	if limit <= 0 {
+		return nil
+	}
+
+	combined := append(dst, src...)
+	if len(combined) <= limit {
+		return combined
+	}
+
+	return append([]byte(nil), combined[len(combined)-limit:]...)
 }
 
 func firstNonBlank(values ...string) string {

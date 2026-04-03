@@ -10,14 +10,14 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 
 	providers := BuiltinProviders()
 	tests := map[string]string{
-		"claude":   "npx -y @agentclientprotocol/claude-agent-acp@^0.24.2",
-		"codex":    "npx @zed-industries/codex-acp@^0.10.0",
+		"claude":   "npx -y @agentclientprotocol/claude-agent-acp@0.24.2",
+		"codex":    "npx @zed-industries/codex-acp@0.10.0",
 		"gemini":   "gemini --acp",
 		"opencode": "npx -y opencode-ai acp",
 		"copilot":  "copilot --acp --stdio",
 		"cursor":   "cursor-agent acp",
 		"kiro":     "kiro-cli-chat acp",
-		"pi":       "npx pi-acp@^0.0.22",
+		"pi":       "npx pi-acp@0.0.22",
 	}
 
 	for name, want := range tests {

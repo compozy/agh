@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: Runtime
 type: Feature Implementation
 scope: Full
@@ -40,15 +40,15 @@ Implement the `internal/session` package — the core orchestration layer that m
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Define interfaces: AgentDriver, EventRecorder, Notifier
-- [ ] 4.2 Implement Session struct with state machine and thread-safe state transitions
-- [ ] 4.3 Implement Manager with functional options (WithDriver, WithStore, WithNotifier, WithLogger, etc.)
-- [ ] 4.4 Implement Create flow: resolve agent def → open per-session DB → spawn agent → initialize → session/new
-- [ ] 4.5 Implement Stop flow: cancel agent → close DB → update state → notify
-- [ ] 4.6 Implement Resume flow: load meta.json → spawn → try session/load → fallback
-- [ ] 4.7 Implement Prompt flow: forward to agent → stream events → record → notify
-- [ ] 4.8 Implement agent crash handling (detect via AgentDriver, transition state, notify)
-- [ ] 4.9 Implement List and Get operations with thread-safe access
+- [x] 4.1 Define interfaces: AgentDriver, EventRecorder, Notifier
+- [x] 4.2 Implement Session struct with state machine and thread-safe state transitions
+- [x] 4.3 Implement Manager with functional options (WithDriver, WithStore, WithNotifier, WithLogger, etc.)
+- [x] 4.4 Implement Create flow: resolve agent def → open per-session DB → spawn agent → initialize → session/new
+- [x] 4.5 Implement Stop flow: cancel agent → close DB → update state → notify
+- [x] 4.6 Implement Resume flow: load meta.json → spawn → try session/load → fallback
+- [x] 4.7 Implement Prompt flow: forward to agent → stream events → record → notify
+- [x] 4.8 Implement agent crash handling (detect via AgentDriver, transition state, notify)
+- [x] 4.9 Implement List and Get operations with thread-safe access
 
 ## Implementation Details
 
@@ -79,22 +79,22 @@ Create the following files:
 
 ## Tests
 - Unit tests:
-  - [ ] State machine: valid transitions (starting→active, active→stopping, stopping→stopped)
-  - [ ] State machine: invalid transitions rejected (stopped→active)
-  - [ ] Create: opens per-session DB, registers in manager, state becomes active
-  - [ ] Stop: transitions to stopped, closes DB, calls Notifier.OnSessionStopped
-  - [ ] Resume: loads meta.json, spawns agent, tries session/load, updates ACPSessionID
-  - [ ] Resume fallback: session/load fails → falls back to session/new
-  - [ ] Prompt: streams events from AgentDriver to EventRecorder and Notifier
-  - [ ] Agent crash: detected, state transitions to stopped, Notifier called
-  - [ ] List: returns all sessions info
-  - [ ] Get: returns session by ID, returns false for unknown ID
-  - [ ] Thread safety: concurrent Create/Stop/Get operations
-  - [ ] Limits enforcement: Create returns error when max_sessions reached
-  - [ ] MCP servers merged correctly and passed to ACP session/new
+  - [x] State machine: valid transitions (starting→active, active→stopping, stopping→stopped)
+  - [x] State machine: invalid transitions rejected (stopped→active)
+  - [x] Create: opens per-session DB, registers in manager, state becomes active
+  - [x] Stop: transitions to stopped, closes DB, calls Notifier.OnSessionStopped
+  - [x] Resume: loads meta.json, spawns agent, tries session/load, updates ACPSessionID
+  - [x] Resume fallback: session/load fails → falls back to session/new
+  - [x] Prompt: streams events from AgentDriver to EventRecorder and Notifier
+  - [x] Agent crash: detected, state transitions to stopped, Notifier called
+  - [x] List: returns all sessions info
+  - [x] Get: returns session by ID, returns false for unknown ID
+  - [x] Thread safety: concurrent Create/Stop/Get operations
+  - [x] Limits enforcement: Create returns error when max_sessions reached
+  - [x] MCP servers merged correctly and passed to ACP session/new
 - Integration tests:
-  - [ ] Full lifecycle: Create → Prompt → events recorded → Stop → Resume → Prompt again
-  - [ ] Manager with mock driver and real SQLite per-session DB
+  - [x] Full lifecycle: Create → Prompt → events recorded → Stop → Resume → Prompt again
+  - [x] Manager with mock driver and real SQLite per-session DB
 - Test coverage target: >=80%
 - All tests must pass with `-race` flag
 

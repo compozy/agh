@@ -37,12 +37,12 @@ type ResolvedAgent struct {
 
 var builtinProviders = map[string]ProviderConfig{
 	"claude": {
-		Command:      "npx -y @agentclientprotocol/claude-agent-acp@^0.24.2",
+		Command:      "npx -y @agentclientprotocol/claude-agent-acp@0.24.2",
 		DefaultModel: "claude-sonnet-4-20250514",
 		APIKeyEnv:    "ANTHROPIC_API_KEY",
 	},
 	"codex": {
-		Command:      "npx @zed-industries/codex-acp@^0.10.0",
+		Command:      "npx @zed-industries/codex-acp@0.10.0",
 		DefaultModel: "gpt-4o",
 		APIKeyEnv:    "OPENAI_API_KEY",
 	},
@@ -64,7 +64,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Command: "kiro-cli-chat acp",
 	},
 	"pi": {
-		Command: "npx pi-acp@^0.0.22",
+		Command: "npx pi-acp@0.0.22",
 	},
 }
 

@@ -465,7 +465,9 @@ func (d *Driver) waitForPromptQuiescence(active *activePromptState) {
 		return
 	}
 	timer := time.NewTimer(d.promptDrainWait)
+	maxTimer := time.NewTimer(2 * d.promptDrainWait)
 	defer timer.Stop()
+	defer maxTimer.Stop()
 
 	for {
 		select {
@@ -478,6 +480,8 @@ func (d *Driver) waitForPromptQuiescence(active *activePromptState) {
 			}
 			timer.Reset(d.promptDrainWait)
 		case <-timer.C:
+			return
+		case <-maxTimer.C:
 			return
 		}
 	}

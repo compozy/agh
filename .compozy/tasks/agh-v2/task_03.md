@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: Runtime
 type: Feature Implementation
 scope: Full
@@ -38,16 +38,16 @@ Implement the `internal/acp` package — the ACP (Agent Client Protocol) client 
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Define ACP client types (AgentProcess, StartOpts, PromptRequest, AgentEvent, ACPCaps, TokenUsage)
-- [ ] 3.2 Implement subprocess spawning from provider command string (split command, set env, pipe stdio)
-- [ ] 3.3 Implement ACP initialize handshake and capability capture
-- [ ] 3.4 Implement session/new with cwd and mcpServers
-- [ ] 3.5 Implement session/prompt with streaming AgentEvent channel from session/update notifications
-- [ ] 3.6 Implement session/load for resume and session/cancel for cancellation
-- [ ] 3.7 Implement agent-to-client request handlers (fs/*, terminal/*, request_permission)
-- [ ] 3.8 Implement permission policy enforcement with path sandboxing
-- [ ] 3.9 Implement process crash detection and cleanup
-- [ ] 3.10 Implement token usage capture from PromptResponse and usage_update
+- [x] 3.1 Define ACP client types (AgentProcess, StartOpts, PromptRequest, AgentEvent, ACPCaps, TokenUsage)
+- [x] 3.2 Implement subprocess spawning from provider command string (split command, set env, pipe stdio)
+- [x] 3.3 Implement ACP initialize handshake and capability capture
+- [x] 3.4 Implement session/new with cwd and mcpServers
+- [x] 3.5 Implement session/prompt with streaming AgentEvent channel from session/update notifications
+- [x] 3.6 Implement session/load for resume and session/cancel for cancellation
+- [x] 3.7 Implement agent-to-client request handlers (fs/*, terminal/*, request_permission)
+- [x] 3.8 Implement permission policy enforcement with path sandboxing
+- [x] 3.9 Implement process crash detection and cleanup
+- [x] 3.10 Implement token usage capture from PromptResponse and usage_update
 
 ## Implementation Details
 
@@ -80,20 +80,20 @@ The `acp` package exports types that satisfy the `session.AgentDriver` interface
 
 ## Tests
 - Unit tests:
-  - [ ] Parse provider command string into executable + args correctly
-  - [ ] Permission policy: deny-all rejects all operations
-  - [ ] Permission policy: approve-reads allows readTextFile, denies writeTextFile
-  - [ ] Permission policy: approve-all allows all operations
-  - [ ] Path sandboxing: paths within cwd allowed
-  - [ ] Path sandboxing: paths outside cwd denied (including ../ traversal)
-  - [ ] Token usage: parse PromptResponse.usage with all fields
-  - [ ] Token usage: handle nil/missing fields gracefully
-  - [ ] AgentEvent channel receives streamed session/update notifications
-  - [ ] Process crash detected and reported correctly
+  - [x] Parse provider command string into executable + args correctly
+  - [x] Permission policy: deny-all rejects all operations
+  - [x] Permission policy: approve-reads allows readTextFile, denies writeTextFile
+  - [x] Permission policy: approve-all allows all operations
+  - [x] Path sandboxing: paths within cwd allowed
+  - [x] Path sandboxing: paths outside cwd denied (including ../ traversal)
+  - [x] Token usage: parse PromptResponse.usage with all fields
+  - [x] Token usage: handle nil/missing fields gracefully
+  - [x] AgentEvent channel receives streamed session/update notifications
+  - [x] Process crash detected and reported correctly
 - Integration tests:
-  - [ ] Full ACP round-trip with mock server: initialize → session/new → session/prompt → session/update → done
-  - [ ] Mock server sending fs/readTextFile request, client responds correctly
-  - [ ] Mock server sending request_permission, client applies policy
+  - [x] Full ACP round-trip with mock server: initialize → session/new → session/prompt → session/update → done
+  - [x] Mock server sending fs/readTextFile request, client responds correctly
+  - [x] Mock server sending request_permission, client applies policy
 - Test coverage target: >=80%
 - All tests must pass with `-race` flag
 

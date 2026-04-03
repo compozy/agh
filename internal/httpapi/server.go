@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -252,7 +253,7 @@ func New(opts ...Option) (*Server, error) {
 		server.engine = gin.New()
 		server.engine.Use(gin.Recovery())
 		server.engine.Use(requestLoggingMiddleware(server.logger))
-		server.engine.Use(corsMiddleware())
+		server.engine.Use(corsMiddleware(server.host))
 		server.engine.Use(errorMiddleware())
 	}
 
@@ -504,20 +505,84 @@ func requestLoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
 	}
 }
 
-func corsMiddleware() gin.HandlerFunc {
+func corsMiddleware(boundHost string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		headers := c.Writer.Header()
-		headers.Set("Access-Control-Allow-Origin", "*")
 		headers.Set("Access-Control-Allow-Headers", "Content-Type, Last-Event-ID, Accept")
 		headers.Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		headers.Set("Access-Control-Expose-Headers", "Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream")
 		headers.Set("Vary", "Origin")
+		if origin != "" {
+			allowedOrigin, ok := resolveAllowedOrigin(origin, c.Request.Host, boundHost)
+			if !ok {
+				c.AbortWithStatusJSON(http.StatusForbidden, errorPayload{Error: "origin not allowed"})
+				return
+			}
+			headers.Set("Access-Control-Allow-Origin", allowedOrigin)
+		}
 
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
 		c.Next()
+	}
+}
+
+func resolveAllowedOrigin(origin string, requestHost string, boundHost string) (string, bool) {
+	parsed, err := url.Parse(strings.TrimSpace(origin))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", false
+	}
+
+	originHost := canonicalHost(parsed.Hostname())
+	requestHostname := canonicalHost(hostOnly(requestHost))
+	boundHostname := canonicalHost(hostOnly(boundHost))
+
+	switch {
+	case originHost == "" || requestHostname == "":
+		return "", false
+	case originHost == requestHostname:
+		return origin, true
+	case isLoopbackHost(originHost) && isLoopbackHost(requestHostname):
+		return origin, true
+	case boundHostname != "" && !isWildcardHost(boundHostname) && originHost == boundHostname:
+		return origin, true
+	default:
+		return "", false
+	}
+}
+
+func hostOnly(value string) string {
+	host := strings.TrimSpace(value)
+	if host == "" {
+		return ""
+	}
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		return parsedHost
+	}
+	return host
+}
+
+func canonicalHost(value string) string {
+	return strings.Trim(strings.TrimSpace(value), "[]")
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func isWildcardHost(host string) bool {
+	switch host {
+	case "", "0.0.0.0", "::":
+		return true
+	default:
+		return false
 	}
 }
 

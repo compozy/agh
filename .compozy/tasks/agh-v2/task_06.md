@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: Infrastructure
 type: Feature Implementation
 scope: Full
@@ -42,15 +42,15 @@ Implement the `internal/daemon` package — the sole composition root that wires
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Implement daemon lock acquisition with stale PID detection
-- [ ] 6.2 Implement daemon.json write/read/cleanup
-- [ ] 6.3 Implement boot sequence: config → lock → global DB → providers → session manager → Notifier wiring
-- [ ] 6.4 Implement graceful shutdown with ordered teardown
-- [ ] 6.5 Implement signal handling (SIGINT, SIGTERM)
-- [ ] 6.6 Implement Run() that starts all servers and blocks
-- [ ] 6.7 Wire reconciliation on boot
-- [ ] 6.8 Implement orphan agent process cleanup on daemon restart (scan for processes whose parent PID matches stale daemon)
-- [ ] 6.9 Add `Boundaries()` verification to boot sequence (optional: log warnings if import violations detected in dev mode)
+- [x] 6.1 Implement daemon lock acquisition with stale PID detection
+- [x] 6.2 Implement daemon.json write/read/cleanup
+- [x] 6.3 Implement boot sequence: config → lock → global DB → providers → session manager → Notifier wiring
+- [x] 6.4 Implement graceful shutdown with ordered teardown
+- [x] 6.5 Implement signal handling (SIGINT, SIGTERM)
+- [x] 6.6 Implement Run() that starts all servers and blocks
+- [x] 6.7 Wire reconciliation on boot
+- [x] 6.8 Implement orphan agent process cleanup on daemon restart (scan for processes whose parent PID matches stale daemon)
+- [x] 6.9 Add `Boundaries()` verification to boot sequence (optional: log warnings if import violations detected in dev mode)
 
 ## Implementation Details
 
