@@ -1,6 +1,5 @@
-import { Bot, Search, Settings, Terminal } from "lucide-react";
+import { Bot, Loader2, Search, Settings, Terminal } from "lucide-react";
 
-import { ConnectionIndicator } from "@/components/design-system/connection-indicator";
 import {
   Sidebar,
   SidebarContent,
@@ -16,8 +15,63 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Kbd } from "@/components/ui/kbd";
+import { AgentSidebarGroup } from "@/systems/agent/components/agent-sidebar-group";
+import { useAgents } from "@/systems/agent/hooks/use-agents";
+import { ConnectionStatus } from "@/systems/daemon/components/connection-status";
+import { useDaemonHealth } from "@/systems/daemon/hooks/use-daemon-health";
+
+function AgentsList() {
+  const { data: agents, isLoading, isError } = useAgents();
+
+  if (isLoading) {
+    return (
+      <SidebarGroup>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Loading agents...">
+                <Loader2 className="size-4 animate-spin text-[color:var(--ds-text-muted)]" />
+                <span className="text-[color:var(--ds-text-muted)]">Loading agents...</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  }
+
+  if (isError || !agents || agents.length === 0) {
+    return (
+      <SidebarGroup>
+        <SidebarGroupLabel className="font-mono text-[0.64rem] uppercase tracking-[0.22em] text-[color:var(--ds-text-mono)]">
+          Agents
+        </SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="No agents loaded">
+                <Bot className="size-4 text-[color:var(--ds-text-muted)]" />
+                <span className="text-[color:var(--ds-text-muted)]">No agents loaded</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  }
+
+  return (
+    <>
+      {agents.map(agent => (
+        <AgentSidebarGroup key={agent.name} agent={agent} />
+      ))}
+    </>
+  );
+}
 
 function AppSidebar() {
+  const { connectionStatus } = useDaemonHealth();
+
   return (
     <Sidebar side="left" collapsible="icon">
       <SidebarHeader>
@@ -48,21 +102,7 @@ function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="font-mono text-[0.64rem] uppercase tracking-[0.22em] text-[color:var(--ds-text-mono)]">
-            Agents
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="No agents loaded">
-                  <Bot className="size-4 text-[color:var(--ds-text-muted)]" />
-                  <span className="text-[color:var(--ds-text-muted)]">No agents loaded</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <AgentsList />
 
         <SidebarSeparator />
 
@@ -86,7 +126,7 @@ function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Connection status">
-              <ConnectionIndicator status="disconnected" />
+              <ConnectionStatus status={connectionStatus} />
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

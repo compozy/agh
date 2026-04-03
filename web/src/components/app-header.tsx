@@ -6,8 +6,12 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
+import { ConnectionStatus } from "@/systems/daemon/components/connection-status";
+import { useDaemonHealth } from "@/systems/daemon/hooks/use-daemon-health";
 
 function AppHeader() {
+  const { connectionStatus } = useDaemonHealth();
+
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-[color:var(--ds-line-subtle)] px-4">
       <SidebarTrigger className="-ml-1" />
@@ -21,6 +25,9 @@ function AppHeader() {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
+      <div className="ml-auto">
+        <ConnectionStatus status={connectionStatus} />
+      </div>
     </header>
   );
 }

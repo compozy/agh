@@ -5,7 +5,7 @@
 | # | Title | Status | Complexity | Dependencies |
 |---|-------|--------|------------|--------------|
 | 01 | Foundation: Dependencies, Types & Layout Shell | completed | medium | — |
-| 02 | Daemon & Agent Systems: API + Sidebar | pending | medium | task_01 |
+| 02 | Daemon & Agent Systems: API + Sidebar | completed | medium | task_01 |
 | 03 | Session System: API, CRUD & Sidebar Items | pending | medium | task_01, task_02 |
 | 04 | Streaming Core & Session Store | pending | high | task_03 |
 | 05 | Chat View, Messages & Composer | pending | high | task_04 |

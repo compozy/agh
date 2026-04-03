@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: Frontend
 type: Feature Implementation
 scope: Full
@@ -39,13 +39,13 @@ Build the daemon and agent domain systems end-to-end: API adapters, TanStack Que
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Create daemon system: API adapter, query infrastructure, and health polling hook
-- [ ] 2.2 Create `connection-status.tsx` component and wire into app header
-- [ ] 2.3 Create agent system: API adapter, query infrastructure, and `useAgents` hook
-- [ ] 2.4 Create `agent-icon.tsx` with provider-to-icon mapping
-- [ ] 2.5 Create `agent-sidebar-group.tsx` as collapsible sidebar group with "New Session" button
-- [ ] 2.6 Wire agent sidebar groups into `_app.tsx` sidebar content area
-- [ ] 2.7 Update barrel exports for daemon and agent systems
+- [x] 2.1 Create daemon system: API adapter, query infrastructure, and health polling hook
+- [x] 2.2 Create `connection-status.tsx` component and wire into app header
+- [x] 2.3 Create agent system: API adapter, query infrastructure, and `useAgents` hook
+- [x] 2.4 Create `agent-icon.tsx` with provider-to-icon mapping
+- [x] 2.5 Create `agent-sidebar-group.tsx` as collapsible sidebar group with "New Session" button
+- [x] 2.6 Wire agent sidebar groups into `_app.tsx` sidebar content area
+- [x] 2.7 Update barrel exports for daemon and agent systems
 
 ## Implementation Details
 
