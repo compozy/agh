@@ -33,11 +33,11 @@
     "lint-staged": {
         "*.go": "make fmt",
         "*.{js,jsx,ts,tsx}": [
-            "oxfmt",
+            "oxfmt --no-error-on-unmatched-pattern",
             "oxlint"
         ],
         "*.{css,html,json,jsonc,yaml,yml,md}": [
-            "oxfmt"
+            "oxfmt --no-error-on-unmatched-pattern"
         ]
     },
     "packageManager": "bun@1.3.4"
