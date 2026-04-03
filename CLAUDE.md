@@ -26,16 +26,19 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | Go / Runtime            | `golang-pro`                              | `context7`              |
 | Config / Logging        | `golang-pro`                              |                         |
 | Bug fix                 | `systematic-debugging` + `no-workarounds` | `testing-anti-patterns` |
-| Writing tests           | `testing-anti-patterns` + `golang-pro`    |                         |
+| Writing Go tests        | `testing-anti-patterns` + `golang-pro`    |                         |
 | Task completion         | `verification-before-completion`          |                         |
 | Architecture audit      | `architectural-analysis`                  | `adversarial-review`    |
-| Svelte 5 / Frontend     | `svelte5-best-practices`                  | `context7`              |
 | Creative / new features | `brainstorming`                           |                         |
 | Git rebase/conflicts    | `git-rebase`                              |                         |
+
+Web skill dispatch is in `web/CLAUDE.md`.
 
 Every domain change requires its skill — no skipping "because it's a small change". Activate multiple skills when code touches multiple domains.
 
 ## Build Commands
+
+### Go (backend)
 
 ```bash
 make verify              # BLOCKING GATE: fmt → lint → test → build
@@ -105,6 +108,8 @@ The `.old_project/` directory contains the previous AGH implementation (78K+ LOC
 | `internal/daemon`  | Composition root, lock, boot, shutdown                         |
 | `internal/logger`  | Structured logging (slog)                                      |
 | `internal/version` | Build metadata                                                 |
+| `web/`             | React 19 SPA (Vite, TanStack Router/Query, Tailwind, shadcn)   |
+| `web/src/systems/` | Domain feature modules (app-renderer-systems pattern)          |
 
 ## Coding Style
 

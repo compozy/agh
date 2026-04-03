@@ -2,6 +2,8 @@
 .env
 .tmp/
 .cache/
+.turbo/
+.tanstack/
 bin/
 dist/
 coverage.out

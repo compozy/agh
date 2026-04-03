@@ -31,3 +31,24 @@ verify:
 
 help:
 	@$(MAGE_RUN) -l
+
+# Web UI
+.PHONY: web-dev web-build web-lint web-fmt web-typecheck web-test
+
+web-dev:
+	@bun run dev
+
+web-build:
+	@bun run build
+
+web-lint:
+	@bun run lint
+
+web-fmt:
+	@bun run format
+
+web-typecheck:
+	@bun run typecheck
+
+web-test:
+	@bun run test
