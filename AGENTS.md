@@ -46,6 +46,8 @@ make build               # Compile binary
 make deps                # Tidy and verify modules
 ```
 
+## Commit style: <type>: <description>
+
 ## Code Search Hierarchy
 
 1. **Grep / Glob** — for local project code
