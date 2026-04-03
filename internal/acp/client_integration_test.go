@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )
@@ -80,10 +81,35 @@ func TestACPIntegrationRequestPermissionPolicy(t *testing.T) {
 		t.Fatalf("Prompt() error = %v", err)
 	}
 
-	events := collectEvents(t, eventsCh)
-	if !containsEventText(events, "reject") {
-		t.Fatalf("Prompt() events = %#v, want rejected permission outcome", events)
+	events := make([]AgentEvent, 0, 8)
+	var pendingRequestID string
+	timeout := time.NewTimer(5 * time.Second)
+	defer timeout.Stop()
+
+	for {
+		select {
+		case event, ok := <-eventsCh:
+			if !ok {
+				goto done
+			}
+			events = append(events, event)
+			if event.Type == EventTypePermission && event.Decision == "" && pendingRequestID == "" {
+				pendingRequestID = event.RequestID
+				if pendingRequestID == "" {
+					t.Fatal("permission request_id = empty, want non-empty")
+				}
+				if err := driver.ApprovePermission(testContext(t), proc, ApproveRequest{
+					RequestID: pendingRequestID,
+					Decision:  string(decisionAllowAlways),
+				}); err != nil {
+					t.Fatalf("ApprovePermission() error = %v", err)
+				}
+			}
+		case <-timeout.C:
+			t.Fatalf("timed out waiting for prompt events; collected %#v", events)
+		}
 	}
+done:
 
 	permissionEvents := make([]AgentEvent, 0, len(events))
 	for _, event := range events {
@@ -94,8 +120,52 @@ func TestACPIntegrationRequestPermissionPolicy(t *testing.T) {
 	if len(permissionEvents) == 0 {
 		t.Fatalf("Prompt() events = %#v, want permission event", events)
 	}
-	if permissionEvents[0].Decision != "deny" {
-		t.Fatalf("permission event decision = %q, want deny", permissionEvents[0].Decision)
+	if permissionEvents[0].Decision != "" {
+		t.Fatalf("initial permission event decision = %q, want empty", permissionEvents[0].Decision)
+	}
+	if permissionEvents[len(permissionEvents)-1].Decision != string(decisionAllowAlways) {
+		t.Fatalf("final permission event decision = %q, want %q", permissionEvents[len(permissionEvents)-1].Decision, decisionAllowAlways)
+	}
+	if !containsEventText(events, "allow-always") {
+		t.Fatalf("Prompt() events = %#v, want approved permission outcome", events)
+	}
+}
+
+func TestACPIntegrationRequestPermissionTimeout(t *testing.T) {
+	driver := New(WithPermissionTimeout(25 * time.Millisecond))
+
+	root := t.TempDir()
+	target := filepath.Join(root, "danger.txt")
+	proc := startHelperProcess(t, driver, "permission", target, StartOpts{
+		Cwd:         root,
+		Permissions: aghconfig.PermissionModeDenyAll,
+	})
+	defer stopProcess(t, driver, proc)
+
+	eventsCh, err := driver.Prompt(testContext(t), proc, PromptRequest{
+		TurnID:  "turn-integration-timeout",
+		Message: "request permission",
+	})
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+
+	events := collectEvents(t, eventsCh)
+	if !containsEventText(events, "reject-once") {
+		t.Fatalf("Prompt() events = %#v, want reject-once permission outcome", events)
+	}
+
+	permissionEvents := make([]AgentEvent, 0, len(events))
+	for _, event := range events {
+		if event.Type == EventTypePermission {
+			permissionEvents = append(permissionEvents, event)
+		}
+	}
+	if len(permissionEvents) < 2 {
+		t.Fatalf("Prompt() permission events = %#v, want initial and final permission events", permissionEvents)
+	}
+	if permissionEvents[len(permissionEvents)-1].Decision != string(decisionRejectOnce) {
+		t.Fatalf("final permission event decision = %q, want %q", permissionEvents[len(permissionEvents)-1].Decision, decisionRejectOnce)
 	}
 }
 

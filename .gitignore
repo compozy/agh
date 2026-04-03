@@ -6,6 +6,7 @@
 .tanstack/
 bin/
 dist/
+storybook-static/
 coverage.out
 coverage.html
 .codex/CONTINUITY*

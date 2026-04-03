@@ -34,6 +34,7 @@ type stubSessionManager struct {
 	stopFn    func(context.Context, string) error
 	resumeFn  func(context.Context, string) (*session.Session, error)
 	promptFn  func(context.Context, string, string) (<-chan session.AgentEvent, error)
+	approveFn func(context.Context, string, session.ApproveRequest) error
 }
 
 func (s stubSessionManager) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -103,6 +104,13 @@ func (s stubSessionManager) Prompt(ctx context.Context, id string, msg string) (
 	ch := make(chan session.AgentEvent)
 	close(ch)
 	return ch, nil
+}
+
+func (s stubSessionManager) ApprovePermission(ctx context.Context, id string, req session.ApproveRequest) error {
+	if s.approveFn != nil {
+		return s.approveFn(ctx, id, req)
+	}
+	return nil
 }
 
 type stubObserver struct {

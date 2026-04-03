@@ -205,15 +205,8 @@ func (p *AgentProcess) handleWriteTextFile(_ context.Context, request acpsdk.Wri
 	return acpsdk.WriteTextFileResponse{}, nil
 }
 
-func (p *AgentProcess) handleRequestPermission(_ context.Context, request acpsdk.RequestPermissionRequest) (acpsdk.RequestPermissionResponse, error) {
-	decision := decisionAllow
-	if err := p.permissions.authorize(permissionRequestToolGrant); err != nil {
-		decision = decisionDeny
-	}
-	if _, err := p.permissions.resolvePathList(request.ToolCall.Locations); err != nil {
-		decision = decisionDeny
-	}
-
+func (p *AgentProcess) handleRequestPermission(ctx context.Context, request acpsdk.RequestPermissionRequest) (acpsdk.RequestPermissionResponse, error) {
+	turnID := p.activeTurnID()
 	resource := ""
 	if request.ToolCall.Title != nil {
 		resource = *request.ToolCall.Title
@@ -226,21 +219,88 @@ func (p *AgentProcess) handleRequestPermission(_ context.Context, request acpsdk
 		title = *request.ToolCall.Title
 	}
 
+	decision, interactive := p.permissions.permissionDecision(request)
+
+	if !interactive {
+		requestID := p.nextPermissionRequestID(turnID, request)
+		outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
+		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
+		p.emitPromptEvent(AgentEvent{
+			Type:       EventTypePermission,
+			SessionID:  string(request.SessionId),
+			TurnID:     turnID,
+			RequestID:  requestID,
+			Timestamp:  timeNowUTC(),
+			Title:      title,
+			ToolCallID: strings.TrimSpace(string(request.ToolCall.ToolCallId)),
+			Action:     string(permissionRequestToolGrant),
+			Resource:   resource,
+			Decision:   string(appliedDecision),
+			Raw:        cloneRawJSON(raw),
+		})
+		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+	}
+
+	requestID, pending := p.registerPendingPermission(turnID, request)
+	defer p.clearPendingPermission(requestID)
+	raw := buildPermissionEventRaw(requestID, decisionPending, request)
+
 	p.emitPromptEvent(AgentEvent{
-		Type:      EventTypePermission,
-		SessionID: string(request.SessionId),
-		TurnID:    p.activeTurnID(),
-		Timestamp: timeNowUTC(),
-		Title:     title,
-		Action:    string(permissionRequestToolGrant),
-		Resource:  resource,
-		Decision:  string(decision),
-		Raw:       cloneRawJSON(mustMarshalJSON(request)),
+		Type:       EventTypePermission,
+		SessionID:  string(request.SessionId),
+		TurnID:     turnID,
+		RequestID:  requestID,
+		Timestamp:  timeNowUTC(),
+		Title:      title,
+		ToolCallID: strings.TrimSpace(string(request.ToolCall.ToolCallId)),
+		Action:     string(permissionRequestToolGrant),
+		Resource:   resource,
+		Raw:        cloneRawJSON(raw),
 	})
 
-	return acpsdk.RequestPermissionResponse{
-		Outcome: selectPermissionOutcome(request.Options, decision),
-	}, nil
+	timer := time.NewTimer(p.permissionTimeoutOrDefault())
+	defer timer.Stop()
+
+	select {
+	case resolvedDecision := <-pending.response:
+		outcome, appliedDecision := selectPermissionOutcome(request.Options, resolvedDecision)
+		raw = buildPermissionEventRaw(requestID, appliedDecision, request)
+		p.emitPromptEvent(AgentEvent{
+			Type:       EventTypePermission,
+			SessionID:  string(request.SessionId),
+			TurnID:     turnID,
+			RequestID:  requestID,
+			Timestamp:  timeNowUTC(),
+			Title:      title,
+			ToolCallID: strings.TrimSpace(string(request.ToolCall.ToolCallId)),
+			Action:     string(permissionRequestToolGrant),
+			Resource:   resource,
+			Decision:   string(appliedDecision),
+			Raw:        cloneRawJSON(raw),
+		})
+		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+	case <-timer.C:
+		outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
+		raw = buildPermissionEventRaw(requestID, appliedDecision, request)
+		p.emitPromptEvent(AgentEvent{
+			Type:       EventTypePermission,
+			SessionID:  string(request.SessionId),
+			TurnID:     turnID,
+			RequestID:  requestID,
+			Timestamp:  timeNowUTC(),
+			Title:      title,
+			ToolCallID: strings.TrimSpace(string(request.ToolCall.ToolCallId)),
+			Action:     string(permissionRequestToolGrant),
+			Resource:   resource,
+			Decision:   string(appliedDecision),
+			Raw:        cloneRawJSON(raw),
+		})
+		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+	case <-ctx.Done():
+		return acpsdk.RequestPermissionResponse{
+			Outcome: acpsdk.NewRequestPermissionOutcomeCancelled(),
+		}, nil
+	}
 }
 
 func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {

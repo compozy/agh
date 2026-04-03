@@ -28,8 +28,14 @@ const (
 var (
 	// ErrSessionNotFound reports that the requested active session does not exist.
 	ErrSessionNotFound = errors.New("session: session not found")
+	// ErrSessionNotActive reports that a known session cannot accept live approvals or prompts.
+	ErrSessionNotActive = errors.New("session: session is not active")
 	// ErrMaxSessionsReached reports that the active plus pending session count hit the configured limit.
 	ErrMaxSessionsReached = errors.New("session: max sessions reached")
+	// ErrPendingPermissionNotFound reports that no waiting permission matched the approval request.
+	ErrPendingPermissionNotFound = errors.New("session: pending permission not found")
+	// ErrPendingPermissionConflict reports that the approval request matched multiple pending permissions.
+	ErrPendingPermissionConflict = errors.New("session: pending permission lookup is ambiguous")
 )
 
 // CreateOpts defines the inputs required to create a new session.
@@ -563,6 +569,44 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan Age
 	return out, nil
 }
 
+// ApprovePermission resolves one pending interactive permission request for an active session.
+func (m *Manager) ApprovePermission(ctx context.Context, id string, req ApproveRequest) error {
+	if ctx == nil {
+		return errors.New("session: approval context is required")
+	}
+	if err := req.Validate(); err != nil {
+		return err
+	}
+
+	target := strings.TrimSpace(id)
+	if target == "" {
+		return errors.New("session: session id is required")
+	}
+
+	session, ok := m.Get(target)
+	if !ok {
+		meta, err := m.readMeta(target)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, meta.State)
+	}
+
+	if err := session.ApprovePermission(ctx, req); err != nil {
+		switch {
+		case errors.Is(err, ErrSessionNotActive):
+			return err
+		case errors.Is(err, acp.ErrPendingPermissionNotFound):
+			return fmt.Errorf("%w: %s", ErrPendingPermissionNotFound, target)
+		case errors.Is(err, acp.ErrPendingPermissionConflict):
+			return fmt.Errorf("%w: %s", ErrPendingPermissionConflict, target)
+		default:
+			return err
+		}
+	}
+	return nil
+}
+
 // Get returns the active in-memory session by id.
 func (m *Manager) Get(id string) (*Session, bool) {
 	target := strings.TrimSpace(id)
@@ -976,6 +1020,9 @@ func marshalAgentEvent(event AgentEvent) (string, error) {
 		"session_id": event.SessionID,
 		"turn_id":    event.TurnID,
 		"timestamp":  event.Timestamp,
+	}
+	if strings.TrimSpace(event.RequestID) != "" {
+		payload["request_id"] = event.RequestID
 	}
 	if strings.TrimSpace(event.Text) != "" {
 		payload["text"] = event.Text

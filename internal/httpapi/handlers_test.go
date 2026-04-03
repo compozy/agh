@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -358,9 +359,89 @@ func TestObserveEventsAndApproveHandlers(t *testing.T) {
 	}
 
 	approveResp := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-1/approve", nil)
-	if approveResp.Code != http.StatusNotImplemented {
-		t.Fatalf("approve status = %d, want %d", approveResp.Code, http.StatusNotImplemented)
+	if approveResp.Code != http.StatusBadRequest {
+		t.Fatalf("approve status = %d, want %d", approveResp.Code, http.StatusBadRequest)
 	}
+}
+
+func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+
+	t.Run("missing decision", func(t *testing.T) {
+		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+		recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-1/approve", []byte(`{"turn_id":"turn-1"}`))
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+	})
+
+	t.Run("invalid decision", func(t *testing.T) {
+		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+		recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-1/approve", []byte(`{"turn_id":"turn-1","decision":"maybe"}`))
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+	})
+
+	t.Run("session not found", func(t *testing.T) {
+		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+			approveFn: func(context.Context, string, session.ApproveRequest) error {
+				return session.ErrSessionNotFound
+			},
+		}, stubObserver{}, homePaths))
+		recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/missing/approve", []byte(`{"turn_id":"turn-1","decision":"allow-once"}`))
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNotFound, recorder.Body.String())
+		}
+	})
+
+	t.Run("pending permission missing", func(t *testing.T) {
+		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+			approveFn: func(context.Context, string, session.ApproveRequest) error {
+				return session.ErrPendingPermissionNotFound
+			},
+		}, stubObserver{}, homePaths))
+		recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-1/approve", []byte(`{"turn_id":"turn-1","decision":"reject-once"}`))
+		if recorder.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusConflict, recorder.Body.String())
+		}
+	})
+
+	t.Run("session not active", func(t *testing.T) {
+		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+			approveFn: func(context.Context, string, session.ApproveRequest) error {
+				return session.ErrSessionNotActive
+			},
+		}, stubObserver{}, homePaths))
+		recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-1/approve", []byte(`{"turn_id":"turn-1","decision":"reject-once"}`))
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+	})
+
+	t.Run("valid request", func(t *testing.T) {
+		var (
+			gotID  string
+			gotReq session.ApproveRequest
+		)
+		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+			approveFn: func(_ context.Context, id string, req session.ApproveRequest) error {
+				gotID = id
+				gotReq = req
+				return nil
+			},
+		}, stubObserver{}, homePaths))
+		recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-1/approve", []byte(`{"request_id":"req-1","turn_id":"turn-1","decision":"allow-always"}`))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if gotID != "sess-1" {
+			t.Fatalf("approve id = %q, want sess-1", gotID)
+		}
+		if gotReq.RequestID != "req-1" || gotReq.TurnID != "turn-1" || gotReq.Decision != "allow-always" {
+			t.Fatalf("approve request = %#v", gotReq)
+		}
+	})
 }
 
 func TestErrorResponsesUseConsistentShape(t *testing.T) {
@@ -380,6 +461,21 @@ func TestErrorResponsesUseConsistentShape(t *testing.T) {
 	decodeJSONResponse(t, recorder, &payload)
 	if payload.Error == "" {
 		t.Fatal("expected non-empty error payload")
+	}
+}
+
+func TestStatusForSessionErrorIncludesApprovalCases(t *testing.T) {
+	if status := statusForSessionError(session.ErrSessionNotActive); status != http.StatusBadRequest {
+		t.Fatalf("statusForSessionError(ErrSessionNotActive) = %d, want %d", status, http.StatusBadRequest)
+	}
+	if status := statusForSessionError(session.ErrPendingPermissionNotFound); status != http.StatusConflict {
+		t.Fatalf("statusForSessionError(ErrPendingPermissionNotFound) = %d, want %d", status, http.StatusConflict)
+	}
+	if status := statusForSessionError(session.ErrPendingPermissionConflict); status != http.StatusConflict {
+		t.Fatalf("statusForSessionError(ErrPendingPermissionConflict) = %d, want %d", status, http.StatusConflict)
+	}
+	if status := statusForSessionError(errors.New("boom")); status != http.StatusInternalServerError {
+		t.Fatalf("statusForSessionError(default) = %d, want %d", status, http.StatusInternalServerError)
 	}
 }
 

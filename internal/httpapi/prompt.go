@@ -32,6 +32,7 @@ type agentEventPayload struct {
 	Type       string             `json:"type"`
 	SessionID  string             `json:"session_id,omitempty"`
 	TurnID     string             `json:"turn_id,omitempty"`
+	RequestID  string             `json:"request_id,omitempty"`
 	Timestamp  string             `json:"timestamp,omitempty"`
 	Text       string             `json:"text,omitempty"`
 	Title      string             `json:"title,omitempty"`
@@ -367,6 +368,7 @@ func agentEventPayloadFromEvent(event session.AgentEvent) agentEventPayload {
 		Type:       event.Type,
 		SessionID:  event.SessionID,
 		TurnID:     event.TurnID,
+		RequestID:  event.RequestID,
 		Text:       event.Text,
 		Title:      event.Title,
 		ToolCallID: event.ToolCallID,

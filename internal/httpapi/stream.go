@@ -357,7 +357,9 @@ func statusForSessionError(err error) int {
 	switch {
 	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, os.ErrNotExist):
 		return http.StatusNotFound
-	case errors.Is(err, session.ErrMaxSessionsReached):
+	case errors.Is(err, session.ErrSessionNotActive):
+		return http.StatusBadRequest
+	case errors.Is(err, session.ErrMaxSessionsReached), errors.Is(err, session.ErrPendingPermissionNotFound), errors.Is(err, session.ErrPendingPermissionConflict):
 		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError

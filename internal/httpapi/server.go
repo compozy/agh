@@ -44,6 +44,7 @@ type SessionManager interface {
 	Stop(ctx context.Context, id string) error
 	Resume(ctx context.Context, id string) (*session.Session, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan session.AgentEvent, error)
+	ApprovePermission(ctx context.Context, id string, req session.ApproveRequest) error
 }
 
 // Observer is the observability surface exposed over HTTP.

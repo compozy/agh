@@ -268,6 +268,51 @@ func TestProcessCrashDetected(t *testing.T) {
 	}
 }
 
+func TestDriverApprovePermissionValidationAndForwarding(t *testing.T) {
+	t.Parallel()
+
+	driver := New(WithPermissionTimeout(123 * time.Millisecond))
+	if driver.permissionWait != 123*time.Millisecond {
+		t.Fatalf("permissionWait = %v, want %v", driver.permissionWait, 123*time.Millisecond)
+	}
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	requestID, pending := proc.registerPendingPermission("turn-1", acpsdk.RequestPermissionRequest{
+		ToolCall: acpsdk.RequestPermissionToolCall{ToolCallId: "tool-1"},
+	})
+
+	if err := driver.ApprovePermission(context.Background(), proc, ApproveRequest{
+		RequestID: requestID,
+		Decision:  string(decisionAllowOnce),
+	}); err != nil {
+		t.Fatalf("ApprovePermission() error = %v", err)
+	}
+	select {
+	case decision := <-pending.response:
+		if decision != decisionAllowOnce {
+			t.Fatalf("pending response = %q, want %q", decision, decisionAllowOnce)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for pending permission response")
+	}
+
+	if err := driver.ApprovePermission(context.Background(), nil, ApproveRequest{
+		RequestID: "req-1",
+		Decision:  string(decisionAllowOnce),
+	}); err == nil {
+		t.Fatal("ApprovePermission(nil proc) error = nil, want non-nil")
+	}
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := driver.ApprovePermission(canceledCtx, proc, ApproveRequest{
+		RequestID: "req-1",
+		Decision:  string(decisionAllowOnce),
+	}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ApprovePermission(canceled ctx) error = %v, want context.Canceled", err)
+	}
+}
+
 func startHelperProcess(t *testing.T, driver *Driver, scenario string, filePath string, overrides StartOpts) *AgentProcess {
 	t.Helper()
 
@@ -452,8 +497,10 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 		outcome, err := a.conn.RequestPermission(ctx, acpsdk.RequestPermissionRequest{
 			SessionId: params.SessionId,
 			Options: []acpsdk.PermissionOption{
-				{OptionId: "allow", Name: "allow", Kind: acpsdk.PermissionOptionKindAllowOnce},
-				{OptionId: "reject", Name: "reject", Kind: acpsdk.PermissionOptionKindRejectOnce},
+				{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+				{OptionId: "allow-always", Name: "allow always", Kind: acpsdk.PermissionOptionKindAllowAlways},
+				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+				{OptionId: "reject-always", Name: "reject always", Kind: acpsdk.PermissionOptionKindRejectAlways},
 			},
 			ToolCall: acpsdk.RequestPermissionToolCall{
 				ToolCallId: "tool-1",

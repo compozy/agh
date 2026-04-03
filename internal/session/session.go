@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -127,6 +128,29 @@ func (s *Session) processHandle() *AgentProcess {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.process
+}
+
+// ApprovePermission resolves one pending permission request for an active session.
+func (s *Session) ApprovePermission(ctx context.Context, req ApproveRequest) error {
+	if s == nil {
+		return errors.New("session: session is required")
+	}
+	if ctx == nil {
+		return errors.New("session: approval context is required")
+	}
+
+	s.mu.RLock()
+	state := s.State
+	process := s.process
+	s.mu.RUnlock()
+
+	if state != StateActive {
+		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
+	}
+	if process == nil {
+		return errors.New("session: agent process is not available")
+	}
+	return process.ApprovePermission(ctx, req)
 }
 
 func (s *Session) recorderHandle() EventRecorder {

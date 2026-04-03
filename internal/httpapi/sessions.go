@@ -54,6 +54,12 @@ type turnHistoryPayload struct {
 	Events []sessionEventPayload `json:"events"`
 }
 
+type approveSessionRequest struct {
+	RequestID string `json:"request_id"`
+	TurnID    string `json:"turn_id"`
+	Decision  string `json:"decision"`
+}
+
 func (h *Handlers) listSessions(c *gin.Context) {
 	infos, err := h.sessions.ListAll(c.Request.Context())
 	if err != nil {
@@ -175,7 +181,28 @@ func (h *Handlers) sessionHistory(c *gin.Context) {
 }
 
 func (h *Handlers) approveSession(c *gin.Context) {
-	respondError(c, http.StatusNotImplemented, errors.New("interactive permission approval is not implemented"))
+	var req approveSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, fmt.Errorf("httpapi: decode approve session request: %w", err))
+		return
+	}
+
+	approve := session.ApproveRequest{
+		RequestID: req.RequestID,
+		TurnID:    req.TurnID,
+		Decision:  req.Decision,
+	}
+	if err := approve.Validate(); err != nil {
+		respondError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.sessions.ApprovePermission(c.Request.Context(), c.Param("id"), approve); err != nil {
+		respondError(c, statusForSessionError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "approved"})
 }
 
 func parseSessionEventQuery(c *gin.Context) (store.EventQuery, error) {

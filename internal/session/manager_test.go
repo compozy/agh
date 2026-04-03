@@ -172,6 +172,107 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	}
 }
 
+func TestApprovePermissionRoutesToActiveSession(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testContext(t), session.ID)
+	})
+
+	var (
+		gotReq sessionApproveCapture
+		called bool
+	)
+	h.driver.approveHook = func(proc *fakeProcess, req ApproveRequest) error {
+		called = true
+		gotReq = sessionApproveCapture{
+			SessionID: proc.handle.SessionID,
+			RequestID: req.RequestID,
+			TurnID:    req.TurnID,
+			Decision:  req.Decision,
+		}
+		return nil
+	}
+
+	err := h.manager.ApprovePermission(testContext(t), session.ID, ApproveRequest{
+		RequestID: "req-1",
+		TurnID:    "turn-1",
+		Decision:  "allow-once",
+	})
+	if err != nil {
+		t.Fatalf("ApprovePermission() error = %v", err)
+	}
+	if !called {
+		t.Fatal("ApprovePermission() did not reach the active session process")
+	}
+	if gotReq.RequestID != "req-1" || gotReq.TurnID != "turn-1" || gotReq.Decision != "allow-once" {
+		t.Fatalf("approve request = %#v", gotReq)
+	}
+}
+
+func TestApprovePermissionReturnsNotActiveForStoppedSession(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	err := h.manager.ApprovePermission(testContext(t), session.ID, ApproveRequest{
+		RequestID: "req-1",
+		Decision:  "allow-once",
+	})
+	if !errors.Is(err, ErrSessionNotActive) {
+		t.Fatalf("ApprovePermission(stopped) error = %v, want ErrSessionNotActive", err)
+	}
+}
+
+func TestApprovePermissionMapsPendingLookupErrors(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testContext(t), session.ID)
+	})
+
+	testCases := []struct {
+		name    string
+		hookErr error
+		wantErr error
+	}{
+		{
+			name:    "not found",
+			hookErr: acp.ErrPendingPermissionNotFound,
+			wantErr: ErrPendingPermissionNotFound,
+		},
+		{
+			name:    "conflict",
+			hookErr: acp.ErrPendingPermissionConflict,
+			wantErr: ErrPendingPermissionConflict,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			h.driver.approveHook = func(*fakeProcess, ApproveRequest) error {
+				return tc.hookErr
+			}
+			err := h.manager.ApprovePermission(testContext(t), session.ID, ApproveRequest{
+				RequestID: "req-1",
+				Decision:  "allow-once",
+			})
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("ApprovePermission() error = %v, want %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestAgentCrashTransitionsToStoppedAndNotifies(t *testing.T) {
 	t.Parallel()
 
@@ -701,6 +802,7 @@ type fakeDriver struct {
 	processes        map[*AgentProcess]*fakeProcess
 	lastProc         *fakeProcess
 	promptHook       func(proc *fakeProcess, req PromptRequest) (<-chan AgentEvent, error)
+	approveHook      func(proc *fakeProcess, req ApproveRequest) error
 	stopHook         func(proc *fakeProcess) error
 	startHook        func(opts StartOpts, sequence int) (*fakeProcess, error)
 	fallbackOnResume bool
@@ -739,6 +841,24 @@ func (d *fakeDriver) Start(_ context.Context, opts StartOpts) (*AgentProcess, er
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	proc.handle.approvePermissionFn = func(ctx context.Context, req ApproveRequest) error {
+		if ctx == nil {
+			return errors.New("test: approval context is required")
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		d.mu.Lock()
+		hook := d.approveHook
+		d.mu.Unlock()
+
+		if hook != nil {
+			return hook(proc, req)
+		}
+		return nil
 	}
 
 	d.processes[proc.handle] = proc
@@ -825,6 +945,13 @@ type fakeProcess struct {
 	waitErr error
 	stderr  string
 	handle  *AgentProcess
+}
+
+type sessionApproveCapture struct {
+	SessionID string
+	RequestID string
+	TurnID    string
+	Decision  string
 }
 
 func newFakeProcess(agentName string, command string, cwd string, sessionID string) *fakeProcess {

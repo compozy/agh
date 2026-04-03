@@ -319,6 +319,9 @@ func (o *Observer) OnAgentEvent(ctx context.Context, sessionID string, event ses
 		o.logger.Warn("observe: skipped permission log without resolved policy", "session_id", id, "agent_name", snapshot.agentName)
 		return
 	}
+	if strings.TrimSpace(event.Decision) == "" {
+		return
+	}
 
 	if err := o.registry.WritePermissionLog(ctx, store.PermissionLogEntry{
 		SessionID:  id,

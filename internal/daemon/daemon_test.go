@@ -1066,6 +1066,10 @@ func (f *fakeSessionManager) Prompt(context.Context, string, string) (<-chan ses
 	return ch, nil
 }
 
+func (f *fakeSessionManager) ApprovePermission(context.Context, string, session.ApproveRequest) error {
+	return nil
+}
+
 type fakeObserver struct {
 	reconciled bool
 	result     observe.ReconcileResult

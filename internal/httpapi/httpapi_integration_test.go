@@ -3,7 +3,10 @@
 package httpapi
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,14 +30,15 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	}
 	_ = statusResp.Body.Close()
 
-	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","name":"demo","workspace":"`+runtime.workspace+`"}`), map[string]string{"Origin": "https://example.com"})
+	origin := fmt.Sprintf("http://%s:%d", runtime.host, runtime.port)
+	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","name":"demo","workspace":"`+runtime.workspace+`"}`), map[string]string{"Origin": origin})
 	if createResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(createResp.Body)
 		_ = createResp.Body.Close()
 		t.Fatalf("create session status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
 	}
-	if got := createResp.Header.Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Fatalf("Access-Control-Allow-Origin = %q, want *", got)
+	if got := createResp.Header.Get("Access-Control-Allow-Origin"); got != origin {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, origin)
 	}
 	var created struct {
 		Session sessionPayload `json:"session"`
@@ -126,6 +130,101 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 	}
 	if replayed[0].ID != initial[1].ID {
 		t.Fatalf("replayed first id = %q, want %q", replayed[0].ID, initial[1].ID)
+	}
+}
+
+func TestHTTPApprovePermissionFullFlow(t *testing.T) {
+	runtime := newIntegrationRuntimeWithPermissionWait(t, 250*time.Millisecond)
+	sessionID := createIntegrationSession(t, runtime)
+
+	promptResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"), []byte(`{"message":"request permission"}`), nil)
+	if promptResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(promptResp.Body)
+		_ = promptResp.Body.Close()
+		t.Fatalf("prompt status = %d, want %d; body=%s", promptResp.StatusCode, http.StatusOK, string(body))
+	}
+
+	requestIDCh := make(chan string, 1)
+	resultCh := make(chan []sseRecord, 1)
+	go streamPermissionPrompt(t, promptResp.Body, requestIDCh, resultCh)
+
+	var requestID string
+	select {
+	case requestID = <-requestIDCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for permission request id from SSE stream")
+	}
+	if requestID == "" {
+		t.Fatal("permission request_id = empty, want non-empty")
+	}
+
+	approveResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/approve"), []byte(fmt.Sprintf(`{"request_id":"%s","decision":"allow-always"}`, requestID)), nil)
+	if approveResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(approveResp.Body)
+		_ = approveResp.Body.Close()
+		t.Fatalf("approve status = %d, want %d; body=%s", approveResp.StatusCode, http.StatusOK, string(body))
+	}
+	_ = approveResp.Body.Close()
+
+	var records []sseRecord
+	select {
+	case records = <-resultCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for completed SSE stream")
+	}
+
+	permissionPayloads := extractPermissionPayloads(t, records)
+	if len(permissionPayloads) < 2 {
+		t.Fatalf("permission payloads = %#v, want initial and final permission events", permissionPayloads)
+	}
+	if permissionPayloads[0].RequestID != requestID || permissionPayloads[0].Decision != "" {
+		t.Fatalf("initial permission payload = %#v", permissionPayloads[0])
+	}
+	if permissionPayloads[len(permissionPayloads)-1].Decision != "allow-always" {
+		t.Fatalf("final permission payload = %#v, want allow-always", permissionPayloads[len(permissionPayloads)-1])
+	}
+	if !recordsContainTextDelta(records, "allow-always") {
+		t.Fatalf("records = %#v, want allow-always text delta", records)
+	}
+}
+
+func TestHTTPApprovePermissionTimeout(t *testing.T) {
+	runtime := newIntegrationRuntimeWithPermissionWait(t, 25*time.Millisecond)
+	sessionID := createIntegrationSession(t, runtime)
+
+	promptResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"), []byte(`{"message":"request permission"}`), nil)
+	if promptResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(promptResp.Body)
+		_ = promptResp.Body.Close()
+		t.Fatalf("prompt status = %d, want %d; body=%s", promptResp.StatusCode, http.StatusOK, string(body))
+	}
+
+	requestIDCh := make(chan string, 1)
+	resultCh := make(chan []sseRecord, 1)
+	go streamPermissionPrompt(t, promptResp.Body, requestIDCh, resultCh)
+
+	select {
+	case <-requestIDCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for permission request id from SSE stream")
+	}
+
+	var records []sseRecord
+	select {
+	case records = <-resultCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for completed SSE stream")
+	}
+
+	permissionPayloads := extractPermissionPayloads(t, records)
+	if len(permissionPayloads) < 2 {
+		t.Fatalf("permission payloads = %#v, want initial and final permission events", permissionPayloads)
+	}
+	if permissionPayloads[len(permissionPayloads)-1].Decision != "reject-once" {
+		t.Fatalf("final permission payload = %#v, want reject-once", permissionPayloads[len(permissionPayloads)-1])
+	}
+	if !recordsContainTextDelta(records, "reject-once") {
+		t.Fatalf("records = %#v, want reject-once text delta", records)
 	}
 }
 
@@ -259,17 +358,24 @@ func (f *integrationNotifierFanout) OnAgentEvent(ctx context.Context, sessionID 
 }
 
 type integrationDriver struct {
-	mu       sync.Mutex
-	nextPID  int
-	nextSess int
-	states   map[*session.AgentProcess]chan struct{}
+	mu             sync.Mutex
+	nextPID        int
+	nextSess       int
+	permissionWait time.Duration
+	states         map[*session.AgentProcess]chan struct{}
+	approvals      map[*session.AgentProcess]chan session.ApproveRequest
 }
 
-func newIntegrationDriver() *integrationDriver {
+func newIntegrationDriver(permissionWait time.Duration) *integrationDriver {
+	if permissionWait <= 0 {
+		permissionWait = 100 * time.Millisecond
+	}
 	return &integrationDriver{
-		nextPID:  2000,
-		nextSess: 1,
-		states:   make(map[*session.AgentProcess]chan struct{}),
+		nextPID:        2000,
+		nextSess:       1,
+		permissionWait: permissionWait,
+		states:         make(map[*session.AgentProcess]chan struct{}),
+		approvals:      make(map[*session.AgentProcess]chan session.ApproveRequest),
 	}
 }
 
@@ -285,7 +391,8 @@ func (d *integrationDriver) Start(_ context.Context, opts session.StartOpts) (*s
 		sessionID = fmt.Sprintf("acp-session-%d", d.nextSess)
 	}
 
-	proc := session.NewAgentProcess(session.AgentProcessOptions{
+	var proc *session.AgentProcess
+	proc = session.NewAgentProcess(session.AgentProcessOptions{
 		PID:       d.nextPID,
 		AgentName: opts.AgentName,
 		Command:   opts.Command,
@@ -301,12 +408,102 @@ func (d *integrationDriver) Start(_ context.Context, opts session.StartOpts) (*s
 			<-done
 			return nil
 		},
+		ApprovePermission: func(ctx context.Context, req session.ApproveRequest) error {
+			if ctx == nil {
+				return errors.New("approval context is required")
+			}
+
+			d.mu.Lock()
+			approvalCh := d.approvals[proc]
+			d.mu.Unlock()
+			if approvalCh == nil {
+				return session.ErrPendingPermissionNotFound
+			}
+
+			select {
+			case approvalCh <- req:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
 	})
 	d.states[proc] = done
 	return proc, nil
 }
 
 func (d *integrationDriver) Prompt(_ context.Context, proc *session.AgentProcess, req session.PromptRequest) (<-chan session.AgentEvent, error) {
+	if strings.Contains(req.Message, "request permission") {
+		events := make(chan session.AgentEvent, 6)
+		requestID := req.TurnID + ":tool-1"
+		approvalCh := make(chan session.ApproveRequest, 1)
+
+		d.mu.Lock()
+		d.approvals[proc] = approvalCh
+		d.mu.Unlock()
+
+		go func() {
+			defer close(events)
+			defer func() {
+				d.mu.Lock()
+				delete(d.approvals, proc)
+				d.mu.Unlock()
+			}()
+
+			raw := mustIntegrationJSON(tPermissionRaw(requestID))
+			ts := time.Now().UTC()
+			events <- session.AgentEvent{
+				Type:       "permission",
+				SessionID:  proc.SessionID,
+				TurnID:     req.TurnID,
+				RequestID:  requestID,
+				Timestamp:  ts,
+				Title:      "permission request",
+				ToolCallID: "tool-1",
+				Action:     "session/request_permission",
+				Resource:   "/tmp/demo.txt",
+				Raw:        raw,
+			}
+
+			finalDecision := "reject-once"
+			select {
+			case approval := <-approvalCh:
+				finalDecision = approval.Decision
+			case <-time.After(d.permissionWait):
+			}
+
+			ts = time.Now().UTC()
+			events <- session.AgentEvent{
+				Type:       "permission",
+				SessionID:  proc.SessionID,
+				TurnID:     req.TurnID,
+				RequestID:  requestID,
+				Timestamp:  ts,
+				Title:      "permission request",
+				ToolCallID: "tool-1",
+				Action:     "session/request_permission",
+				Resource:   "/tmp/demo.txt",
+				Decision:   finalDecision,
+				Raw:        mustIntegrationJSON(tPermissionRawWithDecision(requestID, finalDecision)),
+			}
+			events <- session.AgentEvent{
+				Type:      "agent_message",
+				SessionID: proc.SessionID,
+				TurnID:    req.TurnID,
+				Timestamp: ts,
+				Text:      finalDecision,
+			}
+			events <- session.AgentEvent{
+				Type:       "done",
+				SessionID:  proc.SessionID,
+				TurnID:     req.TurnID,
+				Timestamp:  ts,
+				StopReason: "end_turn",
+			}
+		}()
+		return events, nil
+	}
+
 	ch := make(chan session.AgentEvent, 4)
 	ch <- session.AgentEvent{
 		Type:      "agent_message",
@@ -359,10 +556,15 @@ func (d *integrationDriver) Stop(_ context.Context, proc *session.AgentProcess) 
 		close(done)
 	}
 	delete(d.states, proc)
+	delete(d.approvals, proc)
 	return nil
 }
 
 func newIntegrationRuntime(t *testing.T) integrationRuntime {
+	return newIntegrationRuntimeWithPermissionWait(t, 100*time.Millisecond)
+}
+
+func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.Duration) integrationRuntime {
 	t.Helper()
 
 	homePaths := newTestHomePaths(t)
@@ -391,7 +593,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		session.WithHomePaths(homePaths),
 		session.WithConfig(cfg),
 		session.WithLogger(discardLogger()),
-		session.WithDriver(newIntegrationDriver()),
+		session.WithDriver(newIntegrationDriver(permissionWait)),
 		session.WithNotifier(fanout),
 	)
 	if err != nil {
@@ -443,6 +645,128 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		port:      server.Port(),
 		workspace: workspace,
 	}
+}
+
+type permissionStreamPayload struct {
+	RequestID string `json:"request_id"`
+	Decision  string `json:"decision,omitempty"`
+}
+
+func streamPermissionPrompt(t *testing.T, body io.ReadCloser, requestIDCh chan<- string, resultCh chan<- []sseRecord) {
+	t.Helper()
+	defer func() {
+		_ = body.Close()
+	}()
+
+	scanner := bufio.NewScanner(body)
+	records := make([]sseRecord, 0, 8)
+	current := sseRecord{}
+	requestIDSent := false
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			if current.Event != "" || current.ID != "" || len(current.Data) > 0 {
+				records = append(records, current)
+				if !requestIDSent {
+					if payload, ok := extractPermissionPayloadFromRecord(current); ok && payload.Decision == "" && payload.RequestID != "" {
+						requestIDCh <- payload.RequestID
+						requestIDSent = true
+					}
+				}
+			}
+			current = sseRecord{}
+			continue
+		}
+		switch {
+		case strings.HasPrefix(line, "id: "):
+			current.ID = strings.TrimPrefix(line, "id: ")
+		case strings.HasPrefix(line, "event: "):
+			current.Event = strings.TrimPrefix(line, "event: ")
+		case strings.HasPrefix(line, "data: "):
+			current.Data = append(current.Data, []byte(strings.TrimPrefix(line, "data: "))...)
+		}
+	}
+	if current.Event != "" || current.ID != "" || len(current.Data) > 0 {
+		records = append(records, current)
+	}
+	if !requestIDSent {
+		requestIDCh <- ""
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scan prompt SSE error = %v", err)
+	}
+	resultCh <- records
+}
+
+func extractPermissionPayloads(t *testing.T, records []sseRecord) []permissionStreamPayload {
+	t.Helper()
+
+	payloads := make([]permissionStreamPayload, 0, len(records))
+	for _, record := range records {
+		if payload, ok := extractPermissionPayloadFromRecord(record); ok {
+			payloads = append(payloads, payload)
+		}
+	}
+	return payloads
+}
+
+func extractPermissionPayloadFromRecord(record sseRecord) (permissionStreamPayload, bool) {
+	if record.Event != "permission" || len(record.Data) == 0 {
+		return permissionStreamPayload{}, false
+	}
+
+	var envelope struct {
+		Type string                  `json:"type"`
+		Data permissionStreamPayload `json:"data"`
+	}
+	if err := json.Unmarshal(record.Data, &envelope); err != nil || envelope.Type != "data-agh-permission" {
+		return permissionStreamPayload{}, false
+	}
+	return envelope.Data, true
+}
+
+func recordsContainTextDelta(records []sseRecord, want string) bool {
+	for _, record := range records {
+		if record.Event != "agent_message" || len(record.Data) == 0 {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(record.Data, &payload); err != nil {
+			continue
+		}
+		if payload["type"] == "text-delta" && payload["delta"] == want {
+			return true
+		}
+	}
+	return false
+}
+
+func tPermissionRaw(requestID string) map[string]any {
+	return map[string]any{
+		"request_id": requestID,
+		"tool_input": map[string]any{"command": "demo"},
+		"options": []map[string]any{
+			{"decision": "allow-once", "kind": "allow_once", "option_id": "allow-once", "label": "allow once"},
+			{"decision": "allow-always", "kind": "allow_always", "option_id": "allow-always", "label": "allow always"},
+			{"decision": "reject-once", "kind": "reject_once", "option_id": "reject-once", "label": "reject once"},
+			{"decision": "reject-always", "kind": "reject_always", "option_id": "reject-always", "label": "reject always"},
+		},
+	}
+}
+
+func tPermissionRawWithDecision(requestID string, decision string) map[string]any {
+	payload := tPermissionRaw(requestID)
+	payload["decision"] = decision
+	return payload
+}
+
+func mustIntegrationJSON(value any) json.RawMessage {
+	data, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	return data
 }
 
 func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {

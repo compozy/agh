@@ -159,6 +159,7 @@ type AgentEvent struct {
 	Type       string
 	SessionID  string
 	TurnID     string
+	RequestID  string
 	Timestamp  time.Time
 	Text       string
 	Title      string
@@ -198,6 +199,11 @@ type AgentProcess struct {
 
 	promptMu     sync.RWMutex
 	activePrompt *activePromptState
+
+	pendingPermissionMu  sync.Mutex
+	pendingPermissions   map[string]*pendingPermission
+	permissionRequestSeq uint64
+	permissionTimeout    time.Duration
 }
 
 type activePromptState struct {
@@ -210,6 +216,12 @@ type activePromptState struct {
 
 	usageMu sync.Mutex
 	usage   TokenUsage
+}
+
+type pendingPermission struct {
+	requestID string
+	turnID    string
+	response  chan permissionDecision
 }
 
 type lockedBuffer struct {

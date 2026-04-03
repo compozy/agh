@@ -2,10 +2,13 @@ package acp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -102,6 +105,7 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	t.Parallel()
 
 	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	proc.permissionTimeout = time.Second
 	active, err := proc.beginPrompt("turn-permission", 8)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
@@ -110,33 +114,265 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 
 	title := "permission request"
 	path := filepath.Join(proc.Cwd, "secret.txt")
-	response, reqErr := proc.handleInbound(context.Background(), acpsdk.ClientMethodSessionRequestPermission, mustMarshalJSON(acpsdk.RequestPermissionRequest{
+	kind := acpsdk.ToolKindEdit
+	request := acpsdk.RequestPermissionRequest{
 		SessionId: "sess-direct",
 		Options: []acpsdk.PermissionOption{
-			{OptionId: "allow", Name: "allow", Kind: acpsdk.PermissionOptionKindAllowOnce},
-			{OptionId: "reject", Name: "reject", Kind: acpsdk.PermissionOptionKindRejectOnce},
+			{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+			{OptionId: "allow-always", Name: "allow always", Kind: acpsdk.PermissionOptionKindAllowAlways},
+			{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+			{OptionId: "reject-always", Name: "reject always", Kind: acpsdk.PermissionOptionKindRejectAlways},
 		},
 		ToolCall: acpsdk.RequestPermissionToolCall{
 			ToolCallId: "tool-1",
 			Title:      &title,
-			Locations:  []acpsdk.ToolCallLocation{{Path: path}},
+			Kind:       &kind,
+			RawInput: map[string]any{
+				"command": "rm -rf /tmp/demo",
+			},
+			Locations: []acpsdk.ToolCallLocation{{Path: path}},
+		},
+	}
+	resultCh := make(chan acpsdk.RequestPermissionResponse, 1)
+	errCh := make(chan *acpsdk.RequestError, 1)
+	go func() {
+		response, reqErr := proc.handleInbound(context.Background(), acpsdk.ClientMethodSessionRequestPermission, mustMarshalJSON(request))
+		if reqErr != nil {
+			errCh <- reqErr
+			return
+		}
+		permissionResponse, ok := response.(acpsdk.RequestPermissionResponse)
+		if !ok {
+			errCh <- requestError(errors.New("unexpected permission response type"))
+			return
+		}
+		resultCh <- permissionResponse
+	}()
+
+	initialEvents := collectEventsUntilCount(t, active.events, 1)
+	if len(initialEvents) != 1 || initialEvents[0].Type != EventTypePermission {
+		t.Fatalf("initial permission events = %#v, want one permission event", initialEvents)
+	}
+	if initialEvents[0].Decision != "" {
+		t.Fatalf("initial permission decision = %q, want empty", initialEvents[0].Decision)
+	}
+	if initialEvents[0].RequestID == "" {
+		t.Fatal("initial permission request_id = empty, want non-empty")
+	}
+
+	raw := decodePermissionEventRaw(t, initialEvents[0].Raw)
+	if raw.RequestID != initialEvents[0].RequestID {
+		t.Fatalf("raw.request_id = %q, want %q", raw.RequestID, initialEvents[0].RequestID)
+	}
+	if len(raw.Options) != 4 {
+		t.Fatalf("raw.options = %#v, want 4 permission options", raw.Options)
+	}
+	if got := raw.ToolInput["command"]; got != "rm -rf /tmp/demo" {
+		t.Fatalf("raw.tool_input.command = %#v, want %q", got, "rm -rf /tmp/demo")
+	}
+
+	if err := proc.ResolvePermission(ApproveRequest{
+		RequestID: initialEvents[0].RequestID,
+		Decision:  string(decisionAllowAlways),
+	}); err != nil {
+		t.Fatalf("ResolvePermission() error = %v", err)
+	}
+
+	select {
+	case reqErr := <-errCh:
+		t.Fatalf("handleInbound(permission) error = %v", reqErr)
+	case permissionResponse := <-resultCh:
+		if permissionResponse.Outcome.Selected == nil || permissionResponse.Outcome.Selected.OptionId != "allow-always" {
+			t.Fatalf("permission outcome = %#v, want allow-always option", permissionResponse.Outcome)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for permission response")
+	}
+
+	finalEvents := collectEventsUntilCount(t, active.events, 1)
+	if len(finalEvents) != 1 || finalEvents[0].Decision != string(decisionAllowAlways) {
+		t.Fatalf("final permission events = %#v, want allow-always decision", finalEvents)
+	}
+}
+
+func TestResolvePermissionUnknownRequest(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	err := proc.ResolvePermission(ApproveRequest{
+		RequestID: "missing",
+		Decision:  string(decisionAllowOnce),
+	})
+	if !errors.Is(err, ErrPendingPermissionNotFound) {
+		t.Fatalf("ResolvePermission(missing) error = %v, want ErrPendingPermissionNotFound", err)
+	}
+}
+
+func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	proc.permissionTimeout = 25 * time.Millisecond
+	active, err := proc.beginPrompt("turn-timeout", 8)
+	if err != nil {
+		t.Fatalf("beginPrompt() error = %v", err)
+	}
+	defer proc.endPrompt(active)
+
+	title := "permission request"
+	kind := acpsdk.ToolKindEdit
+	response, reqErr := proc.handleInbound(context.Background(), acpsdk.ClientMethodSessionRequestPermission, mustMarshalJSON(acpsdk.RequestPermissionRequest{
+		SessionId: "sess-direct",
+		Options: []acpsdk.PermissionOption{
+			{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+			{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+		},
+		ToolCall: acpsdk.RequestPermissionToolCall{
+			ToolCallId: "tool-timeout",
+			Title:      &title,
+			Kind:       &kind,
 		},
 	}))
 	if reqErr != nil {
-		t.Fatalf("handleInbound(permission) error = %v", reqErr)
+		t.Fatalf("handleInbound(permission timeout) error = %v", reqErr)
 	}
 
 	permissionResponse, ok := response.(acpsdk.RequestPermissionResponse)
 	if !ok {
-		t.Fatalf("handleInbound(permission) type = %T, want RequestPermissionResponse", response)
+		t.Fatalf("handleInbound(permission timeout) type = %T, want RequestPermissionResponse", response)
 	}
-	if permissionResponse.Outcome.Selected == nil || permissionResponse.Outcome.Selected.OptionId != "reject" {
+	if permissionResponse.Outcome.Selected == nil || permissionResponse.Outcome.Selected.OptionId != "reject-once" {
+		t.Fatalf("permission timeout outcome = %#v, want reject-once option", permissionResponse.Outcome)
+	}
+
+	events := collectEventsUntilCount(t, active.events, 2)
+	if events[0].Decision != "" {
+		t.Fatalf("initial timeout decision = %q, want empty", events[0].Decision)
+	}
+	if events[1].Decision != string(decisionRejectOnce) {
+		t.Fatalf("final timeout decision = %q, want %q", events[1].Decision, decisionRejectOnce)
+	}
+}
+
+func TestResolvePermissionByTurnIDConflictsWhenMultipleRequestsPending(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	turnID := "turn-conflict"
+	_, first := proc.registerPendingPermission(turnID, acpsdk.RequestPermissionRequest{
+		ToolCall: acpsdk.RequestPermissionToolCall{ToolCallId: "tool-1"},
+	})
+	_, second := proc.registerPendingPermission(turnID, acpsdk.RequestPermissionRequest{
+		ToolCall: acpsdk.RequestPermissionToolCall{ToolCallId: "tool-2"},
+	})
+	t.Cleanup(func() {
+		proc.clearPendingPermission(first.requestID)
+		proc.clearPendingPermission(second.requestID)
+	})
+
+	err := proc.ResolvePermission(ApproveRequest{
+		TurnID:   turnID,
+		Decision: string(decisionRejectOnce),
+	})
+	if !errors.Is(err, ErrPendingPermissionConflict) {
+		t.Fatalf("ResolvePermission(turn conflict) error = %v, want ErrPendingPermissionConflict", err)
+	}
+}
+
+func TestResolvePermissionConcurrentSafety(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+
+	const total = 8
+	type registered struct {
+		requestID string
+		response  chan permissionDecision
+	}
+
+	registeredPending := make([]registered, 0, total)
+	for i := 0; i < total; i++ {
+		requestID, pending := proc.registerPendingPermission(
+			fmt.Sprintf("turn-%d", i),
+			acpsdk.RequestPermissionRequest{ToolCall: acpsdk.RequestPermissionToolCall{ToolCallId: acpsdk.ToolCallId(fmt.Sprintf("tool-%d", i))}},
+		)
+		registeredPending = append(registeredPending, registered{
+			requestID: requestID,
+			response:  pending.response,
+		})
+	}
+
+	var wg sync.WaitGroup
+	for _, pending := range registeredPending {
+		pending := pending
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := proc.ResolvePermission(ApproveRequest{
+				RequestID: pending.requestID,
+				Decision:  string(decisionAllowOnce),
+			}); err != nil {
+				t.Errorf("ResolvePermission(%q) error = %v", pending.requestID, err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	for _, pending := range registeredPending {
+		select {
+		case decision := <-pending.response:
+			if decision != decisionAllowOnce {
+				t.Fatalf("pending response = %q, want %q", decision, decisionAllowOnce)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out waiting for pending response %q", pending.requestID)
+		}
+	}
+	if len(proc.pendingPermissions) != 0 {
+		t.Fatalf("pendingPermissions = %#v, want empty", proc.pendingPermissions)
+	}
+}
+
+func TestHandleInboundPermissionRequestAutoApprovesReadRequests(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveReads)
+	active, err := proc.beginPrompt("turn-read", 8)
+	if err != nil {
+		t.Fatalf("beginPrompt() error = %v", err)
+	}
+	defer proc.endPrompt(active)
+
+	title := "read file"
+	kind := acpsdk.ToolKindRead
+	response, reqErr := proc.handleInbound(context.Background(), acpsdk.ClientMethodSessionRequestPermission, mustMarshalJSON(acpsdk.RequestPermissionRequest{
+		SessionId: "sess-direct",
+		Options: []acpsdk.PermissionOption{
+			{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+			{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+		},
+		ToolCall: acpsdk.RequestPermissionToolCall{
+			ToolCallId: "tool-read",
+			Title:      &title,
+			Kind:       &kind,
+			Locations:  []acpsdk.ToolCallLocation{{Path: filepath.Join(proc.Cwd, "notes.txt")}},
+		},
+	}))
+	if reqErr != nil {
+		t.Fatalf("handleInbound(read permission) error = %v", reqErr)
+	}
+
+	permissionResponse, ok := response.(acpsdk.RequestPermissionResponse)
+	if !ok {
+		t.Fatalf("handleInbound(read permission) type = %T, want RequestPermissionResponse", response)
+	}
+	if permissionResponse.Outcome.Selected == nil || permissionResponse.Outcome.Selected.OptionId != "allow-once" {
 		t.Fatalf("permission outcome = %#v, want reject option", permissionResponse.Outcome)
 	}
 
 	events := collectEventsUntilCount(t, active.events, 1)
-	if len(events) != 1 || events[0].Type != EventTypePermission || events[0].Decision != "deny" {
-		t.Fatalf("permission events = %#v, want denied permission event", events)
+	if len(events) != 1 || events[0].Decision != string(decisionAllowOnce) {
+		t.Fatalf("permission events = %#v, want allow-once permission event", events)
 	}
 }
 
@@ -407,16 +643,81 @@ func TestPermissionHelperBranches(t *testing.T) {
 		t.Fatalf("resolvePathList() = %#v, want one path", resolved)
 	}
 
-	allowOutcome := selectPermissionOutcome([]acpsdk.PermissionOption{
+	allowOutcome, allowDecision := selectPermissionOutcome([]acpsdk.PermissionOption{
+		{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
 		{OptionId: "allow-always", Name: "allow", Kind: acpsdk.PermissionOptionKindAllowAlways},
-	}, decisionAllow)
-	if allowOutcome.Selected == nil || allowOutcome.Selected.OptionId != "allow-always" {
-		t.Fatalf("selectPermissionOutcome(allow) = %#v, want allow-always", allowOutcome)
+	}, decisionAllowOnce)
+	if allowOutcome.Selected == nil || allowOutcome.Selected.OptionId != "allow-once" || allowDecision != decisionAllowOnce {
+		t.Fatalf("selectPermissionOutcome(allow-once) = %#v, %q", allowOutcome, allowDecision)
 	}
 
-	cancelOutcome := selectPermissionOutcome(nil, decisionDeny)
+	rejectOutcome, rejectDecision := selectPermissionOutcome([]acpsdk.PermissionOption{
+		{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+		{OptionId: "reject-always", Name: "reject always", Kind: acpsdk.PermissionOptionKindRejectAlways},
+	}, decisionRejectAlways)
+	if rejectOutcome.Selected == nil || rejectOutcome.Selected.OptionId != "reject-always" || rejectDecision != decisionRejectAlways {
+		t.Fatalf("selectPermissionOutcome(reject-always) = %#v, %q", rejectOutcome, rejectDecision)
+	}
+
+	cancelOutcome, cancelDecision := selectPermissionOutcome(nil, decisionRejectOnce)
 	if cancelOutcome.Cancelled == nil {
 		t.Fatalf("selectPermissionOutcome(cancel) = %#v, want cancelled", cancelOutcome)
+	}
+	if cancelDecision != "" {
+		t.Fatalf("selectPermissionOutcome(cancel) decision = %q, want empty", cancelDecision)
+	}
+
+	if _, err := parsePermissionDecision("maybe"); err == nil {
+		t.Fatal("parsePermissionDecision(invalid) error = nil, want non-nil")
+	}
+	if err := (ApproveRequest{Decision: string(decisionAllowOnce)}).Validate(); err == nil {
+		t.Fatal("ApproveRequest.Validate(missing request id and turn id) error = nil, want non-nil")
+	}
+
+	readKind := acpsdk.ToolKindRead
+	readDecision, interactive := policy.permissionDecision(acpsdk.RequestPermissionRequest{
+		ToolCall: acpsdk.RequestPermissionToolCall{
+			Kind:      &readKind,
+			Locations: []acpsdk.ToolCallLocation{{Path: filepath.Join(root, "inside.txt")}},
+		},
+	})
+	if readDecision != decisionAllowOnce || interactive {
+		t.Fatalf("permissionDecision(read) = %q, %v, want %q, false", readDecision, interactive, decisionAllowOnce)
+	}
+
+	approveReadsPolicy, err := newPermissionPolicy(aghconfig.PermissionModeApproveReads, root)
+	if err != nil {
+		t.Fatalf("newPermissionPolicy(approve-reads) error = %v", err)
+	}
+	editKind := acpsdk.ToolKindEdit
+	editDecision, interactive := approveReadsPolicy.permissionDecision(acpsdk.RequestPermissionRequest{
+		ToolCall: acpsdk.RequestPermissionToolCall{Kind: &editKind},
+	})
+	if editDecision != decisionPending || !interactive {
+		t.Fatalf("permissionDecision(edit) = %q, %v, want %q, true", editDecision, interactive, decisionPending)
+	}
+
+	if got := permissionRequestIDFromMeta(map[string]any{"request_id": "req-meta"}); got != "req-meta" {
+		t.Fatalf("permissionRequestIDFromMeta() = %q, want %q", got, "req-meta")
+	}
+	title := "Write file"
+	if got := permissionRequestName("turn-1", acpsdk.RequestPermissionRequest{
+		ToolCall: acpsdk.RequestPermissionToolCall{
+			Title: &title,
+			Kind:  &editKind,
+		},
+	}); got != "turn-1:Write file" {
+		t.Fatalf("permissionRequestName() = %q, want %q", got, "turn-1:Write file")
+	}
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	if got := proc.nextPermissionRequestID("turn-1", acpsdk.RequestPermissionRequest{
+		Meta: map[string]any{"request_id": "req-from-meta"},
+	}); got != "req-from-meta" {
+		t.Fatalf("nextPermissionRequestID(meta) = %q, want %q", got, "req-from-meta")
+	}
+	if got := (&AgentProcess{}).permissionTimeoutOrDefault(); got != 5*time.Minute {
+		t.Fatalf("permissionTimeoutOrDefault() = %v, want %v", got, 5*time.Minute)
 	}
 }
 
@@ -433,18 +734,37 @@ func newDirectProcess(t *testing.T, mode aghconfig.PermissionMode) *AgentProcess
 	}
 
 	proc := &AgentProcess{
-		AgentName:     "direct",
-		Cwd:           root,
-		SessionID:     "sess-direct",
-		StartedAt:     timeNowUTC(),
-		permissions:   policy,
-		terminals:     newTerminalManager(ctx, slog.Default()),
-		done:          make(chan struct{}),
-		cancelProcess: cancel,
-		stderr:        &lockedBuffer{},
+		AgentName:         "direct",
+		Cwd:               root,
+		SessionID:         "sess-direct",
+		StartedAt:         timeNowUTC(),
+		permissions:       policy,
+		terminals:         newTerminalManager(ctx, slog.Default()),
+		done:              make(chan struct{}),
+		cancelProcess:     cancel,
+		stderr:            &lockedBuffer{},
+		permissionTimeout: time.Second,
 	}
 	t.Cleanup(proc.terminals.closeAll)
 	return proc
+}
+
+func decodePermissionEventRaw(t *testing.T, raw json.RawMessage) struct {
+	RequestID string                  `json:"request_id"`
+	ToolInput map[string]any          `json:"tool_input"`
+	Options   []permissionEventOption `json:"options"`
+} {
+	t.Helper()
+
+	var payload struct {
+		RequestID string                  `json:"request_id"`
+		ToolInput map[string]any          `json:"tool_input"`
+		Options   []permissionEventOption `json:"options"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(permission raw) error = %v; raw=%s", err, string(raw))
+	}
+	return payload
 }
 
 func collectEventsUntilCount(t *testing.T, eventsCh <-chan AgentEvent, want int) []AgentEvent {

@@ -16,6 +16,9 @@ type StartOpts = acp.StartOpts
 // PromptRequest describes one prompt turn sent to an active session.
 type PromptRequest = acp.PromptRequest
 
+// ApproveRequest resolves one pending permission request for an active session.
+type ApproveRequest = acp.ApproveRequest
+
 // AgentEvent is the streamed runtime event emitted by an active prompt.
 type AgentEvent = acp.AgentEvent
 
@@ -36,25 +39,27 @@ type AgentProcess struct {
 	Caps      ACPCaps
 	StartedAt time.Time
 
-	done     <-chan struct{}
-	waitFn   func() error
-	stderrFn func() string
-	native   any
+	done                <-chan struct{}
+	waitFn              func() error
+	stderrFn            func() string
+	approvePermissionFn func(context.Context, ApproveRequest) error
+	native              any
 }
 
 // AgentProcessOptions defines the exported fields and lifecycle hooks needed to construct an AgentProcess.
 type AgentProcessOptions struct {
-	PID       int
-	AgentName string
-	Command   string
-	Args      []string
-	Cwd       string
-	SessionID string
-	Caps      ACPCaps
-	StartedAt time.Time
-	Done      <-chan struct{}
-	Wait      func() error
-	Stderr    func() string
+	PID               int
+	AgentName         string
+	Command           string
+	Args              []string
+	Cwd               string
+	SessionID         string
+	Caps              ACPCaps
+	StartedAt         time.Time
+	Done              <-chan struct{}
+	Wait              func() error
+	Stderr            func() string
+	ApprovePermission func(context.Context, ApproveRequest) error
 }
 
 // NewAgentProcess constructs an AgentProcess for custom AgentDriver implementations.
@@ -80,17 +85,18 @@ func NewAgentProcess(opts AgentProcessOptions) *AgentProcess {
 	}
 
 	return &AgentProcess{
-		PID:       opts.PID,
-		AgentName: opts.AgentName,
-		Command:   opts.Command,
-		Args:      append([]string(nil), opts.Args...),
-		Cwd:       opts.Cwd,
-		SessionID: opts.SessionID,
-		Caps:      opts.Caps,
-		StartedAt: opts.StartedAt,
-		done:      done,
-		waitFn:    waitFn,
-		stderrFn:  stderrFn,
+		PID:                 opts.PID,
+		AgentName:           opts.AgentName,
+		Command:             opts.Command,
+		Args:                append([]string(nil), opts.Args...),
+		Cwd:                 opts.Cwd,
+		SessionID:           opts.SessionID,
+		Caps:                opts.Caps,
+		StartedAt:           opts.StartedAt,
+		done:                done,
+		waitFn:              waitFn,
+		stderrFn:            stderrFn,
+		approvePermissionFn: opts.ApprovePermission,
 	}
 }
 
@@ -124,6 +130,20 @@ func (p *AgentProcess) Stderr() string {
 	return p.stderrFn()
 }
 
+// ApprovePermission resolves one pending interactive permission request.
+func (p *AgentProcess) ApprovePermission(ctx context.Context, req ApproveRequest) error {
+	if p == nil {
+		return errors.New("session: agent process is required")
+	}
+	if ctx == nil {
+		return errors.New("session: approval context is required")
+	}
+	if p.approvePermissionFn == nil {
+		return errors.New("session: permission approval is not supported")
+	}
+	return p.approvePermissionFn(ctx, req)
+}
+
 func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 	if proc == nil {
 		return nil
@@ -141,7 +161,16 @@ func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 		done:      proc.Done(),
 		waitFn:    proc.Wait,
 		stderrFn:  proc.Stderr,
-		native:    proc,
+		approvePermissionFn: func(ctx context.Context, req ApproveRequest) error {
+			if ctx == nil {
+				return errors.New("session: approval context is required")
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			return proc.ResolvePermission(req)
+		},
+		native: proc,
 	}
 }
 

@@ -19,11 +19,12 @@ import (
 )
 
 const (
-	defaultStopTimeout   = 5 * time.Second
-	defaultPromptBufSize = 128
-	defaultPromptDrain   = 50 * time.Millisecond
-	defaultClientName    = "agh"
-	defaultClientVersion = "dev"
+	defaultStopTimeout    = 5 * time.Second
+	defaultPromptBufSize  = 128
+	defaultPromptDrain    = 50 * time.Millisecond
+	defaultPermissionWait = 5 * time.Minute
+	defaultClientName     = "agh"
+	defaultClientVersion  = "dev"
 )
 
 // Option customizes the ACP driver.
@@ -35,6 +36,7 @@ type Driver struct {
 	stopTimeout     time.Duration
 	promptBufferCap int
 	promptDrainWait time.Duration
+	permissionWait  time.Duration
 }
 
 // WithLogger directs driver diagnostics to the provided logger.
@@ -65,6 +67,13 @@ func WithPromptDrainWait(wait time.Duration) Option {
 	}
 }
 
+// WithPermissionTimeout overrides how long an interactive permission request waits for approval.
+func WithPermissionTimeout(timeout time.Duration) Option {
+	return func(driver *Driver) {
+		driver.permissionWait = timeout
+	}
+}
+
 // New constructs an ACP driver with sensible defaults.
 func New(opts ...Option) *Driver {
 	driver := &Driver{
@@ -72,6 +81,7 @@ func New(opts ...Option) *Driver {
 		stopTimeout:     defaultStopTimeout,
 		promptBufferCap: defaultPromptBufSize,
 		promptDrainWait: defaultPromptDrain,
+		permissionWait:  defaultPermissionWait,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -89,6 +99,9 @@ func New(opts ...Option) *Driver {
 	}
 	if driver.promptDrainWait <= 0 {
 		driver.promptDrainWait = defaultPromptDrain
+	}
+	if driver.permissionWait <= 0 {
+		driver.permissionWait = defaultPermissionWait
 	}
 	return driver
 }
@@ -144,17 +157,19 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 	}
 
 	process := &AgentProcess{
-		PID:           cmd.Process.Pid,
-		AgentName:     normalized.AgentName,
-		Command:       command,
-		Args:          append([]string(nil), args...),
-		Cwd:           normalized.Cwd,
-		StartedAt:     timeNowUTC(),
-		cmd:           cmd,
-		stderr:        stderr,
-		cancelProcess: cancelProcess,
-		permissions:   policy,
-		done:          make(chan struct{}),
+		PID:                cmd.Process.Pid,
+		AgentName:          normalized.AgentName,
+		Command:            command,
+		Args:               append([]string(nil), args...),
+		Cwd:                normalized.Cwd,
+		StartedAt:          timeNowUTC(),
+		cmd:                cmd,
+		stderr:             stderr,
+		cancelProcess:      cancelProcess,
+		permissions:        policy,
+		done:               make(chan struct{}),
+		pendingPermissions: make(map[string]*pendingPermission),
+		permissionTimeout:  d.permissionWait,
 	}
 	process.terminals = newTerminalManager(procCtx, d.logger)
 	process.conn = acpsdk.NewConnection(process.handleInbound, stdin, stdout)
@@ -251,6 +266,20 @@ func (d *Driver) Cancel(ctx context.Context, proc *AgentProcess) error {
 	return proc.conn.SendNotification(ctx, acpsdk.AgentMethodSessionCancel, acpsdk.CancelNotification{
 		SessionId: acpsdk.SessionId(proc.SessionID),
 	})
+}
+
+// ApprovePermission resolves a pending interactive permission request for the process.
+func (d *Driver) ApprovePermission(ctx context.Context, proc *AgentProcess, req ApproveRequest) error {
+	if ctx == nil {
+		return errors.New("acp: context is required")
+	}
+	if proc == nil {
+		return errors.New("acp: agent process is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return proc.ResolvePermission(req)
 }
 
 // Stop terminates the subprocess and waits for it to exit.
