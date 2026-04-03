@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -124,7 +125,7 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 
 func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 	homePaths := testHomePaths(t)
-	cfg := testConfig(homePaths)
+	cfg := testConfig(t, homePaths)
 	staleSocket := cfg.Daemon.Socket
 	if err := os.WriteFile(staleSocket, []byte("stale"), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(socket) error = %v", err)
@@ -192,7 +193,7 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 
 func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 	homePaths := testHomePaths(t)
-	cfg := testConfig(homePaths)
+	cfg := testConfig(t, homePaths)
 	d := newTestDaemon(t, homePaths, cfg)
 
 	var events []string
@@ -234,7 +235,7 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 
 func TestBootFailureCleansUpStartedResourcesInReverseOrder(t *testing.T) {
 	homePaths := testHomePaths(t)
-	cfg := testConfig(homePaths)
+	cfg := testConfig(t, homePaths)
 	d := newTestDaemon(t, homePaths, cfg)
 
 	var events []string
@@ -289,7 +290,7 @@ func TestBootFailureCleansUpStartedResourcesInReverseOrder(t *testing.T) {
 
 func TestBootFailureWhenWritingDaemonInfoCleansUpAllServers(t *testing.T) {
 	homePaths := testHomePaths(t)
-	cfg := testConfig(homePaths)
+	cfg := testConfig(t, homePaths)
 	infoDir := filepath.Join(homePaths.HomeDir, "daemon-info-dir")
 	if err := os.MkdirAll(infoDir, 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(infoDir) error = %v", err)
@@ -419,7 +420,7 @@ func TestCleanupOrphansHandlesListAndSignalErrors(t *testing.T) {
 
 func TestOptionsConfigureDaemon(t *testing.T) {
 	homePaths := testHomePaths(t)
-	cfg := testConfig(homePaths)
+	cfg := testConfig(t, homePaths)
 	signalCh := make(chan os.Signal, 1)
 	httpFactory := func(context.Context, RuntimeDeps) (Server, error) { return nopServer{}, nil }
 	udsFactory := func(context.Context, RuntimeDeps) (Server, error) { return nopServer{}, nil }
@@ -457,7 +458,7 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 
 func TestRunShutsDownOnInjectedSignal(t *testing.T) {
 	homePaths := testHomePaths(t)
-	cfg := testConfig(homePaths)
+	cfg := testConfig(t, homePaths)
 	signalCh := make(chan os.Signal, 1)
 
 	d := newTestDaemon(t, homePaths, cfg)
@@ -857,9 +858,12 @@ func testHomePaths(t *testing.T) aghconfig.HomePaths {
 	return homePaths
 }
 
-func testConfig(homePaths aghconfig.HomePaths) aghconfig.Config {
+func testConfig(t *testing.T, homePaths aghconfig.HomePaths) aghconfig.Config {
+	t.Helper()
+
 	cfg := aghconfig.DefaultWithHome(homePaths)
-	cfg.HTTP.Port = 3131
+	cfg.HTTP.Host = "127.0.0.1"
+	cfg.HTTP.Port = freeTCPPort(t)
 	cfg.Daemon.Socket = homePaths.DaemonSocket
 	return cfg
 }
@@ -906,6 +910,24 @@ func shortSocketPath(t *testing.T) string {
 		_ = os.Remove(path)
 	})
 	return path
+}
+
+func freeTCPPort(t *testing.T) int {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen(:0) error = %v", err)
+	}
+	defer func() {
+		_ = ln.Close()
+	}()
+
+	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("listener addr type = %T, want *net.TCPAddr", ln.Addr())
+	}
+	return tcpAddr.Port
 }
 
 type fakeSessionManager struct {

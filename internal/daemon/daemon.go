@@ -19,6 +19,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/httpapi"
 	aghlogger "github.com/pedronauck/agh/internal/logger"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -261,8 +262,15 @@ func New(opts ...Option) (*Daemon, error) {
 		}
 	}
 	if d.httpFactory == nil {
-		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-			return nopServer{}, nil
+		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			return httpapi.New(
+				httpapi.WithHomePaths(deps.HomePaths),
+				httpapi.WithConfig(deps.Config),
+				httpapi.WithLogger(deps.Logger),
+				httpapi.WithStartedAt(deps.StartedAt),
+				httpapi.WithSessionManager(deps.Sessions),
+				httpapi.WithObserver(deps.Observer),
+			)
 		}
 	}
 	if d.udsFactory == nil {

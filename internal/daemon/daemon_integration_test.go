@@ -14,7 +14,7 @@ import (
 
 func TestBootSequenceReady(t *testing.T) {
 	homePaths := integrationHomePaths(t)
-	cfg := testConfig(homePaths)
+	cfg := testConfig(t, homePaths)
 
 	d, err := New(
 		WithHomePaths(homePaths),
@@ -49,7 +49,7 @@ func TestBootSequenceReady(t *testing.T) {
 
 func TestRunGracefulShutdownViaContextCancellation(t *testing.T) {
 	homePaths := integrationHomePaths(t)
-	cfg := testConfig(homePaths)
+	cfg := testConfig(t, homePaths)
 
 	d, err := New(
 		WithHomePaths(homePaths),
@@ -87,7 +87,7 @@ func TestRunGracefulShutdownViaContextCancellation(t *testing.T) {
 
 func TestRunGracefulShutdownViaSignal(t *testing.T) {
 	homePaths := integrationHomePaths(t)
-	cfg := testConfig(homePaths)
+	cfg := testConfig(t, homePaths)
 	signalCh := make(chan os.Signal, 1)
 
 	d, err := New(
