@@ -204,6 +204,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *SessionInfo {
 		Name:         meta.Name,
 		AgentName:    meta.AgentName,
 		Workspace:    meta.Workspace,
+		Type:         normalizeSessionType(SessionType(meta.SessionType)),
 		State:        SessionState(meta.State),
 		ACPSessionID: stringValue(meta.ACPSessionID),
 		CreatedAt:    meta.CreatedAt,

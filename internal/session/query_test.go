@@ -341,6 +341,9 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	if got := info.State; got != StateStopped {
 		t.Fatalf("sessionInfoFromMeta().State = %q, want %q", got, StateStopped)
 	}
+	if got := info.Type; got != SessionTypeUser {
+		t.Fatalf("sessionInfoFromMeta().Type = %q, want %q", got, SessionTypeUser)
+	}
 
 	sameTime := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
 	sorted := sortSessionInfos([]*SessionInfo{

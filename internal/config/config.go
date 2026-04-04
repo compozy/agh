@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -74,6 +75,22 @@ type LogConfig struct {
 	Level string `toml:"level"`
 }
 
+// MemoryConfig controls persistent memory features.
+type MemoryConfig struct {
+	Enabled   bool        `toml:"enabled"`
+	GlobalDir string      `toml:"global_dir,omitempty"`
+	Dream     DreamConfig `toml:"dream"`
+}
+
+// DreamConfig controls background dream consolidation.
+type DreamConfig struct {
+	Enabled       bool          `toml:"enabled"`
+	Agent         string        `toml:"agent"`
+	MinHours      float64       `toml:"min_hours"`
+	MinSessions   int           `toml:"min_sessions"`
+	CheckInterval time.Duration `toml:"check_interval"`
+}
+
 // Config is the fully merged AGH configuration.
 type Config struct {
 	Daemon        DaemonConfig              `toml:"daemon"`
@@ -84,6 +101,7 @@ type Config struct {
 	Providers     map[string]ProviderConfig `toml:"providers"`
 	Observability ObservabilityConfig       `toml:"observability"`
 	Log           LogConfig                 `toml:"log"`
+	Memory        MemoryConfig              `toml:"memory"`
 }
 
 type loadOptions struct {
@@ -205,6 +223,17 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Log: LogConfig{
 			Level: "info",
 		},
+		Memory: MemoryConfig{
+			Enabled:   true,
+			GlobalDir: homePaths.MemoryDir,
+			Dream: DreamConfig{
+				Enabled:       true,
+				Agent:         "claude",
+				MinHours:      24,
+				MinSessions:   3,
+				CheckInterval: 30 * time.Minute,
+			},
+		},
 	}
 }
 
@@ -229,6 +258,9 @@ func (c Config) Validate() error {
 		return err
 	}
 	if err := c.Log.Validate(); err != nil {
+		return err
+	}
+	if err := c.Memory.Validate(); err != nil {
 		return err
 	}
 
@@ -332,6 +364,31 @@ func (c LogConfig) Validate() error {
 	}
 }
 
+// Validate ensures the memory configuration is internally consistent.
+func (c MemoryConfig) Validate() error {
+	return c.Dream.Validate()
+}
+
+// Validate ensures the dream configuration is internally consistent.
+func (c DreamConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(c.Agent) == "" {
+		return errors.New("memory.dream.agent is required")
+	}
+	if c.MinHours <= 0 {
+		return fmt.Errorf("memory.dream.min_hours must be positive: %v", c.MinHours)
+	}
+	if c.MinSessions <= 0 {
+		return fmt.Errorf("memory.dream.min_sessions must be positive: %d", c.MinSessions)
+	}
+	if c.CheckInterval <= 0 {
+		return fmt.Errorf("memory.dream.check_interval must be positive: %s", c.CheckInterval)
+	}
+	return nil
+}
+
 func normalizeConfigPaths(cfg *Config) error {
 	if cfg == nil {
 		return errors.New("config is required")
@@ -342,6 +399,14 @@ func normalizeConfigPaths(cfg *Config) error {
 		return fmt.Errorf("expand daemon.socket: %w", err)
 	}
 	cfg.Daemon.Socket = socket
+
+	if strings.TrimSpace(cfg.Memory.GlobalDir) != "" {
+		memoryDir, err := expandUserPath(cfg.Memory.GlobalDir)
+		if err != nil {
+			return fmt.Errorf("expand memory.global_dir: %w", err)
+		}
+		cfg.Memory.GlobalDir = memoryDir
+	}
 
 	return nil
 }

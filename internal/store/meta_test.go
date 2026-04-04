@@ -13,13 +13,14 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), SessionMetaName)
 	meta := SessionMeta{
-		ID:        "sess-meta",
-		Name:      "Session Meta",
-		AgentName: "coder",
-		Workspace: "/tmp/workspace",
-		State:     "active",
-		CreatedAt: time.Date(2026, 4, 3, 17, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 4, 3, 17, 1, 0, 0, time.UTC),
+		ID:          "sess-meta",
+		Name:        "Session Meta",
+		AgentName:   "coder",
+		Workspace:   "/tmp/workspace",
+		SessionType: "system",
+		State:       "active",
+		CreatedAt:   time.Date(2026, 4, 3, 17, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 3, 17, 1, 0, 0, time.UTC),
 	}
 
 	if err := WriteSessionMeta(path, meta); err != nil {
@@ -30,7 +31,7 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadSessionMeta() error = %v", err)
 	}
-	if readBack.ID != meta.ID || readBack.AgentName != meta.AgentName || readBack.State != meta.State {
+	if readBack.ID != meta.ID || readBack.AgentName != meta.AgentName || readBack.State != meta.State || readBack.SessionType != meta.SessionType {
 		t.Fatalf("ReadSessionMeta() = %#v, want %#v", readBack, meta)
 	}
 }

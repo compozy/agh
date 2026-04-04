@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
 )
 
@@ -155,6 +156,11 @@ type Notifier interface {
 	OnSessionCreated(ctx context.Context, session *Session)
 	OnSessionStopped(ctx context.Context, session *Session)
 	OnAgentEvent(ctx context.Context, sessionID string, event acp.AgentEvent)
+}
+
+// PromptAssembler assembles the prompt context for a new session start.
+type PromptAssembler interface {
+	Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace string) (string, error)
 }
 
 // ACPDriverAdapter adapts the concrete ACP driver to the session-local interface.

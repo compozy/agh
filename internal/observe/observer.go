@@ -360,6 +360,7 @@ func sessionInfoFromSession(info *session.SessionInfo) store.SessionInfo {
 		Name:         info.Name,
 		AgentName:    info.AgentName,
 		Workspace:    info.Workspace,
+		SessionType:  string(info.Type),
 		State:        string(info.State),
 		ACPSessionID: stringPointer(info.ACPSessionID),
 		CreatedAt:    info.CreatedAt,

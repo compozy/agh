@@ -98,3 +98,17 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 		t.Fatalf("SupportedModels mutated through Info() copy: %#v", latest.ACPCaps.SupportedModels)
 	}
 }
+
+func TestNormalizeSessionTypeDefaultsToUser(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeSessionType(""); got != SessionTypeUser {
+		t.Fatalf("normalizeSessionType(\"\") = %q, want %q", got, SessionTypeUser)
+	}
+	if got := normalizeSessionType(" dream "); got != SessionTypeDream {
+		t.Fatalf("normalizeSessionType(\" dream \") = %q, want %q", got, SessionTypeDream)
+	}
+	if got := normalizeSessionType("unknown"); got != SessionTypeUser {
+		t.Fatalf("normalizeSessionType(\"unknown\") = %q, want %q", got, SessionTypeUser)
+	}
+}

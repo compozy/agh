@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadValidTOMLConfigWithAllSections(t *testing.T) {
@@ -59,6 +60,17 @@ max_bytes_per_session = 4096
 
 [log]
 level = "debug"
+
+[memory]
+enabled = true
+global_dir = "~/agh-memory-test"
+
+[memory.dream]
+enabled = true
+agent = "claude"
+min_hours = 48
+min_sessions = 5
+check_interval = "45m"
 `)
 
 	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -89,6 +101,28 @@ level = "debug"
 	}
 	if cfg.Log.Level != "debug" {
 		t.Fatalf("Load() Log.Level = %q, want %q", cfg.Log.Level, "debug")
+	}
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("UserHomeDir() error = %v", err)
+	}
+	if !cfg.Memory.Enabled {
+		t.Fatal("Load() Memory.Enabled = false, want true")
+	}
+	if got, want := cfg.Memory.GlobalDir, filepath.Join(userHome, "agh-memory-test"); got != want {
+		t.Fatalf("Load() Memory.GlobalDir = %q, want %q", got, want)
+	}
+	if got, want := cfg.Memory.Dream.Agent, "claude"; got != want {
+		t.Fatalf("Load() Memory.Dream.Agent = %q, want %q", got, want)
+	}
+	if got, want := cfg.Memory.Dream.MinHours, 48.0; got != want {
+		t.Fatalf("Load() Memory.Dream.MinHours = %v, want %v", got, want)
+	}
+	if got, want := cfg.Memory.Dream.MinSessions, 5; got != want {
+		t.Fatalf("Load() Memory.Dream.MinSessions = %d, want %d", got, want)
+	}
+	if got, want := cfg.Memory.Dream.CheckInterval, 45*time.Minute; got != want {
+		t.Fatalf("Load() Memory.Dream.CheckInterval = %s, want %s", got, want)
 	}
 
 	claude, err := cfg.ResolveProvider("claude")
@@ -273,6 +307,48 @@ func TestValidateRejectsUnknownPermissionMode(t *testing.T) {
 	}
 }
 
+func TestDreamConfigValidateRejectsNonPositiveThresholds(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		patch func(*DreamConfig)
+	}{
+		{
+			name: "min hours",
+			patch: func(cfg *DreamConfig) {
+				cfg.MinHours = 0
+			},
+		},
+		{
+			name: "min sessions",
+			patch: func(cfg *DreamConfig) {
+				cfg.MinSessions = 0
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := DreamConfig{
+				Enabled:       true,
+				Agent:         "claude",
+				MinHours:      24,
+				MinSessions:   3,
+				CheckInterval: 30 * time.Minute,
+			}
+			tc.patch(&cfg)
+
+			if err := cfg.Validate(); err == nil {
+				t.Fatalf("Validate() error = nil for %s", tc.name)
+			}
+		})
+	}
+}
+
 func TestLoadUsesDotEnvForAGHHome(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "dotenv-home")
@@ -372,6 +448,9 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 	}
 	if cfg.Daemon.Socket != want.Daemon.Socket {
 		t.Fatalf("Load() Daemon.Socket = %q, want %q", cfg.Daemon.Socket, want.Daemon.Socket)
+	}
+	if cfg.Memory != want.Memory {
+		t.Fatalf("Load() Memory = %#v, want %#v", cfg.Memory, want.Memory)
 	}
 }
 

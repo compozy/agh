@@ -86,6 +86,27 @@ func TestCreateErrorBranches(t *testing.T) {
 	})
 }
 
+func TestCreateWithNilPromptAssemblerIsSafe(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptAssembler(nil))
+
+	session, err := h.manager.Create(testContext(t), CreateOpts{
+		AgentName: "coder",
+		Workspace: h.workspace,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testContext(t), session.ID)
+	})
+
+	if got := session.Info().Type; got != SessionTypeUser {
+		t.Fatalf("session type = %q, want %q", got, SessionTypeUser)
+	}
+}
+
 func TestResumeCleansUpOnStartFailure(t *testing.T) {
 	t.Parallel()
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -19,6 +20,7 @@ type configOverlay struct {
 	Providers     map[string]providerOverlay `toml:"providers"`
 	Observability observabilityOverlay       `toml:"observability"`
 	Log           logOverlay                 `toml:"log"`
+	Memory        memoryOverlay              `toml:"memory"`
 }
 
 type daemonOverlay struct {
@@ -65,6 +67,20 @@ type observabilityTranscriptsOverlay struct {
 
 type logOverlay struct {
 	Level *string `toml:"level"`
+}
+
+type memoryOverlay struct {
+	Enabled   *bool        `toml:"enabled"`
+	GlobalDir *string      `toml:"global_dir"`
+	Dream     dreamOverlay `toml:"dream"`
+}
+
+type dreamOverlay struct {
+	Enabled       *bool          `toml:"enabled"`
+	Agent         *string        `toml:"agent"`
+	MinHours      *float64       `toml:"min_hours"`
+	MinSessions   *int           `toml:"min_sessions"`
+	CheckInterval *time.Duration `toml:"check_interval"`
 }
 
 type mcpServerOverlay struct {
@@ -121,6 +137,7 @@ func (o configOverlay) Apply(dst *Config) {
 	applyProviderOverlays(dst, o.Providers)
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)
+	o.Memory.Apply(&dst.Memory)
 }
 
 func (o daemonOverlay) Apply(dst *DaemonConfig) {
@@ -202,6 +219,34 @@ func (o observabilityTranscriptsOverlay) Apply(dst *ObservabilityTranscriptConfi
 func (o logOverlay) Apply(dst *LogConfig) {
 	if o.Level != nil {
 		dst.Level = *o.Level
+	}
+}
+
+func (o memoryOverlay) Apply(dst *MemoryConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = *o.Enabled
+	}
+	if o.GlobalDir != nil && strings.TrimSpace(*o.GlobalDir) != "" {
+		dst.GlobalDir = *o.GlobalDir
+	}
+	o.Dream.Apply(&dst.Dream)
+}
+
+func (o dreamOverlay) Apply(dst *DreamConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = *o.Enabled
+	}
+	if o.Agent != nil {
+		dst.Agent = *o.Agent
+	}
+	if o.MinHours != nil {
+		dst.MinHours = *o.MinHours
+	}
+	if o.MinSessions != nil {
+		dst.MinSessions = *o.MinSessions
+	}
+	if o.CheckInterval != nil {
+		dst.CheckInterval = *o.CheckInterval
 	}
 }
 

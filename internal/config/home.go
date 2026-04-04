@@ -11,6 +11,8 @@ import (
 const (
 	// AgentsDirName is the directory used for persisted agent definitions.
 	AgentsDirName = "agents"
+	// MemoryDirName is the directory used for persistent memory files.
+	MemoryDirName = "memory"
 	// SessionsDirName is the directory used for persisted session state.
 	SessionsDirName = "sessions"
 	// LogsDirName is the directory used for structured logs.
@@ -33,6 +35,7 @@ type HomePaths struct {
 	HomeDir      string
 	ConfigFile   string
 	AgentsDir    string
+	MemoryDir    string
 	SessionsDir  string
 	LogsDir      string
 	LogFile      string
@@ -77,6 +80,7 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		HomeDir:      root,
 		ConfigFile:   filepath.Join(root, ConfigName),
 		AgentsDir:    filepath.Join(root, AgentsDirName),
+		MemoryDir:    filepath.Join(root, MemoryDirName),
 		SessionsDir:  filepath.Join(root, SessionsDirName),
 		LogsDir:      filepath.Join(root, LogsDirName),
 		LogFile:      filepath.Join(root, LogsDirName, LogFileName),
@@ -92,6 +96,7 @@ func EnsureHomeLayout(paths HomePaths) error {
 	for _, dir := range []string{
 		paths.HomeDir,
 		paths.AgentsDir,
+		paths.MemoryDir,
 		paths.SessionsDir,
 		paths.LogsDir,
 	} {

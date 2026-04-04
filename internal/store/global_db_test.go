@@ -25,13 +25,14 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	createdAt := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
 	session := SessionInfo{
-		ID:        "sess-global",
-		Name:      "Alpha",
-		AgentName: "coder",
-		Workspace: "/tmp/workspace",
-		State:     "active",
-		CreatedAt: createdAt,
-		UpdatedAt: createdAt,
+		ID:          "sess-global",
+		Name:        "Alpha",
+		AgentName:   "coder",
+		Workspace:   "/tmp/workspace",
+		SessionType: "dream",
+		State:       "active",
+		CreatedAt:   createdAt,
+		UpdatedAt:   createdAt,
 	}
 
 	if err := globalDB.RegisterSession(testContext(t), session); err != nil {
@@ -58,8 +59,40 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 	if sessions[0].State != "stopped" {
 		t.Fatalf("sessions[0].State = %q, want stopped", sessions[0].State)
 	}
+	if sessions[0].SessionType != "dream" {
+		t.Fatalf("sessions[0].SessionType = %q, want dream", sessions[0].SessionType)
+	}
 	if sessions[0].ACPSessionID == nil || *sessions[0].ACPSessionID != "acp-123" {
 		t.Fatalf("sessions[0].ACPSessionID = %#v, want acp-123", sessions[0].ACPSessionID)
+	}
+}
+
+func TestGlobalDBRegisterSessionDefaultsTypeToUser(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	session := SessionInfo{
+		ID:        "sess-default-type",
+		AgentName: "coder",
+		Workspace: "/tmp/workspace",
+		State:     "active",
+		CreatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+	}
+
+	if err := globalDB.RegisterSession(testContext(t), session); err != nil {
+		t.Fatalf("RegisterSession() error = %v", err)
+	}
+
+	sessions, err := globalDB.ListSessions(testContext(t), SessionListQuery{})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if got, want := len(sessions), 1; got != want {
+		t.Fatalf("len(sessions) = %d, want %d", got, want)
+	}
+	if got, want := sessions[0].SessionType, defaultSessionType; got != want {
+		t.Fatalf("sessions[0].SessionType = %q, want %q", got, want)
 	}
 }
 

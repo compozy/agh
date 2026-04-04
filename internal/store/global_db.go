@@ -136,7 +136,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query SessionListQuery) ([]
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, name, agent_name, workspace, state, acp_session_id, created_at, updated_at FROM sessions`
+	sqlQuery := `SELECT id, name, agent_name, workspace, session_type, state, acp_session_id, created_at, updated_at FROM sessions`
 	where, args := buildClauses(
 		stringClause("state", query.State),
 		stringClause("agent_name", query.AgentName),
@@ -541,12 +541,13 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 	_, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO sessions (
-			id, name, agent_name, workspace, state, acp_session_id, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			id, name, agent_name, workspace, session_type, state, acp_session_id, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			agent_name = excluded.agent_name,
 			workspace = excluded.workspace,
+			session_type = excluded.session_type,
 			state = excluded.state,
 			acp_session_id = excluded.acp_session_id,
 			updated_at = excluded.updated_at`,
@@ -554,6 +555,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		nullableString(session.Name),
 		session.AgentName,
 		session.Workspace,
+		normalizeSessionType(session.SessionType),
 		session.State,
 		nullableStringPointer(session.ACPSessionID),
 		formatTimestamp(session.CreatedAt),
@@ -594,6 +596,7 @@ func scanSessionInfo(scanner rowScanner) (SessionInfo, error) {
 	var (
 		session      SessionInfo
 		name         sql.NullString
+		sessionType  string
 		acpSessionID sql.NullString
 		createdAtRaw string
 		updatedAtRaw string
@@ -603,6 +606,7 @@ func scanSessionInfo(scanner rowScanner) (SessionInfo, error) {
 		&name,
 		&session.AgentName,
 		&session.Workspace,
+		&sessionType,
 		&session.State,
 		&acpSessionID,
 		&createdAtRaw,
@@ -614,6 +618,7 @@ func scanSessionInfo(scanner rowScanner) (SessionInfo, error) {
 	if name.Valid {
 		session.Name = name.String
 	}
+	session.SessionType = normalizeSessionType(sessionType)
 	session.ACPSessionID = nullString(acpSessionID)
 
 	createdAt, err := parseTimestamp(createdAtRaw)

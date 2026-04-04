@@ -50,6 +50,12 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	if got := h.driver.startCalls[0].Cwd; got != h.workspace {
 		t.Fatalf("start cwd = %q, want %q", got, h.workspace)
 	}
+	if got := session.Info().Type; got != SessionTypeUser {
+		t.Fatalf("Create() type = %q, want %q", got, SessionTypeUser)
+	}
+	if meta := readMeta(t, session.MetaPath()); meta.SessionType != string(SessionTypeUser) {
+		t.Fatalf("meta session type = %q, want %q", meta.SessionType, SessionTypeUser)
+	}
 }
 
 func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
@@ -570,6 +576,44 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 	}
 }
 
+func TestCreateInvokesPromptAssemblerWhenConfigured(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	var (
+		called         bool
+		gotWorkspace   string
+		gotAgentName   string
+		gotAgentPrompt string
+	)
+	h.manager = newManagerWithHarness(t, h, WithPromptAssembler(promptAssemblerFunc(func(_ context.Context, agent aghconfig.AgentDef, workspace string) (string, error) {
+		called = true
+		gotWorkspace = workspace
+		gotAgentName = agent.Name
+		gotAgentPrompt = agent.Prompt
+		return agent.Prompt + "\n\nmemory block", nil
+	})))
+
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testContext(t), session.ID)
+	})
+
+	if !called {
+		t.Fatal("Create() did not invoke the configured prompt assembler")
+	}
+	if gotWorkspace != h.workspace {
+		t.Fatalf("assembler workspace = %q, want %q", gotWorkspace, h.workspace)
+	}
+	if gotAgentName != "coder" {
+		t.Fatalf("assembler agent name = %q, want %q", gotAgentName, "coder")
+	}
+	if gotAgentPrompt != "You are a coding assistant." {
+		t.Fatalf("assembler prompt = %q, want original agent prompt", gotAgentPrompt)
+	}
+}
+
 func TestACPDriverAdapterErrorPaths(t *testing.T) {
 	t.Parallel()
 
@@ -739,6 +783,12 @@ func staticAgentLoader(agent aghconfig.AgentDef) AgentLoader {
 		}
 		return copied, nil
 	}
+}
+
+type promptAssemblerFunc func(context.Context, aghconfig.AgentDef, string) (string, error)
+
+func (fn promptAssemblerFunc) Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace string) (string, error) {
+	return fn(ctx, agent, workspace)
 }
 
 type fakeNotifier struct {

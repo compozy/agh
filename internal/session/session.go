@@ -27,6 +27,15 @@ const (
 	StateStopped  SessionState = "stopped"
 )
 
+// SessionType identifies why a session was created.
+type SessionType string
+
+const (
+	SessionTypeUser   SessionType = "user"
+	SessionTypeDream  SessionType = "dream"
+	SessionTypeSystem SessionType = "system"
+)
+
 const (
 	// EventTypeSessionStopped is emitted when a session transitions to the stopped state.
 	EventTypeSessionStopped = "session_stopped"
@@ -38,6 +47,7 @@ type SessionInfo struct {
 	Name         string
 	AgentName    string
 	Workspace    string
+	Type         SessionType
 	State        SessionState
 	ACPSessionID string
 	ACPCaps      acp.ACPCaps
@@ -53,6 +63,7 @@ type Session struct {
 	Name         string
 	AgentName    string
 	Workspace    string
+	Type         SessionType
 	State        SessionState
 	ACPSessionID string
 	ACPCaps      acp.ACPCaps
@@ -80,6 +91,7 @@ func (s *Session) Info() *SessionInfo {
 		Name:         s.Name,
 		AgentName:    s.AgentName,
 		Workspace:    s.Workspace,
+		Type:         normalizeSessionType(s.Type),
 		State:        s.State,
 		ACPSessionID: s.ACPSessionID,
 		ACPCaps:      cloneCaps(s.ACPCaps),
@@ -257,10 +269,22 @@ func (s *Session) meta() store.SessionMeta {
 		Name:         s.Name,
 		AgentName:    s.AgentName,
 		Workspace:    s.Workspace,
+		SessionType:  string(normalizeSessionType(s.Type)),
 		State:        string(s.State),
 		ACPSessionID: stringPointer(s.ACPSessionID),
 		CreatedAt:    s.CreatedAt,
 		UpdatedAt:    s.UpdatedAt,
+	}
+}
+
+func normalizeSessionType(sessionType SessionType) SessionType {
+	switch SessionType(strings.TrimSpace(string(sessionType))) {
+	case SessionTypeDream:
+		return SessionTypeDream
+	case SessionTypeSystem:
+		return SessionTypeSystem
+	default:
+		return SessionTypeUser
 	}
 }
 

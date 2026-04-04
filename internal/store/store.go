@@ -30,6 +30,7 @@ const (
 )
 
 const timestampLayout = "2006-01-02T15:04:05.000000000Z"
+const defaultSessionType = "user"
 
 var (
 	// ErrClosed reports that a session database no longer accepts writes.
@@ -145,6 +146,7 @@ type SessionInfo struct {
 	Name         string
 	AgentName    string
 	Workspace    string
+	SessionType  string
 	State        string
 	ACPSessionID *string
 	CreatedAt    time.Time
@@ -358,6 +360,7 @@ type SessionMeta struct {
 	Name         string    `json:"name,omitempty"`
 	AgentName    string    `json:"agent_name"`
 	Workspace    string    `json:"workspace"`
+	SessionType  string    `json:"session_type,omitempty"`
 	State        string    `json:"state"`
 	ACPSessionID *string   `json:"acp_session_id,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
@@ -366,7 +369,9 @@ type SessionMeta struct {
 
 // Validate ensures the metadata file remains aligned with the session index schema.
 func (m SessionMeta) Validate() error {
-	return SessionInfo(m).Validate()
+	info := SessionInfo(m)
+	info.SessionType = normalizeSessionType(info.SessionType)
+	return info.Validate()
 }
 
 // SessionDBFile returns the canonical events database path for a session directory.
@@ -424,6 +429,14 @@ func int64Clause(column string, op string, value int64) clause {
 		arg: value,
 		ok:  true,
 	}
+}
+
+func normalizeSessionType(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return defaultSessionType
+	}
+	return value
 }
 
 func buildClauses(input ...clause) ([]string, []any) {

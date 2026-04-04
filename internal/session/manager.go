@@ -43,6 +43,7 @@ type CreateOpts struct {
 	AgentName string
 	Name      string
 	Workspace string
+	Type      SessionType
 }
 
 // ConfigLoader resolves the effective runtime config for a workspace.
@@ -74,6 +75,7 @@ type Manager struct {
 	loadConfig    ConfigLoader
 	loadAgent     AgentLoader
 	openStore     StoreOpener
+	assembler     PromptAssembler
 	now           func() time.Time
 	newSessionID  IDGenerator
 	newTurnID     IDGenerator
@@ -92,6 +94,13 @@ func WithDriver(driver AgentDriver) Option {
 func WithStore(opener StoreOpener) Option {
 	return func(manager *Manager) {
 		manager.openStore = opener
+	}
+}
+
+// WithPromptAssembler injects prompt assembly for session startup.
+func WithPromptAssembler(assembler PromptAssembler) Option {
+	return func(manager *Manager) {
+		manager.assembler = assembler
 	}
 }
 
@@ -281,6 +290,15 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 	if err != nil {
 		return nil, fmt.Errorf("session: load agent %q: %w", agentName, err)
 	}
+	if m.assembler != nil {
+		assembledPrompt, assembleErr := m.assembler.Assemble(ctx, agentDef, workspace)
+		if assembleErr != nil {
+			return nil, fmt.Errorf("session: assemble prompt for %q: %w", agentName, assembleErr)
+		}
+		if strings.TrimSpace(assembledPrompt) != "" {
+			agentDef.Prompt = strings.TrimSpace(assembledPrompt)
+		}
+	}
 
 	resolved, err := cfg.ResolveAgent(agentDef)
 	if err != nil {
@@ -326,6 +344,7 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 		Name:       strings.TrimSpace(opts.Name),
 		AgentName:  resolved.Name,
 		Workspace:  workspace,
+		Type:       normalizeSessionType(opts.Type),
 		State:      StateStarting,
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -480,6 +499,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		Name:         meta.Name,
 		AgentName:    meta.AgentName,
 		Workspace:    workspace,
+		Type:         normalizeSessionType(SessionType(meta.SessionType)),
 		State:        StateStarting,
 		ACPSessionID: derefString(meta.ACPSessionID),
 		CreatedAt:    createdAt,
