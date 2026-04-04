@@ -45,7 +45,16 @@ func (h *Handlers) health(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"health": health})
+	memoryHealth, err := h.memoryHealth(c)
+	if err != nil {
+		respondError(c, statusForMemoryError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"health": health,
+		"memory": memoryHealth,
+	})
 }
 
 func observeEventPayloadFromEvent(event store.EventSummary) observeEventPayload {

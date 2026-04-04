@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -54,6 +55,13 @@ type Observer interface {
 	Health(ctx context.Context) (observe.Health, error)
 }
 
+// DreamTrigger exposes consolidation controls and state to the HTTP API.
+type DreamTrigger interface {
+	Trigger(ctx context.Context, workspace string) (bool, string, error)
+	LastConsolidatedAt() (time.Time, error)
+	Enabled() bool
+}
+
 // Server exposes the daemon API over TCP HTTP.
 type Server struct {
 	mu sync.Mutex
@@ -68,6 +76,8 @@ type Server struct {
 	pollInterval time.Duration
 	sessions     SessionManager
 	observer     Observer
+	memoryStore  *memory.Store
+	dreamTrigger DreamTrigger
 	agentLoader  AgentLoader
 
 	engine       *gin.Engine
@@ -84,6 +94,8 @@ type Server struct {
 type handlerConfig struct {
 	sessions     SessionManager
 	observer     Observer
+	memoryStore  *memory.Store
+	dreamTrigger DreamTrigger
 	homePaths    aghconfig.HomePaths
 	config       aghconfig.Config
 	logger       *slog.Logger
@@ -98,6 +110,8 @@ type handlerConfig struct {
 type Handlers struct {
 	sessions     SessionManager
 	observer     Observer
+	memoryStore  *memory.Store
+	dreamTrigger DreamTrigger
 	homePaths    aghconfig.HomePaths
 	config       aghconfig.Config
 	logger       *slog.Logger
@@ -176,6 +190,20 @@ func WithSessionManager(manager SessionManager) Option {
 func WithObserver(observer Observer) Option {
 	return func(server *Server) {
 		server.observer = observer
+	}
+}
+
+// WithMemoryStore injects the memory store surfaced by the daemon.
+func WithMemoryStore(store *memory.Store) Option {
+	return func(server *Server) {
+		server.memoryStore = store
+	}
+}
+
+// WithDreamTrigger injects the dream-consolidation trigger surfaced by the daemon.
+func WithDreamTrigger(trigger DreamTrigger) Option {
+	return func(server *Server) {
+		server.dreamTrigger = trigger
 	}
 }
 
@@ -262,6 +290,8 @@ func New(opts ...Option) (*Server, error) {
 	server.handlers = newHandlers(handlerConfig{
 		sessions:     server.sessions,
 		observer:     server.observer,
+		memoryStore:  server.memoryStore,
+		dreamTrigger: server.dreamTrigger,
 		homePaths:    server.homePaths,
 		config:       server.config,
 		logger:       server.logger,
@@ -432,6 +462,15 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		observeGroup.GET("/health", handlers.health)
 	}
 
+	memoryGroup := api.Group("/memory")
+	{
+		memoryGroup.GET("", handlers.listMemory)
+		memoryGroup.GET("/:filename", handlers.readMemory)
+		memoryGroup.PUT("/:filename", handlers.writeMemory)
+		memoryGroup.DELETE("/:filename", handlers.deleteMemory)
+		memoryGroup.POST("/consolidate", handlers.consolidateMemory)
+	}
+
 	daemonGroup := api.Group("/daemon")
 	{
 		daemonGroup.GET("/status", handlers.daemonStatus)
@@ -466,6 +505,8 @@ func newHandlers(cfg handlerConfig) *Handlers {
 	return &Handlers{
 		sessions:     cfg.sessions,
 		observer:     cfg.observer,
+		memoryStore:  cfg.memoryStore,
+		dreamTrigger: cfg.dreamTrigger,
 		homePaths:    cfg.homePaths,
 		config:       cfg.config,
 		logger:       logger,
@@ -512,7 +553,7 @@ func corsMiddleware(boundHost string) gin.HandlerFunc {
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		headers := c.Writer.Header()
 		headers.Set("Access-Control-Allow-Headers", "Content-Type, Last-Event-ID, Accept")
-		headers.Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		headers.Set("Access-Control-Expose-Headers", "Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream")
 		headers.Set("Vary", "Origin")
 		if origin != "" {

@@ -33,13 +33,13 @@ const (
 
 // MemoryHeader contains validated metadata parsed from a memory file frontmatter.
 type MemoryHeader struct {
-	Filename    string     `yaml:"-"`
-	FilePath    string     `yaml:"-"`
-	ModTime     time.Time  `yaml:"-"`
-	Name        string     `yaml:"name"`
-	Description string     `yaml:"description,omitempty"`
-	Type        MemoryType `yaml:"type"`
-	AgentName   string     `yaml:"agent_name,omitempty"`
+	Filename    string     `json:"filename" yaml:"-"`
+	FilePath    string     `json:"-" yaml:"-"`
+	ModTime     time.Time  `json:"mod_time" yaml:"-"`
+	Name        string     `json:"name" yaml:"name"`
+	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
+	Type        MemoryType `json:"type" yaml:"type"`
+	AgentName   string     `json:"agent_name,omitempty" yaml:"agent_name,omitempty"`
 }
 
 // Normalize returns the normalized representation of the memory type.
@@ -56,6 +56,20 @@ func (t MemoryType) Validate() error {
 		return fmt.Errorf("memory type is required")
 	default:
 		return fmt.Errorf("unsupported memory type %q", t)
+	}
+}
+
+// DefaultScopeForType resolves the default persistence scope for a memory type.
+func DefaultScopeForType(t MemoryType) (Scope, error) {
+	switch t.Normalize() {
+	case MemoryTypeUser, MemoryTypeFeedback:
+		return ScopeGlobal, nil
+	case MemoryTypeProject, MemoryTypeReference:
+		return ScopeWorkspace, nil
+	case "":
+		return "", fmt.Errorf("memory type is required")
+	default:
+		return "", fmt.Errorf("unsupported memory type %q", t)
 	}
 }
 

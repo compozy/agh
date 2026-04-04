@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pedronauck/agh/internal/memory"
 )
 
 const (
@@ -39,6 +41,11 @@ type DaemonClient interface {
 	ObserveEvents(ctx context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error)
 	StreamObserveEvents(ctx context.Context, query ObserveEventQuery, lastEventID string, handler SSEHandler) error
 	ObserveHealth(ctx context.Context) (HealthStatus, error)
+	ListMemory(ctx context.Context, scope memory.Scope, workspace string) ([]MemoryHeaderRecord, error)
+	ReadMemory(ctx context.Context, filename string, scope memory.Scope, workspace string) (MemoryReadRecord, error)
+	WriteMemory(ctx context.Context, filename string, request MemoryWriteRequest) (MemoryMutationRecord, error)
+	DeleteMemory(ctx context.Context, filename string, scope memory.Scope, workspace string) (MemoryMutationRecord, error)
+	ConsolidateMemory(ctx context.Context, workspace string) (MemoryConsolidateRecord, error)
 }
 
 // CreateSessionRequest captures the CLI session creation payload.
@@ -167,6 +174,32 @@ type ObserveEventQuery struct {
 	Type      string
 	Since     time.Time
 	Last      int
+}
+
+// MemoryHeaderRecord is one memory header returned by the daemon API.
+type MemoryHeaderRecord = memory.MemoryHeader
+
+// MemoryReadRecord is the memory document payload returned by the daemon API.
+type MemoryReadRecord struct {
+	Content string `json:"content"`
+}
+
+// MemoryWriteRequest captures the daemon API write payload.
+type MemoryWriteRequest struct {
+	Content   string `json:"content"`
+	Scope     string `json:"scope,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+}
+
+// MemoryMutationRecord captures the daemon API write/delete response.
+type MemoryMutationRecord struct {
+	OK bool `json:"ok"`
+}
+
+// MemoryConsolidateRecord captures the daemon API consolidation response.
+type MemoryConsolidateRecord struct {
+	Triggered bool   `json:"triggered"`
+	Reason    string `json:"reason,omitempty"`
 }
 
 // HealthStatus is the daemon API observability health payload.
@@ -381,6 +414,46 @@ func (c *unixSocketClient) ObserveHealth(ctx context.Context) (HealthStatus, err
 	return response.Health, nil
 }
 
+func (c *unixSocketClient) ListMemory(ctx context.Context, scope memory.Scope, workspace string) ([]MemoryHeaderRecord, error) {
+	var response []MemoryHeaderRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/memory", memoryValues(scope, workspace), nil, &response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ReadMemory(ctx context.Context, filename string, scope memory.Scope, workspace string) (MemoryReadRecord, error) {
+	var response MemoryReadRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/memory/"+url.PathEscape(strings.TrimSpace(filename)), memoryValues(scope, workspace), nil, &response); err != nil {
+		return MemoryReadRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) WriteMemory(ctx context.Context, filename string, request MemoryWriteRequest) (MemoryMutationRecord, error) {
+	var response MemoryMutationRecord
+	if err := c.doJSON(ctx, http.MethodPut, "/api/memory/"+url.PathEscape(strings.TrimSpace(filename)), nil, request, &response); err != nil {
+		return MemoryMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) DeleteMemory(ctx context.Context, filename string, scope memory.Scope, workspace string) (MemoryMutationRecord, error) {
+	var response MemoryMutationRecord
+	if err := c.doJSON(ctx, http.MethodDelete, "/api/memory/"+url.PathEscape(strings.TrimSpace(filename)), memoryValues(scope, workspace), nil, &response); err != nil {
+		return MemoryMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ConsolidateMemory(ctx context.Context, workspace string) (MemoryConsolidateRecord, error) {
+	var response MemoryConsolidateRecord
+	if err := c.doJSON(ctx, http.MethodPost, "/api/memory/consolidate", nil, map[string]string{"workspace": strings.TrimSpace(workspace)}, &response); err != nil {
+		return MemoryConsolidateRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *unixSocketClient) doJSON(ctx context.Context, method string, path string, query url.Values, requestBody any, responseBody any) error {
 	response, err := c.doRequest(ctx, method, path, query, requestBody, "")
 	if err != nil {
@@ -566,6 +639,17 @@ func observeEventValues(query ObserveEventQuery) url.Values {
 	}
 	if query.Last > 0 {
 		values.Set("limit", strconv.Itoa(query.Last))
+	}
+	return values
+}
+
+func memoryValues(scope memory.Scope, workspace string) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(string(scope)); trimmed != "" {
+		values.Set("scope", trimmed)
+	}
+	if trimmed := strings.TrimSpace(workspace); trimmed != "" {
+		values.Set("workspace", trimmed)
 	}
 	return values
 }

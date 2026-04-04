@@ -18,6 +18,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -96,6 +97,51 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatalf("stop session status = %d, want %d; body=%s", stopResp.StatusCode, http.StatusOK, string(body))
 	}
 	_ = stopResp.Body.Close()
+}
+
+func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	writeResp := mustUnixRequest(t, runtime.client, http.MethodPut, "http://unix/api/memory/integration.md", []byte(`{"scope":"global","content":"`+escapeJSON(memoryDocument(t, "Integration", "desc", memory.MemoryTypeUser, "hello integration"))+`"}`), nil)
+	if writeResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(writeResp.Body)
+		_ = writeResp.Body.Close()
+		t.Fatalf("write status = %d, want %d; body=%s", writeResp.StatusCode, http.StatusOK, string(body))
+	}
+	_ = writeResp.Body.Close()
+
+	readResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/memory/integration.md?scope=global", nil, nil)
+	if readResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(readResp.Body)
+		_ = readResp.Body.Close()
+		t.Fatalf("read status = %d, want %d; body=%s", readResp.StatusCode, http.StatusOK, string(body))
+	}
+	var readPayload memoryReadResponse
+	decodeHTTPJSON(t, readResp, &readPayload)
+	if !strings.Contains(readPayload.Content, "hello integration") {
+		t.Fatalf("content = %q, want written body", readPayload.Content)
+	}
+
+	deleteResp := mustUnixRequest(t, runtime.client, http.MethodDelete, "http://unix/api/memory/integration.md?scope=global", nil, nil)
+	if deleteResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(deleteResp.Body)
+		_ = deleteResp.Body.Close()
+		t.Fatalf("delete status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusOK, string(body))
+	}
+	_ = deleteResp.Body.Close()
+
+	resp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/memory/consolidate", []byte(`{"workspace":"`+runtime.workspace+`"}`), nil)
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		t.Fatalf("consolidate status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
+	}
+
+	var payload memoryConsolidateResponse
+	decodeHTTPJSON(t, resp, &payload)
+	if !payload.Triggered || runtime.dream.calls != 1 {
+		t.Fatalf("payload = %#v dream.calls=%d, want triggered once", payload, runtime.dream.calls)
+	}
 }
 
 func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {
@@ -240,8 +286,31 @@ type integrationRuntime struct {
 	server    *Server
 	manager   *session.Manager
 	observer  *observe.Observer
+	memory    *memory.Store
+	dream     *integrationDreamTrigger
 	socket    string
 	workspace string
+}
+
+type integrationDreamTrigger struct {
+	enabled   bool
+	triggered bool
+	reason    string
+	last      time.Time
+	calls     int
+}
+
+func (t *integrationDreamTrigger) Trigger(context.Context, string) (bool, string, error) {
+	t.calls++
+	return t.triggered, t.reason, nil
+}
+
+func (t *integrationDreamTrigger) LastConsolidatedAt() (time.Time, error) {
+	return t.last, nil
+}
+
+func (t *integrationDreamTrigger) Enabled() bool {
+	return t.enabled
 }
 
 type integrationNotifierFanout struct {
@@ -403,6 +472,16 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	}
 	fanout.notifiers = append(fanout.notifiers, observer)
 
+	memoryStore := memory.NewStore(homePaths.MemoryDir)
+	if err := memoryStore.EnsureDirs(); err != nil {
+		t.Fatalf("memoryStore.EnsureDirs() error = %v", err)
+	}
+	dreamTrigger := &integrationDreamTrigger{
+		enabled:   true,
+		triggered: true,
+		last:      time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC),
+	}
+
 	server, err := New(
 		WithHomePaths(homePaths),
 		WithConfig(cfg),
@@ -410,6 +489,8 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		WithLogger(discardLogger()),
 		WithSessionManager(manager),
 		WithObserver(observer),
+		WithMemoryStore(memoryStore),
+		WithDreamTrigger(dreamTrigger),
 		WithPollInterval(10*time.Millisecond),
 	)
 	if err != nil {
@@ -431,6 +512,8 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		server:    server,
 		manager:   manager,
 		observer:  observer,
+		memory:    memoryStore,
+		dream:     dreamTrigger,
 		socket:    socketPath,
 		workspace: workspace,
 	}

@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 )
@@ -21,6 +23,8 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	customLoader := func(name string, homePaths aghconfig.HomePaths) (aghconfig.AgentDef, error) {
 		return aghconfig.AgentDef{Name: name, Provider: "fake", Prompt: "hello"}, nil
 	}
+	store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
+	dream := &stubDreamTrigger{}
 	cfg := aghconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
@@ -36,6 +40,8 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		WithPollInterval(25*time.Millisecond),
 		WithSessionManager(stubSessionManager{}),
 		WithObserver(stubObserver{}),
+		WithMemoryStore(store),
+		WithDreamTrigger(dream),
 		WithAgentLoader(customLoader),
 		WithEngine(engine),
 	)
@@ -59,6 +65,12 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	}
 	if server.handlers.agentLoader == nil {
 		t.Fatal("expected custom agent loader to be installed")
+	}
+	if server.handlers.memoryStore != store {
+		t.Fatal("expected memory store option to be installed")
+	}
+	if server.handlers.dreamTrigger != dream {
+		t.Fatal("expected dream trigger option to be installed")
 	}
 }
 

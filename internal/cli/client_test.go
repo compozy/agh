@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pedronauck/agh/internal/memory"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -51,6 +53,22 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					}, "\n")), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/observe/health":
 					return newHTTPResponse(http.StatusOK, `{"health":{"status":"ok","uptime_seconds":10,"active_sessions":1,"active_agents":1,"global_db_size_bytes":100,"session_db_size_bytes":200,"version":"dev"}}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/memory":
+					if got := req.URL.Query().Get("scope"); got != "global" {
+						t.Fatalf("memory scope query = %q, want %q", got, "global")
+					}
+					return newHTTPResponse(http.StatusOK, `[{"filename":"memory.md","mod_time":"2026-04-03T12:00:00Z","name":"Memory","description":"desc","type":"user"}]`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/memory.md":
+					return newHTTPResponse(http.StatusOK, `{"content":"---\nname: Memory\n---\n\nhello"}`), nil
+				case req.Method == http.MethodPut && req.URL.Path == "/api/memory/memory.md":
+					return newHTTPResponse(http.StatusOK, `{"ok":true}`), nil
+				case req.Method == http.MethodDelete && req.URL.Path == "/api/memory/memory.md":
+					if got := req.URL.Query().Get("scope"); got != "workspace" {
+						t.Fatalf("delete memory scope query = %q, want %q", got, "workspace")
+					}
+					return newHTTPResponse(http.StatusOK, `{"ok":true}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/consolidate":
+					return newHTTPResponse(http.StatusOK, `{"triggered":true}`), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/daemon/status":
 					return newHTTPResponse(http.StatusOK, `{"daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/agh.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":1,"version":"dev"}}`), nil
 				default:
@@ -107,6 +125,31 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	if err != nil || health.Status != "ok" {
 		t.Fatalf("ObserveHealth() = %#v, %v", health, err)
 	}
+
+	memories, err := client.ListMemory(ctx, memory.ScopeGlobal, "")
+	if err != nil || len(memories) != 1 {
+		t.Fatalf("ListMemory() = %#v, %v", memories, err)
+	}
+
+	memoryRecord, err := client.ReadMemory(ctx, "memory.md", memory.ScopeGlobal, "")
+	if err != nil || !strings.Contains(memoryRecord.Content, "hello") {
+		t.Fatalf("ReadMemory() = %#v, %v", memoryRecord, err)
+	}
+
+	written, err := client.WriteMemory(ctx, "memory.md", MemoryWriteRequest{Scope: "global", Content: "payload"})
+	if err != nil || !written.OK {
+		t.Fatalf("WriteMemory() = %#v, %v", written, err)
+	}
+
+	deleted, err := client.DeleteMemory(ctx, "memory.md", memory.ScopeWorkspace, "/workspace/project")
+	if err != nil || !deleted.OK {
+		t.Fatalf("DeleteMemory() = %#v, %v", deleted, err)
+	}
+
+	consolidated, err := client.ConsolidateMemory(ctx, "/workspace/project")
+	if err != nil || !consolidated.Triggered {
+		t.Fatalf("ConsolidateMemory() = %#v, %v", consolidated, err)
+	}
 }
 
 func TestReadAPIErrorAndHelpers(t *testing.T) {
@@ -137,6 +180,10 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		Last:      2,
 	}); got.Get("session_id") != "sess-1" || got.Get("limit") != "2" {
 		t.Fatalf("observeEventValues() = %v, want session_id/limit", got)
+	}
+
+	if got := memoryValues(memory.ScopeWorkspace, "/workspace/project"); got.Get("scope") != "workspace" || got.Get("workspace") != "/workspace/project" {
+		t.Fatalf("memoryValues() = %v, want scope/workspace", got)
 	}
 
 	plain := newHTTPResponse(http.StatusInternalServerError, "plain failure")

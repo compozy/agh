@@ -77,6 +77,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newDaemonCommand(deps))
 	cmd.AddCommand(newSessionCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))
+	cmd.AddCommand(newMemoryCommand(deps))
 	cmd.AddCommand(newObserveCommand(deps))
 	cmd.AddCommand(newWhoamiCommand(deps))
 

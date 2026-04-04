@@ -33,6 +33,15 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		observe.GET("/health", handlers.health)
 	}
 
+	memoryGroup := api.Group("/memory")
+	{
+		memoryGroup.GET("", handlers.listMemory)
+		memoryGroup.GET("/:filename", handlers.readMemory)
+		memoryGroup.PUT("/:filename", handlers.writeMemory)
+		memoryGroup.DELETE("/:filename", handlers.deleteMemory)
+		memoryGroup.POST("/consolidate", handlers.consolidateMemory)
+	}
+
 	daemon := api.Group("/daemon")
 	{
 		daemon.GET("/status", handlers.daemonStatus)

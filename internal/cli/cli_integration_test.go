@@ -21,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
+	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -225,11 +226,58 @@ func TestSessionEventsFollowIntegration(t *testing.T) {
 	}
 }
 
+func TestMemoryWriteListIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	if _, _, err := executeRootCommand(t, h.deps, "memory", "write", "prefs.md", "--type", "user", "--description", "cli memory", "--content", "remember this", "-o", "json"); err != nil {
+		t.Fatalf("memory write error = %v", err)
+	}
+
+	listOut, _, err := executeRootCommand(t, h.deps, "memory", "list", "--scope", "global", "-o", "json")
+	if err != nil {
+		t.Fatalf("memory list error = %v", err)
+	}
+
+	var memories []memoryListItem
+	if err := json.Unmarshal([]byte(listOut), &memories); err != nil {
+		t.Fatalf("json.Unmarshal(memory list) error = %v; out=%s", err, listOut)
+	}
+	if len(memories) != 1 || memories[0].Filename != "prefs.md" {
+		t.Fatalf("memories = %#v, want prefs.md", memories)
+	}
+}
+
 type integrationHarness struct {
 	deps      commandDeps
 	homePaths aghconfig.HomePaths
 	workspace string
 	runner    *integrationDaemon
+}
+
+type integrationDreamTrigger struct {
+	enabled   bool
+	triggered bool
+	reason    string
+	last      time.Time
+}
+
+func (t *integrationDreamTrigger) Trigger(context.Context, string) (bool, string, error) {
+	return t.triggered, t.reason, nil
+}
+
+func (t *integrationDreamTrigger) LastConsolidatedAt() (time.Time, error) {
+	return t.last, nil
+}
+
+func (t *integrationDreamTrigger) Enabled() bool {
+	return t.enabled
 }
 
 type integrationDaemon struct {
@@ -415,6 +463,16 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	}()
 	fanout.notifiers = append(fanout.notifiers, observer)
 
+	memoryStore := memory.NewStore(d.homePaths.MemoryDir)
+	if err := memoryStore.EnsureDirs(); err != nil {
+		return fmt.Errorf("ensure memory dirs: %w", err)
+	}
+	dreamTrigger := &integrationDreamTrigger{
+		enabled:   true,
+		triggered: true,
+		last:      time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC),
+	}
+
 	server, err := udsapi.New(
 		udsapi.WithHomePaths(d.homePaths),
 		udsapi.WithConfig(d.cfg),
@@ -424,6 +482,8 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		udsapi.WithPollInterval(10*time.Millisecond),
 		udsapi.WithSessionManager(manager),
 		udsapi.WithObserver(observer),
+		udsapi.WithMemoryStore(memoryStore),
+		udsapi.WithDreamTrigger(dreamTrigger),
 	)
 	if err != nil {
 		return fmt.Errorf("new uds server: %w", err)

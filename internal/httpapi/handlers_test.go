@@ -29,10 +29,13 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 	sort.Strings(got)
 
 	want := []string{
+		"DELETE /api/memory/:filename",
 		"DELETE /api/sessions/:id",
 		"GET /api/agents",
 		"GET /api/agents/:name",
 		"GET /api/daemon/status",
+		"GET /api/memory",
+		"GET /api/memory/:filename",
 		"GET /api/observe/events",
 		"GET /api/observe/events/stream",
 		"GET /api/observe/health",
@@ -41,10 +44,12 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/sessions/:id/events",
 		"GET /api/sessions/:id/history",
 		"GET /api/sessions/:id/stream",
+		"POST /api/memory/consolidate",
 		"POST /api/sessions",
 		"POST /api/sessions/:id/approve",
 		"POST /api/sessions/:id/prompt",
 		"POST /api/sessions/:id/resume",
+		"PUT /api/memory/:filename",
 	}
 	sort.Strings(want)
 

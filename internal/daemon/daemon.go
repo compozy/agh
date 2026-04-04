@@ -79,18 +79,26 @@ type Server interface {
 
 // RuntimeDeps captures the composition-root dependencies available to server factories.
 type RuntimeDeps struct {
-	Config      aghconfig.Config
-	HomePaths   aghconfig.HomePaths
-	Logger      *slog.Logger
-	Sessions    SessionManager
-	Observer    Observer
-	Registry    Registry
-	MemoryStore *memory.Store
-	StartedAt   time.Time
+	Config       aghconfig.Config
+	HomePaths    aghconfig.HomePaths
+	Logger       *slog.Logger
+	Sessions     SessionManager
+	Observer     Observer
+	Registry     Registry
+	MemoryStore  *memory.Store
+	DreamTrigger DreamTrigger
+	StartedAt    time.Time
 }
 
 // ServerFactory constructs runtime components such as HTTP and UDS servers.
 type ServerFactory func(ctx context.Context, deps RuntimeDeps) (Server, error)
+
+// DreamTrigger exposes consolidation controls and health state to transport layers.
+type DreamTrigger interface {
+	Trigger(ctx context.Context, workspace string) (bool, string, error)
+	LastConsolidatedAt() (time.Time, error)
+	Enabled() bool
+}
 
 type registryOpener func(ctx context.Context, path string) (Registry, error)
 type sessionManagerFactory func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error)
@@ -100,6 +108,43 @@ type dreamServiceFactory func(opts ...memory.Option) dreamService
 type dreamService interface {
 	ShouldRun() (bool, error)
 	Run(ctx context.Context, spawn memory.SessionSpawner) error
+}
+
+type runtimeDreamTrigger struct {
+	enabled            bool
+	service            dreamService
+	spawner            memory.SessionSpawner
+	lastConsolidatedAt func() (time.Time, error)
+}
+
+func (t runtimeDreamTrigger) Trigger(ctx context.Context, _ string) (bool, string, error) {
+	if !t.Enabled() || t.service == nil || t.spawner == nil {
+		return false, "dream consolidation is disabled", nil
+	}
+
+	shouldRun, err := t.service.ShouldRun()
+	if err != nil {
+		return false, "", err
+	}
+	if !shouldRun {
+		return false, "dream consolidation gates are not satisfied", nil
+	}
+	if err := t.service.Run(ctx, t.spawner); err != nil {
+		return false, "", err
+	}
+
+	return true, "", nil
+}
+
+func (t runtimeDreamTrigger) LastConsolidatedAt() (time.Time, error) {
+	if t.lastConsolidatedAt == nil {
+		return time.Time{}, nil
+	}
+	return t.lastConsolidatedAt()
+}
+
+func (t runtimeDreamTrigger) Enabled() bool {
+	return t.enabled
 }
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
@@ -305,6 +350,8 @@ func New(opts ...Option) (*Daemon, error) {
 				httpapi.WithStartedAt(deps.StartedAt),
 				httpapi.WithSessionManager(deps.Sessions),
 				httpapi.WithObserver(deps.Observer),
+				httpapi.WithMemoryStore(deps.MemoryStore),
+				httpapi.WithDreamTrigger(deps.DreamTrigger),
 			)
 		}
 	}
@@ -317,6 +364,8 @@ func New(opts ...Option) (*Daemon, error) {
 				udsapi.WithStartedAt(deps.StartedAt),
 				udsapi.WithSessionManager(deps.Sessions),
 				udsapi.WithObserver(deps.Observer),
+				udsapi.WithMemoryStore(deps.MemoryStore),
+				udsapi.WithDreamTrigger(deps.DreamTrigger),
 			)
 		}
 	}
@@ -530,9 +579,10 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		memoryStore     *memory.Store
 		promptAssembler session.PromptAssembler
 		dreamSvc        dreamService
+		globalMemoryDir string
 	)
 	if cfg.Memory.Enabled {
-		globalMemoryDir := strings.TrimSpace(cfg.Memory.GlobalDir)
+		globalMemoryDir = strings.TrimSpace(cfg.Memory.GlobalDir)
 		if globalMemoryDir == "" {
 			globalMemoryDir = d.homePaths.MemoryDir
 		}
@@ -618,14 +668,29 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 
+	dreamSpawner := d.makeDreamSpawner(sessions, cfg)
+	var dreamTrigger DreamTrigger
+	if dreamSvc != nil {
+		lockPath := memory.ConsolidationLockPath(globalMemoryDir)
+		dreamTrigger = runtimeDreamTrigger{
+			enabled: cfg.Memory.Dream.Enabled,
+			service: dreamSvc,
+			spawner: dreamSpawner,
+			lastConsolidatedAt: func() (time.Time, error) {
+				return memory.NewConsolidationLock(lockPath).LastConsolidatedAt()
+			},
+		}
+	}
+
 	deps := RuntimeDeps{
-		Config:      cfg,
-		HomePaths:   d.homePaths,
-		Logger:      logger,
-		Sessions:    sessions,
-		Registry:    registry,
-		MemoryStore: memoryStore,
-		StartedAt:   startedAt,
+		Config:       cfg,
+		HomePaths:    d.homePaths,
+		Logger:       logger,
+		Sessions:     sessions,
+		Registry:     registry,
+		MemoryStore:  memoryStore,
+		DreamTrigger: dreamTrigger,
+		StartedAt:    startedAt,
 	}
 
 	observer, err := d.newObserver(ctx, deps)
@@ -706,9 +771,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	d.httpServer = httpServer
 	d.udsServer = udsServer
 	d.dreamService = dreamSvc
-	if dreamSvc != nil {
-		d.dreamSpawner = d.makeDreamSpawner(sessions, cfg)
-	}
+	d.dreamSpawner = dreamSpawner
 	d.startedAt = startedAt
 	d.info = info
 	if !d.readyClosed {

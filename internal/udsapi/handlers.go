@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -23,6 +24,8 @@ import (
 type handlerConfig struct {
 	sessions     SessionManager
 	observer     Observer
+	memoryStore  *memory.Store
+	dreamTrigger DreamTrigger
 	homePaths    aghconfig.HomePaths
 	config       aghconfig.Config
 	logger       *slog.Logger
@@ -36,6 +39,8 @@ type handlerConfig struct {
 type Handlers struct {
 	sessions     SessionManager
 	observer     Observer
+	memoryStore  *memory.Store
+	dreamTrigger DreamTrigger
 	homePaths    aghconfig.HomePaths
 	config       aghconfig.Config
 	logger       *slog.Logger
@@ -206,6 +211,8 @@ func newHandlers(cfg handlerConfig) *Handlers {
 	return &Handlers{
 		sessions:     cfg.sessions,
 		observer:     cfg.observer,
+		memoryStore:  cfg.memoryStore,
+		dreamTrigger: cfg.dreamTrigger,
 		homePaths:    cfg.homePaths,
 		config:       cfg.config,
 		logger:       logger,
@@ -630,7 +637,16 @@ func (h *Handlers) health(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"health": health})
+	memoryHealth, err := h.memoryHealth(c)
+	if err != nil {
+		respondError(c, statusForMemoryError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"health": health,
+		"memory": memoryHealth,
+	})
 }
 
 func (h *Handlers) daemonStatus(c *gin.Context) {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/memory"
 )
 
 var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
@@ -29,6 +30,11 @@ type stubClient struct {
 	observeEventsFn       func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error)
 	streamObserveEventsFn func(context.Context, ObserveEventQuery, string, SSEHandler) error
 	observeHealthFn       func(context.Context) (HealthStatus, error)
+	listMemoryFn          func(context.Context, memory.Scope, string) ([]MemoryHeaderRecord, error)
+	readMemoryFn          func(context.Context, string, memory.Scope, string) (MemoryReadRecord, error)
+	writeMemoryFn         func(context.Context, string, MemoryWriteRequest) (MemoryMutationRecord, error)
+	deleteMemoryFn        func(context.Context, string, memory.Scope, string) (MemoryMutationRecord, error)
+	consolidateMemoryFn   func(context.Context, string) (MemoryConsolidateRecord, error)
 }
 
 func (s stubClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
@@ -134,6 +140,41 @@ func (s stubClient) ObserveHealth(ctx context.Context) (HealthStatus, error) {
 		return s.observeHealthFn(ctx)
 	}
 	return HealthStatus{}, errors.New("unexpected ObserveHealth call")
+}
+
+func (s stubClient) ListMemory(ctx context.Context, scope memory.Scope, workspace string) ([]MemoryHeaderRecord, error) {
+	if s.listMemoryFn != nil {
+		return s.listMemoryFn(ctx, scope, workspace)
+	}
+	return nil, errors.New("unexpected ListMemory call")
+}
+
+func (s stubClient) ReadMemory(ctx context.Context, filename string, scope memory.Scope, workspace string) (MemoryReadRecord, error) {
+	if s.readMemoryFn != nil {
+		return s.readMemoryFn(ctx, filename, scope, workspace)
+	}
+	return MemoryReadRecord{}, errors.New("unexpected ReadMemory call")
+}
+
+func (s stubClient) WriteMemory(ctx context.Context, filename string, request MemoryWriteRequest) (MemoryMutationRecord, error) {
+	if s.writeMemoryFn != nil {
+		return s.writeMemoryFn(ctx, filename, request)
+	}
+	return MemoryMutationRecord{}, errors.New("unexpected WriteMemory call")
+}
+
+func (s stubClient) DeleteMemory(ctx context.Context, filename string, scope memory.Scope, workspace string) (MemoryMutationRecord, error) {
+	if s.deleteMemoryFn != nil {
+		return s.deleteMemoryFn(ctx, filename, scope, workspace)
+	}
+	return MemoryMutationRecord{}, errors.New("unexpected DeleteMemory call")
+}
+
+func (s stubClient) ConsolidateMemory(ctx context.Context, workspace string) (MemoryConsolidateRecord, error) {
+	if s.consolidateMemoryFn != nil {
+		return s.consolidateMemoryFn(ctx, workspace)
+	}
+	return MemoryConsolidateRecord{}, errors.New("unexpected ConsolidateMemory call")
 }
 
 func newTestDeps(t *testing.T, client DaemonClient) commandDeps {
