@@ -612,6 +612,78 @@ func TestCreateInvokesPromptAssemblerWhenConfigured(t *testing.T) {
 	if gotAgentPrompt != "You are a coding assistant." {
 		t.Fatalf("assembler prompt = %q, want original agent prompt", gotAgentPrompt)
 	}
+	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant.\n\nmemory block" {
+		t.Fatalf("start system prompt = %q, want assembled prompt", got)
+	}
+}
+
+func TestCreateUsesRawPromptWhenAssemblerIsNil(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptAssembler(nil))
+
+	session, err := h.manager.Create(testContext(t), CreateOpts{
+		AgentName: "coder",
+		Workspace: h.workspace,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testContext(t), session.ID)
+	})
+
+	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant." {
+		t.Fatalf("start system prompt = %q, want raw agent prompt", got)
+	}
+}
+
+func TestCreateAppliesDreamPermissionsOverride(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.cfg.Permissions.Mode = aghconfig.PermissionModeDenyAll
+	h.manager = newManagerWithHarness(t, h)
+
+	session, err := h.manager.Create(testContext(t), CreateOpts{
+		AgentName: "coder",
+		Workspace: h.workspace,
+		Type:      SessionTypeDream,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testContext(t), session.ID)
+	})
+
+	if got := h.driver.startCalls[0].Permissions; got != aghconfig.PermissionModeApproveAll {
+		t.Fatalf("start permissions = %q, want %q", got, aghconfig.PermissionModeApproveAll)
+	}
+}
+
+func TestCreateUsesConfiguredPermissionsForUserSessions(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.cfg.Permissions.Mode = aghconfig.PermissionModeDenyAll
+	h.manager = newManagerWithHarness(t, h)
+
+	session, err := h.manager.Create(testContext(t), CreateOpts{
+		AgentName: "coder",
+		Workspace: h.workspace,
+		Type:      SessionTypeUser,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testContext(t), session.ID)
+	})
+
+	if got := h.driver.startCalls[0].Permissions; got != aghconfig.PermissionModeDenyAll {
+		t.Fatalf("start permissions = %q, want %q", got, aghconfig.PermissionModeDenyAll)
+	}
 }
 
 func TestACPDriverAdapterErrorPaths(t *testing.T) {

@@ -22,6 +22,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/httpapi"
 	aghlogger "github.com/pedronauck/agh/internal/logger"
+	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -78,21 +79,36 @@ type Server interface {
 
 // RuntimeDeps captures the composition-root dependencies available to server factories.
 type RuntimeDeps struct {
-	Config    aghconfig.Config
-	HomePaths aghconfig.HomePaths
-	Logger    *slog.Logger
-	Sessions  SessionManager
-	Observer  Observer
-	Registry  Registry
-	StartedAt time.Time
+	Config      aghconfig.Config
+	HomePaths   aghconfig.HomePaths
+	Logger      *slog.Logger
+	Sessions    SessionManager
+	Observer    Observer
+	Registry    Registry
+	MemoryStore *memory.Store
+	StartedAt   time.Time
 }
 
 // ServerFactory constructs runtime components such as HTTP and UDS servers.
 type ServerFactory func(ctx context.Context, deps RuntimeDeps) (Server, error)
 
 type registryOpener func(ctx context.Context, path string) (Registry, error)
-type sessionManagerFactory func(ctx context.Context, homePaths aghconfig.HomePaths, logger *slog.Logger, notifier session.Notifier) (SessionManager, error)
+type sessionManagerFactory func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error)
 type observerFactory func(ctx context.Context, deps RuntimeDeps) (Observer, error)
+type dreamServiceFactory func(opts ...memory.Option) dreamService
+
+type dreamService interface {
+	ShouldRun() (bool, error)
+	Run(ctx context.Context, spawn memory.SessionSpawner) error
+}
+
+// SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
+type SessionManagerDeps struct {
+	HomePaths       aghconfig.HomePaths
+	Logger          *slog.Logger
+	Notifier        session.Notifier
+	PromptAssembler session.PromptAssembler
+}
 
 type processInfo struct {
 	PID  int
@@ -100,7 +116,8 @@ type processInfo struct {
 }
 
 type notifierFanout struct {
-	notifiers []session.Notifier
+	notifiers        []session.Notifier
+	onSessionStopped func(context.Context, *session.Session)
 }
 
 // Daemon is the sole AGH composition root.
@@ -116,6 +133,7 @@ type Daemon struct {
 	acquireLock       func(path string, pid int) (*Lock, error)
 	openRegistry      registryOpener
 	newSessionManager sessionManagerFactory
+	newDreamService   dreamServiceFactory
 	newObserver       observerFactory
 	httpFactory       ServerFactory
 	udsFactory        ServerFactory
@@ -136,10 +154,16 @@ type Daemon struct {
 	info              Info
 	lock              *Lock
 	registry          Registry
+	memoryStore       *memory.Store
 	sessions          SessionManager
 	observer          Observer
 	httpServer        Server
 	udsServer         Server
+	dreamService      dreamService
+	dreamSpawner      memory.SessionSpawner
+	dreamCheckCh      chan string
+	dreamCancel       context.CancelFunc
+	dreamWG           sync.WaitGroup
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -242,12 +266,18 @@ func New(opts ...Option) (*Daemon, error) {
 		}
 	}
 	if d.newSessionManager == nil {
-		d.newSessionManager = func(ctx context.Context, homePaths aghconfig.HomePaths, logger *slog.Logger, notifier session.Notifier) (SessionManager, error) {
+		d.newSessionManager = func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error) {
 			return session.NewManager(
-				session.WithHomePaths(homePaths),
-				session.WithLogger(logger),
-				session.WithNotifier(notifier),
+				session.WithHomePaths(deps.HomePaths),
+				session.WithLogger(deps.Logger),
+				session.WithNotifier(deps.Notifier),
+				session.WithPromptAssembler(deps.PromptAssembler),
 			)
+		}
+	}
+	if d.newDreamService == nil {
+		d.newDreamService = func(opts ...memory.Option) dreamService {
+			return memory.NewService(opts...)
 		}
 	}
 	if d.newObserver == nil {
@@ -328,6 +358,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	if err := d.boot(ctx); err != nil {
 		return err
 	}
+	d.startDreamLoop(ctx)
 
 	sigCh, stopSignals := d.signalSource()
 	defer stopSignals()
@@ -360,20 +391,30 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	lock := d.lock
 	closeLogger := d.closeLogger
 	infoPath := d.homePaths.DaemonInfo
+	dreamCancel := d.dreamCancel
 
 	d.sessions = nil
 	d.httpServer = nil
 	d.udsServer = nil
 	d.observer = nil
 	d.registry = nil
+	d.memoryStore = nil
 	d.lock = nil
 	d.booting = false
 	d.info = Info{}
 	d.startedAt = time.Time{}
 	d.closeLogger = func() error { return nil }
+	d.dreamService = nil
+	d.dreamSpawner = nil
+	d.dreamCheckCh = nil
+	d.dreamCancel = nil
 	d.mu.Unlock()
 
 	var errs []error
+	if dreamCancel != nil {
+		dreamCancel()
+		d.dreamWG.Wait()
+	}
 	if err := d.stopSessions(ctx, sessions); err != nil {
 		errs = append(errs, err)
 	}
@@ -485,6 +526,32 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		closeLogger = func() error { return nil }
 	}
 
+	var (
+		memoryStore     *memory.Store
+		promptAssembler session.PromptAssembler
+		dreamSvc        dreamService
+	)
+	if cfg.Memory.Enabled {
+		globalMemoryDir := strings.TrimSpace(cfg.Memory.GlobalDir)
+		if globalMemoryDir == "" {
+			globalMemoryDir = d.homePaths.MemoryDir
+		}
+		memoryStore = memory.NewStore(globalMemoryDir)
+		if err := memoryStore.EnsureDirs(); err != nil {
+			return fmt.Errorf("daemon: ensure memory store directories: %w", err)
+		}
+		promptAssembler = memory.NewAssembler(memoryStore)
+		if cfg.Memory.Dream.Enabled {
+			dreamSvc = d.newDreamService(
+				memory.WithMemoryStore(memoryStore),
+				memory.WithSessionsDir(d.homePaths.SessionsDir),
+				memory.WithMinHours(cfg.Memory.Dream.MinHours),
+				memory.WithMinSessions(cfg.Memory.Dream.MinSessions),
+				memory.WithLogger(logger),
+			)
+		}
+	}
+
 	cleanupFns := make([]func(context.Context) error, 0, 8)
 	defer func() {
 		if err == nil {
@@ -541,18 +608,24 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 
 	startedAt := d.now().UTC()
 	fanout := notifierFanout{}
-	sessions, err := d.newSessionManager(ctx, d.homePaths, logger, &fanout)
+	sessions, err := d.newSessionManager(ctx, SessionManagerDeps{
+		HomePaths:       d.homePaths,
+		Logger:          logger,
+		Notifier:        &fanout,
+		PromptAssembler: promptAssembler,
+	})
 	if err != nil {
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 
 	deps := RuntimeDeps{
-		Config:    cfg,
-		HomePaths: d.homePaths,
-		Logger:    logger,
-		Sessions:  sessions,
-		Registry:  registry,
-		StartedAt: startedAt,
+		Config:      cfg,
+		HomePaths:   d.homePaths,
+		Logger:      logger,
+		Sessions:    sessions,
+		Registry:    registry,
+		MemoryStore: memoryStore,
+		StartedAt:   startedAt,
 	}
 
 	observer, err := d.newObserver(ctx, deps)
@@ -561,6 +634,14 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 	fanout.notifiers = append(fanout.notifiers, observer)
 	deps.Observer = observer
+	if dreamSvc != nil {
+		fanout.onSessionStopped = func(_ context.Context, sess *session.Session) {
+			if sess == nil || sess.Info().Type == session.SessionTypeDream {
+				return
+			}
+			d.enqueueDreamCheck("session_stop")
+		}
+	}
 
 	httpServer, err := d.httpFactory(ctx, deps)
 	if err != nil {
@@ -619,10 +700,15 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	d.booting = false
 	d.lock = lock
 	d.registry = registry
+	d.memoryStore = memoryStore
 	d.sessions = sessions
 	d.observer = observer
 	d.httpServer = httpServer
 	d.udsServer = udsServer
+	d.dreamService = dreamSvc
+	if dreamSvc != nil {
+		d.dreamSpawner = d.makeDreamSpawner(sessions, cfg)
+	}
 	d.startedAt = startedAt
 	d.info = info
 	if !d.readyClosed {
@@ -632,6 +718,127 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	d.mu.Unlock()
 
 	return nil
+}
+
+func (d *Daemon) startDreamLoop(parent context.Context) {
+	d.mu.Lock()
+	if d.dreamService == nil || d.dreamSpawner == nil || d.dreamCheckCh != nil {
+		d.mu.Unlock()
+		return
+	}
+
+	dreamCtx, cancel := context.WithCancel(parent)
+	dreamCheckCh := make(chan string, 1)
+	d.dreamCancel = cancel
+	d.dreamCheckCh = dreamCheckCh
+	service := d.dreamService
+	spawner := d.dreamSpawner
+	logger := d.logger
+	interval := d.config.Memory.Dream.CheckInterval
+	d.dreamWG.Add(1)
+	d.mu.Unlock()
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	go func() {
+		defer d.dreamWG.Done()
+
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-dreamCtx.Done():
+				return
+			case <-ticker.C:
+				d.runDreamCheck(dreamCtx, logger, service, spawner, "ticker")
+			case reason := <-dreamCheckCh:
+				d.runDreamCheck(dreamCtx, logger, service, spawner, reason)
+			}
+		}
+	}()
+}
+
+func (d *Daemon) enqueueDreamCheck(reason string) {
+	d.mu.Lock()
+	dreamCheckCh := d.dreamCheckCh
+	d.mu.Unlock()
+
+	if dreamCheckCh == nil {
+		return
+	}
+
+	select {
+	case dreamCheckCh <- strings.TrimSpace(reason):
+	default:
+		d.runtimeLogger().Debug("daemon: dream check already queued", "reason", reason)
+	}
+}
+
+func (d *Daemon) runDreamCheck(ctx context.Context, logger *slog.Logger, service dreamService, spawner memory.SessionSpawner, reason string) {
+	if service == nil || spawner == nil {
+		return
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	logger.Debug("daemon: evaluating dream consolidation gates", "reason", reason)
+	shouldRun, err := service.ShouldRun()
+	if err != nil {
+		logger.Warn("daemon: dream gate evaluation failed", "reason", reason, "error", err)
+		return
+	}
+	if !shouldRun {
+		logger.Debug("daemon: dream consolidation skipped", "reason", reason)
+		return
+	}
+
+	logger.Info("daemon: starting dream consolidation", "reason", reason)
+	if err := service.Run(ctx, spawner); err != nil {
+		logger.Warn("daemon: dream consolidation failed", "reason", reason, "error", err)
+		return
+	}
+	logger.Info("daemon: dream consolidation completed", "reason", reason)
+}
+
+func (d *Daemon) makeDreamSpawner(sessions SessionManager, cfg aghconfig.Config) memory.SessionSpawner {
+	if !cfg.Memory.Enabled || !cfg.Memory.Dream.Enabled || sessions == nil {
+		return nil
+	}
+
+	return func(ctx context.Context, goal, prompt string) (err error) {
+		workspace, workspaceErr := os.Getwd()
+		if workspaceErr != nil {
+			return fmt.Errorf("daemon: resolve dream workspace: %w", workspaceErr)
+		}
+
+		dreamSession, err := sessions.Create(ctx, session.CreateOpts{
+			AgentName: cfg.Memory.Dream.Agent,
+			Name:      strings.TrimSpace(goal),
+			Workspace: workspace,
+			Type:      session.SessionTypeDream,
+		})
+		if err != nil {
+			return fmt.Errorf("daemon: create dream session: %w", err)
+		}
+		defer func() {
+			stopErr := sessions.Stop(ctx, dreamSession.ID)
+			if stopErr != nil {
+				err = errors.Join(err, fmt.Errorf("daemon: stop dream session %q: %w", dreamSession.ID, stopErr))
+			}
+		}()
+
+		events, err := sessions.Prompt(ctx, dreamSession.ID, prompt)
+		if err != nil {
+			return fmt.Errorf("daemon: prompt dream session %q: %w", dreamSession.ID, err)
+		}
+
+		for range events {
+		}
+		return nil
+	}
 }
 
 func (d *Daemon) shouldVerifyBoundaries() bool {
@@ -928,6 +1135,9 @@ func (f *notifierFanout) OnSessionCreated(ctx context.Context, sess *session.Ses
 }
 
 func (f *notifierFanout) OnSessionStopped(ctx context.Context, sess *session.Session) {
+	if f.onSessionStopped != nil {
+		f.onSessionStopped(ctx, sess)
+	}
 	for _, notifier := range f.notifiers {
 		if notifier == nil {
 			continue

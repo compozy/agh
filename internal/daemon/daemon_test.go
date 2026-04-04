@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -145,7 +147,7 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 	d.openRegistry = func(context.Context, string) (Registry, error) {
 		return registry, nil
 	}
-	d.newSessionManager = func(context.Context, aghconfig.HomePaths, *slog.Logger, session.Notifier) (SessionManager, error) {
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
 		return sessionManager, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -240,7 +242,7 @@ func TestBootRejectsConcurrentCallWhileFirstBootIsInProgress(t *testing.T) {
 	d.openRegistry = func(context.Context, string) (Registry, error) {
 		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
 	}
-	d.newSessionManager = func(context.Context, aghconfig.HomePaths, *slog.Logger, session.Notifier) (SessionManager, error) {
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
 		return &fakeSessionManager{}, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -341,7 +343,7 @@ func TestBootFailureCleansUpStartedResourcesInReverseOrder(t *testing.T) {
 			},
 		}, nil
 	}
-	d.newSessionManager = func(context.Context, aghconfig.HomePaths, *slog.Logger, session.Notifier) (SessionManager, error) {
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
 		return &fakeSessionManager{}, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -402,7 +404,7 @@ func TestBootFailureWhenWritingDaemonInfoCleansUpAllServers(t *testing.T) {
 			},
 		}, nil
 	}
-	d.newSessionManager = func(context.Context, aghconfig.HomePaths, *slog.Logger, session.Notifier) (SessionManager, error) {
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
 		return &fakeSessionManager{}, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -550,7 +552,7 @@ func TestRunShutsDownOnInjectedSignal(t *testing.T) {
 	d.openRegistry = func(context.Context, string) (Registry, error) {
 		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
 	}
-	d.newSessionManager = func(context.Context, aghconfig.HomePaths, *slog.Logger, session.Notifier) (SessionManager, error) {
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
 		return &fakeSessionManager{}, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -748,6 +750,323 @@ func TestNotifierFanoutDispatchesEvents(t *testing.T) {
 	}
 }
 
+func TestBootInitializesMemoryStoreAndInjectsAssembler(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Memory.GlobalDir = filepath.Join(homePaths.HomeDir, "custom-memory")
+
+	d := newTestDaemon(t, homePaths, cfg)
+
+	var capturedDeps SessionManagerDeps
+	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+		capturedDeps = deps
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testContext(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testContext(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if d.memoryStore == nil {
+		t.Fatal("boot() did not initialize the memory store")
+	}
+	if capturedDeps.PromptAssembler == nil {
+		t.Fatal("boot() did not inject the prompt assembler into the session manager")
+	}
+	if info, err := os.Stat(cfg.Memory.GlobalDir); err != nil {
+		t.Fatalf("stat memory.global_dir error = %v", err)
+	} else if !info.IsDir() {
+		t.Fatalf("memory.global_dir mode = %v, want directory", info.Mode())
+	}
+}
+
+func TestBootDoesNotInjectAssemblerWhenMemoryDisabled(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Memory.Enabled = false
+
+	d := newTestDaemon(t, homePaths, cfg)
+
+	var capturedDeps SessionManagerDeps
+	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+		capturedDeps = deps
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testContext(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testContext(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if capturedDeps.PromptAssembler != nil {
+		t.Fatal("boot() injected a prompt assembler even though memory is disabled")
+	}
+}
+
+func TestRunSkipsDreamLoopWhenMemoryOrDreamDisabled(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		patch func(*aghconfig.Config)
+	}{
+		{
+			name: "memory disabled",
+			patch: func(cfg *aghconfig.Config) {
+				cfg.Memory.Enabled = false
+			},
+		},
+		{
+			name: "dream disabled",
+			patch: func(cfg *aghconfig.Config) {
+				cfg.Memory.Dream.Enabled = false
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths := testHomePaths(t)
+			cfg := testConfig(t, homePaths)
+			tc.patch(&cfg)
+
+			d := newTestDaemon(t, homePaths, cfg)
+			d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+				return &fakeSessionManager{}, nil
+			}
+			d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+				return &fakeObserver{}, nil
+			}
+			d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+				return &fakeServer{name: "http"}, nil
+			}
+			d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+				return &fakeServer{name: "uds"}, nil
+			}
+
+			runCtx, cancel := context.WithCancel(context.Background())
+			errCh := make(chan error, 1)
+			go func() {
+				errCh <- d.Run(runCtx)
+			}()
+
+			<-d.readyCh
+			waitForCondition(t, "dream loop skipped", func() bool {
+				d.mu.Lock()
+				defer d.mu.Unlock()
+				return d.dreamService == nil && d.dreamCheckCh == nil
+			})
+
+			cancel()
+			if err := <-errCh; err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestDreamTickerRunsAndStopsOnCancellation(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Memory.Dream.CheckInterval = 10 * time.Millisecond
+
+	dream := &fakeDreamService{shouldRun: true}
+	d := newTestDaemon(t, homePaths, cfg)
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.newDreamService = func(opts ...memory.Option) dreamService {
+		return dream
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	runCtx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- d.Run(runCtx)
+	}()
+
+	<-d.readyCh
+	waitForCondition(t, "dream loop started", func() bool {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		return d.dreamCheckCh != nil
+	})
+	waitForCondition(t, "dream ticker run", func() bool {
+		return dream.runCount() > 0
+	})
+
+	cancel()
+	if err := <-errCh; err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	runCount := dream.runCount()
+	time.Sleep(30 * time.Millisecond)
+	if got := dream.runCount(); got != runCount {
+		t.Fatalf("dream run count after shutdown = %d, want %d", got, runCount)
+	}
+}
+
+func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Memory.Dream.CheckInterval = time.Hour
+
+	dream := &fakeDreamService{shouldRun: true}
+	var notifier session.Notifier
+
+	d := newTestDaemon(t, homePaths, cfg)
+	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+		notifier = deps.Notifier
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.newDreamService = func(opts ...memory.Option) dreamService {
+		return dream
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	runCtx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- d.Run(runCtx)
+	}()
+
+	<-d.readyCh
+	waitForCondition(t, "dream loop started", func() bool {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		return d.dreamCheckCh != nil
+	})
+	if notifier == nil {
+		t.Fatal("session manager notifier = nil")
+	}
+
+	notifier.OnSessionStopped(context.Background(), &session.Session{ID: "sess-user", Type: session.SessionTypeUser})
+	waitForCondition(t, "dream run from session stop", func() bool {
+		return dream.runCount() == 1
+	})
+
+	notifier.OnSessionStopped(context.Background(), &session.Session{ID: "sess-dream", Type: session.SessionTypeDream})
+	time.Sleep(20 * time.Millisecond)
+	if got := dream.runCount(); got != 1 {
+		t.Fatalf("dream run count after dream-session stop = %d, want 1", got)
+	}
+
+	cancel()
+	if err := <-errCh; err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+}
+
+func TestDreamSpawnerCreatesDreamSession(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	sessions := &fakeSessionManager{}
+
+	d := newTestDaemon(t, homePaths, cfg)
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return sessions, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testContext(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testContext(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if d.dreamSpawner == nil {
+		t.Fatal("boot() did not configure the dream spawner")
+	}
+
+	if err := d.dreamSpawner(testContext(t), "memory-consolidation", "summarize recent sessions"); err != nil {
+		t.Fatalf("dream spawner error = %v", err)
+	}
+	if got := sessions.createCount(); got != 1 {
+		t.Fatalf("Create() calls = %d, want 1", got)
+	}
+	if got := sessions.createCall(0).Type; got != session.SessionTypeDream {
+		t.Fatalf("Create() session type = %q, want %q", got, session.SessionTypeDream)
+	}
+	if got := sessions.createCall(0).AgentName; got != cfg.Memory.Dream.Agent {
+		t.Fatalf("Create() agent = %q, want %q", got, cfg.Memory.Dream.Agent)
+	}
+	if got := sessions.promptCount(); got != 1 || sessions.promptCall(0).msg != "summarize recent sessions" {
+		t.Fatalf("Prompt() calls = %d, want one prompt payload", got)
+	}
+	if got := sessions.stopCount(); got != 1 || sessions.stopCall(0) != "dream-1" {
+		t.Fatalf("Stop() calls = %d, want stop for created dream session", got)
+	}
+}
+
 func TestRemoveStaleSocketBehaviors(t *testing.T) {
 	socketPath := filepath.Join(t.TempDir(), "daemon.sock")
 	if err := removeStaleSocket(socketPath); err != nil {
@@ -925,6 +1244,19 @@ func testContext(t *testing.T) context.Context {
 	return ctx
 }
 
+func waitForCondition(t *testing.T, label string, fn func() bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if fn() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", label)
+}
+
 func testHomePaths(t *testing.T) aghconfig.HomePaths {
 	t.Helper()
 
@@ -1012,16 +1344,35 @@ func freeTCPPort(t *testing.T) int {
 }
 
 type fakeSessionManager struct {
-	infos   []*session.SessionInfo
-	onStop  func(string)
-	stopErr func(string) error
+	mu          sync.Mutex
+	infos       []*session.SessionInfo
+	onStop      func(string)
+	stopErr     func(string) error
+	createCalls []session.CreateOpts
+	promptCalls []struct {
+		id  string
+		msg string
+	}
+	stopCalls []string
 }
 
-func (f *fakeSessionManager) Create(context.Context, session.CreateOpts) (*session.Session, error) {
-	return nil, nil
+func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.createCalls = append(f.createCalls, opts)
+	sessionID := fmt.Sprintf("dream-%d", len(f.createCalls))
+	return &session.Session{
+		ID:        sessionID,
+		AgentName: opts.AgentName,
+		Workspace: opts.Workspace,
+		Type:      opts.Type,
+		State:     session.StateActive,
+	}, nil
 }
 
 func (f *fakeSessionManager) List() []*session.SessionInfo {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return append([]*session.SessionInfo(nil), f.infos...)
 }
 
@@ -1030,6 +1381,8 @@ func (f *fakeSessionManager) ListAll(context.Context) ([]*session.SessionInfo, e
 }
 
 func (f *fakeSessionManager) Status(_ context.Context, id string) (*session.SessionInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	for _, info := range f.infos {
 		if info != nil && info.ID == id {
 			return info, nil
@@ -1047,6 +1400,9 @@ func (f *fakeSessionManager) History(context.Context, string, store.EventQuery) 
 }
 
 func (f *fakeSessionManager) Stop(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.stopCalls = append(f.stopCalls, id)
 	if f.onStop != nil && len(f.infos) > 0 {
 		f.onStop(f.infos[0].ID)
 		f.infos = f.infos[1:]
@@ -1061,7 +1417,13 @@ func (f *fakeSessionManager) Resume(context.Context, string) (*session.Session, 
 	return nil, nil
 }
 
-func (f *fakeSessionManager) Prompt(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+func (f *fakeSessionManager) Prompt(_ context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
+	f.mu.Lock()
+	f.promptCalls = append(f.promptCalls, struct {
+		id  string
+		msg string
+	}{id: id, msg: msg})
+	f.mu.Unlock()
 	ch := make(chan acp.AgentEvent)
 	close(ch)
 	return ch, nil
@@ -1069,6 +1431,45 @@ func (f *fakeSessionManager) Prompt(context.Context, string, string) (<-chan acp
 
 func (f *fakeSessionManager) ApprovePermission(context.Context, string, acp.ApproveRequest) error {
 	return nil
+}
+
+func (f *fakeSessionManager) createCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.createCalls)
+}
+
+func (f *fakeSessionManager) createCall(index int) session.CreateOpts {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.createCalls[index]
+}
+
+func (f *fakeSessionManager) promptCall(index int) struct {
+	id  string
+	msg string
+} {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.promptCalls[index]
+}
+
+func (f *fakeSessionManager) stopCall(index int) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.stopCalls[index]
+}
+
+func (f *fakeSessionManager) promptCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.promptCalls)
+}
+
+func (f *fakeSessionManager) stopCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.stopCalls)
 }
 
 type fakeObserver struct {
@@ -1182,6 +1583,42 @@ func (n *recordingNotifier) OnSessionStopped(context.Context, *session.Session) 
 
 func (n *recordingNotifier) OnAgentEvent(context.Context, string, acp.AgentEvent) {
 	n.events = append(n.events, "agent")
+}
+
+type fakeDreamService struct {
+	mu             sync.Mutex
+	shouldRun      bool
+	shouldRunErr   error
+	runErr         error
+	shouldRunCalls int
+	runCalls       int
+	runHook        func(context.Context, memory.SessionSpawner) error
+}
+
+func (f *fakeDreamService) ShouldRun() (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.shouldRunCalls++
+	return f.shouldRun, f.shouldRunErr
+}
+
+func (f *fakeDreamService) Run(ctx context.Context, spawn memory.SessionSpawner) error {
+	f.mu.Lock()
+	f.runCalls++
+	runHook := f.runHook
+	runErr := f.runErr
+	f.mu.Unlock()
+
+	if runHook != nil {
+		return runHook(ctx, spawn)
+	}
+	return runErr
+}
+
+func (f *fakeDreamService) runCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.runCalls
 }
 
 type portReportingServer struct {

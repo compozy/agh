@@ -170,6 +170,7 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 		done:               make(chan struct{}),
 		pendingPermissions: make(map[string]*pendingPermission),
 		permissionTimeout:  d.permissionWait,
+		systemPrompt:       normalized.SystemPrompt,
 	}
 	process.terminals = newTerminalManager(procCtx, d.logger)
 	process.conn = acpsdk.NewConnection(process.handleInbound, stdin, stdout)
@@ -346,7 +347,7 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 
 	promptRequest := acpsdk.PromptRequest{
 		SessionId: acpsdk.SessionId(proc.SessionID),
-		Prompt:    []acpsdk.ContentBlock{acpsdk.TextBlock(req.Message)},
+		Prompt:    []acpsdk.ContentBlock{acpsdk.TextBlock(proc.nextPromptText(req.Message))},
 	}
 	response, err := acpsdk.SendRequest[wirePromptResponse](proc.conn, ctx, acpsdk.AgentMethodSessionPrompt, promptRequest)
 	close(cancellationDone)
@@ -420,6 +421,7 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 	if normalized.MCPServers != nil {
 		normalized.MCPServers = append([]aghconfig.MCPServer(nil), normalized.MCPServers...)
 	}
+	normalized.SystemPrompt = strings.TrimSpace(normalized.SystemPrompt)
 
 	return normalized, nil
 }

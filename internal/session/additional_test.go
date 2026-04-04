@@ -105,6 +105,9 @@ func TestCreateWithNilPromptAssemblerIsSafe(t *testing.T) {
 	if got := session.Info().Type; got != SessionTypeUser {
 		t.Fatalf("session type = %q, want %q", got, SessionTypeUser)
 	}
+	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant." {
+		t.Fatalf("start system prompt = %q, want raw agent prompt", got)
+	}
 }
 
 func TestResumeCleansUpOnStartFailure(t *testing.T) {

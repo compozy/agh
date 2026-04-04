@@ -173,6 +173,52 @@ func TestTokenUsageParsing(t *testing.T) {
 	}
 }
 
+func TestPromptPrependsSystemPromptOnce(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
+		SystemPrompt: "Memory context first.\nThen agent prompt.",
+	})
+	defer stopProcess(t, driver, proc)
+
+	firstEventsCh, err := driver.Prompt(testContext(t), proc, PromptRequest{
+		TurnID:  "turn-1",
+		Message: "first request",
+	})
+	if err != nil {
+		t.Fatalf("Prompt(first) error = %v", err)
+	}
+	firstEvents := collectEvents(t, firstEventsCh)
+	if len(firstEvents) == 0 {
+		t.Fatal("Prompt(first) returned no events")
+	}
+	if !strings.Contains(firstEvents[0].Text, "Session instructions") {
+		t.Fatalf("first prompt text = %q, want injected system prompt prefix", firstEvents[0].Text)
+	}
+	if !strings.Contains(firstEvents[0].Text, "Memory context first.\nThen agent prompt.") {
+		t.Fatalf("first prompt text = %q, want system prompt content", firstEvents[0].Text)
+	}
+	if !strings.Contains(firstEvents[0].Text, "User request:\n\nfirst request") {
+		t.Fatalf("first prompt text = %q, want user request content", firstEvents[0].Text)
+	}
+
+	secondEventsCh, err := driver.Prompt(testContext(t), proc, PromptRequest{
+		TurnID:  "turn-2",
+		Message: "second request",
+	})
+	if err != nil {
+		t.Fatalf("Prompt(second) error = %v", err)
+	}
+	secondEvents := collectEvents(t, secondEventsCh)
+	if len(secondEvents) == 0 {
+		t.Fatal("Prompt(second) returned no events")
+	}
+	if secondEvents[0].Text != "second request" {
+		t.Fatalf("second prompt text = %q, want plain user request", secondEvents[0].Text)
+	}
+}
+
 func TestPromptStreamsSessionUpdates(t *testing.T) {
 	t.Parallel()
 
@@ -342,6 +388,9 @@ func startHelperProcess(t *testing.T, driver *Driver, scenario string, filePath 
 	if overrides.MCPServers != nil {
 		opts.MCPServers = overrides.MCPServers
 	}
+	if overrides.SystemPrompt != "" {
+		opts.SystemPrompt = overrides.SystemPrompt
+	}
 	opts.ResumeSessionID = overrides.ResumeSessionID
 
 	proc, err := driver.Start(testContext(t), opts)
@@ -474,6 +523,17 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 	switch a.scenario {
 	case "crash_on_prompt":
 		os.Exit(23)
+	case "echo_prompt":
+		text := ""
+		if len(params.Prompt) > 0 && params.Prompt[0].Text != nil {
+			text = params.Prompt[0].Text.Text
+		}
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText(text),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
 	case "fs_read":
 		response, err := a.conn.ReadTextFile(ctx, acpsdk.ReadTextFileRequest{
 			SessionId: params.SessionId,

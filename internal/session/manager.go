@@ -290,15 +290,11 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 	if err != nil {
 		return nil, fmt.Errorf("session: load agent %q: %w", agentName, err)
 	}
-	if m.assembler != nil {
-		assembledPrompt, assembleErr := m.assembler.Assemble(ctx, agentDef, workspace)
-		if assembleErr != nil {
-			return nil, fmt.Errorf("session: assemble prompt for %q: %w", agentName, assembleErr)
-		}
-		if strings.TrimSpace(assembledPrompt) != "" {
-			agentDef.Prompt = strings.TrimSpace(assembledPrompt)
-		}
+	startupPrompt, err := m.startupPrompt(ctx, agentName, agentDef, workspace)
+	if err != nil {
+		return nil, err
 	}
+	agentDef.Prompt = startupPrompt
 
 	resolved, err := cfg.ResolveAgent(agentDef)
 	if err != nil {
@@ -359,11 +355,12 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 	}
 
 	proc, err = m.driver.Start(ctx, acp.StartOpts{
-		AgentName:   resolved.Name,
-		Command:     resolved.Command,
-		Cwd:         workspace,
-		MCPServers:  append([]aghconfig.MCPServer(nil), resolved.MCPServers...),
-		Permissions: aghconfig.PermissionMode(resolved.Permissions),
+		AgentName:    resolved.Name,
+		Command:      resolved.Command,
+		Cwd:          workspace,
+		MCPServers:   append([]aghconfig.MCPServer(nil), resolved.MCPServers...),
+		Permissions:  m.startPermissions(session.Type, resolved.Permissions),
+		SystemPrompt: resolved.Prompt,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("session: start agent for %q: %w", sessionID, err)
@@ -461,6 +458,11 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	if err != nil {
 		return nil, fmt.Errorf("session: load agent %q: %w", meta.AgentName, err)
 	}
+	startupPrompt, err := m.startupPrompt(ctx, meta.AgentName, agentDef, workspace)
+	if err != nil {
+		return nil, err
+	}
+	agentDef.Prompt = startupPrompt
 
 	resolved, err := cfg.ResolveAgent(agentDef)
 	if err != nil {
@@ -519,7 +521,8 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		Command:         resolved.Command,
 		Cwd:             workspace,
 		MCPServers:      append([]aghconfig.MCPServer(nil), resolved.MCPServers...),
-		Permissions:     aghconfig.PermissionMode(resolved.Permissions),
+		Permissions:     m.startPermissions(session.Type, resolved.Permissions),
+		SystemPrompt:    resolved.Prompt,
 		ResumeSessionID: derefString(meta.ACPSessionID),
 	})
 	if err != nil {
@@ -543,6 +546,35 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	}
 
 	return session, nil
+}
+
+func (m *Manager) startupPrompt(ctx context.Context, agentName string, agent aghconfig.AgentDef, workspace string) (string, error) {
+	prompt := strings.TrimSpace(agent.Prompt)
+	if m.assembler == nil {
+		return prompt, nil
+	}
+
+	assembledPrompt, err := m.assembler.Assemble(ctx, agent, workspace)
+	if err != nil {
+		return "", fmt.Errorf("session: assemble prompt for %q: %w", agentName, err)
+	}
+	if strings.TrimSpace(assembledPrompt) == "" {
+		return prompt, nil
+	}
+
+	return strings.TrimSpace(assembledPrompt), nil
+}
+
+func (m *Manager) startPermissions(sessionType SessionType, configured string) aghconfig.PermissionMode {
+	if normalizeSessionType(sessionType) == SessionTypeDream {
+		return aghconfig.PermissionModeApproveAll
+	}
+
+	mode := aghconfig.PermissionMode(strings.TrimSpace(configured))
+	if mode == "" {
+		return aghconfig.PermissionModeApproveReads
+	}
+	return mode
 }
 
 // Prompt sends one prompt turn to an active session and mirrors the runtime stream into storage and observers.

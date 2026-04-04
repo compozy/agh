@@ -48,6 +48,7 @@ type StartOpts struct {
 	Env             []string
 	MCPServers      []aghconfig.MCPServer
 	Permissions     aghconfig.PermissionMode
+	SystemPrompt    string
 	ResumeSessionID string
 }
 
@@ -206,6 +207,10 @@ type AgentProcess struct {
 	pendingPermissions   map[string]*pendingPermission
 	permissionRequestSeq uint64
 	permissionTimeout    time.Duration
+
+	systemPromptMu   sync.Mutex
+	systemPrompt     string
+	systemPromptSent bool
 }
 
 type activePromptState struct {
@@ -308,6 +313,26 @@ func (p *AgentProcess) currentPrompt() *activePromptState {
 	p.promptMu.RLock()
 	defer p.promptMu.RUnlock()
 	return p.activePrompt
+}
+
+func (p *AgentProcess) nextPromptText(message string) string {
+	userMessage := strings.TrimSpace(message)
+
+	p.systemPromptMu.Lock()
+	defer p.systemPromptMu.Unlock()
+
+	systemPrompt := strings.TrimSpace(p.systemPrompt)
+	if p.systemPromptSent || systemPrompt == "" {
+		return userMessage
+	}
+
+	p.systemPromptSent = true
+	return strings.TrimSpace(
+		"Session instructions (treat as system guidance for this conversation):\n\n" +
+			systemPrompt +
+			"\n\nUser request:\n\n" +
+			userMessage,
+	)
 }
 
 func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
