@@ -9,6 +9,7 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - Task 03 (Session System: API, CRUD & Sidebar) complete: session-api adapter, query hooks, mutations, sidebar items wired.
 - Task 04 (Streaming Core & Session Store) complete: streaming buffer, event mapper, Zustand store, useSessionChat hook, tool labels all in place with tests.
 - Task 05 (Chat View, Messages & Composer) complete: virtualized chat-view, message-bubble with markdown/syntax highlighting, thinking-block, message-composer, chat-header, processing-indicator, session.$id route fully wired, all tests passing.
+- Task 06 (Tool Cards & Renderers) complete: collapsible tool-call-card with 3 status modes (executing/success/error), auto-expand/collapse with localStorage persistence, 6 specialized renderers (bash, read, write, edit, search, generic), integrated into chat-view tool_group rows, all tests passing.
 
 ## Shared Decisions
 

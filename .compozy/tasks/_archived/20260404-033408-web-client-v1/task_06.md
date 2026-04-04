@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: Frontend
 type: Feature Implementation
 scope: Full
@@ -40,13 +40,13 @@ Build collapsible tool call cards and specialized renderers for different tool t
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Create `tool-call-card.tsx` with collapsible trigger, status modes, and auto-expand behavior
-- [ ] 6.2 Create `expanded-tool-content.tsx` router dispatching to specific renderers
-- [ ] 6.3 Create file-oriented renderers: `read-content.tsx`, `write-content.tsx`, `edit-content.tsx`
-- [ ] 6.4 Create `bash-content.tsx` and `search-content.tsx` renderers
-- [ ] 6.5 Create `generic-content.tsx` fallback renderer
-- [ ] 6.6 Integrate tool cards into chat-view tool_group row rendering
-- [ ] 6.7 Implement localStorage persistence for expand/collapse state
+- [x] 6.1 Create `tool-call-card.tsx` with collapsible trigger, status modes, and auto-expand behavior
+- [x] 6.2 Create `expanded-tool-content.tsx` router dispatching to specific renderers
+- [x] 6.3 Create file-oriented renderers: `read-content.tsx`, `write-content.tsx`, `edit-content.tsx`
+- [x] 6.4 Create `bash-content.tsx` and `search-content.tsx` renderers
+- [x] 6.5 Create `generic-content.tsx` fallback renderer
+- [x] 6.6 Integrate tool cards into chat-view tool_group row rendering
+- [x] 6.7 Implement localStorage persistence for expand/collapse state
 
 ## Implementation Details
 
@@ -78,21 +78,21 @@ Tool cards are rendered inside `tool_group` RowDescriptor kinds from the chat-vi
 
 ## Tests
 - Unit tests:
-  - [ ] `tool-call-card` renders executing state with shimmer for tool without result
-  - [ ] `tool-call-card` renders success state with past-tense label for completed tool
-  - [ ] `tool-call-card` renders error state with red icon for failed tool
-  - [ ] `tool-call-card` auto-expands when toolResult arrives (mock timer)
-  - [ ] `expanded-tool-content` routes "Bash" tool name to bash-content renderer
-  - [ ] `expanded-tool-content` routes unknown tool name to generic-content
-  - [ ] `bash-content` renders command and stdout from toolResult
-  - [ ] `bash-content` renders stderr in error styling when present
-  - [ ] `read-content` renders file path and content preview
-  - [ ] `edit-content` renders file path with old → new diff
-  - [ ] `generic-content` renders toolInput as formatted JSON
+  - [x] `tool-call-card` renders executing state with shimmer for tool without result
+  - [x] `tool-call-card` renders success state with past-tense label for completed tool
+  - [x] `tool-call-card` renders error state with red icon for failed tool
+  - [x] `tool-call-card` auto-expands when toolResult arrives (mock timer)
+  - [x] `expanded-tool-content` routes "Bash" tool name to bash-content renderer
+  - [x] `expanded-tool-content` routes unknown tool name to generic-content
+  - [x] `bash-content` renders command and stdout from toolResult
+  - [x] `bash-content` renders stderr in error styling when present
+  - [x] `read-content` renders file path and content preview
+  - [x] `edit-content` renders file path with old → new diff
+  - [x] `generic-content` renders toolInput as formatted JSON
 - Integration tests:
-  - [ ] Tool card expands on click and shows expanded content
-  - [ ] Tool card collapse state persists via localStorage across re-renders
-  - [ ] Chat view renders tool_group with multiple tool cards
+  - [x] Tool card expands on click and shows expanded content
+  - [x] Tool card collapse state persists via localStorage across re-renders
+  - [x] Chat view renders tool_group with multiple tool cards
 - Test coverage target: >=80%
 - All tests must pass
 
