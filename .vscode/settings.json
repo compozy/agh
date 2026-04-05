@@ -95,8 +95,7 @@
         "**/dist": true,
         "**/.git": true,
         "**/.DS_Store": true,
-        ".old_project": true,
-        ".resources": true
+        ".old_project": true
     },
     "search.exclude": {
         "**/dist": true,
