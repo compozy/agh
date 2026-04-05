@@ -7,6 +7,7 @@
 Claude Code's `services/` directory contains ~30+ service modules organized as a flat collection of standalone services rather than a hierarchical dependency tree. Each service owns a well-defined domain boundary:
 
 **Core Services:**
+
 - `analytics/` - Event logging with a sink-pattern design. Events are queued pre-initialization and drained asynchronously once the sink is attached via `attachAnalyticsSink()`. This allows code to log events before the analytics backend is wired up.
 - `api/` - Claude API client construction and request handling (the `claude.ts`, `client.ts` files).
 - `claudeAiLimits.ts` - Rate limit management. Parses HTTP response headers (`anthropic-ratelimit-unified-*`) to track quota status, utilization percentages, and overage states. Emits status changes to a listener set.
@@ -16,11 +17,13 @@ Claude Code's `services/` directory contains ~30+ service modules organized as a
 - `vcr.ts` - Test fixture recording/playback (Video Cassette Recorder pattern). Hashes API inputs, caches responses to disk, dehydrates/rehydrates environment-specific values (CWD, config paths).
 
 **Lifecycle Services:**
+
 - `preventSleep.ts` - macOS sleep prevention via `caffeinate` with reference counting (`startPreventSleep`/`stopPreventSleep`), self-healing timeouts, and cleanup registry integration.
 - `notifier.ts` - Terminal notification abstraction. Auto-detects terminal type (iTerm2, Kitty, Ghostty) and dispatches notifications using the appropriate escape sequences.
 - `diagnosticTracking.ts` - IDE diagnostic tracking service (singleton pattern). Captures baseline diagnostics before edits, computes diffs after, formats summaries. Communicates with IDE via MCP RPC calls.
 
 **Intelligence Services:**
+
 - `SessionMemory/` - Session memory persistence across compaction cycles.
 - `PromptSuggestion/` - Speculative prompt suggestion system.
 - `extractMemories/` - Extracts and persists learnings from conversations.
@@ -32,6 +35,7 @@ Claude Code's `services/` directory contains ~30+ service modules organized as a
 Claude Code uses a **two-tier state architecture**:
 
 **Tier 1: Bootstrap State (`bootstrap/state.ts`)** - A module-scoped singleton (`STATE`) with ~100+ getter/setter functions. This is "global process state" that must be accessible from anywhere without import cycles. It covers:
+
 - Session identity (sessionId, parentSessionId, projectRoot, cwd)
 - Cost tracking (totalCostUSD, totalAPIDuration, modelUsage by model)
 - Telemetry state (OTel meter, counters, logger providers)
@@ -46,13 +50,14 @@ Key design constraint: The comment `DO NOT ADD MORE STATE HERE - BE JUDICIOUS WI
 
 ```typescript
 export type Store<T> = {
-  getState: () => T
-  setState: (updater: (prev: T) => T) => void
-  subscribe: (listener: Listener) => () => void
-}
+  getState: () => T;
+  setState: (updater: (prev: T) => T) => void;
+  subscribe: (listener: Listener) => () => void;
+};
 ```
 
 The store is created with an optional `onChange` callback. `AppState` is a massive type (~450+ lines) covering:
+
 - Settings, model selection, permission context
 - MCP clients, tools, commands, resources
 - Plugin state (enabled, disabled, errors, installation status)
@@ -71,6 +76,7 @@ Selectors in `state/selectors.ts` derive computed state (e.g., `getViewedTeammat
 The bridge system enables bidirectional communication between the CLI and claude.ai:
 
 **Architecture:**
+
 1. **Registration**: `bridgeApi.ts` registers an "environment" with the server, getting back an `environment_id` and `environment_secret`.
 2. **Polling**: The bridge polls for work items (`pollForWork`) which can be sessions or healthchecks.
 3. **WebSocket Transport**: Once a session is assigned, communication happens over WebSocket with SSE fallback.
@@ -85,11 +91,13 @@ The bridge system enables bidirectional communication between the CLI and claude
 ### Plugin System
 
 **Plugin Types:**
+
 1. **Built-in Plugins** (`plugins/builtinPlugins.ts`) - Ship with the CLI, togglable via `/plugin` UI. Identified by `{name}@builtin` format.
 2. **Marketplace Plugins** - External plugins from git repositories. Identified by `{name}@{marketplace}`.
 3. **Inline Plugins** - Session-only from `--plugin-dir` flag.
 
 **Plugin Components**: A plugin can provide:
+
 - Commands (slash commands)
 - Agents (custom agent definitions)
 - Skills (prompt templates)
@@ -105,6 +113,7 @@ The bridge system enables bidirectional communication between the CLI and claude
 ### Hooks System
 
 Hooks are user-configurable lifecycle event handlers defined in `settings.json`. Four hook types:
+
 - **Command** (`type: 'command'`) - Shell commands with optional `if` condition, shell type, timeout, async/once flags.
 - **Prompt** (`type: 'prompt'`) - LLM evaluation with `$ARGUMENTS` placeholder.
 - **Agent** (`type: 'agent'`) - Full agent invocation for verification.
@@ -119,6 +128,7 @@ The `server/` directory is minimal (3 files). `createDirectConnectSession` posts
 ### Remote Session Management
 
 `remote/RemoteSessionManager.ts` manages WebSocket connections to remote sessions. It handles:
+
 - SDKMessage routing (type guard filters control messages from data messages)
 - Permission request/response bridging
 - Reconnection and disconnection callbacks
@@ -127,6 +137,7 @@ The `server/` directory is minimal (3 files). `createDirectConnectSession` posts
 ### Migrations
 
 The `migrations/` directory contains 11 migration files, each a pure function that reads settings and conditionally rewrites them. Examples:
+
 - `migrateFennecToOpus.ts` - Model alias migration (fennec-latest -> opus)
 - `migrateSonnet45ToSonnet46.ts` - Model version bumps
 - `resetProToOpusDefault.ts` - Default model changes
@@ -137,6 +148,7 @@ Migrations are idempotent (reading + writing the same source), touch only `userS
 ### Constants Organization
 
 Constants are split by domain:
+
 - `common.ts` - Date utilities with memoization for prompt-cache stability
 - `system.ts` - System prompt prefixes, attribution headers
 - `betas.ts` - Beta feature flags
@@ -156,18 +168,21 @@ Events are queued in memory until the backend sink is attached during app initia
 
 ```typescript
 // From services/analytics/index.ts
-const eventQueue: QueuedEvent[] = []
-let sink: AnalyticsSink | null = null
+const eventQueue: QueuedEvent[] = [];
+let sink: AnalyticsSink | null = null;
 
 export function attachAnalyticsSink(newSink: AnalyticsSink): void {
-  if (sink !== null) return // Idempotent
-  sink = newSink
+  if (sink !== null) return; // Idempotent
+  sink = newSink;
   // Drain queued events via queueMicrotask (non-blocking)
 }
 
 export function logEvent(name: string, metadata: LogEventMetadata): void {
-  if (!sink) { eventQueue.push({ eventName: name, metadata, async: false }); return }
-  sink.logEvent(name, metadata)
+  if (!sink) {
+    eventQueue.push({ eventName: name, metadata, async: false });
+    return;
+  }
+  sink.logEvent(name, metadata);
 }
 ```
 
@@ -180,23 +195,23 @@ A 34-line store implementation that supports the entire application's UI state.
 ```typescript
 // From state/store.ts
 export function createStore<T>(initialState: T, onChange?: OnChange<T>): Store<T> {
-  let state = initialState
-  const listeners = new Set<Listener>()
+  let state = initialState;
+  const listeners = new Set<Listener>();
   return {
     getState: () => state,
     setState: (updater: (prev: T) => T) => {
-      const prev = state
-      const next = updater(prev)
-      if (Object.is(next, prev)) return  // Skip no-ops
-      state = next
-      onChange?.({ newState: next, oldState: prev })
-      for (const listener of listeners) listener()
+      const prev = state;
+      const next = updater(prev);
+      if (Object.is(next, prev)) return; // Skip no-ops
+      state = next;
+      onChange?.({ newState: next, oldState: prev });
+      for (const listener of listeners) listener();
     },
     subscribe: (listener: Listener) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
-  }
+  };
 }
 ```
 
@@ -207,17 +222,25 @@ export function createStore<T>(initialState: T, onChange?: OnChange<T>): Store<T
 The `preventSleep.ts` pattern uses reference counting with self-healing cleanup.
 
 ```typescript
-let refCount = 0
+let refCount = 0;
 export function startPreventSleep(): void {
-  refCount++
-  if (refCount === 1) { spawnCaffeinate(); startRestartInterval() }
+  refCount++;
+  if (refCount === 1) {
+    spawnCaffeinate();
+    startRestartInterval();
+  }
 }
 export function stopPreventSleep(): void {
-  if (refCount > 0) refCount--
-  if (refCount === 0) { stopRestartInterval(); killCaffeinate() }
+  if (refCount > 0) refCount--;
+  if (refCount === 0) {
+    stopRestartInterval();
+    killCaffeinate();
+  }
 }
 export function forceStopPreventSleep(): void {
-  refCount = 0; stopRestartInterval(); killCaffeinate()
+  refCount = 0;
+  stopRestartInterval();
+  killCaffeinate();
 }
 ```
 
@@ -232,19 +255,21 @@ A FIFO ring buffer backed by both a Set (O(1) lookup) and a circular array (boun
 ```typescript
 // From bridge/bridgeMessaging.ts
 export class BoundedUUIDSet {
-  private readonly ring: (string | undefined)[]
-  private readonly set = new Set<string>()
-  private writeIdx = 0
+  private readonly ring: (string | undefined)[];
+  private readonly set = new Set<string>();
+  private writeIdx = 0;
 
   add(uuid: string): void {
-    if (this.set.has(uuid)) return
-    const evicted = this.ring[this.writeIdx]
-    if (evicted !== undefined) this.set.delete(evicted)
-    this.ring[this.writeIdx] = uuid
-    this.set.add(uuid)
-    this.writeIdx = (this.writeIdx + 1) % this.capacity
+    if (this.set.has(uuid)) return;
+    const evicted = this.ring[this.writeIdx];
+    if (evicted !== undefined) this.set.delete(evicted);
+    this.ring[this.writeIdx] = uuid;
+    this.set.add(uuid);
+    this.writeIdx = (this.writeIdx + 1) % this.capacity;
   }
-  has(uuid: string): boolean { return this.set.has(uuid) }
+  has(uuid: string): boolean {
+    return this.set.has(uuid);
+  }
 }
 ```
 
@@ -257,12 +282,12 @@ API responses are recorded to disk on first run and replayed from cache on subse
 ```typescript
 // From services/vcr.ts
 function dehydrateValue(s: unknown): unknown {
-  if (typeof s !== 'string') return s
+  if (typeof s !== "string") return s;
   return s
-    .replaceAll(configHome, '[CONFIG_HOME]')
-    .replaceAll(cwd, '[CWD]')
+    .replaceAll(configHome, "[CONFIG_HOME]")
+    .replaceAll(cwd, "[CWD]")
     .replace(/num_files="\d+"/g, 'num_files="[NUM]"')
-    .replace(/duration_ms="\d+"/g, 'duration_ms="[DURATION]"')
+    .replace(/duration_ms="\d+"/g, 'duration_ms="[DURATION]"');
 }
 ```
 
@@ -275,11 +300,16 @@ Plugin errors use a 22-variant discriminated union instead of string matching.
 ```typescript
 // From types/plugin.ts
 export type PluginError =
-  | { type: 'git-auth-failed'; source: string; gitUrl: string; authType: 'ssh' | 'https' }
-  | { type: 'manifest-parse-error'; source: string; manifestPath: string; parseError: string }
-  | { type: 'marketplace-blocked-by-policy'; source: string; marketplace: string; blockedByBlocklist?: boolean }
-  | { type: 'generic-error'; source: string; error: string }
-  // ... 18 more variants
+  | { type: "git-auth-failed"; source: string; gitUrl: string; authType: "ssh" | "https" }
+  | { type: "manifest-parse-error"; source: string; manifestPath: string; parseError: string }
+  | {
+      type: "marketplace-blocked-by-policy";
+      source: string;
+      marketplace: string;
+      blockedByBlocklist?: boolean;
+    }
+  | { type: "generic-error"; source: string; error: string };
+// ... 18 more variants
 ```
 
 **Why**: Each error variant carries exactly the context needed for its display/handling. No string parsing, no lost information.
@@ -295,15 +325,15 @@ Bootstrap state (`bootstrap/state.ts`) is a module singleton with accessor funct
 Rate limiting is driven entirely by response headers, with a clean state machine:
 
 ```typescript
-type QuotaStatus = 'allowed' | 'allowed_warning' | 'rejected'
+type QuotaStatus = "allowed" | "allowed_warning" | "rejected";
 type ClaudeAILimits = {
-  status: QuotaStatus
-  resetsAt?: number
-  rateLimitType?: RateLimitType
-  utilization?: number      // 0-1 scale
-  overageStatus?: QuotaStatus
-  isUsingOverage?: boolean
-}
+  status: QuotaStatus;
+  resetsAt?: number;
+  rateLimitType?: RateLimitType;
+  utilization?: number; // 0-1 scale
+  overageStatus?: QuotaStatus;
+  isUsingOverage?: boolean;
+};
 ```
 
 The system computes warnings from both server-sent threshold headers AND client-side time-relative calculations (usage % vs time elapsed %).
@@ -314,13 +344,13 @@ Heavy dependencies are loaded only when needed:
 
 ```typescript
 // From entrypoints/init.ts - OpenTelemetry deferred until telemetry init
-const { initializeTelemetry } = await import('../utils/telemetry/instrumentation.js')
+const { initializeTelemetry } = await import("../utils/telemetry/instrumentation.js");
 
 // From services/preventSleep.ts - plist only for Apple Terminal users
-const plist = await import('plist')
+const plist = await import("plist");
 
 // From commands.ts - Feature-gated command imports
-const voiceCommand = feature('VOICE_MODE') ? require('./commands/voice/index.js').default : null
+const voiceCommand = feature("VOICE_MODE") ? require("./commands/voice/index.js").default : null;
 ```
 
 ### 10. Idempotent Migrations with Scope Isolation
@@ -330,11 +360,11 @@ Migrations only touch `userSettings` scope (not project/local/policy), read and 
 ```typescript
 // From migrations/migrateFennecToOpus.ts
 export function migrateFennecToOpus(): void {
-  if (process.env.USER_TYPE !== 'ant') return
-  const settings = getSettingsForSource('userSettings')  // Read ONLY userSettings
-  const model = settings?.model
-  if (typeof model === 'string' && model.startsWith('fennec-latest')) {
-    updateSettingsForSource('userSettings', { model: 'opus' })  // Write ONLY userSettings
+  if (process.env.USER_TYPE !== "ant") return;
+  const settings = getSettingsForSource("userSettings"); // Read ONLY userSettings
+  const model = settings?.model;
+  if (typeof model === "string" && model.startsWith("fennec-latest")) {
+    updateSettingsForSource("userSettings", { model: "opus" }); // Write ONLY userSettings
   }
 }
 ```
@@ -434,12 +464,14 @@ func (e *SkillNotFoundError) ErrorType() string { return "skill_not_found" }
 ### 6. Two-Tier State: Bootstrap + Runtime
 
 Adopt the two-tier state pattern:
+
 - **Bootstrap state**: Singleton in `internal/bootstrap/state.go` with getter/setter functions, zero import dependencies. Houses session ID, CWD, costs, feature flags.
 - **Runtime state**: Reactive store in `internal/state/store.go` for UI-relevant state that changes during operation.
 
 ### 7. VCR-Style Test Fixtures for API Calls
 
 Build a fixture recording/playback system for our LLM API tests:
+
 - Hash request parameters to generate fixture filenames
 - Dehydrate environment-specific values (paths, timestamps, UUIDs)
 - CI fails on missing fixtures, requires explicit recording
@@ -447,6 +479,7 @@ Build a fixture recording/playback system for our LLM API tests:
 ### 8. Rate Limit State Machine
 
 Implement a clean rate limit tracker that:
+
 - Parses limits from HTTP response headers
 - Computes warnings using both server thresholds and client-side time-relative calculations
 - Emits status changes to subscribers
@@ -469,6 +502,7 @@ Migrations read and write the same scope for idempotency, require no completion 
 ### 10. Plugin Architecture with Typed Component System
 
 Design our plugin system with:
+
 - Component types: Skills, Hooks, MCP Servers, Commands
 - Error discriminated unions per component type
 - Installation status tracking (pending/installing/installed/failed)
@@ -478,6 +512,7 @@ Design our plugin system with:
 ### 11. Bridge Communication Pattern
 
 For any remote control / web UI bridge:
+
 - Register environment -> poll for work -> acknowledge work -> WebSocket for session
 - Echo deduplication with BoundedUUIDSet
 - Control request/response protocol with timeout safety (respond to unknown types with error)
@@ -507,55 +542,60 @@ Apply to: telemetry, analytics exporters, rarely-used tools.
 ## Key Files Reference
 
 ### Services Layer
-| File | Description |
-|------|-------------|
-| `services/analytics/index.ts` | Event logging with sink-pattern, event queuing, PII-safe marker types |
-| `services/vcr.ts` | VCR test fixture recording/playback with dehydration/rehydration |
-| `services/preventSleep.ts` | Ref-counted macOS sleep prevention with self-healing timeouts |
-| `services/notifier.ts` | Terminal notification abstraction (iTerm2, Kitty, Ghostty, bell) |
-| `services/diagnosticTracking.ts` | IDE diagnostic tracking singleton with baseline diffing |
-| `services/tokenEstimation.ts` | Multi-strategy token counting (API, Haiku fallback, rough) |
-| `services/claudeAiLimits.ts` | Rate limit state machine from HTTP headers, status change emission |
-| `services/rateLimitMessages.ts` | Centralized rate limit message formatting with severity tiers |
-| `services/awaySummary.ts` | "While you were away" recap generation using small model |
-| `services/compact/` | 8-file conversation compaction subsystem |
-| `services/mcp/` | 23-file MCP client management (auth, transport, config) |
-| `services/mcp/types.ts` | MCP configuration schemas (Zod) for stdio, SSE, HTTP, WebSocket, SDK |
+
+| File                             | Description                                                           |
+| -------------------------------- | --------------------------------------------------------------------- |
+| `services/analytics/index.ts`    | Event logging with sink-pattern, event queuing, PII-safe marker types |
+| `services/vcr.ts`                | VCR test fixture recording/playback with dehydration/rehydration      |
+| `services/preventSleep.ts`       | Ref-counted macOS sleep prevention with self-healing timeouts         |
+| `services/notifier.ts`           | Terminal notification abstraction (iTerm2, Kitty, Ghostty, bell)      |
+| `services/diagnosticTracking.ts` | IDE diagnostic tracking singleton with baseline diffing               |
+| `services/tokenEstimation.ts`    | Multi-strategy token counting (API, Haiku fallback, rough)            |
+| `services/claudeAiLimits.ts`     | Rate limit state machine from HTTP headers, status change emission    |
+| `services/rateLimitMessages.ts`  | Centralized rate limit message formatting with severity tiers         |
+| `services/awaySummary.ts`        | "While you were away" recap generation using small model              |
+| `services/compact/`              | 8-file conversation compaction subsystem                              |
+| `services/mcp/`                  | 23-file MCP client management (auth, transport, config)               |
+| `services/mcp/types.ts`          | MCP configuration schemas (Zod) for stdio, SSE, HTTP, WebSocket, SDK  |
 
 ### State Management
-| File | Description |
-|------|-------------|
-| `state/store.ts` | 34-line minimal reactive store (getState, setState, subscribe) |
-| `state/AppStateStore.ts` | 570-line AppState type definition with defaults factory |
+
+| File                        | Description                                                               |
+| --------------------------- | ------------------------------------------------------------------------- |
+| `state/store.ts`            | 34-line minimal reactive store (getState, setState, subscribe)            |
+| `state/AppStateStore.ts`    | 570-line AppState type definition with defaults factory                   |
 | `state/onChangeAppState.ts` | Side-effect dispatcher for state transitions (persist, sync, cache clear) |
-| `state/selectors.ts` | Pure computed state derivation (viewed teammate, active agent routing) |
-| `state/AppState.tsx` | React integration (useSyncExternalStore, selector-based subscriptions) |
-| `bootstrap/state.ts` | 1758-line module singleton for process-level state (zero-dep leaf) |
+| `state/selectors.ts`        | Pure computed state derivation (viewed teammate, active agent routing)    |
+| `state/AppState.tsx`        | React integration (useSyncExternalStore, selector-based subscriptions)    |
+| `bootstrap/state.ts`        | 1758-line module singleton for process-level state (zero-dep leaf)        |
 
 ### Bridge/Communication
-| File | Description |
-|------|-------------|
-| `bridge/bridgeApi.ts` | HTTP API client for environment registration, work polling, heartbeat |
-| `bridge/bridgeMessaging.ts` | Message routing, echo dedup (BoundedUUIDSet), control request handling |
-| `bridge/types.ts` | Bridge protocol types (WorkResponse, SessionHandle, SpawnMode, BridgeConfig) |
-| `bridge/bridgeConfig.ts` | Bridge configuration resolution |
-| `bridge/replBridgeTransport.ts` | WebSocket/SSE transport abstraction |
+
+| File                            | Description                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------- |
+| `bridge/bridgeApi.ts`           | HTTP API client for environment registration, work polling, heartbeat        |
+| `bridge/bridgeMessaging.ts`     | Message routing, echo dedup (BoundedUUIDSet), control request handling       |
+| `bridge/types.ts`               | Bridge protocol types (WorkResponse, SessionHandle, SpawnMode, BridgeConfig) |
+| `bridge/bridgeConfig.ts`        | Bridge configuration resolution                                              |
+| `bridge/replBridgeTransport.ts` | WebSocket/SSE transport abstraction                                          |
 
 ### Plugin System
-| File | Description |
-|------|-------------|
+
+| File                        | Description                                                               |
+| --------------------------- | ------------------------------------------------------------------------- |
 | `plugins/builtinPlugins.ts` | Built-in plugin registry with enable/disable, skill-to-command conversion |
-| `types/plugin.ts` | Plugin types: 22-variant PluginError union, LoadedPlugin, PluginManifest |
+| `types/plugin.ts`           | Plugin types: 22-variant PluginError union, LoadedPlugin, PluginManifest  |
 
 ### Infrastructure
-| File | Description |
-|------|-------------|
-| `commands.ts` | Top-level command registry with feature-gated lazy imports |
-| `entrypoints/init.ts` | Application initialization (config, mTLS, proxy, telemetry, cleanup) |
-| `constants/system.ts` | System prompt prefixes, attribution header construction |
-| `constants/common.ts` | Memoized date utilities for prompt-cache stability |
-| `schemas/hooks.ts` | Zod schemas for 4 hook types (command, prompt, agent, HTTP) |
-| `types/permissions.ts` | Permission type definitions (modes, behaviors, rules, decisions) |
-| `migrations/` | 11 idempotent setting migration files |
-| `server/createDirectConnectSession.ts` | Direct-connect session creation with Zod response validation |
-| `remote/RemoteSessionManager.ts` | Remote session WebSocket management with permission bridging |
+
+| File                                   | Description                                                          |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `commands.ts`                          | Top-level command registry with feature-gated lazy imports           |
+| `entrypoints/init.ts`                  | Application initialization (config, mTLS, proxy, telemetry, cleanup) |
+| `constants/system.ts`                  | System prompt prefixes, attribution header construction              |
+| `constants/common.ts`                  | Memoized date utilities for prompt-cache stability                   |
+| `schemas/hooks.ts`                     | Zod schemas for 4 hook types (command, prompt, agent, HTTP)          |
+| `types/permissions.ts`                 | Permission type definitions (modes, behaviors, rules, decisions)     |
+| `migrations/`                          | 11 idempotent setting migration files                                |
+| `server/createDirectConnectSession.ts` | Direct-connect session creation with Zod response validation         |
+| `remote/RemoteSessionManager.ts`       | Remote session WebSocket management with permission bridging         |

@@ -1,13 +1,12 @@
 ---
 status: completed
-domain: Memory, Daemon
-type: Feature Implementation
-scope: Full
+title: Memory Assembler & Daemon Wiring
+type: ""
 complexity: high
 dependencies:
-  - task_01
-  - task_02
-  - task_03
+    - task_01
+    - task_02
+    - task_03
 ---
 
 # Task 04: Memory Assembler & Daemon Wiring

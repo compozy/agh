@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Frontend
-type: Feature Implementation
-scope: Full
+title: Session System — API, CRUD & Sidebar Items
+type: ""
 complexity: medium
 dependencies:
     - task_01

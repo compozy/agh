@@ -1,13 +1,12 @@
 ---
 status: completed
-domain: API
-type: Feature Implementation
-scope: Full
+title: UDS API Package
+type: ""
 complexity: medium
 dependencies:
-  - task_04
-  - task_05
-  - task_06
+    - task_04
+    - task_05
+    - task_06
 ---
 
 # Task 07: UDS API Package

@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Transport
-type: Feature Implementation
-scope: Full
+title: NATS Embedded Transport
+type: ""
 complexity: medium
 dependencies:
     - task_01

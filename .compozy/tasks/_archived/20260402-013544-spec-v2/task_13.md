@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Runtime
-type: Feature Implementation
-scope: Full
+title: Error Handling & Resilience
+type: ""
 complexity: medium
 dependencies:
     - task_05

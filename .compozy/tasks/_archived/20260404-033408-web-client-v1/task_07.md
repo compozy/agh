@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Backend
-type: Feature Implementation
-scope: Full
+title: Backend — Interactive Permission Approval Endpoint
+type: ""
 complexity: high
 dependencies:
-  - task_05
+    - task_05
 ---
 
 # Task 07: Backend — Interactive Permission Approval Endpoint

@@ -1,11 +1,10 @@
 ---
 status: pending
-domain: CLI
-type: Feature Implementation
-scope: Full
+title: CLI Memory Commands
+type: ""
 complexity: medium
 dependencies:
-  - task_04
+    - task_04
 ---
 
 # Task 05: CLI Memory Commands

@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Core/CLI
-type: Feature Implementation
-scope: Full
+title: Install/Uninstall Plugin Lifecycle
+type: ""
 complexity: high
 dependencies:
     - task_01

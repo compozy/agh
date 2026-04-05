@@ -1,12 +1,11 @@
 ---
 status: completed
-domain: Observability
-type: Feature Implementation
-scope: Full
+title: Observe Package
+type: ""
 complexity: medium
 dependencies:
-  - task_02
-  - task_04
+    - task_02
+    - task_04
 ---
 
 # Task 05: Observe Package

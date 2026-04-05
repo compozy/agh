@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Drivers
-type: Feature Implementation
-scope: Full
+title: Codex Driver
+type: ""
 complexity: medium
 dependencies:
     - task_01

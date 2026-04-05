@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Core/Drivers
-type: Refactor
-scope: Full
+title: All Drivers — Zero Workdir Writes
+type: refactor
 complexity: high
 dependencies:
     - task_01

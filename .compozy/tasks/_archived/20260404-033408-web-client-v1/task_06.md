@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Frontend
-type: Feature Implementation
-scope: Full
+title: Tool Cards & Renderers
+type: ""
 complexity: medium
 dependencies:
-  - task_05
+    - task_05
 ---
 
 # Task 06: Tool Cards & Renderers

@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Kernel
-type: Feature Implementation
-scope: Full
+title: Workgroup Management
+type: ""
 complexity: medium
 dependencies:
     - task_05

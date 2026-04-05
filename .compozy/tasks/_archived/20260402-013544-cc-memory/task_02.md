@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Kernel/Memory
-type: Feature Implementation
-scope: Full
+title: Dream Consolidation Package
+type: ""
 complexity: high
 dependencies:
-  - task_01
+    - task_01
 ---
 
 # Task 02: Dream Consolidation Package

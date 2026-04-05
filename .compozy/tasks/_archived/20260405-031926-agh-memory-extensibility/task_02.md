@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Config, Session, Store
-type: Feature Implementation
-scope: Full
+title: Config, Session & Store Scaffolding
+type: ""
 complexity: medium
 dependencies: []
 ---

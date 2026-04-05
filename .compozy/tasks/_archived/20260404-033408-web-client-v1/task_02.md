@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Frontend
-type: Feature Implementation
-scope: Full
+title: Daemon & Agent Systems — API + Sidebar
+type: ""
 complexity: medium
 dependencies:
-  - task_01
+    - task_01
 ---
 
 # Task 02: Daemon & Agent Systems — API + Sidebar

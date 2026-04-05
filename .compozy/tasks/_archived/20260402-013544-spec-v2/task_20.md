@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: CLI
-type: Feature Implementation
-scope: Full
+title: CLI Commands — Lifecycle & Hooks
+type: ""
 complexity: low
 dependencies:
     - task_17

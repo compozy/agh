@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Runtime
-type: Feature Implementation
-scope: Full
+title: ACP Package
+type: ""
 complexity: high
 dependencies:
-  - task_01
+    - task_01
 ---
 
 # Task 03: ACP Package

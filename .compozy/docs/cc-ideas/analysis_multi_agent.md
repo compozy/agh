@@ -340,10 +340,7 @@ Skills with `paths` frontmatter are stored dormant and only activated when file 
 
 ```typescript
 // From loadSkillsDir.ts
-export function activateConditionalSkillsForPaths(
-  filePaths: string[],
-  cwd: string,
-): string[] {
+export function activateConditionalSkillsForPaths(filePaths: string[], cwd: string): string[] {
   // Uses gitignore-style pattern matching
   const skillIgnore = ignore().add(skill.paths);
   if (skillIgnore.ignores(relativePath)) {
@@ -431,10 +428,7 @@ This allows concurrent agents with independent abort controllers, permission mod
 The `TEAMMATE_MESSAGES_UI_CAP = 50` pattern prevents memory bloat in long-running agents:
 
 ```typescript
-export function appendCappedMessage<T>(
-  prev: readonly T[] | undefined,
-  item: T,
-): T[] {
+export function appendCappedMessage<T>(prev: readonly T[] | undefined, item: T): T[] {
   if (prev && prev.length >= TEAMMATE_MESSAGES_UI_CAP) {
     const next = prev.slice(-(TEAMMATE_MESSAGES_UI_CAP - 1));
     next.push(item);

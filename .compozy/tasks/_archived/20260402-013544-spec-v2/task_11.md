@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Kernel
-type: Feature Implementation
-scope: Full
+title: Hook System
+type: ""
 complexity: high
 dependencies:
     - task_04

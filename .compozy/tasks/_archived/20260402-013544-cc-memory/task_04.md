@@ -1,13 +1,12 @@
 ---
 status: pending
-domain: Kernel
-type: Feature Implementation
-scope: Full
+title: Kernel & Session Integration
+type: ""
 complexity: high
 dependencies:
-  - task_01
-  - task_02
-  - task_03
+    - task_01
+    - task_02
+    - task_03
 ---
 
 # Task 04: Kernel & Session Integration

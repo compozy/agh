@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Frontend
-type: Feature Implementation
-scope: Full
+title: Chat View, Messages & Composer
+type: ""
 complexity: high
 dependencies:
-  - task_04
+    - task_04
 ---
 
 # Task 05: Chat View, Messages & Composer

@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Core/Skills
-type: Feature Implementation
-scope: Full
+title: Registry, Catalog Builder and Bundled Skills
+type: ""
 complexity: medium
 dependencies:
     - task_01

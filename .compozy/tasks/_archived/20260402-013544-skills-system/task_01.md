@@ -1,9 +1,9 @@
 ---
 status: completed
-domain: Core/Skills
-type: Feature Implementation
-scope: Full
+title: Skills Package Core
+type: ""
 complexity: medium
+dependencies: []
 ---
 
 # Task 1: Skills Package Core

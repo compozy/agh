@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: CLI
-type: Feature Implementation
-scope: Full
+title: CLI Commands — Messaging & State
+type: ""
 complexity: medium
 dependencies:
     - task_04

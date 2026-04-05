@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Kernel
-type: Feature Implementation
-scope: Full
+title: Registry
+type: ""
 complexity: low
 dependencies:
     - task_01

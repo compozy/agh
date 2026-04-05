@@ -1,8 +1,7 @@
 ---
-status: pending
-domain: Memory
-type: Feature Implementation
-scope: Full
+status: completed
+title: Memory Store Core (memdir)
+type: ""
 complexity: medium
 dependencies: []
 ---

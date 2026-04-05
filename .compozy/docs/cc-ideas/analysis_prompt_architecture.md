@@ -38,7 +38,7 @@ return [
   ...(shouldUseGlobalCacheScope() ? [SYSTEM_PROMPT_DYNAMIC_BOUNDARY] : []),
   // --- Dynamic content (registry-managed) ---
   ...resolvedDynamicSections,
-].filter(s => s !== null)
+].filter(s => s !== null);
 ```
 
 ### Cache Splitting with `__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__`
@@ -52,9 +52,9 @@ The split produces up to 4 blocks:
 
 ```typescript
 type SystemPromptBlock = {
-  text: string
-  cacheScope: 'global' | 'org' | null
-}
+  text: string;
+  cacheScope: "global" | "org" | null;
+};
 ```
 
 1. Attribution header (cacheScope=null)
@@ -70,14 +70,14 @@ Dynamic sections use a registry abstraction (`systemPromptSections.ts`) with two
 
 ```typescript
 // Computed once per session, cached until /clear or /compact
-systemPromptSection('memory', () => loadMemoryPrompt())
+systemPromptSection("memory", () => loadMemoryPrompt());
 
 // Recomputed every turn -- explicitly labeled DANGEROUS because it breaks cache
 DANGEROUS_uncachedSystemPromptSection(
-  'mcp_instructions',
+  "mcp_instructions",
   () => getMcpInstructionsSection(mcpClients),
-  'MCP servers connect/disconnect between turns'  // required reason
-)
+  "MCP servers connect/disconnect between turns" // required reason
+);
 ```
 
 The resolver checks a cache map first, only calling `compute()` on cache miss. The `DANGEROUS_` prefix is a deliberate code-review friction device -- it forces developers to document why a section must break the cache.
@@ -175,6 +175,7 @@ Each tool prompt is loaded via the tool's `prompt()` method which can be async a
 ### 1. Array-Based Prompt Composition (Not String Concatenation)
 
 The system prompt is `readonly string[]` (branded type `SystemPrompt`), not a single string. Each element is an independently manageable section. This enables:
+
 - Per-section caching
 - Per-section conditional inclusion
 - Per-section token counting for context analysis
@@ -183,11 +184,11 @@ The system prompt is `readonly string[]` (branded type `SystemPrompt`), not a si
 ```typescript
 // From systemPromptType.ts
 export type SystemPrompt = readonly string[] & {
-  readonly __brand: 'SystemPrompt'
-}
+  readonly __brand: "SystemPrompt";
+};
 
 export function asSystemPrompt(value: readonly string[]): SystemPrompt {
-  return value as SystemPrompt
+  return value as SystemPrompt;
 }
 ```
 
@@ -196,8 +197,7 @@ export function asSystemPrompt(value: readonly string[]): SystemPrompt {
 A sentinel value separates globally-cacheable static content from per-session dynamic content:
 
 ```typescript
-export const SYSTEM_PROMPT_DYNAMIC_BOUNDARY =
-  '__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__'
+export const SYSTEM_PROMPT_DYNAMIC_BOUNDARY = "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__";
 ```
 
 The `splitSysPromptPrefix()` function finds this marker and assigns different cache scopes to blocks before/after it. This is critical for cost optimization -- the static prefix can be cached across all users.
@@ -206,14 +206,14 @@ The `splitSysPromptPrefix()` function finds this marker and assigns different ca
 
 ```typescript
 // Safe: computed once, cached for session
-systemPromptSection('memory', () => loadMemoryPrompt())
+systemPromptSection("memory", () => loadMemoryPrompt());
 
 // Dangerous: recomputed every turn, requires written justification
 DANGEROUS_uncachedSystemPromptSection(
-  'mcp_instructions',
+  "mcp_instructions",
   () => getMcpInstructionsSection(mcpClients),
-  'MCP servers connect/disconnect between turns'
-)
+  "MCP servers connect/disconnect between turns"
+);
 ```
 
 This pattern forces developers to be explicit about cache-busting behavior and document why it's necessary.
@@ -224,8 +224,7 @@ The `getUsingYourToolsSection(enabledTools: Set<string>)` function only mentions
 
 ```typescript
 function getUsingYourToolsSection(enabledTools: Set<string>): string {
-  const taskToolName = [TASK_CREATE_TOOL_NAME, TODO_WRITE_TOOL_NAME]
-    .find(n => enabledTools.has(n))
+  const taskToolName = [TASK_CREATE_TOOL_NAME, TODO_WRITE_TOOL_NAME].find(n => enabledTools.has(n));
   // ... only include guidance for available tools
 }
 ```
@@ -236,7 +235,7 @@ Runtime context is injected via `<system-reminder>` XML tags in user-role messag
 
 ```typescript
 export function wrapInSystemReminder(content: string): string {
-  return `<system-reminder>\n${content}\n</system-reminder>`
+  return `<system-reminder>\n${content}\n</system-reminder>`;
 }
 ```
 
@@ -276,9 +275,9 @@ return [...(agentPrompt ?? customPrompt ?? default), ...append]
 
 ```typescript
 export const getSystemContext = memoize(async () => {
-  const gitStatus = await getGitStatus()
-  return { ...(gitStatus && { gitStatus }) }
-})
+  const gitStatus = await getGitStatus();
+  return { ...(gitStatus && { gitStatus }) };
+});
 ```
 
 Context computation is async and memoized -- computed once per session, cleared on `/clear` or `/compact`.
@@ -286,6 +285,7 @@ Context computation is async and memoized -- computed once per session, cleared 
 ### 10. The Compaction/Summary System
 
 When context grows too large, the system compacts messages into a summary. The compact prompt itself is a carefully designed template with:
+
 - A `NO_TOOLS_PREAMBLE` that prevents the compaction model from calling tools
 - Structured analysis in `<analysis>` tags (stripped before use)
 - Detailed instructions about what to preserve (file names, code snippets, user feedback)
@@ -526,22 +526,22 @@ func (k *Kernel) AnalyzeContext(session *Session) (*ContextBreakdown, error) {
 
 ## Key Files Reference
 
-| File | Description |
-|------|-------------|
-| `constants/prompts.ts` | **Core prompt assembly engine.** Contains `getSystemPrompt()` which builds the 7-layer prompt array. Contains all section-generating functions, the `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` constant, and feature-flag-gated conditional sections. (~915 lines) |
-| `constants/systemPromptSections.ts` | **Section registry pattern.** Defines `systemPromptSection()` (cached) and `DANGEROUS_uncachedSystemPromptSection()` (volatile, requires reason). Implements `resolveSystemPromptSections()` with cache lookup. (~70 lines) |
-| `utils/systemPromptType.ts` | **Branded type for system prompt.** Defines `SystemPrompt = readonly string[] & { __brand }` and `asSystemPrompt()` constructor. Intentionally dependency-free. (~15 lines) |
-| `utils/systemPrompt.ts` | **Multi-mode prompt selection.** `buildEffectiveSystemPrompt()` implements the priority chain: override > coordinator > agent > custom > default. (~125 lines) |
-| `context.ts` | **Context factories.** Memoized `getSystemContext()` (git status, cache breaker) and `getUserContext()` (CLAUDE.md, date). Both return `{[k: string]: string}` dictionaries. (~190 lines) |
-| `utils/api.ts` | **Cache splitting and context injection.** `splitSysPromptPrefix()` splits prompt by boundary marker into `SystemPromptBlock[]` with cache scopes. `appendSystemContext()` adds system context to prompt array. `prependUserContext()` injects user context as `<system-reminder>`-wrapped synthetic user message. (~720 lines) |
-| `utils/messages.ts` | **System reminder utilities.** `wrapInSystemReminder()`, `wrapMessagesInSystemReminder()`, `ensureSystemReminderWrap()`, `smooshSystemReminderSiblings()`. Handles merging, deduplication, and cleanup of system-reminder-tagged content. (~3500 lines) |
-| `utils/attachments.ts` | **Per-turn attachment pipeline.** `getAttachmentMessages()` assembles memory files, skill discovery, MCP instructions, task notifications, IDE selections, and diagnostic files as `AttachmentMessage[]`. (~3500 lines) |
-| `utils/analyzeContext.ts` | **Context window analysis.** `analyzeContextUsage()` counts tokens per category (system prompt, tools, memory, MCP, agents, skills, messages) for the `/context` command. (~1400 lines) |
-| `query.ts` | **Main query loop.** Orchestrates per-turn assembly: builds full system prompt, auto-compacts if needed, prepends user context, streams API call, runs tools, collects attachments for next turn. (~1700 lines) |
-| `setup.ts` | **Session initialization.** Sets up CWD, hooks, worktrees, plugins, session memory, attribution. Not directly involved in prompt assembly but initializes the environment that context factories read. (~480 lines) |
-| `_prompts/README.md` | **Prompt template inventory.** Lists all system prompts, agent prompts, tool prompts, service prompts, and skill prompts with their source locations. |
-| `_prompts/system-prompt-main.md` | **Main prompt documentation.** The full composite system prompt in the order it appears, with all 7 layers documented with their source code. |
-| `_prompts/system-prompt-coordinator.md` | **Coordinator mode prompt.** Multi-worker orchestration: phases (research/synthesis/implementation/verification), worker prompt guidelines, concurrency management. |
-| `_prompts/system-prompt-proactive.md` | **Autonomous mode prompt.** Tick-driven autonomous operation: pacing with Sleep, first wake-up behavior, terminal focus awareness, bias toward action. |
-| `services/compact/prompt.ts` | **Compaction prompt.** Templates for summarizing conversation when context grows too large. Includes NO_TOOLS_PREAMBLE, analysis/summary structure, and partial-compact variants. |
-| `services/SessionMemory/prompts.ts` | **Session memory template.** Structured markdown template for session notes (title, current state, task spec, files, workflow, errors, learnings, worklog). |
+| File                                    | Description                                                                                                                                                                                                                                                                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `constants/prompts.ts`                  | **Core prompt assembly engine.** Contains `getSystemPrompt()` which builds the 7-layer prompt array. Contains all section-generating functions, the `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` constant, and feature-flag-gated conditional sections. (~915 lines)                                                                        |
+| `constants/systemPromptSections.ts`     | **Section registry pattern.** Defines `systemPromptSection()` (cached) and `DANGEROUS_uncachedSystemPromptSection()` (volatile, requires reason). Implements `resolveSystemPromptSections()` with cache lookup. (~70 lines)                                                                                                     |
+| `utils/systemPromptType.ts`             | **Branded type for system prompt.** Defines `SystemPrompt = readonly string[] & { __brand }` and `asSystemPrompt()` constructor. Intentionally dependency-free. (~15 lines)                                                                                                                                                     |
+| `utils/systemPrompt.ts`                 | **Multi-mode prompt selection.** `buildEffectiveSystemPrompt()` implements the priority chain: override > coordinator > agent > custom > default. (~125 lines)                                                                                                                                                                  |
+| `context.ts`                            | **Context factories.** Memoized `getSystemContext()` (git status, cache breaker) and `getUserContext()` (CLAUDE.md, date). Both return `{[k: string]: string}` dictionaries. (~190 lines)                                                                                                                                       |
+| `utils/api.ts`                          | **Cache splitting and context injection.** `splitSysPromptPrefix()` splits prompt by boundary marker into `SystemPromptBlock[]` with cache scopes. `appendSystemContext()` adds system context to prompt array. `prependUserContext()` injects user context as `<system-reminder>`-wrapped synthetic user message. (~720 lines) |
+| `utils/messages.ts`                     | **System reminder utilities.** `wrapInSystemReminder()`, `wrapMessagesInSystemReminder()`, `ensureSystemReminderWrap()`, `smooshSystemReminderSiblings()`. Handles merging, deduplication, and cleanup of system-reminder-tagged content. (~3500 lines)                                                                         |
+| `utils/attachments.ts`                  | **Per-turn attachment pipeline.** `getAttachmentMessages()` assembles memory files, skill discovery, MCP instructions, task notifications, IDE selections, and diagnostic files as `AttachmentMessage[]`. (~3500 lines)                                                                                                         |
+| `utils/analyzeContext.ts`               | **Context window analysis.** `analyzeContextUsage()` counts tokens per category (system prompt, tools, memory, MCP, agents, skills, messages) for the `/context` command. (~1400 lines)                                                                                                                                         |
+| `query.ts`                              | **Main query loop.** Orchestrates per-turn assembly: builds full system prompt, auto-compacts if needed, prepends user context, streams API call, runs tools, collects attachments for next turn. (~1700 lines)                                                                                                                 |
+| `setup.ts`                              | **Session initialization.** Sets up CWD, hooks, worktrees, plugins, session memory, attribution. Not directly involved in prompt assembly but initializes the environment that context factories read. (~480 lines)                                                                                                             |
+| `_prompts/README.md`                    | **Prompt template inventory.** Lists all system prompts, agent prompts, tool prompts, service prompts, and skill prompts with their source locations.                                                                                                                                                                           |
+| `_prompts/system-prompt-main.md`        | **Main prompt documentation.** The full composite system prompt in the order it appears, with all 7 layers documented with their source code.                                                                                                                                                                                   |
+| `_prompts/system-prompt-coordinator.md` | **Coordinator mode prompt.** Multi-worker orchestration: phases (research/synthesis/implementation/verification), worker prompt guidelines, concurrency management.                                                                                                                                                             |
+| `_prompts/system-prompt-proactive.md`   | **Autonomous mode prompt.** Tick-driven autonomous operation: pacing with Sleep, first wake-up behavior, terminal focus awareness, bias toward action.                                                                                                                                                                          |
+| `services/compact/prompt.ts`            | **Compaction prompt.** Templates for summarizing conversation when context grows too large. Includes NO_TOOLS_PREAMBLE, analysis/summary structure, and partial-compact variants.                                                                                                                                               |
+| `services/SessionMemory/prompts.ts`     | **Session memory template.** Structured markdown template for session notes (title, current state, task spec, files, workflow, errors, learnings, worklog).                                                                                                                                                                     |

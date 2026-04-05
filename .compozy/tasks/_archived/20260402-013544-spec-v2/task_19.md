@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: CLI
-type: Feature Implementation
-scope: Full
+title: CLI Commands — Workgroups & Discovery
+type: ""
 complexity: medium
 dependencies:
     - task_12

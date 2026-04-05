@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Output
-type: Feature Implementation
-scope: Full
+title: TOON Renderer
+type: ""
 complexity: low
 dependencies:
     - task_03

@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Config
-type: Feature Implementation
-scope: Full
+title: Configuration System
+type: ""
 complexity: medium
 dependencies:
     - task_01

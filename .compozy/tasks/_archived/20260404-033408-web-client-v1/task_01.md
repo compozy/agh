@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Frontend
-type: Feature Implementation
-scope: Full
+title: Foundation — Dependencies, Types & Layout Shell
+type: ""
 complexity: medium
 dependencies: []
 ---

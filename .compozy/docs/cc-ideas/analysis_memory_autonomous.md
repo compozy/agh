@@ -324,12 +324,7 @@ This prevents overlapping runs while ensuring no work is lost. Only the latest s
 ### 8. Closed Type Taxonomy with Explicit Exclusions
 
 ```typescript
-export const MEMORY_TYPES = [
-  "user",
-  "feedback",
-  "project",
-  "reference",
-] as const;
+export const MEMORY_TYPES = ["user", "feedback", "project", "reference"] as const;
 
 // Explicit "what NOT to save" section prevents noise:
 // - Code patterns, conventions, architecture (derivable from code)

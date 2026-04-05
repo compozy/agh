@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Kernel/Memory
-type: Feature Implementation
-scope: Full
+title: Memdir Core Package
+type: ""
 complexity: medium
 dependencies: []
 ---

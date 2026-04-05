@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Config
-type: Feature Implementation
-scope: Full
+title: Config Package
+type: ""
 complexity: medium
 dependencies:
-  - task_00
+    - task_00
 ---
 
 # Task 01: Config Package

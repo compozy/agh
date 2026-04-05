@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Runtime
-type: Feature Implementation
-scope: Full
+title: Ring Buffer & PTY Manager
+type: ""
 complexity: medium
 dependencies:
     - task_01

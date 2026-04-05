@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Dashboard
-type: Feature Implementation
-scope: Full
+title: Web Server & WebSocket
+type: ""
 complexity: medium
 dependencies:
     - task_03

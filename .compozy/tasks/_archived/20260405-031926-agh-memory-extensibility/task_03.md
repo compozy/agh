@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Memory
-type: Feature Implementation
-scope: Full
+title: Dream Consolidation Service
+type: ""
 complexity: medium
 dependencies:
-  - task_01
+    - task_01
 ---
 
 # Task 03: Dream Consolidation Service

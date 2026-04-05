@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Dashboard
-type: Feature Implementation
-scope: Full
+title: Dashboard Frontend
+type: ""
 complexity: high
 dependencies:
     - task_22

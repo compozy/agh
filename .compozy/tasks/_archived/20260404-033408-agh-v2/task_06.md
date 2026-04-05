@@ -1,15 +1,14 @@
 ---
 status: completed
-domain: Infrastructure
-type: Feature Implementation
-scope: Full
+title: Daemon Package
+type: ""
 complexity: medium
 dependencies:
-  - task_01
-  - task_02
-  - task_03
-  - task_04
-  - task_05
+    - task_01
+    - task_02
+    - task_03
+    - task_04
+    - task_05
 ---
 
 # Task 06: Daemon Package

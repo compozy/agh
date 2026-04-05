@@ -1,9 +1,9 @@
 ---
 status: completed
-domain: Infrastructure
-type: Feature Implementation
-scope: Full
+title: Project Scaffolding & Core Types
+type: ""
 complexity: low
+dependencies: []
 ---
 
 # Task 1: Project Scaffolding & Core Types

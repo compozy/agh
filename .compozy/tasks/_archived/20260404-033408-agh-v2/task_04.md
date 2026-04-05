@@ -1,13 +1,12 @@
 ---
 status: completed
-domain: Runtime
-type: Feature Implementation
-scope: Full
+title: Session Package
+type: ""
 complexity: high
 dependencies:
-  - task_01
-  - task_02
-  - task_03
+    - task_01
+    - task_02
+    - task_03
 ---
 
 # Task 04: Session Package

@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Database
-type: Feature Implementation
-scope: Full
+title: Store Package
+type: ""
 complexity: medium
 dependencies:
-  - task_00
+    - task_00
 ---
 
 # Task 02: Store Package

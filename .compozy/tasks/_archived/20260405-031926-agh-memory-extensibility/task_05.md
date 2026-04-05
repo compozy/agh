@@ -1,12 +1,11 @@
 ---
 status: completed
-domain: API, CLI
-type: Feature Implementation
-scope: Full
+title: Memory API & CLI
+type: ""
 complexity: high
 dependencies:
-  - task_01
-  - task_04
+    - task_01
+    - task_04
 ---
 
 # Task 05: Memory API & CLI

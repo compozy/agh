@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: CLI/Integration
-type: Feature Implementation
-scope: Full
+title: CLI Commands and ClawHub Client
+type: ""
 complexity: high
 dependencies:
     - task_02

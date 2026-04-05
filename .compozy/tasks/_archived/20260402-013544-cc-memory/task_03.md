@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Prompt
-type: Feature Implementation
-scope: Full
+title: Prompt Assembler Memory Integration
+type: ""
 complexity: medium
 dependencies:
-  - task_01
+    - task_01
 ---
 
 # Task 03: Prompt Assembler Memory Integration

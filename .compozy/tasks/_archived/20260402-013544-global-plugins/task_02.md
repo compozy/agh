@@ -1,9 +1,9 @@
 ---
 status: completed
-domain: Core/Kernel
-type: Refactor
-scope: Full
+title: AGH_* Environment Variables and Remove BuildHookConfig from Interface
+type: refactor
 complexity: medium
+dependencies: []
 ---
 
 # Task 2: AGH_* Environment Variables and Remove BuildHookConfig from Interface

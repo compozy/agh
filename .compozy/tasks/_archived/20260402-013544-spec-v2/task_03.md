@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: State
-type: Feature Implementation
-scope: Full
+title: SQLite State Layer
+type: ""
 complexity: medium
 dependencies:
     - task_01

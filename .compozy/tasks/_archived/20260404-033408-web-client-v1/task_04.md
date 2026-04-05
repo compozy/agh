@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Frontend
-type: Feature Implementation
-scope: Full
+title: Streaming Core & Session Store
+type: ""
 complexity: high
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 04: Streaming Core & Session Store

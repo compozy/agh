@@ -1,13 +1,12 @@
 ---
 status: completed
-domain: Frontend
-type: Feature Implementation
-scope: Full
+title: Permissions, History & Session Navigation
+type: ""
 complexity: high
 dependencies:
-  - task_05
-  - task_06
-  - task_07
+    - task_05
+    - task_06
+    - task_07
 ---
 
 # Task 08: Permissions, History & Session Navigation

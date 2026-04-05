@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: CLI
-type: Feature Implementation
-scope: Full
+title: Daemon & Session CLI
+type: ""
 complexity: medium
 dependencies:
     - task_14

@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Kernel
-type: Feature Implementation
-scope: Partial
+title: Kernel Integration
+type: ""
 complexity: medium
 dependencies:
     - task_02

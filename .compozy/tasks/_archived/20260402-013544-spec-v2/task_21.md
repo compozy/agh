@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Config
-type: Feature Implementation
-scope: Full
+title: Meta-Learning
+type: ""
 complexity: medium
 dependencies:
     - task_02

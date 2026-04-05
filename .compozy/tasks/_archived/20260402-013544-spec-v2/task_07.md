@@ -1,8 +1,7 @@
 ---
 status: completed
-domain: Drivers
-type: Feature Implementation
-scope: Full
+title: Claude Code Driver
+type: ""
 complexity: medium
 dependencies:
     - task_01

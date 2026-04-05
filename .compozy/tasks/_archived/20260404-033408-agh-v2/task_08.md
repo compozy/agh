@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: CLI
-type: Feature Implementation
-scope: Full
+title: CLI Package
+type: ""
 complexity: medium
 dependencies:
-  - task_07
+    - task_07
 ---
 
 # Task 08: CLI Package

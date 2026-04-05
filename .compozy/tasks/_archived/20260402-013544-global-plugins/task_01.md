@@ -1,9 +1,9 @@
 ---
 status: completed
-domain: Core/Plugins
-type: Feature Implementation
-scope: Full
+title: Plugin Assets and Embed Package
+type: ""
 complexity: medium
+dependencies: []
 ---
 
 # Task 1: Plugin Assets and Embed Package
