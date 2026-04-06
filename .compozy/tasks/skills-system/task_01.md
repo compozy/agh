@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Core types and SKILL.md loader
 type: backend
 complexity: medium
@@ -33,12 +33,12 @@ Define the foundational types for the skills system and implement the SKILL.md p
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Create `internal/skills/types.go` with all domain types
-- [ ] 1.2 Add `gopkg.in/yaml.v3` dependency via `go get`
-- [ ] 1.3 Implement YAML frontmatter parser with lenient error handling
-- [ ] 1.4 Implement `ParseSkillFile()` that reads file, splits frontmatter, and returns Skill
-- [ ] 1.5 Implement `scanDirectory()` with depth/count limits and directory skip rules
-- [ ] 1.6 Write comprehensive unit tests for loader and types
+- [x] 1.1 Create `internal/skills/types.go` with all domain types
+- [x] 1.2 Add `gopkg.in/yaml.v3` dependency via `go get`
+- [x] 1.3 Implement YAML frontmatter parser with lenient error handling
+- [x] 1.4 Implement `ParseSkillFile()` that reads file, splits frontmatter, and returns Skill
+- [x] 1.5 Implement `scanDirectory()` with depth/count limits and directory skip rules
+- [x] 1.6 Write comprehensive unit tests for loader and types
 
 ## Implementation Details
 
@@ -68,19 +68,19 @@ The frontmatter parser should handle the `---` delimiter convention: content bet
 
 ## Tests
 - Unit tests:
-  - [ ] Parse valid SKILL.md with all frontmatter fields (name, description, version, metadata.agh)
-  - [ ] Parse SKILL.md with only required fields (name, description)
-  - [ ] Handle malformed YAML (return error, do not panic)
-  - [ ] Handle missing frontmatter delimiters (return error)
-  - [ ] Handle empty Markdown body (valid — body can be empty)
-  - [ ] Handle missing `name` field (skip with error)
-  - [ ] Handle very long content (>50K chars, should still parse)
-  - [ ] Lenient parsing: warn on unknown fields, still parse successfully
-  - [ ] scanDirectory finds SKILL.md files at depth 1-4
-  - [ ] scanDirectory stops at max depth 4
-  - [ ] scanDirectory caps at 300 candidates per root
-  - [ ] scanDirectory skips `.git/`, `node_modules/`, hidden dirs
-  - [ ] scanDirectory does NOT skip `.agh/` and `.agents/` directories
+  - [x] Parse valid SKILL.md with all frontmatter fields (name, description, version, metadata.agh)
+  - [x] Parse SKILL.md with only required fields (name, description)
+  - [x] Handle malformed YAML (return error, do not panic)
+  - [x] Handle missing frontmatter delimiters (return error)
+  - [x] Handle empty Markdown body (valid — body can be empty)
+  - [x] Handle missing `name` field (skip with error)
+  - [x] Handle very long content (>50K chars, should still parse)
+  - [x] Lenient parsing: warn on unknown fields, still parse successfully
+  - [x] scanDirectory finds SKILL.md files at depth 1-4
+  - [x] scanDirectory stops at max depth 4
+  - [x] scanDirectory caps at 300 candidates per root
+  - [x] scanDirectory skips `.git/`, `node_modules/`, hidden dirs
+  - [x] scanDirectory does NOT skip `.agh/` and `.agents/` directories
 - Test coverage target: >=80%
 - All tests must pass
 

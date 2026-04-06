@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon boot integration
 type: backend
 complexity: high
@@ -40,12 +40,12 @@ Wire the skills registry, watcher, catalog provider, and composed assembler into
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Refactor boot() to extract PromptAssembler construction from Memory.Enabled branch
-- [ ] 10.2 Add skills Registry creation and LoadAll in boot()
-- [ ] 10.3 Add Watcher goroutine lifecycle management (start in boot, stop in shutdown)
-- [ ] 10.4 Create ComposedAssembler with conditional providers
-- [ ] 10.5 Update RuntimeDeps or SessionManagerDeps if needed
-- [ ] 10.6 Write integration tests for all feature-flag combinations
+- [x] 10.1 Refactor boot() to extract PromptAssembler construction from Memory.Enabled branch
+- [x] 10.2 Add skills Registry creation and LoadAll in boot()
+- [x] 10.3 Add Watcher goroutine lifecycle management (start in boot, stop in shutdown)
+- [x] 10.4 Create ComposedAssembler with conditional providers
+- [x] 10.5 Update RuntimeDeps or SessionManagerDeps if needed
+- [x] 10.6 Write integration tests for all feature-flag combinations
 
 ## Implementation Details
 
@@ -73,15 +73,15 @@ See TechSpec "Daemon Boot Sequence" section for the exact integration point and 
 
 ## Tests
 - Unit tests:
-  - [ ] Boot with skills.enabled=true + memory.enabled=true: both providers wired
-  - [ ] Boot with skills.enabled=true + memory.enabled=false: only skills provider wired
-  - [ ] Boot with skills.enabled=false + memory.enabled=true: only memory provider wired
-  - [ ] Boot with both disabled: ComposedAssembler with zero providers (base prompt only)
-  - [ ] Watcher started on boot and stopped on shutdown
-  - [ ] Shutdown stops watcher before session manager
+  - [x] Boot with skills.enabled=true + memory.enabled=true: both providers wired
+  - [x] Boot with skills.enabled=true + memory.enabled=false: only skills provider wired
+  - [x] Boot with skills.enabled=false + memory.enabled=true: only memory provider wired
+  - [x] Boot with both disabled: ComposedAssembler with zero providers (base prompt only)
+  - [x] Watcher started on boot and stopped on shutdown
+  - [x] Shutdown stops watcher before session manager
 - Integration tests:
-  - [ ] Daemon boots with bundled skills loaded into registry
-  - [ ] Session prompt contains skill catalog when skills enabled
+  - [x] Daemon boots with bundled skills loaded into registry
+  - [x] Session prompt contains skill catalog when skills enabled
 - Test coverage target: >=80%
 - All tests must pass
 

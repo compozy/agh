@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Config changes (SkillsConfig + merge overlay)
 type: backend
 complexity: medium
@@ -34,12 +34,12 @@ Add `SkillsConfig` to the AGH configuration system with TOML loading, validation
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add `SkillsConfig` struct and field to `Config` in `config.go`
-- [ ] 8.2 Set defaults in `Default()` and `DefaultWithHome()` functions
-- [ ] 8.3 Add `skillsOverlay` and wire in `merge.go`
-- [ ] 8.4 Add `SkillsDir` to `HomePaths` in `home.go`
-- [ ] 8.5 Update `EnsureHomeLayout()` to create skills directory
-- [ ] 8.6 Write unit tests for config loading, merging, and home paths
+- [x] 8.1 Add `SkillsConfig` struct and field to `Config` in `config.go`
+- [x] 8.2 Set defaults in `Default()` and `DefaultWithHome()` functions
+- [x] 8.3 Add `skillsOverlay` and wire in `merge.go`
+- [x] 8.4 Add `SkillsDir` to `HomePaths` in `home.go`
+- [x] 8.5 Update `EnsureHomeLayout()` to create skills directory
+- [x] 8.6 Write unit tests for config loading, merging, and home paths
 
 ## Implementation Details
 
@@ -63,16 +63,16 @@ Follow the `MemoryConfig`/`memoryOverlay` pattern exactly. See TechSpec "Config 
 
 ## Tests
 - Unit tests:
-  - [ ] Default config has Skills.Enabled = true
-  - [ ] Default config has Skills.PollInterval = 3s
-  - [ ] TOML config with `[skills]` section parses correctly
-  - [ ] TOML config with `skills.enabled = false` overrides default
-  - [ ] TOML config with `skills.poll_interval` as duration parses correctly
-  - [ ] TOML config with `skills.disabled_skills` list parses correctly
-  - [ ] Merge overlay applies skills config from workspace overlay
-  - [ ] HomePaths includes SkillsDir at expected path
-  - [ ] EnsureHomeLayout creates skills directory
-  - [ ] Unknown keys under `[skills]` cause error (strict TOML decoding)
+  - [x] Default config has Skills.Enabled = true
+  - [x] Default config has Skills.PollInterval = 3s
+  - [x] TOML config with `[skills]` section parses correctly
+  - [x] TOML config with `skills.enabled = false` overrides default
+  - [x] TOML config with `skills.poll_interval` as duration parses correctly
+  - [x] TOML config with `skills.disabled_skills` list parses correctly
+  - [x] Merge overlay applies skills config from workspace overlay
+  - [x] HomePaths includes SkillsDir at expected path
+  - [x] EnsureHomeLayout creates skills directory
+  - [x] Unknown keys under `[skills]` cause error (strict TOML decoding)
 - Test coverage target: >=80%
 - All tests must pass
 

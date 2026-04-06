@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: XML catalog builder and CatalogProvider
 type: backend
 complexity: medium
@@ -34,10 +34,10 @@ Implement the XML catalog builder that generates the `<available-skills>` block 
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Implement `BuildCatalog()` that generates XML-like catalog string from skill list
-- [ ] 4.2 Implement description truncation and XML character escaping
-- [ ] 4.3 Implement `CatalogProvider` struct with `PromptSection()` method
-- [ ] 4.4 Write unit tests for catalog generation and CatalogProvider
+- [x] 4.1 Implement `BuildCatalog()` that generates XML-like catalog string from skill list
+- [x] 4.2 Implement description truncation and XML character escaping
+- [x] 4.3 Implement `CatalogProvider` struct with `PromptSection()` method
+- [x] 4.4 Write unit tests for catalog generation and CatalogProvider
 
 ## Implementation Details
 
@@ -60,14 +60,14 @@ Note: The `session.PromptProvider` interface must exist before this task can ful
 
 ## Tests
 - Unit tests:
-  - [ ] BuildCatalog produces valid XML-like format with skill names and descriptions
-  - [ ] Descriptions truncated at 200 characters with ellipsis
-  - [ ] Skills sorted alphabetically by name
-  - [ ] Empty skill list produces empty string
-  - [ ] Special characters in names (`<`, `>`, `&`) are escaped
-  - [ ] Usage instructions appended after catalog
-  - [ ] CatalogProvider returns empty string for workspace with no skills
-  - [ ] CatalogProvider returns valid catalog for workspace with skills
+  - [x] BuildCatalog produces valid XML-like format with skill names and descriptions
+  - [x] Descriptions truncated at 200 characters with ellipsis
+  - [x] Skills sorted alphabetically by name
+  - [x] Empty skill list produces empty string
+  - [x] Special characters in names (`<`, `>`, `&`) are escaped
+  - [x] Usage instructions appended after catalog
+  - [x] CatalogProvider returns empty string for workspace with no skills
+  - [x] CatalogProvider returns valid catalog for workspace with skills
 - Test coverage target: >=80%
 - All tests must pass
 

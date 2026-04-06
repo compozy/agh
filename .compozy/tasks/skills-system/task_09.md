@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: ComposedAssembler
 type: backend
 complexity: medium
@@ -35,11 +35,11 @@ Implement the `ComposedAssembler` in the daemon package that chains multiple `Pr
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Implement `ComposedAssembler` struct with prepend/append provider slots
-- [ ] 9.2 Implement `Assemble()` method with correct ordering
-- [ ] 9.3 Implement `NewComposedAssembler()` constructor
-- [ ] 9.4 Add compile-time interface check
-- [ ] 9.5 Write unit tests including regression test for backward compatibility
+- [x] 9.1 Implement `ComposedAssembler` struct with prepend/append provider slots
+- [x] 9.2 Implement `Assemble()` method with correct ordering
+- [x] 9.3 Implement `NewComposedAssembler()` constructor
+- [x] 9.4 Add compile-time interface check
+- [x] 9.5 Write unit tests including regression test for backward compatibility
 
 ## Implementation Details
 
@@ -68,15 +68,15 @@ This matches the current behavior where memory is prepended (`contextBlock + "\n
 
 ## Tests
 - Unit tests:
-  - [ ] Zero providers: returns base agent prompt only
-  - [ ] One prepend provider (memory): output matches current assembler behavior
-  - [ ] One append provider (skills): agent prompt + skills section
-  - [ ] Both prepend and append: memory + agent prompt + skills
-  - [ ] Nil provider in chain: skipped gracefully
-  - [ ] Provider returns error: Assemble returns error
-  - [ ] Provider returns empty string: no extra whitespace in output
-  - [ ] Workspace parameter passed correctly to all providers
-  - [ ] Regression: memory-only output byte-identical to current Assemble()
+  - [x] Zero providers: returns base agent prompt only
+  - [x] One prepend provider (memory): output matches current assembler behavior
+  - [x] One append provider (skills): agent prompt + skills section
+  - [x] Both prepend and append: memory + agent prompt + skills
+  - [x] Nil provider in chain: skipped gracefully
+  - [x] Provider returns error: Assemble returns error
+  - [x] Provider returns empty string: no extra whitespace in output
+  - [x] Workspace parameter passed correctly to all providers
+  - [x] Regression: memory-only output byte-identical to current Assemble()
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -16,3 +16,4 @@ coverage.html
 node_modules/
 coverage/
 .claude/skills
+.compozy/runs
