@@ -68,6 +68,19 @@ describe("fetchSessions", () => {
     });
   });
 
+  it("treats blank workspace filters as unfiltered requests", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ sessions: [] }),
+    } as Response);
+
+    await fetchSessions("   ");
+
+    expect(fetch).toHaveBeenCalledWith("/api/sessions", {
+      signal: undefined,
+    });
+  });
+
   it("throws on non-ok response", async () => {
     vi.mocked(fetch).mockResolvedValue({ ok: false, status: 500 } as Response);
     await expect(fetchSessions()).rejects.toThrow("Failed to fetch sessions: 500");

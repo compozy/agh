@@ -16,10 +16,11 @@ export async function fetchSessions(
   workspace?: string,
   signal?: AbortSignal
 ): Promise<SessionPayload[]> {
+  const normalizedWorkspace = workspace?.trim();
   const url =
-    workspace == null
+    normalizedWorkspace == null || normalizedWorkspace === ""
       ? "/api/sessions"
-      : `/api/sessions?workspace=${encodeURIComponent(workspace)}`;
+      : `/api/sessions?workspace=${encodeURIComponent(normalizedWorkspace)}`;
   const res = await fetch(url, { signal });
   if (!res.ok) {
     throw new Error(`Failed to fetch sessions: ${res.status}`);

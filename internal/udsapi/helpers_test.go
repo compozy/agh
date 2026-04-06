@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -25,6 +26,8 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
+
+var errStubWorkspaceServiceNotImplemented = errors.New("stub workspace service method not implemented")
 
 type stubSessionManager struct {
 	createFn     func(context.Context, session.CreateOpts) (*session.Session, error)
@@ -148,7 +151,7 @@ func (s stubWorkspaceService) Register(ctx context.Context, opts workspacepkg.Re
 	if s.registerFn != nil {
 		return s.registerFn(ctx, opts)
 	}
-	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+	return workspacepkg.Workspace{}, errStubWorkspaceServiceNotImplemented
 }
 
 func (s stubWorkspaceService) Unregister(ctx context.Context, id string) error {
@@ -190,7 +193,7 @@ func (s stubWorkspaceService) ResolveOrRegister(ctx context.Context, path string
 	if s.resolveOrRegisterFn != nil {
 		return s.resolveOrRegisterFn(ctx, path)
 	}
-	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+	return workspacepkg.ResolvedWorkspace{}, errStubWorkspaceServiceNotImplemented
 }
 
 type sseRecord struct {
@@ -323,6 +326,24 @@ func decodeJSONResponse(t *testing.T, recorder *httptest.ResponseRecorder, dest 
 	}
 }
 
+func decodeSSEData(t *testing.T, record sseRecord, dest any) {
+	t.Helper()
+
+	if err := json.Unmarshal(record.Data, dest); err != nil {
+		t.Fatalf("json.Unmarshal(sse data) error = %v; data=%s", err, string(record.Data))
+	}
+}
+
+func mustJSONBody(t *testing.T, value any) []byte {
+	t.Helper()
+
+	body, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	return body
+}
+
 func parseSSE(t *testing.T, body string) []sseRecord {
 	t.Helper()
 
@@ -355,6 +376,19 @@ func parseSSE(t *testing.T, body string) []sseRecord {
 	}
 
 	return records
+}
+
+func TestStubWorkspaceServiceDefaultsReportUnconfiguredMethods(t *testing.T) {
+	t.Parallel()
+
+	service := stubWorkspaceService{}
+
+	if _, err := service.Register(context.Background(), workspacepkg.RegisterOptions{}); !errors.Is(err, errStubWorkspaceServiceNotImplemented) {
+		t.Fatalf("Register() error = %v, want %v", err, errStubWorkspaceServiceNotImplemented)
+	}
+	if _, err := service.ResolveOrRegister(context.Background(), "/workspace"); !errors.Is(err, errStubWorkspaceServiceNotImplemented) {
+		t.Fatalf("ResolveOrRegister() error = %v, want %v", err, errStubWorkspaceServiceNotImplemented)
+	}
 }
 
 func newUnixClient(t *testing.T, socketPath string) *http.Client {

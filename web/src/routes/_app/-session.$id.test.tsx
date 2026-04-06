@@ -103,7 +103,9 @@ vi.mock("@/systems/session/hooks/use-session-actions", () => ({
 }));
 
 vi.mock("@/systems/session/components/chat-header", () => ({
-  ChatHeader: () => <div data-testid="chat-header" />,
+  ChatHeader: ({ workspaceName }: { workspaceName?: string }) => (
+    <div data-testid="chat-header">{workspaceName ?? "no-workspace"}</div>
+  ),
 }));
 
 vi.mock("@/systems/session/components/chat-view", () => ({
@@ -155,6 +157,7 @@ describe("SessionPage", () => {
   it("hydrates a late transcript for the active session", () => {
     const { rerender } = render(<SessionPage />);
 
+    expect(screen.getByTestId("chat-header")).toHaveTextContent("alpha");
     expect(screen.getByTestId("message-count")).toHaveTextContent("0");
 
     transcriptState = {
@@ -174,6 +177,7 @@ describe("SessionPage", () => {
     };
 
     const { rerender } = render(<SessionPage />);
+    expect(screen.getByTestId("chat-header")).toHaveTextContent("alpha");
     expect(screen.getByTestId("message-content")).toHaveTextContent("from-a");
 
     routeParams = { id: "sess-2" };

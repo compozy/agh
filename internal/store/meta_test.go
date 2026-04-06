@@ -31,7 +31,11 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadSessionMeta() error = %v", err)
 	}
-	if readBack.ID != meta.ID || readBack.AgentName != meta.AgentName || readBack.State != meta.State || readBack.SessionType != meta.SessionType {
+	if readBack.ID != meta.ID ||
+		readBack.AgentName != meta.AgentName ||
+		readBack.WorkspaceID != meta.WorkspaceID ||
+		readBack.State != meta.State ||
+		readBack.SessionType != meta.SessionType {
 		t.Fatalf("ReadSessionMeta() = %#v, want %#v", readBack, meta)
 	}
 }
@@ -77,7 +81,13 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadSessionMeta() error = %v", err)
 	}
-	if meta.ID != base.ID || meta.AgentName != base.AgentName {
-		t.Fatalf("ReadSessionMeta() = %#v, want id=%q agent=%q", meta, base.ID, base.AgentName)
+	if meta.ID != base.ID || meta.AgentName != base.AgentName || meta.WorkspaceID != base.WorkspaceID {
+		t.Fatalf(
+			"ReadSessionMeta() = %#v, want id=%q agent=%q workspace_id=%q",
+			meta,
+			base.ID,
+			base.AgentName,
+			base.WorkspaceID,
+		)
 	}
 }

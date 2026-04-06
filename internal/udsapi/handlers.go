@@ -359,6 +359,12 @@ func (h *Handlers) sessionEvents(c *gin.Context) {
 		return
 	}
 
+	info, err := h.sessions.Status(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		respondError(c, statusForSessionError(err), err)
+		return
+	}
+
 	events, err := h.sessions.Events(c.Request.Context(), c.Param("id"), query)
 	if err != nil {
 		respondError(c, statusForSessionError(err), err)
@@ -367,7 +373,7 @@ func (h *Handlers) sessionEvents(c *gin.Context) {
 
 	payload := make([]sessionEventPayload, 0, len(events))
 	for _, event := range events {
-		payload = append(payload, sessionEventPayloadFromEvent(event))
+		payload = append(payload, sessionEventPayloadFromEvent(event, info))
 	}
 
 	c.JSON(http.StatusOK, gin.H{"events": payload})
@@ -377,6 +383,12 @@ func (h *Handlers) sessionHistory(c *gin.Context) {
 	query, err := parseSessionEventQuery(c)
 	if err != nil {
 		respondError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	info, err := h.sessions.Status(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		respondError(c, statusForSessionError(err), err)
 		return
 	}
 
@@ -390,7 +402,7 @@ func (h *Handlers) sessionHistory(c *gin.Context) {
 	for _, turn := range history {
 		events := make([]sessionEventPayload, 0, len(turn.Events))
 		for _, event := range turn.Events {
-			events = append(events, sessionEventPayloadFromEvent(event))
+			events = append(events, sessionEventPayloadFromEvent(event, info))
 		}
 		payload = append(payload, turnHistoryPayload{
 			TurnID: turn.TurnID,
@@ -412,7 +424,8 @@ func (h *Handlers) sessionTranscript(c *gin.Context) {
 }
 
 func (h *Handlers) streamSession(c *gin.Context) {
-	if _, err := h.sessions.Status(c.Request.Context(), c.Param("id")); err != nil {
+	info, err := h.sessions.Status(c.Request.Context(), c.Param("id"))
+	if err != nil {
 		respondError(c, statusForSessionError(err), err)
 		return
 	}
@@ -449,7 +462,7 @@ func (h *Handlers) streamSession(c *gin.Context) {
 		if err := writeSSE(writer, sseMessage{
 			ID:   strconv.FormatInt(event.Sequence, 10),
 			Name: event.Type,
-			Data: sessionEventPayloadFromEvent(event),
+			Data: sessionEventPayloadFromEvent(event, info),
 		}); err != nil {
 			return
 		}
@@ -483,13 +496,13 @@ func (h *Handlers) streamSession(c *gin.Context) {
 				if err := writeSSE(writer, sseMessage{
 					ID:   strconv.FormatInt(event.Sequence, 10),
 					Name: event.Type,
-					Data: sessionEventPayloadFromEvent(event),
+					Data: sessionEventPayloadFromEvent(event, info),
 				}); err != nil {
 					return
 				}
 			}
 			if len(events) == 0 {
-				info, err := h.sessions.Status(c.Request.Context(), c.Param("id"))
+				info, err = h.sessions.Status(c.Request.Context(), c.Param("id"))
 				if err != nil {
 					_ = writeSSE(writer, sseMessage{
 						Name: "error",
@@ -498,12 +511,15 @@ func (h *Handlers) streamSession(c *gin.Context) {
 					return
 				}
 				if info != nil && info.State == session.StateStopped {
+					workspaceID, workspacePath := sessionWorkspaceFromInfo(info)
 					_ = writeSSE(writer, sseMessage{
 						Name: session.EventTypeSessionStopped,
 						Data: sessionEventPayload{
-							SessionID: info.ID,
-							Type:      session.EventTypeSessionStopped,
-							Timestamp: info.UpdatedAt,
+							SessionID:     info.ID,
+							Type:          session.EventTypeSessionStopped,
+							WorkspaceID:   workspaceID,
+							WorkspacePath: workspacePath,
+							Timestamp:     info.UpdatedAt,
 						},
 					})
 					return
@@ -946,17 +962,27 @@ func acpCapsPayloadFromInfo(caps acp.ACPCaps) *acpCapsPayload {
 	}
 }
 
-func sessionEventPayloadFromEvent(event store.SessionEvent) sessionEventPayload {
+func sessionEventPayloadFromEvent(event store.SessionEvent, info *session.SessionInfo) sessionEventPayload {
+	workspaceID, workspacePath := sessionWorkspaceFromInfo(info)
 	return sessionEventPayload{
-		ID:        event.ID,
-		SessionID: event.SessionID,
-		Sequence:  event.Sequence,
-		TurnID:    event.TurnID,
-		Type:      event.Type,
-		AgentName: event.AgentName,
-		Content:   payloadJSON(event.Content),
-		Timestamp: event.Timestamp,
+		ID:            event.ID,
+		SessionID:     event.SessionID,
+		Sequence:      event.Sequence,
+		TurnID:        event.TurnID,
+		Type:          event.Type,
+		AgentName:     event.AgentName,
+		WorkspaceID:   workspaceID,
+		WorkspacePath: workspacePath,
+		Content:       payloadJSON(event.Content),
+		Timestamp:     event.Timestamp,
 	}
+}
+
+func sessionWorkspaceFromInfo(info *session.SessionInfo) (string, string) {
+	if info == nil {
+		return "", ""
+	}
+	return strings.TrimSpace(info.WorkspaceID), strings.TrimSpace(info.Workspace)
 }
 
 func agentPayloadFromDef(agent aghconfig.AgentDef) agentPayload {

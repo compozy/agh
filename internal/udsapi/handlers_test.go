@@ -212,7 +212,12 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
 
-	body := []byte(`{"root_dir":"` + rootDir + `","name":"alpha","add_dirs":["` + addDir + `"],"default_agent":"coder"}`)
+	body := mustJSONBody(t, map[string]any{
+		"root_dir":      rootDir,
+		"name":          "alpha",
+		"add_dirs":      []string{addDir},
+		"default_agent": "coder",
+	})
 	recorder := performRequest(t, engine, http.MethodPost, "/api/workspaces", body)
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
@@ -341,7 +346,11 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
 
-	body := []byte(`{"name":"beta","add_dirs":["` + addDir + `"],"default_agent":"reviewer"}`)
+	body := mustJSONBody(t, map[string]any{
+		"name":          "beta",
+		"add_dirs":      []string{addDir},
+		"default_agent": "reviewer",
+	})
 	recorder := performRequest(t, engine, http.MethodPatch, "/api/workspaces/ws_alpha", body)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -398,7 +407,13 @@ func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
 
-	recorder := performRequest(t, engine, http.MethodPost, "/api/workspaces/resolve", []byte(`{"path":"`+rootDir+`"}`))
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/api/workspaces/resolve",
+		mustJSONBody(t, map[string]string{"path": rootDir}),
+	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
@@ -506,6 +521,9 @@ func TestSessionEventsHandlerReturnsFilteredEvents(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	var gotQuery store.EventQuery
 	manager := stubSessionManager{
+		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+			return newSessionInfo("sess-123"), nil
+		},
 		eventsFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
 			gotQuery = query
 			return []store.SessionEvent{{
@@ -538,11 +556,17 @@ func TestSessionEventsHandlerReturnsFilteredEvents(t *testing.T) {
 	if len(response.Events) != 1 || response.Events[0].Sequence != 7 {
 		t.Fatalf("events = %#v", response.Events)
 	}
+	if response.Events[0].WorkspaceID != "ws-workspace" || response.Events[0].WorkspacePath != "/workspace" {
+		t.Fatalf("event workspace = %#v", response.Events[0])
+	}
 }
 
 func TestSessionHistoryHandlerReturnsTurns(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
+		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+			return newSessionInfo("sess-123"), nil
+		},
 		historyFn: func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error) {
 			return []store.TurnHistory{{
 				TurnID: "turn-1",
@@ -573,6 +597,9 @@ func TestSessionHistoryHandlerReturnsTurns(t *testing.T) {
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.History) != 1 || response.History[0].TurnID != "turn-1" {
 		t.Fatalf("history = %#v", response.History)
+	}
+	if got := response.History[0].Events[0]; got.WorkspaceID != "ws-workspace" || got.WorkspacePath != "/workspace" {
+		t.Fatalf("history event workspace = %#v", got)
 	}
 }
 
@@ -648,6 +675,46 @@ func TestStreamSessionHandlerUsesLastEventID(t *testing.T) {
 	records := parseSSE(t, recorder.Body.String())
 	if len(records) != 1 || records[0].ID != "2" || records[0].Event != "done" {
 		t.Fatalf("records = %#v", records)
+	}
+	var payload sessionEventPayload
+	decodeSSEData(t, records[0], &payload)
+	if payload.WorkspaceID != "ws-workspace" || payload.WorkspacePath != "/workspace" {
+		t.Fatalf("stream payload workspace = %#v", payload)
+	}
+}
+
+func TestStreamSessionHandlerSyntheticStoppedEventIncludesWorkspaceContext(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	stoppedAt := time.Date(2026, 4, 3, 12, 0, 5, 0, time.UTC)
+	manager := stubSessionManager{
+		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+			info := newSessionInfo("sess-123")
+			info.State = session.StateStopped
+			info.UpdatedAt = stoppedAt
+			return info, nil
+		},
+		eventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+			return nil, nil
+		},
+	}
+	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/sess-123/stream", nil)
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, req)
+
+	records := parseSSE(t, recorder.Body.String())
+	if len(records) != 1 || records[0].Event != session.EventTypeSessionStopped {
+		t.Fatalf("records = %#v", records)
+	}
+	var payload sessionEventPayload
+	decodeSSEData(t, records[0], &payload)
+	if payload.WorkspaceID != "ws-workspace" || payload.WorkspacePath != "/workspace" {
+		t.Fatalf("stopped payload workspace = %#v", payload)
+	}
+	if payload.Timestamp != stoppedAt {
+		t.Fatalf("stopped payload timestamp = %v, want %v", payload.Timestamp, stoppedAt)
 	}
 }
 

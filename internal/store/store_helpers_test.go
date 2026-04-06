@@ -556,7 +556,9 @@ func TestLegacyMigrationHelperFlow(t *testing.T) {
 		t.Fatalf("openSQLiteDatabase() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("db.Close() error = %v", closeErr)
+		}
 	})
 
 	if _, err := db.ExecContext(ctx, `CREATE TABLE sessions (
@@ -595,7 +597,9 @@ func TestLegacyMigrationHelperFlow(t *testing.T) {
 		t.Fatalf("BeginTx() error = %v", err)
 	}
 	defer func() {
-		_ = tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			t.Errorf("tx.Rollback() error = %v", rollbackErr)
+		}
 	}()
 
 	if _, err := tx.ExecContext(ctx, globalSchemaStatements[0]); err != nil {
