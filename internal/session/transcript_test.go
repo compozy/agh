@@ -15,7 +15,9 @@ func TestManagerTranscriptAssemblesLegacyACPEvents(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+			t.Logf("h.manager.Stop failed for session %s: %v", session.ID, err)
+		}
 	})
 
 	recorder := session.recorderHandle()
@@ -145,7 +147,9 @@ func TestManagerTranscriptReadsCanonicalEnvelope(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+			t.Logf("h.manager.Stop failed for session %s: %v", session.ID, err)
+		}
 	})
 
 	events := []acp.AgentEvent{

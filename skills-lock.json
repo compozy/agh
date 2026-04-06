@@ -76,6 +76,11 @@
             "sourceType": "github",
             "computedHash": "d7109d58f721a0bf59620c69b6ae073c60dde85e971012d95a5e410002f28c64"
         },
+        "refactoring-analysis": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "7554393d8a4e3e103f13f244fd754b503b305afea1957ca84edf2e9ed846ea37"
+        },
         "skill-best-practices": {
             "source": "pedronauck/skills",
             "sourceType": "github",

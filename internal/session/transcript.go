@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -105,7 +106,13 @@ func (m *Manager) Transcript(ctx context.Context, id string) ([]TranscriptMessag
 		return nil, err
 	}
 	defer func() {
-		_ = cleanup()
+		if cleanupErr := cleanup(); cleanupErr != nil {
+			logger := m.logger
+			if logger == nil {
+				logger = slog.Default()
+			}
+			logger.Warn("session: transcript cleanup failed", "session_id", strings.TrimSpace(id), "error", cleanupErr)
+		}
 	}()
 
 	events, err := recorder.Query(ctx, store.EventQuery{})

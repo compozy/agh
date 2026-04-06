@@ -420,43 +420,72 @@ func TestStartIncludesAdditionalDirsInLoadSessionPayload(t *testing.T) {
 	}
 }
 
-func TestStartResumeReturnsErrorWhenLoadFails(t *testing.T) {
+func TestStartResumeReturnsSentinelErrors(t *testing.T) {
 	t.Parallel()
 
-	driver := New()
-	_, err := driver.Start(testContext(t), StartOpts{
-		AgentName:       "helper",
-		Command:         helperCommand(t),
-		Cwd:             t.TempDir(),
-		Env:             helperEnv("load_session_error", ""),
-		Permissions:     aghconfig.PermissionModeApproveAll,
-		ResumeSessionID: "sess-existing",
-	})
-	if err == nil {
-		t.Fatal("Start(load_session_error) error = nil, want non-nil")
+	tests := map[string]struct {
+		envScenario string
+		wantErr     error
+	}{
+		"load session failure": {
+			envScenario: "load_session_error",
+			wantErr:     ErrLoadSessionFailed,
+		},
+		"agent missing load session support": {
+			envScenario: "stream_updates",
+			wantErr:     ErrAgentDoesNotSupportSession,
+		},
 	}
-	if !strings.Contains(err.Error(), "load session") {
-		t.Fatalf("Start(load_session_error) error = %v, want load session failure", err)
+
+	for name, tc := range tests {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			_, err := driver.Start(testContext(t), StartOpts{
+				AgentName:       "helper",
+				Command:         helperCommand(t),
+				Cwd:             t.TempDir(),
+				Env:             helperEnv(tc.envScenario, ""),
+				Permissions:     aghconfig.PermissionModeApproveAll,
+				ResumeSessionID: "sess-existing",
+			})
+			if err == nil {
+				t.Fatalf("Start(%s) error = nil, want non-nil", tc.envScenario)
+			}
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("Start(%s) error = %v, want errors.Is(..., %v)", tc.envScenario, err, tc.wantErr)
+			}
+		})
 	}
 }
 
-func TestStartResumeReturnsErrorWhenAgentCannotLoadSessions(t *testing.T) {
+func TestCleanupFailedStartReturnsJoinedErrorWhenStopFails(t *testing.T) {
 	t.Parallel()
 
 	driver := New()
-	_, err := driver.Start(testContext(t), StartOpts{
-		AgentName:       "helper",
-		Command:         helperCommand(t),
-		Cwd:             t.TempDir(),
-		Env:             helperEnv("stream_updates", ""),
-		Permissions:     aghconfig.PermissionModeApproveAll,
-		ResumeSessionID: "sess-existing",
-	})
-	if err == nil {
-		t.Fatal("Start(no load_session support) error = nil, want non-nil")
+	proc := &AgentProcess{
+		done:   make(chan struct{}),
+		stderr: &lockedBuffer{},
 	}
-	if !strings.Contains(err.Error(), "does not support session/load") {
-		t.Fatalf("Start(no load_session support) error = %v", err)
+	stopErr := errors.New("stop failed")
+	proc.setWaitError(stopErr)
+	close(proc.done)
+
+	startErr := fmt.Errorf("%w: load session %q for %q: %w", ErrLoadSessionFailed, "sess-existing", "helper", errors.New("load failed"))
+	err := driver.cleanupFailedStart(proc, startErr)
+	if err == nil {
+		t.Fatal("cleanupFailedStart() error = nil, want non-nil")
+	}
+	if !errors.Is(err, ErrLoadSessionFailed) {
+		t.Fatalf("cleanupFailedStart() error = %v, want ErrLoadSessionFailed", err)
+	}
+	if !errors.Is(err, stopErr) {
+		t.Fatalf("cleanupFailedStart() error = %v, want stopErr", err)
+	}
+	if !strings.Contains(err.Error(), "stop failed while cleaning up failed start") {
+		t.Fatalf("cleanupFailedStart() error = %v, want cleanup stop context", err)
 	}
 }
 

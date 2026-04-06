@@ -582,6 +582,8 @@ func TestSessionEventsAndHistoryHandlers(t *testing.T) {
 }
 
 func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		transcriptFn: func(context.Context, string) ([]session.TranscriptMessage, error) {

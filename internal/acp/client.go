@@ -27,6 +27,13 @@ const (
 	defaultClientVersion  = "dev"
 )
 
+var (
+	// ErrAgentDoesNotSupportSession reports that resume was requested for an ACP agent without session/load support.
+	ErrAgentDoesNotSupportSession = errors.New("acp: agent does not support session/load")
+	// ErrLoadSessionFailed reports that ACP session/load failed during resume.
+	ErrLoadSessionFailed = errors.New("acp: load session failed")
+)
+
 // Option customizes the ACP driver.
 type Option func(*Driver)
 
@@ -195,8 +202,7 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 	}
 	initializeResponse, err := acpsdk.SendRequest[acpsdk.InitializeResponse](process.conn, ctx, acpsdk.AgentMethodInitialize, initRequest)
 	if err != nil {
-		_ = d.Stop(context.Background(), process)
-		return nil, fmt.Errorf("acp: initialize session for %q: %w", normalized.AgentName, err)
+		return nil, d.cleanupFailedStart(process, fmt.Errorf("acp: initialize session for %q: %w", normalized.AgentName, err))
 	}
 
 	process.Caps = ACPCaps{
@@ -205,8 +211,8 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 
 	if normalized.ResumeSessionID != "" {
 		if !process.Caps.SupportsLoadSession {
-			_ = d.Stop(context.Background(), process)
-			return nil, fmt.Errorf("acp: agent %q does not support session/load for resume %q", normalized.AgentName, normalized.ResumeSessionID)
+			startErr := fmt.Errorf("%w: agent %q does not support session/load for resume %q", ErrAgentDoesNotSupportSession, normalized.AgentName, normalized.ResumeSessionID)
+			return nil, d.cleanupFailedStart(process, startErr)
 		}
 
 		loadRequest := acpsdk.LoadSessionRequest{
@@ -222,8 +228,8 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 		}
 		loadResponse, loadErr := acpsdk.SendRequest[acpsdk.LoadSessionResponse](process.conn, ctx, acpsdk.AgentMethodSessionLoad, loadWireRequest)
 		if loadErr != nil {
-			_ = d.Stop(context.Background(), process)
-			return nil, fmt.Errorf("acp: load session %q for %q: %w", normalized.ResumeSessionID, normalized.AgentName, loadErr)
+			startErr := fmt.Errorf("%w: load session %q for %q: %w", ErrLoadSessionFailed, normalized.ResumeSessionID, normalized.AgentName, loadErr)
+			return nil, d.cleanupFailedStart(process, startErr)
 		}
 
 		process.SessionID = normalized.ResumeSessionID
@@ -242,13 +248,22 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 	}
 	newResponse, err := acpsdk.SendRequest[acpsdk.NewSessionResponse](process.conn, ctx, acpsdk.AgentMethodSessionNew, newWireRequest)
 	if err != nil {
-		_ = d.Stop(context.Background(), process)
-		return nil, fmt.Errorf("acp: create session for %q: %w", normalized.AgentName, err)
+		return nil, d.cleanupFailedStart(process, fmt.Errorf("acp: create session for %q: %w", normalized.AgentName, err))
 	}
 
 	process.SessionID = string(newResponse.SessionId)
 	process.Caps = captureCaps(process.Caps.SupportsLoadSession, newResponse.Modes, newResponse.Models)
 	return process, nil
+}
+
+func (d *Driver) cleanupFailedStart(process *AgentProcess, startErr error) error {
+	if startErr == nil || process == nil {
+		return startErr
+	}
+	if stopErr := d.Stop(context.Background(), process); stopErr != nil {
+		return errors.Join(startErr, fmt.Errorf("acp: stop failed while cleaning up failed start: %w", stopErr))
+	}
+	return startErr
 }
 
 // Prompt starts one prompt turn and returns the streamed event channel.
