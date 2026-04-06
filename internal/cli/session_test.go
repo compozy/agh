@@ -154,6 +154,28 @@ func TestSessionNewRejectsInvalidWorkspaceFlags(t *testing.T) {
 	}
 }
 
+func TestSessionNewRejectsRelativeCWD(t *testing.T) {
+	t.Parallel()
+
+	tests := []string{".", "../project"}
+	for _, cwd := range tests {
+		cwd := cwd
+		t.Run(cwd, func(t *testing.T) {
+			t.Parallel()
+
+			code, _, stderr := executeRootCommandWithExit(t, newTestDeps(t, stubClient{}),
+				"session", "new", "--cwd", cwd,
+			)
+			if code != 1 {
+				t.Fatalf("executeRootCommandWithExit(%q) code = %d, want 1", cwd, code)
+			}
+			if !strings.Contains(stderr, "--cwd must be an absolute path") {
+				t.Fatalf("stderr = %q, want absolute path validation message", stderr)
+			}
+		})
+	}
+}
+
 func TestSessionListPassesWorkspaceFilter(t *testing.T) {
 	t.Parallel()
 

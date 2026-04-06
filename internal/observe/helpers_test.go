@@ -3,6 +3,7 @@ package observe
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -120,6 +121,7 @@ You write reliable code locally.
 	}
 
 	resolver := defaultPermissionModeResolver(home, fakeObserveWorkspaceResolver{
+		expectedRef: "ws-observe",
 		resolved: workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{
 				ID:      "ws-observe",
@@ -158,6 +160,7 @@ command = "codex"
 	}
 
 	resolver := defaultPermissionModeResolver(home, fakeObserveWorkspaceResolver{
+		expectedRef: "ws-observe",
 		resolved: workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{
 				ID:      "ws-observe",
@@ -225,6 +228,7 @@ Workspace agent.
 	}
 
 	resolver := defaultPermissionModeResolver(home, fakeObserveWorkspaceResolver{
+		expectedRef: "ws-observe",
 		resolved: workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{
 				ID:      "ws-observe",
@@ -442,20 +446,27 @@ func TestMissingPathHelpers(t *testing.T) {
 }
 
 type fakeObserveWorkspaceResolver struct {
-	resolved workspacepkg.ResolvedWorkspace
-	err      error
+	expectedRef string
+	resolved    workspacepkg.ResolvedWorkspace
+	err         error
 }
 
-func (r fakeObserveWorkspaceResolver) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+func (r fakeObserveWorkspaceResolver) Resolve(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 	if r.err != nil {
 		return workspacepkg.ResolvedWorkspace{}, r.err
+	}
+	if want := strings.TrimSpace(r.expectedRef); want != "" && strings.TrimSpace(ref) != want {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("unexpected workspace ref %q, want %q", ref, want)
 	}
 	return r.resolved, nil
 }
 
-func (r fakeObserveWorkspaceResolver) ResolveOrRegister(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+func (r fakeObserveWorkspaceResolver) ResolveOrRegister(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 	if r.err != nil {
 		return workspacepkg.ResolvedWorkspace{}, r.err
+	}
+	if want := strings.TrimSpace(r.expectedRef); want != "" && strings.TrimSpace(ref) != want {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("unexpected workspace ref %q, want %q", ref, want)
 	}
 	return r.resolved, nil
 }

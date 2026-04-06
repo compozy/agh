@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -11,6 +12,8 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 type skillTestEnv struct {
@@ -73,6 +76,59 @@ func TestSkillListCommandReturnsVisibleSkillsAndEnabledState(t *testing.T) {
 	bundledItem := findSkillListItem(t, payload, "agh-agent-setup")
 	if bundledItem.Source != "bundled" {
 		t.Fatalf("bundled source = %q, want bundled", bundledItem.Source)
+	}
+}
+
+func TestSkillListCommandIncludesRegisteredAdditionalWorkspaceSkills(t *testing.T) {
+	t.Parallel()
+
+	env := newSkillTestEnv(t, nil)
+	additionalRoot := t.TempDir()
+
+	writeWorkspaceSkill(t, env.workspace, "workspace-skill", skillDocument("workspace-skill", "Workspace helper", "body"))
+	writeWorkspaceSkill(t, additionalRoot, "additional-skill", skillDocument("additional-skill", "Additional helper", "body"))
+
+	ctx := testContext(t)
+	globalDB, err := store.OpenGlobalDB(ctx, env.homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := globalDB.Close(context.Background()); err != nil {
+			t.Fatalf("Close(globalDB) error = %v", err)
+		}
+	})
+
+	resolver, err := workspacepkg.NewResolver(
+		globalDB,
+		workspacepkg.WithHomePaths(env.homePaths),
+		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
+			return aghconfig.LoadForHome(env.homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewResolver() error = %v", err)
+	}
+	if _, err := resolver.Register(ctx, workspacepkg.RegisterOptions{
+		RootDir:        env.workspace,
+		AdditionalDirs: []string{additionalRoot},
+	}); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+
+	stdout, _, err := executeRootCommand(t, env.deps, "skill", "list", "-o", "json")
+	if err != nil {
+		t.Fatalf("skill list error = %v", err)
+	}
+
+	var payload []skillListItem
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(skill list) error = %v; stdout=%s", err, stdout)
+	}
+
+	additionalItem := findSkillListItem(t, payload, "additional-skill")
+	if additionalItem.Source != "additional" {
+		t.Fatalf("additional source = %q, want additional", additionalItem.Source)
 	}
 }
 

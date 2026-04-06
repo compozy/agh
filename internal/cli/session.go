@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -558,7 +559,10 @@ func resolveSessionCreateWorkspace(deps commandDeps, workspaceRef string, cwd st
 	case trimmedWorkspace != "":
 		return trimmedWorkspace, "", nil
 	case trimmedCWD != "":
-		return "", trimmedCWD, nil
+		if !filepath.IsAbs(trimmedCWD) {
+			return "", "", fmt.Errorf("cli: --cwd must be an absolute path: %q", trimmedCWD)
+		}
+		return "", filepath.Clean(trimmedCWD), nil
 	default:
 		workspacePath, err := currentWorkingDirectory(deps)
 		if err != nil {

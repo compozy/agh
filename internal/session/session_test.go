@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,6 +97,27 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 	}
 	if latest.ACPCaps.SupportedModels[0] != "gpt" {
 		t.Fatalf("SupportedModels mutated through Info() copy: %#v", latest.ACPCaps.SupportedModels)
+	}
+}
+
+func TestBeginPromptSetupReturnsErrSessionNotActive(t *testing.T) {
+	t.Parallel()
+
+	session := &Session{
+		ID:        "sess-1",
+		AgentName: "coder",
+		Workspace: t.TempDir(),
+		State:     StateStopped,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	_, err := session.beginPromptSetup()
+	if !errors.Is(err, ErrSessionNotActive) {
+		t.Fatalf("beginPromptSetup() error = %v, want ErrSessionNotActive", err)
+	}
+	if !strings.Contains(err.Error(), "sess-1") {
+		t.Fatalf("beginPromptSetup() error = %v, want session id context", err)
 	}
 }
 

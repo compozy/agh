@@ -283,6 +283,7 @@ api_key_env = "WORKSPACE_KEY"
 }
 
 func TestLoadWithoutWorkspaceRootIgnoresCurrentDirectoryWorkspaceFiles(t *testing.T) {
+	// Intentionally not parallel: this test mutates process-global cwd via os.Chdir.
 	homeRoot := filepath.Join(t.TempDir(), "home")
 	dotenvHome := filepath.Join(t.TempDir(), "dotenv-home")
 	cwd := t.TempDir()

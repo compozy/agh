@@ -17,6 +17,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
 	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
+	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 	"github.com/spf13/cobra"
 )
@@ -285,7 +286,7 @@ func loadSkillCommandContext(ctx context.Context, deps commandDeps) (skillComman
 		return skillCommandContext{}, err
 	}
 
-	resolvedWorkspace, err := cliResolvedWorkspace(workspace)
+	resolvedWorkspace, err := resolveSkillWorkspace(ctx, runtime, workspace)
 	if err != nil {
 		return skillCommandContext{}, err
 	}
@@ -300,6 +301,69 @@ func loadSkillCommandContext(ctx context.Context, deps commandDeps) (skillComman
 		bundledFS: skillbundled.FS(),
 		skills:    skillList,
 	}, nil
+}
+
+func resolveSkillWorkspace(ctx context.Context, runtime runtimeContext, workspaceRoot string) (workspacepkg.ResolvedWorkspace, error) {
+	fallback, err := cliResolvedWorkspace(workspaceRoot)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+
+	if strings.TrimSpace(workspaceRoot) == "" {
+		return fallback, nil
+	}
+
+	if _, err := os.Stat(runtime.HomePaths.DatabaseFile); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fallback, nil
+		}
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: stat workspace database %q: %w", runtime.HomePaths.DatabaseFile, err)
+	}
+
+	resolved, err := resolveRegisteredSkillWorkspace(ctx, runtime, workspaceRoot)
+	if err != nil {
+		if errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			return fallback, nil
+		}
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+
+	return resolved, nil
+}
+
+func resolveRegisteredSkillWorkspace(ctx context.Context, runtime runtimeContext, workspaceRoot string) (resolved workspacepkg.ResolvedWorkspace, err error) {
+	globalDB, err := store.OpenGlobalDB(ctx, runtime.HomePaths.DatabaseFile)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: open workspace database %q: %w", runtime.HomePaths.DatabaseFile, err)
+	}
+	defer func() {
+		if closeErr := globalDB.Close(ctx); closeErr != nil {
+			closeErr = fmt.Errorf("cli: close workspace database %q: %w", runtime.HomePaths.DatabaseFile, closeErr)
+			if err == nil {
+				err = closeErr
+				return
+			}
+			err = errors.Join(err, closeErr)
+		}
+	}()
+
+	resolver, err := workspacepkg.NewResolver(
+		globalDB,
+		workspacepkg.WithHomePaths(runtime.HomePaths),
+		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
+			return aghconfig.LoadForHome(runtime.HomePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		}),
+	)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: create workspace resolver: %w", err)
+	}
+
+	resolved, err = resolver.Resolve(ctx, workspaceRoot)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: resolve workspace %q: %w", workspaceRoot, err)
+	}
+
+	return resolved, nil
 }
 
 func cliResolvedWorkspace(root string) (workspacepkg.ResolvedWorkspace, error) {

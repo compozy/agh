@@ -214,7 +214,15 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
 
-	body := []byte(`{"root_dir":"` + rootDir + `","name":"alpha","add_dirs":["` + addDir + `"],"default_agent":"coder"}`)
+	body, err := json.Marshal(map[string]any{
+		"root_dir":      rootDir,
+		"name":          "alpha",
+		"add_dirs":      []string{addDir},
+		"default_agent": "coder",
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(create workspace request) error = %v", err)
+	}
 	recorder := performRequest(t, engine, http.MethodPost, "/api/workspaces", body)
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
@@ -344,7 +352,14 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
 
-	body := []byte(`{"name":"beta","add_dirs":["` + addDir + `"],"default_agent":"reviewer"}`)
+	body, err := json.Marshal(map[string]any{
+		"name":          "beta",
+		"add_dirs":      []string{addDir},
+		"default_agent": "reviewer",
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(update workspace request) error = %v", err)
+	}
 	recorder := performRequest(t, engine, http.MethodPatch, "/api/workspaces/ws_alpha", body)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -401,7 +416,11 @@ func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
 
-	recorder := performRequest(t, engine, http.MethodPost, "/api/workspaces/resolve", []byte(`{"path":"`+rootDir+`"}`))
+	body, err := json.Marshal(map[string]any{"path": rootDir})
+	if err != nil {
+		t.Fatalf("json.Marshal(resolve workspace request) error = %v", err)
+	}
+	recorder := performRequest(t, engine, http.MethodPost, "/api/workspaces/resolve", body)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}

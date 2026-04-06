@@ -351,16 +351,38 @@ func TestStartResumeUsesLoadSession(t *testing.T) {
 func TestStartWithEmptyAdditionalDirsKeepsBaselinePayload(t *testing.T) {
 	t.Parallel()
 
-	driver := New()
-	captureFile := filepath.Join(t.TempDir(), "session-new.jsonl")
-	proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{
-		Env: helperEnvWithCapture("stream_updates", "", captureFile),
-	})
-	defer stopProcess(t, driver, proc)
+	tests := []struct {
+		name string
+		opts StartOpts
+	}{
+		{
+			name: "nil additional dirs",
+			opts: StartOpts{},
+		},
+		{
+			name: "explicit empty additional dirs",
+			opts: StartOpts{AdditionalDirs: []string{}},
+		},
+	}
 
-	params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)
-	if _, exists := params["additional_dirs"]; exists {
-		t.Fatalf("session/new params include additional_dirs for empty start opts: %#v", params)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			captureFile := filepath.Join(t.TempDir(), strings.ReplaceAll(tt.name, " ", "-")+".jsonl")
+			opts := tt.opts
+			opts.Env = helperEnvWithCapture("stream_updates", "", captureFile)
+
+			proc := startHelperProcess(t, driver, "stream_updates", "", opts)
+			defer stopProcess(t, driver, proc)
+
+			params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)
+			if _, exists := params["additional_dirs"]; exists {
+				t.Fatalf("session/new params include additional_dirs for %s: %#v", tt.name, params)
+			}
+		})
 	}
 }
 

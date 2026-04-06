@@ -144,6 +144,8 @@ func TestLoadAgentDefFileMissingReturnsError(t *testing.T) {
 }
 
 func TestWorkspaceDiscoveryRootsReturnsWorkspaceAdditionalGlobalOrder(t *testing.T) {
+	t.Parallel()
+
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
@@ -185,6 +187,8 @@ func TestWorkspaceDiscoveryRootsReturnsWorkspaceAdditionalGlobalOrder(t *testing
 }
 
 func TestLoadWorkspaceAgentDefsAppliesDocumentedPrecedence(t *testing.T) {
+	t.Parallel()
+
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)

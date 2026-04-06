@@ -233,7 +233,7 @@ func (s *Session) beginPromptSetup() (*AgentProcess, error) {
 	defer s.mu.Unlock()
 
 	if s.State != StateActive {
-		return nil, fmt.Errorf("session: session %q is not active", s.ID)
+		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
 	if s.process == nil {
 		return nil, errors.New("session: agent process is not available")

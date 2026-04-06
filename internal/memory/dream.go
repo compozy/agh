@@ -264,14 +264,14 @@ func (s *Service) prepareWorkspace(ctx context.Context, workspaceRef string) (st
 
 	resolved, err := s.workspaceResolver.Resolve(ctx, trimmedRef)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("memory: resolve workspace %q: %w", trimmedRef, err)
 	}
 	if strings.TrimSpace(resolved.ID) == "" {
 		return "", errors.New("memory: workspace id is required")
 	}
 	if s.memStore != nil {
 		if err := s.memStore.ForWorkspace(resolved.RootDir).EnsureDirs(); err != nil {
-			return "", err
+			return "", fmt.Errorf("memory: ensure workspace memory dirs for %q: %w", resolved.RootDir, err)
 		}
 	}
 

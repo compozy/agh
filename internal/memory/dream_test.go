@@ -362,6 +362,66 @@ func TestServiceRunResolvesWorkspaceRefBeforeSpawn(t *testing.T) {
 	}
 }
 
+func TestServiceRunWrapsWorkspaceResolveErrors(t *testing.T) {
+	t.Parallel()
+
+	lock := &stubLock{
+		tryAcquireFn: func() (time.Time, bool, error) {
+			return time.Time{}, true, nil
+		},
+	}
+	resolveErr := errors.New("lookup failed")
+	service := NewService(
+		withLock(lock),
+		WithWorkspaceResolver(&fakeDreamWorkspaceResolver{err: resolveErr}),
+	)
+
+	err := service.Run(testContext(t), func(context.Context, string, string, string) error { return nil }, "workspace-alias")
+	if err == nil {
+		t.Fatal("Run() error = nil, want non-nil")
+	}
+	if !errors.Is(err, resolveErr) {
+		t.Fatalf("Run() error = %v, want wrapped resolve error", err)
+	}
+	if !strings.Contains(err.Error(), `resolve workspace "workspace-alias"`) {
+		t.Fatalf("Run() error = %v, want resolve workspace context", err)
+	}
+}
+
+func TestServiceRunWrapsWorkspaceEnsureDirsErrors(t *testing.T) {
+	t.Parallel()
+
+	lock := &stubLock{
+		tryAcquireFn: func() (time.Time, bool, error) {
+			return time.Time{}, true, nil
+		},
+	}
+	rootDir := filepath.Join(t.TempDir(), "workspace")
+	service := NewService(
+		withLock(lock),
+		WithWorkspaceResolver(&fakeDreamWorkspaceResolver{
+			resolved: workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{
+					ID:      "ws-resolved",
+					RootDir: rootDir,
+				},
+			},
+		}),
+		WithMemoryStore(NewStore("")),
+	)
+
+	err := service.Run(testContext(t), func(context.Context, string, string, string) error { return nil }, "workspace-alias")
+	if err == nil {
+		t.Fatal("Run() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), `ensure workspace memory dirs for "`) {
+		t.Fatalf("Run() error = %v, want ensure dirs context", err)
+	}
+	if !strings.Contains(err.Error(), rootDir) {
+		t.Fatalf("Run() error = %v, want workspace root in wrapped error", err)
+	}
+}
+
 func TestServiceRunRollsBackLockOnSessionSpawnerFailure(t *testing.T) {
 	t.Parallel()
 
