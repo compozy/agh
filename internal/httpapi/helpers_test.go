@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -149,6 +150,7 @@ func newTestHandlers(t *testing.T, manager SessionManager, observer Observer, ho
 	return newHandlers(handlerConfig{
 		sessions:     manager,
 		observer:     observer,
+		staticFS:     mustStaticFS(t),
 		homePaths:    homePaths,
 		config:       cfg,
 		logger:       discardLogger(),
@@ -171,6 +173,17 @@ func newTestRouter(t *testing.T, handlers *Handlers) *gin.Engine {
 	engine.Use(errorMiddleware())
 	RegisterRoutes(engine, handlers)
 	return engine
+}
+
+func mustStaticFS(t *testing.T) fs.FS {
+	t.Helper()
+
+	staticFS, err := newStaticFS()
+	if err != nil {
+		t.Fatalf("newStaticFS() error = %v", err)
+	}
+
+	return staticFS
 }
 
 func newTestHomePaths(t *testing.T) aghconfig.HomePaths {

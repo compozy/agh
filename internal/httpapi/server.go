@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -96,6 +97,7 @@ type handlerConfig struct {
 	observer     Observer
 	memoryStore  *memory.Store
 	dreamTrigger DreamTrigger
+	staticFS     fs.FS
 	homePaths    aghconfig.HomePaths
 	config       aghconfig.Config
 	logger       *slog.Logger
@@ -112,6 +114,7 @@ type Handlers struct {
 	observer     Observer
 	memoryStore  *memory.Store
 	dreamTrigger DreamTrigger
+	staticFS     fs.FS
 	homePaths    aghconfig.HomePaths
 	config       aghconfig.Config
 	logger       *slog.Logger
@@ -279,6 +282,10 @@ func New(opts ...Option) (*Server, error) {
 	if server.port <= 0 {
 		server.port = server.config.HTTP.Port
 	}
+	staticFS, err := newStaticFS()
+	if err != nil {
+		return nil, fmt.Errorf("httpapi: load embedded frontend bundle: %w", err)
+	}
 	if server.engine == nil {
 		server.engine = gin.New()
 		server.engine.Use(gin.Recovery())
@@ -292,6 +299,7 @@ func New(opts ...Option) (*Server, error) {
 		observer:     server.observer,
 		memoryStore:  server.memoryStore,
 		dreamTrigger: server.dreamTrigger,
+		staticFS:     staticFS,
 		homePaths:    server.homePaths,
 		config:       server.config,
 		logger:       server.logger,
@@ -475,6 +483,10 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	{
 		daemonGroup.GET("/status", handlers.daemonStatus)
 	}
+
+	if engine, ok := router.(*gin.Engine); ok && handlers != nil {
+		engine.NoRoute(handlers.serveStaticRoute)
+	}
 }
 
 func newHandlers(cfg handlerConfig) *Handlers {
@@ -507,6 +519,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 		observer:     cfg.observer,
 		memoryStore:  cfg.memoryStore,
 		dreamTrigger: cfg.dreamTrigger,
+		staticFS:     cfg.staticFS,
 		homePaths:    cfg.homePaths,
 		config:       cfg.config,
 		logger:       logger,

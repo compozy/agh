@@ -36,19 +36,19 @@ help:
 .PHONY: web-dev web-build web-lint web-fmt web-typecheck web-test
 
 web-dev:
-	@bun run dev
+	@cd web && bun run dev
 
 web-build:
-	@bun run build
+	@cd web && bun run build
 
 web-lint:
-	@bun run lint
+	@cd web && bun run lint
 
 web-fmt:
-	@bun run format
+	@cd web && bun run format
 
 web-typecheck:
-	@bun run typecheck
+	@cd web && bun run typecheck
 
 web-test:
-	@bun run test
+	@cd web && bun run test

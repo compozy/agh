@@ -25,6 +25,36 @@ import (
 func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
+	indexResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/"), nil, nil)
+	if indexResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(indexResp.Body)
+		_ = indexResp.Body.Close()
+		t.Fatalf("root status = %d, want %d; body=%s", indexResp.StatusCode, http.StatusOK, string(body))
+	}
+	indexBody, err := io.ReadAll(indexResp.Body)
+	_ = indexResp.Body.Close()
+	if err != nil {
+		t.Fatalf("io.ReadAll(root) error = %v", err)
+	}
+	if !strings.Contains(string(indexBody), `<div id="app"></div>`) {
+		t.Fatalf("root body = %q, want SPA shell", string(indexBody))
+	}
+
+	deepLinkResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/session/demo"), nil, nil)
+	if deepLinkResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(deepLinkResp.Body)
+		_ = deepLinkResp.Body.Close()
+		t.Fatalf("deep link status = %d, want %d; body=%s", deepLinkResp.StatusCode, http.StatusOK, string(body))
+	}
+	deepLinkBody, err := io.ReadAll(deepLinkResp.Body)
+	_ = deepLinkResp.Body.Close()
+	if err != nil {
+		t.Fatalf("io.ReadAll(deep link) error = %v", err)
+	}
+	if !strings.Contains(string(deepLinkBody), `<div id="app"></div>`) {
+		t.Fatalf("deep link body = %q, want SPA shell", string(deepLinkBody))
+	}
+
 	statusResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/daemon/status"), nil, nil)
 	if statusResp.StatusCode != http.StatusOK {
 		t.Fatalf("daemon status = %d, want %d", statusResp.StatusCode, http.StatusOK)

@@ -11,20 +11,45 @@
             "sourceType": "github",
             "computedHash": "4b03286f1dc45da3e1a76a71c0c62729b4887c814dff3084345889cb4780a3a2"
         },
+        "context7": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "23f0178420043f01cd0f00745eb06eaac6f3eee4ef58f87f1ae353c2a408f79c"
+        },
+        "council": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "d4f069a475431390f46fb826fdfc1dd1e68183136f8fe58ebe252f2b90e0a8c4"
+        },
         "critique": {
             "source": "pbakaus/impeccable",
             "sourceType": "github",
             "computedHash": "59d3facaee0d7c969f23e938c35239183d3fdd9befff526908585e55afa3a9dd"
+        },
+        "exa-web-search-free": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "4456756ff2cf096cc7c6d2fc9d6771e2a1ea0084868f28b69f68157757ee50c8"
         },
         "extract": {
             "source": "pbakaus/impeccable",
             "sourceType": "github",
             "computedHash": "1bbe30b5be73a86971f6bccb37daae84aaafceaa6d23429d6a3a0442378ac4ec"
         },
+        "extreme-software-optimization": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "9e187c25458869ff448ae40ce3a78155838d663ad66762b41ea90692985b3e3c"
+        },
         "frontend-design": {
             "source": "pbakaus/impeccable",
             "sourceType": "github",
             "computedHash": "9ebe6c652743fcde8d2ae773f34b6f548dcc8b2e75a3a30936adcd8b95dd2d16"
+        },
+        "karpathy-kb": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "8bc7a75020275e4ad1813cb4b616dc9e0c7624a6e71178f98341e69c39bd65f4"
         },
         "normalize": {
             "source": "pbakaus/impeccable",
@@ -35,6 +60,11 @@
             "source": "pbakaus/impeccable",
             "sourceType": "github",
             "computedHash": "33a8b5195481719e954b71762de56faaabc68c479602673894e0d0e47336756b"
+        },
+        "qmd": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "d7109d58f721a0bf59620c69b6ae073c60dde85e971012d95a5e410002f28c64"
         },
         "skill-best-practices": {
             "source": "pedronauck/skills",
@@ -50,6 +80,11 @@
             "source": "pbakaus/impeccable",
             "sourceType": "github",
             "computedHash": "0259de15644a89550cfd6a936a8e1866dcb35d20ccc96197614459233a9bcdb3"
+        },
+        "viz": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "01b63eb482c4a788375596ac3a6544cf069997918670d513c3137324160190e5"
         }
     }
 }

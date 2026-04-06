@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 )
 
@@ -21,6 +21,7 @@ const (
 	binDir              = "bin"
 	cliBinary           = "agh"
 	versionPackage      = "github.com/pedronauck/agh/internal/version"
+	webDistIndex        = "web/dist/index.html"
 )
 
 var Default = Verify
@@ -42,6 +43,9 @@ func Fmt() error {
 }
 
 func Lint() error {
+	if err := ensureWebBundle(); err != nil {
+		return err
+	}
 	return sh.RunV(
 		"go",
 		"run",
@@ -53,17 +57,46 @@ func Lint() error {
 
 // Test runs unit tests only (no integration tag).
 func Test() error {
+	if err := ensureWebBundle(); err != nil {
+		return err
+	}
 	return sh.RunV("go", "run", "gotest.tools/gotestsum@latest",
 		"--format", "pkgname", "--", "-race", "-parallel=4", "./...")
 }
 
 // TestIntegration runs all tests including integration tests.
 func TestIntegration() error {
+	if err := ensureWebBundle(); err != nil {
+		return err
+	}
 	return sh.RunV("go", "run", "gotest.tools/gotestsum@latest",
 		"--format", "pkgname", "--", "-race", "-parallel=4", "-tags", "integration", "./...")
 }
 
 func Build() error {
+	if err := WebBuild(); err != nil {
+		return err
+	}
+	return buildGo()
+}
+
+func WebLint() error {
+	return runCommandInDir("web", "bun", "run", "lint")
+}
+
+func WebTypecheck() error {
+	return runCommandInDir("web", "bun", "run", "typecheck")
+}
+
+func WebTest() error {
+	return runCommandInDir("web", "bun", "run", "test")
+}
+
+func WebBuild() error {
+	return runCommandInDir("web", "bun", "run", "build")
+}
+
+func buildGo() error {
 	ldflags := buildLDFlags()
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return err
@@ -132,8 +165,26 @@ func Boundaries() error {
 	return nil
 }
 
-func Verify() {
-	mg.SerialDeps(Fmt, Lint, Test, Build, Boundaries)
+func Verify() error {
+	steps := []func() error{
+		WebLint,
+		WebTypecheck,
+		WebTest,
+		WebBuild,
+		Fmt,
+		Lint,
+		Test,
+		buildGo,
+		Boundaries,
+	}
+
+	for _, step := range steps {
+		if err := step(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func goFiles(root string) ([]string, error) {
@@ -191,4 +242,23 @@ func gitOutput(args ...string) string {
 	}
 
 	return strings.TrimSpace(string(out))
+}
+
+func ensureWebBundle() error {
+	if _, err := os.Stat(webDistIndex); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	return WebBuild()
+}
+
+func runCommandInDir(dir string, name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
+	return cmd.Run()
 }
