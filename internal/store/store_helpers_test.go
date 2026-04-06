@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -372,10 +373,10 @@ func TestStoreHelpersAndErrorPaths(t *testing.T) {
 		t.Fatal("shouldRecoverSQLite(permission denied) = true, want false")
 	}
 
-	if err := checkpoint(testContext(t), nil); err != nil {
+	if err := checkpoint(testutil.Context(t), nil); err != nil {
 		t.Fatalf("checkpoint(nil) error = %v", err)
 	}
-	if _, err := openSQLiteDatabase(testContext(t), "", func(ctx context.Context, db *sql.DB) error {
+	if _, err := openSQLiteDatabase(testutil.Context(t), "", func(ctx context.Context, db *sql.DB) error {
 		return ensureSchema(ctx, db, sessionSchemaStatements)
 	}); err == nil {
 		t.Fatal("openSQLiteDatabase(\"\") error = nil, want non-nil")
@@ -420,7 +421,7 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 	if normalized.ID != "ws-helper" || normalized.RootDir != "/tmp/workspace" || normalized.Name != "alpha" || normalized.DefaultAgent != "coder" {
 		t.Fatalf("normalizeWorkspaceRecord() = %#v", normalized)
 	}
-	if got, want := normalized.AdditionalDirs, []string{"/tmp/a", "/tmp/b"}; !equalStringSlices(got, want) {
+	if got, want := normalized.AdditionalDirs, []string{"/tmp/a", "/tmp/b"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("normalizeWorkspaceRecord().AdditionalDirs = %#v, want %#v", got, want)
 	}
 	if addDirsJSON != `["/tmp/a","/tmp/b"]` {
@@ -441,7 +442,7 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 	}
 	if got, err := decodeWorkspaceDirs(`[" /tmp/a ", "", "/tmp/b"]`); err != nil {
 		t.Fatalf("decodeWorkspaceDirs() error = %v", err)
-	} else if want := []string{"/tmp/a", "/tmp/b"}; !equalStringSlices(got, want) {
+	} else if want := []string{"/tmp/a", "/tmp/b"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("decodeWorkspaceDirs() = %#v, want %#v", got, want)
 	}
 	if _, err := decodeWorkspaceDirs(`{`); err == nil {
@@ -481,7 +482,7 @@ func TestWorkspaceSchemaHelpers(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
-	ctx := testContext(t)
+	ctx := testutil.Context(t)
 
 	if exists, err := tableExists(ctx, globalDB.db, "workspaces"); err != nil {
 		t.Fatalf("tableExists(workspaces) error = %v", err)
@@ -550,7 +551,7 @@ func TestWorkspaceSchemaHelpers(t *testing.T) {
 func TestLegacyMigrationHelperFlow(t *testing.T) {
 	t.Parallel()
 
-	ctx := testContext(t)
+	ctx := testutil.Context(t)
 	db, err := openSQLiteDatabase(ctx, filepath.Join(t.TempDir(), "legacy.db"), nil)
 	if err != nil {
 		t.Fatalf("openSQLiteDatabase() error = %v", err)
@@ -670,30 +671,30 @@ func TestSessionDBMethodsAfterCloseAndErrors(t *testing.T) {
 	if got := ((*SessionDB)(nil)).SessionID(); got != "" {
 		t.Fatalf("nil SessionDB SessionID() = %q, want empty", got)
 	}
-	if err := sessionDB.Record(testContext(t), SessionEvent{SessionID: "other", TurnID: "turn-1", Type: "agent_message", AgentName: "coder"}); err == nil {
+	if err := sessionDB.Record(testutil.Context(t), SessionEvent{SessionID: "other", TurnID: "turn-1", Type: "agent_message", AgentName: "coder"}); err == nil {
 		t.Fatal("Record(mismatched session id) error = nil, want non-nil")
 	}
-	if _, err := sessionDB.Query(testContext(t), EventQuery{Limit: -1}); err == nil {
+	if _, err := sessionDB.Query(testutil.Context(t), EventQuery{Limit: -1}); err == nil {
 		t.Fatal("Query(invalid) error = nil, want non-nil")
 	}
-	if err := sessionDB.Close(testContext(t)); err != nil {
+	if err := sessionDB.Close(testutil.Context(t)); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}
-	if err := sessionDB.Record(testContext(t), SessionEvent{TurnID: "turn-1", Type: "agent_message", AgentName: "coder"}); !errors.Is(err, ErrClosed) {
+	if err := sessionDB.Record(testutil.Context(t), SessionEvent{TurnID: "turn-1", Type: "agent_message", AgentName: "coder"}); !errors.Is(err, ErrClosed) {
 		t.Fatalf("Record(after close) error = %v, want ErrClosed", err)
 	}
 
 	var nilSessionDB *SessionDB
-	if err := nilSessionDB.Record(testContext(t), SessionEvent{}); err == nil {
+	if err := nilSessionDB.Record(testutil.Context(t), SessionEvent{}); err == nil {
 		t.Fatal("nil SessionDB Record() error = nil, want non-nil")
 	}
-	if err := nilSessionDB.RecordTokenUsage(testContext(t), TokenUsage{}); err == nil {
+	if err := nilSessionDB.RecordTokenUsage(testutil.Context(t), TokenUsage{}); err == nil {
 		t.Fatal("nil SessionDB RecordTokenUsage() error = nil, want non-nil")
 	}
-	if _, err := nilSessionDB.Query(testContext(t), EventQuery{}); err == nil {
+	if _, err := nilSessionDB.Query(testutil.Context(t), EventQuery{}); err == nil {
 		t.Fatal("nil SessionDB Query() error = nil, want non-nil")
 	}
-	if err := nilSessionDB.Close(testContext(t)); err != nil {
+	if err := nilSessionDB.Close(testutil.Context(t)); err != nil {
 		t.Fatalf("nil SessionDB Close() error = %v, want nil", err)
 	}
 }
@@ -710,37 +711,37 @@ func TestGlobalDBMethodsAndErrors(t *testing.T) {
 	}
 
 	var nilGlobalDB *GlobalDB
-	if err := nilGlobalDB.RegisterSession(testContext(t), SessionInfo{}); err == nil {
+	if err := nilGlobalDB.RegisterSession(testutil.Context(t), SessionInfo{}); err == nil {
 		t.Fatal("nil GlobalDB RegisterSession() error = nil, want non-nil")
 	}
-	if err := nilGlobalDB.UpdateSessionState(testContext(t), SessionStateUpdate{}); err == nil {
+	if err := nilGlobalDB.UpdateSessionState(testutil.Context(t), SessionStateUpdate{}); err == nil {
 		t.Fatal("nil GlobalDB UpdateSessionState() error = nil, want non-nil")
 	}
-	if _, err := nilGlobalDB.ListSessions(testContext(t), SessionListQuery{}); err == nil {
+	if _, err := nilGlobalDB.ListSessions(testutil.Context(t), SessionListQuery{}); err == nil {
 		t.Fatal("nil GlobalDB ListSessions() error = nil, want non-nil")
 	}
-	if _, err := nilGlobalDB.ReconcileSessions(testContext(t), nil); err == nil {
+	if _, err := nilGlobalDB.ReconcileSessions(testutil.Context(t), nil); err == nil {
 		t.Fatal("nil GlobalDB ReconcileSessions() error = nil, want non-nil")
 	}
-	if err := nilGlobalDB.WriteEventSummary(testContext(t), EventSummary{}); err == nil {
+	if err := nilGlobalDB.WriteEventSummary(testutil.Context(t), EventSummary{}); err == nil {
 		t.Fatal("nil GlobalDB WriteEventSummary() error = nil, want non-nil")
 	}
-	if _, err := nilGlobalDB.ListEventSummaries(testContext(t), EventSummaryQuery{}); err == nil {
+	if _, err := nilGlobalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{}); err == nil {
 		t.Fatal("nil GlobalDB ListEventSummaries() error = nil, want non-nil")
 	}
-	if err := nilGlobalDB.UpdateTokenStats(testContext(t), TokenStatsUpdate{}); err == nil {
+	if err := nilGlobalDB.UpdateTokenStats(testutil.Context(t), TokenStatsUpdate{}); err == nil {
 		t.Fatal("nil GlobalDB UpdateTokenStats() error = nil, want non-nil")
 	}
-	if _, err := nilGlobalDB.ListTokenStats(testContext(t), TokenStatsQuery{}); err == nil {
+	if _, err := nilGlobalDB.ListTokenStats(testutil.Context(t), TokenStatsQuery{}); err == nil {
 		t.Fatal("nil GlobalDB ListTokenStats() error = nil, want non-nil")
 	}
-	if err := nilGlobalDB.WritePermissionLog(testContext(t), PermissionLogEntry{}); err == nil {
+	if err := nilGlobalDB.WritePermissionLog(testutil.Context(t), PermissionLogEntry{}); err == nil {
 		t.Fatal("nil GlobalDB WritePermissionLog() error = nil, want non-nil")
 	}
-	if _, err := nilGlobalDB.ListPermissionLog(testContext(t), PermissionLogQuery{}); err == nil {
+	if _, err := nilGlobalDB.ListPermissionLog(testutil.Context(t), PermissionLogQuery{}); err == nil {
 		t.Fatal("nil GlobalDB ListPermissionLog() error = nil, want non-nil")
 	}
-	if err := nilGlobalDB.Close(testContext(t)); err != nil {
+	if err := nilGlobalDB.Close(testutil.Context(t)); err != nil {
 		t.Fatalf("nil GlobalDB Close() error = %v, want nil", err)
 	}
 }
@@ -753,7 +754,7 @@ func TestSessionWriterHelpers(t *testing.T) {
 
 		resultCh := make(chan error, 1)
 		resultCh <- errors.New("boom")
-		if err := waitForShutdownResult(testContext(t), resultCh); err == nil {
+		if err := waitForShutdownResult(testutil.Context(t), resultCh); err == nil {
 			t.Fatal("waitForShutdownResult() error = nil, want non-nil")
 		}
 	})
@@ -773,7 +774,7 @@ func TestSessionWriterHelpers(t *testing.T) {
 
 		done := make(chan struct{})
 		close(done)
-		if err := waitForWriterExit(testContext(t), done); err != nil {
+		if err := waitForWriterExit(testutil.Context(t), done); err != nil {
 			t.Fatalf("waitForWriterExit() error = %v", err)
 		}
 	})

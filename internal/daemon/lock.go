@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/gofrs/flock"
+	"github.com/pedronauck/agh/internal/procutil"
 )
 
 var (
@@ -50,7 +50,7 @@ type Lock struct {
 func AcquireLock(path string, pid int) (*Lock, error) {
 	return acquireLock(path, pid, lockDeps{
 		newFlock:     func(path string) *flock.Flock { return flock.New(path) },
-		processAlive: processAlive,
+		processAlive: procutil.Alive,
 	})
 }
 
@@ -66,7 +66,7 @@ func acquireLock(path string, pid int, deps lockDeps) (*Lock, error) {
 		return nil, errors.New("daemon: lock constructor is required")
 	}
 	if deps.processAlive == nil {
-		deps.processAlive = processAlive
+		deps.processAlive = procutil.Alive
 	}
 	if err := os.MkdirAll(filepath.Dir(cleanPath), 0o755); err != nil {
 		return nil, fmt.Errorf("daemon: create lock directory for %q: %w", cleanPath, err)
@@ -190,13 +190,4 @@ func writeLockPID(path string, pid int) error {
 		return fmt.Errorf("daemon: sync daemon lock %q: %w", path, err)
 	}
 	return nil
-}
-
-func processAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-
-	err := syscall.Kill(pid, 0)
-	return err == nil || errors.Is(err, syscall.EPERM)
 }

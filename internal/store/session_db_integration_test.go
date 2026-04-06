@@ -4,6 +4,7 @@ package store
 
 import (
 	"fmt"
+	"github.com/pedronauck/agh/internal/testutil"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -13,7 +14,7 @@ import (
 func TestSessionDBLifecyclePersistsAcrossReopen(t *testing.T) {
 	sessionDir := t.TempDir()
 	path := filepath.Join(sessionDir, SessionDatabaseName)
-	ctx := testContext(t)
+	ctx := testutil.Context(t)
 
 	sessionDB, err := OpenSessionDB(ctx, "sess-integration", path)
 	if err != nil {
@@ -65,7 +66,7 @@ func TestSessionDBLifecyclePersistsAcrossReopen(t *testing.T) {
 
 func TestSessionDBSupportsConcurrentReadersWithSingleWriter(t *testing.T) {
 	sessionDB := openTestSessionDB(t, "sess-concurrency")
-	ctx := testContext(t)
+	ctx := testutil.Context(t)
 
 	const (
 		readerCount = 6

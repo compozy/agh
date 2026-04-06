@@ -13,6 +13,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
+	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -153,10 +154,10 @@ func (d commandDeps) withDefaults() commandDeps {
 		d.readDaemonInfo = aghdaemon.ReadInfo
 	}
 	if d.signalProcess == nil {
-		d.signalProcess = signalProcess
+		d.signalProcess = procutil.Signal
 	}
 	if d.processAlive == nil {
-		d.processAlive = processAlive
+		d.processAlive = procutil.Alive
 	}
 	if d.executable == nil {
 		d.executable = os.Executable
@@ -242,32 +243,4 @@ func currentWorkingDirectory(deps commandDeps) (string, error) {
 		return "", errors.New("cli: current working directory is empty")
 	}
 	return wd, nil
-}
-
-func signalProcess(pid int, sig syscall.Signal) error {
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return fmt.Errorf("cli: find process %d: %w", pid, err)
-	}
-	if err := process.Signal(sig); err != nil {
-		return fmt.Errorf("cli: signal process %d: %w", pid, err)
-	}
-	return nil
-}
-
-func processAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-
-	err = process.Signal(syscall.Signal(0))
-	if err == nil {
-		return true
-	}
-	return errors.Is(err, syscall.EPERM)
 }

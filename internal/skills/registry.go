@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"path"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -196,12 +195,12 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	defer r.mu.Unlock()
 
 	r.evictExpiredWorkspaceLocked(r.now())
-	r.globalSnapshots = cloneFileSnapshots(snapshots)
-	r.globalLoaded = true
-	if reflect.DeepEqual(r.globalSkills, loaded) {
+	if r.globalLoaded && snapshotsEqual(r.globalSnapshots, snapshots) {
 		return nil
 	}
 
+	r.globalSnapshots = cloneFileSnapshots(snapshots)
+	r.globalLoaded = true
 	r.globalSkills = loaded
 	r.globalVersion.Add(1)
 
@@ -238,15 +237,9 @@ func (r *Registry) loadWorkspaceSkills(ctx context.Context, paths []workspaceSki
 			return nil, err
 		}
 		skill.Source = path.source
-		r.applyDisabled(skill)
-
-		warnings := VerifyContent(skill.Content)
-		r.logVerificationWarnings(skill, warnings)
-		if hasCriticalWarning(warnings) {
+		if !r.processSkill(skills, skill) {
 			continue
 		}
-
-		r.overlaySkill(skills, skill)
 	}
 
 	return skills, nil
@@ -271,15 +264,9 @@ func (r *Registry) loadBundledSkills(ctx context.Context, dst map[string]*Skill)
 		if err != nil {
 			return err
 		}
-		r.applyDisabled(skill)
-
-		warnings := VerifyContent(skill.Content)
-		r.logVerificationWarnings(skill, warnings)
-		if hasCriticalWarning(warnings) {
+		if !r.processSkill(dst, skill) {
 			continue
 		}
-
-		r.overlaySkill(dst, skill)
 	}
 
 	return nil
@@ -313,18 +300,25 @@ func (r *Registry) loadSkillPaths(ctx context.Context, paths []string, source Sk
 			return err
 		}
 		skill.Source = source
-		r.applyDisabled(skill)
-
-		warnings := VerifyContent(skill.Content)
-		r.logVerificationWarnings(skill, warnings)
-		if hasCriticalWarning(warnings) {
+		if !r.processSkill(dst, skill) {
 			continue
 		}
-
-		r.overlaySkill(dst, skill)
 	}
 
 	return nil
+}
+
+func (r *Registry) processSkill(dst map[string]*Skill, skill *Skill) bool {
+	r.applyDisabled(skill)
+
+	warnings := VerifyContent(skill.Content)
+	r.logVerificationWarnings(skill, warnings)
+	if hasCriticalWarning(warnings) {
+		return false
+	}
+
+	r.overlaySkill(dst, skill)
+	return true
 }
 
 func (r *Registry) applyDisabled(skill *Skill) {

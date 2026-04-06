@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pedronauck/agh/internal/fileutil"
 )
 
 // ReadSessionMeta loads a session metadata document from disk.
@@ -51,28 +53,8 @@ func WriteSessionMeta(path string, meta SessionMeta) error {
 	}
 	payload = append(payload, '\n')
 
-	file, err := os.CreateTemp(filepath.Dir(cleanPath), filepath.Base(cleanPath)+".tmp-*")
-	if err != nil {
-		return fmt.Errorf("store: create temp session meta for %q: %w", cleanPath, err)
-	}
-	tempPath := file.Name()
-	defer func() {
-		_ = os.Remove(tempPath)
-	}()
-
-	if _, err := file.Write(payload); err != nil {
-		_ = file.Close()
-		return fmt.Errorf("store: write temp session meta %q: %w", tempPath, err)
-	}
-	if err := file.Sync(); err != nil {
-		_ = file.Close()
-		return fmt.Errorf("store: sync temp session meta %q: %w", tempPath, err)
-	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("store: close temp session meta %q: %w", tempPath, err)
-	}
-	if err := os.Rename(tempPath, cleanPath); err != nil {
-		return fmt.Errorf("store: replace session meta %q: %w", cleanPath, err)
+	if err := fileutil.AtomicWriteFile(cleanPath, payload, 0o644); err != nil {
+		return fmt.Errorf("store: write session meta %q: %w", cleanPath, err)
 	}
 
 	return syncDirectory(filepath.Dir(cleanPath))

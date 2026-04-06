@@ -271,7 +271,7 @@ func loadSkillCommandContext(ctx context.Context, deps commandDeps) (skillComman
 		return skillCommandContext{}, err
 	}
 
-	userAgentsDir, err := cliUserAgentsSkillsDir(deps)
+	userAgentsDir, err := aghconfig.ResolveUserAgentsSkillsDir(deps.getenv)
 	if err != nil {
 		return skillCommandContext{}, err
 	}
@@ -407,30 +407,6 @@ func cliResolvedWorkspace(root string) (workspacepkg.ResolvedWorkspace, error) {
 		Workspace: workspacepkg.Workspace{RootDir: workspaceRoot},
 		Skills:    skillPaths,
 	}, nil
-}
-
-func cliUserAgentsSkillsDir(deps commandDeps) (string, error) {
-	if deps.getenv != nil {
-		if home := strings.TrimSpace(deps.getenv("HOME")); home != "" {
-			absHome, err := filepath.Abs(home)
-			if err != nil {
-				return "", fmt.Errorf("cli: resolve HOME for user agent skills: %w", err)
-			}
-			return filepath.Join(absHome, ".agents", "skills"), nil
-		}
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("cli: resolve user home for agent skills: %w", err)
-	}
-
-	absHome, err := filepath.Abs(home)
-	if err != nil {
-		return "", fmt.Errorf("cli: resolve user home for agent skills: %w", err)
-	}
-
-	return filepath.Join(absHome, ".agents", "skills"), nil
 }
 
 func resolveCLIWorkspaceRoot(deps commandDeps) (string, error) {

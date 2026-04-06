@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"log/slog"
 	"net"
@@ -21,6 +22,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -165,11 +167,11 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 	}
 	d.processAlive = func(pid int) bool { return pid == 1001 }
 
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
@@ -184,7 +186,7 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 	if !observer.reconciled {
 		t.Fatal("boot() did not call observer.Reconcile")
 	}
-	if got, want := signals, []string{"terminated:1001", "killed:1001"}; !equalStrings(got, want) {
+	if got, want := signals, []string{"terminated:1001", "killed:1001"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("cleanup orphan signals = %#v, want %#v", got, want)
 	}
 
@@ -220,10 +222,10 @@ func TestCleanupOrphansAllowsGracefulExitBeforeSIGKILL(t *testing.T) {
 		return aliveCall == 1
 	}
 
-	if err := d.cleanupOrphans(testContext(t), 444); err != nil {
+	if err := d.cleanupOrphans(testutil.Context(t), 444); err != nil {
 		t.Fatalf("cleanupOrphans() error = %v", err)
 	}
-	if got, want := signals, []string{"terminated:1001"}; !equalStrings(got, want) {
+	if got, want := signals, []string{"terminated:1001"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("cleanup orphan signals = %#v, want %#v", got, want)
 	}
 }
@@ -258,11 +260,11 @@ func TestBootRejectsConcurrentCallWhileFirstBootIsInProgress(t *testing.T) {
 
 	firstBoot := make(chan error, 1)
 	go func() {
-		firstBoot <- d.boot(testContext(t))
+		firstBoot <- d.boot(testutil.Context(t))
 	}()
 
 	<-loadStarted
-	if err := d.boot(testContext(t)); err == nil || !strings.Contains(err.Error(), "already booted") {
+	if err := d.boot(testutil.Context(t)); err == nil || !strings.Contains(err.Error(), "already booted") {
 		t.Fatalf("concurrent boot error = %v, want already booted", err)
 	}
 
@@ -270,7 +272,7 @@ func TestBootRejectsConcurrentCallWhileFirstBootIsInProgress(t *testing.T) {
 	if err := <-firstBoot; err != nil {
 		t.Fatalf("first boot error = %v", err)
 	}
-	if err := d.Shutdown(testContext(t)); err != nil {
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 }
@@ -307,12 +309,12 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 		return nil
 	}
 
-	if err := d.Shutdown(testContext(t)); err != nil {
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 
 	want := []string{"session:sess-a", "session:sess-b", "http", "uds", "db", "lock", "logger"}
-	if !equalStrings(events, want) {
+	if !testutil.EqualStringSlices(events, want) {
 		t.Fatalf("Shutdown() order = %#v, want %#v", events, want)
 	}
 }
@@ -362,12 +364,12 @@ func TestBootFailureCleansUpStartedResourcesInReverseOrder(t *testing.T) {
 		return nil, errors.New("uds boom")
 	}
 
-	if err := d.boot(testContext(t)); err == nil || !strings.Contains(err.Error(), "uds boom") {
+	if err := d.boot(testutil.Context(t)); err == nil || !strings.Contains(err.Error(), "uds boom") {
 		t.Fatalf("boot() error = %v, want uds boom", err)
 	}
 
 	want := []string{"http", "db", "lock", "logger"}
-	if !equalStrings(events, want) {
+	if !testutil.EqualStringSlices(events, want) {
 		t.Fatalf("boot() cleanup order = %#v, want %#v", events, want)
 	}
 }
@@ -418,12 +420,12 @@ func TestBootFailureWhenWritingDaemonInfoCleansUpAllServers(t *testing.T) {
 		return &fakeServer{name: "uds", onShutdown: func() { events = append(events, "uds") }}, nil
 	}
 
-	if err := d.boot(testContext(t)); err == nil || !strings.Contains(err.Error(), "daemon info") {
+	if err := d.boot(testutil.Context(t)); err == nil || !strings.Contains(err.Error(), "daemon info") {
 		t.Fatalf("boot() error = %v, want daemon info failure", err)
 	}
 
 	want := []string{"uds", "http", "db", "lock", "logger"}
-	if !equalStrings(events, want) {
+	if !testutil.EqualStringSlices(events, want) {
 		t.Fatalf("boot() cleanup order = %#v, want %#v", events, want)
 	}
 }
@@ -460,7 +462,7 @@ func TestStopSessionsIgnoresNotFoundAndHandlesNilManager(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := d.stopSessions(testContext(t), nil); err != nil {
+	if err := d.stopSessions(testutil.Context(t), nil); err != nil {
 		t.Fatalf("stopSessions(nil) error = %v", err)
 	}
 
@@ -470,7 +472,7 @@ func TestStopSessionsIgnoresNotFoundAndHandlesNilManager(t *testing.T) {
 			return fmt.Errorf("%w: %s", session.ErrSessionNotFound, id)
 		},
 	}
-	if err := d.stopSessions(testContext(t), manager); err != nil {
+	if err := d.stopSessions(testutil.Context(t), manager); err != nil {
 		t.Fatalf("stopSessions(not found) error = %v", err)
 	}
 }
@@ -484,7 +486,7 @@ func TestCleanupOrphansHandlesListAndSignalErrors(t *testing.T) {
 	d.listProcesses = func(context.Context) ([]processInfo, error) {
 		return nil, errors.New("ps failed")
 	}
-	if err := d.cleanupOrphans(testContext(t), 1); err == nil || !strings.Contains(err.Error(), "ps failed") {
+	if err := d.cleanupOrphans(testutil.Context(t), 1); err == nil || !strings.Contains(err.Error(), "ps failed") {
 		t.Fatalf("cleanupOrphans(list failure) error = %v, want ps failed", err)
 	}
 
@@ -494,10 +496,10 @@ func TestCleanupOrphansHandlesListAndSignalErrors(t *testing.T) {
 	d.signalProcess = func(int, syscall.Signal) error {
 		return errors.New("signal failed")
 	}
-	if err := d.cleanupOrphans(testContext(t), 5); err == nil || !strings.Contains(err.Error(), "signal failed") {
+	if err := d.cleanupOrphans(testutil.Context(t), 5); err == nil || !strings.Contains(err.Error(), "signal failed") {
 		t.Fatalf("cleanupOrphans(signal failure) error = %v, want signal failed", err)
 	}
-	if err := d.cleanupOrphans(testContext(t), 0); err != nil {
+	if err := d.cleanupOrphans(testutil.Context(t), 0); err != nil {
 		t.Fatalf("cleanupOrphans(no stale pid) error = %v", err)
 	}
 }
@@ -588,7 +590,7 @@ func TestBoundariesUsesConfiguredRoot(t *testing.T) {
 	}
 	d.boundaryRoot = root
 
-	if err := d.Boundaries(testContext(t)); err != nil {
+	if err := d.Boundaries(testutil.Context(t)); err != nil {
 		t.Fatalf("Boundaries() error = %v", err)
 	}
 }
@@ -616,7 +618,7 @@ func TestBoundariesReturnsViolations(t *testing.T) {
 	}
 	d.boundaryRoot = root
 
-	if err := d.Boundaries(testContext(t)); err == nil {
+	if err := d.Boundaries(testutil.Context(t)); err == nil {
 		t.Fatal("Boundaries() error = nil, want violation")
 	}
 }
@@ -645,7 +647,7 @@ func TestBoundariesUsesWorkingDirectoryWhenRootUnset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := d.Boundaries(testContext(t)); err != nil {
+	if err := d.Boundaries(testutil.Context(t)); err != nil {
 		t.Fatalf("Boundaries() error = %v", err)
 	}
 }
@@ -687,20 +689,6 @@ func TestLoadConfigFromHomeValidationError(t *testing.T) {
 	}
 }
 
-func TestNormalizeAbsolutePathVariants(t *testing.T) {
-	if got, err := normalizeAbsolutePath(""); err != nil || got != "" {
-		t.Fatalf("normalizeAbsolutePath(blank) = %q, %v, want empty nil", got, err)
-	}
-
-	got, err := normalizeAbsolutePath("daemon.sock")
-	if err != nil {
-		t.Fatalf("normalizeAbsolutePath(relative) error = %v", err)
-	}
-	if !filepath.IsAbs(got) {
-		t.Fatalf("normalizeAbsolutePath(relative) = %q, want absolute path", got)
-	}
-}
-
 func TestShouldVerifyBoundariesFromEnv(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {
@@ -739,14 +727,14 @@ func TestNotifierFanoutDispatchesEvents(t *testing.T) {
 	second := &recordingNotifier{}
 	fanout := notifierFanout{notifiers: []session.Notifier{first, second}}
 
-	fanout.OnSessionCreated(testContext(t), &session.Session{ID: "sess-1"})
-	fanout.OnSessionStopped(testContext(t), &session.Session{ID: "sess-2"})
-	fanout.OnAgentEvent(testContext(t), "sess-3", acp.AgentEvent{Type: "message"})
+	fanout.OnSessionCreated(testutil.Context(t), &session.Session{ID: "sess-1"})
+	fanout.OnSessionStopped(testutil.Context(t), &session.Session{ID: "sess-2"})
+	fanout.OnAgentEvent(testutil.Context(t), "sess-3", acp.AgentEvent{Type: "message"})
 
-	if got, want := first.events, []string{"created", "stopped", "agent"}; !equalStrings(got, want) {
+	if got, want := first.events, []string{"created", "stopped", "agent"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("first notifier events = %#v, want %#v", got, want)
 	}
-	if got, want := second.events, []string{"created", "stopped", "agent"}; !equalStrings(got, want) {
+	if got, want := second.events, []string{"created", "stopped", "agent"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("second notifier events = %#v, want %#v", got, want)
 	}
 }
@@ -819,11 +807,11 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 				return &fakeServer{name: "uds"}, nil
 			}
 
-			if err := d.boot(testContext(t)); err != nil {
+			if err := d.boot(testutil.Context(t)); err != nil {
 				t.Fatalf("boot() error = %v", err)
 			}
 			t.Cleanup(func() {
-				if err := d.Shutdown(testContext(t)); err != nil {
+				if err := d.Shutdown(testutil.Context(t)); err != nil {
 					t.Fatalf("Shutdown() error = %v", err)
 				}
 			})
@@ -897,11 +885,11 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
@@ -949,7 +937,7 @@ func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 
@@ -965,7 +953,7 @@ func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.
 	})
 	versionAfterRefresh := registry.GlobalVersion()
 
-	if err := d.Shutdown(testContext(t)); err != nil {
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 
@@ -1015,7 +1003,7 @@ func TestShutdownStopsSkillsWatcherBeforeSessions(t *testing.T) {
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 	skillsDone = d.skillsDone
@@ -1023,7 +1011,7 @@ func TestShutdownStopsSkillsWatcherBeforeSessions(t *testing.T) {
 		t.Fatal("boot() did not start the skills watcher")
 	}
 
-	if err := d.Shutdown(testContext(t)); err != nil {
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 }
@@ -1053,33 +1041,6 @@ func TestSkillsRegistryConfigUsesDaemonHomeAndDisabledSkills(t *testing.T) {
 	}
 	if got := registryCfg.DisabledSkills; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
 		t.Fatalf("skillsRegistryConfig() DisabledSkills = %#v, want [alpha beta]", got)
-	}
-}
-
-func TestUserAgentsSkillsDirFallsBackToUserHome(t *testing.T) {
-	t.Parallel()
-
-	d, err := New(WithLogger(discardLogger()))
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	d.getenv = func(string) string { return "" }
-
-	got, err := d.userAgentsSkillsDir()
-	if err != nil {
-		t.Fatalf("userAgentsSkillsDir() error = %v", err)
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Fatalf("os.UserHomeDir() error = %v", err)
-	}
-	absHome, err := filepath.Abs(home)
-	if err != nil {
-		t.Fatalf("filepath.Abs(%q) error = %v", home, err)
-	}
-	if want := filepath.Join(absHome, ".agents", "skills"); got != want {
-		t.Fatalf("userAgentsSkillsDir() = %q, want %q", got, want)
 	}
 }
 
@@ -1301,11 +1262,11 @@ func TestDreamSpawnerCreatesDreamSession(t *testing.T) {
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
@@ -1315,7 +1276,7 @@ func TestDreamSpawnerCreatesDreamSession(t *testing.T) {
 	}
 
 	resolved := resolveDaemonWorkspace(t, d.workspaceResolver, workspace)
-	if err := d.dreamSpawner(testContext(t), "memory-consolidation", "summarize recent sessions", workspace); err != nil {
+	if err := d.dreamSpawner(testutil.Context(t), "memory-consolidation", "summarize recent sessions", workspace); err != nil {
 		t.Fatalf("dream spawner error = %v", err)
 	}
 	if got := sessions.createCount(); got != 1 {
@@ -1364,11 +1325,11 @@ func TestDreamSpawnerDerivesRecentWorkspacesFromSessions(t *testing.T) {
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
@@ -1398,7 +1359,7 @@ func TestDreamSpawnerDerivesRecentWorkspacesFromSessions(t *testing.T) {
 		t.Fatalf("os.Chtimes(lock) error = %v", err)
 	}
 
-	if err := d.dreamSpawner(testContext(t), "memory-consolidation", "summarize recent sessions", ""); err != nil {
+	if err := d.dreamSpawner(testutil.Context(t), "memory-consolidation", "summarize recent sessions", ""); err != nil {
 		t.Fatalf("dream spawner error = %v", err)
 	}
 
@@ -1451,7 +1412,7 @@ func TestResolveDaemonPortUsesReporterWhenAvailable(t *testing.T) {
 }
 
 func TestListProcessesAndSignalProcess(t *testing.T) {
-	processes, err := listProcesses(testContext(t))
+	processes, err := listProcesses(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("listProcesses() error = %v", err)
 	}
@@ -1459,23 +1420,23 @@ func TestListProcessesAndSignalProcess(t *testing.T) {
 		t.Fatal("listProcesses() returned no processes")
 	}
 
-	if err := signalProcess(os.Getpid(), syscall.Signal(0)); err != nil {
-		t.Fatalf("signalProcess(self, 0) error = %v", err)
+	if err := procutil.Signal(os.Getpid(), syscall.Signal(0)); err != nil {
+		t.Fatalf("procutil.Signal(self, 0) error = %v", err)
 	}
-	if err := signalProcess(0, syscall.SIGTERM); err == nil {
-		t.Fatal("signalProcess(invalid pid) error = nil, want non-nil")
+	if err := procutil.Signal(0, syscall.SIGTERM); err == nil {
+		t.Fatal("procutil.Signal(invalid pid) error = nil, want non-nil")
 	}
 }
 
 func TestProcessAliveAndRuntimeLoggerHelpers(t *testing.T) {
-	if processAlive(0) {
-		t.Fatal("processAlive(0) = true, want false")
+	if procutil.Alive(0) {
+		t.Fatal("procutil.Alive(0) = true, want false")
 	}
-	if !processAlive(os.Getpid()) {
-		t.Fatal("processAlive(self) = false, want true")
+	if !procutil.Alive(os.Getpid()) {
+		t.Fatal("procutil.Alive(self) = false, want true")
 	}
-	if processAlive(999999) && runtime.GOOS != "windows" {
-		t.Fatal("processAlive(999999) = true, want false")
+	if procutil.Alive(999999) && runtime.GOOS != "windows" {
+		t.Fatal("procutil.Alive(999999) = true, want false")
 	}
 
 	d, err := New()
@@ -1588,14 +1549,6 @@ func TestLockHelpersAndErrors(t *testing.T) {
 	}
 }
 
-func testContext(t *testing.T) context.Context {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-	return ctx
-}
-
 func waitForCondition(t *testing.T, label string, fn func() bool) {
 	t.Helper()
 
@@ -1674,7 +1627,7 @@ func resolveDaemonWorkspace(t *testing.T, resolver workspacepkg.WorkspaceResolve
 		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
 	}
 
-	resolved, err := resolver.ResolveOrRegister(testContext(t), root)
+	resolved, err := resolver.ResolveOrRegister(testutil.Context(t), root)
 	if err != nil {
 		t.Fatalf("ResolveOrRegister(%q) error = %v", root, err)
 	}
@@ -1770,18 +1723,6 @@ func newTestDaemon(t *testing.T, homePaths aghconfig.HomePaths, cfg aghconfig.Co
 
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
-}
-
-func equalStrings(got []string, want []string) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func strconvString(v int) string {

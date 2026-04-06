@@ -5,6 +5,7 @@ package session
 import (
 	"context"
 	"errors"
+	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"log/slog"
 	"os"
@@ -165,7 +166,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	session, err := manager.Create(testContext(t), CreateOpts{
+	session, err := manager.Create(testutil.Context(t), CreateOpts{
 		AgentName:     "coder",
 		WorkspacePath: workspaceRoot,
 	})
@@ -181,16 +182,16 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		t.Fatalf("Create() workspace root = %q, want %q", got, want)
 	}
 
-	if err := manager.Stop(testContext(t), session.ID); err != nil {
+	if err := manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	resumed, err := manager.Resume(testContext(t), session.ID)
+	resumed, err := manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = manager.Stop(testContext(t), resumed.ID)
+		_ = manager.Stop(testutil.Context(t), resumed.ID)
 	})
 
 	if got := resumed.Info().WorkspaceID; got != workspaceID {

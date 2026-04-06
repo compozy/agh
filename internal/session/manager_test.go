@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"log/slog"
 	"os"
@@ -25,7 +26,7 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 
 	h := newHarness(t)
 
-	session, err := h.manager.Create(testContext(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Name:      "primary",
 		Workspace: h.workspaceID,
@@ -34,7 +35,7 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	if got := session.Info().State; got != StateActive {
@@ -84,7 +85,7 @@ func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 		t.Fatalf("MkdirAll(path workspace) error = %v", err)
 	}
 
-	session, err := h.manager.Create(testContext(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName:     "coder",
 		Name:          "path-session",
 		WorkspacePath: workspacePath,
@@ -93,7 +94,7 @@ func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 		t.Fatalf("Create(workspace path) error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	if got := len(h.resolver.resolveCalls); got != 0 {
@@ -122,7 +123,7 @@ func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
@@ -137,11 +138,11 @@ func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
 		t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
 	}
 
-	reopened, err := store.OpenSessionDB(testContext(t), session.ID, session.DBPath())
+	reopened, err := store.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
-	if err := reopened.Close(testContext(t)); err != nil {
+	if err := reopened.Close(testutil.Context(t)); err != nil {
 		t.Fatalf("Close(reopened) error = %v", err)
 	}
 }
@@ -153,16 +154,16 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 	session := createSession(t, h)
 	originalACP := session.Info().ACPSessionID
 
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	resumed, err := h.manager.Resume(testContext(t), session.ID)
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), resumed.ID)
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
 	})
 
 	if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
@@ -181,15 +182,65 @@ func TestResumeFailsWhenWorkspaceCannotBeResolved(t *testing.T) {
 
 	h := newHarness(t)
 	session := createSession(t, h)
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
 	h.resolver.resolveErr = workspacepkg.ErrWorkspaceNotFound
-	if _, err := h.manager.Resume(testContext(t), session.ID); err == nil {
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
 		t.Fatal("Resume(missing workspace) error = nil, want non-nil")
 	} else if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
 		t.Fatalf("Resume(missing workspace) error = %v, want ErrWorkspaceNotFound", err)
+	}
+}
+
+func TestCleanupFailedStartRemovesSessionDir(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	recorder := &fakeEventRecorder{}
+	proc, err := h.driver.Start(testutil.Context(t), acp.StartOpts{AgentName: "coder"})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	sessionDir := filepath.Join(t.TempDir(), "failed-session")
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(sessionDir) error = %v", err)
+	}
+
+	if err := h.manager.cleanupFailedStart(sessionDir, recorder, proc); err != nil {
+		t.Fatalf("cleanupFailedStart(with dir) error = %v", err)
+	}
+	if h.driver.stopCalls != 1 {
+		t.Fatalf("driver stop calls = %d, want 1", h.driver.stopCalls)
+	}
+	if recorder.closeCalls != 1 {
+		t.Fatalf("recorder close calls = %d, want 1", recorder.closeCalls)
+	}
+	if _, err := os.Stat(sessionDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(sessionDir) error = %v, want os.ErrNotExist", err)
+	}
+}
+
+func TestCleanupFailedStartWithoutSessionDirSkipsRemoval(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	recorder := &fakeEventRecorder{}
+	proc, err := h.driver.Start(testutil.Context(t), acp.StartOpts{AgentName: "coder"})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	if err := h.manager.cleanupFailedStart("", recorder, proc); err != nil {
+		t.Fatalf("cleanupFailedStart(without dir) error = %v", err)
+	}
+	if h.driver.stopCalls != 1 {
+		t.Fatalf("driver stop calls = %d, want 1", h.driver.stopCalls)
+	}
+	if recorder.closeCalls != 1 {
+		t.Fatalf("recorder close calls = %d, want 1", recorder.closeCalls)
 	}
 }
 
@@ -199,10 +250,10 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
-	eventsCh, err := h.manager.Prompt(testContext(t), session.ID, "hello")
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
 	if err != nil {
 		t.Fatalf("Prompt() error = %v", err)
 	}
@@ -217,7 +268,7 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 		t.Fatalf("second event type = %q, want %q", events[1].Type, acp.EventTypeDone)
 	}
 
-	stored, err := session.recorderHandle().Query(testContext(t), store.EventQuery{})
+	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
@@ -238,12 +289,12 @@ func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	var storedBeforePrompt []store.SessionEvent
 	h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-		events, err := session.recorderHandle().Query(testContext(t), store.EventQuery{})
+		events, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
 		if err != nil {
 			return nil, err
 		}
@@ -254,7 +305,7 @@ func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
 		return ch, nil
 	}
 
-	eventsCh, err := h.manager.Prompt(testContext(t), session.ID, "remember me")
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "remember me")
 	if err != nil {
 		t.Fatalf("Prompt() error = %v", err)
 	}
@@ -278,7 +329,7 @@ func TestApprovePermissionRoutesToActiveSession(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	var (
@@ -296,7 +347,7 @@ func TestApprovePermissionRoutesToActiveSession(t *testing.T) {
 		return nil
 	}
 
-	err := h.manager.ApprovePermission(testContext(t), session.ID, acp.ApproveRequest{
+	err := h.manager.ApprovePermission(testutil.Context(t), session.ID, acp.ApproveRequest{
 		RequestID: "req-1",
 		TurnID:    "turn-1",
 		Decision:  "allow-once",
@@ -317,11 +368,11 @@ func TestApprovePermissionReturnsNotActiveForStoppedSession(t *testing.T) {
 
 	h := newHarness(t)
 	session := createSession(t, h)
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	err := h.manager.ApprovePermission(testContext(t), session.ID, acp.ApproveRequest{
+	err := h.manager.ApprovePermission(testutil.Context(t), session.ID, acp.ApproveRequest{
 		RequestID: "req-1",
 		Decision:  "allow-once",
 	})
@@ -336,7 +387,7 @@ func TestApprovePermissionMapsPendingLookupErrors(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	testCases := []struct {
@@ -362,7 +413,7 @@ func TestApprovePermissionMapsPendingLookupErrors(t *testing.T) {
 			h.driver.approveHook = func(*fakeProcess, acp.ApproveRequest) error {
 				return tc.hookErr
 			}
-			err := h.manager.ApprovePermission(testContext(t), session.ID, acp.ApproveRequest{
+			err := h.manager.ApprovePermission(testutil.Context(t), session.ID, acp.ApproveRequest{
 				RequestID: "req-1",
 				Decision:  "allow-once",
 			})
@@ -391,15 +442,15 @@ func TestAgentCrashTransitionsToStoppedAndNotifies(t *testing.T) {
 		t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
 	}
 
-	reopened, err := store.OpenSessionDB(testContext(t), session.ID, session.DBPath())
+	reopened, err := store.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
 	defer func() {
-		_ = reopened.Close(testContext(t))
+		_ = reopened.Close(testutil.Context(t))
 	}()
 
-	events, err := reopened.Query(testContext(t), store.EventQuery{})
+	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Query(reopened) error = %v", err)
 	}
@@ -423,7 +474,7 @@ func TestStopAndProcessExitFinalizeOnlyOnce(t *testing.T) {
 
 	stopDone := make(chan error, 1)
 	go func() {
-		stopDone <- h.manager.Stop(testContext(t), session.ID)
+		stopDone <- h.manager.Stop(testutil.Context(t), session.ID)
 	}()
 
 	waitForCondition(t, "stop notification", func() bool {
@@ -438,15 +489,15 @@ func TestStopAndProcessExitFinalizeOnlyOnce(t *testing.T) {
 		t.Fatalf("stopped notifications = %d, want 1", got)
 	}
 
-	reopened, err := store.OpenSessionDB(testContext(t), session.ID, session.DBPath())
+	reopened, err := store.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
 	defer func() {
-		_ = reopened.Close(testContext(t))
+		_ = reopened.Close(testutil.Context(t))
 	}()
 
-	events, err := reopened.Query(testContext(t), store.EventQuery{})
+	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Query(reopened) error = %v", err)
 	}
@@ -473,7 +524,7 @@ func TestPromptSerializesSetupAgainstConcurrentStop(t *testing.T) {
 
 	promptDone := make(chan error, 1)
 	go func() {
-		eventsCh, err := h.manager.Prompt(testContext(t), session.ID, "hello")
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
 		if err != nil {
 			promptDone <- err
 			return
@@ -487,7 +538,7 @@ func TestPromptSerializesSetupAgainstConcurrentStop(t *testing.T) {
 
 	stopDone := make(chan error, 1)
 	go func() {
-		stopDone <- h.manager.Stop(testContext(t), session.ID)
+		stopDone <- h.manager.Stop(testutil.Context(t), session.ID)
 	}()
 
 	select {
@@ -535,8 +586,8 @@ func TestListAndGet(t *testing.T) {
 	first := createSession(t, h)
 	second := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), first.ID)
-		_ = h.manager.Stop(testContext(t), second.ID)
+		_ = h.manager.Stop(testutil.Context(t), first.ID)
+		_ = h.manager.Stop(testutil.Context(t), second.ID)
 	})
 
 	list := h.manager.List()
@@ -579,7 +630,7 @@ func TestConcurrentCreateStopGet(t *testing.T) {
 		go func(index int) {
 			defer workers.Done()
 
-			session, err := h.manager.Create(testContext(t), CreateOpts{
+			session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 				AgentName: "coder",
 				Name:      fmt.Sprintf("session-%d", index),
 				Workspace: h.workspaceID,
@@ -591,7 +642,7 @@ func TestConcurrentCreateStopGet(t *testing.T) {
 			if _, ok := h.manager.Get(session.ID); !ok {
 				t.Errorf("Get(%q) = missing after Create()", session.ID)
 			}
-			if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 				t.Errorf("Stop(%q) error = %v", session.ID, err)
 			}
 		}(i)
@@ -612,10 +663,10 @@ func TestCreateEnforcesMaxSessions(t *testing.T) {
 	h := newHarness(t, WithMaxSessions(1))
 	first := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), first.ID)
+		_ = h.manager.Stop(testutil.Context(t), first.ID)
 	})
 
-	_, err := h.manager.Create(testContext(t), CreateOpts{
+	_, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
 	})
@@ -659,7 +710,7 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	got := h.driver.startCalls[0].MCPServers
@@ -698,7 +749,7 @@ func TestCreateInvokesPromptAssemblerWhenConfigured(t *testing.T) {
 
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	if !called {
@@ -723,7 +774,7 @@ func TestCreateUsesRawPromptWhenAssemblerIsNil(t *testing.T) {
 
 	h := newHarness(t, WithPromptAssembler(nil))
 
-	session, err := h.manager.Create(testContext(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
 	})
@@ -731,7 +782,7 @@ func TestCreateUsesRawPromptWhenAssemblerIsNil(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant." {
@@ -766,7 +817,7 @@ func TestCreateAppliesDreamPermissionsOverride(t *testing.T) {
 	})
 	h.manager = newManagerWithHarness(t, h)
 
-	session, err := h.manager.Create(testContext(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
 		Type:      SessionTypeDream,
@@ -775,7 +826,7 @@ func TestCreateAppliesDreamPermissionsOverride(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	if got := h.driver.startCalls[0].Permissions; got != aghconfig.PermissionModeApproveAll {
@@ -810,7 +861,7 @@ func TestCreateUsesConfiguredPermissionsForUserSessions(t *testing.T) {
 	})
 	h.manager = newManagerWithHarness(t, h)
 
-	session, err := h.manager.Create(testContext(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
 		Type:      SessionTypeUser,
@@ -819,7 +870,7 @@ func TestCreateUsesConfiguredPermissionsForUserSessions(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	if got := h.driver.startCalls[0].Permissions; got != aghconfig.PermissionModeDenyAll {
@@ -831,10 +882,10 @@ func TestACPDriverAdapterErrorPaths(t *testing.T) {
 	t.Parallel()
 
 	adapter := NewACPDriverAdapter(acp.New())
-	if _, err := adapter.Prompt(testContext(t), &AgentProcess{}, acp.PromptRequest{}); err == nil {
+	if _, err := adapter.Prompt(testutil.Context(t), &AgentProcess{}, acp.PromptRequest{}); err == nil {
 		t.Fatal("Prompt(unsupported process) error = nil, want non-nil")
 	}
-	if err := adapter.Stop(testContext(t), &AgentProcess{}); err == nil {
+	if err := adapter.Stop(testutil.Context(t), &AgentProcess{}); err == nil {
 		t.Fatal("Stop(unsupported process) error = nil, want non-nil")
 	}
 }
@@ -927,7 +978,7 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 func createSession(t *testing.T, h *harness) *Session {
 	t.Helper()
 
-	session, err := h.manager.Create(testContext(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Name:      "session",
 		Workspace: h.workspaceID,
@@ -990,14 +1041,6 @@ func waitForCondition(t *testing.T, label string, fn func() bool) {
 	t.Fatalf("timed out waiting for %s", label)
 }
 
-func testContext(t *testing.T) context.Context {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-	return ctx
-}
-
 func sequentialIDGenerator(prefix string) IDGenerator {
 	var counter atomic.Int64
 	return func() string {
@@ -1058,6 +1101,31 @@ func (n *fakeNotifier) eventCount(sessionID string) int {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return len(n.events[sessionID])
+}
+
+type fakeEventRecorder struct {
+	closeCalls int
+}
+
+func (r *fakeEventRecorder) Record(context.Context, store.SessionEvent) error {
+	return nil
+}
+
+func (r *fakeEventRecorder) RecordTokenUsage(context.Context, store.TokenUsage) error {
+	return nil
+}
+
+func (r *fakeEventRecorder) Query(context.Context, store.EventQuery) ([]store.SessionEvent, error) {
+	return nil, nil
+}
+
+func (r *fakeEventRecorder) History(context.Context, store.EventQuery) ([]store.TurnHistory, error) {
+	return nil, nil
+}
+
+func (r *fakeEventRecorder) Close(context.Context) error {
+	r.closeCalls++
+	return nil
 }
 
 type fakeDriver struct {

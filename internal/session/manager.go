@@ -292,7 +292,7 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 		if err == nil {
 			return
 		}
-		err = errors.Join(err, m.cleanupFailedCreate(sessionDir, recorder, proc))
+		err = errors.Join(err, m.cleanupFailedStart(sessionDir, recorder, proc))
 	}()
 
 	now := m.now()
@@ -452,7 +452,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		if err == nil {
 			return
 		}
-		err = errors.Join(err, m.cleanupFailedResume(recorder, proc))
+		err = errors.Join(err, m.cleanupFailedStart("", recorder, proc))
 	}()
 
 	createdAt := meta.CreatedAt
@@ -961,7 +961,7 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	return errors.Join(errs...)
 }
 
-func (m *Manager) cleanupFailedCreate(sessionDir string, recorder EventRecorder, proc *AgentProcess) error {
+func (m *Manager) cleanupFailedStart(sessionDir string, recorder EventRecorder, proc *AgentProcess) error {
 	var errs []error
 	if proc != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
@@ -981,25 +981,6 @@ func (m *Manager) cleanupFailedCreate(sessionDir string, recorder EventRecorder,
 		if err := os.RemoveAll(sessionDir); err != nil {
 			errs = append(errs, fmt.Errorf("session: remove failed session directory %q: %w", sessionDir, err))
 		}
-	}
-	return errors.Join(errs...)
-}
-
-func (m *Manager) cleanupFailedResume(recorder EventRecorder, proc *AgentProcess) error {
-	var errs []error
-	if proc != nil {
-		stopCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
-		if err := m.driver.Stop(stopCtx, proc); err != nil {
-			errs = append(errs, err)
-		}
-		cancel()
-	}
-	if recorder != nil {
-		closeCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
-		if err := recorder.Close(closeCtx); err != nil {
-			errs = append(errs, err)
-		}
-		cancel()
 	}
 	return errors.Join(errs...)
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"strings"
 	"testing"
@@ -124,7 +125,7 @@ func TestMemoryWriteCommandBuildsDocumentAndUsesContentFlag(t *testing.T) {
 	cmd.SetErr(&stderrBuf)
 	cmd.SetIn(strings.NewReader("stdin body"))
 	cmd.SetArgs([]string{"memory", "write", "project.md", "--type", "project", "--description", "project memory", "-o", "json"})
-	if err := cmd.ExecuteContext(testContext(t)); err != nil {
+	if err := cmd.ExecuteContext(testutil.Context(t)); err != nil {
 		t.Fatalf("memory write from stdin error = %v; stderr=%s", err, stderrBuf.String())
 	}
 	if workspaceRequest.Scope != "workspace" || workspaceRequest.Workspace != "/workspace/project" {

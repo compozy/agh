@@ -2,6 +2,7 @@ package session
 
 import (
 	"encoding/json"
+	"github.com/pedronauck/agh/internal/testutil"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ func TestManagerTranscriptAssemblesLegacyACPEvents(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 			t.Logf("h.manager.Stop failed for session %s: %v", session.ID, err)
 		}
 	})
@@ -81,12 +82,12 @@ func TestManagerTranscriptAssemblesLegacyACPEvents(t *testing.T) {
 	}
 
 	for _, event := range events {
-		if err := recorder.Record(testContext(t), event); err != nil {
+		if err := recorder.Record(testutil.Context(t), event); err != nil {
 			t.Fatalf("Record(%s) error = %v", event.Type, err)
 		}
 	}
 
-	messages, err := h.manager.Transcript(testContext(t), session.ID)
+	messages, err := h.manager.Transcript(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Transcript() error = %v", err)
 	}
@@ -147,7 +148,7 @@ func TestManagerTranscriptReadsCanonicalEnvelope(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 			t.Logf("h.manager.Stop failed for session %s: %v", session.ID, err)
 		}
 	})
@@ -188,12 +189,12 @@ func TestManagerTranscriptReadsCanonicalEnvelope(t *testing.T) {
 
 	for _, event := range events {
 		normalized := h.manager.normalizeEvent(session, event.TurnID, event)
-		if err := h.manager.recordEvent(testContext(t), session, normalized); err != nil {
+		if err := h.manager.recordEvent(testutil.Context(t), session, normalized); err != nil {
 			t.Fatalf("recordEvent(%s) error = %v", event.Type, err)
 		}
 	}
 
-	messages, err := h.manager.Transcript(testContext(t), session.ID)
+	messages, err := h.manager.Transcript(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Transcript() error = %v", err)
 	}

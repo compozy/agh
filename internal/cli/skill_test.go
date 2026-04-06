@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,7 +89,7 @@ func TestSkillListCommandIncludesRegisteredAdditionalWorkspaceSkills(t *testing.
 	writeWorkspaceSkill(t, env.workspace, "workspace-skill", skillDocument("workspace-skill", "Workspace helper", "body"))
 	writeWorkspaceSkill(t, additionalRoot, "additional-skill", skillDocument("additional-skill", "Additional helper", "body"))
 
-	ctx := testContext(t)
+	ctx := testutil.Context(t)
 	globalDB, err := store.OpenGlobalDB(ctx, env.homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -512,7 +513,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	env := newSkillTestEnv(t, nil)
 	writeWorkspaceSkill(t, env.workspace, "bundle-skill", skillDocument("bundle-skill", "Bundle helper", "body"))
 
-	ctx, err := loadSkillCommandContext(testContext(t), env.deps)
+	ctx, err := loadSkillCommandContext(testutil.Context(t), env.deps)
 	if err != nil {
 		t.Fatalf("loadSkillCommandContext() error = %v", err)
 	}
@@ -575,8 +576,8 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 		t.Fatalf("skillCreateBundle().human() = %q, want created", createHuman)
 	}
 
-	if _, err := cliUserAgentsSkillsDir(commandDeps{}); err != nil {
-		t.Fatalf("cliUserAgentsSkillsDir() fallback error = %v", err)
+	if _, err := aghconfig.ResolveUserAgentsSkillsDir(nil); err != nil {
+		t.Fatalf("ResolveUserAgentsSkillsDir() fallback error = %v", err)
 	}
 }
 

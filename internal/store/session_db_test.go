@@ -1,9 +1,9 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
+	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -33,7 +33,7 @@ func TestSessionDBRecordAutoIncrementSequence(t *testing.T) {
 		return base.Add(time.Duration(callCount) * time.Second)
 	}
 
-	ctx := testContext(t)
+	ctx := testutil.Context(t)
 	if err := sessionDB.Record(ctx, SessionEvent{TurnID: "turn-1", Type: "agent_message", AgentName: "coder", Content: `{"text":"one"}`}); err != nil {
 		t.Fatalf("Record() error = %v", err)
 	}
@@ -66,7 +66,7 @@ func TestSessionDBRecordTokenUsageStoresNullableFieldsAsNULL(t *testing.T) {
 		OutputTokens: &outputTokens,
 	}
 
-	if err := sessionDB.RecordTokenUsage(testContext(t), usage); err != nil {
+	if err := sessionDB.RecordTokenUsage(testutil.Context(t), usage); err != nil {
 		t.Fatalf("RecordTokenUsage() error = %v", err)
 	}
 
@@ -77,7 +77,7 @@ func TestSessionDBRecordTokenUsageStoresNullableFieldsAsNULL(t *testing.T) {
 		currency    sql.NullString
 	)
 	if err := sessionDB.db.QueryRowContext(
-		testContext(t),
+		testutil.Context(t),
 		`SELECT input_tokens, output_tokens, total_tokens, cost_currency FROM token_usage WHERE turn_id = ?`,
 		"turn-usage",
 	).Scan(&inputTokens, &output, &totalTokens, &currency); err != nil {
@@ -116,7 +116,7 @@ func TestSessionDBQueryFilters(t *testing.T) {
 		{TurnID: "turn-3", Type: "error", AgentName: "coder", Content: `{"error":"boom"}`},
 	}
 	for _, event := range events {
-		if err := sessionDB.Record(testContext(t), event); err != nil {
+		if err := sessionDB.Record(testutil.Context(t), event); err != nil {
 			t.Fatalf("Record(%q) error = %v", event.Type, err)
 		}
 	}
@@ -161,14 +161,14 @@ func TestSessionDBQueryFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := sessionDB.Query(testContext(t), tt.query)
+			got, err := sessionDB.Query(testutil.Context(t), tt.query)
 			if err != nil {
 				t.Fatalf("Query() error = %v", err)
 			}
 			if gotSeqs := eventSequences(got); !equalInt64Slices(gotSeqs, tt.wantSeqs) {
 				t.Fatalf("eventSequences() = %#v, want %#v", gotSeqs, tt.wantSeqs)
 			}
-			if gotTypes := eventTypes(got); !equalStringSlices(gotTypes, tt.wantTypes) {
+			if gotTypes := eventTypes(got); !testutil.EqualStringSlices(gotTypes, tt.wantTypes) {
 				t.Fatalf("eventTypes() = %#v, want %#v", gotTypes, tt.wantTypes)
 			}
 		})
@@ -187,7 +187,7 @@ func TestSessionDBQueryOrderedBySequence(t *testing.T) {
 	}
 
 	for index, ts := range customTimes {
-		if err := sessionDB.Record(testContext(t), SessionEvent{
+		if err := sessionDB.Record(testutil.Context(t), SessionEvent{
 			TurnID:    fmt.Sprintf("turn-%d", index+1),
 			Type:      "agent_message",
 			AgentName: "coder",
@@ -198,7 +198,7 @@ func TestSessionDBQueryOrderedBySequence(t *testing.T) {
 		}
 	}
 
-	events, err := sessionDB.Query(testContext(t), EventQuery{})
+	events, err := sessionDB.Query(testutil.Context(t), EventQuery{})
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
@@ -218,12 +218,12 @@ func TestSessionDBHistoryGroupsByTurn(t *testing.T) {
 		{TurnID: "turn-b", Type: "agent_message", AgentName: "coder", Content: `{"text":"two"}`},
 	}
 	for _, event := range input {
-		if err := sessionDB.Record(testContext(t), event); err != nil {
+		if err := sessionDB.Record(testutil.Context(t), event); err != nil {
 			t.Fatalf("Record() error = %v", err)
 		}
 	}
 
-	history, err := sessionDB.History(testContext(t), EventQuery{})
+	history, err := sessionDB.History(testutil.Context(t), EventQuery{})
 	if err != nil {
 		t.Fatalf("History() error = %v", err)
 	}
@@ -250,12 +250,12 @@ func TestSessionDBRecoversFromCorruption(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	sessionDB, err := OpenSessionDB(testContext(t), "sess-corrupt", path)
+	sessionDB, err := OpenSessionDB(testutil.Context(t), "sess-corrupt", path)
 	if err != nil {
 		t.Fatalf("OpenSessionDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if closeErr := sessionDB.Close(testContext(t)); closeErr != nil {
+		if closeErr := sessionDB.Close(testutil.Context(t)); closeErr != nil {
 			t.Fatalf("Close() error = %v", closeErr)
 		}
 	})
@@ -277,14 +277,14 @@ func TestSessionDBWriteFailureReturnsError(t *testing.T) {
 	sessionDB := openTestSessionDB(t, "sess-full")
 
 	var pageCount int
-	if err := sessionDB.db.QueryRowContext(testContext(t), "PRAGMA page_count").Scan(&pageCount); err != nil {
+	if err := sessionDB.db.QueryRowContext(testutil.Context(t), "PRAGMA page_count").Scan(&pageCount); err != nil {
 		t.Fatalf("QueryRowContext(page_count) error = %v", err)
 	}
-	if _, err := sessionDB.db.ExecContext(testContext(t), fmt.Sprintf("PRAGMA max_page_count = %d", pageCount)); err != nil {
+	if _, err := sessionDB.db.ExecContext(testutil.Context(t), fmt.Sprintf("PRAGMA max_page_count = %d", pageCount)); err != nil {
 		t.Fatalf("ExecContext(max_page_count) error = %v", err)
 	}
 
-	err := sessionDB.Record(testContext(t), SessionEvent{
+	err := sessionDB.Record(testutil.Context(t), SessionEvent{
 		TurnID:    "turn-disk-full",
 		Type:      "agent_message",
 		AgentName: "coder",
@@ -294,7 +294,7 @@ func TestSessionDBWriteFailureReturnsError(t *testing.T) {
 		t.Fatal("Record() error = nil, want non-nil")
 	}
 
-	events, queryErr := sessionDB.Query(testContext(t), EventQuery{})
+	events, queryErr := sessionDB.Query(testutil.Context(t), EventQuery{})
 	if queryErr != nil {
 		t.Fatalf("Query() error = %v", queryErr)
 	}
@@ -306,12 +306,12 @@ func TestSessionDBWriteFailureReturnsError(t *testing.T) {
 func openTestSessionDB(t *testing.T, sessionID string) *SessionDB {
 	t.Helper()
 
-	sessionDB, err := OpenSessionDB(testContext(t), sessionID, filepath.Join(t.TempDir(), SessionDatabaseName))
+	sessionDB, err := OpenSessionDB(testutil.Context(t), sessionID, filepath.Join(t.TempDir(), SessionDatabaseName))
 	if err != nil {
 		t.Fatalf("OpenSessionDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := sessionDB.Close(testContext(t)); err != nil {
+		if err := sessionDB.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
 	})
@@ -319,18 +319,10 @@ func openTestSessionDB(t *testing.T, sessionID string) *SessionDB {
 	return sessionDB
 }
 
-func testContext(t *testing.T) context.Context {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-	return ctx
-}
-
 func assertTablesPresent(t *testing.T, db *sql.DB, want ...string) {
 	t.Helper()
 
-	rows, err := db.QueryContext(testContext(t), `SELECT name FROM sqlite_master WHERE type = 'table'`)
+	rows, err := db.QueryContext(testutil.Context(t), `SELECT name FROM sqlite_master WHERE type = 'table'`)
 	if err != nil {
 		t.Fatalf("QueryContext(sqlite_master) error = %v", err)
 	}
@@ -366,7 +358,7 @@ func assertJournalModeWAL(t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	var mode string
-	if err := db.QueryRowContext(testContext(t), "PRAGMA journal_mode").Scan(&mode); err != nil {
+	if err := db.QueryRowContext(testutil.Context(t), "PRAGMA journal_mode").Scan(&mode); err != nil {
 		t.Fatalf("QueryRowContext(journal_mode) error = %v", err)
 	}
 	if !strings.EqualFold(mode, "wal") {
@@ -378,7 +370,7 @@ func assertSynchronousNormal(t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	var synchronous int
-	if err := db.QueryRowContext(testContext(t), "PRAGMA synchronous").Scan(&synchronous); err != nil {
+	if err := db.QueryRowContext(testutil.Context(t), "PRAGMA synchronous").Scan(&synchronous); err != nil {
 		t.Fatalf("QueryRowContext(synchronous) error = %v", err)
 	}
 	if synchronous != 1 {
@@ -403,18 +395,6 @@ func eventTypes(events []SessionEvent) []string {
 }
 
 func equalInt64Slices(left []int64, right []int64) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func equalStringSlices(left []string, right []string) bool {
 	if len(left) != len(right) {
 		return false
 	}

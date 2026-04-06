@@ -3,6 +3,7 @@
 package session
 
 import (
+	"github.com/pedronauck/agh/internal/testutil"
 	"testing"
 
 	"github.com/pedronauck/agh/internal/acp"
@@ -13,7 +14,7 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	h := newHarness(t)
 
 	session := createSession(t, h)
-	firstPrompt, err := h.manager.Prompt(testContext(t), session.ID, "first")
+	firstPrompt, err := h.manager.Prompt(testutil.Context(t), session.ID, "first")
 	if err != nil {
 		t.Fatalf("Prompt(first) error = %v", err)
 	}
@@ -22,16 +23,16 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 		t.Fatalf("first prompt events = %d, want 2", len(firstEvents))
 	}
 
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	resumed, err := h.manager.Resume(testContext(t), session.ID)
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Resume() error = %v", err)
 	}
 
-	secondPrompt, err := h.manager.Prompt(testContext(t), resumed.ID, "second")
+	secondPrompt, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "second")
 	if err != nil {
 		t.Fatalf("Prompt(second) error = %v", err)
 	}
@@ -40,19 +41,19 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 		t.Fatalf("second prompt events = %d, want 2", len(secondEvents))
 	}
 
-	if err := h.manager.Stop(testContext(t), resumed.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
 		t.Fatalf("final Stop() error = %v", err)
 	}
 
-	reopened, err := store.OpenSessionDB(testContext(t), resumed.ID, resumed.DBPath())
+	reopened, err := store.OpenSessionDB(testutil.Context(t), resumed.ID, resumed.DBPath())
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
 	defer func() {
-		_ = reopened.Close(testContext(t))
+		_ = reopened.Close(testutil.Context(t))
 	}()
 
-	events, err := reopened.Query(testContext(t), store.EventQuery{})
+	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Query(reopen) error = %v", err)
 	}
@@ -76,7 +77,7 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 	h := newHarness(t)
 
 	session := createSession(t, h)
-	eventsCh, err := h.manager.Prompt(testContext(t), session.ID, "persist")
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "persist")
 	if err != nil {
 		t.Fatalf("Prompt() error = %v", err)
 	}
@@ -90,19 +91,19 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 		t.Fatalf("SessionDB.Path() = %q, want %q", got, want)
 	}
 
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	reopened, err := store.OpenSessionDB(testContext(t), session.ID, session.DBPath())
+	reopened, err := store.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
 	defer func() {
-		_ = reopened.Close(testContext(t))
+		_ = reopened.Close(testutil.Context(t))
 	}()
 
-	events, err := reopened.Query(testContext(t), store.EventQuery{})
+	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Query(reopen) error = %v", err)
 	}

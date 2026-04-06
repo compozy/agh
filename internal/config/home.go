@@ -117,6 +117,18 @@ func EnsureHomeLayout(paths HomePaths) error {
 }
 
 func resolveAbsoluteDir(path string) (string, error) {
+	absPath, err := ResolvePath(path)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(absPath) == "" {
+		return "", errors.New("config: path is required")
+	}
+	return absPath, nil
+}
+
+// ResolvePath expands `~`-prefixed paths and returns an absolute path.
+func ResolvePath(path string) (string, error) {
 	expanded, err := expandUserPath(path)
 	if err != nil {
 		return "", err
@@ -124,7 +136,7 @@ func resolveAbsoluteDir(path string) (string, error) {
 
 	clean := strings.TrimSpace(expanded)
 	if clean == "" {
-		return "", errors.New("config: path is required")
+		return "", nil
 	}
 
 	absPath, err := filepath.Abs(clean)
@@ -133,6 +145,31 @@ func resolveAbsoluteDir(path string) (string, error) {
 	}
 
 	return absPath, nil
+}
+
+// ResolveUserAgentsSkillsDir resolves the user-level `.agents/skills` directory.
+func ResolveUserAgentsSkillsDir(getenv func(string) string) (string, error) {
+	if getenv != nil {
+		if home := strings.TrimSpace(getenv("HOME")); home != "" {
+			resolvedHome, err := ResolvePath(home)
+			if err != nil {
+				return "", fmt.Errorf("config: resolve HOME for user agent skills: %w", err)
+			}
+			return filepath.Join(resolvedHome, ".agents", "skills"), nil
+		}
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("config: resolve user home for agent skills: %w", err)
+	}
+
+	resolvedHome, err := ResolvePath(home)
+	if err != nil {
+		return "", fmt.Errorf("config: resolve user home for agent skills: %w", err)
+	}
+
+	return filepath.Join(resolvedHome, ".agents", "skills"), nil
 }
 
 func expandUserPath(path string) (string, error) {

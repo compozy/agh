@@ -5,6 +5,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -30,11 +31,11 @@ func TestBootSequenceReady(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
@@ -154,11 +155,11 @@ func TestBootInitializesMemoryStoreAndAssemblerIntegration(t *testing.T) {
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
@@ -207,11 +208,11 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
@@ -341,12 +342,12 @@ func seedDaemonWorkspace(t *testing.T, homePaths aghconfig.HomePaths, root strin
 		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
 	}
 
-	registry, err := store.OpenGlobalDB(testContext(t), homePaths.DatabaseFile)
+	registry, err := store.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	defer func() {
-		if err := registry.Close(testContext(t)); err != nil {
+		if err := registry.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
 	}()
@@ -363,7 +364,7 @@ func seedDaemonWorkspace(t *testing.T, homePaths aghconfig.HomePaths, root strin
 		t.Fatalf("NewResolver() error = %v", err)
 	}
 
-	resolved, err := resolver.ResolveOrRegister(testContext(t), root)
+	resolved, err := resolver.ResolveOrRegister(testutil.Context(t), root)
 	if err != nil {
 		t.Fatalf("ResolveOrRegister(%q) error = %v", root, err)
 	}

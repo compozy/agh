@@ -14,6 +14,7 @@ import (
 	"github.com/goccy/go-yaml"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/fileutil"
 )
 
 const (
@@ -129,7 +130,7 @@ func (s *Store) Write(scope Scope, filename string, content []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
 		return fmt.Errorf("memory: ensure directory %q: %w", filepath.Dir(path), err)
 	}
-	if err := atomicWriteFile(path, content, filePerm); err != nil {
+	if err := fileutil.AtomicWriteFile(path, content, filePerm); err != nil {
 		return fmt.Errorf("memory: write %q: %w", path, err)
 	}
 
@@ -315,7 +316,7 @@ func (s *Store) removeIndexEntry(scope Scope, filename string) error {
 		return nil
 	}
 
-	if err := atomicWriteFile(indexPath, []byte(strings.Join(filtered, "")), filePerm); err != nil {
+	if err := fileutil.AtomicWriteFile(indexPath, []byte(strings.Join(filtered, "")), filePerm); err != nil {
 		return fmt.Errorf("memory: update index %q: %w", indexPath, err)
 	}
 
@@ -484,38 +485,4 @@ func findClosingDelimiter(content []byte, start int) (int, int, bool) {
 	}
 
 	return 0, 0, false
-}
-
-func atomicWriteFile(path string, content []byte, mode os.FileMode) error {
-	dir := filepath.Dir(path)
-	tempFile, err := os.CreateTemp(dir, ".memory-*")
-	if err != nil {
-		return err
-	}
-
-	tempPath := tempFile.Name()
-	cleanup := true
-	defer func() {
-		if cleanup {
-			_ = os.Remove(tempPath)
-		}
-	}()
-
-	if _, err := tempFile.Write(content); err != nil {
-		_ = tempFile.Close()
-		return err
-	}
-	if err := tempFile.Chmod(mode); err != nil {
-		_ = tempFile.Close()
-		return err
-	}
-	if err := tempFile.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tempPath, path); err != nil {
-		return err
-	}
-
-	cleanup = false
-	return nil
 }

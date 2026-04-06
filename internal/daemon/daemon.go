@@ -25,6 +25,7 @@ import (
 	aghlogger "github.com/pedronauck/agh/internal/logger"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
@@ -398,10 +399,10 @@ func New(opts ...Option) (*Daemon, error) {
 		d.listProcesses = listProcesses
 	}
 	if d.signalProcess == nil {
-		d.signalProcess = signalProcess
+		d.signalProcess = procutil.Signal
 	}
 	if d.processAlive == nil {
-		d.processAlive = processAlive
+		d.processAlive = procutil.Alive
 	}
 	if d.getenv == nil {
 		d.getenv = os.Getenv
@@ -866,7 +867,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 }
 
 func (d *Daemon) skillsRegistryConfig(cfg aghconfig.Config) (skills.RegistryConfig, error) {
-	userAgentsDir, err := d.userAgentsSkillsDir()
+	userAgentsDir, err := aghconfig.ResolveUserAgentsSkillsDir(d.getenv)
 	if err != nil {
 		return skills.RegistryConfig{}, err
 	}
@@ -877,30 +878,6 @@ func (d *Daemon) skillsRegistryConfig(cfg aghconfig.Config) (skills.RegistryConf
 		UserAgentsDir:  userAgentsDir,
 		DisabledSkills: append([]string(nil), cfg.Skills.DisabledSkills...),
 	}, nil
-}
-
-func (d *Daemon) userAgentsSkillsDir() (string, error) {
-	if d.getenv != nil {
-		if home := strings.TrimSpace(d.getenv("HOME")); home != "" {
-			absHome, err := filepath.Abs(home)
-			if err != nil {
-				return "", fmt.Errorf("daemon: resolve HOME for user agent skills: %w", err)
-			}
-			return filepath.Join(absHome, ".agents", "skills"), nil
-		}
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("daemon: resolve user home for agent skills: %w", err)
-	}
-
-	absHome, err := filepath.Abs(home)
-	if err != nil {
-		return "", fmt.Errorf("daemon: resolve user home for agent skills: %w", err)
-	}
-
-	return filepath.Join(absHome, ".agents", "skills"), nil
 }
 
 func startSkillsWatcher(ctx context.Context, registry *skills.Registry, interval time.Duration) (context.CancelFunc, chan struct{}) {
@@ -1124,7 +1101,7 @@ func resolveDreamWorkspaceRef(ctx context.Context, resolver workspacepkg.Workspa
 		err      error
 	)
 	if isPathLikeWorkspaceRef(trimmedRef) {
-		normalizedPath, normalizeErr := normalizeAbsolutePath(trimmedRef)
+		normalizedPath, normalizeErr := aghconfig.ResolvePath(trimmedRef)
 		if normalizeErr != nil {
 			return "", fmt.Errorf("daemon: resolve dream workspace %q: %w", workspaceRef, normalizeErr)
 		}
@@ -1320,7 +1297,7 @@ func loadConfigFromHome(homePaths aghconfig.HomePaths) (aghconfig.Config, error)
 		return aghconfig.Config{}, fmt.Errorf("daemon: load global config: %w", err)
 	}
 
-	socketPath, err := normalizeAbsolutePath(cfg.Daemon.Socket)
+	socketPath, err := aghconfig.ResolvePath(cfg.Daemon.Socket)
 	if err != nil {
 		return aghconfig.Config{}, fmt.Errorf("daemon: normalize daemon socket path: %w", err)
 	}
@@ -1333,30 +1310,6 @@ func loadConfigFromHome(homePaths aghconfig.HomePaths) (aghconfig.Config, error)
 	}
 
 	return cfg, nil
-}
-
-func normalizeAbsolutePath(path string) (string, error) {
-	clean := strings.TrimSpace(path)
-	if clean == "" {
-		return "", nil
-	}
-	if clean == "~" || strings.HasPrefix(clean, "~/") {
-		userHome, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("resolve user home directory: %w", err)
-		}
-		if clean == "~" {
-			clean = userHome
-		} else {
-			clean = filepath.Join(userHome, clean[2:])
-		}
-	}
-
-	absPath, err := filepath.Abs(clean)
-	if err != nil {
-		return "", fmt.Errorf("resolve absolute path %q: %w", path, err)
-	}
-	return absPath, nil
 }
 
 func listProcesses(ctx context.Context) ([]processInfo, error) {
@@ -1385,21 +1338,6 @@ func listProcesses(ctx context.Context) ([]processInfo, error) {
 	}
 
 	return processes, nil
-}
-
-func signalProcess(pid int, sig syscall.Signal) error {
-	if pid <= 0 {
-		return fmt.Errorf("daemon: invalid process pid %d", pid)
-	}
-
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return fmt.Errorf("daemon: find process %d: %w", pid, err)
-	}
-	if err := process.Signal(sig); err != nil {
-		return fmt.Errorf("daemon: signal process %d with %s: %w", pid, sig.String(), err)
-	}
-	return nil
 }
 
 func verifyImportBoundaries(root string) ([]error, error) {

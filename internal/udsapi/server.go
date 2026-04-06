@@ -25,9 +25,9 @@ import (
 )
 
 const (
-	defaultPollInterval     = 100 * time.Millisecond
-	defaultReadHeaderTimout = 5 * time.Second
-	defaultIdleTimeout      = 60 * time.Second
+	defaultPollInterval      = 100 * time.Millisecond
+	defaultReadHeaderTimeout = 5 * time.Second
+	defaultIdleTimeout       = 60 * time.Second
 )
 
 // Option customizes UDS server construction.
@@ -326,7 +326,7 @@ func (s *Server) Start(ctx context.Context) error {
 	streamCtx, streamCancel := context.WithCancel(context.Background())
 	httpServer := &http.Server{
 		Handler:           s.engine,
-		ReadHeaderTimeout: defaultReadHeaderTimout,
+		ReadHeaderTimeout: defaultReadHeaderTimeout,
 		IdleTimeout:       defaultIdleTimeout,
 	}
 	serveDone := make(chan struct{})

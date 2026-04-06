@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"log/slog"
 	"os"
@@ -22,7 +23,7 @@ import (
 func TestNewWithEmptyHomePathsReturnsError(t *testing.T) {
 	t.Parallel()
 
-	if _, err := New(testContext(t), WithHomePaths(aghconfig.HomePaths{})); err == nil {
+	if _, err := New(testutil.Context(t), WithHomePaths(aghconfig.HomePaths{})); err == nil {
 		t.Fatal("New(empty home paths) error = nil, want non-nil")
 	}
 }
@@ -33,7 +34,7 @@ func TestNewOpensRegistryAndCloseSucceeds(t *testing.T) {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 
-	observer, err := New(testContext(t),
+	observer, err := New(testutil.Context(t),
 		WithHomePaths(home),
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 	)
@@ -47,7 +48,7 @@ func TestNewOpensRegistryAndCloseSucceeds(t *testing.T) {
 	if observer.registry.Path() != home.DatabaseFile {
 		t.Fatalf("observer.registry.Path() = %q, want %q", observer.registry.Path(), home.DatabaseFile)
 	}
-	if err := observer.Close(testContext(t)); err != nil {
+	if err := observer.Close(testutil.Context(t)); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}
 }
@@ -130,7 +131,7 @@ You write reliable code locally.
 			Agents: []aghconfig.AgentDef{workspaceAgent},
 		},
 	})
-	got, err := resolver(testContext(t), "coder", "ws-observe")
+	got, err := resolver(testutil.Context(t), "coder", "ws-observe")
 	if err != nil {
 		t.Fatalf("resolver() error = %v", err)
 	}
@@ -169,7 +170,7 @@ command = "codex"
 			Agents: nil,
 		},
 	})
-	if _, err := resolver(testContext(t), "missing", "ws-observe"); err == nil {
+	if _, err := resolver(testutil.Context(t), "missing", "ws-observe"); err == nil {
 		t.Fatal("resolver(missing agent) error = nil, want non-nil")
 	}
 }
@@ -238,7 +239,7 @@ Workspace agent.
 		},
 	})
 
-	got, err := resolver(testContext(t), "coder", "ws-observe")
+	got, err := resolver(testutil.Context(t), "coder", "ws-observe")
 	if err != nil {
 		t.Fatalf("resolver() error = %v", err)
 	}
@@ -259,7 +260,7 @@ func TestDefaultPermissionModeResolverRequiresResolverForWorkspaceID(t *testing.
 	}
 
 	resolver := defaultPermissionModeResolver(home, nil)
-	if _, err := resolver(testContext(t), "coder", "ws-missing"); err == nil {
+	if _, err := resolver(testutil.Context(t), "coder", "ws-missing"); err == nil {
 		t.Fatal("resolver(nil workspace resolver) error = nil, want non-nil")
 	}
 }
@@ -273,9 +274,9 @@ func TestOnSessionCreatedResolverFailureStillRegistersSession(t *testing.T) {
 	}
 
 	sess := newSession("sess-resolver-failure", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testContext(t), sess)
+	h.observer.OnSessionCreated(testutil.Context(t), sess)
 
-	sessions, err := h.observer.registry.ListSessions(testContext(t), store.SessionListQuery{})
+	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -296,12 +297,12 @@ func TestHealthFallsBackToRegistryWithoutSessionSource(t *testing.T) {
 		{ID: "sess-stopped", AgentName: "coder", WorkspaceID: h.workspaceID, State: "stopped", CreatedAt: now, UpdatedAt: now},
 		{ID: "sess-orphaned", AgentName: "coder", WorkspaceID: h.workspaceID, State: "orphaned", CreatedAt: now, UpdatedAt: now},
 	} {
-		if err := h.observer.registry.RegisterSession(testContext(t), info); err != nil {
+		if err := h.observer.registry.RegisterSession(testutil.Context(t), info); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 		}
 	}
 
-	health, err := h.observer.Health(testContext(t))
+	health, err := h.observer.Health(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("Health(nil) error = %v", err)
 	}
@@ -413,7 +414,7 @@ func TestObserverVersionSourceUsedByHealth(t *testing.T) {
 	h.observer.startedAt = h.now
 	h.observer.now = func() time.Time { return h.now.Add(time.Second) }
 
-	health, err := h.observer.Health(testContext(t))
+	health, err := h.observer.Health(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("Health() error = %v", err)
 	}

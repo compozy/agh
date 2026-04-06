@@ -30,8 +30,40 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						t.Fatalf("session workspace query = %q, want %q", got, "ws-1")
 					}
 					return newHTTPResponse(http.StatusOK, `{"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(session create body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"agent_name":"coder"`) {
+						t.Fatalf("session create body = %s, want agent_name", body)
+					}
+					return newHTTPResponse(http.StatusCreated, `{"session":{"id":"sess-new","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+					return newHTTPResponse(http.StatusOK, `{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`), nil
+				case req.Method == http.MethodDelete && req.URL.Path == "/api/sessions/sess-1":
+					return newHTTPResponse(http.StatusNoContent, ``), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/resume":
 					return newHTTPResponse(http.StatusOK, `{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/prompt":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(prompt body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"message":"hello"`) {
+						t.Fatalf("prompt body = %s, want message", body)
+					}
+					return newHTTPResponse(http.StatusOK, strings.Join([]string{
+						"id: 1",
+						"event: agent_message",
+						`data: {"session_id":"sess-1","turn_id":"turn-1","type":"agent_message","timestamp":"2026-04-03T12:00:00Z","text":"hello back"}`,
+						"",
+					}, "\n")), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1/events":
+					if got := req.URL.Query().Get("type"); got != "tool_call" {
+						t.Fatalf("session events type query = %q, want %q", got, "tool_call")
+					}
+					return newHTTPResponse(http.StatusOK, `{"events":[{"id":"evt-1","session_id":"sess-1","sequence":1,"turn_id":"turn-1","type":"tool_call","agent_name":"coder","timestamp":"2026-04-03T12:00:00Z"}]}`), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1/history":
 					if got := req.URL.Query().Get("limit"); got != "2" {
 						t.Fatalf("history limit query = %q, want %q", got, "2")
@@ -119,9 +151,36 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("ListSessions() = %#v, %v", sessions, err)
 	}
 
+	createdSession, err := client.CreateSession(ctx, CreateSessionRequest{
+		AgentName: "coder",
+		Workspace: "ws-1",
+	})
+	if err != nil || createdSession.ID != "sess-new" {
+		t.Fatalf("CreateSession() = %#v, %v", createdSession, err)
+	}
+
+	sessionInfo, err := client.GetSession(ctx, "sess-1")
+	if err != nil || sessionInfo.ID != "sess-1" {
+		t.Fatalf("GetSession() = %#v, %v", sessionInfo, err)
+	}
+
+	if err := client.StopSession(ctx, "sess-1"); err != nil {
+		t.Fatalf("StopSession() error = %v", err)
+	}
+
 	resumed, err := client.ResumeSession(ctx, "sess-1")
 	if err != nil || resumed.ID != "sess-1" {
 		t.Fatalf("ResumeSession() = %#v, %v", resumed, err)
+	}
+
+	promptEvents, err := client.PromptSession(ctx, "sess-1", "hello")
+	if err != nil || len(promptEvents) != 1 || promptEvents[0].Text != "hello back" {
+		t.Fatalf("PromptSession() = %#v, %v", promptEvents, err)
+	}
+
+	sessionEvents, err := client.SessionEvents(ctx, "sess-1", SessionEventQuery{Type: "tool_call"})
+	if err != nil || len(sessionEvents) != 1 || sessionEvents[0].Type != "tool_call" {
+		t.Fatalf("SessionEvents() = %#v, %v", sessionEvents, err)
 	}
 
 	history, err := client.SessionHistory(ctx, "sess-1", SessionEventQuery{Last: 2})
