@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: PromptProvider interface and memory assembler refactor
 type: refactor
 complexity: medium
@@ -30,11 +30,11 @@ Define the `PromptProvider` interface in the session package and refactor `memor
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Create `session/prompt_provider.go` with PromptProvider interface
-- [ ] 7.2 Add `PromptSection()` method to `memory.Assembler` returning memory-only content
-- [ ] 7.3 Add compile-time interface check
-- [ ] 7.4 Write unit tests verifying PromptSection returns correct content
-- [ ] 7.5 Write regression test: Assemble() output unchanged
+- [x] 7.1 Create `session/prompt_provider.go` with PromptProvider interface
+- [x] 7.2 Add `PromptSection()` method to `memory.Assembler` returning memory-only content
+- [x] 7.3 Add compile-time interface check
+- [x] 7.4 Write unit tests verifying PromptSection returns correct content
+- [x] 7.5 Write regression test: Assemble() output unchanged
 
 ## Implementation Details
 
@@ -59,12 +59,12 @@ See TechSpec "Prompt Assembly Pipeline" section. The key insight is that the cur
 
 ## Tests
 - Unit tests:
-  - [ ] PromptSection returns memory context block for global + workspace indexes
-  - [ ] PromptSection returns empty string when no memory indexes exist
-  - [ ] PromptSection respects context cancellation
-  - [ ] Regression: Assemble() produces byte-identical output to before refactor
-  - [ ] PromptSection does NOT include the base agent prompt
-  - [ ] Compile-time interface check passes
+  - [x] PromptSection returns memory context block for global + workspace indexes
+  - [x] PromptSection returns empty string when no memory indexes exist
+  - [x] PromptSection respects context cancellation
+  - [x] Regression: Assemble() produces byte-identical output to before refactor
+  - [x] PromptSection does NOT include the base agent prompt
+  - [x] Compile-time interface check passes
 - Test coverage target: >=80%
 - All tests must pass
 

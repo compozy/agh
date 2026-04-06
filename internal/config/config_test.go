@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -62,6 +63,11 @@ max_bytes_per_session = 4096
 [log]
 level = "debug"
 
+[skills]
+enabled = false
+disabled_skills = ["code-review", "agh-session-guide"]
+poll_interval = "5s"
+
 [memory]
 enabled = true
 global_dir = "~/agh-memory-test"
@@ -105,6 +111,15 @@ check_interval = "45m"
 	}
 	if cfg.Log.Level != "debug" {
 		t.Fatalf("Load() Log.Level = %q, want %q", cfg.Log.Level, "debug")
+	}
+	if cfg.Skills.Enabled {
+		t.Fatal("Load() Skills.Enabled = true, want false")
+	}
+	if got, want := cfg.Skills.PollInterval, 5*time.Second; got != want {
+		t.Fatalf("Load() Skills.PollInterval = %s, want %s", got, want)
+	}
+	if got, want := cfg.Skills.DisabledSkills, []string{"code-review", "agh-session-guide"}; !slices.Equal(got, want) {
+		t.Fatalf("Load() Skills.DisabledSkills = %#v, want %#v", got, want)
 	}
 	userHome, err := os.UserHomeDir()
 	if err != nil {
@@ -162,6 +177,11 @@ port = 2123
 [providers.claude]
 default_model = "global-model"
 api_key_env = "GLOBAL_KEY"
+
+[skills]
+enabled = true
+disabled_skills = ["global-skill"]
+poll_interval = "3s"
 `)
 	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 [http]
@@ -169,6 +189,11 @@ port = 4242
 
 [providers.claude]
 default_model = "workspace-model"
+
+[skills]
+enabled = false
+disabled_skills = ["workspace-skill"]
+poll_interval = "9s"
 `)
 
 	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -189,6 +214,15 @@ default_model = "workspace-model"
 	}
 	if claude.APIKeyEnv != "GLOBAL_KEY" {
 		t.Fatalf("ResolveProvider() APIKeyEnv = %q, want %q", claude.APIKeyEnv, "GLOBAL_KEY")
+	}
+	if cfg.Skills.Enabled {
+		t.Fatal("Load() Skills.Enabled = true, want false")
+	}
+	if got, want := cfg.Skills.PollInterval, 9*time.Second; got != want {
+		t.Fatalf("Load() Skills.PollInterval = %s, want %s", got, want)
+	}
+	if got, want := cfg.Skills.DisabledSkills, []string{"workspace-skill"}; !slices.Equal(got, want) {
+		t.Fatalf("Load() Skills.DisabledSkills = %#v, want %#v", got, want)
 	}
 }
 
@@ -272,6 +306,34 @@ unknown = true
 	}
 }
 
+func TestLoadRejectsUnknownSkillsConfigKeys(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[skills]
+poll_interval = "3s"
+unknown = true
+`)
+
+	_, err = Load(WithWorkspaceRoot(workspaceRoot))
+	if err == nil {
+		t.Fatal("Load() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "skills.unknown") {
+		t.Fatalf("Load() error = %v, want skills.unknown in message", err)
+	}
+}
+
 func TestValidateRejectsInvalidPorts(t *testing.T) {
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
@@ -350,6 +412,33 @@ func TestDreamConfigValidateRejectsNonPositiveThresholds(t *testing.T) {
 				t.Fatalf("Validate() error = nil for %s", tc.name)
 			}
 		})
+	}
+}
+
+func TestLoadRejectsNonPositiveSkillsPollInterval(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[skills]
+poll_interval = "0s"
+`)
+
+	_, err = Load(WithWorkspaceRoot(workspaceRoot))
+	if err == nil {
+		t.Fatal("Load() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "skills.poll_interval") {
+		t.Fatalf("Load() error = %v, want skills.poll_interval in message", err)
 	}
 }
 
@@ -456,6 +545,9 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 	if cfg.Memory != want.Memory {
 		t.Fatalf("Load() Memory = %#v, want %#v", cfg.Memory, want.Memory)
 	}
+	if cfg.Skills.Enabled != want.Skills.Enabled || cfg.Skills.PollInterval != want.Skills.PollInterval || !slices.Equal(cfg.Skills.DisabledSkills, want.Skills.DisabledSkills) {
+		t.Fatalf("Load() Skills = %#v, want %#v", cfg.Skills, want.Skills)
+	}
 }
 
 func TestDefaultUsesResolvedHomePaths(t *testing.T) {
@@ -473,6 +565,12 @@ func TestDefaultUsesResolvedHomePaths(t *testing.T) {
 	}
 	if cfg.Memory.Dream.Agent != DefaultAgentName {
 		t.Fatalf("Default() Memory.Dream.Agent = %q, want %q", cfg.Memory.Dream.Agent, DefaultAgentName)
+	}
+	if !cfg.Skills.Enabled {
+		t.Fatal("Default() Skills.Enabled = false, want true")
+	}
+	if got, want := cfg.Skills.PollInterval, 3*time.Second; got != want {
+		t.Fatalf("Default() Skills.PollInterval = %s, want %s", got, want)
 	}
 }
 

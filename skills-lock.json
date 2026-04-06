@@ -46,6 +46,11 @@
             "sourceType": "github",
             "computedHash": "9e187c25458869ff448ae40ce3a78155838d663ad66762b41ea90692985b3e3c"
         },
+        "fix-coderabbit-review": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "3b8c91501866e5591903ff6eb06106dd17915269776c49f407c72961d13a4cee"
+        },
         "frontend-design": {
             "source": "pbakaus/impeccable",
             "sourceType": "github",

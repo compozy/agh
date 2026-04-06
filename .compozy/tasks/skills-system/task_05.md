@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Bundled skills via go:embed
 type: backend
 complexity: low
@@ -32,11 +32,11 @@ Create the bundled skills that ship with the AGH binary via `go:embed`. These 3 
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Create `internal/skills/bundled/embed.go` with go:embed directive and FS accessor
-- [ ] 5.2 Write `agh-session-guide` SKILL.md (session lifecycle, CLI commands, session types)
-- [ ] 5.3 Write `agh-memory-guide` SKILL.md (memory system, scopes, CLI commands, consolidation)
-- [ ] 5.4 Write `agh-agent-setup` SKILL.md (AGENT.md format, providers, MCP servers, permissions)
-- [ ] 5.5 Write unit tests verifying all bundled skills parse correctly
+- [x] 5.1 Create `internal/skills/bundled/embed.go` with go:embed directive and FS accessor
+- [x] 5.2 Write `agh-session-guide` SKILL.md (session lifecycle, CLI commands, session types)
+- [x] 5.3 Write `agh-memory-guide` SKILL.md (memory system, scopes, CLI commands, consolidation)
+- [x] 5.4 Write `agh-agent-setup` SKILL.md (AGENT.md format, providers, MCP servers, permissions)
+- [x] 5.5 Write unit tests verifying all bundled skills parse correctly
 
 ## Implementation Details
 
@@ -66,10 +66,10 @@ Skill content should reference actual AGH CLI commands and config patterns from 
 
 ## Tests
 - Unit tests:
-  - [ ] All 3 bundled SKILL.md files parse successfully via ParseSkillFile
-  - [ ] Each skill has required frontmatter fields (name, description)
-  - [ ] Embedded FS contains expected directory structure
-  - [ ] Content is non-empty for all skills
+  - [x] All 3 bundled SKILL.md files parse successfully via ParseSkillFile
+  - [x] Each skill has required frontmatter fields (name, description)
+  - [x] Embedded FS contains expected directory structure
+  - [x] Content is non-empty for all skills
 - Test coverage target: >=80%
 - All tests must pass
 

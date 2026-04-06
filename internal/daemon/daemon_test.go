@@ -750,64 +750,131 @@ func TestNotifierFanoutDispatchesEvents(t *testing.T) {
 	}
 }
 
-func TestBootInitializesMemoryStoreAndInjectsAssembler(t *testing.T) {
+func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 	t.Parallel()
 
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	cfg.Memory.GlobalDir = filepath.Join(homePaths.HomeDir, "custom-memory")
+	testCases := []struct {
+		name          string
+		memoryEnabled bool
+		skillsEnabled bool
+		wantMemory    bool
+		wantSkills    bool
+	}{
+		{
+			name:          "memory on and skills on",
+			memoryEnabled: true,
+			skillsEnabled: true,
+			wantMemory:    true,
+			wantSkills:    true,
+		},
+		{
+			name:          "memory on and skills off",
+			memoryEnabled: true,
+			skillsEnabled: false,
+			wantMemory:    true,
+			wantSkills:    false,
+		},
+		{
+			name:          "memory off and skills on",
+			memoryEnabled: false,
+			skillsEnabled: true,
+			wantMemory:    false,
+			wantSkills:    true,
+		},
+		{
+			name:          "memory off and skills off",
+			memoryEnabled: false,
+			skillsEnabled: false,
+			wantMemory:    false,
+			wantSkills:    false,
+		},
+	}
 
-	d := newTestDaemon(t, homePaths, cfg)
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	var capturedDeps SessionManagerDeps
-	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
-		capturedDeps = deps
-		return &fakeSessionManager{}, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
+			homePaths := testHomePaths(t)
+			cfg := testConfig(t, homePaths)
+			cfg.Memory.Enabled = tc.memoryEnabled
+			cfg.Skills.Enabled = tc.skillsEnabled
+			cfg.Memory.GlobalDir = filepath.Join(homePaths.HomeDir, "custom-memory")
 
-	if err := d.boot(testContext(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
-		}
-	})
+			d := newTestDaemon(t, homePaths, cfg)
 
-	if d.memoryStore == nil {
-		t.Fatal("boot() did not initialize the memory store")
-	}
-	if capturedDeps.PromptAssembler == nil {
-		t.Fatal("boot() did not inject the prompt assembler into the session manager")
-	}
-	if info, err := os.Stat(cfg.Memory.GlobalDir); err != nil {
-		t.Fatalf("stat memory.global_dir error = %v", err)
-	} else if !info.IsDir() {
-		t.Fatalf("memory.global_dir mode = %v, want directory", info.Mode())
+			var capturedDeps SessionManagerDeps
+			d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+				capturedDeps = deps
+				return &fakeSessionManager{}, nil
+			}
+			d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+				return &fakeObserver{}, nil
+			}
+			d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+				return &fakeServer{name: "http"}, nil
+			}
+			d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+				return &fakeServer{name: "uds"}, nil
+			}
+
+			if err := d.boot(testContext(t)); err != nil {
+				t.Fatalf("boot() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := d.Shutdown(testContext(t)); err != nil {
+					t.Fatalf("Shutdown() error = %v", err)
+				}
+			})
+
+			if capturedDeps.PromptAssembler == nil {
+				t.Fatal("boot() did not inject the composed prompt assembler")
+			}
+			if got := d.memoryStore != nil; got != tc.wantMemory {
+				t.Fatalf("memory store initialized = %t, want %t", got, tc.wantMemory)
+			}
+			if got := d.skillsRegistry != nil; got != tc.wantSkills {
+				t.Fatalf("skills registry initialized = %t, want %t", got, tc.wantSkills)
+			}
+
+			workspace := filepath.Join(t.TempDir(), "workspace")
+			writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspace)
+
+			prompt, err := capturedDeps.PromptAssembler.Assemble(context.Background(), testPromptAgent("Base prompt."), workspace)
+			if err != nil {
+				t.Fatalf("PromptAssembler.Assemble() error = %v", err)
+			}
+
+			assertPromptContainsInOrder(t, prompt, orderedFragments(tc.wantMemory, tc.wantSkills)...)
+			assertPromptExcludes(t, prompt, excludedFragments(tc.wantMemory, tc.wantSkills)...)
+
+			if tc.wantMemory {
+				if info, err := os.Stat(cfg.Memory.GlobalDir); err != nil {
+					t.Fatalf("stat memory.global_dir error = %v", err)
+				} else if !info.IsDir() {
+					t.Fatalf("memory.global_dir mode = %v, want directory", info.Mode())
+				}
+			}
+			if tc.wantSkills {
+				if skills := d.skillsRegistry.List(); len(skills) == 0 {
+					t.Fatal("skills registry list = empty, want bundled skills")
+				}
+			}
+		})
 	}
 }
 
-func TestBootDoesNotInjectAssemblerWhenMemoryDisabled(t *testing.T) {
+func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.T) {
 	t.Parallel()
 
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	cfg.Memory.Enabled = false
+	cfg.Skills.Enabled = true
+	cfg.Skills.PollInterval = 10 * time.Millisecond
 
 	d := newTestDaemon(t, homePaths, cfg)
-
-	var capturedDeps SessionManagerDeps
-	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
-		capturedDeps = deps
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
 		return &fakeSessionManager{}, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -823,14 +890,134 @@ func TestBootDoesNotInjectAssemblerWhenMemoryDisabled(t *testing.T) {
 	if err := d.boot(testContext(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
-	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
-		}
-	})
 
-	if capturedDeps.PromptAssembler != nil {
-		t.Fatal("boot() injected a prompt assembler even though memory is disabled")
+	registry := d.skillsRegistry
+	if registry == nil {
+		t.Fatal("boot() did not initialize the skills registry")
+	}
+
+	writeDaemonSkill(t, filepath.Join(homePaths.HomeDir, ".agents", "skills"), "watched-skill", "Global watched skill")
+	waitForCondition(t, "watcher refresh after boot", func() bool {
+		_, ok := registry.Get("watched-skill")
+		return ok
+	})
+	versionAfterRefresh := registry.GlobalVersion()
+
+	if err := d.Shutdown(testContext(t)); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+
+	writeDaemonSkill(t, filepath.Join(homePaths.HomeDir, ".agents", "skills"), "after-shutdown", "Should not be observed")
+	time.Sleep(4 * cfg.Skills.PollInterval)
+
+	if got := registry.GlobalVersion(); got != versionAfterRefresh {
+		t.Fatalf("registry version after shutdown = %d, want %d", got, versionAfterRefresh)
+	}
+	if _, ok := registry.Get("after-shutdown"); ok {
+		t.Fatal("skills watcher continued refreshing after shutdown")
+	}
+}
+
+func TestShutdownStopsSkillsWatcherBeforeSessions(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Memory.Enabled = false
+	cfg.Skills.Enabled = true
+	cfg.Skills.PollInterval = 10 * time.Millisecond
+
+	var skillsDone <-chan struct{}
+	sessions := &fakeSessionManager{
+		infos: []*session.SessionInfo{{ID: "sess-a"}},
+		onStop: func(string) {
+			select {
+			case <-skillsDone:
+			default:
+				t.Error("skills watcher was still running when session shutdown started")
+			}
+		},
+	}
+
+	d := newTestDaemon(t, homePaths, cfg)
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return sessions, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testContext(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	skillsDone = d.skillsDone
+	if skillsDone == nil {
+		t.Fatal("boot() did not start the skills watcher")
+	}
+
+	if err := d.Shutdown(testContext(t)); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+}
+
+func TestSkillsRegistryConfigUsesDaemonHomeAndDisabledSkills(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Skills.DisabledSkills = []string{"alpha", "beta"}
+
+	d := newTestDaemon(t, homePaths, cfg)
+
+	registryCfg, err := d.skillsRegistryConfig(cfg)
+	if err != nil {
+		t.Fatalf("skillsRegistryConfig() error = %v", err)
+	}
+
+	if registryCfg.BundledFS == nil {
+		t.Fatal("skillsRegistryConfig() BundledFS = nil")
+	}
+	if got, want := registryCfg.UserSkillsDir, homePaths.SkillsDir; got != want {
+		t.Fatalf("skillsRegistryConfig() UserSkillsDir = %q, want %q", got, want)
+	}
+	if got, want := registryCfg.UserAgentsDir, filepath.Join(homePaths.HomeDir, ".agents", "skills"); got != want {
+		t.Fatalf("skillsRegistryConfig() UserAgentsDir = %q, want %q", got, want)
+	}
+	if got := registryCfg.DisabledSkills; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
+		t.Fatalf("skillsRegistryConfig() DisabledSkills = %#v, want [alpha beta]", got)
+	}
+}
+
+func TestUserAgentsSkillsDirFallsBackToUserHome(t *testing.T) {
+	t.Parallel()
+
+	d, err := New(WithLogger(discardLogger()))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.getenv = func(string) string { return "" }
+
+	got, err := d.userAgentsSkillsDir()
+	if err != nil {
+		t.Fatalf("userAgentsSkillsDir() error = %v", err)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("os.UserHomeDir() error = %v", err)
+	}
+	absHome, err := filepath.Abs(home)
+	if err != nil {
+		t.Fatalf("filepath.Abs(%q) error = %v", home, err)
+	}
+	if want := filepath.Join(absHome, ".agents", "skills"); got != want {
+		t.Fatalf("userAgentsSkillsDir() = %q, want %q", got, want)
 	}
 }
 
@@ -1368,6 +1555,90 @@ func testConfig(t *testing.T, homePaths aghconfig.HomePaths) aghconfig.Config {
 	return cfg
 }
 
+func writeDaemonMemoryIndex(t *testing.T, globalDir string, workspace string) {
+	t.Helper()
+
+	writeDaemonFile(t, filepath.Join(globalDir, "MEMORY.md"), "- [Global](global.md) - global note")
+	writeDaemonFile(t, filepath.Join(workspace, aghconfig.DirName, "memory", "MEMORY.md"), "- [Workspace](workspace.md) - workspace note")
+}
+
+func writeDaemonSkill(t *testing.T, root string, name string, description string) {
+	t.Helper()
+
+	content := fmt.Sprintf(`---
+name: %s
+description: %s
+---
+
+# %s
+`, name, description, name)
+	writeDaemonFile(t, filepath.Join(root, name, "SKILL.md"), content)
+}
+
+func writeDaemonFile(t *testing.T, path string, content string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+	}
+}
+
+func orderedFragments(wantMemory bool, wantSkills bool) []string {
+	fragments := make([]string, 0, 3)
+	if wantMemory {
+		fragments = append(fragments, "# Persistent Memory")
+	}
+	fragments = append(fragments, "Base prompt.")
+	if wantSkills {
+		fragments = append(fragments, "<available-skills>", "agh-session-guide")
+	}
+	return fragments
+}
+
+func excludedFragments(wantMemory bool, wantSkills bool) []string {
+	fragments := make([]string, 0, 2)
+	if !wantMemory {
+		fragments = append(fragments, "# Persistent Memory")
+	}
+	if !wantSkills {
+		fragments = append(fragments, "<available-skills>")
+	}
+	return fragments
+}
+
+func assertPromptContainsInOrder(t *testing.T, prompt string, fragments ...string) {
+	t.Helper()
+
+	searchFrom := 0
+	for _, fragment := range fragments {
+		if fragment == "" {
+			continue
+		}
+
+		offset := strings.Index(prompt[searchFrom:], fragment)
+		if offset < 0 {
+			t.Fatalf("prompt %q does not contain %q", prompt, fragment)
+		}
+		searchFrom += offset + len(fragment)
+	}
+}
+
+func assertPromptExcludes(t *testing.T, prompt string, fragments ...string) {
+	t.Helper()
+
+	for _, fragment := range fragments {
+		if fragment == "" {
+			continue
+		}
+		if strings.Contains(prompt, fragment) {
+			t.Fatalf("prompt %q contains unexpected fragment %q", prompt, fragment)
+		}
+	}
+}
+
 func newTestDaemon(t *testing.T, homePaths aghconfig.HomePaths, cfg aghconfig.Config) *Daemon {
 	t.Helper()
 
@@ -1378,6 +1649,12 @@ func newTestDaemon(t *testing.T, homePaths aghconfig.HomePaths, cfg aghconfig.Co
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
+	}
+	d.getenv = func(key string) string {
+		if key == "HOME" {
+			return homePaths.HomeDir
+		}
+		return os.Getenv(key)
 	}
 	return d
 }

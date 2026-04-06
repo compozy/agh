@@ -169,6 +169,64 @@ func TestBootInitializesMemoryStoreAndAssemblerIntegration(t *testing.T) {
 	}
 }
 
+func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Memory.Enabled = false
+	cfg.Skills.Enabled = true
+
+	var capturedDeps SessionManagerDeps
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+		capturedDeps = deps
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testContext(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testContext(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if capturedDeps.PromptAssembler == nil {
+		t.Fatal("boot() did not inject the prompt assembler")
+	}
+	if d.skillsRegistry == nil {
+		t.Fatal("boot() did not initialize the skills registry")
+	}
+	if _, ok := d.skillsRegistry.Get("agh-session-guide"); !ok {
+		t.Fatal("skills registry does not contain bundled skill agh-session-guide")
+	}
+
+	prompt, err := capturedDeps.PromptAssembler.Assemble(context.Background(), testPromptAgent("Base prompt."), t.TempDir())
+	if err != nil {
+		t.Fatalf("PromptAssembler.Assemble() error = %v", err)
+	}
+
+	assertPromptContainsInOrder(t, prompt, "Base prompt.", "<available-skills>", "agh-session-guide")
+	assertPromptExcludes(t, prompt, "# Persistent Memory")
+}
+
 func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
@@ -248,6 +306,7 @@ func integrationHomePaths(t *testing.T) aghconfig.HomePaths {
 
 	homeDir := t.TempDir()
 	t.Setenv("AGH_HOME", homeDir)
+	t.Setenv("HOME", homeDir)
 
 	homePaths, err := aghconfig.ResolveHomePathsFrom(homeDir)
 	if err != nil {

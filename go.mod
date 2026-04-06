@@ -10,6 +10,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/magefile/mage v1.17.0
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.48.0
 )
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CLI skill commands
 type: backend
 complexity: medium
@@ -40,13 +40,13 @@ Implement the `agh skill` CLI subcommand group with `list`, `view`, `info`, and 
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Create `cli/skill.go` with `newSkillCommand()` parent and 4 subcommands
-- [ ] 11.2 Implement `list` command with source filtering and output formatting
-- [ ] 11.3 Implement `view` command with XML-like output and optional --file flag
-- [ ] 11.4 Implement `info` command with full metadata display
-- [ ] 11.5 Implement `create` command that scaffolds skill directory + template SKILL.md
-- [ ] 11.6 Register skill command in `root.go`
-- [ ] 11.7 Write unit tests for all commands
+- [x] 11.1 Create `cli/skill.go` with `newSkillCommand()` parent and 4 subcommands
+- [x] 11.2 Implement `list` command with source filtering and output formatting
+- [x] 11.3 Implement `view` command with XML-like output and optional --file flag
+- [x] 11.4 Implement `info` command with full metadata display
+- [x] 11.5 Implement `create` command that scaffolds skill directory + template SKILL.md
+- [x] 11.6 Register skill command in `root.go`
+- [x] 11.7 Write unit tests for all commands
 
 ## Implementation Details
 
@@ -71,17 +71,17 @@ The `view` command output format follows TechSpec "`agh skill view` Output Forma
 
 ## Tests
 - Unit tests:
-  - [ ] `agh skill list` returns all visible skills with correct fields
-  - [ ] `agh skill list --source bundled` filters by source
-  - [ ] `agh skill view <name>` returns XML-like formatted content
-  - [ ] `agh skill view <name>` excludes security-blocked skills
-  - [ ] `agh skill view <name> --file <path>` returns specific resource file
-  - [ ] `agh skill view` with unknown skill returns error
-  - [ ] `agh skill info <name>` shows metadata, source, path, resources
-  - [ ] `agh skill create myskill` creates directory with template SKILL.md
-  - [ ] `agh skill create` with existing name returns error
-  - [ ] All commands work without daemon running
-  - [ ] JSON output format produces valid JSON
+  - [x] `agh skill list` returns all visible skills with correct fields
+  - [x] `agh skill list --source bundled` filters by source
+  - [x] `agh skill view <name>` returns XML-like formatted content
+  - [x] `agh skill view <name>` excludes security-blocked skills
+  - [x] `agh skill view <name> --file <path>` returns specific resource file
+  - [x] `agh skill view` with unknown skill returns error
+  - [x] `agh skill info <name>` shows metadata, source, path, resources
+  - [x] `agh skill create myskill` creates directory with template SKILL.md
+  - [x] `agh skill create` with existing name returns error
+  - [x] All commands work without daemon running
+  - [x] JSON output format produces valid JSON
 - Test coverage target: >=80%
 - All tests must pass
 

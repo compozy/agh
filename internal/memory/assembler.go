@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/session"
 )
 
 const (
@@ -33,16 +34,18 @@ type Assembler struct {
 	store *Store
 }
 
+var _ session.PromptProvider = (*Assembler)(nil)
+
 // NewAssembler constructs a prompt assembler for the provided store.
 func NewAssembler(store *Store) *Assembler {
 	return &Assembler{store: store}
 }
 
-// Assemble renders the dual-scope memory context ahead of the agent system prompt.
-func (a *Assembler) Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace string) (string, error) {
-	basePrompt := strings.TrimSpace(agent.Prompt)
+// PromptSection renders the dual-scope memory context block without the base
+// agent prompt so it can participate in composed prompt assembly.
+func (a *Assembler) PromptSection(ctx context.Context, workspace string) (string, error) {
 	if a == nil || a.store == nil {
-		return basePrompt, nil
+		return "", nil
 	}
 	if err := contextErr(ctx); err != nil {
 		return "", err
@@ -60,21 +63,37 @@ func (a *Assembler) Assemble(ctx context.Context, agent aghconfig.AgentDef, work
 	if err != nil {
 		return "", fmt.Errorf("memory: load workspace index: %w", err)
 	}
+	if err := contextErr(ctx); err != nil {
+		return "", err
+	}
 
 	globalIndex = strings.TrimSpace(globalIndex)
 	workspaceIndex = strings.TrimSpace(workspaceIndex)
 	if globalIndex == "" && workspaceIndex == "" {
-		return basePrompt, nil
+		return "", nil
 	}
 
-	contextBlock := renderMemoryContext(memoryContext{
+	return renderMemoryContext(memoryContext{
 		globalIndex:        globalIndex,
 		globalTruncated:    globalTruncated,
 		workspaceIndex:     workspaceIndex,
 		workspaceTruncated: workspaceTruncated,
-	})
+	}), nil
+}
+
+// Assemble renders the dual-scope memory context ahead of the agent system prompt.
+func (a *Assembler) Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace string) (string, error) {
+	basePrompt := strings.TrimSpace(agent.Prompt)
+
+	contextBlock, err := a.PromptSection(ctx, workspace)
+	if err != nil {
+		return "", err
+	}
 	if basePrompt == "" {
 		return contextBlock, nil
+	}
+	if contextBlock == "" {
+		return basePrompt, nil
 	}
 
 	return contextBlock + "\n\n" + basePrompt, nil

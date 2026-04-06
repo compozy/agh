@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Dual-scope registry with ForWorkspace
 type: backend
 complexity: high
@@ -39,12 +39,12 @@ Implement the thread-safe dual-scope skill registry that manages global skills (
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Implement `Registry` struct with global skills map, workspace cache, and version counter
-- [ ] 3.2 Implement `LoadAll()` that scans bundled FS + user directories with override precedence
-- [ ] 3.3 Implement `ForWorkspace()` with lazy loading and mtime-based cache invalidation
-- [ ] 3.4 Implement workspace cache TTL eviction (10 min)
-- [ ] 3.5 Implement `RefreshGlobal()` for atomic swap of global skills
-- [ ] 3.6 Write unit tests covering all registry operations and concurrency
+- [x] 3.1 Implement `Registry` struct with global skills map, workspace cache, and version counter
+- [x] 3.2 Implement `LoadAll()` that scans bundled FS + user directories with override precedence
+- [x] 3.3 Implement `ForWorkspace()` with lazy loading and mtime-based cache invalidation
+- [x] 3.4 Implement workspace cache TTL eviction (10 min)
+- [x] 3.5 Implement `RefreshGlobal()` for atomic swap of global skills
+- [x] 3.6 Write unit tests covering all registry operations and concurrency
 
 ## Implementation Details
 
@@ -72,20 +72,20 @@ See TechSpec "Dual-Scope Registry Design" section for the full design and "Loadi
 
 ## Tests
 - Unit tests:
-  - [ ] LoadAll loads bundled skills from fs.FS
-  - [ ] LoadAll loads user-level skills from filesystem directories
-  - [ ] User skill overrides bundled skill with same name
-  - [ ] ForWorkspace merges global + workspace skills correctly
-  - [ ] Workspace skill overrides global skill with same name
-  - [ ] ForWorkspace returns cached result when mtime unchanged
-  - [ ] ForWorkspace re-scans when mtime changed (cache invalidation)
-  - [ ] ForWorkspace returns different results for different workspaces
-  - [ ] Workspace cache entries evicted after 10 min of no access
-  - [ ] VerifyContent blocks Critical-severity skills during loading
-  - [ ] GlobalVersion increments on RefreshGlobal with actual changes
-  - [ ] GlobalVersion does NOT increment when no changes detected
-  - [ ] Concurrent Get/List calls under RWMutex do not deadlock
-  - [ ] Override collision logged with source info
+  - [x] LoadAll loads bundled skills from fs.FS
+  - [x] LoadAll loads user-level skills from filesystem directories
+  - [x] User skill overrides bundled skill with same name
+  - [x] ForWorkspace merges global + workspace skills correctly
+  - [x] Workspace skill overrides global skill with same name
+  - [x] ForWorkspace returns cached result when mtime unchanged
+  - [x] ForWorkspace re-scans when mtime changed (cache invalidation)
+  - [x] ForWorkspace returns different results for different workspaces
+  - [x] Workspace cache entries evicted after 10 min of no access
+  - [x] VerifyContent blocks Critical-severity skills during loading
+  - [x] GlobalVersion increments on RefreshGlobal with actual changes
+  - [x] GlobalVersion does NOT increment when no changes detected
+  - [x] Concurrent Get/List calls under RWMutex do not deadlock
+  - [x] Override collision logged with source info
 - Test coverage target: >=80%
 - All tests must pass
 

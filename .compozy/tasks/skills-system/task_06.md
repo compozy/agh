@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Hot-reload watcher
 type: backend
 complexity: medium
@@ -34,11 +34,11 @@ Implement the stat-based polling watcher that detects changes to global skill di
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Implement `Watcher` struct with registry reference, interval, and root directories
-- [ ] 6.2 Implement `Start(ctx)` polling loop with ticker and context cancellation
-- [ ] 6.3 Implement change detection via mtime+size snapshot comparison
-- [ ] 6.4 Implement `detectChanges()` that scans roots and returns whether anything changed
-- [ ] 6.5 Write unit tests for change detection and lifecycle management
+- [x] 6.1 Implement `Watcher` struct with registry reference, interval, and root directories
+- [x] 6.2 Implement `Start(ctx)` polling loop with ticker and context cancellation
+- [x] 6.3 Implement change detection via mtime+size snapshot comparison
+- [x] 6.4 Implement `detectChanges()` that scans roots and returns whether anything changed
+- [x] 6.5 Write unit tests for change detection and lifecycle management
 
 ## Implementation Details
 
@@ -63,13 +63,13 @@ Follow AGH concurrency conventions: goroutine tracked with `sync.WaitGroup` or e
 
 ## Tests
 - Unit tests:
-  - [ ] Detect new SKILL.md added to watched directory
-  - [ ] Detect modified SKILL.md (mtime change)
-  - [ ] Detect deleted SKILL.md
-  - [ ] No false positive when mtime unchanged
-  - [ ] Context cancellation stops the polling loop cleanly
-  - [ ] Watcher does not poll bundled or workspace directories
-  - [ ] Multiple polling cycles with no changes do not trigger refresh
+  - [x] Detect new SKILL.md added to watched directory
+  - [x] Detect modified SKILL.md (mtime change)
+  - [x] Detect deleted SKILL.md
+  - [x] No false positive when mtime unchanged
+  - [x] Context cancellation stops the polling loop cleanly
+  - [x] Watcher does not poll bundled or workspace directories
+  - [x] Multiple polling cycles with no changes do not trigger refresh
 - Test coverage target: >=80%
 - All tests must pass
 

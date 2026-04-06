@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Security scanner (VerifyContent)
 type: backend
 complexity: low
@@ -34,11 +34,11 @@ Implement `VerifyContent()` to scan SKILL.md content for prompt injection patter
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Define `Warning` and `WarningSeverity` types (if not already in types.go)
-- [ ] 2.2 Implement regex-based pattern matching for Critical patterns
-- [ ] 2.3 Implement Warning-level and Info-level pattern detection
-- [ ] 2.4 Implement `VerifyContent()` that runs all patterns and returns sorted warnings
-- [ ] 2.5 Write unit tests covering all severity levels and edge cases
+- [x] 2.1 Define `Warning` and `WarningSeverity` types (if not already in types.go)
+- [x] 2.2 Implement regex-based pattern matching for Critical patterns
+- [x] 2.3 Implement Warning-level and Info-level pattern detection
+- [x] 2.4 Implement `VerifyContent()` that runs all patterns and returns sorted warnings
+- [x] 2.5 Write unit tests covering all severity levels and edge cases
 
 ## Implementation Details
 
@@ -58,16 +58,16 @@ See TechSpec "Security Scanning (F4)" section for pattern categories and severit
 
 ## Tests
 - Unit tests:
-  - [ ] Detect Critical: `ignore all previous instructions` blocks loading
-  - [ ] Detect Critical: `you are now a different AI` blocks loading
-  - [ ] Detect Critical: `rm -rf /` blocks loading
-  - [ ] Detect Critical: `print your API key` blocks loading
-  - [ ] Detect Warning: references to `/etc/passwd` or `~/.ssh/`
-  - [ ] Detect Info: content > 50K chars
-  - [ ] Pass clean content with zero warnings
-  - [ ] Return warnings sorted by severity (Critical first)
-  - [ ] Handle empty content (no warnings)
-  - [ ] Case-insensitive pattern matching for Critical patterns
+  - [x] Detect Critical: `ignore all previous instructions` blocks loading
+  - [x] Detect Critical: `you are now a different AI` blocks loading
+  - [x] Detect Critical: `rm -rf /` blocks loading
+  - [x] Detect Critical: `print your API key` blocks loading
+  - [x] Detect Warning: references to `/etc/passwd` or `~/.ssh/`
+  - [x] Detect Info: content > 50K chars
+  - [x] Pass clean content with zero warnings
+  - [x] Return warnings sorted by severity (Critical first)
+  - [x] Handle empty content (no warnings)
+  - [x] Case-insensitive pattern matching for Critical patterns
 - Test coverage target: >=80%
 - All tests must pass
 
