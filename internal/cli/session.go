@@ -67,10 +67,9 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionBundle(created, deps.now))
 		},
 	}
-	cmd.Flags().StringVar(&agentName, "agent", "", "Agent definition name")
+	cmd.Flags().StringVar(&agentName, "agent", "", "Agent definition name (defaults to config default)")
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Session workspace directory")
 	cmd.Flags().StringVar(&name, "name", "", "Optional session label")
-	_ = cmd.MarkFlagRequired("agent")
 	return cmd
 }
 

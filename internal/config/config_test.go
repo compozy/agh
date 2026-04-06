@@ -31,6 +31,7 @@ port = 3030
 
 [defaults]
 agent = "researcher"
+provider = "claude"
 
 [limits]
 max_sessions = 11
@@ -86,6 +87,9 @@ check_interval = "45m"
 	}
 	if cfg.Defaults.Agent != "researcher" {
 		t.Fatalf("Load() Defaults.Agent = %q, want %q", cfg.Defaults.Agent, "researcher")
+	}
+	if cfg.Defaults.Provider != "claude" {
+		t.Fatalf("Load() Defaults.Provider = %q, want %q", cfg.Defaults.Provider, "claude")
 	}
 	if cfg.Limits.MaxSessions != 11 || cfg.Limits.MaxConcurrentAgents != 22 {
 		t.Fatalf("Load() Limits = %#v", cfg.Limits)
@@ -461,8 +465,14 @@ func TestDefaultUsesResolvedHomePaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Default() error = %v", err)
 	}
-	if cfg.HTTP.Port != 2123 || cfg.Defaults.Agent != "coder" {
+	if cfg.HTTP.Port != 2123 || cfg.Defaults.Agent != DefaultAgentName {
 		t.Fatalf("Default() = %#v", cfg)
+	}
+	if cfg.Permissions.Mode != PermissionModeApproveAll {
+		t.Fatalf("Default() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
+	}
+	if cfg.Memory.Dream.Agent != DefaultAgentName {
+		t.Fatalf("Default() Memory.Dream.Agent = %q, want %q", cfg.Memory.Dream.Agent, DefaultAgentName)
 	}
 }
 

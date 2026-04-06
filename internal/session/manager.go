@@ -271,11 +271,6 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 		return nil, errors.New("session: create context is required")
 	}
 
-	agentName := strings.TrimSpace(opts.AgentName)
-	if agentName == "" {
-		return nil, errors.New("session: agent name is required")
-	}
-
 	workspace, err := resolveWorkspace(opts.Workspace)
 	if err != nil {
 		return nil, err
@@ -284,6 +279,10 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 	cfg, err := m.loadConfig(workspace)
 	if err != nil {
 		return nil, fmt.Errorf("session: load config for %q: %w", workspace, err)
+	}
+	agentName, err := aghconfig.ResolveAgentName(opts.AgentName, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("session: resolve agent name: %w", err)
 	}
 
 	agentDef, err := m.loadAgent(agentName, m.homePaths)

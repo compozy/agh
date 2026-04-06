@@ -1,8 +1,4 @@
-import { memo } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { lazy, memo, Suspense } from "react";
 import { User, Bot } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -13,69 +9,8 @@ export interface MessageBubbleProps {
   message: UIMessage;
 }
 
-const MemoizedMarkdown = memo(
-  function MemoizedMarkdown({ content }: { content: string }) {
-    return (
-      <Markdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          code({ className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className ?? "");
-            const codeString = String(children).replace(/\n$/, "");
-
-            if (match) {
-              return (
-                <SyntaxHighlighter
-                  style={oneDark}
-                  language={match[1]}
-                  PreTag="div"
-                  customStyle={{
-                    margin: 0,
-                    borderRadius: "0.5rem",
-                    fontSize: "0.8125rem",
-                  }}
-                >
-                  {codeString}
-                </SyntaxHighlighter>
-              );
-            }
-
-            return (
-              <code
-                className={cn(
-                  "rounded-md bg-[color:var(--ds-panel-accent)] px-1.5 py-0.5",
-                  "text-[0.8125rem] text-[color:var(--ds-text-primary)]",
-                  className
-                )}
-                {...props}
-              >
-                {children}
-              </code>
-            );
-          },
-          a({ children, href, ...props }) {
-            return (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[color:var(--ds-accent-amber)] underline underline-offset-2 hover:opacity-80"
-                {...props}
-              >
-                {children}
-              </a>
-            );
-          },
-          pre({ children }) {
-            return <div className="my-2 overflow-x-auto">{children}</div>;
-          },
-        }}
-      >
-        {content}
-      </Markdown>
-    );
-  },
-  (prev, next) => prev.content === next.content
+const LazyMessageMarkdown = lazy(() =>
+  import("./message-markdown").then(module => ({ default: module.MessageMarkdown }))
 );
 
 export const MessageBubble = memo(
@@ -120,7 +55,9 @@ export const MessageBubble = memo(
                   : "text-[color:var(--ds-text-secondary)]"
               )}
             >
-              <MemoizedMarkdown content={message.content} />
+              <Suspense fallback={<span className="whitespace-pre-wrap">{message.content}</span>}>
+                <LazyMessageMarkdown content={message.content} />
+              </Suspense>
             </div>
           )}
 

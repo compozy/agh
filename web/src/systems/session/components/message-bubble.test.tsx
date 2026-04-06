@@ -4,8 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { UIMessage } from "../types";
 
 vi.mock("react-syntax-highlighter", () => ({
-  Prism: ({ children }: { children: string }) => (
-    <pre data-testid="syntax-highlighter">{children}</pre>
+  PrismAsyncLight: Object.assign(
+    ({ children }: { children: string }) => <pre data-testid="syntax-highlighter">{children}</pre>,
+    {
+      registerLanguage: vi.fn(),
+    }
   ),
 }));
 
@@ -46,42 +49,42 @@ function makeMessage(overrides: Partial<UIMessage> = {}): UIMessage {
 }
 
 describe("MessageBubble", () => {
-  it("renders user message with user icon", () => {
+  it("renders user message with user icon", async () => {
     render(<MessageBubble message={makeMessage({ role: "user", content: "Hello" })} />);
     expect(screen.getByTestId("message-bubble-user")).toBeInTheDocument();
-    expect(screen.getByText("Hello")).toBeInTheDocument();
+    expect(await screen.findByText("Hello")).toBeInTheDocument();
   });
 
-  it("renders assistant message with bot icon", () => {
+  it("renders assistant message with bot icon", async () => {
     render(<MessageBubble message={makeMessage({ content: "Hi there" })} />);
     expect(screen.getByTestId("message-bubble-assistant")).toBeInTheDocument();
-    expect(screen.getByText("Hi there")).toBeInTheDocument();
+    expect(await screen.findByText("Hi there")).toBeInTheDocument();
   });
 
-  it("renders markdown headings", () => {
+  it("renders markdown headings", async () => {
     render(<MessageBubble message={makeMessage({ content: "# Heading 1\n\nSome text" })} />);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Heading 1");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Heading 1");
   });
 
-  it("renders markdown code blocks with syntax highlighter", () => {
+  it("renders markdown code blocks with syntax highlighter", async () => {
     const content = "```javascript\nconst x = 1;\n```";
     render(<MessageBubble message={makeMessage({ content })} />);
-    expect(screen.getByTestId("syntax-highlighter")).toBeInTheDocument();
-    expect(screen.getByText("const x = 1;")).toBeInTheDocument();
+    expect(await screen.findByTestId("syntax-highlighter")).toBeInTheDocument();
+    expect(await screen.findByText("const x = 1;")).toBeInTheDocument();
   });
 
-  it("renders markdown links", () => {
+  it("renders markdown links", async () => {
     render(
       <MessageBubble message={makeMessage({ content: "[click here](https://example.com)" })} />
     );
-    const link = screen.getByRole("link", { name: "click here" });
+    const link = await screen.findByRole("link", { name: "click here" });
     expect(link).toHaveAttribute("href", "https://example.com");
     expect(link).toHaveAttribute("target", "_blank");
   });
 
-  it("renders inline code", () => {
+  it("renders inline code", async () => {
     render(<MessageBubble message={makeMessage({ content: "Use `foo()` to do that" })} />);
-    expect(screen.getByText("foo()")).toBeInTheDocument();
+    expect(await screen.findByText("foo()")).toBeInTheDocument();
   });
 
   it("renders thinking block when thinking is present", () => {
@@ -98,11 +101,11 @@ describe("MessageBubble", () => {
     expect(screen.getByText("...")).toBeInTheDocument();
   });
 
-  it("does not re-render when content is unchanged (memo check)", () => {
+  it("does not re-render when content is unchanged (memo check)", async () => {
     const message = makeMessage({ content: "Hello" });
     const { rerender } = render(<MessageBubble message={message} />);
     // Same reference should not cause re-render
     rerender(<MessageBubble message={message} />);
-    expect(screen.getByText("Hello")).toBeInTheDocument();
+    expect(await screen.findByText("Hello")).toBeInTheDocument();
   });
 });

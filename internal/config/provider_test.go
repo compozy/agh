@@ -165,8 +165,30 @@ func TestResolveAgentDefaultsToolsAndPermissions(t *testing.T) {
 	if len(resolved.Tools) != 1 || resolved.Tools[0] != "*" {
 		t.Fatalf("ResolveAgent() Tools = %#v", resolved.Tools)
 	}
-	if resolved.Permissions != string(PermissionModeApproveReads) {
-		t.Fatalf("ResolveAgent() Permissions = %q, want %q", resolved.Permissions, PermissionModeApproveReads)
+	if resolved.Permissions != string(PermissionModeApproveAll) {
+		t.Fatalf("ResolveAgent() Permissions = %q, want %q", resolved.Permissions, PermissionModeApproveAll)
+	}
+}
+
+func TestResolveAgentFallsBackToDefaultsProvider(t *testing.T) {
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg := DefaultWithHome(homePaths)
+	cfg.Defaults.Provider = "claude"
+	agent := AgentDef{
+		Name:   DefaultAgentName,
+		Prompt: "prompt",
+	}
+
+	resolved, err := cfg.ResolveAgent(agent)
+	if err != nil {
+		t.Fatalf("ResolveAgent() error = %v", err)
+	}
+	if resolved.Provider != "claude" {
+		t.Fatalf("ResolveAgent() Provider = %q, want %q", resolved.Provider, "claude")
 	}
 }
 

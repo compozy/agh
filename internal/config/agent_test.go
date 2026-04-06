@@ -79,12 +79,11 @@ provider: claude
 prompt`,
 		},
 		{
-			name: "missing provider",
+			name: "missing prompt",
 			content: `---
 name: coder
----
-
-prompt`,
+provider: claude
+---`,
 		},
 	}
 
@@ -94,6 +93,21 @@ prompt`,
 				t.Fatal("ParseAgentDef() error = nil, want non-nil")
 			}
 		})
+	}
+}
+
+func TestParseAgentDefAllowsMissingProvider(t *testing.T) {
+	agent, err := ParseAgentDef([]byte(`---
+name: general
+---
+
+You are the default agent.
+`))
+	if err != nil {
+		t.Fatalf("ParseAgentDef() error = %v", err)
+	}
+	if agent.Provider != "" {
+		t.Fatalf("ParseAgentDef() Provider = %q, want empty", agent.Provider)
 	}
 }
 

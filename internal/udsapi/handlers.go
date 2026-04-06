@@ -251,10 +251,6 @@ func (h *Handlers) createSession(c *gin.Context) {
 		respondError(c, http.StatusBadRequest, fmt.Errorf("udsapi: decode create session request: %w", err))
 		return
 	}
-	if strings.TrimSpace(req.AgentName) == "" {
-		respondError(c, http.StatusBadRequest, errors.New("agent_name is required"))
-		return
-	}
 
 	sess, err := h.sessions.Create(c.Request.Context(), session.CreateOpts{
 		AgentName: req.AgentName,

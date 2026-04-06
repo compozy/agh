@@ -34,23 +34,26 @@ type runtimeContext struct {
 	Config    aghconfig.Config
 }
 
+type installWizardRunner func(context.Context, installWizardInput) (installWizardSelection, error)
+
 type commandDeps struct {
-	loadConfig     func() (aghconfig.Config, error)
-	resolveHome    func() (aghconfig.HomePaths, error)
-	ensureHome     func(aghconfig.HomePaths) error
-	newClient      func(socketPath string) (DaemonClient, error)
-	newDaemon      func() (daemonRunner, error)
-	readDaemonInfo func(path string) (aghdaemon.Info, error)
-	signalProcess  func(pid int, sig syscall.Signal) error
-	processAlive   func(pid int) bool
-	executable     func() (string, error)
-	getwd          func() (string, error)
-	getenv         func(string) string
-	now            func() time.Time
-	pollInterval   time.Duration
-	startTimeout   time.Duration
-	stopTimeout    time.Duration
-	spawnDetached  func(aghconfig.HomePaths) (daemonProcess, error)
+	loadConfig       func() (aghconfig.Config, error)
+	resolveHome      func() (aghconfig.HomePaths, error)
+	ensureHome       func(aghconfig.HomePaths) error
+	runInstallWizard installWizardRunner
+	newClient        func(socketPath string) (DaemonClient, error)
+	newDaemon        func() (daemonRunner, error)
+	readDaemonInfo   func(path string) (aghdaemon.Info, error)
+	signalProcess    func(pid int, sig syscall.Signal) error
+	processAlive     func(pid int) bool
+	executable       func() (string, error)
+	getwd            func() (string, error)
+	getenv           func(string) string
+	now              func() time.Time
+	pollInterval     time.Duration
+	startTimeout     time.Duration
+	stopTimeout      time.Duration
+	spawnDetached    func(aghconfig.HomePaths) (daemonProcess, error)
 }
 
 // NewRootCommand constructs the AGH v1 CLI command tree.
@@ -74,6 +77,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.PersistentFlags().StringP(outputFlagName, "o", string(OutputHuman), "Output format: human, json, or toon")
 
 	cmd.AddCommand(newVersionCommand())
+	cmd.AddCommand(newInstallCommand(deps))
 	cmd.AddCommand(newDaemonCommand(deps))
 	cmd.AddCommand(newSessionCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))
@@ -131,6 +135,9 @@ func (d commandDeps) withDefaults() commandDeps {
 	}
 	if d.ensureHome == nil {
 		d.ensureHome = aghconfig.EnsureHomeLayout
+	}
+	if d.runInstallWizard == nil {
+		d.runInstallWizard = runInstallWizard
 	}
 	if d.newClient == nil {
 		d.newClient = NewClient

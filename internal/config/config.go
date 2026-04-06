@@ -32,7 +32,8 @@ type HTTPConfig struct {
 
 // DefaultsConfig holds global runtime defaults.
 type DefaultsConfig struct {
-	Agent string `toml:"agent"`
+	Agent    string `toml:"agent"`
+	Provider string `toml:"provider,omitempty"`
 }
 
 // LimitsConfig defines runtime safety bounds.
@@ -45,6 +46,8 @@ type LimitsConfig struct {
 type PermissionMode string
 
 const (
+	// DefaultAgentName is the bootstrap agent name used across the system.
+	DefaultAgentName                          = "general"
 	PermissionModeDenyAll      PermissionMode = "deny-all"
 	PermissionModeApproveReads PermissionMode = "approve-reads"
 	PermissionModeApproveAll   PermissionMode = "approve-all"
@@ -200,14 +203,14 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Port: 2123,
 		},
 		Defaults: DefaultsConfig{
-			Agent: "coder",
+			Agent: DefaultAgentName,
 		},
 		Limits: LimitsConfig{
 			MaxSessions:         10,
 			MaxConcurrentAgents: 20,
 		},
 		Permissions: PermissionsConfig{
-			Mode: PermissionModeApproveReads,
+			Mode: PermissionModeApproveAll,
 		},
 		Providers: map[string]ProviderConfig{},
 		Observability: ObservabilityConfig{
@@ -228,7 +231,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			GlobalDir: homePaths.MemoryDir,
 			Dream: DreamConfig{
 				Enabled:       true,
-				Agent:         "claude",
+				Agent:         DefaultAgentName,
 				MinHours:      24,
 				MinSessions:   3,
 				CheckInterval: 30 * time.Minute,
@@ -266,6 +269,11 @@ func (c Config) Validate() error {
 
 	for name := range c.Providers {
 		if _, err := c.ResolveProvider(name); err != nil {
+			return err
+		}
+	}
+	if provider := strings.TrimSpace(c.Defaults.Provider); provider != "" {
+		if _, err := c.ResolveProvider(provider); err != nil {
 			return err
 		}
 	}

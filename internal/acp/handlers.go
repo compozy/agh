@@ -410,6 +410,7 @@ func newTerminalManager(ctx context.Context, logger *slog.Logger) *terminalManag
 
 func (m *terminalManager) create(cwd string, request acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error) {
 	cmd := exec.CommandContext(m.ctx, request.Command, request.Args...)
+	configureManagedCommand(cmd)
 	cmd.Dir = cwd
 	cmd.Env = mergeCommandEnv(os.Environ(), request.Env)
 
@@ -440,10 +441,7 @@ func (m *terminalManager) kill(id string) error {
 	if err != nil {
 		return err
 	}
-	if term.cmd.Process == nil {
-		return nil
-	}
-	if err := term.cmd.Process.Kill(); err != nil && !strings.Contains(err.Error(), "process already finished") {
+	if err := killManagedProcess(term.cmd); err != nil && !strings.Contains(err.Error(), "process already finished") {
 		return fmt.Errorf("acp: kill terminal %q: %w", id, err)
 	}
 	return nil
@@ -477,9 +475,7 @@ func (m *terminalManager) release(id string) error {
 	if err != nil {
 		return err
 	}
-	if term.cmd.Process != nil {
-		_ = term.cmd.Process.Kill()
-	}
+	_ = killManagedProcess(term.cmd)
 	m.mu.Lock()
 	delete(m.terminals, id)
 	m.mu.Unlock()
@@ -495,9 +491,7 @@ func (m *terminalManager) closeAll() {
 	m.mu.RUnlock()
 
 	for _, terminal := range terminals {
-		if terminal.cmd.Process != nil {
-			_ = terminal.cmd.Process.Kill()
-		}
+		_ = killManagedProcess(terminal.cmd)
 	}
 }
 

@@ -3,9 +3,12 @@ package acp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +23,7 @@ const (
 	testHelperEnvKey      = "AGH_TEST_ACP_HELPER"
 	testHelperScenarioKey = "AGH_TEST_ACP_SCENARIO"
 	testHelperFileKey     = "AGH_TEST_ACP_FILE"
+	testWrapperEnvKey     = "AGH_TEST_ACP_WRAPPER"
 )
 
 func TestACPHelperProcess(t *testing.T) {
@@ -34,6 +38,44 @@ func TestACPHelperProcess(t *testing.T) {
 	conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, os.Stdin)
 	agent.conn = conn
 	<-conn.Done()
+	os.Exit(0)
+}
+
+func TestACPWrapperProcess(t *testing.T) {
+	if os.Getenv(testWrapperEnvKey) != "1" {
+		return
+	}
+
+	bin, err := os.Executable()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "resolve test binary: %v\n", err)
+		os.Exit(1)
+	}
+
+	cmd := exec.Command(bin, "-test.run=TestACPHelperProcess")
+	cmd.Env = append([]string(nil), os.Environ()...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "start wrapped helper: %v\n", err)
+		os.Exit(1)
+	}
+
+	if pidFile := strings.TrimSpace(os.Getenv(testWrapperPIDFileEnvKey)); pidFile != "" {
+		if writeErr := os.WriteFile(pidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0o644); writeErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "write pid file: %v\n", writeErr)
+			_ = cmd.Process.Kill()
+			os.Exit(1)
+		}
+	}
+
+	if err := cmd.Wait(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "wrapped helper exited: %v\n", err)
+		os.Exit(1)
+	}
+
 	os.Exit(0)
 }
 

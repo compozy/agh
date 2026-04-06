@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -83,10 +82,6 @@ func (h *Handlers) createSession(c *gin.Context) {
 	var req createSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, fmt.Errorf("httpapi: decode create session request: %w", err))
-		return
-	}
-	if strings.TrimSpace(req.AgentName) == "" {
-		respondError(c, http.StatusBadRequest, errors.New("agent_name is required"))
 		return
 	}
 

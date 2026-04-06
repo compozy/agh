@@ -33,7 +33,8 @@ type httpOverlay struct {
 }
 
 type defaultsOverlay struct {
-	Agent *string `toml:"agent"`
+	Agent    *string `toml:"agent"`
+	Provider *string `toml:"provider"`
 }
 
 type limitsOverlay struct {
@@ -158,6 +159,9 @@ func (o httpOverlay) Apply(dst *HTTPConfig) {
 func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 	if o.Agent != nil {
 		dst.Agent = *o.Agent
+	}
+	if o.Provider != nil {
+		dst.Provider = *o.Provider
 	}
 }
 

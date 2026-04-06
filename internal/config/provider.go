@@ -104,7 +104,15 @@ func (c Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		return ResolvedAgent{}, err
 	}
 
-	provider, err := c.ResolveProvider(agent.Provider)
+	providerName := strings.TrimSpace(agent.Provider)
+	if providerName == "" {
+		providerName = strings.TrimSpace(c.Defaults.Provider)
+	}
+	if providerName == "" {
+		return ResolvedAgent{}, errors.New("agent provider is required; run `agh install` or set agent.provider/defaults.provider")
+	}
+
+	provider, err := c.ResolveProvider(providerName)
 	if err != nil {
 		return ResolvedAgent{}, err
 	}
@@ -131,7 +139,7 @@ func (c Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 
 	resolved := ResolvedAgent{
 		Name:        agent.Name,
-		Provider:    agent.Provider,
+		Provider:    providerName,
 		Command:     command,
 		Model:       model,
 		Tools:       tools,
@@ -142,7 +150,7 @@ func (c Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 	}
 
 	if strings.TrimSpace(resolved.Command) == "" {
-		return ResolvedAgent{}, fmt.Errorf("provider %q command is required", agent.Provider)
+		return ResolvedAgent{}, fmt.Errorf("provider %q command is required", providerName)
 	}
 	if strings.TrimSpace(resolved.Permissions) != "" {
 		if err := PermissionMode(resolved.Permissions).Validate("agent.permissions"); err != nil {

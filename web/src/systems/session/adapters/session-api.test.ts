@@ -89,6 +89,21 @@ describe("createSession", () => {
     });
   });
 
+  it("allows create session without agent_name", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ session: mockSession }),
+    } as Response);
+
+    await createSession({});
+    expect(fetch).toHaveBeenCalledWith("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+      signal: undefined,
+    });
+  });
+
   it("sends optional name and workspace", async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,

@@ -34,16 +34,39 @@ func TestParseSinceFlagRelativeDuration(t *testing.T) {
 	}
 }
 
-func TestSessionNewRequiresAgentFlag(t *testing.T) {
+func TestSessionNewUsesConfigDefaultWhenAgentFlagIsOmitted(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, stubClient{})
-	_, _, err := executeRootCommand(t, deps, "session", "new")
-	if err == nil {
-		t.Fatal("executeRootCommand(session new) error = nil, want required flag error")
+	deps := newTestDeps(t, stubClient{
+		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
+			if request.AgentName != "" {
+				t.Fatalf("CreateSession() AgentName = %q, want empty", request.AgentName)
+			}
+			if request.Workspace != "/workspace/project" {
+				t.Fatalf("CreateSession() Workspace = %q, want %q", request.Workspace, "/workspace/project")
+			}
+			return SessionRecord{
+				ID:        "sess-1",
+				AgentName: "general",
+				Workspace: request.Workspace,
+				State:     string(session.StateActive),
+				CreatedAt: fixedTestNow,
+				UpdatedAt: fixedTestNow,
+			}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "session", "new", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand(session new) error = %v", err)
 	}
-	if got := err.Error(); !strings.Contains(got, `required flag(s) "agent" not set`) {
-		t.Fatalf("session new error = %q, want required flag message", got)
+
+	var decoded SessionRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(session new) error = %v", err)
+	}
+	if decoded.AgentName != "general" {
+		t.Fatalf("decoded.AgentName = %q, want %q", decoded.AgentName, "general")
 	}
 }
 

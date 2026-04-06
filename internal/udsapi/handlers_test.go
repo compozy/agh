@@ -88,6 +88,25 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	}
 }
 
+func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	manager := stubSessionManager{
+		createFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+			if opts.AgentName != "" {
+				t.Fatalf("Create() AgentName = %q, want empty", opts.AgentName)
+			}
+			return newSession("sess-default"), nil
+		},
+	}
+	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"name":"demo"}`))
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
+	}
+}
+
 func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{

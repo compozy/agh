@@ -55,7 +55,9 @@ vi.mock("@/components/ui/collapsible", () => ({
 }));
 
 vi.mock("react-syntax-highlighter", () => ({
-  Prism: ({ children }: { children: string }) => <pre>{children}</pre>,
+  PrismAsyncLight: Object.assign(({ children }: { children: string }) => <pre>{children}</pre>, {
+    registerLanguage: vi.fn(),
+  }),
 }));
 
 vi.mock("react-syntax-highlighter/dist/esm/styles/prism", () => ({
@@ -80,7 +82,7 @@ describe("ChatView integration", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders user and assistant messages", () => {
+  it("renders user and assistant messages", async () => {
     const messages: UIMessage[] = [
       makeMessage({ id: "m1", role: "user", content: "What is 2+2?" }),
       makeMessage({ id: "m2", role: "assistant", content: "The answer is 4." }),
@@ -88,8 +90,8 @@ describe("ChatView integration", () => {
 
     render(<ChatView messages={messages} isStreaming={false} />);
 
-    expect(screen.getByText("What is 2+2?")).toBeInTheDocument();
-    expect(screen.getByText("The answer is 4.")).toBeInTheDocument();
+    expect(await screen.findByText("What is 2+2?")).toBeInTheDocument();
+    expect(await screen.findByText("The answer is 4.")).toBeInTheDocument();
   });
 
   it("renders empty state when no messages", () => {
@@ -200,7 +202,7 @@ describe("ChatView integration", () => {
     expect(screen.getByText("Running...")).toBeInTheDocument();
   });
 
-  it("renders thinking block when message has thinking content", () => {
+  it("renders thinking block when message has thinking content", async () => {
     const messages: UIMessage[] = [
       makeMessage({
         id: "m1",
@@ -213,7 +215,7 @@ describe("ChatView integration", () => {
 
     render(<ChatView messages={messages} isStreaming={false} />);
 
-    expect(screen.getByText("Thought process")).toBeInTheDocument();
+    expect(await screen.findByText("Thought process")).toBeInTheDocument();
   });
 
   it("renders multiple messages in correct order", () => {

@@ -82,7 +82,9 @@ function AgentsList() {
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="No agents loaded">
                 <Bot className="size-4 text-[color:var(--ds-text-muted)]" />
-                <span className="text-[color:var(--ds-text-muted)]">No agents loaded</span>
+                <span className="text-[color:var(--ds-text-muted)]">
+                  Run `agh install` to bootstrap AGH
+                </span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

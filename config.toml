@@ -6,14 +6,15 @@ host = "localhost"
 port = 2123
 
 [defaults]
-agent = "coder"
+agent = "general"
+provider = "claude"
 
 [limits]
 max_sessions = 10
 max_concurrent_agents = 20
 
 [permissions]
-mode = "approve-reads"
+mode = "approve-all"
 
 [providers.claude]
 default_model = "claude-sonnet-4-20250514"

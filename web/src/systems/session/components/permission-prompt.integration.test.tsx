@@ -68,7 +68,9 @@ vi.mock("@/components/ui/collapsible", () => ({
 }));
 
 vi.mock("react-syntax-highlighter", () => ({
-  Prism: ({ children }: { children: string }) => <pre>{children}</pre>,
+  PrismAsyncLight: Object.assign(({ children }: { children: string }) => <pre>{children}</pre>, {
+    registerLanguage: vi.fn(),
+  }),
 }));
 
 vi.mock("react-syntax-highlighter/dist/esm/styles/prism", () => ({
@@ -115,7 +117,7 @@ describe("Permission prompt integration", () => {
     });
   });
 
-  it("permission prompt appears when pendingPermission is set in store", () => {
+  it("permission prompt appears when pendingPermission is set in store", async () => {
     const messages: UIMessage[] = [
       makeMessage({ id: "m1", role: "user", content: "Do something dangerous" }),
     ];
@@ -144,8 +146,8 @@ describe("Permission prompt integration", () => {
     );
 
     expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
-    expect(screen.getByText("Permission Required")).toBeInTheDocument();
-    expect(screen.getByText("Bash")).toBeInTheDocument();
+    expect(await screen.findByText("Permission Required")).toBeInTheDocument();
+    expect(await screen.findByText("Bash")).toBeInTheDocument();
   });
 
   it("composer is disabled while permission is pending", () => {

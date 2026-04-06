@@ -50,7 +50,7 @@ type DaemonClient interface {
 
 // CreateSessionRequest captures the CLI session creation payload.
 type CreateSessionRequest struct {
-	AgentName string `json:"agent_name"`
+	AgentName string `json:"agent_name,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Workspace string `json:"workspace"`
 }

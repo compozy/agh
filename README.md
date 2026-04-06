@@ -64,14 +64,17 @@ make verify         # full gate: web lint/typecheck/test/build → Go fmt/lint/t
 ### Run
 
 ```bash
+# Bootstrap AGH for the current user
+agh install
+
 # Start the daemon (detaches to background)
 agh daemon start
 
 # Check status
 agh daemon status
 
-# Create a session with an agent
-agh session new --agent claude
+# Create a session with the default agent
+agh session new
 
 # Send a prompt
 agh session prompt <session-id> "Explain this codebase"
@@ -89,13 +92,14 @@ Then open `http://localhost:2123` in your browser.
 
 ```
 agh
+├── install                         # Bootstrap config + default agent
 ├── version                         # Print version
 ├── daemon
 │   ├── start [--foreground]        # Start daemon
 │   ├── stop                        # Stop daemon
 │   └── status                      # Show daemon status
 ├── session
-│   ├── new --agent <name>          # Create session
+│   ├── new [--agent <name>]        # Create session
 │   ├── list [--all]                # List sessions
 │   ├── status <id>                 # Session details
 │   ├── stop <id>                   # Stop session
@@ -138,14 +142,15 @@ host = "localhost"
 port = 2123
 
 [defaults]
-agent = "coder"
+agent = "general"
+provider = "claude"
 
 [limits]
 max_sessions = 10
 max_concurrent_agents = 20
 
 [permissions]
-mode = "approve-reads"    # deny-all | approve-reads | approve-all
+mode = "approve-all"      # deny-all | approve-reads | approve-all
 
 [providers.claude]
 default_model = "claude-sonnet-4-20250514"
@@ -173,12 +178,13 @@ Agents are defined via `AGENT.md` files with YAML frontmatter:
 
 ```yaml
 name: claude
-provider: anthropic
-command: claude-code --with-acp
+provider: claude
 model: claude-sonnet-4-20250514
 tools: [read, glob, grep, write, bash]
-permissions: approve-reads
+permissions: approve-all
 ```
+
+`provider` and `model` may be omitted when the user-global defaults written by `agh install` should be used.
 
 ## Web UI
 

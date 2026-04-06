@@ -55,10 +55,26 @@ func TestCreateCleansUpOnStartFailure(t *testing.T) {
 func TestCreateErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	t.Run("blank agent name", func(t *testing.T) {
+	t.Run("blank agent name uses config default", func(t *testing.T) {
 		h := newHarness(t)
+		session, err := h.manager.Create(testContext(t), CreateOpts{Workspace: h.workspace})
+		if err != nil {
+			t.Fatalf("Create(blank agent) error = %v", err)
+		}
+		t.Cleanup(func() {
+			_ = h.manager.Stop(testContext(t), session.ID)
+		})
+		if got, want := session.Info().AgentName, aghconfig.DefaultAgentName; got != want {
+			t.Fatalf("Create(blank agent) AgentName = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("blank agent name without config default", func(t *testing.T) {
+		h := newHarness(t)
+		h.cfg.Defaults.Agent = ""
+		h.manager = newManagerWithHarness(t, h)
 		if _, err := h.manager.Create(testContext(t), CreateOpts{Workspace: h.workspace}); err == nil {
-			t.Fatal("Create(blank agent) error = nil, want non-nil")
+			t.Fatal("Create(blank agent with empty defaults) error = nil, want non-nil")
 		}
 	})
 

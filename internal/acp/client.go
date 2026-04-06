@@ -124,6 +124,7 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 
 	procCtx, cancelProcess := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(procCtx, command, args...)
+	configureManagedCommand(cmd)
 	cmd.Dir = normalized.Cwd
 	if len(normalized.Env) > 0 {
 		cmd.Env = append([]string(nil), normalized.Env...)
@@ -299,10 +300,14 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 	}
 
 	proc.markStopRequested()
+	var errs []error
 	if strings.TrimSpace(proc.SessionID) != "" {
 		cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 		_ = d.Cancel(cancelCtx, proc)
 		cancel()
+	}
+	if err := terminateManagedProcess(proc.cmd); err != nil {
+		errs = append(errs, fmt.Errorf("acp: terminate subprocess tree: %w", err))
 	}
 	if proc.cancelProcess != nil {
 		proc.cancelProcess()
@@ -314,19 +319,19 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 	select {
 	case <-proc.Done():
 	case <-waitCtx.Done():
-		if proc.cmd != nil && proc.cmd.Process != nil {
-			_ = proc.cmd.Process.Kill()
+		if err := killManagedProcess(proc.cmd); err != nil {
+			errs = append(errs, fmt.Errorf("acp: kill subprocess tree: %w", err))
 		}
 		select {
 		case <-proc.Done():
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.Join(append(errs, ctx.Err())...)
 		}
 	case <-ctx.Done():
-		return ctx.Err()
+		return errors.Join(append(errs, ctx.Err())...)
 	}
 
-	return proc.Wait()
+	return errors.Join(append(errs, proc.Wait())...)
 }
 
 func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *activePromptState, req PromptRequest) {

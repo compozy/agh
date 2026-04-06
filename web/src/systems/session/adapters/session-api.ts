@@ -23,7 +23,7 @@ export async function fetchSessions(signal?: AbortSignal): Promise<SessionPayloa
 // --- Create Session ---
 
 export interface CreateSessionParams {
-  agent_name: string;
+  agent_name?: string;
   name?: string;
   workspace?: string;
 }

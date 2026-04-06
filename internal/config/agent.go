@@ -93,8 +93,6 @@ func (a AgentDef) Validate() error {
 	switch {
 	case strings.TrimSpace(a.Name) == "":
 		return errors.New("agent name is required")
-	case strings.TrimSpace(a.Provider) == "":
-		return errors.New("agent provider is required")
 	case strings.TrimSpace(a.Prompt) == "":
 		return errors.New("agent prompt is required")
 	}
