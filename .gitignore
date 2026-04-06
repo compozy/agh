@@ -17,3 +17,6 @@ node_modules/
 coverage/
 .claude/skills
 .compozy/runs
+$AGH_HOME
+AGH_HOME
+ai-docs/
