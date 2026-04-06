@@ -26,6 +26,8 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/udsapi"
 )
@@ -218,6 +220,9 @@ type Daemon struct {
 	dreamCheckCh      chan dreamCheckRequest
 	dreamCancel       context.CancelFunc
 	dreamWG           sync.WaitGroup
+	skillsRegistry    *skills.Registry
+	skillsCancel      context.CancelFunc
+	skillsDone        chan struct{}
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -450,6 +455,8 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	closeLogger := d.closeLogger
 	infoPath := d.homePaths.DaemonInfo
 	dreamCancel := d.dreamCancel
+	skillsCancel := d.skillsCancel
+	skillsDone := d.skillsDone
 
 	d.sessions = nil
 	d.httpServer = nil
@@ -457,6 +464,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	d.observer = nil
 	d.registry = nil
 	d.memoryStore = nil
+	d.skillsRegistry = nil
 	d.lock = nil
 	d.booting = false
 	d.info = Info{}
@@ -466,6 +474,8 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	d.dreamSpawner = nil
 	d.dreamCheckCh = nil
 	d.dreamCancel = nil
+	d.skillsCancel = nil
+	d.skillsDone = nil
 	d.mu.Unlock()
 
 	var errs []error
@@ -473,6 +483,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 		dreamCancel()
 		d.dreamWG.Wait()
 	}
+	stopSkillsWatcher(skillsCancel, skillsDone)
 	if err := d.stopSessions(ctx, sessions); err != nil {
 		errs = append(errs, err)
 	}
@@ -585,10 +596,14 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 
 	var (
-		memoryStore     *memory.Store
-		promptAssembler session.PromptAssembler
-		dreamSvc        dreamService
-		globalMemoryDir string
+		memoryStore      *memory.Store
+		skillsRegistry   *skills.Registry
+		dreamSvc         dreamService
+		globalMemoryDir  string
+		skillsCancel     context.CancelFunc
+		skillsDone       chan struct{}
+		prependProviders []session.PromptProvider
+		appendProviders  []session.PromptProvider
 	)
 	if cfg.Memory.Enabled {
 		globalMemoryDir = strings.TrimSpace(cfg.Memory.GlobalDir)
@@ -599,7 +614,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		if err := memoryStore.EnsureDirs(); err != nil {
 			return fmt.Errorf("daemon: ensure memory store directories: %w", err)
 		}
-		promptAssembler = memory.NewAssembler(memoryStore)
+		prependProviders = append(prependProviders, memory.NewAssembler(memoryStore))
 		if cfg.Memory.Dream.Enabled {
 			dreamSvc = d.newDreamService(
 				memory.WithMemoryStore(memoryStore),
@@ -627,6 +642,30 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	cleanupFns = append(cleanupFns, func(context.Context) error {
 		return closeLogger()
 	})
+
+	if cfg.Skills.Enabled {
+		skillsCfg, err := d.skillsRegistryConfig(cfg)
+		if err != nil {
+			return err
+		}
+
+		skillsRegistry = skills.NewRegistry(skillsCfg, skills.WithLogger(logger))
+		if err := skillsRegistry.LoadAll(ctx); err != nil {
+			return fmt.Errorf("daemon: load skills registry: %w", err)
+		}
+
+		skillsCancel, skillsDone = startSkillsWatcher(ctx, skillsRegistry, cfg.Skills.PollInterval)
+		cleanupFns = append(cleanupFns, func(context.Context) error {
+			stopSkillsWatcher(skillsCancel, skillsDone)
+			return nil
+		})
+		appendProviders = append(appendProviders, skills.NewCatalogProvider(skillsRegistry))
+	}
+
+	promptAssembler := NewComposedAssembler(
+		WithPrependPromptProviders(prependProviders...),
+		WithAppendPromptProviders(appendProviders...),
+	)
 
 	pid := d.pid()
 	lock, err := d.acquireLock(d.homePaths.DaemonLock, pid)
@@ -781,6 +820,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	d.udsServer = udsServer
 	d.dreamService = dreamSvc
 	d.dreamSpawner = dreamSpawner
+	d.skillsRegistry = skillsRegistry
+	d.skillsCancel = skillsCancel
+	d.skillsDone = skillsDone
 	d.startedAt = startedAt
 	d.info = info
 	if !d.readyClosed {
@@ -790,6 +832,68 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	d.mu.Unlock()
 
 	return nil
+}
+
+func (d *Daemon) skillsRegistryConfig(cfg aghconfig.Config) (skills.RegistryConfig, error) {
+	userAgentsDir, err := d.userAgentsSkillsDir()
+	if err != nil {
+		return skills.RegistryConfig{}, err
+	}
+
+	return skills.RegistryConfig{
+		BundledFS:      bundled.FS(),
+		UserSkillsDir:  d.homePaths.SkillsDir,
+		UserAgentsDir:  userAgentsDir,
+		DisabledSkills: append([]string(nil), cfg.Skills.DisabledSkills...),
+	}, nil
+}
+
+func (d *Daemon) userAgentsSkillsDir() (string, error) {
+	if d.getenv != nil {
+		if home := strings.TrimSpace(d.getenv("HOME")); home != "" {
+			absHome, err := filepath.Abs(home)
+			if err != nil {
+				return "", fmt.Errorf("daemon: resolve HOME for user agent skills: %w", err)
+			}
+			return filepath.Join(absHome, ".agents", "skills"), nil
+		}
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve user home for agent skills: %w", err)
+	}
+
+	absHome, err := filepath.Abs(home)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve user home for agent skills: %w", err)
+	}
+
+	return filepath.Join(absHome, ".agents", "skills"), nil
+}
+
+func startSkillsWatcher(ctx context.Context, registry *skills.Registry, interval time.Duration) (context.CancelFunc, chan struct{}) {
+	if registry == nil {
+		return nil, nil
+	}
+
+	watcherCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	watcher := skills.NewWatcher(registry, interval)
+	go func() {
+		defer close(done)
+		watcher.Start(watcherCtx)
+	}()
+	return cancel, done
+}
+
+func stopSkillsWatcher(cancel context.CancelFunc, done <-chan struct{}) {
+	if cancel != nil {
+		cancel()
+	}
+	if done != nil {
+		<-done
+	}
 }
 
 func (d *Daemon) startDreamLoop(parent context.Context) {
