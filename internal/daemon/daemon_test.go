@@ -1763,6 +1763,10 @@ func (f *fakeSessionManager) History(context.Context, string, store.EventQuery) 
 	return nil, nil
 }
 
+func (f *fakeSessionManager) Transcript(context.Context, string) ([]session.TranscriptMessage, error) {
+	return nil, nil
+}
+
 func (f *fakeSessionManager) Stop(_ context.Context, id string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

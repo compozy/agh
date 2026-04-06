@@ -9,8 +9,8 @@ dist/
 storybook-static/
 coverage.out
 coverage.html
+.codex/ledger/*-MEMORY-*
 .codex/CONTINUITY*
-.codex/plans
 .resources/
 .old_project/
 node_modules/

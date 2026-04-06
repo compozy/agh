@@ -331,6 +331,46 @@ func TestStartResumeUsesLoadSession(t *testing.T) {
 	}
 }
 
+func TestStartResumeReturnsErrorWhenLoadFails(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	_, err := driver.Start(testContext(t), StartOpts{
+		AgentName:       "helper",
+		Command:         helperCommand(t),
+		Cwd:             t.TempDir(),
+		Env:             helperEnv("load_session_error", ""),
+		Permissions:     aghconfig.PermissionModeApproveAll,
+		ResumeSessionID: "sess-existing",
+	})
+	if err == nil {
+		t.Fatal("Start(load_session_error) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "load session") {
+		t.Fatalf("Start(load_session_error) error = %v, want load session failure", err)
+	}
+}
+
+func TestStartResumeReturnsErrorWhenAgentCannotLoadSessions(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	_, err := driver.Start(testContext(t), StartOpts{
+		AgentName:       "helper",
+		Command:         helperCommand(t),
+		Cwd:             t.TempDir(),
+		Env:             helperEnv("stream_updates", ""),
+		Permissions:     aghconfig.PermissionModeApproveAll,
+		ResumeSessionID: "sess-existing",
+	})
+	if err == nil {
+		t.Fatal("Start(no load_session support) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "does not support session/load") {
+		t.Fatalf("Start(no load_session support) error = %v", err)
+	}
+}
+
 func TestProcessCrashDetected(t *testing.T) {
 	t.Parallel()
 
@@ -536,7 +576,7 @@ func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (
 	return acpsdk.InitializeResponse{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
-			LoadSession: a.scenario == "load_session",
+			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error",
 		},
 		AuthMethods: []acpsdk.AuthMethod{},
 	}, nil
@@ -555,6 +595,9 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 }
 
 func (a *helperACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest) (acpsdk.LoadSessionResponse, error) {
+	if a.scenario == "load_session_error" {
+		return acpsdk.LoadSessionResponse{}, errors.New("load failed")
+	}
 	return acpsdk.LoadSessionResponse{
 		Modes:  helperModeState("loaded-mode"),
 		Models: helperModelState("loaded-model"),

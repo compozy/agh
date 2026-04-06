@@ -1,10 +1,12 @@
 import {
   sessionResponseSchema,
   sessionEventsResponseSchema,
+  sessionTranscriptResponseSchema,
   sessionHistoryResponseSchema,
   sessionsResponseSchema,
   type SessionPayload,
   type SessionEventPayload,
+  type TranscriptMessage,
   type TurnHistoryPayload,
 } from "../types";
 
@@ -180,4 +182,22 @@ export async function fetchSessionHistory(
   const json = await res.json();
   const parsed = sessionHistoryResponseSchema.parse(json);
   return parsed.history;
+}
+
+// --- Session Transcript ---
+
+export async function fetchSessionTranscript(
+  id: string,
+  signal?: AbortSignal
+): Promise<TranscriptMessage[]> {
+  const res = await fetch(`/api/sessions/${encodeURIComponent(id)}/transcript`, { signal });
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error(`Session not found: ${id}`);
+    }
+    throw new Error(`Failed to fetch session transcript "${id}": ${res.status}`);
+  }
+  const json = await res.json();
+  const parsed = sessionTranscriptResponseSchema.parse(json);
+  return parsed.messages;
 }

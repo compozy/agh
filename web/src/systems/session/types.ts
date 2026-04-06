@@ -95,6 +95,46 @@ export const turnHistoryPayloadSchema = z.object({
 
 export type TurnHistoryPayload = z.infer<typeof turnHistoryPayloadSchema>;
 
+// --- TranscriptPayload ---
+
+export const transcriptToolResultSchema = z
+  .object({
+    stdout: z.string().optional(),
+    stderr: z.string().optional(),
+    file_path: z.string().optional(),
+    content: z.string().optional(),
+    structured_patch: z.unknown().optional(),
+    error: z.string().optional(),
+    raw_output: z.unknown().optional(),
+  })
+  .passthrough();
+
+export type TranscriptToolResult = z.infer<typeof transcriptToolResultSchema>;
+
+export const transcriptMessageRoleSchema = z.enum([
+  "user",
+  "assistant",
+  "tool_call",
+  "tool_result",
+]);
+
+export const transcriptMessageSchema = z
+  .object({
+    id: z.string(),
+    role: transcriptMessageRoleSchema,
+    content: z.string(),
+    thinking: z.string().optional(),
+    thinking_complete: z.boolean(),
+    tool_name: z.string().optional(),
+    tool_input: z.record(z.string(), z.unknown()).optional(),
+    tool_result: transcriptToolResultSchema.optional(),
+    tool_error: z.boolean(),
+    timestamp: z.string(),
+  })
+  .passthrough();
+
+export type TranscriptMessage = z.infer<typeof transcriptMessageSchema>;
+
 // --- ToolUseResult ---
 
 export interface ToolUseResult {
@@ -104,6 +144,7 @@ export interface ToolUseResult {
   content?: string;
   structuredPatch?: unknown[];
   error?: string;
+  rawOutput?: unknown;
 }
 
 // --- UIMessage ---
@@ -167,3 +208,9 @@ export const sessionHistoryResponseSchema = z.object({
 });
 
 export type SessionHistoryResponse = z.infer<typeof sessionHistoryResponseSchema>;
+
+export const sessionTranscriptResponseSchema = z.object({
+  messages: z.array(transcriptMessageSchema),
+});
+
+export type SessionTranscriptResponse = z.infer<typeof sessionTranscriptResponseSchema>;

@@ -410,13 +410,10 @@ func TestCreateWithBlankWorkspaceUsesCurrentDir(t *testing.T) {
 func TestMarshalAgentEvent(t *testing.T) {
 	t.Parallel()
 
-	rawPayload := json.RawMessage(`{"raw":true}`)
+	rawPayload := json.RawMessage(`{"sessionUpdate":"tool_call_update","status":"completed","rawOutput":"hello","_meta":{"claudeCode":{"toolName":"Bash"}}}`)
 	raw, err := marshalAgentEvent(acp.AgentEvent{Raw: rawPayload})
 	if err != nil {
 		t.Fatalf("marshalAgentEvent(raw) error = %v", err)
-	}
-	if raw != string(rawPayload) {
-		t.Fatalf("marshalAgentEvent(raw) = %q, want %q", raw, string(rawPayload))
 	}
 
 	totalTokens := int64(4)
@@ -441,11 +438,28 @@ func TestMarshalAgentEvent(t *testing.T) {
 	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal(payload) error = %v", err)
 	}
+	if decoded["schema"] != eventEnvelopeSchema {
+		t.Fatalf("decoded[schema] = %v, want %q", decoded["schema"], eventEnvelopeSchema)
+	}
 	if decoded["type"] != acp.EventTypeDone {
 		t.Fatalf("decoded[type] = %v, want %q", decoded["type"], acp.EventTypeDone)
 	}
 	if decoded["text"] != "done" {
 		t.Fatalf("decoded[text] = %v, want %q", decoded["text"], "done")
+	}
+
+	var rawDecoded map[string]any
+	if err := json.Unmarshal([]byte(raw), &rawDecoded); err != nil {
+		t.Fatalf("json.Unmarshal(raw payload) error = %v", err)
+	}
+	if rawDecoded["schema"] != eventEnvelopeSchema {
+		t.Fatalf("rawDecoded[schema] = %v, want %q", rawDecoded["schema"], eventEnvelopeSchema)
+	}
+	if rawDecoded["tool_name"] != "Bash" {
+		t.Fatalf("rawDecoded[tool_name] = %v, want %q", rawDecoded["tool_name"], "Bash")
+	}
+	if _, ok := rawDecoded["raw"]; !ok {
+		t.Fatalf("rawDecoded missing nested raw payload: %#v", rawDecoded)
 	}
 }
 

@@ -386,6 +386,16 @@ func (h *Handlers) sessionHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"history": payload})
 }
 
+func (h *Handlers) sessionTranscript(c *gin.Context) {
+	messages, err := h.sessions.Transcript(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		respondError(c, statusForSessionError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"messages": messages})
+}
+
 func (h *Handlers) streamSession(c *gin.Context) {
 	if _, err := h.sessions.Status(c.Request.Context(), c.Param("id")); err != nil {
 		respondError(c, statusForSessionError(err), err)

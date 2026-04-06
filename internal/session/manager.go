@@ -608,9 +608,22 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 		session.mu.RUnlock()
 		return nil, errors.New("session: agent process is not available")
 	}
+	session.mu.RUnlock()
+
+	userEvent := m.normalizeEvent(session, turnID, acp.AgentEvent{
+		Type:      acp.EventTypeUserMessage,
+		TurnID:    turnID,
+		Timestamp: m.now(),
+		Text:      message,
+	})
+	if err := m.recordEvent(ctx, session, userEvent); err != nil {
+		return nil, fmt.Errorf("session: persist prompt message for %q: %w", id, err)
+	}
+	if m.notifier != nil {
+		m.notifier.OnAgentEvent(ctx, session.ID, userEvent)
+	}
 
 	source, err := m.driver.Prompt(ctx, proc, acp.PromptRequest{TurnID: turnID, Message: message})
-	session.mu.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("session: prompt session %q: %w", id, err)
 	}
@@ -1070,45 +1083,50 @@ func resolveWorkspace(workspace string) (string, error) {
 }
 
 func marshalAgentEvent(event acp.AgentEvent) (string, error) {
-	if len(event.Raw) > 0 {
-		return string(event.Raw), nil
+	payload := canonicalEventPayload{
+		Schema:     eventEnvelopeSchema,
+		Type:       event.Type,
+		SessionID:  event.SessionID,
+		TurnID:     event.TurnID,
+		RequestID:  event.RequestID,
+		Timestamp:  event.Timestamp,
+		Text:       event.Text,
+		Title:      event.Title,
+		ToolCallID: event.ToolCallID,
+		StopReason: event.StopReason,
+		Action:     event.Action,
+		Resource:   event.Resource,
+		Decision:   event.Decision,
+		Error:      event.Error,
+		Usage:      event.Usage,
 	}
 
-	payload := map[string]any{
-		"type":       event.Type,
-		"session_id": event.SessionID,
-		"turn_id":    event.TurnID,
-		"timestamp":  event.Timestamp,
+	if len(event.Raw) > 0 {
+		if json.Valid(event.Raw) {
+			payload.Raw = cloneRawMessage(event.Raw)
+		} else {
+			payload.Raw = rawMessageFromValue(string(event.Raw))
+		}
+
+		var rawPayload map[string]any
+		if err := json.Unmarshal(event.Raw, &rawPayload); err == nil {
+			payload.ToolName = legacyToolName(rawPayload)
+			payload.ToolInput = cloneRawMessage(rawMessageFromValue(rawPayload["rawInput"]))
+			if event.Type == acp.EventTypeToolResult {
+				toolResult := buildToolResult(
+					payload.ToolName,
+					strings.EqualFold(nestedString(rawPayload, "status"), "failed"),
+					extractLegacyContentText(rawPayload["content"]),
+					rawPayload["rawOutput"],
+				)
+				payload.ToolResult = toolResult
+				payload.ToolError = strings.EqualFold(nestedString(rawPayload, "status"), "failed")
+			}
+		}
 	}
-	if strings.TrimSpace(event.RequestID) != "" {
-		payload["request_id"] = event.RequestID
-	}
-	if strings.TrimSpace(event.Text) != "" {
-		payload["text"] = event.Text
-	}
-	if strings.TrimSpace(event.Title) != "" {
-		payload["title"] = event.Title
-	}
-	if strings.TrimSpace(event.ToolCallID) != "" {
-		payload["tool_call_id"] = event.ToolCallID
-	}
-	if strings.TrimSpace(event.StopReason) != "" {
-		payload["stop_reason"] = event.StopReason
-	}
-	if strings.TrimSpace(event.Action) != "" {
-		payload["action"] = event.Action
-	}
-	if strings.TrimSpace(event.Resource) != "" {
-		payload["resource"] = event.Resource
-	}
-	if strings.TrimSpace(event.Decision) != "" {
-		payload["decision"] = event.Decision
-	}
-	if strings.TrimSpace(event.Error) != "" {
-		payload["error"] = event.Error
-	}
-	if event.Usage != nil {
-		payload["usage"] = event.Usage
+
+	if payload.ToolName == "" {
+		payload.ToolName = event.Title
 	}
 
 	data, err := json.Marshal(payload)

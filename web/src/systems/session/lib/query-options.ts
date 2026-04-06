@@ -4,6 +4,7 @@ import {
   fetchSession,
   fetchSessionEvents,
   fetchSessionHistory,
+  fetchSessionTranscript,
   fetchSessions,
 } from "../adapters/session-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
@@ -40,6 +41,15 @@ export function sessionHistoryOptions(id: string) {
   return queryOptions({
     queryKey: sessionKeys.history(id),
     queryFn: ({ signal }) => fetchSessionHistory(id, signal),
+    staleTime: 10_000,
+    enabled: !!id,
+  });
+}
+
+export function sessionTranscriptOptions(id: string) {
+  return queryOptions({
+    queryKey: sessionKeys.transcript(id),
+    queryFn: ({ signal }) => fetchSessionTranscript(id, signal),
     staleTime: 10_000,
     enabled: !!id,
   });

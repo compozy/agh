@@ -10,8 +10,11 @@ export type {
   SessionResponse,
   SessionState,
   SessionsResponse,
+  SessionTranscriptResponse,
   TokenUsagePayload,
   ToolUseResult,
+  TranscriptMessage,
+  TranscriptToolResult,
   TurnHistoryPayload,
   UIMessage,
   UIMessageRole,
@@ -28,7 +31,10 @@ export {
   sessionResponseSchema,
   sessionStateSchema,
   sessionsResponseSchema,
+  sessionTranscriptResponseSchema,
   tokenUsagePayloadSchema,
+  transcriptMessageSchema,
+  transcriptToolResultSchema,
   turnHistoryPayloadSchema,
   uiMessageRoleSchema,
 } from "./types";
@@ -46,6 +52,7 @@ export {
   fetchSession,
   fetchSessionEvents,
   fetchSessionHistory,
+  fetchSessionTranscript,
   fetchSessions,
   resumeSession,
   stopSession,
@@ -57,6 +64,7 @@ export {
   sessionDetailOptions,
   sessionEventsOptions,
   sessionHistoryOptions,
+  sessionTranscriptOptions,
   sessionsListOptions,
 } from "./lib/query-options";
 
@@ -67,6 +75,7 @@ export {
   extractPermissionRequest,
   mapHistoryToMessages,
 } from "./lib/event-mapper";
+export { mapTranscriptToMessages } from "./lib/transcript-mapper";
 export {
   getToolIcon,
   getToolLabel,
@@ -91,6 +100,10 @@ export {
   type UseSessionChatReturn,
 } from "./hooks/use-session-chat";
 export { useSessionHistory, type UseSessionHistoryReturn } from "./hooks/use-session-history";
+export {
+  useSessionTranscript,
+  type UseSessionTranscriptReturn,
+} from "./hooks/use-session-transcript";
 
 // Components
 export { SessionSidebarItem } from "./components/session-sidebar-item";
