@@ -94,6 +94,13 @@ type DreamConfig struct {
 	CheckInterval time.Duration `toml:"check_interval"`
 }
 
+// SkillsConfig controls skill loading and discovery.
+type SkillsConfig struct {
+	Enabled        bool          `toml:"enabled"`
+	DisabledSkills []string      `toml:"disabled_skills,omitempty"`
+	PollInterval   time.Duration `toml:"poll_interval"`
+}
+
 // Config is the fully merged AGH configuration.
 type Config struct {
 	Daemon        DaemonConfig              `toml:"daemon"`
@@ -105,6 +112,7 @@ type Config struct {
 	Observability ObservabilityConfig       `toml:"observability"`
 	Log           LogConfig                 `toml:"log"`
 	Memory        MemoryConfig              `toml:"memory"`
+	Skills        SkillsConfig              `toml:"skills"`
 }
 
 type loadOptions struct {
@@ -237,6 +245,10 @@ func DefaultWithHome(homePaths HomePaths) Config {
 				CheckInterval: 30 * time.Minute,
 			},
 		},
+		Skills: SkillsConfig{
+			Enabled:      true,
+			PollInterval: 3 * time.Second,
+		},
 	}
 }
 
@@ -264,6 +276,9 @@ func (c Config) Validate() error {
 		return err
 	}
 	if err := c.Memory.Validate(); err != nil {
+		return err
+	}
+	if err := c.Skills.Validate(); err != nil {
 		return err
 	}
 
@@ -375,6 +390,18 @@ func (c LogConfig) Validate() error {
 // Validate ensures the memory configuration is internally consistent.
 func (c MemoryConfig) Validate() error {
 	return c.Dream.Validate()
+}
+
+// Validate ensures the skills configuration is internally consistent.
+func (c SkillsConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	if c.PollInterval <= 0 {
+		return fmt.Errorf("skills.poll_interval must be positive: %s", c.PollInterval)
+	}
+
+	return nil
 }
 
 // Validate ensures the dream configuration is internally consistent.

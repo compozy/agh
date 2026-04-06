@@ -21,6 +21,7 @@ type configOverlay struct {
 	Observability observabilityOverlay       `toml:"observability"`
 	Log           logOverlay                 `toml:"log"`
 	Memory        memoryOverlay              `toml:"memory"`
+	Skills        skillsOverlay              `toml:"skills"`
 }
 
 type daemonOverlay struct {
@@ -84,6 +85,12 @@ type dreamOverlay struct {
 	CheckInterval *time.Duration `toml:"check_interval"`
 }
 
+type skillsOverlay struct {
+	Enabled        *bool          `toml:"enabled"`
+	DisabledSkills *[]string      `toml:"disabled_skills"`
+	PollInterval   *time.Duration `toml:"poll_interval"`
+}
+
 type mcpServerOverlay struct {
 	Name    *string            `toml:"name"`
 	Command *string            `toml:"command"`
@@ -139,6 +146,7 @@ func (o configOverlay) Apply(dst *Config) {
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)
 	o.Memory.Apply(&dst.Memory)
+	o.Skills.Apply(&dst.Skills)
 }
 
 func (o daemonOverlay) Apply(dst *DaemonConfig) {
@@ -251,6 +259,18 @@ func (o dreamOverlay) Apply(dst *DreamConfig) {
 	}
 	if o.CheckInterval != nil {
 		dst.CheckInterval = *o.CheckInterval
+	}
+}
+
+func (o skillsOverlay) Apply(dst *SkillsConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = *o.Enabled
+	}
+	if o.DisabledSkills != nil {
+		dst.DisabledSkills = append([]string(nil), (*o.DisabledSkills)...)
+	}
+	if o.PollInterval != nil {
+		dst.PollInterval = *o.PollInterval
 	}
 }
 
