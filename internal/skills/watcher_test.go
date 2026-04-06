@@ -1,0 +1,344 @@
+package skills
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"slices"
+	"sync"
+	"testing"
+	"time"
+)
+
+func TestWatcherDetectChangesAddedSkill(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	watcher := newTestWatcher(nil, time.Millisecond, root)
+
+	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		t.Fatalf("detectChanges() initial error = %v", err)
+	} else if changed {
+		t.Fatal("detectChanges() initial changed = true, want false")
+	}
+
+	skillPath := writeSkillFile(t, root, filepath.Join("added", skillFileName), skillWithDescription("added", "Added skill"))
+
+	changed, snapshots, changes, err := watcher.detectChanges(context.Background())
+	if err != nil {
+		t.Fatalf("detectChanges() error = %v", err)
+	}
+	if !changed {
+		t.Fatal("detectChanges() changed = false, want true")
+	}
+	if len(changes) != 1 {
+		t.Fatalf("detectChanges() len(changes) = %d, want 1", len(changes))
+	}
+	if changes[0].path != skillPath || changes[0].action != "added" {
+		t.Fatalf("detectChanges() change = %#v, want added change for %q", changes[0], skillPath)
+	}
+
+	watcher.commitSnapshots(snapshots)
+
+	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		t.Fatalf("detectChanges() after commit error = %v", err)
+	} else if changed {
+		t.Fatal("detectChanges() after commit changed = true, want false")
+	}
+}
+
+func TestWatcherDetectChangesModifiedSkillByMTime(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	skillPath := writeSkillFile(t, root, filepath.Join("mtime", skillFileName), skillWithDescription("mtime", "Alpha"))
+	watcher := newTestWatcher(nil, time.Millisecond, root)
+
+	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		t.Fatalf("detectChanges() initial error = %v", err)
+	} else if changed {
+		t.Fatal("detectChanges() initial changed = true, want false")
+	}
+
+	modTime := time.Date(2026, 4, 6, 12, 0, 5, 0, time.UTC)
+	rewriteSkillFile(t, skillPath, skillWithDescription("mtime", "Bravo"))
+	setFileTimes(t, skillPath, modTime)
+
+	changed, _, changes, err := watcher.detectChanges(context.Background())
+	if err != nil {
+		t.Fatalf("detectChanges() error = %v", err)
+	}
+	if !changed {
+		t.Fatal("detectChanges() changed = false, want true")
+	}
+	if len(changes) != 1 {
+		t.Fatalf("detectChanges() len(changes) = %d, want 1", len(changes))
+	}
+	if changes[0].path != skillPath || changes[0].action != "modified" {
+		t.Fatalf("detectChanges() change = %#v, want modified change for %q", changes[0], skillPath)
+	}
+}
+
+func TestWatcherDetectChangesDeletedSkill(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	skillPath := writeSkillFile(t, root, filepath.Join("deleted", skillFileName), skillWithDescription("deleted", "Deleted skill"))
+	watcher := newTestWatcher(nil, time.Millisecond, root)
+
+	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		t.Fatalf("detectChanges() initial error = %v", err)
+	} else if changed {
+		t.Fatal("detectChanges() initial changed = true, want false")
+	}
+
+	if err := os.Remove(skillPath); err != nil {
+		t.Fatalf("Remove(%q) error = %v", skillPath, err)
+	}
+
+	changed, _, changes, err := watcher.detectChanges(context.Background())
+	if err != nil {
+		t.Fatalf("detectChanges() error = %v", err)
+	}
+	if !changed {
+		t.Fatal("detectChanges() changed = false, want true")
+	}
+	if len(changes) != 1 {
+		t.Fatalf("detectChanges() len(changes) = %d, want 1", len(changes))
+	}
+	if changes[0].path != skillPath || changes[0].action != "deleted" {
+		t.Fatalf("detectChanges() change = %#v, want deleted change for %q", changes[0], skillPath)
+	}
+}
+
+func TestWatcherDetectChangesNoFalsePositiveWhenUnchanged(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeSkillFile(t, root, filepath.Join("stable", skillFileName), skillWithDescription("stable", "Stable skill"))
+	watcher := newTestWatcher(nil, time.Millisecond, root)
+
+	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		t.Fatalf("detectChanges() initial error = %v", err)
+	} else if changed {
+		t.Fatal("detectChanges() initial changed = true, want false")
+	}
+
+	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		t.Fatalf("detectChanges() second error = %v", err)
+	} else if changed {
+		t.Fatal("detectChanges() second changed = true, want false")
+	}
+}
+
+func TestNewWatcherOnlyUsesGlobalRoots(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	userDir := filepath.Join(root, "global-user")
+	agentsDir := filepath.Join(root, "global-agents")
+	workspace := filepath.Join(root, "workspace")
+
+	registry := newTestRegistry(t, RegistryConfig{
+		BundledFS:     bundledSkillFS(map[string]string{"bundled": "Bundled skill"}),
+		UserSkillsDir: userDir,
+		UserAgentsDir: agentsDir,
+	})
+	watcher := NewWatcher(registry, 0)
+	watcher.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	expectedRoots := watcherRoots(userDir, agentsDir)
+	if !slices.Equal(watcher.roots, expectedRoots) {
+		t.Fatalf("watcher.roots = %#v, want %#v", watcher.roots, expectedRoots)
+	}
+	if watcher.interval != defaultWatcherInterval {
+		t.Fatalf("watcher.interval = %v, want %v", watcher.interval, defaultWatcherInterval)
+	}
+
+	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		t.Fatalf("detectChanges() initial error = %v", err)
+	} else if changed {
+		t.Fatal("detectChanges() initial changed = true, want false")
+	}
+
+	writeSkillFile(t, filepath.Join(workspace, ".agents", "skills"), filepath.Join("workspace-only", skillFileName), skillWithDescription("workspace-only", "Workspace skill"))
+	writeSkillFile(t, filepath.Join(workspace, ".agh", "skills"), filepath.Join("workspace-agh", skillFileName), skillWithDescription("workspace-agh", "Workspace agh skill"))
+
+	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		t.Fatalf("detectChanges() after workspace-only updates error = %v", err)
+	} else if changed {
+		t.Fatal("detectChanges() after workspace-only updates changed = true, want false")
+	}
+}
+
+func TestWatcherStartRefreshesOnlyWhenGlobalStateChanges(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	spy := newRefreshSpy()
+	watcher := newTestWatcher(spy, 10*time.Millisecond, root)
+	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+		t.Fatalf("detectChanges() baseline error = %v", err)
+	} else if changed {
+		t.Fatal("detectChanges() baseline changed = true, want false")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		watcher.Start(ctx)
+		close(done)
+	}()
+
+	writeSkillFile(t, root, filepath.Join("hot", skillFileName), skillWithDescription("hot", "Hot reload skill"))
+
+	if err := spy.waitForCalls(1, time.Second); err != nil {
+		t.Fatalf("waitForCalls(1) error = %v", err)
+	}
+
+	select {
+	case <-time.After(50 * time.Millisecond):
+	case <-done:
+		t.Fatal("watcher exited before cancellation")
+	}
+
+	if calls := spy.calls(); calls != 1 {
+		t.Fatalf("refresh calls after steady state = %d, want 1", calls)
+	}
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("watcher did not stop after cancellation")
+	}
+}
+
+func TestWatcherStartStopsOnContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	watcher := newTestWatcher(nil, 10*time.Millisecond, t.TempDir())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		watcher.Start(ctx)
+		close(done)
+	}()
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("watcher did not stop after cancellation")
+	}
+}
+
+func TestWatcherStartDoesNotRefreshWithoutChangesAcrossMultiplePolls(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeSkillFile(t, root, filepath.Join("steady", skillFileName), skillWithDescription("steady", "Steady skill"))
+
+	spy := newRefreshSpy()
+	watcher := newTestWatcher(spy, 10*time.Millisecond, root)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		watcher.Start(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-time.After(60 * time.Millisecond):
+	case <-done:
+		t.Fatal("watcher exited before cancellation")
+	}
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("watcher did not stop after cancellation")
+	}
+
+	if calls := spy.calls(); calls != 0 {
+		t.Fatalf("refresh calls = %d, want 0", calls)
+	}
+}
+
+func newTestWatcher(registry globalRefresher, interval time.Duration, roots ...string) *Watcher {
+	watcher := newWatcher(registry, interval, roots)
+	watcher.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	return watcher
+}
+
+func setFileTimes(t *testing.T, path string, modTime time.Time) {
+	t.Helper()
+
+	if err := os.Chtimes(path, modTime, modTime); err != nil {
+		t.Fatalf("Chtimes(%q) error = %v", path, err)
+	}
+}
+
+type refreshSpy struct {
+	mu     sync.Mutex
+	callsN int
+	notify chan struct{}
+}
+
+func newRefreshSpy() *refreshSpy {
+	return &refreshSpy{
+		notify: make(chan struct{}, 16),
+	}
+}
+
+func (s *refreshSpy) RefreshGlobal(ctx context.Context) error {
+	s.mu.Lock()
+	s.callsN++
+	s.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	select {
+	case s.notify <- struct{}{}:
+	default:
+	}
+
+	return nil
+}
+
+func (s *refreshSpy) calls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.callsN
+}
+
+func (s *refreshSpy) waitForCalls(want int, timeout time.Duration) error {
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+
+	for {
+		if got := s.calls(); got >= want {
+			return nil
+		}
+
+		select {
+		case <-s.notify:
+		case <-deadline.C:
+			return context.DeadlineExceeded
+		}
+	}
+}
