@@ -21,6 +21,8 @@ var (
 	ErrWorkspaceNameTaken = errors.New("workspace name already in use")
 	// ErrWorkspacePathTaken reports that a workspace root path is already registered.
 	ErrWorkspacePathTaken = errors.New("workspace path already registered")
+	// ErrWorkspaceHasSessions reports that a workspace cannot be deleted because sessions still reference it.
+	ErrWorkspaceHasSessions = errors.New("workspace has sessions")
 )
 
 // Workspace is the persisted workspace registration stored in the global database.

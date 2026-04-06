@@ -107,7 +107,9 @@ func StatusForWorkspaceError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
 		return http.StatusGone
-	case errors.Is(err, workspacepkg.ErrWorkspaceNameTaken), errors.Is(err, workspacepkg.ErrWorkspacePathTaken):
+	case errors.Is(err, workspacepkg.ErrWorkspaceNameTaken),
+		errors.Is(err, workspacepkg.ErrWorkspacePathTaken),
+		errors.Is(err, workspacepkg.ErrWorkspaceHasSessions):
 		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError

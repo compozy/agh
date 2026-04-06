@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/workspace/resolver.go
 line: 448
 severity: medium
@@ -28,5 +28,12 @@ Option 1 is simpler and prevents the ambiguity entirely.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `lookupWorkspace()` treats any identifier starting with `ws_` or `ws-` as an ID-only lookup. If no workspace with that ID exists, it returns immediately instead of retrying the same value as a workspace name.
+- Fix plan: keep the fast-path ID lookup for real workspace IDs, but fall back to name lookup when the ID path returns `ErrWorkspaceNotFound`. That fixes already-created workspaces whose names use the reserved-looking prefix without broadening the handler surface.
+
+## Resolution
+
+- Added a name-lookup fallback when a `ws_` or `ws-` identifier misses as an ID.
+- Added resolver coverage proving `Resolve("ws_alpha")` succeeds for a workspace whose name starts with the ID prefix even when no workspace ID matches that string.
+- Verified with targeted package tests and `make verify`.

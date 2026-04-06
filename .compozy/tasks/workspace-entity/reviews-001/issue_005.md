@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/store/schema.go
 line: 253
 severity: high
@@ -26,5 +26,13 @@ The DB migration shows clear intent to preserve data, but the on-disk meta files
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: the global DB migration rewrites legacy `sessions.workspace` rows into `sessions.workspace_id`, but no equivalent rewrite is performed for on-disk `meta.json` files that still encode the legacy `workspace` path field. Current readers then reject those files because `workspace_id` is required.
+- Fix plan: extend the global schema migration flow to reconcile legacy session metadata files against the migrated workspace table and rewrite immediate-legacy `meta.json` files with the stable `workspace_id`.
+- Scope note: this may require limited supporting test changes outside `internal/store/schema.go`, but the production fix should stay rooted in the migration layer rather than adding a permanent workaround at the read boundary.
+
+## Resolution
+
+- Added post-schema reconciliation that scans sibling session directories, maps legacy `workspace` paths to migrated workspace IDs, and rewrites compatible legacy `meta.json` files with `workspace_id`.
+- Added an integration-style regression test covering legacy DB migration plus on-disk metadata rewrite.
+- Verified with targeted package tests and `make verify`.

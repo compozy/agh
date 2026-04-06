@@ -137,6 +137,36 @@ func TestResolveOrRegisterExistingWorkspace(t *testing.T) {
 	}
 }
 
+func TestResolveFallsBackToNameForWSLikeIdentifier(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	homePaths := newTestHomePaths(t)
+	root := t.TempDir()
+	ws := Workspace{ID: "ws_real", RootDir: mustCanonicalRoot(t, root), Name: "ws_alpha"}
+
+	store := newMockWorkspaceStore(ws)
+	loader := &countingConfigLoader{cfg: validConfig(homePaths)}
+	resolver := newTestResolver(t, store,
+		WithHomePaths(homePaths),
+		WithConfigLoader(loader.Load),
+	)
+
+	resolved, err := resolver.Resolve(ctx, "ws_alpha")
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if resolved.ID != ws.ID {
+		t.Fatalf("Resolve() ID = %q, want %q", resolved.ID, ws.ID)
+	}
+	if got := len(store.getWorkspaceCalls); got != 1 {
+		t.Fatalf("GetWorkspace() calls = %d, want 1", got)
+	}
+	if got := len(store.getByNameCalls); got != 1 {
+		t.Fatalf("GetWorkspaceByName() calls = %d, want 1", got)
+	}
+}
+
 func TestResolveOrRegisterAutoRegisterDedupesNameAndPrefixesID(t *testing.T) {
 	t.Parallel()
 

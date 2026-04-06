@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/httpapi/workspaces.go
 line: 107
 severity: high
@@ -21,5 +21,13 @@ The `SessionListQuery` in `store/global_db.go:324` already builds SQL where-clau
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `invalid`
+- Reasoning: the review comment’s proposed fix targets `store.GlobalDB.ListSessions`, but `httpapi.getWorkspace` does not read from the global SQLite session index. It calls `session.Manager.ListAll()`, which enumerates active sessions plus on-disk session metadata to preserve the API’s current source of truth, including workspace-path enrichment.
+- Reasoning: adding `WorkspaceID` to `store.SessionListQuery` would not change this handler’s behavior without a broader contract change across the session manager and both API servers. That broader redesign is not justified by a concrete correctness bug in this batch.
+- Follow-up note: if workspace-detail performance becomes a measured bottleneck, it should be addressed as a separate architectural change by introducing a dedicated session query surface rather than by patching an unused store query path.
+
+## Resolution
+
+- Marked invalid after confirming the current HTTP implementation does not use the store query path named in the review comment.
+- No production code change was made for this issue.
+- Final repository verification still passed with `make verify`.

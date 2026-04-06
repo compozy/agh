@@ -23,6 +23,7 @@ func TestWorkspaceErrorsMatchViaErrorsIs(t *testing.T) {
 		{name: "agent unavailable", sentinel: workspace.ErrAgentNotAvailable},
 		{name: "name taken", sentinel: workspace.ErrWorkspaceNameTaken},
 		{name: "path taken", sentinel: workspace.ErrWorkspacePathTaken},
+		{name: "has sessions", sentinel: workspace.ErrWorkspaceHasSessions},
 	}
 
 	for _, tt := range tests {
@@ -61,6 +62,11 @@ func TestWorkspaceErrorsAreDistinct(t *testing.T) {
 			left: workspace.ErrWorkspaceNameTaken,
 			want: workspace.ErrWorkspacePathTaken,
 		},
+		{
+			name: "path taken does not match has sessions",
+			left: workspace.ErrWorkspacePathTaken,
+			want: workspace.ErrWorkspaceHasSessions,
+		},
 	}
 
 	for _, tt := range tests {
@@ -71,6 +77,47 @@ func TestWorkspaceErrorsAreDistinct(t *testing.T) {
 			err := fmt.Errorf("wrapped: %w", tt.left)
 			if errors.Is(err, tt.want) {
 				t.Fatalf("errors.Is(%v, %v) = true, want false", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestUniqueWorkspaceName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		rootDir string
+		taken   map[string]struct{}
+		want    string
+	}{
+		{
+			name:    "uses base directory name",
+			rootDir: "/tmp/project",
+			taken:   map[string]struct{}{},
+			want:    "project",
+		},
+		{
+			name:    "deduplicates taken name",
+			rootDir: "/tmp/project",
+			taken:   map[string]struct{}{"project": {}},
+			want:    "project-2",
+		},
+		{
+			name:    "falls back for blankish path",
+			rootDir: " / ",
+			taken:   map[string]struct{}{"workspace": {}},
+			want:    "workspace-2",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := workspace.UniqueWorkspaceName(tt.rootDir, tt.taken); got != tt.want {
+				t.Fatalf("UniqueWorkspaceName(%q) = %q, want %q", tt.rootDir, got, tt.want)
 			}
 		})
 	}

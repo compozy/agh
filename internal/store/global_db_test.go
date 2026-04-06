@@ -188,6 +188,27 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 	}
 }
 
+func TestGlobalDBDeleteWorkspaceReturnsHasSessionsWhenReferenced(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "workspace-delete-guard", filepath.Join(t.TempDir(), "workspace-delete-guard"))
+	if err := globalDB.RegisterSession(testContext(t), SessionInfo{
+		ID:          "sess-delete-guard",
+		AgentName:   "coder",
+		WorkspaceID: workspaceID,
+		State:       "active",
+		CreatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("RegisterSession() error = %v", err)
+	}
+
+	if err := globalDB.DeleteWorkspace(testContext(t), workspaceID); !errors.Is(err, aghworkspace.ErrWorkspaceHasSessions) {
+		t.Fatalf("DeleteWorkspace() error = %v, want ErrWorkspaceHasSessions", err)
+	}
+}
+
 func TestGlobalDBWorkspaceConstraintViolations(t *testing.T) {
 	t.Parallel()
 
@@ -639,6 +660,100 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 	}
 	if got, want := len(summaries), 1; got != want {
 		t.Fatalf("len(summaries) = %d, want %d", got, want)
+	}
+}
+
+func TestOpenGlobalDBRewritesLegacySessionMetaWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	ctx := testContext(t)
+	homeDir := t.TempDir()
+	path := filepath.Join(homeDir, GlobalDatabaseName)
+
+	db, err := openSQLiteDatabase(ctx, path, nil)
+	if err != nil {
+		t.Fatalf("openSQLiteDatabase() error = %v", err)
+	}
+
+	rootDir := filepath.Join(homeDir, "workspace")
+	if err := os.MkdirAll(rootDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(rootDir) error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE TABLE sessions (
+		id TEXT PRIMARY KEY,
+		name TEXT,
+		agent_name TEXT NOT NULL,
+		workspace TEXT NOT NULL,
+		session_type TEXT NOT NULL DEFAULT 'user',
+		state TEXT NOT NULL,
+		acp_session_id TEXT,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create legacy sessions error = %v", err)
+	}
+	createdAt := formatTimestamp(time.Date(2026, 4, 3, 15, 0, 0, 0, time.UTC))
+	if _, err := db.ExecContext(ctx, `INSERT INTO sessions (id, name, agent_name, workspace, session_type, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"sess-meta-legacy", "Legacy", "coder", rootDir, "user", "stopped", createdAt, createdAt,
+	); err != nil {
+		t.Fatalf("insert legacy session error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(legacy db) error = %v", err)
+	}
+
+	sessionDir := filepath.Join(homeDir, "sessions", "sess-meta-legacy")
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(sessionDir) error = %v", err)
+	}
+	metaPath := SessionMetaFile(sessionDir)
+	legacyMeta := `{
+  "id": "sess-meta-legacy",
+  "name": "Legacy",
+  "agent_name": "coder",
+  "workspace": "` + rootDir + `",
+  "session_type": "user",
+  "state": "stopped",
+  "created_at": "2026-04-03T15:00:00Z",
+  "updated_at": "2026-04-03T15:00:00Z"
+}
+`
+	if err := os.WriteFile(metaPath, []byte(legacyMeta), 0o644); err != nil {
+		t.Fatalf("WriteFile(legacy meta) error = %v", err)
+	}
+
+	globalDB, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := globalDB.Close(testContext(t)); closeErr != nil {
+			t.Fatalf("Close() error = %v", closeErr)
+		}
+	})
+
+	sessions, err := globalDB.ListSessions(ctx, SessionListQuery{})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if got, want := len(sessions), 1; got != want {
+		t.Fatalf("len(sessions) = %d, want %d", got, want)
+	}
+
+	meta, err := ReadSessionMeta(metaPath)
+	if err != nil {
+		t.Fatalf("ReadSessionMeta() error = %v", err)
+	}
+	if got, want := meta.WorkspaceID, sessions[0].WorkspaceID; got != want {
+		t.Fatalf("meta.WorkspaceID = %q, want %q", got, want)
+	}
+
+	data, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("ReadFile(metaPath) error = %v", err)
+	}
+	if strings.Contains(string(data), `"workspace":`) {
+		t.Fatalf("legacy workspace field still present in %s", metaPath)
 	}
 }
 

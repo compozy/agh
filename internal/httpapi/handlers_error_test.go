@@ -129,6 +129,24 @@ func TestWorkspaceHandlersReturnExpectedErrors(t *testing.T) {
 	}
 }
 
+func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasSessions(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	workspaces := stubWorkspaceService{
+		getFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
+		},
+		unregisterFn: func(context.Context, string) error {
+			return workspacepkg.ErrWorkspaceHasSessions
+		},
+	}
+	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
+
+	resp := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if resp.Code != http.StatusConflict {
+		t.Fatalf("delete workspace status = %d, want %d", resp.Code, http.StatusConflict)
+	}
+}
+
 func TestCreateSessionHandlerMapsWorkspaceErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{

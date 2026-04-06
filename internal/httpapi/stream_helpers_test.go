@@ -214,6 +214,9 @@ func TestPayloadAndStatusHelpersCoverRemainingBranches(t *testing.T) {
 	if status := statusForWorkspaceError(workspacepkg.ErrWorkspacePathTaken); status != http.StatusConflict {
 		t.Fatalf("statusForWorkspaceError(ErrWorkspacePathTaken) = %d, want %d", status, http.StatusConflict)
 	}
+	if status := statusForWorkspaceError(workspacepkg.ErrWorkspaceHasSessions); status != http.StatusConflict {
+		t.Fatalf("statusForWorkspaceError(ErrWorkspaceHasSessions) = %d, want %d", status, http.StatusConflict)
+	}
 	if status := statusForSessionError(errors.New("boom")); status != http.StatusInternalServerError {
 		t.Fatalf("statusForSessionError(default) = %d, want %d", status, http.StatusInternalServerError)
 	}

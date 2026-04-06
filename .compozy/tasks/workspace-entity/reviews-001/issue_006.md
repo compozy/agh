@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/observe/observer.go
 line: 362
 severity: medium
@@ -25,5 +25,12 @@ resolved, err := resolver.Resolve(ctx, workspaceID)
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `defaultPermissionModeResolver()` resolves workspace config from the workspace root, but then reloads the agent definition only from the global home directory. That bypasses the already-merged `ResolvedWorkspace.Agents` set, so workspace-local agent overrides are ignored in permission audit records.
+- Fix plan: when a workspace ID is present, resolve the workspace once and select the effective agent definition from `ResolvedWorkspace.Agents`; only the no-workspace case should continue using the global home lookup.
+
+## Resolution
+
+- Updated the observer permission resolver to source agent definitions from `ResolvedWorkspace.Agents` whenever a workspace ID is present.
+- Added regression coverage proving workspace-local agent definitions win over the global home copy for permission logging.
+- Verified with targeted package tests and `make verify`.

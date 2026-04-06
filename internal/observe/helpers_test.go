@@ -67,6 +67,7 @@ func TestDefaultPermissionModeResolverUsesConfigAndAgent(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(agentDir, "AGENT.md"), []byte(`---
 name: coder
 provider: codex
+permissions: deny-all
 ---
 
 You write reliable code.
@@ -98,12 +99,33 @@ mode = "approve-all"
 		t.Fatalf("WriteFile(workspace config) error = %v", err)
 	}
 
+	workspaceAgentDir := filepath.Join(workspaceConfigDir, aghconfig.AgentsDirName, "coder")
+	if err := os.MkdirAll(workspaceAgentDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workspace agent) error = %v", err)
+	}
+	workspaceAgentPath := filepath.Join(workspaceAgentDir, "AGENT.md")
+	if err := os.WriteFile(workspaceAgentPath, []byte(`---
+name: coder
+provider: codex
+permissions: approve-all
+---
+
+You write reliable code locally.
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(workspace agent) error = %v", err)
+	}
+	workspaceAgent, err := aghconfig.LoadAgentDefFile(workspaceAgentPath)
+	if err != nil {
+		t.Fatalf("LoadAgentDefFile(workspace agent) error = %v", err)
+	}
+
 	resolver := defaultPermissionModeResolver(home, fakeObserveWorkspaceResolver{
 		resolved: workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{
 				ID:      "ws-observe",
 				RootDir: workspace,
 			},
+			Agents: []aghconfig.AgentDef{workspaceAgent},
 		},
 	})
 	got, err := resolver(testContext(t), "coder", "ws-observe")
@@ -141,10 +163,83 @@ command = "codex"
 				ID:      "ws-observe",
 				RootDir: workspace,
 			},
+			Agents: nil,
 		},
 	})
 	if _, err := resolver(testContext(t), "missing", "ws-observe"); err == nil {
 		t.Fatal("resolver(missing agent) error = nil, want non-nil")
+	}
+}
+
+func TestDefaultPermissionModeResolverUsesWorkspaceResolvedAgentDef(t *testing.T) {
+	t.Parallel()
+
+	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := aghconfig.EnsureHomeLayout(home); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	globalAgentDir := filepath.Join(home.AgentsDir, "coder")
+	if err := os.MkdirAll(globalAgentDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(global agent) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(globalAgentDir, "AGENT.md"), []byte(`---
+name: coder
+provider: codex
+permissions: deny-all
+---
+
+Global agent.
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(global agent) error = %v", err)
+	}
+	if err := os.WriteFile(home.ConfigFile, []byte(`
+[providers.codex]
+command = "codex"
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(global config) error = %v", err)
+	}
+
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	workspaceAgentDir := filepath.Join(workspace, aghconfig.DirName, aghconfig.AgentsDirName, "coder")
+	if err := os.MkdirAll(workspaceAgentDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workspace agent) error = %v", err)
+	}
+	workspaceAgentPath := filepath.Join(workspaceAgentDir, "AGENT.md")
+	if err := os.WriteFile(workspaceAgentPath, []byte(`---
+name: coder
+provider: codex
+permissions: approve-all
+---
+
+Workspace agent.
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(workspace agent) error = %v", err)
+	}
+	workspaceAgent, err := aghconfig.LoadAgentDefFile(workspaceAgentPath)
+	if err != nil {
+		t.Fatalf("LoadAgentDefFile(workspace agent) error = %v", err)
+	}
+
+	resolver := defaultPermissionModeResolver(home, fakeObserveWorkspaceResolver{
+		resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:      "ws-observe",
+				RootDir: workspace,
+			},
+			Agents: []aghconfig.AgentDef{workspaceAgent},
+		},
+	})
+
+	got, err := resolver(testContext(t), "coder", "ws-observe")
+	if err != nil {
+		t.Fatalf("resolver() error = %v", err)
+	}
+	if got != "approve-all" {
+		t.Fatalf("resolver() = %q, want approve-all", got)
 	}
 }
 

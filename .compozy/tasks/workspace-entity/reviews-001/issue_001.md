@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/httpapi/workspaces.go
 line: 170
 severity: high
@@ -26,5 +26,13 @@ Then handle it in `statusForWorkspaceError` to return 409.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: workspace deletion flows through `workspace.Resolver.Unregister()` into `store.GlobalDB.DeleteWorkspace()`, which returns the raw SQLite foreign-key error when `sessions.workspace_id` still references the workspace. That raw error is not mapped to a workspace-domain sentinel, so the HTTP transport falls through to a 500.
+- Fix plan: add a dedicated workspace sentinel for "workspace has sessions", map SQLite FK violations to it in the store delete path, and map that sentinel to HTTP 409 conflict.
+- Scope note: this needs minimal supporting edits outside the four primary batch files in `internal/store/global_db.go`, `internal/apisupport/session_workspace.go`, and related tests because the root cause lives below the handler.
+
+## Resolution
+
+- Added `workspace.ErrWorkspaceHasSessions`, mapped SQLite foreign-key failures to it in the global store delete path, and mapped the sentinel to HTTP `409 Conflict`.
+- Added regression coverage for the store delete path and the HTTP delete handler.
+- Verified with `go test ./internal/workspace ./internal/store ./internal/observe ./internal/httpapi` and `make verify`.

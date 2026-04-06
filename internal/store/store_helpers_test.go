@@ -454,6 +454,9 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 	if got := mapWorkspaceConstraintError(errors.New("UNIQUE constraint failed: workspaces.name")); !errors.Is(got, aghworkspace.ErrWorkspaceNameTaken) {
 		t.Fatalf("mapWorkspaceConstraintError(name) = %v, want ErrWorkspaceNameTaken", got)
 	}
+	if got := mapWorkspaceConstraintError(errors.New("FOREIGN KEY constraint failed")); !errors.Is(got, aghworkspace.ErrWorkspaceHasSessions) {
+		t.Fatalf("mapWorkspaceConstraintError(fk) = %v, want ErrWorkspaceHasSessions", got)
+	}
 	rawErr := errors.New("boom")
 	if got := mapWorkspaceConstraintError(rawErr); !errors.Is(got, rawErr) {
 		t.Fatalf("mapWorkspaceConstraintError(raw) = %v, want raw error", got)
@@ -500,6 +503,9 @@ func TestWorkspaceSchemaHelpers(t *testing.T) {
 			t.Fatalf("tableColumns(workspaces) missing %q: %#v", column, columns)
 		}
 	}
+	if _, err := tableColumns(ctx, globalDB.db, "workspaces; DROP TABLE sessions"); err == nil {
+		t.Fatal("tableColumns(invalid identifier) error = nil, want non-nil")
+	}
 
 	rootDir := filepath.Join(t.TempDir(), "workspace-helper")
 	if err := os.MkdirAll(rootDir, 0o755); err != nil {
@@ -533,8 +539,11 @@ func TestWorkspaceSchemaHelpers(t *testing.T) {
 		t.Fatalf("loadWorkspaceNames() missing workspace-helper: %#v", names)
 	}
 
-	if got := uniqueWorkspaceName(rootDir, map[string]struct{}{"workspace-helper": {}}); got != "workspace-helper-2" {
-		t.Fatalf("uniqueWorkspaceName() = %q, want workspace-helper-2", got)
+	if got := aghworkspace.UniqueWorkspaceName(rootDir, map[string]struct{}{"workspace-helper": {}}); got != "workspace-helper-2" {
+		t.Fatalf("UniqueWorkspaceName() = %q, want workspace-helper-2", got)
+	}
+	if got := sessionsDirForDatabasePath(filepath.Join(t.TempDir(), "agh.db")); got == "" || filepath.Base(got) != "sessions" {
+		t.Fatalf("sessionsDirForDatabasePath() = %q, want .../sessions", got)
 	}
 }
 

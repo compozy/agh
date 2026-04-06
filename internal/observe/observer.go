@@ -339,11 +339,16 @@ func defaultPermissionModeResolver(homePaths aghconfig.HomePaths, resolver works
 		}
 
 		var (
-			cfg aghconfig.Config
-			err error
+			cfg      aghconfig.Config
+			agentDef aghconfig.AgentDef
+			err      error
 		)
 		if strings.TrimSpace(workspaceID) == "" {
 			cfg, err = aghconfig.LoadForHome(homePaths)
+			if err != nil {
+				return "", fmt.Errorf("load config: %w", err)
+			}
+			agentDef, err = aghconfig.LoadAgentDef(agentName, homePaths)
 		} else {
 			if resolver == nil {
 				return "", errors.New("observe: workspace resolver is required")
@@ -354,12 +359,11 @@ func defaultPermissionModeResolver(homePaths aghconfig.HomePaths, resolver works
 				return "", fmt.Errorf("resolve workspace %q: %w", workspaceID, resolveErr)
 			}
 			cfg, err = aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(resolvedWorkspace.RootDir))
+			if err != nil {
+				return "", fmt.Errorf("load config: %w", err)
+			}
+			agentDef, err = agentDefByName(resolvedWorkspace.Agents, agentName)
 		}
-		if err != nil {
-			return "", fmt.Errorf("load config: %w", err)
-		}
-
-		agentDef, err := aghconfig.LoadAgentDef(agentName, homePaths)
 		if err != nil {
 			return "", fmt.Errorf("load agent %q: %w", agentName, err)
 		}
@@ -371,6 +375,21 @@ func defaultPermissionModeResolver(homePaths aghconfig.HomePaths, resolver works
 
 		return strings.TrimSpace(resolved.Permissions), nil
 	}
+}
+
+func agentDefByName(agents []aghconfig.AgentDef, name string) (aghconfig.AgentDef, error) {
+	target := strings.TrimSpace(name)
+	if target == "" {
+		return aghconfig.AgentDef{}, errors.New("agent name is required")
+	}
+
+	for _, agent := range agents {
+		if strings.TrimSpace(agent.Name) == target {
+			return agent, nil
+		}
+	}
+
+	return aghconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
 }
 
 func sessionInfoFromSession(info *session.SessionInfo) store.SessionInfo {

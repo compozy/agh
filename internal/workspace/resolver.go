@@ -435,7 +435,7 @@ func (r *Resolver) nextWorkspaceName(ctx context.Context, rootDir string) (strin
 		}
 	}
 
-	return uniqueWorkspaceName(rootDir, taken), nil
+	return UniqueWorkspaceName(rootDir, taken), nil
 }
 
 func (r *Resolver) lookupWorkspace(ctx context.Context, idOrNameOrPath string) (Workspace, error) {
@@ -447,8 +447,15 @@ func (r *Resolver) lookupWorkspace(ctx context.Context, idOrNameOrPath string) (
 	switch {
 	case strings.HasPrefix(target, "ws_"), strings.HasPrefix(target, "ws-"):
 		ws, err := r.store.GetWorkspace(ctx, target)
-		if err != nil {
+		switch {
+		case err == nil:
+			return ws, nil
+		case !errors.Is(err, ErrWorkspaceNotFound):
 			return Workspace{}, fmt.Errorf("workspace: lookup workspace %q: %w", target, err)
+		}
+		ws, err = r.store.GetWorkspaceByName(ctx, target)
+		if err != nil {
+			return Workspace{}, fmt.Errorf("workspace: lookup workspace %q by name fallback: %w", target, err)
 		}
 		return ws, nil
 	case filepath.IsAbs(target):
@@ -1011,22 +1018,6 @@ func cloneStringMap(src map[string]string) map[string]string {
 		cloned[key] = value
 	}
 	return cloned
-}
-
-func uniqueWorkspaceName(rootDir string, taken map[string]struct{}) string {
-	baseName := filepath.Base(filepath.Clean(strings.TrimSpace(rootDir)))
-	switch baseName {
-	case "", ".", string(filepath.Separator):
-		baseName = "workspace"
-	}
-
-	candidate := baseName
-	for suffix := 2; ; suffix++ {
-		if _, ok := taken[candidate]; !ok {
-			return candidate
-		}
-		candidate = fmt.Sprintf("%s-%d", baseName, suffix)
-	}
 }
 
 func checkContext(ctx context.Context) error {

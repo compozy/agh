@@ -140,7 +140,7 @@ func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) error {
 
 	result, err := g.db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, trimmedID)
 	if err != nil {
-		return fmt.Errorf("store: delete workspace %q: %w", trimmedID, err)
+		return fmt.Errorf("store: delete workspace %q: %w", trimmedID, mapWorkspaceConstraintError(err))
 	}
 
 	affected, err := result.RowsAffected()
@@ -1091,6 +1091,8 @@ func mapWorkspaceConstraintError(err error) error {
 		return aghworkspace.ErrWorkspacePathTaken
 	case strings.Contains(message, "unique constraint failed: workspaces.name"):
 		return aghworkspace.ErrWorkspaceNameTaken
+	case strings.Contains(message, "foreign key constraint failed"):
+		return aghworkspace.ErrWorkspaceHasSessions
 	default:
 		return err
 	}

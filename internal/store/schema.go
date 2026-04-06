@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -13,6 +14,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
 var sessionSchemaStatements = []string{
@@ -117,7 +120,10 @@ func openGlobalSQLite(ctx context.Context, path string) (*sql.DB, error) {
 		if err := migrateGlobalSchema(ctx, db); err != nil {
 			return err
 		}
-		return ensureSchema(ctx, db, globalSchemaStatements)
+		if err := ensureSchema(ctx, db, globalSchemaStatements); err != nil {
+			return err
+		}
+		return reconcileLegacySessionMetaWorkspaceIDs(ctx, db, sessionsDirForDatabasePath(path))
 	})
 }
 
@@ -248,6 +254,19 @@ type legacyWorkspaceSeed struct {
 	rootDir   string
 	createdAt string
 	updatedAt string
+}
+
+type legacySessionMetaCompat struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name,omitempty"`
+	AgentName    string    `json:"agent_name"`
+	Workspace    string    `json:"workspace,omitempty"`
+	WorkspaceID  string    `json:"workspace_id,omitempty"`
+	SessionType  string    `json:"session_type,omitempty"`
+	State        string    `json:"state"`
+	ACPSessionID *string   `json:"acp_session_id,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
@@ -405,7 +424,7 @@ func ensureMigratedWorkspaces(ctx context.Context, tx *sql.Tx, seeds map[string]
 		}
 
 		seed := seeds[rootDir]
-		name := uniqueWorkspaceName(rootDir, takenNames)
+		name := aghworkspace.UniqueWorkspaceName(rootDir, takenNames)
 		workspaceID := newID("ws")
 		if _, err := tx.ExecContext(
 			ctx,
@@ -623,7 +642,12 @@ func tableExists(ctx context.Context, exec sqlQueryExecutor, table string) (bool
 }
 
 func tableColumns(ctx context.Context, exec sqlQueryExecutor, table string) (map[string]struct{}, error) {
-	rows, err := exec.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", strings.TrimSpace(table)))
+	name, err := normalizeSQLiteIdentifier(table)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := exec.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", name))
 	if err != nil {
 		return nil, fmt.Errorf("store: query table info for %q: %w", table, err)
 	}
@@ -653,20 +677,24 @@ func tableColumns(ctx context.Context, exec sqlQueryExecutor, table string) (map
 	return columns, nil
 }
 
-func uniqueWorkspaceName(rootDir string, taken map[string]struct{}) string {
-	baseName := filepath.Base(filepath.Clean(strings.TrimSpace(rootDir)))
-	switch baseName {
-	case "", ".", string(filepath.Separator):
-		baseName = "workspace"
+func normalizeSQLiteIdentifier(value string) (string, error) {
+	name := strings.TrimSpace(value)
+	if name == "" {
+		return "", errors.New("store: sqlite identifier is required")
 	}
 
-	candidate := baseName
-	for suffix := 2; ; suffix++ {
-		if _, ok := taken[candidate]; !ok {
-			return candidate
+	for idx, r := range name {
+		switch {
+		case r == '_':
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case idx > 0 && r >= '0' && r <= '9':
+		default:
+			return "", fmt.Errorf("store: invalid sqlite identifier %q", value)
 		}
-		candidate = fmt.Sprintf("%s-%d", baseName, suffix)
 	}
+
+	return name, nil
 }
 
 func coalesceTimestamp(value string) string {
@@ -686,6 +714,112 @@ func nullStringValue(value sql.NullString) any {
 		return nil
 	}
 	return trimmed
+}
+
+func sessionsDirForDatabasePath(path string) string {
+	cleanPath := strings.TrimSpace(path)
+	if cleanPath == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(cleanPath), "sessions")
+}
+
+func reconcileLegacySessionMetaWorkspaceIDs(ctx context.Context, exec sqlQueryExecutor, sessionsDir string) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("store: reconcile session metadata workspace ids canceled: %w", err)
+	}
+
+	rootToID, err := loadWorkspaceIDsByRootDir(ctx, exec)
+	if err != nil {
+		return err
+	}
+	if len(rootToID) == 0 {
+		return nil
+	}
+
+	cleanDir := strings.TrimSpace(sessionsDir)
+	if cleanDir == "" {
+		return nil
+	}
+
+	entries, err := os.ReadDir(cleanDir)
+	switch {
+	case err == nil:
+	case errors.Is(err, os.ErrNotExist):
+		return nil
+	default:
+		return fmt.Errorf("store: read sessions directory %q for workspace id reconciliation: %w", cleanDir, err)
+	}
+
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("store: reconcile session metadata workspace ids canceled: %w", err)
+		}
+		if !entry.IsDir() {
+			continue
+		}
+
+		metaPath := SessionMetaFile(filepath.Join(cleanDir, entry.Name()))
+		needsRewrite, meta, err := loadReconciledLegacySessionMeta(metaPath, rootToID)
+		if err != nil {
+			return err
+		}
+		if !needsRewrite {
+			continue
+		}
+		if err := WriteSessionMeta(metaPath, meta); err != nil {
+			return fmt.Errorf("store: rewrite legacy session meta %q: %w", metaPath, err)
+		}
+	}
+
+	return nil
+}
+
+func loadReconciledLegacySessionMeta(path string, rootToID map[string]string) (bool, SessionMeta, error) {
+	data, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+	case errors.Is(err, os.ErrNotExist):
+		return false, SessionMeta{}, nil
+	default:
+		return false, SessionMeta{}, fmt.Errorf("store: read session meta %q for workspace id reconciliation: %w", path, err)
+	}
+
+	var raw legacySessionMetaCompat
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return false, SessionMeta{}, nil
+	}
+
+	if strings.TrimSpace(raw.WorkspaceID) != "" {
+		return false, SessionMeta{}, nil
+	}
+
+	workspaceRoot := strings.TrimSpace(raw.Workspace)
+	if workspaceRoot == "" {
+		return false, SessionMeta{}, nil
+	}
+
+	workspaceID, ok := rootToID[workspaceRoot]
+	if !ok {
+		return false, SessionMeta{}, nil
+	}
+
+	meta := SessionMeta{
+		ID:           raw.ID,
+		Name:         raw.Name,
+		AgentName:    raw.AgentName,
+		WorkspaceID:  workspaceID,
+		SessionType:  raw.SessionType,
+		State:        raw.State,
+		ACPSessionID: raw.ACPSessionID,
+		CreatedAt:    raw.CreatedAt,
+		UpdatedAt:    raw.UpdatedAt,
+	}
+	if err := meta.Validate(); err != nil {
+		return false, SessionMeta{}, nil
+	}
+
+	return true, meta, nil
 }
 
 func checkpoint(ctx context.Context, db *sql.DB) error {

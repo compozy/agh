@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/store/schema.go
 line: 656
 severity: medium
@@ -24,5 +24,12 @@ Having two identical functions risks them diverging silently (e.g., if the namin
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `uniqueWorkspaceName` is duplicated verbatim in `internal/workspace/resolver.go` and `internal/store/schema.go`. The migration path and runtime registration path therefore rely on separate copies of the same naming rule.
+- Fix plan: extract the helper into the `workspace` package as a shared exported function and switch both call sites to the shared implementation so migration and runtime registration stay consistent.
+
+## Resolution
+
+- Extracted the naming algorithm into `workspace.UniqueWorkspaceName(...)` and switched both the resolver and the schema migration flow to the shared helper.
+- Added direct helper coverage in the workspace test suite and updated store helper coverage to use the shared function.
+- Verified with targeted package tests and `make verify`.
