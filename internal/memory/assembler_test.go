@@ -124,6 +124,78 @@ func TestAssemblerAssemble(t *testing.T) {
 	})
 }
 
+func TestAssemblerPromptSection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns memory block for global and workspace indexes only", func(t *testing.T) {
+		t.Parallel()
+
+		env := newAssemblerTestEnv(t)
+		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+		env.writeWorkspaceIndex(t, "- [Workspace](workspace.md) - workspace note")
+
+		got := env.promptSection(t, context.Background())
+		want := strings.Join([]string{
+			memoryPromptIntro,
+			"## Global MEMORY.md Index\n\n- [Global](global.md) - global note",
+			"## Workspace MEMORY.md Index\n\n- [Workspace](workspace.md) - workspace note",
+			memoryTaxonomySection,
+			memoryCommandsSection,
+			memoryStalenessSection,
+		}, "\n\n")
+
+		if got != want {
+			t.Fatalf("PromptSection() mismatch\nwant:\n%s\n\ngot:\n%s", want, got)
+		}
+		if strings.Contains(got, strings.TrimSpace(env.agent.Prompt)) {
+			t.Fatalf("PromptSection() unexpectedly included base prompt: %q", got)
+		}
+	})
+
+	t.Run("returns empty string when indexes are missing", func(t *testing.T) {
+		t.Parallel()
+
+		env := newAssemblerTestEnv(t)
+
+		got := env.promptSection(t, context.Background())
+		if got != "" {
+			t.Fatalf("PromptSection() = %q, want empty string", got)
+		}
+	})
+
+	t.Run("respects context cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		env := newAssemblerTestEnv(t)
+		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := env.assembler.PromptSection(ctx, env.workspace)
+		if err != context.Canceled {
+			t.Fatalf("PromptSection() error = %v, want %v", err, context.Canceled)
+		}
+	})
+}
+
+func TestAssemblerAssembleRegressionMatchesPromptSectionAndBasePrompt(t *testing.T) {
+	t.Parallel()
+
+	env := newAssemblerTestEnv(t)
+	env.agent.Prompt = "  You are a coding assistant.\n"
+	env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+	env.writeWorkspaceIndex(t, "- [Workspace](workspace.md) - workspace note")
+
+	section := env.promptSection(t, context.Background())
+	got := env.assemble(t)
+	want := section + "\n\n" + strings.TrimSpace(env.agent.Prompt)
+
+	if got != want {
+		t.Fatalf("Assemble() regression mismatch\nwant:\n%s\n\ngot:\n%s", want, got)
+	}
+}
+
 type assemblerTestEnv struct {
 	store     *Store
 	assembler *Assembler
@@ -163,6 +235,16 @@ func (e assemblerTestEnv) assemble(t *testing.T) string {
 	got, err := e.assembler.Assemble(context.Background(), e.agent, e.workspace)
 	if err != nil {
 		t.Fatalf("Assembler.Assemble() error = %v", err)
+	}
+	return got
+}
+
+func (e assemblerTestEnv) promptSection(t *testing.T, ctx context.Context) string {
+	t.Helper()
+
+	got, err := e.assembler.PromptSection(ctx, e.workspace)
+	if err != nil {
+		t.Fatalf("Assembler.PromptSection() error = %v", err)
 	}
 	return got
 }
