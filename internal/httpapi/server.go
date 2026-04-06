@@ -44,6 +44,7 @@ type SessionManager interface {
 	Status(ctx context.Context, id string) (*session.SessionInfo, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
+	Transcript(ctx context.Context, id string) ([]session.TranscriptMessage, error)
 	Stop(ctx context.Context, id string) error
 	Resume(ctx context.Context, id string) (*session.Session, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
@@ -453,6 +454,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		sessions.POST("/:id/prompt", handlers.promptSession)
 		sessions.GET("/:id/events", handlers.sessionEvents)
 		sessions.GET("/:id/history", handlers.sessionHistory)
+		sessions.GET("/:id/transcript", handlers.sessionTranscript)
 		sessions.GET("/:id/stream", handlers.streamSession)
 		sessions.POST("/:id/approve", handlers.approveSession)
 	}

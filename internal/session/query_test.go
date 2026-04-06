@@ -162,8 +162,8 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Events(active) error = %v", err)
 	}
-	if len(activeEvents) != 2 {
-		t.Fatalf("Events(active) = %d events, want 2", len(activeEvents))
+	if len(activeEvents) != 3 {
+		t.Fatalf("Events(active) = %d events, want 3", len(activeEvents))
 	}
 	activeHistory, err := h.manager.History(testContext(t), session.ID, store.EventQuery{})
 	if err != nil {

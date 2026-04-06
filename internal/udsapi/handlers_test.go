@@ -41,6 +41,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/sessions/:id",
 		"GET /api/sessions/:id/events",
 		"GET /api/sessions/:id/history",
+		"GET /api/sessions/:id/transcript",
 		"GET /api/sessions/:id/stream",
 		"POST /api/memory/consolidate",
 		"POST /api/sessions",
@@ -292,6 +293,38 @@ func TestSessionHistoryHandlerReturnsTurns(t *testing.T) {
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.History) != 1 || response.History[0].TurnID != "turn-1" {
 		t.Fatalf("history = %#v", response.History)
+	}
+}
+
+func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	manager := stubSessionManager{
+		transcriptFn: func(context.Context, string) ([]session.TranscriptMessage, error) {
+			return []session.TranscriptMessage{{
+				ID:        "msg-1",
+				Role:      session.TranscriptRoleAssistant,
+				Content:   "hello",
+				Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			}}, nil
+		},
+	}
+	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions/sess-123/transcript", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response struct {
+		Messages []session.TranscriptMessage `json:"messages"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if len(response.Messages) != 1 {
+		t.Fatalf("len(messages) = %d, want 1", len(response.Messages))
+	}
+	if got := response.Messages[0].Content; got != "hello" {
+		t.Fatalf("messages[0].Content = %q, want %q", got, "hello")
 	}
 }
 

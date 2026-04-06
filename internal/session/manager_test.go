@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -118,30 +119,6 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 	}
 }
 
-func TestResumeFallbackUpdatesACPSessionID(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	session := createSession(t, h)
-
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	h.driver.fallbackOnResume = true
-	resumed, err := h.manager.Resume(testContext(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), resumed.ID)
-	})
-
-	if got, want := resumed.Info().ACPSessionID, "acp-new-2"; got != want {
-		t.Fatalf("resumed ACPSessionID = %q, want %q", got, want)
-	}
-}
-
 func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	t.Parallel()
 
@@ -170,11 +147,54 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
-	if len(stored) != 2 {
-		t.Fatalf("stored events = %d, want 2", len(stored))
+	if len(stored) != 3 {
+		t.Fatalf("stored events = %d, want 3", len(stored))
 	}
-	if got := h.notifier.eventCount(session.ID); got != 2 {
-		t.Fatalf("notifier events = %d, want 2", got)
+	if got := stored[0].Type; got != acp.EventTypeUserMessage {
+		t.Fatalf("first stored event type = %q, want %q", got, acp.EventTypeUserMessage)
+	}
+	if got := h.notifier.eventCount(session.ID); got != 3 {
+		t.Fatalf("notifier events = %d, want 3", got)
+	}
+}
+
+func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testContext(t), session.ID)
+	})
+
+	var storedBeforePrompt []store.SessionEvent
+	h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		events, err := session.recorderHandle().Query(testContext(t), store.EventQuery{})
+		if err != nil {
+			return nil, err
+		}
+		storedBeforePrompt = events
+
+		ch := make(chan acp.AgentEvent)
+		close(ch)
+		return ch, nil
+	}
+
+	eventsCh, err := h.manager.Prompt(testContext(t), session.ID, "remember me")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	for range eventsCh {
+	}
+
+	if len(storedBeforePrompt) != 1 {
+		t.Fatalf("storedBeforePrompt = %d events, want 1", len(storedBeforePrompt))
+	}
+	if got := storedBeforePrompt[0].Type; got != acp.EventTypeUserMessage {
+		t.Fatalf("storedBeforePrompt[0].Type = %q, want %q", got, acp.EventTypeUserMessage)
+	}
+	if !strings.Contains(storedBeforePrompt[0].Content, `"text":"remember me"`) {
+		t.Fatalf("stored user_message content = %s", storedBeforePrompt[0].Content)
 	}
 }
 

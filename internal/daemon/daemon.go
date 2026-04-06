@@ -53,6 +53,7 @@ type SessionManager interface {
 	Status(ctx context.Context, id string) (*session.SessionInfo, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
+	Transcript(ctx context.Context, id string) ([]session.TranscriptMessage, error)
 	Stop(ctx context.Context, id string) error
 	Resume(ctx context.Context, id string) (*session.Session, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)

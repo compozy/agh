@@ -27,16 +27,17 @@ import (
 )
 
 type stubSessionManager struct {
-	createFn  func(context.Context, session.CreateOpts) (*session.Session, error)
-	listFn    func() []*session.SessionInfo
-	listAllFn func(context.Context) ([]*session.SessionInfo, error)
-	statusFn  func(context.Context, string) (*session.SessionInfo, error)
-	eventsFn  func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
-	historyFn func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	stopFn    func(context.Context, string) error
-	resumeFn  func(context.Context, string) (*session.Session, error)
-	promptFn  func(context.Context, string, string) (<-chan acp.AgentEvent, error)
-	approveFn func(context.Context, string, acp.ApproveRequest) error
+	createFn     func(context.Context, session.CreateOpts) (*session.Session, error)
+	listFn       func() []*session.SessionInfo
+	listAllFn    func(context.Context) ([]*session.SessionInfo, error)
+	statusFn     func(context.Context, string) (*session.SessionInfo, error)
+	eventsFn     func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	historyFn    func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
+	transcriptFn func(context.Context, string) ([]session.TranscriptMessage, error)
+	stopFn       func(context.Context, string) error
+	resumeFn     func(context.Context, string) (*session.Session, error)
+	promptFn     func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	approveFn    func(context.Context, string, acp.ApproveRequest) error
 }
 
 func (s stubSessionManager) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -81,6 +82,13 @@ func (s stubSessionManager) Events(ctx context.Context, id string, query store.E
 func (s stubSessionManager) History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error) {
 	if s.historyFn != nil {
 		return s.historyFn(ctx, id, query)
+	}
+	return nil, nil
+}
+
+func (s stubSessionManager) Transcript(ctx context.Context, id string) ([]session.TranscriptMessage, error) {
+	if s.transcriptFn != nil {
+		return s.transcriptFn(ctx, id)
 	}
 	return nil, nil
 }

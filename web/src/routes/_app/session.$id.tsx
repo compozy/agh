@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { useSession } from "@/systems/session/hooks/use-sessions";
 import { useSessionChat } from "@/systems/session/hooks/use-session-chat";
-import { useSessionHistory } from "@/systems/session/hooks/use-session-history";
+import { useSessionTranscript } from "@/systems/session/hooks/use-session-transcript";
 import { useSessionStore } from "@/systems/session/stores/session-store";
 import { useStopSession, useResumeSession } from "@/systems/session/hooks/use-session-actions";
 import { ChatHeader } from "@/systems/session/components/chat-header";
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_app/session/$id")({
 function SessionPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
-  const prevIdRef = useRef<string | null>(null);
+  const hydratedSessionIdRef = useRef<string | null>(null);
 
   const { data: session, isLoading, error } = useSession(id);
   const messages = useSessionStore(s => s.messages);
@@ -28,24 +28,35 @@ function SessionPage() {
   const pendingPermission = useSessionStore(s => s.pendingPermission);
   const activeSessionId = useSessionStore(s => s.activeSessionId);
 
-  const { historyMessages, isLoadingHistory } = useSessionHistory(id);
+  const {
+    transcriptMessages,
+    isLoadingTranscript,
+    error: transcriptError,
+  } = useSessionTranscript(id);
   const { sendMessage, status } = useSessionChat({ sessionId: id });
   const stopMutation = useStopSession();
   const resumeMutation = useResumeSession();
 
-  // Session switch: initialize store when navigating to a new session
+  // Session switch: reset the shell immediately for the target session.
   useEffect(() => {
-    if (prevIdRef.current === id) return;
-    prevIdRef.current = id;
+    hydratedSessionIdRef.current = null;
+    useSessionStore.setState({
+      activeSessionId: id,
+      messages: [],
+      isStreaming: false,
+      pendingPermission: null,
+    });
+  }, [id]);
 
-    // If history is loaded, set the session with history messages
-    if (historyMessages) {
-      useSessionStore.getState().setActiveSession(id, historyMessages);
-    } else if (activeSessionId !== id) {
-      // No history yet, just set the active session with empty messages
-      useSessionStore.getState().setActiveSession(id, []);
-    }
-  }, [id, historyMessages, activeSessionId]);
+  // Transcript hydration: apply the canonical transcript exactly once per session id.
+  useEffect(() => {
+    if (!transcriptMessages) return;
+    if (activeSessionId !== id) return;
+    if (hydratedSessionIdRef.current === id) return;
+
+    useSessionStore.getState().setActiveSession(id, transcriptMessages);
+    hydratedSessionIdRef.current = id;
+  }, [activeSessionId, id, transcriptMessages]);
 
   // Handle 404 — navigate away with toast
   useEffect(() => {
@@ -62,7 +73,7 @@ function SessionPage() {
   const isDisabled = isStreaming || status === "submitted" || pendingPermission !== null;
   const isStopped = session?.state === "stopped";
 
-  if (isLoading || isLoadingHistory) {
+  if (isLoading || isLoadingTranscript) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Loader2 className="size-5 animate-spin text-[color:var(--ds-text-muted)]" />
@@ -70,13 +81,13 @@ function SessionPage() {
     );
   }
 
-  if (error || !session) {
+  if (error || transcriptError || !session) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="flex flex-col items-center gap-2 text-center">
           <AlertCircle className="size-6 text-[color:var(--ds-accent-danger)]" />
           <p className="text-sm text-[color:var(--ds-text-muted)]">
-            {error?.message ?? "Session not found"}
+            {error?.message ?? transcriptError?.message ?? "Session not found"}
           </p>
         </div>
       </div>

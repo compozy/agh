@@ -7,8 +7,11 @@ import {
   sessionHistoryResponseSchema,
   sessionPayloadSchema,
   sessionResponseSchema,
+  sessionTranscriptResponseSchema,
   sessionsResponseSchema,
   tokenUsagePayloadSchema,
+  transcriptMessageSchema,
+  transcriptToolResultSchema,
   turnHistoryPayloadSchema,
   uiMessageRoleSchema,
 } from "./types";
@@ -175,6 +178,45 @@ describe("agentEventPayloadSchema", () => {
   });
 });
 
+describe("transcriptToolResultSchema", () => {
+  it("validates a tool result payload", () => {
+    const result = transcriptToolResultSchema.safeParse({
+      stdout: "ok",
+      file_path: "/tmp/demo.ts",
+      raw_output: "ok",
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("transcriptMessageSchema", () => {
+  it("validates an assistant transcript message", () => {
+    const result = transcriptMessageSchema.safeParse({
+      id: "msg-1",
+      role: "assistant",
+      content: "Hello",
+      thinking_complete: true,
+      tool_error: false,
+      timestamp: "2026-04-03T10:00:00Z",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("validates a tool transcript message", () => {
+    const result = transcriptMessageSchema.safeParse({
+      id: "tool-1",
+      role: "tool_call",
+      content: "",
+      tool_name: "Read",
+      tool_input: { file_path: "/tmp/demo.ts" },
+      thinking_complete: false,
+      tool_error: false,
+      timestamp: "2026-04-03T10:00:01Z",
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("turnHistoryPayloadSchema", () => {
   it("validates a turn with events", () => {
     const result = turnHistoryPayloadSchema.safeParse({
@@ -268,6 +310,22 @@ describe("API response envelopes", () => {
   it("sessionHistoryResponseSchema validates history", () => {
     const result = sessionHistoryResponseSchema.safeParse({
       history: [{ turn_id: "turn-1", events: [] }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("sessionTranscriptResponseSchema validates transcript messages", () => {
+    const result = sessionTranscriptResponseSchema.safeParse({
+      messages: [
+        {
+          id: "msg-1",
+          role: "assistant",
+          content: "Hello",
+          thinking_complete: false,
+          tool_error: false,
+          timestamp: "2026-04-03T10:00:00Z",
+        },
+      ],
     });
     expect(result.success).toBe(true);
   });

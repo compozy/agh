@@ -203,19 +203,26 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 		SupportsLoadSession: initializeResponse.AgentCapabilities.LoadSession,
 	}
 
-	if normalized.ResumeSessionID != "" && process.Caps.SupportsLoadSession {
+	if normalized.ResumeSessionID != "" {
+		if !process.Caps.SupportsLoadSession {
+			_ = d.Stop(context.Background(), process)
+			return nil, fmt.Errorf("acp: agent %q does not support session/load for resume %q", normalized.AgentName, normalized.ResumeSessionID)
+		}
+
 		loadRequest := acpsdk.LoadSessionRequest{
 			Cwd:        normalized.Cwd,
 			McpServers: toSDKMCPServers(normalized.MCPServers),
 			SessionId:  acpsdk.SessionId(normalized.ResumeSessionID),
 		}
 		loadResponse, loadErr := acpsdk.SendRequest[acpsdk.LoadSessionResponse](process.conn, ctx, acpsdk.AgentMethodSessionLoad, loadRequest)
-		if loadErr == nil {
-			process.SessionID = normalized.ResumeSessionID
-			process.Caps = captureCaps(process.Caps.SupportsLoadSession, loadResponse.Modes, loadResponse.Models)
-			return process, nil
+		if loadErr != nil {
+			_ = d.Stop(context.Background(), process)
+			return nil, fmt.Errorf("acp: load session %q for %q: %w", normalized.ResumeSessionID, normalized.AgentName, loadErr)
 		}
-		d.logger.Warn("acp: session/load failed, falling back to session/new", "agent", normalized.AgentName, "session_id", normalized.ResumeSessionID, "error", loadErr)
+
+		process.SessionID = normalized.ResumeSessionID
+		process.Caps = captureCaps(process.Caps.SupportsLoadSession, loadResponse.Modes, loadResponse.Models)
+		return process, nil
 	}
 
 	newRequest := acpsdk.NewSessionRequest{
