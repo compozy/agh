@@ -99,6 +99,12 @@ describe("AgentSidebarGroup", () => {
     expect(onNewSession).toHaveBeenCalledWith("claude-agent");
   });
 
+  it("disables the new-session action when requested", () => {
+    render(<AgentSidebarGroup agent={mockAgent} newSessionDisabled={true} />);
+
+    expect(screen.getByTestId("sidebar-group-action")).toBeDisabled();
+  });
+
   it("renders one group per agent from mock data", () => {
     const agents: AgentPayload[] = [
       { name: "agent-1", provider: "claude", prompt: "prompt1" },

@@ -18,10 +18,16 @@ import { AgentIcon } from "./agent-icon";
 interface AgentSidebarGroupProps {
   agent: AgentPayload;
   onNewSession?: (agentName: string) => void;
+  newSessionDisabled?: boolean;
   children?: ReactNode;
 }
 
-function AgentSidebarGroup({ agent, onNewSession, children }: AgentSidebarGroupProps) {
+function AgentSidebarGroup({
+  agent,
+  onNewSession,
+  newSessionDisabled = false,
+  children,
+}: AgentSidebarGroupProps) {
   const hasChildren = children != null;
 
   return (
@@ -35,7 +41,11 @@ function AgentSidebarGroup({ agent, onNewSession, children }: AgentSidebarGroupP
           <span className="truncate">{agent.name}</span>
           <ChevronRight className="ml-auto size-3 transition-transform group-data-[panel-open]/collapsible:rotate-90" />
         </SidebarGroupLabel>
-        <SidebarGroupAction title="New Session" onClick={() => onNewSession?.(agent.name)}>
+        <SidebarGroupAction
+          title="New Session"
+          onClick={() => onNewSession?.(agent.name)}
+          disabled={newSessionDisabled}
+        >
           <Plus className="size-4" />
           <span className="sr-only">New Session</span>
         </SidebarGroupAction>

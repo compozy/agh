@@ -78,7 +78,8 @@ const baseSession: SessionPayload = {
   id: "sess-001",
   name: "Test Session",
   agent_name: "claude-agent",
-  workspace: "/tmp",
+  workspace_id: "ws_alpha",
+  workspace_path: "/tmp",
   state: "active",
   created_at: "2026-04-01T00:00:00Z",
   updated_at: "2026-04-01T01:00:00Z",
@@ -99,6 +100,13 @@ describe("SessionSidebarItem", () => {
   it("renders active badge for active session", () => {
     render(<SessionSidebarItem session={baseSession} />);
     expect(screen.getByText("active")).toBeInTheDocument();
+  });
+
+  it("renders workspace name and id metadata", () => {
+    render(<SessionSidebarItem session={baseSession} workspaceName="alpha" />);
+
+    expect(screen.getByTestId("workspace-name-badge")).toHaveTextContent("alpha");
+    expect(screen.getByTestId("workspace-id-text")).toHaveTextContent("ws_alpha");
   });
 
   it("renders stopped badge for stopped session", () => {

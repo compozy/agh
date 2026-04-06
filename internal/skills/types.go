@@ -33,8 +33,8 @@ const (
 	SourceBundled SkillSource = iota
 	// SourceUser identifies skills loaded from the user-level skill directories.
 	SourceUser
-	// SourceAgents identifies skills loaded from `<workspace>/.agents/skills/`.
-	SourceAgents
+	// SourceAdditional identifies skills loaded from additional workspace roots.
+	SourceAdditional
 	// SourceWorkspace is the highest-precedence source from `<workspace>/.agh/skills/`.
 	SourceWorkspace
 )

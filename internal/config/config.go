@@ -125,6 +125,7 @@ type loadOptions struct {
 type LoadOption func(*loadOptions)
 
 // WithWorkspaceRoot loads the optional workspace overlay from `<root>/.agh/config.toml`.
+// When omitted, Load applies only the built-in defaults and the global AGH home config.
 func WithWorkspaceRoot(root string) LoadOption {
 	return func(opts *loadOptions) {
 		opts.workspaceRoot = root
@@ -146,6 +147,7 @@ func WithoutValidation() LoadOption {
 }
 
 // Load reads the default config, the optional global config, and the optional workspace overlay.
+// Workspace overlays are loaded only when WithWorkspaceRoot supplies an explicit root.
 func Load(opts ...LoadOption) (Config, error) {
 	options := loadOptions{}
 	for _, opt := range opts {
@@ -170,18 +172,48 @@ func Load(opts ...LoadOption) (Config, error) {
 		return Config{}, err
 	}
 
+	return loadWithHome(homePaths, workspaceRoot, options.skipValidate)
+}
+
+// LoadForHome reads the default config, the optional global config, and the optional workspace
+// overlay using the supplied AGH home layout instead of the ambient process home.
+func LoadForHome(homePaths HomePaths, opts ...LoadOption) (Config, error) {
+	options := loadOptions{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&options)
+		}
+	}
+
+	workspaceRoot, err := resolveWorkspaceRoot(options.workspaceRoot)
+	if err != nil {
+		return Config{}, err
+	}
+
+	if !options.skipDotEnv {
+		if err := loadDotEnv(workspaceRoot); err != nil {
+			return Config{}, err
+		}
+	}
+
+	return loadWithHome(homePaths, workspaceRoot, options.skipValidate)
+}
+
+func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool) (Config, error) {
 	cfg := DefaultWithHome(homePaths)
 	if err := ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global config: %w", err)
 	}
-	if err := ApplyConfigOverlayFile(workspaceConfigFile(workspaceRoot), &cfg); err != nil {
-		return Config{}, fmt.Errorf("load workspace config: %w", err)
+	if workspaceRoot != "" {
+		if err := ApplyConfigOverlayFile(workspaceConfigFile(workspaceRoot), &cfg); err != nil {
+			return Config{}, fmt.Errorf("load workspace config: %w", err)
+		}
 	}
 	if err := normalizeConfigPaths(&cfg); err != nil {
 		return Config{}, err
 	}
 
-	if !options.skipValidate {
+	if !skipValidate {
 		if err := cfg.Validate(); err != nil {
 			return Config{}, fmt.Errorf("validate config: %w", err)
 		}
@@ -448,20 +480,10 @@ func normalizeConfigPaths(cfg *Config) error {
 
 func resolveWorkspaceRoot(root string) (string, error) {
 	if strings.TrimSpace(root) == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("resolve current working directory: %w", err)
-		}
-
-		return filepath.Abs(cwd)
+		return "", nil
 	}
 
-	absRoot, err := filepath.Abs(root)
-	if err != nil {
-		return "", fmt.Errorf("resolve workspace root %q: %w", root, err)
-	}
-
-	return absRoot, nil
+	return resolveAbsoluteDir(root)
 }
 
 func workspaceConfigFile(root string) string {
@@ -469,6 +491,10 @@ func workspaceConfigFile(root string) string {
 }
 
 func loadDotEnv(workspaceRoot string) error {
+	if strings.TrimSpace(workspaceRoot) == "" {
+		return nil
+	}
+
 	path := filepath.Join(workspaceRoot, ".env")
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {

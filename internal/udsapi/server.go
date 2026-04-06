@@ -21,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
@@ -62,6 +63,17 @@ type DreamTrigger interface {
 	Enabled() bool
 }
 
+// WorkspaceService exposes workspace registration and resolution to the UDS API.
+type WorkspaceService interface {
+	Register(ctx context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error)
+	Unregister(ctx context.Context, id string) error
+	Update(ctx context.Context, id string, opts workspacepkg.UpdateOptions) error
+	List(ctx context.Context) ([]workspacepkg.Workspace, error)
+	Get(ctx context.Context, idOrNameOrPath string) (workspacepkg.Workspace, error)
+	Resolve(ctx context.Context, idOrNameOrPath string) (workspacepkg.ResolvedWorkspace, error)
+	ResolveOrRegister(ctx context.Context, path string) (workspacepkg.ResolvedWorkspace, error)
+}
+
 // Server exposes the daemon API over a Unix domain socket.
 type Server struct {
 	mu sync.Mutex
@@ -75,6 +87,7 @@ type Server struct {
 	pollInterval time.Duration
 	sessions     SessionManager
 	observer     Observer
+	workspaces   WorkspaceService
 	memoryStore  *memory.Store
 	dreamTrigger DreamTrigger
 	agentLoader  AgentLoader
@@ -152,6 +165,13 @@ func WithObserver(observer Observer) Option {
 	}
 }
 
+// WithWorkspaceResolver injects the runtime workspace resolver/service.
+func WithWorkspaceResolver(workspaces WorkspaceService) Option {
+	return func(server *Server) {
+		server.workspaces = workspaces
+	}
+}
+
 // WithMemoryStore injects the memory store surfaced by the daemon.
 func WithMemoryStore(store *memory.Store) Option {
 	return func(server *Server) {
@@ -226,6 +246,9 @@ func New(opts ...Option) (*Server, error) {
 	if server.observer == nil {
 		return nil, errors.New("udsapi: observer is required")
 	}
+	if server.workspaces == nil {
+		return nil, errors.New("udsapi: workspace resolver is required")
+	}
 	if strings.TrimSpace(server.config.Daemon.Socket) == "" {
 		server.config.Daemon.Socket = server.homePaths.DaemonSocket
 	}
@@ -243,6 +266,7 @@ func New(opts ...Option) (*Server, error) {
 	server.handlers = newHandlers(handlerConfig{
 		sessions:     server.sessions,
 		observer:     server.observer,
+		workspaces:   server.workspaces,
 		memoryStore:  server.memoryStore,
 		dreamTrigger: server.dreamTrigger,
 		homePaths:    server.homePaths,

@@ -9,6 +9,7 @@ import type { SessionPayload, SessionState } from "../types";
 interface SessionSidebarItemProps {
   session: SessionPayload;
   hasPendingPermission?: boolean;
+  workspaceName?: string;
 }
 
 function StateBadge({ state }: { state: SessionState }) {
@@ -44,7 +45,11 @@ function StateBadge({ state }: { state: SessionState }) {
   }
 }
 
-function SessionSidebarItem({ session, hasPendingPermission }: SessionSidebarItemProps) {
+function SessionSidebarItem({
+  session,
+  hasPendingPermission,
+  workspaceName,
+}: SessionSidebarItemProps) {
   const matchRoute = useMatchRoute();
   const isActive = !!matchRoute({ to: "/session/$id", params: { id: session.id } });
   const displayTitle = session.name || session.id.slice(0, 8);
@@ -55,9 +60,29 @@ function SessionSidebarItem({ session, hasPendingPermission }: SessionSidebarIte
         size="sm"
         isActive={isActive}
         render={<Link to="/session/$id" params={{ id: session.id }} />}
-        className={cn("gap-1.5", isActive && "font-medium")}
+        className={cn("items-start gap-2 py-2", isActive && "font-medium")}
       >
-        <span className="truncate text-xs">{displayTitle}</span>
+        <div className="min-w-0 flex-1">
+          <span className="truncate text-xs">{displayTitle}</span>
+          <div className="mt-1 flex items-center gap-1.5 overflow-hidden">
+            {workspaceName && (
+              <Badge
+                variant="outline"
+                className="h-4 shrink-0 px-1 text-[0.55rem] leading-none"
+                data-testid="workspace-name-badge"
+              >
+                {workspaceName}
+              </Badge>
+            )}
+            <span
+              className="truncate font-mono text-[0.6rem] text-[color:var(--ds-text-muted)]"
+              data-testid="workspace-id-text"
+              title={session.workspace_id}
+            >
+              {session.workspace_id}
+            </span>
+          </div>
+        </div>
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
           {hasPendingPermission && (
             <span

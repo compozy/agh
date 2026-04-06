@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestAssemblerAssemble(t *testing.T) {
@@ -172,7 +173,7 @@ func TestAssemblerPromptSection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, err := env.assembler.PromptSection(ctx, env.workspace)
+		_, err := env.assembler.PromptSection(ctx, testResolvedWorkspace(env.workspace))
 		if err != context.Canceled {
 			t.Fatalf("PromptSection() error = %v, want %v", err, context.Canceled)
 		}
@@ -232,7 +233,7 @@ func newAssemblerTestEnv(t *testing.T) assemblerTestEnv {
 func (e assemblerTestEnv) assemble(t *testing.T) string {
 	t.Helper()
 
-	got, err := e.assembler.Assemble(context.Background(), e.agent, e.workspace)
+	got, err := e.assembler.Assemble(context.Background(), e.agent, testResolvedWorkspace(e.workspace))
 	if err != nil {
 		t.Fatalf("Assembler.Assemble() error = %v", err)
 	}
@@ -242,7 +243,7 @@ func (e assemblerTestEnv) assemble(t *testing.T) string {
 func (e assemblerTestEnv) promptSection(t *testing.T, ctx context.Context) string {
 	t.Helper()
 
-	got, err := e.assembler.PromptSection(ctx, e.workspace)
+	got, err := e.assembler.PromptSection(ctx, testResolvedWorkspace(e.workspace))
 	if err != nil {
 		t.Fatalf("Assembler.PromptSection() error = %v", err)
 	}
@@ -266,5 +267,11 @@ func writeAssemblerFileForTest(t *testing.T, path string, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	}
+}
+
+func testResolvedWorkspace(root string) workspacepkg.ResolvedWorkspace {
+	return workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{RootDir: root},
 	}
 }

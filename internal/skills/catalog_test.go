@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestBuildCatalogReturnsEmptyStringWhenNoSkills(t *testing.T) {
@@ -92,7 +94,7 @@ func TestCatalogProviderPromptSectionReturnsEmptyStringWhenWorkspaceHasNoSkills(
 
 	provider := NewCatalogProvider(newTestRegistry(t, RegistryConfig{}))
 
-	got, err := provider.PromptSection(context.Background(), t.TempDir())
+	got, err := provider.PromptSection(context.Background(), workspacepkg.ResolvedWorkspace{})
 	if err != nil {
 		t.Fatalf("PromptSection() error = %v", err)
 	}
@@ -110,8 +112,8 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 	workspaceTwo := filepath.Join(root, "workspace-two")
 
 	writeSkillFile(t, userDir, filepath.Join("global", skillFileName), skillWithDescription("global", "Global skill"))
-	writeSkillFile(t, filepath.Join(workspaceOne, ".agents", "skills"), filepath.Join("alpha", skillFileName), skillWithDescription("alpha", "Workspace one skill"))
-	writeSkillFile(t, filepath.Join(workspaceTwo, ".agents", "skills"), filepath.Join("beta", skillFileName), skillWithDescription("beta", "Workspace two skill"))
+	writeSkillFile(t, filepath.Join(workspaceOne, ".agh", "skills"), filepath.Join("alpha", skillFileName), skillWithDescription("alpha", "Workspace one skill"))
+	writeSkillFile(t, filepath.Join(workspaceTwo, ".agh", "skills"), filepath.Join("beta", skillFileName), skillWithDescription("beta", "Workspace two skill"))
 
 	registry := newTestRegistry(t, RegistryConfig{
 		UserSkillsDir: userDir,
@@ -122,7 +124,9 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 
 	provider := NewCatalogProvider(registry)
 
-	got, err := provider.PromptSection(context.Background(), workspaceOne)
+	got, err := provider.PromptSection(context.Background(), resolvedWorkspaceForTest("ws_catalog_one", workspaceOne,
+		resolvedSkillPath(filepath.Join(workspaceOne, ".agh", "skills", "alpha"), "workspace"),
+	))
 	if err != nil {
 		t.Fatalf("PromptSection() error = %v", err)
 	}

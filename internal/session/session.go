@@ -46,6 +46,7 @@ type SessionInfo struct {
 	ID           string
 	Name         string
 	AgentName    string
+	WorkspaceID  string
 	Workspace    string
 	Type         SessionType
 	State        SessionState
@@ -62,6 +63,7 @@ type Session struct {
 	ID           string
 	Name         string
 	AgentName    string
+	WorkspaceID  string
 	Workspace    string
 	Type         SessionType
 	State        SessionState
@@ -75,6 +77,9 @@ type Session struct {
 	dbPath     string
 	recorder   EventRecorder
 	process    *AgentProcess
+
+	promptSetupCount int
+	promptSetupDone  chan struct{}
 }
 
 // Info returns a consistent snapshot of the current session state.
@@ -90,6 +95,7 @@ func (s *Session) Info() *SessionInfo {
 		ID:           s.ID,
 		Name:         s.Name,
 		AgentName:    s.AgentName,
+		WorkspaceID:  s.WorkspaceID,
 		Workspace:    s.Workspace,
 		Type:         normalizeSessionType(s.Type),
 		State:        s.State,
@@ -218,6 +224,78 @@ func (s *Session) setRecorder(recorder EventRecorder) {
 	s.recorder = recorder
 }
 
+func (s *Session) beginPromptSetup() (*AgentProcess, error) {
+	if s == nil {
+		return nil, errors.New("session: session is required")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.State != StateActive {
+		return nil, fmt.Errorf("session: session %q is not active", s.ID)
+	}
+	if s.process == nil {
+		return nil, errors.New("session: agent process is not available")
+	}
+	if s.promptSetupDone == nil {
+		s.promptSetupDone = closedSignalChan()
+	}
+	if s.promptSetupCount == 0 {
+		s.promptSetupDone = make(chan struct{})
+	}
+	s.promptSetupCount++
+	return s.process, nil
+}
+
+func (s *Session) finishPromptSetup() {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.promptSetupCount == 0 {
+		return
+	}
+	s.promptSetupCount--
+	if s.promptSetupCount == 0 {
+		close(s.promptSetupDone)
+	}
+}
+
+func (s *Session) prepareStop(now time.Time) (bool, <-chan struct{}, error) {
+	if s == nil {
+		return false, nil, errors.New("session: session is required")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.promptSetupDone == nil {
+		s.promptSetupDone = closedSignalChan()
+	}
+
+	switch s.State {
+	case StateStopped:
+		return false, s.promptSetupDone, nil
+	case StateStopping:
+		return false, s.promptSetupDone, nil
+	case StateActive:
+		if !canTransition(s.State, StateStopping) {
+			return false, nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, s.State, StateStopping)
+		}
+		s.State = StateStopping
+		if !now.IsZero() {
+			s.UpdatedAt = now
+		}
+		return true, s.promptSetupDone, nil
+	default:
+		return false, nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, s.State, StateStopping)
+	}
+}
+
 func (s *Session) activate(now time.Time) error {
 	return s.transition(StateActive, now)
 }
@@ -268,7 +346,7 @@ func (s *Session) meta() store.SessionMeta {
 		ID:           s.ID,
 		Name:         s.Name,
 		AgentName:    s.AgentName,
-		Workspace:    s.Workspace,
+		WorkspaceID:  s.WorkspaceID,
 		SessionType:  string(normalizeSessionType(s.Type)),
 		State:        string(s.State),
 		ACPSessionID: stringPointer(s.ACPSessionID),
@@ -315,4 +393,10 @@ func stringPointer(value string) *string {
 	}
 	copyValue := value
 	return &copyValue
+}
+
+func closedSignalChan() chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
 }

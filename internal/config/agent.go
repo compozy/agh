@@ -28,6 +28,24 @@ type AgentDef struct {
 	Prompt      string      `yaml:"-"`
 }
 
+// WorkspaceDiscoverySource identifies where a discovery root came from.
+type WorkspaceDiscoverySource string
+
+const (
+	// WorkspaceDiscoverySourceWorkspace marks the primary workspace root.
+	WorkspaceDiscoverySourceWorkspace WorkspaceDiscoverySource = "workspace"
+	// WorkspaceDiscoverySourceAdditional marks an additional workspace root.
+	WorkspaceDiscoverySourceAdditional WorkspaceDiscoverySource = "additional"
+	// WorkspaceDiscoverySourceGlobal marks the global AGH home root.
+	WorkspaceDiscoverySourceGlobal WorkspaceDiscoverySource = "global"
+)
+
+// WorkspaceDiscoveryRoot describes a filesystem root participating in multi-root resource discovery.
+type WorkspaceDiscoveryRoot struct {
+	Dir    string
+	Source WorkspaceDiscoverySource
+}
+
 // LoadAgentDef loads an AGENT.md file from the configured AGH home directory.
 func LoadAgentDef(name string, homePaths HomePaths) (AgentDef, error) {
 	target := strings.TrimSpace(name)
@@ -60,6 +78,100 @@ func LoadAgentDefFile(path string) (AgentDef, error) {
 	}
 
 	return agent, nil
+}
+
+// WorkspaceDiscoveryRoots returns ordered discovery roots for workspace-scoped resources.
+// Precedence is left to right: workspace root, additional roots, then the global AGH home.
+func WorkspaceDiscoveryRoots(rootDir string, additionalDirs []string, homePaths HomePaths) []WorkspaceDiscoveryRoot {
+	roots := make([]WorkspaceDiscoveryRoot, 0, len(additionalDirs)+2)
+
+	if trimmed := strings.TrimSpace(rootDir); trimmed != "" {
+		roots = append(roots, WorkspaceDiscoveryRoot{
+			Dir:    trimmed,
+			Source: WorkspaceDiscoverySourceWorkspace,
+		})
+	}
+
+	for _, dir := range additionalDirs {
+		if trimmed := strings.TrimSpace(dir); trimmed != "" {
+			roots = append(roots, WorkspaceDiscoveryRoot{
+				Dir:    trimmed,
+				Source: WorkspaceDiscoverySourceAdditional,
+			})
+		}
+	}
+
+	if trimmed := strings.TrimSpace(homePaths.HomeDir); trimmed != "" {
+		roots = append(roots, WorkspaceDiscoveryRoot{
+			Dir:    trimmed,
+			Source: WorkspaceDiscoverySourceGlobal,
+		})
+	}
+
+	return roots
+}
+
+// AgentsDir returns the agent-definition directory for this discovery root.
+func (r WorkspaceDiscoveryRoot) AgentsDir() string {
+	if r.Source == WorkspaceDiscoverySourceGlobal {
+		return filepath.Join(r.Dir, AgentsDirName)
+	}
+
+	return filepath.Join(r.Dir, DirName, AgentsDirName)
+}
+
+// SkillsDir returns the skill-definition directory for this discovery root.
+func (r WorkspaceDiscoveryRoot) SkillsDir() string {
+	if r.Source == WorkspaceDiscoverySourceGlobal {
+		return filepath.Join(r.Dir, SkillsDirName)
+	}
+
+	return filepath.Join(r.Dir, DirName, SkillsDirName)
+}
+
+// LoadWorkspaceAgentDefs loads workspace-visible agents using root, additional, then global precedence.
+func LoadWorkspaceAgentDefs(rootDir string, additionalDirs []string, homePaths HomePaths) ([]AgentDef, error) {
+	roots := WorkspaceDiscoveryRoots(rootDir, additionalDirs, homePaths)
+	if len(roots) == 0 {
+		return nil, nil
+	}
+
+	agents := make([]AgentDef, 0)
+	seen := make(map[string]struct{})
+
+	for _, root := range roots {
+		entries, err := os.ReadDir(root.AgentsDir())
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, fmt.Errorf("read agents directory %q: %w", root.AgentsDir(), err)
+		}
+
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+
+			agentPath := filepath.Join(root.AgentsDir(), entry.Name(), agentDefName)
+			agent, err := LoadAgentDefFile(agentPath)
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					continue
+				}
+				return nil, err
+			}
+
+			if _, ok := seen[agent.Name]; ok {
+				continue
+			}
+
+			seen[agent.Name] = struct{}{}
+			agents = append(agents, agent)
+		}
+	}
+
+	return agents, nil
 }
 
 // ParseAgentDef parses a Markdown file with YAML frontmatter into an AgentDef.

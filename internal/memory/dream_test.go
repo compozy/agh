@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestServiceConstructionDefaults(t *testing.T) {
@@ -237,7 +239,7 @@ func TestServiceShouldRunEvaluatesGatesInOrder(t *testing.T) {
 	})
 }
 
-func TestServiceRunCallsSessionSpawnerWithGoalPromptAndWorkspace(t *testing.T) {
+func TestServiceRunCallsSessionSpawnerWithGoalPromptAndWorkspaceID(t *testing.T) {
 	t.Parallel()
 
 	prior := time.Now().UTC().Add(-24 * time.Hour).Round(0)
@@ -246,21 +248,32 @@ func TestServiceRunCallsSessionSpawnerWithGoalPromptAndWorkspace(t *testing.T) {
 			return prior, true, nil
 		},
 	}
+	globalMemoryDir := filepath.Join(t.TempDir(), "memory")
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	workspaceID := "ws-dream"
 	service := NewService(
 		withLock(lock),
 		WithGoal("custom-goal"),
+		WithMemoryStore(NewStore(globalMemoryDir)),
+		WithWorkspaceResolver(&fakeDreamWorkspaceResolver{
+			resolved: workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{
+					ID:      workspaceID,
+					RootDir: workspaceRoot,
+				},
+			},
+		}),
 	)
 
 	var gotGoal string
 	var gotPrompt string
 	var gotWorkspace string
-	workspace := filepath.Join(t.TempDir(), "workspace")
 	err := service.Run(testContext(t), func(_ context.Context, goal, prompt, workspace string) error {
 		gotGoal = goal
 		gotPrompt = prompt
 		gotWorkspace = workspace
 		return nil
-	}, workspace)
+	}, workspaceID)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -270,14 +283,82 @@ func TestServiceRunCallsSessionSpawnerWithGoalPromptAndWorkspace(t *testing.T) {
 	if gotPrompt != ConsolidationPrompt() {
 		t.Fatal("prompt passed to session spawner did not match embedded prompt")
 	}
-	if gotWorkspace != workspace {
-		t.Fatalf("workspace = %q, want %q", gotWorkspace, workspace)
+	if gotWorkspace != workspaceID {
+		t.Fatalf("workspace = %q, want %q", gotWorkspace, workspaceID)
+	}
+	if _, err := os.Stat(filepath.Join(workspaceRoot, ".agh", "memory")); err != nil {
+		t.Fatalf("workspace memory dir stat error = %v", err)
 	}
 	if lock.tryAcquireCalls != 1 {
 		t.Fatalf("lock acquisitions = %d, want 1", lock.tryAcquireCalls)
 	}
 	if lock.releaseCalls != 1 {
 		t.Fatalf("release calls = %d, want 1", lock.releaseCalls)
+	}
+}
+
+func TestServiceRunRequiresWorkspaceResolverForExplicitWorkspace(t *testing.T) {
+	t.Parallel()
+
+	lock := &stubLock{
+		tryAcquireFn: func() (time.Time, bool, error) {
+			return time.Time{}, true, nil
+		},
+	}
+	service := NewService(
+		withLock(lock),
+		WithMemoryStore(NewStore(filepath.Join(t.TempDir(), "memory"))),
+	)
+
+	err := service.Run(testContext(t), func(context.Context, string, string, string) error { return nil }, "ws-missing")
+	if err == nil {
+		t.Fatal("Run() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "workspace resolver is required") {
+		t.Fatalf("Run() error = %v, want workspace resolver error", err)
+	}
+	if len(lock.rollbackCalls) != 1 {
+		t.Fatalf("rollback calls = %d, want 1", len(lock.rollbackCalls))
+	}
+}
+
+func TestServiceRunResolvesWorkspaceRefBeforeSpawn(t *testing.T) {
+	t.Parallel()
+
+	lock := &stubLock{
+		tryAcquireFn: func() (time.Time, bool, error) {
+			return time.Time{}, true, nil
+		},
+	}
+	resolver := fakeDreamWorkspaceResolver{
+		resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:      "ws-resolved",
+				RootDir: filepath.Join(t.TempDir(), "workspace"),
+			},
+		},
+	}
+	service := NewService(
+		withLock(lock),
+		WithWorkspaceResolver(&resolver),
+	)
+
+	var gotWorkspace string
+	err := service.Run(testContext(t), func(_ context.Context, _, _, workspace string) error {
+		gotWorkspace = workspace
+		return nil
+	}, "workspace-alias")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if gotWorkspace != "ws-resolved" {
+		t.Fatalf("workspace = %q, want ws-resolved", gotWorkspace)
+	}
+	if got, want := resolver.resolveCalls, 1; got != want {
+		t.Fatalf("resolver Resolve() calls = %d, want %d", got, want)
+	}
+	if got, want := resolver.lastArg, "workspace-alias"; got != want {
+		t.Fatalf("resolver Resolve() arg = %q, want %q", got, want)
 	}
 }
 
@@ -697,4 +778,28 @@ func testContext(t *testing.T) context.Context {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 	return ctx
+}
+
+type fakeDreamWorkspaceResolver struct {
+	resolved workspacepkg.ResolvedWorkspace
+	err      error
+
+	resolveCalls int
+	lastArg      string
+}
+
+func (r *fakeDreamWorkspaceResolver) Resolve(_ context.Context, arg string) (workspacepkg.ResolvedWorkspace, error) {
+	if r.err != nil {
+		return workspacepkg.ResolvedWorkspace{}, r.err
+	}
+	r.resolveCalls++
+	r.lastArg = strings.TrimSpace(arg)
+	return r.resolved, nil
+}
+
+func (r *fakeDreamWorkspaceResolver) ResolveOrRegister(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+	if r.err != nil {
+		return workspacepkg.ResolvedWorkspace{}, r.err
+	}
+	return r.resolved, nil
 }

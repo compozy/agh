@@ -13,6 +13,8 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestRegistryLoadAllLoadsBundledSkills(t *testing.T) {
@@ -108,9 +110,11 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 	root := t.TempDir()
 	userDir := filepath.Join(root, "user")
 	workspace := filepath.Join(root, "workspace")
+	additional := filepath.Join(root, "additional")
 
 	writeSkillFile(t, userDir, filepath.Join("global", skillFileName), skillWithDescription("global", "Global skill"))
-	writeSkillFile(t, filepath.Join(workspace, ".agents", "skills"), filepath.Join("local", skillFileName), skillWithDescription("local", "Workspace agents skill"))
+	workspaceDir := writeSkillFile(t, filepath.Join(workspace, ".agh", "skills"), filepath.Join("local", skillFileName), skillWithDescription("local", "Workspace skill"))
+	additionalDir := writeSkillFile(t, filepath.Join(additional, ".agh", "skills"), filepath.Join("shared", skillFileName), skillWithDescription("shared", "Additional skill"))
 
 	registry := newTestRegistry(t, RegistryConfig{
 		UserSkillsDir: userDir,
@@ -120,19 +124,28 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
-	got, err := registry.ForWorkspace(context.Background(), workspace)
+	got, err := registry.ForWorkspace(context.Background(), workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{ID: "ws_1", RootDir: workspace},
+		Skills: []workspacepkg.SkillPath{
+			{Dir: filepath.Dir(workspaceDir), Source: "workspace"},
+			{Dir: filepath.Dir(additionalDir), Source: "additional"},
+		},
+	})
 	if err != nil {
 		t.Fatalf("ForWorkspace() error = %v", err)
 	}
 
-	if len(got) != 2 {
-		t.Fatalf("ForWorkspace() len = %d, want 2", len(got))
+	if len(got) != 3 {
+		t.Fatalf("ForWorkspace() len = %d, want 3", len(got))
 	}
 	if findSkill(t, got, "global").Source != SourceUser {
 		t.Fatalf("global Source = %v, want %v", findSkill(t, got, "global").Source, SourceUser)
 	}
-	if findSkill(t, got, "local").Source != SourceAgents {
-		t.Fatalf("local Source = %v, want %v", findSkill(t, got, "local").Source, SourceAgents)
+	if findSkill(t, got, "local").Source != SourceWorkspace {
+		t.Fatalf("local Source = %v, want %v", findSkill(t, got, "local").Source, SourceWorkspace)
+	}
+	if findSkill(t, got, "shared").Source != SourceAdditional {
+		t.Fatalf("shared Source = %v, want %v", findSkill(t, got, "shared").Source, SourceAdditional)
 	}
 }
 
@@ -154,7 +167,9 @@ func TestRegistryWorkspaceSkillOverridesGlobalSkill(t *testing.T) {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
-	got, err := registry.ForWorkspace(context.Background(), workspace)
+	got, err := registry.ForWorkspace(context.Background(), resolvedWorkspaceForTest("ws_override", workspace,
+		resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "shared"), "workspace"),
+	))
 	if err != nil {
 		t.Fatalf("ForWorkspace() error = %v", err)
 	}
@@ -173,24 +188,27 @@ func TestRegistryForWorkspaceReturnsCachedResultWhenUnchanged(t *testing.T) {
 
 	root := t.TempDir()
 	workspace := filepath.Join(root, "workspace")
-	writeSkillFile(t, filepath.Join(workspace, ".agents", "skills"), filepath.Join("cached", skillFileName), skillWithDescription("cached", "Cached skill"))
+	writeSkillFile(t, filepath.Join(workspace, ".agh", "skills"), filepath.Join("cached", skillFileName), skillWithDescription("cached", "Cached skill"))
+	resolvedWorkspace := resolvedWorkspaceForTest("ws_cached", workspace,
+		resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "cached"), "workspace"),
+	)
 
 	registry := newTestRegistry(t, RegistryConfig{})
 
-	first, err := registry.ForWorkspace(context.Background(), workspace)
+	first, err := registry.ForWorkspace(context.Background(), resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("first ForWorkspace() error = %v", err)
 	}
-	firstEntry := cacheEntryForWorkspace(t, registry, workspace)
+	firstEntry := cacheEntryForWorkspace(t, registry, resolvedWorkspace)
 	if firstEntry == nil {
 		t.Fatal("cache entry = nil, want populated cache")
 	}
 
-	second, err := registry.ForWorkspace(context.Background(), workspace)
+	second, err := registry.ForWorkspace(context.Background(), resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("second ForWorkspace() error = %v", err)
 	}
-	secondEntry := cacheEntryForWorkspace(t, registry, workspace)
+	secondEntry := cacheEntryForWorkspace(t, registry, resolvedWorkspace)
 
 	if firstEntry != secondEntry {
 		t.Fatal("cache entry pointer changed, want cached workspace entry reused")
@@ -206,14 +224,17 @@ func TestRegistryForWorkspaceRescansWhenChanged(t *testing.T) {
 	root := t.TempDir()
 	workspace := filepath.Join(root, "workspace")
 	skillPath := writeSkillFile(t, filepath.Join(workspace, ".agh", "skills"), filepath.Join("rescan", skillFileName), skillWithDescription("rescan", "Initial description"))
+	resolvedWorkspace := resolvedWorkspaceForTest("ws_rescan", workspace,
+		resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "rescan"), "workspace"),
+	)
 
 	registry := newTestRegistry(t, RegistryConfig{})
 
-	first, err := registry.ForWorkspace(context.Background(), workspace)
+	first, err := registry.ForWorkspace(context.Background(), resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("first ForWorkspace() error = %v", err)
 	}
-	firstEntry := cacheEntryForWorkspace(t, registry, workspace)
+	firstEntry := cacheEntryForWorkspace(t, registry, resolvedWorkspace)
 	if firstEntry == nil {
 		t.Fatal("cache entry = nil, want populated cache")
 	}
@@ -223,11 +244,11 @@ func TestRegistryForWorkspaceRescansWhenChanged(t *testing.T) {
 
 	rewriteSkillFile(t, skillPath, skillWithDescription("rescan", "Updated description with larger size for staleness"))
 
-	second, err := registry.ForWorkspace(context.Background(), workspace)
+	second, err := registry.ForWorkspace(context.Background(), resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("second ForWorkspace() error = %v", err)
 	}
-	secondEntry := cacheEntryForWorkspace(t, registry, workspace)
+	secondEntry := cacheEntryForWorkspace(t, registry, resolvedWorkspace)
 
 	if firstEntry == secondEntry {
 		t.Fatal("cache entry pointer reused after file change, want rescan")
@@ -244,16 +265,20 @@ func TestRegistryForWorkspaceReturnsDifferentResultsPerWorkspace(t *testing.T) {
 	workspaceOne := filepath.Join(root, "workspace-one")
 	workspaceTwo := filepath.Join(root, "workspace-two")
 
-	writeSkillFile(t, filepath.Join(workspaceOne, ".agents", "skills"), filepath.Join("one", skillFileName), skillWithDescription("one", "First workspace"))
-	writeSkillFile(t, filepath.Join(workspaceTwo, ".agents", "skills"), filepath.Join("two", skillFileName), skillWithDescription("two", "Second workspace"))
+	writeSkillFile(t, filepath.Join(workspaceOne, ".agh", "skills"), filepath.Join("one", skillFileName), skillWithDescription("one", "First workspace"))
+	writeSkillFile(t, filepath.Join(workspaceTwo, ".agh", "skills"), filepath.Join("two", skillFileName), skillWithDescription("two", "Second workspace"))
 
 	registry := newTestRegistry(t, RegistryConfig{})
 
-	first, err := registry.ForWorkspace(context.Background(), workspaceOne)
+	first, err := registry.ForWorkspace(context.Background(), resolvedWorkspaceForTest("ws_one", workspaceOne,
+		resolvedSkillPath(filepath.Join(workspaceOne, ".agh", "skills", "one"), "workspace"),
+	))
 	if err != nil {
 		t.Fatalf("ForWorkspace(workspaceOne) error = %v", err)
 	}
-	second, err := registry.ForWorkspace(context.Background(), workspaceTwo)
+	second, err := registry.ForWorkspace(context.Background(), resolvedWorkspaceForTest("ws_two", workspaceTwo,
+		resolvedSkillPath(filepath.Join(workspaceTwo, ".agh", "skills", "two"), "workspace"),
+	))
 	if err != nil {
 		t.Fatalf("ForWorkspace(workspaceTwo) error = %v", err)
 	}
@@ -271,30 +296,55 @@ func TestRegistryWorkspaceCacheEvictsEntriesOlderThanTTL(t *testing.T) {
 
 	root := t.TempDir()
 	workspace := filepath.Join(root, "workspace")
-	writeSkillFile(t, filepath.Join(workspace, ".agents", "skills"), filepath.Join("ttl", skillFileName), skillWithDescription("ttl", "TTL skill"))
+	writeSkillFile(t, filepath.Join(workspace, ".agh", "skills"), filepath.Join("ttl", skillFileName), skillWithDescription("ttl", "TTL skill"))
+	resolvedWorkspace := resolvedWorkspaceForTest("ws_ttl", workspace,
+		resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "ttl"), "workspace"),
+	)
 
 	now := time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC)
 	registry := newTestRegistry(t, RegistryConfig{}, WithNow(func() time.Time {
 		return now
 	}))
 
-	if _, err := registry.ForWorkspace(context.Background(), workspace); err != nil {
+	if _, err := registry.ForWorkspace(context.Background(), resolvedWorkspace); err != nil {
 		t.Fatalf("first ForWorkspace() error = %v", err)
 	}
-	firstEntry := cacheEntryForWorkspace(t, registry, workspace)
+	firstEntry := cacheEntryForWorkspace(t, registry, resolvedWorkspace)
 	if firstEntry == nil {
 		t.Fatal("cache entry = nil, want populated cache")
 	}
 
 	now = now.Add(workspaceCacheTTL + time.Minute)
 
-	if _, err := registry.ForWorkspace(context.Background(), workspace); err != nil {
+	if _, err := registry.ForWorkspace(context.Background(), resolvedWorkspace); err != nil {
 		t.Fatalf("second ForWorkspace() error = %v", err)
 	}
-	secondEntry := cacheEntryForWorkspace(t, registry, workspace)
+	secondEntry := cacheEntryForWorkspace(t, registry, resolvedWorkspace)
 
 	if firstEntry == secondEntry {
 		t.Fatal("cache entry pointer reused after TTL expiry, want eviction and refresh")
+	}
+}
+
+func TestRegistryForWorkspaceUsesResolverSkillPathsWithoutScanningWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+
+	skillsRoot := t.TempDir()
+	writeSkillFile(t, skillsRoot, filepath.Join("resolver-only", skillFileName), skillWithDescription("resolver-only", "Loaded from resolver path"))
+
+	registry := newTestRegistry(t, RegistryConfig{})
+
+	got, err := registry.ForWorkspace(context.Background(), resolvedWorkspaceForTest(
+		"ws_resolver_only",
+		filepath.Join(t.TempDir(), "missing-workspace-root"),
+		resolvedSkillPath(filepath.Join(skillsRoot, "resolver-only"), "workspace"),
+	))
+	if err != nil {
+		t.Fatalf("ForWorkspace() error = %v", err)
+	}
+
+	if !hasSkill(got, "resolver-only") {
+		t.Fatalf("ForWorkspace() = %#v, want resolver-provided skill", got)
 	}
 }
 
@@ -640,7 +690,7 @@ func TestRegistryRejectsCanceledContext(t *testing.T) {
 	if err := registry.LoadAll(ctx); err == nil {
 		t.Fatal("LoadAll(canceled) error = nil, want context error")
 	}
-	if _, err := registry.ForWorkspace(ctx, t.TempDir()); err == nil {
+	if _, err := registry.ForWorkspace(ctx, resolvedWorkspaceForTest("ws_canceled", t.TempDir())); err == nil {
 		t.Fatal("ForWorkspace(canceled) error = nil, want context error")
 	}
 }
@@ -717,16 +767,28 @@ func hasSkill(skills []*Skill, name string) bool {
 	return false
 }
 
-func cacheEntryForWorkspace(t *testing.T, registry *Registry, workspace string) *wsCache {
+func cacheEntryForWorkspace(t *testing.T, registry *Registry, workspace workspacepkg.ResolvedWorkspace) *wsCache {
 	t.Helper()
-
-	absPath, err := filepath.Abs(workspace)
-	if err != nil {
-		t.Fatalf("filepath.Abs(%q) error = %v", workspace, err)
-	}
 
 	registry.mu.RLock()
 	defer registry.mu.RUnlock()
 
-	return registry.wsCache[absPath]
+	return registry.wsCache[workspaceCacheKey(workspace, nil)]
+}
+
+func resolvedWorkspaceForTest(id string, root string, skills ...workspacepkg.SkillPath) workspacepkg.ResolvedWorkspace {
+	return workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      strings.TrimSpace(id),
+			RootDir: strings.TrimSpace(root),
+		},
+		Skills: append([]workspacepkg.SkillPath(nil), skills...),
+	}
+}
+
+func resolvedSkillPath(dir string, source string) workspacepkg.SkillPath {
+	return workspacepkg.SkillPath{
+		Dir:    strings.TrimSpace(dir),
+		Source: strings.TrimSpace(source),
+	}
 }

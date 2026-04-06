@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
@@ -24,8 +26,10 @@ var (
 	ErrLockUnavailable = errors.New("memory: consolidation lock is unavailable")
 )
 
-// SessionSpawner starts a one-shot consolidation session with the provided goal, prompt, and workspace context.
-type SessionSpawner func(ctx context.Context, goal, prompt, workspace string) error
+// SessionSpawner starts a one-shot consolidation session with the provided
+// goal, prompt, and normalized workspace ID. A blank workspace ID lets the
+// spawner derive the eligible workspaces itself.
+type SessionSpawner func(ctx context.Context, goal, prompt, workspaceID string) error
 
 // Option configures a consolidation Service.
 type Option func(*Service)
@@ -51,6 +55,7 @@ type Service struct {
 	lock               consolidationLocker
 	now                func() time.Time
 	countSessionsSince func(time.Time) (int, error)
+	workspaceResolver  workspacepkg.WorkspaceResolver
 
 	mu         sync.Mutex
 	runMu      sync.Mutex
@@ -94,13 +99,21 @@ func NewService(opts ...Option) *Service {
 	return service
 }
 
-// WithMemoryStore wires the memory store for future integrations.
+// WithMemoryStore wires the memory store used for consolidation-path setup.
 func WithMemoryStore(store *Store) Option {
 	return func(service *Service) {
 		service.memStore = store
 		if service.lockPath == "" && store != nil && store.globalDir != "" {
 			service.lockPath = filepath.Join(store.globalDir, consolidationLockName)
 		}
+	}
+}
+
+// WithWorkspaceResolver wires workspace resolution for consolidation runs that
+// need a workspace root path.
+func WithWorkspaceResolver(resolver workspacepkg.WorkspaceResolver) Option {
+	return func(service *Service) {
+		service.workspaceResolver = resolver
 	}
 }
 
@@ -200,8 +213,9 @@ func (s *Service) ShouldRun() (bool, error) {
 	return true, nil
 }
 
-// Run acquires the consolidation lock when needed and invokes the spawner with the embedded prompt.
-func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspace string) error {
+// Run acquires the consolidation lock when needed and invokes the spawner with
+// the embedded prompt and a normalized workspace ID when provided.
+func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspaceRef string) error {
 	if err := s.validate(); err != nil {
 		return err
 	}
@@ -220,16 +234,48 @@ func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspace strin
 		return err
 	}
 
-	s.logger.Debug("memory: starting consolidation run", "goal", s.goal)
+	workspaceID, err := s.prepareWorkspace(ctx, workspaceRef)
+	if err != nil {
+		s.logger.Debug("memory: consolidation run failed before spawn; rolling back lock", "workspace_ref", strings.TrimSpace(workspaceRef), "error", err)
+		rollbackErr := s.completeRun(false, priorMtime)
+		return errors.Join(fmt.Errorf("memory: prepare workspace %q: %w", strings.TrimSpace(workspaceRef), err), rollbackErr)
+	}
 
-	if err := spawn(ctx, s.goal, s.prompt, strings.TrimSpace(workspace)); err != nil {
-		s.logger.Debug("memory: consolidation run failed; rolling back lock", "error", err)
+	s.logger.Debug("memory: starting consolidation run", "goal", s.goal, "workspace_id", workspaceID)
+
+	if err := spawn(ctx, s.goal, s.prompt, workspaceID); err != nil {
+		s.logger.Debug("memory: consolidation run failed; rolling back lock", "workspace_id", workspaceID, "error", err)
 		rollbackErr := s.completeRun(false, priorMtime)
 		return errors.Join(fmt.Errorf("memory: spawn consolidation session: %w", err), rollbackErr)
 	}
 
-	s.logger.Debug("memory: consolidation run completed; releasing lock", "goal", s.goal)
+	s.logger.Debug("memory: consolidation run completed; releasing lock", "goal", s.goal, "workspace_id", workspaceID)
 	return s.completeRun(true, priorMtime)
+}
+
+func (s *Service) prepareWorkspace(ctx context.Context, workspaceRef string) (string, error) {
+	trimmedRef := strings.TrimSpace(workspaceRef)
+	if trimmedRef == "" {
+		return "", nil
+	}
+	if s.workspaceResolver == nil {
+		return "", errors.New("memory: workspace resolver is required")
+	}
+
+	resolved, err := s.workspaceResolver.Resolve(ctx, trimmedRef)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(resolved.ID) == "" {
+		return "", errors.New("memory: workspace id is required")
+	}
+	if s.memStore != nil {
+		if err := s.memStore.ForWorkspace(resolved.RootDir).EnsureDirs(); err != nil {
+			return "", err
+		}
+	}
+
+	return strings.TrimSpace(resolved.ID), nil
 }
 
 func (s *Service) validate() error {

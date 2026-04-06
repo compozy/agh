@@ -26,6 +26,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/udsapi"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestCLIRoundTripIntegration(t *testing.T) {
@@ -223,6 +224,65 @@ func TestSessionEventsFollowIntegration(t *testing.T) {
 	}
 	if !sawAgentMessage {
 		t.Fatalf("follow output = %q, want streamed agent_message event", stdout.String())
+	}
+}
+
+func TestWorkspaceCommandsIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	addOut, _, err := executeRootCommand(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json")
+	if err != nil {
+		t.Fatalf("workspace add error = %v", err)
+	}
+	var registered WorkspaceRecord
+	if err := json.Unmarshal([]byte(addOut), &registered); err != nil {
+		t.Fatalf("json.Unmarshal(workspace add) error = %v", err)
+	}
+	if registered.ID == "" {
+		t.Fatal("expected registered workspace id")
+	}
+
+	infoOut, _, err := executeRootCommand(t, h.deps, "workspace", "info", "alpha", "-o", "json")
+	if err != nil {
+		t.Fatalf("workspace info error = %v", err)
+	}
+	var detail WorkspaceDetailRecord
+	if err := json.Unmarshal([]byte(infoOut), &detail); err != nil {
+		t.Fatalf("json.Unmarshal(workspace info) error = %v", err)
+	}
+	if detail.Workspace.ID != registered.ID {
+		t.Fatalf("workspace info id = %q, want %q", detail.Workspace.ID, registered.ID)
+	}
+
+	sessionOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "demo", "--workspace", "alpha", "-o", "json")
+	if err != nil {
+		t.Fatalf("session new with workspace error = %v", err)
+	}
+	var created SessionRecord
+	if err := json.Unmarshal([]byte(sessionOut), &created); err != nil {
+		t.Fatalf("json.Unmarshal(session new) error = %v", err)
+	}
+	if created.WorkspaceID != registered.ID {
+		t.Fatalf("created.WorkspaceID = %q, want %q", created.WorkspaceID, registered.ID)
+	}
+
+	listOut, _, err := executeRootCommand(t, h.deps, "session", "list", "--workspace", "alpha", "--all", "-o", "json")
+	if err != nil {
+		t.Fatalf("session list --workspace error = %v", err)
+	}
+	var listed []SessionRecord
+	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
+		t.Fatalf("json.Unmarshal(session list) error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != created.ID {
+		t.Fatalf("listed = %#v, want one workspace-filtered session", listed)
 	}
 }
 
@@ -436,9 +496,18 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	}()
 
 	fanout := &integrationNotifierFanout{}
+	resolver, err := workspacepkg.NewResolver(
+		registry,
+		workspacepkg.WithHomePaths(d.homePaths),
+		workspacepkg.WithLogger(discardLogger()),
+		workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) { return d.cfg, nil }),
+	)
+	if err != nil {
+		return fmt.Errorf("new workspace resolver: %w", err)
+	}
 	manager, err := session.NewManager(
 		session.WithHomePaths(d.homePaths),
-		session.WithConfig(d.cfg),
+		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
 		session.WithDriver(newIntegrationDriver()),
 		session.WithNotifier(fanout),
@@ -482,6 +551,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		udsapi.WithPollInterval(10*time.Millisecond),
 		udsapi.WithSessionManager(manager),
 		udsapi.WithObserver(observer),
+		udsapi.WithWorkspaceResolver(resolver),
 		udsapi.WithMemoryStore(memoryStore),
 		udsapi.WithDreamTrigger(dreamTrigger),
 	)

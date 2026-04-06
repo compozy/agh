@@ -6,6 +6,16 @@ import "github.com/gin-gonic/gin"
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	api := router.Group("/api")
 
+	workspaces := api.Group("/workspaces")
+	{
+		workspaces.POST("", handlers.createWorkspace)
+		workspaces.GET("", handlers.listWorkspaces)
+		workspaces.GET("/:id", handlers.getWorkspace)
+		workspaces.PATCH("/:id", handlers.updateWorkspace)
+		workspaces.DELETE("/:id", handlers.deleteWorkspace)
+		workspaces.POST("/resolve", handlers.resolveWorkspace)
+	}
+
 	sessions := api.Group("/sessions")
 	{
 		sessions.GET("", handlers.listSessions)

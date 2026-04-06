@@ -1,6 +1,7 @@
 package observe
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestNewWithEmptyHomePathsReturnsError(t *testing.T) {
@@ -57,7 +59,6 @@ func TestDefaultPermissionModeResolverUsesConfigAndAgent(t *testing.T) {
 	if err := aghconfig.EnsureHomeLayout(home); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
-	t.Setenv("AGH_HOME", home.HomeDir)
 
 	agentDir := filepath.Join(home.AgentsDir, "coder")
 	if err := os.MkdirAll(agentDir, 0o755); err != nil {
@@ -66,21 +67,46 @@ func TestDefaultPermissionModeResolverUsesConfigAndAgent(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(agentDir, "AGENT.md"), []byte(`---
 name: coder
 provider: codex
-permissions: approve-all
 ---
 
 You write reliable code.
 `), 0o644); err != nil {
 		t.Fatalf("WriteFile(agent) error = %v", err)
 	}
+	if err := os.WriteFile(home.ConfigFile, []byte(`
+[providers.codex]
+command = "codex"
+
+[permissions]
+mode = "deny-all"
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(global config) error = %v", err)
+	}
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace) error = %v", err)
 	}
+	workspaceConfigDir := filepath.Join(workspace, aghconfig.DirName)
+	if err := os.MkdirAll(workspaceConfigDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workspace config) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(workspaceConfigDir, aghconfig.ConfigName), []byte(`
+[permissions]
+mode = "approve-all"
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(workspace config) error = %v", err)
+	}
 
-	resolver := defaultPermissionModeResolver(home)
-	got, err := resolver("coder", workspace)
+	resolver := defaultPermissionModeResolver(home, fakeObserveWorkspaceResolver{
+		resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:      "ws-observe",
+				RootDir: workspace,
+			},
+		},
+	})
+	got, err := resolver(testContext(t), "coder", "ws-observe")
 	if err != nil {
 		t.Fatalf("resolver() error = %v", err)
 	}
@@ -97,16 +123,45 @@ func TestDefaultPermissionModeResolverReturnsErrorForMissingAgent(t *testing.T) 
 	if err := aghconfig.EnsureHomeLayout(home); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
-	t.Setenv("AGH_HOME", home.HomeDir)
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace) error = %v", err)
 	}
+	if err := os.WriteFile(home.ConfigFile, []byte(`
+[providers.codex]
+command = "codex"
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(global config) error = %v", err)
+	}
 
-	resolver := defaultPermissionModeResolver(home)
-	if _, err := resolver("missing", workspace); err == nil {
+	resolver := defaultPermissionModeResolver(home, fakeObserveWorkspaceResolver{
+		resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:      "ws-observe",
+				RootDir: workspace,
+			},
+		},
+	})
+	if _, err := resolver(testContext(t), "missing", "ws-observe"); err == nil {
 		t.Fatal("resolver(missing agent) error = nil, want non-nil")
+	}
+}
+
+func TestDefaultPermissionModeResolverRequiresResolverForWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := aghconfig.EnsureHomeLayout(home); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	resolver := defaultPermissionModeResolver(home, nil)
+	if _, err := resolver(testContext(t), "coder", "ws-missing"); err == nil {
+		t.Fatal("resolver(nil workspace resolver) error = nil, want non-nil")
 	}
 }
 
@@ -114,7 +169,7 @@ func TestOnSessionCreatedResolverFailureStillRegistersSession(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.observer.resolvePermissionMode = func(string, string) (string, error) {
+	h.observer.resolvePermissionMode = func(context.Context, string, string) (string, error) {
 		return "", errors.New("boom")
 	}
 
@@ -138,9 +193,9 @@ func TestHealthFallsBackToRegistryWithoutSessionSource(t *testing.T) {
 
 	now := h.now
 	for _, info := range []store.SessionInfo{
-		{ID: "sess-active", AgentName: "coder", Workspace: h.workspace, State: "active", CreatedAt: now, UpdatedAt: now},
-		{ID: "sess-stopped", AgentName: "coder", Workspace: h.workspace, State: "stopped", CreatedAt: now, UpdatedAt: now},
-		{ID: "sess-orphaned", AgentName: "coder", Workspace: h.workspace, State: "orphaned", CreatedAt: now, UpdatedAt: now},
+		{ID: "sess-active", AgentName: "coder", WorkspaceID: h.workspaceID, State: "active", CreatedAt: now, UpdatedAt: now},
+		{ID: "sess-stopped", AgentName: "coder", WorkspaceID: h.workspaceID, State: "stopped", CreatedAt: now, UpdatedAt: now},
+		{ID: "sess-orphaned", AgentName: "coder", WorkspaceID: h.workspaceID, State: "orphaned", CreatedAt: now, UpdatedAt: now},
 	} {
 		if err := h.observer.registry.RegisterSession(testContext(t), info); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
@@ -211,13 +266,13 @@ func TestLoadSessionMetadataSkipsMissingMetaAndKeepsStoppedState(t *testing.T) {
 
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-stopped")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:        "sess-stopped",
-		Name:      "Stopped",
-		AgentName: "coder",
-		Workspace: h.workspace,
-		State:     "stopped",
-		CreatedAt: h.now,
-		UpdatedAt: h.now,
+		ID:          "sess-stopped",
+		Name:        "Stopped",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		State:       "stopped",
+		CreatedAt:   h.now,
+		UpdatedAt:   h.now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
@@ -289,4 +344,23 @@ func TestMissingPathHelpers(t *testing.T) {
 	if len(sessions) != 0 {
 		t.Fatalf("len(loadSessionMetadata(missing)) = %d, want 0", len(sessions))
 	}
+}
+
+type fakeObserveWorkspaceResolver struct {
+	resolved workspacepkg.ResolvedWorkspace
+	err      error
+}
+
+func (r fakeObserveWorkspaceResolver) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+	if r.err != nil {
+		return workspacepkg.ResolvedWorkspace{}, r.err
+	}
+	return r.resolved, nil
+}
+
+func (r fakeObserveWorkspaceResolver) ResolveOrRegister(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+	if r.err != nil {
+		return workspacepkg.ResolvedWorkspace{}, r.err
+	}
+	return r.resolved, nil
 }

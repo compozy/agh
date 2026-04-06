@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
@@ -41,14 +43,14 @@ func NewCatalogProvider(registry *Registry) *CatalogProvider {
 
 // PromptSection loads the workspace-scoped skills and returns their XML-like
 // catalog representation.
-func (cp *CatalogProvider) PromptSection(ctx context.Context, workspace string) (string, error) {
+func (cp *CatalogProvider) PromptSection(ctx context.Context, workspace workspacepkg.ResolvedWorkspace) (string, error) {
 	if cp == nil || cp.registry == nil {
 		return "", nil
 	}
 
 	skills, err := cp.registry.ForWorkspace(ctx, workspace)
 	if err != nil {
-		return "", fmt.Errorf("skills: build catalog for workspace %q: %w", workspace, err)
+		return "", fmt.Errorf("skills: build catalog for workspace %q: %w", catalogWorkspaceLabel(workspace), err)
 	}
 
 	return BuildCatalog(skills), nil
@@ -118,4 +120,17 @@ func escapeCatalogText(value string) string {
 
 func escapeCatalogAttr(value string) string {
 	return catalogAttrReplacer.Replace(value)
+}
+
+func catalogWorkspaceLabel(workspace workspacepkg.ResolvedWorkspace) string {
+	if name := strings.TrimSpace(workspace.Name); name != "" {
+		return name
+	}
+	if root := strings.TrimSpace(workspace.RootDir); root != "" {
+		return root
+	}
+	if id := strings.TrimSpace(workspace.ID); id != "" {
+		return id
+	}
+	return "<global>"
 }

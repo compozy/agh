@@ -10,12 +10,13 @@ func TestBundlesRenderHumanAndToon(t *testing.T) {
 	t.Parallel()
 
 	sessionInfo := SessionRecord{
-		ID:           "sess-1",
-		Name:         "demo",
-		AgentName:    "coder",
-		Workspace:    "/workspace/project",
-		State:        "active",
-		ACPSessionID: "acp-1",
+		ID:            "sess-1",
+		Name:          "demo",
+		AgentName:     "coder",
+		WorkspaceID:   "ws-1",
+		WorkspacePath: "/workspace/project",
+		State:         "active",
+		ACPSessionID:  "acp-1",
 		ACPCaps: &ACPCapsRecord{
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat"},

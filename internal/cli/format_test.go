@@ -36,15 +36,16 @@ func TestJSONOutputProducesValidJSON(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, stubClient{
-		listSessionsFn: func(_ context.Context) ([]SessionRecord, error) {
+		listSessionsFn: func(_ context.Context, _ SessionListQuery) ([]SessionRecord, error) {
 			return []SessionRecord{{
-				ID:        "sess-1",
-				Name:      "demo",
-				AgentName: "coder",
-				Workspace: "/workspace/project",
-				State:     "active",
-				CreatedAt: fixedTestNow.Add(-time.Minute),
-				UpdatedAt: fixedTestNow,
+				ID:            "sess-1",
+				Name:          "demo",
+				AgentName:     "coder",
+				WorkspaceID:   "ws-1",
+				WorkspacePath: "/workspace/project",
+				State:         "active",
+				CreatedAt:     fixedTestNow.Add(-time.Minute),
+				UpdatedAt:     fixedTestNow,
 			}}, nil
 		},
 	})

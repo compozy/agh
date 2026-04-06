@@ -9,6 +9,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 // AgentProcess is the session-owned handle for a running agent process.
@@ -160,7 +161,7 @@ type Notifier interface {
 
 // PromptAssembler assembles the prompt context for a new session start.
 type PromptAssembler interface {
-	Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace string) (string, error)
+	Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace workspacepkg.ResolvedWorkspace) (string, error)
 }
 
 // ACPDriverAdapter adapts the concrete ACP driver to the session-local interface.

@@ -14,6 +14,8 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestBootSequenceReady(t *testing.T) {
@@ -39,6 +41,9 @@ func TestBootSequenceReady(t *testing.T) {
 
 	if d.sessions == nil || d.observer == nil || d.registry == nil {
 		t.Fatalf("boot() did not wire runtime dependencies: sessions=%v observer=%v registry=%v", d.sessions, d.observer, d.registry)
+	}
+	if d.workspaceResolver == nil {
+		t.Fatal("boot() did not wire the workspace resolver")
 	}
 	if _, err := os.Stat(homePaths.DatabaseFile); err != nil {
 		t.Fatalf("stat global database error = %v", err)
@@ -164,6 +169,9 @@ func TestBootInitializesMemoryStoreAndAssemblerIntegration(t *testing.T) {
 	if capturedDeps.PromptAssembler == nil {
 		t.Fatal("boot() did not inject the prompt assembler")
 	}
+	if capturedDeps.WorkspaceResolver == nil {
+		t.Fatal("boot() did not inject the workspace resolver")
+	}
 	if _, err := os.Stat(cfg.Memory.GlobalDir); err != nil {
 		t.Fatalf("stat external memory directory error = %v", err)
 	}
@@ -211,6 +219,9 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 	if capturedDeps.PromptAssembler == nil {
 		t.Fatal("boot() did not inject the prompt assembler")
 	}
+	if capturedDeps.WorkspaceResolver == nil {
+		t.Fatal("boot() did not inject the workspace resolver")
+	}
 	if d.skillsRegistry == nil {
 		t.Fatal("boot() did not initialize the skills registry")
 	}
@@ -218,7 +229,7 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 		t.Fatal("skills registry does not contain bundled skill agh-session-guide")
 	}
 
-	prompt, err := capturedDeps.PromptAssembler.Assemble(context.Background(), testPromptAgent("Base prompt."), t.TempDir())
+	prompt, err := capturedDeps.PromptAssembler.Assemble(context.Background(), testPromptAgent("Base prompt."), workspacepkg.ResolvedWorkspace{})
 	if err != nil {
 		t.Fatalf("PromptAssembler.Assemble() error = %v", err)
 	}
@@ -233,6 +244,7 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	cfg.Memory.Dream.CheckInterval = 10 * time.Millisecond
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
+	resolvedWorkspace := seedDaemonWorkspace(t, homePaths, workspace)
 	dream := &fakeDreamService{
 		shouldRun: true,
 		runHook: func(ctx context.Context, spawn memory.SessionSpawner, workspace string) error {
@@ -242,10 +254,10 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.SessionInfo{
 			{
-				ID:        "sess-user",
-				Workspace: workspace,
-				Type:      session.SessionTypeUser,
-				UpdatedAt: time.Date(2026, 4, 4, 10, 0, 0, 0, time.UTC),
+				ID:          "sess-user",
+				WorkspaceID: resolvedWorkspace.ID,
+				Type:        session.SessionTypeUser,
+				UpdatedAt:   time.Date(2026, 4, 4, 10, 0, 0, 0, time.UTC),
 			},
 		},
 	}
@@ -293,8 +305,11 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	if got := sessions.createCall(0).Type; got != session.SessionTypeDream {
 		t.Fatalf("Create() session type = %q, want %q", got, session.SessionTypeDream)
 	}
-	if got := sessions.createCall(0).Workspace; got != workspace {
-		t.Fatalf("Create() workspace = %q, want %q", got, workspace)
+	if got := sessions.createCall(0).Workspace; got != resolvedWorkspace.ID {
+		t.Fatalf("Create() workspace = %q, want %q", got, resolvedWorkspace.ID)
+	}
+	if got := sessions.createCall(0).WorkspacePath; got != "" {
+		t.Fatalf("Create() workspace_path = %q, want empty", got)
 	}
 	if got := sessions.promptCount(); got == 0 || sessions.promptCall(0).msg != "integration prompt" {
 		t.Fatalf("Prompt() calls = %d, want integration prompt", got)
@@ -314,4 +329,43 @@ func integrationHomePaths(t *testing.T) aghconfig.HomePaths {
 	}
 	homePaths.DaemonSocket = shortSocketPath(t)
 	return homePaths
+}
+
+func seedDaemonWorkspace(t *testing.T, homePaths aghconfig.HomePaths, root string) workspacepkg.ResolvedWorkspace {
+	t.Helper()
+
+	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
+	}
+
+	registry, err := store.OpenGlobalDB(testContext(t), homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	defer func() {
+		if err := registry.Close(testContext(t)); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	}()
+
+	resolver, err := workspacepkg.NewResolver(
+		registry,
+		workspacepkg.WithHomePaths(homePaths),
+		workspacepkg.WithLogger(discardLogger()),
+		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
+			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewResolver() error = %v", err)
+	}
+
+	resolved, err := resolver.ResolveOrRegister(testContext(t), root)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(%q) error = %v", root, err)
+	}
+	return resolved
 }

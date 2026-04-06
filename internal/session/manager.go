@@ -18,6 +18,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
@@ -40,17 +41,12 @@ var (
 
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
-	AgentName string
-	Name      string
-	Workspace string
-	Type      SessionType
+	AgentName     string
+	Name          string
+	Workspace     string
+	WorkspacePath string
+	Type          SessionType
 }
-
-// ConfigLoader resolves the effective runtime config for a workspace.
-type ConfigLoader func(workspace string) (aghconfig.Config, error)
-
-// AgentLoader loads a parsed AGENT.md definition by name.
-type AgentLoader func(name string, homePaths aghconfig.HomePaths) (aghconfig.AgentDef, error)
 
 // StoreOpener opens the per-session events store for a session directory.
 type StoreOpener func(ctx context.Context, sessionID string, path string) (EventRecorder, error)
@@ -72,8 +68,7 @@ type Manager struct {
 	driver        AgentDriver
 	notifier      Notifier
 	homePaths     aghconfig.HomePaths
-	loadConfig    ConfigLoader
-	loadAgent     AgentLoader
+	workspace     workspacepkg.WorkspaceResolver
 	openStore     StoreOpener
 	assembler     PromptAssembler
 	now           func() time.Time
@@ -125,26 +120,10 @@ func WithHomePaths(homePaths aghconfig.HomePaths) Option {
 	}
 }
 
-// WithConfigLoader overrides workspace config resolution.
-func WithConfigLoader(loader ConfigLoader) Option {
+// WithWorkspaceResolver injects workspace resolution for create/resume flows.
+func WithWorkspaceResolver(resolver workspacepkg.WorkspaceResolver) Option {
 	return func(manager *Manager) {
-		manager.loadConfig = loader
-	}
-}
-
-// WithConfig injects a static runtime config for all session operations.
-func WithConfig(cfg aghconfig.Config) Option {
-	return func(manager *Manager) {
-		manager.loadConfig = func(string) (aghconfig.Config, error) {
-			return cfg, nil
-		}
-	}
-}
-
-// WithAgentLoader overrides agent definition resolution.
-func WithAgentLoader(loader AgentLoader) Option {
-	return func(manager *Manager) {
-		manager.loadAgent = loader
+		manager.workspace = resolver
 	}
 }
 
@@ -197,13 +176,6 @@ func NewManager(opts ...Option) (*Manager, error) {
 		logger:     slog.Default(),
 		driver:     NewACPDriverAdapter(acp.New()),
 		homePaths:  homePaths,
-		loadConfig: func(workspace string) (aghconfig.Config, error) {
-			if strings.TrimSpace(workspace) == "" {
-				return aghconfig.Load()
-			}
-			return aghconfig.Load(aghconfig.WithWorkspaceRoot(workspace))
-		},
-		loadAgent: aghconfig.LoadAgentDef,
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return store.OpenSessionDB(ctx, sessionID, path)
 		},
@@ -230,12 +202,6 @@ func NewManager(opts ...Option) (*Manager, error) {
 	}
 	if manager.driver == nil {
 		return nil, errors.New("session: agent driver is required")
-	}
-	if manager.loadConfig == nil {
-		return nil, errors.New("session: config loader is required")
-	}
-	if manager.loadAgent == nil {
-		return nil, errors.New("session: agent loader is required")
 	}
 	if manager.openStore == nil {
 		return nil, errors.New("session: store opener is required")
@@ -271,31 +237,27 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 		return nil, errors.New("session: create context is required")
 	}
 
-	workspace, err := resolveWorkspace(opts.Workspace)
+	resolvedWorkspace, err := m.resolveCreateWorkspace(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := m.loadConfig(workspace)
-	if err != nil {
-		return nil, fmt.Errorf("session: load config for %q: %w", workspace, err)
-	}
-	agentName, err := aghconfig.ResolveAgentName(opts.AgentName, cfg)
+	agentName, err := aghconfig.ResolveAgentName(opts.AgentName, resolvedWorkspace.Config)
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve agent name: %w", err)
 	}
 
-	agentDef, err := m.loadAgent(agentName, m.homePaths)
+	agentDef, err := resolveWorkspaceAgent(agentName, resolvedWorkspace)
 	if err != nil {
-		return nil, fmt.Errorf("session: load agent %q: %w", agentName, err)
+		return nil, fmt.Errorf("session: resolve workspace agent %q: %w", agentName, err)
 	}
-	startupPrompt, err := m.startupPrompt(ctx, agentName, agentDef, workspace)
+	startupPrompt, err := m.startupPrompt(ctx, agentName, agentDef, resolvedWorkspace)
 	if err != nil {
 		return nil, err
 	}
 	agentDef.Prompt = startupPrompt
 
-	resolved, err := cfg.ResolveAgent(agentDef)
+	resolved, err := resolvedWorkspace.Config.ResolveAgent(agentDef)
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve agent %q: %w", agentName, err)
 	}
@@ -305,7 +267,7 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 		return nil, errors.New("session: session id generator returned empty id")
 	}
 
-	if err := m.reserve(sessionID, m.effectiveMaxSessions(cfg)); err != nil {
+	if err := m.reserve(sessionID, m.effectiveMaxSessions(resolvedWorkspace.Config)); err != nil {
 		return nil, err
 	}
 	defer func() {
@@ -335,18 +297,19 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 
 	now := m.now()
 	session := &Session{
-		ID:         sessionID,
-		Name:       strings.TrimSpace(opts.Name),
-		AgentName:  resolved.Name,
-		Workspace:  workspace,
-		Type:       normalizeSessionType(opts.Type),
-		State:      StateStarting,
-		CreatedAt:  now,
-		UpdatedAt:  now,
-		sessionDir: sessionDir,
-		metaPath:   store.SessionMetaFile(sessionDir),
-		dbPath:     dbPath,
-		recorder:   recorder,
+		ID:          sessionID,
+		Name:        strings.TrimSpace(opts.Name),
+		AgentName:   resolved.Name,
+		WorkspaceID: resolvedWorkspace.ID,
+		Workspace:   resolvedWorkspace.RootDir,
+		Type:        normalizeSessionType(opts.Type),
+		State:       StateStarting,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		sessionDir:  sessionDir,
+		metaPath:    store.SessionMetaFile(sessionDir),
+		dbPath:      dbPath,
+		recorder:    recorder,
 	}
 
 	if err := m.writeMeta(session); err != nil {
@@ -354,12 +317,13 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 	}
 
 	proc, err = m.driver.Start(ctx, acp.StartOpts{
-		AgentName:    resolved.Name,
-		Command:      resolved.Command,
-		Cwd:          workspace,
-		MCPServers:   append([]aghconfig.MCPServer(nil), resolved.MCPServers...),
-		Permissions:  m.startPermissions(session.Type, resolved.Permissions),
-		SystemPrompt: resolved.Prompt,
+		AgentName:      resolved.Name,
+		Command:        resolved.Command,
+		Cwd:            resolvedWorkspace.RootDir,
+		AdditionalDirs: append([]string(nil), resolvedWorkspace.AdditionalDirs...),
+		MCPServers:     append([]aghconfig.MCPServer(nil), resolved.MCPServers...),
+		Permissions:    m.startPermissions(session.Type, resolved.Permissions),
+		SystemPrompt:   resolved.Prompt,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("session: start agent for %q: %w", sessionID, err)
@@ -395,17 +359,22 @@ func (m *Manager) Stop(ctx context.Context, id string) error {
 		return err
 	}
 
-	state := session.Info().State
-	if state == StateStopped {
-		return nil
+	writeMeta, promptSetupDone, err := session.prepareStop(m.now())
+	if err != nil {
+		return err
 	}
-	if state == StateActive {
-		if err := session.beginStopping(m.now()); err != nil {
-			return err
-		}
+	if writeMeta {
 		if err := m.writeMeta(session); err != nil {
 			return err
 		}
+	}
+	if err := waitForPromptSetup(ctx, session, promptSetupDone); err != nil {
+		return err
+	}
+
+	state := session.Info().State
+	if state == StateStopped {
+		return nil
 	}
 
 	proc := session.processHandle()
@@ -443,32 +412,27 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		return nil, fmt.Errorf("session: read session meta %q: %w", metaPath, err)
 	}
 
-	workspace, err := resolveWorkspace(meta.Workspace)
+	resolvedWorkspace, err := m.resolveResumeWorkspace(ctx, meta)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := m.loadConfig(workspace)
+	agentDef, err := resolveWorkspaceAgent(meta.AgentName, resolvedWorkspace)
 	if err != nil {
-		return nil, fmt.Errorf("session: load config for %q: %w", workspace, err)
+		return nil, fmt.Errorf("session: resolve workspace agent %q: %w", meta.AgentName, err)
 	}
-
-	agentDef, err := m.loadAgent(meta.AgentName, m.homePaths)
-	if err != nil {
-		return nil, fmt.Errorf("session: load agent %q: %w", meta.AgentName, err)
-	}
-	startupPrompt, err := m.startupPrompt(ctx, meta.AgentName, agentDef, workspace)
+	startupPrompt, err := m.startupPrompt(ctx, meta.AgentName, agentDef, resolvedWorkspace)
 	if err != nil {
 		return nil, err
 	}
 	agentDef.Prompt = startupPrompt
 
-	resolved, err := cfg.ResolveAgent(agentDef)
+	resolved, err := resolvedWorkspace.Config.ResolveAgent(agentDef)
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve agent %q: %w", meta.AgentName, err)
 	}
 
-	if err := m.reserve(meta.ID, m.effectiveMaxSessions(cfg)); err != nil {
+	if err := m.reserve(meta.ID, m.effectiveMaxSessions(resolvedWorkspace.Config)); err != nil {
 		return nil, err
 	}
 	defer func() {
@@ -499,7 +463,8 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		ID:           meta.ID,
 		Name:         meta.Name,
 		AgentName:    meta.AgentName,
-		Workspace:    workspace,
+		WorkspaceID:  strings.TrimSpace(meta.WorkspaceID),
+		Workspace:    resolvedWorkspace.RootDir,
 		Type:         normalizeSessionType(SessionType(meta.SessionType)),
 		State:        StateStarting,
 		ACPSessionID: derefString(meta.ACPSessionID),
@@ -518,7 +483,8 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	proc, err = m.driver.Start(ctx, acp.StartOpts{
 		AgentName:       resolved.Name,
 		Command:         resolved.Command,
-		Cwd:             workspace,
+		Cwd:             resolvedWorkspace.RootDir,
+		AdditionalDirs:  append([]string(nil), resolvedWorkspace.AdditionalDirs...),
 		MCPServers:      append([]aghconfig.MCPServer(nil), resolved.MCPServers...),
 		Permissions:     m.startPermissions(session.Type, resolved.Permissions),
 		SystemPrompt:    resolved.Prompt,
@@ -547,7 +513,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	return session, nil
 }
 
-func (m *Manager) startupPrompt(ctx context.Context, agentName string, agent aghconfig.AgentDef, workspace string) (string, error) {
+func (m *Manager) startupPrompt(ctx context.Context, agentName string, agent aghconfig.AgentDef, workspace workspacepkg.ResolvedWorkspace) (string, error) {
 	prompt := strings.TrimSpace(agent.Prompt)
 	if m.assembler == nil {
 		return prompt, nil
@@ -597,18 +563,11 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 		turnID = newID("turn")
 	}
 
-	session.mu.RLock()
-	if session.State != StateActive {
-		session.mu.RUnlock()
-		return nil, fmt.Errorf("session: session %q is not active", id)
+	proc, err := session.beginPromptSetup()
+	if err != nil {
+		return nil, err
 	}
-
-	proc := session.process
-	if proc == nil {
-		session.mu.RUnlock()
-		return nil, errors.New("session: agent process is not available")
-	}
-	session.mu.RUnlock()
+	defer session.finishPromptSetup()
 
 	userEvent := m.normalizeEvent(session, turnID, acp.AgentEvent{
 		Type:      acp.EventTypeUserMessage,
@@ -1058,28 +1017,73 @@ func (m *Manager) sessionLogger(session *Session) *slog.Logger {
 	return logger.With("session_id", info.ID, "agent_name", info.AgentName)
 }
 
-func resolveWorkspace(workspace string) (string, error) {
-	target := strings.TrimSpace(workspace)
-	if target == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("session: resolve current workspace: %w", err)
-		}
-		target = cwd
+func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (workspacepkg.ResolvedWorkspace, error) {
+	resolver, err := m.requireWorkspaceResolver()
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
 	}
 
-	absPath, err := filepath.Abs(target)
+	workspaceRef := strings.TrimSpace(opts.Workspace)
+	workspacePath := strings.TrimSpace(opts.WorkspacePath)
+	switch {
+	case workspaceRef == "" && workspacePath == "":
+		return workspacepkg.ResolvedWorkspace{}, errors.New("session: workspace or workspace path is required")
+	case workspaceRef != "" && workspacePath != "":
+		return workspacepkg.ResolvedWorkspace{}, errors.New("session: workspace and workspace path are mutually exclusive")
+	case workspacePath != "":
+		resolved, err := resolver.ResolveOrRegister(ctx, workspacePath)
+		if err != nil {
+			return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("session: resolve workspace path %q: %w", workspacePath, err)
+		}
+		return resolved, nil
+	default:
+		resolved, err := resolver.Resolve(ctx, workspaceRef)
+		if err != nil {
+			return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("session: resolve workspace %q: %w", workspaceRef, err)
+		}
+		return resolved, nil
+	}
+}
+
+func (m *Manager) resolveResumeWorkspace(ctx context.Context, meta store.SessionMeta) (workspacepkg.ResolvedWorkspace, error) {
+	resolver, err := m.requireWorkspaceResolver()
 	if err != nil {
-		return "", fmt.Errorf("session: resolve workspace %q: %w", target, err)
+		return workspacepkg.ResolvedWorkspace{}, err
 	}
-	info, err := os.Stat(absPath)
+
+	workspaceID := strings.TrimSpace(meta.WorkspaceID)
+	if workspaceID == "" {
+		return workspacepkg.ResolvedWorkspace{}, errors.New("session: session workspace id is required")
+	}
+
+	resolved, err := resolver.Resolve(ctx, workspaceID)
 	if err != nil {
-		return "", fmt.Errorf("session: stat workspace %q: %w", absPath, err)
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("session: resolve workspace %q for session %q: %w", workspaceID, meta.ID, err)
 	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("session: workspace %q is not a directory", absPath)
+	return resolved, nil
+}
+
+func (m *Manager) requireWorkspaceResolver() (workspacepkg.WorkspaceResolver, error) {
+	if m.workspace == nil {
+		return nil, errors.New("session: workspace resolver is required")
 	}
-	return absPath, nil
+	return m.workspace, nil
+}
+
+func resolveWorkspaceAgent(agentName string, resolvedWorkspace workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error) {
+	target := strings.TrimSpace(agentName)
+	if target == "" {
+		return aghconfig.AgentDef{}, errors.New("session: agent name is required")
+	}
+
+	for _, agent := range resolvedWorkspace.Agents {
+		if strings.TrimSpace(agent.Name) != target {
+			continue
+		}
+		return agent, nil
+	}
+
+	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }
 
 func marshalAgentEvent(event acp.AgentEvent) (string, error) {
@@ -1152,6 +1156,22 @@ func isProcessDone(proc *AgentProcess) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func waitForPromptSetup(ctx context.Context, session *Session, promptSetupDone <-chan struct{}) error {
+	if promptSetupDone == nil {
+		return nil
+	}
+	select {
+	case <-promptSetupDone:
+		return nil
+	case <-ctx.Done():
+		sessionID := ""
+		if session != nil {
+			sessionID = session.ID
+		}
+		return fmt.Errorf("session: wait for in-flight prompt setup for %q: %w", sessionID, ctx.Err())
 	}
 }
 

@@ -20,6 +20,8 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
@@ -80,14 +82,21 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 		acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		acp.WithStopTimeout(100*time.Millisecond),
 	)
-	h.manager = newManagerWithHarness(t, h,
-		WithDriver(NewACPDriverAdapter(driver)),
-		WithAgentLoader(staticAgentLoader(aghconfig.AgentDef{
+	h.resolver.upsert(workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{{
+			Name:     "coder",
 			Provider: "claude",
 			Command:  sessionStopWrapperCommand(t, pidFile),
 			Prompt:   "You are a coding assistant.",
-		})),
-	)
+		}},
+	})
+	h.manager = newManagerWithHarness(t, h, WithDriver(NewACPDriverAdapter(driver)))
 
 	session := createSession(t, h)
 	childPID := waitForSessionStopWrapperChildPID(t, pidFile)
@@ -99,10 +108,99 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 	}
 
 	waitForSessionStopProcessExit(t, childPID, time.Second)
+	waitForCondition(t, "stopped session metadata", func() bool {
+		meta := readMeta(t, session.MetaPath())
+		return meta.State == string(StateStopped)
+	})
+}
 
-	meta := readMeta(t, session.MetaPath())
-	if meta.State != string(StateStopped) {
-		t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
+func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workspace root) error = %v", err)
+	}
+
+	command := sessionStopHelperCommand(t)
+	writeSessionIntegrationAgentDef(t, homePaths, "coder", command)
+
+	registry, err := store.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := registry.Close(context.Background()); err != nil {
+			t.Fatalf("registry.Close() error = %v", err)
+		}
+	})
+
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.Providers["claude"] = aghconfig.ProviderConfig{Command: command}
+
+	resolver, err := workspacepkg.NewResolver(
+		registry,
+		workspacepkg.WithHomePaths(homePaths),
+		workspacepkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) { return cfg, nil }),
+	)
+	if err != nil {
+		t.Fatalf("workspace.NewResolver() error = %v", err)
+	}
+
+	driver := acp.New(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	manager, err := NewManager(
+		WithHomePaths(homePaths),
+		WithWorkspaceResolver(resolver),
+		WithDriver(NewACPDriverAdapter(driver)),
+		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	session, err := manager.Create(testContext(t), CreateOpts{
+		AgentName:     "coder",
+		WorkspacePath: workspaceRoot,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	workspaceID := session.Info().WorkspaceID
+	if workspaceID == "" {
+		t.Fatal("Create() workspace id = empty, want resolved workspace id")
+	}
+	canonicalWorkspaceRoot := resolveIntegrationWorkspaceRoot(t, workspaceRoot)
+	if got, want := session.Info().Workspace, canonicalWorkspaceRoot; got != want {
+		t.Fatalf("Create() workspace root = %q, want %q", got, want)
+	}
+
+	if err := manager.Stop(testContext(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	resumed, err := manager.Resume(testContext(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = manager.Stop(testContext(t), resumed.ID)
+	})
+
+	if got := resumed.Info().WorkspaceID; got != workspaceID {
+		t.Fatalf("Resume() workspace id = %q, want %q", got, workspaceID)
+	}
+	if got, want := resumed.Info().Workspace, canonicalWorkspaceRoot; got != want {
+		t.Fatalf("Resume() workspace root = %q, want %q", got, want)
+	}
+	if got := readMeta(t, resumed.MetaPath()).WorkspaceID; got != workspaceID {
+		t.Fatalf("meta workspace id = %q, want %q", got, workspaceID)
 	}
 }
 
@@ -122,6 +220,53 @@ func sessionStopWrapperCommand(t *testing.T, pidFile string) string {
 		bin,
 		"-test.run=TestSessionStopACPWrapperProcess",
 	)
+}
+
+func sessionStopHelperCommand(t *testing.T) string {
+	t.Helper()
+
+	bin, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable() error = %v", err)
+	}
+
+	return shellquote.Join(
+		"env",
+		testSessionStopHelperEnvKey+"=1",
+		bin,
+		"-test.run=TestSessionStopACPHelperProcess",
+	)
+}
+
+func writeSessionIntegrationAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string, command string) {
+	t.Helper()
+
+	path := filepath.Join(homePaths.AgentsDir, name, "AGENT.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll(agent dir) error = %v", err)
+	}
+	contents := strings.Join([]string{
+		"---",
+		"name: " + name,
+		"provider: claude",
+		"command: " + command,
+		"---",
+		"You are a coding assistant.",
+		"",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatalf("WriteFile(agent def) error = %v", err)
+	}
+}
+
+func resolveIntegrationWorkspaceRoot(t *testing.T, path string) string {
+	t.Helper()
+
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return normalizeResolverPath(path)
+	}
+	return normalizeResolverPath(resolved)
 }
 
 func waitForSessionStopWrapperChildPID(t *testing.T, path string) int {

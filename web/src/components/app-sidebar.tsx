@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Bot, Loader2, Search, Settings, Terminal } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertCircle, Bot, Loader2, Search, Settings, Terminal } from "lucide-react";
 
 import {
   Sidebar,
@@ -24,6 +24,7 @@ import { SessionSidebarItem } from "@/systems/session/components/session-sidebar
 import { useCreateSession } from "@/systems/session/hooks/use-session-actions";
 import { useSessions } from "@/systems/session/hooks/use-sessions";
 import type { SessionPayload } from "@/systems/session/types";
+import { WorkspaceSelector, useWorkspaces, type WorkspacePayload } from "@/systems/workspace";
 
 function useSessionsByAgent(sessions: SessionPayload[] | undefined) {
   return useMemo(() => {
@@ -44,14 +45,31 @@ function useSessionsByAgent(sessions: SessionPayload[] | undefined) {
   }, [sessions]);
 }
 
-function AgentsList() {
+interface AgentsListProps {
+  activeWorkspaceId: string | null;
+  workspaces: WorkspacePayload[] | undefined;
+}
+
+function AgentsList({ activeWorkspaceId, workspaces }: AgentsListProps) {
   const { data: agents, isLoading, isError } = useAgents();
-  const { data: sessions } = useSessions();
+  const { data: sessions } = useSessions(activeWorkspaceId, {
+    enabled: activeWorkspaceId !== null,
+  });
   const sessionsByAgent = useSessionsByAgent(sessions);
   const createSession = useCreateSession();
+  const workspaceNames = useMemo(() => {
+    const byID = new Map<string, string>();
+    for (const workspace of workspaces ?? []) {
+      byID.set(workspace.id, workspace.name);
+    }
+    return byID;
+  }, [workspaces]);
 
   const handleNewSession = (agentName: string) => {
-    createSession.mutate({ agent_name: agentName });
+    if (!activeWorkspaceId) {
+      return;
+    }
+    createSession.mutate({ agent_name: agentName, workspace: activeWorkspaceId });
   };
 
   if (isLoading) {
@@ -98,9 +116,18 @@ function AgentsList() {
       {agents.map(agent => {
         const agentSessions = sessionsByAgent[agent.name];
         return (
-          <AgentSidebarGroup key={agent.name} agent={agent} onNewSession={handleNewSession}>
+          <AgentSidebarGroup
+            key={agent.name}
+            agent={agent}
+            onNewSession={handleNewSession}
+            newSessionDisabled={!activeWorkspaceId || createSession.isPending}
+          >
             {agentSessions?.map(session => (
-              <SessionSidebarItem key={session.id} session={session} />
+              <SessionSidebarItem
+                key={session.id}
+                session={session}
+                workspaceName={workspaceNames.get(session.workspace_id)}
+              />
             ))}
           </AgentSidebarGroup>
         );
@@ -111,6 +138,22 @@ function AgentsList() {
 
 function AppSidebar() {
   const { connectionStatus } = useDaemonHealth();
+  const {
+    data: workspaces,
+    isLoading: areWorkspacesLoading,
+    isError: workspacesError,
+  } = useWorkspaces();
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+
+  const activeWorkspaceId = useMemo(() => {
+    if (!workspaces || workspaces.length === 0) {
+      return null;
+    }
+    if (selectedWorkspaceId && workspaces.some(workspace => workspace.id === selectedWorkspaceId)) {
+      return selectedWorkspaceId;
+    }
+    return workspaces[0].id;
+  }, [selectedWorkspaceId, workspaces]);
 
   return (
     <Sidebar side="left" collapsible="icon">
@@ -142,7 +185,54 @@ function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <AgentsList />
+        <SidebarGroup>
+          <SidebarGroupLabel className="font-mono text-[0.64rem] uppercase tracking-[0.22em] text-[color:var(--ds-text-mono)]">
+            Workspace
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            {areWorkspacesLoading ? (
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton tooltip="Loading workspaces...">
+                    <Loader2 className="size-4 animate-spin text-[color:var(--ds-text-muted)]" />
+                    <span className="text-[color:var(--ds-text-muted)]">Loading workspaces...</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            ) : workspacesError ? (
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton tooltip="Workspace registry unavailable">
+                    <AlertCircle className="size-4 text-[color:var(--ds-accent-danger)]" />
+                    <span className="text-[color:var(--ds-text-muted)]">
+                      Failed to load workspaces
+                    </span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            ) : !workspaces || workspaces.length === 0 ? (
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton tooltip="No workspaces registered">
+                    <span className="text-[color:var(--ds-text-muted)]">
+                      Run `agh workspace add &lt;path&gt;` to register a workspace
+                    </span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            ) : (
+              <WorkspaceSelector
+                workspaces={workspaces}
+                value={activeWorkspaceId}
+                onValueChange={setSelectedWorkspaceId}
+              />
+            )}
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        <AgentsList activeWorkspaceId={activeWorkspaceId} workspaces={workspaces} />
 
         <SidebarSeparator />
       </SidebarContent>

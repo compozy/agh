@@ -282,6 +282,120 @@ api_key_env = "WORKSPACE_KEY"
 	}
 }
 
+func TestLoadWithoutWorkspaceRootIgnoresCurrentDirectoryWorkspaceFiles(t *testing.T) {
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	dotenvHome := filepath.Join(t.TempDir(), "dotenv-home")
+	cwd := t.TempDir()
+
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	writeFile(t, homePaths.ConfigFile, `
+[http]
+port = 3030
+`)
+
+	dotenvPaths, err := ResolveHomePathsFrom(dotenvHome)
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := EnsureHomeLayout(dotenvPaths); err != nil {
+		t.Fatalf("EnsureHomeLayout(dotenv) error = %v", err)
+	}
+	writeFile(t, dotenvPaths.ConfigFile, `
+[http]
+port = 9090
+`)
+
+	writeFile(t, filepath.Join(cwd, ".env"), "AGH_HOME="+dotenvHome+"\n")
+	writeFile(t, filepath.Join(cwd, DirName, ConfigName), `
+[http]
+port = 4242
+`)
+
+	previousWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	if err := os.Chdir(cwd); err != nil {
+		t.Fatalf("Chdir(%q) error = %v", cwd, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(previousWD); err != nil {
+			t.Fatalf("restore working directory: %v", err)
+		}
+	})
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got, want := cfg.HTTP.Port, 3030; got != want {
+		t.Fatalf("Load() HTTP.Port = %d, want %d", got, want)
+	}
+	if got, want := cfg.Daemon.Socket, homePaths.DaemonSocket; got != want {
+		t.Fatalf("Load() Daemon.Socket = %q, want %q", got, want)
+	}
+}
+
+func TestLoadWithWorkspaceRootUsesExplicitRootOnly(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	otherWorkspace := t.TempDir()
+	homeRoot := filepath.Join(t.TempDir(), "home")
+
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	writeFile(t, homePaths.ConfigFile, `
+[http]
+host = "localhost"
+port = 2123
+`)
+	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[http]
+port = 4242
+`)
+	writeFile(t, filepath.Join(otherWorkspace, DirName, ConfigName), `
+[http]
+port = 9999
+`)
+
+	previousWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	if err := os.Chdir(otherWorkspace); err != nil {
+		t.Fatalf("Chdir(%q) error = %v", otherWorkspace, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(previousWD); err != nil {
+			t.Fatalf("restore working directory: %v", err)
+		}
+	})
+
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got, want := cfg.HTTP.Port, 4242; got != want {
+		t.Fatalf("Load() HTTP.Port = %d, want %d", got, want)
+	}
+}
+
 func TestLoadRejectsUnknownConfigKeys(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")

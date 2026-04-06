@@ -2,8 +2,10 @@ package acp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +25,7 @@ const (
 	testHelperEnvKey      = "AGH_TEST_ACP_HELPER"
 	testHelperScenarioKey = "AGH_TEST_ACP_SCENARIO"
 	testHelperFileKey     = "AGH_TEST_ACP_FILE"
+	testHelperCaptureKey  = "AGH_TEST_ACP_CAPTURE_FILE"
 	testWrapperEnvKey     = "AGH_TEST_ACP_WRAPPER"
 )
 
@@ -35,7 +38,21 @@ func TestACPHelperProcess(t *testing.T) {
 		scenario: os.Getenv(testHelperScenarioKey),
 		filePath: os.Getenv(testHelperFileKey),
 	}
-	conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, os.Stdin)
+	input := io.Reader(os.Stdin)
+	capturePath := strings.TrimSpace(os.Getenv(testHelperCaptureKey))
+	if capturePath != "" {
+		captureFile, err := os.Create(capturePath)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "create capture file: %v\n", err)
+			os.Exit(1)
+		}
+		defer func() {
+			_ = captureFile.Close()
+		}()
+		input = io.TeeReader(os.Stdin, captureFile)
+	}
+
+	conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, input)
 	agent.conn = conn
 	<-conn.Done()
 	os.Exit(0)
@@ -331,6 +348,78 @@ func TestStartResumeUsesLoadSession(t *testing.T) {
 	}
 }
 
+func TestStartWithEmptyAdditionalDirsKeepsBaselinePayload(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "session-new.jsonl")
+	proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{
+		Env: helperEnvWithCapture("stream_updates", "", captureFile),
+	})
+	defer stopProcess(t, driver, proc)
+
+	params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)
+	if _, exists := params["additional_dirs"]; exists {
+		t.Fatalf("session/new params include additional_dirs for empty start opts: %#v", params)
+	}
+}
+
+func TestStartIncludesAdditionalDirsInNewSessionPayload(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	root := t.TempDir()
+	additionalOne := t.TempDir()
+	additionalTwo := t.TempDir()
+	captureFile := filepath.Join(t.TempDir(), "session-new.jsonl")
+
+	proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{
+		Cwd:            root,
+		AdditionalDirs: []string{additionalOne, additionalTwo},
+		Env:            helperEnvWithCapture("stream_updates", "", captureFile),
+	})
+	defer stopProcess(t, driver, proc)
+
+	params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)
+	request := decodeCapturedNewSessionRequest(t, params)
+	if got, want := request.Cwd, mustCanonicalDir(t, root); got != want {
+		t.Fatalf("session/new cwd = %q, want %q", got, want)
+	}
+	if got, want := request.AdditionalDirs, []string{mustCanonicalDir(t, additionalOne), mustCanonicalDir(t, additionalTwo)}; !slices.Equal(got, want) {
+		t.Fatalf("session/new additional_dirs = %#v, want %#v", got, want)
+	}
+}
+
+func TestStartIncludesAdditionalDirsInLoadSessionPayload(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	root := t.TempDir()
+	additionalOne := t.TempDir()
+	additionalTwo := t.TempDir()
+	captureFile := filepath.Join(t.TempDir(), "session-load.jsonl")
+
+	proc := startHelperProcess(t, driver, "load_session", "", StartOpts{
+		Cwd:             root,
+		AdditionalDirs:  []string{additionalOne, additionalTwo},
+		ResumeSessionID: "sess-existing",
+		Env:             helperEnvWithCapture("load_session", "", captureFile),
+	})
+	defer stopProcess(t, driver, proc)
+
+	params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionLoad)
+	request := decodeCapturedLoadSessionRequest(t, params)
+	if got, want := request.Cwd, mustCanonicalDir(t, root); got != want {
+		t.Fatalf("session/load cwd = %q, want %q", got, want)
+	}
+	if request.SessionID != "sess-existing" {
+		t.Fatalf("session/load sessionId = %q, want %q", request.SessionID, "sess-existing")
+	}
+	if got, want := request.AdditionalDirs, []string{mustCanonicalDir(t, additionalOne), mustCanonicalDir(t, additionalTwo)}; !slices.Equal(got, want) {
+		t.Fatalf("session/load additional_dirs = %#v, want %#v", got, want)
+	}
+}
+
 func TestStartResumeReturnsErrorWhenLoadFails(t *testing.T) {
 	t.Parallel()
 
@@ -461,6 +550,9 @@ func startHelperProcess(t *testing.T, driver *Driver, scenario string, filePath 
 	if overrides.Cwd != "" {
 		opts.Cwd = overrides.Cwd
 	}
+	if overrides.AdditionalDirs != nil {
+		opts.AdditionalDirs = append([]string(nil), overrides.AdditionalDirs...)
+	}
 	if overrides.Env != nil {
 		opts.Env = overrides.Env
 	}
@@ -543,6 +635,105 @@ func helperEnv(scenario string, filePath string) []string {
 		env = append(env, testHelperFileKey+"="+filePath)
 	}
 	return env
+}
+
+func helperEnvWithCapture(scenario string, filePath string, capturePath string) []string {
+	env := helperEnv(scenario, filePath)
+	if strings.TrimSpace(capturePath) != "" {
+		env = append(env, testHelperCaptureKey+"="+capturePath)
+	}
+	return env
+}
+
+type capturedRequestEnvelope struct {
+	Method string          `json:"method"`
+	Params json.RawMessage `json:"params"`
+}
+
+type capturedNewSessionRequest struct {
+	Cwd            string   `json:"cwd"`
+	AdditionalDirs []string `json:"additional_dirs,omitempty"`
+}
+
+type capturedLoadSessionRequest struct {
+	Cwd            string   `json:"cwd"`
+	AdditionalDirs []string `json:"additional_dirs,omitempty"`
+	SessionID      string   `json:"sessionId"`
+}
+
+func captureRequestParams(t *testing.T, path string, method string) map[string]json.RawMessage {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		var envelope capturedRequestEnvelope
+		if err := json.Unmarshal([]byte(line), &envelope); err != nil {
+			t.Fatalf("json.Unmarshal(captured envelope) error = %v", err)
+		}
+		if envelope.Method != method {
+			continue
+		}
+
+		var params map[string]json.RawMessage
+		if err := json.Unmarshal(envelope.Params, &params); err != nil {
+			t.Fatalf("json.Unmarshal(captured params) error = %v", err)
+		}
+		return params
+	}
+
+	t.Fatalf("capture file %q does not contain method %q", path, method)
+	return nil
+}
+
+func decodeCapturedNewSessionRequest(t *testing.T, params map[string]json.RawMessage) capturedNewSessionRequest {
+	t.Helper()
+
+	raw, err := json.Marshal(params)
+	if err != nil {
+		t.Fatalf("json.Marshal(new-session params) error = %v", err)
+	}
+	var request capturedNewSessionRequest
+	if err := json.Unmarshal(raw, &request); err != nil {
+		t.Fatalf("json.Unmarshal(new-session request) error = %v", err)
+	}
+	return request
+}
+
+func decodeCapturedLoadSessionRequest(t *testing.T, params map[string]json.RawMessage) capturedLoadSessionRequest {
+	t.Helper()
+
+	raw, err := json.Marshal(params)
+	if err != nil {
+		t.Fatalf("json.Marshal(load-session params) error = %v", err)
+	}
+	var request capturedLoadSessionRequest
+	if err := json.Unmarshal(raw, &request); err != nil {
+		t.Fatalf("json.Unmarshal(load-session request) error = %v", err)
+	}
+	return request
+}
+
+func mustCanonicalDir(t *testing.T, path string) string {
+	t.Helper()
+
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatalf("filepath.EvalSymlinks(%q) error = %v", path, err)
+	}
+	absolute, err := filepath.Abs(resolved)
+	if err != nil {
+		t.Fatalf("filepath.Abs(%q) error = %v", resolved, err)
+	}
+	return filepath.Clean(absolute)
 }
 
 func assertPermissionResult(t *testing.T, err error, wantOK bool) {

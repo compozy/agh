@@ -14,6 +14,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const workspaceCacheTTL = 10 * time.Minute
@@ -42,10 +44,14 @@ type wsCache struct {
 	lastAccess time.Time
 }
 
-type workspaceScan struct {
-	agents    []string
-	workspace []string
+type workspaceLoad struct {
+	paths     []workspaceSkillPath
 	snapshots map[string]fileSnapshot
+}
+
+type workspaceSkillPath struct {
+	filePath string
+	source   SkillSource
 }
 
 // WithLogger injects the logger used for registry diagnostics.
@@ -125,25 +131,23 @@ func (r *Registry) List() []*Skill {
 	return mergedSkillList(globalSkills, nil)
 }
 
-// ForWorkspace returns the global skill set overlaid with workspace-local skills.
-func (r *Registry) ForWorkspace(ctx context.Context, workspace string) ([]*Skill, error) {
+// ForWorkspace returns the global skill set overlaid with resolver-provided workspace skills.
+func (r *Registry) ForWorkspace(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*Skill, error) {
 	if err := checkRegistryContext(ctx); err != nil {
 		return nil, err
 	}
 
-	root := strings.TrimSpace(workspace)
-	if root == "" {
+	load, err := r.workspaceLoadFromResolved(ctx, resolved)
+	if err != nil {
+		return nil, err
+	}
+	if len(load.paths) == 0 {
 		return r.List(), nil
 	}
 
-	absRoot, err := filepath.Abs(root)
-	if err != nil {
-		return nil, fmt.Errorf("skills: resolve workspace %q: %w", workspace, err)
-	}
-
-	scan, err := r.scanWorkspace(ctx, absRoot)
-	if err != nil {
-		return nil, err
+	cacheKey := workspaceCacheKey(resolved, load.paths)
+	if cacheKey == "" {
+		return nil, errors.New("skills: workspace cache key is required")
 	}
 
 	now := r.now()
@@ -151,7 +155,7 @@ func (r *Registry) ForWorkspace(ctx context.Context, workspace string) ([]*Skill
 	r.mu.Lock()
 	r.evictExpiredWorkspaceLocked(now)
 
-	if cached := r.wsCache[absRoot]; cached != nil && snapshotsEqual(cached.snapshots, scan.snapshots) {
+	if cached := r.wsCache[cacheKey]; cached != nil && snapshotsEqual(cached.snapshots, load.snapshots) {
 		cached.lastAccess = now
 		globalSkills := r.globalSkills
 		workspaceSkills := cached.skills
@@ -160,16 +164,16 @@ func (r *Registry) ForWorkspace(ctx context.Context, workspace string) ([]*Skill
 	}
 	r.mu.Unlock()
 
-	workspaceSkills, err := r.loadWorkspaceSkills(ctx, scan)
+	workspaceSkills, err := r.loadWorkspaceSkills(ctx, load.paths)
 	if err != nil {
 		return nil, err
 	}
 
 	r.mu.Lock()
 	r.evictExpiredWorkspaceLocked(now)
-	r.wsCache[absRoot] = &wsCache{
+	r.wsCache[cacheKey] = &wsCache{
 		skills:     workspaceSkills,
-		snapshots:  scan.snapshots,
+		snapshots:  load.snapshots,
 		lastAccess: now,
 	}
 	globalSkills := r.globalSkills
@@ -221,14 +225,28 @@ func (r *Registry) loadGlobalSkills(ctx context.Context) (map[string]*Skill, map
 	return skills, snapshots, nil
 }
 
-func (r *Registry) loadWorkspaceSkills(ctx context.Context, scan workspaceScan) (map[string]*Skill, error) {
+func (r *Registry) loadWorkspaceSkills(ctx context.Context, paths []workspaceSkillPath) (map[string]*Skill, error) {
 	skills := make(map[string]*Skill)
 
-	if err := r.loadSkillPaths(ctx, scan.agents, SourceAgents, skills); err != nil {
-		return nil, err
-	}
-	if err := r.loadSkillPaths(ctx, scan.workspace, SourceWorkspace, skills); err != nil {
-		return nil, err
+	for _, path := range paths {
+		if err := checkRegistryContext(ctx); err != nil {
+			return nil, err
+		}
+
+		skill, err := ParseSkillFile(path.filePath)
+		if err != nil {
+			return nil, err
+		}
+		skill.Source = path.source
+		r.applyDisabled(skill)
+
+		warnings := VerifyContent(skill.Content)
+		r.logVerificationWarnings(skill, warnings)
+		if hasCriticalWarning(warnings) {
+			continue
+		}
+
+		r.overlaySkill(skills, skill)
 	}
 
 	return skills, nil
@@ -364,60 +382,47 @@ func (r *Registry) logVerificationWarnings(skill *Skill, warnings []Warning) {
 	}
 }
 
-func (r *Registry) scanWorkspace(ctx context.Context, workspace string) (workspaceScan, error) {
-	agentsDir := filepath.Join(workspace, ".agents", "skills")
-	workspaceDir := filepath.Join(workspace, ".agh", "skills")
-
-	agents, err := scanDirectory(agentsDir)
-	if err != nil {
-		return workspaceScan{}, err
-	}
-	if err := checkRegistryContext(ctx); err != nil {
-		return workspaceScan{}, err
+func (r *Registry) workspaceLoadFromResolved(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) (workspaceLoad, error) {
+	load := workspaceLoad{
+		paths:     make([]workspaceSkillPath, 0, len(resolved.Skills)),
+		snapshots: make(map[string]fileSnapshot, len(resolved.Skills)),
 	}
 
-	project, err := scanDirectory(workspaceDir)
-	if err != nil {
-		return workspaceScan{}, err
-	}
-	if err := checkRegistryContext(ctx); err != nil {
-		return workspaceScan{}, err
-	}
-
-	scan := workspaceScan{
-		agents:    make([]string, 0, len(agents)),
-		workspace: make([]string, 0, len(project)),
-		snapshots: make(map[string]fileSnapshot, len(agents)+len(project)),
-	}
-
-	appendSnapshots := func(paths []string, dst *[]string) error {
-		for _, skillPath := range paths {
-			if err := checkRegistryContext(ctx); err != nil {
-				return err
-			}
-
-			snapshot, err := snapshotFile(skillPath)
-			if err != nil {
-				if errors.Is(err, fs.ErrNotExist) {
-					continue
-				}
-				return fmt.Errorf("skills: snapshot workspace skill %q: %w", skillPath, err)
-			}
-
-			scan.snapshots[skillPath] = snapshot
-			*dst = append(*dst, skillPath)
+	for _, skillPath := range resolved.Skills {
+		if err := checkRegistryContext(ctx); err != nil {
+			return workspaceLoad{}, err
 		}
-		return nil
+
+		source, include, err := skillSourceFromWorkspacePath(skillPath.Source)
+		if err != nil {
+			return workspaceLoad{}, err
+		}
+		if !include {
+			continue
+		}
+
+		skillDir := strings.TrimSpace(skillPath.Dir)
+		if skillDir == "" {
+			continue
+		}
+
+		skillFile := filepath.Join(skillDir, skillFileName)
+		snapshot, err := snapshotFile(skillFile)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			return workspaceLoad{}, fmt.Errorf("skills: snapshot workspace skill %q: %w", skillFile, err)
+		}
+
+		load.snapshots[skillFile] = snapshot
+		load.paths = append(load.paths, workspaceSkillPath{
+			filePath: skillFile,
+			source:   source,
+		})
 	}
 
-	if err := appendSnapshots(agents, &scan.agents); err != nil {
-		return workspaceScan{}, err
-	}
-	if err := appendSnapshots(project, &scan.workspace); err != nil {
-		return workspaceScan{}, err
-	}
-
-	return scan, nil
+	return load, nil
 }
 
 func (r *Registry) evictExpiredWorkspaceLocked(now time.Time) {
@@ -656,13 +661,50 @@ func skillSourceName(source SkillSource) string {
 		return "bundled"
 	case SourceUser:
 		return "user"
-	case SourceAgents:
-		return "agents"
+	case SourceAdditional:
+		return "additional"
 	case SourceWorkspace:
 		return "workspace"
 	default:
 		return "unknown"
 	}
+}
+
+func skillSourceFromWorkspacePath(source string) (SkillSource, bool, error) {
+	switch strings.TrimSpace(source) {
+	case "", "workspace":
+		return SourceWorkspace, true, nil
+	case "additional":
+		return SourceAdditional, true, nil
+	case "global":
+		return SourceUser, false, nil
+	default:
+		return 0, false, fmt.Errorf("skills: unsupported workspace skill source %q", source)
+	}
+}
+
+func workspaceCacheKey(resolved workspacepkg.ResolvedWorkspace, paths []workspaceSkillPath) string {
+	if id := strings.TrimSpace(resolved.ID); id != "" {
+		return "id:" + id
+	}
+	if root := strings.TrimSpace(resolved.RootDir); root != "" {
+		return "root:" + root
+	}
+	if len(paths) == 0 {
+		return ""
+	}
+
+	var builder strings.Builder
+	for _, path := range paths {
+		if builder.Len() > 0 {
+			builder.WriteByte('|')
+		}
+		builder.WriteString(skillSourceName(path.source))
+		builder.WriteByte(':')
+		builder.WriteString(path.filePath)
+	}
+
+	return builder.String()
 }
 
 func warningSeverityName(severity WarningSeverity) string {

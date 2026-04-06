@@ -7,6 +7,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
@@ -43,7 +44,7 @@ func NewAssembler(store *Store) *Assembler {
 
 // PromptSection renders the dual-scope memory context block without the base
 // agent prompt so it can participate in composed prompt assembly.
-func (a *Assembler) PromptSection(ctx context.Context, workspace string) (string, error) {
+func (a *Assembler) PromptSection(ctx context.Context, workspace workspacepkg.ResolvedWorkspace) (string, error) {
 	if a == nil || a.store == nil {
 		return "", nil
 	}
@@ -59,12 +60,17 @@ func (a *Assembler) PromptSection(ctx context.Context, workspace string) (string
 		return "", err
 	}
 
-	workspaceIndex, workspaceTruncated, err := a.store.ForWorkspace(workspace).LoadIndex(ScopeWorkspace)
-	if err != nil {
-		return "", fmt.Errorf("memory: load workspace index: %w", err)
-	}
-	if err := contextErr(ctx); err != nil {
-		return "", err
+	workspaceIndex := ""
+	workspaceTruncated := false
+	if workspaceRoot := strings.TrimSpace(workspace.RootDir); workspaceRoot != "" {
+		var err error
+		workspaceIndex, workspaceTruncated, err = a.store.ForWorkspace(workspaceRoot).LoadIndex(ScopeWorkspace)
+		if err != nil {
+			return "", fmt.Errorf("memory: load workspace index: %w", err)
+		}
+		if err := contextErr(ctx); err != nil {
+			return "", err
+		}
 	}
 
 	globalIndex = strings.TrimSpace(globalIndex)
@@ -82,7 +88,7 @@ func (a *Assembler) PromptSection(ctx context.Context, workspace string) (string
 }
 
 // Assemble renders the dual-scope memory context ahead of the agent system prompt.
-func (a *Assembler) Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace string) (string, error) {
+func (a *Assembler) Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace workspacepkg.ResolvedWorkspace) (string, error) {
 	basePrompt := strings.TrimSpace(agent.Prompt)
 
 	contextBlock, err := a.PromptSection(ctx, workspace)

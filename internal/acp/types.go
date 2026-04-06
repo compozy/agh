@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,7 @@ type StartOpts struct {
 	AgentName       string
 	Command         string
 	Cwd             string
+	AdditionalDirs  []string
 	Env             []string
 	MCPServers      []aghconfig.MCPServer
 	Permissions     aghconfig.PermissionMode
@@ -61,6 +63,15 @@ func (o StartOpts) Validate() error {
 		return errors.New("acp: command is required")
 	case strings.TrimSpace(o.Cwd) == "":
 		return errors.New("acp: cwd is required")
+	}
+	for i, dir := range o.AdditionalDirs {
+		trimmed := strings.TrimSpace(dir)
+		if trimmed == "" {
+			continue
+		}
+		if !filepath.IsAbs(trimmed) {
+			return fmt.Errorf("acp: additional_dirs[%d] must be absolute", i)
+		}
 	}
 
 	mode := o.Permissions

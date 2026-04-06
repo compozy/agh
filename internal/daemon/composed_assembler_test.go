@@ -10,6 +10,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestComposedAssemblerAssemble(t *testing.T) {
@@ -93,7 +94,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 			WithAppendPromptProviders(errorPromptProvider{err: wantErr}),
 		)
 
-		_, err := assembler.Assemble(context.Background(), testPromptAgent("Base prompt."), t.TempDir())
+		_, err := assembler.Assemble(context.Background(), testPromptAgent("Base prompt."), testResolvedWorkspace(t.TempDir()))
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("Assemble() error = %v, want error wrapping %v", err, wantErr)
 		}
@@ -142,7 +143,7 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		t.Parallel()
 
 		var assembler *ComposedAssembler
-		got, err := assembler.Assemble(context.Background(), testPromptAgent("  Base prompt.\n"), t.TempDir())
+		got, err := assembler.Assemble(context.Background(), testPromptAgent("  Base prompt.\n"), testResolvedWorkspace(t.TempDir()))
 		if err != nil {
 			t.Fatalf("Assemble() error = %v", err)
 		}
@@ -179,12 +180,12 @@ func TestComposedAssemblerRegressionMatchesMemoryAssembler(t *testing.T) {
 		WithPrependPromptProviders(memoryAssembler),
 	)
 
-	got, err := composedAssembler.Assemble(context.Background(), env.agent, env.workspace)
+	got, err := composedAssembler.Assemble(context.Background(), env.agent, testResolvedWorkspace(env.workspace))
 	if err != nil {
 		t.Fatalf("ComposedAssembler.Assemble() error = %v", err)
 	}
 
-	want, err := memoryAssembler.Assemble(context.Background(), env.agent, env.workspace)
+	want, err := memoryAssembler.Assemble(context.Background(), env.agent, testResolvedWorkspace(env.workspace))
 	if err != nil {
 		t.Fatalf("memory.Assemble() error = %v", err)
 	}
@@ -200,8 +201,8 @@ type recordingPromptProvider struct {
 	workspaces []string
 }
 
-func (p *recordingPromptProvider) PromptSection(_ context.Context, workspace string) (string, error) {
-	p.workspaces = append(p.workspaces, workspace)
+func (p *recordingPromptProvider) PromptSection(_ context.Context, workspace workspacepkg.ResolvedWorkspace) (string, error) {
+	p.workspaces = append(p.workspaces, workspace.RootDir)
 	if p.err != nil {
 		return "", p.err
 	}
@@ -212,13 +213,13 @@ type errorPromptProvider struct {
 	err error
 }
 
-func (p errorPromptProvider) PromptSection(context.Context, string) (string, error) {
+func (p errorPromptProvider) PromptSection(context.Context, workspacepkg.ResolvedWorkspace) (string, error) {
 	return "", p.err
 }
 
 type staticPromptProvider string
 
-func (p staticPromptProvider) PromptSection(context.Context, string) (string, error) {
+func (p staticPromptProvider) PromptSection(context.Context, workspacepkg.ResolvedWorkspace) (string, error) {
 	return string(p), nil
 }
 
@@ -274,7 +275,7 @@ func writeComposedAssemblerFile(t *testing.T, path string, content string) {
 func assemblePrompt(t *testing.T, assembler *ComposedAssembler, agent aghconfig.AgentDef, workspace string) string {
 	t.Helper()
 
-	got, err := assembler.Assemble(context.Background(), agent, workspace)
+	got, err := assembler.Assemble(context.Background(), agent, testResolvedWorkspace(workspace))
 	if err != nil {
 		t.Fatalf("Assemble() error = %v", err)
 	}
@@ -286,5 +287,11 @@ func testPromptAgent(prompt string) aghconfig.AgentDef {
 		Name:     "coder",
 		Provider: "claude",
 		Prompt:   prompt,
+	}
+}
+
+func testResolvedWorkspace(root string) workspacepkg.ResolvedWorkspace {
+	return workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{RootDir: root},
 	}
 }

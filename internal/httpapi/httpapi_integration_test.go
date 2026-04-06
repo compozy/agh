@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
@@ -62,7 +64,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	_ = statusResp.Body.Close()
 
 	origin := fmt.Sprintf("http://%s:%d", runtime.host, runtime.port)
-	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","name":"demo","workspace":"`+runtime.workspace+`"}`), map[string]string{"Origin": origin})
+	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","name":"demo","workspace_path":"`+runtime.workspace+`"}`), map[string]string{"Origin": origin})
 	if createResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(createResp.Body)
 		_ = createResp.Body.Close()
@@ -89,6 +91,25 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	decodeHTTPJSON(t, listResp, &listed)
 	if len(listed.Sessions) != 1 || listed.Sessions[0].ID != created.Session.ID {
 		t.Fatalf("listed sessions = %#v", listed.Sessions)
+	}
+	canonicalWorkspace, err := filepath.EvalSymlinks(runtime.workspace)
+	if err != nil {
+		t.Fatalf("filepath.EvalSymlinks(%q) error = %v", runtime.workspace, err)
+	}
+	if listed.Sessions[0].WorkspaceID == "" || listed.Sessions[0].WorkspacePath != canonicalWorkspace {
+		t.Fatalf("listed session workspace = %#v", listed.Sessions[0])
+	}
+
+	filteredResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions?workspace="+created.Session.WorkspaceID), nil, nil)
+	if filteredResp.StatusCode != http.StatusOK {
+		t.Fatalf("filtered sessions status = %d, want %d", filteredResp.StatusCode, http.StatusOK)
+	}
+	var filtered struct {
+		Sessions []sessionPayload `json:"sessions"`
+	}
+	decodeHTTPJSON(t, filteredResp, &filtered)
+	if len(filtered.Sessions) != 1 || filtered.Sessions[0].ID != created.Session.ID {
+		t.Fatalf("filtered sessions = %#v", filtered.Sessions)
 	}
 
 	promptResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/prompt"), []byte(`{"message":"hello"}`), nil)
@@ -138,10 +159,10 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		_ = streamResp.Body.Close()
 		t.Fatalf("session stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
 	}
-	initial := collectLiveSSE(t, streamResp.Body, 5, 2*time.Second)
+	initial := collectLiveSSE(t, streamResp.Body, 6, 2*time.Second)
 	_ = streamResp.Body.Close()
-	if len(initial) < 5 {
-		t.Fatalf("initial stream events = %d, want 5", len(initial))
+	if len(initial) < 6 {
+		t.Fatalf("initial stream events = %d, want 6", len(initial))
 	}
 	if initial[len(initial)-1].Event != session.EventTypeSessionStopped {
 		t.Fatalf("last event = %q, want %q", initial[len(initial)-1].Event, session.EventTypeSessionStopped)
@@ -154,10 +175,10 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		_ = replayResp.Body.Close()
 		t.Fatalf("replay stream status = %d, want %d; body=%s", replayResp.StatusCode, http.StatusOK, string(body))
 	}
-	replayed := collectLiveSSE(t, replayResp.Body, 4, 2*time.Second)
+	replayed := collectLiveSSE(t, replayResp.Body, 5, 2*time.Second)
 	_ = replayResp.Body.Close()
-	if len(replayed) < 4 {
-		t.Fatalf("replayed events = %d, want 4", len(replayed))
+	if len(replayed) < 5 {
+		t.Fatalf("replayed events = %d, want 5", len(replayed))
 	}
 	if replayed[0].ID != initial[1].ID {
 		t.Fatalf("replayed first id = %q, want %q", replayed[0].ID, initial[1].ID)
@@ -353,6 +374,7 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 		WithObserver(stubObserver{
 			healthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
 		}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -709,9 +731,18 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	})
 
 	fanout := &integrationNotifierFanout{}
+	resolver, err := workspacepkg.NewResolver(
+		registry,
+		workspacepkg.WithHomePaths(homePaths),
+		workspacepkg.WithLogger(discardLogger()),
+		workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) { return cfg, nil }),
+	)
+	if err != nil {
+		t.Fatalf("workspace.NewResolver() error = %v", err)
+	}
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
-		session.WithConfig(cfg),
+		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
 		session.WithDriver(newIntegrationDriver(permissionWait)),
 		session.WithNotifier(fanout),
@@ -750,6 +781,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		WithLogger(discardLogger()),
 		WithSessionManager(manager),
 		WithObserver(observer),
+		WithWorkspaceResolver(resolver),
 		WithMemoryStore(memoryStore),
 		WithDreamTrigger(dreamTrigger),
 		WithPollInterval(10*time.Millisecond),
@@ -906,7 +938,7 @@ func mustIntegrationJSON(value any) json.RawMessage {
 func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 	t.Helper()
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","workspace":"`+runtime.workspace+`"}`), nil)
+	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`"}`), nil)
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()

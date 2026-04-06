@@ -10,10 +10,10 @@ import {
 import type { FetchSessionEventsParams } from "../adapters/session-api";
 import { sessionKeys } from "./query-keys";
 
-export function sessionsListOptions() {
+export function sessionsListOptions(workspace: string | null = null) {
   return queryOptions({
-    queryKey: sessionKeys.list(),
-    queryFn: ({ signal }) => fetchSessions(signal),
+    queryKey: sessionKeys.list(workspace),
+    queryFn: ({ signal }) => fetchSessions(workspace ?? undefined, signal),
     refetchInterval: 5_000,
     staleTime: 2_000,
   });

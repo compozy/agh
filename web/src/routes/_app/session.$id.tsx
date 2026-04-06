@@ -12,6 +12,7 @@ import { ChatHeader } from "@/systems/session/components/chat-header";
 import { ChatView } from "@/systems/session/components/chat-view";
 import { MessageComposer } from "@/systems/session/components/message-composer";
 import { PermissionPrompt } from "@/systems/session/components/permission-prompt";
+import { useWorkspaces } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/session/$id")({
   component: SessionPage,
@@ -23,6 +24,7 @@ function SessionPage() {
   const hydratedSessionIdRef = useRef<string | null>(null);
 
   const { data: session, isLoading, error } = useSession(id);
+  const { data: workspaces } = useWorkspaces();
   const messages = useSessionStore(s => s.messages);
   const isStreaming = useSessionStore(s => s.isStreaming);
   const pendingPermission = useSessionStore(s => s.pendingPermission);
@@ -72,6 +74,7 @@ function SessionPage() {
 
   const isDisabled = isStreaming || status === "submitted" || pendingPermission !== null;
   const isStopped = session?.state === "stopped";
+  const workspaceName = workspaces?.find(workspace => workspace.id === session?.workspace_id)?.name;
 
   if (isLoading || isLoadingTranscript) {
     return (
@@ -100,6 +103,7 @@ function SessionPage() {
         session={session}
         onStop={() => stopMutation.mutate(id)}
         onResume={() => resumeMutation.mutate(id)}
+        workspaceName={workspaceName}
       />
       <ChatView messages={messages} isStreaming={isStreaming} />
       {pendingPermission && (

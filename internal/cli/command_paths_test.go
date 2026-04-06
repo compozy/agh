@@ -26,12 +26,13 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 	t.Parallel()
 
 	statusSession := SessionRecord{
-		ID:        "sess-1",
-		AgentName: "coder",
-		Workspace: "/workspace/project",
-		State:     "active",
-		CreatedAt: fixedTestNow,
-		UpdatedAt: fixedTestNow,
+		ID:            "sess-1",
+		AgentName:     "coder",
+		WorkspaceID:   "ws-1",
+		WorkspacePath: "/workspace/project",
+		State:         "active",
+		CreatedAt:     fixedTestNow,
+		UpdatedAt:     fixedTestNow,
 	}
 
 	getCalls := 0

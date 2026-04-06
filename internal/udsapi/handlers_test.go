@@ -4,14 +4,18 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
@@ -29,6 +33,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 	want := []string{
 		"DELETE /api/memory/:filename",
 		"DELETE /api/sessions/:id",
+		"DELETE /api/workspaces/:id",
 		"GET /api/agents",
 		"GET /api/agents/:name",
 		"GET /api/daemon/status",
@@ -43,11 +48,16 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/sessions/:id/history",
 		"GET /api/sessions/:id/transcript",
 		"GET /api/sessions/:id/stream",
+		"GET /api/workspaces",
+		"GET /api/workspaces/:id",
+		"PATCH /api/workspaces/:id",
 		"POST /api/memory/consolidate",
 		"POST /api/sessions",
 		"POST /api/sessions/:id/approve",
 		"POST /api/sessions/:id/prompt",
 		"POST /api/sessions/:id/resume",
+		"POST /api/workspaces",
+		"POST /api/workspaces/resolve",
 		"PUT /api/memory/:filename",
 	}
 	sort.Strings(want)
@@ -66,7 +76,7 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		createFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
-			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "/workspace" {
+			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" || opts.WorkspacePath != "" {
 				t.Fatalf("Create() opts = %#v", opts)
 			}
 			return newSession("sess-123"), nil
@@ -75,7 +85,7 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"agent_name":"coder","name":"demo","workspace":"/workspace"}`))
+	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"agent_name":"coder","name":"demo","workspace":"alpha"}`))
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
 	}
@@ -87,6 +97,9 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	if response.Session.ID != "sess-123" {
 		t.Fatalf("session.id = %q, want %q", response.Session.ID, "sess-123")
 	}
+	if response.Session.WorkspaceID != "ws-workspace" || response.Session.WorkspacePath != "/workspace" {
+		t.Fatalf("session workspace = %#v", response.Session)
+	}
 }
 
 func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
@@ -96,13 +109,15 @@ func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
 			if opts.AgentName != "" {
 				t.Fatalf("Create() AgentName = %q, want empty", opts.AgentName)
 			}
+			if opts.WorkspacePath == "" || opts.Workspace != "" {
+				t.Fatalf("Create() workspace opts = %#v", opts)
+			}
 			return newSession("sess-default"), nil
 		},
 	}
-	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
-	engine := newTestRouter(t, handlers)
+	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
 
-	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"name":"demo"}`))
+	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"name":"demo","workspace_path":"/workspace"}`))
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
 	}
@@ -129,6 +144,271 @@ func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Sessions) != 2 {
 		t.Fatalf("len(sessions) = %d, want 2", len(response.Sessions))
+	}
+}
+
+func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	infoA := newSessionInfo("sess-a")
+	infoB := newSessionInfo("sess-b")
+	infoB.WorkspaceID = "ws-beta"
+	infoB.Workspace = "/other"
+
+	manager := stubSessionManager{
+		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+			return []*session.SessionInfo{infoA, infoB}, nil
+		},
+	}
+	workspaces := stubWorkspaceService{
+		getFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+			if ref != "alpha" {
+				t.Fatalf("Get() ref = %q, want alpha", ref)
+			}
+			return workspacepkg.Workspace{ID: "ws-workspace", Name: "alpha"}, nil
+		},
+	}
+	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, manager, stubObserver{}, workspaces, homePaths))
+
+	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?workspace=alpha", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response struct {
+		Sessions []sessionPayload `json:"sessions"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if len(response.Sessions) != 1 || response.Sessions[0].ID != "sess-a" {
+		t.Fatalf("sessions = %#v", response.Sessions)
+	}
+	if response.Sessions[0].WorkspaceID != "ws-workspace" {
+		t.Fatalf("workspace_id = %q, want ws-workspace", response.Sessions[0].WorkspaceID)
+	}
+}
+
+func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	rootDir := t.TempDir()
+	addDir := filepath.Join(t.TempDir(), "shared")
+	if err := os.MkdirAll(addDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(addDir) error = %v", err)
+	}
+
+	workspaces := stubWorkspaceService{
+		registerFn: func(_ context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
+			if opts.RootDir != rootDir || opts.Name != "alpha" || len(opts.AdditionalDirs) != 1 || opts.AdditionalDirs[0] != addDir || opts.DefaultAgent != "coder" {
+				t.Fatalf("Register() opts = %#v", opts)
+			}
+			return workspacepkg.Workspace{
+				ID:             "ws_alpha123",
+				RootDir:        rootDir,
+				AdditionalDirs: []string{addDir},
+				Name:           "alpha",
+				DefaultAgent:   "coder",
+				CreatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+				UpdatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			}, nil
+		},
+	}
+	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
+
+	body := []byte(`{"root_dir":"` + rootDir + `","name":"alpha","add_dirs":["` + addDir + `"],"default_agent":"coder"}`)
+	recorder := performRequest(t, engine, http.MethodPost, "/api/workspaces", body)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
+	}
+
+	var response struct {
+		Workspace workspacePayload `json:"workspace"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if response.Workspace.ID != "ws_alpha123" {
+		t.Fatalf("workspace.id = %q, want ws_alpha123", response.Workspace.ID)
+	}
+}
+
+func TestListWorkspacesHandlerReturnsRows(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	workspaces := stubWorkspaceService{
+		listFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+			return []workspacepkg.Workspace{{
+				ID:        "ws_alpha",
+				RootDir:   "/workspace",
+				Name:      "alpha",
+				CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+				UpdatedAt: time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC),
+			}}, nil
+		},
+	}
+	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
+
+	recorder := performRequest(t, engine, http.MethodGet, "/api/workspaces", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response struct {
+		Workspaces []workspacePayload `json:"workspaces"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if len(response.Workspaces) != 1 || response.Workspaces[0].ID != "ws_alpha" {
+		t.Fatalf("workspaces = %#v", response.Workspaces)
+	}
+}
+
+func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	rootDir := t.TempDir()
+	sharedSkillDir := filepath.Join(rootDir, ".agh", "skills", "review")
+	resolved := workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:        "ws_alpha",
+			RootDir:   rootDir,
+			Name:      "alpha",
+			CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		},
+		Agents: []aghconfig.AgentDef{{
+			Name:     "coder",
+			Provider: "fake",
+			Prompt:   "hello",
+		}},
+		Skills: []workspacepkg.SkillPath{{
+			Dir:    sharedSkillDir,
+			Source: "workspace",
+		}},
+	}
+	manager := stubSessionManager{
+		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+			info := newSessionInfo("sess-a")
+			info.WorkspaceID = "ws_alpha"
+			return []*session.SessionInfo{info}, nil
+		},
+	}
+	workspaces := stubWorkspaceService{
+		resolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+			if ref != "ws_alpha" {
+				t.Fatalf("Resolve() ref = %q, want ws_alpha", ref)
+			}
+			return resolved, nil
+		},
+	}
+	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, manager, stubObserver{}, workspaces, homePaths))
+
+	recorder := performRequest(t, engine, http.MethodGet, "/api/workspaces/ws_alpha", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response struct {
+		Workspace workspacePayload        `json:"workspace"`
+		Sessions  []sessionPayload        `json:"sessions"`
+		Agents    []agentPayload          `json:"agents"`
+		Skills    []workspaceSkillPayload `json:"skills"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if response.Workspace.ID != "ws_alpha" || len(response.Sessions) != 1 || len(response.Agents) != 1 || len(response.Skills) != 1 {
+		t.Fatalf("workspace detail = %#v", response)
+	}
+	if response.Skills[0].Name != "review" {
+		t.Fatalf("skill name = %q, want review", response.Skills[0].Name)
+	}
+}
+
+func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	rootDir := t.TempDir()
+	addDir := filepath.Join(t.TempDir(), "shared")
+	if err := os.MkdirAll(addDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(addDir) error = %v", err)
+	}
+
+	var updated bool
+	workspaces := stubWorkspaceService{
+		getFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+			if !updated {
+				return workspacepkg.Workspace{ID: "ws_alpha", RootDir: rootDir, Name: "alpha"}, nil
+			}
+			return workspacepkg.Workspace{ID: "ws_alpha", RootDir: rootDir, Name: "beta", AdditionalDirs: []string{addDir}, DefaultAgent: "reviewer"}, nil
+		},
+		updateFn: func(_ context.Context, id string, opts workspacepkg.UpdateOptions) error {
+			if id != "ws_alpha" || opts.Name == nil || *opts.Name != "beta" || opts.AdditionalDirs == nil || len(*opts.AdditionalDirs) != 1 || (*opts.AdditionalDirs)[0] != addDir || opts.DefaultAgent == nil || *opts.DefaultAgent != "reviewer" {
+				t.Fatalf("Update() id=%q opts=%#v", id, opts)
+			}
+			updated = true
+			return nil
+		},
+	}
+	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
+
+	body := []byte(`{"name":"beta","add_dirs":["` + addDir + `"],"default_agent":"reviewer"}`)
+	recorder := performRequest(t, engine, http.MethodPatch, "/api/workspaces/ws_alpha", body)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response struct {
+		Workspace workspacePayload `json:"workspace"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if response.Workspace.Name != "beta" || len(response.Workspace.AddDirs) != 1 {
+		t.Fatalf("workspace = %#v", response.Workspace)
+	}
+}
+
+func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	workspaces := stubWorkspaceService{
+		getFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
+		},
+		unregisterFn: func(_ context.Context, id string) error {
+			if id != "ws_alpha" {
+				t.Fatalf("Unregister() id = %q, want ws_alpha", id)
+			}
+			return nil
+		},
+	}
+	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
+
+	recorder := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNoContent, recorder.Body.String())
+	}
+}
+
+func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	rootDir := t.TempDir()
+	workspaces := stubWorkspaceService{
+		resolveOrRegisterFn: func(_ context.Context, path string) (workspacepkg.ResolvedWorkspace, error) {
+			if path != rootDir {
+				t.Fatalf("ResolveOrRegister() path = %q, want %q", path, rootDir)
+			}
+			return workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{
+					ID:        "ws_alpha",
+					RootDir:   rootDir,
+					Name:      "alpha",
+					CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+					UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+				},
+			}, nil
+		},
+	}
+	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
+
+	recorder := performRequest(t, engine, http.MethodPost, "/api/workspaces/resolve", []byte(`{"path":"`+rootDir+`"}`))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response struct {
+		Workspace workspacePayload `json:"workspace"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if response.Workspace.ID != "ws_alpha" {
+		t.Fatalf("workspace.id = %q, want ws_alpha", response.Workspace.ID)
 	}
 }
 
@@ -542,7 +822,7 @@ func TestSessionErrorMappingUsesNotFoundAndConflict(t *testing.T) {
 		t.Fatalf("GET /api/sessions/:id status = %d, want 404", getResp.Code)
 	}
 
-	postResp := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"agent_name":"coder"}`))
+	postResp := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"agent_name":"coder","workspace":"alpha"}`))
 	if postResp.Code != http.StatusConflict {
 		t.Fatalf("POST /api/sessions status = %d, want 409", postResp.Code)
 	}

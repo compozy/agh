@@ -20,7 +20,8 @@ describe("sessionPayloadSchema", () => {
   const validSession = {
     id: "sess-123",
     agent_name: "claude",
-    workspace: "/home/user/project",
+    workspace_id: "ws_alpha",
+    workspace_path: "/home/user/project",
     state: "active",
     created_at: "2026-04-03T10:00:00Z",
     updated_at: "2026-04-03T10:00:00Z",
@@ -55,6 +56,18 @@ describe("sessionPayloadSchema", () => {
   it("rejects missing required field: agent_name", () => {
     const { agent_name: _, ...noAgent } = validSession;
     const result = sessionPayloadSchema.safeParse(noAgent);
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects missing required field: workspace_id", () => {
+    const { workspace_id: _, ...noWorkspaceID } = validSession;
+    const result = sessionPayloadSchema.safeParse(noWorkspaceID);
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects missing required field: workspace_path", () => {
+    const { workspace_path: _, ...noWorkspacePath } = validSession;
+    const result = sessionPayloadSchema.safeParse(noWorkspacePath);
     expect(result.success).toBe(false);
   });
 
@@ -269,7 +282,8 @@ describe("API response envelopes", () => {
   const validSession = {
     id: "sess-1",
     agent_name: "claude",
-    workspace: "/tmp",
+    workspace_id: "ws_alpha",
+    workspace_path: "/tmp",
     state: "active",
     created_at: "2026-04-03T10:00:00Z",
     updated_at: "2026-04-03T10:00:00Z",

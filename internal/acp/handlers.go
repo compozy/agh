@@ -34,6 +34,26 @@ type wirePromptResponse struct {
 	Usage      *wireUsage        `json:"usage,omitempty"`
 }
 
+// wireNewSessionRequest keeps the workspace extension on the top-level
+// session/new payload. The workspace techspec requires the JSON-RPC field name
+// `additional_dirs`, even though the upstream ACP SDK does not model it yet.
+type wireNewSessionRequest struct {
+	Meta           any                `json:"_meta,omitempty"`
+	Cwd            string             `json:"cwd"`
+	McpServers     []acpsdk.McpServer `json:"mcpServers"`
+	AdditionalDirs []string           `json:"additional_dirs,omitempty"`
+}
+
+// wireLoadSessionRequest mirrors session/load with the same top-level
+// `additional_dirs` field name required by the workspace techspec.
+type wireLoadSessionRequest struct {
+	Meta           any                `json:"_meta,omitempty"`
+	Cwd            string             `json:"cwd"`
+	McpServers     []acpsdk.McpServer `json:"mcpServers"`
+	AdditionalDirs []string           `json:"additional_dirs,omitempty"`
+	SessionID      acpsdk.SessionId   `json:"sessionId"`
+}
+
 type wireUsage struct {
 	InputTokens      *int64 `json:"inputTokens,omitempty"`
 	OutputTokens     *int64 `json:"outputTokens,omitempty"`

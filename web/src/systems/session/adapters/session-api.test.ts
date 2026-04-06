@@ -14,7 +14,8 @@ const mockSession = {
   id: "sess-001",
   name: "Test Session",
   agent_name: "claude-agent",
-  workspace: "/tmp/test",
+  workspace_id: "ws_alpha",
+  workspace_path: "/tmp/test",
   state: "active",
   created_at: "2026-04-01T00:00:00Z",
   updated_at: "2026-04-01T01:00:00Z",
@@ -50,8 +51,21 @@ describe("fetchSessions", () => {
     } as Response);
 
     const controller = new AbortController();
-    await fetchSessions(controller.signal);
+    await fetchSessions(undefined, controller.signal);
     expect(fetch).toHaveBeenCalledWith("/api/sessions", { signal: controller.signal });
+  });
+
+  it("adds the workspace filter when provided", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ sessions: [] }),
+    } as Response);
+
+    await fetchSessions("ws_alpha");
+
+    expect(fetch).toHaveBeenCalledWith("/api/sessions?workspace=ws_alpha", {
+      signal: undefined,
+    });
   });
 
   it("throws on non-ok response", async () => {
@@ -118,6 +132,25 @@ describe("createSession", () => {
         agent_name: "claude-agent",
         name: "My Session",
         workspace: "/home",
+      }),
+      signal: undefined,
+    });
+  });
+
+  it("sends workspace_path when creating from an explicit path", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ session: mockSession }),
+    } as Response);
+
+    await createSession({ agent_name: "claude-agent", workspace_path: "/workspace/demo" });
+
+    expect(fetch).toHaveBeenCalledWith("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agent_name: "claude-agent",
+        workspace_path: "/workspace/demo",
       }),
       signal: undefined,
     });

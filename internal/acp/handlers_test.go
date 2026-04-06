@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -51,6 +52,58 @@ func TestDriverOptionsAndNormalization(t *testing.T) {
 	}
 	if normalized.Permissions != aghconfig.PermissionModeApproveReads {
 		t.Fatalf("normalizeStartOpts() permissions = %q, want %q", normalized.Permissions, aghconfig.PermissionModeApproveReads)
+	}
+
+	rootReal := t.TempDir()
+	rootLink := filepath.Join(t.TempDir(), "root-link")
+	if err := os.Symlink(rootReal, rootLink); err != nil {
+		t.Fatalf("os.Symlink(root) error = %v", err)
+	}
+	additionalReal := t.TempDir()
+	additionalLink := filepath.Join(t.TempDir(), "additional-link")
+	if err := os.Symlink(additionalReal, additionalLink); err != nil {
+		t.Fatalf("os.Symlink(additional) error = %v", err)
+	}
+
+	normalizedWithDirs, err := normalizeStartOpts(StartOpts{
+		AgentName:      "helper",
+		Command:        "sh -c 'echo ok'",
+		Cwd:            rootLink,
+		AdditionalDirs: []string{additionalLink, rootReal, additionalLink, "   "},
+	})
+	if err != nil {
+		t.Fatalf("normalizeStartOpts(with additional dirs) error = %v", err)
+	}
+	if got, want := normalizedWithDirs.Cwd, mustCanonicalDir(t, rootReal); got != want {
+		t.Fatalf("normalizeStartOpts() cwd = %q, want %q", got, want)
+	}
+	if got, want := normalizedWithDirs.AdditionalDirs, []string{mustCanonicalDir(t, additionalReal)}; !slices.Equal(got, want) {
+		t.Fatalf("normalizeStartOpts() additional dirs = %#v, want %#v", got, want)
+	}
+}
+
+func TestNormalizeStartOptsRejectsInvalidAdditionalDirs(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	missing := filepath.Join(root, "missing")
+
+	if err := (StartOpts{
+		AgentName:      "helper",
+		Command:        "sh -c 'echo ok'",
+		Cwd:            root,
+		AdditionalDirs: []string{"relative/path"},
+	}).Validate(); err == nil {
+		t.Fatal("StartOpts.Validate(relative additional dir) error = nil, want non-nil")
+	}
+
+	if _, err := normalizeStartOpts(StartOpts{
+		AgentName:      "helper",
+		Command:        "sh -c 'echo ok'",
+		Cwd:            root,
+		AdditionalDirs: []string{missing},
+	}); err == nil {
+		t.Fatal("normalizeStartOpts(missing additional dir) error = nil, want non-nil")
 	}
 }
 

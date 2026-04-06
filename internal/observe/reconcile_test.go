@@ -19,13 +19,13 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 	now := h.now.Add(30 * time.Minute)
 
 	if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-		ID:        "sess-new",
-		Name:      "New",
-		AgentName: "coder",
-		Workspace: h.workspace,
-		State:     "active",
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:          "sess-new",
+		Name:        "New",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		State:       "active",
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
@@ -65,13 +65,13 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 	h := newHarness(t)
 	now := h.now
 	if err := h.observer.registry.RegisterSession(testContext(t), store.SessionInfo{
-		ID:        "sess-orphan",
-		Name:      "Orphan",
-		AgentName: "coder",
-		Workspace: h.workspace,
-		State:     "active",
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:          "sess-orphan",
+		Name:        "Orphan",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		State:       "active",
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
@@ -106,13 +106,13 @@ func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
 	validMetaPath := store.SessionMetaFile(validDir)
 	now := h.now.Add(45 * time.Minute)
 	if err := store.WriteSessionMeta(validMetaPath, store.SessionMeta{
-		ID:        "sess-valid",
-		Name:      "Valid",
-		AgentName: "coder",
-		Workspace: h.workspace,
-		State:     "active",
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:          "sess-valid",
+		Name:        "Valid",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		State:       "active",
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta(valid) error = %v", err)
 	}
@@ -153,6 +153,48 @@ func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
 	}
 	if sessions[0].ID != "sess-valid" {
 		t.Fatalf("sessions[0].ID = %q, want %q", sessions[0].ID, "sess-valid")
+	}
+}
+
+func TestReconciliationSkipsSessionMetadataMissingWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	sessionDir := filepath.Join(h.home.SessionsDir, "sess-missing-workspace")
+	meta := `{
+  "id": "sess-missing-workspace",
+  "name": "Missing Workspace",
+  "agent_name": "coder",
+  "state": "active",
+  "created_at": "2026-04-03T18:30:00Z",
+  "updated_at": "2026-04-03T18:30:00Z"
+}
+`
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(sessionDir) error = %v", err)
+	}
+	if err := os.WriteFile(store.SessionMetaFile(sessionDir), []byte(meta), 0o644); err != nil {
+		t.Fatalf("WriteFile(meta) error = %v", err)
+	}
+
+	result, err := h.observer.Reconcile(testContext(t))
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if len(result.Indexed) != 0 {
+		t.Fatalf("Indexed = %#v, want empty", result.Indexed)
+	}
+	if len(result.Orphaned) != 0 {
+		t.Fatalf("Orphaned = %#v, want empty", result.Orphaned)
+	}
+
+	sessions, err := h.observer.registry.ListSessions(testContext(t), store.SessionListQuery{})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if len(sessions) != 0 {
+		t.Fatalf("len(sessions) = %d, want 0", len(sessions))
 	}
 }
 

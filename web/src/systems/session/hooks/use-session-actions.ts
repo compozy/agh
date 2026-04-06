@@ -16,7 +16,7 @@ export function useCreateSession() {
   return useMutation({
     mutationFn: (params: CreateSessionParams) => createSession(params),
     onSuccess: session => {
-      queryClient.invalidateQueries({ queryKey: sessionKeys.list() });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
       navigate({ to: "/session/$id", params: { id: session.id } });
     },
   });
@@ -29,7 +29,7 @@ export function useStopSession() {
     mutationFn: (id: string) => stopSession(id),
     onSettled: (_data, _error, id) => {
       queryClient.invalidateQueries({ queryKey: sessionKeys.detail(id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.list() });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
   });
 }
@@ -41,7 +41,7 @@ export function useResumeSession() {
     mutationFn: (id: string) => resumeSession(id),
     onSettled: (_data, _error, id) => {
       queryClient.invalidateQueries({ queryKey: sessionKeys.detail(id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.list() });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
   });
 }

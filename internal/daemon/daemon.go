@@ -30,6 +30,7 @@ import (
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/udsapi"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
@@ -71,6 +72,7 @@ type Observer interface {
 // Registry is the shared global database surface consumed by daemon/.
 type Registry interface {
 	store.SessionRegistry
+	workspacepkg.WorkspaceStore
 	Path() string
 	Close(ctx context.Context) error
 }
@@ -83,15 +85,17 @@ type Server interface {
 
 // RuntimeDeps captures the composition-root dependencies available to server factories.
 type RuntimeDeps struct {
-	Config       aghconfig.Config
-	HomePaths    aghconfig.HomePaths
-	Logger       *slog.Logger
-	Sessions     SessionManager
-	Observer     Observer
-	Registry     Registry
-	MemoryStore  *memory.Store
-	DreamTrigger DreamTrigger
-	StartedAt    time.Time
+	Config            aghconfig.Config
+	HomePaths         aghconfig.HomePaths
+	Logger            *slog.Logger
+	Sessions          SessionManager
+	Observer          Observer
+	Registry          Registry
+	MemoryStore       *memory.Store
+	WorkspaceResolver workspacepkg.WorkspaceResolver
+	WorkspaceService  *workspacepkg.Resolver
+	DreamTrigger      DreamTrigger
+	StartedAt         time.Time
 }
 
 // ServerFactory constructs runtime components such as HTTP and UDS servers.
@@ -156,10 +160,11 @@ func (t runtimeDreamTrigger) Enabled() bool {
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
 type SessionManagerDeps struct {
-	HomePaths       aghconfig.HomePaths
-	Logger          *slog.Logger
-	Notifier        session.Notifier
-	PromptAssembler session.PromptAssembler
+	HomePaths         aghconfig.HomePaths
+	Logger            *slog.Logger
+	Notifier          session.Notifier
+	PromptAssembler   session.PromptAssembler
+	WorkspaceResolver workspacepkg.WorkspaceResolver
 }
 
 type processInfo struct {
@@ -168,8 +173,8 @@ type processInfo struct {
 }
 
 type dreamCheckRequest struct {
-	reason    string
-	workspace string
+	reason       string
+	workspaceRef string
 }
 
 type notifierFanout struct {
@@ -221,6 +226,7 @@ type Daemon struct {
 	dreamCheckCh      chan dreamCheckRequest
 	dreamCancel       context.CancelFunc
 	dreamWG           sync.WaitGroup
+	workspaceResolver workspacepkg.WorkspaceResolver
 	skillsRegistry    *skills.Registry
 	skillsCancel      context.CancelFunc
 	skillsDone        chan struct{}
@@ -332,6 +338,7 @@ func New(opts ...Option) (*Daemon, error) {
 				session.WithLogger(deps.Logger),
 				session.WithNotifier(deps.Notifier),
 				session.WithPromptAssembler(deps.PromptAssembler),
+				session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			)
 		}
 	}
@@ -351,6 +358,7 @@ func New(opts ...Option) (*Daemon, error) {
 				observe.WithRegistry(deps.Registry),
 				observe.WithHomePaths(deps.HomePaths),
 				observe.WithSessionSource(source),
+				observe.WithWorkspaceResolver(deps.WorkspaceResolver),
 				observe.WithLogger(deps.Logger),
 				observe.WithStartTime(deps.StartedAt),
 			)
@@ -365,6 +373,7 @@ func New(opts ...Option) (*Daemon, error) {
 				httpapi.WithStartedAt(deps.StartedAt),
 				httpapi.WithSessionManager(deps.Sessions),
 				httpapi.WithObserver(deps.Observer),
+				httpapi.WithWorkspaceResolver(deps.WorkspaceService),
 				httpapi.WithMemoryStore(deps.MemoryStore),
 				httpapi.WithDreamTrigger(deps.DreamTrigger),
 			)
@@ -379,6 +388,7 @@ func New(opts ...Option) (*Daemon, error) {
 				udsapi.WithStartedAt(deps.StartedAt),
 				udsapi.WithSessionManager(deps.Sessions),
 				udsapi.WithObserver(deps.Observer),
+				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
 				udsapi.WithMemoryStore(deps.MemoryStore),
 				udsapi.WithDreamTrigger(deps.DreamTrigger),
 			)
@@ -475,6 +485,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	d.dreamSpawner = nil
 	d.dreamCheckCh = nil
 	d.dreamCancel = nil
+	d.workspaceResolver = nil
 	d.skillsCancel = nil
 	d.skillsDone = nil
 	d.mu.Unlock()
@@ -616,15 +627,6 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 			return fmt.Errorf("daemon: ensure memory store directories: %w", err)
 		}
 		prependProviders = append(prependProviders, memory.NewAssembler(memoryStore))
-		if cfg.Memory.Dream.Enabled {
-			dreamSvc = d.newDreamService(
-				memory.WithMemoryStore(memoryStore),
-				memory.WithSessionsDir(d.homePaths.SessionsDir),
-				memory.WithMinHours(cfg.Memory.Dream.MinHours),
-				memory.WithMinSessions(cfg.Memory.Dream.MinSessions),
-				memory.WithLogger(logger),
-			)
-		}
 	}
 
 	cleanupFns := make([]func(context.Context) error, 0, 8)
@@ -705,19 +707,43 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return registry.Close(ctx)
 	})
 
+	workspaceResolver, err := workspacepkg.NewResolver(
+		registry,
+		workspacepkg.WithHomePaths(d.homePaths),
+		workspacepkg.WithLogger(logger),
+		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
+			return aghconfig.LoadForHome(d.homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("daemon: create workspace resolver: %w", err)
+	}
+
+	if cfg.Memory.Enabled && cfg.Memory.Dream.Enabled {
+		dreamSvc = d.newDreamService(
+			memory.WithMemoryStore(memoryStore),
+			memory.WithSessionsDir(d.homePaths.SessionsDir),
+			memory.WithMinHours(cfg.Memory.Dream.MinHours),
+			memory.WithMinSessions(cfg.Memory.Dream.MinSessions),
+			memory.WithLogger(logger),
+			memory.WithWorkspaceResolver(workspaceResolver),
+		)
+	}
+
 	startedAt := d.now().UTC()
 	fanout := notifierFanout{}
 	sessions, err := d.newSessionManager(ctx, SessionManagerDeps{
-		HomePaths:       d.homePaths,
-		Logger:          logger,
-		Notifier:        &fanout,
-		PromptAssembler: promptAssembler,
+		HomePaths:         d.homePaths,
+		Logger:            logger,
+		Notifier:          &fanout,
+		PromptAssembler:   promptAssembler,
+		WorkspaceResolver: workspaceResolver,
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 
-	dreamSpawner := d.makeDreamSpawner(sessions, cfg, globalMemoryDir)
+	dreamSpawner := d.makeDreamSpawner(sessions, workspaceResolver, cfg, globalMemoryDir)
 	var dreamTrigger DreamTrigger
 	if dreamSvc != nil {
 		lockPath := memory.ConsolidationLockPath(globalMemoryDir)
@@ -732,14 +758,16 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 
 	deps := RuntimeDeps{
-		Config:       cfg,
-		HomePaths:    d.homePaths,
-		Logger:       logger,
-		Sessions:     sessions,
-		Registry:     registry,
-		MemoryStore:  memoryStore,
-		DreamTrigger: dreamTrigger,
-		StartedAt:    startedAt,
+		Config:            cfg,
+		HomePaths:         d.homePaths,
+		Logger:            logger,
+		Sessions:          sessions,
+		Registry:          registry,
+		MemoryStore:       memoryStore,
+		WorkspaceResolver: workspaceResolver,
+		WorkspaceService:  workspaceResolver,
+		DreamTrigger:      dreamTrigger,
+		StartedAt:         startedAt,
 	}
 
 	observer, err := d.newObserver(ctx, deps)
@@ -750,10 +778,11 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	deps.Observer = observer
 	if dreamSvc != nil {
 		fanout.onSessionStopped = func(_ context.Context, sess *session.Session) {
-			if sess == nil || sess.Info().Type == session.SessionTypeDream {
+			info := sess.Info()
+			if info == nil || info.Type == session.SessionTypeDream || strings.TrimSpace(info.WorkspaceID) == "" {
 				return
 			}
-			d.enqueueDreamCheck("session_stop", sess.Info().Workspace)
+			d.enqueueDreamCheck("session_stop", info.WorkspaceID)
 		}
 	}
 
@@ -821,6 +850,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	d.udsServer = udsServer
 	d.dreamService = dreamSvc
 	d.dreamSpawner = dreamSpawner
+	d.workspaceResolver = workspaceResolver
 	d.skillsRegistry = skillsRegistry
 	d.skillsCancel = skillsCancel
 	d.skillsDone = skillsDone
@@ -931,13 +961,13 @@ func (d *Daemon) startDreamLoop(parent context.Context) {
 			case <-ticker.C:
 				d.runDreamCheck(dreamCtx, logger, service, spawner, "ticker", "")
 			case request := <-dreamCheckCh:
-				d.runDreamCheck(dreamCtx, logger, service, spawner, request.reason, request.workspace)
+				d.runDreamCheck(dreamCtx, logger, service, spawner, request.reason, request.workspaceRef)
 			}
 		}
 	}()
 }
 
-func (d *Daemon) enqueueDreamCheck(reason string, workspace string) {
+func (d *Daemon) enqueueDreamCheck(reason string, workspaceRef string) {
 	d.mu.Lock()
 	dreamCheckCh := d.dreamCheckCh
 	d.mu.Unlock()
@@ -948,15 +978,15 @@ func (d *Daemon) enqueueDreamCheck(reason string, workspace string) {
 
 	select {
 	case dreamCheckCh <- dreamCheckRequest{
-		reason:    strings.TrimSpace(reason),
-		workspace: strings.TrimSpace(workspace),
+		reason:       strings.TrimSpace(reason),
+		workspaceRef: strings.TrimSpace(workspaceRef),
 	}:
 	default:
-		d.runtimeLogger().Debug("daemon: dream check already queued", "reason", reason, "workspace", workspace)
+		d.runtimeLogger().Debug("daemon: dream check already queued", "reason", reason, "workspace_ref", workspaceRef)
 	}
 }
 
-func (d *Daemon) runDreamCheck(ctx context.Context, logger *slog.Logger, service dreamService, spawner memory.SessionSpawner, reason string, workspace string) {
+func (d *Daemon) runDreamCheck(ctx context.Context, logger *slog.Logger, service dreamService, spawner memory.SessionSpawner, reason string, workspaceRef string) {
 	if service == nil || spawner == nil {
 		return
 	}
@@ -964,36 +994,36 @@ func (d *Daemon) runDreamCheck(ctx context.Context, logger *slog.Logger, service
 		logger = slog.Default()
 	}
 
-	logger.Debug("daemon: evaluating dream consolidation gates", "reason", reason, "workspace", workspace)
+	logger.Debug("daemon: evaluating dream consolidation gates", "reason", reason, "workspace_ref", workspaceRef)
 	shouldRun, err := service.ShouldRun()
 	if err != nil {
-		logger.Warn("daemon: dream gate evaluation failed", "reason", reason, "workspace", workspace, "error", err)
+		logger.Warn("daemon: dream gate evaluation failed", "reason", reason, "workspace_ref", workspaceRef, "error", err)
 		return
 	}
 	if !shouldRun {
-		logger.Debug("daemon: dream consolidation skipped", "reason", reason, "workspace", workspace)
+		logger.Debug("daemon: dream consolidation skipped", "reason", reason, "workspace_ref", workspaceRef)
 		return
 	}
 
-	logger.Info("daemon: starting dream consolidation", "reason", reason, "workspace", workspace)
-	if err := service.Run(ctx, spawner, workspace); err != nil {
+	logger.Info("daemon: starting dream consolidation", "reason", reason, "workspace_ref", workspaceRef)
+	if err := service.Run(ctx, spawner, workspaceRef); err != nil {
 		if errors.Is(err, memory.ErrLockUnavailable) {
-			logger.Debug("daemon: dream consolidation already running", "reason", reason, "workspace", workspace)
+			logger.Debug("daemon: dream consolidation already running", "reason", reason, "workspace_ref", workspaceRef)
 			return
 		}
-		logger.Warn("daemon: dream consolidation failed", "reason", reason, "workspace", workspace, "error", err)
+		logger.Warn("daemon: dream consolidation failed", "reason", reason, "workspace_ref", workspaceRef, "error", err)
 		return
 	}
-	logger.Info("daemon: dream consolidation completed", "reason", reason, "workspace", workspace)
+	logger.Info("daemon: dream consolidation completed", "reason", reason, "workspace_ref", workspaceRef)
 }
 
-func (d *Daemon) makeDreamSpawner(sessions SessionManager, cfg aghconfig.Config, globalMemoryDir string) memory.SessionSpawner {
-	if !cfg.Memory.Enabled || !cfg.Memory.Dream.Enabled || sessions == nil {
+func (d *Daemon) makeDreamSpawner(sessions SessionManager, resolver workspacepkg.WorkspaceResolver, cfg aghconfig.Config, globalMemoryDir string) memory.SessionSpawner {
+	if !cfg.Memory.Enabled || !cfg.Memory.Dream.Enabled || sessions == nil || resolver == nil {
 		return nil
 	}
 
 	return func(ctx context.Context, goal, prompt, workspace string) error {
-		workspaces, err := d.resolveDreamWorkspaces(ctx, sessions, globalMemoryDir, workspace)
+		workspaces, err := d.resolveDreamWorkspaces(ctx, sessions, resolver, globalMemoryDir, workspace)
 		if err != nil {
 			return err
 		}
@@ -1008,16 +1038,17 @@ func (d *Daemon) makeDreamSpawner(sessions SessionManager, cfg aghconfig.Config,
 	}
 }
 
-func (d *Daemon) resolveDreamWorkspaces(ctx context.Context, sessions SessionManager, globalMemoryDir string, explicitWorkspace string) ([]string, error) {
-	if workspace := strings.TrimSpace(explicitWorkspace); workspace != "" {
-		resolved, err := normalizeAbsolutePath(workspace)
+func (d *Daemon) resolveDreamWorkspaces(ctx context.Context, sessions SessionManager, resolver workspacepkg.WorkspaceResolver, globalMemoryDir string, explicitWorkspace string) ([]string, error) {
+	if resolver == nil {
+		return nil, errors.New("daemon: workspace resolver is required for dream consolidation")
+	}
+
+	if workspaceRef := strings.TrimSpace(explicitWorkspace); workspaceRef != "" {
+		resolvedRef, err := resolveDreamWorkspaceRef(ctx, resolver, workspaceRef)
 		if err != nil {
-			return nil, fmt.Errorf("daemon: resolve dream workspace %q: %w", workspace, err)
+			return nil, err
 		}
-		if resolved == "" {
-			return nil, errors.New("daemon: dream workspace is required")
-		}
-		return []string{resolved}, nil
+		return []string{resolvedRef}, nil
 	}
 
 	lockPath := memory.ConsolidationLockPath(globalMemoryDir)
@@ -1032,21 +1063,18 @@ func (d *Daemon) resolveDreamWorkspaces(ctx context.Context, sessions SessionMan
 	}
 
 	type workspaceCandidate struct {
-		path      string
+		id        string
 		updatedAt time.Time
 	}
 
 	latestByWorkspace := make(map[string]time.Time, len(infos))
 	for _, info := range infos {
-		if info == nil || info.Type == session.SessionTypeDream || strings.TrimSpace(info.Workspace) == "" {
+		if info == nil || info.Type == session.SessionTypeDream {
 			continue
 		}
 
-		workspace, err := normalizeAbsolutePath(info.Workspace)
-		if err != nil {
-			return nil, fmt.Errorf("daemon: resolve dream workspace %q: %w", info.Workspace, err)
-		}
-		if workspace == "" {
+		workspaceID := strings.TrimSpace(info.WorkspaceID)
+		if workspaceID == "" {
 			continue
 		}
 
@@ -1058,8 +1086,8 @@ func (d *Daemon) resolveDreamWorkspaces(ctx context.Context, sessions SessionMan
 			continue
 		}
 
-		if latest, ok := latestByWorkspace[workspace]; !ok || updatedAt.After(latest) {
-			latestByWorkspace[workspace] = updatedAt
+		if latest, ok := latestByWorkspace[workspaceID]; !ok || updatedAt.After(latest) {
+			latestByWorkspace[workspaceID] = updatedAt
 		}
 	}
 
@@ -1068,28 +1096,68 @@ func (d *Daemon) resolveDreamWorkspaces(ctx context.Context, sessions SessionMan
 	}
 
 	candidates := make([]workspaceCandidate, 0, len(latestByWorkspace))
-	for workspace, updatedAt := range latestByWorkspace {
-		candidates = append(candidates, workspaceCandidate{path: workspace, updatedAt: updatedAt})
+	for workspaceID, updatedAt := range latestByWorkspace {
+		candidates = append(candidates, workspaceCandidate{id: workspaceID, updatedAt: updatedAt})
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].updatedAt.Equal(candidates[j].updatedAt) {
-			return candidates[i].path < candidates[j].path
+			return candidates[i].id < candidates[j].id
 		}
 		return candidates[i].updatedAt.After(candidates[j].updatedAt)
 	})
 
 	workspaces := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {
-		workspaces = append(workspaces, candidate.path)
+		workspaces = append(workspaces, candidate.id)
 	}
 	return workspaces, nil
+}
+
+func resolveDreamWorkspaceRef(ctx context.Context, resolver workspacepkg.WorkspaceResolver, workspaceRef string) (string, error) {
+	trimmedRef := strings.TrimSpace(workspaceRef)
+	if trimmedRef == "" {
+		return "", errors.New("daemon: dream workspace is required")
+	}
+
+	var (
+		resolved workspacepkg.ResolvedWorkspace
+		err      error
+	)
+	if isPathLikeWorkspaceRef(trimmedRef) {
+		normalizedPath, normalizeErr := normalizeAbsolutePath(trimmedRef)
+		if normalizeErr != nil {
+			return "", fmt.Errorf("daemon: resolve dream workspace %q: %w", workspaceRef, normalizeErr)
+		}
+		resolved, err = resolver.ResolveOrRegister(ctx, normalizedPath)
+		if err != nil {
+			return "", fmt.Errorf("daemon: resolve dream workspace %q: %w", workspaceRef, err)
+		}
+	} else {
+		resolved, err = resolver.Resolve(ctx, trimmedRef)
+		if err != nil {
+			return "", fmt.Errorf("daemon: resolve dream workspace %q: %w", workspaceRef, err)
+		}
+	}
+
+	if strings.TrimSpace(resolved.ID) == "" {
+		return "", errors.New("daemon: dream workspace id is required")
+	}
+	return resolved.ID, nil
+}
+
+func isPathLikeWorkspaceRef(ref string) bool {
+	trimmedRef := strings.TrimSpace(ref)
+	return filepath.IsAbs(trimmedRef) ||
+		strings.HasPrefix(trimmedRef, ".") ||
+		strings.HasPrefix(trimmedRef, "~") ||
+		strings.Contains(trimmedRef, string(os.PathSeparator))
 }
 
 func spawnDreamSession(ctx context.Context, sessions SessionManager, agentName string, goal string, prompt string, workspace string) (err error) {
 	dreamSession, err := sessions.Create(ctx, session.CreateOpts{
 		AgentName: agentName,
 		Name:      strings.TrimSpace(goal),
-		Workspace: workspace,
+		Workspace: strings.TrimSpace(workspace),
 		Type:      session.SessionTypeDream,
 	})
 	if err != nil {

@@ -9,6 +9,7 @@ export interface ChatHeaderProps {
   session: SessionPayload;
   onStop: () => void;
   onResume: () => void;
+  workspaceName?: string;
 }
 
 const STATE_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -18,7 +19,7 @@ const STATE_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructive
   stopped: "outline",
 };
 
-export function ChatHeader({ session, onStop, onResume }: ChatHeaderProps) {
+export function ChatHeader({ session, onStop, onResume, workspaceName }: ChatHeaderProps) {
   const isActive = session.state === "active" || session.state === "starting";
   const isStopped = session.state === "stopped";
 
@@ -44,7 +45,25 @@ export function ChatHeader({ session, onStop, onResume }: ChatHeaderProps) {
               {session.state}
             </Badge>
           </div>
-          <span className="text-xs text-[color:var(--ds-text-muted)]">{session.agent_name}</span>
+          <div className="mt-1 flex items-center gap-2 overflow-hidden text-xs text-[color:var(--ds-text-muted)]">
+            <span>{session.agent_name}</span>
+            {workspaceName && (
+              <Badge
+                variant="outline"
+                className="h-4 shrink-0 px-1 text-[0.55rem] leading-none"
+                data-testid="session-workspace-badge"
+              >
+                {workspaceName}
+              </Badge>
+            )}
+            <span
+              className="truncate font-mono text-[0.68rem]"
+              data-testid="session-workspace-id"
+              title={session.workspace_id}
+            >
+              {session.workspace_id}
+            </span>
+          </div>
         </div>
       </div>
 

@@ -145,7 +145,7 @@ type SessionInfo struct {
 	ID           string
 	Name         string
 	AgentName    string
-	Workspace    string
+	WorkspaceID  string
 	SessionType  string
 	State        string
 	ACPSessionID *string
@@ -160,8 +160,8 @@ func (s SessionInfo) Validate() error {
 		return errors.New("store: session id is required")
 	case strings.TrimSpace(s.AgentName) == "":
 		return errors.New("store: session agent name is required")
-	case strings.TrimSpace(s.Workspace) == "":
-		return errors.New("store: session workspace is required")
+	case strings.TrimSpace(s.WorkspaceID) == "":
+		return errors.New("store: session workspace id is required")
 	case strings.TrimSpace(s.State) == "":
 		return errors.New("store: session state is required")
 	default:
@@ -359,7 +359,7 @@ type SessionMeta struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name,omitempty"`
 	AgentName    string    `json:"agent_name"`
-	Workspace    string    `json:"workspace"`
+	WorkspaceID  string    `json:"workspace_id,omitempty"`
 	SessionType  string    `json:"session_type,omitempty"`
 	State        string    `json:"state"`
 	ACPSessionID *string   `json:"acp_session_id,omitempty"`
@@ -369,9 +369,18 @@ type SessionMeta struct {
 
 // Validate ensures the metadata file remains aligned with the session index schema.
 func (m SessionMeta) Validate() error {
-	info := SessionInfo(m)
-	info.SessionType = normalizeSessionType(info.SessionType)
-	return info.Validate()
+	switch {
+	case strings.TrimSpace(m.ID) == "":
+		return errors.New("store: session id is required")
+	case strings.TrimSpace(m.AgentName) == "":
+		return errors.New("store: session agent name is required")
+	case strings.TrimSpace(m.WorkspaceID) == "":
+		return errors.New("store: session workspace id is required")
+	case strings.TrimSpace(m.State) == "":
+		return errors.New("store: session state is required")
+	default:
+		return nil
+	}
 }
 
 // SessionDBFile returns the canonical events database path for a session directory.

@@ -1,12 +1,17 @@
 package store
 
 import (
+	"context"
+	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
@@ -14,7 +19,7 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 
 	globalDB := openTestGlobalDB(t)
 
-	assertTablesPresent(t, globalDB.db, "sessions", "event_summaries", "token_stats", "permission_log")
+	assertTablesPresent(t, globalDB.db, "workspaces", "sessions", "event_summaries", "token_stats", "permission_log")
 	assertJournalModeWAL(t, globalDB.db)
 	assertSynchronousNormal(t, globalDB.db)
 }
@@ -24,11 +29,12 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 
 	globalDB := openTestGlobalDB(t)
 	createdAt := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
+	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "sess-global-workspace", filepath.Join(t.TempDir(), "workspace-global"))
 	session := SessionInfo{
 		ID:          "sess-global",
 		Name:        "Alpha",
 		AgentName:   "coder",
-		Workspace:   "/tmp/workspace",
+		WorkspaceID: workspaceID,
 		SessionType: "dream",
 		State:       "active",
 		CreatedAt:   createdAt,
@@ -62,6 +68,9 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 	if sessions[0].SessionType != "dream" {
 		t.Fatalf("sessions[0].SessionType = %q, want dream", sessions[0].SessionType)
 	}
+	if sessions[0].WorkspaceID != workspaceID {
+		t.Fatalf("sessions[0].WorkspaceID = %q, want %q", sessions[0].WorkspaceID, workspaceID)
+	}
 	if sessions[0].ACPSessionID == nil || *sessions[0].ACPSessionID != "acp-123" {
 		t.Fatalf("sessions[0].ACPSessionID = %#v, want acp-123", sessions[0].ACPSessionID)
 	}
@@ -71,13 +80,14 @@ func TestGlobalDBRegisterSessionDefaultsTypeToUser(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "sess-default-type-workspace", filepath.Join(t.TempDir(), "workspace-default-type"))
 	session := SessionInfo{
-		ID:        "sess-default-type",
-		AgentName: "coder",
-		Workspace: "/tmp/workspace",
-		State:     "active",
-		CreatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		ID:          "sess-default-type",
+		AgentName:   "coder",
+		WorkspaceID: workspaceID,
+		State:       "active",
+		CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 	}
 
 	if err := globalDB.RegisterSession(testContext(t), session); err != nil {
@@ -93,6 +103,542 @@ func TestGlobalDBRegisterSessionDefaultsTypeToUser(t *testing.T) {
 	}
 	if got, want := sessions[0].SessionType, defaultSessionType; got != want {
 		t.Fatalf("sessions[0].SessionType = %q, want %q", got, want)
+	}
+}
+
+func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	rootParent := t.TempDir()
+	rootDir := filepath.Join(rootParent, "workspace-root")
+	if err := os.MkdirAll(rootDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(rootDir) error = %v", err)
+	}
+	symlinkPath := filepath.Join(t.TempDir(), "workspace-link")
+	if err := os.Symlink(rootDir, symlinkPath); err != nil {
+		t.Fatalf("Symlink() error = %v", err)
+	}
+
+	canonicalRoot, err := filepath.EvalSymlinks(symlinkPath)
+	if err != nil {
+		t.Fatalf("EvalSymlinks() error = %v", err)
+	}
+
+	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
+	ws := aghworkspace.Workspace{
+		ID:             "ws-primary",
+		RootDir:        canonicalRoot,
+		AdditionalDirs: []string{filepath.Join(rootDir, "a"), "", filepath.Join(rootDir, "b")},
+		Name:           "alpha",
+		DefaultAgent:   "coder",
+		CreatedAt:      createdAt,
+		UpdatedAt:      createdAt,
+	}
+	if err := globalDB.InsertWorkspace(testContext(t), ws); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+
+	byID, err := globalDB.GetWorkspace(testContext(t), ws.ID)
+	if err != nil {
+		t.Fatalf("GetWorkspace() error = %v", err)
+	}
+	assertWorkspaceEqual(t, byID, aghworkspace.Workspace{
+		ID:             ws.ID,
+		RootDir:        canonicalRoot,
+		AdditionalDirs: []string{filepath.Join(rootDir, "a"), filepath.Join(rootDir, "b")},
+		Name:           "alpha",
+		DefaultAgent:   "coder",
+		CreatedAt:      createdAt,
+		UpdatedAt:      createdAt,
+	})
+
+	byPath, err := globalDB.GetWorkspaceByPath(testContext(t), canonicalRoot)
+	if err != nil {
+		t.Fatalf("GetWorkspaceByPath() error = %v", err)
+	}
+	assertWorkspaceEqual(t, byPath, byID)
+
+	byName, err := globalDB.GetWorkspaceByName(testContext(t), "alpha")
+	if err != nil {
+		t.Fatalf("GetWorkspaceByName() error = %v", err)
+	}
+	assertWorkspaceEqual(t, byName, byID)
+
+	updated := byID
+	updated.Name = "beta"
+	updated.DefaultAgent = "reviewer"
+	updated.AdditionalDirs = []string{filepath.Join(rootDir, "tools")}
+	updated.UpdatedAt = createdAt.Add(5 * time.Minute)
+	if err := globalDB.UpdateWorkspace(testContext(t), updated); err != nil {
+		t.Fatalf("UpdateWorkspace() error = %v", err)
+	}
+
+	gotUpdated, err := globalDB.GetWorkspace(testContext(t), updated.ID)
+	if err != nil {
+		t.Fatalf("GetWorkspace(updated) error = %v", err)
+	}
+	assertWorkspaceEqual(t, gotUpdated, updated)
+
+	if err := globalDB.DeleteWorkspace(testContext(t), updated.ID); err != nil {
+		t.Fatalf("DeleteWorkspace() error = %v", err)
+	}
+	if _, err := globalDB.GetWorkspace(testContext(t), updated.ID); !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
+		t.Fatalf("GetWorkspace(deleted) error = %v, want ErrWorkspaceNotFound", err)
+	}
+}
+
+func TestGlobalDBWorkspaceConstraintViolations(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	rootA := filepath.Join(t.TempDir(), "root-a")
+	rootB := filepath.Join(t.TempDir(), "root-b")
+	if err := os.MkdirAll(rootA, 0o755); err != nil {
+		t.Fatalf("MkdirAll(rootA) error = %v", err)
+	}
+	if err := os.MkdirAll(rootB, 0o755); err != nil {
+		t.Fatalf("MkdirAll(rootB) error = %v", err)
+	}
+
+	base := aghworkspace.Workspace{
+		ID:        "ws-base",
+		RootDir:   rootA,
+		Name:      "alpha",
+		CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+	}
+	if err := globalDB.InsertWorkspace(testContext(t), base); err != nil {
+		t.Fatalf("InsertWorkspace(base) error = %v", err)
+	}
+
+	tests := []struct {
+		name string
+		ws   aghworkspace.Workspace
+		want error
+	}{
+		{
+			name: "duplicate root dir",
+			ws: aghworkspace.Workspace{
+				ID:        "ws-duplicate-root",
+				RootDir:   rootA,
+				Name:      "beta",
+				CreatedAt: base.CreatedAt,
+				UpdatedAt: base.UpdatedAt,
+			},
+			want: aghworkspace.ErrWorkspacePathTaken,
+		},
+		{
+			name: "duplicate name",
+			ws: aghworkspace.Workspace{
+				ID:        "ws-duplicate-name",
+				RootDir:   rootB,
+				Name:      "alpha",
+				CreatedAt: base.CreatedAt,
+				UpdatedAt: base.UpdatedAt,
+			},
+			want: aghworkspace.ErrWorkspaceNameTaken,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := globalDB.InsertWorkspace(testContext(t), tt.ws)
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("InsertWorkspace() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestGlobalDBWorkspaceNotFoundErrors(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+
+	if _, err := globalDB.GetWorkspace(testContext(t), "ws-missing"); !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
+		t.Fatalf("GetWorkspace(missing) error = %v, want ErrWorkspaceNotFound", err)
+	}
+	if _, err := globalDB.GetWorkspaceByPath(testContext(t), filepath.Join(t.TempDir(), "missing")); !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
+		t.Fatalf("GetWorkspaceByPath(missing) error = %v, want ErrWorkspaceNotFound", err)
+	}
+	if _, err := globalDB.GetWorkspaceByName(testContext(t), "missing"); !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
+		t.Fatalf("GetWorkspaceByName(missing) error = %v, want ErrWorkspaceNotFound", err)
+	}
+	if err := globalDB.UpdateWorkspace(testContext(t), aghworkspace.Workspace{
+		ID:        "ws-missing",
+		RootDir:   filepath.Join(t.TempDir(), "missing"),
+		Name:      "missing",
+		UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+	}); !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
+		t.Fatalf("UpdateWorkspace(missing) error = %v, want ErrWorkspaceNotFound", err)
+	}
+	if err := globalDB.DeleteWorkspace(testContext(t), "ws-missing"); !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
+		t.Fatalf("DeleteWorkspace(missing) error = %v, want ErrWorkspaceNotFound", err)
+	}
+}
+
+func TestGlobalDBWorkspaceValidationAndDefaulting(t *testing.T) {
+	t.Parallel()
+
+	var nilCtx context.Context
+	if _, err := OpenGlobalDB(nilCtx, filepath.Join(t.TempDir(), GlobalDatabaseName)); err == nil {
+		t.Fatal("OpenGlobalDB(nil) error = nil, want non-nil")
+	}
+
+	var nilGlobalDB *GlobalDB
+	if got := nilGlobalDB.Path(); got != "" {
+		t.Fatalf("(*GlobalDB)(nil).Path() = %q, want empty", got)
+	}
+
+	globalDB := openTestGlobalDB(t)
+	rootDir := filepath.Join(t.TempDir(), "workspace-defaulted")
+	if err := os.MkdirAll(rootDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	if err := globalDB.InsertWorkspace(testContext(t), aghworkspace.Workspace{
+		RootDir: rootDir,
+		Name:    "defaulted",
+	}); err != nil {
+		t.Fatalf("InsertWorkspace(defaulted) error = %v", err)
+	}
+
+	workspaces, err := globalDB.ListWorkspaces(testContext(t))
+	if err != nil {
+		t.Fatalf("ListWorkspaces() error = %v", err)
+	}
+	if got, want := len(workspaces), 1; got != want {
+		t.Fatalf("len(workspaces) = %d, want %d", got, want)
+	}
+	if !strings.HasPrefix(workspaces[0].ID, "ws-") {
+		t.Fatalf("workspaces[0].ID = %q, want ws- prefix", workspaces[0].ID)
+	}
+	if workspaces[0].CreatedAt.IsZero() || workspaces[0].UpdatedAt.IsZero() {
+		t.Fatalf("workspace timestamps = %#v, want non-zero", workspaces[0])
+	}
+
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "insert missing root",
+			run: func() error {
+				return globalDB.InsertWorkspace(testContext(t), aghworkspace.Workspace{Name: "missing-root"})
+			},
+		},
+		{
+			name: "insert missing name",
+			run: func() error {
+				return globalDB.InsertWorkspace(testContext(t), aghworkspace.Workspace{RootDir: rootDir})
+			},
+		},
+		{
+			name: "update missing id",
+			run: func() error {
+				return globalDB.UpdateWorkspace(testContext(t), aghworkspace.Workspace{RootDir: rootDir, Name: "missing-id"})
+			},
+		},
+		{
+			name: "delete missing id",
+			run: func() error {
+				return globalDB.DeleteWorkspace(testContext(t), "")
+			},
+		},
+		{
+			name: "get missing id",
+			run: func() error {
+				_, err := globalDB.GetWorkspace(testContext(t), "")
+				return err
+			},
+		},
+		{
+			name: "get by missing path",
+			run: func() error {
+				_, err := globalDB.GetWorkspaceByPath(testContext(t), "")
+				return err
+			},
+		},
+		{
+			name: "get by missing name",
+			run: func() error {
+				_, err := globalDB.GetWorkspaceByName(testContext(t), "")
+				return err
+			},
+		},
+		{
+			name: "list nil context",
+			run: func() error {
+				var nilCtx context.Context
+				_, err := globalDB.ListWorkspaces(nilCtx)
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); err == nil {
+				t.Fatal("error = nil, want non-nil")
+			}
+		})
+	}
+}
+
+func TestGlobalDBNilReceiverWorkspaceMethods(t *testing.T) {
+	t.Parallel()
+
+	var nilGlobalDB *GlobalDB
+	ctx := testContext(t)
+
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "insert workspace",
+			run:  func() error { return nilGlobalDB.InsertWorkspace(ctx, aghworkspace.Workspace{}) },
+		},
+		{
+			name: "update workspace",
+			run:  func() error { return nilGlobalDB.UpdateWorkspace(ctx, aghworkspace.Workspace{}) },
+		},
+		{
+			name: "delete workspace",
+			run:  func() error { return nilGlobalDB.DeleteWorkspace(ctx, "ws-1") },
+		},
+		{
+			name: "get workspace",
+			run: func() error {
+				_, err := nilGlobalDB.GetWorkspace(ctx, "ws-1")
+				return err
+			},
+		},
+		{
+			name: "get workspace by path",
+			run: func() error {
+				_, err := nilGlobalDB.GetWorkspaceByPath(ctx, "/tmp/workspace")
+				return err
+			},
+		},
+		{
+			name: "get workspace by name",
+			run: func() error {
+				_, err := nilGlobalDB.GetWorkspaceByName(ctx, "workspace")
+				return err
+			},
+		},
+		{
+			name: "list workspaces",
+			run: func() error {
+				_, err := nilGlobalDB.ListWorkspaces(ctx)
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); err == nil {
+				t.Fatal("error = nil, want non-nil")
+			}
+		})
+	}
+}
+
+func TestGlobalDBListWorkspacesStableOrder(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	first := insertWorkspaceForGlobalTests(t, globalDB, aghworkspace.Workspace{
+		ID:        "ws-zeta",
+		RootDir:   filepath.Join(t.TempDir(), "workspace-zeta"),
+		Name:      "zeta",
+		CreatedAt: time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),
+	})
+	second := insertWorkspaceForGlobalTests(t, globalDB, aghworkspace.Workspace{
+		ID:        "ws-alpha",
+		RootDir:   filepath.Join(t.TempDir(), "workspace-alpha"),
+		Name:      "alpha",
+		CreatedAt: time.Date(2026, 4, 3, 10, 1, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 3, 10, 1, 0, 0, time.UTC),
+	})
+
+	workspaces, err := globalDB.ListWorkspaces(testContext(t))
+	if err != nil {
+		t.Fatalf("ListWorkspaces() error = %v", err)
+	}
+
+	if got, want := len(workspaces), 2; got != want {
+		t.Fatalf("len(workspaces) = %d, want %d", got, want)
+	}
+	assertWorkspaceEqual(t, workspaces[0], second)
+	assertWorkspaceEqual(t, workspaces[1], first)
+}
+
+func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "session-workspace", filepath.Join(t.TempDir(), "session-workspace"))
+
+	session := SessionInfo{
+		ID:          "sess-workspace-id",
+		AgentName:   "coder",
+		WorkspaceID: workspaceID,
+		State:       "active",
+		CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+	}
+	if err := globalDB.RegisterSession(testContext(t), session); err != nil {
+		t.Fatalf("RegisterSession() error = %v", err)
+	}
+
+	sessions, err := globalDB.ListSessions(testContext(t), SessionListQuery{})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if got, want := len(sessions), 1; got != want {
+		t.Fatalf("len(sessions) = %d, want %d", got, want)
+	}
+	if got, want := sessions[0].WorkspaceID, workspaceID; got != want {
+		t.Fatalf("sessions[0].WorkspaceID = %q, want %q", got, want)
+	}
+
+	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "state", "acp_session_id", "created_at", "updated_at"})
+}
+
+func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, GlobalDatabaseName)
+
+	db, err := sql.Open(sqliteDriverName, sqliteDSN(path))
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	ctx := testContext(t)
+	if _, err := db.ExecContext(ctx, `CREATE TABLE sessions (
+		id TEXT PRIMARY KEY,
+		name TEXT,
+		agent_name TEXT NOT NULL,
+		workspace TEXT NOT NULL,
+		session_type TEXT NOT NULL DEFAULT 'user',
+		state TEXT NOT NULL,
+		acp_session_id TEXT,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create legacy sessions error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE TABLE event_summaries (
+		id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL REFERENCES sessions(id),
+		type TEXT NOT NULL,
+		agent_name TEXT NOT NULL,
+		summary TEXT,
+		timestamp TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create legacy event_summaries error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE TABLE token_stats (
+		id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL REFERENCES sessions(id),
+		agent_name TEXT NOT NULL,
+		input_tokens INTEGER,
+		output_tokens INTEGER,
+		total_tokens INTEGER,
+		total_cost REAL,
+		cost_currency TEXT,
+		turn_count INTEGER NOT NULL DEFAULT 0,
+		updated_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create legacy token_stats error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE TABLE permission_log (
+		id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL REFERENCES sessions(id),
+		agent_name TEXT NOT NULL,
+		action TEXT NOT NULL,
+		resource TEXT NOT NULL,
+		decision TEXT NOT NULL,
+		policy_used TEXT NOT NULL,
+		timestamp TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create legacy permission_log error = %v", err)
+	}
+
+	rootA := filepath.Join(dir, "apps", "project")
+	rootB := filepath.Join(dir, "services", "project")
+	if _, err := db.ExecContext(ctx, `INSERT INTO sessions (id, name, agent_name, workspace, session_type, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"sess-legacy-a", "A", "coder", rootA, "user", "active", formatTimestamp(time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)), formatTimestamp(time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)),
+	); err != nil {
+		t.Fatalf("insert legacy session A error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO sessions (id, name, agent_name, workspace, session_type, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"sess-legacy-b", "B", "reviewer", rootB, "dream", "stopped", formatTimestamp(time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC)), formatTimestamp(time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC)),
+	); err != nil {
+		t.Fatalf("insert legacy session B error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO event_summaries (id, session_id, type, agent_name, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?)`,
+		"sum-legacy", "sess-legacy-a", "agent_message", "coder", "legacy summary", formatTimestamp(time.Date(2026, 4, 3, 10, 1, 0, 0, time.UTC)),
+	); err != nil {
+		t.Fatalf("insert legacy event summary error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(legacy db) error = %v", err)
+	}
+
+	globalDB, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := globalDB.Close(testContext(t)); closeErr != nil {
+			t.Fatalf("Close() error = %v", closeErr)
+		}
+	})
+
+	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "state", "acp_session_id", "created_at", "updated_at"})
+	assertTableColumns(t, globalDB.db, "workspaces", []string{"id", "root_dir", "add_dirs", "name", "default_agent", "created_at", "updated_at"})
+
+	workspaces, err := globalDB.ListWorkspaces(ctx)
+	if err != nil {
+		t.Fatalf("ListWorkspaces() error = %v", err)
+	}
+	if got, want := len(workspaces), 2; got != want {
+		t.Fatalf("len(workspaces) = %d, want %d", got, want)
+	}
+	if got, want := []string{workspaces[0].Name, workspaces[1].Name}, []string{"project", "project-2"}; !equalStringSlices(got, want) {
+		t.Fatalf("workspace names = %#v, want %#v", got, want)
+	}
+
+	sessions, err := globalDB.ListSessions(ctx, SessionListQuery{})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if got, want := len(sessions), 2; got != want {
+		t.Fatalf("len(sessions) = %d, want %d", got, want)
+	}
+	for _, session := range sessions {
+		if strings.HasPrefix(session.WorkspaceID, "/") {
+			t.Fatalf("session.WorkspaceID = %q, want migrated ws_ id", session.WorkspaceID)
+		}
+	}
+
+	summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{SessionID: "sess-legacy-a"})
+	if err != nil {
+		t.Fatalf("ListEventSummaries() error = %v", err)
+	}
+	if got, want := len(summaries), 1; got != want {
+		t.Fatalf("len(summaries) = %d, want %d", got, want)
 	}
 }
 
@@ -285,20 +831,20 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 
 	onDisk := []SessionInfo{
 		{
-			ID:        "sess-keep",
-			AgentName: "coder",
-			Workspace: "/tmp/sess-keep",
-			State:     "stopped",
-			CreatedAt: time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
+			ID:          "sess-keep",
+			AgentName:   "coder",
+			WorkspaceID: registerWorkspaceForGlobalTests(t, globalDB, "sess-keep-reconciled-workspace", filepath.Join(t.TempDir(), "sess-keep")),
+			State:       "stopped",
+			CreatedAt:   time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
 		},
 		{
-			ID:        "sess-new",
-			AgentName: "reviewer",
-			Workspace: "/tmp/sess-new",
-			State:     "stopped",
-			CreatedAt: time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
+			ID:          "sess-new",
+			AgentName:   "reviewer",
+			WorkspaceID: registerWorkspaceForGlobalTests(t, globalDB, "sess-new-reconciled-workspace", filepath.Join(t.TempDir(), "sess-new")),
+			State:       "stopped",
+			CreatedAt:   time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -350,7 +896,7 @@ func TestGlobalDBRecoversFromCorruption(t *testing.T) {
 		}
 	})
 
-	assertTablesPresent(t, globalDB.db, "sessions", "event_summaries", "token_stats", "permission_log")
+	assertTablesPresent(t, globalDB.db, "workspaces", "sessions", "event_summaries", "token_stats", "permission_log")
 
 	matches, err := filepath.Glob(path + ".corrupt.*")
 	if err != nil {
@@ -381,13 +927,96 @@ func registerSessionForGlobalTests(t *testing.T, globalDB *GlobalDB, sessionID s
 
 	now := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
 	if err := globalDB.RegisterSession(testContext(t), SessionInfo{
-		ID:        sessionID,
-		AgentName: "coder",
-		Workspace: "/tmp/" + sessionID,
-		State:     "active",
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:          sessionID,
+		AgentName:   "coder",
+		WorkspaceID: registerWorkspaceForGlobalTests(t, globalDB, sessionID+"-workspace", filepath.Join(t.TempDir(), sessionID)),
+		State:       "active",
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
+	}
+}
+
+func insertWorkspaceForGlobalTests(t *testing.T, globalDB *GlobalDB, ws aghworkspace.Workspace) aghworkspace.Workspace {
+	t.Helper()
+
+	if strings.TrimSpace(ws.RootDir) == "" {
+		t.Fatal("insertWorkspaceForGlobalTests() requires RootDir")
+	}
+	if err := os.MkdirAll(ws.RootDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", ws.RootDir, err)
+	}
+	if ws.CreatedAt.IsZero() {
+		ws.CreatedAt = time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC)
+	}
+	if ws.UpdatedAt.IsZero() {
+		ws.UpdatedAt = ws.CreatedAt
+	}
+	if err := globalDB.InsertWorkspace(testContext(t), ws); err != nil {
+		t.Fatalf("InsertWorkspace(%q) error = %v", ws.ID, err)
+	}
+	return ws
+}
+
+func registerWorkspaceForGlobalTests(t *testing.T, globalDB *GlobalDB, name string, rootDir string) string {
+	t.Helper()
+
+	workspace := insertWorkspaceForGlobalTests(t, globalDB, aghworkspace.Workspace{
+		ID:        "ws-" + strings.ReplaceAll(name, " ", "-"),
+		RootDir:   rootDir,
+		Name:      name,
+		CreatedAt: time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC),
+	})
+	return workspace.ID
+}
+
+func assertWorkspaceEqual(t *testing.T, got aghworkspace.Workspace, want aghworkspace.Workspace) {
+	t.Helper()
+
+	if got.ID != want.ID ||
+		got.RootDir != want.RootDir ||
+		got.Name != want.Name ||
+		got.DefaultAgent != want.DefaultAgent ||
+		!got.CreatedAt.Equal(want.CreatedAt) ||
+		!got.UpdatedAt.Equal(want.UpdatedAt) ||
+		!equalStringSlices(got.AdditionalDirs, want.AdditionalDirs) {
+		t.Fatalf("workspace = %#v, want %#v", got, want)
+	}
+}
+
+func assertTableColumns(t *testing.T, db *sql.DB, table string, want []string) {
+	t.Helper()
+
+	rows, err := db.QueryContext(testContext(t), "PRAGMA table_info("+table+")")
+	if err != nil {
+		t.Fatalf("QueryContext(table_info %q) error = %v", table, err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	got := make([]string, 0)
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			columnType string
+			notNull    int
+			defaultVal sql.NullString
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultVal, &primaryKey); err != nil {
+			t.Fatalf("Scan(table_info %q) error = %v", table, err)
+		}
+		got = append(got, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows.Err(table_info %q) error = %v", table, err)
+	}
+
+	if !equalStringSlices(got, want) {
+		t.Fatalf("columns(%s) = %#v, want %#v", table, got, want)
 	}
 }

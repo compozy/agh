@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,7 +17,7 @@ var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
 type stubClient struct {
 	daemonStatusFn        func(context.Context) (DaemonStatus, error)
-	listSessionsFn        func(context.Context) ([]SessionRecord, error)
+	listSessionsFn        func(context.Context, SessionListQuery) ([]SessionRecord, error)
 	createSessionFn       func(context.Context, CreateSessionRequest) (SessionRecord, error)
 	getSessionFn          func(context.Context, string) (SessionRecord, error)
 	stopSessionFn         func(context.Context, string) error
@@ -25,6 +26,11 @@ type stubClient struct {
 	sessionEventsFn       func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
 	streamSessionFn       func(context.Context, string, SessionEventQuery, string, SSEHandler) error
 	sessionHistoryFn      func(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)
+	createWorkspaceFn     func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error)
+	listWorkspacesFn      func(context.Context) ([]WorkspaceRecord, error)
+	getWorkspaceFn        func(context.Context, string) (WorkspaceDetailRecord, error)
+	updateWorkspaceFn     func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
+	deleteWorkspaceFn     func(context.Context, string) error
 	listAgentsFn          func(context.Context) ([]AgentRecord, error)
 	getAgentFn            func(context.Context, string) (AgentRecord, error)
 	observeEventsFn       func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error)
@@ -44,9 +50,9 @@ func (s stubClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
 	return DaemonStatus{}, errors.New("unexpected DaemonStatus call")
 }
 
-func (s stubClient) ListSessions(ctx context.Context) ([]SessionRecord, error) {
+func (s stubClient) ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error) {
 	if s.listSessionsFn != nil {
-		return s.listSessionsFn(ctx)
+		return s.listSessionsFn(ctx, query)
 	}
 	return nil, errors.New("unexpected ListSessions call")
 }
@@ -105,6 +111,41 @@ func (s stubClient) SessionHistory(ctx context.Context, id string, query Session
 		return s.sessionHistoryFn(ctx, id, query)
 	}
 	return nil, errors.New("unexpected SessionHistory call")
+}
+
+func (s stubClient) CreateWorkspace(ctx context.Context, request WorkspaceCreateRequest) (WorkspaceRecord, error) {
+	if s.createWorkspaceFn != nil {
+		return s.createWorkspaceFn(ctx, request)
+	}
+	return WorkspaceRecord{}, errors.New("unexpected CreateWorkspace call")
+}
+
+func (s stubClient) ListWorkspaces(ctx context.Context) ([]WorkspaceRecord, error) {
+	if s.listWorkspacesFn != nil {
+		return s.listWorkspacesFn(ctx)
+	}
+	return nil, errors.New("unexpected ListWorkspaces call")
+}
+
+func (s stubClient) GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error) {
+	if s.getWorkspaceFn != nil {
+		return s.getWorkspaceFn(ctx, ref)
+	}
+	return WorkspaceDetailRecord{}, errors.New("unexpected GetWorkspace call")
+}
+
+func (s stubClient) UpdateWorkspace(ctx context.Context, ref string, request WorkspaceUpdateRequest) (WorkspaceRecord, error) {
+	if s.updateWorkspaceFn != nil {
+		return s.updateWorkspaceFn(ctx, ref, request)
+	}
+	return WorkspaceRecord{}, errors.New("unexpected UpdateWorkspace call")
+}
+
+func (s stubClient) DeleteWorkspace(ctx context.Context, ref string) error {
+	if s.deleteWorkspaceFn != nil {
+		return s.deleteWorkspaceFn(ctx, ref)
+	}
+	return errors.New("unexpected DeleteWorkspace call")
 }
 
 func (s stubClient) ListAgents(ctx context.Context) ([]AgentRecord, error) {
@@ -218,6 +259,16 @@ func executeRootCommand(t *testing.T, deps commandDeps, args ...string) (string,
 
 	err := cmd.ExecuteContext(testContext(t))
 	return stdout.String(), stderr.String(), err
+}
+
+func executeRootCommandWithExit(t *testing.T, deps commandDeps, args ...string) (int, string, string) {
+	t.Helper()
+
+	stdout, stderr, err := executeRootCommand(t, deps, args...)
+	if err != nil {
+		return 1, stdout, fmt.Sprintf("%serror: %v\n", stderr, err)
+	}
+	return 0, stdout, stderr
 }
 
 func testContext(t *testing.T) context.Context {

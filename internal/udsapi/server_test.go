@@ -40,6 +40,7 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		WithPollInterval(25*time.Millisecond),
 		WithSessionManager(stubSessionManager{}),
 		WithObserver(stubObserver{}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
 		WithMemoryStore(store),
 		WithDreamTrigger(dream),
 		WithAgentLoader(customLoader),
@@ -81,7 +82,7 @@ func TestPathHandlesNilServer(t *testing.T) {
 	}
 }
 
-func TestNewRequiresSessionManagerAndObserver(t *testing.T) {
+func TestNewRequiresSessionManagerObserverAndWorkspaceResolver(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 
 	if _, err := New(WithHomePaths(homePaths), WithObserver(stubObserver{})); err == nil {
@@ -89,6 +90,9 @@ func TestNewRequiresSessionManagerAndObserver(t *testing.T) {
 	}
 	if _, err := New(WithHomePaths(homePaths), WithSessionManager(stubSessionManager{})); err == nil {
 		t.Fatal("New() without observer error = nil, want non-nil")
+	}
+	if _, err := New(WithHomePaths(homePaths), WithSessionManager(stubSessionManager{}), WithObserver(stubObserver{})); err == nil {
+		t.Fatal("New() without workspace resolver error = nil, want non-nil")
 	}
 }
 
@@ -109,6 +113,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 		WithObserver(stubObserver{
 			healthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
 		}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -163,6 +168,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 		WithLogger(discardLogger()),
 		WithSessionManager(stubSessionManager{}),
 		WithObserver(stubObserver{}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -194,6 +200,7 @@ func TestServerStartRejectsRegularFileAtSocketPath(t *testing.T) {
 		WithLogger(discardLogger()),
 		WithSessionManager(stubSessionManager{}),
 		WithObserver(stubObserver{}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)

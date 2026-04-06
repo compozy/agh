@@ -1,9 +1,13 @@
 package session
 
-import "context"
+import (
+	"context"
+
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+)
 
 // PromptProvider returns one workspace-scoped prompt section for composed
 // system-prompt assembly.
 type PromptProvider interface {
-	PromptSection(ctx context.Context, workspace string) (string, error)
+	PromptSection(ctx context.Context, workspace workspacepkg.ResolvedWorkspace) (string, error)
 }

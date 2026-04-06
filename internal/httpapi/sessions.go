@@ -15,21 +15,23 @@ import (
 )
 
 type createSessionRequest struct {
-	AgentName string `json:"agent_name"`
-	Name      string `json:"name"`
-	Workspace string `json:"workspace"`
+	AgentName     string `json:"agent_name"`
+	Name          string `json:"name"`
+	Workspace     string `json:"workspace"`
+	WorkspacePath string `json:"workspace_path"`
 }
 
 type sessionPayload struct {
-	ID           string          `json:"id"`
-	Name         string          `json:"name,omitempty"`
-	AgentName    string          `json:"agent_name"`
-	Workspace    string          `json:"workspace"`
-	State        string          `json:"state"`
-	ACPSessionID string          `json:"acp_session_id,omitempty"`
-	ACPCaps      *acpCapsPayload `json:"acp_caps,omitempty"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
+	ID            string          `json:"id"`
+	Name          string          `json:"name,omitempty"`
+	AgentName     string          `json:"agent_name"`
+	WorkspaceID   string          `json:"workspace_id,omitempty"`
+	WorkspacePath string          `json:"workspace_path,omitempty"`
+	State         string          `json:"state"`
+	ACPSessionID  string          `json:"acp_session_id,omitempty"`
+	ACPCaps       *acpCapsPayload `json:"acp_caps,omitempty"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
 }
 
 type acpCapsPayload struct {
@@ -39,14 +41,16 @@ type acpCapsPayload struct {
 }
 
 type sessionEventPayload struct {
-	ID        string          `json:"id"`
-	SessionID string          `json:"session_id"`
-	Sequence  int64           `json:"sequence"`
-	TurnID    string          `json:"turn_id"`
-	Type      string          `json:"type"`
-	AgentName string          `json:"agent_name"`
-	Content   json.RawMessage `json:"content"`
-	Timestamp time.Time       `json:"timestamp"`
+	ID            string          `json:"id"`
+	SessionID     string          `json:"session_id"`
+	Sequence      int64           `json:"sequence"`
+	TurnID        string          `json:"turn_id"`
+	Type          string          `json:"type"`
+	AgentName     string          `json:"agent_name"`
+	WorkspaceID   string          `json:"workspace_id,omitempty"`
+	WorkspacePath string          `json:"workspace_path,omitempty"`
+	Content       json.RawMessage `json:"content"`
+	Timestamp     time.Time       `json:"timestamp"`
 }
 
 type turnHistoryPayload struct {
@@ -67,15 +71,17 @@ func (h *Handlers) listSessions(c *gin.Context) {
 		return
 	}
 
-	payload := make([]sessionPayload, 0, len(infos))
-	for _, info := range infos {
-		if info == nil {
-			continue
+	workspaceFilter := strings.TrimSpace(c.Query("workspace"))
+	if workspaceFilter != "" {
+		workspaceID, err := h.lookupWorkspaceID(c.Request.Context(), workspaceFilter)
+		if err != nil {
+			respondError(c, statusForWorkspaceError(err), err)
+			return
 		}
-		payload = append(payload, sessionPayloadFromInfo(info))
+		infos = filterSessionInfosByWorkspaceID(infos, workspaceID)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"sessions": payload})
+	c.JSON(http.StatusOK, gin.H{"sessions": sessionPayloadsFromInfos(infos)})
 }
 
 func (h *Handlers) createSession(c *gin.Context) {
@@ -84,11 +90,16 @@ func (h *Handlers) createSession(c *gin.Context) {
 		respondError(c, http.StatusBadRequest, fmt.Errorf("httpapi: decode create session request: %w", err))
 		return
 	}
+	if err := validateCreateSessionRequest(req); err != nil {
+		respondError(c, http.StatusBadRequest, err)
+		return
+	}
 
 	sess, err := h.sessions.Create(c.Request.Context(), session.CreateOpts{
-		AgentName: req.AgentName,
-		Name:      req.Name,
-		Workspace: req.Workspace,
+		AgentName:     req.AgentName,
+		Name:          req.Name,
+		Workspace:     strings.TrimSpace(req.Workspace),
+		WorkspacePath: strings.TrimSpace(req.WorkspacePath),
 	})
 	if err != nil {
 		respondError(c, statusForSessionError(err), err)
@@ -285,14 +296,15 @@ func sessionPayloadFromInfo(info *session.SessionInfo) sessionPayload {
 	}
 
 	payload = sessionPayload{
-		ID:           info.ID,
-		Name:         info.Name,
-		AgentName:    info.AgentName,
-		Workspace:    info.Workspace,
-		State:        string(info.State),
-		ACPSessionID: info.ACPSessionID,
-		CreatedAt:    info.CreatedAt,
-		UpdatedAt:    info.UpdatedAt,
+		ID:            info.ID,
+		Name:          info.Name,
+		AgentName:     info.AgentName,
+		WorkspaceID:   info.WorkspaceID,
+		WorkspacePath: info.Workspace,
+		State:         string(info.State),
+		ACPSessionID:  info.ACPSessionID,
+		CreatedAt:     info.CreatedAt,
+		UpdatedAt:     info.UpdatedAt,
 	}
 	if caps := acpCapsPayloadFromInfo(info.ACPCaps); caps != nil {
 		payload.ACPCaps = caps

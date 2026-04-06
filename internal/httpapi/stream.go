@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/apisupport"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -128,9 +128,11 @@ func (h *Handlers) streamSession(c *gin.Context) {
 					_ = writeSSE(writer, sseMessage{
 						Name: session.EventTypeSessionStopped,
 						Data: sessionEventPayload{
-							SessionID: info.ID,
-							Type:      session.EventTypeSessionStopped,
-							Timestamp: info.UpdatedAt,
+							SessionID:     info.ID,
+							Type:          session.EventTypeSessionStopped,
+							WorkspaceID:   info.WorkspaceID,
+							WorkspacePath: info.Workspace,
+							Timestamp:     info.UpdatedAt,
 						},
 					})
 					return
@@ -354,16 +356,7 @@ func respondError(c *gin.Context, status int, err error) {
 }
 
 func statusForSessionError(err error) int {
-	switch {
-	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, os.ErrNotExist):
-		return http.StatusNotFound
-	case errors.Is(err, session.ErrSessionNotActive):
-		return http.StatusBadRequest
-	case errors.Is(err, session.ErrMaxSessionsReached), errors.Is(err, session.ErrPendingPermissionNotFound), errors.Is(err, session.ErrPendingPermissionConflict):
-		return http.StatusConflict
-	default:
-		return http.StatusInternalServerError
-	}
+	return apisupport.StatusForSessionError(err)
 }
 
 func payloadJSON(raw string) json.RawMessage {

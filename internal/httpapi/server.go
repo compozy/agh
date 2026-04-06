@@ -22,6 +22,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
@@ -64,6 +65,17 @@ type DreamTrigger interface {
 	Enabled() bool
 }
 
+// WorkspaceService exposes workspace registration and resolution to the HTTP API.
+type WorkspaceService interface {
+	Register(ctx context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error)
+	Unregister(ctx context.Context, id string) error
+	Update(ctx context.Context, id string, opts workspacepkg.UpdateOptions) error
+	List(ctx context.Context) ([]workspacepkg.Workspace, error)
+	Get(ctx context.Context, idOrNameOrPath string) (workspacepkg.Workspace, error)
+	Resolve(ctx context.Context, idOrNameOrPath string) (workspacepkg.ResolvedWorkspace, error)
+	ResolveOrRegister(ctx context.Context, path string) (workspacepkg.ResolvedWorkspace, error)
+}
+
 // Server exposes the daemon API over TCP HTTP.
 type Server struct {
 	mu sync.Mutex
@@ -78,6 +90,7 @@ type Server struct {
 	pollInterval time.Duration
 	sessions     SessionManager
 	observer     Observer
+	workspaces   WorkspaceService
 	memoryStore  *memory.Store
 	dreamTrigger DreamTrigger
 	agentLoader  AgentLoader
@@ -96,6 +109,7 @@ type Server struct {
 type handlerConfig struct {
 	sessions     SessionManager
 	observer     Observer
+	workspaces   WorkspaceService
 	memoryStore  *memory.Store
 	dreamTrigger DreamTrigger
 	staticFS     fs.FS
@@ -113,6 +127,7 @@ type handlerConfig struct {
 type Handlers struct {
 	sessions     SessionManager
 	observer     Observer
+	workspaces   WorkspaceService
 	memoryStore  *memory.Store
 	dreamTrigger DreamTrigger
 	staticFS     fs.FS
@@ -197,6 +212,13 @@ func WithObserver(observer Observer) Option {
 	}
 }
 
+// WithWorkspaceResolver injects the runtime workspace resolver/service.
+func WithWorkspaceResolver(workspaces WorkspaceService) Option {
+	return func(server *Server) {
+		server.workspaces = workspaces
+	}
+}
+
 // WithMemoryStore injects the memory store surfaced by the daemon.
 func WithMemoryStore(store *memory.Store) Option {
 	return func(server *Server) {
@@ -271,6 +293,9 @@ func New(opts ...Option) (*Server, error) {
 	if server.observer == nil {
 		return nil, errors.New("httpapi: observer is required")
 	}
+	if server.workspaces == nil {
+		return nil, errors.New("httpapi: workspace resolver is required")
+	}
 	if strings.TrimSpace(server.config.HTTP.Host) == "" {
 		server.config.HTTP.Host = "localhost"
 	}
@@ -298,6 +323,7 @@ func New(opts ...Option) (*Server, error) {
 	server.handlers = newHandlers(handlerConfig{
 		sessions:     server.sessions,
 		observer:     server.observer,
+		workspaces:   server.workspaces,
 		memoryStore:  server.memoryStore,
 		dreamTrigger: server.dreamTrigger,
 		staticFS:     staticFS,
@@ -444,6 +470,16 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	api := router.Group("/api")
 
+	workspaces := api.Group("/workspaces")
+	{
+		workspaces.POST("", handlers.createWorkspace)
+		workspaces.GET("", handlers.listWorkspaces)
+		workspaces.GET("/:id", handlers.getWorkspace)
+		workspaces.PATCH("/:id", handlers.updateWorkspace)
+		workspaces.DELETE("/:id", handlers.deleteWorkspace)
+		workspaces.POST("/resolve", handlers.resolveWorkspace)
+	}
+
 	sessions := api.Group("/sessions")
 	{
 		sessions.GET("", handlers.listSessions)
@@ -519,6 +555,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 	return &Handlers{
 		sessions:     cfg.sessions,
 		observer:     cfg.observer,
+		workspaces:   cfg.workspaces,
 		memoryStore:  cfg.memoryStore,
 		dreamTrigger: cfg.dreamTrigger,
 		staticFS:     cfg.staticFS,

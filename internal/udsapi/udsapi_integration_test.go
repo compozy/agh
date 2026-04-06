@@ -22,6 +22,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
@@ -33,7 +34,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 	}
 	_ = statusResp.Body.Close()
 
-	createResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/sessions", []byte(`{"agent_name":"coder","name":"demo","workspace":"`+runtime.workspace+`"}`), nil)
+	createResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/sessions", []byte(`{"agent_name":"coder","name":"demo","workspace_path":"`+runtime.workspace+`"}`), nil)
 	if createResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(createResp.Body)
 		_ = createResp.Body.Close()
@@ -156,7 +157,7 @@ func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		_ = streamResp.Body.Close()
 		t.Fatalf("session stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
 	}
-	initial := collectLiveSSE(t, streamResp.Body, 3, 2*time.Second)
+	initial := collectLiveSSEUntilEvent(t, streamResp.Body, session.EventTypeSessionStopped, 2*time.Second)
 	_ = streamResp.Body.Close()
 	if len(initial) < 3 {
 		t.Fatalf("initial stream events = %d, want 3", len(initial))
@@ -208,6 +209,7 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 		WithObserver(stubObserver{
 			healthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
 		}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -449,9 +451,18 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	})
 
 	fanout := &integrationNotifierFanout{}
+	resolver, err := workspacepkg.NewResolver(
+		registry,
+		workspacepkg.WithHomePaths(homePaths),
+		workspacepkg.WithLogger(discardLogger()),
+		workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) { return cfg, nil }),
+	)
+	if err != nil {
+		t.Fatalf("workspace.NewResolver() error = %v", err)
+	}
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
-		session.WithConfig(cfg),
+		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
 		session.WithDriver(newIntegrationDriver()),
 		session.WithNotifier(fanout),
@@ -489,6 +500,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		WithLogger(discardLogger()),
 		WithSessionManager(manager),
 		WithObserver(observer),
+		WithWorkspaceResolver(resolver),
 		WithMemoryStore(memoryStore),
 		WithDreamTrigger(dreamTrigger),
 		WithPollInterval(10*time.Millisecond),
@@ -522,7 +534,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 	t.Helper()
 
-	resp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/sessions", []byte(`{"agent_name":"coder","workspace":"`+runtime.workspace+`"}`), nil)
+	resp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/sessions", []byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`"}`), nil)
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
@@ -652,4 +664,61 @@ func collectLiveSSE(t *testing.T, body io.ReadCloser, want int, timeout time.Dur
 	}
 
 	return records
+}
+
+func collectLiveSSEUntilEvent(t *testing.T, body io.ReadCloser, wantEvent string, timeout time.Duration) []sseRecord {
+	t.Helper()
+
+	records := make([]sseRecord, 0, 4)
+	recordCh := make(chan sseRecord, 8)
+	errCh := make(chan error, 1)
+
+	go func() {
+		scanner := bufio.NewScanner(body)
+		current := sseRecord{}
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line == "" {
+				recordCh <- current
+				current = sseRecord{}
+				continue
+			}
+			switch {
+			case strings.HasPrefix(line, "id: "):
+				current.ID = strings.TrimPrefix(line, "id: ")
+			case strings.HasPrefix(line, "event: "):
+				current.Event = strings.TrimPrefix(line, "event: ")
+			case strings.HasPrefix(line, "data: "):
+				current.Data = append(current.Data, []byte(strings.TrimPrefix(line, "data: "))...)
+			}
+		}
+		if current.Event != "" || current.ID != "" || len(current.Data) > 0 {
+			recordCh <- current
+		}
+		if err := scanner.Err(); err != nil && !errors.Is(err, os.ErrClosed) {
+			errCh <- err
+			return
+		}
+		close(recordCh)
+	}()
+
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+
+	for {
+		select {
+		case record, ok := <-recordCh:
+			if !ok {
+				t.Fatalf("stream ended before event %q; got %d records", wantEvent, len(records))
+			}
+			records = append(records, record)
+			if record.Event == wantEvent {
+				return records
+			}
+		case err := <-errCh:
+			t.Fatalf("SSE scanner error = %v", err)
+		case <-deadline.C:
+			t.Fatalf("timed out waiting for SSE event %q; got %d records", wantEvent, len(records))
+		}
+	}
 }

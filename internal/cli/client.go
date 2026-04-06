@@ -27,7 +27,7 @@ const (
 // DaemonClient is the CLI transport surface for talking to the AGH daemon over UDS.
 type DaemonClient interface {
 	DaemonStatus(ctx context.Context) (DaemonStatus, error)
-	ListSessions(ctx context.Context) ([]SessionRecord, error)
+	ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error)
 	CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error)
 	GetSession(ctx context.Context, id string) (SessionRecord, error)
 	StopSession(ctx context.Context, id string) error
@@ -36,6 +36,11 @@ type DaemonClient interface {
 	SessionEvents(ctx context.Context, id string, query SessionEventQuery) ([]SessionEventRecord, error)
 	StreamSessionEvents(ctx context.Context, id string, query SessionEventQuery, lastEventID string, handler SSEHandler) error
 	SessionHistory(ctx context.Context, id string, query SessionEventQuery) ([]TurnHistoryRecord, error)
+	CreateWorkspace(ctx context.Context, request WorkspaceCreateRequest) (WorkspaceRecord, error)
+	ListWorkspaces(ctx context.Context) ([]WorkspaceRecord, error)
+	GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error)
+	UpdateWorkspace(ctx context.Context, ref string, request WorkspaceUpdateRequest) (WorkspaceRecord, error)
+	DeleteWorkspace(ctx context.Context, ref string) error
 	ListAgents(ctx context.Context) ([]AgentRecord, error)
 	GetAgent(ctx context.Context, name string) (AgentRecord, error)
 	ObserveEvents(ctx context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error)
@@ -50,22 +55,29 @@ type DaemonClient interface {
 
 // CreateSessionRequest captures the CLI session creation payload.
 type CreateSessionRequest struct {
-	AgentName string `json:"agent_name,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Workspace string `json:"workspace"`
+	AgentName     string `json:"agent_name,omitempty"`
+	Name          string `json:"name,omitempty"`
+	Workspace     string `json:"workspace,omitempty"`
+	WorkspacePath string `json:"workspace_path,omitempty"`
+}
+
+// SessionListQuery captures the CLI filters for session list queries.
+type SessionListQuery struct {
+	Workspace string
 }
 
 // SessionRecord is the daemon API session payload.
 type SessionRecord struct {
-	ID           string         `json:"id"`
-	Name         string         `json:"name,omitempty"`
-	AgentName    string         `json:"agent_name"`
-	Workspace    string         `json:"workspace"`
-	State        string         `json:"state"`
-	ACPSessionID string         `json:"acp_session_id,omitempty"`
-	ACPCaps      *ACPCapsRecord `json:"acp_caps,omitempty"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
+	ID            string         `json:"id"`
+	Name          string         `json:"name,omitempty"`
+	AgentName     string         `json:"agent_name"`
+	WorkspaceID   string         `json:"workspace_id,omitempty"`
+	WorkspacePath string         `json:"workspace_path,omitempty"`
+	State         string         `json:"state"`
+	ACPSessionID  string         `json:"acp_session_id,omitempty"`
+	ACPCaps       *ACPCapsRecord `json:"acp_caps,omitempty"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
 }
 
 // ACPCapsRecord captures optional runtime capabilities exposed by the daemon API.
@@ -121,6 +133,47 @@ type AgentMCPServer struct {
 	Command string            `json:"command"`
 	Args    []string          `json:"args,omitempty"`
 	Env     map[string]string `json:"env,omitempty"`
+}
+
+// WorkspaceCreateRequest captures the workspace registration payload.
+type WorkspaceCreateRequest struct {
+	RootDir      string   `json:"root_dir"`
+	Name         string   `json:"name,omitempty"`
+	AddDirs      []string `json:"add_dirs,omitempty"`
+	DefaultAgent string   `json:"default_agent,omitempty"`
+}
+
+// WorkspaceUpdateRequest captures mutable workspace fields.
+type WorkspaceUpdateRequest struct {
+	Name         *string   `json:"name,omitempty"`
+	AddDirs      *[]string `json:"add_dirs,omitempty"`
+	DefaultAgent *string   `json:"default_agent,omitempty"`
+}
+
+// WorkspaceRecord is the daemon API workspace registration payload.
+type WorkspaceRecord struct {
+	ID           string    `json:"id"`
+	RootDir      string    `json:"root_dir"`
+	AddDirs      []string  `json:"add_dirs,omitempty"`
+	Name         string    `json:"name"`
+	DefaultAgent string    `json:"default_agent,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// WorkspaceSkillRecord is one resolved workspace skill returned by the daemon API.
+type WorkspaceSkillRecord struct {
+	Name   string `json:"name"`
+	Dir    string `json:"dir"`
+	Source string `json:"source"`
+}
+
+// WorkspaceDetailRecord captures the workspace info payload returned by the daemon API.
+type WorkspaceDetailRecord struct {
+	Workspace WorkspaceRecord        `json:"workspace"`
+	Sessions  []SessionRecord        `json:"sessions,omitempty"`
+	Agents    []AgentRecord          `json:"agents,omitempty"`
+	Skills    []WorkspaceSkillRecord `json:"skills,omitempty"`
 }
 
 // AgentEventRecord is one prompt-stream event returned by the daemon API.
@@ -280,11 +333,11 @@ func (c *unixSocketClient) DaemonStatus(ctx context.Context) (DaemonStatus, erro
 	return response.Daemon, nil
 }
 
-func (c *unixSocketClient) ListSessions(ctx context.Context) ([]SessionRecord, error) {
+func (c *unixSocketClient) ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error) {
 	var response struct {
 		Sessions []SessionRecord `json:"sessions"`
 	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/sessions", nil, nil, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, "/api/sessions", sessionListValues(query), nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Sessions, nil
@@ -368,6 +421,51 @@ func (c *unixSocketClient) SessionHistory(ctx context.Context, id string, query 
 		return nil, err
 	}
 	return response.History, nil
+}
+
+func (c *unixSocketClient) CreateWorkspace(ctx context.Context, request WorkspaceCreateRequest) (WorkspaceRecord, error) {
+	var response struct {
+		Workspace WorkspaceRecord `json:"workspace"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/api/workspaces", nil, request, &response); err != nil {
+		return WorkspaceRecord{}, err
+	}
+	return response.Workspace, nil
+}
+
+func (c *unixSocketClient) ListWorkspaces(ctx context.Context) ([]WorkspaceRecord, error) {
+	var response struct {
+		Workspaces []WorkspaceRecord `json:"workspaces"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/workspaces", nil, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Workspaces, nil
+}
+
+func (c *unixSocketClient) GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error) {
+	var response WorkspaceDetailRecord
+	path := "/api/workspaces/" + url.PathEscape(strings.TrimSpace(ref))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return WorkspaceDetailRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) UpdateWorkspace(ctx context.Context, ref string, request WorkspaceUpdateRequest) (WorkspaceRecord, error) {
+	var response struct {
+		Workspace WorkspaceRecord `json:"workspace"`
+	}
+	path := "/api/workspaces/" + url.PathEscape(strings.TrimSpace(ref))
+	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
+		return WorkspaceRecord{}, err
+	}
+	return response.Workspace, nil
+}
+
+func (c *unixSocketClient) DeleteWorkspace(ctx context.Context, ref string) error {
+	path := "/api/workspaces/" + url.PathEscape(strings.TrimSpace(ref))
+	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
 func (c *unixSocketClient) ListAgents(ctx context.Context) ([]AgentRecord, error) {
@@ -598,6 +696,14 @@ func decodeSSE(ctx context.Context, body io.Reader, handler SSEHandler) error {
 		return err
 	}
 	return nil
+}
+
+func sessionListValues(query SessionListQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
+		values.Set("workspace", trimmed)
+	}
+	return values
 }
 
 func sessionEventValues(query SessionEventQuery) url.Values {

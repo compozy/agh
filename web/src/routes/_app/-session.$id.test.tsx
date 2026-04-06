@@ -12,7 +12,8 @@ let sessionState: {
     id: string;
     name?: string;
     agent_name: string;
-    workspace: string;
+    workspace_id: string;
+    workspace_path: string;
     state: "starting" | "active" | "stopping" | "stopped";
     created_at: string;
     updated_at: string;
@@ -30,7 +31,8 @@ function makeSession(id: string) {
   return {
     id,
     agent_name: "coder",
-    workspace: "/workspace",
+    workspace_id: "ws_alpha",
+    workspace_path: "/workspace",
     state: "active" as const,
     created_at: "2026-04-03T12:00:00Z",
     updated_at: "2026-04-03T12:00:00Z",
@@ -73,6 +75,21 @@ vi.mock("@/systems/session/hooks/use-session-chat", () => ({
   useSessionChat: () => ({
     sendMessage: vi.fn(),
     status: "ready" as const,
+  }),
+}));
+
+vi.mock("@/systems/workspace", () => ({
+  useWorkspaces: () => ({
+    data: [
+      {
+        id: "ws_alpha",
+        root_dir: "/workspace",
+        add_dirs: [],
+        name: "alpha",
+        created_at: "2026-04-03T12:00:00Z",
+        updated_at: "2026-04-03T12:00:00Z",
+      },
+    ],
   }),
 }));
 

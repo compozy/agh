@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestCreateGetResumeAndStopHandlersReturnExpectedErrors(t *testing.T) {
@@ -35,7 +37,7 @@ func TestCreateGetResumeAndStopHandlersReturnExpectedErrors(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
 
-	createResp := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"agent_name":"coder"}`))
+	createResp := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"agent_name":"coder","workspace":"alpha"}`))
 	if createResp.Code != http.StatusNotFound {
 		t.Fatalf("create status = %d, want %d", createResp.Code, http.StatusNotFound)
 	}
@@ -53,6 +55,92 @@ func TestCreateGetResumeAndStopHandlersReturnExpectedErrors(t *testing.T) {
 	stopResp := performRequest(t, engine, http.MethodDelete, "/api/sessions/missing", nil)
 	if stopResp.Code != http.StatusNotFound {
 		t.Fatalf("stop status = %d, want %d", stopResp.Code, http.StatusNotFound)
+	}
+}
+
+func TestCreateSessionHandlerRejectsInvalidWorkspaceContract(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "missing workspace reference",
+			body: `{"agent_name":"coder"}`,
+		},
+		{
+			name: "mutually exclusive workspace fields",
+			body: `{"agent_name":"coder","workspace":"alpha","workspace_path":"/workspace"}`,
+		},
+		{
+			name: "relative workspace path",
+			body: `{"agent_name":"coder","workspace_path":"workspace"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(tt.body))
+			if resp.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusBadRequest, resp.Body.String())
+			}
+		})
+	}
+}
+
+func TestWorkspaceHandlersReturnExpectedErrors(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	workspaces := stubWorkspaceService{
+		registerFn: func(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspacePathTaken
+		},
+		getFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+		},
+		resolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+		},
+		resolveOrRegisterFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+		},
+	}
+	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths))
+
+	createResp := performRequest(t, engine, http.MethodPost, "/api/workspaces", []byte(`{"root_dir":"/workspace"}`))
+	if createResp.Code != http.StatusConflict {
+		t.Fatalf("create workspace status = %d, want %d", createResp.Code, http.StatusConflict)
+	}
+
+	getResp := performRequest(t, engine, http.MethodGet, "/api/workspaces/ws-missing", nil)
+	if getResp.Code != http.StatusGone {
+		t.Fatalf("get workspace status = %d, want %d", getResp.Code, http.StatusGone)
+	}
+
+	deleteResp := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws-missing", nil)
+	if deleteResp.Code != http.StatusNotFound {
+		t.Fatalf("delete workspace status = %d, want %d", deleteResp.Code, http.StatusNotFound)
+	}
+
+	resolveResp := performRequest(t, engine, http.MethodPost, "/api/workspaces/resolve", []byte(`{"path":"/workspace"}`))
+	if resolveResp.Code != http.StatusGone {
+		t.Fatalf("resolve workspace status = %d, want %d", resolveResp.Code, http.StatusGone)
+	}
+}
+
+func TestCreateSessionHandlerMapsWorkspaceErrors(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	manager := stubSessionManager{
+		createFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+			return nil, fmt.Errorf("session: resolve workspace %q: %w", "alpha", workspacepkg.ErrWorkspaceRootMissing)
+		},
+	}
+	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
+
+	resp := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"agent_name":"coder","workspace":"alpha"}`))
+	if resp.Code != http.StatusGone {
+		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusGone, resp.Body.String())
 	}
 }
 

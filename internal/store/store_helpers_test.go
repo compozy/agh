@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestValidationHelpersAndPathUtilities(t *testing.T) {
@@ -76,7 +78,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "session info valid",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1", AgentName: "coder", Workspace: "/tmp", State: "active"}).Validate()
+				return (SessionInfo{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1", State: "active"}).Validate()
 			},
 		},
 		{
@@ -103,7 +105,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "session info missing state",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1", AgentName: "coder", Workspace: "/tmp"}).Validate()
+				return (SessionInfo{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1"}).Validate()
 			},
 			wantError: true,
 		},
@@ -261,12 +263,12 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "session meta valid",
 			validate: func() error {
 				return (SessionMeta{
-					ID:        "sess-meta",
-					AgentName: "coder",
-					Workspace: "/tmp",
-					State:     "active",
-					CreatedAt: now,
-					UpdatedAt: now,
+					ID:          "sess-meta",
+					AgentName:   "coder",
+					WorkspaceID: "ws-meta",
+					State:       "active",
+					CreatedAt:   now,
+					UpdatedAt:   now,
 				}).Validate()
 			},
 		},
@@ -373,7 +375,9 @@ func TestStoreHelpersAndErrorPaths(t *testing.T) {
 	if err := checkpoint(testContext(t), nil); err != nil {
 		t.Fatalf("checkpoint(nil) error = %v", err)
 	}
-	if _, err := openSQLiteDatabase(testContext(t), "", sessionSchemaStatements); err == nil {
+	if _, err := openSQLiteDatabase(testContext(t), "", func(ctx context.Context, db *sql.DB) error {
+		return ensureSchema(ctx, db, sessionSchemaStatements)
+	}); err == nil {
 		t.Fatal("openSQLiteDatabase(\"\") error = nil, want non-nil")
 	}
 }
@@ -398,6 +402,243 @@ func TestMetaReadWriteErrors(t *testing.T) {
 	if err := WriteSessionMeta(filepath.Join(t.TempDir(), SessionMetaName), SessionMeta{}); err == nil {
 		t.Fatal("WriteSessionMeta(invalid meta) error = nil, want non-nil")
 	}
+}
+
+func TestWorkspaceHelperFunctions(t *testing.T) {
+	t.Parallel()
+
+	normalized, addDirsJSON, err := normalizeWorkspaceRecord(aghworkspace.Workspace{
+		ID:             " ws-helper ",
+		RootDir:        " /tmp/workspace ",
+		AdditionalDirs: []string{" /tmp/a ", "", " /tmp/b "},
+		Name:           " alpha ",
+		DefaultAgent:   " coder ",
+	})
+	if err != nil {
+		t.Fatalf("normalizeWorkspaceRecord() error = %v", err)
+	}
+	if normalized.ID != "ws-helper" || normalized.RootDir != "/tmp/workspace" || normalized.Name != "alpha" || normalized.DefaultAgent != "coder" {
+		t.Fatalf("normalizeWorkspaceRecord() = %#v", normalized)
+	}
+	if got, want := normalized.AdditionalDirs, []string{"/tmp/a", "/tmp/b"}; !equalStringSlices(got, want) {
+		t.Fatalf("normalizeWorkspaceRecord().AdditionalDirs = %#v, want %#v", got, want)
+	}
+	if addDirsJSON != `["/tmp/a","/tmp/b"]` {
+		t.Fatalf("normalizeWorkspaceRecord() addDirsJSON = %q, want %q", addDirsJSON, `["/tmp/a","/tmp/b"]`)
+	}
+
+	if _, _, err := normalizeWorkspaceRecord(aghworkspace.Workspace{Name: "alpha"}); err == nil {
+		t.Fatal("normalizeWorkspaceRecord(missing root) error = nil, want non-nil")
+	}
+	if _, _, err := normalizeWorkspaceRecord(aghworkspace.Workspace{RootDir: "/tmp/workspace"}); err == nil {
+		t.Fatal("normalizeWorkspaceRecord(missing name) error = nil, want non-nil")
+	}
+
+	if got, err := encodeWorkspaceDirs(nil); err != nil {
+		t.Fatalf("encodeWorkspaceDirs(nil) error = %v", err)
+	} else if got != "[]" {
+		t.Fatalf("encodeWorkspaceDirs(nil) = %q, want []", got)
+	}
+	if got, err := decodeWorkspaceDirs(`[" /tmp/a ", "", "/tmp/b"]`); err != nil {
+		t.Fatalf("decodeWorkspaceDirs() error = %v", err)
+	} else if want := []string{"/tmp/a", "/tmp/b"}; !equalStringSlices(got, want) {
+		t.Fatalf("decodeWorkspaceDirs() = %#v, want %#v", got, want)
+	}
+	if _, err := decodeWorkspaceDirs(`{`); err == nil {
+		t.Fatal("decodeWorkspaceDirs(invalid JSON) error = nil, want non-nil")
+	}
+
+	if got := mapWorkspaceConstraintError(errors.New("UNIQUE constraint failed: workspaces.root_dir")); !errors.Is(got, aghworkspace.ErrWorkspacePathTaken) {
+		t.Fatalf("mapWorkspaceConstraintError(root_dir) = %v, want ErrWorkspacePathTaken", got)
+	}
+	if got := mapWorkspaceConstraintError(errors.New("UNIQUE constraint failed: workspaces.name")); !errors.Is(got, aghworkspace.ErrWorkspaceNameTaken) {
+		t.Fatalf("mapWorkspaceConstraintError(name) = %v, want ErrWorkspaceNameTaken", got)
+	}
+	rawErr := errors.New("boom")
+	if got := mapWorkspaceConstraintError(rawErr); !errors.Is(got, rawErr) {
+		t.Fatalf("mapWorkspaceConstraintError(raw) = %v, want raw error", got)
+	}
+
+	if got := coalesceTimestamp(""); got == "" {
+		t.Fatal("coalesceTimestamp(\"\") = empty, want timestamp")
+	}
+	if got := coalesceTimestamp(" 2026-04-03T10:00:00.000000000Z "); got != "2026-04-03T10:00:00.000000000Z" {
+		t.Fatalf("coalesceTimestamp(spaced) = %q", got)
+	}
+
+	if got := nullStringValue(sql.NullString{}); got != nil {
+		t.Fatalf("nullStringValue(invalid) = %#v, want nil", got)
+	}
+	if got := nullStringValue(sql.NullString{String: " value ", Valid: true}); got != "value" {
+		t.Fatalf("nullStringValue(valid) = %#v, want value", got)
+	}
+}
+
+func TestWorkspaceSchemaHelpers(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	ctx := testContext(t)
+
+	if exists, err := tableExists(ctx, globalDB.db, "workspaces"); err != nil {
+		t.Fatalf("tableExists(workspaces) error = %v", err)
+	} else if !exists {
+		t.Fatal("tableExists(workspaces) = false, want true")
+	}
+	if exists, err := tableExists(ctx, globalDB.db, "missing_table"); err != nil {
+		t.Fatalf("tableExists(missing_table) error = %v", err)
+	} else if exists {
+		t.Fatal("tableExists(missing_table) = true, want false")
+	}
+
+	columns, err := tableColumns(ctx, globalDB.db, "workspaces")
+	if err != nil {
+		t.Fatalf("tableColumns(workspaces) error = %v", err)
+	}
+	for _, column := range []string{"id", "root_dir", "add_dirs", "name", "default_agent", "created_at", "updated_at"} {
+		if _, ok := columns[column]; !ok {
+			t.Fatalf("tableColumns(workspaces) missing %q: %#v", column, columns)
+		}
+	}
+
+	rootDir := filepath.Join(t.TempDir(), "workspace-helper")
+	if err := os.MkdirAll(rootDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO workspaces (id, root_dir, add_dirs, name, default_agent, created_at, updated_at) VALUES (?, ?, '[]', ?, '', ?, ?)`,
+		"ws-helper",
+		rootDir,
+		"workspace-helper",
+		formatTimestamp(time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC)),
+		formatTimestamp(time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC)),
+	); err != nil {
+		t.Fatalf("insert workspace helper row error = %v", err)
+	}
+
+	rootToID, err := loadWorkspaceIDsByRootDir(ctx, globalDB.db)
+	if err != nil {
+		t.Fatalf("loadWorkspaceIDsByRootDir() error = %v", err)
+	}
+	if got := rootToID[rootDir]; got != "ws-helper" {
+		t.Fatalf("rootToID[%q] = %q, want ws-helper", rootDir, got)
+	}
+
+	names, err := loadWorkspaceNames(ctx, globalDB.db)
+	if err != nil {
+		t.Fatalf("loadWorkspaceNames() error = %v", err)
+	}
+	if _, ok := names["workspace-helper"]; !ok {
+		t.Fatalf("loadWorkspaceNames() missing workspace-helper: %#v", names)
+	}
+
+	if got := uniqueWorkspaceName(rootDir, map[string]struct{}{"workspace-helper": {}}); got != "workspace-helper-2" {
+		t.Fatalf("uniqueWorkspaceName() = %q, want workspace-helper-2", got)
+	}
+}
+
+func TestLegacyMigrationHelperFlow(t *testing.T) {
+	t.Parallel()
+
+	ctx := testContext(t)
+	db, err := openSQLiteDatabase(ctx, filepath.Join(t.TempDir(), "legacy.db"), nil)
+	if err != nil {
+		t.Fatalf("openSQLiteDatabase() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	if _, err := db.ExecContext(ctx, `CREATE TABLE sessions (
+		id TEXT PRIMARY KEY,
+		name TEXT,
+		agent_name TEXT NOT NULL,
+		workspace TEXT NOT NULL,
+		session_type TEXT NOT NULL DEFAULT 'user',
+		state TEXT NOT NULL,
+		acp_session_id TEXT,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create legacy sessions error = %v", err)
+	}
+	rootA := filepath.Join(t.TempDir(), "apps", "project")
+	rootB := filepath.Join(t.TempDir(), "services", "project")
+	for _, rootDir := range []string{rootA, rootB} {
+		if err := os.MkdirAll(rootDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", rootDir, err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO sessions (id, name, agent_name, workspace, session_type, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"sess-a", "A", "coder", rootA, "user", "active", formatTimestamp(time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)), formatTimestamp(time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)),
+	); err != nil {
+		t.Fatalf("insert legacy sess-a error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO sessions (id, name, agent_name, workspace, session_type, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"sess-b", "B", "reviewer", rootB, "dream", "stopped", formatTimestamp(time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC)), formatTimestamp(time.Date(2026, 4, 3, 11, 30, 0, 0, time.UTC)),
+	); err != nil {
+		t.Fatalf("insert legacy sess-b error = %v", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("BeginTx() error = %v", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	if _, err := tx.ExecContext(ctx, globalSchemaStatements[0]); err != nil {
+		t.Fatalf("create workspaces table in tx error = %v", err)
+	}
+
+	sessionRows, seeds, err := loadLegacySessions(ctx, tx)
+	if err != nil {
+		t.Fatalf("loadLegacySessions() error = %v", err)
+	}
+	if got, want := len(sessionRows), 2; got != want {
+		t.Fatalf("len(sessionRows) = %d, want %d", got, want)
+	}
+	if got, want := len(seeds), 2; got != want {
+		t.Fatalf("len(seeds) = %d, want %d", got, want)
+	}
+
+	workspaceIDs, err := ensureMigratedWorkspaces(ctx, tx, seeds)
+	if err != nil {
+		t.Fatalf("ensureMigratedWorkspaces() error = %v", err)
+	}
+	if got, want := len(workspaceIDs), 2; got != want {
+		t.Fatalf("len(workspaceIDs) = %d, want %d", got, want)
+	}
+
+	names, err := loadWorkspaceNames(ctx, tx)
+	if err != nil {
+		t.Fatalf("loadWorkspaceNames() error = %v", err)
+	}
+	for _, name := range []string{"project", "project-2"} {
+		if _, ok := names[name]; !ok {
+			t.Fatalf("loadWorkspaceNames() missing %q: %#v", name, names)
+		}
+	}
+
+	if err := createMigratedGlobalTables(ctx, tx); err != nil {
+		t.Fatalf("createMigratedGlobalTables() error = %v", err)
+	}
+	if err := copyGlobalTableIfExists(ctx, tx, "event_summaries", "event_summaries_new", `INSERT INTO event_summaries_new (id, session_id, type, agent_name, summary, timestamp) SELECT id, session_id, type, agent_name, summary, timestamp FROM event_summaries`); err != nil {
+		t.Fatalf("copyGlobalTableIfExists(missing source) error = %v", err)
+	}
+	if err := copyMigratedSessions(ctx, tx, sessionRows, workspaceIDs); err != nil {
+		t.Fatalf("copyMigratedSessions() error = %v", err)
+	}
+	if err := swapMigratedGlobalTables(ctx, tx); err != nil {
+		t.Fatalf("swapMigratedGlobalTables() error = %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("Commit() error = %v", err)
+	}
+
+	assertTableColumns(t, db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "state", "acp_session_id", "created_at", "updated_at"})
 }
 
 func TestSessionDBMethodsAfterCloseAndErrors(t *testing.T) {

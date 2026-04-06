@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestCreateCleansUpOnStartFailure(t *testing.T) {
@@ -33,7 +35,7 @@ func TestCreateCleansUpOnStartFailure(t *testing.T) {
 
 	_, err := h.manager.Create(testContext(t), CreateOpts{
 		AgentName: "coder",
-		Workspace: h.workspace,
+		Workspace: h.workspaceID,
 	})
 	if err == nil {
 		t.Fatal("Create() error = nil, want non-nil")
@@ -57,7 +59,7 @@ func TestCreateErrorBranches(t *testing.T) {
 
 	t.Run("blank agent name uses config default", func(t *testing.T) {
 		h := newHarness(t)
-		session, err := h.manager.Create(testContext(t), CreateOpts{Workspace: h.workspace})
+		session, err := h.manager.Create(testContext(t), CreateOpts{Workspace: h.workspaceID})
 		if err != nil {
 			t.Fatalf("Create(blank agent) error = %v", err)
 		}
@@ -72,8 +74,21 @@ func TestCreateErrorBranches(t *testing.T) {
 	t.Run("blank agent name without config default", func(t *testing.T) {
 		h := newHarness(t)
 		h.cfg.Defaults.Agent = ""
+		h.resolver.upsert(workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:      h.workspaceID,
+				RootDir: h.workspace,
+				Name:    h.workspaceName,
+			},
+			Config: h.cfg,
+			Agents: []aghconfig.AgentDef{{
+				Name:     "coder",
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			}},
+		})
 		h.manager = newManagerWithHarness(t, h)
-		if _, err := h.manager.Create(testContext(t), CreateOpts{Workspace: h.workspace}); err == nil {
+		if _, err := h.manager.Create(testContext(t), CreateOpts{Workspace: h.workspaceID}); err == nil {
 			t.Fatal("Create(blank agent with empty defaults) error = nil, want non-nil")
 		}
 	})
@@ -82,7 +97,7 @@ func TestCreateErrorBranches(t *testing.T) {
 		h := newHarness(t, WithSessionIDGenerator(func() string { return "" }))
 		if _, err := h.manager.Create(testContext(t), CreateOpts{
 			AgentName: "coder",
-			Workspace: h.workspace,
+			Workspace: h.workspaceID,
 		}); err == nil {
 			t.Fatal("Create(empty session id) error = nil, want non-nil")
 		}
@@ -95,7 +110,7 @@ func TestCreateErrorBranches(t *testing.T) {
 		}))
 		if _, err := h.manager.Create(testContext(t), CreateOpts{
 			AgentName: "coder",
-			Workspace: h.workspace,
+			Workspace: h.workspaceID,
 		}); err == nil {
 			t.Fatal("Create(store open failure) error = nil, want non-nil")
 		}
@@ -109,7 +124,7 @@ func TestCreateWithNilPromptAssemblerIsSafe(t *testing.T) {
 
 	session, err := h.manager.Create(testContext(t), CreateOpts{
 		AgentName: "coder",
-		Workspace: h.workspace,
+		Workspace: h.workspaceID,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -154,6 +169,94 @@ func TestResumeCleansUpOnStartFailure(t *testing.T) {
 	}
 	if recorder.closeCalls != 1 {
 		t.Fatalf("recorder close calls = %d, want 1", recorder.closeCalls)
+	}
+}
+
+func TestCreatePassesResolvedAdditionalDirsToDriver(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	additionalOne := filepath.Join(h.homePaths.HomeDir, "shared-one")
+	additionalTwo := filepath.Join(h.homePaths.HomeDir, "shared-two")
+	for _, dir := range []string{additionalOne, additionalTwo} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", dir, err)
+		}
+	}
+
+	h.resolver.upsert(workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:             h.workspaceID,
+			RootDir:        h.workspace,
+			AdditionalDirs: []string{additionalOne, additionalTwo},
+			Name:           h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{{
+			Name:     "coder",
+			Provider: "claude",
+			Prompt:   "You are a coding assistant.",
+		}},
+	})
+
+	session, err := h.manager.Create(testContext(t), CreateOpts{
+		AgentName: "coder",
+		Workspace: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testContext(t), session.ID)
+	})
+
+	if got, want := h.driver.startCalls[0].AdditionalDirs, []string{additionalOne, additionalTwo}; !slices.Equal(got, want) {
+		t.Fatalf("start AdditionalDirs = %#v, want %#v", got, want)
+	}
+}
+
+func TestResumePassesResolvedAdditionalDirsToDriver(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	additionalOne := filepath.Join(h.homePaths.HomeDir, "shared-one")
+	additionalTwo := filepath.Join(h.homePaths.HomeDir, "shared-two")
+	for _, dir := range []string{additionalOne, additionalTwo} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", dir, err)
+		}
+	}
+
+	h.resolver.upsert(workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:             h.workspaceID,
+			RootDir:        h.workspace,
+			AdditionalDirs: []string{additionalOne, additionalTwo},
+			Name:           h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{{
+			Name:     "coder",
+			Provider: "claude",
+			Prompt:   "You are a coding assistant.",
+		}},
+	})
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	resumed, err := h.manager.Resume(testContext(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testContext(t), resumed.ID)
+	})
+
+	if got, want := h.driver.startCalls[1].AdditionalDirs, []string{additionalOne, additionalTwo}; !slices.Equal(got, want) {
+		t.Fatalf("resume start AdditionalDirs = %#v, want %#v", got, want)
 	}
 }
 
@@ -224,16 +327,24 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 
 	now := time.Date(2026, 4, 3, 15, 0, 0, 0, time.UTC)
 	cfg := aghconfig.DefaultWithHome(homePaths)
+	resolver := newFakeWorkspaceResolver(workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      "ws-options",
+			RootDir: "/tmp/workspace",
+			Name:    "workspace",
+		},
+		Config: cfg,
+		Agents: []aghconfig.AgentDef{{
+			Name:     aghconfig.DefaultAgentName,
+			Provider: "claude",
+			Prompt:   "hi",
+		}},
+	})
 	manager, err := NewManager(
 		WithHomePaths(homePaths),
 		WithDriver(newFakeDriver()),
 		WithNotifier(newFakeNotifier()),
-		WithConfigLoader(func(workspace string) (aghconfig.Config, error) {
-			if workspace != "/tmp/workspace" {
-				t.Fatalf("workspace = %q, want /tmp/workspace", workspace)
-			}
-			return cfg, nil
-		}),
+		WithWorkspaceResolver(resolver),
 		WithNow(func() time.Time { return now }),
 		WithPromptBufferSize(7),
 	)
@@ -246,8 +357,8 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 	if got := manager.promptBufSize; got != 7 {
 		t.Fatalf("promptBufSize = %d, want 7", got)
 	}
-	if _, err := manager.loadConfig("/tmp/workspace"); err != nil {
-		t.Fatalf("loadConfig() error = %v", err)
+	if manager.workspace != resolver {
+		t.Fatal("workspace resolver override was not applied")
 	}
 
 	defaultManager, err := NewManager(WithHomePaths(homePaths))
@@ -271,8 +382,7 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 		WithDriver(newFakeDriver()),
 		WithLogger(nil),
 		WithNotifier(nil),
-		WithConfigLoader(func(string) (aghconfig.Config, error) { return cfg, nil }),
-		WithAgentLoader(staticAgentLoader(aghconfig.AgentDef{Provider: "claude", Prompt: "hi"})),
+		WithWorkspaceResolver(resolver),
 		WithStore(func(context.Context, string, string) (EventRecorder, error) { return &stubRecorder{}, nil }),
 		WithNow(nil),
 		WithSessionIDGenerator(nil),
@@ -297,29 +407,11 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 		opts []Option
 	}{
 		{
-			name: "missing config loader",
-			opts: []Option{
-				WithHomePaths(homePaths),
-				WithDriver(newFakeDriver()),
-				WithConfigLoader(nil),
-			},
-		},
-		{
-			name: "missing agent loader",
-			opts: []Option{
-				WithHomePaths(homePaths),
-				WithDriver(newFakeDriver()),
-				WithConfig(cfg),
-				WithAgentLoader(nil),
-			},
-		},
-		{
 			name: "missing store opener",
 			opts: []Option{
 				WithHomePaths(homePaths),
 				WithDriver(newFakeDriver()),
-				WithConfig(cfg),
-				WithAgentLoader(staticAgentLoader(aghconfig.AgentDef{Provider: "claude", Prompt: "hi"})),
+				WithWorkspaceResolver(resolver),
 				WithStore(nil),
 			},
 		},
@@ -338,21 +430,22 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 func TestHelperFunctionsAndUtilities(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	got, err := resolveWorkspace(dir)
+	resolved := workspacepkg.ResolvedWorkspace{
+		Agents: []aghconfig.AgentDef{{
+			Name:     "coder",
+			Provider: "claude",
+			Prompt:   "hi",
+		}},
+	}
+	got, err := resolveWorkspaceAgent("coder", resolved)
 	if err != nil {
-		t.Fatalf("resolveWorkspace(dir) error = %v", err)
+		t.Fatalf("resolveWorkspaceAgent(coder) error = %v", err)
 	}
-	if got != dir {
-		t.Fatalf("resolveWorkspace(dir) = %q, want %q", got, dir)
+	if got.Name != "coder" {
+		t.Fatalf("resolveWorkspaceAgent(coder) name = %q, want coder", got.Name)
 	}
-
-	filePath := filepath.Join(dir, "file.txt")
-	if err := os.WriteFile(filePath, []byte("x"), 0o644); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
-	if _, err := resolveWorkspace(filePath); err == nil {
-		t.Fatal("resolveWorkspace(file) error = nil, want non-nil")
+	if _, err := resolveWorkspaceAgent("missing", resolved); !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+		t.Fatalf("resolveWorkspaceAgent(missing) error = %v, want ErrAgentNotAvailable", err)
 	}
 
 	done := make(chan struct{})
@@ -385,25 +478,60 @@ func TestHelperFunctionsAndUtilities(t *testing.T) {
 	}
 }
 
-func TestCreateWithBlankWorkspaceUsesCurrentDir(t *testing.T) {
+func TestCreateWithBlankWorkspaceReturnsValidationError(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	session, err := h.manager.Create(testContext(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: "",
-	})
-	if err != nil {
-		t.Fatalf("Create(blank workspace) error = %v", err)
+	if _, err := h.manager.Create(testContext(t), CreateOpts{AgentName: "coder"}); err == nil {
+		t.Fatal("Create(blank workspace) error = nil, want non-nil")
 	}
-	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
-	})
+	if _, err := h.manager.Create(testContext(t), CreateOpts{
+		AgentName:     "coder",
+		Workspace:     h.workspaceID,
+		WorkspacePath: h.workspace,
+	}); err == nil {
+		t.Fatal("Create(workspace + workspacePath) error = nil, want non-nil")
+	}
+}
 
-	if got, err := os.Getwd(); err != nil {
-		t.Fatalf("Getwd() error = %v", err)
-	} else if session.Info().Workspace != got {
-		t.Fatalf("session workspace = %q, want %q", session.Info().Workspace, got)
+func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	manager, err := NewManager(
+		WithHomePaths(homePaths),
+		WithDriver(newFakeDriver()),
+		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	if _, err := manager.Create(testContext(t), CreateOpts{
+		AgentName: "coder",
+		Workspace: "ws-missing",
+	}); err == nil {
+		t.Fatal("Create(without resolver) error = nil, want non-nil")
+	}
+
+	sessionDir := filepath.Join(homePaths.SessionsDir, "sess-stored")
+	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
+		ID:          "sess-stored",
+		AgentName:   "coder",
+		WorkspaceID: "ws-stored",
+		State:       string(StateStopped),
+		CreatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("WriteSessionMeta() error = %v", err)
+	}
+
+	if _, err := manager.Resume(testContext(t), "sess-stored"); err == nil {
+		t.Fatal("Resume(without resolver) error = nil, want non-nil")
 	}
 }
 

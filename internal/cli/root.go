@@ -80,6 +80,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newInstallCommand(deps))
 	cmd.AddCommand(newDaemonCommand(deps))
 	cmd.AddCommand(newSessionCommand(deps))
+	cmd.AddCommand(newWorkspaceCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))
 	cmd.AddCommand(newSkillCommand(deps))
 	cmd.AddCommand(newMemoryCommand(deps))

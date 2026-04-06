@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/version"
+	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestOnSessionCreatedRegistersSessionInGlobalDB(t *testing.T) {
@@ -227,7 +229,7 @@ func TestOnAgentEventPermissionWithoutResolvedPolicySkipsAudit(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.observer.resolvePermissionMode = func(string, string) (string, error) {
+	h.observer.resolvePermissionMode = func(context.Context, string, string) (string, error) {
 		return "", nil
 	}
 
@@ -370,13 +372,16 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 }
 
 type harness struct {
-	observer  *Observer
-	registry  *store.GlobalDB
-	home      aghconfig.HomePaths
-	source    *stubSessionSource
-	now       time.Time
-	workspace string
+	observer    *Observer
+	registry    *store.GlobalDB
+	home        aghconfig.HomePaths
+	source      *stubSessionSource
+	now         time.Time
+	workspaceID string
+	workspace   string
 }
+
+const observerWorkspaceID = "ws-observe-workspace"
 
 type stubSessionSource struct {
 	sessions []*session.SessionInfo
@@ -410,13 +415,25 @@ func newHarness(t *testing.T) *harness {
 	now := time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC)
 	source := &stubSessionSource{}
 	workspace := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workspace) error = %v", err)
+	}
+	if err := registry.InsertWorkspace(testContext(t), aghworkspace.Workspace{
+		ID:        observerWorkspaceID,
+		RootDir:   workspace,
+		Name:      "observe-workspace",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
 
 	observer, err := New(testContext(t),
 		WithRegistry(registry),
 		WithHomePaths(home),
 		WithSessionSource(source),
-		WithPermissionModeResolver(func(agentName, workspace string) (string, error) {
-			if strings.TrimSpace(agentName) == "" || strings.TrimSpace(workspace) == "" {
+		WithPermissionModeResolver(func(_ context.Context, agentName, workspaceID string) (string, error) {
+			if strings.TrimSpace(agentName) == "" || strings.TrimSpace(workspaceID) == "" {
 				return "", context.Canceled
 			}
 			return "approve-all", nil
@@ -433,12 +450,13 @@ func newHarness(t *testing.T) *harness {
 	}
 
 	return &harness{
-		observer:  observer,
-		registry:  registry,
-		home:      home,
-		source:    source,
-		now:       now,
-		workspace: workspace,
+		observer:    observer,
+		registry:    registry,
+		home:        home,
+		source:      source,
+		now:         now,
+		workspaceID: observerWorkspaceID,
+		workspace:   workspace,
 	}
 }
 
@@ -458,6 +476,7 @@ func newSession(id string, state session.SessionState, workspace string, now tim
 		ID:           id,
 		Name:         strings.ToUpper(id),
 		AgentName:    "coder",
+		WorkspaceID:  observerWorkspaceID,
 		Workspace:    workspace,
 		State:        state,
 		ACPSessionID: "acp-" + id,

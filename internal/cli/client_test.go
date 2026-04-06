@@ -25,13 +25,42 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
+				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions":
+					if got := req.URL.Query().Get("workspace"); got != "ws-1" {
+						t.Fatalf("session workspace query = %q, want %q", got, "ws-1")
+					}
+					return newHTTPResponse(http.StatusOK, `{"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/resume":
-					return newHTTPResponse(http.StatusOK, `{"session":{"id":"sess-1","agent_name":"coder","workspace":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`), nil
+					return newHTTPResponse(http.StatusOK, `{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1/history":
 					if got := req.URL.Query().Get("limit"); got != "2" {
 						t.Fatalf("history limit query = %q, want %q", got, "2")
 					}
 					return newHTTPResponse(http.StatusOK, `{"history":[{"turn_id":"turn-1","events":[{"id":"evt-1","session_id":"sess-1","sequence":1,"turn_id":"turn-1","type":"agent_message","agent_name":"coder","content":{"text":"hi"},"timestamp":"2026-04-03T12:00:00Z"}]}]}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(workspace create body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"root_dir":"/workspace/project"`) {
+						t.Fatalf("workspace create body = %s, want root_dir", body)
+					}
+					return newHTTPResponse(http.StatusCreated, `{"workspace":{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces":
+					return newHTTPResponse(http.StatusOK, `{"workspaces":[{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/alpha":
+					return newHTTPResponse(http.StatusOK, `{"workspace":{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}],"agents":[{"name":"coder","provider":"fake","prompt":"hi"}],"skills":[{"name":"review","dir":"/workspace/project/.agh/skills/review","source":"workspace"}]}`), nil
+				case req.Method == http.MethodPatch && req.URL.Path == "/api/workspaces/ws-1":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(workspace update body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"name":"beta"`) {
+						t.Fatalf("workspace update body = %s, want name", body)
+					}
+					return newHTTPResponse(http.StatusOK, `{"workspace":{"id":"ws-1","root_dir":"/workspace/project","name":"beta","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:05:00Z"}}`), nil
+				case req.Method == http.MethodDelete && req.URL.Path == "/api/workspaces/ws-1":
+					return newHTTPResponse(http.StatusNoContent, ``), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/agents":
 					return newHTTPResponse(http.StatusOK, `{"agents":[{"name":"coder","provider":"fake","prompt":"You are coder."}]}`), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/agents/coder":
@@ -85,6 +114,11 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("DaemonStatus() = %#v, %v", status, err)
 	}
 
+	sessions, err := client.ListSessions(ctx, SessionListQuery{Workspace: "ws-1"})
+	if err != nil || len(sessions) != 1 {
+		t.Fatalf("ListSessions() = %#v, %v", sessions, err)
+	}
+
 	resumed, err := client.ResumeSession(ctx, "sess-1")
 	if err != nil || resumed.ID != "sess-1" {
 		t.Fatalf("ResumeSession() = %#v, %v", resumed, err)
@@ -103,6 +137,30 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	agent, err := client.GetAgent(ctx, "coder")
 	if err != nil || agent.Name != "coder" {
 		t.Fatalf("GetAgent() = %#v, %v", agent, err)
+	}
+
+	createdWorkspace, err := client.CreateWorkspace(ctx, WorkspaceCreateRequest{RootDir: "/workspace/project"})
+	if err != nil || createdWorkspace.ID != "ws-1" {
+		t.Fatalf("CreateWorkspace() = %#v, %v", createdWorkspace, err)
+	}
+
+	workspaces, err := client.ListWorkspaces(ctx)
+	if err != nil || len(workspaces) != 1 {
+		t.Fatalf("ListWorkspaces() = %#v, %v", workspaces, err)
+	}
+
+	workspaceDetail, err := client.GetWorkspace(ctx, "alpha")
+	if err != nil || workspaceDetail.Workspace.ID != "ws-1" || len(workspaceDetail.Skills) != 1 {
+		t.Fatalf("GetWorkspace() = %#v, %v", workspaceDetail, err)
+	}
+
+	updatedWorkspace, err := client.UpdateWorkspace(ctx, "ws-1", WorkspaceUpdateRequest{Name: ptr("beta")})
+	if err != nil || updatedWorkspace.Name != "beta" {
+		t.Fatalf("UpdateWorkspace() = %#v, %v", updatedWorkspace, err)
+	}
+
+	if err := client.DeleteWorkspace(ctx, "ws-1"); err != nil {
+		t.Fatalf("DeleteWorkspace() error = %v", err)
 	}
 
 	events, err := client.ObserveEvents(ctx, ObserveEventQuery{SessionID: "sess-1"})
@@ -172,6 +230,10 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		t.Fatalf("sessionEventValues() = %v, want limit/after_sequence", got)
 	}
 
+	if got := sessionListValues(SessionListQuery{Workspace: "ws-1"}); got.Get("workspace") != "ws-1" {
+		t.Fatalf("sessionListValues() = %v, want workspace filter", got)
+	}
+
 	if got := observeEventValues(ObserveEventQuery{
 		SessionID: "sess-1",
 		AgentName: "coder",
@@ -237,6 +299,10 @@ func newHTTPResponse(status int, body string) *http.Response {
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Request:    &http.Request{Method: http.MethodGet},
 	}
+}
+
+func ptr[T any](value T) *T {
+	return &value
 }
 
 func TestNewClientRequiresSocket(t *testing.T) {

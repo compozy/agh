@@ -45,7 +45,8 @@ const baseSession: SessionPayload = {
   id: "sess-001",
   name: "My Test Session",
   agent_name: "claude-code",
-  workspace: "/tmp/workspace",
+  workspace_id: "ws_alpha",
+  workspace_path: "/tmp/workspace",
   state: "active",
   created_at: "2026-04-01T00:00:00Z",
   updated_at: "2026-04-01T01:00:00Z",
@@ -59,6 +60,15 @@ describe("ChatHeader", () => {
 
     expect(screen.getByText("My Test Session")).toBeInTheDocument();
     expect(screen.getByText("claude-code")).toBeInTheDocument();
+  });
+
+  it("shows workspace metadata", () => {
+    render(
+      <ChatHeader session={baseSession} onStop={vi.fn()} onResume={vi.fn()} workspaceName="alpha" />
+    );
+
+    expect(screen.getByTestId("session-workspace-badge")).toHaveTextContent("alpha");
+    expect(screen.getByTestId("session-workspace-id")).toHaveTextContent("ws_alpha");
   });
 
   it("shows session ID when name is not set", () => {

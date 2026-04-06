@@ -329,7 +329,7 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 		ID:           "sess-1",
 		Name:         "stored",
 		AgentName:    "coder",
-		Workspace:    "/tmp/workspace",
+		WorkspaceID:  "ws-1",
 		State:        string(StateStopped),
 		ACPSessionID: &acpID,
 		CreatedAt:    createdAt,
@@ -401,13 +401,13 @@ func writeStoppedSessionArtifacts(t *testing.T, h *harness, id string, withDB bo
 
 	now := time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC)
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:        id,
-		Name:      "stored",
-		AgentName: "coder",
-		Workspace: h.workspace,
-		State:     string(StateStopped),
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:          id,
+		Name:        "stored",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		State:       string(StateStopped),
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", id, err)
 	}

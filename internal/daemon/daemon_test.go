@@ -23,6 +23,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestAcquireLockSucceedsWithoutExistingLock(t *testing.T) {
@@ -830,6 +831,12 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			if capturedDeps.PromptAssembler == nil {
 				t.Fatal("boot() did not inject the composed prompt assembler")
 			}
+			if capturedDeps.WorkspaceResolver == nil {
+				t.Fatal("boot() did not inject the workspace resolver")
+			}
+			if d.workspaceResolver == nil {
+				t.Fatal("boot() did not retain the workspace resolver")
+			}
 			if got := d.memoryStore != nil; got != tc.wantMemory {
 				t.Fatalf("memory store initialized = %t, want %t", got, tc.wantMemory)
 			}
@@ -840,7 +847,9 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			workspace := filepath.Join(t.TempDir(), "workspace")
 			writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspace)
 
-			prompt, err := capturedDeps.PromptAssembler.Assemble(context.Background(), testPromptAgent("Base prompt."), workspace)
+			prompt, err := capturedDeps.PromptAssembler.Assemble(context.Background(), testPromptAgent("Base prompt."), workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{RootDir: workspace},
+			})
 			if err != nil {
 				t.Fatalf("PromptAssembler.Assemble() error = %v", err)
 			}
@@ -861,6 +870,59 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	var capturedDeps SessionManagerDeps
+	var capturedUDSDeps RuntimeDeps
+	d := newTestDaemon(t, homePaths, cfg)
+	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+		capturedDeps = deps
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+		capturedUDSDeps = deps
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testContext(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testContext(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if d.workspaceResolver == nil {
+		t.Fatal("boot() did not create the daemon workspace resolver")
+	}
+	if capturedDeps.WorkspaceResolver == nil {
+		t.Fatal("boot() did not inject the session manager workspace resolver")
+	}
+	if capturedUDSDeps.WorkspaceService == nil {
+		t.Fatal("boot() did not inject the uds workspace service")
+	}
+	if capturedUDSDeps.WorkspaceService != d.workspaceResolver {
+		t.Fatal("boot() injected a different workspace service into uds")
+	}
+
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	resolved := resolveDaemonWorkspace(t, capturedDeps.WorkspaceResolver, workspaceRoot)
+	if got, want := resolved.RootDir, canonicalDaemonRoot(t, workspaceRoot); got != want {
+		t.Fatalf("resolved workspace root = %q, want %q", got, want)
 	}
 }
 
@@ -1190,15 +1252,19 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 		t.Fatal("session manager notifier = nil")
 	}
 
-	notifier.OnSessionStopped(context.Background(), &session.Session{ID: "sess-user", Workspace: workspace, Type: session.SessionTypeUser})
+	resolved := resolveDaemonWorkspace(t, d.workspaceResolver, workspace)
+	notifier.OnSessionStopped(context.Background(), &session.Session{ID: "sess-user", WorkspaceID: resolved.ID, Type: session.SessionTypeUser})
 	waitForCondition(t, "dream run from session stop", func() bool {
 		return dream.runCount() == 1
 	})
 	waitForCondition(t, "dream session workspace propagated", func() bool {
 		return sessions.createCount() == 1
 	})
-	if got := sessions.createCall(0).Workspace; got != workspace {
-		t.Fatalf("Create() workspace = %q, want %q", got, workspace)
+	if got := sessions.createCall(0).Workspace; got != resolved.ID {
+		t.Fatalf("Create() workspace = %q, want %q", got, resolved.ID)
+	}
+	if got := sessions.createCall(0).WorkspacePath; got != "" {
+		t.Fatalf("Create() workspace_path = %q, want empty", got)
 	}
 
 	notifier.OnSessionStopped(context.Background(), &session.Session{ID: "sess-dream", Type: session.SessionTypeDream})
@@ -1248,6 +1314,7 @@ func TestDreamSpawnerCreatesDreamSession(t *testing.T) {
 		t.Fatal("boot() did not configure the dream spawner")
 	}
 
+	resolved := resolveDaemonWorkspace(t, d.workspaceResolver, workspace)
 	if err := d.dreamSpawner(testContext(t), "memory-consolidation", "summarize recent sessions", workspace); err != nil {
 		t.Fatalf("dream spawner error = %v", err)
 	}
@@ -1260,8 +1327,11 @@ func TestDreamSpawnerCreatesDreamSession(t *testing.T) {
 	if got := sessions.createCall(0).AgentName; got != cfg.Memory.Dream.Agent {
 		t.Fatalf("Create() agent = %q, want %q", got, cfg.Memory.Dream.Agent)
 	}
-	if got := sessions.createCall(0).Workspace; got != workspace {
-		t.Fatalf("Create() workspace = %q, want %q", got, workspace)
+	if got := sessions.createCall(0).Workspace; got != resolved.ID {
+		t.Fatalf("Create() workspace = %q, want %q", got, resolved.ID)
+	}
+	if got := sessions.createCall(0).WorkspacePath; got != "" {
+		t.Fatalf("Create() workspace_path = %q, want empty", got)
 	}
 	if got := sessions.promptCount(); got != 1 || sessions.promptCall(0).msg != "summarize recent sessions" {
 		t.Fatalf("Prompt() calls = %d, want one prompt payload", got)
@@ -1278,14 +1348,7 @@ func TestDreamSpawnerDerivesRecentWorkspacesFromSessions(t *testing.T) {
 	cfg := testConfig(t, homePaths)
 	workspaceA := filepath.Join(t.TempDir(), "workspace-a")
 	workspaceB := filepath.Join(t.TempDir(), "workspace-b")
-	sessions := &fakeSessionManager{
-		infos: []*session.SessionInfo{
-			{ID: "dream-old", Workspace: workspaceA, Type: session.SessionTypeDream, UpdatedAt: time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC)},
-			{ID: "user-old", Workspace: workspaceA, Type: session.SessionTypeUser, UpdatedAt: time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)},
-			{ID: "user-new", Workspace: workspaceB, Type: session.SessionTypeUser, UpdatedAt: time.Date(2026, 4, 4, 10, 0, 0, 0, time.UTC)},
-			{ID: "user-dup", Workspace: workspaceA, Type: session.SessionTypeUser, UpdatedAt: time.Date(2026, 4, 4, 9, 0, 0, 0, time.UTC)},
-		},
-	}
+	sessions := &fakeSessionManager{}
 
 	d := newTestDaemon(t, homePaths, cfg)
 	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
@@ -1308,6 +1371,15 @@ func TestDreamSpawnerDerivesRecentWorkspacesFromSessions(t *testing.T) {
 		if err := d.Shutdown(testContext(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
+	})
+
+	resolvedA := resolveDaemonWorkspace(t, d.workspaceResolver, workspaceA)
+	resolvedB := resolveDaemonWorkspace(t, d.workspaceResolver, workspaceB)
+	sessions.setInfos([]*session.SessionInfo{
+		{ID: "dream-old", WorkspaceID: resolvedA.ID, Type: session.SessionTypeDream, UpdatedAt: time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC)},
+		{ID: "user-old", WorkspaceID: resolvedA.ID, Type: session.SessionTypeUser, UpdatedAt: time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)},
+		{ID: "user-new", WorkspaceID: resolvedB.ID, Type: session.SessionTypeUser, UpdatedAt: time.Date(2026, 4, 4, 10, 0, 0, 0, time.UTC)},
+		{ID: "user-dup", WorkspaceID: resolvedA.ID, Type: session.SessionTypeUser, UpdatedAt: time.Date(2026, 4, 4, 9, 0, 0, 0, time.UTC)},
 	})
 
 	globalMemoryDir := cfg.Memory.GlobalDir
@@ -1333,11 +1405,17 @@ func TestDreamSpawnerDerivesRecentWorkspacesFromSessions(t *testing.T) {
 	if got := sessions.createCount(); got != 2 {
 		t.Fatalf("Create() calls = %d, want 2", got)
 	}
-	if got := sessions.createCall(0).Workspace; got != workspaceB {
-		t.Fatalf("Create() workspace[0] = %q, want %q", got, workspaceB)
+	if got := sessions.createCall(0).Workspace; got != resolvedB.ID {
+		t.Fatalf("Create() workspace[0] = %q, want %q", got, resolvedB.ID)
 	}
-	if got := sessions.createCall(1).Workspace; got != workspaceA {
-		t.Fatalf("Create() workspace[1] = %q, want %q", got, workspaceA)
+	if got := sessions.createCall(1).Workspace; got != resolvedA.ID {
+		t.Fatalf("Create() workspace[1] = %q, want %q", got, resolvedA.ID)
+	}
+	if got := sessions.createCall(0).WorkspacePath; got != "" {
+		t.Fatalf("Create() workspace_path[0] = %q, want empty", got)
+	}
+	if got := sessions.createCall(1).WorkspacePath; got != "" {
+		t.Fatalf("Create() workspace_path[1] = %q, want empty", got)
 	}
 }
 
@@ -1586,6 +1664,37 @@ func writeDaemonFile(t *testing.T, path string, content string) {
 	}
 }
 
+func resolveDaemonWorkspace(t *testing.T, resolver workspacepkg.WorkspaceResolver, root string) workspacepkg.ResolvedWorkspace {
+	t.Helper()
+
+	if resolver == nil {
+		t.Fatal("workspace resolver = nil")
+	}
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
+	}
+
+	resolved, err := resolver.ResolveOrRegister(testContext(t), root)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(%q) error = %v", root, err)
+	}
+	return resolved
+}
+
+func canonicalDaemonRoot(t *testing.T, root string) string {
+	t.Helper()
+
+	evaluated, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("filepath.EvalSymlinks(%q) error = %v", root, err)
+	}
+	canonical, err := filepath.Abs(evaluated)
+	if err != nil {
+		t.Fatalf("filepath.Abs(%q) error = %v", evaluated, err)
+	}
+	return canonical
+}
+
 func orderedFragments(wantMemory bool, wantSkills bool) []string {
 	fragments := make([]string, 0, 3)
 	if wantMemory {
@@ -1725,12 +1834,18 @@ func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) 
 	defer f.mu.Unlock()
 	f.createCalls = append(f.createCalls, opts)
 	sessionID := fmt.Sprintf("dream-%d", len(f.createCalls))
+	workspaceID := strings.TrimSpace(opts.Workspace)
+	workspace := strings.TrimSpace(opts.WorkspacePath)
+	if workspace == "" {
+		workspace = workspaceID
+	}
 	return &session.Session{
-		ID:        sessionID,
-		AgentName: opts.AgentName,
-		Workspace: opts.Workspace,
-		Type:      opts.Type,
-		State:     session.StateActive,
+		ID:          sessionID,
+		AgentName:   opts.AgentName,
+		WorkspaceID: workspaceID,
+		Workspace:   workspace,
+		Type:        opts.Type,
+		State:       session.StateActive,
 	}, nil
 }
 
@@ -1738,6 +1853,12 @@ func (f *fakeSessionManager) List() []*session.SessionInfo {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]*session.SessionInfo(nil), f.infos...)
+}
+
+func (f *fakeSessionManager) setInfos(infos []*session.SessionInfo) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.infos = append([]*session.SessionInfo(nil), infos...)
 }
 
 func (f *fakeSessionManager) ListAll(context.Context) ([]*session.SessionInfo, error) {
@@ -1888,6 +2009,34 @@ type recordingRegistry struct {
 
 func (r *recordingRegistry) Path() string {
 	return r.path
+}
+
+func (r *recordingRegistry) InsertWorkspace(context.Context, workspacepkg.Workspace) error {
+	return nil
+}
+
+func (r *recordingRegistry) UpdateWorkspace(context.Context, workspacepkg.Workspace) error {
+	return nil
+}
+
+func (r *recordingRegistry) DeleteWorkspace(context.Context, string) error {
+	return nil
+}
+
+func (r *recordingRegistry) GetWorkspace(context.Context, string) (workspacepkg.Workspace, error) {
+	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func (r *recordingRegistry) GetWorkspaceByPath(context.Context, string) (workspacepkg.Workspace, error) {
+	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func (r *recordingRegistry) GetWorkspaceByName(context.Context, string) (workspacepkg.Workspace, error) {
+	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func (r *recordingRegistry) ListWorkspaces(context.Context) ([]workspacepkg.Workspace, error) {
+	return nil, nil
 }
 
 func (r *recordingRegistry) RegisterSession(context.Context, store.SessionInfo) error {

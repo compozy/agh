@@ -16,7 +16,7 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 		ID:          "sess-meta",
 		Name:        "Session Meta",
 		AgentName:   "coder",
-		Workspace:   "/tmp/workspace",
+		WorkspaceID: "ws-meta",
 		SessionType: "system",
 		State:       "active",
 		CreatedAt:   time.Date(2026, 4, 3, 17, 0, 0, 0, time.UTC),
@@ -41,12 +41,12 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), SessionMetaName)
 	base := SessionMeta{
-		ID:        "sess-meta-concurrent",
-		AgentName: "coder",
-		Workspace: "/tmp/workspace",
-		State:     "active",
-		CreatedAt: time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
+		ID:          "sess-meta-concurrent",
+		AgentName:   "coder",
+		WorkspaceID: "ws-meta-concurrent",
+		State:       "active",
+		CreatedAt:   time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
 	}
 
 	var wg sync.WaitGroup

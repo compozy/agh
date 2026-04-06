@@ -7,6 +7,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 // ComposedAssembler combines prepend and append prompt providers around the
@@ -61,7 +62,7 @@ func WithAppendPromptProviders(providers ...session.PromptProvider) ComposedAsse
 
 // Assemble renders prepend prompt sections, the trimmed base agent prompt, and
 // append prompt sections into one composed system prompt.
-func (a *ComposedAssembler) Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace string) (string, error) {
+func (a *ComposedAssembler) Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace workspacepkg.ResolvedWorkspace) (string, error) {
 	basePrompt := strings.TrimSpace(agent.Prompt)
 	if a == nil {
 		return basePrompt, nil
@@ -88,7 +89,7 @@ func (a *ComposedAssembler) Assemble(ctx context.Context, agent aghconfig.AgentD
 	return strings.Join(sections, "\n\n"), nil
 }
 
-func gatherPromptSections(ctx context.Context, workspace string, position string, providers []session.PromptProvider) ([]string, error) {
+func gatherPromptSections(ctx context.Context, workspace workspacepkg.ResolvedWorkspace, position string, providers []session.PromptProvider) ([]string, error) {
 	sections := make([]string, 0, len(providers))
 	for idx, provider := range providers {
 		if provider == nil {

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 type bufferFlusher struct {
@@ -103,6 +105,13 @@ func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
 	}
 	if records[0].Event != session.EventTypeSessionStopped {
 		t.Fatalf("records[0].Event = %q, want %q", records[0].Event, session.EventTypeSessionStopped)
+	}
+	var payload sessionEventPayload
+	if err := json.Unmarshal(records[0].Data, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(stop payload) error = %v; data=%s", err, string(records[0].Data))
+	}
+	if payload.WorkspaceID != "ws-workspace" || payload.WorkspacePath != "/workspace" {
+		t.Fatalf("stop payload = %#v", payload)
 	}
 }
 
@@ -195,6 +204,15 @@ func TestPayloadAndStatusHelpersCoverRemainingBranches(t *testing.T) {
 	}
 	if status := statusForSessionError(session.ErrMaxSessionsReached); status != http.StatusConflict {
 		t.Fatalf("statusForSessionError(ErrMaxSessionsReached) = %d, want %d", status, http.StatusConflict)
+	}
+	if status := statusForSessionError(workspacepkg.ErrWorkspaceNotFound); status != http.StatusNotFound {
+		t.Fatalf("statusForSessionError(ErrWorkspaceNotFound) = %d, want %d", status, http.StatusNotFound)
+	}
+	if status := statusForSessionError(workspacepkg.ErrWorkspaceRootMissing); status != http.StatusGone {
+		t.Fatalf("statusForSessionError(ErrWorkspaceRootMissing) = %d, want %d", status, http.StatusGone)
+	}
+	if status := statusForWorkspaceError(workspacepkg.ErrWorkspacePathTaken); status != http.StatusConflict {
+		t.Fatalf("statusForWorkspaceError(ErrWorkspacePathTaken) = %d, want %d", status, http.StatusConflict)
 	}
 	if status := statusForSessionError(errors.New("boom")); status != http.StatusInternalServerError {
 		t.Fatalf("statusForSessionError(default) = %d, want %d", status, http.StatusInternalServerError)

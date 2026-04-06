@@ -33,9 +33,10 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 
 func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	var (
-		agentName string
-		cwd       string
-		name      string
+		agentName    string
+		cwd          string
+		name         string
+		workspaceRef string
 	)
 
 	cmd := &cobra.Command{
@@ -47,18 +48,16 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			workspace := strings.TrimSpace(cwd)
-			if workspace == "" {
-				workspace, err = currentWorkingDirectory(deps)
-				if err != nil {
-					return err
-				}
+			workspace, workspacePath, err := resolveSessionCreateWorkspace(deps, workspaceRef, cwd)
+			if err != nil {
+				return err
 			}
 
 			created, err := client.CreateSession(cmd.Context(), CreateSessionRequest{
-				AgentName: agentName,
-				Name:      name,
-				Workspace: workspace,
+				AgentName:     agentName,
+				Name:          name,
+				Workspace:     workspace,
+				WorkspacePath: workspacePath,
 			})
 			if err != nil {
 				return err
@@ -68,13 +67,17 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&agentName, "agent", "", "Agent definition name (defaults to config default)")
-	cmd.Flags().StringVar(&cwd, "cwd", "", "Session workspace directory")
+	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Registered workspace name or ID")
+	cmd.Flags().StringVar(&cwd, "cwd", "", "Absolute workspace directory to auto-register")
 	cmd.Flags().StringVar(&name, "name", "", "Optional session label")
 	return cmd
 }
 
 func newSessionListCommand(deps commandDeps) *cobra.Command {
-	var includeAll bool
+	var (
+		includeAll      bool
+		workspaceFilter string
+	)
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -85,7 +88,9 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			sessions, err := client.ListSessions(cmd.Context())
+			sessions, err := client.ListSessions(cmd.Context(), SessionListQuery{
+				Workspace: workspaceFilter,
+			})
 			if err != nil {
 				return err
 			}
@@ -97,6 +102,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&includeAll, "all", false, "Include stopped sessions")
+	cmd.Flags().StringVar(&workspaceFilter, "workspace", "", "Filter by workspace name or ID")
 	return cmd
 }
 
@@ -359,7 +365,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				{Label: "ID", Value: stringOrDash(info.ID)},
 				{Label: "Name", Value: stringOrDash(info.Name)},
 				{Label: "Agent", Value: stringOrDash(info.AgentName)},
-				{Label: "Workspace", Value: stringOrDash(info.Workspace)},
+				{Label: "Workspace", Value: stringOrDash(displaySessionWorkspace(info))},
 				{Label: "State", Value: stringOrDash(info.State)},
 				{Label: "ACP Session", Value: stringOrDash(info.ACPSessionID)},
 				{Label: "Created", Value: stringOrDash(formatTime(info.CreatedAt))},
@@ -384,7 +390,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				info.ID,
 				info.Name,
 				info.AgentName,
-				info.Workspace,
+				displaySessionWorkspace(info),
 				info.State,
 				info.ACPSessionID,
 				formatTime(info.CreatedAt),
@@ -405,7 +411,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 					stringOrDash(item.Name),
 					stringOrDash(item.AgentName),
 					stringOrDash(item.State),
-					stringOrDash(item.Workspace),
+					stringOrDash(displaySessionWorkspace(item)),
 					stringOrDash(formatAge(now, item.UpdatedAt)),
 				})
 			}
@@ -419,7 +425,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 					item.Name,
 					item.AgentName,
 					item.State,
-					item.Workspace,
+					displaySessionWorkspace(item),
 					formatTime(item.UpdatedAt),
 				})
 			}
@@ -536,6 +542,30 @@ func filterActiveSessions(items []SessionRecord) []SessionRecord {
 		filtered = append(filtered, item)
 	}
 	return filtered
+}
+
+func displaySessionWorkspace(info SessionRecord) string {
+	return firstNonEmpty(strings.TrimSpace(info.WorkspacePath), strings.TrimSpace(info.WorkspaceID))
+}
+
+func resolveSessionCreateWorkspace(deps commandDeps, workspaceRef string, cwd string) (string, string, error) {
+	trimmedWorkspace := strings.TrimSpace(workspaceRef)
+	trimmedCWD := strings.TrimSpace(cwd)
+
+	switch {
+	case trimmedWorkspace != "" && trimmedCWD != "":
+		return "", "", errors.New("cli: --workspace and --cwd are mutually exclusive")
+	case trimmedWorkspace != "":
+		return trimmedWorkspace, "", nil
+	case trimmedCWD != "":
+		return "", trimmedCWD, nil
+	default:
+		workspacePath, err := currentWorkingDirectory(deps)
+		if err != nil {
+			return "", "", err
+		}
+		return "", workspacePath, nil
+	}
 }
 
 func flattenHistory(history []TurnHistoryRecord) []SessionEventRecord {

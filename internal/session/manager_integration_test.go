@@ -56,8 +56,8 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query(reopen) error = %v", err)
 	}
-	if len(events) != 6 {
-		t.Fatalf("stored events = %d, want 6", len(events))
+	if len(events) != 8 {
+		t.Fatalf("stored events = %d, want 8", len(events))
 	}
 	if !containsEventType(events, acp.EventTypeAgentMessage) || !containsEventType(events, acp.EventTypeDone) {
 		t.Fatalf("stored events missing expected types: %#v", events)

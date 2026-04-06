@@ -12,8 +12,15 @@ import {
 
 // --- List Sessions ---
 
-export async function fetchSessions(signal?: AbortSignal): Promise<SessionPayload[]> {
-  const res = await fetch("/api/sessions", { signal });
+export async function fetchSessions(
+  workspace?: string,
+  signal?: AbortSignal
+): Promise<SessionPayload[]> {
+  const url =
+    workspace == null
+      ? "/api/sessions"
+      : `/api/sessions?workspace=${encodeURIComponent(workspace)}`;
+  const res = await fetch(url, { signal });
   if (!res.ok) {
     throw new Error(`Failed to fetch sessions: ${res.status}`);
   }
@@ -28,6 +35,7 @@ export interface CreateSessionParams {
   agent_name?: string;
   name?: string;
   workspace?: string;
+  workspace_path?: string;
 }
 
 export async function createSession(

@@ -17,6 +17,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
@@ -27,7 +28,7 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	session, err := h.manager.Create(testContext(t), CreateOpts{
 		AgentName: "coder",
 		Name:      "primary",
-		Workspace: h.workspace,
+		Workspace: h.workspaceID,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -48,6 +49,12 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	if meta := readMeta(t, session.MetaPath()); meta.State != string(StateActive) {
 		t.Fatalf("meta state = %q, want %q", meta.State, StateActive)
 	}
+	if got := session.Info().WorkspaceID; got != h.workspaceID {
+		t.Fatalf("session workspace id = %q, want %q", got, h.workspaceID)
+	}
+	if meta := readMeta(t, session.MetaPath()); meta.WorkspaceID != h.workspaceID {
+		t.Fatalf("meta workspace id = %q, want %q", meta.WorkspaceID, h.workspaceID)
+	}
 	if got := h.driver.startCalls[0].Cwd; got != h.workspace {
 		t.Fatalf("start cwd = %q, want %q", got, h.workspace)
 	}
@@ -56,6 +63,56 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	}
 	if meta := readMeta(t, session.MetaPath()); meta.SessionType != string(SessionTypeUser) {
 		t.Fatalf("meta session type = %q, want %q", meta.SessionType, SessionTypeUser)
+	}
+	if got := len(h.resolver.resolveCalls); got != 1 {
+		t.Fatalf("resolver Resolve() calls = %d, want 1", got)
+	}
+	if got := h.resolver.resolveCalls[0]; got != h.workspaceID {
+		t.Fatalf("resolver Resolve() arg = %q, want %q", got, h.workspaceID)
+	}
+	if got := len(h.resolver.resolveOrRegisterCalls); got != 0 {
+		t.Fatalf("resolver ResolveOrRegister() calls = %d, want 0", got)
+	}
+}
+
+func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	workspacePath := filepath.Join(t.TempDir(), "path-workspace")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("MkdirAll(path workspace) error = %v", err)
+	}
+
+	session, err := h.manager.Create(testContext(t), CreateOpts{
+		AgentName:     "coder",
+		Name:          "path-session",
+		WorkspacePath: workspacePath,
+	})
+	if err != nil {
+		t.Fatalf("Create(workspace path) error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testContext(t), session.ID)
+	})
+
+	if got := len(h.resolver.resolveCalls); got != 0 {
+		t.Fatalf("resolver Resolve() calls = %d, want 0", got)
+	}
+	if got := len(h.resolver.resolveOrRegisterCalls); got != 1 {
+		t.Fatalf("resolver ResolveOrRegister() calls = %d, want 1", got)
+	}
+	if got, want := h.resolver.resolveOrRegisterCalls[0], normalizeResolverPath(workspacePath); got != want {
+		t.Fatalf("resolver ResolveOrRegister() arg = %q, want %q", got, want)
+	}
+	if got, want := session.Info().Workspace, normalizeResolverPath(workspacePath); got != want {
+		t.Fatalf("session workspace = %q, want %q", got, want)
+	}
+	if !strings.HasPrefix(session.Info().WorkspaceID, "ws-auto-") {
+		t.Fatalf("session workspace id = %q, want ws-auto-*", session.Info().WorkspaceID)
+	}
+	if meta := readMeta(t, session.MetaPath()); meta.WorkspaceID != session.Info().WorkspaceID {
+		t.Fatalf("meta workspace id = %q, want %q", meta.WorkspaceID, session.Info().WorkspaceID)
 	}
 }
 
@@ -116,6 +173,23 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 	}
 	if got := resumed.Info().State; got != StateActive {
 		t.Fatalf("resumed state = %q, want %q", got, StateActive)
+	}
+}
+
+func TestResumeFailsWhenWorkspaceCannotBeResolved(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	h.resolver.resolveErr = workspacepkg.ErrWorkspaceNotFound
+	if _, err := h.manager.Resume(testContext(t), session.ID); err == nil {
+		t.Fatal("Resume(missing workspace) error = nil, want non-nil")
+	} else if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+		t.Fatalf("Resume(missing workspace) error = %v, want ErrWorkspaceNotFound", err)
 	}
 }
 
@@ -508,7 +582,7 @@ func TestConcurrentCreateStopGet(t *testing.T) {
 			session, err := h.manager.Create(testContext(t), CreateOpts{
 				AgentName: "coder",
 				Name:      fmt.Sprintf("session-%d", index),
-				Workspace: h.workspace,
+				Workspace: h.workspaceID,
 			})
 			if err != nil {
 				t.Errorf("Create(%d) error = %v", index, err)
@@ -543,7 +617,7 @@ func TestCreateEnforcesMaxSessions(t *testing.T) {
 
 	_, err := h.manager.Create(testContext(t), CreateOpts{
 		AgentName: "coder",
-		Workspace: h.workspace,
+		Workspace: h.workspaceID,
 	})
 	if err == nil {
 		t.Fatal("Create(second) error = nil, want non-nil")
@@ -564,17 +638,24 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 			{Name: "override", Command: "provider-override"},
 		},
 	}
-	h.manager = newManagerWithHarness(t, h,
-		WithConfig(h.cfg),
-		WithAgentLoader(staticAgentLoader(aghconfig.AgentDef{
+	h.resolver.upsert(workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{{
+			Name:     "coder",
 			Provider: "claude",
 			Prompt:   "You are helpful.",
 			MCPServers: []aghconfig.MCPServer{
 				{Name: "override", Command: "agent-override", Args: []string{"--agent"}},
 				{Name: "extra", Command: "extra-command"},
 			},
-		})),
-	)
+		}},
+	})
+	h.manager = newManagerWithHarness(t, h)
 
 	session := createSession(t, h)
 	t.Cleanup(func() {
@@ -607,9 +688,9 @@ func TestCreateInvokesPromptAssemblerWhenConfigured(t *testing.T) {
 		gotAgentName   string
 		gotAgentPrompt string
 	)
-	h.manager = newManagerWithHarness(t, h, WithPromptAssembler(promptAssemblerFunc(func(_ context.Context, agent aghconfig.AgentDef, workspace string) (string, error) {
+	h.manager = newManagerWithHarness(t, h, WithPromptAssembler(promptAssemblerFunc(func(_ context.Context, agent aghconfig.AgentDef, workspace workspacepkg.ResolvedWorkspace) (string, error) {
 		called = true
-		gotWorkspace = workspace
+		gotWorkspace = workspace.RootDir
 		gotAgentName = agent.Name
 		gotAgentPrompt = agent.Prompt
 		return agent.Prompt + "\n\nmemory block", nil
@@ -644,7 +725,7 @@ func TestCreateUsesRawPromptWhenAssemblerIsNil(t *testing.T) {
 
 	session, err := h.manager.Create(testContext(t), CreateOpts{
 		AgentName: "coder",
-		Workspace: h.workspace,
+		Workspace: h.workspaceID,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -663,11 +744,31 @@ func TestCreateAppliesDreamPermissionsOverride(t *testing.T) {
 
 	h := newHarness(t)
 	h.cfg.Permissions.Mode = aghconfig.PermissionModeDenyAll
+	h.resolver.upsert(workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{
+			{
+				Name:     aghconfig.DefaultAgentName,
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			},
+			{
+				Name:     "coder",
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			},
+		},
+	})
 	h.manager = newManagerWithHarness(t, h)
 
 	session, err := h.manager.Create(testContext(t), CreateOpts{
 		AgentName: "coder",
-		Workspace: h.workspace,
+		Workspace: h.workspaceID,
 		Type:      SessionTypeDream,
 	})
 	if err != nil {
@@ -687,11 +788,31 @@ func TestCreateUsesConfiguredPermissionsForUserSessions(t *testing.T) {
 
 	h := newHarness(t)
 	h.cfg.Permissions.Mode = aghconfig.PermissionModeDenyAll
+	h.resolver.upsert(workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{
+			{
+				Name:     aghconfig.DefaultAgentName,
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			},
+			{
+				Name:     "coder",
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			},
+		},
+	})
 	h.manager = newManagerWithHarness(t, h)
 
 	session, err := h.manager.Create(testContext(t), CreateOpts{
 		AgentName: "coder",
-		Workspace: h.workspace,
+		Workspace: h.workspaceID,
 		Type:      SessionTypeUser,
 	})
 	if err != nil {
@@ -719,12 +840,15 @@ func TestACPDriverAdapterErrorPaths(t *testing.T) {
 }
 
 type harness struct {
-	manager   *Manager
-	driver    *fakeDriver
-	notifier  *fakeNotifier
-	cfg       aghconfig.Config
-	homePaths aghconfig.HomePaths
-	workspace string
+	manager       *Manager
+	driver        *fakeDriver
+	notifier      *fakeNotifier
+	resolver      *fakeWorkspaceResolver
+	cfg           aghconfig.Config
+	homePaths     aghconfig.HomePaths
+	workspace     string
+	workspaceID   string
+	workspaceName string
 }
 
 func newHarness(t *testing.T, extraOpts ...Option) *harness {
@@ -744,12 +868,34 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 	}
 
 	h := &harness{
-		driver:    newFakeDriver(),
-		notifier:  newFakeNotifier(),
-		cfg:       aghconfig.DefaultWithHome(homePaths),
-		homePaths: homePaths,
-		workspace: workspace,
+		driver:        newFakeDriver(),
+		notifier:      newFakeNotifier(),
+		cfg:           aghconfig.DefaultWithHome(homePaths),
+		homePaths:     homePaths,
+		workspace:     workspace,
+		workspaceID:   "ws-primary",
+		workspaceName: "workspace",
 	}
+	h.resolver = newFakeWorkspaceResolver(workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{
+			{
+				Name:     aghconfig.DefaultAgentName,
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			},
+			{
+				Name:     "coder",
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			},
+		},
+	})
 	h.manager = newManagerWithHarness(t, h, extraOpts...)
 	return h
 }
@@ -761,11 +907,7 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithHomePaths(h.homePaths),
 		WithDriver(h.driver),
 		WithNotifier(h.notifier),
-		WithConfig(h.cfg),
-		WithAgentLoader(staticAgentLoader(aghconfig.AgentDef{
-			Provider: "claude",
-			Prompt:   "You are a coding assistant.",
-		})),
+		WithWorkspaceResolver(h.resolver),
 		WithStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return store.OpenSessionDB(ctx, sessionID, path)
 		}),
@@ -788,7 +930,7 @@ func createSession(t *testing.T, h *harness) *Session {
 	session, err := h.manager.Create(testContext(t), CreateOpts{
 		AgentName: "coder",
 		Name:      "session",
-		Workspace: h.workspace,
+		Workspace: h.workspaceID,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -863,23 +1005,9 @@ func sequentialIDGenerator(prefix string) IDGenerator {
 	}
 }
 
-func staticAgentLoader(agent aghconfig.AgentDef) AgentLoader {
-	return func(name string, _ aghconfig.HomePaths) (aghconfig.AgentDef, error) {
-		copied := agent
-		copied.Name = name
-		if copied.Provider == "" {
-			copied.Provider = "claude"
-		}
-		if copied.Prompt == "" {
-			copied.Prompt = "You are helpful."
-		}
-		return copied, nil
-	}
-}
+type promptAssemblerFunc func(context.Context, aghconfig.AgentDef, workspacepkg.ResolvedWorkspace) (string, error)
 
-type promptAssemblerFunc func(context.Context, aghconfig.AgentDef, string) (string, error)
-
-func (fn promptAssemblerFunc) Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace string) (string, error) {
+func (fn promptAssemblerFunc) Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace workspacepkg.ResolvedWorkspace) (string, error) {
 	return fn(ctx, agent, workspace)
 }
 
@@ -947,6 +1075,115 @@ type fakeDriver struct {
 	fallbackOnResume bool
 }
 
+type fakeWorkspaceResolver struct {
+	mu                     sync.Mutex
+	byRef                  map[string]workspacepkg.ResolvedWorkspace
+	byPath                 map[string]workspacepkg.ResolvedWorkspace
+	resolveCalls           []string
+	resolveOrRegisterCalls []string
+	resolveErr             error
+	resolveOrRegisterErr   error
+	resolveHook            func(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
+	resolveOrRegisterHook  func(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
+	autoRegisterConfig     aghconfig.Config
+	autoRegisterAgents     []aghconfig.AgentDef
+	nextID                 int
+}
+
+func newFakeWorkspaceResolver(resolved workspacepkg.ResolvedWorkspace) *fakeWorkspaceResolver {
+	r := &fakeWorkspaceResolver{
+		byRef:              make(map[string]workspacepkg.ResolvedWorkspace),
+		byPath:             make(map[string]workspacepkg.ResolvedWorkspace),
+		autoRegisterConfig: resolved.Config,
+		autoRegisterAgents: append([]aghconfig.AgentDef(nil), resolved.Agents...),
+	}
+	r.upsert(resolved)
+	return r
+}
+
+func (r *fakeWorkspaceResolver) Resolve(ctx context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	ref := strings.TrimSpace(idOrPath)
+	r.resolveCalls = append(r.resolveCalls, ref)
+	if r.resolveHook != nil {
+		return r.resolveHook(ctx, ref)
+	}
+	if r.resolveErr != nil {
+		return workspacepkg.ResolvedWorkspace{}, r.resolveErr
+	}
+	if resolved, ok := r.byRef[ref]; ok {
+		return cloneResolvedWorkspaceForTests(resolved), nil
+	}
+	if resolved, ok := r.byPath[normalizeResolverPath(ref)]; ok {
+		return cloneResolvedWorkspaceForTests(resolved), nil
+	}
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func (r *fakeWorkspaceResolver) ResolveOrRegister(ctx context.Context, path string) (workspacepkg.ResolvedWorkspace, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	target := normalizeResolverPath(path)
+	r.resolveOrRegisterCalls = append(r.resolveOrRegisterCalls, target)
+	if r.resolveOrRegisterHook != nil {
+		return r.resolveOrRegisterHook(ctx, target)
+	}
+	if r.resolveOrRegisterErr != nil {
+		return workspacepkg.ResolvedWorkspace{}, r.resolveOrRegisterErr
+	}
+	if resolved, ok := r.byPath[target]; ok {
+		return cloneResolvedWorkspaceForTests(resolved), nil
+	}
+
+	r.nextID++
+	resolved := workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      fmt.Sprintf("ws-auto-%d", r.nextID),
+			RootDir: target,
+			Name:    filepath.Base(target),
+		},
+		Config: r.autoRegisterConfig,
+		Agents: append([]aghconfig.AgentDef(nil), r.autoRegisterAgents...),
+	}
+	r.upsert(resolved)
+	return cloneResolvedWorkspaceForTests(resolved), nil
+}
+
+func (r *fakeWorkspaceResolver) upsert(resolved workspacepkg.ResolvedWorkspace) {
+	cloned := cloneResolvedWorkspaceForTests(resolved)
+	r.byRef[cloned.ID] = cloned
+	if name := strings.TrimSpace(cloned.Name); name != "" {
+		r.byRef[name] = cloned
+	}
+	if path := normalizeResolverPath(cloned.RootDir); path != "" {
+		cloned.RootDir = path
+		r.byPath[path] = cloned
+	}
+}
+
+func normalizeResolverPath(path string) string {
+	target := strings.TrimSpace(path)
+	if target == "" {
+		return ""
+	}
+	absPath, err := filepath.Abs(target)
+	if err != nil {
+		return filepath.Clean(target)
+	}
+	return filepath.Clean(absPath)
+}
+
+func cloneResolvedWorkspaceForTests(src workspacepkg.ResolvedWorkspace) workspacepkg.ResolvedWorkspace {
+	dst := src
+	dst.AdditionalDirs = append([]string(nil), src.AdditionalDirs...)
+	dst.Agents = append([]aghconfig.AgentDef(nil), src.Agents...)
+	dst.Skills = append([]workspacepkg.SkillPath(nil), src.Skills...)
+	return dst
+}
+
 func newFakeDriver() *fakeDriver {
 	return &fakeDriver{
 		processes: make(map[*AgentProcess]*fakeProcess),
@@ -958,6 +1195,7 @@ func (d *fakeDriver) Start(_ context.Context, opts acp.StartOpts) (*AgentProcess
 	defer d.mu.Unlock()
 
 	copied := opts
+	copied.AdditionalDirs = append([]string(nil), opts.AdditionalDirs...)
 	copied.Env = append([]string(nil), opts.Env...)
 	copied.MCPServers = append([]aghconfig.MCPServer(nil), opts.MCPServers...)
 	d.startCalls = append(d.startCalls, copied)

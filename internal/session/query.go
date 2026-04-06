@@ -64,7 +64,7 @@ func (m *Manager) ListAll(ctx context.Context) ([]*SessionInfo, error) {
 			continue
 		}
 
-		info := sessionInfoFromMeta(meta)
+		info := m.sessionInfoFromMeta(ctx, meta)
 		if activeInfo, ok := activeByID[id]; ok && activeInfo != nil {
 			info = activeInfo
 		}
@@ -101,7 +101,7 @@ func (m *Manager) Status(ctx context.Context, id string) (*SessionInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sessionInfoFromMeta(meta), nil
+	return m.sessionInfoFromMeta(ctx, meta), nil
 }
 
 // Events returns persisted session events for active or stopped sessions.
@@ -198,12 +198,23 @@ func (m *Manager) readMeta(id string) (store.SessionMeta, error) {
 	return meta, nil
 }
 
+func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMeta) *SessionInfo {
+	info := sessionInfoFromMeta(meta)
+	workspaceRoot, err := m.resolveWorkspaceRoot(ctx, meta.WorkspaceID)
+	if err != nil {
+		m.logger.Warn("session: resolve workspace root for metadata failed", "session_id", meta.ID, "workspace_id", meta.WorkspaceID, "error", err)
+		return info
+	}
+	info.Workspace = workspaceRoot
+	return info
+}
+
 func sessionInfoFromMeta(meta store.SessionMeta) *SessionInfo {
 	return &SessionInfo{
 		ID:           meta.ID,
 		Name:         meta.Name,
 		AgentName:    meta.AgentName,
-		Workspace:    meta.Workspace,
+		WorkspaceID:  meta.WorkspaceID,
 		Type:         normalizeSessionType(SessionType(meta.SessionType)),
 		State:        SessionState(meta.State),
 		ACPSessionID: stringValue(meta.ACPSessionID),
@@ -229,6 +240,21 @@ func sortSessionInfos(infos []*SessionInfo) []*SessionInfo {
 	})
 
 	return out
+}
+
+func (m *Manager) resolveWorkspaceRoot(ctx context.Context, workspaceID string) (string, error) {
+	if ctx == nil {
+		return "", nil
+	}
+	if strings.TrimSpace(workspaceID) == "" || m.workspace == nil {
+		return "", nil
+	}
+
+	resolved, err := m.workspace.Resolve(ctx, workspaceID)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(resolved.RootDir), nil
 }
 
 func stringValue(value *string) string {

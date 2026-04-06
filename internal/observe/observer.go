@@ -15,6 +15,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/version"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 // Registry is the global persistence surface consumed by observe/.
@@ -28,8 +29,9 @@ type SessionSource interface {
 	List() []*session.SessionInfo
 }
 
-// PermissionModeResolver resolves the effective permission mode for a live session.
-type PermissionModeResolver func(agentName, workspace string) (string, error)
+// PermissionModeResolver resolves the effective permission mode for a live
+// session using its durable workspace reference.
+type PermissionModeResolver func(ctx context.Context, agentName, workspaceID string) (string, error)
 
 // VersionSource returns the current daemon build metadata.
 type VersionSource func() version.Info
@@ -39,7 +41,7 @@ type Option func(*Observer)
 
 type observedSession struct {
 	agentName      string
-	workspace      string
+	workspaceID    string
 	permissionMode string
 }
 
@@ -51,6 +53,7 @@ type Observer struct {
 	homePaths             aghconfig.HomePaths
 	sessionSource         SessionSource
 	resolvePermissionMode PermissionModeResolver
+	workspaceResolver     workspacepkg.WorkspaceResolver
 	now                   func() time.Time
 	startedAt             time.Time
 	logger                *slog.Logger
@@ -85,6 +88,14 @@ func WithSessionSource(source SessionSource) Option {
 func WithPermissionModeResolver(resolver PermissionModeResolver) Option {
 	return func(observer *Observer) {
 		observer.resolvePermissionMode = resolver
+	}
+}
+
+// WithWorkspaceResolver injects workspace resolution for config lookups that
+// need a filesystem root.
+func WithWorkspaceResolver(resolver workspacepkg.WorkspaceResolver) Option {
+	return func(observer *Observer) {
+		observer.workspaceResolver = resolver
 	}
 }
 
@@ -161,7 +172,7 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 		observer.sessions = make(map[string]observedSession)
 	}
 	if observer.resolvePermissionMode == nil {
-		observer.resolvePermissionMode = defaultPermissionModeResolver(observer.homePaths)
+		observer.resolvePermissionMode = defaultPermissionModeResolver(observer.homePaths, observer.workspaceResolver)
 	}
 
 	if observer.registry == nil {
@@ -188,13 +199,13 @@ func (o *Observer) Close(ctx context.Context) error {
 func (o *Observer) OnSessionCreated(ctx context.Context, sess *session.Session) {
 	info := sess.Info()
 	snapshot := observedSession{
-		agentName: info.AgentName,
-		workspace: info.Workspace,
+		agentName:   info.AgentName,
+		workspaceID: info.WorkspaceID,
 	}
 	if o.resolvePermissionMode != nil {
-		permissionMode, err := o.resolvePermissionMode(info.AgentName, info.Workspace)
+		permissionMode, err := o.resolvePermissionMode(ctx, info.AgentName, info.WorkspaceID)
 		if err != nil {
-			o.logger.Warn("observe: resolve permission mode failed", "session_id", info.ID, "agent_name", info.AgentName, "error", err)
+			o.logger.Warn("observe: resolve permission mode failed", "session_id", info.ID, "agent_name", info.AgentName, "workspace_id", info.WorkspaceID, "error", err)
 		} else {
 			snapshot.permissionMode = strings.TrimSpace(permissionMode)
 		}
@@ -203,7 +214,7 @@ func (o *Observer) OnSessionCreated(ctx context.Context, sess *session.Session) 
 	o.trackSession(info.ID, snapshot)
 
 	if err := o.registry.RegisterSession(ctx, sessionInfoFromSession(info)); err != nil {
-		o.logger.Warn("observe: register session failed", "session_id", info.ID, "agent_name", info.AgentName, "error", err)
+		o.logger.Warn("observe: register session failed", "session_id", info.ID, "agent_name", info.AgentName, "workspace_id", info.WorkspaceID, "error", err)
 	}
 }
 
@@ -217,7 +228,7 @@ func (o *Observer) OnSessionStopped(ctx context.Context, sess *session.Session) 
 		ACPSessionID: stringPointer(info.ACPSessionID),
 		UpdatedAt:    info.UpdatedAt,
 	}); err != nil {
-		o.logger.Warn("observe: update session state failed", "session_id", info.ID, "agent_name", info.AgentName, "state", info.State, "error", err)
+		o.logger.Warn("observe: update session state failed", "session_id", info.ID, "agent_name", info.AgentName, "workspace_id", info.WorkspaceID, "state", info.State, "error", err)
 	}
 
 	o.untrackSession(info.ID)
@@ -237,7 +248,7 @@ func (o *Observer) OnAgentEvent(ctx context.Context, sessionID string, event acp
 		return
 	}
 	if strings.TrimSpace(event.Type) == "" {
-		o.logger.Warn("observe: skipped agent event with empty type", "session_id", id, "agent_name", snapshot.agentName)
+		o.logger.Warn("observe: skipped agent event with empty type", "session_id", id, "agent_name", snapshot.agentName, "workspace_id", snapshot.workspaceID)
 		return
 	}
 
@@ -253,7 +264,7 @@ func (o *Observer) OnAgentEvent(ctx context.Context, sessionID string, event acp
 		Summary:   summarizeEvent(event),
 		Timestamp: timestamp,
 	}); err != nil {
-		o.logger.Warn("observe: write event summary failed", "session_id", id, "agent_name", snapshot.agentName, "event_type", event.Type, "error", err)
+		o.logger.Warn("observe: write event summary failed", "session_id", id, "agent_name", snapshot.agentName, "workspace_id", snapshot.workspaceID, "event_type", event.Type, "error", err)
 	}
 
 	if shouldAggregateUsage(event) {
@@ -272,7 +283,7 @@ func (o *Observer) OnAgentEvent(ctx context.Context, sessionID string, event acp
 			Turns:        1,
 			UpdatedAt:    usageTimestamp,
 		}); err != nil {
-			o.logger.Warn("observe: update token stats failed", "session_id", id, "agent_name", snapshot.agentName, "turn_id", event.TurnID, "error", err)
+			o.logger.Warn("observe: update token stats failed", "session_id", id, "agent_name", snapshot.agentName, "workspace_id", snapshot.workspaceID, "turn_id", event.TurnID, "error", err)
 		}
 	}
 
@@ -282,7 +293,7 @@ func (o *Observer) OnAgentEvent(ctx context.Context, sessionID string, event acp
 
 	policyUsed := strings.TrimSpace(snapshot.permissionMode)
 	if policyUsed == "" {
-		o.logger.Warn("observe: skipped permission log without resolved policy", "session_id", id, "agent_name", snapshot.agentName)
+		o.logger.Warn("observe: skipped permission log without resolved policy", "session_id", id, "agent_name", snapshot.agentName, "workspace_id", snapshot.workspaceID)
 		return
 	}
 	if strings.TrimSpace(event.Decision) == "" {
@@ -298,7 +309,7 @@ func (o *Observer) OnAgentEvent(ctx context.Context, sessionID string, event acp
 		PolicyUsed: policyUsed,
 		Timestamp:  timestamp,
 	}); err != nil {
-		o.logger.Warn("observe: write permission log failed", "session_id", id, "agent_name", snapshot.agentName, "error", err)
+		o.logger.Warn("observe: write permission log failed", "session_id", id, "agent_name", snapshot.agentName, "workspace_id", snapshot.workspaceID, "error", err)
 	}
 }
 
@@ -321,16 +332,28 @@ func (o *Observer) sessionSnapshot(id string) (observedSession, bool) {
 	return snapshot, ok
 }
 
-func defaultPermissionModeResolver(homePaths aghconfig.HomePaths) PermissionModeResolver {
-	return func(agentName, workspace string) (string, error) {
+func defaultPermissionModeResolver(homePaths aghconfig.HomePaths, resolver workspacepkg.WorkspaceResolver) PermissionModeResolver {
+	return func(ctx context.Context, agentName, workspaceID string) (string, error) {
+		if ctx == nil {
+			return "", errors.New("observe: permission resolver context is required")
+		}
+
 		var (
 			cfg aghconfig.Config
 			err error
 		)
-		if strings.TrimSpace(workspace) == "" {
-			cfg, err = aghconfig.Load()
+		if strings.TrimSpace(workspaceID) == "" {
+			cfg, err = aghconfig.LoadForHome(homePaths)
 		} else {
-			cfg, err = aghconfig.Load(aghconfig.WithWorkspaceRoot(workspace))
+			if resolver == nil {
+				return "", errors.New("observe: workspace resolver is required")
+			}
+
+			resolvedWorkspace, resolveErr := resolver.Resolve(ctx, workspaceID)
+			if resolveErr != nil {
+				return "", fmt.Errorf("resolve workspace %q: %w", workspaceID, resolveErr)
+			}
+			cfg, err = aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(resolvedWorkspace.RootDir))
 		}
 		if err != nil {
 			return "", fmt.Errorf("load config: %w", err)
@@ -359,7 +382,7 @@ func sessionInfoFromSession(info *session.SessionInfo) store.SessionInfo {
 		ID:           info.ID,
 		Name:         info.Name,
 		AgentName:    info.AgentName,
-		Workspace:    info.Workspace,
+		WorkspaceID:  info.WorkspaceID,
 		SessionType:  string(info.Type),
 		State:        string(info.State),
 		ACPSessionID: stringPointer(info.ACPSessionID),

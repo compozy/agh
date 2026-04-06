@@ -214,7 +214,13 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 			McpServers: toSDKMCPServers(normalized.MCPServers),
 			SessionId:  acpsdk.SessionId(normalized.ResumeSessionID),
 		}
-		loadResponse, loadErr := acpsdk.SendRequest[acpsdk.LoadSessionResponse](process.conn, ctx, acpsdk.AgentMethodSessionLoad, loadRequest)
+		loadWireRequest := wireLoadSessionRequest{
+			Cwd:            loadRequest.Cwd,
+			McpServers:     loadRequest.McpServers,
+			AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
+			SessionID:      loadRequest.SessionId,
+		}
+		loadResponse, loadErr := acpsdk.SendRequest[acpsdk.LoadSessionResponse](process.conn, ctx, acpsdk.AgentMethodSessionLoad, loadWireRequest)
 		if loadErr != nil {
 			_ = d.Stop(context.Background(), process)
 			return nil, fmt.Errorf("acp: load session %q for %q: %w", normalized.ResumeSessionID, normalized.AgentName, loadErr)
@@ -229,7 +235,12 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 		Cwd:        normalized.Cwd,
 		McpServers: toSDKMCPServers(normalized.MCPServers),
 	}
-	newResponse, err := acpsdk.SendRequest[acpsdk.NewSessionResponse](process.conn, ctx, acpsdk.AgentMethodSessionNew, newRequest)
+	newWireRequest := wireNewSessionRequest{
+		Cwd:            newRequest.Cwd,
+		McpServers:     newRequest.McpServers,
+		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
+	}
+	newResponse, err := acpsdk.SendRequest[acpsdk.NewSessionResponse](process.conn, ctx, acpsdk.AgentMethodSessionNew, newWireRequest)
 	if err != nil {
 		_ = d.Stop(context.Background(), process)
 		return nil, fmt.Errorf("acp: create session for %q: %w", normalized.AgentName, err)
@@ -410,22 +421,23 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 		return StartOpts{}, err
 	}
 
-	cwd, err := filepath.Abs(opts.Cwd)
+	cwd, err := normalizeWorkspaceDir(opts.Cwd, "cwd")
 	if err != nil {
-		return StartOpts{}, fmt.Errorf("acp: resolve cwd %q: %w", opts.Cwd, err)
-	}
-	info, err := os.Stat(cwd)
-	if err != nil {
-		return StartOpts{}, fmt.Errorf("acp: stat cwd %q: %w", cwd, err)
-	}
-	if !info.IsDir() {
-		return StartOpts{}, fmt.Errorf("acp: cwd %q is not a directory", cwd)
+		return StartOpts{}, err
 	}
 
 	normalized := opts
 	normalized.Cwd = cwd
+	additionalDirs, err := normalizeAdditionalDirs(cwd, opts.AdditionalDirs)
+	if err != nil {
+		return StartOpts{}, err
+	}
+	normalized.AdditionalDirs = additionalDirs
 	if normalized.Permissions == "" {
 		normalized.Permissions = aghconfig.PermissionModeApproveReads
+	}
+	if normalized.AdditionalDirs != nil {
+		normalized.AdditionalDirs = append([]string(nil), normalized.AdditionalDirs...)
 	}
 	if normalized.Env != nil {
 		normalized.Env = append([]string(nil), normalized.Env...)
@@ -434,6 +446,62 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 		normalized.MCPServers = append([]aghconfig.MCPServer(nil), normalized.MCPServers...)
 	}
 	normalized.SystemPrompt = strings.TrimSpace(normalized.SystemPrompt)
+
+	return normalized, nil
+}
+
+func normalizeWorkspaceDir(path string, field string) (string, error) {
+	target := strings.TrimSpace(path)
+	absPath, err := filepath.Abs(target)
+	if err != nil {
+		return "", fmt.Errorf("acp: resolve %s %q: %w", field, path, err)
+	}
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return "", fmt.Errorf("acp: stat %s %q: %w", field, absPath, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("acp: %s %q is not a directory", field, absPath)
+	}
+	resolvedPath, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return "", fmt.Errorf("acp: evaluate %s %q: %w", field, absPath, err)
+	}
+	canonicalPath, err := filepath.Abs(resolvedPath)
+	if err != nil {
+		return "", fmt.Errorf("acp: resolve canonical %s %q: %w", field, resolvedPath, err)
+	}
+	return filepath.Clean(canonicalPath), nil
+}
+
+func normalizeAdditionalDirs(rootDir string, dirs []string) ([]string, error) {
+	if len(dirs) == 0 {
+		return nil, nil
+	}
+
+	normalized := make([]string, 0, len(dirs))
+	seen := make(map[string]struct{}, len(dirs))
+
+	for i, dir := range dirs {
+		trimmed := strings.TrimSpace(dir)
+		if trimmed == "" {
+			continue
+		}
+
+		canonicalDir, err := normalizeWorkspaceDir(trimmed, fmt.Sprintf("additional_dirs[%d]", i))
+		if err != nil {
+			return nil, err
+		}
+		if canonicalDir == rootDir {
+			continue
+		}
+		if _, ok := seen[canonicalDir]; ok {
+			continue
+		}
+
+		seen[canonicalDir] = struct{}{}
+		normalized = append(normalized, canonicalDir)
+	}
 
 	return normalized, nil
 }
