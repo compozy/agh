@@ -41,16 +41,20 @@ type Watcher struct {
 // directories. A non-positive interval falls back to the default poll interval.
 func NewWatcher(registry *Registry, interval time.Duration) *Watcher {
 	var roots []string
+	snapshots := make(map[string]fileSnapshot)
+	initialized := false
 	if registry != nil {
 		roots = watcherRoots(registry.cfg.UserSkillsDir, registry.cfg.UserAgentsDir)
+		snapshots, initialized = registry.globalSnapshotState()
 	}
 
 	return &Watcher{
-		registry:  registry,
-		interval:  watcherInterval(interval),
-		roots:     roots,
-		logger:    slog.Default(),
-		snapshots: make(map[string]fileSnapshot),
+		registry:    registry,
+		interval:    watcherInterval(interval),
+		roots:       roots,
+		logger:      slog.Default(),
+		initialized: initialized,
+		snapshots:   snapshots,
 	}
 }
 

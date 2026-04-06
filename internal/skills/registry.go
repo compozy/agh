@@ -23,9 +23,11 @@ type Option func(*Registry)
 
 // Registry manages global skills loaded at boot and lazily cached workspace skills.
 type Registry struct {
-	mu           sync.RWMutex
-	globalSkills map[string]*Skill
-	wsCache      map[string]*wsCache
+	mu              sync.RWMutex
+	globalSkills    map[string]*Skill
+	globalLoaded    bool
+	globalSnapshots map[string]fileSnapshot
+	wsCache         map[string]*wsCache
 
 	globalVersion atomic.Int64
 
@@ -63,11 +65,12 @@ func WithNow(now func() time.Time) Option {
 // NewRegistry constructs a Registry with the provided configuration.
 func NewRegistry(cfg RegistryConfig, opts ...Option) *Registry {
 	registry := &Registry{
-		globalSkills: make(map[string]*Skill),
-		wsCache:      make(map[string]*wsCache),
-		cfg:          cfg,
-		logger:       slog.Default(),
-		now:          time.Now,
+		globalSkills:    make(map[string]*Skill),
+		globalSnapshots: make(map[string]fileSnapshot),
+		wsCache:         make(map[string]*wsCache),
+		cfg:             cfg,
+		logger:          slog.Default(),
+		now:             time.Now,
 	}
 
 	for _, opt := range opts {
@@ -180,7 +183,7 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 		return err
 	}
 
-	loaded, err := r.loadGlobalSkills(ctx)
+	loaded, snapshots, err := r.loadGlobalSkills(ctx)
 	if err != nil {
 		return err
 	}
@@ -189,6 +192,8 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	defer r.mu.Unlock()
 
 	r.evictExpiredWorkspaceLocked(r.now())
+	r.globalSnapshots = cloneFileSnapshots(snapshots)
+	r.globalLoaded = true
 	if reflect.DeepEqual(r.globalSkills, loaded) {
 		return nil
 	}
@@ -199,20 +204,21 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	return nil
 }
 
-func (r *Registry) loadGlobalSkills(ctx context.Context) (map[string]*Skill, error) {
+func (r *Registry) loadGlobalSkills(ctx context.Context) (map[string]*Skill, map[string]fileSnapshot, error) {
 	skills := make(map[string]*Skill)
+	snapshots := make(map[string]fileSnapshot)
 
 	if err := r.loadBundledSkills(ctx, skills); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if err := r.loadDirectorySkills(ctx, r.cfg.UserSkillsDir, SourceUser, skills); err != nil {
-		return nil, err
+	if err := r.loadDirectorySkills(ctx, r.cfg.UserSkillsDir, SourceUser, skills, snapshots); err != nil {
+		return nil, nil, err
 	}
-	if err := r.loadDirectorySkills(ctx, r.cfg.UserAgentsDir, SourceUser, skills); err != nil {
-		return nil, err
+	if err := r.loadDirectorySkills(ctx, r.cfg.UserAgentsDir, SourceUser, skills, snapshots); err != nil {
+		return nil, nil, err
 	}
 
-	return skills, nil
+	return skills, snapshots, nil
 }
 
 func (r *Registry) loadWorkspaceSkills(ctx context.Context, scan workspaceScan) (map[string]*Skill, error) {
@@ -248,21 +254,31 @@ func (r *Registry) loadBundledSkills(ctx context.Context, dst map[string]*Skill)
 			return err
 		}
 		r.applyDisabled(skill)
+
+		warnings := VerifyContent(skill.Content)
+		r.logVerificationWarnings(skill, warnings)
+		if hasCriticalWarning(warnings) {
+			continue
+		}
+
 		r.overlaySkill(dst, skill)
 	}
 
 	return nil
 }
 
-func (r *Registry) loadDirectorySkills(ctx context.Context, dir string, source SkillSource, dst map[string]*Skill) error {
+func (r *Registry) loadDirectorySkills(ctx context.Context, dir string, source SkillSource, dst map[string]*Skill, snapshots map[string]fileSnapshot) error {
 	root := strings.TrimSpace(dir)
 	if root == "" {
 		return nil
 	}
 
-	paths, err := scanDirectory(root)
+	paths, dirSnapshots, err := scanDirectoryWithSnapshots(root)
 	if err != nil {
 		return err
+	}
+	for path, snapshot := range dirSnapshots {
+		snapshots[path] = snapshot
 	}
 
 	return r.loadSkillPaths(ctx, paths, source, dst)
@@ -520,6 +536,30 @@ func cloneMetadataValue(value any) any {
 	default:
 		return typed
 	}
+}
+
+func cloneFileSnapshots(snapshots map[string]fileSnapshot) map[string]fileSnapshot {
+	if len(snapshots) == 0 {
+		return make(map[string]fileSnapshot)
+	}
+
+	clone := make(map[string]fileSnapshot, len(snapshots))
+	for path, snapshot := range snapshots {
+		clone[path] = snapshot
+	}
+
+	return clone
+}
+
+func (r *Registry) globalSnapshotState() (map[string]fileSnapshot, bool) {
+	if r == nil {
+		return make(map[string]fileSnapshot), false
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return cloneFileSnapshots(r.globalSnapshots), r.globalLoaded
 }
 
 func parseBundledSkill(fsys fs.FS, skillPath string) (*Skill, error) {

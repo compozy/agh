@@ -14,10 +14,18 @@ const (
 		"Use `agh skill view <name> --file <path>` to read a specific skill resource file."
 )
 
-var catalogXMLReplacer = strings.NewReplacer(
-	"&", "&amp;",
-	"<", "&lt;",
-	">", "&gt;",
+var (
+	catalogTextReplacer = strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+	)
+	catalogAttrReplacer = strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+		`"`, "&quot;",
+	)
 )
 
 // CatalogProvider builds the workspace-scoped skill catalog section expected by
@@ -84,7 +92,7 @@ func BuildCatalog(skills []*Skill) string {
 	builder.WriteString("<available-skills>\n")
 	for _, entry := range entries {
 		builder.WriteString(`  <skill name="`)
-		builder.WriteString(escapeCatalogText(entry.name))
+		builder.WriteString(escapeCatalogAttr(entry.name))
 		builder.WriteString(`">`)
 		builder.WriteString(escapeCatalogText(entry.description))
 		builder.WriteString("</skill>\n")
@@ -105,5 +113,9 @@ func truncateCatalogDescription(description string) string {
 }
 
 func escapeCatalogText(value string) string {
-	return catalogXMLReplacer.Replace(value)
+	return catalogTextReplacer.Replace(value)
+}
+
+func escapeCatalogAttr(value string) string {
+	return catalogAttrReplacer.Replace(value)
 }

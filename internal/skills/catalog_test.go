@@ -39,8 +39,8 @@ func TestBuildCatalogFormatsCatalogSortedEscapedAndWithUsageInstructions(t *test
 		},
 		{
 			Meta: SkillMeta{
-				Name:        "alpha<&>",
-				Description: "Use < & > safely",
+				Name:        `alpha"<&>`,
+				Description: `Use < & > and "quotes" safely`,
 			},
 		},
 	}
@@ -49,7 +49,7 @@ func TestBuildCatalogFormatsCatalogSortedEscapedAndWithUsageInstructions(t *test
 
 	want := strings.Join([]string{
 		"<available-skills>",
-		`  <skill name="alpha&lt;&amp;&gt;">Use &lt; &amp; &gt; safely</skill>`,
+		`  <skill name="alpha&quot;&lt;&amp;&gt;">Use &lt; &amp; &gt; and "quotes" safely</skill>`,
 		`  <skill name="zeta">Last skill</skill>`,
 		"</available-skills>",
 		"",

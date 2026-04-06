@@ -38,7 +38,7 @@ var verificationPatterns = []verificationPattern{
 	},
 	{
 		pattern:  "role-hijack-you-are-now",
-		regex:    regexp.MustCompile(`(?i)\byou\s+are\s+now\b`),
+		regex:    regexp.MustCompile(`(?i)\byou\s+are\s+now\s+(?:a|an|the|assistant|agent|bot|system)\b`),
 		severity: SeverityCritical,
 		message:  "content attempts to redefine the agent role",
 	},

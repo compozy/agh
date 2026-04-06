@@ -225,6 +225,36 @@ func TestSkillViewCommandRejectsFilesystemTraversal(t *testing.T) {
 	}
 }
 
+func TestSkillViewCommandRejectsSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	env := newSkillTestEnv(t, nil)
+	writeWorkspaceSkill(t, env.workspace, "guarded", skillDocument("guarded", "Guarded skill", "body"))
+
+	outsideDir := t.TempDir()
+	outsideFile := filepath.Join(outsideDir, "secret.txt")
+	if err := os.WriteFile(outsideFile, []byte("top secret\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", outsideFile, err)
+	}
+
+	skillDir := filepath.Join(env.workspace, aghconfig.DirName, aghconfig.SkillsDirName, "guarded")
+	linkPath := filepath.Join(skillDir, "links", "secret.txt")
+	if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(linkPath), err)
+	}
+	if err := os.Symlink(outsideFile, linkPath); err != nil {
+		t.Skipf("Symlink(%q, %q) unsupported: %v", outsideFile, linkPath, err)
+	}
+
+	_, _, err := executeRootCommand(t, env.deps, "skill", "view", "guarded", "--file", "links/secret.txt")
+	if err == nil {
+		t.Fatal("skill view symlink escape error = nil, want validation failure")
+	}
+	if !strings.Contains(err.Error(), "skill file path must stay within the skill directory") {
+		t.Fatalf("skill view symlink escape error = %v, want skill directory boundary error", err)
+	}
+}
+
 func TestSkillInfoCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 	t.Parallel()
 
@@ -353,6 +383,10 @@ func TestSkillCreateCommandSupportsDefaultNameAndRejectsUnsafeNames(t *testing.T
 			"../escape",
 			filepath.Join(string(filepath.Separator), "tmp", "skill"),
 			"nested/skill",
+			"needs space",
+			"yaml: value",
+			"anchor*name",
+			"line\nbreak",
 		}
 
 		for _, name := range testCases {

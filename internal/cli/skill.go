@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,6 +28,7 @@ const (
 var (
 	skillXMLAttributeReplacer = strings.NewReplacer(`&`, "&amp;", `<`, "&lt;", `>`, "&gt;", `"`, "&quot;")
 	skillXMLTextReplacer      = strings.NewReplacer(`&`, "&amp;", `<`, "&lt;", `>`, "&gt;")
+	validSkillNamePattern     = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 )
 
 type skillCommandContext struct {
@@ -505,20 +507,28 @@ func readSkillResource(skill *skills.Skill, bundledFS fs.FS, relativePath string
 		if err != nil {
 			return "", fmt.Errorf("cli: resolve skill directory %q: %w", root, err)
 		}
+		resolvedRoot, err := filepath.EvalSymlinks(absRoot)
+		if err != nil {
+			return "", fmt.Errorf("cli: resolve skill directory %q: %w", absRoot, err)
+		}
 		absTarget, err := filepath.Abs(targetPath)
 		if err != nil {
 			return "", fmt.Errorf("cli: resolve skill file %q: %w", targetPath, err)
 		}
-
-		relativeToRoot, err := filepath.Rel(absRoot, absTarget)
+		resolvedTarget, err := filepath.EvalSymlinks(absTarget)
 		if err != nil {
-			return "", fmt.Errorf("cli: resolve skill file %q within %q: %w", absTarget, absRoot, err)
+			return "", fmt.Errorf("cli: resolve skill file %q: %w", absTarget, err)
+		}
+
+		relativeToRoot, err := filepath.Rel(resolvedRoot, resolvedTarget)
+		if err != nil {
+			return "", fmt.Errorf("cli: resolve skill file %q within %q: %w", resolvedTarget, resolvedRoot, err)
 		}
 		if relativeToRoot == ".." || strings.HasPrefix(relativeToRoot, ".."+string(filepath.Separator)) {
 			return "", errors.New("skill file path must stay within the skill directory")
 		}
 
-		content, err := os.ReadFile(absTarget)
+		content, err := os.ReadFile(resolvedTarget)
 		if err != nil {
 			return "", fmt.Errorf("cli: read skill file %q: %w", cleanPath, err)
 		}
@@ -590,6 +600,8 @@ func normalizeSkillName(name string) (string, error) {
 		return "", errors.New("skill name must be relative")
 	case strings.Contains(trimmed, "/"), strings.Contains(trimmed, `\`):
 		return "", errors.New("skill name must not include path separators")
+	case !validSkillNamePattern.MatchString(trimmed):
+		return "", errors.New("skill name must contain only letters, numbers, dots, underscores, and hyphens")
 	default:
 		return trimmed, nil
 	}
@@ -602,7 +614,7 @@ func defaultSkillTemplate(name string) string {
 	}
 
 	return fmt.Sprintf(`---
-name: %s
+name: %q
 description: Describe when to use this skill.
 ---
 

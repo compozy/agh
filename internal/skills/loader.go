@@ -108,28 +108,34 @@ func parseFrontmatter(content string) (SkillMeta, string, error) {
 
 // scanDirectory returns every SKILL.md file discovered under dir.
 func scanDirectory(dir string) ([]string, error) {
+	paths, _, err := scanDirectoryWithSnapshots(dir)
+	return paths, err
+}
+
+func scanDirectoryWithSnapshots(dir string) ([]string, map[string]fileSnapshot, error) {
 	root := strings.TrimSpace(dir)
 	if root == "" {
-		return nil, errors.New("skills: scan directory root is required")
+		return nil, nil, errors.New("skills: scan directory root is required")
 	}
 
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
-		return nil, fmt.Errorf("skills: resolve scan root %q: %w", dir, err)
+		return nil, nil, fmt.Errorf("skills: resolve scan root %q: %w", dir, err)
 	}
 
 	info, err := os.Stat(absRoot)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return []string{}, nil
+			return []string{}, map[string]fileSnapshot{}, nil
 		}
-		return nil, fmt.Errorf("skills: stat scan root %q: %w", absRoot, err)
+		return nil, nil, fmt.Errorf("skills: stat scan root %q: %w", absRoot, err)
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("skills: scan root %q is not a directory", absRoot)
+		return nil, nil, fmt.Errorf("skills: scan root %q is not a directory", absRoot)
 	}
 
 	paths := make([]string, 0, maxScanCandidates)
+	snapshots := make(map[string]fileSnapshot, maxScanCandidates)
 	walkErr := filepath.WalkDir(absRoot, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			slog.Warn("skills: skipping unreadable path during scan", "path", path, "error", walkErr)
@@ -158,12 +164,14 @@ func scanDirectory(dir string) ([]string, error) {
 			return nil
 		}
 
-		if _, err := snapshotFile(path); err != nil {
+		snapshot, err := snapshotFile(path)
+		if err != nil {
 			slog.Warn("skills: skipping unreadable skill file during scan", "path", path, "error", err)
 			return nil
 		}
 
 		paths = append(paths, path)
+		snapshots[path] = snapshot
 		if len(paths) >= maxScanCandidates {
 			slog.Warn("skills: scan candidate limit reached", "root", absRoot, "limit", maxScanCandidates)
 			return errScanLimitReached
@@ -172,11 +180,11 @@ func scanDirectory(dir string) ([]string, error) {
 		return nil
 	})
 	if walkErr != nil && !errors.Is(walkErr, errScanLimitReached) {
-		return nil, walkErr
+		return nil, nil, walkErr
 	}
 
 	slices.Sort(paths)
-	return paths, nil
+	return paths, snapshots, nil
 }
 
 func decodeSkillMeta(frontmatter string) (SkillMeta, error) {

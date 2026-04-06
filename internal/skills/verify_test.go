@@ -145,6 +145,20 @@ Review the changed files, look for regressions, and explain the findings clearly
 	}
 }
 
+func TestVerifyContentDoesNotFlagBenignYouAreNowPhrases(t *testing.T) {
+	t.Parallel()
+
+	content := `
+# Review Workflow
+
+You are now ready to proceed with the review phase.
+`
+
+	if warnings := VerifyContent(content); len(warnings) != 0 {
+		t.Fatalf("VerifyContent() warnings = %#v, want none for benign phrase", warnings)
+	}
+}
+
 func TestVerifyContentHandlesEmptyContent(t *testing.T) {
 	t.Parallel()
 

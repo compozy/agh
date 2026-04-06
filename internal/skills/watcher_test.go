@@ -173,6 +173,68 @@ func TestNewWatcherOnlyUsesGlobalRoots(t *testing.T) {
 	}
 }
 
+func TestNewWatcherSeedsSnapshotsFromRegistryLoadAll(t *testing.T) {
+	t.Parallel()
+
+	t.Run("added after empty baseline", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		userDir := filepath.Join(root, "user")
+		registry := newTestRegistry(t, RegistryConfig{
+			UserSkillsDir: userDir,
+		})
+		if err := registry.LoadAll(context.Background()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+
+		skillPath := writeSkillFile(t, userDir, filepath.Join("added", skillFileName), skillWithDescription("added", "Added after load"))
+		watcher := NewWatcher(registry, time.Millisecond)
+		watcher.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
+		changed, _, changes, err := watcher.detectChanges(context.Background())
+		if err != nil {
+			t.Fatalf("detectChanges() error = %v", err)
+		}
+		if !changed {
+			t.Fatal("detectChanges() changed = false, want true for post-load addition")
+		}
+		if len(changes) != 1 || changes[0].path != skillPath || changes[0].action != "added" {
+			t.Fatalf("detectChanges() changes = %#v, want added change for %q", changes, skillPath)
+		}
+	})
+
+	t.Run("modified after populated baseline", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		userDir := filepath.Join(root, "user")
+		skillPath := writeSkillFile(t, userDir, filepath.Join("modified", skillFileName), skillWithDescription("modified", "Version one"))
+
+		registry := newTestRegistry(t, RegistryConfig{
+			UserSkillsDir: userDir,
+		})
+		if err := registry.LoadAll(context.Background()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+
+		rewriteSkillFile(t, skillPath, skillWithDescription("modified", "Version two with larger content"))
+		watcher := NewWatcher(registry, time.Millisecond)
+		watcher.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
+		changed, _, changes, err := watcher.detectChanges(context.Background())
+		if err != nil {
+			t.Fatalf("detectChanges() error = %v", err)
+		}
+		if !changed {
+			t.Fatal("detectChanges() changed = false, want true for post-load modification")
+		}
+		if len(changes) != 1 || changes[0].path != skillPath || changes[0].action != "modified" {
+			t.Fatalf("detectChanges() changes = %#v, want modified change for %q", changes, skillPath)
+		}
+	})
+}
+
 func TestWatcherStartRefreshesOnlyWhenGlobalStateChanges(t *testing.T) {
 	t.Parallel()
 
