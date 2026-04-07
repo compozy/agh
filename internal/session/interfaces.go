@@ -143,14 +143,8 @@ type AgentDriver interface {
 	Stop(ctx context.Context, proc *AgentProcess) error
 }
 
-// EventRecorder defines the per-session storage operations consumed by session/.
-type EventRecorder interface {
-	Record(ctx context.Context, event store.SessionEvent) error
-	RecordTokenUsage(ctx context.Context, usage store.TokenUsage) error
-	Query(ctx context.Context, query store.EventQuery) ([]store.SessionEvent, error)
-	History(ctx context.Context, query store.EventQuery) ([]store.TurnHistory, error)
-	Close(ctx context.Context) error
-}
+// EventRecorder is the per-session storage surface consumed by session/.
+type EventRecorder = store.EventRecorder
 
 // Notifier fans out session lifecycle and prompt events to downstream observers.
 type Notifier interface {

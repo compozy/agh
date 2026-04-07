@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -345,7 +346,7 @@ func TestRespondErrorSanitizesInternalFailures(t *testing.T) {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
 	}
 
-	var payload errorPayload
+	var payload contract.ErrorPayload
 	decodeJSONResponse(t, recorder, &payload)
 	if payload.Error != http.StatusText(http.StatusInternalServerError) {
 		t.Fatalf("error payload = %q, want %q", payload.Error, http.StatusText(http.StatusInternalServerError))

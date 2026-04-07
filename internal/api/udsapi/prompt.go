@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	core "github.com/pedronauck/agh/internal/api/core"
 )
 
 type promptRequest struct {
@@ -16,23 +17,23 @@ type promptRequest struct {
 func (h *Handlers) promptSession(c *gin.Context) {
 	var req promptRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		respondError(c, http.StatusBadRequest, fmt.Errorf("udsapi: decode prompt request: %w", err))
+		core.RespondError(c, http.StatusBadRequest, fmt.Errorf("udsapi: decode prompt request: %w", err), false)
 		return
 	}
 	if strings.TrimSpace(req.Message) == "" {
-		respondError(c, http.StatusBadRequest, errors.New("message is required"))
+		core.RespondError(c, http.StatusBadRequest, errors.New("message is required"), false)
 		return
 	}
 
 	events, err := h.Sessions.Prompt(c.Request.Context(), c.Param("id"), req.Message)
 	if err != nil {
-		respondError(c, statusForSessionError(err), err)
+		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return
 	}
 
-	writer, err := prepareSSE(c)
+	writer, err := core.PrepareSSE(c)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err)
+		core.RespondError(c, http.StatusInternalServerError, err, false)
 		return
 	}
 
@@ -46,9 +47,9 @@ func (h *Handlers) promptSession(c *gin.Context) {
 			if !ok {
 				return
 			}
-			if err := writeSSE(writer, sseMessage{
+			if err := core.WriteSSE(writer, core.SSEMessage{
 				Name: event.Type,
-				Data: agentEventPayloadFromEvent(event),
+				Data: core.AgentEventPayloadFromEvent(event),
 			}); err != nil {
 				return
 			}

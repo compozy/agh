@@ -6,12 +6,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
+	core "github.com/pedronauck/agh/internal/api/core"
 )
 
 func (h *Handlers) approveSession(c *gin.Context) {
-	var req approveSessionRequest
+	var req contract.ApproveSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		respondError(c, http.StatusBadRequest, fmt.Errorf("httpapi: decode approve session request: %w", err))
+		core.RespondError(c, http.StatusBadRequest, fmt.Errorf("httpapi: decode approve session request: %w", err), true)
 		return
 	}
 
@@ -21,12 +23,12 @@ func (h *Handlers) approveSession(c *gin.Context) {
 		Decision:  req.Decision,
 	}
 	if err := approve.Validate(); err != nil {
-		respondError(c, http.StatusBadRequest, err)
+		core.RespondError(c, http.StatusBadRequest, err, true)
 		return
 	}
 
 	if err := h.Sessions.ApprovePermission(c.Request.Context(), c.Param("id"), approve); err != nil {
-		respondError(c, statusForSessionError(err), err)
+		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return
 	}
 

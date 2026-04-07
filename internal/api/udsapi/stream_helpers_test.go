@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -153,7 +154,7 @@ func TestHelperBuildersCoverRemainingBranches(t *testing.T) {
 	}
 
 	writer := &bufferFlusher{}
-	if err := writeSSE(writer, sseMessage{ID: "1", Name: "done", Data: map[string]string{"ok": "true"}}); err != nil {
+	if err := core.WriteSSE(writer, core.SSEMessage{ID: "1", Name: "done", Data: map[string]string{"ok": "true"}}); err != nil {
 		t.Fatalf("writeSSE() error = %v", err)
 	}
 	if got := writer.String(); got == "" || !bytes.Contains([]byte(got), []byte("event: done")) {

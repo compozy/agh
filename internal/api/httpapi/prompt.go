@@ -77,26 +77,26 @@ type promptStreamState struct {
 func (h *Handlers) promptSession(c *gin.Context) {
 	var req promptRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		respondError(c, http.StatusBadRequest, fmt.Errorf("httpapi: decode prompt request: %w", err))
+		core.RespondError(c, http.StatusBadRequest, fmt.Errorf("httpapi: decode prompt request: %w", err), true)
 		return
 	}
 
 	message, err := extractPromptMessage(req)
 	if err != nil {
-		respondError(c, http.StatusBadRequest, err)
+		core.RespondError(c, http.StatusBadRequest, err, true)
 		return
 	}
 
 	events, err := h.Sessions.Prompt(c.Request.Context(), c.Param("id"), message)
 	if err != nil {
-		respondError(c, statusForSessionError(err), err)
+		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return
 	}
 
 	c.Header("x-vercel-ai-ui-message-stream", "v1")
-	writer, err := prepareSSE(c)
+	writer, err := core.PrepareSSE(c)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, err)
+		core.RespondError(c, http.StatusInternalServerError, err, true)
 		return
 	}
 
@@ -159,7 +159,7 @@ func extractPromptMessage(req promptRequest) (string, error) {
 	return "", errors.New("message is required")
 }
 
-func (s *promptStreamState) emit(writer flushWriter, event acp.AgentEvent) error {
+func (s *promptStreamState) emit(writer core.FlushWriter, event acp.AgentEvent) error {
 	if err := s.ensureMessageStarted(writer, event); err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (s *promptStreamState) emit(writer flushWriter, event acp.AgentEvent) error
 		if err := s.ensureTextStarted(writer); err != nil {
 			return err
 		}
-		return writeSSE(writer, sseMessage{
+		return core.WriteSSE(writer, core.SSEMessage{
 			Name: "agent_message",
 			Data: map[string]any{
 				"type":  "text-delta",
@@ -181,7 +181,7 @@ func (s *promptStreamState) emit(writer flushWriter, event acp.AgentEvent) error
 		if err := s.ensureReasoningStarted(writer); err != nil {
 			return err
 		}
-		return writeSSE(writer, sseMessage{
+		return core.WriteSSE(writer, core.SSEMessage{
 			Name: "thought",
 			Data: map[string]any{
 				"type":  "reasoning-delta",
@@ -200,7 +200,7 @@ func (s *promptStreamState) emit(writer flushWriter, event acp.AgentEvent) error
 			if toolName == "" {
 				toolName = "tool"
 			}
-			if err := writeSSE(writer, sseMessage{
+			if err := core.WriteSSE(writer, core.SSEMessage{
 				Name: "tool_call",
 				Data: map[string]any{
 					"type":       "tool-input-start",
@@ -211,7 +211,7 @@ func (s *promptStreamState) emit(writer flushWriter, event acp.AgentEvent) error
 				return err
 			}
 		}
-		return writeSSE(writer, sseMessage{
+		return core.WriteSSE(writer, core.SSEMessage{
 			Name: "tool_call",
 			Data: map[string]any{
 				"type":       "data-agh-event",
@@ -224,7 +224,7 @@ func (s *promptStreamState) emit(writer flushWriter, event acp.AgentEvent) error
 		if toolCallID == "" {
 			toolCallID = s.messageID + "-tool"
 		}
-		return writeSSE(writer, sseMessage{
+		return core.WriteSSE(writer, core.SSEMessage{
 			Name: "tool_result",
 			Data: map[string]any{
 				"type":       "tool-output-available",
@@ -233,7 +233,7 @@ func (s *promptStreamState) emit(writer flushWriter, event acp.AgentEvent) error
 			},
 		})
 	case acp.EventTypePermission:
-		return writeSSE(writer, sseMessage{
+		return core.WriteSSE(writer, core.SSEMessage{
 			Name: "permission",
 			Data: map[string]any{
 				"type": "data-agh-permission",
@@ -248,7 +248,7 @@ func (s *promptStreamState) emit(writer flushWriter, event acp.AgentEvent) error
 		if errorText == "" {
 			errorText = strings.TrimSpace(event.Text)
 		}
-		if err := writeSSE(writer, sseMessage{
+		if err := core.WriteSSE(writer, core.SSEMessage{
 			Name: "error",
 			Data: map[string]any{
 				"type":      "error",
@@ -261,7 +261,7 @@ func (s *promptStreamState) emit(writer flushWriter, event acp.AgentEvent) error
 	case acp.EventTypeDone:
 		return s.finish(writer, event)
 	default:
-		return writeSSE(writer, sseMessage{
+		return core.WriteSSE(writer, core.SSEMessage{
 			Name: event.Type,
 			Data: map[string]any{
 				"type": "data-agh-event",
@@ -271,7 +271,7 @@ func (s *promptStreamState) emit(writer flushWriter, event acp.AgentEvent) error
 	}
 }
 
-func (s *promptStreamState) ensureMessageStarted(writer flushWriter, event acp.AgentEvent) error {
+func (s *promptStreamState) ensureMessageStarted(writer core.FlushWriter, event acp.AgentEvent) error {
 	if s.messageStarted {
 		return nil
 	}
@@ -288,7 +288,7 @@ func (s *promptStreamState) ensureMessageStarted(writer flushWriter, event acp.A
 	s.reasoningBlockID = messageID + "-reasoning"
 	s.messageStarted = true
 
-	return writeSSE(writer, sseMessage{
+	return core.WriteSSE(writer, core.SSEMessage{
 		Data: map[string]any{
 			"type":      "start",
 			"messageId": s.messageID,
@@ -296,12 +296,12 @@ func (s *promptStreamState) ensureMessageStarted(writer flushWriter, event acp.A
 	})
 }
 
-func (s *promptStreamState) ensureTextStarted(writer flushWriter) error {
+func (s *promptStreamState) ensureTextStarted(writer core.FlushWriter) error {
 	if s.textStarted {
 		return nil
 	}
 	s.textStarted = true
-	return writeSSE(writer, sseMessage{
+	return core.WriteSSE(writer, core.SSEMessage{
 		Data: map[string]any{
 			"type": "text-start",
 			"id":   s.textBlockID,
@@ -309,12 +309,12 @@ func (s *promptStreamState) ensureTextStarted(writer flushWriter) error {
 	})
 }
 
-func (s *promptStreamState) ensureReasoningStarted(writer flushWriter) error {
+func (s *promptStreamState) ensureReasoningStarted(writer core.FlushWriter) error {
 	if s.reasoningStarted {
 		return nil
 	}
 	s.reasoningStarted = true
-	return writeSSE(writer, sseMessage{
+	return core.WriteSSE(writer, core.SSEMessage{
 		Data: map[string]any{
 			"type": "reasoning-start",
 			"id":   s.reasoningBlockID,
@@ -322,9 +322,9 @@ func (s *promptStreamState) ensureReasoningStarted(writer flushWriter) error {
 	})
 }
 
-func (s *promptStreamState) closeOpenBlocks(writer flushWriter) error {
+func (s *promptStreamState) closeOpenBlocks(writer core.FlushWriter) error {
 	if s.textStarted {
-		if err := writeSSE(writer, sseMessage{
+		if err := core.WriteSSE(writer, core.SSEMessage{
 			Data: map[string]any{
 				"type": "text-end",
 				"id":   s.textBlockID,
@@ -335,7 +335,7 @@ func (s *promptStreamState) closeOpenBlocks(writer flushWriter) error {
 		s.textStarted = false
 	}
 	if s.reasoningStarted {
-		if err := writeSSE(writer, sseMessage{
+		if err := core.WriteSSE(writer, core.SSEMessage{
 			Data: map[string]any{
 				"type": "reasoning-end",
 				"id":   s.reasoningBlockID,
@@ -348,7 +348,7 @@ func (s *promptStreamState) closeOpenBlocks(writer flushWriter) error {
 	return nil
 }
 
-func (s *promptStreamState) finish(writer flushWriter, event acp.AgentEvent) error {
+func (s *promptStreamState) finish(writer core.FlushWriter, event acp.AgentEvent) error {
 	if s.finished {
 		return nil
 	}
@@ -360,7 +360,7 @@ func (s *promptStreamState) finish(writer flushWriter, event acp.AgentEvent) err
 	}
 	s.finished = true
 
-	if err := writeSSE(writer, sseMessage{
+	if err := core.WriteSSE(writer, core.SSEMessage{
 		Name: "done",
 		Data: map[string]any{
 			"type":       "finish",
@@ -369,7 +369,7 @@ func (s *promptStreamState) finish(writer flushWriter, event acp.AgentEvent) err
 	}); err != nil {
 		return err
 	}
-	return writeSSERaw(writer, "", "[DONE]")
+	return core.WriteSSERaw(writer, "", "[DONE]")
 }
 
 func agentEventPayloadFromEvent(event acp.AgentEvent) agentEventPayload {

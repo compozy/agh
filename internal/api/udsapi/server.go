@@ -29,21 +29,6 @@ const (
 // Option customizes UDS server construction.
 type Option func(*Server)
 
-// AgentLoader loads one parsed AGENT.md definition.
-type AgentLoader = core.AgentLoader
-
-// SessionManager is the runtime session surface exposed over UDS.
-type SessionManager = core.SessionManager
-
-// Observer is the observability surface exposed over UDS.
-type Observer = core.Observer
-
-// DreamTrigger exposes consolidation controls and state to the UDS API.
-type DreamTrigger = core.DreamTrigger
-
-// WorkspaceService exposes workspace registration and resolution to the UDS API.
-type WorkspaceService = core.WorkspaceService
-
 // Server exposes the daemon API over a Unix domain socket.
 type Server struct {
 	mu sync.Mutex
@@ -55,12 +40,12 @@ type Server struct {
 	startedAt    time.Time
 	now          func() time.Time
 	pollInterval time.Duration
-	sessions     SessionManager
-	observer     Observer
-	workspaces   WorkspaceService
+	sessions     core.SessionManager
+	observer     core.Observer
+	workspaces   core.WorkspaceService
 	memoryStore  *memory.Store
-	dreamTrigger DreamTrigger
-	agentLoader  AgentLoader
+	dreamTrigger core.DreamTrigger
+	agentLoader  core.AgentLoader
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -73,18 +58,18 @@ type Server struct {
 }
 
 type handlerConfig struct {
-	sessions     SessionManager
-	observer     Observer
-	workspaces   WorkspaceService
+	sessions     core.SessionManager
+	observer     core.Observer
+	workspaces   core.WorkspaceService
 	memoryStore  *memory.Store
-	dreamTrigger DreamTrigger
+	dreamTrigger core.DreamTrigger
 	homePaths    aghconfig.HomePaths
 	config       aghconfig.Config
 	logger       *slog.Logger
 	startedAt    time.Time
 	now          func() time.Time
 	pollInterval time.Duration
-	agentLoader  AgentLoader
+	agentLoader  core.AgentLoader
 }
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
@@ -142,21 +127,21 @@ func WithPollInterval(interval time.Duration) Option {
 }
 
 // WithSessionManager injects the runtime session manager.
-func WithSessionManager(manager SessionManager) Option {
+func WithSessionManager(manager core.SessionManager) Option {
 	return func(server *Server) {
 		server.sessions = manager
 	}
 }
 
 // WithObserver injects the runtime observer.
-func WithObserver(observer Observer) Option {
+func WithObserver(observer core.Observer) Option {
 	return func(server *Server) {
 		server.observer = observer
 	}
 }
 
 // WithWorkspaceResolver injects the runtime workspace resolver/service.
-func WithWorkspaceResolver(workspaces WorkspaceService) Option {
+func WithWorkspaceResolver(workspaces core.WorkspaceService) Option {
 	return func(server *Server) {
 		server.workspaces = workspaces
 	}
@@ -170,14 +155,14 @@ func WithMemoryStore(store *memory.Store) Option {
 }
 
 // WithDreamTrigger injects the dream-consolidation trigger surfaced by the daemon.
-func WithDreamTrigger(trigger DreamTrigger) Option {
+func WithDreamTrigger(trigger core.DreamTrigger) Option {
 	return func(server *Server) {
 		server.dreamTrigger = trigger
 	}
 }
 
 // WithAgentLoader overrides agent definition loading.
-func WithAgentLoader(loader AgentLoader) Option {
+func WithAgentLoader(loader core.AgentLoader) Option {
 	return func(server *Server) {
 		server.agentLoader = loader
 	}

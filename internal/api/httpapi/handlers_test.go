@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
+	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -808,7 +810,7 @@ func TestErrorResponsesUseConsistentShape(t *testing.T) {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
 	}
 
-	var payload errorPayload
+	var payload contract.ErrorPayload
 	decodeJSONResponse(t, recorder, &payload)
 	if payload.Error == "" {
 		t.Fatal("expected non-empty error payload")
@@ -816,16 +818,16 @@ func TestErrorResponsesUseConsistentShape(t *testing.T) {
 }
 
 func TestStatusForSessionErrorIncludesApprovalCases(t *testing.T) {
-	if status := statusForSessionError(session.ErrSessionNotActive); status != http.StatusBadRequest {
+	if status := core.StatusForSessionError(session.ErrSessionNotActive); status != http.StatusBadRequest {
 		t.Fatalf("statusForSessionError(ErrSessionNotActive) = %d, want %d", status, http.StatusBadRequest)
 	}
-	if status := statusForSessionError(session.ErrPendingPermissionNotFound); status != http.StatusConflict {
+	if status := core.StatusForSessionError(session.ErrPendingPermissionNotFound); status != http.StatusConflict {
 		t.Fatalf("statusForSessionError(ErrPendingPermissionNotFound) = %d, want %d", status, http.StatusConflict)
 	}
-	if status := statusForSessionError(session.ErrPendingPermissionConflict); status != http.StatusConflict {
+	if status := core.StatusForSessionError(session.ErrPendingPermissionConflict); status != http.StatusConflict {
 		t.Fatalf("statusForSessionError(ErrPendingPermissionConflict) = %d, want %d", status, http.StatusConflict)
 	}
-	if status := statusForSessionError(errors.New("boom")); status != http.StatusInternalServerError {
+	if status := core.StatusForSessionError(errors.New("boom")); status != http.StatusInternalServerError {
 		t.Fatalf("statusForSessionError(default) = %d, want %d", status, http.StatusInternalServerError)
 	}
 }

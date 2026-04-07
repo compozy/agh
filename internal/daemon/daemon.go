@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
+	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/httpapi"
 	"github.com/pedronauck/agh/internal/api/udsapi"
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -23,7 +23,6 @@ import (
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
-	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -35,35 +34,20 @@ type Option func(*Daemon)
 // ConfigLoader resolves the daemon-level runtime configuration.
 type ConfigLoader func() (aghconfig.Config, error)
 
-// SessionManager is the session lifecycle surface consumed by daemon/.
-type SessionManager interface {
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
-	List() []*session.SessionInfo
-	ListAll(ctx context.Context) ([]*session.SessionInfo, error)
-	Status(ctx context.Context, id string) (*session.SessionInfo, error)
-	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
-	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
-	Transcript(ctx context.Context, id string) ([]transcript.Message, error)
-	Stop(ctx context.Context, id string) error
-	Resume(ctx context.Context, id string) (*session.Session, error)
-	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
-	ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error
-}
+// SessionManager is the shared transport-facing session surface consumed by daemon/.
+type SessionManager = core.SessionManager
 
-// Observer is the observability surface consumed by daemon/.
+// Observer is the daemon observer surface used for transport wiring and reconciliation.
 type Observer interface {
+	core.Observer
 	session.Notifier
-	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
-	Health(ctx context.Context) (observe.Health, error)
 	Reconcile(ctx context.Context) (store.ReconcileResult, error)
 }
 
-// Registry is the shared global database surface consumed by daemon/.
+// Registry is the narrowed global database surface shared by observe and workspace.
 type Registry interface {
-	store.SessionRegistry
+	observe.Registry
 	workspacepkg.WorkspaceStore
-	Path() string
-	Close(ctx context.Context) error
 }
 
 // Server is a daemon-owned runtime component with explicit start and shutdown phases.
@@ -82,7 +66,7 @@ type RuntimeDeps struct {
 	Registry          Registry
 	MemoryStore       *memory.Store
 	WorkspaceResolver workspacepkg.WorkspaceResolver
-	WorkspaceService  *workspacepkg.Resolver
+	WorkspaceService  core.WorkspaceService
 	DreamTrigger      DreamTrigger
 	StartedAt         time.Time
 }
@@ -91,11 +75,7 @@ type RuntimeDeps struct {
 type ServerFactory func(ctx context.Context, deps RuntimeDeps) (Server, error)
 
 // DreamTrigger exposes consolidation controls and health state to transport layers.
-type DreamTrigger interface {
-	Trigger(ctx context.Context, workspace string) (bool, string, error)
-	LastConsolidatedAt() (time.Time, error)
-	Enabled() bool
-}
+type DreamTrigger = core.DreamTrigger
 
 type registryOpener func(ctx context.Context, path string) (Registry, error)
 type sessionManagerFactory func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error)

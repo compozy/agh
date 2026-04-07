@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -165,7 +166,7 @@ func TestHelperBuildersCoverRemainingBranches(t *testing.T) {
 	}
 
 	writer := &bufferFlusher{}
-	if err := writeSSE(writer, sseMessage{ID: "1", Name: "done", Data: map[string]string{"ok": "true"}}); err != nil {
+	if err := core.WriteSSE(writer, core.SSEMessage{ID: "1", Name: "done", Data: map[string]string{"ok": "true"}}); err != nil {
 		t.Fatalf("writeSSE() error = %v", err)
 	}
 	if got := writer.String(); got == "" || !bytes.Contains([]byte(got), []byte("event: done")) {
@@ -199,16 +200,16 @@ func TestPayloadAndStatusHelpersCoverRemainingBranches(t *testing.T) {
 	if got := string(payloadJSON("plain-text")); got == "" || got == "plain-text" {
 		t.Fatalf("payloadJSON(plain-text) = %q, want quoted JSON", got)
 	}
-	if status := statusForSessionError(os.ErrNotExist); status != http.StatusNotFound {
+	if status := core.StatusForSessionError(os.ErrNotExist); status != http.StatusNotFound {
 		t.Fatalf("statusForSessionError(os.ErrNotExist) = %d, want %d", status, http.StatusNotFound)
 	}
-	if status := statusForSessionError(session.ErrMaxSessionsReached); status != http.StatusConflict {
+	if status := core.StatusForSessionError(session.ErrMaxSessionsReached); status != http.StatusConflict {
 		t.Fatalf("statusForSessionError(ErrMaxSessionsReached) = %d, want %d", status, http.StatusConflict)
 	}
-	if status := statusForSessionError(workspacepkg.ErrWorkspaceNotFound); status != http.StatusNotFound {
+	if status := core.StatusForSessionError(workspacepkg.ErrWorkspaceNotFound); status != http.StatusNotFound {
 		t.Fatalf("statusForSessionError(ErrWorkspaceNotFound) = %d, want %d", status, http.StatusNotFound)
 	}
-	if status := statusForSessionError(workspacepkg.ErrWorkspaceRootMissing); status != http.StatusGone {
+	if status := core.StatusForSessionError(workspacepkg.ErrWorkspaceRootMissing); status != http.StatusGone {
 		t.Fatalf("statusForSessionError(ErrWorkspaceRootMissing) = %d, want %d", status, http.StatusGone)
 	}
 	if status := statusForWorkspaceError(workspacepkg.ErrWorkspacePathTaken); status != http.StatusConflict {
@@ -217,7 +218,7 @@ func TestPayloadAndStatusHelpersCoverRemainingBranches(t *testing.T) {
 	if status := statusForWorkspaceError(workspacepkg.ErrWorkspaceHasSessions); status != http.StatusConflict {
 		t.Fatalf("statusForWorkspaceError(ErrWorkspaceHasSessions) = %d, want %d", status, http.StatusConflict)
 	}
-	if status := statusForSessionError(errors.New("boom")); status != http.StatusInternalServerError {
+	if status := core.StatusForSessionError(errors.New("boom")); status != http.StatusInternalServerError {
 		t.Fatalf("statusForSessionError(default) = %d, want %d", status, http.StatusInternalServerError)
 	}
 }

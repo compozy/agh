@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-yaml"
+	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
@@ -434,7 +435,7 @@ func TestMemoryHandlersReturnInternalErrorWithoutConfiguredStore(t *testing.T) {
 	}
 }
 
-func newTestMemoryHandlers(t *testing.T, manager SessionManager, observer Observer, store *memory.Store, trigger DreamTrigger) *Handlers {
+func newTestMemoryHandlers(t *testing.T, manager core.SessionManager, observer core.Observer, store *memory.Store, trigger core.DreamTrigger) *Handlers {
 	t.Helper()
 
 	homePaths := newTestHomePaths(t)
