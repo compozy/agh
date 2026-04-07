@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"log/slog"
 	"os"
@@ -18,6 +17,8 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/sessiondb"
+	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -138,7 +139,7 @@ func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
 		t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
 	}
 
-	reopened, err := store.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
+	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
@@ -188,7 +189,7 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 	}
 
 	dbPath := store.SessionDBFile(sessionDir)
-	recorder, err := store.OpenSessionDB(testutil.Context(t), "sess-helper", dbPath)
+	recorder, err := sessiondb.OpenSessionDB(testutil.Context(t), "sess-helper", dbPath)
 	if err != nil {
 		t.Fatalf("OpenSessionDB() error = %v", err)
 	}
@@ -514,7 +515,7 @@ func TestAgentCrashTransitionsToStoppedAndNotifies(t *testing.T) {
 		t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
 	}
 
-	reopened, err := store.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
+	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
@@ -561,7 +562,7 @@ func TestStopAndProcessExitFinalizeOnlyOnce(t *testing.T) {
 		t.Fatalf("stopped notifications = %d, want 1", got)
 	}
 
-	reopened, err := store.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
+	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
@@ -1032,7 +1033,7 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithNotifier(h.notifier),
 		WithWorkspaceResolver(h.resolver),
 		WithStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
-			return store.OpenSessionDB(ctx, sessionID, path)
+			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		}),
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithSessionIDGenerator(sequentialIDGenerator("sess")),

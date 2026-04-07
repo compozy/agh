@@ -1,13 +1,15 @@
-package store
+package globaldb
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/pedronauck/agh/internal/store"
 )
 
 // RegisterSession inserts or refreshes a session index row.
-func (g *GlobalDB) RegisterSession(ctx context.Context, session SessionInfo) error {
+func (g *GlobalDB) RegisterSession(ctx context.Context, session store.SessionInfo) error {
 	if err := g.checkReady(ctx, "register session"); err != nil {
 		return err
 	}
@@ -30,7 +32,7 @@ func (g *GlobalDB) RegisterSession(ctx context.Context, session SessionInfo) err
 }
 
 // UpdateSessionState updates the mutable session state fields.
-func (g *GlobalDB) UpdateSessionState(ctx context.Context, update SessionStateUpdate) error {
+func (g *GlobalDB) UpdateSessionState(ctx context.Context, update store.SessionStateUpdate) error {
 	if err := g.checkReady(ctx, "update session state"); err != nil {
 		return err
 	}
@@ -51,15 +53,15 @@ func (g *GlobalDB) UpdateSessionState(ctx context.Context, update SessionStateUp
 		query = `UPDATE sessions SET state = ?, acp_session_id = ?, updated_at = ? WHERE id = ?`
 		args = []any{
 			update.State,
-			nullableStringPointer(update.ACPSessionID),
-			formatTimestamp(updatedAt),
+			store.NullableStringPointer(update.ACPSessionID),
+			store.FormatTimestamp(updatedAt),
 			update.ID,
 		}
 	} else {
 		query = `UPDATE sessions SET state = ?, updated_at = ? WHERE id = ?`
 		args = []any{
 			update.State,
-			formatTimestamp(updatedAt),
+			store.FormatTimestamp(updatedAt),
 			update.ID,
 		}
 	}
@@ -79,7 +81,7 @@ func (g *GlobalDB) UpdateSessionState(ctx context.Context, update SessionStateUp
 }
 
 // ListSessions returns indexed sessions ordered by most recent update.
-func (g *GlobalDB) ListSessions(ctx context.Context, query SessionListQuery) ([]SessionInfo, error) {
+func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error) {
 	if err := g.checkReady(ctx, "list sessions"); err != nil {
 		return nil, err
 	}
@@ -88,13 +90,13 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query SessionListQuery) ([]
 	}
 
 	sqlQuery := `SELECT id, name, agent_name, workspace_id, session_type, state, acp_session_id, created_at, updated_at FROM sessions`
-	where, args := buildClauses(
-		stringClause("state", query.State),
-		stringClause("agent_name", query.AgentName),
+	where, args := store.BuildClauses(
+		store.StringClause("state", query.State),
+		store.StringClause("agent_name", query.AgentName),
 	)
-	sqlQuery = appendWhere(sqlQuery, where)
+	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY updated_at DESC, created_at DESC, id DESC"
-	sqlQuery, args = appendLimit(sqlQuery, args, query.Limit)
+	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
@@ -104,7 +106,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query SessionListQuery) ([]
 		_ = rows.Close()
 	}()
 
-	sessions := make([]SessionInfo, 0)
+	sessions := make([]store.SessionInfo, 0)
 	for rows.Next() {
 		session, scanErr := scanSessionInfo(rows)
 		if scanErr != nil {
@@ -120,23 +122,23 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query SessionListQuery) ([]
 }
 
 // ReconcileSessions upserts on-disk sessions and marks missing ones as orphaned.
-func (g *GlobalDB) ReconcileSessions(ctx context.Context, sessions []SessionInfo) (ReconcileResult, error) {
+func (g *GlobalDB) ReconcileSessions(ctx context.Context, sessions []store.SessionInfo) (store.ReconcileResult, error) {
 	if err := g.checkReady(ctx, "reconcile sessions"); err != nil {
-		return ReconcileResult{}, err
+		return store.ReconcileResult{}, err
 	}
 
 	tx, err := g.db.BeginTx(ctx, nil)
 	if err != nil {
-		return ReconcileResult{}, fmt.Errorf("store: begin session reconcile transaction: %w", err)
+		return store.ReconcileResult{}, fmt.Errorf("store: begin session reconcile transaction: %w", err)
 	}
 
 	existing, err := g.loadSessionIDs(ctx, tx)
 	if err != nil {
 		_ = tx.Rollback()
-		return ReconcileResult{}, err
+		return store.ReconcileResult{}, err
 	}
 
-	result := ReconcileResult{
+	result := store.ReconcileResult{
 		Indexed:  make([]string, 0),
 		Orphaned: make([]string, 0),
 	}
@@ -145,7 +147,7 @@ func (g *GlobalDB) ReconcileSessions(ctx context.Context, sessions []SessionInfo
 	for _, session := range sessions {
 		if err := session.Validate(); err != nil {
 			_ = tx.Rollback()
-			return ReconcileResult{}, err
+			return store.ReconcileResult{}, err
 		}
 		normalized := session
 		if normalized.CreatedAt.IsZero() {
@@ -163,11 +165,11 @@ func (g *GlobalDB) ReconcileSessions(ctx context.Context, sessions []SessionInfo
 		}
 		if err := g.registerSession(ctx, tx, normalized); err != nil {
 			_ = tx.Rollback()
-			return ReconcileResult{}, fmt.Errorf("store: reconcile session %q: %w", normalized.ID, err)
+			return store.ReconcileResult{}, fmt.Errorf("store: reconcile session %q: %w", normalized.ID, err)
 		}
 	}
 
-	orphanedAt := formatTimestamp(g.now())
+	orphanedAt := store.FormatTimestamp(g.now())
 	for id := range existing {
 		if _, ok := seen[id]; ok {
 			continue
@@ -180,19 +182,19 @@ func (g *GlobalDB) ReconcileSessions(ctx context.Context, sessions []SessionInfo
 			id,
 		); err != nil {
 			_ = tx.Rollback()
-			return ReconcileResult{}, fmt.Errorf("store: mark orphaned session %q: %w", id, err)
+			return store.ReconcileResult{}, fmt.Errorf("store: mark orphaned session %q: %w", id, err)
 		}
 		result.Orphaned = append(result.Orphaned, id)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return ReconcileResult{}, fmt.Errorf("store: commit session reconcile transaction: %w", err)
+		return store.ReconcileResult{}, fmt.Errorf("store: commit session reconcile transaction: %w", err)
 	}
 
 	return result, nil
 }
 
-func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, session SessionInfo) error {
+func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, session store.SessionInfo) error {
 	_, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO sessions (
@@ -207,14 +209,14 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			acp_session_id = excluded.acp_session_id,
 			updated_at = excluded.updated_at`,
 		session.ID,
-		nullableString(session.Name),
+		store.NullableString(session.Name),
 		session.AgentName,
 		session.WorkspaceID,
-		normalizeSessionType(session.SessionType),
+		store.NormalizeSessionType(session.SessionType),
 		session.State,
-		nullableStringPointer(session.ACPSessionID),
-		formatTimestamp(session.CreatedAt),
-		formatTimestamp(session.UpdatedAt),
+		store.NullableStringPointer(session.ACPSessionID),
+		store.FormatTimestamp(session.CreatedAt),
+		store.FormatTimestamp(session.UpdatedAt),
 	)
 	return err
 }
@@ -247,9 +249,9 @@ type sqlExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-func scanSessionInfo(scanner rowScanner) (SessionInfo, error) {
+func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	var (
-		session      SessionInfo
+		session      store.SessionInfo
 		name         sql.NullString
 		sessionType  string
 		acpSessionID sql.NullString
@@ -267,25 +269,29 @@ func scanSessionInfo(scanner rowScanner) (SessionInfo, error) {
 		&createdAtRaw,
 		&updatedAtRaw,
 	); err != nil {
-		return SessionInfo{}, fmt.Errorf("store: scan session info: %w", err)
+		return store.SessionInfo{}, fmt.Errorf("store: scan session info: %w", err)
 	}
 
 	if name.Valid {
 		session.Name = name.String
 	}
-	session.SessionType = normalizeSessionType(sessionType)
-	session.ACPSessionID = nullString(acpSessionID)
+	session.SessionType = store.NormalizeSessionType(sessionType)
+	session.ACPSessionID = store.NullString(acpSessionID)
 
-	createdAt, err := parseTimestamp(createdAtRaw)
+	createdAt, err := store.ParseTimestamp(createdAtRaw)
 	if err != nil {
-		return SessionInfo{}, err
+		return store.SessionInfo{}, err
 	}
-	updatedAt, err := parseTimestamp(updatedAtRaw)
+	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
 	if err != nil {
-		return SessionInfo{}, err
+		return store.SessionInfo{}, err
 	}
 	session.CreatedAt = createdAt
 	session.UpdatedAt = updatedAt
 
 	return session, nil
+}
+
+type rowScanner interface {
+	Scan(dest ...any) error
 }

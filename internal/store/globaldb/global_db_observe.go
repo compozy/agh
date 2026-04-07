@@ -1,14 +1,16 @@
-package store
+package globaldb
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/pedronauck/agh/internal/store"
 )
 
 // WriteEventSummary stores a lightweight cross-session summary entry.
-func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary EventSummary) error {
+func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary store.EventSummary) error {
 	if err := g.checkReady(ctx, "write event summary"); err != nil {
 		return err
 	}
@@ -16,7 +18,7 @@ func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary EventSummary) 
 		return err
 	}
 	if strings.TrimSpace(summary.ID) == "" {
-		summary.ID = newID("sum")
+		summary.ID = store.NewID("sum")
 	}
 	if summary.Timestamp.IsZero() {
 		summary.Timestamp = g.now()
@@ -30,8 +32,8 @@ func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary EventSummary) 
 		summary.SessionID,
 		summary.Type,
 		summary.AgentName,
-		nullableString(summary.Summary),
-		formatTimestamp(summary.Timestamp),
+		store.NullableString(summary.Summary),
+		store.FormatTimestamp(summary.Timestamp),
 	); err != nil {
 		return fmt.Errorf("store: insert event summary: %w", err)
 	}
@@ -39,7 +41,7 @@ func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary EventSummary) 
 }
 
 // ListEventSummaries returns global event summaries filtered by the supplied options.
-func (g *GlobalDB) ListEventSummaries(ctx context.Context, query EventSummaryQuery) ([]EventSummary, error) {
+func (g *GlobalDB) ListEventSummaries(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
 	if err := g.checkReady(ctx, "list event summaries"); err != nil {
 		return nil, err
 	}
@@ -48,13 +50,13 @@ func (g *GlobalDB) ListEventSummaries(ctx context.Context, query EventSummaryQue
 	}
 
 	baseQuery := `SELECT id, session_id, type, agent_name, summary, timestamp FROM event_summaries`
-	where, args := buildClauses(
-		stringClause("session_id", query.SessionID),
-		stringClause("agent_name", query.AgentName),
-		stringClause("type", query.Type),
-		timeClause("timestamp", ">=", query.Since),
+	where, args := store.BuildClauses(
+		store.StringClause("session_id", query.SessionID),
+		store.StringClause("agent_name", query.AgentName),
+		store.StringClause("type", query.Type),
+		store.TimeClause("timestamp", ">=", query.Since),
 	)
-	baseQuery = appendWhere(baseQuery, where)
+	baseQuery = store.AppendWhere(baseQuery, where)
 
 	sqlQuery := baseQuery
 	if query.Limit > 0 {
@@ -74,7 +76,7 @@ func (g *GlobalDB) ListEventSummaries(ctx context.Context, query EventSummaryQue
 		_ = rows.Close()
 	}()
 
-	summaries := make([]EventSummary, 0)
+	summaries := make([]store.EventSummary, 0)
 	for rows.Next() {
 		summary, scanErr := scanEventSummary(rows)
 		if scanErr != nil {
@@ -90,7 +92,7 @@ func (g *GlobalDB) ListEventSummaries(ctx context.Context, query EventSummaryQue
 }
 
 // UpdateTokenStats merges one or more turns of token usage into the session aggregate.
-func (g *GlobalDB) UpdateTokenStats(ctx context.Context, update TokenStatsUpdate) error {
+func (g *GlobalDB) UpdateTokenStats(ctx context.Context, update store.TokenStatsUpdate) error {
 	if err := g.checkReady(ctx, "update token stats"); err != nil {
 		return err
 	}
@@ -134,16 +136,16 @@ func (g *GlobalDB) UpdateTokenStats(ctx context.Context, update TokenStatsUpdate
 			cost_currency = COALESCE(excluded.cost_currency, token_stats.cost_currency),
 			turn_count = token_stats.turn_count + excluded.turn_count,
 			updated_at = excluded.updated_at`,
-		newID("tok"),
+		store.NewID("tok"),
 		update.SessionID,
 		update.AgentName,
-		nullableInt64(update.InputTokens),
-		nullableInt64(update.OutputTokens),
-		nullableInt64(update.TotalTokens),
-		nullableFloat64(update.CostAmount),
-		nullableStringPointer(update.CostCurrency),
+		store.NullableInt64(update.InputTokens),
+		store.NullableInt64(update.OutputTokens),
+		store.NullableInt64(update.TotalTokens),
+		store.NullableFloat64(update.CostAmount),
+		store.NullableStringPointer(update.CostCurrency),
 		update.Turns,
-		formatTimestamp(update.UpdatedAt),
+		store.FormatTimestamp(update.UpdatedAt),
 	); err != nil {
 		return fmt.Errorf("store: upsert token stats for session %q: %w", update.SessionID, err)
 	}
@@ -152,7 +154,7 @@ func (g *GlobalDB) UpdateTokenStats(ctx context.Context, update TokenStatsUpdate
 }
 
 // ListTokenStats returns aggregated token usage rows.
-func (g *GlobalDB) ListTokenStats(ctx context.Context, query TokenStatsQuery) ([]TokenStats, error) {
+func (g *GlobalDB) ListTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error) {
 	if err := g.checkReady(ctx, "list token stats"); err != nil {
 		return nil, err
 	}
@@ -161,13 +163,13 @@ func (g *GlobalDB) ListTokenStats(ctx context.Context, query TokenStatsQuery) ([
 	}
 
 	sqlQuery := `SELECT id, session_id, agent_name, input_tokens, output_tokens, total_tokens, total_cost, cost_currency, turn_count, updated_at FROM token_stats`
-	where, args := buildClauses(
-		stringClause("session_id", query.SessionID),
-		stringClause("agent_name", query.AgentName),
+	where, args := store.BuildClauses(
+		store.StringClause("session_id", query.SessionID),
+		store.StringClause("agent_name", query.AgentName),
 	)
-	sqlQuery = appendWhere(sqlQuery, where)
+	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY updated_at DESC, id DESC"
-	sqlQuery, args = appendLimit(sqlQuery, args, query.Limit)
+	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
@@ -177,7 +179,7 @@ func (g *GlobalDB) ListTokenStats(ctx context.Context, query TokenStatsQuery) ([
 		_ = rows.Close()
 	}()
 
-	stats := make([]TokenStats, 0)
+	stats := make([]store.TokenStats, 0)
 	for rows.Next() {
 		stat, scanErr := scanTokenStats(rows)
 		if scanErr != nil {
@@ -192,9 +194,9 @@ func (g *GlobalDB) ListTokenStats(ctx context.Context, query TokenStatsQuery) ([
 	return stats, nil
 }
 
-func scanEventSummary(scanner rowScanner) (EventSummary, error) {
+func scanEventSummary(scanner rowScanner) (store.EventSummary, error) {
 	var (
-		summary      EventSummary
+		summary      store.EventSummary
 		summaryText  sql.NullString
 		timestampRaw string
 	)
@@ -206,23 +208,23 @@ func scanEventSummary(scanner rowScanner) (EventSummary, error) {
 		&summaryText,
 		&timestampRaw,
 	); err != nil {
-		return EventSummary{}, fmt.Errorf("store: scan event summary: %w", err)
+		return store.EventSummary{}, fmt.Errorf("store: scan event summary: %w", err)
 	}
 
 	if summaryText.Valid {
 		summary.Summary = summaryText.String
 	}
-	timestamp, err := parseTimestamp(timestampRaw)
+	timestamp, err := store.ParseTimestamp(timestampRaw)
 	if err != nil {
-		return EventSummary{}, err
+		return store.EventSummary{}, err
 	}
 	summary.Timestamp = timestamp
 	return summary, nil
 }
 
-func scanTokenStats(scanner rowScanner) (TokenStats, error) {
+func scanTokenStats(scanner rowScanner) (store.TokenStats, error) {
 	var (
-		stats        TokenStats
+		stats        store.TokenStats
 		inputTokens  sql.NullInt64
 		outputTokens sql.NullInt64
 		totalTokens  sql.NullInt64
@@ -242,18 +244,18 @@ func scanTokenStats(scanner rowScanner) (TokenStats, error) {
 		&stats.TurnCount,
 		&updatedAtRaw,
 	); err != nil {
-		return TokenStats{}, fmt.Errorf("store: scan token stats: %w", err)
+		return store.TokenStats{}, fmt.Errorf("store: scan token stats: %w", err)
 	}
 
-	stats.InputTokens = nullInt64(inputTokens)
-	stats.OutputTokens = nullInt64(outputTokens)
-	stats.TotalTokens = nullInt64(totalTokens)
-	stats.TotalCost = nullFloat64(totalCost)
-	stats.CostCurrency = nullString(costCurrency)
+	stats.InputTokens = store.NullInt64(inputTokens)
+	stats.OutputTokens = store.NullInt64(outputTokens)
+	stats.TotalTokens = store.NullInt64(totalTokens)
+	stats.TotalCost = store.NullFloat64(totalCost)
+	stats.CostCurrency = store.NullString(costCurrency)
 
-	updatedAt, err := parseTimestamp(updatedAtRaw)
+	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
 	if err != nil {
-		return TokenStats{}, err
+		return store.TokenStats{}, err
 	}
 	stats.UpdatedAt = updatedAt
 

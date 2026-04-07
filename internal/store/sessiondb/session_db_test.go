@@ -1,16 +1,24 @@
-package store
+package sessiondb
 
 import (
 	"database/sql"
 	"fmt"
-	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/testutil"
 )
+
+type SessionEvent = store.SessionEvent
+type TokenUsage = store.TokenUsage
+type EventQuery = store.EventQuery
+
+const SessionDatabaseName = store.SessionDatabaseName
 
 func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 	t.Parallel()

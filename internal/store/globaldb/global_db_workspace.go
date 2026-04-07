@@ -1,4 +1,4 @@
-package store
+package globaldb
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pedronauck/agh/internal/store"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -31,9 +32,9 @@ func (g *GlobalDB) InsertWorkspace(ctx context.Context, ws aghworkspace.Workspac
 		normalized.RootDir,
 		addDirsJSON,
 		normalized.Name,
-		nullableString(normalized.DefaultAgent),
-		formatTimestamp(normalized.CreatedAt),
-		formatTimestamp(normalized.UpdatedAt),
+		store.NullableString(normalized.DefaultAgent),
+		store.FormatTimestamp(normalized.CreatedAt),
+		store.FormatTimestamp(normalized.UpdatedAt),
 	); err != nil {
 		return fmt.Errorf("store: insert workspace %q: %w", normalized.ID, mapWorkspaceConstraintError(err))
 	}
@@ -60,8 +61,8 @@ func (g *GlobalDB) UpdateWorkspace(ctx context.Context, ws aghworkspace.Workspac
 		normalized.RootDir,
 		addDirsJSON,
 		normalized.Name,
-		nullableString(normalized.DefaultAgent),
-		formatTimestamp(normalized.UpdatedAt),
+		store.NullableString(normalized.DefaultAgent),
+		store.FormatTimestamp(normalized.UpdatedAt),
 		normalized.ID,
 	)
 	if err != nil {
@@ -201,7 +202,7 @@ func (g *GlobalDB) normalizeWorkspaceForInsert(ws aghworkspace.Workspace) (aghwo
 	}
 
 	if strings.TrimSpace(normalized.ID) == "" {
-		normalized.ID = newID("ws")
+		normalized.ID = store.NewID("ws")
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = g.now()
@@ -258,11 +259,11 @@ func scanWorkspace(scanner rowScanner) (aghworkspace.Workspace, error) {
 		ws.DefaultAgent = strings.TrimSpace(defaultAgent.String)
 	}
 
-	createdAt, err := parseTimestamp(createdAtRaw)
+	createdAt, err := store.ParseTimestamp(createdAtRaw)
 	if err != nil {
 		return aghworkspace.Workspace{}, err
 	}
-	updatedAt, err := parseTimestamp(updatedAtRaw)
+	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
 	if err != nil {
 		return aghworkspace.Workspace{}, err
 	}

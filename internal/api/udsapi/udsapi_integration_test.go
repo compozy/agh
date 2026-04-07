@@ -21,7 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -440,7 +440,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		"fake": {Command: "fake-agent"},
 	}
 
-	registry, err := store.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
+	registry, err := globaldb.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

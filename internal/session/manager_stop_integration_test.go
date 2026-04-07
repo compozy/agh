@@ -5,7 +5,6 @@ package session
 import (
 	"context"
 	"errors"
-	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"log/slog"
 	"os"
@@ -21,7 +20,8 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
+	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -132,7 +132,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 	command := sessionStopHelperCommand(t)
 	writeSessionIntegrationAgentDef(t, homePaths, "coder", command)
 
-	registry, err := store.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
+	registry, err := globaldb.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

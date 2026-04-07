@@ -12,7 +12,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/sessiondb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -172,7 +172,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		driver:     NewACPDriverAdapter(acp.New()),
 		homePaths:  homePaths,
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
-			return store.OpenSessionDB(ctx, sessionID, path)
+			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},
 		now: func() time.Time {
 			return time.Now().UTC()

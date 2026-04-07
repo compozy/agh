@@ -17,7 +17,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
 	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 	"github.com/spf13/cobra"
 )
@@ -332,7 +332,7 @@ func resolveSkillWorkspace(ctx context.Context, runtime runtimeContext, workspac
 }
 
 func resolveRegisteredSkillWorkspace(ctx context.Context, runtime runtimeContext, workspaceRoot string) (resolved workspacepkg.ResolvedWorkspace, err error) {
-	globalDB, err := store.OpenGlobalDB(ctx, runtime.HomePaths.DatabaseFile)
+	globalDB, err := globaldb.OpenGlobalDB(ctx, runtime.HomePaths.DatabaseFile)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: open workspace database %q: %w", runtime.HomePaths.DatabaseFile, err)
 	}

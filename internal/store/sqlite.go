@@ -14,7 +14,9 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func openSQLiteDatabase(ctx context.Context, path string, initialize func(context.Context, *sql.DB) error) (*sql.DB, error) {
+// OpenSQLiteDatabase opens a SQLite database, applies shared configuration,
+// and retries once after moving aside a corrupt file.
+func OpenSQLiteDatabase(ctx context.Context, path string, initialize func(context.Context, *sql.DB) error) (*sql.DB, error) {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return nil, errors.New("store: database path is required")
@@ -27,7 +29,7 @@ func openSQLiteDatabase(ctx context.Context, path string, initialize func(contex
 	if err == nil {
 		return db, nil
 	}
-	if !shouldRecoverSQLite(err) {
+	if !ShouldRecoverSQLite(err) {
 		return nil, err
 	}
 	if _, statErr := os.Stat(cleanPath); statErr != nil {
@@ -110,7 +112,8 @@ func querySingleString(ctx context.Context, db *sql.DB, stmt string) (string, er
 	return value, nil
 }
 
-func normalizeSQLiteIdentifier(value string) (string, error) {
+// NormalizeSQLiteIdentifier validates a SQLite identifier for use in helper queries.
+func NormalizeSQLiteIdentifier(value string) (string, error) {
 	name := strings.TrimSpace(value)
 	if name == "" {
 		return "", errors.New("store: sqlite identifier is required")
@@ -130,7 +133,8 @@ func normalizeSQLiteIdentifier(value string) (string, error) {
 	return name, nil
 }
 
-func checkpoint(ctx context.Context, db *sql.DB) error {
+// Checkpoint truncates the WAL for an open SQLite database.
+func Checkpoint(ctx context.Context, db *sql.DB) error {
 	if db == nil {
 		return nil
 	}
@@ -148,7 +152,8 @@ func recoverSQLiteDatabase(path string) (string, error) {
 	return corruptPath, nil
 }
 
-func shouldRecoverSQLite(err error) bool {
+// ShouldRecoverSQLite reports whether the open error indicates recoverable corruption.
+func ShouldRecoverSQLite(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -173,4 +178,16 @@ func closeQuietly(db *sql.DB) {
 	if db != nil {
 		_ = db.Close()
 	}
+}
+
+func openSQLiteDatabase(ctx context.Context, path string, initialize func(context.Context, *sql.DB) error) (*sql.DB, error) {
+	return OpenSQLiteDatabase(ctx, path, initialize)
+}
+
+func checkpoint(ctx context.Context, db *sql.DB) error {
+	return Checkpoint(ctx, db)
+}
+
+func shouldRecoverSQLite(err error) bool {
+	return ShouldRecoverSQLite(err)
 }

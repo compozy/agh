@@ -1,14 +1,15 @@
 //go:build integration
 
-package store
+package sessiondb
 
 import (
 	"fmt"
-	"github.com/pedronauck/agh/internal/testutil"
 	"path/filepath"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestSessionDBLifecyclePersistsAcrossReopen(t *testing.T) {

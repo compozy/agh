@@ -1,4 +1,4 @@
-package store
+package sessiondb
 
 import (
 	"context"
@@ -9,7 +9,45 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/pedronauck/agh/internal/store"
 )
+
+const (
+	defaultWriteBufferSize = 256
+	defaultDrainTimeout    = 5 * time.Second
+)
+
+var sessionSchemaStatements = []string{
+	`CREATE TABLE IF NOT EXISTS events (
+		id         TEXT PRIMARY KEY,
+		sequence   INTEGER NOT NULL,
+		turn_id    TEXT NOT NULL,
+		type       TEXT NOT NULL,
+		agent_name TEXT NOT NULL,
+		content    TEXT NOT NULL,
+		timestamp  TEXT NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);`,
+	`CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);`,
+	`CREATE INDEX IF NOT EXISTS idx_events_sequence ON events(sequence);`,
+	`CREATE INDEX IF NOT EXISTS idx_events_turn ON events(turn_id);`,
+	`CREATE TABLE IF NOT EXISTS token_usage (
+		turn_id            TEXT PRIMARY KEY,
+		input_tokens       INTEGER,
+		output_tokens      INTEGER,
+		total_tokens       INTEGER,
+		thought_tokens     INTEGER,
+		cache_read_tokens  INTEGER,
+		cache_write_tokens INTEGER,
+		context_used       INTEGER,
+		context_size       INTEGER,
+		cost_amount        REAL,
+		cost_currency      TEXT,
+		timestamp          TEXT NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_usage_timestamp ON token_usage(timestamp);`,
+}
 
 const (
 	sessionStateOpen int32 = iota
@@ -27,8 +65,8 @@ const (
 type sessionWriteRequest struct {
 	ctx    context.Context
 	kind   sessionWriteKind
-	event  SessionEvent
-	usage  TokenUsage
+	event  store.SessionEvent
+	usage  store.TokenUsage
 	result chan error
 }
 
@@ -54,7 +92,7 @@ type SessionDB struct {
 	nextSequence int64
 }
 
-var _ EventRecorder = (*SessionDB)(nil)
+var _ store.EventRecorder = (*SessionDB)(nil)
 
 // OpenSessionDB opens or creates the per-session events database at path.
 func OpenSessionDB(ctx context.Context, sessionID string, path string) (*SessionDB, error) {
@@ -72,7 +110,7 @@ func OpenSessionDB(ctx context.Context, sessionID string, path string) (*Session
 
 	nextSequence, err := currentMaxSequence(ctx, db)
 	if err != nil {
-		closeQuietly(db)
+		_ = db.Close()
 		return nil, fmt.Errorf("store: load current sequence for %q: %w", path, err)
 	}
 
@@ -116,7 +154,7 @@ func (s *SessionDB) SessionID() string {
 }
 
 // Record appends a session event using the dedicated writer goroutine.
-func (s *SessionDB) Record(ctx context.Context, event SessionEvent) error {
+func (s *SessionDB) Record(ctx context.Context, event store.SessionEvent) error {
 	if s == nil {
 		return errors.New("store: session database is required")
 	}
@@ -140,7 +178,7 @@ func (s *SessionDB) Record(ctx context.Context, event SessionEvent) error {
 }
 
 // RecordTokenUsage stores or merges per-turn usage data for the session.
-func (s *SessionDB) RecordTokenUsage(ctx context.Context, usage TokenUsage) error {
+func (s *SessionDB) RecordTokenUsage(ctx context.Context, usage store.TokenUsage) error {
 	if s == nil {
 		return errors.New("store: session database is required")
 	}
@@ -160,7 +198,7 @@ func (s *SessionDB) RecordTokenUsage(ctx context.Context, usage TokenUsage) erro
 }
 
 // Query returns events filtered by the supplied options.
-func (s *SessionDB) Query(ctx context.Context, query EventQuery) ([]SessionEvent, error) {
+func (s *SessionDB) Query(ctx context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
 	if s == nil {
 		return nil, errors.New("store: session database is required")
 	}
@@ -172,14 +210,14 @@ func (s *SessionDB) Query(ctx context.Context, query EventQuery) ([]SessionEvent
 	}
 
 	baseQuery := `SELECT id, sequence, turn_id, type, agent_name, content, timestamp FROM events`
-	where, args := buildClauses(
-		stringClause("type", query.Type),
-		stringClause("agent_name", query.AgentName),
-		stringClause("turn_id", query.TurnID),
-		timeClause("timestamp", ">=", query.Since),
-		int64Clause("sequence", ">", query.AfterSequence),
+	where, args := store.BuildClauses(
+		store.StringClause("type", query.Type),
+		store.StringClause("agent_name", query.AgentName),
+		store.StringClause("turn_id", query.TurnID),
+		store.TimeClause("timestamp", ">=", query.Since),
+		store.Int64Clause("sequence", ">", query.AfterSequence),
 	)
-	baseQuery = appendWhere(baseQuery, where)
+	baseQuery = store.AppendWhere(baseQuery, where)
 
 	sqlQuery := baseQuery
 	if query.Limit > 0 {
@@ -199,7 +237,7 @@ func (s *SessionDB) Query(ctx context.Context, query EventQuery) ([]SessionEvent
 		_ = rows.Close()
 	}()
 
-	events := make([]SessionEvent, 0)
+	events := make([]store.SessionEvent, 0)
 	for rows.Next() {
 		event, scanErr := s.scanSessionEvent(rows)
 		if scanErr != nil {
@@ -215,13 +253,13 @@ func (s *SessionDB) Query(ctx context.Context, query EventQuery) ([]SessionEvent
 }
 
 // History returns ordered session events grouped by turn id.
-func (s *SessionDB) History(ctx context.Context, query EventQuery) ([]TurnHistory, error) {
+func (s *SessionDB) History(ctx context.Context, query store.EventQuery) ([]store.TurnHistory, error) {
 	events, err := s.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	turns := make([]TurnHistory, 0)
+	turns := make([]store.TurnHistory, 0)
 	indexByTurnID := make(map[string]int, len(events))
 	for _, event := range events {
 		if idx, ok := indexByTurnID[event.TurnID]; ok {
@@ -230,9 +268,9 @@ func (s *SessionDB) History(ctx context.Context, query EventQuery) ([]TurnHistor
 		}
 
 		indexByTurnID[event.TurnID] = len(turns)
-		turns = append(turns, TurnHistory{
+		turns = append(turns, store.TurnHistory{
 			TurnID: event.TurnID,
-			Events: []SessionEvent{event},
+			Events: []store.SessionEvent{event},
 		})
 	}
 
@@ -251,7 +289,7 @@ func (s *SessionDB) Close(ctx context.Context) error {
 		if s.state.Load() == sessionStateClosed {
 			return nil
 		}
-		return ErrClosed
+		return store.ErrClosed
 	}
 
 	drainCtx, cancel := context.WithTimeout(ctx, s.drainTimeout)
@@ -267,7 +305,7 @@ func (s *SessionDB) Close(ctx context.Context) error {
 
 	writerErr := waitForShutdownResult(drainCtx, resultCh)
 	writerExitErr := waitForWriterExit(drainCtx, s.writerDone)
-	checkpointErr := checkpoint(drainCtx, s.db)
+	checkpointErr := store.Checkpoint(drainCtx, s.db)
 	closeErr := s.db.Close()
 
 	s.state.Store(sessionStateClosed)
@@ -280,7 +318,7 @@ func (s *SessionDB) enqueueWrite(ctx context.Context, req sessionWriteRequest) e
 	defer s.acceptMu.RUnlock()
 
 	if s.state.Load() != sessionStateOpen {
-		return ErrClosed
+		return store.ErrClosed
 	}
 
 	select {
@@ -315,7 +353,7 @@ func (s *SessionDB) drainWrites(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return errors.Join(drainErr, fmt.Errorf("%w: %w", ErrDrainTimeout, ctx.Err()))
+			return errors.Join(drainErr, fmt.Errorf("%w: %w", store.ErrDrainTimeout, ctx.Err()))
 		case req := <-s.writeCh:
 			err := s.executeWrite(req)
 			req.result <- err
@@ -343,9 +381,9 @@ func (s *SessionDB) executeWrite(req sessionWriteRequest) error {
 	}
 }
 
-func (s *SessionDB) writeEvent(ctx context.Context, event SessionEvent) error {
+func (s *SessionDB) writeEvent(ctx context.Context, event store.SessionEvent) error {
 	if strings.TrimSpace(event.ID) == "" {
-		event.ID = newID("ev")
+		event.ID = store.NewID("ev")
 	}
 	if event.Timestamp.IsZero() {
 		event.Timestamp = s.now()
@@ -364,7 +402,7 @@ func (s *SessionDB) writeEvent(ctx context.Context, event SessionEvent) error {
 		event.Type,
 		event.AgentName,
 		event.Content,
-		formatTimestamp(event.Timestamp),
+		store.FormatTimestamp(event.Timestamp),
 	); err != nil {
 		s.nextSequence--
 		return fmt.Errorf("store: insert session event: %w", err)
@@ -373,7 +411,7 @@ func (s *SessionDB) writeEvent(ctx context.Context, event SessionEvent) error {
 	return nil
 }
 
-func (s *SessionDB) writeTokenUsage(ctx context.Context, usage TokenUsage) error {
+func (s *SessionDB) writeTokenUsage(ctx context.Context, usage store.TokenUsage) error {
 	if usage.Timestamp.IsZero() {
 		usage.Timestamp = s.now()
 	}
@@ -398,17 +436,17 @@ func (s *SessionDB) writeTokenUsage(ctx context.Context, usage TokenUsage) error
 			cost_currency = COALESCE(excluded.cost_currency, token_usage.cost_currency),
 			timestamp = excluded.timestamp`,
 		usage.TurnID,
-		nullableInt64(usage.InputTokens),
-		nullableInt64(usage.OutputTokens),
-		nullableInt64(usage.TotalTokens),
-		nullableInt64(usage.ThoughtTokens),
-		nullableInt64(usage.CacheReadTokens),
-		nullableInt64(usage.CacheWriteTokens),
-		nullableInt64(usage.ContextUsed),
-		nullableInt64(usage.ContextSize),
-		nullableFloat64(usage.CostAmount),
-		nullableStringPointer(usage.CostCurrency),
-		formatTimestamp(usage.Timestamp),
+		store.NullableInt64(usage.InputTokens),
+		store.NullableInt64(usage.OutputTokens),
+		store.NullableInt64(usage.TotalTokens),
+		store.NullableInt64(usage.ThoughtTokens),
+		store.NullableInt64(usage.CacheReadTokens),
+		store.NullableInt64(usage.CacheWriteTokens),
+		store.NullableInt64(usage.ContextUsed),
+		store.NullableInt64(usage.ContextSize),
+		store.NullableFloat64(usage.CostAmount),
+		store.NullableStringPointer(usage.CostCurrency),
+		store.FormatTimestamp(usage.Timestamp),
 	); err != nil {
 		return fmt.Errorf("store: upsert token usage: %w", err)
 	}
@@ -416,9 +454,9 @@ func (s *SessionDB) writeTokenUsage(ctx context.Context, usage TokenUsage) error
 	return nil
 }
 
-func (s *SessionDB) scanSessionEvent(scanner rowScanner) (SessionEvent, error) {
+func (s *SessionDB) scanSessionEvent(scanner rowScanner) (store.SessionEvent, error) {
 	var (
-		event     SessionEvent
+		event     store.SessionEvent
 		timestamp string
 	)
 	if err := scanner.Scan(
@@ -430,12 +468,12 @@ func (s *SessionDB) scanSessionEvent(scanner rowScanner) (SessionEvent, error) {
 		&event.Content,
 		&timestamp,
 	); err != nil {
-		return SessionEvent{}, fmt.Errorf("store: scan session event: %w", err)
+		return store.SessionEvent{}, fmt.Errorf("store: scan session event: %w", err)
 	}
 
-	parsed, err := parseTimestamp(timestamp)
+	parsed, err := store.ParseTimestamp(timestamp)
 	if err != nil {
-		return SessionEvent{}, err
+		return store.SessionEvent{}, err
 	}
 	event.Timestamp = parsed
 	event.SessionID = s.sessionID
@@ -455,7 +493,7 @@ func waitForShutdownResult(ctx context.Context, resultCh <-chan error) error {
 	case err := <-resultCh:
 		return err
 	case <-ctx.Done():
-		return fmt.Errorf("%w: %w", ErrDrainTimeout, ctx.Err())
+		return fmt.Errorf("%w: %w", store.ErrDrainTimeout, ctx.Err())
 	}
 }
 
@@ -467,6 +505,16 @@ func waitForWriterExit(ctx context.Context, done <-chan struct{}) error {
 	case <-done:
 		return nil
 	case <-ctx.Done():
-		return fmt.Errorf("%w: %w", ErrDrainTimeout, ctx.Err())
+		return fmt.Errorf("%w: %w", store.ErrDrainTimeout, ctx.Err())
 	}
+}
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func openSessionSQLite(ctx context.Context, path string) (*sql.DB, error) {
+	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+		return store.EnsureSchema(ctx, db, sessionSchemaStatements)
+	})
 }

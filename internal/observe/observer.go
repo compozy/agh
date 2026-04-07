@@ -14,6 +14,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/version"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -180,7 +181,7 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 			return nil, fmt.Errorf("observe: ensure home layout: %w", err)
 		}
 
-		registry, err := store.OpenGlobalDB(ctx, observer.homePaths.DatabaseFile)
+		registry, err := globaldb.OpenGlobalDB(ctx, observer.homePaths.DatabaseFile)
 		if err != nil {
 			return nil, fmt.Errorf("observe: open global database: %w", err)
 		}

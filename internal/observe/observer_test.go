@@ -2,7 +2,6 @@ package observe
 
 import (
 	"context"
-	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"log/slog"
 	"os"
@@ -15,6 +14,8 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
+	"github.com/pedronauck/agh/internal/testutil"
 	"github.com/pedronauck/agh/internal/version"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
@@ -374,7 +375,7 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 
 type harness struct {
 	observer    *Observer
-	registry    *store.GlobalDB
+	registry    *globaldb.GlobalDB
 	home        aghconfig.HomePaths
 	source      *stubSessionSource
 	now         time.Time
@@ -403,7 +404,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
-	registry, err := store.OpenGlobalDB(testutil.Context(t), home.DatabaseFile)
+	registry, err := globaldb.OpenGlobalDB(testutil.Context(t), home.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

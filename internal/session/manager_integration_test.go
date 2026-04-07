@@ -3,11 +3,12 @@
 package session
 
 import (
-	"github.com/pedronauck/agh/internal/testutil"
 	"testing"
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/sessiondb"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestManagerIntegrationFullLifecycle(t *testing.T) {
@@ -45,7 +46,7 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 		t.Fatalf("final Stop() error = %v", err)
 	}
 
-	reopened, err := store.OpenSessionDB(testutil.Context(t), resumed.ID, resumed.DBPath())
+	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), resumed.ID, resumed.DBPath())
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
@@ -83,9 +84,9 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 	}
 	_ = collectEvents(t, eventsCh)
 
-	recorder, ok := session.recorderHandle().(*store.SessionDB)
+	recorder, ok := session.recorderHandle().(*sessiondb.SessionDB)
 	if !ok {
-		t.Fatalf("recorder = %T, want *store.SessionDB", session.recorderHandle())
+		t.Fatalf("recorder = %T, want *sessiondb.SessionDB", session.recorderHandle())
 	}
 	if got, want := recorder.Path(), session.DBPath(); got != want {
 		t.Fatalf("SessionDB.Path() = %q, want %q", got, want)
@@ -95,7 +96,7 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	reopened, err := store.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
+	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
 	if err != nil {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}

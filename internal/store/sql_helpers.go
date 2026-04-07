@@ -12,50 +12,55 @@ import (
 const timestampLayout = "2006-01-02T15:04:05.000000000Z"
 const defaultSessionType = "user"
 
-type clause struct {
+// Clause represents an optional SQL filter clause plus its bound argument.
+type Clause struct {
 	sql string
 	arg any
 	ok  bool
 }
 
-func stringClause(column string, value string) clause {
+// StringClause builds an equality clause when the value is non-empty.
+func StringClause(column string, value string) Clause {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return clause{}
+		return Clause{}
 	}
 
-	return clause{
+	return Clause{
 		sql: fmt.Sprintf("%s = ?", column),
 		arg: value,
 		ok:  true,
 	}
 }
 
-func timeClause(column string, op string, value time.Time) clause {
+// TimeClause builds a timestamp comparison clause when the value is non-zero.
+func TimeClause(column string, op string, value time.Time) Clause {
 	if value.IsZero() {
-		return clause{}
+		return Clause{}
 	}
 
-	return clause{
+	return Clause{
 		sql: fmt.Sprintf("%s %s ?", column, op),
-		arg: formatTimestamp(value),
+		arg: FormatTimestamp(value),
 		ok:  true,
 	}
 }
 
-func int64Clause(column string, op string, value int64) clause {
+// Int64Clause builds a numeric comparison clause when the value is positive.
+func Int64Clause(column string, op string, value int64) Clause {
 	if value <= 0 {
-		return clause{}
+		return Clause{}
 	}
 
-	return clause{
+	return Clause{
 		sql: fmt.Sprintf("%s %s ?", column, op),
 		arg: value,
 		ok:  true,
 	}
 }
 
-func normalizeSessionType(value string) string {
+// NormalizeSessionType applies the default session type when empty.
+func NormalizeSessionType(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return defaultSessionType
@@ -63,7 +68,8 @@ func normalizeSessionType(value string) string {
 	return value
 }
 
-func buildClauses(input ...clause) ([]string, []any) {
+// BuildClauses compacts optional clauses into WHERE fragments and args.
+func BuildClauses(input ...Clause) ([]string, []any) {
 	where := make([]string, 0, len(input))
 	args := make([]any, 0, len(input))
 
@@ -78,14 +84,16 @@ func buildClauses(input ...clause) ([]string, []any) {
 	return where, args
 }
 
-func appendWhere(query string, where []string) string {
+// AppendWhere appends a WHERE block when any clauses are present.
+func AppendWhere(query string, where []string) string {
 	if len(where) == 0 {
 		return query
 	}
 	return query + " WHERE " + strings.Join(where, " AND ")
 }
 
-func appendLimit(query string, args []any, limit int) (string, []any) {
+// AppendLimit appends a LIMIT clause when the limit is positive.
+func AppendLimit(query string, args []any, limit int) (string, []any) {
 	if limit <= 0 {
 		return query, args
 	}
@@ -99,11 +107,13 @@ func normalizeTime(value time.Time) time.Time {
 	return value.UTC()
 }
 
-func formatTimestamp(value time.Time) string {
+// FormatTimestamp renders a timestamp in the canonical SQLite text layout.
+func FormatTimestamp(value time.Time) string {
 	return normalizeTime(value).Format(timestampLayout)
 }
 
-func parseTimestamp(value string) (time.Time, error) {
+// ParseTimestamp parses the canonical SQLite text timestamp.
+func ParseTimestamp(value string) (time.Time, error) {
 	parsed, err := time.Parse(timestampLayout, strings.TrimSpace(value))
 	if err != nil {
 		return time.Time{}, fmt.Errorf("store: parse timestamp %q: %w", value, err)
@@ -111,35 +121,40 @@ func parseTimestamp(value string) (time.Time, error) {
 	return parsed.UTC(), nil
 }
 
-func nullableString(value string) any {
+// NullableString maps blank strings to SQL NULL.
+func NullableString(value string) any {
 	if strings.TrimSpace(value) == "" {
 		return nil
 	}
 	return value
 }
 
-func nullableStringPointer(value *string) any {
+// NullableStringPointer maps nil or blank string pointers to SQL NULL.
+func NullableStringPointer(value *string) any {
 	if value == nil || strings.TrimSpace(*value) == "" {
 		return nil
 	}
 	return strings.TrimSpace(*value)
 }
 
-func nullableInt64(value *int64) any {
+// NullableInt64 maps nil pointers to SQL NULL.
+func NullableInt64(value *int64) any {
 	if value == nil {
 		return nil
 	}
 	return *value
 }
 
-func nullableFloat64(value *float64) any {
+// NullableFloat64 maps nil pointers to SQL NULL.
+func NullableFloat64(value *float64) any {
 	if value == nil {
 		return nil
 	}
 	return *value
 }
 
-func nullString(value sql.NullString) *string {
+// NullString converts sql.NullString into a trimmed string pointer.
+func NullString(value sql.NullString) *string {
 	if !value.Valid {
 		return nil
 	}
@@ -150,7 +165,8 @@ func nullString(value sql.NullString) *string {
 	return &trimmed
 }
 
-func nullInt64(value sql.NullInt64) *int64 {
+// NullInt64 converts sql.NullInt64 into a pointer.
+func NullInt64(value sql.NullInt64) *int64 {
 	if !value.Valid {
 		return nil
 	}
@@ -158,7 +174,8 @@ func nullInt64(value sql.NullInt64) *int64 {
 	return &v
 }
 
-func nullFloat64(value sql.NullFloat64) *float64 {
+// NullFloat64 converts sql.NullFloat64 into a pointer.
+func NullFloat64(value sql.NullFloat64) *float64 {
 	if !value.Valid {
 		return nil
 	}
@@ -166,7 +183,8 @@ func nullFloat64(value sql.NullFloat64) *float64 {
 	return &v
 }
 
-func newID(prefix string) string {
+// NewID returns a random identifier with an optional prefix.
+func NewID(prefix string) string {
 	var random [8]byte
 	if _, err := rand.Read(random[:]); err != nil {
 		now := time.Now().UTC().UnixNano()

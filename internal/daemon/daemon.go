@@ -21,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -253,7 +254,7 @@ func New(opts ...Option) (*Daemon, error) {
 	}
 	if d.openRegistry == nil {
 		d.openRegistry = func(ctx context.Context, path string) (Registry, error) {
-			return store.OpenGlobalDB(ctx, path)
+			return globaldb.OpenGlobalDB(ctx, path)
 		}
 	}
 	if d.newSessionManager == nil {

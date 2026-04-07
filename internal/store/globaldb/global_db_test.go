@@ -1,10 +1,10 @@
-package store
+package globaldb
 
 import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/pedronauck/agh/internal/testutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,8 +12,45 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/testutil"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
+
+type SessionInfo = store.SessionInfo
+type SessionStateUpdate = store.SessionStateUpdate
+type SessionListQuery = store.SessionListQuery
+type EventSummary = store.EventSummary
+type EventSummaryQuery = store.EventSummaryQuery
+type TokenStats = store.TokenStats
+type TokenStatsUpdate = store.TokenStatsUpdate
+type TokenStatsQuery = store.TokenStatsQuery
+type PermissionLogEntry = store.PermissionLogEntry
+type PermissionLogQuery = store.PermissionLogQuery
+
+const GlobalDatabaseName = store.GlobalDatabaseName
+const defaultSessionType = "user"
+const sqliteDriverName = "sqlite"
+
+func formatTimestamp(value time.Time) string {
+	return store.FormatTimestamp(value)
+}
+
+func sqliteDSN(path string) string {
+	return (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
+}
+
+func openSQLiteDatabase(ctx context.Context, path string, initialize func(context.Context, *sql.DB) error) (*sql.DB, error) {
+	return store.OpenSQLiteDatabase(ctx, path, initialize)
+}
+
+func SessionMetaFile(sessionDir string) string {
+	return store.SessionMetaFile(sessionDir)
+}
+
+func ReadSessionMeta(path string) (store.SessionMeta, error) {
+	return store.ReadSessionMeta(path)
+}
 
 func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 	t.Parallel()
@@ -1152,5 +1189,57 @@ func assertTableColumns(t *testing.T, db *sql.DB, table string, want []string) {
 
 	if !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("columns(%s) = %#v, want %#v", table, got, want)
+	}
+}
+
+func assertTablesPresent(t *testing.T, db *sql.DB, want ...string) {
+	t.Helper()
+
+	rows, err := db.QueryContext(testutil.Context(t), `SELECT name FROM sqlite_master WHERE type = 'table'`)
+	if err != nil {
+		t.Fatalf("QueryContext(sqlite_master) error = %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	got := make(map[string]struct{})
+	for rows.Next() {
+		var name string
+		if scanErr := rows.Scan(&name); scanErr != nil {
+			t.Fatalf("rows.Scan() error = %v", scanErr)
+		}
+		got[name] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows.Err() = %v", err)
+	}
+
+	for _, table := range want {
+		if _, ok := got[table]; !ok {
+			t.Fatalf("table %q missing from sqlite_master: %#v", table, got)
+		}
+	}
+}
+
+func assertJournalModeWAL(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	var journalMode string
+	if err := db.QueryRowContext(testutil.Context(t), `PRAGMA journal_mode`).Scan(&journalMode); err != nil {
+		t.Fatalf("QueryRowContext(PRAGMA journal_mode) error = %v", err)
+	}
+	if strings.ToLower(journalMode) != "wal" {
+		t.Fatalf("PRAGMA journal_mode = %q, want wal", journalMode)
+	}
+}
+
+func assertSynchronousNormal(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	var synchronous int
+	if err := db.QueryRowContext(testutil.Context(t), `PRAGMA synchronous`).Scan(&synchronous); err != nil {
+		t.Fatalf("QueryRowContext(PRAGMA synchronous) error = %v", err)
+	}
+	if synchronous != 1 {
+		t.Fatalf("PRAGMA synchronous = %d, want 1 (NORMAL)", synchronous)
 	}
 }

@@ -15,7 +15,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -342,7 +342,7 @@ func seedDaemonWorkspace(t *testing.T, homePaths aghconfig.HomePaths, root strin
 		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
 	}
 
-	registry, err := store.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+	registry, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

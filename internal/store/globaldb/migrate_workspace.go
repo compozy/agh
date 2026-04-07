@@ -1,4 +1,4 @@
-package store
+package globaldb
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/store"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -208,7 +209,7 @@ func ensureMigratedWorkspaces(ctx context.Context, tx *sql.Tx, seeds map[string]
 
 		seed := seeds[rootDir]
 		name := aghworkspace.UniqueWorkspaceName(rootDir, takenNames)
-		workspaceID := newID("ws")
+		workspaceID := store.NewID("ws")
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO workspaces (id, root_dir, add_dirs, name, default_agent, created_at, updated_at)
@@ -299,7 +300,7 @@ func copyMigratedSessions(ctx context.Context, tx *sql.Tx, sessions []legacySess
 			nullStringValue(row.Name),
 			row.AgentName,
 			workspaceID,
-			normalizeSessionType(row.SessionType),
+			store.NormalizeSessionType(row.SessionType),
 			row.State,
 			nullStringValue(row.ACPSessionID),
 			row.CreatedAt,
@@ -425,7 +426,7 @@ func tableExists(ctx context.Context, exec sqlQueryExecutor, table string) (bool
 }
 
 func tableColumns(ctx context.Context, exec sqlQueryExecutor, table string) (map[string]struct{}, error) {
-	name, err := normalizeSQLiteIdentifier(table)
+	name, err := store.NormalizeSQLiteIdentifier(table)
 	if err != nil {
 		return nil, err
 	}
@@ -465,7 +466,7 @@ func coalesceTimestamp(value string) string {
 	if trimmed != "" {
 		return trimmed
 	}
-	return formatTimestamp(time.Now().UTC())
+	return store.FormatTimestamp(time.Now().UTC())
 }
 
 func nullStringValue(value sql.NullString) any {
@@ -522,7 +523,7 @@ func reconcileLegacySessionMetaWorkspaceIDs(ctx context.Context, exec sqlQueryEx
 			continue
 		}
 
-		metaPath := SessionMetaFile(filepath.Join(cleanDir, entry.Name()))
+		metaPath := store.SessionMetaFile(filepath.Join(cleanDir, entry.Name()))
 		needsRewrite, meta, err := loadReconciledLegacySessionMeta(metaPath, rootToID)
 		if err != nil {
 			return err
@@ -530,7 +531,7 @@ func reconcileLegacySessionMetaWorkspaceIDs(ctx context.Context, exec sqlQueryEx
 		if !needsRewrite {
 			continue
 		}
-		if err := WriteSessionMeta(metaPath, meta); err != nil {
+		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
 			return fmt.Errorf("store: rewrite legacy session meta %q: %w", metaPath, err)
 		}
 	}
@@ -538,36 +539,36 @@ func reconcileLegacySessionMetaWorkspaceIDs(ctx context.Context, exec sqlQueryEx
 	return nil
 }
 
-func loadReconciledLegacySessionMeta(path string, rootToID map[string]string) (bool, SessionMeta, error) {
+func loadReconciledLegacySessionMeta(path string, rootToID map[string]string) (bool, store.SessionMeta, error) {
 	data, err := os.ReadFile(path)
 	switch {
 	case err == nil:
 	case errors.Is(err, os.ErrNotExist):
-		return false, SessionMeta{}, nil
+		return false, store.SessionMeta{}, nil
 	default:
-		return false, SessionMeta{}, fmt.Errorf("store: read session meta %q for workspace id reconciliation: %w", path, err)
+		return false, store.SessionMeta{}, fmt.Errorf("store: read session meta %q for workspace id reconciliation: %w", path, err)
 	}
 
 	var raw legacySessionMetaCompat
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return false, SessionMeta{}, nil
+		return false, store.SessionMeta{}, nil
 	}
 
 	if strings.TrimSpace(raw.WorkspaceID) != "" {
-		return false, SessionMeta{}, nil
+		return false, store.SessionMeta{}, nil
 	}
 
 	workspaceRoot := strings.TrimSpace(raw.Workspace)
 	if workspaceRoot == "" {
-		return false, SessionMeta{}, nil
+		return false, store.SessionMeta{}, nil
 	}
 
 	workspaceID, ok := rootToID[workspaceRoot]
 	if !ok {
-		return false, SessionMeta{}, nil
+		return false, store.SessionMeta{}, nil
 	}
 
-	meta := SessionMeta{
+	meta := store.SessionMeta{
 		ID:           raw.ID,
 		Name:         raw.Name,
 		AgentName:    raw.AgentName,
@@ -579,7 +580,7 @@ func loadReconciledLegacySessionMeta(path string, rootToID map[string]string) (b
 		UpdatedAt:    raw.UpdatedAt,
 	}
 	if err := meta.Validate(); err != nil {
-		return false, SessionMeta{}, nil
+		return false, store.SessionMeta{}, nil
 	}
 
 	return true, meta, nil

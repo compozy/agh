@@ -14,7 +14,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	aghstore "github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -167,17 +167,17 @@ func newIntegrationHomePaths(t *testing.T) aghconfig.HomePaths {
 	return homePaths
 }
 
-func openTestGlobalDB(t *testing.T, ctx context.Context) *aghstore.GlobalDB {
+func openTestGlobalDB(t *testing.T, ctx context.Context) *globaldb.GlobalDB {
 	t.Helper()
 
-	globalDB, err := aghstore.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "agh.db"))
+	globalDB, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "agh.db"))
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	return globalDB
 }
 
-func closeTestGlobalDB(t *testing.T, ctx context.Context, globalDB *aghstore.GlobalDB) {
+func closeTestGlobalDB(t *testing.T, ctx context.Context, globalDB *globaldb.GlobalDB) {
 	t.Helper()
 
 	if err := globalDB.Close(ctx); err != nil {

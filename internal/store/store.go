@@ -1,4 +1,4 @@
-// Package store provides SQLite-backed persistence for AGH session and global state.
+// Package store provides shared persistence types, validation, and helper primitives.
 package store
 
 import (
@@ -40,18 +40,38 @@ type EventRecorder interface {
 	Close(ctx context.Context) error
 }
 
-// SessionRegistry manages global session index records and observability metadata.
-type SessionRegistry interface {
+// SessionCatalog manages global session index records.
+type SessionCatalog interface {
 	RegisterSession(ctx context.Context, session SessionInfo) error
 	UpdateSessionState(ctx context.Context, update SessionStateUpdate) error
 	ListSessions(ctx context.Context, query SessionListQuery) ([]SessionInfo, error)
 	ReconcileSessions(ctx context.Context, sessions []SessionInfo) (ReconcileResult, error)
+}
+
+// EventSummaryStore manages persisted observability event summaries.
+type EventSummaryStore interface {
 	WriteEventSummary(ctx context.Context, summary EventSummary) error
 	ListEventSummaries(ctx context.Context, query EventSummaryQuery) ([]EventSummary, error)
+}
+
+// TokenStatsStore manages aggregated token usage rows.
+type TokenStatsStore interface {
 	UpdateTokenStats(ctx context.Context, update TokenStatsUpdate) error
 	ListTokenStats(ctx context.Context, query TokenStatsQuery) ([]TokenStats, error)
+}
+
+// PermissionLogStore manages permission decision audit entries.
+type PermissionLogStore interface {
 	WritePermissionLog(ctx context.Context, entry PermissionLogEntry) error
 	ListPermissionLog(ctx context.Context, query PermissionLogQuery) ([]PermissionLogEntry, error)
+}
+
+// SessionRegistry composes the global persistence surfaces used by runtime consumers.
+type SessionRegistry interface {
+	SessionCatalog
+	EventSummaryStore
+	TokenStatsStore
+	PermissionLogStore
 	Close(ctx context.Context) error
 }
 
@@ -63,8 +83,4 @@ func SessionDBFile(sessionDir string) string {
 // SessionMetaFile returns the canonical metadata file path for a session directory.
 func SessionMetaFile(sessionDir string) string {
 	return filepath.Join(sessionDir, SessionMetaName)
-}
-
-type rowScanner interface {
-	Scan(dest ...any) error
 }

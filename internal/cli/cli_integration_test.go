@@ -25,7 +25,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -487,7 +487,7 @@ func (d *integrationDaemon) spawnDetached() (daemonProcess, error) {
 }
 
 func (d *integrationDaemon) Run(ctx context.Context) error {
-	registry, err := store.OpenGlobalDB(context.Background(), d.homePaths.DatabaseFile)
+	registry, err := globaldb.OpenGlobalDB(context.Background(), d.homePaths.DatabaseFile)
 	if err != nil {
 		return fmt.Errorf("open global db: %w", err)
 	}

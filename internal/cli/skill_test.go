@@ -13,7 +13,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -90,7 +90,7 @@ func TestSkillListCommandIncludesRegisteredAdditionalWorkspaceSkills(t *testing.
 	writeWorkspaceSkill(t, additionalRoot, "additional-skill", skillDocument("additional-skill", "Additional helper", "body"))
 
 	ctx := testutil.Context(t)
-	globalDB, err := store.OpenGlobalDB(ctx, env.homePaths.DatabaseFile)
+	globalDB, err := globaldb.OpenGlobalDB(ctx, env.homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
