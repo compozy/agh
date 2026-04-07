@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pedronauck/agh/internal/filesnap"
 	"github.com/pedronauck/agh/internal/frontmatter"
@@ -301,6 +303,185 @@ func TestParseSkillFileWarnsOnMissingDescription(t *testing.T) {
 	}
 }
 
+func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		fixture  string
+		wantMCP  []MCPServerDecl
+		wantHook []HookDecl
+	}{
+		{
+			name:    "mcp servers only",
+			fixture: "mcp-only",
+			wantMCP: []MCPServerDecl{{
+				Name:    "filesystem",
+				Command: "npx",
+				Args:    []string{"-y", "@modelcontextprotocol/server-filesystem"},
+				Env: map[string]string{
+					"ROOT": "${WORKSPACE_ROOT}",
+					"MODE": "read-only",
+				},
+			}},
+		},
+		{
+			name:    "hooks only",
+			fixture: "hooks-only",
+			wantHook: []HookDecl{{
+				Event:   HookSessionCreated,
+				Command: "/bin/sh",
+				Args:    []string{"-c", "echo ready"},
+				Timeout: 5 * time.Second,
+				Env: map[string]string{
+					"HOOK_ENV": "enabled",
+				},
+			}},
+		},
+		{
+			name:    "mcp servers and hooks",
+			fixture: "combined",
+			wantMCP: []MCPServerDecl{{
+				Name:    "git",
+				Command: "uvx",
+				Args:    []string{"mcp-server-git"},
+				Env: map[string]string{
+					"REPO_ROOT": "${REPO_ROOT}",
+				},
+			}},
+			wantHook: []HookDecl{{
+				Event:   HookSessionStopped,
+				Command: "/usr/bin/env",
+				Args:    []string{"bash", "-lc", "echo cleanup"},
+				Timeout: 30 * time.Second,
+				Env: map[string]string{
+					"PHASE": "stop",
+				},
+			}},
+		},
+		{
+			name:    "without agh metadata",
+			fixture: "no-agh",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			skill, err := ParseSkillFile(loaderFixturePath(tt.fixture))
+			if err != nil {
+				t.Fatalf("ParseSkillFile(%q) error = %v", tt.fixture, err)
+			}
+
+			if !reflect.DeepEqual(skill.MCPServers, tt.wantMCP) {
+				t.Fatalf("ParseSkillFile(%q) MCPServers mismatch\nwant: %#v\ngot:  %#v", tt.fixture, tt.wantMCP, skill.MCPServers)
+			}
+			if !reflect.DeepEqual(skill.Hooks, tt.wantHook) {
+				t.Fatalf("ParseSkillFile(%q) Hooks mismatch\nwant: %#v\ngot:  %#v", tt.fixture, tt.wantHook, skill.Hooks)
+			}
+		})
+	}
+}
+
+func TestParseBundledSkillParsesAGHMetadata(t *testing.T) {
+	t.Parallel()
+
+	fsys := os.DirFS(filepath.Join("testdata", "loader"))
+	skill, err := parseBundledSkill(fsys, path.Join("combined", skillFileName))
+	if err != nil {
+		t.Fatalf("parseBundledSkill() error = %v", err)
+	}
+
+	if skill.Source != SourceBundled {
+		t.Fatalf("parseBundledSkill() Source = %v, want %v", skill.Source, SourceBundled)
+	}
+	if len(skill.MCPServers) != 1 || skill.MCPServers[0].Name != "git" {
+		t.Fatalf("parseBundledSkill() MCPServers = %#v, want populated git server", skill.MCPServers)
+	}
+	if len(skill.Hooks) != 1 || skill.Hooks[0].Event != HookSessionStopped {
+		t.Fatalf("parseBundledSkill() Hooks = %#v, want populated stop hook", skill.Hooks)
+	}
+}
+
+func TestParseSkillFileWarnsOnMalformedAGHMetadata(t *testing.T) {
+	original := slog.Default()
+	var logs bytes.Buffer
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(original)
+	})
+
+	skill, err := ParseSkillFile(loaderFixturePath("malformed-agh"))
+	if err != nil {
+		t.Fatalf("ParseSkillFile() error = %v", err)
+	}
+
+	if skill.MCPServers != nil {
+		t.Fatalf("ParseSkillFile() MCPServers = %#v, want nil", skill.MCPServers)
+	}
+	if skill.Hooks != nil {
+		t.Fatalf("ParseSkillFile() Hooks = %#v, want nil", skill.Hooks)
+	}
+	if !strings.Contains(logs.String(), "malformed metadata.agh block") {
+		t.Fatalf("expected malformed metadata warning in logs, got %q", logs.String())
+	}
+}
+
+func TestParseSkillFileRejectsInvalidMCPServerEntriesWithWarnings(t *testing.T) {
+	original := slog.Default()
+	var logs bytes.Buffer
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(original)
+	})
+
+	skill, err := ParseSkillFile(loaderFixturePath("invalid-mcp"))
+	if err != nil {
+		t.Fatalf("ParseSkillFile() error = %v", err)
+	}
+
+	want := []MCPServerDecl{{
+		Name:    "valid-server",
+		Command: "node",
+		Args:    []string{"server.js"},
+	}}
+	if !reflect.DeepEqual(skill.MCPServers, want) {
+		t.Fatalf("ParseSkillFile() MCPServers mismatch\nwant: %#v\ngot:  %#v", want, skill.MCPServers)
+	}
+	if !strings.Contains(logs.String(), "reason=\"missing name\"") {
+		t.Fatalf("expected missing name warning in logs, got %q", logs.String())
+	}
+	if !strings.Contains(logs.String(), "reason=\"missing command\"") {
+		t.Fatalf("expected missing command warning in logs, got %q", logs.String())
+	}
+}
+
+func TestParseSkillFileRejectsUnknownHookEventsWithWarnings(t *testing.T) {
+	original := slog.Default()
+	var logs bytes.Buffer
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(original)
+	})
+
+	skill, err := ParseSkillFile(loaderFixturePath("invalid-hook"))
+	if err != nil {
+		t.Fatalf("ParseSkillFile() error = %v", err)
+	}
+
+	if skill.Hooks != nil {
+		t.Fatalf("ParseSkillFile() Hooks = %#v, want nil", skill.Hooks)
+	}
+	if !strings.Contains(logs.String(), "reason=\"unknown event\"") {
+		t.Fatalf("expected unknown event warning in logs, got %q", logs.String())
+	}
+	if !strings.Contains(logs.String(), "event=on_session_started") {
+		t.Fatalf("expected invalid event value in logs, got %q", logs.String())
+	}
+}
+
 func TestScanDirectoryHonorsDepthAndSkips(t *testing.T) {
 	t.Parallel()
 
@@ -418,4 +599,8 @@ func defaultSkillContent(name string) string {
 		"---",
 		"body",
 	}, "\n")
+}
+
+func loaderFixturePath(name string) string {
+	return filepath.Join("testdata", "loader", name, skillFileName)
 }

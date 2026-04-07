@@ -609,14 +609,17 @@ func parseBundledSkill(fsys fs.FS, skillPath string) (*Skill, error) {
 		dir = ""
 	}
 
-	return &Skill{
+	skill := &Skill{
 		Meta:     meta,
 		Content:  body,
 		Source:   SourceBundled,
 		Dir:      dir,
 		FilePath: skillPath,
 		Enabled:  true,
-	}, nil
+	}
+	parseAGHMetadata(skill)
+
+	return skill, nil
 }
 
 func scanBundledFS(fsys fs.FS) ([]string, error) {
