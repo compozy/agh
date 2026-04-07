@@ -6,25 +6,26 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/apicore"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/store"
 )
 
-type sessionPayload = apicore.SessionPayload
-type sessionEventPayload = apicore.SessionEventPayload
-type turnHistoryPayload = apicore.TurnHistoryPayload
-type agentPayload = apicore.AgentPayload
-type observeEventPayload = apicore.ObserveEventPayload
-type daemonStatusPayload = apicore.DaemonStatusPayload
+type sessionPayload = contract.SessionPayload
+type sessionEventPayload = contract.SessionEventPayload
+type turnHistoryPayload = contract.TurnHistoryPayload
+type agentPayload = contract.AgentPayload
+type observeEventPayload = contract.ObserveEventPayload
+type daemonStatusPayload = contract.DaemonStatusPayload
 type observeCursor = apicore.ObserveCursor
-type memoryWriteRequest = apicore.MemoryWriteRequest
-type memoryReadResponse = apicore.MemoryReadResponse
-type memoryConsolidateResponse = apicore.MemoryConsolidateResponse
-type memoryHealthPayload = apicore.MemoryHealthPayload
+type memoryWriteRequest = contract.MemoryWriteRequest
+type memoryReadResponse = contract.MemoryReadResponse
+type memoryConsolidateResponse = contract.MemoryConsolidateResponse
+type memoryHealthPayload = contract.MemoryHealthPayload
 type memoryLocation = apicore.MemoryLocation
-type workspacePayload = apicore.WorkspacePayload
-type workspaceSkillPayload = apicore.WorkspaceSkillPayload
+type workspacePayload = contract.WorkspacePayload
+type workspaceSkillPayload = contract.WorkspaceSkillPayload
 
 func statusForMemoryError(err error) int {
 	return apicore.StatusForMemoryError(err)
@@ -42,11 +43,11 @@ func observeEventAfterCursor(event store.EventSummary, cursor observeCursor) boo
 	return apicore.ObserveEventAfterCursor(event, cursor)
 }
 
-func acpCapsPayloadFromInfo(caps acp.ACPCaps) *apicore.ACPCapsPayload {
+func acpCapsPayloadFromInfo(caps acp.ACPCaps) *contract.ACPCapsPayload {
 	return apicore.ACPCapsPayloadFromInfo(caps)
 }
 
-func tokenUsagePayloadFromUsage(usage *acp.TokenUsage) *apicore.TokenUsagePayload {
+func tokenUsagePayloadFromUsage(usage *acp.TokenUsage) *contract.TokenUsagePayload {
 	return apicore.TokenUsagePayloadFromUsage(usage)
 }
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/memory"
 )
 
@@ -52,12 +53,12 @@ func (h *BaseHandlers) ReadMemory(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, MemoryReadResponse{Content: string(content)})
+	c.JSON(http.StatusOK, contract.MemoryReadResponse{Content: string(content)})
 }
 
 // WriteMemory writes one memory document.
 func (h *BaseHandlers) WriteMemory(c *gin.Context) {
-	var req MemoryWriteRequest
+	var req contract.MemoryWriteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: decode memory write request: %w", h.transportName(), err))
 		return
@@ -80,7 +81,7 @@ func (h *BaseHandlers) WriteMemory(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, MemoryMutationResponse{OK: true})
+	c.JSON(http.StatusOK, contract.MemoryMutationResponse{OK: true})
 }
 
 // DeleteMemory deletes one memory document.
@@ -102,19 +103,19 @@ func (h *BaseHandlers) DeleteMemory(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, MemoryMutationResponse{OK: true})
+	c.JSON(http.StatusOK, contract.MemoryMutationResponse{OK: true})
 }
 
 // ConsolidateMemory triggers dream consolidation when enabled.
 func (h *BaseHandlers) ConsolidateMemory(c *gin.Context) {
-	var req MemoryConsolidateRequest
+	var req contract.MemoryConsolidateRequest
 	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: decode memory consolidate request: %w", h.transportName(), err))
 		return
 	}
 
 	if h.DreamTrigger == nil || !h.DreamTrigger.Enabled() {
-		c.JSON(http.StatusOK, MemoryConsolidateResponse{
+		c.JSON(http.StatusOK, contract.MemoryConsolidateResponse{
 			Triggered: false,
 			Reason:    "dream consolidation is disabled",
 		})
@@ -127,19 +128,19 @@ func (h *BaseHandlers) ConsolidateMemory(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, MemoryConsolidateResponse{
+	c.JSON(http.StatusOK, contract.MemoryConsolidateResponse{
 		Triggered: triggered,
 		Reason:    strings.TrimSpace(reason),
 	})
 }
 
-func (h *BaseHandlers) memoryHealth(c *gin.Context) (MemoryHealthPayload, error) {
-	payload := MemoryHealthPayload{}
+func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayload, error) {
+	payload := contract.MemoryHealthPayload{}
 	if h.DreamTrigger != nil {
 		payload.DreamEnabled = h.DreamTrigger.Enabled()
 		lastConsolidation, err := h.DreamTrigger.LastConsolidatedAt()
 		if err != nil {
-			return MemoryHealthPayload{}, err
+			return contract.MemoryHealthPayload{}, err
 		}
 		if !lastConsolidation.IsZero() {
 			lastConsolidation = lastConsolidation.UTC()
@@ -152,19 +153,19 @@ func (h *BaseHandlers) memoryHealth(c *gin.Context) (MemoryHealthPayload, error)
 
 	globalHeaders, err := h.MemoryStore.Scan(memory.ScopeGlobal)
 	if err != nil {
-		return MemoryHealthPayload{}, err
+		return contract.MemoryHealthPayload{}, err
 	}
 	payload.GlobalFiles = len(globalHeaders)
 
 	workspaces, err := h.memoryHealthWorkspaces(c.Request.Context(), c.Query("workspace"))
 	if err != nil {
-		return MemoryHealthPayload{}, err
+		return contract.MemoryHealthPayload{}, err
 	}
 	for _, workspace := range workspaces {
 		store := h.MemoryStore.ForWorkspace(workspace)
 		headers, err := store.Scan(memory.ScopeWorkspace)
 		if err != nil {
-			return MemoryHealthPayload{}, err
+			return contract.MemoryHealthPayload{}, err
 		}
 		payload.WorkspaceFiles += len(headers)
 	}
@@ -341,11 +342,11 @@ func (h *BaseHandlers) MemoryHealthWorkspaces(ctx context.Context, rawWorkspace 
 }
 
 // ResolveMemoryWriteScope validates a write request and infers its target scope.
-func ResolveMemoryWriteScope(req MemoryWriteRequest) (memory.Scope, string, error) {
+func ResolveMemoryWriteScope(req contract.MemoryWriteRequest) (memory.Scope, string, error) {
 	return resolveMemoryWriteScope(req)
 }
 
-func resolveMemoryWriteScope(req MemoryWriteRequest) (memory.Scope, string, error) {
+func resolveMemoryWriteScope(req contract.MemoryWriteRequest) (memory.Scope, string, error) {
 	content := strings.TrimSpace(req.Content)
 	if content == "" {
 		return "", "", NewMemoryValidationError(errors.New("content is required"))

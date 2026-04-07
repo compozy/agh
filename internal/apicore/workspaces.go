@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/apisupport"
 	"github.com/pedronauck/agh/internal/session"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -14,7 +15,7 @@ import (
 
 // CreateWorkspace registers a workspace.
 func (h *BaseHandlers) CreateWorkspace(c *gin.Context) {
-	var req CreateWorkspaceRequest
+	var req contract.CreateWorkspaceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: decode create workspace request: %w", h.transportName(), err))
 		return
@@ -54,7 +55,7 @@ func (h *BaseHandlers) ListWorkspaces(c *gin.Context) {
 		return
 	}
 
-	payload := make([]WorkspacePayload, 0, len(workspaces))
+	payload := make([]contract.WorkspacePayload, 0, len(workspaces))
 	for _, workspace := range workspaces {
 		payload = append(payload, WorkspacePayloadFromWorkspace(workspace))
 	}
@@ -92,7 +93,7 @@ func (h *BaseHandlers) UpdateWorkspace(c *gin.Context) {
 		return
 	}
 
-	var req UpdateWorkspaceRequest
+	var req contract.UpdateWorkspaceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: decode update workspace request: %w", h.transportName(), err))
 		return
@@ -152,7 +153,7 @@ func (h *BaseHandlers) DeleteWorkspace(c *gin.Context) {
 
 // ResolveWorkspace resolves or registers a workspace from a path.
 func (h *BaseHandlers) ResolveWorkspace(c *gin.Context) {
-	var req ResolveWorkspaceRequest
+	var req contract.ResolveWorkspaceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: decode resolve workspace request: %w", h.transportName(), err))
 		return
@@ -173,7 +174,7 @@ func (h *BaseHandlers) ResolveWorkspace(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"workspace": WorkspacePayloadFromWorkspace(resolved.Workspace)})
 }
 
-func (h *BaseHandlers) validateCreateSessionRequest(req CreateSessionRequest) error {
+func (h *BaseHandlers) validateCreateSessionRequest(req contract.CreateSessionRequest) error {
 	return apisupport.ValidateCreateSessionRequest(h.transportName(), req.Workspace, req.WorkspacePath)
 }
 
@@ -198,6 +199,6 @@ func trimStringSlice(values []string) []string {
 }
 
 // SessionPayloadsForWorkspace filters and converts sessions for one workspace.
-func SessionPayloadsForWorkspace(infos []*session.SessionInfo, workspaceID string) []SessionPayload {
+func SessionPayloadsForWorkspace(infos []*session.SessionInfo, workspaceID string) []contract.SessionPayload {
 	return SessionPayloadsFromInfos(filterSessionInfosByWorkspaceID(infos, workspaceID))
 }

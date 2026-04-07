@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/apicore"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
@@ -137,7 +138,7 @@ func TestRespondErrorMaskingModes(t *testing.T) {
 
 			apicore.RespondError(context, http.StatusInternalServerError, errors.New("boom"), tc.mask)
 
-			var payload apicore.ErrorPayload
+			var payload contract.ErrorPayload
 			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 				t.Fatalf("json.Unmarshal() error = %v", err)
 			}

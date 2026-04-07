@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/apicore"
 	"github.com/pedronauck/agh/internal/apitest"
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -151,7 +152,7 @@ func TestMemoryWrapperExports(t *testing.T) {
 	t.Parallel()
 
 	workspace := t.TempDir()
-	req := apicore.MemoryWriteRequest{
+	req := contract.MemoryWriteRequest{
 		Scope:     "workspace",
 		Workspace: workspace,
 		Content:   "---\nname: Project\ndescription: desc\ntype: project\n---\n\nbody",
@@ -169,7 +170,7 @@ func TestMemoryWrapperExports(t *testing.T) {
 	if _, err := apicore.ResolveMemoryWorkspace(""); err == nil {
 		t.Fatal("ResolveMemoryWorkspace(\"\") error = nil, want non-nil")
 	}
-	if scope, resolved, err := apicore.ResolveMemoryWriteScope(apicore.MemoryWriteRequest{
+	if scope, resolved, err := apicore.ResolveMemoryWriteScope(contract.MemoryWriteRequest{
 		Content: "---\nname: Global\ndescription: desc\ntype: user\n---\n\nbody",
 	}); err != nil || scope != memory.ScopeGlobal || resolved != "" {
 		t.Fatalf("ResolveMemoryWriteScope(user default) = %q %q %v", scope, resolved, err)

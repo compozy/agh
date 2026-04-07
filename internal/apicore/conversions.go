@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -13,13 +14,13 @@ import (
 )
 
 // SessionPayloadFromInfo converts a session info snapshot into the shared session payload.
-func SessionPayloadFromInfo(info *session.SessionInfo) SessionPayload {
-	payload := SessionPayload{}
+func SessionPayloadFromInfo(info *session.SessionInfo) contract.SessionPayload {
+	payload := contract.SessionPayload{}
 	if info == nil {
 		return payload
 	}
 
-	payload = SessionPayload{
+	payload = contract.SessionPayload{
 		ID:            info.ID,
 		Name:          info.Name,
 		AgentName:     info.AgentName,
@@ -37,8 +38,8 @@ func SessionPayloadFromInfo(info *session.SessionInfo) SessionPayload {
 }
 
 // SessionPayloadsFromInfos converts a session list into response payloads.
-func SessionPayloadsFromInfos(infos []*session.SessionInfo) []SessionPayload {
-	payload := make([]SessionPayload, 0, len(infos))
+func SessionPayloadsFromInfos(infos []*session.SessionInfo) []contract.SessionPayload {
+	payload := make([]contract.SessionPayload, 0, len(infos))
 	for _, info := range infos {
 		if info == nil {
 			continue
@@ -49,12 +50,12 @@ func SessionPayloadsFromInfos(infos []*session.SessionInfo) []SessionPayload {
 }
 
 // ACPCapsPayloadFromInfo converts ACP capability info into the shared payload.
-func ACPCapsPayloadFromInfo(caps acp.ACPCaps) *ACPCapsPayload {
+func ACPCapsPayloadFromInfo(caps acp.ACPCaps) *contract.ACPCapsPayload {
 	if !caps.SupportsLoadSession && len(caps.SupportedModes) == 0 && len(caps.SupportedModels) == 0 {
 		return nil
 	}
 
-	return &ACPCapsPayload{
+	return &contract.ACPCapsPayload{
 		SupportsLoadSession: caps.SupportsLoadSession,
 		SupportedModes:      append([]string(nil), caps.SupportedModes...),
 		SupportedModels:     append([]string(nil), caps.SupportedModels...),
@@ -62,9 +63,9 @@ func ACPCapsPayloadFromInfo(caps acp.ACPCaps) *ACPCapsPayload {
 }
 
 // SessionEventPayloadFromEvent converts a session event into the shared payload.
-func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.SessionInfo) SessionEventPayload {
+func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.SessionInfo) contract.SessionEventPayload {
 	workspaceID, workspacePath := sessionWorkspaceFromInfo(info)
-	return SessionEventPayload{
+	return contract.SessionEventPayload{
 		ID:            event.ID,
 		SessionID:     event.SessionID,
 		Sequence:      event.Sequence,
@@ -79,8 +80,8 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Sessio
 }
 
 // AgentPayloadFromDef converts an agent definition into the shared payload.
-func AgentPayloadFromDef(agent aghconfig.AgentDef) AgentPayload {
-	mcpServers := make([]AgentMCPServerJSON, 0, len(agent.MCPServers))
+func AgentPayloadFromDef(agent aghconfig.AgentDef) contract.AgentPayload {
+	mcpServers := make([]contract.AgentMCPServerJSON, 0, len(agent.MCPServers))
 	for _, server := range agent.MCPServers {
 		var env map[string]string
 		if len(server.Env) > 0 {
@@ -90,7 +91,7 @@ func AgentPayloadFromDef(agent aghconfig.AgentDef) AgentPayload {
 			}
 		}
 
-		mcpServers = append(mcpServers, AgentMCPServerJSON{
+		mcpServers = append(mcpServers, contract.AgentMCPServerJSON{
 			Name:    server.Name,
 			Command: server.Command,
 			Args:    append([]string(nil), server.Args...),
@@ -98,7 +99,7 @@ func AgentPayloadFromDef(agent aghconfig.AgentDef) AgentPayload {
 		})
 	}
 
-	return AgentPayload{
+	return contract.AgentPayload{
 		Name:        agent.Name,
 		Provider:    agent.Provider,
 		Command:     agent.Command,
@@ -111,8 +112,8 @@ func AgentPayloadFromDef(agent aghconfig.AgentDef) AgentPayload {
 }
 
 // AgentPayloadsFromDefs converts a list of agent definitions into response payloads.
-func AgentPayloadsFromDefs(agents []aghconfig.AgentDef) []AgentPayload {
-	payload := make([]AgentPayload, 0, len(agents))
+func AgentPayloadsFromDefs(agents []aghconfig.AgentDef) []contract.AgentPayload {
+	payload := make([]contract.AgentPayload, 0, len(agents))
 	for _, agent := range agents {
 		payload = append(payload, AgentPayloadFromDef(agent))
 	}
@@ -120,8 +121,8 @@ func AgentPayloadsFromDefs(agents []aghconfig.AgentDef) []AgentPayload {
 }
 
 // AgentEventPayloadFromEvent converts an agent event into the shared raw-stream payload.
-func AgentEventPayloadFromEvent(event acp.AgentEvent) AgentEventPayload {
-	return AgentEventPayload{
+func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload {
+	return contract.AgentEventPayload{
 		Type:       event.Type,
 		SessionID:  event.SessionID,
 		TurnID:     event.TurnID,
@@ -141,12 +142,12 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) AgentEventPayload {
 }
 
 // TokenUsagePayloadFromUsage converts token usage info into the shared payload.
-func TokenUsagePayloadFromUsage(usage *acp.TokenUsage) *TokenUsagePayload {
+func TokenUsagePayloadFromUsage(usage *acp.TokenUsage) *contract.TokenUsagePayload {
 	if usage == nil {
 		return nil
 	}
 
-	return &TokenUsagePayload{
+	return &contract.TokenUsagePayload{
 		TurnID:           usage.TurnID,
 		InputTokens:      usage.InputTokens,
 		OutputTokens:     usage.OutputTokens,
@@ -163,8 +164,8 @@ func TokenUsagePayloadFromUsage(usage *acp.TokenUsage) *TokenUsagePayload {
 }
 
 // ObserveEventPayloadFromEvent converts an observe event into the shared payload.
-func ObserveEventPayloadFromEvent(event store.EventSummary) ObserveEventPayload {
-	return ObserveEventPayload{
+func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEventPayload {
+	return contract.ObserveEventPayload{
 		ID:        event.ID,
 		SessionID: event.SessionID,
 		Type:      event.Type,
@@ -175,11 +176,11 @@ func ObserveEventPayloadFromEvent(event store.EventSummary) ObserveEventPayload 
 }
 
 // WorkspacePayloadFromWorkspace converts a workspace into the shared payload.
-func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) WorkspacePayload {
+func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) contract.WorkspacePayload {
 	addDirs := make([]string, 0, len(workspace.AdditionalDirs))
 	addDirs = append(addDirs, workspace.AdditionalDirs...)
 
-	return WorkspacePayload{
+	return contract.WorkspacePayload{
 		ID:           workspace.ID,
 		RootDir:      workspace.RootDir,
 		AddDirs:      addDirs,
@@ -191,10 +192,10 @@ func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) WorkspacePa
 }
 
 // WorkspaceSkillPayloads converts workspace skill paths into response payloads.
-func WorkspaceSkillPayloads(skills []workspacepkg.SkillPath) []WorkspaceSkillPayload {
-	payload := make([]WorkspaceSkillPayload, 0, len(skills))
+func WorkspaceSkillPayloads(skills []workspacepkg.SkillPath) []contract.WorkspaceSkillPayload {
+	payload := make([]contract.WorkspaceSkillPayload, 0, len(skills))
 	for _, skill := range skills {
-		payload = append(payload, WorkspaceSkillPayload{
+		payload = append(payload, contract.WorkspaceSkillPayload{
 			Name:   filepath.Base(skill.Dir),
 			Dir:    skill.Dir,
 			Source: skill.Source,

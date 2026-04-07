@@ -2,11 +2,12 @@ package httpapi
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/apicore"
 )
 
-type approveSessionRequest = apicore.ApproveSessionRequest
-type errorPayload = apicore.ErrorPayload
+type approveSessionRequest = contract.ApproveSessionRequest
+type errorPayload = contract.ErrorPayload
 type sseMessage = apicore.SSEMessage
 type flushWriter = apicore.FlushWriter
 

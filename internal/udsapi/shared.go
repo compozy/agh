@@ -3,10 +3,11 @@ package udsapi
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/apicore"
 )
 
-type agentEventPayload = apicore.AgentEventPayload
+type agentEventPayload = contract.AgentEventPayload
 type sseMessage = apicore.SSEMessage
 type flushWriter = apicore.FlushWriter
 

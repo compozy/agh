@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/apisupport"
 	"github.com/pedronauck/agh/internal/memory"
 )
@@ -26,7 +27,7 @@ func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool
 		message = "unknown error"
 	}
 
-	c.JSON(status, ErrorPayload{Error: message})
+	c.JSON(status, contract.ErrorPayload{Error: message})
 }
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-yaml"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/apicore"
 	"github.com/pedronauck/agh/internal/apitest"
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -182,7 +183,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		t.Fatalf("get workspace status = %d, want %d", getResp.Code, http.StatusOK)
 	}
 	var getPayload struct {
-		Sessions []apicore.SessionPayload `json:"sessions"`
+		Sessions []contract.SessionPayload `json:"sessions"`
 	}
 	apitest.DecodeJSONResponse(t, getResp, &getPayload)
 	if len(getPayload.Sessions) != 1 || getPayload.Sessions[0].WorkspaceID != workspace.ID {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/apicore"
 	"github.com/pedronauck/agh/internal/apitest"
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -216,7 +217,7 @@ func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
 	if _, err := fixture.Handlers.ResolveMemoryLocation("shared.md", "", workspace); !errors.Is(err, memory.ErrValidation) {
 		t.Fatalf("ResolveMemoryLocation(shared) error = %v, want validation", err)
 	}
-	if _, _, err := apicore.ResolveMemoryWriteScope(apicore.MemoryWriteRequest{}); !errors.Is(err, memory.ErrValidation) {
+	if _, _, err := apicore.ResolveMemoryWriteScope(contract.MemoryWriteRequest{}); !errors.Is(err, memory.ErrValidation) {
 		t.Fatalf("ResolveMemoryWriteScope(empty) error = %v, want validation", err)
 	}
 

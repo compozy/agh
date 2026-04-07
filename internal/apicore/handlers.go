@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
@@ -145,7 +146,7 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 
 // CreateSession creates a new runtime session.
 func (h *BaseHandlers) CreateSession(c *gin.Context) {
-	var req CreateSessionRequest
+	var req contract.CreateSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: decode create session request: %w", h.transportName(), err))
 		return
@@ -221,7 +222,7 @@ func (h *BaseHandlers) SessionEvents(c *gin.Context) {
 		return
 	}
 
-	payload := make([]SessionEventPayload, 0, len(events))
+	payload := make([]contract.SessionEventPayload, 0, len(events))
 	for _, event := range events {
 		payload = append(payload, SessionEventPayloadFromEvent(event, info))
 	}
@@ -249,13 +250,13 @@ func (h *BaseHandlers) SessionHistory(c *gin.Context) {
 		return
 	}
 
-	payload := make([]TurnHistoryPayload, 0, len(history))
+	payload := make([]contract.TurnHistoryPayload, 0, len(history))
 	for _, turn := range history {
-		events := make([]SessionEventPayload, 0, len(turn.Events))
+		events := make([]contract.SessionEventPayload, 0, len(turn.Events))
 		for _, event := range turn.Events {
 			events = append(events, SessionEventPayloadFromEvent(event, info))
 		}
-		payload = append(payload, TurnHistoryPayload{
+		payload = append(payload, contract.TurnHistoryPayload{
 			TurnID: turn.TurnID,
 			Events: events,
 		})
@@ -340,7 +341,7 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 			if pollErr != nil {
 				_ = WriteSSE(writer, SSEMessage{
 					Name: "error",
-					Data: ErrorPayload{Error: pollErr.Error()},
+					Data: contract.ErrorPayload{Error: pollErr.Error()},
 				})
 				return
 			}
@@ -359,14 +360,14 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 				if statusErr != nil {
 					_ = WriteSSE(writer, SSEMessage{
 						Name: "error",
-						Data: ErrorPayload{Error: statusErr.Error()},
+						Data: contract.ErrorPayload{Error: statusErr.Error()},
 					})
 					return
 				}
 				if latest != nil && latest.State == session.StateStopped {
 					_ = WriteSSE(writer, SSEMessage{
 						Name: session.EventTypeSessionStopped,
-						Data: SessionEventPayload{
+						Data: contract.SessionEventPayload{
 							SessionID:     latest.ID,
 							Type:          session.EventTypeSessionStopped,
 							WorkspaceID:   strings.TrimSpace(latest.WorkspaceID),
@@ -390,14 +391,14 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 	switch {
 	case err == nil:
 	case errors.Is(err, os.ErrNotExist):
-		c.JSON(http.StatusOK, gin.H{"agents": []AgentPayload{}})
+		c.JSON(http.StatusOK, gin.H{"agents": []contract.AgentPayload{}})
 		return
 	default:
 		h.respondError(c, http.StatusInternalServerError, fmt.Errorf("%s: read agents directory %q: %w", h.transportName(), h.HomePaths.AgentsDir, err))
 		return
 	}
 
-	agents := make([]AgentPayload, 0, len(entries))
+	agents := make([]contract.AgentPayload, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -452,7 +453,7 @@ func (h *BaseHandlers) ObserveEvents(c *gin.Context) {
 		return
 	}
 
-	payload := make([]ObserveEventPayload, 0, len(events))
+	payload := make([]contract.ObserveEventPayload, 0, len(events))
 	for _, event := range events {
 		payload = append(payload, ObserveEventPayloadFromEvent(event))
 	}
@@ -514,7 +515,7 @@ func (h *BaseHandlers) StreamObserveEvents(c *gin.Context) {
 			if pollErr != nil {
 				_ = WriteSSE(writer, SSEMessage{
 					Name: "error",
-					Data: ErrorPayload{Error: pollErr.Error()},
+					Data: contract.ErrorPayload{Error: pollErr.Error()},
 				})
 				return
 			}
@@ -563,7 +564,7 @@ func (h *BaseHandlers) DaemonStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"daemon": DaemonStatusPayload{
+		"daemon": contract.DaemonStatusPayload{
 			Status:         "running",
 			PID:            os.Getpid(),
 			StartedAt:      h.StartedAt,
