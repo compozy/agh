@@ -1,0 +1,252 @@
+package workspace
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
+)
+
+const (
+	agentDefinitionFile = "AGENT.md"
+	skillDefinitionFile = "SKILL.md"
+)
+
+type fileSnapshot struct {
+	modTime time.Time
+	size    int64
+}
+
+type workspaceScan struct {
+	snapshots map[string]fileSnapshot
+	agents    []agentCandidate
+	skills    []skillCandidate
+}
+
+type agentCandidate struct {
+	path string
+}
+
+type skillCandidate struct {
+	name   string
+	dir    string
+	source string
+}
+
+func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceScan, error) {
+	if err := checkContext(ctx); err != nil {
+		return workspaceScan{}, err
+	}
+
+	scan := workspaceScan{
+		snapshots: make(map[string]fileSnapshot),
+		agents:    make([]agentCandidate, 0),
+		skills:    make([]skillCandidate, 0),
+	}
+
+	if err := addSnapshotIfExists(r.homePaths.ConfigFile, scan.snapshots); err != nil {
+		return workspaceScan{}, fmt.Errorf("workspace: snapshot global config %q: %w", r.homePaths.ConfigFile, err)
+	}
+	if err := addSnapshotIfExists(filepath.Join(ws.RootDir, aghconfig.DirName, aghconfig.ConfigName), scan.snapshots); err != nil {
+		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace config %q: %w", ws.RootDir, err)
+	}
+
+	for _, root := range aghconfig.WorkspaceDiscoveryRoots(ws.RootDir, ws.AdditionalDirs, r.homePaths) {
+		if err := checkContext(ctx); err != nil {
+			return workspaceScan{}, err
+		}
+
+		if err := scanAgentSource(root, scan.snapshots, &scan.agents); err != nil {
+			return workspaceScan{}, err
+		}
+		if err := scanSkillSource(root, scan.snapshots, &scan.skills); err != nil {
+			return workspaceScan{}, err
+		}
+	}
+
+	return scan, nil
+}
+
+func scanAgentSource(root aghconfig.WorkspaceDiscoveryRoot, snapshots map[string]fileSnapshot, dst *[]agentCandidate) error {
+	agentsDir := root.AgentsDir()
+	if err := addSnapshotIfExists(agentsDir, snapshots); err != nil {
+		return fmt.Errorf("workspace: snapshot agents directory %q: %w", agentsDir, err)
+	}
+
+	entries, err := os.ReadDir(agentsDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("workspace: read agents directory %q: %w", agentsDir, err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		agentPath := filepath.Join(agentsDir, entry.Name(), agentDefinitionFile)
+		if err := addSnapshotIfExists(agentPath, snapshots); err != nil {
+			return fmt.Errorf("workspace: snapshot agent definition %q: %w", agentPath, err)
+		}
+		if _, ok := snapshots[agentPath]; !ok {
+			continue
+		}
+
+		*dst = append(*dst, agentCandidate{
+			path: agentPath,
+		})
+	}
+
+	return nil
+}
+
+func scanSkillSource(root aghconfig.WorkspaceDiscoveryRoot, snapshots map[string]fileSnapshot, dst *[]skillCandidate) error {
+	skillsDir := root.SkillsDir()
+	if err := addSnapshotIfExists(skillsDir, snapshots); err != nil {
+		return fmt.Errorf("workspace: snapshot skills directory %q: %w", skillsDir, err)
+	}
+
+	entries, err := os.ReadDir(skillsDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("workspace: read skills directory %q: %w", skillsDir, err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		skillDir := filepath.Join(skillsDir, entry.Name())
+		skillFile := filepath.Join(skillDir, skillDefinitionFile)
+		if err := addSnapshotIfExists(skillDir, snapshots); err != nil {
+			return fmt.Errorf("workspace: snapshot skill directory %q: %w", skillDir, err)
+		}
+		if err := addSnapshotIfExists(skillFile, snapshots); err != nil {
+			return fmt.Errorf("workspace: snapshot skill definition %q: %w", skillFile, err)
+		}
+		if _, ok := snapshots[skillFile]; !ok {
+			continue
+		}
+
+		*dst = append(*dst, skillCandidate{
+			name:   entry.Name(),
+			dir:    skillDir,
+			source: string(root.Source),
+		})
+	}
+
+	return nil
+}
+
+func loadAgents(ctx context.Context, candidates []agentCandidate) ([]aghconfig.AgentDef, error) {
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	agents := make([]aghconfig.AgentDef, 0, len(candidates))
+	seen := make(map[string]struct{}, len(candidates))
+
+	for _, candidate := range candidates {
+		if err := checkContext(ctx); err != nil {
+			return nil, err
+		}
+
+		agent, err := aghconfig.LoadAgentDefFile(candidate.path)
+		if err != nil {
+			return nil, fmt.Errorf("workspace: load agent definition %q: %w", candidate.path, err)
+		}
+
+		if _, ok := seen[agent.Name]; ok {
+			continue
+		}
+
+		seen[agent.Name] = struct{}{}
+		agents = append(agents, agent)
+	}
+
+	return agents, nil
+}
+
+func mergeSkillPaths(candidates []skillCandidate) []SkillPath {
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	skills := make([]SkillPath, 0, len(candidates))
+	seen := make(map[string]struct{}, len(candidates))
+
+	for _, candidate := range candidates {
+		if _, ok := seen[candidate.name]; ok {
+			continue
+		}
+
+		seen[candidate.name] = struct{}{}
+		skills = append(skills, SkillPath{
+			Dir:    candidate.dir,
+			Source: candidate.source,
+		})
+	}
+
+	return skills
+}
+
+func addSnapshotIfExists(path string, snapshots map[string]fileSnapshot) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+
+	snapshot, err := snapshotPath(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+
+	snapshots[path] = snapshot
+	return nil
+}
+
+func snapshotPath(path string) (fileSnapshot, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fileSnapshot{}, err
+	}
+
+	return fileSnapshot{
+		modTime: info.ModTime(),
+		size:    info.Size(),
+	}, nil
+}
+
+func snapshotsEqual(left, right map[string]fileSnapshot) bool {
+	if len(left) != len(right) {
+		return false
+	}
+
+	for path, leftSnapshot := range left {
+		rightSnapshot, ok := right[path]
+		if !ok {
+			return false
+		}
+		if leftSnapshot.size != rightSnapshot.size {
+			return false
+		}
+		if !leftSnapshot.modTime.Equal(rightSnapshot.modTime) {
+			return false
+		}
+	}
+
+	return true
+}

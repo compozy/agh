@@ -102,6 +102,38 @@ type Server struct {
 	started      bool
 }
 
+type handlerConfig struct {
+	sessions     SessionManager
+	observer     Observer
+	workspaces   WorkspaceService
+	memoryStore  *memory.Store
+	dreamTrigger DreamTrigger
+	homePaths    aghconfig.HomePaths
+	config       aghconfig.Config
+	logger       *slog.Logger
+	startedAt    time.Time
+	now          func() time.Time
+	pollInterval time.Duration
+	agentLoader  AgentLoader
+}
+
+// Handlers expose request/response and SSE endpoints for the AGH API.
+type Handlers struct {
+	sessions     SessionManager
+	observer     Observer
+	workspaces   WorkspaceService
+	memoryStore  *memory.Store
+	dreamTrigger DreamTrigger
+	homePaths    aghconfig.HomePaths
+	config       aghconfig.Config
+	logger       *slog.Logger
+	startedAt    time.Time
+	now          func() time.Time
+	pollInterval time.Duration
+	agentLoader  AgentLoader
+	streamDone   <-chan struct{}
+}
+
 // WithHomePaths overrides the resolved AGH home layout.
 func WithHomePaths(homePaths aghconfig.HomePaths) Option {
 	return func(server *Server) {
@@ -457,4 +489,46 @@ func waitForServeDone(ctx context.Context, done <-chan struct{}) error {
 	case <-ctx.Done():
 		return fmt.Errorf("udsapi: wait for serve shutdown: %w", ctx.Err())
 	}
+}
+
+func newHandlers(cfg handlerConfig) *Handlers {
+	logger := cfg.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	now := cfg.now
+	if now == nil {
+		now = func() time.Time {
+			return time.Now().UTC()
+		}
+	}
+	agentLoader := cfg.agentLoader
+	if agentLoader == nil {
+		agentLoader = aghconfig.LoadAgentDef
+	}
+	if cfg.pollInterval <= 0 {
+		cfg.pollInterval = defaultPollInterval
+	}
+	if cfg.startedAt.IsZero() {
+		cfg.startedAt = now()
+	}
+
+	return &Handlers{
+		sessions:     cfg.sessions,
+		observer:     cfg.observer,
+		workspaces:   cfg.workspaces,
+		memoryStore:  cfg.memoryStore,
+		dreamTrigger: cfg.dreamTrigger,
+		homePaths:    cfg.homePaths,
+		config:       cfg.config,
+		logger:       logger,
+		startedAt:    cfg.startedAt,
+		now:          now,
+		pollInterval: cfg.pollInterval,
+		agentLoader:  agentLoader,
+	}
+}
+
+func (h *Handlers) setStreamDone(done <-chan struct{}) {
+	h.streamDone = done
 }

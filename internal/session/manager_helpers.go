@@ -1,0 +1,129 @@
+package session
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
+	"time"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+)
+
+func (m *Manager) startupPrompt(ctx context.Context, agentName string, agent aghconfig.AgentDef, workspace workspacepkg.ResolvedWorkspace) (string, error) {
+	prompt := strings.TrimSpace(agent.Prompt)
+	if m.assembler == nil {
+		return prompt, nil
+	}
+
+	assembledPrompt, err := m.assembler.Assemble(ctx, agent, workspace)
+	if err != nil {
+		return "", fmt.Errorf("session: assemble prompt for %q: %w", agentName, err)
+	}
+	if strings.TrimSpace(assembledPrompt) == "" {
+		return prompt, nil
+	}
+
+	return strings.TrimSpace(assembledPrompt), nil
+}
+
+func (m *Manager) startPermissions(sessionType SessionType, configured string) aghconfig.PermissionMode {
+	if normalizeSessionType(sessionType) == SessionTypeDream {
+		return aghconfig.PermissionModeApproveAll
+	}
+
+	mode := aghconfig.PermissionMode(strings.TrimSpace(configured))
+	if mode == "" {
+		return aghconfig.PermissionModeApproveReads
+	}
+	return mode
+}
+
+func (m *Manager) effectiveMaxSessions(cfg aghconfig.Config) int {
+	if m.maxSessions > 0 {
+		return m.maxSessions
+	}
+	if cfg.Limits.MaxSessions > 0 {
+		return cfg.Limits.MaxSessions
+	}
+	return aghconfig.DefaultWithHome(m.homePaths).Limits.MaxSessions
+}
+
+func (m *Manager) writeMeta(session *Session) error {
+	if session == nil {
+		return errors.New("session: session is required")
+	}
+	if err := store.WriteSessionMeta(session.MetaPath(), session.meta()); err != nil {
+		return fmt.Errorf("session: write meta for %q: %w", session.ID, err)
+	}
+	return nil
+}
+
+func (m *Manager) sessionLogger(session *Session) *slog.Logger {
+	logger := m.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if session == nil {
+		return logger
+	}
+
+	info := session.Info()
+	return logger.With("session_id", info.ID, "agent_name", info.AgentName)
+}
+
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func isProcessDone(proc *AgentProcess) bool {
+	if proc == nil {
+		return true
+	}
+	select {
+	case <-proc.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+func waitForPromptSetup(ctx context.Context, session *Session, promptSetupDone <-chan struct{}) error {
+	if promptSetupDone == nil {
+		return nil
+	}
+	select {
+	case <-promptSetupDone:
+		return nil
+	case <-ctx.Done():
+		sessionID := ""
+		if session != nil {
+			sessionID = session.ID
+		}
+		return fmt.Errorf("session: wait for in-flight prompt setup for %q: %w", sessionID, ctx.Err())
+	}
+}
+
+func newID(prefix string) string {
+	var random [8]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		now := time.Now().UTC().UnixNano()
+		if strings.TrimSpace(prefix) == "" {
+			return fmt.Sprintf("%d", now)
+		}
+		return fmt.Sprintf("%s-%d", prefix, now)
+	}
+
+	if strings.TrimSpace(prefix) == "" {
+		return hex.EncodeToString(random[:])
+	}
+	return fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(random[:]))
+}
