@@ -192,6 +192,12 @@ func TestBootInitializesMemoryStoreAndAssemblerIntegration(t *testing.T) {
 	if capturedDeps.PromptAssembler == nil {
 		t.Fatal("boot() did not inject the prompt assembler")
 	}
+	if capturedDeps.SkillRegistry == nil {
+		t.Fatal("boot() did not inject the skills registry")
+	}
+	if capturedDeps.MCPResolver == nil {
+		t.Fatal("boot() did not inject the MCP resolver")
+	}
 	if capturedDeps.WorkspaceResolver == nil {
 		t.Fatal("boot() did not inject the workspace resolver")
 	}

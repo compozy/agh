@@ -8,6 +8,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -156,6 +157,16 @@ type Notifier interface {
 // PromptAssembler assembles the prompt context for a new session start.
 type PromptAssembler interface {
 	Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace workspacepkg.ResolvedWorkspace) (string, error)
+}
+
+// SkillRegistry resolves the active skill set for a workspace during session start.
+type SkillRegistry interface {
+	ForWorkspace(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
+}
+
+// MCPResolver resolves skill-declared MCP servers into runtime config entries.
+type MCPResolver interface {
+	Resolve(skills []*skillspkg.Skill) []aghconfig.MCPServer
 }
 
 // ACPDriverAdapter adapts the concrete ACP driver to the session-local interface.

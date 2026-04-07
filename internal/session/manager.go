@@ -62,6 +62,8 @@ type Manager struct {
 	logger        *slog.Logger
 	driver        AgentDriver
 	notifier      Notifier
+	skillRegistry SkillRegistry
+	mcpResolver   MCPResolver
 	homePaths     aghconfig.HomePaths
 	workspace     workspacepkg.WorkspaceResolver
 	openStore     StoreOpener
@@ -106,6 +108,20 @@ func WithLifecycleContext(ctx context.Context) Option {
 func WithNotifier(notifier Notifier) Option {
 	return func(manager *Manager) {
 		manager.notifier = notifier
+	}
+}
+
+// WithSkillRegistry injects the active-skill registry used during session start.
+func WithSkillRegistry(registry SkillRegistry) Option {
+	return func(manager *Manager) {
+		manager.skillRegistry = registry
+	}
+}
+
+// WithMCPResolver injects the skill MCP resolver used during session start.
+func WithMCPResolver(resolver MCPResolver) Option {
+	return func(manager *Manager) {
+		manager.mcpResolver = resolver
 	}
 }
 

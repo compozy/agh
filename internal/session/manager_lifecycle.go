@@ -11,6 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 // Create resolves an agent definition, opens the session store, and starts a new runtime session.
@@ -42,6 +43,11 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 	resolved, err := resolvedWorkspace.Config.ResolveAgent(agentDef)
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve agent %q: %w", agentName, err)
+	}
+
+	startMCPServers, err := m.resolveStartMCPServers(ctx, resolvedWorkspace, resolved.MCPServers)
+	if err != nil {
+		return nil, err
 	}
 
 	sessionID := strings.TrimSpace(m.newSessionID())
@@ -103,7 +109,7 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 		Command:        resolved.Command,
 		Cwd:            resolvedWorkspace.RootDir,
 		AdditionalDirs: append([]string(nil), resolvedWorkspace.AdditionalDirs...),
-		MCPServers:     append([]aghconfig.MCPServer(nil), resolved.MCPServers...),
+		MCPServers:     startMCPServers,
 		Permissions:    m.startPermissions(session.Type, resolved.Permissions),
 		SystemPrompt:   resolved.Prompt,
 	})
@@ -202,6 +208,11 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		return nil, fmt.Errorf("session: resolve agent %q: %w", meta.AgentName, err)
 	}
 
+	startMCPServers, err := m.resolveStartMCPServers(ctx, resolvedWorkspace, resolved.MCPServers)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := m.reserve(meta.ID, m.effectiveMaxSessions(resolvedWorkspace.Config)); err != nil {
 		return nil, err
 	}
@@ -255,7 +266,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		Command:         resolved.Command,
 		Cwd:             resolvedWorkspace.RootDir,
 		AdditionalDirs:  append([]string(nil), resolvedWorkspace.AdditionalDirs...),
-		MCPServers:      append([]aghconfig.MCPServer(nil), resolved.MCPServers...),
+		MCPServers:      startMCPServers,
 		Permissions:     m.startPermissions(session.Type, resolved.Permissions),
 		SystemPrompt:    resolved.Prompt,
 		ResumeSessionID: derefString(meta.ACPSessionID),
@@ -388,6 +399,22 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	}
 
 	return errors.Join(errs...)
+}
+
+func (m *Manager) resolveStartMCPServers(ctx context.Context, resolvedWorkspace workspacepkg.ResolvedWorkspace, base []aghconfig.MCPServer) ([]aghconfig.MCPServer, error) {
+	switch {
+	case m.skillRegistry == nil && m.mcpResolver == nil:
+		return append([]aghconfig.MCPServer(nil), base...), nil
+	case m.skillRegistry == nil || m.mcpResolver == nil:
+		return nil, errors.New("session: skill registry and MCP resolver must be configured together")
+	}
+
+	activeSkills, err := m.skillRegistry.ForWorkspace(ctx, resolvedWorkspace)
+	if err != nil {
+		return nil, fmt.Errorf("session: resolve active skills for workspace %q: %w", resolvedWorkspace.ID, err)
+	}
+
+	return aghconfig.MergeMCPServers(base, m.mcpResolver.Resolve(activeSkills)), nil
 }
 
 func (m *Manager) cleanupFailedStart(sessionDir string, recorder EventRecorder, proc *AgentProcess) error {
