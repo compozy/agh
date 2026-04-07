@@ -11,6 +11,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
@@ -257,7 +258,7 @@ func executeRootCommand(t *testing.T, deps commandDeps, args ...string) (string,
 	cmd.SetErr(&stderr)
 	cmd.SetArgs(args)
 
-	err := cmd.ExecuteContext(testContext(t))
+	err := cmd.ExecuteContext(testutil.Context(t))
 	return stdout.String(), stderr.String(), err
 }
 
@@ -269,14 +270,6 @@ func executeRootCommandWithExit(t *testing.T, deps commandDeps, args ...string) 
 		return 1, stdout, fmt.Sprintf("%serror: %v\n", stderr, err)
 	}
 	return 0, stdout, stderr
-}
-
-func testContext(t *testing.T) context.Context {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-	return ctx
 }
 
 func mustJSON(t *testing.T, value any) json.RawMessage {

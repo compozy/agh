@@ -219,37 +219,34 @@ func workspaceRecordBundle(item WorkspaceRecord) outputBundle {
 }
 
 func workspaceListBundle(items []WorkspaceRecord) outputBundle {
-	return outputBundle{
-		jsonValue: items,
-		human: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					stringOrDash(item.ID),
-					stringOrDash(item.Name),
-					stringOrDash(item.RootDir),
-					strconv.Itoa(len(item.AddDirs)),
-					stringOrDash(item.DefaultAgent),
-					stringOrDash(formatTime(item.UpdatedAt)),
-				})
+	return listBundle(
+		items,
+		items,
+		"Workspaces",
+		[]string{"ID", "Name", "Root", "Add Dirs", "Default Agent", "Updated"},
+		"workspaces",
+		[]string{"id", "name", "root_dir", "add_dir_count", "default_agent", "updated_at"},
+		func(item WorkspaceRecord) []string {
+			return []string{
+				stringOrDash(item.ID),
+				stringOrDash(item.Name),
+				stringOrDash(item.RootDir),
+				strconv.Itoa(len(item.AddDirs)),
+				stringOrDash(item.DefaultAgent),
+				stringOrDash(formatTime(item.UpdatedAt)),
 			}
-			return renderHumanTable("Workspaces", []string{"ID", "Name", "Root", "Add Dirs", "Default Agent", "Updated"}, rows), nil
 		},
-		toon: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					item.ID,
-					item.Name,
-					item.RootDir,
-					strconv.Itoa(len(item.AddDirs)),
-					item.DefaultAgent,
-					formatTime(item.UpdatedAt),
-				})
+		func(item WorkspaceRecord) []string {
+			return []string{
+				item.ID,
+				item.Name,
+				item.RootDir,
+				strconv.Itoa(len(item.AddDirs)),
+				item.DefaultAgent,
+				formatTime(item.UpdatedAt),
 			}
-			return renderToonArray("workspaces", []string{"id", "name", "root_dir", "add_dir_count", "default_agent", "updated_at"}, rows), nil
 		},
-	}
+	)
 }
 
 func workspaceDetailBundle(detail WorkspaceDetailRecord) outputBundle {

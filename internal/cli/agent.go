@@ -58,35 +58,32 @@ func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 }
 
 func agentListBundle(items []AgentRecord) outputBundle {
-	return outputBundle{
-		jsonValue: items,
-		human: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					stringOrDash(item.Name),
-					stringOrDash(item.Provider),
-					stringOrDash(item.Model),
-					strconv.Itoa(len(item.Tools)),
-					stringOrDash(item.Permissions),
-				})
+	return listBundle(
+		items,
+		items,
+		"Agents",
+		[]string{"Name", "Provider", "Model", "Tools", "Permissions"},
+		"agents",
+		[]string{"name", "provider", "model", "tool_count", "permissions"},
+		func(item AgentRecord) []string {
+			return []string{
+				stringOrDash(item.Name),
+				stringOrDash(item.Provider),
+				stringOrDash(item.Model),
+				strconv.Itoa(len(item.Tools)),
+				stringOrDash(item.Permissions),
 			}
-			return renderHumanTable("Agents", []string{"Name", "Provider", "Model", "Tools", "Permissions"}, rows), nil
 		},
-		toon: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					item.Name,
-					item.Provider,
-					item.Model,
-					strconv.Itoa(len(item.Tools)),
-					item.Permissions,
-				})
+		func(item AgentRecord) []string {
+			return []string{
+				item.Name,
+				item.Provider,
+				item.Model,
+				strconv.Itoa(len(item.Tools)),
+				item.Permissions,
 			}
-			return renderToonArray("agents", []string{"name", "provider", "model", "tool_count", "permissions"}, rows), nil
 		},
-	}
+	)
 }
 
 func agentBundle(item AgentRecord) outputBundle {

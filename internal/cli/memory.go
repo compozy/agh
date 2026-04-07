@@ -505,37 +505,34 @@ func memoryListBundle(locations []memoryLocation, now func() time.Time) outputBu
 		})
 	}
 
-	return outputBundle{
-		jsonValue: items,
-		human: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					stringOrDash(item.Filename),
-					stringOrDash(item.Name),
-					stringOrDash(string(item.Type)),
-					stringOrDash(string(item.Scope)),
-					stringOrDash(item.Age),
-					stringOrDash(item.Description),
-				})
+	return listBundle(
+		items,
+		items,
+		"Memories",
+		[]string{"Filename", "Name", "Type", "Scope", "Age", "Description"},
+		"memories",
+		[]string{"filename", "name", "type", "scope", "age", "description"},
+		func(item memoryListItem) []string {
+			return []string{
+				stringOrDash(item.Filename),
+				stringOrDash(item.Name),
+				stringOrDash(string(item.Type)),
+				stringOrDash(string(item.Scope)),
+				stringOrDash(item.Age),
+				stringOrDash(item.Description),
 			}
-			return renderHumanTable("Memories", []string{"Filename", "Name", "Type", "Scope", "Age", "Description"}, rows), nil
 		},
-		toon: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					item.Filename,
-					item.Name,
-					string(item.Type),
-					string(item.Scope),
-					item.Age,
-					item.Description,
-				})
+		func(item memoryListItem) []string {
+			return []string{
+				item.Filename,
+				item.Name,
+				string(item.Type),
+				string(item.Scope),
+				item.Age,
+				item.Description,
 			}
-			return renderToonArray("memories", []string{"filename", "name", "type", "scope", "age", "description"}, rows), nil
 		},
-	}
+	)
 }
 
 func memoryReadBundle(view memoryReadView) outputBundle {

@@ -16,6 +16,8 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -33,7 +35,7 @@ func TestCreateCleansUpOnStartFailure(t *testing.T) {
 		}),
 	)
 
-	_, err := h.manager.Create(testContext(t), CreateOpts{
+	_, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
 	})
@@ -59,12 +61,12 @@ func TestCreateErrorBranches(t *testing.T) {
 
 	t.Run("blank agent name uses config default", func(t *testing.T) {
 		h := newHarness(t)
-		session, err := h.manager.Create(testContext(t), CreateOpts{Workspace: h.workspaceID})
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{Workspace: h.workspaceID})
 		if err != nil {
 			t.Fatalf("Create(blank agent) error = %v", err)
 		}
 		t.Cleanup(func() {
-			_ = h.manager.Stop(testContext(t), session.ID)
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
 		})
 		if got, want := session.Info().AgentName, aghconfig.DefaultAgentName; got != want {
 			t.Fatalf("Create(blank agent) AgentName = %q, want %q", got, want)
@@ -88,14 +90,14 @@ func TestCreateErrorBranches(t *testing.T) {
 			}},
 		})
 		h.manager = newManagerWithHarness(t, h)
-		if _, err := h.manager.Create(testContext(t), CreateOpts{Workspace: h.workspaceID}); err == nil {
+		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{Workspace: h.workspaceID}); err == nil {
 			t.Fatal("Create(blank agent with empty defaults) error = nil, want non-nil")
 		}
 	})
 
 	t.Run("empty generated session id", func(t *testing.T) {
 		h := newHarness(t, WithSessionIDGenerator(func() string { return "" }))
-		if _, err := h.manager.Create(testContext(t), CreateOpts{
+		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
 		}); err == nil {
@@ -108,7 +110,7 @@ func TestCreateErrorBranches(t *testing.T) {
 		h.manager = newManagerWithHarness(t, h, WithStore(func(context.Context, string, string) (EventRecorder, error) {
 			return nil, errors.New("open failed")
 		}))
-		if _, err := h.manager.Create(testContext(t), CreateOpts{
+		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
 		}); err == nil {
@@ -122,7 +124,7 @@ func TestCreateWithNilPromptAssemblerIsSafe(t *testing.T) {
 
 	h := newHarness(t, WithPromptAssembler(nil))
 
-	session, err := h.manager.Create(testContext(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
 	})
@@ -130,7 +132,7 @@ func TestCreateWithNilPromptAssemblerIsSafe(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	if got := session.Info().Type; got != SessionTypeUser {
@@ -146,7 +148,7 @@ func TestResumeCleansUpOnStartFailure(t *testing.T) {
 
 	h := newHarness(t)
 	session := createSession(t, h)
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
@@ -160,7 +162,7 @@ func TestResumeCleansUpOnStartFailure(t *testing.T) {
 		}),
 	)
 
-	_, err := h.manager.Resume(testContext(t), session.ID)
+	_, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err == nil {
 		t.Fatal("Resume() error = nil, want non-nil")
 	}
@@ -199,7 +201,7 @@ func TestCreatePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 		}},
 	})
 
-	session, err := h.manager.Create(testContext(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
 	})
@@ -207,7 +209,7 @@ func TestCreatePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	if got, want := h.driver.startCalls[0].AdditionalDirs, []string{additionalOne, additionalTwo}; !slices.Equal(got, want) {
@@ -243,16 +245,16 @@ func TestResumePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 	})
 
 	session := createSession(t, h)
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	resumed, err := h.manager.Resume(testContext(t), session.ID)
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), resumed.ID)
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
 	})
 
 	if got, want := h.driver.startCalls[1].AdditionalDirs, []string{additionalOne, additionalTwo}; !slices.Equal(got, want) {
@@ -264,10 +266,10 @@ func TestResumeErrorBranches(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	if _, err := h.manager.Resume(testContext(t), ""); err == nil {
+	if _, err := h.manager.Resume(testutil.Context(t), ""); err == nil {
 		t.Fatal("Resume(blank id) error = nil, want non-nil")
 	}
-	if _, err := h.manager.Resume(testContext(t), "missing"); err == nil {
+	if _, err := h.manager.Resume(testutil.Context(t), "missing"); err == nil {
 		t.Fatal("Resume(missing meta) error = nil, want non-nil")
 	}
 }
@@ -278,23 +280,23 @@ func TestPromptErrorPaths(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 
-	if _, err := h.manager.Prompt(testContext(t), session.ID, "   "); err == nil {
+	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "   "); err == nil {
 		t.Fatal("Prompt(empty) error = nil, want non-nil")
 	}
-	if _, err := h.manager.Prompt(testContext(t), "missing", "hello"); err == nil {
+	if _, err := h.manager.Prompt(testutil.Context(t), "missing", "hello"); err == nil {
 		t.Fatal("Prompt(missing) error = nil, want non-nil")
 	}
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
-	if _, err := h.manager.Prompt(testContext(t), session.ID, "after-stop"); err == nil {
+	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "after-stop"); err == nil {
 		t.Fatal("Prompt(stopped) error = nil, want non-nil")
 	}
 
 	h = newHarness(t)
 	session = createSession(t, h)
 	session.clearProcess(time.Now().UTC())
-	if _, err := h.manager.Prompt(testContext(t), session.ID, "missing-process"); err == nil {
+	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "missing-process"); err == nil {
 		t.Fatal("Prompt(missing process) error = nil, want non-nil")
 	}
 }
@@ -305,10 +307,10 @@ func TestResumeReturnsExistingActiveSession(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
-	resumed, err := h.manager.Resume(testContext(t), session.ID)
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Resume(active) error = %v", err)
 	}
@@ -482,10 +484,10 @@ func TestCreateWithBlankWorkspaceReturnsValidationError(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	if _, err := h.manager.Create(testContext(t), CreateOpts{AgentName: "coder"}); err == nil {
+	if _, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "coder"}); err == nil {
 		t.Fatal("Create(blank workspace) error = nil, want non-nil")
 	}
-	if _, err := h.manager.Create(testContext(t), CreateOpts{
+	if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName:     "coder",
 		Workspace:     h.workspaceID,
 		WorkspacePath: h.workspace,
@@ -511,7 +513,7 @@ func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	if _, err := manager.Create(testContext(t), CreateOpts{
+	if _, err := manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Workspace: "ws-missing",
 	}); err == nil {
@@ -530,7 +532,7 @@ func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
-	if _, err := manager.Resume(testContext(t), "sess-stored"); err == nil {
+	if _, err := manager.Resume(testutil.Context(t), "sess-stored"); err == nil {
 		t.Fatal("Resume(without resolver) error = nil, want non-nil")
 	}
 }
@@ -566,8 +568,8 @@ func TestMarshalAgentEvent(t *testing.T) {
 	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal(payload) error = %v", err)
 	}
-	if decoded["schema"] != eventEnvelopeSchema {
-		t.Fatalf("decoded[schema] = %v, want %q", decoded["schema"], eventEnvelopeSchema)
+	if decoded["schema"] != transcript.CanonicalSchema {
+		t.Fatalf("decoded[schema] = %v, want %q", decoded["schema"], transcript.CanonicalSchema)
 	}
 	if decoded["type"] != acp.EventTypeDone {
 		t.Fatalf("decoded[type] = %v, want %q", decoded["type"], acp.EventTypeDone)
@@ -580,8 +582,8 @@ func TestMarshalAgentEvent(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &rawDecoded); err != nil {
 		t.Fatalf("json.Unmarshal(raw payload) error = %v", err)
 	}
-	if rawDecoded["schema"] != eventEnvelopeSchema {
-		t.Fatalf("rawDecoded[schema] = %v, want %q", rawDecoded["schema"], eventEnvelopeSchema)
+	if rawDecoded["schema"] != transcript.CanonicalSchema {
+		t.Fatalf("rawDecoded[schema] = %v, want %q", rawDecoded["schema"], transcript.CanonicalSchema)
 	}
 	if rawDecoded["tool_name"] != "Bash" {
 		t.Fatalf("rawDecoded[tool_name] = %v, want %q", rawDecoded["tool_name"], "Bash")
@@ -641,7 +643,7 @@ func TestSessionDirAccessorAndStopWithoutProcess(t *testing.T) {
 	}
 
 	session.clearProcess(time.Now().UTC())
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop(no process) error = %v", err)
 	}
 	if readMeta(t, session.MetaPath()).State != string(StateStopped) {

@@ -1,9 +1,13 @@
 package cli
 
 import (
+	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 func TestBundlesRenderHumanAndToon(t *testing.T) {
@@ -115,6 +119,61 @@ func TestFormatHelpers(t *testing.T) {
 	}
 }
 
+func TestListBundleRendersJSONHumanAndToon(t *testing.T) {
+	t.Parallel()
+
+	type demoRow struct {
+		ID    string `json:"id"`
+		Count int    `json:"count"`
+	}
+
+	bundle := listBundle(
+		[]demoRow{{ID: "row-1", Count: 2}},
+		[]demoRow{{ID: "row-1", Count: 2}},
+		"Demo Rows",
+		[]string{"ID", "Count"},
+		"demo_rows",
+		[]string{"id", "count"},
+		func(item demoRow) []string {
+			return []string{item.ID, strconv.Itoa(item.Count)}
+		},
+		func(item demoRow) []string {
+			return []string{item.ID, strconv.Itoa(item.Count)}
+		},
+	)
+
+	for _, mode := range []OutputFormat{OutputJSON, OutputHuman, OutputToon} {
+		t.Run(string(mode), func(t *testing.T) {
+			t.Parallel()
+
+			cmd, output := newOutputTestCommand(t, mode)
+			if err := writeCommandOutput(cmd, bundle); err != nil {
+				t.Fatalf("writeCommandOutput(%s) error = %v", mode, err)
+			}
+
+			rendered := output.String()
+			if rendered == "" {
+				t.Fatalf("writeCommandOutput(%s) output = empty", mode)
+			}
+
+			switch mode {
+			case OutputJSON:
+				if !strings.Contains(rendered, `"id": "row-1"`) {
+					t.Fatalf("json output = %q, want serialized row", rendered)
+				}
+			case OutputHuman:
+				if !strings.Contains(rendered, "Demo Rows") || !strings.Contains(rendered, "row-1") {
+					t.Fatalf("human output = %q, want title and row", rendered)
+				}
+			case OutputToon:
+				if !strings.Contains(rendered, "demo_rows[1]{id,count}:") || !strings.Contains(rendered, "row-1") {
+					t.Fatalf("toon output = %q, want TOON array", rendered)
+				}
+			}
+		})
+	}
+}
+
 func TestVersionCommandFormats(t *testing.T) {
 	t.Parallel()
 
@@ -135,4 +194,14 @@ func TestVersionCommandFormats(t *testing.T) {
 	if !strings.Contains(toonOut, "version{version,commit,build_date}:") {
 		t.Fatalf("version toon output = %q, want TOON object", toonOut)
 	}
+}
+
+func newOutputTestCommand(t *testing.T, mode OutputFormat) (*cobra.Command, *bytes.Buffer) {
+	t.Helper()
+	cmd := &cobra.Command{Use: "test"}
+	output := &bytes.Buffer{}
+	cmd.SetOut(output)
+	cmd.Flags().String(outputFlagName, string(OutputHuman), "output format")
+	_ = cmd.Flags().Set(outputFlagName, string(mode))
+	return cmd, output
 }

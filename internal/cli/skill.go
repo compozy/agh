@@ -17,7 +17,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
 	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 	"github.com/spf13/cobra"
 )
@@ -271,7 +271,7 @@ func loadSkillCommandContext(ctx context.Context, deps commandDeps) (skillComman
 		return skillCommandContext{}, err
 	}
 
-	userAgentsDir, err := cliUserAgentsSkillsDir(deps)
+	userAgentsDir, err := aghconfig.ResolveUserAgentsSkillsDir(deps.getenv)
 	if err != nil {
 		return skillCommandContext{}, err
 	}
@@ -332,7 +332,7 @@ func resolveSkillWorkspace(ctx context.Context, runtime runtimeContext, workspac
 }
 
 func resolveRegisteredSkillWorkspace(ctx context.Context, runtime runtimeContext, workspaceRoot string) (resolved workspacepkg.ResolvedWorkspace, err error) {
-	globalDB, err := store.OpenGlobalDB(ctx, runtime.HomePaths.DatabaseFile)
+	globalDB, err := globaldb.OpenGlobalDB(ctx, runtime.HomePaths.DatabaseFile)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: open workspace database %q: %w", runtime.HomePaths.DatabaseFile, err)
 	}
@@ -407,30 +407,6 @@ func cliResolvedWorkspace(root string) (workspacepkg.ResolvedWorkspace, error) {
 		Workspace: workspacepkg.Workspace{RootDir: workspaceRoot},
 		Skills:    skillPaths,
 	}, nil
-}
-
-func cliUserAgentsSkillsDir(deps commandDeps) (string, error) {
-	if deps.getenv != nil {
-		if home := strings.TrimSpace(deps.getenv("HOME")); home != "" {
-			absHome, err := filepath.Abs(home)
-			if err != nil {
-				return "", fmt.Errorf("cli: resolve HOME for user agent skills: %w", err)
-			}
-			return filepath.Join(absHome, ".agents", "skills"), nil
-		}
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("cli: resolve user home for agent skills: %w", err)
-	}
-
-	absHome, err := filepath.Abs(home)
-	if err != nil {
-		return "", fmt.Errorf("cli: resolve user home for agent skills: %w", err)
-	}
-
-	return filepath.Join(absHome, ".agents", "skills"), nil
 }
 
 func resolveCLIWorkspaceRoot(deps commandDeps) (string, error) {
@@ -776,33 +752,30 @@ func skillSourceLabel(source skills.SkillSource) string {
 }
 
 func skillListBundle(items []skillListItem) outputBundle {
-	return outputBundle{
-		jsonValue: items,
-		human: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					stringOrDash(item.Name),
-					stringOrDash(item.Description),
-					stringOrDash(item.Source),
-					strconv.FormatBool(item.Enabled),
-				})
+	return listBundle(
+		items,
+		items,
+		"Skills",
+		[]string{"Name", "Description", "Source", "Enabled"},
+		"skills",
+		[]string{"name", "description", "source", "enabled"},
+		func(item skillListItem) []string {
+			return []string{
+				stringOrDash(item.Name),
+				stringOrDash(item.Description),
+				stringOrDash(item.Source),
+				strconv.FormatBool(item.Enabled),
 			}
-			return renderHumanTable("Skills", []string{"Name", "Description", "Source", "Enabled"}, rows), nil
 		},
-		toon: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					item.Name,
-					item.Description,
-					item.Source,
-					strconv.FormatBool(item.Enabled),
-				})
+		func(item skillListItem) []string {
+			return []string{
+				item.Name,
+				item.Description,
+				item.Source,
+				strconv.FormatBool(item.Enabled),
 			}
-			return renderToonArray("skills", []string{"name", "description", "source", "enabled"}, rows), nil
 		},
-	}
+	)
 }
 
 func skillViewBundle(item skillViewItem, rendered string) outputBundle {

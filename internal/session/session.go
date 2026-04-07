@@ -214,6 +214,23 @@ func (s *Session) clearProcess(now time.Time) {
 	}
 }
 
+func (s *Session) rollbackActivation(now time.Time) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.process = nil
+	s.ACPSessionID = ""
+	s.ACPCaps = acp.ACPCaps{}
+	s.State = StateStarting
+	if !now.IsZero() {
+		s.UpdatedAt = now
+	}
+}
+
 func (s *Session) setRecorder(recorder EventRecorder) {
 	if s == nil {
 		return

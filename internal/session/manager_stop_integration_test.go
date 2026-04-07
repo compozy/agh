@@ -20,7 +20,8 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
+	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -131,7 +132,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 	command := sessionStopHelperCommand(t)
 	writeSessionIntegrationAgentDef(t, homePaths, "coder", command)
 
-	registry, err := store.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
+	registry, err := globaldb.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
@@ -165,7 +166,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	session, err := manager.Create(testContext(t), CreateOpts{
+	session, err := manager.Create(testutil.Context(t), CreateOpts{
 		AgentName:     "coder",
 		WorkspacePath: workspaceRoot,
 	})
@@ -181,16 +182,18 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		t.Fatalf("Create() workspace root = %q, want %q", got, want)
 	}
 
-	if err := manager.Stop(testContext(t), session.ID); err != nil {
+	if err := manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	resumed, err := manager.Resume(testContext(t), session.ID)
+	resumed, err := manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = manager.Stop(testContext(t), resumed.ID)
+		if err := manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+			t.Fatalf("cleanup Stop() error = %v", err)
+		}
 	})
 
 	if got := resumed.Info().WorkspaceID; got != workspaceID {
