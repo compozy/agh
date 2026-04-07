@@ -121,6 +121,22 @@ func TestSessionDBInternalWriteHelpers(t *testing.T) {
 		t.Fatalf("waitForWriterExit(nil) error = %v", err)
 	}
 
+	writerCtx, cancelWriter := context.WithCancel(context.Background())
+	writerStopped := make(chan struct{})
+	canceledWriter := &SessionDB{
+		writeCh:    make(chan sessionWriteRequest),
+		shutdownCh: make(chan sessionShutdownRequest, 1),
+		writerCtx:  writerCtx,
+	}
+	go func() {
+		defer close(writerStopped)
+		canceledWriter.writerLoop()
+	}()
+	cancelWriter()
+	if err := waitForWriterExit(testutil.Context(t), writerStopped); err != nil {
+		t.Fatalf("waitForWriterExit(canceled writer) error = %v", err)
+	}
+
 	drainReq := sessionWriteRequest{
 		ctx:    testutil.Context(t),
 		kind:   sessionWriteEvent,

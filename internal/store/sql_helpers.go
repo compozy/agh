@@ -14,9 +14,10 @@ const defaultSessionType = "user"
 
 // Clause represents an optional SQL filter clause plus its bound argument.
 type Clause struct {
-	sql string
-	arg any
-	ok  bool
+	sql    string
+	arg    any
+	ok     bool
+	hasArg bool
 }
 
 // StringClause builds an equality clause when the value is non-empty.
@@ -25,11 +26,15 @@ func StringClause(column string, value string) Clause {
 	if value == "" {
 		return Clause{}
 	}
+	if _, err := NormalizeSQLiteIdentifier(column); err != nil {
+		return alwaysFalseClause()
+	}
 
 	return Clause{
-		sql: fmt.Sprintf("%s = ?", column),
-		arg: value,
-		ok:  true,
+		sql:    fmt.Sprintf("%s = ?", column),
+		arg:    value,
+		ok:     true,
+		hasArg: true,
 	}
 }
 
@@ -38,11 +43,15 @@ func TimeClause(column string, op string, value time.Time) Clause {
 	if value.IsZero() {
 		return Clause{}
 	}
+	if _, err := NormalizeSQLiteIdentifier(column); err != nil || !isAllowedSQLOperator(op) {
+		return alwaysFalseClause()
+	}
 
 	return Clause{
-		sql: fmt.Sprintf("%s %s ?", column, op),
-		arg: FormatTimestamp(value),
-		ok:  true,
+		sql:    fmt.Sprintf("%s %s ?", column, op),
+		arg:    FormatTimestamp(value),
+		ok:     true,
+		hasArg: true,
 	}
 }
 
@@ -51,11 +60,15 @@ func Int64Clause(column string, op string, value int64) Clause {
 	if value <= 0 {
 		return Clause{}
 	}
+	if _, err := NormalizeSQLiteIdentifier(column); err != nil || !isAllowedSQLOperator(op) {
+		return alwaysFalseClause()
+	}
 
 	return Clause{
-		sql: fmt.Sprintf("%s %s ?", column, op),
-		arg: value,
-		ok:  true,
+		sql:    fmt.Sprintf("%s %s ?", column, op),
+		arg:    value,
+		ok:     true,
+		hasArg: true,
 	}
 }
 
@@ -78,7 +91,9 @@ func BuildClauses(input ...Clause) ([]string, []any) {
 			continue
 		}
 		where = append(where, item.sql)
-		args = append(args, item.arg)
+		if item.hasArg {
+			args = append(args, item.arg)
+		}
 	}
 
 	return where, args
@@ -198,4 +213,20 @@ func NewID(prefix string) string {
 		return hex.EncodeToString(random[:])
 	}
 	return fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(random[:]))
+}
+
+func alwaysFalseClause() Clause {
+	return Clause{
+		sql: "1 = 0",
+		ok:  true,
+	}
+}
+
+func isAllowedSQLOperator(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "=", "!=", "<>", ">", ">=", "<", "<=":
+		return true
+	default:
+		return false
+	}
 }

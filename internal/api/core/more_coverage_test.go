@@ -138,11 +138,20 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 		t.Fatalf("filtered list status = %d, want %d", resp.Code, http.StatusOK)
 	}
 
-	handlers := core.NewBaseHandlers(core.BaseHandlerConfig{})
-	handlers.SetHTTPPort(4321)
-	if handlers.HTTPPort != 4321 {
-		t.Fatalf("HTTPPort = %d, want 4321", handlers.HTTPPort)
+	fixture.Handlers.SetHTTPPort(4321)
+	recorder := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("daemon status = %d, want %d", recorder.Code, http.StatusOK)
 	}
+	var payload struct {
+		Daemon contract.DaemonStatusPayload `json:"daemon"`
+	}
+	testutil.DecodeJSONResponse(t, recorder, &payload)
+	if payload.Daemon.HTTPPort != 4321 {
+		t.Fatalf("daemon http port = %d, want 4321", payload.Daemon.HTTPPort)
+	}
+
+	handlers := core.NewBaseHandlers(core.BaseHandlerConfig{})
 	if handlers.TransportName != "" && handlers.TransportName != "apicore" {
 		t.Fatalf("TransportName default = %q", handlers.TransportName)
 	}

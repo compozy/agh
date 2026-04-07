@@ -78,6 +78,12 @@ func TestGlobalDBCheckReady(t *testing.T) {
 	if err := globalDB.checkReady(testutil.Context(t), "list sessions"); err != nil {
 		t.Fatalf("checkReady(valid) error = %v", err)
 	}
+	if err := globalDB.Close(testutil.Context(t)); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if err := globalDB.checkReady(testutil.Context(t), "list sessions"); !errors.Is(err, store.ErrClosed) {
+		t.Fatalf("checkReady(after close) error = %v, want ErrClosed", err)
+	}
 }
 
 func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {

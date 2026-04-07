@@ -127,6 +127,17 @@ type ObserveEventPayload struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+// ObserveHealthPayload is the shared observability health response payload.
+type ObserveHealthPayload struct {
+	Status             string `json:"status"`
+	UptimeSeconds      int64  `json:"uptime_seconds"`
+	ActiveSessions     int    `json:"active_sessions"`
+	ActiveAgents       int    `json:"active_agents"`
+	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
+	Version            string `json:"version"`
+}
+
 // DaemonStatusPayload is the shared daemon status response payload.
 type DaemonStatusPayload struct {
 	Status         string    `json:"status"`
@@ -217,4 +228,12 @@ type WorkspaceSkillPayload struct {
 	Name   string `json:"name"`
 	Dir    string `json:"dir"`
 	Source string `json:"source"`
+}
+
+// WorkspaceDetailPayload is the shared resolved workspace detail response payload.
+type WorkspaceDetailPayload struct {
+	Workspace WorkspacePayload        `json:"workspace"`
+	Sessions  []SessionPayload        `json:"sessions,omitempty"`
+	Agents    []AgentPayload          `json:"agents,omitempty"`
+	Skills    []WorkspaceSkillPayload `json:"skills,omitempty"`
 }

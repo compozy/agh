@@ -103,12 +103,7 @@ type WorkspaceRecord = contract.WorkspacePayload
 type WorkspaceSkillRecord = contract.WorkspaceSkillPayload
 
 // WorkspaceDetailRecord captures the workspace info payload returned by the daemon API.
-type WorkspaceDetailRecord struct {
-	Workspace WorkspaceRecord        `json:"workspace"`
-	Sessions  []SessionRecord        `json:"sessions,omitempty"`
-	Agents    []AgentRecord          `json:"agents,omitempty"`
-	Skills    []WorkspaceSkillRecord `json:"skills,omitempty"`
-}
+type WorkspaceDetailRecord = contract.WorkspaceDetailPayload
 
 // AgentEventRecord is one prompt-stream event returned by the daemon API.
 type AgentEventRecord = contract.AgentEventPayload
@@ -144,15 +139,7 @@ type MemoryMutationRecord = contract.MemoryMutationResponse
 type MemoryConsolidateRecord = contract.MemoryConsolidateResponse
 
 // HealthStatus is the daemon API observability health payload.
-type HealthStatus struct {
-	Status             string `json:"status"`
-	UptimeSeconds      int64  `json:"uptime_seconds"`
-	ActiveSessions     int    `json:"active_sessions"`
-	ActiveAgents       int    `json:"active_agents"`
-	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
-	Version            string `json:"version"`
-}
+type HealthStatus = contract.ObserveHealthPayload
 
 // DaemonStatus is the shared daemon status payload.
 type DaemonStatus = contract.DaemonStatusPayload

@@ -83,6 +83,8 @@ type SessionDB struct {
 	writeCh    chan sessionWriteRequest
 	shutdownCh chan sessionShutdownRequest
 	writerDone chan struct{}
+	writerCtx  context.Context
+	cancel     context.CancelFunc
 
 	acceptMu sync.RWMutex
 	state    atomic.Int32
@@ -127,6 +129,7 @@ func OpenSessionDB(ctx context.Context, sessionID string, path string) (*Session
 		},
 		nextSequence: nextSequence,
 	}
+	sessionDB.writerCtx, sessionDB.cancel = context.WithCancel(context.Background())
 	sessionDB.state.Store(sessionStateOpen)
 
 	go func() {
@@ -294,6 +297,9 @@ func (s *SessionDB) Close(ctx context.Context) error {
 
 	drainCtx, cancel := context.WithTimeout(ctx, s.drainTimeout)
 	defer cancel()
+	if s.cancel != nil {
+		defer s.cancel()
+	}
 
 	s.acceptMu.Lock()
 	resultCh := make(chan error, 1)
@@ -342,6 +348,8 @@ func (s *SessionDB) writerLoop() {
 			req.result <- s.executeWrite(req)
 		case shutdown := <-s.shutdownCh:
 			shutdown.result <- s.drainWrites(shutdown.ctx)
+			return
+		case <-s.writerCtx.Done():
 			return
 		}
 	}

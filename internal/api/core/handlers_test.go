@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,13 +21,13 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
-	createCalled := false
+	var createCalled atomic.Bool
 	manager := testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			return []*session.SessionInfo{testutil.NewSessionInfo("sess-a")}, nil
 		},
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
-			createCalled = true
+			createCalled.Store(true)
 			if opts.AgentName != "coder" || opts.Workspace != "alpha" {
 				t.Fatalf("Create opts = %#v", opts)
 			}
@@ -102,8 +103,8 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	}
 
 	createResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", []byte(`{"agent_name":"coder","workspace":"alpha"}`))
-	if createResp.Code != http.StatusCreated || !createCalled {
-		t.Fatalf("create status = %d, called=%v", createResp.Code, createCalled)
+	if createResp.Code != http.StatusCreated || !createCalled.Load() {
+		t.Fatalf("create status = %d, called=%v", createResp.Code, createCalled.Load())
 	}
 
 	getResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a", nil)
@@ -117,8 +118,11 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	}
 
 	stopResp := performRequest(t, fixture.Engine, http.MethodDelete, "/sessions/sess-a", nil)
-	if stopResp.Code != http.StatusOK {
-		t.Fatalf("stop status = %d, want %d", stopResp.Code, http.StatusOK)
+	if stopResp.Code != http.StatusNoContent {
+		t.Fatalf("stop status = %d, want %d", stopResp.Code, http.StatusNoContent)
+	}
+	if got := stopResp.Body.String(); got != "" {
+		t.Fatalf("stop body = %q, want empty", got)
 	}
 
 	resumeResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions/sess-a/resume", nil)
@@ -146,15 +150,14 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 	t.Parallel()
 
 	done := make(chan struct{})
-	sessionCalls := 0
-	observeCalls := 0
+	var sessionCalls atomic.Int32
+	var observeCalls atomic.Int32
 	manager := testutil.StubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.SessionInfo, error) {
 			return testutil.NewSessionInfo(id), nil
 		},
 		EventsFn: func(_ context.Context, id string, _ store.EventQuery) ([]store.SessionEvent, error) {
-			sessionCalls++
-			switch sessionCalls {
+			switch sessionCalls.Add(1) {
 			case 1:
 				return []store.SessionEvent{{
 					ID:        "ev-1",
@@ -188,9 +191,9 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 	}
 	observer := testutil.StubObserver{
 		QueryEventsFn: func(_ context.Context, _ store.EventSummaryQuery) ([]store.EventSummary, error) {
-			observeCalls++
+			call := observeCalls.Add(1)
 			ts := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
-			switch observeCalls {
+			switch call {
 			case 1:
 				return []store.EventSummary{{ID: "sum-1", SessionID: "sess-a", Type: "agent_message", AgentName: "coder", Timestamp: ts}}, nil
 			case 2:

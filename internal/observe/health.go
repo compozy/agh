@@ -59,13 +59,17 @@ func (o *Observer) Health(ctx context.Context) (Health, error) {
 func (o *Observer) activeCounts(ctx context.Context) (int, int, error) {
 	if o.sessionSource != nil {
 		count := 0
+		agents := make(map[string]struct{})
 		for _, info := range o.sessionSource.List() {
 			if info == nil || info.State == session.StateStopped {
 				continue
 			}
 			count++
+			if agentName := strings.TrimSpace(info.AgentName); agentName != "" {
+				agents[agentName] = struct{}{}
+			}
 		}
-		return count, count, nil
+		return count, len(agents), nil
 	}
 
 	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{})
@@ -74,15 +78,19 @@ func (o *Observer) activeCounts(ctx context.Context) (int, int, error) {
 	}
 
 	count := 0
+	agents := make(map[string]struct{})
 	for _, info := range sessions {
 		state := strings.TrimSpace(info.State)
 		if state == "" || state == string(session.StateStopped) || state == "orphaned" {
 			continue
 		}
 		count++
+		if agentName := strings.TrimSpace(info.AgentName); agentName != "" {
+			agents[agentName] = struct{}{}
+		}
 	}
 
-	return count, count, nil
+	return count, len(agents), nil
 }
 
 func totalSessionDBSize(sessionsDir string) (int64, error) {

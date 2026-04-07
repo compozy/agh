@@ -389,7 +389,9 @@ func spawnSession(ctx context.Context, sessions SessionManager, agentName string
 		return fmt.Errorf("daemon: create dream session: %w", err)
 	}
 	defer func() {
-		stopErr := sessions.Stop(ctx, dreamSession.ID)
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		stopErr := sessions.Stop(stopCtx, dreamSession.ID)
 		if stopErr != nil {
 			err = errors.Join(err, fmt.Errorf("daemon: stop dream session %q: %w", dreamSession.ID, stopErr))
 		}
@@ -400,7 +402,14 @@ func spawnSession(ctx context.Context, sessions SessionManager, agentName string
 		return fmt.Errorf("daemon: prompt dream session %q: %w", dreamSession.ID, err)
 	}
 
-	for range events {
+	var eventErrs []error
+	for event := range events {
+		if strings.TrimSpace(event.Error) != "" {
+			eventErrs = append(eventErrs, errors.New(event.Error))
+		}
+	}
+	if len(eventErrs) > 0 {
+		return fmt.Errorf("daemon: dream session %q reported prompt errors: %w", dreamSession.ID, errors.Join(eventErrs...))
 	}
 	return nil
 }

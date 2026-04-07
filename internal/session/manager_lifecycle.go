@@ -320,12 +320,16 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	}
 
 	if waitErr != nil {
+		stderr := ""
+		if proc := session.processHandle(); proc != nil {
+			stderr = proc.Stderr()
+		}
 		event := acp.AgentEvent{
 			Type:      acp.EventTypeError,
 			TurnID:    newID("turn"),
 			Timestamp: m.now(),
 			Error:     waitErr.Error(),
-			Text:      session.processHandle().Stderr(),
+			Text:      stderr,
 		}
 		normalized := m.normalizeEvent(session, event.TurnID, event)
 		if err := m.recordEvent(ctx, session, normalized); err != nil {

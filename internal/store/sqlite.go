@@ -149,7 +149,22 @@ func recoverSQLiteDatabase(path string) (string, error) {
 	if err := os.Rename(path, corruptPath); err != nil {
 		return "", err
 	}
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if err := renameSQLiteCompanion(path+suffix, corruptPath+suffix); err != nil {
+			return "", err
+		}
+	}
 	return corruptPath, nil
+}
+
+func renameSQLiteCompanion(source string, target string) error {
+	if err := os.Rename(source, target); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // ShouldRecoverSQLite reports whether the open error indicates recoverable corruption.

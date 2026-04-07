@@ -433,6 +433,28 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 			t.Fatalf("spawnSession() error = %v, want stop failure", err)
 		}
 	})
+
+	t.Run("prompt event errors are surfaced", func(t *testing.T) {
+		sessions := &fakeSessionManager{
+			promptEvents: []acp.AgentEvent{{Type: acp.EventTypeError, Error: "tool failed"}},
+		}
+		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1")
+		if err == nil || !strings.Contains(err.Error(), "tool failed") {
+			t.Fatalf("spawnSession() error = %v, want prompt event failure", err)
+		}
+	})
+
+	t.Run("stop uses fresh context after caller cancellation", func(t *testing.T) {
+		sessions := &fakeSessionManager{}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		if err := spawnSession(ctx, sessions, "memory-agent", "goal", "prompt", "ws-1"); err != nil {
+			t.Fatalf("spawnSession() error = %v", err)
+		}
+		if got, want := sessions.lastStopContextErr(), error(nil); got != want {
+			t.Fatalf("Stop() context err = %v, want nil", got)
+		}
+	})
 }
 
 func dreamConfig() aghconfig.Config {
@@ -503,16 +525,18 @@ func (f *fakeDreamService) lastWorkspace() string {
 }
 
 type fakeSessionManager struct {
-	mu          sync.Mutex
-	infos       []*session.SessionInfo
-	promptErr   error
-	stopErr     error
-	createCalls []session.CreateOpts
-	promptCalls []struct {
+	mu           sync.Mutex
+	infos        []*session.SessionInfo
+	promptErr    error
+	promptEvents []acp.AgentEvent
+	stopErr      error
+	createCalls  []session.CreateOpts
+	promptCalls  []struct {
 		id  string
 		msg string
 	}
-	stopCalls []string
+	stopCalls  []string
+	stopCtxErr []error
 }
 
 func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -548,15 +572,23 @@ func (f *fakeSessionManager) Prompt(_ context.Context, id string, msg string) (<
 		return nil, promptErr
 	}
 
-	ch := make(chan acp.AgentEvent)
+	ch := make(chan acp.AgentEvent, len(f.promptEvents))
+	for _, event := range f.promptEvents {
+		ch <- event
+	}
 	close(ch)
 	return ch, nil
 }
 
-func (f *fakeSessionManager) Stop(_ context.Context, id string) error {
+func (f *fakeSessionManager) Stop(ctx context.Context, id string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stopCalls = append(f.stopCalls, id)
+	if ctx != nil {
+		f.stopCtxErr = append(f.stopCtxErr, ctx.Err())
+	} else {
+		f.stopCtxErr = append(f.stopCtxErr, context.Canceled)
+	}
 	return f.stopErr
 }
 
@@ -591,6 +623,15 @@ func (f *fakeSessionManager) stopCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.stopCalls)
+}
+
+func (f *fakeSessionManager) lastStopContextErr() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.stopCtxErr) == 0 {
+		return nil
+	}
+	return f.stopCtxErr[len(f.stopCtxErr)-1]
 }
 
 func (f *fakeSessionManager) stopCall(index int) string {

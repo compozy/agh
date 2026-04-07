@@ -451,8 +451,11 @@ func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 	engine := newTestRouter(t, handlers)
 
 	recorder := performRequest(t, engine, http.MethodDelete, "/api/sessions/sess-123", nil)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
+	}
+	if got := recorder.Body.String(); got != "" {
+		t.Fatalf("body = %q, want empty", got)
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -59,8 +61,10 @@ type BaseHandlers struct {
 	Now                          func() time.Time
 	PollInterval                 time.Duration
 	AgentLoader                  AgentLoader
-	StreamDone                   <-chan struct{}
-	HTTPPort                     int
+
+	settingsMu sync.RWMutex
+	streamDone <-chan struct{}
+	httpPort   atomic.Int64
 }
 
 // NewBaseHandlers builds a shared handler set with transport-specific defaults applied.
@@ -86,7 +90,11 @@ func NewBaseHandlers(cfg BaseHandlerConfig) *BaseHandlers {
 		cfg.StartedAt = now()
 	}
 
-	return &BaseHandlers{
+	if cfg.StreamDone == nil {
+		cfg.StreamDone = make(chan struct{})
+	}
+
+	handlers := &BaseHandlers{
 		TransportName:                strings.TrimSpace(cfg.TransportName),
 		MaskInternalErrors:           cfg.MaskInternalErrors,
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
@@ -102,9 +110,10 @@ func NewBaseHandlers(cfg BaseHandlerConfig) *BaseHandlers {
 		Now:                          now,
 		PollInterval:                 cfg.PollInterval,
 		AgentLoader:                  agentLoader,
-		StreamDone:                   cfg.StreamDone,
-		HTTPPort:                     cfg.HTTPPort,
 	}
+	handlers.streamDone = cfg.StreamDone
+	handlers.httpPort.Store(int64(cfg.HTTPPort))
+	return handlers
 }
 
 // SetStreamDone updates the transport shutdown channel used by streaming handlers.
@@ -112,7 +121,12 @@ func (h *BaseHandlers) SetStreamDone(done <-chan struct{}) {
 	if h == nil {
 		return
 	}
-	h.StreamDone = done
+	if done == nil {
+		done = make(chan struct{})
+	}
+	h.settingsMu.Lock()
+	h.streamDone = done
+	h.settingsMu.Unlock()
 }
 
 // SetHTTPPort overrides the reported HTTP port for daemon status responses.
@@ -120,7 +134,7 @@ func (h *BaseHandlers) SetHTTPPort(port int) {
 	if h == nil || port <= 0 {
 		return
 	}
-	h.HTTPPort = port
+	h.httpPort.Store(int64(port))
 }
 
 // ListSessions returns the visible session list.
@@ -188,7 +202,7 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "stopped"})
+	c.Status(http.StatusNoContent)
 }
 
 // ResumeSession resumes a stopped session.
@@ -333,7 +347,7 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 		select {
 		case <-c.Request.Context().Done():
 			return
-		case <-h.StreamDone:
+		case <-h.StreamDoneChannel():
 			return
 		case <-ticker.C:
 			pollQuery.AfterSequence = afterSequence
@@ -505,7 +519,7 @@ func (h *BaseHandlers) StreamObserveEvents(c *gin.Context) {
 		select {
 		case <-c.Request.Context().Done():
 			return
-		case <-h.StreamDone:
+		case <-h.StreamDoneChannel():
 			return
 		case <-ticker.C:
 			if !cursor.Timestamp.IsZero() {
@@ -558,7 +572,7 @@ func (h *BaseHandlers) DaemonStatus(c *gin.Context) {
 		return
 	}
 
-	httpPort := h.HTTPPort
+	httpPort := h.HTTPPortValue()
 	if httpPort <= 0 {
 		httpPort = h.Config.HTTP.Port
 	}
@@ -576,6 +590,24 @@ func (h *BaseHandlers) DaemonStatus(c *gin.Context) {
 			Version:        health.Version,
 		},
 	})
+}
+
+// HTTPPortValue returns the configured HTTP port in a concurrency-safe way.
+func (h *BaseHandlers) HTTPPortValue() int {
+	if h == nil {
+		return 0
+	}
+	return int(h.httpPort.Load())
+}
+
+// StreamDoneChannel returns the transport shutdown channel in a concurrency-safe way.
+func (h *BaseHandlers) StreamDoneChannel() <-chan struct{} {
+	if h == nil {
+		return nil
+	}
+	h.settingsMu.RLock()
+	defer h.settingsMu.RUnlock()
+	return h.streamDone
 }
 
 func (h *BaseHandlers) respondError(c *gin.Context, status int, err error) {

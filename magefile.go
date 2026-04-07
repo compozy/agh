@@ -135,6 +135,20 @@ func Boundaries() error {
 		{"internal/session", "internal/cli"},
 		{"internal/store", "internal/cli"},
 		{"internal/observe", "internal/cli"},
+		{"internal/api/contract", "internal/daemon"},
+		{"internal/api/contract", "internal/api/httpapi"},
+		{"internal/api/contract", "internal/api/udsapi"},
+		{"internal/api/contract", "internal/cli"},
+		{"internal/api/core", "internal/daemon"},
+		{"internal/api/core", "internal/api/httpapi"},
+		{"internal/api/core", "internal/api/udsapi"},
+		{"internal/api/core", "internal/cli"},
+		{"internal/api/httpapi", "internal/daemon"},
+		{"internal/api/httpapi", "internal/api/udsapi"},
+		{"internal/api/httpapi", "internal/cli"},
+		{"internal/api/udsapi", "internal/daemon"},
+		{"internal/api/udsapi", "internal/api/httpapi"},
+		{"internal/api/udsapi", "internal/cli"},
 	}
 
 	violations := 0

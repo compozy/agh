@@ -45,6 +45,18 @@ func TestStoreSQLHelpers(t *testing.T) {
 		t.Fatalf("AppendWhere() = %q", query)
 	}
 
+	invalidWhere, invalidArgs := BuildClauses(
+		StringClause("bad-name", "value"),
+		TimeClause("timestamp", "DROP TABLE", now),
+		Int64Clause("sequence", "DROP TABLE", 3),
+	)
+	if got, want := invalidWhere, []string{"1 = 0", "1 = 0", "1 = 0"}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("invalid where = %#v, want %#v", got, want)
+	}
+	if got, want := len(invalidArgs), 0; got != want {
+		t.Fatalf("len(invalidArgs) = %d, want %d", got, want)
+	}
+
 	limitedQuery, limitedArgs := AppendLimit(query, args, 5)
 	if !strings.HasSuffix(limitedQuery, " LIMIT ?") {
 		t.Fatalf("AppendLimit() query = %q", limitedQuery)
@@ -156,6 +168,11 @@ func TestStoreSQLiteRecoveryAndFailures(t *testing.T) {
 	if err := os.WriteFile(renamePath, []byte("rename-me"), 0o644); err != nil {
 		t.Fatalf("WriteFile(rename) error = %v", err)
 	}
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if err := os.WriteFile(renamePath+suffix, []byte("sidecar"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", suffix, err)
+		}
+	}
 	corruptPath, err := recoverSQLiteDatabase(renamePath)
 	if err != nil {
 		t.Fatalf("recoverSQLiteDatabase() error = %v", err)
@@ -165,5 +182,10 @@ func TestStoreSQLiteRecoveryAndFailures(t *testing.T) {
 	}
 	if _, err := os.Stat(corruptPath); err != nil {
 		t.Fatalf("Stat(corruptPath) error = %v", err)
+	}
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if _, err := os.Stat(corruptPath + suffix); err != nil {
+			t.Fatalf("Stat(%s) error = %v", corruptPath+suffix, err)
+		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/pedronauck/agh/internal/store"
@@ -74,9 +75,10 @@ var globalSchemaStatements = []string{
 
 // GlobalDB owns the global session index and observability database.
 type GlobalDB struct {
-	db   *sql.DB
-	path string
-	now  func() time.Time
+	db     *sql.DB
+	path   string
+	now    func() time.Time
+	closed atomic.Int32
 }
 
 var _ store.SessionRegistry = (*GlobalDB)(nil)
@@ -106,6 +108,9 @@ func (g *GlobalDB) checkReady(ctx context.Context, action string) error {
 	if g == nil {
 		return errors.New("store: global database is required")
 	}
+	if g.closed.Load() != 0 {
+		return store.ErrClosed
+	}
 	if ctx == nil {
 		return fmt.Errorf("store: %s context is required", action)
 	}
@@ -127,6 +132,9 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 	}
 	if ctx == nil {
 		return errors.New("store: close global database context is required")
+	}
+	if !g.closed.CompareAndSwap(0, 1) {
+		return nil
 	}
 
 	checkpointErr := store.Checkpoint(ctx, g.db)

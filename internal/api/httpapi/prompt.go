@@ -111,7 +111,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		select {
 		case <-c.Request.Context().Done():
 			return
-		case <-h.StreamDone:
+		case <-h.StreamDoneChannel():
 			return
 		case event, ok := <-events:
 			if !ok {

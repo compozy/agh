@@ -337,6 +337,48 @@ func TestGlobalDBMigrationHelpers(t *testing.T) {
 	if got, want := seed.updatedAt, "2026-04-04T12:10:00.000000000Z"; got != want {
 		t.Fatalf("seed.updatedAt = %q, want %q", got, want)
 	}
+
+	tx, err := migrationDB.BeginTx(testutil.Context(t), nil)
+	if err != nil {
+		t.Fatalf("BeginTx() error = %v", err)
+	}
+	if err := createMigratedGlobalTables(testutil.Context(t), tx); err != nil {
+		_ = tx.Rollback()
+		t.Fatalf("createMigratedGlobalTables() error = %v", err)
+	}
+	checkForeignKey := func(table string) {
+		rows, queryErr := tx.QueryContext(testutil.Context(t), `PRAGMA foreign_key_list(`+table+`)`)
+		if queryErr != nil {
+			t.Fatalf("PRAGMA foreign_key_list(%s) error = %v", table, queryErr)
+		}
+		defer func() { _ = rows.Close() }()
+
+		var (
+			id       int
+			seq      int
+			refTable string
+			from     string
+			to       string
+			onUpdate string
+			onDelete string
+			match    string
+		)
+		if !rows.Next() {
+			t.Fatalf("foreign_key_list(%s) returned no rows", table)
+		}
+		if err := rows.Scan(&id, &seq, &refTable, &from, &to, &onUpdate, &onDelete, &match); err != nil {
+			t.Fatalf("Scan(foreign_key_list %s) error = %v", table, err)
+		}
+		if refTable != "sessions_new" {
+			t.Fatalf("foreign key table for %s = %q, want sessions_new", table, refTable)
+		}
+	}
+	checkForeignKey("event_summaries_new")
+	checkForeignKey("token_stats_new")
+	checkForeignKey("permission_log_new")
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("Rollback() error = %v", err)
+	}
 }
 
 func TestGlobalDBLegacySessionMetaHelpers(t *testing.T) {

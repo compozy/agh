@@ -245,7 +245,7 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 		);`,
 		`CREATE TABLE event_summaries_new (
 			id         TEXT PRIMARY KEY,
-			session_id TEXT NOT NULL REFERENCES sessions(id),
+			session_id TEXT NOT NULL REFERENCES sessions_new(id),
 			type       TEXT NOT NULL,
 			agent_name TEXT NOT NULL,
 			summary    TEXT,
@@ -253,7 +253,7 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 		);`,
 		`CREATE TABLE token_stats_new (
 			id            TEXT PRIMARY KEY,
-			session_id    TEXT NOT NULL REFERENCES sessions(id),
+			session_id    TEXT NOT NULL REFERENCES sessions_new(id),
 			agent_name    TEXT NOT NULL,
 			input_tokens  INTEGER,
 			output_tokens INTEGER,
@@ -265,7 +265,7 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 		);`,
 		`CREATE TABLE permission_log_new (
 			id          TEXT PRIMARY KEY,
-			session_id  TEXT NOT NULL REFERENCES sessions(id),
+			session_id  TEXT NOT NULL REFERENCES sessions_new(id),
 			agent_name  TEXT NOT NULL,
 			action      TEXT NOT NULL,
 			resource    TEXT NOT NULL,

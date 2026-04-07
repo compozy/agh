@@ -353,8 +353,8 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 
 	h := newHarness(t)
 	h.source.sessions = []*session.SessionInfo{
-		{ID: "sess-active-1", State: session.StateActive},
-		{ID: "sess-active-2", State: session.StateStopping},
+		{ID: "sess-active-1", AgentName: "coder", State: session.StateActive},
+		{ID: "sess-active-2", AgentName: "coder", State: session.StateStopping},
 		{ID: "sess-stopped", State: session.StateStopped},
 	}
 
@@ -362,8 +362,8 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Health() error = %v", err)
 	}
-	if health.ActiveSessions != 2 || health.ActiveAgents != 2 {
-		t.Fatalf("Health() = %#v, want 2 active sessions/agents", health)
+	if health.ActiveSessions != 2 || health.ActiveAgents != 1 {
+		t.Fatalf("Health() = %#v, want 2 active sessions and 1 active agent", health)
 	}
 	if health.UptimeSeconds != 3600 {
 		t.Fatalf("Health().UptimeSeconds = %d, want 3600", health.UptimeSeconds)
