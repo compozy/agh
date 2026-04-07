@@ -96,9 +96,10 @@ type DreamConfig struct {
 
 // SkillsConfig controls skill loading and discovery.
 type SkillsConfig struct {
-	Enabled        bool          `toml:"enabled"`
-	DisabledSkills []string      `toml:"disabled_skills,omitempty"`
-	PollInterval   time.Duration `toml:"poll_interval"`
+	Enabled               bool          `toml:"enabled"`
+	DisabledSkills        []string      `toml:"disabled_skills,omitempty"`
+	PollInterval          time.Duration `toml:"poll_interval"`
+	AllowedMarketplaceMCP []string      `toml:"allowed_marketplace_mcp,omitempty"`
 }
 
 // Config is the fully merged AGH configuration.

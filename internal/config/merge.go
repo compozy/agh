@@ -86,9 +86,10 @@ type dreamOverlay struct {
 }
 
 type skillsOverlay struct {
-	Enabled        *bool          `toml:"enabled"`
-	DisabledSkills *[]string      `toml:"disabled_skills"`
-	PollInterval   *time.Duration `toml:"poll_interval"`
+	Enabled               *bool          `toml:"enabled"`
+	DisabledSkills        *[]string      `toml:"disabled_skills"`
+	PollInterval          *time.Duration `toml:"poll_interval"`
+	AllowedMarketplaceMCP *[]string      `toml:"allowed_marketplace_mcp"`
 }
 
 type mcpServerOverlay struct {
@@ -271,6 +272,9 @@ func (o skillsOverlay) Apply(dst *SkillsConfig) {
 	}
 	if o.PollInterval != nil {
 		dst.PollInterval = *o.PollInterval
+	}
+	if o.AllowedMarketplaceMCP != nil {
+		dst.AllowedMarketplaceMCP = append([]string(nil), (*o.AllowedMarketplaceMCP)...)
 	}
 }
 

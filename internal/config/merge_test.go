@@ -22,6 +22,7 @@ func TestApplyConfigOverlayFileAppliesSkillsOverlay(t *testing.T) {
 enabled = false
 disabled_skills = ["workspace-skill", "code-review"]
 poll_interval = "9s"
+allowed_marketplace_mcp = ["marketplace-a", "marketplace-b"]
 `)
 
 	if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
@@ -36,5 +37,8 @@ poll_interval = "9s"
 	}
 	if got, want := cfg.Skills.DisabledSkills, []string{"workspace-skill", "code-review"}; !slices.Equal(got, want) {
 		t.Fatalf("ApplyConfigOverlayFile() Skills.DisabledSkills = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Skills.AllowedMarketplaceMCP, []string{"marketplace-a", "marketplace-b"}; !slices.Equal(got, want) {
+		t.Fatalf("ApplyConfigOverlayFile() Skills.AllowedMarketplaceMCP = %#v, want %#v", got, want)
 	}
 }
