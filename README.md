@@ -26,16 +26,20 @@ Single binary. No sidecars. No external services.
 └────┬─────┘     └────┬─────┘
      │ HTTP/SSE       │ UDS
      ▼                ▼
-┌─────────────────────────────┐
-│         daemon/             │  ← composition root
-│  (wires all packages)       │
-├──────────┬──────────────────┤
-│ session/ │  observe/        │
-│ (Manager)│  (Observer)      │
-├──────────┼──────────────────┤
-│  acp/    │  store/  │memory/│
-│ (Driver) │ (SQLite) │       │
-└──────────┴──────────┴───────┘
+┌──────────────────────────────────────┐
+│              daemon/                 │  ← composition root
+│         (wires all packages)         │
+├──────────────────────────────────────┤
+│  api/httpapi  │  api/udsapi          │
+│  (HTTP/SSE)   │  (Unix socket)       │
+│               └── api/core (shared)  │
+├──────────┬───────────────────────────┤
+│ session/ │  observe/  │  memory/     │
+│ (Manager)│  (metrics) │  (dual-scope)│
+├──────────┼────────────┴──────────────┤
+│  acp/    │  store/    │  workspace/  │
+│ (Driver) │ (SQLite)   │  skills/     │
+└──────────┴────────────┴──────────────┘
          │
     JSON-RPC/stdio
          │
@@ -200,22 +204,38 @@ make web-test       # Vitest
 ## Project Structure
 
 ```
-cmd/agh/            # CLI entry point
+cmd/agh/                    # CLI entry point
 internal/
-├── acp/            # ACP client: subprocess spawn, JSON-RPC over stdio
-├── session/        # Session lifecycle, Manager, state machine
-├── store/          # SQLite persistence (per-session events.db + global agh.db)
-├── config/         # TOML loading, validation, agent definition parsing
-├── daemon/         # Composition root: boot, lock, shutdown
-├── httpapi/        # HTTP/SSE server (Gin)
-├── udsapi/         # Unix domain socket server
-├── cli/            # Cobra command tree
-├── observe/        # Event recording, health metrics, query engine
-├── memory/         # Persistent dual-scope memory system
-├── logger/         # Structured logging (slog)
-└── version/        # Build metadata
-web/                # React 19 SPA
-docs/               # Design documents and plans
+├── acp/                    # ACP client: subprocess spawn, JSON-RPC over stdio
+├── session/                # Session lifecycle, Manager, state machine
+├── store/                  # SQLite shared helpers, schema, validation
+│   ├── globaldb/           # Global catalog (agh.db)
+│   └── sessiondb/          # Per-session event store (events.db)
+├── config/                 # TOML loading, validation, agent definition parsing
+├── daemon/                 # Composition root: boot, lock, shutdown
+├── api/
+│   ├── contract/           # Shared daemon/CLI/HTTP contract types
+│   ├── core/               # Shared handler types, error mapping, SSE helpers
+│   ├── httpapi/            # HTTP/SSE server (Gin)
+│   ├── udsapi/             # Unix domain socket server
+│   └── testutil/           # Test helpers for the API layer
+├── cli/                    # Cobra command tree
+├── observe/                # Event recording, health metrics, query engine
+├── memory/                 # Persistent dual-scope memory (global + workspace)
+│   └── consolidation/      # Dream consolidation runtime
+├── skills/                 # Skills catalog and loader
+│   └── bundled/            # Bundled skill definitions
+├── workspace/              # Workspace resolver and entity management
+├── transcript/             # Canonical message assembly from events
+├── frontmatter/            # YAML frontmatter parsing
+├── fileutil/               # Shared filesystem helpers
+├── filesnap/               # File snapshot utilities
+├── procutil/               # Process utilities
+├── testutil/               # Shared test helpers
+├── logger/                 # Structured logging (slog)
+└── version/                # Build metadata
+web/                        # React 19 SPA
+docs/                       # Design documents and plans
 ```
 
 ## Development
