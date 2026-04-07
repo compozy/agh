@@ -70,9 +70,9 @@ The `.old_project/` directory contains the previous AGH implementation (78K+ LOC
 ### Principles
 
 - **Designed for incremental extension** — new capabilities arrive as new packages wired into `daemon/`, without modifying existing packages. Small interfaces + dependency injection.
-- **Pragmatic Flat with Discipline** — 11 packages under `internal/`, no domain/infra split, no event bus
+- **Pragmatic Flat with Discipline** — packages under `internal/`, API transports grouped under `api/`, no domain/infra split, no event bus
 - **`daemon/` is the sole composition root** — the only package that imports all others
-- **No package imports `daemon/`, `httpapi/`, `udsapi/`, or `cli/`** — dependencies flow downward only
+- **No package imports `daemon/`, `api/`, or `cli/`** — dependencies flow downward only
 - **Interfaces defined where consumed** (Go-style) — `session/` defines `AgentDriver`, `acp/` implements it
 - **Direct function calls through interfaces** — no event bus, no NATS, no reflection-based routing
 - **Notifier pattern for fan-out** — typed interface for observability and SSE, not a generic bus
@@ -98,22 +98,38 @@ The `.old_project/` directory contains the previous AGH implementation (78K+ LOC
 
 ## Package Layout
 
-| Path               | Responsibility                                                 |
-| ------------------ | -------------------------------------------------------------- |
-| `cmd/agh`          | Main entry point, CLI binary                                   |
-| `internal/config`  | TOML loading, validation, merge, home paths, agent def parsing |
-| `internal/acp`     | ACP client: subprocess spawn, JSON-RPC over stdio              |
-| `internal/session` | Session lifecycle, Manager, state machine                      |
-| `internal/store`   | SQLite (per-session events.db + global agh.db)                 |
-| `internal/observe` | Event recording, health metrics, query engine                  |
-| `internal/httpapi` | HTTP/SSE server (Gin) for web UI                               |
-| `internal/udsapi`  | UDS server for CLI IPC                                         |
-| `internal/cli`     | Cobra commands                                                 |
-| `internal/daemon`  | Composition root, lock, boot, shutdown                         |
-| `internal/logger`  | Structured logging (slog)                                      |
-| `internal/version` | Build metadata                                                 |
-| `web/`             | React 19 SPA (Vite, TanStack Router/Query, Tailwind, shadcn)   |
-| `web/src/systems/` | Domain feature modules (app-renderer-systems pattern)          |
+| Path                            | Responsibility                                                    |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `cmd/agh`                       | Main entry point, CLI binary                                      |
+| `internal/config`               | TOML loading, validation, merge, home paths, agent def parsing    |
+| `internal/acp`                  | ACP client: subprocess spawn, JSON-RPC over stdio                 |
+| `internal/session`              | Session lifecycle, Manager, state machine                         |
+| `internal/store`                | SQLite shared helpers, schema, validation                         |
+| `internal/store/globaldb`       | Global catalog (agh.db): sessions, metadata                       |
+| `internal/store/sessiondb`      | Per-session event store (events.db)                               |
+| `internal/observe`              | Event recording, health metrics, query engine                     |
+| `internal/memory`               | Persistent dual-scope memory (global + workspace), dream triggers |
+| `internal/memory/consolidation` | Dream consolidation runtime                                       |
+| `internal/skills`               | Skills catalog and loader                                         |
+| `internal/skills/bundled`       | Bundled skill definitions                                         |
+| `internal/workspace`            | Workspace resolver and entity management                          |
+| `internal/transcript`           | Canonical replay message assembly from persisted events           |
+| `internal/frontmatter`          | YAML frontmatter parsing                                          |
+| `internal/fileutil`             | Shared filesystem helpers                                         |
+| `internal/filesnap`             | File snapshot utilities                                           |
+| `internal/procutil`             | Process utilities                                                 |
+| `internal/api/contract`         | Shared daemon/CLI/HTTP contract types                             |
+| `internal/api/core`             | Shared handler types, error mapping, SSE helpers                  |
+| `internal/api/httpapi`          | HTTP/SSE server (Gin) for web UI                                  |
+| `internal/api/udsapi`           | UDS server for CLI IPC                                            |
+| `internal/api/testutil`         | Test helpers for the API layer                                    |
+| `internal/testutil`             | Shared test helpers                                               |
+| `internal/cli`                  | Cobra commands                                                    |
+| `internal/daemon`               | Composition root, lock, boot, shutdown                            |
+| `internal/logger`               | Structured logging (slog)                                         |
+| `internal/version`              | Build metadata                                                    |
+| `web/`                          | React 19 SPA (Vite, TanStack Router/Query, Tailwind, shadcn)      |
+| `web/src/systems/`              | Domain feature modules (app-renderer-systems pattern)             |
 
 ## Coding Style
 

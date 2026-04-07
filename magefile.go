@@ -109,7 +109,7 @@ func buildGo() error {
 }
 
 // Boundaries verifies that package import rules are not violated.
-// Rules: no package may import daemon/, httpapi/, udsapi/, or cli/.
+// Rules: no package may import daemon/, api/httpapi/, api/udsapi/, or cli/.
 func Boundaries() error {
 	forbidden := []struct {
 		importer string
@@ -120,21 +120,35 @@ func Boundaries() error {
 		{"internal/session", "internal/daemon"},
 		{"internal/store", "internal/daemon"},
 		{"internal/observe", "internal/daemon"},
-		{"internal/config", "internal/httpapi"},
-		{"internal/acp", "internal/httpapi"},
-		{"internal/session", "internal/httpapi"},
-		{"internal/store", "internal/httpapi"},
-		{"internal/observe", "internal/httpapi"},
-		{"internal/config", "internal/udsapi"},
-		{"internal/acp", "internal/udsapi"},
-		{"internal/session", "internal/udsapi"},
-		{"internal/store", "internal/udsapi"},
-		{"internal/observe", "internal/udsapi"},
+		{"internal/config", "internal/api/httpapi"},
+		{"internal/acp", "internal/api/httpapi"},
+		{"internal/session", "internal/api/httpapi"},
+		{"internal/store", "internal/api/httpapi"},
+		{"internal/observe", "internal/api/httpapi"},
+		{"internal/config", "internal/api/udsapi"},
+		{"internal/acp", "internal/api/udsapi"},
+		{"internal/session", "internal/api/udsapi"},
+		{"internal/store", "internal/api/udsapi"},
+		{"internal/observe", "internal/api/udsapi"},
 		{"internal/config", "internal/cli"},
 		{"internal/acp", "internal/cli"},
 		{"internal/session", "internal/cli"},
 		{"internal/store", "internal/cli"},
 		{"internal/observe", "internal/cli"},
+		{"internal/api/contract", "internal/daemon"},
+		{"internal/api/contract", "internal/api/httpapi"},
+		{"internal/api/contract", "internal/api/udsapi"},
+		{"internal/api/contract", "internal/cli"},
+		{"internal/api/core", "internal/daemon"},
+		{"internal/api/core", "internal/api/httpapi"},
+		{"internal/api/core", "internal/api/udsapi"},
+		{"internal/api/core", "internal/cli"},
+		{"internal/api/httpapi", "internal/daemon"},
+		{"internal/api/httpapi", "internal/api/udsapi"},
+		{"internal/api/httpapi", "internal/cli"},
+		{"internal/api/udsapi", "internal/daemon"},
+		{"internal/api/udsapi", "internal/api/httpapi"},
+		{"internal/api/udsapi", "internal/cli"},
 	}
 
 	violations := 0
