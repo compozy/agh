@@ -314,9 +314,9 @@ func TestEmitPermissionEvent(t *testing.T) {
 		name     string
 		decision permissionDecision
 	}{
-		{name: "interactive pending", decision: ""},
-		{name: "auto allow once", decision: decisionAllowOnce},
-		{name: "timeout reject once", decision: decisionRejectOnce},
+		{name: "ShouldHandleInteractivePending", decision: ""},
+		{name: "ShouldAllowOnceAutomatically", decision: decisionAllowOnce},
+		{name: "ShouldRejectOnceOnTimeout", decision: decisionRejectOnce},
 	}
 
 	for _, tt := range tests {
@@ -336,7 +336,7 @@ func TestEmitPermissionEvent(t *testing.T) {
 			proc.emitPermissionEvent("sess-emit", "turn-permission-event", "req-1", "permission request", "tool-1", "/tmp/demo.txt", tt.decision, raw)
 			event := collectEventsUntilCount(t, active.events, 1)[0]
 
-			raw[0] = '{'
+			raw[0] = '['
 
 			if event.Type != EventTypePermission {
 				t.Fatalf("event.Type = %q, want %q", event.Type, EventTypePermission)

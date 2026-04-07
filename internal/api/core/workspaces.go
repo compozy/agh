@@ -21,13 +21,13 @@ func (h *BaseHandlers) CreateWorkspace(c *gin.Context) {
 	}
 
 	rootDir := strings.TrimSpace(req.RootDir)
-	if err := validateAbsolutePath(h.transportName(), "root_dir", rootDir); err != nil {
+	if err := validateAbsolutePathInternal(h.transportName(), "root_dir", rootDir); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
 
-	addDirs := trimStringSlice(req.AddDirs)
-	if err := validateAbsolutePaths(h.transportName(), "add_dirs", addDirs); err != nil {
+	addDirs := trimStringSliceInternal(req.AddDirs)
+	if err := validateAbsolutePathsInternal(h.transportName(), "add_dirs", addDirs); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
@@ -78,7 +78,7 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"workspace": WorkspacePayloadFromWorkspace(resolved.Workspace),
-		"sessions":  SessionPayloadsFromInfos(filterSessionInfosByWorkspaceID(sessions, resolved.ID)),
+		"sessions":  SessionPayloadsFromInfos(filterSessionInfosByWorkspaceIDInternal(sessions, resolved.ID)),
 		"agents":    AgentPayloadsFromDefs(resolved.Agents),
 		"skills":    WorkspaceSkillPayloads(resolved.Skills),
 	})
@@ -108,8 +108,8 @@ func (h *BaseHandlers) UpdateWorkspace(c *gin.Context) {
 		opts.Name = &name
 	}
 	if req.AddDirs != nil {
-		addDirs := trimStringSlice(*req.AddDirs)
-		if err := validateAbsolutePaths(h.transportName(), "add_dirs", addDirs); err != nil {
+		addDirs := trimStringSliceInternal(*req.AddDirs)
+		if err := validateAbsolutePathsInternal(h.transportName(), "add_dirs", addDirs); err != nil {
 			h.respondError(c, http.StatusBadRequest, err)
 			return
 		}
@@ -159,7 +159,7 @@ func (h *BaseHandlers) ResolveWorkspace(c *gin.Context) {
 	}
 
 	path := strings.TrimSpace(req.Path)
-	if err := validateAbsolutePath(h.transportName(), "path", path); err != nil {
+	if err := validateAbsolutePathInternal(h.transportName(), "path", path); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
@@ -181,23 +181,7 @@ func (h *BaseHandlers) lookupWorkspaceID(ctx context.Context, ref string) (strin
 	return lookupWorkspaceID(ctx, h.transportName(), h.Workspaces, ref)
 }
 
-func filterSessionInfosByWorkspaceID(infos []*session.SessionInfo, workspaceID string) []*session.SessionInfo {
-	return filterSessionInfosByWorkspaceIDInternal(infos, workspaceID)
-}
-
-func validateAbsolutePath(prefix string, field string, value string) error {
-	return validateAbsolutePathInternal(prefix, field, value)
-}
-
-func validateAbsolutePaths(prefix string, field string, values []string) error {
-	return validateAbsolutePathsInternal(prefix, field, values)
-}
-
-func trimStringSlice(values []string) []string {
-	return trimStringSliceInternal(values)
-}
-
 // SessionPayloadsForWorkspace filters and converts sessions for one workspace.
 func SessionPayloadsForWorkspace(infos []*session.SessionInfo, workspaceID string) []contract.SessionPayload {
-	return SessionPayloadsFromInfos(filterSessionInfosByWorkspaceID(infos, workspaceID))
+	return SessionPayloadsFromInfos(filterSessionInfosByWorkspaceIDInternal(infos, workspaceID))
 }

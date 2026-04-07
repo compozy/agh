@@ -57,6 +57,7 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 	}
 
 	out := make(chan acp.AgentEvent, m.promptBufSize)
+	// pumpPrompt terminates when the driver closes the source channel or the request context ends.
 	go m.pumpPrompt(ctx, session, turnID, source, out)
 	return out, nil
 }

@@ -3,13 +3,13 @@
 package observe
 
 import (
-	"github.com/pedronauck/agh/internal/testutil"
 	"testing"
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestObserverIntegrationFullFlow(t *testing.T) {

@@ -445,7 +445,7 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 
 	t.Run("prompt error is wrapped", func(t *testing.T) {
 		sessions := &fakeSessionManager{promptErr: errors.New("prompt failed")}
-		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1")
+		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1", 0)
 		if err == nil {
 			t.Fatal("spawnSession() error = nil, want non-nil")
 		}
@@ -457,7 +457,7 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 	t.Run("stop error is joined", func(t *testing.T) {
 		stopErr := errors.New("stop failed")
 		sessions := &fakeSessionManager{stopErr: stopErr}
-		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1")
+		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1", 0)
 		if !errors.Is(err, stopErr) {
 			t.Fatalf("spawnSession() error = %v, want stop failure", err)
 		}
@@ -467,7 +467,7 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 		sessions := &fakeSessionManager{
 			promptEvents: []acp.AgentEvent{{Type: acp.EventTypeError, Error: "tool failed"}},
 		}
-		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1")
+		err := spawnSession(context.Background(), sessions, "memory-agent", "goal", "prompt", "ws-1", 0)
 		if err == nil || !strings.Contains(err.Error(), "tool failed") {
 			t.Fatalf("spawnSession() error = %v, want prompt event failure", err)
 		}
@@ -477,7 +477,7 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 		sessions := &fakeSessionManager{}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if err := spawnSession(ctx, sessions, "memory-agent", "goal", "prompt", "ws-1"); err != nil {
+		if err := spawnSession(ctx, sessions, "memory-agent", "goal", "prompt", "ws-1", 0); err != nil {
 			t.Fatalf("spawnSession() error = %v", err)
 		}
 		if got, want := sessions.lastStopContextErr(), error(nil); got != want {
@@ -645,6 +645,12 @@ func (f *fakeSessionManager) promptCall(index int) struct {
 } {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if index < 0 || index >= len(f.promptCalls) {
+		return struct {
+			id  string
+			msg string
+		}{}
+	}
 	return f.promptCalls[index]
 }
 

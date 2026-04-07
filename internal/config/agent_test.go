@@ -1,9 +1,12 @@
 package config
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/pedronauck/agh/internal/frontmatter"
 )
 
 func TestParseAgentDefValidFrontmatterAndBody(t *testing.T) {
@@ -52,14 +55,14 @@ func TestParseAgentDefNormalizesCRLFAndPreservesConfigFrontmatterErrors(t *testi
 
 	if _, err := ParseAgentDef([]byte("plain markdown")); err == nil {
 		t.Fatal("ParseAgentDef() missing frontmatter error = nil, want non-nil")
-	} else if got, want := err.Error(), "config: missing YAML frontmatter"; got != want {
-		t.Fatalf("ParseAgentDef() missing frontmatter error = %q, want %q", got, want)
+	} else if !errors.Is(err, ErrMissingAgentFrontmatter) || !errors.Is(err, frontmatter.ErrMissing) {
+		t.Fatalf("ParseAgentDef() missing frontmatter error = %v, want mapped config + frontmatter sentinel", err)
 	}
 
 	if _, err := ParseAgentDef([]byte("---\nname: broken")); err == nil {
 		t.Fatal("ParseAgentDef() unterminated frontmatter error = nil, want non-nil")
-	} else if got, want := err.Error(), "config: unterminated YAML frontmatter"; got != want {
-		t.Fatalf("ParseAgentDef() unterminated frontmatter error = %q, want %q", got, want)
+	} else if !errors.Is(err, ErrUnterminatedAgentFrontmatter) || !errors.Is(err, frontmatter.ErrUnterminated) {
+		t.Fatalf("ParseAgentDef() unterminated frontmatter error = %v, want mapped config + frontmatter sentinel", err)
 	}
 }
 

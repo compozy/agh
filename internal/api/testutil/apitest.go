@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -54,7 +55,10 @@ func (s StubSessionManager) List() []*session.SessionInfo {
 		return s.ListFn()
 	}
 	if s.ListAllFn != nil {
-		infos, _ := s.ListAllFn(context.Background())
+		infos, err := s.ListAllFn(context.Background())
+		if err != nil {
+			panic(fmt.Errorf("testutil: StubSessionManager.List fallback failed: %w", err))
+		}
 		return infos
 	}
 	return nil
@@ -337,6 +341,9 @@ func ParseSSE(t *testing.T, body string) []SSERecord {
 		case strings.HasPrefix(line, "event: "):
 			current.Event = strings.TrimPrefix(line, "event: ")
 		case strings.HasPrefix(line, "data: "):
+			if len(current.Data) > 0 {
+				current.Data = append(current.Data, '\n')
+			}
 			current.Data = append(current.Data, []byte(strings.TrimPrefix(line, "data: "))...)
 		}
 	}

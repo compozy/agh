@@ -3,7 +3,6 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -77,7 +76,8 @@ type promptStreamState struct {
 func (h *Handlers) promptSession(c *gin.Context) {
 	var req promptRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		core.RespondError(c, http.StatusBadRequest, fmt.Errorf("httpapi: decode prompt request: %w", err), true)
+		h.Logger.Debug("httpapi: decode prompt request failed", "error", err)
+		core.RespondError(c, http.StatusBadRequest, errors.New("invalid request payload"), true)
 		return
 	}
 

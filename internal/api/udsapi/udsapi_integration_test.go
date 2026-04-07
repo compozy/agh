@@ -92,10 +92,10 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 	}
 
 	stopResp := mustUnixRequest(t, runtime.client, http.MethodDelete, "http://unix/api/sessions/"+created.Session.ID, nil, nil)
-	if stopResp.StatusCode != http.StatusOK {
+	if stopResp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(stopResp.Body)
 		_ = stopResp.Body.Close()
-		t.Fatalf("stop session status = %d, want %d; body=%s", stopResp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf("stop session status = %d, want %d; body=%s", stopResp.StatusCode, http.StatusNoContent, string(body))
 	}
 	_ = stopResp.Body.Close()
 }
@@ -564,10 +564,10 @@ func stopIntegrationSession(t *testing.T, runtime integrationRuntime, sessionID 
 	t.Helper()
 
 	resp := mustUnixRequest(t, runtime.client, http.MethodDelete, "http://unix/api/sessions/"+sessionID, nil, nil)
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
-		t.Fatalf("stop status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf("stop status = %d, want %d; body=%s", resp.StatusCode, http.StatusNoContent, string(body))
 	}
 	_ = resp.Body.Close()
 }

@@ -1,6 +1,8 @@
 package procutil
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
@@ -20,7 +22,7 @@ func TestAliveRejectsNonPositivePIDs(t *testing.T) {
 	testCases := []int{0, -1}
 	for _, pid := range testCases {
 		pid := pid
-		t.Run("pid", func(t *testing.T) {
+		t.Run(fmt.Sprintf("ShouldReturnFalseForPID_%d", pid), func(t *testing.T) {
 			t.Parallel()
 			if Alive(pid) {
 				t.Fatalf("Alive(%d) = true, want false", pid)
@@ -48,7 +50,7 @@ func TestSignalRejectsNonPositivePID(t *testing.T) {
 func TestSignalReturnsErrorForMissingProcess(t *testing.T) {
 	t.Parallel()
 
-	if err := Signal(999999, syscall.Signal(0)); err == nil {
-		t.Fatal("Signal(missing pid, 0) error = nil, want non-nil")
+	if err := Signal(999999, syscall.Signal(0)); !errors.Is(err, syscall.ESRCH) {
+		t.Fatalf("Signal(missing pid, 0) error = %v, want ESRCH", err)
 	}
 }

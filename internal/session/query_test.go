@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"errors"
-	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestManagerListAllRequiresContext(t *testing.T) {

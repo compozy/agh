@@ -87,10 +87,13 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 	}
 
 	for _, request := range requests {
-		resp := performRequest(t, fixture.Engine, request.method, request.path, request.body)
-		if resp.Code != request.want {
-			t.Fatalf("%s %s status = %d, want %d; body=%s", request.method, request.path, resp.Code, request.want, resp.Body.String())
-		}
+		request := request
+		t.Run(request.method+" "+request.path, func(t *testing.T) {
+			resp := performRequest(t, fixture.Engine, request.method, request.path, request.body)
+			if resp.Code != request.want {
+				t.Fatalf("%s %s status = %d, want %d; body=%s", request.method, request.path, resp.Code, request.want, resp.Body.String())
+			}
+		})
 	}
 }
 
@@ -234,10 +237,13 @@ func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
 		{method: http.MethodDelete, path: "/memory/valid.md?scope=global"},
 	}
 	for _, request := range requests {
-		resp := performRequest(t, noStoreFixture.Engine, request.method, request.path, request.body)
-		if resp.Code != http.StatusInternalServerError {
-			t.Fatalf("%s %s status = %d, want %d", request.method, request.path, resp.Code, http.StatusInternalServerError)
-		}
+		request := request
+		t.Run(request.method+" "+request.path, func(t *testing.T) {
+			resp := performRequest(t, noStoreFixture.Engine, request.method, request.path, request.body)
+			if resp.Code != http.StatusInternalServerError {
+				t.Fatalf("%s %s status = %d, want %d", request.method, request.path, resp.Code, http.StatusInternalServerError)
+			}
+		})
 	}
 }
 

@@ -2,10 +2,10 @@ package core_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -338,6 +338,6 @@ func memoryDocument(t *testing.T, name string, typ memory.MemoryType, body strin
 }
 
 func escapeJSON(value string) string {
-	payload, _ := json.Marshal(value)
-	return string(payload[1 : len(payload)-1])
+	quoted := strconv.Quote(value)
+	return quoted[1 : len(quoted)-1]
 }

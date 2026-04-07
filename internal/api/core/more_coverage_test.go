@@ -152,8 +152,8 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 	}
 
 	handlers := core.NewBaseHandlers(core.BaseHandlerConfig{})
-	if handlers.TransportName != "" && handlers.TransportName != "apicore" {
-		t.Fatalf("TransportName default = %q", handlers.TransportName)
+	if handlers.TransportName != "" {
+		t.Fatalf("TransportName default = %q, want empty", handlers.TransportName)
 	}
 }
 

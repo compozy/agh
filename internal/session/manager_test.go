@@ -491,12 +491,12 @@ func TestApprovePermissionMapsPendingLookupErrors(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name:    "not found",
+			name:    "ShouldMapNotFound",
 			hookErr: acp.ErrPendingPermissionNotFound,
 			wantErr: ErrPendingPermissionNotFound,
 		},
 		{
-			name:    "conflict",
+			name:    "ShouldMapConflict",
 			hookErr: acp.ErrPendingPermissionConflict,
 			wantErr: ErrPendingPermissionConflict,
 		},
@@ -505,6 +505,14 @@ func TestApprovePermissionMapsPendingLookupErrors(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			session := createSession(t, h)
+			t.Cleanup(func() {
+				_ = h.manager.Stop(testutil.Context(t), session.ID)
+			})
+
 			h.driver.approveHook = func(*fakeProcess, acp.ApproveRequest) error {
 				return tc.hookErr
 			}

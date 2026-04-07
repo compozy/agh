@@ -55,6 +55,24 @@ type checkRequest struct {
 	workspaceRef string
 }
 
+const defaultSessionStopTimeout = 10 * time.Second
+
+type sessionSpawnerConfig struct {
+	stopTimeout time.Duration
+}
+
+// SessionSpawnerOption customizes dream session spawning.
+type SessionSpawnerOption func(*sessionSpawnerConfig)
+
+// WithSessionStopTimeout overrides the timeout used when stopping dream sessions after prompting.
+func WithSessionStopTimeout(timeout time.Duration) SessionSpawnerOption {
+	return func(cfg *sessionSpawnerConfig) {
+		if timeout > 0 {
+			cfg.stopTimeout = timeout
+		}
+	}
+}
+
 // NewRuntime constructs a dream runtime that can be started by the daemon.
 func NewRuntime(
 	enabled bool,
@@ -235,9 +253,17 @@ func NewSessionSpawner(
 	resolver workspacepkg.WorkspaceResolver,
 	cfg aghconfig.Config,
 	globalMemoryDir string,
+	opts ...SessionSpawnerOption,
 ) memory.SessionSpawner {
 	if !cfg.Memory.Enabled || !cfg.Memory.Dream.Enabled || sessions == nil || resolver == nil {
 		return nil
+	}
+
+	spawnerCfg := sessionSpawnerConfig{stopTimeout: defaultSessionStopTimeout}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&spawnerCfg)
+		}
 	}
 
 	return func(ctx context.Context, goal, prompt, workspace string) error {
@@ -247,7 +273,7 @@ func NewSessionSpawner(
 		}
 
 		for _, workspaceID := range workspaces {
-			if err := spawnSession(ctx, sessions, cfg.Memory.Dream.Agent, goal, prompt, workspaceID); err != nil {
+			if err := spawnSession(ctx, sessions, cfg.Memory.Dream.Agent, goal, prompt, workspaceID, spawnerCfg.stopTimeout); err != nil {
 				return err
 			}
 		}
@@ -377,7 +403,14 @@ func isPathLikeWorkspaceRef(ref string) bool {
 		strings.ContainsAny(trimmedRef, "/\\")
 }
 
-func spawnSession(ctx context.Context, sessions SessionManager, agentName string, goal string, prompt string, workspace string) (err error) {
+func spawnSession(ctx context.Context, sessions SessionManager, agentName string, goal string, prompt string, workspace string, stopTimeout time.Duration) (err error) {
+	if ctx == nil {
+		return errors.New("daemon: dream session context is required")
+	}
+	if stopTimeout <= 0 {
+		stopTimeout = defaultSessionStopTimeout
+	}
+
 	dreamSession, err := sessions.Create(ctx, session.CreateOpts{
 		AgentName: agentName,
 		Name:      strings.TrimSpace(goal),
@@ -388,7 +421,7 @@ func spawnSession(ctx context.Context, sessions SessionManager, agentName string
 		return fmt.Errorf("daemon: create dream session: %w", err)
 	}
 	defer func() {
-		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stopTimeout)
 		defer cancel()
 		stopErr := sessions.Stop(stopCtx, dreamSession.ID)
 		if stopErr != nil {

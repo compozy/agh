@@ -146,7 +146,7 @@ func TestListBundleRendersJSONHumanAndToon(t *testing.T) {
 		t.Run(string(mode), func(t *testing.T) {
 			t.Parallel()
 
-			cmd, output := newOutputTestCommand(mode)
+			cmd, output := newOutputTestCommand(t, mode)
 			if err := writeCommandOutput(cmd, bundle); err != nil {
 				t.Fatalf("writeCommandOutput(%s) error = %v", mode, err)
 			}
@@ -196,7 +196,8 @@ func TestVersionCommandFormats(t *testing.T) {
 	}
 }
 
-func newOutputTestCommand(mode OutputFormat) (*cobra.Command, *bytes.Buffer) {
+func newOutputTestCommand(t *testing.T, mode OutputFormat) (*cobra.Command, *bytes.Buffer) {
+	t.Helper()
 	cmd := &cobra.Command{Use: "test"}
 	output := &bytes.Buffer{}
 	cmd.SetOut(output)

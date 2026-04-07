@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/store"
@@ -111,5 +112,5 @@ func ObserveEventAfterCursor(event store.EventSummary, cursor ObserveCursor) boo
 
 // ObserveEventID builds a stable Last-Event-ID value for observe streaming.
 func ObserveEventID(event store.EventSummary) string {
-	return event.Timestamp.UTC().Format(timeRFC3339Nano) + "|" + event.ID
+	return event.Timestamp.UTC().Format(time.RFC3339Nano) + "|" + event.ID
 }

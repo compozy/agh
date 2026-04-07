@@ -8,8 +8,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/pedronauck/agh/internal/procutil"
 )
 
 func TestConsolidationLockTryAcquireFreshFileWritesPID(t *testing.T) {
@@ -342,17 +340,6 @@ func TestConsolidationLockRestoreUnlocked(t *testing.T) {
 	}
 	if !info.ModTime().Equal(prior) {
 		t.Fatalf("lock mtime after restoreUnlocked() = %v, want %v", info.ModTime(), prior)
-	}
-}
-
-func TestProcessAlive(t *testing.T) {
-	t.Parallel()
-
-	if !procutil.Alive(os.Getpid()) {
-		t.Fatal("procutil.Alive(current pid) = false, want true")
-	}
-	if procutil.Alive(-1) {
-		t.Fatal("procutil.Alive(-1) = true, want false")
 	}
 }
 

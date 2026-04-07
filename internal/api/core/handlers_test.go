@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/observe"
@@ -97,53 +96,71 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 
 	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 
-	listResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
-	if listResp.Code != http.StatusOK {
-		t.Fatalf("list status = %d, want %d", listResp.Code, http.StatusOK)
-	}
+	t.Run("ShouldListSessions", func(t *testing.T) {
+		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("list status = %d, want %d", listResp.Code, http.StatusOK)
+		}
+	})
 
-	createResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", []byte(`{"agent_name":"coder","workspace":"alpha"}`))
-	if createResp.Code != http.StatusCreated || !createCalled.Load() {
-		t.Fatalf("create status = %d, called=%v", createResp.Code, createCalled.Load())
-	}
+	t.Run("ShouldCreateSession", func(t *testing.T) {
+		createResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", []byte(`{"agent_name":"coder","workspace":"alpha"}`))
+		if createResp.Code != http.StatusCreated || !createCalled.Load() {
+			t.Fatalf("create status = %d, called=%v", createResp.Code, createCalled.Load())
+		}
+	})
 
-	getResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a", nil)
-	if getResp.Code != http.StatusOK {
-		t.Fatalf("get status = %d, want %d", getResp.Code, http.StatusOK)
-	}
+	t.Run("ShouldGetSession", func(t *testing.T) {
+		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a", nil)
+		if getResp.Code != http.StatusOK {
+			t.Fatalf("get status = %d, want %d", getResp.Code, http.StatusOK)
+		}
+	})
 
-	notFoundResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/missing", nil)
-	if notFoundResp.Code != http.StatusNotFound {
-		t.Fatalf("get missing status = %d, want %d", notFoundResp.Code, http.StatusNotFound)
-	}
+	t.Run("ShouldReturnNotFoundForMissingSession", func(t *testing.T) {
+		notFoundResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/missing", nil)
+		if notFoundResp.Code != http.StatusNotFound {
+			t.Fatalf("get missing status = %d, want %d", notFoundResp.Code, http.StatusNotFound)
+		}
+	})
 
-	stopResp := performRequest(t, fixture.Engine, http.MethodDelete, "/sessions/sess-a", nil)
-	if stopResp.Code != http.StatusNoContent {
-		t.Fatalf("stop status = %d, want %d", stopResp.Code, http.StatusNoContent)
-	}
-	if got := stopResp.Body.String(); got != "" {
-		t.Fatalf("stop body = %q, want empty", got)
-	}
+	t.Run("ShouldStopSession", func(t *testing.T) {
+		stopResp := performRequest(t, fixture.Engine, http.MethodDelete, "/sessions/sess-a", nil)
+		if stopResp.Code != http.StatusNoContent {
+			t.Fatalf("stop status = %d, want %d", stopResp.Code, http.StatusNoContent)
+		}
+		if got := stopResp.Body.String(); got != "" {
+			t.Fatalf("stop body = %q, want empty", got)
+		}
+	})
 
-	resumeResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions/sess-a/resume", nil)
-	if resumeResp.Code != http.StatusOK {
-		t.Fatalf("resume status = %d, want %d", resumeResp.Code, http.StatusOK)
-	}
+	t.Run("ShouldResumeSession", func(t *testing.T) {
+		resumeResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions/sess-a/resume", nil)
+		if resumeResp.Code != http.StatusOK {
+			t.Fatalf("resume status = %d, want %d", resumeResp.Code, http.StatusOK)
+		}
+	})
 
-	eventsResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/events?limit=10&after_sequence=5", nil)
-	if eventsResp.Code != http.StatusOK {
-		t.Fatalf("events status = %d, want %d", eventsResp.Code, http.StatusOK)
-	}
+	t.Run("ShouldReturnSessionEvents", func(t *testing.T) {
+		eventsResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/events?limit=10&after_sequence=5", nil)
+		if eventsResp.Code != http.StatusOK {
+			t.Fatalf("events status = %d, want %d", eventsResp.Code, http.StatusOK)
+		}
+	})
 
-	historyResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/history", nil)
-	if historyResp.Code != http.StatusOK {
-		t.Fatalf("history status = %d, want %d", historyResp.Code, http.StatusOK)
-	}
+	t.Run("ShouldReturnSessionHistory", func(t *testing.T) {
+		historyResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/history", nil)
+		if historyResp.Code != http.StatusOK {
+			t.Fatalf("history status = %d, want %d", historyResp.Code, http.StatusOK)
+		}
+	})
 
-	transcriptResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/transcript", nil)
-	if transcriptResp.Code != http.StatusOK {
-		t.Fatalf("transcript status = %d, want %d", transcriptResp.Code, http.StatusOK)
-	}
+	t.Run("ShouldReturnSessionTranscript", func(t *testing.T) {
+		transcriptResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/transcript", nil)
+		if transcriptResp.Code != http.StatusOK {
+			t.Fatalf("transcript status = %d, want %d", transcriptResp.Code, http.StatusOK)
+		}
+	})
 }
 
 func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
@@ -256,22 +273,5 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 	missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
 	if missingResp.Code != http.StatusInternalServerError {
 		t.Fatalf("missing agent status = %d, want %d", missingResp.Code, http.StatusInternalServerError)
-	}
-}
-
-func TestBaseHandlersApprovePermissionGapResolvedInStub(t *testing.T) {
-	t.Parallel()
-
-	manager := testutil.StubSessionManager{
-		ApproveFn: func(_ context.Context, id string, req acp.ApproveRequest) error {
-			if id != "sess-a" || req.TurnID != "turn-1" {
-				t.Fatalf("ApprovePermission call = %q %#v", id, req)
-			}
-			return nil
-		},
-	}
-
-	if err := manager.ApprovePermission(context.Background(), "sess-a", acp.ApproveRequest{TurnID: "turn-1"}); err != nil {
-		t.Fatalf("ApprovePermission() error = %v", err)
 	}
 }

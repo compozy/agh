@@ -26,6 +26,12 @@ func (f *fakeSessionManager) promptCall(index int) struct {
 } {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if index < 0 || index >= len(f.promptCalls) {
+		return struct {
+			id  string
+			msg string
+		}{}
+	}
 	return f.promptCalls[index]
 }
 

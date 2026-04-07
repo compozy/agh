@@ -10,8 +10,6 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
-const timeRFC3339Nano = time.RFC3339Nano
-
 // ParseSessionEventQuery parses the shared session event query parameters.
 func ParseSessionEventQuery(c *gin.Context) (store.EventQuery, error) {
 	since, err := ParseOptionalTime(c.Query("since"))
@@ -69,7 +67,7 @@ func ParseObserveCursor(raw string) (ObserveCursor, error) {
 		return ObserveCursor{}, fmt.Errorf("invalid Last-Event-ID %q", value)
 	}
 
-	timestamp, err := time.Parse(timeRFC3339Nano, parts[0])
+	timestamp, err := time.Parse(time.RFC3339Nano, parts[0])
 	if err != nil {
 		return ObserveCursor{}, fmt.Errorf("invalid Last-Event-ID timestamp %q: %w", parts[0], err)
 	}

@@ -41,6 +41,13 @@ type WorkspaceDiscoveryRoot struct {
 	Source WorkspaceDiscoverySource
 }
 
+var (
+	// ErrMissingAgentFrontmatter reports a missing YAML frontmatter block in AGENT.md content.
+	ErrMissingAgentFrontmatter = errors.New("config: missing YAML frontmatter")
+	// ErrUnterminatedAgentFrontmatter reports an unterminated YAML frontmatter block in AGENT.md content.
+	ErrUnterminatedAgentFrontmatter = errors.New("config: unterminated YAML frontmatter")
+)
+
 // LoadAgentDef loads an AGENT.md file from the configured AGH home directory.
 func LoadAgentDef(name string, homePaths HomePaths) (AgentDef, error) {
 	target := strings.TrimSpace(name)
@@ -227,10 +234,29 @@ func (a AgentDef) Validate() error {
 func wrapFrontmatterError(err error) error {
 	switch {
 	case errors.Is(err, frontmatter.ErrMissing):
-		return errors.New("config: missing YAML frontmatter")
+		return mappedFrontmatterError{
+			message: ErrMissingAgentFrontmatter.Error(),
+			causes:  []error{ErrMissingAgentFrontmatter, err},
+		}
 	case errors.Is(err, frontmatter.ErrUnterminated):
-		return errors.New("config: unterminated YAML frontmatter")
+		return mappedFrontmatterError{
+			message: ErrUnterminatedAgentFrontmatter.Error(),
+			causes:  []error{ErrUnterminatedAgentFrontmatter, err},
+		}
 	default:
 		return err
 	}
+}
+
+type mappedFrontmatterError struct {
+	message string
+	causes  []error
+}
+
+func (e mappedFrontmatterError) Error() string {
+	return e.message
+}
+
+func (e mappedFrontmatterError) Unwrap() []error {
+	return e.causes
 }

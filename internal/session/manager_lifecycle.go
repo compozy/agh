@@ -360,11 +360,13 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	}
 
 	if recorder := session.recorderHandle(); recorder != nil {
-		closeCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
-		if err := recorder.Close(closeCtx); err != nil {
-			errs = append(errs, err)
-		}
-		cancel()
+		func() {
+			closeCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+			defer cancel()
+			if err := recorder.Close(closeCtx); err != nil {
+				errs = append(errs, err)
+			}
+		}()
 		session.setRecorder(nil)
 	}
 
@@ -386,18 +388,22 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 func (m *Manager) cleanupFailedStart(sessionDir string, recorder EventRecorder, proc *AgentProcess) error {
 	var errs []error
 	if proc != nil {
-		stopCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
-		if err := m.driver.Stop(stopCtx, proc); err != nil {
-			errs = append(errs, err)
-		}
-		cancel()
+		func() {
+			stopCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+			defer cancel()
+			if err := m.driver.Stop(stopCtx, proc); err != nil {
+				errs = append(errs, err)
+			}
+		}()
 	}
 	if recorder != nil {
-		closeCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
-		if err := recorder.Close(closeCtx); err != nil {
-			errs = append(errs, err)
-		}
-		cancel()
+		func() {
+			closeCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+			defer cancel()
+			if err := recorder.Close(closeCtx); err != nil {
+				errs = append(errs, err)
+			}
+		}()
 	}
 	if strings.TrimSpace(sessionDir) != "" {
 		if err := os.RemoveAll(sessionDir); err != nil {

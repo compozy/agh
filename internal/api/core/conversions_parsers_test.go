@@ -76,10 +76,10 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 	t.Parallel()
 
 	recorder := httptest.NewRecorder()
-	context, _ := gin.CreateTestContext(recorder)
-	context.Request = httptest.NewRequest(http.MethodGet, "/events?type=agent_message&agent_name=coder&turn_id=turn-1&after_sequence=5&limit=10&since=2026-04-03T12:00:00Z", nil)
+	ginCtx, _ := gin.CreateTestContext(recorder)
+	ginCtx.Request = httptest.NewRequest(http.MethodGet, "/events?type=agent_message&agent_name=coder&turn_id=turn-1&after_sequence=5&limit=10&since=2026-04-03T12:00:00Z", nil)
 
-	query, err := core.ParseSessionEventQuery(context)
+	query, err := core.ParseSessionEventQuery(ginCtx)
 	if err != nil {
 		t.Fatalf("ParseSessionEventQuery() error = %v", err)
 	}
@@ -105,7 +105,7 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 	if _, err := core.ParseObserveCursor("2026-04-03T12:00:00Z|ev-1"); err != nil {
 		t.Fatalf("ParseObserveCursor() error = %v", err)
 	}
-	observeQuery, err := core.ParseObserveEventQuery(context)
+	observeQuery, err := core.ParseObserveEventQuery(ginCtx)
 	if err != nil {
 		t.Fatalf("ParseObserveEventQuery() error = %v", err)
 	}
@@ -133,10 +133,11 @@ func TestRespondErrorMaskingModes(t *testing.T) {
 		{name: "expose", mask: false, wantErr: "boom"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			recorder := httptest.NewRecorder()
-			context, _ := gin.CreateTestContext(recorder)
+			ginCtx, _ := gin.CreateTestContext(recorder)
 
-			core.RespondError(context, http.StatusInternalServerError, errors.New("boom"), tc.mask)
+			core.RespondError(ginCtx, http.StatusInternalServerError, errors.New("boom"), tc.mask)
 
 			var payload contract.ErrorPayload
 			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
@@ -153,10 +154,10 @@ func TestPrepareSSESetsHeaders(t *testing.T) {
 	t.Parallel()
 
 	recorder := httptest.NewRecorder()
-	context, _ := gin.CreateTestContext(recorder)
-	context.Request = httptest.NewRequest(http.MethodGet, "/stream", nil)
+	ginCtx, _ := gin.CreateTestContext(recorder)
+	ginCtx.Request = httptest.NewRequest(http.MethodGet, "/stream", nil)
 
-	writer, err := core.PrepareSSE(context)
+	writer, err := core.PrepareSSE(ginCtx)
 	if err != nil {
 		t.Fatalf("PrepareSSE() error = %v", err)
 	}

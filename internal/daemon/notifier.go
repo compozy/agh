@@ -12,6 +12,8 @@ type notifierFanout struct {
 	onSessionStopped func(context.Context, *session.Session)
 }
 
+var _ session.Notifier = (*notifierFanout)(nil)
+
 func (f *notifierFanout) OnSessionCreated(ctx context.Context, sess *session.Session) {
 	for _, notifier := range f.notifiers {
 		if notifier == nil {

@@ -18,6 +18,8 @@ import (
 type AgentLoader func(name string, homePaths aghconfig.HomePaths) (aghconfig.AgentDef, error)
 
 // SessionManager is the runtime session surface exposed by API transports.
+// List returns the current in-memory session snapshot without performing I/O.
+// ListAll may perform I/O to return the authoritative session set, so it accepts a context.
 type SessionManager interface {
 	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
 	List() []*session.SessionInfo

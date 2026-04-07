@@ -42,6 +42,7 @@ type BaseHandlerConfig struct {
 	AgentLoader                  AgentLoader
 	StreamDone                   <-chan struct{}
 	HTTPPort                     int
+	PID                          func() int
 }
 
 // BaseHandlers contains the shared transport-independent API handler logic.
@@ -61,6 +62,7 @@ type BaseHandlers struct {
 	Now                          func() time.Time
 	PollInterval                 time.Duration
 	AgentLoader                  AgentLoader
+	PID                          func() int
 
 	settingsMu sync.RWMutex
 	streamDone <-chan struct{}
@@ -89,6 +91,12 @@ func NewBaseHandlers(cfg BaseHandlerConfig) *BaseHandlers {
 	if cfg.StartedAt.IsZero() {
 		cfg.StartedAt = now()
 	}
+	pid := cfg.PID
+	if pid == nil {
+		pid = func() int {
+			return os.Getpid()
+		}
+	}
 
 	if cfg.StreamDone == nil {
 		cfg.StreamDone = make(chan struct{})
@@ -110,6 +118,7 @@ func NewBaseHandlers(cfg BaseHandlerConfig) *BaseHandlers {
 		Now:                          now,
 		PollInterval:                 cfg.PollInterval,
 		AgentLoader:                  agentLoader,
+		PID:                          pid,
 	}
 	handlers.streamDone = cfg.StreamDone
 	handlers.httpPort.Store(int64(cfg.HTTPPort))
@@ -152,7 +161,7 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 			h.respondError(c, StatusForWorkspaceError(lookupErr), lookupErr)
 			return
 		}
-		infos = filterSessionInfosByWorkspaceID(infos, workspaceID)
+		infos = filterSessionInfosByWorkspaceIDInternal(infos, workspaceID)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"sessions": SessionPayloadsFromInfos(infos)})
@@ -580,7 +589,7 @@ func (h *BaseHandlers) DaemonStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"daemon": contract.DaemonStatusPayload{
 			Status:         "running",
-			PID:            os.Getpid(),
+			PID:            h.PID(),
 			StartedAt:      h.StartedAt,
 			Socket:         h.Config.Daemon.Socket,
 			HTTPHost:       h.Config.HTTP.Host,
