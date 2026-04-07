@@ -13,6 +13,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/transcript"
 )
 
 func TestBaseHandlersSessionEndpoints(t *testing.T) {
@@ -83,10 +84,10 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 				}},
 			}}, nil
 		},
-		TranscriptFn: func(_ context.Context, _ string) ([]session.TranscriptMessage, error) {
-			return []session.TranscriptMessage{{
+		TranscriptFn: func(_ context.Context, _ string) ([]transcript.Message, error) {
+			return []transcript.Message{{
 				ID:        "msg-1",
-				Role:      session.TranscriptRoleUser,
+				Role:      transcript.RoleUser,
 				Content:   "hello",
 				Timestamp: now,
 			}}, nil

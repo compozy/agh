@@ -17,6 +17,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -106,7 +107,7 @@ func TestSessionHistoryEventsAndTranscriptErrorBranches(t *testing.T) {
 		HistoryFn: func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error) {
 			return nil, session.ErrSessionNotFound
 		},
-		TranscriptFn: func(context.Context, string) ([]session.TranscriptMessage, error) {
+		TranscriptFn: func(context.Context, string) ([]transcript.Message, error) {
 			return nil, session.ErrSessionNotFound
 		},
 	}

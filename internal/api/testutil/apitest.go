@@ -22,6 +22,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -34,7 +35,7 @@ type StubSessionManager struct {
 	StatusFn     func(context.Context, string) (*session.SessionInfo, error)
 	EventsFn     func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	HistoryFn    func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	TranscriptFn func(context.Context, string) ([]session.TranscriptMessage, error)
+	TranscriptFn func(context.Context, string) ([]transcript.Message, error)
 	StopFn       func(context.Context, string) error
 	ResumeFn     func(context.Context, string) (*session.Session, error)
 	PromptFn     func(context.Context, string, string) (<-chan acp.AgentEvent, error)
@@ -87,7 +88,7 @@ func (s StubSessionManager) History(ctx context.Context, id string, query store.
 	return nil, nil
 }
 
-func (s StubSessionManager) Transcript(ctx context.Context, id string) ([]session.TranscriptMessage, error) {
+func (s StubSessionManager) Transcript(ctx context.Context, id string) ([]transcript.Message, error) {
 	if s.TranscriptFn != nil {
 		return s.TranscriptFn(ctx, id)
 	}

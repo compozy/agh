@@ -2,13 +2,13 @@ package session
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/transcript"
 )
 
 // Prompt sends one prompt turn to an active session and mirrors the runtime stream into storage and observers.
@@ -179,55 +179,9 @@ func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.A
 }
 
 func marshalAgentEvent(event acp.AgentEvent) (string, error) {
-	payload := canonicalEventPayload{
-		Schema:     eventEnvelopeSchema,
-		Type:       event.Type,
-		SessionID:  event.SessionID,
-		TurnID:     event.TurnID,
-		RequestID:  event.RequestID,
-		Timestamp:  event.Timestamp,
-		Text:       event.Text,
-		Title:      event.Title,
-		ToolCallID: event.ToolCallID,
-		StopReason: event.StopReason,
-		Action:     event.Action,
-		Resource:   event.Resource,
-		Decision:   event.Decision,
-		Error:      event.Error,
-		Usage:      event.Usage,
-	}
-
-	if len(event.Raw) > 0 {
-		if json.Valid(event.Raw) {
-			payload.Raw = acp.CloneRawMessage(event.Raw)
-		} else {
-			payload.Raw = rawMessageFromValue(string(event.Raw))
-		}
-
-		var rawPayload map[string]any
-		if err := json.Unmarshal(event.Raw, &rawPayload); err == nil {
-			payload.ToolName = legacyToolName(rawPayload)
-			payload.ToolInput = acp.CloneRawMessage(rawMessageFromValue(rawPayload["rawInput"]))
-			if event.Type == acp.EventTypeToolResult {
-				toolResult := buildToolResult(
-					payload.ToolName,
-					strings.EqualFold(nestedString(rawPayload, "status"), "failed"),
-					extractLegacyContentText(rawPayload["content"]),
-					rawPayload["rawOutput"],
-				)
-				payload.ToolResult = toolResult
-				payload.ToolError = strings.EqualFold(nestedString(rawPayload, "status"), "failed")
-			}
-		}
-	}
-
-	if payload.ToolName == "" {
-		payload.ToolName = event.Title
-	}
-
-	data, err := json.Marshal(payload)
+	data, err := transcript.MarshalAgentEvent(event)
 	if err != nil {
 		return "", fmt.Errorf("session: marshal agent event: %w", err)
 	}
-	return string(data), nil
+	return data, nil
 }

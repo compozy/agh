@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"log/slog"
 	"os"
@@ -17,6 +16,8 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -567,8 +568,8 @@ func TestMarshalAgentEvent(t *testing.T) {
 	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal(payload) error = %v", err)
 	}
-	if decoded["schema"] != eventEnvelopeSchema {
-		t.Fatalf("decoded[schema] = %v, want %q", decoded["schema"], eventEnvelopeSchema)
+	if decoded["schema"] != transcript.CanonicalSchema {
+		t.Fatalf("decoded[schema] = %v, want %q", decoded["schema"], transcript.CanonicalSchema)
 	}
 	if decoded["type"] != acp.EventTypeDone {
 		t.Fatalf("decoded[type] = %v, want %q", decoded["type"], acp.EventTypeDone)
@@ -581,8 +582,8 @@ func TestMarshalAgentEvent(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &rawDecoded); err != nil {
 		t.Fatalf("json.Unmarshal(raw payload) error = %v", err)
 	}
-	if rawDecoded["schema"] != eventEnvelopeSchema {
-		t.Fatalf("rawDecoded[schema] = %v, want %q", rawDecoded["schema"], eventEnvelopeSchema)
+	if rawDecoded["schema"] != transcript.CanonicalSchema {
+		t.Fatalf("rawDecoded[schema] = %v, want %q", rawDecoded["schema"], transcript.CanonicalSchema)
 	}
 	if rawDecoded["tool_name"] != "Bash" {
 		t.Fatalf("rawDecoded[tool_name] = %v, want %q", rawDecoded["tool_name"], "Bash")

@@ -17,6 +17,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -605,10 +606,10 @@ func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		TranscriptFn: func(context.Context, string) ([]session.TranscriptMessage, error) {
-			return []session.TranscriptMessage{{
+		TranscriptFn: func(context.Context, string) ([]transcript.Message, error) {
+			return []transcript.Message{{
 				ID:        "msg-1",
-				Role:      session.TranscriptRoleAssistant,
+				Role:      transcript.RoleAssistant,
 				Content:   "hello",
 				Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 			}}, nil
@@ -623,7 +624,7 @@ func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
 	}
 
 	var response struct {
-		Messages []session.TranscriptMessage `json:"messages"`
+		Messages []transcript.Message `json:"messages"`
 	}
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Messages) != 1 {

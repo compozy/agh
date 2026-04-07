@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"log/slog"
 	"net"
@@ -25,6 +24,8 @@ import (
 	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -1825,7 +1826,7 @@ func (f *fakeSessionManager) History(context.Context, string, store.EventQuery) 
 	return nil, nil
 }
 
-func (f *fakeSessionManager) Transcript(context.Context, string) ([]session.TranscriptMessage, error) {
+func (f *fakeSessionManager) Transcript(context.Context, string) ([]transcript.Message, error) {
 	return nil, nil
 }
 

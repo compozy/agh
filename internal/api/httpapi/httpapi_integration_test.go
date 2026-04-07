@@ -21,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store/globaldb"
+	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -144,6 +145,42 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	decodeHTTPJSON(t, eventsResp, &events)
 	if len(events.Events) < 4 {
 		t.Fatalf("persisted session events = %d, want at least 4", len(events.Events))
+	}
+}
+
+func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	sessionID := createIntegrationSession(t, runtime)
+	sendPrompt(t, runtime, sessionID, "hello")
+
+	resp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/transcript"), nil, nil)
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		t.Fatalf("transcript status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
+	}
+
+	var payload struct {
+		Messages []transcript.Message `json:"messages"`
+	}
+	decodeHTTPJSON(t, resp, &payload)
+	if len(payload.Messages) != 4 {
+		t.Fatalf("len(messages) = %d, want 4", len(payload.Messages))
+	}
+	if got := payload.Messages[0].Role; got != transcript.RoleUser {
+		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.RoleUser)
+	}
+	if got := payload.Messages[0].Content; got != "hello" {
+		t.Fatalf("messages[0].Content = %q, want %q", got, "hello")
+	}
+	if got := payload.Messages[1].Role; got != transcript.RoleAssistant {
+		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.RoleAssistant)
+	}
+	if got := payload.Messages[2].Role; got != transcript.RoleToolCall {
+		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.RoleToolCall)
+	}
+	if got := payload.Messages[3].Role; got != transcript.RoleToolResult {
+		t.Fatalf("messages[3].Role = %q, want %q", got, transcript.RoleToolResult)
 	}
 }
 
