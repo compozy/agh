@@ -20,6 +20,21 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+func (f *fakeSessionManager) promptCall(index int) struct {
+	id  string
+	msg string
+} {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.promptCalls[index]
+}
+
+func (f *fakeSessionManager) promptCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.promptCalls)
+}
+
 func TestBootSequenceReady(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
