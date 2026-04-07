@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Split persistence into store, store/sessiondb, and store/globaldb
 type: refactor
 complexity: critical
@@ -28,11 +28,11 @@ This task establishes the explicit persistence boundary defined in the TechSpec 
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Create `internal/store/sessiondb` and move per-session database ownership into it.
-- [ ] 6.2 Create `internal/store/globaldb` and move global registry and workspace-backed persistence into it.
-- [ ] 6.3 Narrow the shared interfaces and helper surface left in `internal/store`.
-- [ ] 6.4 Update runtime consumers to the new persistence package ownership.
-- [ ] 6.5 Remove any transitional bridges before closing the task.
+- [x] 6.1 Create `internal/store/sessiondb` and move per-session database ownership into it.
+- [x] 6.2 Create `internal/store/globaldb` and move global registry and workspace-backed persistence into it.
+- [x] 6.3 Narrow the shared interfaces and helper surface left in `internal/store`.
+- [x] 6.4 Update runtime consumers to the new persistence package ownership.
+- [x] 6.5 Remove any transitional bridges before closing the task.
 
 ## Implementation Details
 Use the TechSpec `Component Overview`, `Data Models`, and `Build Order` sections. Keep concrete persistence types concrete. Do not introduce an abstract repository framework. Preserve real SQLite coverage and package-local ownership of the correct database lifecycle.
@@ -64,14 +64,14 @@ Use the TechSpec `Component Overview`, `Data Models`, and `Build Order` sections
 
 ## Tests
 - Unit tests:
-  - [ ] Session-db writes still increment sequence ordering and preserve token usage semantics after re-rooting.
-  - [ ] Global-db session registry operations still register, update, and list sessions correctly.
-  - [ ] Global-db workspace persistence still handles lookup, uniqueness, and deletion constraints correctly.
-  - [ ] Shared `store` interfaces and validation helpers remain narrow and correct after the split.
+  - [x] Session-db writes still increment sequence ordering and preserve token usage semantics after re-rooting.
+  - [x] Global-db session registry operations still register, update, and list sessions correctly.
+  - [x] Global-db workspace persistence still handles lookup, uniqueness, and deletion constraints correctly.
+  - [x] Shared `store` interfaces and validation helpers remain narrow and correct after the split.
 - Integration tests:
-  - [ ] Session persistence integration tests still pass against real SQLite files after the package split.
-  - [ ] Workspace and observe flows still pass through the global database surface after the split.
-  - [ ] Daemon runtime integration still boots and exercises session creation with the split persistence packages.
+  - [x] Session persistence integration tests still pass against real SQLite files after the package split.
+  - [x] Workspace and observe flows still pass through the global database surface after the split.
+  - [x] Daemon runtime integration still boots and exercises session creation with the split persistence packages.
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extract shared frontmatter package
 type: refactor
 complexity: high
@@ -27,11 +27,11 @@ This task creates `internal/frontmatter` as the single parser for YAML frontmatt
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Create `internal/frontmatter` with the shared parse surface required by config, memory, and skills.
-- [ ] 1.2 Migrate `internal/config` agent-definition parsing to the shared package.
-- [ ] 1.3 Migrate `internal/memory` document parsing to the shared package.
-- [ ] 1.4 Migrate `internal/skills` loader and registry paths to the shared package.
-- [ ] 1.5 Remove duplicated parser helpers and obsolete local sentinels once all call sites are migrated.
+- [x] 1.1 Create `internal/frontmatter` with the shared parse surface required by config, memory, and skills.
+- [x] 1.2 Migrate `internal/config` agent-definition parsing to the shared package.
+- [x] 1.3 Migrate `internal/memory` document parsing to the shared package.
+- [x] 1.4 Migrate `internal/skills` loader and registry paths to the shared package.
+- [x] 1.5 Remove duplicated parser helpers and obsolete local sentinels once all call sites are migrated.
 
 ## Implementation Details
 Use the TechSpec `System Architecture` and `Development Sequencing` sections as the source of truth. Keep the extracted API small and generic enough for both byte-oriented and string-oriented callers. Preserve current behavior first; this task is about ownership and deduplication, not format changes.
@@ -60,14 +60,14 @@ Use the TechSpec `System Architecture` and `Development Sequencing` sections as 
 
 ## Tests
 - Unit tests:
-  - [ ] Parsing a valid AGENT frontmatter document returns the decoded metadata and body unchanged.
-  - [ ] Parsing a valid SKILL frontmatter document preserves body separation and metadata fields.
-  - [ ] Missing opening delimiter returns the expected missing-frontmatter failure.
-  - [ ] Unterminated frontmatter returns the expected unterminated-frontmatter failure.
-  - [ ] Invalid YAML returns a wrapped decode failure without silently succeeding.
+  - [x] Parsing a valid AGENT frontmatter document returns the decoded metadata and body unchanged.
+  - [x] Parsing a valid SKILL frontmatter document preserves body separation and metadata fields.
+  - [x] Missing opening delimiter returns the expected missing-frontmatter failure.
+  - [x] Unterminated frontmatter returns the expected unterminated-frontmatter failure.
+  - [x] Invalid YAML returns a wrapped decode failure without silently succeeding.
 - Integration tests:
-  - [ ] Loading agent definitions through `internal/config` still resolves the same agent metadata as before.
-  - [ ] Loading skills through `Registry.LoadAll` and workspace skill resolution still succeeds with shared parsing.
+  - [x] Loading agent definitions through `internal/config` still resolves the same agent metadata as before.
+  - [x] Loading skills through `Registry.LoadAll` and workspace skill resolution still succeeds with shared parsing.
 - Test coverage target: >=80%
 - All tests must pass
 

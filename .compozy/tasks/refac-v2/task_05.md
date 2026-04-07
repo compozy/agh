@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Re-root HTTP and UDS transports plus shared API test utilities
 type: refactor
 complexity: critical
@@ -29,10 +29,10 @@ This task completes the API subtree migration by moving HTTP, UDS, and shared AP
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Re-root HTTP transport code into `internal/api/httpapi` while preserving server lifecycle and static asset behavior.
-- [ ] 5.2 Re-root UDS transport code into `internal/api/udsapi` while preserving route registration and socket lifecycle behavior.
-- [ ] 5.3 Re-root `internal/apitest` into `internal/api/testutil` and update transport and CLI test imports.
-- [ ] 5.4 Remove temporary package bridges introduced for the move and keep the runtime API surface stable.
+- [x] 5.1 Re-root HTTP transport code into `internal/api/httpapi` while preserving server lifecycle and static asset behavior.
+- [x] 5.2 Re-root UDS transport code into `internal/api/udsapi` while preserving route registration and socket lifecycle behavior.
+- [x] 5.3 Re-root `internal/apitest` into `internal/api/testutil` and update transport and CLI test imports.
+- [x] 5.4 Remove temporary package bridges introduced for the move and keep the runtime API surface stable.
 
 ## Implementation Details
 Use the TechSpec `Component Overview`, `API Endpoints`, and `Testing Approach` sections. Preserve the external route surface exactly. Keep transport-only behavior local to the transport packages even after the move.
@@ -63,13 +63,13 @@ Use the TechSpec `Component Overview`, `API Endpoints`, and `Testing Approach` s
 
 ## Tests
 - Unit tests:
-  - [ ] HTTP route registration still exposes the same session, workspace, agent, observe, memory, and daemon endpoints.
-  - [ ] UDS route registration still exposes the same endpoint set and handler bindings.
-  - [ ] Shared API test helpers continue building valid request harnesses and SSE assertions after re-rooting.
+  - [x] HTTP route registration still exposes the same session, workspace, agent, observe, memory, and daemon endpoints.
+  - [x] UDS route registration still exposes the same endpoint set and handler bindings.
+  - [x] Shared API test helpers continue building valid request harnesses and SSE assertions after re-rooting.
 - Integration tests:
-  - [ ] HTTP integration suite still passes for session lifecycle, memory endpoints, static assets, and streaming behavior.
-  - [ ] UDS integration suite still passes for session lifecycle, memory endpoints, and streaming behavior.
-  - [ ] CLI integration suite still passes when using the re-rooted shared API test utilities.
+  - [x] HTTP integration suite still passes for session lifecycle, memory endpoints, static assets, and streaming behavior.
+  - [x] UDS integration suite still passes for session lifecycle, memory endpoints, and streaming behavior.
+  - [x] CLI integration suite still passes when using the re-rooted shared API test utilities.
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Narrow consumer interfaces and remove transitional bridges
 type: refactor
 complexity: critical
@@ -29,10 +29,10 @@ This final convergence task aligns the remaining runtime consumers with the new 
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Update remaining consumers to the final package graph and narrowed interface surfaces.
-- [ ] 9.2 Remove temporary bridges and dead compatibility code left from earlier package moves.
-- [ ] 9.3 Delete validated dead files and stale helpers that are no longer justified by the final architecture.
-- [ ] 9.4 Run the final verification sweep required for the completed refactor graph.
+- [x] 9.1 Update remaining consumers to the final package graph and narrowed interface surfaces.
+- [x] 9.2 Remove temporary bridges and dead compatibility code left from earlier package moves.
+- [x] 9.3 Delete validated dead files and stale helpers that are no longer justified by the final architecture.
+- [x] 9.4 Run the final verification sweep required for the completed refactor graph.
 
 ## Implementation Details
 Use the TechSpec `Impact Analysis`, `Build Order`, and `Known Risks` sections. This task exists to finish the migration, not to start new architecture work. Keep deletions evidence-based and limited to code made obsolete by the approved refactor sequence.

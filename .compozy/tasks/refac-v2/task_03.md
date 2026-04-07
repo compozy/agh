@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Migrate CLI to internal/api/contract
 type: refactor
 complexity: medium
@@ -28,10 +28,10 @@ This task removes the CLI’s duplicate daemon contract definitions and makes `i
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Replace CLI-owned shared DTO usage with imports from `internal/api/contract`.
-- [ ] 3.2 Remove duplicate shared contract definitions from `internal/cli/client.go`.
-- [ ] 3.3 Keep any CLI-only helper or presentation types local when they are not part of the daemon contract.
-- [ ] 3.4 Update CLI tests to validate the migrated contract usage.
+- [x] 3.1 Replace CLI-owned shared DTO usage with imports from `internal/api/contract`.
+- [x] 3.2 Remove duplicate shared contract definitions from `internal/cli/client.go`.
+- [x] 3.3 Keep any CLI-only helper or presentation types local when they are not part of the daemon contract.
+- [x] 3.4 Update CLI tests to validate the migrated contract usage.
 
 ## Implementation Details
 Use the TechSpec `System Architecture`, `Data Models`, and `API Endpoints` sections. This task should not re-root packages yet. Its purpose is to make CLI a consumer of the shared contract package ahead of transport moves.
@@ -61,11 +61,11 @@ Use the TechSpec `System Architecture`, `Data Models`, and `API Endpoints` secti
 
 ## Tests
 - Unit tests:
-  - [ ] Decoding a session list response into CLI-facing types still succeeds with `api/contract` DTOs.
-  - [ ] Memory write and read request/response handling still uses the same JSON shape after migration.
-  - [ ] Observe event and daemon status decoding remain stable after removing local DTO copies.
+  - [x] Decoding a session list response into CLI-facing types still succeeds with `api/contract` DTOs.
+  - [x] Memory write and read request/response handling still uses the same JSON shape after migration.
+  - [x] Observe event and daemon status decoding remain stable after removing local DTO copies.
 - Integration tests:
-  - [ ] CLI integration flows for session creation, prompting, workspace listing, and daemon status still pass against the runtime.
+  - [x] CLI integration flows for session creation, prompting, workspace listing, and daemon status still pass against the runtime.
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Create internal/api/contract and migrate shared DTOs
 type: refactor
 complexity: high
@@ -28,10 +28,10 @@ This task introduces `internal/api/contract` as the canonical shared daemon API 
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Create `internal/api/contract` and move shared session, workspace, agent, memory, observe, and daemon DTOs into it.
-- [ ] 2.2 Update `internal/apicore` to consume the contract package instead of owning shared DTO definitions.
-- [ ] 2.3 Preserve transport-specific payload types outside the shared contract package.
-- [ ] 2.4 Add parity tests that confirm moved DTOs keep the same JSON shape as the current API surface.
+- [x] 2.1 Create `internal/api/contract` and move shared session, workspace, agent, memory, observe, and daemon DTOs into it.
+- [x] 2.2 Update `internal/apicore` to consume the contract package instead of owning shared DTO definitions.
+- [x] 2.3 Preserve transport-specific payload types outside the shared contract package.
+- [x] 2.4 Add parity tests that confirm moved DTOs keep the same JSON shape as the current API surface.
 
 ## Implementation Details
 Follow the TechSpec `System Architecture`, `Data Models`, and `API Endpoints` sections. This task only establishes contract ownership. Do not couple CLI to handler logic and do not pull transport-only SSE payloads into the shared package.
@@ -62,12 +62,12 @@ Follow the TechSpec `System Architecture`, `Data Models`, and `API Endpoints` se
 
 ## Tests
 - Unit tests:
-  - [ ] Session DTOs in `api/contract` serialize to the same JSON field names currently returned by the transports.
-  - [ ] Workspace DTOs preserve optional fields and omit-empty behavior after migration.
-  - [ ] Agent-event payloads that are part of the shared daemon contract still round-trip correctly through conversions.
-  - [ ] HTTP-only AI SDK prompt payloads remain outside the shared contract package.
+  - [x] Session DTOs in `api/contract` serialize to the same JSON field names currently returned by the transports.
+  - [x] Workspace DTOs preserve optional fields and omit-empty behavior after migration.
+  - [x] Agent-event payloads that are part of the shared daemon contract still round-trip correctly through conversions.
+  - [x] HTTP-only AI SDK prompt payloads remain outside the shared contract package.
 - Integration tests:
-  - [ ] Shared API handler tests continue returning the same response shapes for session, agent, workspace, and memory endpoints.
+  - [x] Shared API handler tests continue returning the same response shapes for session, agent, workspace, and memory endpoints.
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Move dream orchestration into internal/memory/consolidation
 type: refactor
 complexity: high
@@ -28,10 +28,10 @@ This task removes dream consolidation orchestration from the daemon composition 
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Create `internal/memory/consolidation` and move daemon-owned dream orchestration into it.
-- [ ] 8.2 Keep `internal/memory` as the owner of consolidation services and lock semantics while narrowing daemon responsibilities.
-- [ ] 8.3 Update daemon wiring to depend on the new package rather than owning domain behavior.
-- [ ] 8.4 Migrate unit and integration tests to cover the new ownership boundary.
+- [x] 8.1 Create `internal/memory/consolidation` and move daemon-owned dream orchestration into it.
+- [x] 8.2 Keep `internal/memory` as the owner of consolidation services and lock semantics while narrowing daemon responsibilities.
+- [x] 8.3 Update daemon wiring to depend on the new package rather than owning domain behavior.
+- [x] 8.4 Migrate unit and integration tests to cover the new ownership boundary.
 
 ## Implementation Details
 Use the TechSpec `Component Overview`, `Integration Points`, and `Build Order` sections. Keep daemon as wiring only. Preserve existing lock, trigger, and workspace resolution semantics. Avoid introducing background lifecycle changes that are unrelated to the package move.
@@ -61,12 +61,12 @@ Use the TechSpec `Component Overview`, `Integration Points`, and `Build Order` s
 
 ## Tests
 - Unit tests:
-  - [ ] Consolidation gates still block or allow runs based on time and session thresholds.
-  - [ ] Explicit workspace references still resolve to the same normalized workspace target.
-  - [ ] Lock-unavailable scenarios still return the same already-running behavior.
+  - [x] Consolidation gates still block or allow runs based on time and session thresholds.
+  - [x] Explicit workspace references still resolve to the same normalized workspace target.
+  - [x] Lock-unavailable scenarios still return the same already-running behavior.
 - Integration tests:
-  - [ ] Daemon integration tests still observe dream scheduling and prompt spawning behavior after the move.
-  - [ ] HTTP and UDS integration flows still expose dream trigger behavior correctly through memory endpoints.
+  - [x] Daemon integration tests still observe dream scheduling and prompt spawning behavior after the move.
+  - [x] HTTP and UDS integration flows still expose dream trigger behavior correctly through memory endpoints.
 - Test coverage target: >=80%
 - All tests must pass
 

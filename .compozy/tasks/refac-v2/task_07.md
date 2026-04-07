@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extract canonical transcript assembly into internal/transcript
 type: refactor
 complexity: medium
@@ -28,10 +28,10 @@ This task moves replay-oriented transcript assembly out of `session` into `inter
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Create `internal/transcript` and move canonical transcript assembly into it.
-- [ ] 7.2 Update `session` to delegate transcript assembly instead of owning replay logic directly.
-- [ ] 7.3 Migrate or rewrite transcript-focused tests under the new package ownership.
-- [ ] 7.4 Remove obsolete replay-specific code from `session` after delegation is stable.
+- [x] 7.1 Create `internal/transcript` and move canonical transcript assembly into it.
+- [x] 7.2 Update `session` to delegate transcript assembly instead of owning replay logic directly.
+- [x] 7.3 Migrate or rewrite transcript-focused tests under the new package ownership.
+- [x] 7.4 Remove obsolete replay-specific code from `session` after delegation is stable.
 
 ## Implementation Details
 Use the TechSpec `Component Overview`, `Core Interfaces`, and `Data Models` sections. This is a package-ownership move, not a transcript format redesign. Preserve the canonical replay response expected by the transcript endpoint.
@@ -59,11 +59,11 @@ Use the TechSpec `Component Overview`, `Core Interfaces`, and `Data Models` sect
 
 ## Tests
 - Unit tests:
-  - [ ] User, assistant, thought, tool-call, and tool-result events still assemble into the same canonical transcript sequence.
-  - [ ] Mixed turn ordering still produces stable ordering by sequence and timestamp.
-  - [ ] Empty or ignorable events still behave the same as before in transcript output.
+  - [x] User, assistant, thought, tool-call, and tool-result events still assemble into the same canonical transcript sequence.
+  - [x] Mixed turn ordering still produces stable ordering by sequence and timestamp.
+  - [x] Empty or ignorable events still behave the same as before in transcript output.
 - Integration tests:
-  - [ ] Session transcript endpoint still returns the same replay structure through the API after the extraction.
+  - [x] Session transcript endpoint still returns the same replay structure through the API after the extraction.
 - Test coverage target: >=80%
 - All tests must pass
 

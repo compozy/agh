@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Re-root shared API core into internal/api/core and merge apisupport
 type: refactor
 complexity: high
@@ -28,10 +28,10 @@ This task moves the current shared transport layer into the target `internal/api
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Create `internal/api/core` and migrate shared interfaces, handlers, parsers, conversions, and SSE helpers into it.
-- [ ] 4.2 Move `apisupport` functionality into the new package and remove the vestigial package boundary.
-- [ ] 4.3 Update imports in shared API tests and dependent packages.
-- [ ] 4.4 Remove any task-local bridges before declaring the task complete.
+- [x] 4.1 Create `internal/api/core` and migrate shared interfaces, handlers, parsers, conversions, and SSE helpers into it.
+- [x] 4.2 Move `apisupport` functionality into the new package and remove the vestigial package boundary.
+- [x] 4.3 Update imports in shared API tests and dependent packages.
+- [x] 4.4 Remove any task-local bridges before declaring the task complete.
 
 ## Implementation Details
 Follow the TechSpec `Component Overview`, `Core Interfaces`, and `Build Order` sections. Keep the new package focused on shared server-side API behavior. Route registration and transport lifecycle stay out of scope for this task.
@@ -67,7 +67,7 @@ Follow the TechSpec `Component Overview`, `Core Interfaces`, and `Build Order` s
   - [ ] Shared SSE helpers still emit correctly formatted messages and IDs.
   - [ ] Session/workspace support helpers from `apisupport` still behave the same after merge.
 - Integration tests:
-  - [ ] Shared API behavior remains green when exercised through existing transport tests after imports are updated.
+  - [x] Shared API behavior remains green when exercised through existing transport tests after imports are updated.
 - Test coverage target: >=80%
 - All tests must pass
 
