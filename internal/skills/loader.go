@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/pedronauck/agh/internal/filesnap"
+	"github.com/pedronauck/agh/internal/frontmatter"
 	"gopkg.in/yaml.v3"
 )
 
@@ -21,10 +22,8 @@ const (
 )
 
 var (
-	errFrontmatterMissing      = errors.New("skills: missing YAML frontmatter")
-	errFrontmatterUnterminated = errors.New("skills: unterminated YAML frontmatter")
-	errSkillNameRequired       = errors.New("skills: skill name is required")
-	errScanLimitReached        = errors.New("skills: scan candidate limit reached")
+	errSkillNameRequired = errors.New("skills: skill name is required")
+	errScanLimitReached  = errors.New("skills: scan candidate limit reached")
 )
 
 var allowedFrontmatterFields = map[string]struct{}{
@@ -50,7 +49,7 @@ func ParseSkillFile(path string) (*Skill, error) {
 		return nil, fmt.Errorf("skills: read %q: %w", absPath, err)
 	}
 
-	meta, body, err := parseFrontmatter(string(content))
+	meta, body, err := parseSkillContent(content)
 	if err != nil {
 		return nil, fmt.Errorf("skills: parse %q: %w", absPath, err)
 	}
@@ -70,41 +69,6 @@ func ParseSkillFile(path string) (*Skill, error) {
 	}
 
 	return skill, nil
-}
-
-// parseFrontmatter splits YAML frontmatter from the markdown body of a SKILL.md file.
-func parseFrontmatter(content string) (SkillMeta, string, error) {
-	normalized := normalizeLineEndings(content)
-	if !strings.HasPrefix(normalized, "---") {
-		return SkillMeta{}, "", errFrontmatterMissing
-	}
-
-	openLine, remainder, ok := strings.Cut(normalized, "\n")
-	if !ok {
-		if normalized == "---" {
-			return SkillMeta{}, "", errFrontmatterUnterminated
-		}
-		return SkillMeta{}, "", errFrontmatterMissing
-	}
-	if openLine != "---" {
-		return SkillMeta{}, "", errFrontmatterMissing
-	}
-
-	closeStart, closeEnd, ok := findClosingDelimiter(remainder)
-	if !ok {
-		return SkillMeta{}, "", errFrontmatterUnterminated
-	}
-
-	frontmatter := remainder[:closeStart]
-	body := remainder[closeEnd:]
-	body = strings.TrimPrefix(body, "\n")
-
-	meta, err := decodeSkillMeta(frontmatter)
-	if err != nil {
-		return SkillMeta{}, "", fmt.Errorf("decode YAML frontmatter: %w", err)
-	}
-
-	return meta, body, nil
 }
 
 // scanDirectory returns every SKILL.md file discovered under dir.
@@ -208,6 +172,20 @@ func decodeSkillMeta(frontmatter string) (SkillMeta, error) {
 	return meta, nil
 }
 
+func parseSkillContent(content []byte) (SkillMeta, string, error) {
+	parts, err := frontmatter.Split(content)
+	if err != nil {
+		return SkillMeta{}, "", err
+	}
+
+	meta, err := decodeSkillMeta(string(parts.Metadata))
+	if err != nil {
+		return SkillMeta{}, "", fmt.Errorf("decode YAML frontmatter: %w", err)
+	}
+
+	return meta, parts.Body, nil
+}
+
 func warnUnknownFields(document *yaml.Node) {
 	if document == nil || len(document.Content) == 0 {
 		return
@@ -226,32 +204,6 @@ func warnUnknownFields(document *yaml.Node) {
 
 		slog.Warn("skills: unknown frontmatter field", "field", key)
 	}
-}
-
-func normalizeLineEndings(content string) string {
-	return strings.ReplaceAll(content, "\r\n", "\n")
-}
-
-func findClosingDelimiter(content string) (int, int, bool) {
-	offset := 0
-	for offset <= len(content) {
-		lineEnd := strings.IndexByte(content[offset:], '\n')
-		if lineEnd == -1 {
-			if content[offset:] == "---" {
-				return offset, len(content), true
-			}
-			return 0, 0, false
-		}
-
-		lineEnd += offset
-		if content[offset:lineEnd] == "---" {
-			return offset, lineEnd, true
-		}
-
-		offset = lineEnd + 1
-	}
-
-	return 0, 0, false
 }
 
 func scanDepth(root, current string, isDir bool) (int, error) {

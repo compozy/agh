@@ -2,6 +2,7 @@ package skills
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,9 +13,10 @@ import (
 	"testing"
 
 	"github.com/pedronauck/agh/internal/filesnap"
+	"github.com/pedronauck/agh/internal/frontmatter"
 )
 
-func TestParseFrontmatterValidCases(t *testing.T) {
+func TestParseSkillContentValidCases(t *testing.T) {
 	t.Parallel()
 
 	longBody := strings.Repeat("abc123", 9_000)
@@ -103,26 +105,26 @@ func TestParseFrontmatterValidCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotMeta, gotBody, err := parseFrontmatter(tt.content)
+			gotMeta, gotBody, err := parseSkillContent([]byte(tt.content))
 			if err != nil {
-				t.Fatalf("parseFrontmatter() error = %v", err)
+				t.Fatalf("parseSkillContent() error = %v", err)
 			}
 
 			if !reflect.DeepEqual(gotMeta, tt.wantMeta) {
-				t.Fatalf("parseFrontmatter() meta mismatch\nwant: %#v\ngot:  %#v", tt.wantMeta, gotMeta)
+				t.Fatalf("parseSkillContent() meta mismatch\nwant: %#v\ngot:  %#v", tt.wantMeta, gotMeta)
 			}
 
 			switch {
 			case tt.wantBodyLength > 0 && len(gotBody) != tt.wantBodyLength:
-				t.Fatalf("parseFrontmatter() body length = %d, want %d", len(gotBody), tt.wantBodyLength)
+				t.Fatalf("parseSkillContent() body length = %d, want %d", len(gotBody), tt.wantBodyLength)
 			case tt.wantBodyLength == 0 && gotBody != tt.wantBody:
-				t.Fatalf("parseFrontmatter() body = %q, want %q", gotBody, tt.wantBody)
+				t.Fatalf("parseSkillContent() body = %q, want %q", gotBody, tt.wantBody)
 			}
 		})
 	}
 }
 
-func TestParseFrontmatterErrors(t *testing.T) {
+func TestParseSkillContentErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -133,7 +135,7 @@ func TestParseFrontmatterErrors(t *testing.T) {
 		{
 			name:    "delimiter only",
 			content: "---",
-			wantErr: errFrontmatterUnterminated,
+			wantErr: frontmatter.ErrUnterminated,
 		},
 		{
 			name: "missing opening delimiter",
@@ -141,7 +143,7 @@ func TestParseFrontmatterErrors(t *testing.T) {
 				"name: invalid",
 				"description: missing delimiters",
 			}, "\n"),
-			wantErr: errFrontmatterMissing,
+			wantErr: frontmatter.ErrMissing,
 		},
 		{
 			name: "unterminated frontmatter",
@@ -150,7 +152,7 @@ func TestParseFrontmatterErrors(t *testing.T) {
 				"name: invalid",
 				"description: missing close",
 			}, "\n"),
-			wantErr: errFrontmatterUnterminated,
+			wantErr: frontmatter.ErrUnterminated,
 		},
 		{
 			name: "malformed yaml",
@@ -169,22 +171,22 @@ func TestParseFrontmatterErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, err := parseFrontmatter(tt.content)
+			_, _, err := parseSkillContent([]byte(tt.content))
 			if err == nil {
-				t.Fatal("parseFrontmatter() error = nil, want error")
+				t.Fatal("parseSkillContent() error = nil, want error")
 			}
 
-			if tt.wantErr != nil && !strings.Contains(err.Error(), tt.wantErr.Error()) {
-				t.Fatalf("parseFrontmatter() error = %v, want containing %q", err, tt.wantErr)
+			if tt.wantErr != nil && !errors.Is(err, tt.wantErr) {
+				t.Fatalf("parseSkillContent() error = %v, want %v", err, tt.wantErr)
 			}
 			if tt.wantErr == nil && !strings.Contains(err.Error(), "decode YAML frontmatter") {
-				t.Fatalf("parseFrontmatter() error = %v, want YAML decode error", err)
+				t.Fatalf("parseSkillContent() error = %v, want YAML decode error", err)
 			}
 		})
 	}
 }
 
-func TestParseFrontmatterWarnsOnUnknownFields(t *testing.T) {
+func TestParseSkillContentWarnsOnUnknownFields(t *testing.T) {
 	original := slog.Default()
 	var logs bytes.Buffer
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
@@ -201,15 +203,15 @@ func TestParseFrontmatterWarnsOnUnknownFields(t *testing.T) {
 		"body",
 	}, "\n")
 
-	meta, body, err := parseFrontmatter(content)
+	meta, body, err := parseSkillContent([]byte(content))
 	if err != nil {
-		t.Fatalf("parseFrontmatter() error = %v", err)
+		t.Fatalf("parseSkillContent() error = %v", err)
 	}
 	if meta.Name != "warning-test" {
-		t.Fatalf("parseFrontmatter() meta.Name = %q, want %q", meta.Name, "warning-test")
+		t.Fatalf("parseSkillContent() meta.Name = %q, want %q", meta.Name, "warning-test")
 	}
 	if body != "body" {
-		t.Fatalf("parseFrontmatter() body = %q, want %q", body, "body")
+		t.Fatalf("parseSkillContent() body = %q, want %q", body, "body")
 	}
 	if !strings.Contains(logs.String(), "unknown frontmatter field") || !strings.Contains(logs.String(), "extra") {
 		t.Fatalf("expected unknown field warning in logs, got %q", logs.String())

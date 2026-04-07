@@ -39,6 +39,30 @@ You are a senior Go engineer.
 	}
 }
 
+func TestParseAgentDefNormalizesCRLFAndPreservesConfigFrontmatterErrors(t *testing.T) {
+	t.Parallel()
+
+	agent, err := ParseAgentDef([]byte("---\r\nname: windows\r\nprovider: claude\r\n---\r\nPrompt on CRLF.\r\n"))
+	if err != nil {
+		t.Fatalf("ParseAgentDef() error = %v", err)
+	}
+	if got, want := agent.Prompt, "Prompt on CRLF."; got != want {
+		t.Fatalf("ParseAgentDef() Prompt = %q, want %q", got, want)
+	}
+
+	if _, err := ParseAgentDef([]byte("plain markdown")); err == nil {
+		t.Fatal("ParseAgentDef() missing frontmatter error = nil, want non-nil")
+	} else if got, want := err.Error(), "config: missing YAML frontmatter"; got != want {
+		t.Fatalf("ParseAgentDef() missing frontmatter error = %q, want %q", got, want)
+	}
+
+	if _, err := ParseAgentDef([]byte("---\nname: broken")); err == nil {
+		t.Fatal("ParseAgentDef() unterminated frontmatter error = nil, want non-nil")
+	} else if got, want := err.Error(), "config: unterminated YAML frontmatter"; got != want {
+		t.Fatalf("ParseAgentDef() unterminated frontmatter error = %q, want %q", got, want)
+	}
+}
+
 func TestLoadAgentDefFromHomePath(t *testing.T) {
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
@@ -143,6 +167,34 @@ func TestLoadAgentDefFileMissingReturnsError(t *testing.T) {
 	}
 }
 
+func TestLoadAgentDefRejectsBlankAndMismatchedNames(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	if _, err := LoadAgentDef("   ", homePaths); err == nil {
+		t.Fatal("LoadAgentDef(blank) error = nil, want non-nil")
+	}
+
+	writeFile(t, filepath.Join(homePaths.AgentsDir, "coder", agentDefName), `---
+name: reviewer
+provider: claude
+---
+
+Mismatch
+`)
+
+	if _, err := LoadAgentDef("coder", homePaths); err == nil {
+		t.Fatal("LoadAgentDef(mismatched name) error = nil, want non-nil")
+	}
+}
+
 func TestWorkspaceDiscoveryRootsReturnsWorkspaceAdditionalGlobalOrder(t *testing.T) {
 	t.Parallel()
 
@@ -183,6 +235,13 @@ func TestWorkspaceDiscoveryRootsReturnsWorkspaceAdditionalGlobalOrder(t *testing
 	}
 	if got, want := roots[3].Source, WorkspaceDiscoverySourceGlobal; got != want {
 		t.Fatalf("roots[3].Source = %q, want %q", got, want)
+	}
+
+	if got, want := roots[0].SkillsDir(), filepath.Join(root, DirName, SkillsDirName); got != want {
+		t.Fatalf("roots[0].SkillsDir() = %q, want %q", got, want)
+	}
+	if got, want := roots[3].SkillsDir(), filepath.Join(homePaths.HomeDir, SkillsDirName); got != want {
+		t.Fatalf("roots[3].SkillsDir() = %q, want %q", got, want)
 	}
 }
 

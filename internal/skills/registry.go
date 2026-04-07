@@ -534,7 +534,7 @@ func parseBundledSkill(fsys fs.FS, skillPath string) (*Skill, error) {
 		return nil, fmt.Errorf("skills: read bundled skill %q: %w", skillPath, err)
 	}
 
-	meta, body, err := parseFrontmatter(string(content))
+	meta, body, err := parseSkillContent(content)
 	if err != nil {
 		return nil, fmt.Errorf("skills: parse bundled skill %q: %w", skillPath, err)
 	}
