@@ -7,7 +7,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/apicore"
+	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/session"
 )
 
@@ -15,7 +15,7 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC)
-	payload := apicore.SessionPayloadFromInfo(&session.SessionInfo{
+	payload := core.SessionPayloadFromInfo(&session.SessionInfo{
 		ID:           "sess-1",
 		Name:         "demo",
 		AgentName:    "coder",
@@ -99,7 +99,7 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 		Raw: []byte(`{"ok":true}`),
 	}
 
-	payload := apicore.AgentEventPayloadFromEvent(event)
+	payload := core.AgentEventPayloadFromEvent(event)
 	var roundTrip contract.AgentEventPayload
 	marshalJSON(t, payload, &roundTrip)
 

@@ -1,4 +1,4 @@
-package apicore_test
+package core_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/apicore"
+	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/apitest"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
@@ -40,7 +40,7 @@ func (s *stubDreamTrigger) Enabled() bool {
 }
 
 type handlerFixture struct {
-	Handlers  *apicore.BaseHandlers
+	Handlers  *core.BaseHandlers
 	Engine    *gin.Engine
 	HomePaths aghconfig.HomePaths
 }
@@ -51,7 +51,7 @@ func newHandlerFixture(
 	observer apitest.StubObserver,
 	workspaces apitest.StubWorkspaceService,
 	store *memory.Store,
-	dream apicore.DreamTrigger,
+	dream core.DreamTrigger,
 ) handlerFixture {
 	t.Helper()
 
@@ -60,10 +60,10 @@ func newHandlerFixture(
 	cfg := aghconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
-	cfg.Daemon.Socket = "/tmp/apicore-test.sock"
+	cfg.Daemon.Socket = "/tmp/api-core-test.sock"
 
-	handlers := apicore.NewBaseHandlers(apicore.BaseHandlerConfig{
-		TransportName:                "apicore-test",
+	handlers := core.NewBaseHandlers(core.BaseHandlerConfig{
+		TransportName:                "api-core-test",
 		MaskInternalErrors:           false,
 		IncludeSessionWorkspaceInSSE: true,
 		Sessions:                     manager,

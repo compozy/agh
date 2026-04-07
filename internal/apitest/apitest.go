@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/apicore"
+	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -353,6 +353,6 @@ func DiscardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-var _ apicore.SessionManager = StubSessionManager{}
-var _ apicore.Observer = StubObserver{}
-var _ apicore.WorkspaceService = StubWorkspaceService{}
+var _ core.SessionManager = StubSessionManager{}
+var _ core.Observer = StubObserver{}
+var _ core.WorkspaceService = StubWorkspaceService{}

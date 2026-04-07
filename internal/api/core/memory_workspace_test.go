@@ -1,4 +1,4 @@
-package apicore_test
+package core_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/apicore"
+	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/apitest"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
@@ -86,7 +86,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		t.Fatalf("health status = %d, want %d", healthResp.Code, http.StatusOK)
 	}
 
-	if status := apicore.StatusForMemoryError(apicore.NewMemoryValidationError(errors.New("bad"))); status != http.StatusBadRequest {
+	if status := core.StatusForMemoryError(core.NewMemoryValidationError(errors.New("bad"))); status != http.StatusBadRequest {
 		t.Fatalf("StatusForMemoryError(validation) = %d, want %d", status, http.StatusBadRequest)
 	}
 }

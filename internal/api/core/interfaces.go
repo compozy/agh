@@ -1,5 +1,5 @@
-// Package apicore provides the shared transport-facing API layer used by HTTP and UDS bindings.
-package apicore
+// Package core provides the shared transport-facing API layer used by HTTP and UDS bindings.
+package core
 
 import (
 	"context"

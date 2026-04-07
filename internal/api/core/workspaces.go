@@ -1,4 +1,4 @@
-package apicore
+package core
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/apisupport"
 	"github.com/pedronauck/agh/internal/session"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -175,27 +174,27 @@ func (h *BaseHandlers) ResolveWorkspace(c *gin.Context) {
 }
 
 func (h *BaseHandlers) validateCreateSessionRequest(req contract.CreateSessionRequest) error {
-	return apisupport.ValidateCreateSessionRequest(h.transportName(), req.Workspace, req.WorkspacePath)
+	return validateCreateSessionRequest(h.transportName(), req.Workspace, req.WorkspacePath)
 }
 
 func (h *BaseHandlers) lookupWorkspaceID(ctx context.Context, ref string) (string, error) {
-	return apisupport.LookupWorkspaceID(ctx, h.transportName(), h.Workspaces, ref)
+	return lookupWorkspaceID(ctx, h.transportName(), h.Workspaces, ref)
 }
 
 func filterSessionInfosByWorkspaceID(infos []*session.SessionInfo, workspaceID string) []*session.SessionInfo {
-	return apisupport.FilterSessionInfosByWorkspaceID(infos, workspaceID)
+	return filterSessionInfosByWorkspaceIDInternal(infos, workspaceID)
 }
 
 func validateAbsolutePath(prefix string, field string, value string) error {
-	return apisupport.ValidateAbsolutePath(prefix, field, value)
+	return validateAbsolutePathInternal(prefix, field, value)
 }
 
 func validateAbsolutePaths(prefix string, field string, values []string) error {
-	return apisupport.ValidateAbsolutePaths(prefix, field, values)
+	return validateAbsolutePathsInternal(prefix, field, values)
 }
 
 func trimStringSlice(values []string) []string {
-	return apisupport.TrimStringSlice(values)
+	return trimStringSliceInternal(values)
 }
 
 // SessionPayloadsForWorkspace filters and converts sessions for one workspace.

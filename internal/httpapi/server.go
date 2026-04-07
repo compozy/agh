@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/apicore"
+	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 )
@@ -31,19 +31,19 @@ const (
 type Option func(*Server)
 
 // AgentLoader loads one parsed AGENT.md definition.
-type AgentLoader = apicore.AgentLoader
+type AgentLoader = core.AgentLoader
 
 // SessionManager is the runtime session surface exposed over HTTP.
-type SessionManager = apicore.SessionManager
+type SessionManager = core.SessionManager
 
 // Observer is the observability surface exposed over HTTP.
-type Observer = apicore.Observer
+type Observer = core.Observer
 
 // DreamTrigger exposes consolidation controls and state to the HTTP API.
-type DreamTrigger = apicore.DreamTrigger
+type DreamTrigger = core.DreamTrigger
 
 // WorkspaceService exposes workspace registration and resolution to the HTTP API.
-type WorkspaceService = apicore.WorkspaceService
+type WorkspaceService = core.WorkspaceService
 
 // Server exposes the daemon API over TCP HTTP.
 type Server struct {
@@ -94,7 +94,7 @@ type handlerConfig struct {
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
 type Handlers struct {
-	*apicore.BaseHandlers
+	*core.BaseHandlers
 	staticFS fs.FS
 }
 
@@ -492,7 +492,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 	}
 
 	return &Handlers{
-		BaseHandlers: apicore.NewBaseHandlers(apicore.BaseHandlerConfig{
+		BaseHandlers: core.NewBaseHandlers(core.BaseHandlerConfig{
 			TransportName:                "httpapi",
 			MaskInternalErrors:           true,
 			IncludeSessionWorkspaceInSSE: false,

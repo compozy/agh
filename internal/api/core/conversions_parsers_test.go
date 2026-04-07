@@ -1,4 +1,4 @@
-package apicore_test
+package core_test
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/apicore"
+	"github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 )
@@ -20,7 +20,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
-	payload := apicore.SessionPayloadFromInfo(&session.SessionInfo{
+	payload := core.SessionPayloadFromInfo(&session.SessionInfo{
 		ID:           "sess-1",
 		Name:         "demo",
 		AgentName:    "coder",
@@ -48,7 +48,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 func TestAgentPayloadFromDef(t *testing.T) {
 	t.Parallel()
 
-	payload := apicore.AgentPayloadFromDef(aghconfig.AgentDef{
+	payload := core.AgentPayloadFromDef(aghconfig.AgentDef{
 		Name:        "coder",
 		Provider:    "fake",
 		Command:     "codex",
@@ -79,7 +79,7 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 	context, _ := gin.CreateTestContext(recorder)
 	context.Request = httptest.NewRequest(http.MethodGet, "/events?type=agent_message&agent_name=coder&turn_id=turn-1&after_sequence=5&limit=10&since=2026-04-03T12:00:00Z", nil)
 
-	query, err := apicore.ParseSessionEventQuery(context)
+	query, err := core.ParseSessionEventQuery(context)
 	if err != nil {
 		t.Fatalf("ParseSessionEventQuery() error = %v", err)
 	}
@@ -87,25 +87,25 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 		t.Fatalf("query = %#v", query)
 	}
 
-	if _, err := apicore.ParseOptionalTime(""); err != nil {
+	if _, err := core.ParseOptionalTime(""); err != nil {
 		t.Fatalf("ParseOptionalTime(empty) error = %v", err)
 	}
-	if parsed, err := apicore.ParseOptionalTime("2026-04-03T12:00:00Z"); err != nil || parsed.IsZero() {
+	if parsed, err := core.ParseOptionalTime("2026-04-03T12:00:00Z"); err != nil || parsed.IsZero() {
 		t.Fatalf("ParseOptionalTime(valid) = %v, %v", parsed, err)
 	}
-	if _, err := apicore.ParseOptionalTime("bad"); err == nil {
+	if _, err := core.ParseOptionalTime("bad"); err == nil {
 		t.Fatal("ParseOptionalTime(bad) error = nil, want non-nil")
 	}
-	if value, err := apicore.ParseOptionalInt("7"); err != nil || value != 7 {
+	if value, err := core.ParseOptionalInt("7"); err != nil || value != 7 {
 		t.Fatalf("ParseOptionalInt() = %d, %v", value, err)
 	}
-	if value, err := apicore.ParseOptionalInt64("9"); err != nil || value != 9 {
+	if value, err := core.ParseOptionalInt64("9"); err != nil || value != 9 {
 		t.Fatalf("ParseOptionalInt64() = %d, %v", value, err)
 	}
-	if _, err := apicore.ParseObserveCursor("2026-04-03T12:00:00Z|ev-1"); err != nil {
+	if _, err := core.ParseObserveCursor("2026-04-03T12:00:00Z|ev-1"); err != nil {
 		t.Fatalf("ParseObserveCursor() error = %v", err)
 	}
-	observeQuery, err := apicore.ParseObserveEventQuery(context)
+	observeQuery, err := core.ParseObserveEventQuery(context)
 	if err != nil {
 		t.Fatalf("ParseObserveEventQuery() error = %v", err)
 	}
@@ -116,7 +116,7 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 	invalidRecorder := httptest.NewRecorder()
 	invalidContext, _ := gin.CreateTestContext(invalidRecorder)
 	invalidContext.Request = httptest.NewRequest(http.MethodGet, "/events?since=bad", nil)
-	if _, err := apicore.ParseSessionEventQuery(invalidContext); err == nil {
+	if _, err := core.ParseSessionEventQuery(invalidContext); err == nil {
 		t.Fatal("ParseSessionEventQuery(invalid) error = nil, want non-nil")
 	}
 }
@@ -136,7 +136,7 @@ func TestRespondErrorMaskingModes(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			context, _ := gin.CreateTestContext(recorder)
 
-			apicore.RespondError(context, http.StatusInternalServerError, errors.New("boom"), tc.mask)
+			core.RespondError(context, http.StatusInternalServerError, errors.New("boom"), tc.mask)
 
 			var payload contract.ErrorPayload
 			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
@@ -156,7 +156,7 @@ func TestPrepareSSESetsHeaders(t *testing.T) {
 	context, _ := gin.CreateTestContext(recorder)
 	context.Request = httptest.NewRequest(http.MethodGet, "/stream", nil)
 
-	writer, err := apicore.PrepareSSE(context)
+	writer, err := core.PrepareSSE(context)
 	if err != nil {
 		t.Fatalf("PrepareSSE() error = %v", err)
 	}

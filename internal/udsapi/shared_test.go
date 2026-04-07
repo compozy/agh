@@ -7,7 +7,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/apicore"
+	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -18,65 +18,65 @@ type turnHistoryPayload = contract.TurnHistoryPayload
 type agentPayload = contract.AgentPayload
 type observeEventPayload = contract.ObserveEventPayload
 type daemonStatusPayload = contract.DaemonStatusPayload
-type observeCursor = apicore.ObserveCursor
+type observeCursor = core.ObserveCursor
 type memoryWriteRequest = contract.MemoryWriteRequest
 type memoryReadResponse = contract.MemoryReadResponse
 type memoryConsolidateResponse = contract.MemoryConsolidateResponse
 type memoryHealthPayload = contract.MemoryHealthPayload
-type memoryLocation = apicore.MemoryLocation
+type memoryLocation = core.MemoryLocation
 type workspacePayload = contract.WorkspacePayload
 type workspaceSkillPayload = contract.WorkspaceSkillPayload
 
 func statusForMemoryError(err error) int {
-	return apicore.StatusForMemoryError(err)
+	return core.StatusForMemoryError(err)
 }
 
 func newMemoryValidationError(err error) error {
-	return apicore.NewMemoryValidationError(err)
+	return core.NewMemoryValidationError(err)
 }
 
 func payloadJSON(raw string) json.RawMessage {
-	return apicore.PayloadJSON(raw)
+	return core.PayloadJSON(raw)
 }
 
 func observeEventAfterCursor(event store.EventSummary, cursor observeCursor) bool {
-	return apicore.ObserveEventAfterCursor(event, cursor)
+	return core.ObserveEventAfterCursor(event, cursor)
 }
 
 func acpCapsPayloadFromInfo(caps acp.ACPCaps) *contract.ACPCapsPayload {
-	return apicore.ACPCapsPayloadFromInfo(caps)
+	return core.ACPCapsPayloadFromInfo(caps)
 }
 
 func tokenUsagePayloadFromUsage(usage *acp.TokenUsage) *contract.TokenUsagePayload {
-	return apicore.TokenUsagePayloadFromUsage(usage)
+	return core.TokenUsagePayloadFromUsage(usage)
 }
 
 func resolveMemoryWriteScope(req memoryWriteRequest) (memory.Scope, string, error) {
-	return apicore.ResolveMemoryWriteScope(req)
+	return core.ResolveMemoryWriteScope(req)
 }
 
 func parseOptionalMemoryScope(raw string) (memory.Scope, error) {
-	return apicore.ParseOptionalMemoryScope(raw)
+	return core.ParseOptionalMemoryScope(raw)
 }
 
 func resolveMemoryWorkspace(raw string) (string, error) {
-	return apicore.ResolveMemoryWorkspace(raw)
+	return core.ResolveMemoryWorkspace(raw)
 }
 
 func parseObserveCursor(raw string) (observeCursor, error) {
-	return apicore.ParseObserveCursor(raw)
+	return core.ParseObserveCursor(raw)
 }
 
 func parseOptionalTime(raw string) (time.Time, error) {
-	return apicore.ParseOptionalTime(raw)
+	return core.ParseOptionalTime(raw)
 }
 
 func parseOptionalInt(raw string) (int, error) {
-	return apicore.ParseOptionalInt(raw)
+	return core.ParseOptionalInt(raw)
 }
 
 func parseOptionalInt64(raw string) (int64, error) {
-	return apicore.ParseOptionalInt64(raw)
+	return core.ParseOptionalInt64(raw)
 }
 
 func (h *Handlers) resolveMemoryLocation(filename string, rawScope string, rawWorkspace string) (memoryLocation, error) {

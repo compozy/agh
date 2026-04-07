@@ -1,4 +1,4 @@
-package apisupport
+package core
 
 import (
 	"context"
@@ -19,7 +19,7 @@ type WorkspaceGetter interface {
 }
 
 // ValidateCreateSessionRequest enforces the shared session workspace contract.
-func ValidateCreateSessionRequest(prefix string, workspaceRef string, workspacePath string) error {
+func validateCreateSessionRequest(prefix string, workspaceRef string, workspacePath string) error {
 	trimmedRef := strings.TrimSpace(workspaceRef)
 	trimmedPath := strings.TrimSpace(workspacePath)
 
@@ -29,14 +29,14 @@ func ValidateCreateSessionRequest(prefix string, workspaceRef string, workspaceP
 	case trimmedRef != "" && trimmedPath != "":
 		return prefixedError(prefix, "workspace and workspace_path are mutually exclusive")
 	case trimmedPath != "":
-		return ValidateAbsolutePath(prefix, "workspace_path", trimmedPath)
+		return validateAbsolutePathInternal(prefix, "workspace_path", trimmedPath)
 	default:
 		return nil
 	}
 }
 
 // LookupWorkspaceID resolves a workspace reference into a stable workspace ID.
-func LookupWorkspaceID(ctx context.Context, prefix string, workspaces WorkspaceGetter, ref string) (string, error) {
+func lookupWorkspaceID(ctx context.Context, prefix string, workspaces WorkspaceGetter, ref string) (string, error) {
 	if workspaces == nil {
 		return "", prefixedError(prefix, "workspace resolver is required")
 	}
@@ -49,7 +49,7 @@ func LookupWorkspaceID(ctx context.Context, prefix string, workspaces WorkspaceG
 }
 
 // FilterSessionInfosByWorkspaceID filters the session info list by workspace ID.
-func FilterSessionInfosByWorkspaceID(infos []*session.SessionInfo, workspaceID string) []*session.SessionInfo {
+func filterSessionInfosByWorkspaceIDInternal(infos []*session.SessionInfo, workspaceID string) []*session.SessionInfo {
 	trimmedID := strings.TrimSpace(workspaceID)
 	if trimmedID == "" {
 		return infos
@@ -66,7 +66,7 @@ func FilterSessionInfosByWorkspaceID(infos []*session.SessionInfo, workspaceID s
 }
 
 // ValidateAbsolutePath ensures a field carries an absolute filesystem path.
-func ValidateAbsolutePath(prefix string, field string, value string) error {
+func validateAbsolutePathInternal(prefix string, field string, value string) error {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return prefixedError(prefix, field+" is required")
@@ -78,7 +78,7 @@ func ValidateAbsolutePath(prefix string, field string, value string) error {
 }
 
 // ValidateAbsolutePaths ensures every populated entry in a list is absolute.
-func ValidateAbsolutePaths(prefix string, field string, values []string) error {
+func validateAbsolutePathsInternal(prefix string, field string, values []string) error {
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)
 		if trimmed == "" {
@@ -92,7 +92,7 @@ func ValidateAbsolutePaths(prefix string, field string, values []string) error {
 }
 
 // TrimStringSlice trims all entries while preserving order and cardinality.
-func TrimStringSlice(values []string) []string {
+func trimStringSliceInternal(values []string) []string {
 	trimmed := make([]string, 0, len(values))
 	for _, value := range values {
 		trimmed = append(trimmed, strings.TrimSpace(value))
@@ -101,7 +101,7 @@ func TrimStringSlice(values []string) []string {
 }
 
 // StatusForWorkspaceError maps workspace-domain errors to transport statuses.
-func StatusForWorkspaceError(err error) int {
+func statusForWorkspaceError(err error) int {
 	switch {
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound
@@ -117,7 +117,7 @@ func StatusForWorkspaceError(err error) int {
 }
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
-func StatusForSessionError(err error) int {
+func statusForSessionError(err error) int {
 	switch {
 	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, os.ErrNotExist):
 		return http.StatusNotFound

@@ -1,4 +1,4 @@
-package apicore
+package core
 
 import (
 	"errors"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/apisupport"
 	"github.com/pedronauck/agh/internal/memory"
 )
 
@@ -32,12 +31,12 @@ func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
 func StatusForSessionError(err error) int {
-	return apisupport.StatusForSessionError(err)
+	return statusForSessionError(err)
 }
 
 // StatusForWorkspaceError maps workspace-domain errors to transport statuses.
 func StatusForWorkspaceError(err error) int {
-	return apisupport.StatusForWorkspaceError(err)
+	return statusForWorkspaceError(err)
 }
 
 // NewMemoryValidationError wraps a memory validation failure with the shared sentinel.

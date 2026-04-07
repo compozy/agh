@@ -1,4 +1,4 @@
-package apicore_test
+package core_test
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/apicore"
+	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/apitest"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
@@ -32,21 +32,21 @@ func TestObserveAndSSEHelpers(t *testing.T) {
 	timestamp := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	event := store.EventSummary{ID: "ev-1", SessionID: "sess-1", Type: "agent_message", AgentName: "coder", Timestamp: timestamp}
 
-	if !apicore.ObserveEventAfterCursor(event, apicore.ObserveCursor{}) {
+	if !core.ObserveEventAfterCursor(event, core.ObserveCursor{}) {
 		t.Fatal("ObserveEventAfterCursor(empty cursor) = false, want true")
 	}
-	if apicore.ObserveEventAfterCursor(event, apicore.ObserveCursor{Timestamp: timestamp.Add(time.Second), ID: "older"}) {
+	if core.ObserveEventAfterCursor(event, core.ObserveCursor{Timestamp: timestamp.Add(time.Second), ID: "older"}) {
 		t.Fatal("ObserveEventAfterCursor(newer cursor) = true, want false")
 	}
-	if apicore.ObserveEventAfterCursor(event, apicore.ObserveCursor{Timestamp: timestamp, ID: "zz"}) {
+	if core.ObserveEventAfterCursor(event, core.ObserveCursor{Timestamp: timestamp, ID: "zz"}) {
 		t.Fatal("ObserveEventAfterCursor(same timestamp higher id) = true, want false")
 	}
-	if got := apicore.ObserveEventID(event); got == "" {
+	if got := core.ObserveEventID(event); got == "" {
 		t.Fatal("ObserveEventID() = empty, want non-empty")
 	}
 
 	writer := &bufferFlusher{}
-	next := apicore.EmitObserveEvents(writer, []store.EventSummary{event}, apicore.ObserveCursor{})
+	next := core.EmitObserveEvents(writer, []store.EventSummary{event}, core.ObserveCursor{})
 	if next.ID != event.ID || next.Timestamp.IsZero() {
 		t.Fatalf("EmitObserveEvents() cursor = %#v", next)
 	}
@@ -54,16 +54,16 @@ func TestObserveAndSSEHelpers(t *testing.T) {
 		t.Fatal("expected SSE output to be written")
 	}
 
-	if err := apicore.WriteSSE(writer, apicore.SSEMessage{ID: "2", Name: "done", Data: map[string]string{"ok": "true"}}); err != nil {
+	if err := core.WriteSSE(writer, core.SSEMessage{ID: "2", Name: "done", Data: map[string]string{"ok": "true"}}); err != nil {
 		t.Fatalf("WriteSSE() error = %v", err)
 	}
-	if err := apicore.WriteSSERaw(writer, "3", `"raw"`, "raw"); err != nil {
+	if err := core.WriteSSERaw(writer, "3", `"raw"`, "raw"); err != nil {
 		t.Fatalf("WriteSSERaw() error = %v", err)
 	}
-	if err := apicore.WriteSSE(nil, apicore.SSEMessage{}); err == nil {
+	if err := core.WriteSSE(nil, core.SSEMessage{}); err == nil {
 		t.Fatal("WriteSSE(nil) error = nil, want non-nil")
 	}
-	if err := apicore.WriteSSERaw(nil, "", "null"); err == nil {
+	if err := core.WriteSSERaw(nil, "", "null"); err == nil {
 		t.Fatal("WriteSSERaw(nil) error = nil, want non-nil")
 	}
 }
@@ -72,7 +72,7 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	t.Parallel()
 
 	usageValue := int64(10)
-	agentEvent := apicore.AgentEventPayloadFromEvent(acp.AgentEvent{
+	agentEvent := core.AgentEventPayloadFromEvent(acp.AgentEvent{
 		Type:      acp.EventTypePermission,
 		SessionID: "sess-1",
 		TurnID:    "turn-1",
@@ -87,23 +87,23 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	if agentEvent.Type != acp.EventTypePermission || agentEvent.Usage == nil || agentEvent.Usage.InputTokens == nil {
 		t.Fatalf("agent event payload = %#v", agentEvent)
 	}
-	if payload := apicore.PayloadJSON("plain-text"); string(payload) == "plain-text" {
+	if payload := core.PayloadJSON("plain-text"); string(payload) == "plain-text" {
 		t.Fatalf("PayloadJSON() = %s, want quoted JSON", string(payload))
 	}
-	if status := apicore.StatusForWorkspaceError(workspacepkg.ErrWorkspacePathTaken); status != http.StatusConflict {
+	if status := core.StatusForWorkspaceError(workspacepkg.ErrWorkspacePathTaken); status != http.StatusConflict {
 		t.Fatalf("StatusForWorkspaceError() = %d, want %d", status, http.StatusConflict)
 	}
-	if status := apicore.StatusForMemoryError(errors.New("boom")); status != http.StatusInternalServerError {
+	if status := core.StatusForMemoryError(errors.New("boom")); status != http.StatusInternalServerError {
 		t.Fatalf("StatusForMemoryError(default) = %d, want %d", status, http.StatusInternalServerError)
 	}
-	if status := apicore.StatusForMemoryError(nil); status != http.StatusOK {
+	if status := core.StatusForMemoryError(nil); status != http.StatusOK {
 		t.Fatalf("StatusForMemoryError(nil) = %d, want %d", status, http.StatusOK)
 	}
-	if got := apicore.NewMemoryValidationError(nil); got != nil {
+	if got := core.NewMemoryValidationError(nil); got != nil {
 		t.Fatalf("NewMemoryValidationError(nil) = %v, want nil", got)
 	}
 
-	sessions := apicore.SessionPayloadsForWorkspace([]*session.SessionInfo{
+	sessions := core.SessionPayloadsForWorkspace([]*session.SessionInfo{
 		{ID: "sess-1", WorkspaceID: "ws_alpha"},
 		{ID: "sess-2", WorkspaceID: "ws_beta"},
 	}, "ws_alpha")
@@ -138,7 +138,7 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 		t.Fatalf("filtered list status = %d, want %d", resp.Code, http.StatusOK)
 	}
 
-	handlers := apicore.NewBaseHandlers(apicore.BaseHandlerConfig{})
+	handlers := core.NewBaseHandlers(core.BaseHandlerConfig{})
 	handlers.SetHTTPPort(4321)
 	if handlers.HTTPPort != 4321 {
 		t.Fatalf("HTTPPort = %d, want 4321", handlers.HTTPPort)
@@ -157,20 +157,20 @@ func TestMemoryWrapperExports(t *testing.T) {
 		Workspace: workspace,
 		Content:   "---\nname: Project\ndescription: desc\ntype: project\n---\n\nbody",
 	}
-	scope, resolvedWorkspace, err := apicore.ResolveMemoryWriteScope(req)
+	scope, resolvedWorkspace, err := core.ResolveMemoryWriteScope(req)
 	if err != nil {
 		t.Fatalf("ResolveMemoryWriteScope() error = %v", err)
 	}
 	if scope != memory.ScopeWorkspace || resolvedWorkspace == "" {
 		t.Fatalf("scope=%q workspace=%q", scope, resolvedWorkspace)
 	}
-	if _, err := apicore.ParseOptionalMemoryScope("bogus"); err == nil {
+	if _, err := core.ParseOptionalMemoryScope("bogus"); err == nil {
 		t.Fatal("ParseOptionalMemoryScope(bogus) error = nil, want non-nil")
 	}
-	if _, err := apicore.ResolveMemoryWorkspace(""); err == nil {
+	if _, err := core.ResolveMemoryWorkspace(""); err == nil {
 		t.Fatal("ResolveMemoryWorkspace(\"\") error = nil, want non-nil")
 	}
-	if scope, resolved, err := apicore.ResolveMemoryWriteScope(contract.MemoryWriteRequest{
+	if scope, resolved, err := core.ResolveMemoryWriteScope(contract.MemoryWriteRequest{
 		Content: "---\nname: Global\ndescription: desc\ntype: user\n---\n\nbody",
 	}); err != nil || scope != memory.ScopeGlobal || resolved != "" {
 		t.Fatalf("ResolveMemoryWriteScope(user default) = %q %q %v", scope, resolved, err)

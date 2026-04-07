@@ -4,29 +4,29 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/apicore"
+	core "github.com/pedronauck/agh/internal/api/core"
 )
 
 type agentEventPayload = contract.AgentEventPayload
-type sseMessage = apicore.SSEMessage
-type flushWriter = apicore.FlushWriter
+type sseMessage = core.SSEMessage
+type flushWriter = core.FlushWriter
 
 func respondError(c *gin.Context, status int, err error) {
-	apicore.RespondError(c, status, err, false)
+	core.RespondError(c, status, err, false)
 }
 
 func statusForSessionError(err error) int {
-	return apicore.StatusForSessionError(err)
+	return core.StatusForSessionError(err)
 }
 
 func prepareSSE(c *gin.Context) (flushWriter, error) {
-	return apicore.PrepareSSE(c)
+	return core.PrepareSSE(c)
 }
 
 func writeSSE(writer flushWriter, msg sseMessage) error {
-	return apicore.WriteSSE(writer, msg)
+	return core.WriteSSE(writer, msg)
 }
 
 func agentEventPayloadFromEvent(event acp.AgentEvent) agentEventPayload {
-	return apicore.AgentEventPayloadFromEvent(event)
+	return core.AgentEventPayloadFromEvent(event)
 }

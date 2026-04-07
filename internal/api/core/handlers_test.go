@@ -1,4 +1,4 @@
-package apicore_test
+package core_test
 
 import (
 	"context"

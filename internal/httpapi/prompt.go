@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/apicore"
+	core "github.com/pedronauck/agh/internal/api/core"
 )
 
 type promptRequest struct {
@@ -373,7 +373,7 @@ func (s *promptStreamState) finish(writer flushWriter, event acp.AgentEvent) err
 }
 
 func agentEventPayloadFromEvent(event acp.AgentEvent) agentEventPayload {
-	base := apicore.AgentEventPayloadFromEvent(event)
+	base := core.AgentEventPayloadFromEvent(event)
 	payload := agentEventPayload{
 		Type:       base.Type,
 		SessionID:  base.SessionID,
@@ -397,7 +397,7 @@ func agentEventPayloadFromEvent(event acp.AgentEvent) agentEventPayload {
 }
 
 func tokenUsagePayloadFromUsage(usage *acp.TokenUsage) *tokenUsagePayload {
-	base := apicore.TokenUsagePayloadFromUsage(usage)
+	base := core.TokenUsagePayloadFromUsage(usage)
 	if base == nil {
 		return nil
 	}

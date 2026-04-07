@@ -1,4 +1,4 @@
-package apicore
+package core
 
 import (
 	"context"
