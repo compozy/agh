@@ -78,10 +78,6 @@ func EmitObserveEvents(writer FlushWriter, events []store.EventSummary, cursor O
 		if !ObserveEventAfterCursor(event, next) {
 			continue
 		}
-		next = ObserveCursor{
-			Timestamp: event.Timestamp.UTC(),
-			ID:        event.ID,
-		}
 		if err := WriteSSE(writer, SSEMessage{
 			ID:   ObserveEventID(event),
 			Name: event.Type,
@@ -89,13 +85,18 @@ func EmitObserveEvents(writer FlushWriter, events []store.EventSummary, cursor O
 		}); err != nil {
 			return next
 		}
+		next = ObserveCursor{
+			Timestamp: event.Timestamp.UTC(),
+			Sequence:  event.Sequence,
+			ID:        event.ID,
+		}
 	}
 	return next
 }
 
 // ObserveEventAfterCursor reports whether an observe event should be emitted after the cursor.
 func ObserveEventAfterCursor(event store.EventSummary, cursor ObserveCursor) bool {
-	if cursor.Timestamp.IsZero() && strings.TrimSpace(cursor.ID) == "" {
+	if cursor.Timestamp.IsZero() && cursor.Sequence == 0 && strings.TrimSpace(cursor.ID) == "" {
 		return true
 	}
 
@@ -106,11 +107,17 @@ func ObserveEventAfterCursor(event store.EventSummary, cursor ObserveCursor) boo
 	case timestamp.Before(cursor.Timestamp):
 		return false
 	default:
+		if cursor.Sequence > 0 && event.Sequence > 0 {
+			return event.Sequence > cursor.Sequence
+		}
 		return event.ID > cursor.ID
 	}
 }
 
 // ObserveEventID builds a stable Last-Event-ID value for observe streaming.
 func ObserveEventID(event store.EventSummary) string {
+	if event.Sequence > 0 {
+		return fmt.Sprintf("%s|%020d", event.Timestamp.UTC().Format(time.RFC3339Nano), event.Sequence)
+	}
 	return event.Timestamp.UTC().Format(time.RFC3339Nano) + "|" + event.ID
 }

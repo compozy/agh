@@ -27,7 +27,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		},
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			createCalled.Store(true)
-			if opts.AgentName != "coder" || opts.Workspace != "alpha" {
+			if opts.AgentName != "coder" || opts.Workspace != "alpha" || opts.Type != session.SessionTypeUser {
 				t.Fatalf("Create opts = %#v", opts)
 			}
 			created := testutil.NewSession("sess-created")

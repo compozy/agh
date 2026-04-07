@@ -103,7 +103,20 @@ func (m *Manager) ApprovePermission(ctx context.Context, id string, req acp.Appr
 func (m *Manager) pumpPrompt(ctx context.Context, session *Session, turnID string, source <-chan acp.AgentEvent, out chan<- acp.AgentEvent) {
 	defer close(out)
 
-	for event := range source {
+	for {
+		var (
+			event acp.AgentEvent
+			ok    bool
+		)
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok = <-source:
+			if !ok {
+				return
+			}
+		}
+
 		normalized := m.normalizeEvent(session, turnID, event)
 		if err := m.recordEvent(ctx, session, normalized); err != nil {
 			m.sessionLogger(session).Warn("session: record prompt event failed", "turn_id", turnID, "error", err)
@@ -115,6 +128,7 @@ func (m *Manager) pumpPrompt(ctx context.Context, session *Session, turnID strin
 		select {
 		case out <- normalized:
 		case <-ctx.Done():
+			return
 		}
 	}
 }

@@ -429,22 +429,22 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 		cliType any
 		want    any
 	}{
-		{name: "createSessionRequest", cliType: CreateSessionRequest{}, want: contract.CreateSessionRequest{}},
-		{name: "sessionRecord", cliType: SessionRecord{}, want: contract.SessionPayload{}},
-		{name: "sessionEventRecord", cliType: SessionEventRecord{}, want: contract.SessionEventPayload{}},
-		{name: "turnHistoryRecord", cliType: TurnHistoryRecord{}, want: contract.TurnHistoryPayload{}},
-		{name: "agentRecord", cliType: AgentRecord{}, want: contract.AgentPayload{}},
-		{name: "agentEventRecord", cliType: AgentEventRecord{}, want: contract.AgentEventPayload{}},
-		{name: "observeEventRecord", cliType: ObserveEventRecord{}, want: contract.ObserveEventPayload{}},
-		{name: "workspaceCreateRequest", cliType: WorkspaceCreateRequest{}, want: contract.CreateWorkspaceRequest{}},
-		{name: "workspaceUpdateRequest", cliType: WorkspaceUpdateRequest{}, want: contract.UpdateWorkspaceRequest{}},
-		{name: "workspaceRecord", cliType: WorkspaceRecord{}, want: contract.WorkspacePayload{}},
-		{name: "workspaceSkillRecord", cliType: WorkspaceSkillRecord{}, want: contract.WorkspaceSkillPayload{}},
-		{name: "memoryReadRecord", cliType: MemoryReadRecord{}, want: contract.MemoryReadResponse{}},
-		{name: "memoryWriteRequest", cliType: MemoryWriteRequest{}, want: contract.MemoryWriteRequest{}},
-		{name: "memoryMutationRecord", cliType: MemoryMutationRecord{}, want: contract.MemoryMutationResponse{}},
-		{name: "memoryConsolidateRecord", cliType: MemoryConsolidateRecord{}, want: contract.MemoryConsolidateResponse{}},
-		{name: "daemonStatus", cliType: DaemonStatus{}, want: contract.DaemonStatusPayload{}},
+		{name: "Should alias CreateSessionRequest to the shared contract", cliType: CreateSessionRequest{}, want: contract.CreateSessionRequest{}},
+		{name: "Should alias SessionRecord to the shared contract", cliType: SessionRecord{}, want: contract.SessionPayload{}},
+		{name: "Should alias SessionEventRecord to the shared contract", cliType: SessionEventRecord{}, want: contract.SessionEventPayload{}},
+		{name: "Should alias TurnHistoryRecord to the shared contract", cliType: TurnHistoryRecord{}, want: contract.TurnHistoryPayload{}},
+		{name: "Should alias AgentRecord to the shared contract", cliType: AgentRecord{}, want: contract.AgentPayload{}},
+		{name: "Should alias AgentEventRecord to the shared contract", cliType: AgentEventRecord{}, want: contract.AgentEventPayload{}},
+		{name: "Should alias ObserveEventRecord to the shared contract", cliType: ObserveEventRecord{}, want: contract.ObserveEventPayload{}},
+		{name: "Should alias WorkspaceCreateRequest to the shared contract", cliType: WorkspaceCreateRequest{}, want: contract.CreateWorkspaceRequest{}},
+		{name: "Should alias WorkspaceUpdateRequest to the shared contract", cliType: WorkspaceUpdateRequest{}, want: contract.UpdateWorkspaceRequest{}},
+		{name: "Should alias WorkspaceRecord to the shared contract", cliType: WorkspaceRecord{}, want: contract.WorkspacePayload{}},
+		{name: "Should alias WorkspaceSkillRecord to the shared contract", cliType: WorkspaceSkillRecord{}, want: contract.WorkspaceSkillPayload{}},
+		{name: "Should alias MemoryReadRecord to the shared contract", cliType: MemoryReadRecord{}, want: contract.MemoryReadResponse{}},
+		{name: "Should alias MemoryWriteRequest to the shared contract", cliType: MemoryWriteRequest{}, want: contract.MemoryWriteRequest{}},
+		{name: "Should alias MemoryMutationRecord to the shared contract", cliType: MemoryMutationRecord{}, want: contract.MemoryMutationResponse{}},
+		{name: "Should alias MemoryConsolidateRecord to the shared contract", cliType: MemoryConsolidateRecord{}, want: contract.MemoryConsolidateResponse{}},
+		{name: "Should alias DaemonStatus to the shared contract", cliType: DaemonStatus{}, want: contract.DaemonStatusPayload{}},
 	}
 
 	for _, tt := range tests {

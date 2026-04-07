@@ -27,6 +27,7 @@ func AtomicWriteFile(path string, content []byte, perm os.FileMode) error {
 	cleanup := true
 	defer func() {
 		if cleanup {
+			// Best-effort cleanup only; a failed remove does not affect atomic replacement semantics.
 			_ = os.Remove(tempPath)
 		}
 	}()

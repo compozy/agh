@@ -239,6 +239,7 @@ func New(opts ...Option) (*Daemon, error) {
 		d.newSessionManager = func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error) {
 			return session.NewManager(
 				session.WithHomePaths(deps.HomePaths),
+				session.WithLifecycleContext(ctx),
 				session.WithLogger(deps.Logger),
 				session.WithNotifier(deps.Notifier),
 				session.WithPromptAssembler(deps.PromptAssembler),

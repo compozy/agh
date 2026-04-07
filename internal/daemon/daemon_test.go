@@ -759,6 +759,10 @@ func TestShouldVerifyBoundariesFromEnv(t *testing.T) {
 	if d.shouldVerifyBoundaries() {
 		t.Fatal("shouldVerifyBoundaries() = true, want false")
 	}
+	d.getenv = nil
+	if d.shouldVerifyBoundaries() {
+		t.Fatal("shouldVerifyBoundaries() with nil getenv = true, want false")
+	}
 	d.verifyBoundaries = true
 	if !d.shouldVerifyBoundaries() {
 		t.Fatal("shouldVerifyBoundaries() with explicit option = false, want true")

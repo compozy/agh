@@ -66,22 +66,40 @@ func (m *Manager) writeMeta(session *Session) error {
 
 func (m *Manager) activateAndWatch(ctx context.Context, session *Session, proc *AgentProcess) error {
 	now := m.now()
-	session.updateFromProcess(proc, now)
 	if err := session.activate(now); err != nil {
-		return err
-	}
-	if err := m.writeMeta(session); err != nil {
 		return err
 	}
 	if err := m.activate(session); err != nil {
 		return err
 	}
+	session.updateFromProcess(proc, now)
+	if err := m.writeMeta(session); err != nil {
+		rollbackErr := m.rollbackActivation(session, proc, now)
+		return errors.Join(err, rollbackErr)
+	}
 
 	if m.notifier != nil {
 		m.notifier.OnSessionCreated(ctx, session)
 	}
-	m.watchProcess(session)
+	m.watchProcess(m.lifecycleCtx, session)
 	return nil
+}
+
+func (m *Manager) rollbackActivation(session *Session, proc *AgentProcess, now time.Time) error {
+	if session == nil {
+		return nil
+	}
+
+	m.remove(session.ID)
+	session.rollbackActivation(now)
+
+	if proc == nil {
+		return nil
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+	defer cancel()
+	return m.driver.Stop(stopCtx, proc)
 }
 
 func (m *Manager) sessionLogger(session *Session) *slog.Logger {

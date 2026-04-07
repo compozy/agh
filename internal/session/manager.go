@@ -66,6 +66,7 @@ type Manager struct {
 	workspace     workspacepkg.WorkspaceResolver
 	openStore     StoreOpener
 	assembler     PromptAssembler
+	lifecycleCtx  context.Context
 	now           func() time.Time
 	newSessionID  IDGenerator
 	newTurnID     IDGenerator
@@ -91,6 +92,13 @@ func WithStore(opener StoreOpener) Option {
 func WithPromptAssembler(assembler PromptAssembler) Option {
 	return func(manager *Manager) {
 		manager.assembler = assembler
+	}
+}
+
+// WithLifecycleContext injects the daemon-owned lifecycle context used by background goroutines.
+func WithLifecycleContext(ctx context.Context) Option {
+	return func(manager *Manager) {
+		manager.lifecycleCtx = ctx
 	}
 }
 
@@ -174,6 +182,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},
+		lifecycleCtx: context.Background(),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -200,6 +209,9 @@ func NewManager(opts ...Option) (*Manager, error) {
 	}
 	if manager.openStore == nil {
 		return nil, errors.New("session: store opener is required")
+	}
+	if manager.lifecycleCtx == nil {
+		manager.lifecycleCtx = context.Background()
 	}
 	if manager.now == nil {
 		manager.now = func() time.Time {

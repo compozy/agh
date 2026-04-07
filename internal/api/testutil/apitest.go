@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -57,7 +56,7 @@ func (s StubSessionManager) List() []*session.SessionInfo {
 	if s.ListAllFn != nil {
 		infos, err := s.ListAllFn(context.Background())
 		if err != nil {
-			panic(fmt.Errorf("testutil: StubSessionManager.List fallback failed: %w", err))
+			return []*session.SessionInfo{}
 		}
 		return infos
 	}

@@ -907,8 +907,8 @@ func TestObserveEventStreamUsesLastEventIDCursor(t *testing.T) {
 	observer := stubObserver{
 		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 			return []store.EventSummary{
-				{ID: "sum-a", SessionID: "sess-1", Type: "agent_message", AgentName: "coder", Timestamp: timestamp},
-				{ID: "sum-b", SessionID: "sess-1", Type: "done", AgentName: "coder", Timestamp: timestamp},
+				{ID: "sum-a", SessionID: "sess-1", Sequence: 1, Type: "agent_message", AgentName: "coder", Timestamp: timestamp},
+				{ID: "sum-b", SessionID: "sess-1", Sequence: 2, Type: "done", AgentName: "coder", Timestamp: timestamp},
 			}, nil
 		},
 	}
@@ -919,7 +919,7 @@ func TestObserveEventStreamUsesLastEventIDCursor(t *testing.T) {
 	engine := newTestRouter(t, handlers)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/observe/events/stream", nil)
-	req.Header.Set("Last-Event-ID", timestamp.Format(time.RFC3339Nano)+"|sum-a")
+	req.Header.Set("Last-Event-ID", timestamp.Format(time.RFC3339Nano)+"|00000000000000000001")
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, req)
 
@@ -927,7 +927,7 @@ func TestObserveEventStreamUsesLastEventIDCursor(t *testing.T) {
 	if len(records) == 0 {
 		t.Fatalf("expected at least one SSE record, got body=%s", recorder.Body.String())
 	}
-	if records[0].ID != timestamp.Format(time.RFC3339Nano)+"|sum-b" {
-		t.Fatalf("record id = %q, want %q", records[0].ID, timestamp.Format(time.RFC3339Nano)+"|sum-b")
+	if records[0].ID != timestamp.Format(time.RFC3339Nano)+"|00000000000000000002" {
+		t.Fatalf("record id = %q, want %q", records[0].ID, timestamp.Format(time.RFC3339Nano)+"|00000000000000000002")
 	}
 }

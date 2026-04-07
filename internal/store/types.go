@@ -144,6 +144,7 @@ func (u SessionStateUpdate) Validate() error {
 type EventSummary struct {
 	ID        string
 	SessionID string
+	Sequence  int64
 	Type      string
 	AgentName string
 	Summary   string

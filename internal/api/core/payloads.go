@@ -21,5 +21,6 @@ type FlushWriter interface {
 // ObserveCursor is the shared cursor used for observe event streaming.
 type ObserveCursor struct {
 	Timestamp time.Time
+	Sequence  int64
 	ID        string
 }

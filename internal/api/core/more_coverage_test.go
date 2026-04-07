@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"testing"
@@ -26,11 +27,25 @@ type bufferFlusher struct {
 
 func (bufferFlusher) Flush() {}
 
+type failingFlusher struct {
+	writes int
+}
+
+func (f *failingFlusher) Write(p []byte) (int, error) {
+	f.writes++
+	if f.writes > 1 {
+		return 0, io.ErrClosedPipe
+	}
+	return len(p), nil
+}
+
+func (*failingFlusher) Flush() {}
+
 func TestObserveAndSSEHelpers(t *testing.T) {
 	t.Parallel()
 
 	timestamp := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
-	event := store.EventSummary{ID: "ev-1", SessionID: "sess-1", Type: "agent_message", AgentName: "coder", Timestamp: timestamp}
+	event := store.EventSummary{ID: "ev-1", SessionID: "sess-1", Sequence: 7, Type: "agent_message", AgentName: "coder", Timestamp: timestamp}
 
 	if !core.ObserveEventAfterCursor(event, core.ObserveCursor{}) {
 		t.Fatal("ObserveEventAfterCursor(empty cursor) = false, want true")
@@ -38,20 +53,26 @@ func TestObserveAndSSEHelpers(t *testing.T) {
 	if core.ObserveEventAfterCursor(event, core.ObserveCursor{Timestamp: timestamp.Add(time.Second), ID: "older"}) {
 		t.Fatal("ObserveEventAfterCursor(newer cursor) = true, want false")
 	}
-	if core.ObserveEventAfterCursor(event, core.ObserveCursor{Timestamp: timestamp, ID: "zz"}) {
-		t.Fatal("ObserveEventAfterCursor(same timestamp higher id) = true, want false")
+	if core.ObserveEventAfterCursor(event, core.ObserveCursor{Timestamp: timestamp, Sequence: 9}) {
+		t.Fatal("ObserveEventAfterCursor(same timestamp higher sequence) = true, want false")
 	}
-	if got := core.ObserveEventID(event); got == "" {
-		t.Fatal("ObserveEventID() = empty, want non-empty")
+	if got, want := core.ObserveEventID(event), "2026-04-03T12:00:00Z|00000000000000000007"; got != want {
+		t.Fatalf("ObserveEventID() = %q, want %q", got, want)
 	}
 
 	writer := &bufferFlusher{}
 	next := core.EmitObserveEvents(writer, []store.EventSummary{event}, core.ObserveCursor{})
-	if next.ID != event.ID || next.Timestamp.IsZero() {
+	if next.Sequence != event.Sequence || next.Timestamp.IsZero() {
 		t.Fatalf("EmitObserveEvents() cursor = %#v", next)
 	}
 	if writer.Len() == 0 {
 		t.Fatal("expected SSE output to be written")
+	}
+
+	failingWriter := &failingFlusher{}
+	prior := core.ObserveCursor{Timestamp: timestamp.Add(-time.Second), Sequence: 3, ID: "legacy"}
+	if got := core.EmitObserveEvents(failingWriter, []store.EventSummary{event}, prior); got != prior {
+		t.Fatalf("EmitObserveEvents(failing writer) cursor = %#v, want %#v", got, prior)
 	}
 
 	if err := core.WriteSSE(writer, core.SSEMessage{ID: "2", Name: "done", Data: map[string]string{"ok": "true"}}); err != nil {

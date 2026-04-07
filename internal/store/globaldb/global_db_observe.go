@@ -49,7 +49,7 @@ func (g *GlobalDB) ListEventSummaries(ctx context.Context, query store.EventSumm
 		return nil, err
 	}
 
-	baseQuery := `SELECT id, session_id, type, agent_name, summary, timestamp FROM event_summaries`
+	baseQuery := `SELECT rowid, id, session_id, type, agent_name, summary, timestamp FROM event_summaries`
 	where, args := store.BuildClauses(
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("agent_name", query.AgentName),
@@ -60,12 +60,12 @@ func (g *GlobalDB) ListEventSummaries(ctx context.Context, query store.EventSumm
 
 	sqlQuery := baseQuery
 	if query.Limit > 0 {
-		sqlQuery = `SELECT id, session_id, type, agent_name, summary, timestamp
+		sqlQuery = `SELECT rowid, id, session_id, type, agent_name, summary, timestamp
 			FROM (` + baseQuery + ` ORDER BY timestamp DESC LIMIT ?) AS recent_summaries
-			ORDER BY timestamp ASC, id ASC`
+			ORDER BY timestamp ASC, rowid ASC`
 		args = append(args, query.Limit)
 	} else {
-		sqlQuery += " ORDER BY timestamp ASC, id ASC"
+		sqlQuery += " ORDER BY timestamp ASC, rowid ASC"
 	}
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
@@ -201,6 +201,7 @@ func scanEventSummary(scanner rowScanner) (store.EventSummary, error) {
 		timestampRaw string
 	)
 	if err := scanner.Scan(
+		&summary.Sequence,
 		&summary.ID,
 		&summary.SessionID,
 		&summary.Type,

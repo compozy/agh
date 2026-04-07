@@ -149,7 +149,7 @@ func TestHelperBuildersCoverRemainingBranches(t *testing.T) {
 	if tokenUsagePayloadFromUsage(&acp.TokenUsage{InputTokens: &usage}) == nil {
 		t.Fatal("expected non-nil token usage payload")
 	}
-	if !observeEventAfterCursor(store.EventSummary{ID: "b", Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)}, observeCursor{Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC), ID: "a"}) {
+	if !observeEventAfterCursor(store.EventSummary{ID: "b", Sequence: 2, Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)}, observeCursor{Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC), Sequence: 1}) {
 		t.Fatal("expected event to sort after cursor")
 	}
 

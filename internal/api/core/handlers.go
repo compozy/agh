@@ -99,6 +99,7 @@ func NewBaseHandlers(cfg BaseHandlerConfig) *BaseHandlers {
 	}
 
 	if cfg.StreamDone == nil {
+		logger.Warn("api: stream shutdown channel not provided; streaming handlers will rely on caller context until a transport installs one")
 		cfg.StreamDone = make(chan struct{})
 	}
 
@@ -131,6 +132,7 @@ func (h *BaseHandlers) SetStreamDone(done <-chan struct{}) {
 		return
 	}
 	if done == nil {
+		h.Logger.Warn("api: stream shutdown channel cleared; streaming handlers will rely on caller context until a transport installs one")
 		done = make(chan struct{})
 	}
 	h.settingsMu.Lock()
@@ -184,6 +186,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		Name:          req.Name,
 		Workspace:     strings.TrimSpace(req.Workspace),
 		WorkspacePath: strings.TrimSpace(req.WorkspacePath),
+		Type:          session.SessionTypeUser,
 	})
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)

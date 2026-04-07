@@ -289,6 +289,70 @@ func TestResumeFailsWhenWorkspaceCannotBeResolved(t *testing.T) {
 	}
 }
 
+func TestActivateAndWatchRollsBackOnMetaWriteFailure(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	sessionDir := filepath.Join(t.TempDir(), "session")
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(sessionDir) error = %v", err)
+	}
+	blockingPath := filepath.Join(sessionDir, "blocked-parent")
+	if err := os.WriteFile(blockingPath, []byte("not a directory"), 0o644); err != nil {
+		t.Fatalf("WriteFile(blockingPath) error = %v", err)
+	}
+
+	recorder, err := h.manager.openStore(testutil.Context(t), "sess-rollback", filepath.Join(sessionDir, "events.db"))
+	if err != nil {
+		t.Fatalf("openStore() error = %v", err)
+	}
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = recorder.Close(closeCtx)
+	})
+
+	session := &Session{
+		ID:          "sess-rollback",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		Workspace:   h.workspace,
+		Type:        SessionTypeUser,
+		State:       StateStarting,
+		CreatedAt:   time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
+		sessionDir:  sessionDir,
+		metaPath:    filepath.Join(blockingPath, "session.json"),
+		dbPath:      filepath.Join(sessionDir, "events.db"),
+		recorder:    recorder,
+	}
+
+	proc, err := h.driver.Start(testutil.Context(t), acp.StartOpts{
+		AgentName: "coder",
+		Command:   "fake-agent",
+		Cwd:       h.workspace,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	if err := h.manager.activateAndWatch(testutil.Context(t), session, proc); err == nil {
+		t.Fatal("activateAndWatch() error = nil, want non-nil")
+	}
+	if _, ok := h.manager.Get(session.ID); ok {
+		t.Fatalf("Get(%q) = active session, want rollback", session.ID)
+	}
+	if got := session.Info().State; got != StateStarting {
+		t.Fatalf("session state after rollback = %q, want %q", got, StateStarting)
+	}
+	if got := session.processHandle(); got != nil {
+		t.Fatalf("session process after rollback = %#v, want nil", got)
+	}
+	if h.driver.stopCalls != 1 {
+		t.Fatalf("driver stop calls = %d, want 1", h.driver.stopCalls)
+	}
+}
+
 func TestCleanupFailedStartRemovesSessionDir(t *testing.T) {
 	t.Parallel()
 
@@ -315,6 +379,38 @@ func TestCleanupFailedStartRemovesSessionDir(t *testing.T) {
 	}
 	if _, err := os.Stat(sessionDir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Stat(sessionDir) error = %v, want os.ErrNotExist", err)
+	}
+}
+
+func TestPumpPromptReturnsWhenContextIsCanceledWhileWaitingForSource(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	source := make(chan acp.AgentEvent)
+	out := make(chan acp.AgentEvent)
+	ctx, cancel := context.WithCancel(testutil.Context(t))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		h.manager.pumpPrompt(ctx, nil, "turn-1", source, out)
+	}()
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("pumpPrompt() did not return after context cancellation")
+	}
+
+	select {
+	case _, ok := <-out:
+		if ok {
+			t.Fatal("pumpPrompt() output channel remained open after cancellation")
+		}
+	default:
+		t.Fatal("pumpPrompt() did not close output channel")
 	}
 }
 

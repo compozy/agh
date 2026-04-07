@@ -271,21 +271,26 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	return session, nil
 }
 
-func (m *Manager) watchProcess(session *Session) {
+func (m *Manager) watchProcess(ctx context.Context, session *Session) {
 	proc := session.processHandle()
 	if proc == nil {
 		return
 	}
 
 	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-proc.Done():
+		}
 		waitErr := proc.Wait()
-		if err := m.handleProcessExit(session, waitErr); err != nil {
+		if err := m.handleProcessExit(ctx, session, waitErr); err != nil {
 			m.sessionLogger(session).Warn("session: process exit handling failed", "error", err)
 		}
 	}()
 }
 
-func (m *Manager) handleProcessExit(session *Session, waitErr error) error {
+func (m *Manager) handleProcessExit(ctx context.Context, session *Session, waitErr error) error {
 	if session == nil {
 		return nil
 	}
@@ -295,7 +300,7 @@ func (m *Manager) handleProcessExit(session *Session, waitErr error) error {
 		return nil
 	}
 
-	return m.finalizeStopped(context.Background(), session, waitErr)
+	return m.finalizeStopped(ctx, session, waitErr)
 }
 
 func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr error) error {

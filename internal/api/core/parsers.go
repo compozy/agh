@@ -72,10 +72,23 @@ func ParseObserveCursor(raw string) (ObserveCursor, error) {
 		return ObserveCursor{}, fmt.Errorf("invalid Last-Event-ID timestamp %q: %w", parts[0], err)
 	}
 
-	return ObserveCursor{
+	cursor := ObserveCursor{
 		Timestamp: timestamp.UTC(),
-		ID:        parts[1],
-	}, nil
+	}
+
+	cursorValue := strings.TrimSpace(parts[1])
+	if cursorValue == "" {
+		return cursor, nil
+	}
+
+	sequence, err := strconv.ParseInt(cursorValue, 10, 64)
+	if err == nil && sequence > 0 {
+		cursor.Sequence = sequence
+		return cursor, nil
+	}
+
+	cursor.ID = cursorValue
+	return cursor, nil
 }
 
 // ParseOptionalTime parses an optional RFC3339 or RFC3339Nano timestamp.
