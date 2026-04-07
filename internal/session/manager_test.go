@@ -77,6 +77,28 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	}
 }
 
+func TestCreateNotifiesSessionCreationBeforeImmediateExit(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+		proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-%d", sequence))
+		proc.exit()
+		return proc, nil
+	}
+
+	session := createSession(t, h)
+	waitForCondition(t, "stop notification after immediate exit", func() bool {
+		return h.notifier.stoppedCount() == 1
+	})
+
+	got := h.notifier.notificationOrder()
+	want := []string{"created:" + session.ID, "stopped:" + session.ID}
+	if !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("notification order = %#v, want %#v", got, want)
+	}
+}
+
 func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 	t.Parallel()
 
@@ -1132,6 +1154,7 @@ type fakeNotifier struct {
 	created []*SessionInfo
 	stopped []*SessionInfo
 	events  map[string][]acp.AgentEvent
+	order   []string
 }
 
 func newFakeNotifier() *fakeNotifier {
@@ -1144,12 +1167,14 @@ func (n *fakeNotifier) OnSessionCreated(_ context.Context, session *Session) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.created = append(n.created, session.Info())
+	n.order = append(n.order, "created:"+session.ID)
 }
 
 func (n *fakeNotifier) OnSessionStopped(_ context.Context, session *Session) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.stopped = append(n.stopped, session.Info())
+	n.order = append(n.order, "stopped:"+session.ID)
 }
 
 func (n *fakeNotifier) OnAgentEvent(_ context.Context, sessionID string, event acp.AgentEvent) {
@@ -1174,6 +1199,12 @@ func (n *fakeNotifier) eventCount(sessionID string) int {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return len(n.events[sessionID])
+}
+
+func (n *fakeNotifier) notificationOrder() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return append([]string(nil), n.order...)
 }
 
 type fakeEventRecorder struct {

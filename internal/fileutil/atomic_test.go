@@ -117,3 +117,15 @@ func TestWriteTempFileReturnsErrorForClosedFile(t *testing.T) {
 		t.Fatal("writeTempFile(closed file) error = nil, want non-nil")
 	}
 }
+
+func TestSyncDirRejectsMissingDirectory(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("syncDir is a no-op on windows")
+	}
+
+	if err := syncDir(filepath.Join(t.TempDir(), "missing")); err == nil {
+		t.Fatal("syncDir(missing) error = nil, want non-nil")
+	}
+}

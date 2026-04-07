@@ -61,12 +61,7 @@ func verifyImportBoundaries(root string) ([]error, error) {
 		moduleImportPath + "/internal/api/udsapi":  {},
 		moduleImportPath + "/internal/cli":         {},
 	}
-	allowedPackages := map[string]struct{}{
-		moduleImportPath + "/internal/daemon":      {},
-		moduleImportPath + "/internal/api/httpapi": {},
-		moduleImportPath + "/internal/api/udsapi":  {},
-		moduleImportPath + "/internal/cli":         {},
-	}
+	daemonPackage := moduleImportPath + "/internal/daemon"
 
 	violations := make([]error, 0)
 	fileSet := token.NewFileSet()
@@ -92,7 +87,7 @@ func verifyImportBoundaries(root string) ([]error, error) {
 			return fmt.Errorf("daemon: resolve relative package path for %q: %w", dir, err)
 		}
 		importer := moduleImportPath + "/" + filepath.ToSlash(relDir)
-		if _, ok := allowedPackages[importer]; ok {
+		if importer == daemonPackage || strings.HasPrefix(importer, daemonPackage+"/") {
 			return nil
 		}
 

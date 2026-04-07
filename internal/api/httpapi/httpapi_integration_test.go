@@ -1005,10 +1005,10 @@ func stopIntegrationSession(t *testing.T, runtime integrationRuntime, sessionID 
 	t.Helper()
 
 	resp := mustHTTPRequest(t, runtime.client, http.MethodDelete, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID), nil, nil)
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
-		t.Fatalf("stop status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf("stop status = %d, want %d; body=%s", resp.StatusCode, http.StatusNoContent, string(body))
 	}
 	_ = resp.Body.Close()
 }

@@ -191,7 +191,9 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = manager.Stop(testutil.Context(t), resumed.ID)
+		if err := manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+			t.Fatalf("cleanup Stop() error = %v", err)
+		}
 	})
 
 	if got := resumed.Info().WorkspaceID; got != workspaceID {

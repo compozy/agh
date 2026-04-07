@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -121,7 +120,7 @@ func (r *Runtime) Start(parent context.Context) {
 	}
 
 	r.mu.Lock()
-	if r.service == nil || r.spawner == nil || r.checkCh != nil {
+	if !r.enabled || r.service == nil || r.spawner == nil || r.checkCh != nil {
 		r.mu.Unlock()
 		return
 	}
@@ -375,7 +374,7 @@ func isPathLikeWorkspaceRef(ref string) bool {
 	return filepath.IsAbs(trimmedRef) ||
 		strings.HasPrefix(trimmedRef, ".") ||
 		strings.HasPrefix(trimmedRef, "~") ||
-		strings.Contains(trimmedRef, string(os.PathSeparator))
+		strings.ContainsAny(trimmedRef, "/\\")
 }
 
 func spawnSession(ctx context.Context, sessions SessionManager, agentName string, goal string, prompt string, workspace string) (err error) {

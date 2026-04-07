@@ -37,6 +37,9 @@ func AtomicWriteFile(path string, content []byte, perm os.FileMode) error {
 	if err := os.Rename(tempPath, cleanPath); err != nil {
 		return fmt.Errorf("fileutil: replace %q: %w", cleanPath, err)
 	}
+	if err := syncDir(dir); err != nil {
+		return fmt.Errorf("fileutil: sync parent directory for %q: %w", cleanPath, err)
+	}
 
 	cleanup = false
 	return nil

@@ -1,3 +1,5 @@
+//go:build !windows
+
 // Package procutil provides shared process helpers for AGH runtime components.
 package procutil
 

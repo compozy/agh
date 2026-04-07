@@ -459,6 +459,60 @@ func TestVerifyImportBoundariesReportsViolations(t *testing.T) {
 	}
 }
 
+func TestVerifyImportBoundariesAllowsDaemonSubpackages(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module github.com/pedronauck/agh\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
+	}
+
+	sourceDir := filepath.Join(root, "internal", "daemon", "subsystem")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(sourceDir) error = %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(sourceDir, "subsystem.go"),
+		[]byte("package subsystem\n\nimport _ \"github.com/pedronauck/agh/internal/cli\"\n"),
+		0o644,
+	); err != nil {
+		t.Fatalf("os.WriteFile(subsystem.go) error = %v", err)
+	}
+
+	violations, err := verifyImportBoundaries(root)
+	if err != nil {
+		t.Fatalf("verifyImportBoundaries() error = %v", err)
+	}
+	if len(violations) != 0 {
+		t.Fatalf("verifyImportBoundaries() violations = %d, want 0", len(violations))
+	}
+}
+
+func TestVerifyImportBoundariesDoesNotExemptHTTPPackages(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module github.com/pedronauck/agh\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
+	}
+
+	sourceDir := filepath.Join(root, "internal", "api", "httpapi")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(sourceDir) error = %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(sourceDir, "handler.go"),
+		[]byte("package httpapi\n\nimport _ \"github.com/pedronauck/agh/internal/cli\"\n"),
+		0o644,
+	); err != nil {
+		t.Fatalf("os.WriteFile(handler.go) error = %v", err)
+	}
+
+	violations, err := verifyImportBoundaries(root)
+	if err != nil {
+		t.Fatalf("verifyImportBoundaries() error = %v", err)
+	}
+	if len(violations) != 1 {
+		t.Fatalf("verifyImportBoundaries() violations = %d, want 1", len(violations))
+	}
+}
+
 func TestStopSessionsIgnoresNotFoundAndHandlesNilManager(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {

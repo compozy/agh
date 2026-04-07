@@ -461,7 +461,7 @@ func (c *unixSocketClient) doSSE(ctx context.Context, method string, path string
 
 func (c *unixSocketClient) doRequest(ctx context.Context, method string, path string, query url.Values, requestBody any, lastEventID string) (*http.Response, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("cli: context is required")
 	}
 
 	target := baseURL + path

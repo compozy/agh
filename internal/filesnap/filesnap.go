@@ -1,6 +1,7 @@
 package filesnap
 
 import (
+	"fmt"
 	"os"
 	"time"
 )
@@ -15,7 +16,7 @@ type Snapshot struct {
 func FromPath(path string) (Snapshot, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return Snapshot{}, err
+		return Snapshot{}, fmt.Errorf("filesnap: stat %q: %w", path, err)
 	}
 
 	return Snapshot{

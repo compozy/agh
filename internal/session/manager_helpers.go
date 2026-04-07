@@ -77,10 +77,10 @@ func (m *Manager) activateAndWatch(ctx context.Context, session *Session, proc *
 		return err
 	}
 
-	m.watchProcess(session)
 	if m.notifier != nil {
 		m.notifier.OnSessionCreated(ctx, session)
 	}
+	m.watchProcess(session)
 	return nil
 }
 

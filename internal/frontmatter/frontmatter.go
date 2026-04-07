@@ -56,6 +56,10 @@ func Split(content []byte) (Parts, error) {
 
 // Decode splits frontmatter and delegates metadata decoding to the supplied callback.
 func Decode(content []byte, decode func([]byte) error) (string, error) {
+	if decode == nil {
+		return "", errors.New("frontmatter: decode callback is required")
+	}
+
 	parts, err := Split(content)
 	if err != nil {
 		return "", err

@@ -51,7 +51,9 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
 	defer func() {
-		_ = reopened.Close(testutil.Context(t))
+		if err := reopened.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("reopened.Close() error = %v", err)
+		}
 	}()
 
 	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})
@@ -101,7 +103,9 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
 	}
 	defer func() {
-		_ = reopened.Close(testutil.Context(t))
+		if err := reopened.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("reopened.Close() error = %v", err)
+		}
 	}()
 
 	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})

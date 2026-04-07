@@ -101,3 +101,11 @@ func TestDecodeReturnsDecoderError(t *testing.T) {
 		t.Fatal("Decode() error = nil, want non-nil")
 	}
 }
+
+func TestDecodeRejectsNilCallback(t *testing.T) {
+	t.Parallel()
+
+	if _, err := Decode([]byte("---\nname: shared\n---\nbody"), nil); err == nil {
+		t.Fatal("Decode(nil callback) error = nil, want non-nil")
+	}
+}

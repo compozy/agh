@@ -367,6 +367,10 @@ func ptr[T any](value T) *T {
 	return &value
 }
 
+func nilContext() context.Context {
+	return nil
+}
+
 func TestNewClientRequiresSocket(t *testing.T) {
 	t.Parallel()
 
@@ -401,6 +405,19 @@ func TestDoRequestSetsHeaders(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("doSSE() error = %v", err)
+	}
+}
+
+func TestDoRequestRejectsNilContext(t *testing.T) {
+	t.Parallel()
+
+	client := &unixSocketClient{
+		socketPath: "/tmp/agh.sock",
+		httpClient: &http.Client{},
+	}
+
+	if _, err := client.doRequest(nilContext(), http.MethodGet, "/api/daemon/status", nil, nil, ""); err == nil {
+		t.Fatal("doRequest(nil) error = nil, want non-nil")
 	}
 }
 

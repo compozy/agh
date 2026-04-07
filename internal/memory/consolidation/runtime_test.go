@@ -193,6 +193,24 @@ func TestRuntimeEnqueueCheckRunsQueuedRequest(t *testing.T) {
 	}
 }
 
+func TestRuntimeStartDoesNothingWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeDreamService{shouldRun: true}
+	runtime := NewRuntime(false, service, func(context.Context, string, string, string) error {
+		return nil
+	}, 10*time.Millisecond, discardLogger(), nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runtime.Start(ctx)
+	runtime.EnqueueCheck("manual", "ws-disabled")
+
+	if got := service.runCount(); got != 0 {
+		t.Fatalf("run count = %d, want 0", got)
+	}
+}
+
 func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 	t.Parallel()
 
@@ -309,6 +327,17 @@ func TestNewSessionSpawnerPropagatesWorkspaceResolveErrors(t *testing.T) {
 	err := spawner(context.Background(), "memory-consolidation", "prompt", "workspace-alias")
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("spawner() error = %v, want %v", err, expectedErr)
+	}
+}
+
+func TestIsPathLikeWorkspaceRefRecognizesSlashSeparatedRefs(t *testing.T) {
+	t.Parallel()
+
+	if !isPathLikeWorkspaceRef("subdir/workspace") {
+		t.Fatal(`isPathLikeWorkspaceRef("subdir/workspace") = false, want true`)
+	}
+	if !isPathLikeWorkspaceRef(`subdir\workspace`) {
+		t.Fatal(`isPathLikeWorkspaceRef("subdir\\workspace") = false, want true`)
 	}
 }
 
