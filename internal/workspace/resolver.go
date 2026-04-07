@@ -11,6 +11,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/filesnap"
 )
 
 // RegisterOptions describes a workspace registration request.
@@ -47,7 +48,7 @@ var _ WorkspaceResolver = (*Resolver)(nil)
 type cachedEntry struct {
 	workspace  Workspace
 	resolved   ResolvedWorkspace
-	snapshots  map[string]fileSnapshot
+	snapshots  map[string]filesnap.Snapshot
 	lastAccess time.Time
 }
 
@@ -241,11 +242,11 @@ func (r *Resolver) buildResolvedWorkspace(ctx context.Context, ws Workspace, sca
 	}, nil
 }
 
-func (c *cachedEntry) canReuse(ws Workspace, snapshots map[string]fileSnapshot) bool {
+func (c *cachedEntry) canReuse(ws Workspace, snapshots map[string]filesnap.Snapshot) bool {
 	if c == nil {
 		return false
 	}
-	if !snapshotsEqual(c.snapshots, snapshots) {
+	if !filesnap.Equal(c.snapshots, snapshots) {
 		return false
 	}
 	if strings.TrimSpace(c.workspace.DefaultAgent) != strings.TrimSpace(ws.DefaultAgent) {

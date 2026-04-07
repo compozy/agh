@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pedronauck/agh/internal/filesnap"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -27,7 +28,7 @@ type Registry struct {
 	mu              sync.RWMutex
 	globalSkills    map[string]*Skill
 	globalLoaded    bool
-	globalSnapshots map[string]fileSnapshot
+	globalSnapshots map[string]filesnap.Snapshot
 	wsCache         map[string]*wsCache
 
 	globalVersion atomic.Int64
@@ -39,13 +40,13 @@ type Registry struct {
 
 type wsCache struct {
 	skills     map[string]*Skill
-	snapshots  map[string]fileSnapshot
+	snapshots  map[string]filesnap.Snapshot
 	lastAccess time.Time
 }
 
 type workspaceLoad struct {
 	paths     []workspaceSkillPath
-	snapshots map[string]fileSnapshot
+	snapshots map[string]filesnap.Snapshot
 }
 
 type workspaceSkillPath struct {
@@ -71,7 +72,7 @@ func WithNow(now func() time.Time) Option {
 func NewRegistry(cfg RegistryConfig, opts ...Option) *Registry {
 	registry := &Registry{
 		globalSkills:    make(map[string]*Skill),
-		globalSnapshots: make(map[string]fileSnapshot),
+		globalSnapshots: make(map[string]filesnap.Snapshot),
 		wsCache:         make(map[string]*wsCache),
 		cfg:             cfg,
 		logger:          slog.Default(),
@@ -154,7 +155,7 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved workspacepkg.Resol
 	r.mu.Lock()
 	r.evictExpiredWorkspaceLocked(now)
 
-	if cached := r.wsCache[cacheKey]; cached != nil && snapshotsEqual(cached.snapshots, load.snapshots) {
+	if cached := r.wsCache[cacheKey]; cached != nil && filesnap.Equal(cached.snapshots, load.snapshots) {
 		cached.lastAccess = now
 		globalSkills := r.globalSkills
 		workspaceSkills := cached.skills
@@ -195,11 +196,11 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	defer r.mu.Unlock()
 
 	r.evictExpiredWorkspaceLocked(r.now())
-	if r.globalLoaded && snapshotsEqual(r.globalSnapshots, snapshots) {
+	if r.globalLoaded && filesnap.Equal(r.globalSnapshots, snapshots) {
 		return nil
 	}
 
-	r.globalSnapshots = cloneFileSnapshots(snapshots)
+	r.globalSnapshots = filesnap.Clone(snapshots)
 	r.globalLoaded = true
 	r.globalSkills = loaded
 	r.globalVersion.Add(1)
@@ -207,9 +208,9 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	return nil
 }
 
-func (r *Registry) loadGlobalSkills(ctx context.Context) (map[string]*Skill, map[string]fileSnapshot, error) {
+func (r *Registry) loadGlobalSkills(ctx context.Context) (map[string]*Skill, map[string]filesnap.Snapshot, error) {
 	skills := make(map[string]*Skill)
-	snapshots := make(map[string]fileSnapshot)
+	snapshots := make(map[string]filesnap.Snapshot)
 
 	if err := r.loadBundledSkills(ctx, skills); err != nil {
 		return nil, nil, err
@@ -272,7 +273,7 @@ func (r *Registry) loadBundledSkills(ctx context.Context, dst map[string]*Skill)
 	return nil
 }
 
-func (r *Registry) loadDirectorySkills(ctx context.Context, dir string, source SkillSource, dst map[string]*Skill, snapshots map[string]fileSnapshot) error {
+func (r *Registry) loadDirectorySkills(ctx context.Context, dir string, source SkillSource, dst map[string]*Skill, snapshots map[string]filesnap.Snapshot) error {
 	root := strings.TrimSpace(dir)
 	if root == "" {
 		return nil
@@ -379,7 +380,7 @@ func (r *Registry) logVerificationWarnings(skill *Skill, warnings []Warning) {
 func (r *Registry) workspaceLoadFromResolved(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) (workspaceLoad, error) {
 	load := workspaceLoad{
 		paths:     make([]workspaceSkillPath, 0, len(resolved.Skills)),
-		snapshots: make(map[string]fileSnapshot, len(resolved.Skills)),
+		snapshots: make(map[string]filesnap.Snapshot, len(resolved.Skills)),
 	}
 
 	for _, skillPath := range resolved.Skills {
@@ -401,7 +402,7 @@ func (r *Registry) workspaceLoadFromResolved(ctx context.Context, resolved works
 		}
 
 		skillFile := filepath.Join(skillDir, skillFileName)
-		snapshot, err := snapshotFile(skillFile)
+		snapshot, err := filesnap.FromPath(skillFile)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
@@ -442,27 +443,6 @@ func hasCriticalWarning(warnings []Warning) bool {
 		}
 	}
 	return false
-}
-
-func snapshotsEqual(left, right map[string]fileSnapshot) bool {
-	if len(left) != len(right) {
-		return false
-	}
-
-	for path, leftSnapshot := range left {
-		rightSnapshot, ok := right[path]
-		if !ok {
-			return false
-		}
-		if !leftSnapshot.modTime.Equal(rightSnapshot.modTime) {
-			return false
-		}
-		if leftSnapshot.size != rightSnapshot.size {
-			return false
-		}
-	}
-
-	return true
 }
 
 func mergedSkillList(globalSkills, workspaceSkills map[string]*Skill) []*Skill {
@@ -537,28 +517,15 @@ func cloneMetadataValue(value any) any {
 	}
 }
 
-func cloneFileSnapshots(snapshots map[string]fileSnapshot) map[string]fileSnapshot {
-	if len(snapshots) == 0 {
-		return make(map[string]fileSnapshot)
-	}
-
-	clone := make(map[string]fileSnapshot, len(snapshots))
-	for path, snapshot := range snapshots {
-		clone[path] = snapshot
-	}
-
-	return clone
-}
-
-func (r *Registry) globalSnapshotState() (map[string]fileSnapshot, bool) {
+func (r *Registry) globalSnapshotState() (map[string]filesnap.Snapshot, bool) {
 	if r == nil {
-		return make(map[string]fileSnapshot), false
+		return make(map[string]filesnap.Snapshot), false
 	}
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return cloneFileSnapshots(r.globalSnapshots), r.globalLoaded
+	return filesnap.Clone(r.globalSnapshots), r.globalLoaded
 }
 
 func parseBundledSkill(fsys fs.FS, skillPath string) (*Skill, error) {

@@ -13,11 +13,8 @@ import (
 
 // InsertWorkspace creates a new persisted workspace registration row.
 func (g *GlobalDB) InsertWorkspace(ctx context.Context, ws aghworkspace.Workspace) error {
-	if g == nil {
-		return errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return errors.New("store: insert workspace context is required")
+	if err := g.checkReady(ctx, "insert workspace"); err != nil {
+		return err
 	}
 
 	normalized, addDirsJSON, err := g.normalizeWorkspaceForInsert(ws)
@@ -46,11 +43,8 @@ func (g *GlobalDB) InsertWorkspace(ctx context.Context, ws aghworkspace.Workspac
 
 // UpdateWorkspace updates an existing persisted workspace registration row.
 func (g *GlobalDB) UpdateWorkspace(ctx context.Context, ws aghworkspace.Workspace) error {
-	if g == nil {
-		return errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return errors.New("store: update workspace context is required")
+	if err := g.checkReady(ctx, "update workspace"); err != nil {
+		return err
 	}
 
 	normalized, addDirsJSON, err := g.normalizeWorkspaceForUpdate(ws)
@@ -87,11 +81,8 @@ func (g *GlobalDB) UpdateWorkspace(ctx context.Context, ws aghworkspace.Workspac
 
 // DeleteWorkspace removes a persisted workspace registration row.
 func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) error {
-	if g == nil {
-		return errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return errors.New("store: delete workspace context is required")
+	if err := g.checkReady(ctx, "delete workspace"); err != nil {
+		return err
 	}
 
 	trimmedID := strings.TrimSpace(id)
@@ -117,11 +108,8 @@ func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) error {
 
 // GetWorkspace loads a workspace registration by primary key.
 func (g *GlobalDB) GetWorkspace(ctx context.Context, id string) (aghworkspace.Workspace, error) {
-	if g == nil {
-		return aghworkspace.Workspace{}, errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return aghworkspace.Workspace{}, errors.New("store: get workspace context is required")
+	if err := g.checkReady(ctx, "get workspace"); err != nil {
+		return aghworkspace.Workspace{}, err
 	}
 
 	trimmedID := strings.TrimSpace(id)
@@ -134,11 +122,8 @@ func (g *GlobalDB) GetWorkspace(ctx context.Context, id string) (aghworkspace.Wo
 
 // GetWorkspaceByPath loads a workspace registration by canonical root directory.
 func (g *GlobalDB) GetWorkspaceByPath(ctx context.Context, rootDir string) (aghworkspace.Workspace, error) {
-	if g == nil {
-		return aghworkspace.Workspace{}, errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return aghworkspace.Workspace{}, errors.New("store: get workspace by path context is required")
+	if err := g.checkReady(ctx, "get workspace by path"); err != nil {
+		return aghworkspace.Workspace{}, err
 	}
 
 	trimmedRoot := strings.TrimSpace(rootDir)
@@ -151,11 +136,8 @@ func (g *GlobalDB) GetWorkspaceByPath(ctx context.Context, rootDir string) (aghw
 
 // GetWorkspaceByName loads a workspace registration by unique workspace name.
 func (g *GlobalDB) GetWorkspaceByName(ctx context.Context, name string) (aghworkspace.Workspace, error) {
-	if g == nil {
-		return aghworkspace.Workspace{}, errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return aghworkspace.Workspace{}, errors.New("store: get workspace by name context is required")
+	if err := g.checkReady(ctx, "get workspace by name"); err != nil {
+		return aghworkspace.Workspace{}, err
 	}
 
 	trimmedName := strings.TrimSpace(name)
@@ -168,11 +150,8 @@ func (g *GlobalDB) GetWorkspaceByName(ctx context.Context, name string) (aghwork
 
 // ListWorkspaces returns all registered workspaces in stable name order.
 func (g *GlobalDB) ListWorkspaces(ctx context.Context) ([]aghworkspace.Workspace, error) {
-	if g == nil {
-		return nil, errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return nil, errors.New("store: list workspaces context is required")
+	if err := g.checkReady(ctx, "list workspaces"); err != nil {
+		return nil, err
 	}
 
 	rows, err := g.db.QueryContext(

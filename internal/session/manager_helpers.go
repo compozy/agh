@@ -64,6 +64,26 @@ func (m *Manager) writeMeta(session *Session) error {
 	return nil
 }
 
+func (m *Manager) activateAndWatch(ctx context.Context, session *Session, proc *AgentProcess) error {
+	now := m.now()
+	session.updateFromProcess(proc, now)
+	if err := session.activate(now); err != nil {
+		return err
+	}
+	if err := m.writeMeta(session); err != nil {
+		return err
+	}
+	if err := m.activate(session); err != nil {
+		return err
+	}
+
+	m.watchProcess(session)
+	if m.notifier != nil {
+		m.notifier.OnSessionCreated(ctx, session)
+	}
+	return nil
+}
+
 func (m *Manager) sessionLogger(session *Session) *slog.Logger {
 	logger := m.logger
 	if logger == nil {

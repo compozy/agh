@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/filesnap"
 )
 
 const (
@@ -18,13 +18,8 @@ const (
 	skillDefinitionFile = "SKILL.md"
 )
 
-type fileSnapshot struct {
-	modTime time.Time
-	size    int64
-}
-
 type workspaceScan struct {
-	snapshots map[string]fileSnapshot
+	snapshots map[string]filesnap.Snapshot
 	agents    []agentCandidate
 	skills    []skillCandidate
 }
@@ -45,7 +40,7 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceSc
 	}
 
 	scan := workspaceScan{
-		snapshots: make(map[string]fileSnapshot),
+		snapshots: make(map[string]filesnap.Snapshot),
 		agents:    make([]agentCandidate, 0),
 		skills:    make([]skillCandidate, 0),
 	}
@@ -73,7 +68,7 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceSc
 	return scan, nil
 }
 
-func scanAgentSource(root aghconfig.WorkspaceDiscoveryRoot, snapshots map[string]fileSnapshot, dst *[]agentCandidate) error {
+func scanAgentSource(root aghconfig.WorkspaceDiscoveryRoot, snapshots map[string]filesnap.Snapshot, dst *[]agentCandidate) error {
 	agentsDir := root.AgentsDir()
 	if err := addSnapshotIfExists(agentsDir, snapshots); err != nil {
 		return fmt.Errorf("workspace: snapshot agents directory %q: %w", agentsDir, err)
@@ -108,7 +103,7 @@ func scanAgentSource(root aghconfig.WorkspaceDiscoveryRoot, snapshots map[string
 	return nil
 }
 
-func scanSkillSource(root aghconfig.WorkspaceDiscoveryRoot, snapshots map[string]fileSnapshot, dst *[]skillCandidate) error {
+func scanSkillSource(root aghconfig.WorkspaceDiscoveryRoot, snapshots map[string]filesnap.Snapshot, dst *[]skillCandidate) error {
 	skillsDir := root.SkillsDir()
 	if err := addSnapshotIfExists(skillsDir, snapshots); err != nil {
 		return fmt.Errorf("workspace: snapshot skills directory %q: %w", skillsDir, err)
@@ -201,12 +196,12 @@ func mergeSkillPaths(candidates []skillCandidate) []SkillPath {
 	return skills
 }
 
-func addSnapshotIfExists(path string, snapshots map[string]fileSnapshot) error {
+func addSnapshotIfExists(path string, snapshots map[string]filesnap.Snapshot) error {
 	if strings.TrimSpace(path) == "" {
 		return nil
 	}
 
-	snapshot, err := snapshotPath(path)
+	snapshot, err := filesnap.FromPath(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
@@ -216,37 +211,4 @@ func addSnapshotIfExists(path string, snapshots map[string]fileSnapshot) error {
 
 	snapshots[path] = snapshot
 	return nil
-}
-
-func snapshotPath(path string) (fileSnapshot, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fileSnapshot{}, err
-	}
-
-	return fileSnapshot{
-		modTime: info.ModTime(),
-		size:    info.Size(),
-	}, nil
-}
-
-func snapshotsEqual(left, right map[string]fileSnapshot) bool {
-	if len(left) != len(right) {
-		return false
-	}
-
-	for path, leftSnapshot := range left {
-		rightSnapshot, ok := right[path]
-		if !ok {
-			return false
-		}
-		if leftSnapshot.size != rightSnapshot.size {
-			return false
-		}
-		if !leftSnapshot.modTime.Equal(rightSnapshot.modTime) {
-			return false
-		}
-	}
-
-	return true
 }

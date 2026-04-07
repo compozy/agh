@@ -25,6 +25,24 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 	assertSynchronousNormal(t, globalDB.db)
 }
 
+func TestGlobalDBCheckReady(t *testing.T) {
+	t.Parallel()
+
+	var nilDB *GlobalDB
+	if err := nilDB.checkReady(context.Background(), "list sessions"); err == nil {
+		t.Fatal("checkReady(nil receiver) error = nil, want non-nil")
+	}
+
+	globalDB := openTestGlobalDB(t)
+	nilContext := func() context.Context { return nil }
+	if err := globalDB.checkReady(nilContext(), "list sessions"); err == nil {
+		t.Fatal("checkReady(nil context) error = nil, want non-nil")
+	}
+	if err := globalDB.checkReady(testutil.Context(t), "list sessions"); err != nil {
+		t.Fatalf("checkReady(valid) error = %v", err)
+	}
+}
+
 func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 	t.Parallel()
 

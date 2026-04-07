@@ -3,17 +3,13 @@ package store
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 )
 
 // RegisterSession inserts or refreshes a session index row.
 func (g *GlobalDB) RegisterSession(ctx context.Context, session SessionInfo) error {
-	if g == nil {
-		return errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return errors.New("store: register session context is required")
+	if err := g.checkReady(ctx, "register session"); err != nil {
+		return err
 	}
 	if err := session.Validate(); err != nil {
 		return err
@@ -35,11 +31,8 @@ func (g *GlobalDB) RegisterSession(ctx context.Context, session SessionInfo) err
 
 // UpdateSessionState updates the mutable session state fields.
 func (g *GlobalDB) UpdateSessionState(ctx context.Context, update SessionStateUpdate) error {
-	if g == nil {
-		return errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return errors.New("store: update session state context is required")
+	if err := g.checkReady(ctx, "update session state"); err != nil {
+		return err
 	}
 	if err := update.Validate(); err != nil {
 		return err
@@ -87,11 +80,8 @@ func (g *GlobalDB) UpdateSessionState(ctx context.Context, update SessionStateUp
 
 // ListSessions returns indexed sessions ordered by most recent update.
 func (g *GlobalDB) ListSessions(ctx context.Context, query SessionListQuery) ([]SessionInfo, error) {
-	if g == nil {
-		return nil, errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return nil, errors.New("store: list sessions context is required")
+	if err := g.checkReady(ctx, "list sessions"); err != nil {
+		return nil, err
 	}
 	if err := query.Validate(); err != nil {
 		return nil, err
@@ -131,11 +121,8 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query SessionListQuery) ([]
 
 // ReconcileSessions upserts on-disk sessions and marks missing ones as orphaned.
 func (g *GlobalDB) ReconcileSessions(ctx context.Context, sessions []SessionInfo) (ReconcileResult, error) {
-	if g == nil {
-		return ReconcileResult{}, errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return ReconcileResult{}, errors.New("store: reconcile sessions context is required")
+	if err := g.checkReady(ctx, "reconcile sessions"); err != nil {
+		return ReconcileResult{}, err
 	}
 
 	tx, err := g.db.BeginTx(ctx, nil)

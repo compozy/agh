@@ -3,18 +3,14 @@ package store
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 )
 
 // WriteEventSummary stores a lightweight cross-session summary entry.
 func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary EventSummary) error {
-	if g == nil {
-		return errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return errors.New("store: write event summary context is required")
+	if err := g.checkReady(ctx, "write event summary"); err != nil {
+		return err
 	}
 	if err := summary.Validate(); err != nil {
 		return err
@@ -44,11 +40,8 @@ func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary EventSummary) 
 
 // ListEventSummaries returns global event summaries filtered by the supplied options.
 func (g *GlobalDB) ListEventSummaries(ctx context.Context, query EventSummaryQuery) ([]EventSummary, error) {
-	if g == nil {
-		return nil, errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return nil, errors.New("store: list event summaries context is required")
+	if err := g.checkReady(ctx, "list event summaries"); err != nil {
+		return nil, err
 	}
 	if err := query.Validate(); err != nil {
 		return nil, err
@@ -98,11 +91,8 @@ func (g *GlobalDB) ListEventSummaries(ctx context.Context, query EventSummaryQue
 
 // UpdateTokenStats merges one or more turns of token usage into the session aggregate.
 func (g *GlobalDB) UpdateTokenStats(ctx context.Context, update TokenStatsUpdate) error {
-	if g == nil {
-		return errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return errors.New("store: update token stats context is required")
+	if err := g.checkReady(ctx, "update token stats"); err != nil {
+		return err
 	}
 	if err := update.Validate(); err != nil {
 		return err
@@ -163,11 +153,8 @@ func (g *GlobalDB) UpdateTokenStats(ctx context.Context, update TokenStatsUpdate
 
 // ListTokenStats returns aggregated token usage rows.
 func (g *GlobalDB) ListTokenStats(ctx context.Context, query TokenStatsQuery) ([]TokenStats, error) {
-	if g == nil {
-		return nil, errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return nil, errors.New("store: list token stats context is required")
+	if err := g.checkReady(ctx, "list token stats"); err != nil {
+		return nil, err
 	}
 	if err := query.Validate(); err != nil {
 		return nil, err

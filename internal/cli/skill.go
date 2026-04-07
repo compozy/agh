@@ -752,33 +752,30 @@ func skillSourceLabel(source skills.SkillSource) string {
 }
 
 func skillListBundle(items []skillListItem) outputBundle {
-	return outputBundle{
-		jsonValue: items,
-		human: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					stringOrDash(item.Name),
-					stringOrDash(item.Description),
-					stringOrDash(item.Source),
-					strconv.FormatBool(item.Enabled),
-				})
+	return listBundle(
+		items,
+		items,
+		"Skills",
+		[]string{"Name", "Description", "Source", "Enabled"},
+		"skills",
+		[]string{"name", "description", "source", "enabled"},
+		func(item skillListItem) []string {
+			return []string{
+				stringOrDash(item.Name),
+				stringOrDash(item.Description),
+				stringOrDash(item.Source),
+				strconv.FormatBool(item.Enabled),
 			}
-			return renderHumanTable("Skills", []string{"Name", "Description", "Source", "Enabled"}, rows), nil
 		},
-		toon: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					item.Name,
-					item.Description,
-					item.Source,
-					strconv.FormatBool(item.Enabled),
-				})
+		func(item skillListItem) []string {
+			return []string{
+				item.Name,
+				item.Description,
+				item.Source,
+				strconv.FormatBool(item.Enabled),
 			}
-			return renderToonArray("skills", []string{"name", "description", "source", "enabled"}, rows), nil
 		},
-	}
+	)
 }
 
 func skillViewBundle(item skillViewItem, rendered string) outputBundle {

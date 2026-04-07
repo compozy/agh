@@ -307,6 +307,62 @@ func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 	}
 }
 
+func TestEmitPermissionEvent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		decision permissionDecision
+	}{
+		{name: "interactive pending", decision: ""},
+		{name: "auto allow once", decision: decisionAllowOnce},
+		{name: "timeout reject once", decision: decisionRejectOnce},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+			active, err := proc.beginPrompt("turn-permission-event", 4)
+			if err != nil {
+				t.Fatalf("beginPrompt() error = %v", err)
+			}
+			defer proc.endPrompt(active)
+
+			raw := mustMarshalJSON(map[string]any{"decision": string(tt.decision), "value": "original"})
+			wantRaw := append(json.RawMessage(nil), raw...)
+
+			proc.emitPermissionEvent("sess-emit", "turn-permission-event", "req-1", "permission request", "tool-1", "/tmp/demo.txt", tt.decision, raw)
+			event := collectEventsUntilCount(t, active.events, 1)[0]
+
+			raw[0] = '{'
+
+			if event.Type != EventTypePermission {
+				t.Fatalf("event.Type = %q, want %q", event.Type, EventTypePermission)
+			}
+			if event.SessionID != "sess-emit" || event.TurnID != "turn-permission-event" || event.RequestID != "req-1" {
+				t.Fatalf("event ids = %#v, want session/turn/request populated", event)
+			}
+			if event.Title != "permission request" || event.ToolCallID != "tool-1" {
+				t.Fatalf("event title/tool = %#v, want copied fields", event)
+			}
+			if event.Action != string(permissionRequestToolGrant) || event.Resource != "/tmp/demo.txt" {
+				t.Fatalf("event action/resource = %#v, want permission action/resource", event)
+			}
+			if event.Decision != string(tt.decision) {
+				t.Fatalf("event.Decision = %q, want %q", event.Decision, tt.decision)
+			}
+			if event.Timestamp.IsZero() {
+				t.Fatal("event.Timestamp = zero, want populated")
+			}
+			if string(event.Raw) != string(wantRaw) {
+				t.Fatalf("event.Raw = %s, want %s", string(event.Raw), string(wantRaw))
+			}
+		})
+	}
+}
+
 func TestResolvePermissionByTurnIDConflictsWhenMultipleRequestsPending(t *testing.T) {
 	t.Parallel()
 
@@ -542,8 +598,8 @@ func TestHelperUtilities(t *testing.T) {
 	}
 
 	raw := mustMarshalJSON(map[string]string{"hello": "world"})
-	if string(cloneRawJSON(raw)) != string(raw) {
-		t.Fatalf("cloneRawJSON() = %q, want %q", string(cloneRawJSON(raw)), string(raw))
+	if string(CloneRawMessage(raw)) != string(raw) {
+		t.Fatalf("CloneRawMessage() = %q, want %q", string(CloneRawMessage(raw)), string(raw))
 	}
 
 	if requestError(ErrPermissionDenied) == nil {

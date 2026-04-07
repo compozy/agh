@@ -199,7 +199,7 @@ func marshalAgentEvent(event acp.AgentEvent) (string, error) {
 
 	if len(event.Raw) > 0 {
 		if json.Valid(event.Raw) {
-			payload.Raw = cloneRawMessage(event.Raw)
+			payload.Raw = acp.CloneRawMessage(event.Raw)
 		} else {
 			payload.Raw = rawMessageFromValue(string(event.Raw))
 		}
@@ -207,7 +207,7 @@ func marshalAgentEvent(event acp.AgentEvent) (string, error) {
 		var rawPayload map[string]any
 		if err := json.Unmarshal(event.Raw, &rawPayload); err == nil {
 			payload.ToolName = legacyToolName(rawPayload)
-			payload.ToolInput = cloneRawMessage(rawMessageFromValue(rawPayload["rawInput"]))
+			payload.ToolInput = acp.CloneRawMessage(rawMessageFromValue(rawPayload["rawInput"]))
 			if event.Type == acp.EventTypeToolResult {
 				toolResult := buildToolResult(
 					payload.ToolName,

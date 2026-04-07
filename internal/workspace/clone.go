@@ -1,17 +1,12 @@
 package workspace
 
-import aghconfig "github.com/pedronauck/agh/internal/config"
+import (
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/filesnap"
+)
 
-func cloneSnapshots(snapshots map[string]fileSnapshot) map[string]fileSnapshot {
-	if len(snapshots) == 0 {
-		return map[string]fileSnapshot{}
-	}
-
-	cloned := make(map[string]fileSnapshot, len(snapshots))
-	for path, snapshot := range snapshots {
-		cloned[path] = snapshot
-	}
-	return cloned
+func cloneSnapshots(snapshots map[string]filesnap.Snapshot) map[string]filesnap.Snapshot {
+	return filesnap.Clone(snapshots)
 }
 
 func cloneResolvedWorkspace(src ResolvedWorkspace) ResolvedWorkspace {

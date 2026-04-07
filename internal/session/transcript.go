@@ -248,7 +248,7 @@ func applyToolCall(messages *[]TranscriptMessage, toolStates map[string]*toolLif
 		Role:      TranscriptRoleToolCall,
 		Content:   "",
 		ToolName:  event.ToolName,
-		ToolInput: cloneRawMessage(event.ToolInput),
+		ToolInput: acp.CloneRawMessage(event.ToolInput),
 		Timestamp: event.Timestamp,
 	})
 	lifecycle.callIndex = len(*messages) - 1
@@ -275,7 +275,7 @@ func applyToolResult(messages *[]TranscriptMessage, toolStates map[string]*toolL
 			Role:      TranscriptRoleToolCall,
 			Content:   "",
 			ToolName:  event.ToolName,
-			ToolInput: cloneRawMessage(event.ToolInput),
+			ToolInput: acp.CloneRawMessage(event.ToolInput),
 			Timestamp: event.Timestamp,
 		})
 		lifecycle.callIndex = len(*messages) - 1
@@ -313,7 +313,7 @@ func mergeToolCallMessage(msg *TranscriptMessage, event transcriptEvent) {
 	}
 	msg.ToolName = firstNonEmpty(msg.ToolName, event.ToolName)
 	if (len(msg.ToolInput) == 0 || rawMessageIsEmptyObject(msg.ToolInput)) && len(event.ToolInput) > 0 && !rawMessageIsEmptyObject(event.ToolInput) {
-		msg.ToolInput = cloneRawMessage(event.ToolInput)
+		msg.ToolInput = acp.CloneRawMessage(event.ToolInput)
 	}
 }
 
@@ -353,7 +353,7 @@ func parseCanonicalTranscriptEvent(event transcriptEvent, payload map[string]any
 	event.Text = nestedString(payload, "text")
 	event.ToolCallID = firstNonEmpty(nestedString(payload, "tool_call_id"), nestedString(payload, "toolCallId"))
 	event.ToolName = firstNonEmpty(nestedString(payload, "tool_name"), nestedString(payload, "title"))
-	event.ToolInput = cloneRawMessage(rawMessageFromValue(payload["tool_input"]))
+	event.ToolInput = acp.CloneRawMessage(rawMessageFromValue(payload["tool_input"]))
 	if toolResult := decodeTranscriptToolResult(rawMessageFromValue(payload["tool_result"])); toolResult != nil {
 		event.ToolResult = toolResult
 	}
@@ -370,7 +370,7 @@ func parseLegacyTranscriptEvent(event transcriptEvent, payload map[string]any) t
 	event.Text = extractLegacyContentText(payload["content"])
 	event.ToolCallID = firstNonEmpty(nestedString(payload, "toolCallId"), nestedString(payload, "tool_call_id"))
 	event.ToolName = legacyToolName(payload)
-	event.ToolInput = cloneRawMessage(rawMessageFromValue(payload["rawInput"]))
+	event.ToolInput = acp.CloneRawMessage(rawMessageFromValue(payload["rawInput"]))
 
 	switch updateType {
 	case "user_message_chunk":
@@ -409,7 +409,7 @@ func parseLooseTranscriptEvent(event transcriptEvent, payload map[string]any) tr
 	event.Text = nestedString(payload, "text")
 	event.ToolCallID = firstNonEmpty(nestedString(payload, "tool_call_id"), nestedString(payload, "toolCallId"))
 	event.ToolName = firstNonEmpty(nestedString(payload, "tool_name"), nestedString(payload, "title"), legacyToolName(payload))
-	event.ToolInput = cloneRawMessage(firstNonEmptyRaw(
+	event.ToolInput = acp.CloneRawMessage(firstNonEmptyRaw(
 		rawMessageFromValue(payload["tool_input"]),
 		rawMessageFromValue(payload["rawInput"]),
 		rawMessageFromValue(payload["raw"]),
@@ -442,7 +442,7 @@ func buildToolResult(toolName string, failed bool, contentText string, rawOutput
 	displayText := strings.TrimSpace(firstNonEmpty(contentText, stringifyValue(rawOutput)))
 	raw := rawMessageFromValue(rawOutput)
 	if len(raw) > 0 {
-		result.RawOutput = cloneRawMessage(raw)
+		result.RawOutput = acp.CloneRawMessage(raw)
 		if mapped := map[string]any(nil); json.Unmarshal(raw, &mapped) == nil {
 			result.Stdout = firstNonEmpty(result.Stdout, nestedString(mapped, "stdout"))
 			result.Stderr = firstNonEmpty(result.Stderr, nestedString(mapped, "stderr"))
@@ -450,7 +450,7 @@ func buildToolResult(toolName string, failed bool, contentText string, rawOutput
 			result.Content = firstNonEmpty(result.Content, nestedString(mapped, "content"))
 			result.Error = firstNonEmpty(result.Error, nestedString(mapped, "error"))
 			if patch := rawMessageFromValue(mapped["structuredPatch"]); len(patch) > 0 {
-				result.StructuredPatch = cloneRawMessage(patch)
+				result.StructuredPatch = acp.CloneRawMessage(patch)
 			}
 		}
 	}
@@ -592,15 +592,6 @@ func rawMessageFromValue(value any) json.RawMessage {
 	return json.RawMessage(encoded)
 }
 
-func cloneRawMessage(value json.RawMessage) json.RawMessage {
-	if len(value) == 0 {
-		return nil
-	}
-	cloned := make([]byte, len(value))
-	copy(cloned, value)
-	return cloned
-}
-
 func rawMessageIsEmptyObject(value json.RawMessage) bool {
 	return strings.TrimSpace(string(value)) == "{}"
 }
@@ -610,8 +601,8 @@ func cloneTranscriptToolResult(value *TranscriptToolResult) *TranscriptToolResul
 		return nil
 	}
 	cloned := *value
-	cloned.StructuredPatch = cloneRawMessage(value.StructuredPatch)
-	cloned.RawOutput = cloneRawMessage(value.RawOutput)
+	cloned.StructuredPatch = acp.CloneRawMessage(value.StructuredPatch)
+	cloned.RawOutput = acp.CloneRawMessage(value.RawOutput)
 	return &cloned
 }
 

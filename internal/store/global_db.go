@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -38,6 +39,16 @@ func OpenGlobalDB(ctx context.Context, path string) (*GlobalDB, error) {
 			return time.Now().UTC()
 		},
 	}, nil
+}
+
+func (g *GlobalDB) checkReady(ctx context.Context, action string) error {
+	if g == nil {
+		return errors.New("store: global database is required")
+	}
+	if ctx == nil {
+		return fmt.Errorf("store: %s context is required", action)
+	}
+	return nil
 }
 
 // Path reports the on-disk path for the global database file.

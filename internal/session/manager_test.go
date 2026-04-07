@@ -177,6 +177,78 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 	}
 }
 
+func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	sessionDir := filepath.Join(h.homePaths.SessionsDir, "sess-helper")
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(sessionDir) error = %v", err)
+	}
+
+	dbPath := store.SessionDBFile(sessionDir)
+	recorder, err := store.OpenSessionDB(testutil.Context(t), "sess-helper", dbPath)
+	if err != nil {
+		t.Fatalf("OpenSessionDB() error = %v", err)
+	}
+
+	session := &Session{
+		ID:          "sess-helper",
+		Name:        "helper",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		Workspace:   h.workspace,
+		Type:        SessionTypeUser,
+		State:       StateStarting,
+		CreatedAt:   time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
+		sessionDir:  sessionDir,
+		metaPath:    store.SessionMetaFile(sessionDir),
+		dbPath:      dbPath,
+		recorder:    recorder,
+	}
+
+	if err := h.manager.reserve(session.ID, h.cfg.Limits.MaxSessions); err != nil {
+		t.Fatalf("reserve() error = %v", err)
+	}
+
+	proc, err := h.driver.Start(testutil.Context(t), acp.StartOpts{
+		AgentName: "coder",
+		Command:   "fake-agent",
+		Cwd:       h.workspace,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	if err := h.manager.activateAndWatch(testutil.Context(t), session, proc); err != nil {
+		t.Fatalf("activateAndWatch() error = %v", err)
+	}
+
+	if got := session.Info().State; got != StateActive {
+		t.Fatalf("session state = %q, want %q", got, StateActive)
+	}
+	if got := session.Info().ACPSessionID; got != proc.SessionID {
+		t.Fatalf("session ACPSessionID = %q, want %q", got, proc.SessionID)
+	}
+	if got, ok := h.manager.Get(session.ID); !ok || got != session {
+		t.Fatalf("Get(%q) = (%v, %v), want active session", session.ID, got, ok)
+	}
+	if got := h.notifier.createdCount(); got != 1 {
+		t.Fatalf("created notifications = %d, want 1", got)
+	}
+	if meta := readMeta(t, session.MetaPath()); meta.State != string(StateActive) {
+		t.Fatalf("meta state = %q, want %q", meta.State, StateActive)
+	}
+
+	h.driver.lastProcess().exit()
+	waitForCondition(t, "session watcher finalization", func() bool {
+		_, ok := h.manager.Get(session.ID)
+		return !ok && h.notifier.stoppedCount() == 1
+	})
+}
+
 func TestResumeFailsWhenWorkspaceCannotBeResolved(t *testing.T) {
 	t.Parallel()
 

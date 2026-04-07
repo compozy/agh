@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/pedronauck/agh/internal/filesnap"
 )
 
 func TestParseFrontmatterValidCases(t *testing.T) {
@@ -376,19 +378,19 @@ func TestSnapshotFile(t *testing.T) {
 
 	path := writeSkillFile(t, t.TempDir(), filepath.Join("skill", skillFileName), defaultSkillContent("snapshot"))
 
-	snapshot, err := snapshotFile(path)
+	snapshot, err := filesnap.FromPath(path)
 	if err != nil {
-		t.Fatalf("snapshotFile() error = %v", err)
+		t.Fatalf("filesnap.FromPath() error = %v", err)
 	}
-	if snapshot.path != path {
-		t.Fatalf("snapshotFile() path = %q, want %q", snapshot.path, path)
+	if snapshot.Size <= 0 {
+		t.Fatalf("filesnap.FromPath() size = %d, want > 0", snapshot.Size)
 	}
-	if snapshot.size <= 0 {
-		t.Fatalf("snapshotFile() size = %d, want > 0", snapshot.size)
+	if snapshot.ModTime.IsZero() {
+		t.Fatal("filesnap.FromPath() mod time = zero, want populated")
 	}
 
-	if _, err := snapshotFile(filepath.Join(t.TempDir(), "missing", skillFileName)); err == nil {
-		t.Fatal("snapshotFile() error = nil, want error for missing path")
+	if _, err := filesnap.FromPath(filepath.Join(t.TempDir(), "missing", skillFileName)); err == nil {
+		t.Fatal("filesnap.FromPath() error = nil, want error for missing path")
 	}
 }
 

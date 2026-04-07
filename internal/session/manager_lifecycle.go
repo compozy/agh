@@ -111,20 +111,8 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 		return nil, fmt.Errorf("session: start agent for %q: %w", sessionID, err)
 	}
 
-	session.updateFromProcess(proc, m.now())
-	if err := session.activate(m.now()); err != nil {
+	if err := m.activateAndWatch(ctx, session, proc); err != nil {
 		return nil, err
-	}
-	if err := m.writeMeta(session); err != nil {
-		return nil, err
-	}
-	if err := m.activate(session); err != nil {
-		return nil, err
-	}
-
-	m.watchProcess(session)
-	if m.notifier != nil {
-		m.notifier.OnSessionCreated(ctx, session)
 	}
 
 	return session, nil
@@ -276,20 +264,8 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		return nil, fmt.Errorf("session: resume agent for %q: %w", meta.ID, err)
 	}
 
-	session.updateFromProcess(proc, m.now())
-	if err := session.activate(m.now()); err != nil {
+	if err := m.activateAndWatch(ctx, session, proc); err != nil {
 		return nil, err
-	}
-	if err := m.writeMeta(session); err != nil {
-		return nil, err
-	}
-	if err := m.activate(session); err != nil {
-		return nil, err
-	}
-
-	m.watchProcess(session)
-	if m.notifier != nil {
-		m.notifier.OnSessionCreated(ctx, session)
 	}
 
 	return session, nil

@@ -2,18 +2,14 @@ package store
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 )
 
 // WritePermissionLog stores one permission decision audit row.
 func (g *GlobalDB) WritePermissionLog(ctx context.Context, entry PermissionLogEntry) error {
-	if g == nil {
-		return errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return errors.New("store: write permission log context is required")
+	if err := g.checkReady(ctx, "write permission log"); err != nil {
+		return err
 	}
 	if err := entry.Validate(); err != nil {
 		return err
@@ -45,11 +41,8 @@ func (g *GlobalDB) WritePermissionLog(ctx context.Context, entry PermissionLogEn
 
 // ListPermissionLog returns permission audit rows filtered by the supplied options.
 func (g *GlobalDB) ListPermissionLog(ctx context.Context, query PermissionLogQuery) ([]PermissionLogEntry, error) {
-	if g == nil {
-		return nil, errors.New("store: global database is required")
-	}
-	if ctx == nil {
-		return nil, errors.New("store: list permission log context is required")
+	if err := g.checkReady(ctx, "list permission log"); err != nil {
+		return nil, err
 	}
 	if err := query.Validate(); err != nil {
 		return nil, err

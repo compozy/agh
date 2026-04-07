@@ -302,6 +302,27 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 	}
 }
 
+func TestValidationPrimitives(t *testing.T) {
+	t.Parallel()
+
+	if err := requireField("value", "session id"); err != nil {
+		t.Fatalf("requireField(valid) error = %v", err)
+	}
+	if err := requireField("   ", "session id"); err == nil {
+		t.Fatal("requireField(whitespace) error = nil, want non-nil")
+	}
+
+	if err := requirePositiveLimit(0, "event limit"); err != nil {
+		t.Fatalf("requirePositiveLimit(0) error = %v", err)
+	}
+	if err := requirePositiveLimit(3, "event limit"); err != nil {
+		t.Fatalf("requirePositiveLimit(3) error = %v", err)
+	}
+	if err := requirePositiveLimit(-1, "event limit"); err == nil {
+		t.Fatal("requirePositiveLimit(-1) error = nil, want non-nil")
+	}
+}
+
 func TestStoreHelpersAndErrorPaths(t *testing.T) {
 	t.Parallel()
 

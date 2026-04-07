@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/pedronauck/agh/internal/filesnap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -112,7 +113,7 @@ func scanDirectory(dir string) ([]string, error) {
 	return paths, err
 }
 
-func scanDirectoryWithSnapshots(dir string) ([]string, map[string]fileSnapshot, error) {
+func scanDirectoryWithSnapshots(dir string) ([]string, map[string]filesnap.Snapshot, error) {
 	root := strings.TrimSpace(dir)
 	if root == "" {
 		return nil, nil, errors.New("skills: scan directory root is required")
@@ -126,7 +127,7 @@ func scanDirectoryWithSnapshots(dir string) ([]string, map[string]fileSnapshot, 
 	info, err := os.Stat(absRoot)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return []string{}, map[string]fileSnapshot{}, nil
+			return []string{}, map[string]filesnap.Snapshot{}, nil
 		}
 		return nil, nil, fmt.Errorf("skills: stat scan root %q: %w", absRoot, err)
 	}
@@ -135,7 +136,7 @@ func scanDirectoryWithSnapshots(dir string) ([]string, map[string]fileSnapshot, 
 	}
 
 	paths := make([]string, 0, maxScanCandidates)
-	snapshots := make(map[string]fileSnapshot, maxScanCandidates)
+	snapshots := make(map[string]filesnap.Snapshot, maxScanCandidates)
 	walkErr := filepath.WalkDir(absRoot, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			slog.Warn("skills: skipping unreadable path during scan", "path", path, "error", walkErr)
@@ -164,7 +165,7 @@ func scanDirectoryWithSnapshots(dir string) ([]string, map[string]fileSnapshot, 
 			return nil
 		}
 
-		snapshot, err := snapshotFile(path)
+		snapshot, err := filesnap.FromPath(path)
 		if err != nil {
 			slog.Warn("skills: skipping unreadable skill file during scan", "path", path, "error", err)
 			return nil
@@ -279,17 +280,4 @@ func shouldSkipDir(name string) bool {
 	}
 
 	return strings.HasPrefix(name, ".")
-}
-
-func snapshotFile(path string) (fileSnapshot, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fileSnapshot{}, err
-	}
-
-	return fileSnapshot{
-		path:    path,
-		modTime: info.ModTime(),
-		size:    info.Size(),
-	}, nil
 }

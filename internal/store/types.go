@@ -1,9 +1,7 @@
 package store
 
 import (
-	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -21,16 +19,16 @@ type SessionEvent struct {
 
 // Validate ensures the event has the required fields for persistence.
 func (e SessionEvent) Validate() error {
-	switch {
-	case strings.TrimSpace(e.TurnID) == "":
-		return errors.New("store: event turn id is required")
-	case strings.TrimSpace(e.Type) == "":
-		return errors.New("store: event type is required")
-	case strings.TrimSpace(e.AgentName) == "":
-		return errors.New("store: event agent name is required")
-	default:
-		return nil
+	if err := requireField(e.TurnID, "event turn id"); err != nil {
+		return err
 	}
+	if err := requireField(e.Type, "event type"); err != nil {
+		return err
+	}
+	if err := requireField(e.AgentName, "event agent name"); err != nil {
+		return err
+	}
+	return nil
 }
 
 // EventQuery filters per-session events while preserving follow-friendly ordering.
@@ -45,8 +43,8 @@ type EventQuery struct {
 
 // Validate ensures the query is internally consistent.
 func (q EventQuery) Validate() error {
-	if q.Limit < 0 {
-		return fmt.Errorf("store: invalid event limit %d", q.Limit)
+	if err := requirePositiveLimit(q.Limit, "event limit"); err != nil {
+		return err
 	}
 	if q.AfterSequence < 0 {
 		return fmt.Errorf("store: invalid event after sequence %d", q.AfterSequence)
@@ -78,10 +76,7 @@ type TokenUsage struct {
 
 // Validate ensures the usage payload has the required fields.
 func (u TokenUsage) Validate() error {
-	if strings.TrimSpace(u.TurnID) == "" {
-		return errors.New("store: token usage turn id is required")
-	}
-	return nil
+	return requireField(u.TurnID, "token usage turn id")
 }
 
 // SessionInfo is the canonical session index row stored in the global database.
@@ -99,18 +94,19 @@ type SessionInfo struct {
 
 // Validate ensures the session record contains the required fields.
 func (s SessionInfo) Validate() error {
-	switch {
-	case strings.TrimSpace(s.ID) == "":
-		return errors.New("store: session id is required")
-	case strings.TrimSpace(s.AgentName) == "":
-		return errors.New("store: session agent name is required")
-	case strings.TrimSpace(s.WorkspaceID) == "":
-		return errors.New("store: session workspace id is required")
-	case strings.TrimSpace(s.State) == "":
-		return errors.New("store: session state is required")
-	default:
-		return nil
+	if err := requireField(s.ID, "session id"); err != nil {
+		return err
 	}
+	if err := requireField(s.AgentName, "session agent name"); err != nil {
+		return err
+	}
+	if err := requireField(s.WorkspaceID, "session workspace id"); err != nil {
+		return err
+	}
+	if err := requireField(s.State, "session state"); err != nil {
+		return err
+	}
+	return nil
 }
 
 // SessionListQuery filters global session index queries.
@@ -122,10 +118,7 @@ type SessionListQuery struct {
 
 // Validate ensures the query uses sane bounds.
 func (q SessionListQuery) Validate() error {
-	if q.Limit < 0 {
-		return fmt.Errorf("store: invalid session limit %d", q.Limit)
-	}
-	return nil
+	return requirePositiveLimit(q.Limit, "session limit")
 }
 
 // SessionStateUpdate updates only the stateful fields of an indexed session.
@@ -138,14 +131,13 @@ type SessionStateUpdate struct {
 
 // Validate ensures the update contains the required fields.
 func (u SessionStateUpdate) Validate() error {
-	switch {
-	case strings.TrimSpace(u.ID) == "":
-		return errors.New("store: session update id is required")
-	case strings.TrimSpace(u.State) == "":
-		return errors.New("store: session update state is required")
-	default:
-		return nil
+	if err := requireField(u.ID, "session update id"); err != nil {
+		return err
 	}
+	if err := requireField(u.State, "session update state"); err != nil {
+		return err
+	}
+	return nil
 }
 
 // EventSummary is the global, cross-session observability record for one event.
@@ -160,16 +152,16 @@ type EventSummary struct {
 
 // Validate ensures the summary contains the required identifying fields.
 func (s EventSummary) Validate() error {
-	switch {
-	case strings.TrimSpace(s.SessionID) == "":
-		return errors.New("store: event summary session id is required")
-	case strings.TrimSpace(s.Type) == "":
-		return errors.New("store: event summary type is required")
-	case strings.TrimSpace(s.AgentName) == "":
-		return errors.New("store: event summary agent name is required")
-	default:
-		return nil
+	if err := requireField(s.SessionID, "event summary session id"); err != nil {
+		return err
 	}
+	if err := requireField(s.Type, "event summary type"); err != nil {
+		return err
+	}
+	if err := requireField(s.AgentName, "event summary agent name"); err != nil {
+		return err
+	}
+	return nil
 }
 
 // EventSummaryQuery filters global event summary queries.
@@ -183,10 +175,7 @@ type EventSummaryQuery struct {
 
 // Validate ensures the query uses sane bounds.
 func (q EventSummaryQuery) Validate() error {
-	if q.Limit < 0 {
-		return fmt.Errorf("store: invalid event summary limit %d", q.Limit)
-	}
-	return nil
+	return requirePositiveLimit(q.Limit, "event summary limit")
 }
 
 // TokenStats is the aggregated usage record for a session in the global database.
@@ -218,14 +207,13 @@ type TokenStatsUpdate struct {
 
 // Validate ensures the aggregate update contains the required identifying fields.
 func (u TokenStatsUpdate) Validate() error {
-	switch {
-	case strings.TrimSpace(u.SessionID) == "":
-		return errors.New("store: token stats session id is required")
-	case strings.TrimSpace(u.AgentName) == "":
-		return errors.New("store: token stats agent name is required")
-	default:
-		return nil
+	if err := requireField(u.SessionID, "token stats session id"); err != nil {
+		return err
 	}
+	if err := requireField(u.AgentName, "token stats agent name"); err != nil {
+		return err
+	}
+	return nil
 }
 
 // TokenStatsQuery filters token aggregation lookups.
@@ -237,10 +225,7 @@ type TokenStatsQuery struct {
 
 // Validate ensures the query uses sane bounds.
 func (q TokenStatsQuery) Validate() error {
-	if q.Limit < 0 {
-		return fmt.Errorf("store: invalid token stats limit %d", q.Limit)
-	}
-	return nil
+	return requirePositiveLimit(q.Limit, "token stats limit")
 }
 
 // PermissionLogEntry is an audit log entry for a daemon permission decision.
@@ -257,22 +242,25 @@ type PermissionLogEntry struct {
 
 // Validate ensures the permission audit entry is complete.
 func (e PermissionLogEntry) Validate() error {
-	switch {
-	case strings.TrimSpace(e.SessionID) == "":
-		return errors.New("store: permission log session id is required")
-	case strings.TrimSpace(e.AgentName) == "":
-		return errors.New("store: permission log agent name is required")
-	case strings.TrimSpace(e.Action) == "":
-		return errors.New("store: permission log action is required")
-	case strings.TrimSpace(e.Resource) == "":
-		return errors.New("store: permission log resource is required")
-	case strings.TrimSpace(e.Decision) == "":
-		return errors.New("store: permission log decision is required")
-	case strings.TrimSpace(e.PolicyUsed) == "":
-		return errors.New("store: permission log policy is required")
-	default:
-		return nil
+	if err := requireField(e.SessionID, "permission log session id"); err != nil {
+		return err
 	}
+	if err := requireField(e.AgentName, "permission log agent name"); err != nil {
+		return err
+	}
+	if err := requireField(e.Action, "permission log action"); err != nil {
+		return err
+	}
+	if err := requireField(e.Resource, "permission log resource"); err != nil {
+		return err
+	}
+	if err := requireField(e.Decision, "permission log decision"); err != nil {
+		return err
+	}
+	if err := requireField(e.PolicyUsed, "permission log policy"); err != nil {
+		return err
+	}
+	return nil
 }
 
 // PermissionLogQuery filters permission audit queries.
@@ -286,10 +274,7 @@ type PermissionLogQuery struct {
 
 // Validate ensures the query uses sane bounds.
 func (q PermissionLogQuery) Validate() error {
-	if q.Limit < 0 {
-		return fmt.Errorf("store: invalid permission log limit %d", q.Limit)
-	}
-	return nil
+	return requirePositiveLimit(q.Limit, "permission log limit")
 }
 
 // ReconcileResult reports which sessions were indexed or marked orphaned.
@@ -313,16 +298,17 @@ type SessionMeta struct {
 
 // Validate ensures the metadata file remains aligned with the session index schema.
 func (m SessionMeta) Validate() error {
-	switch {
-	case strings.TrimSpace(m.ID) == "":
-		return errors.New("store: session id is required")
-	case strings.TrimSpace(m.AgentName) == "":
-		return errors.New("store: session agent name is required")
-	case strings.TrimSpace(m.WorkspaceID) == "":
-		return errors.New("store: session workspace id is required")
-	case strings.TrimSpace(m.State) == "":
-		return errors.New("store: session state is required")
-	default:
-		return nil
+	if err := requireField(m.ID, "session id"); err != nil {
+		return err
 	}
+	if err := requireField(m.AgentName, "session agent name"); err != nil {
+		return err
+	}
+	if err := requireField(m.WorkspaceID, "session workspace id"); err != nil {
+		return err
+	}
+	if err := requireField(m.State, "session state"); err != nil {
+		return err
+	}
+	return nil
 }

@@ -31,6 +31,32 @@ type outputBundle struct {
 	toon      func() (string, error)
 }
 
+func listBundle[T any](jsonValue any, items []T, humanTitle string, humanHeaders []string, toonName string, toonFields []string, humanRow func(T) []string, toonRow func(T) []string) outputBundle {
+	return outputBundle{
+		jsonValue: jsonValue,
+		human: func() (string, error) {
+			if humanRow == nil {
+				return "", errors.New("cli: human list row renderer is required")
+			}
+			rows := make([][]string, 0, len(items))
+			for _, item := range items {
+				rows = append(rows, humanRow(item))
+			}
+			return renderHumanTable(humanTitle, humanHeaders, rows), nil
+		},
+		toon: func() (string, error) {
+			if toonRow == nil {
+				return "", errors.New("cli: toon list row renderer is required")
+			}
+			rows := make([][]string, 0, len(items))
+			for _, item := range items {
+				rows = append(rows, toonRow(item))
+			}
+			return renderToonArray(toonName, toonFields, rows), nil
+		},
+	}
+}
+
 type keyValue struct {
 	Label string
 	Value string
