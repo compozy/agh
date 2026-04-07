@@ -707,6 +707,196 @@ func TestRegistryReturnsDeepClonedSkillMetadata(t *testing.T) {
 	}
 }
 
+func TestSkillTypesSupportMarketplaceDeclarations(t *testing.T) {
+	t.Parallel()
+
+	installedAt := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
+	mcp := MCPServerDecl{
+		Name:    "filesystem",
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-filesystem"},
+		Env: map[string]string{
+			"ROOT": "/workspace",
+		},
+	}
+	hook := HookDecl{
+		Event:   HookSessionCreated,
+		Command: "/bin/sh",
+		Args:    []string{"-c", "echo ready"},
+		Timeout: 5 * time.Second,
+		Env: map[string]string{
+			"HOOK_ENV": "enabled",
+		},
+	}
+	provenance := Provenance{
+		Hash:        "abc123",
+		Registry:    "clawhub",
+		Slug:        "@author/skill",
+		Version:     "1.2.3",
+		InstalledAt: installedAt,
+	}
+	skill := Skill{
+		Meta:          SkillMeta{Name: "marketplace-skill", Description: "Marketplace skill"},
+		MCPServers:    []MCPServerDecl{mcp},
+		Hooks:         []HookDecl{hook},
+		Provenance:    &provenance,
+		InstalledFrom: "@author/skill",
+	}
+
+	if skill.MCPServers[0].Name != "filesystem" {
+		t.Fatalf("MCPServers[0].Name = %q, want %q", skill.MCPServers[0].Name, "filesystem")
+	}
+	if skill.MCPServers[0].Command != "npx" {
+		t.Fatalf("MCPServers[0].Command = %q, want %q", skill.MCPServers[0].Command, "npx")
+	}
+	if len(skill.MCPServers[0].Args) != 2 || skill.MCPServers[0].Args[1] != "@modelcontextprotocol/server-filesystem" {
+		t.Fatalf("MCPServers[0].Args = %#v, want populated args", skill.MCPServers[0].Args)
+	}
+	if skill.MCPServers[0].Env["ROOT"] != "/workspace" {
+		t.Fatalf("MCPServers[0].Env[ROOT] = %q, want %q", skill.MCPServers[0].Env["ROOT"], "/workspace")
+	}
+	if skill.Hooks[0].Event != HookSessionCreated {
+		t.Fatalf("Hooks[0].Event = %q, want %q", skill.Hooks[0].Event, HookSessionCreated)
+	}
+	if string(HookSessionCreated) != "on_session_created" {
+		t.Fatalf("HookSessionCreated = %q, want %q", HookSessionCreated, "on_session_created")
+	}
+	if string(HookSessionStopped) != "on_session_stopped" {
+		t.Fatalf("HookSessionStopped = %q, want %q", HookSessionStopped, "on_session_stopped")
+	}
+	if skill.Hooks[0].Timeout != 5*time.Second {
+		t.Fatalf("Hooks[0].Timeout = %s, want %s", skill.Hooks[0].Timeout, 5*time.Second)
+	}
+	if skill.Provenance == nil {
+		t.Fatal("Provenance = nil, want populated provenance")
+	}
+	if skill.Provenance.Hash != "abc123" {
+		t.Fatalf("Provenance.Hash = %q, want %q", skill.Provenance.Hash, "abc123")
+	}
+	if !skill.Provenance.InstalledAt.Equal(installedAt) {
+		t.Fatalf("Provenance.InstalledAt = %s, want %s", skill.Provenance.InstalledAt, installedAt)
+	}
+	if skill.InstalledFrom != "@author/skill" {
+		t.Fatalf("InstalledFrom = %q, want %q", skill.InstalledFrom, "@author/skill")
+	}
+}
+
+func TestSkillSourceMarketplacePrecedenceAndNaming(t *testing.T) {
+	t.Parallel()
+
+	if SourceBundled >= SourceMarketplace || SourceMarketplace >= SourceUser {
+		t.Fatalf("SourceMarketplace ordering = [%d %d %d], want bundled < marketplace < user", SourceBundled, SourceMarketplace, SourceUser)
+	}
+	if got := skillSourceName(SourceMarketplace); got != "marketplace" {
+		t.Fatalf("skillSourceName(SourceMarketplace) = %q, want %q", got, "marketplace")
+	}
+	source, include, err := skillSourceFromWorkspacePath("marketplace")
+	if err != nil {
+		t.Fatalf("skillSourceFromWorkspacePath(marketplace) error = %v", err)
+	}
+	if source != SourceMarketplace {
+		t.Fatalf("skillSourceFromWorkspacePath(marketplace) source = %v, want %v", source, SourceMarketplace)
+	}
+	if include {
+		t.Fatal("skillSourceFromWorkspacePath(marketplace) include = true, want false for global marketplace source")
+	}
+}
+
+func TestCloneSkillDeepCopiesExtendedFields(t *testing.T) {
+	t.Parallel()
+
+	installedAt := time.Date(2026, 4, 7, 9, 30, 0, 0, time.UTC)
+	original := &Skill{
+		Meta: SkillMeta{Name: "clone", Description: "Clone extended fields"},
+		MCPServers: []MCPServerDecl{{
+			Name:    "server",
+			Command: "cmd",
+			Args:    []string{"one"},
+			Env: map[string]string{
+				"ROOT": "/tmp/original",
+			},
+		}},
+		Hooks: []HookDecl{{
+			Event:   HookSessionStopped,
+			Command: "hook",
+			Args:    []string{"cleanup"},
+			Timeout: time.Second,
+			Env: map[string]string{
+				"PHASE": "stop",
+			},
+		}},
+		Provenance: &Provenance{
+			Hash:        "hash-original",
+			Registry:    "clawhub",
+			Slug:        "@author/clone",
+			Version:     "1.0.0",
+			InstalledAt: installedAt,
+		},
+		InstalledFrom: "@author/clone",
+	}
+
+	clone := cloneSkill(original)
+	if clone == nil {
+		t.Fatal("cloneSkill() = nil, want cloned skill")
+	}
+	if clone.InstalledFrom != "@author/clone" {
+		t.Fatalf("cloneSkill().InstalledFrom = %q, want %q", clone.InstalledFrom, "@author/clone")
+	}
+	if &clone.MCPServers[0] == &original.MCPServers[0] {
+		t.Fatal("cloneSkill() reused MCPServers backing storage")
+	}
+	if &clone.Hooks[0] == &original.Hooks[0] {
+		t.Fatal("cloneSkill() reused Hooks backing storage")
+	}
+	if clone.Provenance == original.Provenance {
+		t.Fatal("cloneSkill() reused Provenance pointer")
+	}
+
+	clone.MCPServers[0].Args[0] = "changed"
+	clone.MCPServers[0].Env["ROOT"] = "/tmp/clone"
+	clone.Hooks[0].Args[0] = "changed"
+	clone.Hooks[0].Env["PHASE"] = "changed"
+	clone.Provenance.Hash = "hash-clone"
+	clone.InstalledFrom = "@author/changed"
+
+	if original.MCPServers[0].Args[0] != "one" {
+		t.Fatalf("original MCPServers args mutated to %q, want %q", original.MCPServers[0].Args[0], "one")
+	}
+	if original.MCPServers[0].Env["ROOT"] != "/tmp/original" {
+		t.Fatalf("original MCPServers env mutated to %q, want %q", original.MCPServers[0].Env["ROOT"], "/tmp/original")
+	}
+	if original.Hooks[0].Args[0] != "cleanup" {
+		t.Fatalf("original Hooks args mutated to %q, want %q", original.Hooks[0].Args[0], "cleanup")
+	}
+	if original.Hooks[0].Env["PHASE"] != "stop" {
+		t.Fatalf("original Hooks env mutated to %q, want %q", original.Hooks[0].Env["PHASE"], "stop")
+	}
+	if original.Provenance.Hash != "hash-original" {
+		t.Fatalf("original Provenance hash mutated to %q, want %q", original.Provenance.Hash, "hash-original")
+	}
+	if original.InstalledFrom != "@author/clone" {
+		t.Fatalf("original InstalledFrom mutated to %q, want %q", original.InstalledFrom, "@author/clone")
+	}
+}
+
+func TestCloneSkillPreservesNilProvenance(t *testing.T) {
+	t.Parallel()
+
+	clone := cloneSkill(&Skill{
+		Meta:          SkillMeta{Name: "nil-provenance", Description: "Nil provenance"},
+		InstalledFrom: "@author/nil-provenance",
+	})
+	if clone == nil {
+		t.Fatal("cloneSkill() = nil, want cloned skill")
+	}
+	if clone.Provenance != nil {
+		t.Fatalf("cloneSkill().Provenance = %#v, want nil", clone.Provenance)
+	}
+	if clone.InstalledFrom != "@author/nil-provenance" {
+		t.Fatalf("cloneSkill().InstalledFrom = %q, want %q", clone.InstalledFrom, "@author/nil-provenance")
+	}
+}
+
 func TestRegistryLogsNonCriticalVerificationWarnings(t *testing.T) {
 	t.Parallel()
 

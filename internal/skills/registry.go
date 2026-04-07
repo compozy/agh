@@ -479,6 +479,9 @@ func cloneSkill(skill *Skill) *Skill {
 
 	clone := *skill
 	clone.Meta = cloneSkillMeta(skill.Meta)
+	clone.MCPServers = cloneMCPServerDecls(skill.MCPServers)
+	clone.Hooks = cloneHookDecls(skill.Hooks)
+	clone.Provenance = cloneProvenance(skill.Provenance)
 
 	return &clone
 }
@@ -515,6 +518,65 @@ func cloneMetadataValue(value any) any {
 	default:
 		return typed
 	}
+}
+
+func cloneMCPServerDecls(decls []MCPServerDecl) []MCPServerDecl {
+	if decls == nil {
+		return nil
+	}
+
+	clone := make([]MCPServerDecl, len(decls))
+	for i, decl := range decls {
+		clone[i] = MCPServerDecl{
+			Name:    decl.Name,
+			Command: decl.Command,
+			Args:    append([]string(nil), decl.Args...),
+			Env:     cloneStringMap(decl.Env),
+		}
+	}
+
+	return clone
+}
+
+func cloneHookDecls(decls []HookDecl) []HookDecl {
+	if decls == nil {
+		return nil
+	}
+
+	clone := make([]HookDecl, len(decls))
+	for i, decl := range decls {
+		clone[i] = HookDecl{
+			Event:   decl.Event,
+			Command: decl.Command,
+			Args:    append([]string(nil), decl.Args...),
+			Timeout: decl.Timeout,
+			Env:     cloneStringMap(decl.Env),
+		}
+	}
+
+	return clone
+}
+
+func cloneStringMap(input map[string]string) map[string]string {
+	if input == nil {
+		return nil
+	}
+
+	clone := make(map[string]string, len(input))
+	for key, value := range input {
+		clone[key] = value
+	}
+
+	return clone
+}
+
+func cloneProvenance(provenance *Provenance) *Provenance {
+	if provenance == nil {
+		return nil
+	}
+
+	clone := *provenance
+	return &clone
 }
 
 func (r *Registry) globalSnapshotState() (map[string]filesnap.Snapshot, bool) {
@@ -620,6 +682,8 @@ func skillSourceName(source SkillSource) string {
 	switch source {
 	case SourceBundled:
 		return "bundled"
+	case SourceMarketplace:
+		return "marketplace"
 	case SourceUser:
 		return "user"
 	case SourceAdditional:
@@ -637,6 +701,8 @@ func skillSourceFromWorkspacePath(source string) (SkillSource, bool, error) {
 		return SourceWorkspace, true, nil
 	case "additional":
 		return SourceAdditional, true, nil
+	case "marketplace":
+		return SourceMarketplace, false, nil
 	case "global":
 		return SourceUser, false, nil
 	default:
