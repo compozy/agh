@@ -4,7 +4,6 @@ package skills
 
 import (
 	"io/fs"
-	"time"
 )
 
 // SkillMeta maps YAML frontmatter fields per the AgentSkills spec.
@@ -61,11 +60,4 @@ type RegistryConfig struct {
 	UserSkillsDir  string
 	UserAgentsDir  string
 	DisabledSkills []string
-}
-
-// fileSnapshot tracks file metadata used to detect staleness.
-type fileSnapshot struct {
-	path    string
-	modTime time.Time
-	size    int64
 }

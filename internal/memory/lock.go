@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/pedronauck/agh/internal/procutil"
 )
 
 const (
@@ -36,7 +37,7 @@ func NewConsolidationLock(path string) *ConsolidationLock {
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		processAlive: processAlive,
+		processAlive: procutil.Alive,
 	}
 }
 
@@ -269,13 +270,4 @@ func (l *ConsolidationLock) createLockFile(pid int) error {
 
 	cleanup = false
 	return os.Remove(tempPath)
-}
-
-func processAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-
-	err := syscall.Kill(pid, 0)
-	return err == nil || errors.Is(err, syscall.EPERM)
 }

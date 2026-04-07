@@ -11,6 +11,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
+	"github.com/pedronauck/agh/internal/procutil"
 )
 
 type stubRunner struct {
@@ -104,11 +105,11 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		t.Fatalf("currentWorkingDirectory() = %q, %v", wd, err)
 	}
 
-	if err := signalProcess(os.Getpid(), syscall.Signal(0)); err != nil {
-		t.Fatalf("signalProcess(os.Getpid(), 0) error = %v", err)
+	if err := procutil.Signal(os.Getpid(), syscall.Signal(0)); err != nil {
+		t.Fatalf("procutil.Signal(os.Getpid(), 0) error = %v", err)
 	}
-	if !processAlive(os.Getpid()) {
-		t.Fatal("processAlive(os.Getpid()) = false, want true")
+	if !procutil.Alive(os.Getpid()) {
+		t.Fatal("procutil.Alive(os.Getpid()) = false, want true")
 	}
 }
 

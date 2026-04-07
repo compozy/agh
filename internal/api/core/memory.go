@@ -1,0 +1,414 @@
+package core
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/memory"
+)
+
+// MemoryLocation identifies the storage location for a memory document.
+type MemoryLocation struct {
+	Scope     memory.Scope
+	Workspace string
+}
+
+// ListMemory lists memory headers for the requested scope.
+func (h *BaseHandlers) ListMemory(c *gin.Context) {
+	headers, err := h.listMemoryHeaders(c.Request.Context(), c.Query("scope"), c.Query("workspace"))
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, headers)
+}
+
+// ReadMemory returns one memory document.
+func (h *BaseHandlers) ReadMemory(c *gin.Context) {
+	location, err := h.resolveMemoryLocation(c.Param("filename"), c.Query("scope"), c.Query("workspace"))
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	store, _, err := h.memoryStoreFor(location.Scope, location.Workspace)
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	content, err := store.Read(location.Scope, c.Param("filename"))
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.MemoryReadResponse{Content: string(content)})
+}
+
+// WriteMemory writes one memory document.
+func (h *BaseHandlers) WriteMemory(c *gin.Context) {
+	var req contract.MemoryWriteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: decode memory write request: %w", h.transportName(), err))
+		return
+	}
+
+	scope, workspace, err := resolveMemoryWriteScope(req)
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	store, _, err := h.memoryStoreFor(scope, workspace)
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	if err := store.Write(scope, c.Param("filename"), []byte(req.Content)); err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.MemoryMutationResponse{OK: true})
+}
+
+// DeleteMemory deletes one memory document.
+func (h *BaseHandlers) DeleteMemory(c *gin.Context) {
+	location, err := h.resolveMemoryLocation(c.Param("filename"), c.Query("scope"), c.Query("workspace"))
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	store, _, err := h.memoryStoreFor(location.Scope, location.Workspace)
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	if err := store.Delete(location.Scope, c.Param("filename")); err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.MemoryMutationResponse{OK: true})
+}
+
+// ConsolidateMemory triggers dream consolidation when enabled.
+func (h *BaseHandlers) ConsolidateMemory(c *gin.Context) {
+	var req contract.MemoryConsolidateRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: decode memory consolidate request: %w", h.transportName(), err))
+		return
+	}
+
+	if h.DreamTrigger == nil || !h.DreamTrigger.Enabled() {
+		c.JSON(http.StatusOK, contract.MemoryConsolidateResponse{
+			Triggered: false,
+			Reason:    "dream consolidation is disabled",
+		})
+		return
+	}
+
+	triggered, reason, err := h.DreamTrigger.Trigger(c.Request.Context(), strings.TrimSpace(req.Workspace))
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.MemoryConsolidateResponse{
+		Triggered: triggered,
+		Reason:    strings.TrimSpace(reason),
+	})
+}
+
+func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayload, error) {
+	payload := contract.MemoryHealthPayload{}
+	if h.DreamTrigger != nil {
+		payload.DreamEnabled = h.DreamTrigger.Enabled()
+		lastConsolidation, err := h.DreamTrigger.LastConsolidatedAt()
+		if err != nil {
+			return contract.MemoryHealthPayload{}, err
+		}
+		if !lastConsolidation.IsZero() {
+			lastConsolidation = lastConsolidation.UTC()
+			payload.LastConsolidation = &lastConsolidation
+		}
+	}
+	if h.MemoryStore == nil {
+		return payload, nil
+	}
+
+	globalHeaders, err := h.MemoryStore.Scan(memory.ScopeGlobal)
+	if err != nil {
+		return contract.MemoryHealthPayload{}, err
+	}
+	payload.GlobalFiles = len(globalHeaders)
+
+	workspaces, err := h.memoryHealthWorkspaces(c.Request.Context(), c.Query("workspace"))
+	if err != nil {
+		return contract.MemoryHealthPayload{}, err
+	}
+	for _, workspace := range workspaces {
+		store := h.MemoryStore.ForWorkspace(workspace)
+		headers, err := store.Scan(memory.ScopeWorkspace)
+		if err != nil {
+			return contract.MemoryHealthPayload{}, err
+		}
+		payload.WorkspaceFiles += len(headers)
+	}
+
+	return payload, nil
+}
+
+func (h *BaseHandlers) listMemoryHeaders(ctx context.Context, rawScope string, rawWorkspace string) ([]memory.MemoryHeader, error) {
+	if h.MemoryStore == nil {
+		return nil, errors.New("memory store is not configured")
+	}
+
+	scope, err := parseOptionalMemoryScope(rawScope)
+	if err != nil {
+		return nil, err
+	}
+
+	scopes := []memory.Scope{memory.ScopeGlobal}
+	workspace := strings.TrimSpace(rawWorkspace)
+	if scope != "" {
+		scopes = []memory.Scope{scope}
+	}
+	if scope == "" && workspace != "" {
+		scopes = append(scopes, memory.ScopeWorkspace)
+	}
+
+	headers := make([]memory.MemoryHeader, 0, len(scopes))
+	for _, currentScope := range scopes {
+		store, _, err := h.memoryStoreFor(currentScope, workspace)
+		if err != nil {
+			return nil, err
+		}
+		items, err := store.Scan(currentScope)
+		if err != nil {
+			return nil, err
+		}
+		headers = append(headers, items...)
+	}
+
+	sort.SliceStable(headers, func(i, j int) bool {
+		if headers[i].ModTime.Equal(headers[j].ModTime) {
+			return headers[i].Filename < headers[j].Filename
+		}
+		return headers[i].ModTime.After(headers[j].ModTime)
+	})
+
+	return headers, nil
+}
+
+// ResolveMemoryLocation resolves the storage location for a memory document.
+func (h *BaseHandlers) ResolveMemoryLocation(filename string, rawScope string, rawWorkspace string) (MemoryLocation, error) {
+	return h.resolveMemoryLocation(filename, rawScope, rawWorkspace)
+}
+
+func (h *BaseHandlers) resolveMemoryLocation(filename string, rawScope string, rawWorkspace string) (MemoryLocation, error) {
+	filename = strings.TrimSpace(filename)
+	if filename == "" {
+		return MemoryLocation{}, NewMemoryValidationError(errors.New("filename is required"))
+	}
+	if h.MemoryStore == nil {
+		return MemoryLocation{}, errors.New("memory store is not configured")
+	}
+
+	scope, err := parseOptionalMemoryScope(rawScope)
+	if err != nil {
+		return MemoryLocation{}, err
+	}
+	if scope != "" {
+		store, workspace, err := h.memoryStoreFor(scope, rawWorkspace)
+		if err != nil {
+			return MemoryLocation{}, err
+		}
+		exists, err := store.Exists(scope, filename)
+		if err != nil {
+			return MemoryLocation{}, err
+		}
+		if !exists {
+			return MemoryLocation{}, fmt.Errorf("%w: memory %q not found", os.ErrNotExist, filename)
+		}
+		return MemoryLocation{Scope: scope, Workspace: workspace}, nil
+	}
+
+	workspace := strings.TrimSpace(rawWorkspace)
+	candidates := []MemoryLocation{{Scope: memory.ScopeGlobal}}
+	if workspace != "" {
+		resolvedWorkspace, err := resolveMemoryWorkspace(workspace)
+		if err != nil {
+			return MemoryLocation{}, err
+		}
+		candidates = append(candidates, MemoryLocation{Scope: memory.ScopeWorkspace, Workspace: resolvedWorkspace})
+	}
+
+	matches := make([]MemoryLocation, 0, len(candidates))
+	for _, candidate := range candidates {
+		store, _, err := h.memoryStoreFor(candidate.Scope, candidate.Workspace)
+		if err != nil {
+			return MemoryLocation{}, err
+		}
+		exists, err := store.Exists(candidate.Scope, filename)
+		if err != nil {
+			return MemoryLocation{}, err
+		}
+		if exists {
+			matches = append(matches, candidate)
+		}
+	}
+
+	switch len(matches) {
+	case 0:
+		return MemoryLocation{}, fmt.Errorf("%w: memory %q not found", os.ErrNotExist, filename)
+	case 1:
+		return matches[0], nil
+	default:
+		return MemoryLocation{}, NewMemoryValidationError(fmt.Errorf("memory %q exists in multiple scopes; set scope explicitly", filename))
+	}
+}
+
+func (h *BaseHandlers) memoryStoreFor(scope memory.Scope, rawWorkspace string) (*memory.Store, string, error) {
+	if h.MemoryStore == nil {
+		return nil, "", errors.New("memory store is not configured")
+	}
+
+	switch scope.Normalize() {
+	case memory.ScopeGlobal:
+		return h.MemoryStore, "", nil
+	case memory.ScopeWorkspace:
+		workspace, err := resolveMemoryWorkspace(rawWorkspace)
+		if err != nil {
+			return nil, "", err
+		}
+		return h.MemoryStore.ForWorkspace(workspace), workspace, nil
+	default:
+		return nil, "", NewMemoryValidationError(fmt.Errorf("unsupported scope %q", scope))
+	}
+}
+
+func (h *BaseHandlers) memoryHealthWorkspaces(ctx context.Context, rawWorkspace string) ([]string, error) {
+	if strings.TrimSpace(rawWorkspace) != "" {
+		workspace, err := resolveMemoryWorkspace(rawWorkspace)
+		if err != nil {
+			return nil, err
+		}
+		return []string{workspace}, nil
+	}
+
+	infos, err := h.Sessions.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	workspaces := make([]string, 0, len(infos))
+	seen := make(map[string]struct{}, len(infos))
+	for _, info := range infos {
+		if info == nil || strings.TrimSpace(info.Workspace) == "" {
+			continue
+		}
+		workspace, err := resolveMemoryWorkspace(info.Workspace)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[workspace]; exists {
+			continue
+		}
+		seen[workspace] = struct{}{}
+		workspaces = append(workspaces, workspace)
+	}
+
+	return workspaces, nil
+}
+
+// MemoryHealthWorkspaces returns the workspaces considered for memory health checks.
+func (h *BaseHandlers) MemoryHealthWorkspaces(ctx context.Context, rawWorkspace string) ([]string, error) {
+	return h.memoryHealthWorkspaces(ctx, rawWorkspace)
+}
+
+// ResolveMemoryWriteScope validates a write request and infers its target scope.
+func ResolveMemoryWriteScope(req contract.MemoryWriteRequest) (memory.Scope, string, error) {
+	return resolveMemoryWriteScope(req)
+}
+
+func resolveMemoryWriteScope(req contract.MemoryWriteRequest) (memory.Scope, string, error) {
+	content := strings.TrimSpace(req.Content)
+	if content == "" {
+		return "", "", NewMemoryValidationError(errors.New("content is required"))
+	}
+
+	scope, err := parseOptionalMemoryScope(req.Scope)
+	if err != nil {
+		return "", "", err
+	}
+	if scope == "" {
+		header, err := memory.ParseHeader([]byte(content))
+		if err != nil {
+			return "", "", err
+		}
+		scope, err = memory.DefaultScopeForType(header.Type)
+		if err != nil {
+			return "", "", NewMemoryValidationError(err)
+		}
+	}
+
+	if scope == memory.ScopeWorkspace {
+		workspace, err := resolveMemoryWorkspace(req.Workspace)
+		if err != nil {
+			return "", "", err
+		}
+		return scope, workspace, nil
+	}
+
+	return scope, "", nil
+}
+
+// ParseOptionalMemoryScope validates an optional memory scope value.
+func ParseOptionalMemoryScope(raw string) (memory.Scope, error) {
+	return parseOptionalMemoryScope(raw)
+}
+
+func parseOptionalMemoryScope(raw string) (memory.Scope, error) {
+	scope := memory.Scope(strings.TrimSpace(raw)).Normalize()
+	switch scope {
+	case "":
+		return "", nil
+	case memory.ScopeGlobal, memory.ScopeWorkspace:
+		return scope, nil
+	default:
+		return "", NewMemoryValidationError(fmt.Errorf("scope must be one of global or workspace"))
+	}
+}
+
+// ResolveMemoryWorkspace validates and canonicalizes a workspace memory location.
+func ResolveMemoryWorkspace(raw string) (string, error) {
+	return resolveMemoryWorkspace(raw)
+}
+
+func resolveMemoryWorkspace(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", NewMemoryValidationError(errors.New("workspace is required for workspace scope"))
+	}
+
+	workspace, err := filepath.Abs(filepath.Clean(trimmed))
+	if err != nil {
+		return "", fmt.Errorf("resolve workspace %q: %w", trimmed, err)
+	}
+	return workspace, nil
+}

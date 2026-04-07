@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pedronauck/agh/internal/filesnap"
 )
 
 const defaultWatcherInterval = 3 * time.Second
@@ -34,14 +36,14 @@ type Watcher struct {
 
 	mu          sync.Mutex
 	initialized bool
-	snapshots   map[string]fileSnapshot
+	snapshots   map[string]filesnap.Snapshot
 }
 
 // NewWatcher constructs a watcher that polls the registry's global skill
 // directories. A non-positive interval falls back to the default poll interval.
 func NewWatcher(registry *Registry, interval time.Duration) *Watcher {
 	var roots []string
-	snapshots := make(map[string]fileSnapshot)
+	snapshots := make(map[string]filesnap.Snapshot)
 	initialized := false
 	if registry != nil {
 		roots = watcherRoots(registry.cfg.UserSkillsDir, registry.cfg.UserAgentsDir)
@@ -64,7 +66,7 @@ func newWatcher(registry globalRefresher, interval time.Duration, roots []string
 		interval:  watcherInterval(interval),
 		roots:     watcherRoots(roots...),
 		logger:    slog.Default(),
-		snapshots: make(map[string]fileSnapshot),
+		snapshots: make(map[string]filesnap.Snapshot),
 	}
 }
 
@@ -124,7 +126,7 @@ func (w *Watcher) pollOnce(ctx context.Context) error {
 	return nil
 }
 
-func (w *Watcher) detectChanges(ctx context.Context) (bool, map[string]fileSnapshot, []fileChange, error) {
+func (w *Watcher) detectChanges(ctx context.Context) (bool, map[string]filesnap.Snapshot, []fileChange, error) {
 	if err := checkRegistryContext(ctx); err != nil {
 		return false, nil, nil, err
 	}
@@ -151,19 +153,19 @@ func (w *Watcher) detectChanges(ctx context.Context) (bool, map[string]fileSnaps
 	return true, current, changes, nil
 }
 
-func (w *Watcher) commitSnapshots(snapshots map[string]fileSnapshot) {
+func (w *Watcher) commitSnapshots(snapshots map[string]filesnap.Snapshot) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	w.snapshots = snapshots
 	if w.snapshots == nil {
-		w.snapshots = make(map[string]fileSnapshot)
+		w.snapshots = make(map[string]filesnap.Snapshot)
 	}
 	w.initialized = true
 }
 
-func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]fileSnapshot, error) {
-	snapshots := make(map[string]fileSnapshot)
+func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Snapshot, error) {
+	snapshots := make(map[string]filesnap.Snapshot)
 	for _, root := range w.roots {
 		if err := checkRegistryContext(ctx); err != nil {
 			return nil, err
@@ -179,7 +181,7 @@ func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]fileSnapshot, e
 				return nil, err
 			}
 
-			snapshot, err := snapshotFile(skillPath)
+			snapshot, err := filesnap.FromPath(skillPath)
 			if err != nil {
 				if errors.Is(err, fs.ErrNotExist) {
 					continue
@@ -194,7 +196,7 @@ func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]fileSnapshot, e
 	return snapshots, nil
 }
 
-func diffSnapshots(previous, current map[string]fileSnapshot) []fileChange {
+func diffSnapshots(previous, current map[string]filesnap.Snapshot) []fileChange {
 	changes := make([]fileChange, 0)
 
 	for path, snapshot := range current {
@@ -204,7 +206,7 @@ func diffSnapshots(previous, current map[string]fileSnapshot) []fileChange {
 			continue
 		}
 
-		if snapshot.size != previousSnapshot.size || !snapshot.modTime.Equal(previousSnapshot.modTime) {
+		if snapshot.Size != previousSnapshot.Size || !snapshot.ModTime.Equal(previousSnapshot.ModTime) {
 			changes = append(changes, fileChange{path: path, action: "modified"})
 		}
 	}

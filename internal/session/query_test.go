@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,14 +29,14 @@ func TestManagerListAllReturnsActiveWhenSessionsDirMissing(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), session.ID)
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
 	if err := os.RemoveAll(h.homePaths.SessionsDir); err != nil {
 		t.Fatalf("RemoveAll(sessions dir) error = %v", err)
 	}
 
-	infos, err := h.manager.ListAll(testContext(t))
+	infos, err := h.manager.ListAll(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("ListAll() error = %v", err)
 	}
@@ -56,11 +57,11 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 	h := newHarness(t)
 	active := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testContext(t), active.ID)
+		_ = h.manager.Stop(testutil.Context(t), active.ID)
 	})
 
 	stopped := createSession(t, h)
-	if err := h.manager.Stop(testContext(t), stopped.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), stopped.ID); err != nil {
 		t.Fatalf("Stop(stopped) error = %v", err)
 	}
 
@@ -83,7 +84,7 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 		t.Fatalf("WriteFile(corrupt stopped meta) error = %v", err)
 	}
 
-	infos, err := h.manager.ListAll(testContext(t))
+	infos, err := h.manager.ListAll(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("ListAll() error = %v", err)
 	}
@@ -111,7 +112,7 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 
-	info, err := h.manager.Status(testContext(t), session.ID)
+	info, err := h.manager.Status(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Status(active) error = %v", err)
 	}
@@ -119,11 +120,11 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 		t.Fatalf("Status(active).State = %q, want %q", got, StateActive)
 	}
 
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	info, err = h.manager.Status(testContext(t), session.ID)
+	info, err = h.manager.Status(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Status(stopped) error = %v", err)
 	}
@@ -135,10 +136,10 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	if _, err := h.manager.Status(nilCtx, session.ID); err == nil {
 		t.Fatal("Status(nil, id) error = nil, want non-nil")
 	}
-	if _, err := h.manager.Status(testContext(t), "   "); err == nil {
+	if _, err := h.manager.Status(testutil.Context(t), "   "); err == nil {
 		t.Fatal("Status(blank id) error = nil, want non-nil")
 	}
-	if _, err := h.manager.Status(testContext(t), "missing"); !errors.Is(err, ErrSessionNotFound) {
+	if _, err := h.manager.Status(testutil.Context(t), "missing"); !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("Status(missing) error = %v, want ErrSessionNotFound", err)
 	}
 }
@@ -149,7 +150,7 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 
-	eventsCh, err := h.manager.Prompt(testContext(t), session.ID, "hello")
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
 	if err != nil {
 		t.Fatalf("Prompt() error = %v", err)
 	}
@@ -158,14 +159,14 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 		t.Fatalf("Prompt() events = %d, want 2", len(runtimeEvents))
 	}
 
-	activeEvents, err := h.manager.Events(testContext(t), session.ID, store.EventQuery{})
+	activeEvents, err := h.manager.Events(testutil.Context(t), session.ID, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Events(active) error = %v", err)
 	}
 	if len(activeEvents) != 3 {
 		t.Fatalf("Events(active) = %d events, want 3", len(activeEvents))
 	}
-	activeHistory, err := h.manager.History(testContext(t), session.ID, store.EventQuery{})
+	activeHistory, err := h.manager.History(testutil.Context(t), session.ID, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("History(active) error = %v", err)
 	}
@@ -173,11 +174,11 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 		t.Fatalf("History(active) = %d turns, want 1", len(activeHistory))
 	}
 
-	if err := h.manager.Stop(testContext(t), session.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	stopOnly, err := h.manager.Events(testContext(t), session.ID, store.EventQuery{
+	stopOnly, err := h.manager.Events(testutil.Context(t), session.ID, store.EventQuery{
 		Type:  EventTypeSessionStopped,
 		Limit: 1,
 	})
@@ -194,7 +195,7 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 		t.Fatalf("Events(stopOnly) %q count = %d, want 1", EventTypeSessionStopped, got)
 	}
 
-	afterPrompt, err := h.manager.Events(testContext(t), session.ID, store.EventQuery{
+	afterPrompt, err := h.manager.Events(testutil.Context(t), session.ID, store.EventQuery{
 		AfterSequence: activeEvents[len(activeEvents)-1].Sequence,
 	})
 	if err != nil {
@@ -207,7 +208,7 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 		t.Fatalf("Events(after prompt)[0].Type = %q, want %q", got, EventTypeSessionStopped)
 	}
 
-	stoppedHistory, err := h.manager.History(testContext(t), session.ID, store.EventQuery{})
+	stoppedHistory, err := h.manager.History(testutil.Context(t), session.ID, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("History(stopped) error = %v", err)
 	}
@@ -228,7 +229,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		if _, _, err := h.manager.openQueryRecorder(nilCtx, "sess-1"); err == nil {
 			t.Fatal("openQueryRecorder(nil, id) error = nil, want non-nil")
 		}
-		if _, _, err := h.manager.openQueryRecorder(testContext(t), "   "); err == nil {
+		if _, _, err := h.manager.openQueryRecorder(testutil.Context(t), "   "); err == nil {
 			t.Fatal("openQueryRecorder(ctx, blank) error = nil, want non-nil")
 		}
 	})
@@ -237,18 +238,18 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		h := newHarness(t)
 		session := createSession(t, h)
 		t.Cleanup(func() {
-			_ = h.manager.Stop(testContext(t), session.ID)
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
 		})
 
 		session.setRecorder(nil)
-		if _, _, err := h.manager.openQueryRecorder(testContext(t), session.ID); err == nil {
+		if _, _, err := h.manager.openQueryRecorder(testutil.Context(t), session.ID); err == nil {
 			t.Fatal("openQueryRecorder(active with nil recorder) error = nil, want non-nil")
 		}
 	})
 
 	t.Run("missing session metadata", func(t *testing.T) {
 		h := newHarness(t)
-		if _, _, err := h.manager.openQueryRecorder(testContext(t), "missing"); !errors.Is(err, ErrSessionNotFound) {
+		if _, _, err := h.manager.openQueryRecorder(testutil.Context(t), "missing"); !errors.Is(err, ErrSessionNotFound) {
 			t.Fatalf("openQueryRecorder(missing) error = %v, want ErrSessionNotFound", err)
 		}
 	})
@@ -257,7 +258,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		h := newHarness(t)
 		writeStoppedSessionArtifacts(t, h, "stored-no-db", false)
 
-		if _, _, err := h.manager.openQueryRecorder(testContext(t), "stored-no-db"); !errors.Is(err, ErrSessionNotFound) {
+		if _, _, err := h.manager.openQueryRecorder(testutil.Context(t), "stored-no-db"); !errors.Is(err, ErrSessionNotFound) {
 			t.Fatalf("openQueryRecorder(no db) error = %v, want ErrSessionNotFound", err)
 		}
 	})
@@ -269,7 +270,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}))
 		writeStoppedSessionArtifacts(t, h, "stored-open-failure", true)
 
-		if _, _, err := h.manager.openQueryRecorder(testContext(t), "stored-open-failure"); !errors.Is(err, openErr) {
+		if _, _, err := h.manager.openQueryRecorder(testutil.Context(t), "stored-open-failure"); !errors.Is(err, openErr) {
 			t.Fatalf("openQueryRecorder(open failure) error = %v, want wrapped %v", err, openErr)
 		}
 	})
@@ -281,7 +282,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}))
 		writeStoppedSessionArtifacts(t, h, "stored-cleanup", true)
 
-		got, cleanup, err := h.manager.openQueryRecorder(testContext(t), "stored-cleanup")
+		got, cleanup, err := h.manager.openQueryRecorder(testutil.Context(t), "stored-cleanup")
 		if err != nil {
 			t.Fatalf("openQueryRecorder(cleanup) error = %v", err)
 		}

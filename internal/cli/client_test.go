@@ -2,12 +2,15 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/memory"
 )
 
@@ -30,8 +33,40 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						t.Fatalf("session workspace query = %q, want %q", got, "ws-1")
 					}
 					return newHTTPResponse(http.StatusOK, `{"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(session create body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"agent_name":"coder"`) {
+						t.Fatalf("session create body = %s, want agent_name", body)
+					}
+					return newHTTPResponse(http.StatusCreated, `{"session":{"id":"sess-new","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+					return newHTTPResponse(http.StatusOK, `{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`), nil
+				case req.Method == http.MethodDelete && req.URL.Path == "/api/sessions/sess-1":
+					return newHTTPResponse(http.StatusNoContent, ``), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/resume":
 					return newHTTPResponse(http.StatusOK, `{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/prompt":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(prompt body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"message":"hello"`) {
+						t.Fatalf("prompt body = %s, want message", body)
+					}
+					return newHTTPResponse(http.StatusOK, strings.Join([]string{
+						"id: 1",
+						"event: agent_message",
+						`data: {"session_id":"sess-1","turn_id":"turn-1","type":"agent_message","timestamp":"2026-04-03T12:00:00Z","text":"hello back"}`,
+						"",
+					}, "\n")), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1/events":
+					if got := req.URL.Query().Get("type"); got != "tool_call" {
+						t.Fatalf("session events type query = %q, want %q", got, "tool_call")
+					}
+					return newHTTPResponse(http.StatusOK, `{"events":[{"id":"evt-1","session_id":"sess-1","sequence":1,"turn_id":"turn-1","type":"tool_call","agent_name":"coder","timestamp":"2026-04-03T12:00:00Z"}]}`), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1/history":
 					if got := req.URL.Query().Get("limit"); got != "2" {
 						t.Fatalf("history limit query = %q, want %q", got, "2")
@@ -119,9 +154,36 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("ListSessions() = %#v, %v", sessions, err)
 	}
 
+	createdSession, err := client.CreateSession(ctx, CreateSessionRequest{
+		AgentName: "coder",
+		Workspace: "ws-1",
+	})
+	if err != nil || createdSession.ID != "sess-new" {
+		t.Fatalf("CreateSession() = %#v, %v", createdSession, err)
+	}
+
+	sessionInfo, err := client.GetSession(ctx, "sess-1")
+	if err != nil || sessionInfo.ID != "sess-1" {
+		t.Fatalf("GetSession() = %#v, %v", sessionInfo, err)
+	}
+
+	if err := client.StopSession(ctx, "sess-1"); err != nil {
+		t.Fatalf("StopSession() error = %v", err)
+	}
+
 	resumed, err := client.ResumeSession(ctx, "sess-1")
 	if err != nil || resumed.ID != "sess-1" {
 		t.Fatalf("ResumeSession() = %#v, %v", resumed, err)
+	}
+
+	promptEvents, err := client.PromptSession(ctx, "sess-1", "hello")
+	if err != nil || len(promptEvents) != 1 || promptEvents[0].Text != "hello back" {
+		t.Fatalf("PromptSession() = %#v, %v", promptEvents, err)
+	}
+
+	sessionEvents, err := client.SessionEvents(ctx, "sess-1", SessionEventQuery{Type: "tool_call"})
+	if err != nil || len(sessionEvents) != 1 || sessionEvents[0].Type != "tool_call" {
+		t.Fatalf("SessionEvents() = %#v, %v", sessionEvents, err)
 	}
 
 	history, err := client.SessionHistory(ctx, "sess-1", SessionEventQuery{Last: 2})
@@ -339,5 +401,119 @@ func TestDoRequestSetsHeaders(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("doSSE() error = %v", err)
+	}
+}
+
+func TestCLIUsesSharedContractAliases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		cliType any
+		want    any
+	}{
+		{name: "createSessionRequest", cliType: CreateSessionRequest{}, want: contract.CreateSessionRequest{}},
+		{name: "sessionRecord", cliType: SessionRecord{}, want: contract.SessionPayload{}},
+		{name: "sessionEventRecord", cliType: SessionEventRecord{}, want: contract.SessionEventPayload{}},
+		{name: "turnHistoryRecord", cliType: TurnHistoryRecord{}, want: contract.TurnHistoryPayload{}},
+		{name: "agentRecord", cliType: AgentRecord{}, want: contract.AgentPayload{}},
+		{name: "agentEventRecord", cliType: AgentEventRecord{}, want: contract.AgentEventPayload{}},
+		{name: "observeEventRecord", cliType: ObserveEventRecord{}, want: contract.ObserveEventPayload{}},
+		{name: "workspaceCreateRequest", cliType: WorkspaceCreateRequest{}, want: contract.CreateWorkspaceRequest{}},
+		{name: "workspaceUpdateRequest", cliType: WorkspaceUpdateRequest{}, want: contract.UpdateWorkspaceRequest{}},
+		{name: "workspaceRecord", cliType: WorkspaceRecord{}, want: contract.WorkspacePayload{}},
+		{name: "workspaceSkillRecord", cliType: WorkspaceSkillRecord{}, want: contract.WorkspaceSkillPayload{}},
+		{name: "memoryReadRecord", cliType: MemoryReadRecord{}, want: contract.MemoryReadResponse{}},
+		{name: "memoryWriteRequest", cliType: MemoryWriteRequest{}, want: contract.MemoryWriteRequest{}},
+		{name: "memoryMutationRecord", cliType: MemoryMutationRecord{}, want: contract.MemoryMutationResponse{}},
+		{name: "memoryConsolidateRecord", cliType: MemoryConsolidateRecord{}, want: contract.MemoryConsolidateResponse{}},
+		{name: "daemonStatus", cliType: DaemonStatus{}, want: contract.DaemonStatusPayload{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotType := reflect.TypeOf(tt.cliType)
+			wantType := reflect.TypeOf(tt.want)
+			if gotType != wantType {
+				t.Fatalf("reflect.TypeOf(%s) = %v, want %v", tt.name, gotType, wantType)
+			}
+		})
+	}
+}
+
+func TestSharedContractJSONParity(t *testing.T) {
+	t.Parallel()
+
+	sessionResponse := `{"sessions":[{"id":"sess-1","name":"demo","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","acp_caps":{"supports_load_session":true,"supported_modes":["chat"]},"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`
+	var cliSessions struct {
+		Sessions []SessionRecord `json:"sessions"`
+	}
+	if err := json.Unmarshal([]byte(sessionResponse), &cliSessions); err != nil {
+		t.Fatalf("json.Unmarshal(cli session response) error = %v", err)
+	}
+	if len(cliSessions.Sessions) != 1 || cliSessions.Sessions[0].ACPCaps == nil || !cliSessions.Sessions[0].ACPCaps.SupportsLoadSession {
+		t.Fatalf("cli session decode = %#v, want decoded shared contract payload", cliSessions)
+	}
+
+	memoryRequest := MemoryWriteRequest{Content: "payload", Scope: "workspace", Workspace: "/workspace/project"}
+	cliMemoryJSON, err := json.Marshal(memoryRequest)
+	if err != nil {
+		t.Fatalf("json.Marshal(cli memory request) error = %v", err)
+	}
+	sharedMemoryJSON, err := json.Marshal(contract.MemoryWriteRequest(memoryRequest))
+	if err != nil {
+		t.Fatalf("json.Marshal(shared memory request) error = %v", err)
+	}
+	if string(cliMemoryJSON) != string(sharedMemoryJSON) {
+		t.Fatalf("memory request json = %s, want %s", cliMemoryJSON, sharedMemoryJSON)
+	}
+
+	readResponse := `{"content":"stored memory body"}`
+	var cliRead MemoryReadRecord
+	if err := json.Unmarshal([]byte(readResponse), &cliRead); err != nil {
+		t.Fatalf("json.Unmarshal(cli memory read) error = %v", err)
+	}
+	var sharedRead contract.MemoryReadResponse
+	if err := json.Unmarshal([]byte(readResponse), &sharedRead); err != nil {
+		t.Fatalf("json.Unmarshal(shared memory read) error = %v", err)
+	}
+	if !reflect.DeepEqual(cliRead, sharedRead) {
+		t.Fatalf("memory read decode = %#v, want %#v", cliRead, sharedRead)
+	}
+
+	observeResponse := `{"events":[{"id":"sum-1","session_id":"sess-1","type":"done","agent_name":"coder","summary":"complete","timestamp":"2026-04-03T12:00:00Z"}]}`
+	var cliObserve struct {
+		Events []ObserveEventRecord `json:"events"`
+	}
+	if err := json.Unmarshal([]byte(observeResponse), &cliObserve); err != nil {
+		t.Fatalf("json.Unmarshal(cli observe response) error = %v", err)
+	}
+	var sharedObserve struct {
+		Events []contract.ObserveEventPayload `json:"events"`
+	}
+	if err := json.Unmarshal([]byte(observeResponse), &sharedObserve); err != nil {
+		t.Fatalf("json.Unmarshal(shared observe response) error = %v", err)
+	}
+	if !reflect.DeepEqual(cliObserve, sharedObserve) {
+		t.Fatalf("observe decode = %#v, want %#v", cliObserve, sharedObserve)
+	}
+
+	daemonResponse := `{"daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/agh.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":2,"version":"dev"}}`
+	var cliDaemon struct {
+		Daemon DaemonStatus `json:"daemon"`
+	}
+	if err := json.Unmarshal([]byte(daemonResponse), &cliDaemon); err != nil {
+		t.Fatalf("json.Unmarshal(cli daemon response) error = %v", err)
+	}
+	var sharedDaemon struct {
+		Daemon contract.DaemonStatusPayload `json:"daemon"`
+	}
+	if err := json.Unmarshal([]byte(daemonResponse), &sharedDaemon); err != nil {
+		t.Fatalf("json.Unmarshal(shared daemon response) error = %v", err)
+	}
+	if !reflect.DeepEqual(cliDaemon, sharedDaemon) {
+		t.Fatalf("daemon decode = %#v, want %#v", cliDaemon, sharedDaemon)
 	}
 }

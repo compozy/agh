@@ -3,6 +3,7 @@
 package acp
 
 import (
+	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +17,7 @@ func TestACPIntegrationRoundTrip(t *testing.T) {
 	proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{})
 	defer stopProcess(t, driver, proc)
 
-	eventsCh, err := driver.Prompt(testContext(t), proc, PromptRequest{
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
 		TurnID:  "turn-integration-roundtrip",
 		Message: "run roundtrip",
 	})
@@ -48,7 +49,7 @@ func TestACPIntegrationReadTextFileRequest(t *testing.T) {
 	})
 	defer stopProcess(t, driver, proc)
 
-	eventsCh, err := driver.Prompt(testContext(t), proc, PromptRequest{
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
 		TurnID:  "turn-integration-fs",
 		Message: "read file",
 	})
@@ -73,7 +74,7 @@ func TestACPIntegrationRequestPermissionPolicy(t *testing.T) {
 	})
 	defer stopProcess(t, driver, proc)
 
-	eventsCh, err := driver.Prompt(testContext(t), proc, PromptRequest{
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
 		TurnID:  "turn-integration-permission",
 		Message: "request permission",
 	})
@@ -98,7 +99,7 @@ func TestACPIntegrationRequestPermissionPolicy(t *testing.T) {
 				if pendingRequestID == "" {
 					t.Fatal("permission request_id = empty, want non-empty")
 				}
-				if err := driver.ApprovePermission(testContext(t), proc, ApproveRequest{
+				if err := driver.ApprovePermission(testutil.Context(t), proc, ApproveRequest{
 					RequestID: pendingRequestID,
 					Decision:  string(decisionAllowAlways),
 				}); err != nil {
@@ -142,7 +143,7 @@ func TestACPIntegrationRequestPermissionTimeout(t *testing.T) {
 	})
 	defer stopProcess(t, driver, proc)
 
-	eventsCh, err := driver.Prompt(testContext(t), proc, PromptRequest{
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
 		TurnID:  "turn-integration-timeout",
 		Message: "request permission",
 	})

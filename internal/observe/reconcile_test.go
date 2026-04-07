@@ -1,6 +1,7 @@
 package observe
 
 import (
+	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -30,16 +31,16 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
-	result, err := h.observer.Reconcile(testContext(t))
+	result, err := h.observer.Reconcile(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
 	sort.Strings(result.Indexed)
-	if got, want := result.Indexed, []string{"sess-new"}; !equalStrings(got, want) {
+	if got, want := result.Indexed, []string{"sess-new"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("Indexed = %#v, want %#v", got, want)
 	}
 
-	sessions, err := h.observer.registry.ListSessions(testContext(t), store.SessionListQuery{})
+	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -64,7 +65,7 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 
 	h := newHarness(t)
 	now := h.now
-	if err := h.observer.registry.RegisterSession(testContext(t), store.SessionInfo{
+	if err := h.observer.registry.RegisterSession(testutil.Context(t), store.SessionInfo{
 		ID:          "sess-orphan",
 		Name:        "Orphan",
 		AgentName:   "coder",
@@ -76,16 +77,16 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 
-	result, err := h.observer.Reconcile(testContext(t))
+	result, err := h.observer.Reconcile(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
 	sort.Strings(result.Orphaned)
-	if got, want := result.Orphaned, []string{"sess-orphan"}; !equalStrings(got, want) {
+	if got, want := result.Orphaned, []string{"sess-orphan"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("Orphaned = %#v, want %#v", got, want)
 	}
 
-	sessions, err := h.observer.registry.ListSessions(testContext(t), store.SessionListQuery{})
+	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -135,16 +136,16 @@ func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
 		t.Fatalf("WriteFile(legacy meta) error = %v", err)
 	}
 
-	result, err := h.observer.Reconcile(testContext(t))
+	result, err := h.observer.Reconcile(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
 	sort.Strings(result.Indexed)
-	if got, want := result.Indexed, []string{"sess-valid"}; !equalStrings(got, want) {
+	if got, want := result.Indexed, []string{"sess-valid"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("Indexed = %#v, want %#v", got, want)
 	}
 
-	sessions, err := h.observer.registry.ListSessions(testContext(t), store.SessionListQuery{})
+	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -178,7 +179,7 @@ func TestReconciliationSkipsSessionMetadataMissingWorkspaceID(t *testing.T) {
 		t.Fatalf("WriteFile(meta) error = %v", err)
 	}
 
-	result, err := h.observer.Reconcile(testContext(t))
+	result, err := h.observer.Reconcile(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
@@ -189,23 +190,11 @@ func TestReconciliationSkipsSessionMetadataMissingWorkspaceID(t *testing.T) {
 		t.Fatalf("Orphaned = %#v, want empty", result.Orphaned)
 	}
 
-	sessions, err := h.observer.registry.ListSessions(testContext(t), store.SessionListQuery{})
+	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
 	if len(sessions) != 0 {
 		t.Fatalf("len(sessions) = %d, want 0", len(sessions))
 	}
-}
-
-func equalStrings(got []string, want []string) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
 }

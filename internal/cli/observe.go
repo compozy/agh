@@ -144,37 +144,34 @@ func streamObserveEvents(cmd *cobra.Command, client DaemonClient, query ObserveE
 }
 
 func observeEventsBundle(events []ObserveEventRecord) outputBundle {
-	return outputBundle{
-		jsonValue: events,
-		human: func() (string, error) {
-			rows := make([][]string, 0, len(events))
-			for _, event := range events {
-				rows = append(rows, []string{
-					stringOrDash(event.ID),
-					stringOrDash(event.SessionID),
-					stringOrDash(event.Type),
-					stringOrDash(event.AgentName),
-					stringOrDash(event.Summary),
-					stringOrDash(formatTime(event.Timestamp)),
-				})
+	return listBundle(
+		events,
+		events,
+		"Observability Events",
+		[]string{"ID", "Session", "Type", "Agent", "Summary", "Timestamp"},
+		"observe_events",
+		[]string{"id", "session_id", "type", "agent_name", "summary", "timestamp"},
+		func(event ObserveEventRecord) []string {
+			return []string{
+				stringOrDash(event.ID),
+				stringOrDash(event.SessionID),
+				stringOrDash(event.Type),
+				stringOrDash(event.AgentName),
+				stringOrDash(event.Summary),
+				stringOrDash(formatTime(event.Timestamp)),
 			}
-			return renderHumanTable("Observability Events", []string{"ID", "Session", "Type", "Agent", "Summary", "Timestamp"}, rows), nil
 		},
-		toon: func() (string, error) {
-			rows := make([][]string, 0, len(events))
-			for _, event := range events {
-				rows = append(rows, []string{
-					event.ID,
-					event.SessionID,
-					event.Type,
-					event.AgentName,
-					event.Summary,
-					formatTime(event.Timestamp),
-				})
+		func(event ObserveEventRecord) []string {
+			return []string{
+				event.ID,
+				event.SessionID,
+				event.Type,
+				event.AgentName,
+				event.Summary,
+				formatTime(event.Timestamp),
 			}
-			return renderToonArray("observe_events", []string{"id", "session_id", "type", "agent_name", "summary", "timestamp"}, rows), nil
 		},
-	}
+	)
 }
 
 func observeHealthBundle(health HealthStatus) outputBundle {

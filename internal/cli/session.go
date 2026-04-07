@@ -402,136 +402,124 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 }
 
 func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle {
-	return outputBundle{
-		jsonValue: items,
-		human: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					stringOrDash(item.ID),
-					stringOrDash(item.Name),
-					stringOrDash(item.AgentName),
-					stringOrDash(item.State),
-					stringOrDash(displaySessionWorkspace(item)),
-					stringOrDash(formatAge(now, item.UpdatedAt)),
-				})
+	return listBundle(
+		items,
+		items,
+		"Sessions",
+		[]string{"ID", "Name", "Agent", "State", "Workspace", "Updated"},
+		"sessions",
+		[]string{"id", "name", "agent_name", "state", "workspace", "updated_at"},
+		func(item SessionRecord) []string {
+			return []string{
+				stringOrDash(item.ID),
+				stringOrDash(item.Name),
+				stringOrDash(item.AgentName),
+				stringOrDash(item.State),
+				stringOrDash(displaySessionWorkspace(item)),
+				stringOrDash(formatAge(now, item.UpdatedAt)),
 			}
-			return renderHumanTable("Sessions", []string{"ID", "Name", "Agent", "State", "Workspace", "Updated"}, rows), nil
 		},
-		toon: func() (string, error) {
-			rows := make([][]string, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, []string{
-					item.ID,
-					item.Name,
-					item.AgentName,
-					item.State,
-					displaySessionWorkspace(item),
-					formatTime(item.UpdatedAt),
-				})
+		func(item SessionRecord) []string {
+			return []string{
+				item.ID,
+				item.Name,
+				item.AgentName,
+				item.State,
+				displaySessionWorkspace(item),
+				formatTime(item.UpdatedAt),
 			}
-			return renderToonArray("sessions", []string{"id", "name", "agent_name", "state", "workspace", "updated_at"}, rows), nil
 		},
-	}
+	)
 }
 
 func sessionEventsBundle(events []SessionEventRecord) outputBundle {
-	return outputBundle{
-		jsonValue: events,
-		human: func() (string, error) {
-			rows := make([][]string, 0, len(events))
-			for _, event := range events {
-				rows = append(rows, []string{
-					strconv.FormatInt(event.Sequence, 10),
-					stringOrDash(event.Type),
-					stringOrDash(event.AgentName),
-					stringOrDash(event.TurnID),
-					stringOrDash(formatTime(event.Timestamp)),
-					stringOrDash(compactJSON(event.Content)),
-				})
+	return listBundle(
+		events,
+		events,
+		"Session Events",
+		[]string{"Seq", "Type", "Agent", "Turn", "Timestamp", "Content"},
+		"events",
+		[]string{"sequence", "type", "agent_name", "turn_id", "timestamp", "content"},
+		func(event SessionEventRecord) []string {
+			return []string{
+				strconv.FormatInt(event.Sequence, 10),
+				stringOrDash(event.Type),
+				stringOrDash(event.AgentName),
+				stringOrDash(event.TurnID),
+				stringOrDash(formatTime(event.Timestamp)),
+				stringOrDash(compactJSON(event.Content)),
 			}
-			return renderHumanTable("Session Events", []string{"Seq", "Type", "Agent", "Turn", "Timestamp", "Content"}, rows), nil
 		},
-		toon: func() (string, error) {
-			rows := make([][]string, 0, len(events))
-			for _, event := range events {
-				rows = append(rows, []string{
-					strconv.FormatInt(event.Sequence, 10),
-					event.Type,
-					event.AgentName,
-					event.TurnID,
-					formatTime(event.Timestamp),
-					compactJSON(event.Content),
-				})
+		func(event SessionEventRecord) []string {
+			return []string{
+				strconv.FormatInt(event.Sequence, 10),
+				event.Type,
+				event.AgentName,
+				event.TurnID,
+				formatTime(event.Timestamp),
+				compactJSON(event.Content),
 			}
-			return renderToonArray("events", []string{"sequence", "type", "agent_name", "turn_id", "timestamp", "content"}, rows), nil
 		},
-	}
+	)
 }
 
 func sessionHistoryBundle(history []TurnHistoryRecord) outputBundle {
 	flattened := flattenHistory(history)
-	return outputBundle{
-		jsonValue: history,
-		human: func() (string, error) {
-			rows := make([][]string, 0, len(flattened))
-			for _, event := range flattened {
-				rows = append(rows, []string{
-					stringOrDash(event.TurnID),
-					strconv.FormatInt(event.Sequence, 10),
-					stringOrDash(event.Type),
-					stringOrDash(event.AgentName),
-					stringOrDash(formatTime(event.Timestamp)),
-					stringOrDash(compactJSON(event.Content)),
-				})
+	return listBundle(
+		history,
+		flattened,
+		"Session History",
+		[]string{"Turn", "Seq", "Type", "Agent", "Timestamp", "Content"},
+		"history",
+		[]string{"turn_id", "sequence", "type", "agent_name", "timestamp", "content"},
+		func(event SessionEventRecord) []string {
+			return []string{
+				stringOrDash(event.TurnID),
+				strconv.FormatInt(event.Sequence, 10),
+				stringOrDash(event.Type),
+				stringOrDash(event.AgentName),
+				stringOrDash(formatTime(event.Timestamp)),
+				stringOrDash(compactJSON(event.Content)),
 			}
-			return renderHumanTable("Session History", []string{"Turn", "Seq", "Type", "Agent", "Timestamp", "Content"}, rows), nil
 		},
-		toon: func() (string, error) {
-			rows := make([][]string, 0, len(flattened))
-			for _, event := range flattened {
-				rows = append(rows, []string{
-					event.TurnID,
-					strconv.FormatInt(event.Sequence, 10),
-					event.Type,
-					event.AgentName,
-					formatTime(event.Timestamp),
-					compactJSON(event.Content),
-				})
+		func(event SessionEventRecord) []string {
+			return []string{
+				event.TurnID,
+				strconv.FormatInt(event.Sequence, 10),
+				event.Type,
+				event.AgentName,
+				formatTime(event.Timestamp),
+				compactJSON(event.Content),
 			}
-			return renderToonArray("history", []string{"turn_id", "sequence", "type", "agent_name", "timestamp", "content"}, rows), nil
 		},
-	}
+	)
 }
 
 func agentEventsBundle(events []AgentEventRecord) outputBundle {
-	return outputBundle{
-		jsonValue: events,
-		human: func() (string, error) {
-			rows := make([][]string, 0, len(events))
-			for _, event := range events {
-				rows = append(rows, []string{
-					stringOrDash(formatTime(event.Timestamp)),
-					stringOrDash(event.Type),
-					stringOrDash(firstNonEmpty(event.Text, event.Title, event.Error, compactJSON(event.Raw))),
-					stringOrDash(event.StopReason),
-				})
+	return listBundle(
+		events,
+		events,
+		"Prompt Events",
+		[]string{"Timestamp", "Type", "Detail", "Stop"},
+		"prompt_events",
+		[]string{"timestamp", "type", "detail", "stop_reason"},
+		func(event AgentEventRecord) []string {
+			return []string{
+				stringOrDash(formatTime(event.Timestamp)),
+				stringOrDash(event.Type),
+				stringOrDash(firstNonEmpty(event.Text, event.Title, event.Error, compactJSON(event.Raw))),
+				stringOrDash(event.StopReason),
 			}
-			return renderHumanTable("Prompt Events", []string{"Timestamp", "Type", "Detail", "Stop"}, rows), nil
 		},
-		toon: func() (string, error) {
-			rows := make([][]string, 0, len(events))
-			for _, event := range events {
-				rows = append(rows, []string{
-					formatTime(event.Timestamp),
-					event.Type,
-					firstNonEmpty(event.Text, event.Title, event.Error, compactJSON(event.Raw)),
-					event.StopReason,
-				})
+		func(event AgentEventRecord) []string {
+			return []string{
+				formatTime(event.Timestamp),
+				event.Type,
+				firstNonEmpty(event.Text, event.Title, event.Error, compactJSON(event.Raw)),
+				event.StopReason,
 			}
-			return renderToonArray("prompt_events", []string{"timestamp", "type", "detail", "stop_reason"}, rows), nil
 		},
-	}
+	)
 }
 
 func filterActiveSessions(items []SessionRecord) []SessionRecord {

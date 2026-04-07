@@ -14,6 +14,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/filesnap"
 )
 
 func TestResolveRoutesByIdentifierType(t *testing.T) {
@@ -752,7 +753,7 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 	t.Run("snapshots and overrides", func(t *testing.T) {
 		t.Parallel()
 
-		snapshots := make(map[string]fileSnapshot)
+		snapshots := make(map[string]filesnap.Snapshot)
 		if err := addSnapshotIfExists("", snapshots); err != nil {
 			t.Fatalf("addSnapshotIfExists(\"\") error = %v", err)
 		}
@@ -773,14 +774,14 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 			t.Fatalf("Defaults.Agent after override = %q, want %q", cfg.Defaults.Agent, "workspace-agent")
 		}
 
-		left := map[string]fileSnapshot{"a": {modTime: time.Unix(1, 0), size: 1}}
-		right := map[string]fileSnapshot{"a": {modTime: time.Unix(1, 0), size: 1}}
-		if !snapshotsEqual(left, right) {
-			t.Fatal("snapshotsEqual() = false, want true")
+		left := map[string]filesnap.Snapshot{"a": {ModTime: time.Unix(1, 0), Size: 1}}
+		right := map[string]filesnap.Snapshot{"a": {ModTime: time.Unix(1, 0), Size: 1}}
+		if !filesnap.Equal(left, right) {
+			t.Fatal("filesnap.Equal() = false, want true")
 		}
-		right["a"] = fileSnapshot{modTime: time.Unix(2, 0), size: 1}
-		if snapshotsEqual(left, right) {
-			t.Fatal("snapshotsEqual() = true, want false")
+		right["a"] = filesnap.Snapshot{ModTime: time.Unix(2, 0), Size: 1}
+		if filesnap.Equal(left, right) {
+			t.Fatal("filesnap.Equal() = true, want false")
 		}
 
 		if got := cloneStringMap(nil); got != nil {

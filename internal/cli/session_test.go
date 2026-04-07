@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/session"
 )
 
@@ -301,5 +302,234 @@ func TestSessionWaitReturnsImmediatelyForStoppedSession(t *testing.T) {
 	}
 	if decoded.State != string(session.StateStopped) {
 		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStopped)
+	}
+}
+
+func TestSessionWaitStreamsUntilStopped(t *testing.T) {
+	t.Parallel()
+
+	getCalls := 0
+	deps := newTestDeps(t, stubClient{
+		getSessionFn: func(context.Context, string) (SessionRecord, error) {
+			getCalls++
+			state := string(session.StateActive)
+			if getCalls > 1 {
+				state = string(session.StateStopped)
+			}
+			return SessionRecord{
+				ID:            "sess-1",
+				AgentName:     "coder",
+				WorkspaceID:   "ws-1",
+				WorkspacePath: "/workspace/project",
+				State:         state,
+				CreatedAt:     fixedTestNow,
+				UpdatedAt:     fixedTestNow,
+			}, nil
+		},
+		streamSessionFn: func(_ context.Context, id string, _ SessionEventQuery, _ string, handler SSEHandler) error {
+			return handler(SSEEvent{
+				ID:    "2",
+				Event: session.EventTypeSessionStopped,
+				Data: mustJSON(t, SessionEventRecord{
+					ID:        "evt-2",
+					SessionID: id,
+					Sequence:  2,
+					Type:      session.EventTypeSessionStopped,
+					AgentName: "coder",
+					Timestamp: fixedTestNow,
+				}),
+			})
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "session", "wait", "sess-1", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand() error = %v", err)
+	}
+	if getCalls != 2 {
+		t.Fatalf("GetSession() calls = %d, want 2", getCalls)
+	}
+
+	var decoded SessionRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if decoded.State != string(session.StateStopped) {
+		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStopped)
+	}
+}
+
+func TestSessionStopFetchesUpdatedSession(t *testing.T) {
+	t.Parallel()
+
+	var stoppedID string
+
+	deps := newTestDeps(t, stubClient{
+		stopSessionFn: func(_ context.Context, id string) error {
+			stoppedID = id
+			return nil
+		},
+		getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+			return SessionRecord{
+				ID:            id,
+				AgentName:     "coder",
+				WorkspaceID:   "ws-1",
+				WorkspacePath: "/workspace/project",
+				State:         string(session.StateStopped),
+				CreatedAt:     fixedTestNow,
+				UpdatedAt:     fixedTestNow,
+			}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "session", "stop", "sess-1", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand() error = %v", err)
+	}
+	if stoppedID != "sess-1" {
+		t.Fatalf("StopSession() id = %q, want %q", stoppedID, "sess-1")
+	}
+
+	var decoded SessionRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if decoded.State != string(session.StateStopped) {
+		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStopped)
+	}
+}
+
+func TestSessionStatusReturnsSessionRecord(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, stubClient{
+		getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+			return SessionRecord{
+				ID:            id,
+				AgentName:     "coder",
+				WorkspaceID:   "ws-1",
+				WorkspacePath: "/workspace/project",
+				State:         string(session.StateActive),
+				CreatedAt:     fixedTestNow,
+				UpdatedAt:     fixedTestNow,
+			}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "session", "status", "sess-1", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand() error = %v", err)
+	}
+
+	var decoded SessionRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if decoded.ID != "sess-1" || decoded.State != string(session.StateActive) {
+		t.Fatalf("decoded = %#v, want sess-1 active", decoded)
+	}
+}
+
+func TestSessionResumeReturnsSessionRecord(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, stubClient{
+		resumeSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+			return SessionRecord{
+				ID:            id,
+				AgentName:     "coder",
+				WorkspaceID:   "ws-1",
+				WorkspacePath: "/workspace/project",
+				State:         string(session.StateActive),
+				CreatedAt:     fixedTestNow,
+				UpdatedAt:     fixedTestNow,
+			}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "session", "resume", "sess-1", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand() error = %v", err)
+	}
+
+	var decoded SessionRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if decoded.ID != "sess-1" || decoded.State != string(session.StateActive) {
+		t.Fatalf("decoded = %#v, want sess-1 active", decoded)
+	}
+}
+
+func TestSessionPromptRendersReturnedEvents(t *testing.T) {
+	t.Parallel()
+
+	var (
+		promptID  string
+		promptMsg string
+	)
+
+	deps := newTestDeps(t, stubClient{
+		promptSessionFn: func(_ context.Context, id string, message string) ([]AgentEventRecord, error) {
+			promptID = id
+			promptMsg = message
+			return []AgentEventRecord{{
+				SessionID: id,
+				TurnID:    "turn-1",
+				Type:      acp.EventTypeAgentMessage,
+				Timestamp: fixedTestNow,
+				Text:      "hello back",
+			}}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-1", "hello", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand() error = %v", err)
+	}
+	if promptID != "sess-1" || promptMsg != "hello" {
+		t.Fatalf("PromptSession() = (%q, %q), want (%q, %q)", promptID, promptMsg, "sess-1", "hello")
+	}
+
+	var decoded []AgentEventRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(decoded) != 1 || decoded[0].Text != "hello back" {
+		t.Fatalf("decoded = %#v, want one agent event", decoded)
+	}
+}
+
+func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
+	t.Parallel()
+
+	items := []SessionRecord{{
+		ID:            "sess-1",
+		Name:          "demo",
+		AgentName:     "coder",
+		WorkspaceID:   "ws-1",
+		WorkspacePath: "/workspace/project",
+		State:         string(session.StateActive),
+		UpdatedAt:     fixedTestNow,
+	}}
+
+	bundle := sessionListBundle(items, func() time.Time {
+		return fixedTestNow.Add(time.Hour)
+	})
+
+	human, err := bundle.human()
+	if err != nil {
+		t.Fatalf("sessionListBundle().human() error = %v", err)
+	}
+	if !strings.Contains(human, "sess-1") || !strings.Contains(human, "/workspace/project") {
+		t.Fatalf("sessionListBundle().human() = %q, want session and workspace output", human)
+	}
+
+	toon, err := bundle.toon()
+	if err != nil {
+		t.Fatalf("sessionListBundle().toon() error = %v", err)
+	}
+	if !strings.Contains(toon, "sessions") || !strings.Contains(toon, "sess-1") {
+		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output", toon)
 	}
 }

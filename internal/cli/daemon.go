@@ -245,12 +245,12 @@ func waitForDaemonStop(ctx context.Context, deps commandDeps, runtime runtimeCon
 			return DaemonStatus{}, errors.New("cli: daemon did not stop before timeout")
 		case <-ticker.C:
 			if _, running, err := daemonInfo(runtime.HomePaths, deps); err == nil && !running {
-				return stoppedDaemonStatus(runtime, info), nil
+				return daemonStatusWithState(runtime, info, "stopped"), nil
 			}
 			if clientErr == nil {
 				if _, err := client.DaemonStatus(waitCtx); err != nil {
 					if _, running, infoErr := daemonInfo(runtime.HomePaths, deps); infoErr == nil && !running {
-						return stoppedDaemonStatus(runtime, info), nil
+						return daemonStatusWithState(runtime, info, "stopped"), nil
 					}
 				}
 			}
@@ -272,9 +272,9 @@ func daemonStatusFromDeps(ctx context.Context, deps commandDeps, runtime runtime
 		return DaemonStatus{}, err
 	}
 	if !running {
-		return stoppedDaemonStatus(runtime, info), nil
+		return daemonStatusWithState(runtime, info, "stopped"), nil
 	}
-	return startingDaemonStatus(runtime, info), nil
+	return daemonStatusWithState(runtime, info, "starting"), nil
 }
 
 func daemonInfo(homePaths aghconfig.HomePaths, deps commandDeps) (aghdaemon.Info, bool, error) {
@@ -293,23 +293,9 @@ func daemonInfo(homePaths aghconfig.HomePaths, deps commandDeps) (aghdaemon.Info
 	return info, true, nil
 }
 
-func startingDaemonStatus(runtime runtimeContext, info aghdaemon.Info) DaemonStatus {
+func daemonStatusWithState(runtime runtimeContext, info aghdaemon.Info, status string) DaemonStatus {
 	return DaemonStatus{
-		Status:         "starting",
-		PID:            info.PID,
-		StartedAt:      info.StartedAt,
-		Socket:         runtime.Config.Daemon.Socket,
-		HTTPHost:       runtime.Config.HTTP.Host,
-		HTTPPort:       runtime.Config.HTTP.Port,
-		ActiveSessions: 0,
-		TotalSessions:  0,
-		Version:        version.Version,
-	}
-}
-
-func stoppedDaemonStatus(runtime runtimeContext, info aghdaemon.Info) DaemonStatus {
-	return DaemonStatus{
-		Status:         "stopped",
+		Status:         status,
 		PID:            info.PID,
 		StartedAt:      info.StartedAt,
 		Socket:         runtime.Config.Daemon.Socket,

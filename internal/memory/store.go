@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,27 +11,24 @@ import (
 	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
-
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/fileutil"
+	"github.com/pedronauck/agh/internal/frontmatter"
 )
 
 const (
-	indexFilename      = "MEMORY.md"
-	frontmatterDivider = "---"
-	maxScanEntries     = 200
-	defaultIndexLines  = 200
-	defaultIndexBytes  = 25_000
-	dirPerm            = 0o755
-	filePerm           = 0o644
-	memoryDirName      = "memory"
+	indexFilename     = "MEMORY.md"
+	maxScanEntries    = 200
+	defaultIndexLines = 200
+	defaultIndexBytes = 25_000
+	dirPerm           = 0o755
+	filePerm          = 0o644
+	memoryDirName     = "memory"
 )
 
 var (
 	// ErrValidation marks memory input and metadata validation failures.
 	ErrValidation = errors.New("memory: validation error")
-
-	errFrontmatterMissing      = errors.New("frontmatter: missing YAML frontmatter")
-	errFrontmatterUnterminated = errors.New("frontmatter: unterminated YAML frontmatter")
 )
 
 // Store manages memory files for the global and workspace scopes.
@@ -129,7 +125,7 @@ func (s *Store) Write(scope Scope, filename string, content []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
 		return fmt.Errorf("memory: ensure directory %q: %w", filepath.Dir(path), err)
 	}
-	if err := atomicWriteFile(path, content, filePerm); err != nil {
+	if err := fileutil.AtomicWriteFile(path, content, filePerm); err != nil {
 		return fmt.Errorf("memory: write %q: %w", path, err)
 	}
 
@@ -315,7 +311,7 @@ func (s *Store) removeIndexEntry(scope Scope, filename string) error {
 		return nil
 	}
 
-	if err := atomicWriteFile(indexPath, []byte(strings.Join(filtered, "")), filePerm); err != nil {
+	if err := fileutil.AtomicWriteFile(indexPath, []byte(strings.Join(filtered, "")), filePerm); err != nil {
 		return fmt.Errorf("memory: update index %q: %w", indexPath, err)
 	}
 
@@ -419,103 +415,10 @@ func workspaceMemoryDir(workspaceRoot string) string {
 }
 
 func parseFrontmatter(content []byte, dest any) (string, error) {
-	normalized := normalizeLineEndings(content)
-	if !bytes.HasPrefix(normalized, []byte(frontmatterDivider)) {
-		return "", errFrontmatterMissing
-	}
-
-	openLineEnd, ok := nextLineBoundary(normalized, 0)
-	if !ok || string(normalized[:openLineEnd]) != frontmatterDivider {
-		return "", errFrontmatterMissing
-	}
-
-	offset := openLineEnd
-	if offset < len(normalized) && normalized[offset] == '\n' {
-		offset++
-	}
-
-	closeStart, closeEnd, ok := findClosingDelimiter(normalized, offset)
-	if !ok {
-		return "", errFrontmatterUnterminated
-	}
-
-	if err := yaml.UnmarshalWithOptions(normalized[offset:closeStart], dest, yaml.Strict()); err != nil {
-		return "", fmt.Errorf("decode YAML: %w", err)
-	}
-
-	bodyStart := closeEnd
-	if bodyStart < len(normalized) && normalized[bodyStart] == '\n' {
-		bodyStart++
-	}
-
-	return string(normalized[bodyStart:]), nil
-}
-
-func normalizeLineEndings(content []byte) []byte {
-	return []byte(strings.ReplaceAll(string(content), "\r\n", "\n"))
-}
-
-func nextLineBoundary(content []byte, start int) (int, bool) {
-	if start >= len(content) {
-		return len(content), true
-	}
-
-	if idx := bytes.IndexByte(content[start:], '\n'); idx >= 0 {
-		return start + idx, true
-	}
-
-	return len(content), true
-}
-
-func findClosingDelimiter(content []byte, start int) (int, int, bool) {
-	lineStart := start
-	for lineStart <= len(content) {
-		lineEnd, ok := nextLineBoundary(content, lineStart)
-		if !ok {
-			return 0, 0, false
+	return frontmatter.Decode(content, func(data []byte) error {
+		if err := yaml.UnmarshalWithOptions(data, dest, yaml.Strict()); err != nil {
+			return fmt.Errorf("decode YAML: %w", err)
 		}
-		if string(content[lineStart:lineEnd]) == frontmatterDivider {
-			return lineStart, lineEnd, true
-		}
-		if lineEnd == len(content) {
-			break
-		}
-		lineStart = lineEnd + 1
-	}
-
-	return 0, 0, false
-}
-
-func atomicWriteFile(path string, content []byte, mode os.FileMode) error {
-	dir := filepath.Dir(path)
-	tempFile, err := os.CreateTemp(dir, ".memory-*")
-	if err != nil {
-		return err
-	}
-
-	tempPath := tempFile.Name()
-	cleanup := true
-	defer func() {
-		if cleanup {
-			_ = os.Remove(tempPath)
-		}
-	}()
-
-	if _, err := tempFile.Write(content); err != nil {
-		_ = tempFile.Close()
-		return err
-	}
-	if err := tempFile.Chmod(mode); err != nil {
-		_ = tempFile.Close()
-		return err
-	}
-	if err := tempFile.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tempPath, path); err != nil {
-		return err
-	}
-
-	cleanup = false
-	return nil
+		return nil
+	})
 }

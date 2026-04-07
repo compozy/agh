@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/pedronauck/agh/internal/filesnap"
+	"github.com/pedronauck/agh/internal/frontmatter"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,10 +22,8 @@ const (
 )
 
 var (
-	errFrontmatterMissing      = errors.New("skills: missing YAML frontmatter")
-	errFrontmatterUnterminated = errors.New("skills: unterminated YAML frontmatter")
-	errSkillNameRequired       = errors.New("skills: skill name is required")
-	errScanLimitReached        = errors.New("skills: scan candidate limit reached")
+	errSkillNameRequired = errors.New("skills: skill name is required")
+	errScanLimitReached  = errors.New("skills: scan candidate limit reached")
 )
 
 var allowedFrontmatterFields = map[string]struct{}{
@@ -49,7 +49,7 @@ func ParseSkillFile(path string) (*Skill, error) {
 		return nil, fmt.Errorf("skills: read %q: %w", absPath, err)
 	}
 
-	meta, body, err := parseFrontmatter(string(content))
+	meta, body, err := parseSkillContent(content)
 	if err != nil {
 		return nil, fmt.Errorf("skills: parse %q: %w", absPath, err)
 	}
@@ -71,48 +71,13 @@ func ParseSkillFile(path string) (*Skill, error) {
 	return skill, nil
 }
 
-// parseFrontmatter splits YAML frontmatter from the markdown body of a SKILL.md file.
-func parseFrontmatter(content string) (SkillMeta, string, error) {
-	normalized := normalizeLineEndings(content)
-	if !strings.HasPrefix(normalized, "---") {
-		return SkillMeta{}, "", errFrontmatterMissing
-	}
-
-	openLine, remainder, ok := strings.Cut(normalized, "\n")
-	if !ok {
-		if normalized == "---" {
-			return SkillMeta{}, "", errFrontmatterUnterminated
-		}
-		return SkillMeta{}, "", errFrontmatterMissing
-	}
-	if openLine != "---" {
-		return SkillMeta{}, "", errFrontmatterMissing
-	}
-
-	closeStart, closeEnd, ok := findClosingDelimiter(remainder)
-	if !ok {
-		return SkillMeta{}, "", errFrontmatterUnterminated
-	}
-
-	frontmatter := remainder[:closeStart]
-	body := remainder[closeEnd:]
-	body = strings.TrimPrefix(body, "\n")
-
-	meta, err := decodeSkillMeta(frontmatter)
-	if err != nil {
-		return SkillMeta{}, "", fmt.Errorf("decode YAML frontmatter: %w", err)
-	}
-
-	return meta, body, nil
-}
-
 // scanDirectory returns every SKILL.md file discovered under dir.
 func scanDirectory(dir string) ([]string, error) {
 	paths, _, err := scanDirectoryWithSnapshots(dir)
 	return paths, err
 }
 
-func scanDirectoryWithSnapshots(dir string) ([]string, map[string]fileSnapshot, error) {
+func scanDirectoryWithSnapshots(dir string) ([]string, map[string]filesnap.Snapshot, error) {
 	root := strings.TrimSpace(dir)
 	if root == "" {
 		return nil, nil, errors.New("skills: scan directory root is required")
@@ -126,7 +91,7 @@ func scanDirectoryWithSnapshots(dir string) ([]string, map[string]fileSnapshot, 
 	info, err := os.Stat(absRoot)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return []string{}, map[string]fileSnapshot{}, nil
+			return []string{}, map[string]filesnap.Snapshot{}, nil
 		}
 		return nil, nil, fmt.Errorf("skills: stat scan root %q: %w", absRoot, err)
 	}
@@ -135,7 +100,7 @@ func scanDirectoryWithSnapshots(dir string) ([]string, map[string]fileSnapshot, 
 	}
 
 	paths := make([]string, 0, maxScanCandidates)
-	snapshots := make(map[string]fileSnapshot, maxScanCandidates)
+	snapshots := make(map[string]filesnap.Snapshot, maxScanCandidates)
 	walkErr := filepath.WalkDir(absRoot, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			slog.Warn("skills: skipping unreadable path during scan", "path", path, "error", walkErr)
@@ -164,7 +129,7 @@ func scanDirectoryWithSnapshots(dir string) ([]string, map[string]fileSnapshot, 
 			return nil
 		}
 
-		snapshot, err := snapshotFile(path)
+		snapshot, err := filesnap.FromPath(path)
 		if err != nil {
 			slog.Warn("skills: skipping unreadable skill file during scan", "path", path, "error", err)
 			return nil
@@ -207,6 +172,20 @@ func decodeSkillMeta(frontmatter string) (SkillMeta, error) {
 	return meta, nil
 }
 
+func parseSkillContent(content []byte) (SkillMeta, string, error) {
+	parts, err := frontmatter.Split(content)
+	if err != nil {
+		return SkillMeta{}, "", err
+	}
+
+	meta, err := decodeSkillMeta(string(parts.Metadata))
+	if err != nil {
+		return SkillMeta{}, "", fmt.Errorf("decode YAML frontmatter: %w", err)
+	}
+
+	return meta, parts.Body, nil
+}
+
 func warnUnknownFields(document *yaml.Node) {
 	if document == nil || len(document.Content) == 0 {
 		return
@@ -225,32 +204,6 @@ func warnUnknownFields(document *yaml.Node) {
 
 		slog.Warn("skills: unknown frontmatter field", "field", key)
 	}
-}
-
-func normalizeLineEndings(content string) string {
-	return strings.ReplaceAll(content, "\r\n", "\n")
-}
-
-func findClosingDelimiter(content string) (int, int, bool) {
-	offset := 0
-	for offset <= len(content) {
-		lineEnd := strings.IndexByte(content[offset:], '\n')
-		if lineEnd == -1 {
-			if content[offset:] == "---" {
-				return offset, len(content), true
-			}
-			return 0, 0, false
-		}
-
-		lineEnd += offset
-		if content[offset:lineEnd] == "---" {
-			return offset, lineEnd, true
-		}
-
-		offset = lineEnd + 1
-	}
-
-	return 0, 0, false
 }
 
 func scanDepth(root, current string, isDir bool) (int, error) {
@@ -279,17 +232,4 @@ func shouldSkipDir(name string) bool {
 	}
 
 	return strings.HasPrefix(name, ".")
-}
-
-func snapshotFile(path string) (fileSnapshot, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fileSnapshot{}, err
-	}
-
-	return fileSnapshot{
-		path:    path,
-		modTime: info.ModTime(),
-		size:    info.Size(),
-	}, nil
 }

@@ -13,10 +13,27 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
+	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
+
+func (f *fakeSessionManager) promptCall(index int) struct {
+	id  string
+	msg string
+} {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.promptCalls[index]
+}
+
+func (f *fakeSessionManager) promptCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.promptCalls)
+}
 
 func TestBootSequenceReady(t *testing.T) {
 	homePaths := integrationHomePaths(t)
@@ -30,11 +47,11 @@ func TestBootSequenceReady(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
@@ -154,11 +171,11 @@ func TestBootInitializesMemoryStoreAndAssemblerIntegration(t *testing.T) {
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
@@ -207,11 +224,11 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 		return &fakeServer{name: "uds"}, nil
 	}
 
-	if err := d.boot(testContext(t)); err != nil {
+	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := d.Shutdown(testContext(t)); err != nil {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
@@ -276,7 +293,7 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 		return &fakeObserver{}, nil
 	}
-	d.newDreamService = func(opts ...memory.Option) dreamService {
+	d.newDreamService = func(opts ...memory.Option) consolidation.Service {
 		return dream
 	}
 	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
@@ -341,12 +358,12 @@ func seedDaemonWorkspace(t *testing.T, homePaths aghconfig.HomePaths, root strin
 		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
 	}
 
-	registry, err := store.OpenGlobalDB(testContext(t), homePaths.DatabaseFile)
+	registry, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	defer func() {
-		if err := registry.Close(testContext(t)); err != nil {
+		if err := registry.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
 	}()
@@ -363,7 +380,7 @@ func seedDaemonWorkspace(t *testing.T, homePaths aghconfig.HomePaths, root strin
 		t.Fatalf("NewResolver() error = %v", err)
 	}
 
-	resolved, err := resolver.ResolveOrRegister(testContext(t), root)
+	resolved, err := resolver.ResolveOrRegister(testutil.Context(t), root)
 	if err != nil {
 		t.Fatalf("ResolveOrRegister(%q) error = %v", root, err)
 	}

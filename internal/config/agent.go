@@ -1,7 +1,6 @@
 package config
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -9,11 +8,7 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
-)
-
-var (
-	errFrontmatterMissing      = errors.New("config: missing YAML frontmatter")
-	errFrontmatterUnterminated = errors.New("config: unterminated YAML frontmatter")
+	"github.com/pedronauck/agh/internal/frontmatter"
 )
 
 // AgentDef is the parsed representation of an AGENT.md file.
@@ -178,9 +173,14 @@ func LoadWorkspaceAgentDefs(rootDir string, additionalDirs []string, homePaths H
 func ParseAgentDef(content []byte) (AgentDef, error) {
 	var agent AgentDef
 
-	body, err := parseFrontmatter(content, &agent)
+	body, err := frontmatter.Decode(content, func(data []byte) error {
+		if err := yaml.UnmarshalWithOptions(data, &agent, yaml.Strict()); err != nil {
+			return fmt.Errorf("decode YAML frontmatter: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return AgentDef{}, err
+		return AgentDef{}, wrapFrontmatterError(err)
 	}
 
 	agent.Name = strings.TrimSpace(agent.Name)
@@ -224,70 +224,13 @@ func (a AgentDef) Validate() error {
 	return nil
 }
 
-func parseFrontmatter(content []byte, dest any) (string, error) {
-	normalized := normalizeLineEndings(content)
-	if !bytes.HasPrefix(normalized, []byte("---")) {
-		return "", errFrontmatterMissing
+func wrapFrontmatterError(err error) error {
+	switch {
+	case errors.Is(err, frontmatter.ErrMissing):
+		return errors.New("config: missing YAML frontmatter")
+	case errors.Is(err, frontmatter.ErrUnterminated):
+		return errors.New("config: unterminated YAML frontmatter")
+	default:
+		return err
 	}
-
-	openLineEnd, ok := nextLineBoundary(normalized, 0)
-	if !ok || string(normalized[:openLineEnd]) != "---" {
-		return "", errFrontmatterMissing
-	}
-
-	offset := openLineEnd
-	if offset < len(normalized) && normalized[offset] == '\n' {
-		offset++
-	}
-
-	closeStart, closeEnd, ok := findClosingDelimiter(normalized, offset)
-	if !ok {
-		return "", errFrontmatterUnterminated
-	}
-
-	if err := yaml.UnmarshalWithOptions(normalized[offset:closeStart], dest, yaml.Strict()); err != nil {
-		return "", fmt.Errorf("decode YAML frontmatter: %w", err)
-	}
-
-	bodyStart := closeEnd
-	if bodyStart < len(normalized) && normalized[bodyStart] == '\n' {
-		bodyStart++
-	}
-
-	return string(normalized[bodyStart:]), nil
-}
-
-func normalizeLineEndings(content []byte) []byte {
-	return []byte(strings.ReplaceAll(string(content), "\r\n", "\n"))
-}
-
-func nextLineBoundary(content []byte, start int) (int, bool) {
-	if start >= len(content) {
-		return len(content), true
-	}
-
-	if idx := bytes.IndexByte(content[start:], '\n'); idx >= 0 {
-		return start + idx, true
-	}
-
-	return len(content), true
-}
-
-func findClosingDelimiter(content []byte, start int) (int, int, bool) {
-	lineStart := start
-	for lineStart <= len(content) {
-		lineEnd, ok := nextLineBoundary(content, lineStart)
-		if !ok {
-			return 0, 0, false
-		}
-		if string(content[lineStart:lineEnd]) == "---" {
-			return lineStart, lineEnd, true
-		}
-		if lineEnd == len(content) {
-			break
-		}
-		lineStart = lineEnd + 1
-	}
-
-	return 0, 0, false
 }

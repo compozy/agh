@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"os"
 	"os/exec"
@@ -241,7 +242,7 @@ func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 	})
 	defer stopProcess(t, driver, proc)
 
-	firstEventsCh, err := driver.Prompt(testContext(t), proc, PromptRequest{
+	firstEventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
 		TurnID:  "turn-1",
 		Message: "first request",
 	})
@@ -262,7 +263,7 @@ func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 		t.Fatalf("first prompt text = %q, want user request content", firstEvents[0].Text)
 	}
 
-	secondEventsCh, err := driver.Prompt(testContext(t), proc, PromptRequest{
+	secondEventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
 		TurnID:  "turn-2",
 		Message: "second request",
 	})
@@ -285,7 +286,7 @@ func TestPromptStreamsSessionUpdates(t *testing.T) {
 	proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{})
 	defer stopProcess(t, driver, proc)
 
-	eventsCh, err := driver.Prompt(testContext(t), proc, PromptRequest{
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
 		TurnID:  "turn-stream",
 		Message: "hello",
 	})
@@ -465,7 +466,7 @@ func TestStartResumeReturnsSentinelErrors(t *testing.T) {
 			t.Parallel()
 
 			driver := New()
-			_, err := driver.Start(testContext(t), StartOpts{
+			_, err := driver.Start(testutil.Context(t), StartOpts{
 				AgentName:       "helper",
 				Command:         helperCommand(t),
 				Cwd:             t.TempDir(),
@@ -517,7 +518,7 @@ func TestProcessCrashDetected(t *testing.T) {
 	driver := New()
 	proc := startHelperProcess(t, driver, "crash_on_prompt", "", StartOpts{})
 
-	eventsCh, err := driver.Prompt(testContext(t), proc, PromptRequest{
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
 		TurnID:  "turn-crash",
 		Message: "trigger crash",
 	})
@@ -618,7 +619,7 @@ func startHelperProcess(t *testing.T, driver *Driver, scenario string, filePath 
 	}
 	opts.ResumeSessionID = overrides.ResumeSessionID
 
-	proc, err := driver.Start(testContext(t), opts)
+	proc, err := driver.Start(testutil.Context(t), opts)
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -630,7 +631,7 @@ func stopProcess(t *testing.T, driver *Driver, proc *AgentProcess) {
 	if proc == nil {
 		return
 	}
-	if err := driver.Stop(testContext(t), proc); err != nil {
+	if err := driver.Stop(testutil.Context(t), proc); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 }
@@ -795,13 +796,6 @@ func assertPermissionResult(t *testing.T, err error, wantOK bool) {
 	if !wantOK && !errors.Is(err, ErrPermissionDenied) {
 		t.Fatalf("authorize() error = %v, want ErrPermissionDenied", err)
 	}
-}
-
-func testContext(t *testing.T) context.Context {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-	return ctx
 }
 
 type helperACPAgent struct {

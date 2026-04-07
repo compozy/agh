@@ -14,14 +14,25 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/version"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
-// Registry is the global persistence surface consumed by observe/.
+// Registry is the narrowed global persistence surface consumed by observe/.
 type Registry interface {
-	store.SessionRegistry
+	RegisterSession(ctx context.Context, session store.SessionInfo) error
+	UpdateSessionState(ctx context.Context, update store.SessionStateUpdate) error
+	ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error)
+	ReconcileSessions(ctx context.Context, sessions []store.SessionInfo) (store.ReconcileResult, error)
+	WriteEventSummary(ctx context.Context, summary store.EventSummary) error
+	ListEventSummaries(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
+	UpdateTokenStats(ctx context.Context, update store.TokenStatsUpdate) error
+	ListTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error)
+	WritePermissionLog(ctx context.Context, entry store.PermissionLogEntry) error
+	ListPermissionLog(ctx context.Context, query store.PermissionLogQuery) ([]store.PermissionLogEntry, error)
 	Path() string
+	Close(ctx context.Context) error
 }
 
 // SessionSource reports the currently active in-memory sessions.
@@ -180,7 +191,7 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 			return nil, fmt.Errorf("observe: ensure home layout: %w", err)
 		}
 
-		registry, err := store.OpenGlobalDB(ctx, observer.homePaths.DatabaseFile)
+		registry, err := globaldb.OpenGlobalDB(ctx, observer.homePaths.DatabaseFile)
 		if err != nil {
 			return nil, fmt.Errorf("observe: open global database: %w", err)
 		}
