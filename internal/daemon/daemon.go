@@ -16,6 +16,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/udsapi"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/session"
@@ -122,7 +123,7 @@ type Daemon struct {
 	acquireLock       func(path string, pid int) (*Lock, error)
 	openRegistry      registryOpener
 	newSessionManager sessionManagerFactory
-	newDreamService   dreamServiceFactory
+	newDreamService   consolidation.ServiceFactory
 	newObserver       observerFactory
 	httpFactory       ServerFactory
 	udsFactory        ServerFactory
@@ -148,11 +149,7 @@ type Daemon struct {
 	observer          Observer
 	httpServer        Server
 	udsServer         Server
-	dreamService      dreamService
-	dreamSpawner      memory.SessionSpawner
-	dreamCheckCh      chan dreamCheckRequest
-	dreamCancel       context.CancelFunc
-	dreamWG           sync.WaitGroup
+	dreamRuntime      *consolidation.Runtime
 	workspaceResolver workspacepkg.WorkspaceResolver
 	skillsRegistry    *skills.Registry
 	skillsCancel      context.CancelFunc
@@ -270,7 +267,7 @@ func New(opts ...Option) (*Daemon, error) {
 		}
 	}
 	if d.newDreamService == nil {
-		d.newDreamService = func(opts ...memory.Option) dreamService {
+		d.newDreamService = func(opts ...memory.Option) consolidation.Service {
 			return memory.NewService(opts...)
 		}
 	}
@@ -359,7 +356,9 @@ func (d *Daemon) Run(ctx context.Context) error {
 	if err := d.boot(ctx); err != nil {
 		return err
 	}
-	d.startDreamLoop(ctx)
+	if d.dreamRuntime != nil {
+		d.dreamRuntime.Start(ctx)
+	}
 
 	sigCh, stopSignals := d.signalSource()
 	defer stopSignals()
@@ -392,7 +391,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	lock := d.lock
 	closeLogger := d.closeLogger
 	infoPath := d.homePaths.DaemonInfo
-	dreamCancel := d.dreamCancel
+	dreamRuntime := d.dreamRuntime
 	skillsCancel := d.skillsCancel
 	skillsDone := d.skillsDone
 
@@ -408,19 +407,15 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	d.info = Info{}
 	d.startedAt = time.Time{}
 	d.closeLogger = func() error { return nil }
-	d.dreamService = nil
-	d.dreamSpawner = nil
-	d.dreamCheckCh = nil
-	d.dreamCancel = nil
+	d.dreamRuntime = nil
 	d.workspaceResolver = nil
 	d.skillsCancel = nil
 	d.skillsDone = nil
 	d.mu.Unlock()
 
 	var errs []error
-	if dreamCancel != nil {
-		dreamCancel()
-		d.dreamWG.Wait()
+	if dreamRuntime != nil {
+		dreamRuntime.Shutdown()
 	}
 	stopSkillsWatcher(skillsCancel, skillsDone)
 	if err := d.stopSessions(ctx, sessions); err != nil {

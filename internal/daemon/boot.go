@@ -11,6 +11,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghlogger "github.com/pedronauck/agh/internal/logger"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
@@ -67,7 +68,8 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	var (
 		memoryStore      *memory.Store
 		skillsRegistry   *skills.Registry
-		dreamSvc         dreamService
+		dreamSvc         consolidation.Service
+		dreamRuntime     *consolidation.Runtime
 		globalMemoryDir  string
 		skillsCancel     context.CancelFunc
 		skillsDone       chan struct{}
@@ -200,18 +202,21 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 
-	dreamSpawner := d.makeDreamSpawner(sessions, workspaceResolver, cfg, globalMemoryDir)
+	dreamSpawner := consolidation.NewSessionSpawner(sessions, workspaceResolver, cfg, globalMemoryDir)
 	var dreamTrigger DreamTrigger
 	if dreamSvc != nil {
 		lockPath := memory.ConsolidationLockPath(globalMemoryDir)
-		dreamTrigger = runtimeDreamTrigger{
-			enabled: cfg.Memory.Dream.Enabled,
-			service: dreamSvc,
-			spawner: dreamSpawner,
-			lastConsolidatedAt: func() (time.Time, error) {
+		dreamRuntime = consolidation.NewRuntime(
+			cfg.Memory.Dream.Enabled,
+			dreamSvc,
+			dreamSpawner,
+			cfg.Memory.Dream.CheckInterval,
+			logger,
+			func() (time.Time, error) {
 				return memory.NewConsolidationLock(lockPath).LastConsolidatedAt()
 			},
-		}
+		)
+		dreamTrigger = dreamRuntime
 	}
 
 	deps := RuntimeDeps{
@@ -239,7 +244,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 			if info == nil || info.Type == session.SessionTypeDream || strings.TrimSpace(info.WorkspaceID) == "" {
 				return
 			}
-			d.enqueueDreamCheck("session_stop", info.WorkspaceID)
+			dreamRuntime.EnqueueCheck("session_stop", info.WorkspaceID)
 		}
 	}
 
@@ -305,8 +310,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	d.observer = observer
 	d.httpServer = httpServer
 	d.udsServer = udsServer
-	d.dreamService = dreamSvc
-	d.dreamSpawner = dreamSpawner
+	d.dreamRuntime = dreamRuntime
 	d.workspaceResolver = workspaceResolver
 	d.skillsRegistry = skillsRegistry
 	d.skillsCancel = skillsCancel

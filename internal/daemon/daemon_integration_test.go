@@ -5,7 +5,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -14,8 +13,10 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store/globaldb"
+	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -277,7 +278,7 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 		return &fakeObserver{}, nil
 	}
-	d.newDreamService = func(opts ...memory.Option) dreamService {
+	d.newDreamService = func(opts ...memory.Option) consolidation.Service {
 		return dream
 	}
 	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
