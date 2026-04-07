@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/memory"
 )
 
@@ -53,57 +54,25 @@ type DaemonClient interface {
 	ConsolidateMemory(ctx context.Context, workspace string) (MemoryConsolidateRecord, error)
 }
 
-// CreateSessionRequest captures the CLI session creation payload.
-type CreateSessionRequest struct {
-	AgentName     string `json:"agent_name,omitempty"`
-	Name          string `json:"name,omitempty"`
-	Workspace     string `json:"workspace,omitempty"`
-	WorkspacePath string `json:"workspace_path,omitempty"`
-}
+// CreateSessionRequest captures the shared daemon session creation payload.
+type CreateSessionRequest = contract.CreateSessionRequest
 
 // SessionListQuery captures the CLI filters for session list queries.
 type SessionListQuery struct {
 	Workspace string
 }
 
-// SessionRecord is the daemon API session payload.
-type SessionRecord struct {
-	ID            string         `json:"id"`
-	Name          string         `json:"name,omitempty"`
-	AgentName     string         `json:"agent_name"`
-	WorkspaceID   string         `json:"workspace_id,omitempty"`
-	WorkspacePath string         `json:"workspace_path,omitempty"`
-	State         string         `json:"state"`
-	ACPSessionID  string         `json:"acp_session_id,omitempty"`
-	ACPCaps       *ACPCapsRecord `json:"acp_caps,omitempty"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
-}
+// SessionRecord is the shared daemon session payload.
+type SessionRecord = contract.SessionPayload
 
 // ACPCapsRecord captures optional runtime capabilities exposed by the daemon API.
-type ACPCapsRecord struct {
-	SupportsLoadSession bool     `json:"supports_load_session"`
-	SupportedModes      []string `json:"supported_modes,omitempty"`
-	SupportedModels     []string `json:"supported_models,omitempty"`
-}
+type ACPCapsRecord = contract.ACPCapsPayload
 
 // SessionEventRecord is one persisted session event row returned by the daemon API.
-type SessionEventRecord struct {
-	ID        string          `json:"id"`
-	SessionID string          `json:"session_id"`
-	Sequence  int64           `json:"sequence"`
-	TurnID    string          `json:"turn_id"`
-	Type      string          `json:"type"`
-	AgentName string          `json:"agent_name"`
-	Content   json.RawMessage `json:"content"`
-	Timestamp time.Time       `json:"timestamp"`
-}
+type SessionEventRecord = contract.SessionEventPayload
 
 // TurnHistoryRecord groups session events by turn.
-type TurnHistoryRecord struct {
-	TurnID string               `json:"turn_id"`
-	Events []SessionEventRecord `json:"events"`
-}
+type TurnHistoryRecord = contract.TurnHistoryPayload
 
 // SessionEventQuery captures the CLI filters for session event/history queries.
 type SessionEventQuery struct {
@@ -115,58 +84,23 @@ type SessionEventQuery struct {
 	AfterSequence int64
 }
 
-// AgentRecord is the daemon API agent definition payload.
-type AgentRecord struct {
-	Name        string           `json:"name"`
-	Provider    string           `json:"provider"`
-	Command     string           `json:"command,omitempty"`
-	Model       string           `json:"model,omitempty"`
-	Tools       []string         `json:"tools,omitempty"`
-	Permissions string           `json:"permissions,omitempty"`
-	MCPServers  []AgentMCPServer `json:"mcp_servers,omitempty"`
-	Prompt      string           `json:"prompt"`
-}
+// AgentRecord is the shared daemon agent definition payload.
+type AgentRecord = contract.AgentPayload
 
 // AgentMCPServer is one MCP server entry returned by the daemon API.
-type AgentMCPServer struct {
-	Name    string            `json:"name"`
-	Command string            `json:"command"`
-	Args    []string          `json:"args,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
-}
+type AgentMCPServer = contract.AgentMCPServerJSON
 
-// WorkspaceCreateRequest captures the workspace registration payload.
-type WorkspaceCreateRequest struct {
-	RootDir      string   `json:"root_dir"`
-	Name         string   `json:"name,omitempty"`
-	AddDirs      []string `json:"add_dirs,omitempty"`
-	DefaultAgent string   `json:"default_agent,omitempty"`
-}
+// WorkspaceCreateRequest captures the shared workspace registration payload.
+type WorkspaceCreateRequest = contract.CreateWorkspaceRequest
 
 // WorkspaceUpdateRequest captures mutable workspace fields.
-type WorkspaceUpdateRequest struct {
-	Name         *string   `json:"name,omitempty"`
-	AddDirs      *[]string `json:"add_dirs,omitempty"`
-	DefaultAgent *string   `json:"default_agent,omitempty"`
-}
+type WorkspaceUpdateRequest = contract.UpdateWorkspaceRequest
 
-// WorkspaceRecord is the daemon API workspace registration payload.
-type WorkspaceRecord struct {
-	ID           string    `json:"id"`
-	RootDir      string    `json:"root_dir"`
-	AddDirs      []string  `json:"add_dirs,omitempty"`
-	Name         string    `json:"name"`
-	DefaultAgent string    `json:"default_agent,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
+// WorkspaceRecord is the shared daemon workspace registration payload.
+type WorkspaceRecord = contract.WorkspacePayload
 
 // WorkspaceSkillRecord is one resolved workspace skill returned by the daemon API.
-type WorkspaceSkillRecord struct {
-	Name   string `json:"name"`
-	Dir    string `json:"dir"`
-	Source string `json:"source"`
-}
+type WorkspaceSkillRecord = contract.WorkspaceSkillPayload
 
 // WorkspaceDetailRecord captures the workspace info payload returned by the daemon API.
 type WorkspaceDetailRecord struct {
@@ -177,48 +111,13 @@ type WorkspaceDetailRecord struct {
 }
 
 // AgentEventRecord is one prompt-stream event returned by the daemon API.
-type AgentEventRecord struct {
-	Type       string            `json:"type"`
-	SessionID  string            `json:"session_id,omitempty"`
-	TurnID     string            `json:"turn_id,omitempty"`
-	Timestamp  time.Time         `json:"timestamp"`
-	Text       string            `json:"text,omitempty"`
-	Title      string            `json:"title,omitempty"`
-	ToolCallID string            `json:"tool_call_id,omitempty"`
-	StopReason string            `json:"stop_reason,omitempty"`
-	Action     string            `json:"action,omitempty"`
-	Resource   string            `json:"resource,omitempty"`
-	Decision   string            `json:"decision,omitempty"`
-	Error      string            `json:"error,omitempty"`
-	Usage      *TokenUsageRecord `json:"usage,omitempty"`
-	Raw        json.RawMessage   `json:"raw,omitempty"`
-}
+type AgentEventRecord = contract.AgentEventPayload
 
 // TokenUsageRecord is the prompt usage payload returned by the daemon API.
-type TokenUsageRecord struct {
-	TurnID           string    `json:"turn_id,omitempty"`
-	InputTokens      *int64    `json:"input_tokens,omitempty"`
-	OutputTokens     *int64    `json:"output_tokens,omitempty"`
-	TotalTokens      *int64    `json:"total_tokens,omitempty"`
-	ThoughtTokens    *int64    `json:"thought_tokens,omitempty"`
-	CacheReadTokens  *int64    `json:"cache_read_tokens,omitempty"`
-	CacheWriteTokens *int64    `json:"cache_write_tokens,omitempty"`
-	ContextUsed      *int64    `json:"context_used,omitempty"`
-	ContextSize      *int64    `json:"context_size,omitempty"`
-	CostAmount       *float64  `json:"cost_amount,omitempty"`
-	CostCurrency     *string   `json:"cost_currency,omitempty"`
-	Timestamp        time.Time `json:"timestamp"`
-}
+type TokenUsageRecord = contract.TokenUsagePayload
 
 // ObserveEventRecord is one cross-session observability event row.
-type ObserveEventRecord struct {
-	ID        string    `json:"id"`
-	SessionID string    `json:"session_id"`
-	Type      string    `json:"type"`
-	AgentName string    `json:"agent_name"`
-	Summary   string    `json:"summary,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
-}
+type ObserveEventRecord = contract.ObserveEventPayload
 
 // ObserveEventQuery captures the CLI filters for cross-session observability queries.
 type ObserveEventQuery struct {
@@ -232,28 +131,17 @@ type ObserveEventQuery struct {
 // MemoryHeaderRecord is one memory header returned by the daemon API.
 type MemoryHeaderRecord = memory.MemoryHeader
 
-// MemoryReadRecord is the memory document payload returned by the daemon API.
-type MemoryReadRecord struct {
-	Content string `json:"content"`
-}
+// MemoryReadRecord is the shared daemon memory document payload.
+type MemoryReadRecord = contract.MemoryReadResponse
 
 // MemoryWriteRequest captures the daemon API write payload.
-type MemoryWriteRequest struct {
-	Content   string `json:"content"`
-	Scope     string `json:"scope,omitempty"`
-	Workspace string `json:"workspace,omitempty"`
-}
+type MemoryWriteRequest = contract.MemoryWriteRequest
 
 // MemoryMutationRecord captures the daemon API write/delete response.
-type MemoryMutationRecord struct {
-	OK bool `json:"ok"`
-}
+type MemoryMutationRecord = contract.MemoryMutationResponse
 
 // MemoryConsolidateRecord captures the daemon API consolidation response.
-type MemoryConsolidateRecord struct {
-	Triggered bool   `json:"triggered"`
-	Reason    string `json:"reason,omitempty"`
-}
+type MemoryConsolidateRecord = contract.MemoryConsolidateResponse
 
 // HealthStatus is the daemon API observability health payload.
 type HealthStatus struct {
@@ -266,18 +154,8 @@ type HealthStatus struct {
 	Version            string `json:"version"`
 }
 
-// DaemonStatus is the daemon API status payload.
-type DaemonStatus struct {
-	Status         string    `json:"status"`
-	PID            int       `json:"pid"`
-	StartedAt      time.Time `json:"started_at"`
-	Socket         string    `json:"socket"`
-	HTTPHost       string    `json:"http_host"`
-	HTTPPort       int       `json:"http_port"`
-	ActiveSessions int       `json:"active_sessions"`
-	TotalSessions  int       `json:"total_sessions"`
-	Version        string    `json:"version,omitempty"`
-}
+// DaemonStatus is the shared daemon status payload.
+type DaemonStatus = contract.DaemonStatusPayload
 
 // IdentityRecord is the local agent identity exposed by `agh whoami`.
 type IdentityRecord struct {
