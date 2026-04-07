@@ -66,7 +66,7 @@ func BuildCatalog(skills []*Skill) string {
 
 	entries := make([]catalogEntry, 0, len(skills))
 	for _, skill := range skills {
-		if skill == nil {
+		if skill == nil || !skill.Enabled {
 			continue
 		}
 

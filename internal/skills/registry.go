@@ -286,6 +286,9 @@ func (r *Registry) loadDirectorySkills(ctx context.Context, dir string, source S
 	for path, snapshot := range dirSnapshots {
 		snapshots[path] = snapshot
 	}
+	if err := recordSidecarSnapshots(paths, snapshots); err != nil {
+		return err
+	}
 
 	return r.loadSkillPaths(ctx, paths, source, dst)
 }
@@ -300,7 +303,9 @@ func (r *Registry) loadSkillPaths(ctx context.Context, paths []string, source Sk
 		if err != nil {
 			return err
 		}
-		skill.Source = source
+		if err := r.assignSourceAndProvenance(skill, source); err != nil {
+			return err
+		}
 		if !r.processSkill(dst, skill) {
 			continue
 		}
@@ -313,6 +318,9 @@ func (r *Registry) processSkill(dst map[string]*Skill, skill *Skill) bool {
 	r.applyDisabled(skill)
 
 	warnings := VerifyContent(skill.Content)
+	if r.verifyMarketplaceSkill(skill) {
+		warnings = VerifyContent(skill.Content)
+	}
 	r.logVerificationWarnings(skill, warnings)
 	if hasCriticalWarning(warnings) {
 		return false
@@ -320,6 +328,86 @@ func (r *Registry) processSkill(dst map[string]*Skill, skill *Skill) bool {
 
 	r.overlaySkill(dst, skill)
 	return true
+}
+
+func (r *Registry) assignSourceAndProvenance(skill *Skill, source SkillSource) error {
+	if skill == nil {
+		return errors.New("skills: skill is required")
+	}
+
+	skill.Source = source
+	if source != SourceUser {
+		return nil
+	}
+
+	hasSidecar, err := HasSidecar(skill.Dir)
+	if err != nil {
+		return err
+	}
+	if !hasSidecar {
+		return nil
+	}
+
+	provenance, err := ReadSidecar(skill.Dir)
+	if err != nil {
+		return err
+	}
+
+	skill.Source = SourceMarketplace
+	skill.Provenance = provenance
+	skill.InstalledFrom = strings.TrimSpace(provenance.Slug)
+
+	return nil
+}
+
+func (r *Registry) verifyMarketplaceSkill(skill *Skill) bool {
+	if skill == nil || skill.Source != SourceMarketplace || skill.Provenance == nil {
+		return false
+	}
+
+	err := VerifyHash(skill.Dir, skill.Provenance)
+	if err == nil {
+		return false
+	}
+
+	var mismatch *HashMismatchError
+	if errors.As(err, &mismatch) {
+		r.logger.Warn(
+			"skills: marketplace skill hash mismatch",
+			"skill_name", skill.Meta.Name,
+			"expected_hash", mismatch.ExpectedHash,
+			"actual_hash", mismatch.ActualHash,
+			"path", skill.FilePath,
+		)
+		return true
+	}
+
+	r.logger.Warn(
+		"skills: marketplace skill hash verification failed",
+		"skill_name", skill.Meta.Name,
+		"path", skill.FilePath,
+		"error", err,
+	)
+
+	return false
+}
+
+func recordSidecarSnapshots(paths []string, snapshots map[string]filesnap.Snapshot) error {
+	for _, skillPath := range paths {
+		sidecarPath := filepath.Join(filepath.Dir(skillPath), sidecarFileName)
+		snapshot, err := filesnap.FromPath(sidecarPath)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+
+			return fmt.Errorf("skills: snapshot provenance sidecar %q: %w", sidecarPath, err)
+		}
+
+		snapshots[sidecarPath] = snapshot
+	}
+
+	return nil
 }
 
 func (r *Registry) applyDisabled(skill *Skill) {

@@ -38,12 +38,14 @@ func TestBuildCatalogFormatsCatalogSortedEscapedAndWithUsageInstructions(t *test
 				Name:        "zeta",
 				Description: "Last skill",
 			},
+			Enabled: true,
 		},
 		{
 			Meta: SkillMeta{
 				Name:        `alpha"<&>`,
 				Description: `Use < & > and "quotes" safely`,
 			},
+			Enabled: true,
 		},
 	}
 
@@ -74,6 +76,7 @@ func TestBuildCatalogTruncatesDescriptionsAtTwoHundredCharactersWithEllipsis(t *
 				Name:        "long",
 				Description: description,
 			},
+			Enabled: true,
 		},
 	})
 
@@ -86,6 +89,34 @@ func TestBuildCatalogTruncatesDescriptionsAtTwoHundredCharactersWithEllipsis(t *
 
 	if utf8.RuneCountInString(wantDescription) != catalogDescriptionLimit {
 		t.Fatalf("truncated description rune count = %d, want %d", utf8.RuneCountInString(wantDescription), catalogDescriptionLimit)
+	}
+}
+
+func TestBuildCatalogExcludesDisabledSkills(t *testing.T) {
+	t.Parallel()
+
+	got := BuildCatalog([]*Skill{
+		{
+			Meta: SkillMeta{
+				Name:        "enabled",
+				Description: "Visible skill",
+			},
+			Enabled: true,
+		},
+		{
+			Meta: SkillMeta{
+				Name:        "disabled",
+				Description: "Hidden skill",
+			},
+			Enabled: false,
+		},
+	})
+
+	if strings.Contains(got, `name="disabled"`) {
+		t.Fatalf("BuildCatalog() included disabled skill: %q", got)
+	}
+	if !strings.Contains(got, `name="enabled"`) {
+		t.Fatalf("BuildCatalog() missing enabled skill: %q", got)
 	}
 }
 
