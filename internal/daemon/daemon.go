@@ -12,15 +12,15 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/httpapi"
+	"github.com/pedronauck/agh/internal/api/udsapi"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/httpapi"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/udsapi"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 

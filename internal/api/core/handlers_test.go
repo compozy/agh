@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/apitest"
+	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -20,16 +20,16 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	createCalled := false
-	manager := apitest.StubSessionManager{
+	manager := testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
-			return []*session.SessionInfo{apitest.NewSessionInfo("sess-a")}, nil
+			return []*session.SessionInfo{testutil.NewSessionInfo("sess-a")}, nil
 		},
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			createCalled = true
 			if opts.AgentName != "coder" || opts.Workspace != "alpha" {
 				t.Fatalf("Create opts = %#v", opts)
 			}
-			created := apitest.NewSession("sess-created")
+			created := testutil.NewSession("sess-created")
 			created.AgentName = opts.AgentName
 			return created, nil
 		},
@@ -37,7 +37,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			if id == "missing" {
 				return nil, session.ErrSessionNotFound
 			}
-			info := apitest.NewSessionInfo(id)
+			info := testutil.NewSessionInfo(id)
 			info.CreatedAt = now
 			info.UpdatedAt = now
 			return info, nil
@@ -49,7 +49,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			return nil
 		},
 		ResumeFn: func(_ context.Context, id string) (*session.Session, error) {
-			resumed := apitest.NewSession(id)
+			resumed := testutil.NewSession(id)
 			resumed.State = session.StateActive
 			return resumed, nil
 		},
@@ -93,7 +93,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		},
 	}
 
-	fixture := newHandlerFixture(t, manager, apitest.StubObserver{}, apitest.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 
 	listResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
 	if listResp.Code != http.StatusOK {
@@ -147,9 +147,9 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 	done := make(chan struct{})
 	sessionCalls := 0
 	observeCalls := 0
-	manager := apitest.StubSessionManager{
+	manager := testutil.StubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.SessionInfo, error) {
-			return apitest.NewSessionInfo(id), nil
+			return testutil.NewSessionInfo(id), nil
 		},
 		EventsFn: func(_ context.Context, id string, _ store.EventQuery) ([]store.SessionEvent, error) {
 			sessionCalls++
@@ -182,10 +182,10 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			}
 		},
 		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
-			return []*session.SessionInfo{apitest.NewSessionInfo("sess-a")}, nil
+			return []*session.SessionInfo{testutil.NewSessionInfo("sess-a")}, nil
 		},
 	}
-	observer := apitest.StubObserver{
+	observer := testutil.StubObserver{
 		QueryEventsFn: func(_ context.Context, _ store.EventSummaryQuery) ([]store.EventSummary, error) {
 			observeCalls++
 			ts := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
@@ -203,14 +203,14 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		},
 	}
 
-	fixture := newHandlerFixture(t, manager, observer, apitest.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
 	fixture.Handlers.SetStreamDone(done)
 
 	streamResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/stream", nil)
 	if streamResp.Code != http.StatusOK {
 		t.Fatalf("stream status = %d, want %d", streamResp.Code, http.StatusOK)
 	}
-	if records := apitest.ParseSSE(t, streamResp.Body.String()); len(records) < 2 {
+	if records := testutil.ParseSSE(t, streamResp.Body.String()); len(records) < 2 {
 		t.Fatalf("stream records = %d, want at least 2", len(records))
 	}
 
@@ -233,8 +233,8 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 func TestBaseHandlersAgentEndpoints(t *testing.T) {
 	t.Parallel()
 
-	fixture := newHandlerFixture(t, apitest.StubSessionManager{}, apitest.StubObserver{}, apitest.StubWorkspaceService{}, nil, nil)
-	apitest.WriteAgentDef(t, fixture.HomePaths, "coder")
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+	testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
 
 	getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/coder", nil)
 	if getResp.Code != http.StatusOK {
@@ -258,7 +258,7 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 func TestBaseHandlersApprovePermissionGapResolvedInStub(t *testing.T) {
 	t.Parallel()
 
-	manager := apitest.StubSessionManager{
+	manager := testutil.StubSessionManager{
 		ApproveFn: func(_ context.Context, id string, req acp.ApproveRequest) error {
 			if id != "sess-a" || req.TurnID != "turn-1" {
 				t.Fatalf("ApprovePermission call = %q %#v", id, req)

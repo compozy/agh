@@ -12,7 +12,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/apitest"
+	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
@@ -115,7 +115,7 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 	t.Parallel()
 
-	manager := apitest.StubSessionManager{
+	manager := testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			return []*session.SessionInfo{
 				{ID: "sess-1", WorkspaceID: "ws_alpha"},
@@ -123,7 +123,7 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 			}, nil
 		},
 	}
-	workspaces := apitest.StubWorkspaceService{
+	workspaces := testutil.StubWorkspaceService{
 		GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
 			if ref != "alpha" {
 				t.Fatalf("Get workspace ref = %q, want alpha", ref)
@@ -131,7 +131,7 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 			return workspacepkg.Workspace{ID: "ws_alpha", RootDir: "/workspace"}, nil
 		},
 	}
-	fixture := newHandlerFixture(t, manager, apitest.StubObserver{}, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
 
 	resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace=alpha", nil)
 	if resp.Code != http.StatusOK {
@@ -183,14 +183,14 @@ func TestMemoryWrapperExports(t *testing.T) {
 	if err := store.ForWorkspace(workspace).Write(memory.ScopeWorkspace, "note.md", []byte("---\nname: note\ndescription: desc\ntype: project\n---\n\nbody")); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
-	manager := apitest.StubSessionManager{
+	manager := testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
-			info := apitest.NewSessionInfo("sess-a")
+			info := testutil.NewSessionInfo("sess-a")
 			info.Workspace = workspace
 			return []*session.SessionInfo{info}, nil
 		},
 	}
-	fixture := newHandlerFixture(t, manager, apitest.StubObserver{}, apitest.StubWorkspaceService{}, store, nil)
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, store, nil)
 	if _, err := fixture.Handlers.ResolveMemoryLocation("note.md", "workspace", workspace); err != nil {
 		t.Fatalf("ResolveMemoryLocation() error = %v", err)
 	}
@@ -205,7 +205,7 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 
 	done := make(chan struct{})
 	callCount := 0
-	observer := apitest.StubObserver{
+	observer := testutil.StubObserver{
 		QueryEventsFn: func(_ context.Context, _ store.EventSummaryQuery) ([]store.EventSummary, error) {
 			callCount++
 			ts := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
@@ -220,14 +220,14 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 			}
 		},
 	}
-	fixture := newHandlerFixture(t, apitest.StubSessionManager{}, observer, apitest.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{}, nil, nil)
 	fixture.Handlers.SetStreamDone(done)
 
 	resp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/events/stream?agent_name=coder", nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("observe stream status = %d, want %d", resp.Code, http.StatusOK)
 	}
-	if records := apitest.ParseSSE(t, resp.Body.String()); len(records) < 2 {
+	if records := testutil.ParseSSE(t, resp.Body.String()); len(records) < 2 {
 		t.Fatalf("observe stream records = %d, want at least 2", len(records))
 	}
 }
@@ -235,7 +235,7 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 func TestBaseHandlersGetAgentNotFound(t *testing.T) {
 	t.Parallel()
 
-	fixture := newHandlerFixture(t, apitest.StubSessionManager{}, apitest.StubObserver{}, apitest.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 	fixture.Handlers.AgentLoader = func(string, aghconfig.HomePaths) (aghconfig.AgentDef, error) {
 		return aghconfig.AgentDef{}, os.ErrNotExist
 	}

@@ -1,4 +1,4 @@
-package apitest
+package testutil
 
 import (
 	"bufio"

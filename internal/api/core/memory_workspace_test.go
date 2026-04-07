@@ -12,7 +12,7 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/apitest"
+	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
@@ -41,19 +41,19 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		Reason:    "queued",
 		Last:      time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC),
 	}
-	manager := apitest.StubSessionManager{
+	manager := testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
-			info := apitest.NewSessionInfo("sess-a")
+			info := testutil.NewSessionInfo("sess-a")
 			info.Workspace = workspace
 			return []*session.SessionInfo{info}, nil
 		},
 	}
-	observer := apitest.StubObserver{
+	observer := testutil.StubObserver{
 		HealthFn: func(context.Context) (observe.Health, error) {
 			return observe.Health{Status: "ok", ActiveSessions: 1}, nil
 		},
 	}
-	fixture := newHandlerFixture(t, manager, observer, apitest.StubWorkspaceService{}, store, trigger)
+	fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, store, trigger)
 
 	listResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory?workspace="+workspace, nil)
 	if listResp.Code != http.StatusOK {
@@ -120,7 +120,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 	updateCalled := false
 	deleteCalled := false
 	resolveCalled := false
-	workspaces := apitest.StubWorkspaceService{
+	workspaces := testutil.StubWorkspaceService{
 		RegisterFn: func(_ context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
 			if opts.RootDir != rootDir || len(opts.AdditionalDirs) != 1 || opts.DefaultAgent != "coder" {
 				t.Fatalf("Register opts = %#v", opts)
@@ -158,14 +158,14 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 			return resolved, nil
 		},
 	}
-	manager := apitest.StubSessionManager{
+	manager := testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
-			info := apitest.NewSessionInfo("sess-a")
+			info := testutil.NewSessionInfo("sess-a")
 			info.WorkspaceID = workspace.ID
 			return []*session.SessionInfo{info}, nil
 		},
 	}
-	fixture := newHandlerFixture(t, manager, apitest.StubObserver{}, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
 
 	createBody := []byte(`{"root_dir":"` + rootDir + `","add_dirs":["` + addDir + `"],"name":"alpha","default_agent":"coder"}`)
 	createResp := performRequest(t, fixture.Engine, http.MethodPost, "/workspaces", createBody)
@@ -185,7 +185,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 	var getPayload struct {
 		Sessions []contract.SessionPayload `json:"sessions"`
 	}
-	apitest.DecodeJSONResponse(t, getResp, &getPayload)
+	testutil.DecodeJSONResponse(t, getResp, &getPayload)
 	if len(getPayload.Sessions) != 1 || getPayload.Sessions[0].WorkspaceID != workspace.ID {
 		t.Fatalf("sessions payload = %#v", getPayload.Sessions)
 	}
@@ -213,7 +213,7 @@ func TestWorkspaceUpdateSupportsAddDirsAndDefaultAgent(t *testing.T) {
 	addDir := t.TempDir()
 	workspace := workspacepkg.Workspace{ID: "ws_alpha", RootDir: rootDir, Name: "alpha"}
 	var captured workspacepkg.UpdateOptions
-	workspaces := apitest.StubWorkspaceService{
+	workspaces := testutil.StubWorkspaceService{
 		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 			return workspace, nil
 		},
@@ -222,7 +222,7 @@ func TestWorkspaceUpdateSupportsAddDirsAndDefaultAgent(t *testing.T) {
 			return nil
 		},
 	}
-	fixture := newHandlerFixture(t, apitest.StubSessionManager{}, apitest.StubObserver{}, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces, nil, nil)
 
 	resp := performRequest(t, fixture.Engine, http.MethodPatch, "/workspaces/ws_alpha", []byte(`{"add_dirs":["`+addDir+`"],"default_agent":"coder"}`))
 	if resp.Code != http.StatusOK {

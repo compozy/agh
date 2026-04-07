@@ -11,15 +11,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/apitest"
+	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 )
 
-type stubSessionManager = apitest.StubSessionManager
-type stubObserver = apitest.StubObserver
-type stubWorkspaceService = apitest.StubWorkspaceService
-type sseRecord = apitest.SSERecord
+type stubSessionManager = testutil.StubSessionManager
+type stubObserver = testutil.StubObserver
+type stubWorkspaceService = testutil.StubWorkspaceService
+type sseRecord = testutil.SSERecord
 
 func newTestHandlers(t *testing.T, manager SessionManager, observer Observer, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()
@@ -75,40 +75,40 @@ func mustStaticFS(t *testing.T) fs.FS {
 
 func newTestHomePaths(t *testing.T) aghconfig.HomePaths {
 	t.Helper()
-	return apitest.NewTestHomePaths(t)
+	return testutil.NewTestHomePaths(t)
 }
 
 func writeAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string) {
 	t.Helper()
-	apitest.WriteAgentDef(t, homePaths, name)
+	testutil.WriteAgentDef(t, homePaths, name)
 }
 
 func newSessionInfo(id string) *session.SessionInfo {
-	return apitest.NewSessionInfo(id)
+	return testutil.NewSessionInfo(id)
 }
 
 func newSession(id string) *session.Session {
-	return apitest.NewSession(id)
+	return testutil.NewSession(id)
 }
 
 func performRequest(t *testing.T, engine http.Handler, method, path string, body []byte) *httptest.ResponseRecorder {
 	t.Helper()
-	return apitest.PerformRequest(t, engine, method, path, body)
+	return testutil.PerformRequest(t, engine, method, path, body)
 }
 
 func performRequestWithHeaders(t *testing.T, engine http.Handler, method, path string, body []byte, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
-	return apitest.PerformRequestWithHeaders(t, engine, method, path, body, headers)
+	return testutil.PerformRequestWithHeaders(t, engine, method, path, body, headers)
 }
 
 func decodeJSONResponse(t *testing.T, recorder *httptest.ResponseRecorder, dest any) {
 	t.Helper()
-	apitest.DecodeJSONResponse(t, recorder, dest)
+	testutil.DecodeJSONResponse(t, recorder, dest)
 }
 
 func parseSSE(t *testing.T, body string) []sseRecord {
 	t.Helper()
-	return apitest.ParseSSE(t, body)
+	return testutil.ParseSSE(t, body)
 }
 
 func freeTCPPort(t *testing.T) int {
@@ -134,5 +134,5 @@ func mustURL(host string, port int, path string) string {
 }
 
 func discardLogger() *slog.Logger {
-	return apitest.DiscardLogger()
+	return testutil.DiscardLogger()
 }

@@ -56,16 +56,16 @@ func (d *Daemon) shouldVerifyBoundaries() bool {
 func verifyImportBoundaries(root string) ([]error, error) {
 	internalRoot := filepath.Join(root, "internal")
 	forbiddenImports := map[string]struct{}{
-		moduleImportPath + "/internal/daemon":  {},
-		moduleImportPath + "/internal/httpapi": {},
-		moduleImportPath + "/internal/udsapi":  {},
-		moduleImportPath + "/internal/cli":     {},
+		moduleImportPath + "/internal/daemon":      {},
+		moduleImportPath + "/internal/api/httpapi": {},
+		moduleImportPath + "/internal/api/udsapi":  {},
+		moduleImportPath + "/internal/cli":         {},
 	}
 	allowedPackages := map[string]struct{}{
-		moduleImportPath + "/internal/daemon":  {},
-		moduleImportPath + "/internal/httpapi": {},
-		moduleImportPath + "/internal/udsapi":  {},
-		moduleImportPath + "/internal/cli":     {},
+		moduleImportPath + "/internal/daemon":      {},
+		moduleImportPath + "/internal/api/httpapi": {},
+		moduleImportPath + "/internal/api/udsapi":  {},
+		moduleImportPath + "/internal/cli":         {},
 	}
 
 	violations := make([]error, 0)

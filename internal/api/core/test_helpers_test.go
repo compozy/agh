@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/apitest"
+	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 )
@@ -47,16 +47,16 @@ type handlerFixture struct {
 
 func newHandlerFixture(
 	t *testing.T,
-	manager apitest.StubSessionManager,
-	observer apitest.StubObserver,
-	workspaces apitest.StubWorkspaceService,
+	manager testutil.StubSessionManager,
+	observer testutil.StubObserver,
+	workspaces testutil.StubWorkspaceService,
 	store *memory.Store,
 	dream core.DreamTrigger,
 ) handlerFixture {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
-	homePaths := apitest.NewTestHomePaths(t)
+	homePaths := testutil.NewTestHomePaths(t)
 	cfg := aghconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
@@ -73,7 +73,7 @@ func newHandlerFixture(
 		DreamTrigger:                 dream,
 		HomePaths:                    homePaths,
 		Config:                       cfg,
-		Logger:                       apitest.DiscardLogger(),
+		Logger:                       testutil.DiscardLogger(),
 		StartedAt:                    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		Now: func() time.Time {
 			return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
@@ -120,5 +120,5 @@ func newHandlerFixture(
 
 func performRequest(t *testing.T, engine http.Handler, method, path string, body []byte) *httptest.ResponseRecorder {
 	t.Helper()
-	return apitest.PerformRequest(t, engine, method, path, body)
+	return testutil.PerformRequest(t, engine, method, path, body)
 }

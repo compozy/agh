@@ -11,7 +11,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/apitest"
+	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
@@ -23,7 +23,7 @@ import (
 func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 	t.Parallel()
 
-	manager := apitest.StubSessionManager{
+	manager := testutil.StubSessionManager{
 		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
 			return nil, os.ErrNotExist
 		},
@@ -40,7 +40,7 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 			return nil, errors.New("list failed")
 		},
 	}
-	observer := apitest.StubObserver{
+	observer := testutil.StubObserver{
 		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 			return nil, errors.New("boom")
 		},
@@ -48,7 +48,7 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 			return observe.Health{}, errors.New("health failed")
 		},
 	}
-	workspaces := apitest.StubWorkspaceService{
+	workspaces := testutil.StubWorkspaceService{
 		RegisterFn: func(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspacePathTaken
 		},
@@ -96,9 +96,9 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 func TestSessionHistoryEventsAndTranscriptErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	manager := apitest.StubSessionManager{
+	manager := testutil.StubSessionManager{
 		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
-			return apitest.NewSessionInfo("sess-a"), nil
+			return testutil.NewSessionInfo("sess-a"), nil
 		},
 		EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
 			return nil, session.ErrSessionNotFound
@@ -110,7 +110,7 @@ func TestSessionHistoryEventsAndTranscriptErrorBranches(t *testing.T) {
 			return nil, session.ErrSessionNotFound
 		},
 	}
-	fixture := newHandlerFixture(t, manager, apitest.StubObserver{}, apitest.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 
 	for _, path := range []string{
 		"/sessions/sess-a/events",
@@ -127,9 +127,9 @@ func TestSessionHistoryEventsAndTranscriptErrorBranches(t *testing.T) {
 func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	manager := apitest.StubSessionManager{
+	manager := testutil.StubSessionManager{
 		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
-			info := apitest.NewSessionInfo("sess-a")
+			info := testutil.NewSessionInfo("sess-a")
 			info.State = session.StateStopped
 			info.UpdatedAt = time.Date(2026, 4, 3, 12, 0, 2, 0, time.UTC)
 			return info, nil
@@ -138,20 +138,20 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 			return nil, nil
 		},
 	}
-	fixture := newHandlerFixture(t, manager, apitest.StubObserver{}, apitest.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 
 	badStream := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/stream", nil)
 	if badStream.Code != http.StatusOK {
 		t.Fatalf("stream stopped status = %d, want %d", badStream.Code, http.StatusOK)
 	}
 
-	badHeader := apitest.PerformRequestWithHeaders(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/stream", nil, map[string]string{"Last-Event-ID": "bad"})
+	badHeader := testutil.PerformRequestWithHeaders(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/stream", nil, map[string]string{"Last-Event-ID": "bad"})
 	if badHeader.Code != http.StatusBadRequest {
 		t.Fatalf("stream bad header status = %d, want %d", badHeader.Code, http.StatusBadRequest)
 	}
 
-	observeFixture := newHandlerFixture(t, apitest.StubSessionManager{}, apitest.StubObserver{}, apitest.StubWorkspaceService{}, nil, nil)
-	observeBadHeader := apitest.PerformRequestWithHeaders(t, observeFixture.Engine, http.MethodGet, "/observe/events/stream", nil, map[string]string{"Last-Event-ID": "bad"})
+	observeFixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+	observeBadHeader := testutil.PerformRequestWithHeaders(t, observeFixture.Engine, http.MethodGet, "/observe/events/stream", nil, map[string]string{"Last-Event-ID": "bad"})
 	if observeBadHeader.Code != http.StatusBadRequest {
 		t.Fatalf("observe bad header status = %d, want %d", observeBadHeader.Code, http.StatusBadRequest)
 	}
@@ -160,7 +160,7 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 func TestListAgentsHandlesMissingDirectory(t *testing.T) {
 	t.Parallel()
 
-	fixture := newHandlerFixture(t, apitest.StubSessionManager{}, apitest.StubObserver{}, apitest.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 	if err := os.RemoveAll(fixture.HomePaths.AgentsDir); err != nil {
 		t.Fatalf("RemoveAll(AgentsDir) error = %v", err)
 	}
@@ -174,9 +174,9 @@ func TestListAgentsHandlesMissingDirectory(t *testing.T) {
 func TestListAgentsSkipsUnreadableDefinitions(t *testing.T) {
 	t.Parallel()
 
-	fixture := newHandlerFixture(t, apitest.StubSessionManager{}, apitest.StubObserver{}, apitest.StubWorkspaceService{}, nil, nil)
-	apitest.WriteAgentDef(t, fixture.HomePaths, "coder")
-	apitest.WriteAgentDef(t, fixture.HomePaths, "broken")
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+	testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
+	testutil.WriteAgentDef(t, fixture.HomePaths, "broken")
 	fixture.Handlers.AgentLoader = func(name string, homePaths aghconfig.HomePaths) (aghconfig.AgentDef, error) {
 		if name == "broken" {
 			return aghconfig.AgentDef{}, errors.New("bad agent")
@@ -210,7 +210,7 @@ func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
 		t.Fatalf("Write(workspace-only) error = %v", err)
 	}
 
-	fixture := newHandlerFixture(t, apitest.StubSessionManager{}, apitest.StubObserver{}, apitest.StubWorkspaceService{}, store, nil)
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, store, nil)
 	if _, err := fixture.Handlers.ResolveMemoryLocation("workspace-only.md", "", workspace); err != nil {
 		t.Fatalf("ResolveMemoryLocation(workspace-only) error = %v", err)
 	}
@@ -221,7 +221,7 @@ func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
 		t.Fatalf("ResolveMemoryWriteScope(empty) error = %v, want validation", err)
 	}
 
-	noStoreFixture := newHandlerFixture(t, apitest.StubSessionManager{}, apitest.StubObserver{}, apitest.StubWorkspaceService{}, nil, nil)
+	noStoreFixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 	requests := []struct {
 		method string
 		path   string
@@ -244,7 +244,7 @@ func TestWorkspaceUpdateValidationAndDeleteErrors(t *testing.T) {
 	t.Parallel()
 
 	workspace := workspacepkg.Workspace{ID: "ws_alpha", RootDir: t.TempDir(), Name: "alpha"}
-	workspaces := apitest.StubWorkspaceService{
+	workspaces := testutil.StubWorkspaceService{
 		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 			return workspace, nil
 		},
@@ -255,7 +255,7 @@ func TestWorkspaceUpdateValidationAndDeleteErrors(t *testing.T) {
 			return nil
 		},
 	}
-	fixture := newHandlerFixture(t, apitest.StubSessionManager{}, apitest.StubObserver{}, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces, nil, nil)
 
 	badUpdate := performRequest(t, fixture.Engine, http.MethodPatch, "/workspaces/ws_alpha", []byte(`{"name":""}`))
 	if badUpdate.Code != http.StatusBadRequest {
@@ -272,12 +272,12 @@ func TestWorkspaceValidationBranches(t *testing.T) {
 	t.Parallel()
 
 	workspace := workspacepkg.Workspace{ID: "ws_alpha", RootDir: t.TempDir(), Name: "alpha"}
-	workspaces := apitest.StubWorkspaceService{
+	workspaces := testutil.StubWorkspaceService{
 		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 			return workspace, nil
 		},
 	}
-	fixture := newHandlerFixture(t, apitest.StubSessionManager{}, apitest.StubObserver{}, workspaces, nil, nil)
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces, nil, nil)
 
 	createResp := performRequest(t, fixture.Engine, http.MethodPost, "/workspaces", []byte(`{"root_dir":"`+workspace.RootDir+`","add_dirs":["relative"]}`))
 	if createResp.Code != http.StatusBadRequest {
@@ -302,7 +302,7 @@ func TestMemoryErrorAndDisabledBranches(t *testing.T) {
 	if err := store.EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}
-	fixture := newHandlerFixture(t, apitest.StubSessionManager{}, apitest.StubObserver{}, apitest.StubWorkspaceService{}, store, nil)
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, store, nil)
 
 	readMissing := performRequest(t, fixture.Engine, http.MethodGet, "/memory/missing.md?scope=global", nil)
 	if readMissing.Code != http.StatusNotFound {
