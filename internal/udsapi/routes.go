@@ -8,53 +8,53 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 
 	workspaces := api.Group("/workspaces")
 	{
-		workspaces.POST("", handlers.createWorkspace)
-		workspaces.GET("", handlers.listWorkspaces)
-		workspaces.GET("/:id", handlers.getWorkspace)
-		workspaces.PATCH("/:id", handlers.updateWorkspace)
-		workspaces.DELETE("/:id", handlers.deleteWorkspace)
-		workspaces.POST("/resolve", handlers.resolveWorkspace)
+		workspaces.POST("", handlers.CreateWorkspace)
+		workspaces.GET("", handlers.ListWorkspaces)
+		workspaces.GET("/:id", handlers.GetWorkspace)
+		workspaces.PATCH("/:id", handlers.UpdateWorkspace)
+		workspaces.DELETE("/:id", handlers.DeleteWorkspace)
+		workspaces.POST("/resolve", handlers.ResolveWorkspace)
 	}
 
 	sessions := api.Group("/sessions")
 	{
-		sessions.GET("", handlers.listSessions)
-		sessions.POST("", handlers.createSession)
-		sessions.GET("/:id", handlers.getSession)
-		sessions.DELETE("/:id", handlers.stopSession)
-		sessions.POST("/:id/resume", handlers.resumeSession)
+		sessions.GET("", handlers.ListSessions)
+		sessions.POST("", handlers.CreateSession)
+		sessions.GET("/:id", handlers.GetSession)
+		sessions.DELETE("/:id", handlers.StopSession)
+		sessions.POST("/:id/resume", handlers.ResumeSession)
 		sessions.POST("/:id/prompt", handlers.promptSession)
-		sessions.GET("/:id/events", handlers.sessionEvents)
-		sessions.GET("/:id/history", handlers.sessionHistory)
-		sessions.GET("/:id/transcript", handlers.sessionTranscript)
-		sessions.GET("/:id/stream", handlers.streamSession)
+		sessions.GET("/:id/events", handlers.SessionEvents)
+		sessions.GET("/:id/history", handlers.SessionHistory)
+		sessions.GET("/:id/transcript", handlers.SessionTranscript)
+		sessions.GET("/:id/stream", handlers.StreamSession)
 		sessions.POST("/:id/approve", handlers.approveSession)
 	}
 
 	agents := api.Group("/agents")
 	{
-		agents.GET("", handlers.listAgents)
-		agents.GET("/:name", handlers.getAgent)
+		agents.GET("", handlers.ListAgents)
+		agents.GET("/:name", handlers.GetAgent)
 	}
 
 	observe := api.Group("/observe")
 	{
-		observe.GET("/events", handlers.observeEvents)
-		observe.GET("/events/stream", handlers.streamObserveEvents)
-		observe.GET("/health", handlers.health)
+		observe.GET("/events", handlers.ObserveEvents)
+		observe.GET("/events/stream", handlers.StreamObserveEvents)
+		observe.GET("/health", handlers.Health)
 	}
 
 	memoryGroup := api.Group("/memory")
 	{
-		memoryGroup.GET("", handlers.listMemory)
-		memoryGroup.GET("/:filename", handlers.readMemory)
-		memoryGroup.PUT("/:filename", handlers.writeMemory)
-		memoryGroup.DELETE("/:filename", handlers.deleteMemory)
-		memoryGroup.POST("/consolidate", handlers.consolidateMemory)
+		memoryGroup.GET("", handlers.ListMemory)
+		memoryGroup.GET("/:filename", handlers.ReadMemory)
+		memoryGroup.PUT("/:filename", handlers.WriteMemory)
+		memoryGroup.DELETE("/:filename", handlers.DeleteMemory)
+		memoryGroup.POST("/consolidate", handlers.ConsolidateMemory)
 	}
 
 	daemon := api.Group("/daemon")
 	{
-		daemon.GET("/status", handlers.daemonStatus)
+		daemon.GET("/status", handlers.DaemonStatus)
 	}
 }

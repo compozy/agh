@@ -75,7 +75,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		createFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" || opts.WorkspacePath != "" {
 				t.Fatalf("Create() opts = %#v", opts)
 			}
@@ -105,7 +105,7 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		createFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			if opts.AgentName != "" {
 				t.Fatalf("Create() AgentName = %q, want empty", opts.AgentName)
 			}
@@ -126,7 +126,7 @@ func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
 func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			return []*session.SessionInfo{newSessionInfo("sess-a"), newSessionInfo("sess-b")}, nil
 		},
 	}
@@ -155,12 +155,12 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 	infoB.Workspace = "/other"
 
 	manager := stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			return []*session.SessionInfo{infoA, infoB}, nil
 		},
 	}
 	workspaces := stubWorkspaceService{
-		getFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+		GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
 			if ref != "alpha" {
 				t.Fatalf("Get() ref = %q, want alpha", ref)
 			}
@@ -195,7 +195,7 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 	}
 
 	workspaces := stubWorkspaceService{
-		registerFn: func(_ context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
+		RegisterFn: func(_ context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
 			if opts.RootDir != rootDir || opts.Name != "alpha" || len(opts.AdditionalDirs) != 1 || opts.AdditionalDirs[0] != addDir || opts.DefaultAgent != "coder" {
 				t.Fatalf("Register() opts = %#v", opts)
 			}
@@ -235,7 +235,7 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 func TestListWorkspacesHandlerReturnsRows(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	workspaces := stubWorkspaceService{
-		listFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+		ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
 			return []workspacepkg.Workspace{{
 				ID:        "ws_alpha",
 				RootDir:   "/workspace",
@@ -284,14 +284,14 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 		}},
 	}
 	manager := stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			info := newSessionInfo("sess-a")
 			info.WorkspaceID = "ws_alpha"
 			return []*session.SessionInfo{info}, nil
 		},
 	}
 	workspaces := stubWorkspaceService{
-		resolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+		ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 			if ref != "ws_alpha" {
 				t.Fatalf("Resolve() ref = %q, want ws_alpha", ref)
 			}
@@ -330,13 +330,13 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 
 	var updated bool
 	workspaces := stubWorkspaceService{
-		getFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+		GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
 			if !updated {
 				return workspacepkg.Workspace{ID: "ws_alpha", RootDir: rootDir, Name: "alpha"}, nil
 			}
 			return workspacepkg.Workspace{ID: "ws_alpha", RootDir: rootDir, Name: "beta", AdditionalDirs: []string{addDir}, DefaultAgent: "reviewer"}, nil
 		},
-		updateFn: func(_ context.Context, id string, opts workspacepkg.UpdateOptions) error {
+		UpdateFn: func(_ context.Context, id string, opts workspacepkg.UpdateOptions) error {
 			if id != "ws_alpha" || opts.Name == nil || *opts.Name != "beta" || opts.AdditionalDirs == nil || len(*opts.AdditionalDirs) != 1 || (*opts.AdditionalDirs)[0] != addDir || opts.DefaultAgent == nil || *opts.DefaultAgent != "reviewer" {
 				t.Fatalf("Update() id=%q opts=%#v", id, opts)
 			}
@@ -368,10 +368,10 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	workspaces := stubWorkspaceService{
-		getFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
 		},
-		unregisterFn: func(_ context.Context, id string) error {
+		UnregisterFn: func(_ context.Context, id string) error {
 			if id != "ws_alpha" {
 				t.Fatalf("Unregister() id = %q, want ws_alpha", id)
 			}
@@ -390,7 +390,7 @@ func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
 	workspaces := stubWorkspaceService{
-		resolveOrRegisterFn: func(_ context.Context, path string) (workspacepkg.ResolvedWorkspace, error) {
+		ResolveOrRegisterFn: func(_ context.Context, path string) (workspacepkg.ResolvedWorkspace, error) {
 			if path != rootDir {
 				t.Fatalf("ResolveOrRegister() path = %q, want %q", path, rootDir)
 			}
@@ -430,7 +430,7 @@ func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		stopFn: func(_ context.Context, id string) error {
+		StopFn: func(_ context.Context, id string) error {
 			if id != "sess-123" {
 				t.Fatalf("Stop() id = %q, want sess-123", id)
 			}
@@ -449,7 +449,7 @@ func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 func TestResumeSessionHandlerReturnsSession(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		resumeFn: func(_ context.Context, id string) (*session.Session, error) {
+		ResumeFn: func(_ context.Context, id string) (*session.Session, error) {
 			if id != "sess-123" {
 				t.Fatalf("Resume() id = %q, want sess-123", id)
 			}
@@ -468,7 +468,7 @@ func TestResumeSessionHandlerReturnsSession(t *testing.T) {
 func TestPromptSessionHandlerReturnsSSEStream(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		promptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+		PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
 			ch := make(chan acp.AgentEvent, 2)
 			ch <- acp.AgentEvent{
 				Type:      "agent_message",
@@ -521,10 +521,10 @@ func TestSessionEventsHandlerReturnsFilteredEvents(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	var gotQuery store.EventQuery
 	manager := stubSessionManager{
-		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
 			return newSessionInfo("sess-123"), nil
 		},
-		eventsFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
+		EventsFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
 			gotQuery = query
 			return []store.SessionEvent{{
 				ID:        "ev-1",
@@ -564,10 +564,10 @@ func TestSessionEventsHandlerReturnsFilteredEvents(t *testing.T) {
 func TestSessionHistoryHandlerReturnsTurns(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
 			return newSessionInfo("sess-123"), nil
 		},
-		historyFn: func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error) {
+		HistoryFn: func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error) {
 			return []store.TurnHistory{{
 				TurnID: "turn-1",
 				Events: []store.SessionEvent{{
@@ -608,7 +608,7 @@ func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		transcriptFn: func(context.Context, string) ([]session.TranscriptMessage, error) {
+		TranscriptFn: func(context.Context, string) ([]session.TranscriptMessage, error) {
 			return []session.TranscriptMessage{{
 				ID:        "msg-1",
 				Role:      session.TranscriptRoleAssistant,
@@ -641,10 +641,10 @@ func TestStreamSessionHandlerUsesLastEventID(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	var gotQuery store.EventQuery
 	manager := stubSessionManager{
-		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
 			return newSessionInfo("sess-123"), nil
 		},
-		eventsFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
+		EventsFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
 			gotQuery = query
 			return []store.SessionEvent{{
 				ID:        "ev-2",
@@ -687,13 +687,13 @@ func TestStreamSessionHandlerSyntheticStoppedEventIncludesWorkspaceContext(t *te
 	homePaths := newTestHomePaths(t)
 	stoppedAt := time.Date(2026, 4, 3, 12, 0, 5, 0, time.UTC)
 	manager := stubSessionManager{
-		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
 			info := newSessionInfo("sess-123")
 			info.State = session.StateStopped
 			info.UpdatedAt = stoppedAt
 			return info, nil
 		},
-		eventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+		EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
 			return nil, nil
 		},
 	}
@@ -765,7 +765,7 @@ func TestGetAgentHandlerReturnsAgent(t *testing.T) {
 func TestObserveEventsHandlerReturnsEvents(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	observer := stubObserver{
-		queryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
+		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 			return []store.EventSummary{{
 				ID:        "sum-1",
 				SessionID: "sess-123",
@@ -796,7 +796,7 @@ func TestObserveEventsHandlerReturnsEvents(t *testing.T) {
 func TestHealthHandlerReturnsMetrics(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	observer := stubObserver{
-		healthFn: func(context.Context) (observe.Health, error) {
+		HealthFn: func(context.Context) (observe.Health, error) {
 			return observe.Health{
 				Status:         "ok",
 				ActiveSessions: 3,
@@ -823,12 +823,12 @@ func TestHealthHandlerReturnsMetrics(t *testing.T) {
 func TestDaemonStatusHandlerReturnsRunningState(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			return []*session.SessionInfo{newSessionInfo("sess-1")}, nil
 		},
 	}
 	observer := stubObserver{
-		healthFn: func(context.Context) (observe.Health, error) {
+		HealthFn: func(context.Context) (observe.Health, error) {
 			return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
 		},
 	}
@@ -876,10 +876,10 @@ func TestHelperParsersAndPayloads(t *testing.T) {
 func TestSessionErrorMappingUsesNotFoundAndConflict(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
 			return nil, session.ErrSessionNotFound
 		},
-		createFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
 			return nil, session.ErrMaxSessionsReached
 		},
 	}
@@ -901,7 +901,7 @@ func TestObserveEventStreamUsesLastEventIDCursor(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	timestamp := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	observer := stubObserver{
-		queryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
+		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 			return []store.EventSummary{
 				{ID: "sum-a", SessionID: "sess-1", Type: "agent_message", AgentName: "coder", Timestamp: timestamp},
 				{ID: "sum-b", SessionID: "sess-1", Type: "done", AgentName: "coder", Timestamp: timestamp},

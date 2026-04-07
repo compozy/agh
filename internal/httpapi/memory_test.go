@@ -264,14 +264,14 @@ func TestHealthIncludesMemoryStats(t *testing.T) {
 	last := time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC)
 	trigger := &stubDreamTrigger{enabled: true, last: last}
 	manager := stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			info := newSessionInfo("sess-1")
 			info.Workspace = workspace
 			return []*session.SessionInfo{info}, nil
 		},
 	}
 	observer := stubObserver{
-		healthFn: func(context.Context) (observe.Health, error) {
+		HealthFn: func(context.Context) (observe.Health, error) {
 			return observe.Health{Status: "ok", ActiveSessions: 1}, nil
 		},
 	}
@@ -376,7 +376,7 @@ func TestMemoryHelpersWriteScopeStatusAndWorkspaces(t *testing.T) {
 	}
 
 	manager := stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			first := newSessionInfo("sess-1")
 			first.Workspace = workspace
 			second := newSessionInfo("sess-2")

@@ -15,13 +15,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/apicore"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/observe"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
@@ -34,45 +30,19 @@ const (
 type Option func(*Server)
 
 // AgentLoader loads one parsed AGENT.md definition.
-type AgentLoader func(name string, homePaths aghconfig.HomePaths) (aghconfig.AgentDef, error)
+type AgentLoader = apicore.AgentLoader
 
 // SessionManager is the runtime session surface exposed over UDS.
-type SessionManager interface {
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
-	List() []*session.SessionInfo
-	ListAll(ctx context.Context) ([]*session.SessionInfo, error)
-	Status(ctx context.Context, id string) (*session.SessionInfo, error)
-	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
-	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
-	Transcript(ctx context.Context, id string) ([]session.TranscriptMessage, error)
-	Stop(ctx context.Context, id string) error
-	Resume(ctx context.Context, id string) (*session.Session, error)
-	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
-}
+type SessionManager = apicore.SessionManager
 
 // Observer is the observability surface exposed over UDS.
-type Observer interface {
-	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
-	Health(ctx context.Context) (observe.Health, error)
-}
+type Observer = apicore.Observer
 
 // DreamTrigger exposes consolidation controls and state to the UDS API.
-type DreamTrigger interface {
-	Trigger(ctx context.Context, workspace string) (bool, string, error)
-	LastConsolidatedAt() (time.Time, error)
-	Enabled() bool
-}
+type DreamTrigger = apicore.DreamTrigger
 
 // WorkspaceService exposes workspace registration and resolution to the UDS API.
-type WorkspaceService interface {
-	Register(ctx context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error)
-	Unregister(ctx context.Context, id string) error
-	Update(ctx context.Context, id string, opts workspacepkg.UpdateOptions) error
-	List(ctx context.Context) ([]workspacepkg.Workspace, error)
-	Get(ctx context.Context, idOrNameOrPath string) (workspacepkg.Workspace, error)
-	Resolve(ctx context.Context, idOrNameOrPath string) (workspacepkg.ResolvedWorkspace, error)
-	ResolveOrRegister(ctx context.Context, path string) (workspacepkg.ResolvedWorkspace, error)
-}
+type WorkspaceService = apicore.WorkspaceService
 
 // Server exposes the daemon API over a Unix domain socket.
 type Server struct {
@@ -119,19 +89,7 @@ type handlerConfig struct {
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
 type Handlers struct {
-	sessions     SessionManager
-	observer     Observer
-	workspaces   WorkspaceService
-	memoryStore  *memory.Store
-	dreamTrigger DreamTrigger
-	homePaths    aghconfig.HomePaths
-	config       aghconfig.Config
-	logger       *slog.Logger
-	startedAt    time.Time
-	now          func() time.Time
-	pollInterval time.Duration
-	agentLoader  AgentLoader
-	streamDone   <-chan struct{}
+	*apicore.BaseHandlers
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -492,43 +450,33 @@ func waitForServeDone(ctx context.Context, done <-chan struct{}) error {
 }
 
 func newHandlers(cfg handlerConfig) *Handlers {
-	logger := cfg.logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	now := cfg.now
-	if now == nil {
-		now = func() time.Time {
-			return time.Now().UTC()
-		}
-	}
-	agentLoader := cfg.agentLoader
-	if agentLoader == nil {
-		agentLoader = aghconfig.LoadAgentDef
-	}
 	if cfg.pollInterval <= 0 {
 		cfg.pollInterval = defaultPollInterval
 	}
-	if cfg.startedAt.IsZero() {
-		cfg.startedAt = now()
-	}
 
 	return &Handlers{
-		sessions:     cfg.sessions,
-		observer:     cfg.observer,
-		workspaces:   cfg.workspaces,
-		memoryStore:  cfg.memoryStore,
-		dreamTrigger: cfg.dreamTrigger,
-		homePaths:    cfg.homePaths,
-		config:       cfg.config,
-		logger:       logger,
-		startedAt:    cfg.startedAt,
-		now:          now,
-		pollInterval: cfg.pollInterval,
-		agentLoader:  agentLoader,
+		BaseHandlers: apicore.NewBaseHandlers(apicore.BaseHandlerConfig{
+			TransportName:                "udsapi",
+			MaskInternalErrors:           false,
+			IncludeSessionWorkspaceInSSE: true,
+			Sessions:                     cfg.sessions,
+			Observer:                     cfg.observer,
+			Workspaces:                   cfg.workspaces,
+			MemoryStore:                  cfg.memoryStore,
+			DreamTrigger:                 cfg.dreamTrigger,
+			HomePaths:                    cfg.homePaths,
+			Config:                       cfg.config,
+			Logger:                       cfg.logger,
+			StartedAt:                    cfg.startedAt,
+			Now:                          cfg.now,
+			PollInterval:                 cfg.pollInterval,
+			AgentLoader:                  cfg.agentLoader,
+		}),
 	}
 }
 
 func (h *Handlers) setStreamDone(done <-chan struct{}) {
-	h.streamDone = done
+	if h != nil && h.BaseHandlers != nil {
+		h.SetStreamDone(done)
+	}
 }

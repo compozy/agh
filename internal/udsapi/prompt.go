@@ -24,7 +24,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 
-	events, err := h.sessions.Prompt(c.Request.Context(), c.Param("id"), req.Message)
+	events, err := h.Sessions.Prompt(c.Request.Context(), c.Param("id"), req.Message)
 	if err != nil {
 		respondError(c, statusForSessionError(err), err)
 		return
@@ -40,7 +40,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		select {
 		case <-c.Request.Context().Done():
 			return
-		case <-h.streamDone:
+		case <-h.StreamDone:
 			return
 		case event, ok := <-events:
 			if !ok {

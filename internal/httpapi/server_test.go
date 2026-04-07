@@ -64,13 +64,13 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	if server.pollInterval != 25*time.Millisecond {
 		t.Fatalf("pollInterval = %v, want 25ms", server.pollInterval)
 	}
-	if server.handlers.agentLoader == nil {
+	if server.handlers.AgentLoader == nil {
 		t.Fatal("expected custom agent loader to be installed")
 	}
-	if server.handlers.memoryStore != store {
+	if server.handlers.MemoryStore != store {
 		t.Fatal("expected memory store option to be installed")
 	}
-	if server.handlers.dreamTrigger != dream {
+	if server.handlers.DreamTrigger != dream {
 		t.Fatal("expected dream trigger option to be installed")
 	}
 }
@@ -109,10 +109,10 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
 		WithSessionManager(stubSessionManager{
-			listAllFn: func(context.Context) ([]*session.SessionInfo, error) { return nil, nil },
+			ListAllFn: func(context.Context) ([]*session.SessionInfo, error) { return nil, nil },
 		}),
 		WithObserver(stubObserver{
-			healthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
+			HealthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
 		}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
 	)

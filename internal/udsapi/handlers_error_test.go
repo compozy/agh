@@ -19,16 +19,16 @@ import (
 func TestCreateGetResumeAndStopHandlersReturnExpectedErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		createFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
 			return nil, os.ErrNotExist
 		},
-		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
 			return nil, session.ErrSessionNotFound
 		},
-		resumeFn: func(context.Context, string) (*session.Session, error) {
+		ResumeFn: func(context.Context, string) (*session.Session, error) {
 			return nil, session.ErrSessionNotFound
 		},
-		stopFn: func(context.Context, string) error {
+		StopFn: func(context.Context, string) error {
 			return session.ErrSessionNotFound
 		},
 	}
@@ -90,16 +90,16 @@ func TestCreateSessionHandlerRejectsInvalidWorkspaceContract(t *testing.T) {
 func TestWorkspaceHandlersReturnExpectedErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	workspaces := stubWorkspaceService{
-		registerFn: func(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
+		RegisterFn: func(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspacePathTaken
 		},
-		getFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
 		},
-		resolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+		ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
 		},
-		resolveOrRegisterFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+		ResolveOrRegisterFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
 		},
 	}
@@ -129,7 +129,7 @@ func TestWorkspaceHandlersReturnExpectedErrors(t *testing.T) {
 func TestCreateSessionHandlerMapsWorkspaceErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		createFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
 			return nil, fmt.Errorf("session: resolve workspace %q: %w", "alpha", workspacepkg.ErrWorkspaceRootMissing)
 		},
 	}
@@ -144,7 +144,7 @@ func TestCreateSessionHandlerMapsWorkspaceErrors(t *testing.T) {
 func TestListAndSessionHandlersRejectBadQueryAndHeaderValues(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	listEngine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			return nil, errors.New("list failed")
 		},
 	}, stubObserver{}, homePaths))
@@ -155,10 +155,10 @@ func TestListAndSessionHandlersRejectBadQueryAndHeaderValues(t *testing.T) {
 	}
 
 	manager := stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			return []*session.SessionInfo{newSessionInfo("sess-123")}, nil
 		},
-		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
 			return newSessionInfo("sess-123"), nil
 		},
 	}
@@ -186,11 +186,11 @@ func TestListAndSessionHandlersRejectBadQueryAndHeaderValues(t *testing.T) {
 func TestGetAgentAndObserveHandlersReturnErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{
-		queryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
+		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 			return nil, errors.New("boom")
 		},
 	}, homePaths)
-	handlers.agentLoader = func(_ string, _ aghconfig.HomePaths) (aghconfig.AgentDef, error) {
+	handlers.AgentLoader = func(_ string, _ aghconfig.HomePaths) (aghconfig.AgentDef, error) {
 		return aghconfig.AgentDef{}, os.ErrNotExist
 	}
 	engine := newTestRouter(t, handlers)
@@ -222,10 +222,10 @@ func TestListAgentsHandlesMissingDirectory(t *testing.T) {
 func TestObserveStreamAndHealthAndDaemonStatusErrorPaths(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	observer := stubObserver{
-		queryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
+		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 			return nil, errors.New("query failed")
 		},
-		healthFn: func(context.Context) (observe.Health, error) {
+		HealthFn: func(context.Context) (observe.Health, error) {
 			return observe.Health{}, errors.New("health failed")
 		},
 	}
@@ -246,11 +246,11 @@ func TestObserveStreamAndHealthAndDaemonStatusErrorPaths(t *testing.T) {
 	}
 
 	statusHandlers := newTestHandlers(t, stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			return nil, errors.New("list failed")
 		},
 	}, stubObserver{
-		healthFn: func(context.Context) (observe.Health, error) {
+		HealthFn: func(context.Context) (observe.Health, error) {
 			return observe.Health{Status: "ok"}, nil
 		},
 	}, homePaths)

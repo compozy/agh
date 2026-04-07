@@ -16,13 +16,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/apicore"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/observe"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
@@ -35,46 +31,19 @@ const (
 type Option func(*Server)
 
 // AgentLoader loads one parsed AGENT.md definition.
-type AgentLoader func(name string, homePaths aghconfig.HomePaths) (aghconfig.AgentDef, error)
+type AgentLoader = apicore.AgentLoader
 
 // SessionManager is the runtime session surface exposed over HTTP.
-type SessionManager interface {
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
-	List() []*session.SessionInfo
-	ListAll(ctx context.Context) ([]*session.SessionInfo, error)
-	Status(ctx context.Context, id string) (*session.SessionInfo, error)
-	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
-	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
-	Transcript(ctx context.Context, id string) ([]session.TranscriptMessage, error)
-	Stop(ctx context.Context, id string) error
-	Resume(ctx context.Context, id string) (*session.Session, error)
-	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
-	ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error
-}
+type SessionManager = apicore.SessionManager
 
 // Observer is the observability surface exposed over HTTP.
-type Observer interface {
-	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
-	Health(ctx context.Context) (observe.Health, error)
-}
+type Observer = apicore.Observer
 
 // DreamTrigger exposes consolidation controls and state to the HTTP API.
-type DreamTrigger interface {
-	Trigger(ctx context.Context, workspace string) (bool, string, error)
-	LastConsolidatedAt() (time.Time, error)
-	Enabled() bool
-}
+type DreamTrigger = apicore.DreamTrigger
 
 // WorkspaceService exposes workspace registration and resolution to the HTTP API.
-type WorkspaceService interface {
-	Register(ctx context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error)
-	Unregister(ctx context.Context, id string) error
-	Update(ctx context.Context, id string, opts workspacepkg.UpdateOptions) error
-	List(ctx context.Context) ([]workspacepkg.Workspace, error)
-	Get(ctx context.Context, idOrNameOrPath string) (workspacepkg.Workspace, error)
-	Resolve(ctx context.Context, idOrNameOrPath string) (workspacepkg.ResolvedWorkspace, error)
-	ResolveOrRegister(ctx context.Context, path string) (workspacepkg.ResolvedWorkspace, error)
-}
+type WorkspaceService = apicore.WorkspaceService
 
 // Server exposes the daemon API over TCP HTTP.
 type Server struct {
@@ -125,21 +94,8 @@ type handlerConfig struct {
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
 type Handlers struct {
-	sessions     SessionManager
-	observer     Observer
-	workspaces   WorkspaceService
-	memoryStore  *memory.Store
-	dreamTrigger DreamTrigger
-	staticFS     fs.FS
-	homePaths    aghconfig.HomePaths
-	config       aghconfig.Config
-	logger       *slog.Logger
-	startedAt    time.Time
-	now          func() time.Time
-	pollInterval time.Duration
-	agentLoader  AgentLoader
-	streamDone   <-chan struct{}
-	httpPort     int
+	*apicore.BaseHandlers
+	staticFS fs.FS
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -472,54 +428,54 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 
 	workspaces := api.Group("/workspaces")
 	{
-		workspaces.POST("", handlers.createWorkspace)
-		workspaces.GET("", handlers.listWorkspaces)
-		workspaces.GET("/:id", handlers.getWorkspace)
-		workspaces.PATCH("/:id", handlers.updateWorkspace)
-		workspaces.DELETE("/:id", handlers.deleteWorkspace)
-		workspaces.POST("/resolve", handlers.resolveWorkspace)
+		workspaces.POST("", handlers.CreateWorkspace)
+		workspaces.GET("", handlers.ListWorkspaces)
+		workspaces.GET("/:id", handlers.GetWorkspace)
+		workspaces.PATCH("/:id", handlers.UpdateWorkspace)
+		workspaces.DELETE("/:id", handlers.DeleteWorkspace)
+		workspaces.POST("/resolve", handlers.ResolveWorkspace)
 	}
 
 	sessions := api.Group("/sessions")
 	{
-		sessions.GET("", handlers.listSessions)
-		sessions.POST("", handlers.createSession)
-		sessions.GET("/:id", handlers.getSession)
-		sessions.DELETE("/:id", handlers.stopSession)
-		sessions.POST("/:id/resume", handlers.resumeSession)
+		sessions.GET("", handlers.ListSessions)
+		sessions.POST("", handlers.CreateSession)
+		sessions.GET("/:id", handlers.GetSession)
+		sessions.DELETE("/:id", handlers.StopSession)
+		sessions.POST("/:id/resume", handlers.ResumeSession)
 		sessions.POST("/:id/prompt", handlers.promptSession)
-		sessions.GET("/:id/events", handlers.sessionEvents)
-		sessions.GET("/:id/history", handlers.sessionHistory)
-		sessions.GET("/:id/transcript", handlers.sessionTranscript)
-		sessions.GET("/:id/stream", handlers.streamSession)
+		sessions.GET("/:id/events", handlers.SessionEvents)
+		sessions.GET("/:id/history", handlers.SessionHistory)
+		sessions.GET("/:id/transcript", handlers.SessionTranscript)
+		sessions.GET("/:id/stream", handlers.StreamSession)
 		sessions.POST("/:id/approve", handlers.approveSession)
 	}
 
 	agents := api.Group("/agents")
 	{
-		agents.GET("", handlers.listAgents)
-		agents.GET("/:name", handlers.getAgent)
+		agents.GET("", handlers.ListAgents)
+		agents.GET("/:name", handlers.GetAgent)
 	}
 
 	observeGroup := api.Group("/observe")
 	{
-		observeGroup.GET("/events", handlers.observeEvents)
-		observeGroup.GET("/events/stream", handlers.streamObserveEvents)
-		observeGroup.GET("/health", handlers.health)
+		observeGroup.GET("/events", handlers.ObserveEvents)
+		observeGroup.GET("/events/stream", handlers.StreamObserveEvents)
+		observeGroup.GET("/health", handlers.Health)
 	}
 
 	memoryGroup := api.Group("/memory")
 	{
-		memoryGroup.GET("", handlers.listMemory)
-		memoryGroup.GET("/:filename", handlers.readMemory)
-		memoryGroup.PUT("/:filename", handlers.writeMemory)
-		memoryGroup.DELETE("/:filename", handlers.deleteMemory)
-		memoryGroup.POST("/consolidate", handlers.consolidateMemory)
+		memoryGroup.GET("", handlers.ListMemory)
+		memoryGroup.GET("/:filename", handlers.ReadMemory)
+		memoryGroup.PUT("/:filename", handlers.WriteMemory)
+		memoryGroup.DELETE("/:filename", handlers.DeleteMemory)
+		memoryGroup.POST("/consolidate", handlers.ConsolidateMemory)
 	}
 
 	daemonGroup := api.Group("/daemon")
 	{
-		daemonGroup.GET("/status", handlers.daemonStatus)
+		daemonGroup.GET("/status", handlers.DaemonStatus)
 	}
 
 	if engine, ok := router.(*gin.Engine); ok && handlers != nil {
@@ -528,55 +484,45 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 }
 
 func newHandlers(cfg handlerConfig) *Handlers {
-	logger := cfg.logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	now := cfg.now
-	if now == nil {
-		now = func() time.Time {
-			return time.Now().UTC()
-		}
-	}
-	agentLoader := cfg.agentLoader
-	if agentLoader == nil {
-		agentLoader = aghconfig.LoadAgentDef
-	}
 	if cfg.pollInterval <= 0 {
 		cfg.pollInterval = defaultPollInterval
-	}
-	if cfg.startedAt.IsZero() {
-		cfg.startedAt = now()
 	}
 	if cfg.httpPort <= 0 {
 		cfg.httpPort = cfg.config.HTTP.Port
 	}
 
 	return &Handlers{
-		sessions:     cfg.sessions,
-		observer:     cfg.observer,
-		workspaces:   cfg.workspaces,
-		memoryStore:  cfg.memoryStore,
-		dreamTrigger: cfg.dreamTrigger,
-		staticFS:     cfg.staticFS,
-		homePaths:    cfg.homePaths,
-		config:       cfg.config,
-		logger:       logger,
-		startedAt:    cfg.startedAt,
-		now:          now,
-		pollInterval: cfg.pollInterval,
-		agentLoader:  agentLoader,
-		httpPort:     cfg.httpPort,
+		BaseHandlers: apicore.NewBaseHandlers(apicore.BaseHandlerConfig{
+			TransportName:                "httpapi",
+			MaskInternalErrors:           true,
+			IncludeSessionWorkspaceInSSE: false,
+			Sessions:                     cfg.sessions,
+			Observer:                     cfg.observer,
+			Workspaces:                   cfg.workspaces,
+			MemoryStore:                  cfg.memoryStore,
+			DreamTrigger:                 cfg.dreamTrigger,
+			HomePaths:                    cfg.homePaths,
+			Config:                       cfg.config,
+			Logger:                       cfg.logger,
+			StartedAt:                    cfg.startedAt,
+			Now:                          cfg.now,
+			PollInterval:                 cfg.pollInterval,
+			AgentLoader:                  cfg.agentLoader,
+			HTTPPort:                     cfg.httpPort,
+		}),
+		staticFS: cfg.staticFS,
 	}
 }
 
 func (h *Handlers) setStreamDone(done <-chan struct{}) {
-	h.streamDone = done
+	if h != nil && h.BaseHandlers != nil {
+		h.SetStreamDone(done)
+	}
 }
 
 func (h *Handlers) setHTTPPort(port int) {
-	if port > 0 {
-		h.httpPort = port
+	if h != nil && h.BaseHandlers != nil {
+		h.SetHTTPPort(port)
 	}
 }
 

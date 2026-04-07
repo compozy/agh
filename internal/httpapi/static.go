@@ -65,7 +65,7 @@ func (h *Handlers) serveAsset(c *gin.Context, asset string) {
 		return
 	}
 
-	http.ServeContent(c.Writer, c.Request, path.Base(asset), h.startedAt, bytes.NewReader(data))
+	http.ServeContent(c.Writer, c.Request, path.Base(asset), h.StartedAt, bytes.NewReader(data))
 }
 
 func normalizedRequestPath(rawPath string) string {

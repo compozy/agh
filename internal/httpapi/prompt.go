@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/apicore"
 )
 
 type promptRequest struct {
@@ -85,7 +87,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 
-	events, err := h.sessions.Prompt(c.Request.Context(), c.Param("id"), message)
+	events, err := h.Sessions.Prompt(c.Request.Context(), c.Param("id"), message)
 	if err != nil {
 		respondError(c, statusForSessionError(err), err)
 		return
@@ -100,7 +102,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 
 	state := &promptStreamState{
 		now: func() string {
-			return h.now().UTC().Format(timeRFC3339Nano)
+			return h.Now().UTC().Format(time.RFC3339Nano)
 		},
 		toolStarted: make(map[string]struct{}),
 	}
@@ -109,7 +111,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		select {
 		case <-c.Request.Context().Done():
 			return
-		case <-h.streamDone:
+		case <-h.StreamDone:
 			return
 		case event, ok := <-events:
 			if !ok {
@@ -371,48 +373,50 @@ func (s *promptStreamState) finish(writer flushWriter, event acp.AgentEvent) err
 }
 
 func agentEventPayloadFromEvent(event acp.AgentEvent) agentEventPayload {
+	base := apicore.AgentEventPayloadFromEvent(event)
 	payload := agentEventPayload{
-		Type:       event.Type,
-		SessionID:  event.SessionID,
-		TurnID:     event.TurnID,
-		RequestID:  event.RequestID,
-		Text:       event.Text,
-		Title:      event.Title,
-		ToolCallID: event.ToolCallID,
-		StopReason: event.StopReason,
-		Action:     event.Action,
-		Resource:   event.Resource,
-		Decision:   event.Decision,
-		Error:      event.Error,
+		Type:       base.Type,
+		SessionID:  base.SessionID,
+		TurnID:     base.TurnID,
+		RequestID:  base.RequestID,
+		Text:       base.Text,
+		Title:      base.Title,
+		ToolCallID: base.ToolCallID,
+		StopReason: base.StopReason,
+		Action:     base.Action,
+		Resource:   base.Resource,
+		Decision:   base.Decision,
+		Error:      base.Error,
 		Usage:      tokenUsagePayloadFromUsage(event.Usage),
-		Raw:        payloadJSON(string(event.Raw)),
+		Raw:        base.Raw,
 	}
 	if !event.Timestamp.IsZero() {
-		payload.Timestamp = event.Timestamp.UTC().Format(timeRFC3339Nano)
+		payload.Timestamp = event.Timestamp.UTC().Format(time.RFC3339Nano)
 	}
 	return payload
 }
 
 func tokenUsagePayloadFromUsage(usage *acp.TokenUsage) *tokenUsagePayload {
-	if usage == nil {
+	base := apicore.TokenUsagePayloadFromUsage(usage)
+	if base == nil {
 		return nil
 	}
 
 	payload := &tokenUsagePayload{
-		TurnID:           usage.TurnID,
-		InputTokens:      usage.InputTokens,
-		OutputTokens:     usage.OutputTokens,
-		TotalTokens:      usage.TotalTokens,
-		ThoughtTokens:    usage.ThoughtTokens,
-		CacheReadTokens:  usage.CacheReadTokens,
-		CacheWriteTokens: usage.CacheWriteTokens,
-		ContextUsed:      usage.ContextUsed,
-		ContextSize:      usage.ContextSize,
-		CostAmount:       usage.CostAmount,
-		CostCurrency:     usage.CostCurrency,
+		TurnID:           base.TurnID,
+		InputTokens:      base.InputTokens,
+		OutputTokens:     base.OutputTokens,
+		TotalTokens:      base.TotalTokens,
+		ThoughtTokens:    base.ThoughtTokens,
+		CacheReadTokens:  base.CacheReadTokens,
+		CacheWriteTokens: base.CacheWriteTokens,
+		ContextUsed:      base.ContextUsed,
+		ContextSize:      base.ContextSize,
+		CostAmount:       base.CostAmount,
+		CostCurrency:     base.CostCurrency,
 	}
-	if !usage.Timestamp.IsZero() {
-		payload.Timestamp = usage.Timestamp.UTC().Format(timeRFC3339Nano)
+	if !base.Timestamp.IsZero() {
+		payload.Timestamp = base.Timestamp.UTC().Format(time.RFC3339Nano)
 	}
 	return payload
 }

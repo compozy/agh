@@ -28,10 +28,10 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 	done := make(chan struct{})
 	callCount := 0
 	manager := stubSessionManager{
-		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
 			return newSessionInfo("sess-123"), nil
 		},
-		eventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+		EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
 			callCount++
 			switch callCount {
 			case 1:
@@ -82,13 +82,13 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
 			info := newSessionInfo("sess-123")
 			info.State = session.StateStopped
 			info.UpdatedAt = time.Date(2026, 4, 3, 12, 0, 2, 0, time.UTC)
 			return info, nil
 		},
-		eventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+		EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
 			return nil, nil
 		},
 	}
@@ -120,7 +120,7 @@ func TestStreamObserveEventsPollsForNewEvents(t *testing.T) {
 	done := make(chan struct{})
 	callCount := 0
 	observer := stubObserver{
-		queryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
+		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 			callCount++
 			timestamp := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 			switch callCount {
@@ -175,19 +175,19 @@ func TestHelperBuildersCoverRemainingBranches(t *testing.T) {
 
 func TestNewHandlersAppliesDefaults(t *testing.T) {
 	handlers := newHandlers(handlerConfig{})
-	if handlers.logger == nil {
+	if handlers.Logger == nil {
 		t.Fatal("expected default logger")
 	}
-	if handlers.now == nil {
+	if handlers.Now == nil {
 		t.Fatal("expected default clock")
 	}
-	if handlers.pollInterval != defaultPollInterval {
-		t.Fatalf("pollInterval = %v, want %v", handlers.pollInterval, defaultPollInterval)
+	if handlers.PollInterval != defaultPollInterval {
+		t.Fatalf("pollInterval = %v, want %v", handlers.PollInterval, defaultPollInterval)
 	}
-	if handlers.agentLoader == nil {
+	if handlers.AgentLoader == nil {
 		t.Fatal("expected default agent loader")
 	}
-	if handlers.startedAt.IsZero() {
+	if handlers.StartedAt.IsZero() {
 		t.Fatal("expected non-zero startedAt")
 	}
 }

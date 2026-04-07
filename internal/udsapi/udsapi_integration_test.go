@@ -200,14 +200,14 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 		WithSocketPath(socketPath),
 		WithLogger(discardLogger()),
 		WithSessionManager(stubSessionManager{
-			listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+			ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 				entered <- struct{}{}
 				<-release
 				return []*session.SessionInfo{newSessionInfo("sess-1")}, nil
 			},
 		}),
 		WithObserver(stubObserver{
-			healthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
+			HealthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
 		}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
 	)

@@ -22,16 +22,16 @@ import (
 func TestCreateGetResumeAndStopHandlersReturnExpectedErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		createFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
 			return nil, os.ErrNotExist
 		},
-		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
 			return nil, session.ErrSessionNotFound
 		},
-		resumeFn: func(context.Context, string) (*session.Session, error) {
+		ResumeFn: func(context.Context, string) (*session.Session, error) {
 			return nil, session.ErrSessionNotFound
 		},
-		stopFn: func(context.Context, string) error {
+		StopFn: func(context.Context, string) error {
 			return session.ErrSessionNotFound
 		},
 	}
@@ -93,16 +93,16 @@ func TestCreateSessionHandlerRejectsInvalidWorkspaceContract(t *testing.T) {
 func TestWorkspaceHandlersReturnExpectedErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	workspaces := stubWorkspaceService{
-		registerFn: func(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
+		RegisterFn: func(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspacePathTaken
 		},
-		getFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
 		},
-		resolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+		ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
 		},
-		resolveOrRegisterFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+		ResolveOrRegisterFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
 		},
 	}
@@ -132,10 +132,10 @@ func TestWorkspaceHandlersReturnExpectedErrors(t *testing.T) {
 func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasSessions(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	workspaces := stubWorkspaceService{
-		getFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
 		},
-		unregisterFn: func(context.Context, string) error {
+		UnregisterFn: func(context.Context, string) error {
 			return workspacepkg.ErrWorkspaceHasSessions
 		},
 	}
@@ -150,7 +150,7 @@ func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasSessions(t *testin
 func TestCreateSessionHandlerMapsWorkspaceErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		createFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
 			return nil, fmt.Errorf("session: resolve workspace %q: %w", "alpha", workspacepkg.ErrWorkspaceRootMissing)
 		},
 	}
@@ -165,7 +165,7 @@ func TestCreateSessionHandlerMapsWorkspaceErrors(t *testing.T) {
 func TestHandlersRejectBadPromptAndQueryValues(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		statusFn: func(context.Context, string) (*session.SessionInfo, error) {
+		StatusFn: func(context.Context, string) (*session.SessionInfo, error) {
 			return newSessionInfo("sess-123"), nil
 		},
 	}
@@ -190,7 +190,7 @@ func TestHandlersRejectBadPromptAndQueryValues(t *testing.T) {
 func TestPromptSessionHandlerCoversThoughtPermissionAndErrorBranches(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		promptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+		PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
 			ch := make(chan acp.AgentEvent, 3)
 			ch <- acp.AgentEvent{
 				Type:      "thought",
@@ -251,14 +251,14 @@ func TestPromptSessionHandlerCoversThoughtPermissionAndErrorBranches(t *testing.
 func TestAgentObserveHealthAndDaemonStatusErrorPaths(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{
-		queryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
+		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 			return nil, errors.New("boom")
 		},
-		healthFn: func(context.Context) (observe.Health, error) {
+		HealthFn: func(context.Context) (observe.Health, error) {
 			return observe.Health{}, errors.New("health failed")
 		},
 	}, homePaths)
-	handlers.agentLoader = func(_ string, _ aghconfig.HomePaths) (aghconfig.AgentDef, error) {
+	handlers.AgentLoader = func(_ string, _ aghconfig.HomePaths) (aghconfig.AgentDef, error) {
 		return aghconfig.AgentDef{}, os.ErrNotExist
 	}
 	engine := newTestRouter(t, handlers)
@@ -279,11 +279,11 @@ func TestAgentObserveHealthAndDaemonStatusErrorPaths(t *testing.T) {
 	}
 
 	statusHandlers := newTestHandlers(t, stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			return nil, errors.New("list failed")
 		},
 	}, stubObserver{
-		healthFn: func(context.Context) (observe.Health, error) {
+		HealthFn: func(context.Context) (observe.Health, error) {
 			return observe.Health{Status: "ok"}, nil
 		},
 	}, homePaths)
@@ -314,7 +314,7 @@ func TestCORSMiddlewareRejectsDisallowedOrigins(t *testing.T) {
 func TestCORSMiddlewareAllowsLoopbackOrigins(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			return nil, nil
 		},
 	}, stubObserver{}, homePaths))
@@ -335,7 +335,7 @@ func TestCORSMiddlewareAllowsLoopbackOrigins(t *testing.T) {
 func TestRespondErrorSanitizesInternalFailures(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-		listAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
 			return nil, errors.New("secret internal path")
 		},
 	}, stubObserver{}, homePaths))
