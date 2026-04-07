@@ -584,11 +584,40 @@ func writeSkillFile(t *testing.T, root, relPath, content string) string {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile(%q) error = %v", path, err)
-	}
+	writeSkillFileAtomically(t, path, content)
 
 	return path
+}
+
+func writeSkillFileAtomically(t *testing.T, path, content string) {
+	t.Helper()
+
+	dir := filepath.Dir(path)
+	tempFile, err := os.CreateTemp(dir, ".skill-*")
+	if err != nil {
+		t.Fatalf("CreateTemp(%q) error = %v", dir, err)
+	}
+
+	tempPath := tempFile.Name()
+	cleanup := func() {
+		_ = os.Remove(tempPath)
+	}
+	defer cleanup()
+
+	if _, err := tempFile.WriteString(content); err != nil {
+		_ = tempFile.Close()
+		t.Fatalf("WriteString(%q) error = %v", tempPath, err)
+	}
+	if err := tempFile.Chmod(0o644); err != nil {
+		_ = tempFile.Close()
+		t.Fatalf("Chmod(%q) error = %v", tempPath, err)
+	}
+	if err := tempFile.Close(); err != nil {
+		t.Fatalf("Close(%q) error = %v", tempPath, err)
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		t.Fatalf("Rename(%q, %q) error = %v", tempPath, path, err)
+	}
 }
 
 func defaultSkillContent(name string) string {

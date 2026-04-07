@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -997,9 +996,7 @@ func skillWithBody(name, description, body string) string {
 func rewriteSkillFile(t *testing.T, path, content string) {
 	t.Helper()
 
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("rewrite skill file %q: %v", path, err)
-	}
+	writeSkillFileAtomically(t, path, content)
 }
 
 func findSkill(t *testing.T, skills []*Skill, name string) *Skill {
