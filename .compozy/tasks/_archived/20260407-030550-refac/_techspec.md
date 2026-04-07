@@ -25,7 +25,7 @@ All findings, code locations, and before/after sketches are in the individual an
 
 ### New Packages Introduced
 
-Four new `internal/` packages are created. Each is narrow in scope (single responsibility, <100 LOC) and has no efferent dependencies beyond stdlib:
+Five new `internal/` packages are proposed. Three are leaf utilities; two are deliberate consolidation layers for the transport and test surfaces:
 
 ```
 internal/
@@ -33,6 +33,7 @@ internal/
   fileutil/       # AtomicWriteFile — used by store, memory
   testutil/       # Context, EqualStringSlices — used by test files across 7+ packages
   apicore/        # Shared API payloads, handlers, SSE, parsers — used by httpapi, udsapi
+  apitest/        # Shared API test stubs/helpers — used by httpapi, udsapi tests
 ```
 
 ### Dependency Flow (post-refactoring)
@@ -47,7 +48,7 @@ daemon/ ──→ httpapi/ ──→ apicore/ ──→ session/, store/, observ
          ──→ fileutil/ (new, indirect via store/memory)
 ```
 
-No circular dependencies introduced. All new packages are leaf-level utilities with zero efferent coupling to domain packages. `apicore/` depends on the same domain packages that `httpapi/` and `udsapi/` already depend on — it does not add new import edges, it consolidates existing ones.
+No circular dependencies are introduced. `procutil/`, `fileutil/`, and `testutil/` remain leaf utilities. `apicore/` is intentionally not a leaf package: it consolidates existing transport-to-domain dependencies already present in `httpapi/` and `udsapi/` rather than introducing new architectural coupling. `apitest/` is test-only shared infrastructure.
 
 ### Core Interfaces
 
@@ -116,9 +117,9 @@ Pure file reorganization within packages. Methods stay on the same receiver type
 |---|------------|-------------|------------|
 | 2.1 | `daemon/daemon.go` (1,495 LOC) | `daemon.go`, `boot.go`, `dream.go`, `orphan.go`, `boundary.go`, `notifier.go` | Infra F3 |
 | 2.2 | `session/manager.go` (1,205 LOC) | `manager.go`, `manager_lifecycle.go`, `manager_prompt.go`, `manager_workspace.go`, `manager_helpers.go` | Core F1 |
-| 2.3 | `store/global_db.go` (1,097 LOC) | `global_db.go`, `global_db_workspace.go`, `global_db_session.go`, `global_db_observe.go`, `global_db_permission.go` | Storage F1 |
-| 2.4 | `workspace/resolver.go` (1,078 LOC) | `resolver.go`, `resolver_crud.go`, `scanner.go`, `clone.go`, `helpers.go` | New F2 |
-| 2.5 | `udsapi/handlers.go` (1,058 LOC) | `sessions.go`, `agents.go`, `observe.go`, `daemon.go`, `stream.go`, `payloads.go` (match httpapi layout) | API F2 |
+| 2.3 | `store/global_db.go` (1,099 LOC) | `global_db.go`, `global_db_workspace.go`, `global_db_session.go`, `global_db_observe.go`, `global_db_permission.go` | Storage F1 |
+| 2.4 | `workspace/resolver.go` (1,069 LOC) | `resolver.go`, `resolver_crud.go`, `scanner.go`, `clone.go`, `helpers.go` | New F2 |
+| 2.5 | `udsapi/handlers.go` (1,084 LOC) | `sessions.go`, `agents.go`, `observe.go`, `prompt.go`, `daemon.go`, `stream.go`, `payloads.go` (match current `httpapi` layout where applicable) | API F2 |
 | 2.6 | `store/schema.go` (734 LOC) | `schema.go`, `sqlite.go`, `migrate_workspace.go` | Storage F4 |
 | 2.7 | `store/store.go` (568 LOC) | `types.go`, `store.go`, `sql_helpers.go` | Storage F5 |
 
@@ -167,7 +168,7 @@ These are applied as part of ongoing work, not as a dedicated sprint.
 | 4.2 | Extract `emitPermissionEvent` (3x event emission dedup) | `acp/handlers.go` | Core F4 |
 | 4.3 | Extract `requireField` + `requirePositiveLimit` validation helpers | `store/store.go` | Storage F2 |
 | 4.4 | Extract `checkReady(ctx)` nil-guard helper on GlobalDB | `store/global_db.go` | Storage F6 |
-| 4.5 | Extract shared `fileSnapshot` type across skills/workspace | `skills/types.go`, `workspace/resolver.go` | New F1 |
+| 4.5 | Extract shared `fileSnapshot` helper set across skills/workspace | `skills/types.go`, `workspace/resolver.go` | New F1 |
 | 4.6 | Move `slog.Warn` from `ParseSkillFile` to callers | `skills/loader.go` | New F5 |
 | 4.7 | Consolidate `cloneRawMessage`/`cloneRawJSON` within session package | `session/transcript.go`, `acp/handlers.go` | Core F5 |
 | 4.8 | Extract generic `listBundle[T]` for CLI output bundles | `cli/format.go` | Infra F6 |
@@ -260,9 +261,9 @@ These are applied as part of ongoing work, not as a dedicated sprint.
 - Trade-off: httpapi has one extra type. Minimal overhead.
 
 **5. Shared `fileSnapshot` location**
-- Decision: If extracted, place in `internal/fileutil/` alongside `AtomicWriteFile` (both are filesystem utilities). Alternative: keep duplicated if the workspace team prefers independence.
-- Rationale: Both packages need identical file-metadata comparison for cache staleness detection. A shared type eliminates the divergence risk.
-- Trade-off: Adds a dependency from `skills/` and `workspace/` to `fileutil/`. Both already depend on stdlib `os` — this is a thin wrapper.
+- Decision: If extracted, keep exactly one canonical snapshot implementation, either in a dedicated helper package (for example `internal/fsnap/`) or by promoting one existing package helper into a shared owner. Do not force it into `fileutil/` if that package would become a grab bag.
+- Rationale: Both packages need identical file-metadata comparison for cache staleness detection. A single canonical helper eliminates divergence risk without over-constraining package layout.
+- Trade-off: Adds one more shared dependency edge if a dedicated package is chosen. That is acceptable only if it reduces net complexity compared with keeping parallel implementations.
 
 ### Known Risks
 

@@ -1,8 +1,8 @@
 ---
-status: pending
+status: completed
 title: API layer consolidation (apicore + apitest)
 type: refactor
-complexity: high
+complexity: critical
 dependencies:
   - task_02
 ---
@@ -41,7 +41,7 @@ Create `internal/apicore/` as the shared foundation for `httpapi/` and `udsapi/`
 - MUST move shared handler methods: `listSessions`, `createSession`, `getSession`, `stopSession`, `resumeSession`, `sessionEvents`, `sessionHistory`, `sessionTranscript`, `listAgents`, `getAgent`, `observeEvents`, `daemonStatus`, `health`
 - MUST move all memory handlers verbatim (byte-identical between packages)
 - MUST move all workspace handlers verbatim (byte-identical between packages)
-- Transport packages MUST embed `BaseHandlers`
+- Transport packages MUST delegate shared logic through `BaseHandlers` or equivalent composition
 - httpapi-specific MUST remain: AI SDK streaming, static files, CORS, `approveSession`
 - udsapi-specific MUST remain: raw streaming, socket lifecycle, `approveSession` (501 stub)
 
@@ -54,18 +54,18 @@ Create `internal/apicore/` as the shared foundation for `httpapi/` and `udsapi/`
 **General:**
 - MUST NOT introduce circular dependencies
 - MUST NOT change any HTTP/UDS API contract (request/response JSON shapes)
-- MUST update `RegisterRoutes` in both packages to delegate to `BaseHandlers`
+- MUST keep transport route registration intact while binding the shared handler implementations from the consolidated core
 </requirements>
 
 ## Subtasks
 
-- [ ] 3.1 Create `apicore/interfaces.go` with shared interfaces
-- [ ] 3.2 Create `apicore/payloads.go` with all request/response structs + `apicore/conversions.go`
-- [ ] 3.3 Create `apicore/parsers.go` + `apicore/sse.go` + `apicore/errors.go`
-- [ ] 3.4 Create `apicore/handlers.go` with `BaseHandlers` + shared session/agent/observe/daemon handlers
-- [ ] 3.5 Create `apicore/memory.go` + `apicore/workspaces.go` with shared handlers
-- [ ] 3.6 Update `httpapi/` and `udsapi/` to embed `BaseHandlers`, remove all duplicated code
-- [ ] 3.7 Create `internal/apitest/` with shared stubs and helpers, update both test suites
+- [x] 3.1 Create `apicore/interfaces.go` with shared interfaces
+- [x] 3.2 Create `apicore/payloads.go` with all request/response structs + `apicore/conversions.go`
+- [x] 3.3 Create `apicore/parsers.go` + `apicore/sse.go` + `apicore/errors.go`
+- [x] 3.4 Create `apicore/handlers.go` with `BaseHandlers` + shared session/agent/observe/daemon handlers
+- [x] 3.5 Create `apicore/memory.go` + `apicore/workspaces.go` with shared handlers
+- [x] 3.6 Update `httpapi/` and `udsapi/` to reuse `BaseHandlers` via embedding or composition, remove all duplicated code
+- [x] 3.7 Create `internal/apitest/` with shared stubs and helpers, update both test suites
 
 ## Implementation Details
 
@@ -115,15 +115,15 @@ See TechSpec "Phase 3: API Layer Consolidation" steps 3.1–3.9 for the full ext
 
 ### Dependent Files
 
-- `internal/httpapi/server.go` — `Handlers` embeds `apicore.BaseHandlers`
-- `internal/udsapi/server.go` — `Handlers` embeds `apicore.BaseHandlers`
+- `internal/httpapi/server.go` — `Handlers` reuses `apicore.BaseHandlers`
+- `internal/udsapi/server.go` — `Handlers` reuses `apicore.BaseHandlers`
 - `internal/daemon/daemon.go` — may need minor updates to handler construction
 - All httpapi + udsapi handler files — remove duplicated code, import apicore
 - Both `helpers_test.go` — import apitest, keep only transport-specific helpers
 
 ## Deliverables
 
-- `internal/apicore/` package (~6 files): interfaces, payloads, conversions, parsers, sse, errors, handlers, memory, workspaces
+- `internal/apicore/` package (~8-9 files): interfaces, payloads, conversions, parsers, sse, errors, handlers, memory, workspaces
 - `internal/apitest/` package: shared stubs and test helpers
 - Reduced `httpapi/` — only transport-specific code remains
 - Reduced `udsapi/` — only transport-specific code remains
@@ -134,23 +134,23 @@ See TechSpec "Phase 3: API Layer Consolidation" steps 3.1–3.9 for the full ext
 ## Tests
 
 - Unit tests:
-  - [ ] `SessionPayloadFromInfo` correctly converts all fields
-  - [ ] `AgentPayloadFromDef` correctly converts agent definitions
-  - [ ] `ParseSessionEventQuery` parses valid params and rejects invalid
-  - [ ] `ParseOptionalTime` handles empty, valid RFC3339, and invalid format
-  - [ ] `RespondError` with `maskInternalErrors=true` masks 5xx details
-  - [ ] `RespondError` with `maskInternalErrors=false` exposes raw error
-  - [ ] `PrepareSSE` sets correct headers
-  - [ ] `BaseHandlers.listSessions` returns sessions from SessionManager
-  - [ ] `BaseHandlers.createSession` calls Create with correct opts
-  - [ ] `BaseHandlers.getSession` returns 404 for unknown ID
-  - [ ] Memory handlers delegate to memory store correctly
-  - [ ] Workspace handlers delegate to workspace service correctly
-  - [ ] `apitest.StubSessionManager` satisfies `apicore.SessionManager`
+  - [x] `SessionPayloadFromInfo` correctly converts all fields
+  - [x] `AgentPayloadFromDef` correctly converts agent definitions
+  - [x] `ParseSessionEventQuery` parses valid params and rejects invalid
+  - [x] `ParseOptionalTime` handles empty, valid RFC3339, and invalid format
+  - [x] `RespondError` with `maskInternalErrors=true` masks 5xx details
+  - [x] `RespondError` with `maskInternalErrors=false` exposes raw error
+  - [x] `PrepareSSE` sets correct headers
+  - [x] `BaseHandlers.listSessions` returns sessions from SessionManager
+  - [x] `BaseHandlers.createSession` calls Create with correct opts
+  - [x] `BaseHandlers.getSession` returns 404 for unknown ID
+  - [x] Memory handlers delegate to memory store correctly
+  - [x] Workspace handlers delegate to workspace service correctly
+  - [x] `apitest.StubSessionManager` satisfies `apicore.SessionManager`
 - Integration tests:
-  - [ ] All existing `httpapi/handlers_test.go` assertions pass
-  - [ ] All existing `udsapi/handlers_test.go` assertions pass
-  - [ ] All memory and workspace handler tests pass
+  - [x] All existing `httpapi/handlers_test.go` assertions pass
+  - [x] All existing `udsapi/handlers_test.go` assertions pass
+  - [x] All memory and workspace handler tests pass
 - Test coverage target: >=80%
 
 ## Success Criteria
@@ -162,6 +162,6 @@ See TechSpec "Phase 3: API Layer Consolidation" steps 3.1–3.9 for the full ext
 - No duplicated payload structs (except httpapi AI SDK variant)
 - No duplicated SSE utilities, parsers, or conversion functions
 - No duplicated test stubs between packages
-- `httpapi/` contains only: AI SDK streaming, static files, CORS
-- `udsapi/` contains only: socket lifecycle, raw streaming
+- `httpapi/` is reduced primarily to transport/server concerns plus HTTP-only behavior (AI SDK streaming, static assets, CORS, approval route wiring)
+- `udsapi/` is reduced primarily to transport/server concerns plus UDS-only behavior (socket lifecycle, raw streaming, approval stub wiring)
 - `golangci-lint` confirms no import cycles

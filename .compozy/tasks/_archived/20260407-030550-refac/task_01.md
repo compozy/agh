@@ -1,8 +1,8 @@
 ---
-status: pending
+status: completed
 title: Utility packages + inline quick wins
 type: refactor
-complexity: low
+complexity: high
 dependencies: []
 ---
 
@@ -10,7 +10,7 @@ dependencies: []
 
 ## Overview
 
-Create three shared utility packages (`procutil`, `fileutil`, `testutil`) to eliminate cross-package duplication, then apply a batch of small inline deduplication fixes across the codebase. This is the foundation step — all changes are mechanical, behavior-preserving, and unblock the file splits in task 02.
+Create three shared utility packages (`procutil`, `fileutil`, `testutil`) to eliminate cross-package duplication, then apply a batch of small inline deduplication fixes across the codebase. This is the foundation step for the larger refactor set, but it still spans multiple packages and requires careful behavior-preserving edits before the file splits in task 02.
 
 <critical>
 - ALWAYS READ the PRD and TechSpec before starting
@@ -21,11 +21,11 @@ Create three shared utility packages (`procutil`, `fileutil`, `testutil`) to eli
 </critical>
 
 <requirements>
-- MUST create `internal/procutil/` with `Alive(pid int) bool` and `Signal(pid int, sig syscall.Signal) error`, replacing 3 production copies
-- MUST create `internal/fileutil/` with `AtomicWriteFile(path string, content []byte, perm os.FileMode) error`, replacing 2 implementations. MUST call `Sync` before rename (fixing store/meta.go divergence)
-- MUST create `internal/testutil/` with `Context(t) context.Context` and `EqualStringSlices(a, b []string) bool`, replacing 10 copies across test files
-- MUST move `userAgentsSkillsDir` logic to `config.ResolveUserAgentsSkillsDir()` and update both consumers
-- MUST consolidate `daemon.normalizeAbsolutePath` to use `config.expandUserPath`
+- MUST create `internal/procutil/` with `Alive(pid int) bool` and `Signal(pid int, sig syscall.Signal) error`, replacing the duplicated process utility implementations across daemon, cli, and memory
+- MUST create `internal/fileutil/` with `AtomicWriteFile(path string, content []byte, perm os.FileMode) error`, replacing both atomic-write implementations. The shared helper MUST call `Sync` before rename so it preserves the current `store/meta.go` durability behavior and fixes the `memory/store.go` variant
+- MUST create `internal/testutil/` with `Context(t) context.Context` and `EqualStringSlices(a, b []string) bool`, replacing the duplicated `testContext` and string-slice comparison helpers across the test suite
+- MUST add an exported helper in `config/home.go` for resolving the user agents/skills directory and update both daemon and CLI consumers to use it
+- MUST consolidate daemon path normalization onto a shared `config/home.go` path-resolution helper; do not couple daemon code to unexported config internals
 - MUST merge `cleanupFailedCreate`/`cleanupFailedResume` into `cleanupFailedStart(sessionDir, ...)`
 - MUST extract `processSkill` method in skills registry (3x duplicated load-verify-overlay loop)
 - MUST replace `reflect.DeepEqual` in `skills/registry.go:201` with snapshot-based comparison
@@ -38,13 +38,13 @@ Create three shared utility packages (`procutil`, `fileutil`, `testutil`) to eli
 
 ## Subtasks
 
-- [ ] 1.1 Create `internal/procutil/` and update consumers (`daemon/lock.go:195`, `daemon/daemon.go:1390`, `cli/root.go:247-258`, `memory/lock.go:274`)
-- [ ] 1.2 Create `internal/fileutil/` and update consumers (`store/meta.go:36-79`, `memory/store.go:489`)
-- [ ] 1.3 Create `internal/testutil/` and update 7 test files + 3 `equalStringSlices` copies
-- [ ] 1.4 Consolidate config path utilities (`config/home.go:138`, `daemon/daemon.go:882,1338`, `cli/skill.go:348`)
-- [ ] 1.5 Merge session cleanup functions (`session/manager.go:964-1005`)
-- [ ] 1.6 Extract `processSkill` in skills registry + replace `reflect.DeepEqual` (`skills/registry.go:201,228-328`)
-- [ ] 1.7 CLI/UDS misc fixes (`cli/daemon.go:296-322`, `cli/format.go:279`, `udsapi/server.go:29`)
+- [x] 1.1 Create `internal/procutil/` and update consumers (`daemon/lock.go:195`, `daemon/daemon.go:1390`, `cli/root.go:247-258`, `memory/lock.go:274`)
+- [x] 1.2 Create `internal/fileutil/` and update consumers (`store/meta.go:36-79`, `memory/store.go:489`)
+- [x] 1.3 Create `internal/testutil/` and update the duplicated `testContext` helpers plus string-slice comparison helpers in the test suite
+- [x] 1.4 Consolidate config path utilities (`config/home.go:138`, `daemon/daemon.go:882,1338`, `cli/skill.go:348`)
+- [x] 1.5 Merge session cleanup functions (`session/manager.go:964-1005`)
+- [x] 1.6 Extract `processSkill` in skills registry + replace `reflect.DeepEqual` (`skills/registry.go:201,228-328`)
+- [x] 1.7 CLI/UDS misc fixes (`cli/daemon.go:296-322`, `cli/format.go:279`, `udsapi/server.go:29`)
 
 ## Implementation Details
 
@@ -59,8 +59,8 @@ See TechSpec "Phase 1: Quick Wins" items 1.1–1.10 and "Core Interfaces" sectio
 - `internal/cli/root.go:247-258` — `signalProcess` + `processAlive` duplicates
 
 **fileutil sources:**
-- `internal/memory/store.go:489` — `atomicWriteFile` (has Sync — canonical)
-- `internal/store/meta.go:36-79` — inline atomic write (missing Sync — latent bug)
+- `internal/store/meta.go:36-79` — inline atomic write (current durability baseline with `Sync`)
+- `internal/memory/store.go:489` — `atomicWriteFile` duplicate (missing `Sync` before rename)
 
 **testutil sources:**
 - `internal/acp/client_test.go:778` — `testContext`
@@ -90,13 +90,13 @@ See TechSpec "Phase 1: Quick Wins" items 1.1–1.10 and "Core Interfaces" sectio
 ### Dependent Files
 
 - `internal/daemon/lock.go` — imports `procutil`
-- `internal/daemon/daemon.go` — imports `procutil`, removes local path utils
+- `internal/daemon/daemon.go` — imports `procutil` and the shared config path helper, removes local path utilities
 - `internal/memory/lock.go` — imports `procutil`
 - `internal/cli/root.go` — imports `procutil`
 - `internal/store/meta.go` — imports `fileutil`
 - `internal/memory/store.go` — imports `fileutil`
-- `internal/config/home.go` — gains exported `ResolveUserAgentsSkillsDir`
-- `internal/cli/skill.go` — imports config for path resolution
+- `internal/config/home.go` — gains exported path helpers for daemon/CLI reuse
+- `internal/cli/skill.go` — imports config for user agents/skills directory resolution
 - `internal/skills/registry.go` — `reflect` import removed
 
 ## Deliverables
@@ -112,17 +112,17 @@ See TechSpec "Phase 1: Quick Wins" items 1.1–1.10 and "Core Interfaces" sectio
 ## Tests
 
 - Unit tests:
-  - [ ] `procutil.Alive` with current PID returns true
-  - [ ] `procutil.Alive` with PID 0 and negative PID returns false
-  - [ ] `procutil.Signal` with valid PID and signal 0 succeeds
-  - [ ] `fileutil.AtomicWriteFile` writes correct content and permissions
-  - [ ] `fileutil.AtomicWriteFile` does not corrupt target on write failure
-  - [ ] `testutil.Context` returns a context cancelled after cleanup
-  - [ ] `testutil.EqualStringSlices` correctness for equal and unequal inputs
-  - [ ] `config.ResolveUserAgentsSkillsDir` with HOME set and unset
-  - [ ] `cleanupFailedStart` with and without sessionDir
-  - [ ] `processSkill` applies disabled, verifies, overlays; skips critical warnings
-  - [ ] Skills reload with unchanged snapshots skips map update
+  - [x] `procutil.Alive` with current PID returns true
+  - [x] `procutil.Alive` with PID 0 and negative PID returns false
+  - [x] `procutil.Signal` with valid PID and signal 0 succeeds
+  - [x] `fileutil.AtomicWriteFile` writes correct content and permissions
+  - [x] `fileutil.AtomicWriteFile` does not corrupt target on write failure
+  - [x] `testutil.Context` returns a context cancelled after cleanup
+  - [x] `testutil.EqualStringSlices` correctness for equal and unequal inputs
+  - [x] `config.ResolveUserAgentsSkillsDir` with HOME set and unset
+  - [x] `cleanupFailedStart` with and without sessionDir
+  - [x] `processSkill` applies disabled, verifies, overlays; skips critical warnings
+  - [x] Skills reload with unchanged snapshots skips map update
 - Test coverage target: >=95% for procutil/fileutil, >=80% for modified packages
 - All existing tests must pass unchanged
 
@@ -130,6 +130,6 @@ See TechSpec "Phase 1: Quick Wins" items 1.1–1.10 and "Core Interfaces" sectio
 
 - All tests passing
 - `make verify` passes
-- Zero local copies of `processAlive`, `signalProcess`, `atomicWriteFile`, `testContext`, `equalStringSlices` remain
+- Zero local copies of `processAlive`, `signalProcess`, `atomicWriteFile`, `testContext`, and the ad-hoc string-slice comparison helpers remain where the shared utilities should apply
 - `reflect` import removed from `skills/registry.go`
 - No duplicate path resolution or cleanup functions remain

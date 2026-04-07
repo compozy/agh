@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-The three packages are well-structured for an alpha project with clean interface boundaries, good error wrapping, and solid test coverage. The most impactful finding is the **Large Class smell in `global_db.go`** (1,097 lines mixing workspace CRUD, session registry, observability writes, and schema migration), which concentrates four unrelated change reasons in one file. The second systemic issue is **pervasive Validate() boilerplate** duplicated across 10+ domain structs with identical `strings.TrimSpace` + switch patterns. A third area is **cross-package duplication of atomic-write logic and test helpers** (`testContext`, `equalStringSlices`, `atomicWriteFile`).
+The three packages are well-structured for an alpha project with clean interface boundaries, good error wrapping, and solid test coverage. The most impactful finding is the **Large Class smell in `global_db.go`** (1,099 lines mixing workspace CRUD, session registry, observability writes, and schema migration), which concentrates four unrelated change reasons in one file. The second systemic issue is **pervasive Validate() boilerplate** duplicated across 10+ domain structs with identical `strings.TrimSpace` + switch patterns. A third area is **cross-package duplication of atomic-write logic and test helpers** (`testContext`, `equalStringSlices`, `atomicWriteFile`).
 
 | Severity | Count |
 |----------|-------|
@@ -40,7 +40,7 @@ The three packages are well-structured for an alpha project with clean interface
 - **Category**: Bloater + Change Preventer
 - **Location**: `internal/store/global_db.go:1-1097`
 - **Severity**: High
-- **Impact**: Four unrelated change reasons in one 1,097-line file: (1) workspace CRUD, (2) session registry, (3) event summary / token stats observability writes, (4) permission audit log. Any workspace schema change, session lifecycle change, or observability addition modifies this file.
+- **Impact**: Four unrelated change reasons in one 1,099-line file: (1) workspace CRUD, (2) session registry, (3) event summary / token stats observability writes, (4) permission audit log. Any workspace schema change, session lifecycle change, or observability addition modifies this file.
 
 **Current Code** (simplified):
 ```go
@@ -82,7 +82,7 @@ internal/store/
 
 All methods remain on `*GlobalDB` -- this is a file-level split, not a type decomposition. Each file groups one cohesive responsibility.
 
-**Rationale**: Fowler's Divergent Change: "When you look at a piece of code and decide whether it needs to change for one reason or another, you should be able to focus on the code that changes for that reason." Splitting by file within the same package preserves the Go interface satisfaction while reducing cognitive load from 1,097 to ~200-250 lines per file.
+**Rationale**: Fowler's Divergent Change: "When you look at a piece of code and decide whether it needs to change for one reason or another, you should be able to focus on the code that changes for that reason." Splitting by file within the same package preserves the Go interface satisfaction while reducing cognitive load from 1,099 to ~200-250 lines per file.
 
 ---
 

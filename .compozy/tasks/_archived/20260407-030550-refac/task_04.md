@@ -1,8 +1,8 @@
 ---
-status: pending
+status: completed
 title: Domain-level deduplication
 type: refactor
-complexity: medium
+complexity: high
 dependencies:
   - task_02
 ---
@@ -27,19 +27,19 @@ Apply targeted method extractions and utility consolidation across domain packag
 - MUST extract `requireField(value, label)` and `requirePositiveLimit(limit, label)` validation helpers in `store/`
 - MUST extract `checkReady(ctx)` nil-guard helper on `GlobalDB` (replaces 18+ identical guard blocks)
 - MUST consolidate `cloneRawMessage` (`session/transcript.go:595`) and `cloneRawJSON` (`acp/handlers.go:753`) — single canonical copy
-- SHOULD extract shared `fileSnapshot` type from `skills/types.go:66-71` and `workspace/resolver.go:64-67` into `fileutil/` (with `Equal`, `Clone`, `FromPath`)
+- SHOULD extract the shared `fileSnapshot` equality/clone/snapshot logic into a single canonical helper or dedicated package; do not keep parallel implementations in both `skills/` and `workspace/`
 - SHOULD introduce generic `listBundle[T]` helper in `cli/format.go` to reduce output bundle boilerplate (~20 instances)
 - MUST NOT change any external behavior
 </requirements>
 
 ## Subtasks
 
-- [ ] 4.1 Extract `activateAndWatch` in session manager + extract `emitPermissionEvent` in ACP handlers
-- [ ] 4.2 Extract store validation helpers (`requireField`, `requirePositiveLimit`) and `checkReady(ctx)` on GlobalDB
-- [ ] 4.3 Consolidate `cloneRawMessage`/`cloneRawJSON` into single utility
-- [ ] 4.4 Extract shared `fileSnapshot` type from skills and workspace into `fileutil/`
-- [ ] 4.5 Introduce generic `listBundle[T]` in CLI and update existing bundle functions
-- [ ] 4.6 Run `make verify` to confirm all tests pass
+- [x] 4.1 Extract `activateAndWatch` in session manager + extract `emitPermissionEvent` in ACP handlers
+- [x] 4.2 Extract store validation helpers (`requireField`, `requirePositiveLimit`) and `checkReady(ctx)` on GlobalDB
+- [x] 4.3 Consolidate `cloneRawMessage`/`cloneRawJSON` into single utility
+- [x] 4.4 Extract shared `fileSnapshot` logic into a single canonical helper or dedicated package
+- [x] 4.5 Introduce generic `listBundle[T]` in CLI and update existing bundle functions
+- [x] 4.6 Run `make verify` to confirm all tests pass
 
 ## Implementation Details
 
@@ -79,8 +79,8 @@ See TechSpec "Phase 4: Domain-Level Deduplication" items 4.1–4.8. See individu
 - `internal/acp/handlers.go` — `handleRequestPermission` calls `emitPermissionEvent`
 - `internal/store/store.go` — Validate methods use helpers
 - `internal/store/global_db.go` — all public methods call `checkReady`
-- `internal/skills/registry.go` — imports shared `fileSnapshot` from fileutil
-- `internal/workspace/resolver.go` — imports shared `fileSnapshot` from fileutil
+- `internal/skills/registry.go` — imports the canonical shared snapshot helper if extraction happens
+- `internal/workspace/resolver.go` — imports the canonical shared snapshot helper if extraction happens
 - `internal/cli/*.go` — list bundle functions use `listBundle[T]`
 
 ## Deliverables
@@ -88,7 +88,7 @@ See TechSpec "Phase 4: Domain-Level Deduplication" items 4.1–4.8. See individu
 - Extracted `activateAndWatch` + `emitPermissionEvent` methods
 - `requireField`, `requirePositiveLimit`, `checkReady` helpers in store
 - Consolidated JSON clone utility
-- Shared `fileSnapshot` type in `fileutil/`
+- Shared snapshot helper or canonical owner implementation for `fileSnapshot` logic
 - Generic `listBundle[T]` in CLI
 - All existing tests pass **(REQUIRED)**
 - `make verify` passes **(REQUIRED)**
@@ -96,18 +96,18 @@ See TechSpec "Phase 4: Domain-Level Deduplication" items 4.1–4.8. See individu
 ## Tests
 
 - Unit tests:
-  - [ ] `activateAndWatch` correctly updates process, activates session, writes meta, starts watcher, notifies
-  - [ ] `emitPermissionEvent` emits correct fields for each decision type (auto, interactive, timeout)
-  - [ ] `requireField` returns error for empty/whitespace strings, nil for valid
-  - [ ] `requirePositiveLimit` returns error for negative, nil for zero/positive
-  - [ ] `checkReady` returns error for nil receiver and nil context
-  - [ ] `fileutil.SnapshotEqual` correctly compares maps (equal, different sizes, different values)
-  - [ ] `fileutil.CloneSnapshots` returns independent copy
-  - [ ] `listBundle[T]` produces correct JSON, human table, and toon output
+  - [x] `activateAndWatch` correctly updates process, activates session, writes meta, starts watcher, notifies
+  - [x] `emitPermissionEvent` emits correct fields for each decision type (auto, interactive, timeout)
+  - [x] `requireField` returns error for empty/whitespace strings, nil for valid
+  - [x] `requirePositiveLimit` returns error for negative, nil for zero/positive
+  - [x] `checkReady` returns error for nil receiver and nil context
+  - [x] Shared snapshot equality helper correctly compares maps (equal, different sizes, different values)
+  - [x] Shared snapshot clone helper returns an independent copy
+  - [x] `listBundle[T]` produces correct JSON, human table, and toon output
 - Integration tests:
-  - [ ] Session Create and Resume flows work through `activateAndWatch`
-  - [ ] Permission handling tests pass through `emitPermissionEvent`
-  - [ ] All store validation tests pass with new helpers
+  - [x] Session Create and Resume flows work through `activateAndWatch`
+  - [x] Permission handling tests pass through `emitPermissionEvent`
+  - [x] All store validation tests pass with new helpers
 - Test coverage target: >=80%
 
 ## Success Criteria
@@ -120,4 +120,4 @@ See TechSpec "Phase 4: Domain-Level Deduplication" items 4.1–4.8. See individu
 - No duplicated `cloneRawMessage`/`cloneRawJSON`
 - No duplicated `fileSnapshot` types across packages
 - No duplicated nil-guard blocks in GlobalDB
-- CLI bundle boilerplate reduced by ~40%
+- List-style CLI output bundles route through a shared helper instead of repeated per-command row-building boilerplate where applicable

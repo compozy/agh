@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-Both packages are well-structured for a greenfield alpha, but **`workspace/resolver.go` is the clear hotspot** -- at 1,078 lines it aggregates workspace resolution, caching, cloning, filesystem scanning, name generation, and ID generation into a single file. The most impactful opportunity is extracting the ~180 lines of deep-clone boilerplate into a dedicated helpers file and the ~130 lines of filesystem scanning into its own module. A secondary pattern emerges across both packages: **duplicated `fileSnapshot` types and `snapshotsEqual`/`cloneSnapshots` functions** exist independently in `skills/` and `workspace/`, performing identical work with slightly different struct shapes. Both packages also share an identical `checkContext` helper pattern.
+Both packages are well-structured for a greenfield alpha, but **`workspace/resolver.go` is the clear hotspot** -- at 1,069 lines it aggregates workspace resolution, caching, cloning, filesystem scanning, name generation, and ID generation into a single file. The most impactful opportunity is extracting the ~180 lines of deep-clone boilerplate into a dedicated helpers file and the ~130 lines of filesystem scanning into its own module. A secondary pattern emerges across both packages: **duplicated `fileSnapshot` types and `snapshotsEqual`/`cloneSnapshots` functions** exist independently in `skills/` and `workspace/`, performing identical work with slightly different struct shapes. Both packages also share an identical `checkContext` helper pattern.
 
 | Severity | Count |
 |----------|-------|
@@ -99,7 +99,7 @@ func FromPath(path string) (Snapshot, error) { ... }
 - **Category**: Bloater / Change Preventer
 - **Location**: `internal/workspace/resolver.go:1-1078`
 - **Severity**: High
-- **Impact**: At 1,078 lines, this file handles: workspace CRUD (`Register`, `Unregister`, `Update`, `Get`), resolution + caching (`Resolve`, `ResolveOrRegister`, cache management), filesystem scanning (`scanWorkspace`, `scanAgentSource`, `scanSkillSource`), agent/skill loading (`loadAgents`, `mergeSkillPaths`), deep cloning (~180 lines of `clone*` functions), ID generation, name generation, path canonicalization, and general utility helpers. Any change to workspace scanning, caching, or CRUD requires navigating a 1K-line file.
+- **Impact**: At 1,069 lines, this file handles: workspace CRUD (`Register`, `Unregister`, `Update`, `Get`), resolution + caching (`Resolve`, `ResolveOrRegister`, cache management), filesystem scanning (`scanWorkspace`, `scanAgentSource`, `scanSkillSource`), agent/skill loading (`loadAgents`, `mergeSkillPaths`), deep cloning (~180 lines of `clone*` functions), ID generation, name generation, path canonicalization, and general utility helpers. Any change to workspace scanning, caching, or CRUD requires navigating a 1K-line file.
 
 **Recommended Refactoring**: Extract functions into separate files within the same package
 
