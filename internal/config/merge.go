@@ -86,10 +86,16 @@ type dreamOverlay struct {
 }
 
 type skillsOverlay struct {
-	Enabled               *bool          `toml:"enabled"`
-	DisabledSkills        *[]string      `toml:"disabled_skills"`
-	PollInterval          *time.Duration `toml:"poll_interval"`
-	AllowedMarketplaceMCP *[]string      `toml:"allowed_marketplace_mcp"`
+	Enabled               *bool              `toml:"enabled"`
+	DisabledSkills        *[]string          `toml:"disabled_skills"`
+	PollInterval          *time.Duration     `toml:"poll_interval"`
+	AllowedMarketplaceMCP *[]string          `toml:"allowed_marketplace_mcp"`
+	Marketplace           marketplaceOverlay `toml:"marketplace"`
+}
+
+type marketplaceOverlay struct {
+	Registry *string `toml:"registry"`
+	BaseURL  *string `toml:"base_url"`
 }
 
 type mcpServerOverlay struct {
@@ -275,6 +281,16 @@ func (o skillsOverlay) Apply(dst *SkillsConfig) {
 	}
 	if o.AllowedMarketplaceMCP != nil {
 		dst.AllowedMarketplaceMCP = append([]string(nil), (*o.AllowedMarketplaceMCP)...)
+	}
+	o.Marketplace.Apply(&dst.Marketplace)
+}
+
+func (o marketplaceOverlay) Apply(dst *MarketplaceConfig) {
+	if o.Registry != nil {
+		dst.Registry = *o.Registry
+	}
+	if o.BaseURL != nil {
+		dst.BaseURL = *o.BaseURL
 	}
 }
 
