@@ -87,6 +87,8 @@ type SessionManagerDeps struct {
 	Logger            *slog.Logger
 	Notifier          session.Notifier
 	PromptAssembler   session.PromptAssembler
+	SkillRegistry     session.SkillRegistry
+	MCPResolver       session.MCPResolver
 	WorkspaceResolver workspacepkg.WorkspaceResolver
 }
 
@@ -243,6 +245,8 @@ func New(opts ...Option) (*Daemon, error) {
 				session.WithLogger(deps.Logger),
 				session.WithNotifier(deps.Notifier),
 				session.WithPromptAssembler(deps.PromptAssembler),
+				session.WithSkillRegistry(deps.SkillRegistry),
+				session.WithMCPResolver(deps.MCPResolver),
 				session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			)
 		}

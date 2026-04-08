@@ -68,6 +68,8 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	var (
 		memoryStore      *memory.Store
 		skillsRegistry   *skills.Registry
+		mcpResolver      *skills.MCPResolver
+		hookRunner       *skills.HookRunner
 		dreamSvc         consolidation.Service
 		dreamRuntime     *consolidation.Runtime
 		globalMemoryDir  string
@@ -115,6 +117,8 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		if err := skillsRegistry.LoadAll(ctx); err != nil {
 			return fmt.Errorf("daemon: load skills registry: %w", err)
 		}
+		mcpResolver = skills.NewMCPResolver(cfg.Skills, logger)
+		hookRunner = skills.NewHookRunner(cfg.Skills, logger)
 
 		skillsCancel, skillsDone = startSkillsWatcher(ctx, skillsRegistry, cfg.Skills.PollInterval)
 		cleanupFns = append(cleanupFns, func(context.Context) error {
@@ -191,11 +195,21 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 
 	startedAt := d.now().UTC()
 	fanout := notifierFanout{}
+	var skillRegistryDep session.SkillRegistry
+	if skillsRegistry != nil {
+		skillRegistryDep = skillsRegistry
+	}
+	var mcpResolverDep session.MCPResolver
+	if mcpResolver != nil {
+		mcpResolverDep = mcpResolver
+	}
 	sessions, err := d.newSessionManager(ctx, SessionManagerDeps{
 		HomePaths:         d.homePaths,
 		Logger:            logger,
 		Notifier:          &fanout,
 		PromptAssembler:   promptAssembler,
+		SkillRegistry:     skillRegistryDep,
+		MCPResolver:       mcpResolverDep,
 		WorkspaceResolver: workspaceResolver,
 	})
 	if err != nil {
@@ -237,15 +251,18 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return fmt.Errorf("daemon: create observer: %w", err)
 	}
 	fanout.notifiers = append(fanout.notifiers, observer)
+	if skillsRegistry != nil && hookRunner != nil {
+		fanout.hookPhase = newSkillsHookDispatcher(skillsRegistry, hookRunner, workspaceResolver, logger)
+	}
 	deps.Observer = observer
 	if dreamSvc != nil {
-		fanout.onSessionStopped = func(_ context.Context, sess *session.Session) {
+		fanout.postSessionStopped = append(fanout.postSessionStopped, func(_ context.Context, sess *session.Session) {
 			info := sess.Info()
 			if info == nil || info.Type == session.SessionTypeDream || strings.TrimSpace(info.WorkspaceID) == "" {
 				return
 			}
 			dreamRuntime.EnqueueCheck("session_stop", info.WorkspaceID)
-		}
+		})
 	}
 
 	httpServer, err := d.httpFactory(ctx, deps)

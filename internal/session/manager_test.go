@@ -16,6 +16,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -881,6 +882,7 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
+	skillRegistry := newFakeSkillRegistry()
 	h.cfg.Providers["claude"] = aghconfig.ProviderConfig{
 		Command: "provider-command",
 		MCPServers: []aghconfig.MCPServer{
@@ -905,7 +907,22 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 			},
 		}},
 	})
-	h.manager = newManagerWithHarness(t, h)
+	skillRegistry.setSkills(h.workspaceID, []*skillspkg.Skill{
+		{
+			Source: skillspkg.SourceUser,
+			Meta:   skillspkg.SkillMeta{Name: "skill-mcp"},
+			MCPServers: []skillspkg.MCPServerDecl{
+				{Name: "override", Command: "skill-override", Args: []string{"--skill"}},
+				{Name: "skill-extra", Command: "skill-extra-command"},
+			},
+		},
+	})
+	h.manager = newManagerWithHarness(
+		t,
+		h,
+		WithSkillRegistry(skillRegistry),
+		WithMCPResolver(skillspkg.NewMCPResolver(aghconfig.SkillsConfig{}, nil)),
+	)
 
 	session := createSession(t, h)
 	t.Cleanup(func() {
@@ -913,17 +930,103 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 	})
 
 	got := h.driver.startCalls[0].MCPServers
-	if len(got) != 3 {
-		t.Fatalf("start MCPServers = %#v, want 3 entries", got)
+	if len(got) != 4 {
+		t.Fatalf("start MCPServers = %#v, want 4 entries", got)
 	}
 	if got[0].Name != "base" || got[0].Command != "base-command" {
 		t.Fatalf("base MCP server = %#v", got[0])
 	}
-	if got[1].Name != "override" || got[1].Command != "agent-override" {
+	if got[1].Name != "override" || got[1].Command != "skill-override" {
 		t.Fatalf("override MCP server = %#v", got[1])
 	}
 	if got[2].Name != "extra" || got[2].Command != "extra-command" {
 		t.Fatalf("extra MCP server = %#v", got[2])
+	}
+	if got[3].Name != "skill-extra" || got[3].Command != "skill-extra-command" {
+		t.Fatalf("skill-extra MCP server = %#v", got[3])
+	}
+	if got := skillRegistry.callCount(); got != 1 {
+		t.Fatalf("skill registry call count = %d, want 1", got)
+	}
+	if got := skillRegistry.call(0).ID; got != h.workspaceID {
+		t.Fatalf("skill registry workspace id = %q, want %q", got, h.workspaceID)
+	}
+}
+
+func TestResumePassesMergedSkillMCPServers(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	skillRegistry := newFakeSkillRegistry()
+	skillRegistry.setSkills(h.workspaceID, []*skillspkg.Skill{
+		{
+			Source: skillspkg.SourceUser,
+			Meta:   skillspkg.SkillMeta{Name: "resume-skill"},
+			MCPServers: []skillspkg.MCPServerDecl{
+				{Name: "resume-extra", Command: "resume-extra-command"},
+			},
+		},
+	})
+	h.manager = newManagerWithHarness(
+		t,
+		h,
+		WithSkillRegistry(skillRegistry),
+		WithMCPResolver(skillspkg.NewMCPResolver(aghconfig.SkillsConfig{}, nil)),
+	)
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+	})
+
+	got := h.driver.startCalls[1].MCPServers
+	if len(got) != 1 {
+		t.Fatalf("resume start MCPServers = %#v, want 1 entry", got)
+	}
+	if got[0].Name != "resume-extra" || got[0].Command != "resume-extra-command" {
+		t.Fatalf("resume MCP server = %#v", got[0])
+	}
+	if got := skillRegistry.callCount(); got != 2 {
+		t.Fatalf("skill registry call count after resume = %d, want 2", got)
+	}
+}
+
+func TestCreateBlocksMarketplaceSkillMCPServersWithoutConsent(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	skillRegistry := newFakeSkillRegistry()
+	skillRegistry.setSkills(h.workspaceID, []*skillspkg.Skill{
+		{
+			Source: skillspkg.SourceMarketplace,
+			Meta:   skillspkg.SkillMeta{Name: "market-skill"},
+			MCPServers: []skillspkg.MCPServerDecl{
+				{Name: "market-extra", Command: "market-extra-command"},
+			},
+		},
+	})
+	h.manager = newManagerWithHarness(
+		t,
+		h,
+		WithSkillRegistry(skillRegistry),
+		WithMCPResolver(skillspkg.NewMCPResolver(aghconfig.SkillsConfig{}, nil)),
+	)
+
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	if got := h.driver.startCalls[0].MCPServers; len(got) != 0 {
+		t.Fatalf("start MCPServers = %#v, want marketplace skill MCP blocked", got)
 	}
 }
 
@@ -1366,6 +1469,13 @@ type fakeWorkspaceResolver struct {
 	nextID                 int
 }
 
+type fakeSkillRegistry struct {
+	mu                sync.Mutex
+	skillsByWorkspace map[string][]*skillspkg.Skill
+	calls             []workspacepkg.ResolvedWorkspace
+	err               error
+}
+
 func newFakeWorkspaceResolver(resolved workspacepkg.ResolvedWorkspace) *fakeWorkspaceResolver {
 	r := &fakeWorkspaceResolver{
 		byRef:              make(map[string]workspacepkg.ResolvedWorkspace),
@@ -1375,6 +1485,44 @@ func newFakeWorkspaceResolver(resolved workspacepkg.ResolvedWorkspace) *fakeWork
 	}
 	r.upsert(resolved)
 	return r
+}
+
+func newFakeSkillRegistry() *fakeSkillRegistry {
+	return &fakeSkillRegistry{
+		skillsByWorkspace: make(map[string][]*skillspkg.Skill),
+	}
+}
+
+func (r *fakeSkillRegistry) ForWorkspace(_ context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.calls = append(r.calls, cloneResolvedWorkspaceForTests(resolved))
+	if r.err != nil {
+		return nil, r.err
+	}
+
+	skills := r.skillsByWorkspace[resolved.ID]
+	return append([]*skillspkg.Skill(nil), skills...), nil
+}
+
+func (r *fakeSkillRegistry) setSkills(workspaceID string, skills []*skillspkg.Skill) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.skillsByWorkspace[strings.TrimSpace(workspaceID)] = append([]*skillspkg.Skill(nil), skills...)
+}
+
+func (r *fakeSkillRegistry) callCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.calls)
+}
+
+func (r *fakeSkillRegistry) call(index int) workspacepkg.ResolvedWorkspace {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return cloneResolvedWorkspaceForTests(r.calls[index])
 }
 
 func (r *fakeWorkspaceResolver) Resolve(ctx context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {

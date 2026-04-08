@@ -286,6 +286,9 @@ func (r *Registry) loadDirectorySkills(ctx context.Context, dir string, source S
 	for path, snapshot := range dirSnapshots {
 		snapshots[path] = snapshot
 	}
+	if err := recordSidecarSnapshots(paths, snapshots); err != nil {
+		return err
+	}
 
 	return r.loadSkillPaths(ctx, paths, source, dst)
 }
@@ -300,7 +303,9 @@ func (r *Registry) loadSkillPaths(ctx context.Context, paths []string, source Sk
 		if err != nil {
 			return err
 		}
-		skill.Source = source
+		if err := r.assignSourceAndProvenance(skill, source); err != nil {
+			return err
+		}
 		if !r.processSkill(dst, skill) {
 			continue
 		}
@@ -312,14 +317,98 @@ func (r *Registry) loadSkillPaths(ctx context.Context, paths []string, source Sk
 func (r *Registry) processSkill(dst map[string]*Skill, skill *Skill) bool {
 	r.applyDisabled(skill)
 
+	verifyErr := r.verifyMarketplaceSkill(skill)
 	warnings := VerifyContent(skill.Content)
 	r.logVerificationWarnings(skill, warnings)
+	if verifyErr != nil {
+		return false
+	}
 	if hasCriticalWarning(warnings) {
 		return false
 	}
 
 	r.overlaySkill(dst, skill)
 	return true
+}
+
+func (r *Registry) assignSourceAndProvenance(skill *Skill, source SkillSource) error {
+	if skill == nil {
+		return errors.New("skills: skill is required")
+	}
+
+	skill.Source = source
+	if source != SourceUser {
+		return nil
+	}
+
+	hasSidecar, err := HasSidecar(skill.Dir)
+	if err != nil {
+		return err
+	}
+	if !hasSidecar {
+		return nil
+	}
+
+	provenance, err := ReadSidecar(skill.Dir)
+	if err != nil {
+		return err
+	}
+
+	skill.Source = SourceMarketplace
+	skill.Provenance = provenance
+	skill.InstalledFrom = strings.TrimSpace(provenance.Slug)
+
+	return nil
+}
+
+func (r *Registry) verifyMarketplaceSkill(skill *Skill) error {
+	if skill == nil || skill.Source != SourceMarketplace || skill.Provenance == nil {
+		return nil
+	}
+
+	err := VerifyHash(skill.Dir, skill.Provenance)
+	if err == nil {
+		return nil
+	}
+
+	var mismatch *HashMismatchError
+	if errors.As(err, &mismatch) {
+		r.logger.Warn(
+			"skills: marketplace skill hash mismatch",
+			"skill_name", skill.Meta.Name,
+			"expected_hash", mismatch.ExpectedHash,
+			"actual_hash", mismatch.ActualHash,
+			"path", skill.FilePath,
+		)
+		return err
+	}
+
+	r.logger.Warn(
+		"skills: marketplace skill hash verification failed",
+		"skill_name", skill.Meta.Name,
+		"path", skill.FilePath,
+		"error", err,
+	)
+
+	return err
+}
+
+func recordSidecarSnapshots(paths []string, snapshots map[string]filesnap.Snapshot) error {
+	for _, skillPath := range paths {
+		sidecarPath := filepath.Join(filepath.Dir(skillPath), sidecarFileName)
+		snapshot, err := filesnap.FromPath(sidecarPath)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+
+			return fmt.Errorf("skills: snapshot provenance sidecar %q: %w", sidecarPath, err)
+		}
+
+		snapshots[sidecarPath] = snapshot
+	}
+
+	return nil
 }
 
 func (r *Registry) applyDisabled(skill *Skill) {
@@ -479,6 +568,9 @@ func cloneSkill(skill *Skill) *Skill {
 
 	clone := *skill
 	clone.Meta = cloneSkillMeta(skill.Meta)
+	clone.MCPServers = cloneMCPServerDecls(skill.MCPServers)
+	clone.Hooks = cloneHookDecls(skill.Hooks)
+	clone.Provenance = cloneProvenance(skill.Provenance)
 
 	return &clone
 }
@@ -517,6 +609,65 @@ func cloneMetadataValue(value any) any {
 	}
 }
 
+func cloneMCPServerDecls(decls []MCPServerDecl) []MCPServerDecl {
+	if decls == nil {
+		return nil
+	}
+
+	clone := make([]MCPServerDecl, len(decls))
+	for i, decl := range decls {
+		clone[i] = MCPServerDecl{
+			Name:    decl.Name,
+			Command: decl.Command,
+			Args:    append([]string(nil), decl.Args...),
+			Env:     cloneStringMap(decl.Env),
+		}
+	}
+
+	return clone
+}
+
+func cloneHookDecls(decls []HookDecl) []HookDecl {
+	if decls == nil {
+		return nil
+	}
+
+	clone := make([]HookDecl, len(decls))
+	for i, decl := range decls {
+		clone[i] = HookDecl{
+			Event:   decl.Event,
+			Command: decl.Command,
+			Args:    append([]string(nil), decl.Args...),
+			Timeout: decl.Timeout,
+			Env:     cloneStringMap(decl.Env),
+		}
+	}
+
+	return clone
+}
+
+func cloneStringMap(input map[string]string) map[string]string {
+	if input == nil {
+		return nil
+	}
+
+	clone := make(map[string]string, len(input))
+	for key, value := range input {
+		clone[key] = value
+	}
+
+	return clone
+}
+
+func cloneProvenance(provenance *Provenance) *Provenance {
+	if provenance == nil {
+		return nil
+	}
+
+	clone := *provenance
+	return &clone
+}
+
 func (r *Registry) globalSnapshotState() (map[string]filesnap.Snapshot, bool) {
 	if r == nil {
 		return make(map[string]filesnap.Snapshot), false
@@ -547,14 +698,19 @@ func parseBundledSkill(fsys fs.FS, skillPath string) (*Skill, error) {
 		dir = ""
 	}
 
-	return &Skill{
+	skill := &Skill{
 		Meta:     meta,
 		Content:  body,
 		Source:   SourceBundled,
 		Dir:      dir,
 		FilePath: skillPath,
 		Enabled:  true,
-	}, nil
+	}
+	if err := parseAGHMetadata(skill); err != nil {
+		return nil, fmt.Errorf("skills: parse bundled skill %q metadata.agh: %w", skillPath, err)
+	}
+
+	return skill, nil
 }
 
 func scanBundledFS(fsys fs.FS) ([]string, error) {
@@ -620,6 +776,8 @@ func skillSourceName(source SkillSource) string {
 	switch source {
 	case SourceBundled:
 		return "bundled"
+	case SourceMarketplace:
+		return "marketplace"
 	case SourceUser:
 		return "user"
 	case SourceAdditional:
@@ -637,6 +795,8 @@ func skillSourceFromWorkspacePath(source string) (SkillSource, bool, error) {
 		return SourceWorkspace, true, nil
 	case "additional":
 		return SourceAdditional, true, nil
+	case "marketplace":
+		return SourceMarketplace, false, nil
 	case "global":
 		return SourceUser, false, nil
 	default:

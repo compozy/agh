@@ -54,7 +54,7 @@ Skills are static text injected into prompts. They cannot react to session event
 
 1. **Extend, don't fork.** All extensions use the `metadata.agh.*` namespace in standard SKILL.md frontmatter. Any AgentSkills-compatible skill works unmodified. AGH-specific features degrade gracefully on other platforms (ignored metadata fields).
 
-2. **Security at the boundary.** Every non-bundled skill is scanned at load time before entering the registry. Critical findings (prompt injection, credential extraction) block loading entirely. This is non-negotiable after ClawHavoc.
+2. **Security at the boundary.** Every non-bundled skill is scanned at load time before entering the registry. Critical findings (prompt injection, credential extraction) must not silently execute; they either block loading or require an explicit retained quarantine state. This is non-negotiable after ClawHavoc.
 
 3. **Declarative over imperative.** Skills declare what they need (MCP servers, memory tags, lifecycle hooks); the daemon manages provisioning, permissions, and teardown.
 
@@ -100,39 +100,36 @@ metadata:
 
 1. Registry parses `metadata.agh.mcp_servers` during skill loading
 2. On session creation, daemon collects MCP servers from all active skills
-3. **User consent gate** — first time a non-bundled skill declares an MCP server, the daemon requests explicit user confirmation (CLI prompt or persistent allowlist in config). This prevents arbitrary subprocess execution — the core risk that ClawHavoc exploited.
+3. **User consent gate** — first time a marketplace skill declares an MCP server, the daemon requests explicit user confirmation (CLI prompt or persistent allowlist in config). User, additional-root, and workspace skills remain auto-approved because they are placed deliberately by the local operator.
 4. Approved servers are injected into `StartOpts.MCPServers` and spawned by the ACP driver alongside the agent process
 5. Environment variables with `${}` syntax are resolved only after consent, with scrubbing of sensitive values not explicitly allowed
-6. Marketplace skills (Increment 3) additionally require command allowlist matching — only pre-approved executables can be spawned
+6. Marketplace consent is persisted in config via `skills.allowed_marketplace_mcp`; command-level allowlists are deferred to a follow-up security hardening pass
 
 **Trust tiers:**
 
-| Source         | MCP Consent                           | Command Restrictions |
-| -------------- | ------------------------------------- | -------------------- |
-| Bundled        | None (trusted)                        | None                 |
-| User/Workspace | One-time consent, persisted in config | None                 |
-| Marketplace    | One-time consent, persisted in config | Command allowlist    |
+| Source                    | MCP Consent                           | Command Restrictions |
+| ------------------------- | ------------------------------------- | -------------------- |
+| Bundled                   | None (trusted)                        | None                 |
+| User/Additional/Workspace | None (user-controlled local content)  | None                 |
+| Marketplace               | One-time consent, persisted in config | Deferred             |
 
 **Comparison with Codex plugins:** Codex bundles MCP config into a proprietary plugin.json format. This proposal keeps MCP declarations in the standard SKILL.md frontmatter, making skills portable while the daemon provides the runtime governance Codex achieves through its platform.
 
 ### 2.4 Lifecycle Hooks
 
-Skills declare hooks for three session lifecycle events:
+Skills declare hooks for session lifecycle events. In the current skills-v2 TechSpec, only `on_session_created` and `on_session_stopped` are in scope; `on_prompt_assembly` is explicitly deferred.
 
 ```yaml
 metadata:
   agh:
     hooks:
-      on_session_created:
+      - event: on_session_created
         command: "inject-context"
         args: ["--format", "json"]
         timeout: 5s
-      on_session_stopped:
+      - event: on_session_stopped
         command: "consolidate-learnings"
         timeout: 10s
-      on_prompt_assembly:
-        command: "augment-prompt"
-        timeout: 3s
 ```
 
 **Events:**
@@ -141,21 +138,22 @@ metadata:
 | -------------------- | ---------------------------------------- | ---------------------------------------------------- |
 | `on_session_created` | Session initialized, before first prompt | Inject repo state, open tickets, environment context |
 | `on_session_stopped` | Session terminated                       | Consolidate memories, save learnings, cleanup        |
-| `on_prompt_assembly` | Before each prompt assembly              | Dynamically modify/enrich prompt content             |
 
 **Execution semantics:**
 
-- Hooks execute in hierarchy precedence order (bundled → user → workspace)
+- Hooks execute in hierarchy precedence order (bundled → marketplace → user → additional → workspace)
 - Within the same level: alphabetical by skill name (deterministic)
 - Configurable timeout per hook (default 5s)
 - **Fail-open:** hook errors are logged as warnings but never block the session
 - Hooks receive JSON via stdin: `{"session_id": "...", "agent_name": "...", "workspace": "..."}`
-- Hooks return JSON via stdout with data to inject into the session context
-- Daemon dispatches hooks via the existing `Notifier` pattern — no new infrastructure
+- Hooks may emit structured stdout for logging/future enrichment, but prompt-context injection is deferred with `on_prompt_assembly`
+- Daemon extends the existing notifier fan-out with a dedicated post-notifier hook phase rather than introducing a separate lifecycle service
 
 **Why not in the base spec?** The AgentSkills spec is intentionally client-agnostic. Lifecycle hooks require a runtime with session concepts. A daemon architecture provides this naturally; CLI wrappers cannot.
 
 ### 2.5 Memory Integration
+
+This section remains future work. The current skills-v2 TechSpec explicitly defers deep memory integration to a follow-up spec, so the details below should be read as forward-looking design rather than current implementation scope.
 
 In the base implementation, memory and skills coexist in the prompt without coupling — memory context is assembled first, then the agent prompt, then the skill catalog. This works but misses the opportunity for skills to leverage memory and guide memory writes.
 
@@ -171,7 +169,7 @@ metadata:
 
 The daemon filters the memory store and injects only memories matching the declared tags into the skill's context section. This prevents irrelevant memories from consuming context budget.
 
-**Memory query API.** The `on_prompt_assembly` hook can query the memory store via a structured request in its stdin payload, receiving relevant memories in the response. This enables dynamic, context-aware memory selection.
+**Memory query API.** A future prompt-assembly hook or equivalent prompt-enrichment surface could query the memory store via a structured request, receiving relevant memories in the response. This remains deferred while `on_prompt_assembly` is out of scope.
 
 **Skill-guided writes.** Skills can include instructions that teach agents to save specific types of memories. Example: a debugging skill that says "save the root cause as a project memory for future reference." The daemon enforces scope rules on writes.
 
@@ -207,23 +205,22 @@ agh skill update [--all]               # Update marketplace skills
 
 **Security model (post-ClawHavoc):**
 
-- **Cryptographic provenance verification:** author signature validated on install
+- **Hash-based provenance verification:** SHA-256 captured on install and rechecked on every load
 - **Load-time scanning:** `VerifyContent` applied to every downloaded skill, every load
 - **Override audit trail:** warning when a workspace skill shadows a bundled/marketplace skill
-- **Quarantine:** skill with critical security warning stays disabled until user explicitly approves
-- **MCP command allowlist:** marketplace skills can only spawn pre-approved executables
+- **Quarantine/blocking:** critical findings require explicit retained quarantine state; otherwise the safe fallback is to keep block-on-load semantics until re-approval UX exists
+- **MCP command allowlists:** deferred follow-up, not part of the current skills-v2 TechSpec
 
 ### 2.8 Precedence Hierarchy
 
-Skills are resolved in six layers, with higher layers overriding lower:
+Skills are resolved in five source layers, with higher layers overriding lower:
 
 ```
-1. Bundled (go:embed)           — lowest, immutable, shipped with binary
-2. Marketplace (~/.agh/skills/) — installed from registry
-3. User (~/.agh/skills/ manual) — manually created by user
-4. User (~/.agents/skills/)     — .agents global convention
-5. Workspace (.agents/skills/)  — project-specific
-6. Workspace (.agh/skills/)     — highest, full override
+1. Bundled                      — lowest, immutable, shipped with binary
+2. Marketplace                  — `~/.agh/skills/` entries with `.agh-meta.json`
+3. User                         — manual `~/.agh/skills/` entries plus the resolved `~/.agents/skills/` convention
+4. Additional                   — `.agh/skills/` under configured additional workspace roots
+5. Workspace                    — highest, `<workspace>/.agh/skills/`
 ```
 
 Same-name collisions: highest precedence wins. Override audit trail logs all shadows.
@@ -236,18 +233,18 @@ Same-name collisions: highest precedence wins. Override audit trail logs all sha
 type Skill struct {
     Meta          SkillMeta
     Content       string           // Markdown body after frontmatter
-    Source        SkillSource      // Bundled | User | Workspace | Marketplace
+    Source        SkillSource      // Bundled | Marketplace | User | Additional | Workspace
     Dir           string           // Absolute path to skill directory
     FilePath      string           // Absolute path to SKILL.md
     Enabled       bool
     MCPServers    []MCPServerDecl  // Parsed from metadata.agh.mcp_servers
     Hooks         []HookDecl       // Parsed from metadata.agh.hooks
-    Provenance    *Provenance      // Marketplace: author signature + hash
+    Provenance    *Provenance      // Marketplace: registry/source metadata + hash
     InstalledFrom string           // Marketplace: registry slug
 }
 
 type HookDecl struct {
-    Event   HookEvent             // on_session_created | on_session_stopped | on_prompt_assembly
+    Event   HookEvent             // on_session_created | on_session_stopped
     Command string
     Args    []string
     Timeout time.Duration
@@ -262,11 +259,11 @@ type MCPServerDecl struct {
 }
 
 type Provenance struct {
-    Author    string
-    Signature string
+    Slug      string
     Registry  string              // e.g., "clawhub", "skills.sh"
     Version   string
     Hash      string
+    InstalledAt time.Time
 }
 ```
 
@@ -274,17 +271,17 @@ type Provenance struct {
 
 ## 4. Comparison with Existing Approaches
 
-| Capability         | AgentSkills Spec             | Codex Plugins            | Cursor Rules                | This Proposal                                         |
-| ------------------ | ---------------------------- | ------------------------ | --------------------------- | ----------------------------------------------------- |
-| Portable format    | Yes (SKILL.md)               | No (plugin.json)         | No (.mdc)                   | Yes (SKILL.md + metadata.agh.\*)                      |
-| Security scanning  | Registry-only (if at all)    | Platform-managed         | None                        | Load-time, every load                                 |
-| MCP integration    | `allowed-tools` (names only) | Bundled in plugin        | None                        | Declarative in frontmatter + daemon provisioning      |
-| Lifecycle hooks    | None                         | Triggers (GitHub events) | None                        | 3 session events with stdin/stdout protocol           |
-| Memory integration | None                         | None                     | Auto-memories (proprietary) | Tag-filtered, bidirectional, skill-guided writes      |
-| Hot-reload         | Not specified                | Not specified            | File watcher                | Stat-based polling (global) + mtime check (workspace) |
-| Override semantics | Not specified                | Plugin precedence        | Rule precedence             | 6-layer hierarchy with audit trail                    |
-| Auto-proposal      | None                         | None                     | None                        | Pattern detection + skillify meta-skill               |
-| Provenance         | None                         | Platform-curated         | N/A                         | Cryptographic signing + quarantine                    |
+| Capability         | AgentSkills Spec             | Codex Plugins            | Cursor Rules                | This Proposal                                                         |
+| ------------------ | ---------------------------- | ------------------------ | --------------------------- | --------------------------------------------------------------------- |
+| Portable format    | Yes (SKILL.md)               | No (plugin.json)         | No (.mdc)                   | Yes (SKILL.md + metadata.agh.\*)                                      |
+| Security scanning  | Registry-only (if at all)    | Platform-managed         | None                        | Load-time, every load                                                 |
+| MCP integration    | `allowed-tools` (names only) | Bundled in plugin        | None                        | Declarative in frontmatter + daemon provisioning                      |
+| Lifecycle hooks    | None                         | Triggers (GitHub events) | None                        | 2 session events with stdin/stdout protocol; prompt assembly deferred |
+| Memory integration | None                         | None                     | Auto-memories (proprietary) | Tag-filtered, bidirectional, skill-guided writes                      |
+| Hot-reload         | Not specified                | Not specified            | File watcher                | Stat-based polling (global) + mtime check (workspace)                 |
+| Override semantics | Not specified                | Plugin precedence        | Rule precedence             | 5-layer hierarchy with audit trail                                    |
+| Auto-proposal      | None                         | None                     | None                        | Pattern detection + skillify meta-skill                               |
+| Provenance         | None                         | Platform-curated         | N/A                         | Hash-based verification + load-time scanning                          |
 
 ---
 
@@ -293,8 +290,8 @@ type Provenance struct {
 | Increment | Scope                                                                                             | Status       |
 | --------- | ------------------------------------------------------------------------------------------------- | ------------ |
 | 1         | Loader, dual-scope registry, prompt injection, security scanning, CLI, bundled skills, hot-reload | **Complete** |
-| 2         | MCP lazy-load, lifecycle hooks, deep memory integration, skill auto-proposal                      | Planned      |
-| 3         | Marketplace integration, cryptographic provenance, override audit trail                           | Planned      |
+| 2         | MCP lazy-load, lifecycle hooks, and skill auto-proposal                                           | Planned      |
+| 3         | Marketplace integration, hash-based provenance, override audit trail                              | Planned      |
 
 Each increment ships independent value. Increment 1 is already production-ready.
 

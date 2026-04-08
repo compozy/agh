@@ -61,6 +61,11 @@
             "sourceType": "github",
             "computedHash": "8bc7a75020275e4ad1813cb4b616dc9e0c7624a6e71178f98341e69c39bd65f4"
         },
+        "mermaid-diagrams": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "6d36e69adad781f106a2fb4b19ebc22bf0c211babdc0d1ae5822fa65abb48bd8"
+        },
         "normalize": {
             "source": "pbakaus/impeccable",
             "sourceType": "github",

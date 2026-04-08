@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,11 +95,20 @@ type DreamConfig struct {
 	CheckInterval time.Duration `toml:"check_interval"`
 }
 
+// MarketplaceConfig controls the external skill registry used by CLI skill commands.
+type MarketplaceConfig struct {
+	Registry string `toml:"registry"`
+	BaseURL  string `toml:"base_url,omitempty"`
+}
+
 // SkillsConfig controls skill loading and discovery.
 type SkillsConfig struct {
-	Enabled        bool          `toml:"enabled"`
-	DisabledSkills []string      `toml:"disabled_skills,omitempty"`
-	PollInterval   time.Duration `toml:"poll_interval"`
+	Enabled                 bool              `toml:"enabled"`
+	DisabledSkills          []string          `toml:"disabled_skills,omitempty"`
+	PollInterval            time.Duration     `toml:"poll_interval"`
+	AllowedMarketplaceMCP   []string          `toml:"allowed_marketplace_mcp,omitempty"`
+	AllowedMarketplaceHooks []string          `toml:"allowed_marketplace_hooks,omitempty"`
+	Marketplace             MarketplaceConfig `toml:"marketplace,omitempty"`
 }
 
 // Config is the fully merged AGH configuration.
@@ -432,8 +442,42 @@ func (c SkillsConfig) Validate() error {
 	if c.PollInterval <= 0 {
 		return fmt.Errorf("skills.poll_interval must be positive: %s", c.PollInterval)
 	}
+	if err := c.Marketplace.Validate(); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+// Validate ensures the marketplace configuration is internally consistent when configured.
+func (c MarketplaceConfig) Validate() error {
+	registry := strings.TrimSpace(c.Registry)
+	baseURL := strings.TrimSpace(c.BaseURL)
+	if registry == "" && baseURL == "" {
+		return nil
+	}
+	if registry == "" {
+		return errors.New("skills.marketplace.registry is required")
+	}
+	if baseURL != "" {
+		parsed, err := url.Parse(baseURL)
+		if err != nil {
+			return fmt.Errorf("skills.marketplace.base_url is invalid: %w", err)
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fmt.Errorf("skills.marketplace.base_url must use http or https: %q", c.BaseURL)
+		}
+		if strings.TrimSpace(parsed.Host) == "" {
+			return fmt.Errorf("skills.marketplace.base_url must include a host: %q", c.BaseURL)
+		}
+	}
+
+	switch strings.ToLower(registry) {
+	case "clawhub":
+		return nil
+	default:
+		return fmt.Errorf("skills.marketplace.registry must be %q: %q", "clawhub", c.Registry)
+	}
 }
 
 // Validate ensures the dream configuration is internally consistent.

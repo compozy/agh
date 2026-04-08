@@ -67,6 +67,12 @@ level = "debug"
 enabled = false
 disabled_skills = ["code-review", "agh-session-guide"]
 poll_interval = "5s"
+allowed_marketplace_mcp = ["@registry/skill-a", "@registry/skill-b"]
+allowed_marketplace_hooks = ["@registry/hook-a", "@registry/hook-b"]
+
+[skills.marketplace]
+registry = "clawhub"
+base_url = "https://registry.example.test/api/v1"
 
 [memory]
 enabled = true
@@ -120,6 +126,18 @@ check_interval = "45m"
 	}
 	if got, want := cfg.Skills.DisabledSkills, []string{"code-review", "agh-session-guide"}; !slices.Equal(got, want) {
 		t.Fatalf("Load() Skills.DisabledSkills = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Skills.AllowedMarketplaceMCP, []string{"@registry/skill-a", "@registry/skill-b"}; !slices.Equal(got, want) {
+		t.Fatalf("Load() Skills.AllowedMarketplaceMCP = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Skills.AllowedMarketplaceHooks, []string{"@registry/hook-a", "@registry/hook-b"}; !slices.Equal(got, want) {
+		t.Fatalf("Load() Skills.AllowedMarketplaceHooks = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Skills.Marketplace.Registry, "clawhub"; got != want {
+		t.Fatalf("Load() Skills.Marketplace.Registry = %q, want %q", got, want)
+	}
+	if got, want := cfg.Skills.Marketplace.BaseURL, "https://registry.example.test/api/v1"; got != want {
+		t.Fatalf("Load() Skills.Marketplace.BaseURL = %q, want %q", got, want)
 	}
 	userHome, err := os.UserHomeDir()
 	if err != nil {
@@ -182,6 +200,12 @@ api_key_env = "GLOBAL_KEY"
 enabled = true
 disabled_skills = ["global-skill"]
 poll_interval = "3s"
+allowed_marketplace_mcp = ["@global/skill"]
+allowed_marketplace_hooks = ["@global/hook"]
+
+[skills.marketplace]
+registry = "clawhub"
+base_url = "https://global.example.test/api/v1"
 `)
 	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 [http]
@@ -194,6 +218,12 @@ default_model = "workspace-model"
 enabled = false
 disabled_skills = ["workspace-skill"]
 poll_interval = "9s"
+allowed_marketplace_mcp = ["@workspace/skill"]
+allowed_marketplace_hooks = ["@workspace/hook"]
+
+[skills.marketplace]
+registry = "clawhub"
+base_url = "https://workspace.example.test/api/v1"
 `)
 
 	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -217,6 +247,18 @@ poll_interval = "9s"
 	}
 	if cfg.Skills.Enabled {
 		t.Fatal("Load() Skills.Enabled = true, want false")
+	}
+	if got, want := cfg.Skills.AllowedMarketplaceMCP, []string{"@workspace/skill"}; !slices.Equal(got, want) {
+		t.Fatalf("Load() Skills.AllowedMarketplaceMCP = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Skills.AllowedMarketplaceHooks, []string{"@workspace/hook"}; !slices.Equal(got, want) {
+		t.Fatalf("Load() Skills.AllowedMarketplaceHooks = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Skills.Marketplace.Registry, "clawhub"; got != want {
+		t.Fatalf("Load() Skills.Marketplace.Registry = %q, want %q", got, want)
+	}
+	if got, want := cfg.Skills.Marketplace.BaseURL, "https://workspace.example.test/api/v1"; got != want {
+		t.Fatalf("Load() Skills.Marketplace.BaseURL = %q, want %q", got, want)
 	}
 	if got, want := cfg.Skills.PollInterval, 9*time.Second; got != want {
 		t.Fatalf("Load() Skills.PollInterval = %s, want %s", got, want)
@@ -447,6 +489,76 @@ unknown = true
 	if !strings.Contains(err.Error(), "skills.unknown") {
 		t.Fatalf("Load() error = %v, want skills.unknown in message", err)
 	}
+}
+
+func TestDefaultWithHomeLeavesMarketplaceConfigEmpty(t *testing.T) {
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg := DefaultWithHome(homePaths)
+	if cfg.Skills.AllowedMarketplaceMCP != nil {
+		t.Fatalf("DefaultWithHome() Skills.AllowedMarketplaceMCP = %#v, want nil/empty", cfg.Skills.AllowedMarketplaceMCP)
+	}
+	if cfg.Skills.AllowedMarketplaceHooks != nil {
+		t.Fatalf("DefaultWithHome() Skills.AllowedMarketplaceHooks = %#v, want nil/empty", cfg.Skills.AllowedMarketplaceHooks)
+	}
+	if cfg.Skills.Marketplace != (MarketplaceConfig{}) {
+		t.Fatalf("DefaultWithHome() Skills.Marketplace = %#v, want zero value", cfg.Skills.Marketplace)
+	}
+}
+
+func TestSkillsConfigValidateMarketplaceConfig(t *testing.T) {
+	t.Parallel()
+
+	base := SkillsConfig{
+		Enabled:      true,
+		PollInterval: time.Second,
+	}
+
+	t.Run("ShouldAcceptValidMarketplaceConfig", func(t *testing.T) {
+		cfg := base
+		cfg.Marketplace = MarketplaceConfig{
+			Registry: "clawhub",
+			BaseURL:  "https://registry.example.test/api/v1",
+		}
+
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("SkillsConfig.Validate() error = %v", err)
+		}
+	})
+
+	t.Run("ShouldRejectEmptyRegistryWhenMarketplaceConfigured", func(t *testing.T) {
+		cfg := base
+		cfg.Marketplace = MarketplaceConfig{
+			BaseURL: "https://registry.example.test/api/v1",
+		}
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("SkillsConfig.Validate() error = nil, want registry validation failure")
+		}
+		if !strings.Contains(err.Error(), "skills.marketplace.registry") {
+			t.Fatalf("SkillsConfig.Validate() error = %v, want marketplace registry context", err)
+		}
+	})
+
+	t.Run("ShouldRejectInvalidMarketplaceBaseURL", func(t *testing.T) {
+		cfg := base
+		cfg.Marketplace = MarketplaceConfig{
+			Registry: "clawhub",
+			BaseURL:  "ftp://registry.example.test/api/v1",
+		}
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("SkillsConfig.Validate() error = nil, want marketplace base_url validation failure")
+		}
+		if !strings.Contains(err.Error(), "skills.marketplace.base_url") {
+			t.Fatalf("SkillsConfig.Validate() error = %v, want marketplace base_url context", err)
+		}
+	})
 }
 
 func TestValidateRejectsInvalidPorts(t *testing.T) {

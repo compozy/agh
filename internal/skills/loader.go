@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/pedronauck/agh/internal/filesnap"
 	"github.com/pedronauck/agh/internal/frontmatter"
@@ -63,6 +64,9 @@ func ParseSkillFile(path string) (*Skill, error) {
 		Dir:      filepath.Dir(absPath),
 		FilePath: absPath,
 		Enabled:  true,
+	}
+	if err := parseAGHMetadata(skill); err != nil {
+		return nil, fmt.Errorf("skills: parse %q metadata.agh: %w", absPath, err)
 	}
 	if skill.Meta.Description == "" {
 		slog.Warn("skills: parsed skill without description", "path", absPath, "name", skill.Meta.Name)
@@ -184,6 +188,251 @@ func parseSkillContent(content []byte) (SkillMeta, string, error) {
 	}
 
 	return meta, parts.Body, nil
+}
+
+func parseAGHMetadata(skill *Skill) error {
+	if skill == nil || skill.Meta.Metadata == nil {
+		return nil
+	}
+
+	rawAGH, ok := skill.Meta.Metadata["agh"]
+	if !ok || rawAGH == nil {
+		return nil
+	}
+
+	agh, ok := rawAGH.(map[string]any)
+	if !ok {
+		warnAGHMetadata(skill, "skills: malformed metadata.agh block", "type", fmt.Sprintf("%T", rawAGH))
+		return nil
+	}
+
+	if rawMCPServers, ok := agh["mcp_servers"]; ok {
+		skill.MCPServers = parseMCPServerDecls(skill, rawMCPServers)
+	}
+	if rawHooks, ok := agh["hooks"]; ok {
+		hooks, err := parseHookDecls(skill, rawHooks)
+		if err != nil {
+			return err
+		}
+		skill.Hooks = hooks
+	}
+
+	return nil
+}
+
+func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {
+	items, ok := raw.([]any)
+	if !ok {
+		warnAGHMetadata(skill, "skills: malformed metadata.agh.mcp_servers field", "type", fmt.Sprintf("%T", raw))
+		return nil
+	}
+
+	servers := make([]MCPServerDecl, 0, len(items))
+	for idx, item := range items {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			warnAGHMetadata(skill, "skills: malformed metadata.agh.mcp_servers entry", "index", idx, "type", fmt.Sprintf("%T", item))
+			continue
+		}
+
+		server := MCPServerDecl{
+			Name:    strings.TrimSpace(stringValue(entry["name"])),
+			Command: strings.TrimSpace(stringValue(entry["command"])),
+			Args:    stringSliceValue(skill, "metadata.agh.mcp_servers", idx, "args", entry["args"]),
+			Env:     stringMapValue(skill, "metadata.agh.mcp_servers", idx, "env", entry["env"]),
+		}
+		if server.Name == "" {
+			warnAGHMetadata(skill, "skills: invalid metadata.agh.mcp_servers entry", "index", idx, "reason", "missing name")
+			continue
+		}
+		if server.Command == "" {
+			warnAGHMetadata(skill, "skills: invalid metadata.agh.mcp_servers entry", "index", idx, "reason", "missing command")
+			continue
+		}
+
+		servers = append(servers, server)
+	}
+
+	if len(servers) == 0 {
+		return nil
+	}
+
+	return slices.Clip(servers)
+}
+
+func parseHookDecls(skill *Skill, raw any) ([]HookDecl, error) {
+	items, ok := raw.([]any)
+	if !ok {
+		warnAGHMetadata(skill, "skills: malformed metadata.agh.hooks field", "type", fmt.Sprintf("%T", raw))
+		return nil, nil
+	}
+
+	hooks := make([]HookDecl, 0, len(items))
+	for idx, item := range items {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			warnAGHMetadata(skill, "skills: malformed metadata.agh.hooks entry", "index", idx, "type", fmt.Sprintf("%T", item))
+			continue
+		}
+
+		event := HookEvent(strings.TrimSpace(stringValue(entry["event"])))
+		if !validHookEvent(event) {
+			warnAGHMetadata(skill, "skills: invalid metadata.agh.hooks entry", "index", idx, "reason", "unknown event", "event", event)
+			continue
+		}
+
+		hook := HookDecl{
+			Event:   event,
+			Command: strings.TrimSpace(stringValue(entry["command"])),
+			Args:    stringSliceValue(skill, "metadata.agh.hooks", idx, "args", entry["args"]),
+			Env:     stringMapValue(skill, "metadata.agh.hooks", idx, "env", entry["env"]),
+			Timeout: durationValue(skill, "metadata.agh.hooks", idx, "timeout", entry["timeout"]),
+		}
+		if hook.Command == "" {
+			return nil, fmt.Errorf(
+				"skills: invalid metadata.agh.hooks entry for %q at index %d: command is required",
+				skillIdentifier(skill),
+				idx,
+			)
+		}
+
+		hooks = append(hooks, hook)
+	}
+
+	if len(hooks) == 0 {
+		return nil, nil
+	}
+
+	return slices.Clip(hooks), nil
+}
+
+func validHookEvent(event HookEvent) bool {
+	switch event {
+	case HookSessionCreated, HookSessionStopped:
+		return true
+	default:
+		return false
+	}
+}
+
+func stringValue(value any) string {
+	stringValue, ok := value.(string)
+	if !ok {
+		return ""
+	}
+
+	return stringValue
+}
+
+func skillIdentifier(skill *Skill) string {
+	if skill == nil {
+		return "unknown skill"
+	}
+
+	name := strings.TrimSpace(skill.Meta.Name)
+	if name != "" {
+		return name
+	}
+
+	path := strings.TrimSpace(skill.FilePath)
+	if path != "" {
+		return path
+	}
+
+	return "unknown skill"
+}
+
+func stringSliceValue(skill *Skill, scope string, index int, field string, raw any) []string {
+	if raw == nil {
+		return nil
+	}
+
+	items, ok := raw.([]any)
+	if !ok {
+		warnAGHMetadata(skill, "skills: malformed metadata list field", "scope", scope, "index", index, "field", field, "type", fmt.Sprintf("%T", raw))
+		return nil
+	}
+
+	values := make([]string, 0, len(items))
+	for itemIndex, item := range items {
+		value, ok := item.(string)
+		if !ok {
+			warnAGHMetadata(skill, "skills: malformed metadata list item", "scope", scope, "index", index, "field", field, "item_index", itemIndex, "type", fmt.Sprintf("%T", item))
+			continue
+		}
+
+		values = append(values, value)
+	}
+
+	if len(values) == 0 {
+		return nil
+	}
+
+	return slices.Clip(values)
+}
+
+func stringMapValue(skill *Skill, scope string, index int, field string, raw any) map[string]string {
+	if raw == nil {
+		return nil
+	}
+
+	input, ok := raw.(map[string]any)
+	if !ok {
+		warnAGHMetadata(skill, "skills: malformed metadata map field", "scope", scope, "index", index, "field", field, "type", fmt.Sprintf("%T", raw))
+		return nil
+	}
+
+	values := make(map[string]string, len(input))
+	for key, rawValue := range input {
+		value, ok := rawValue.(string)
+		if !ok {
+			warnAGHMetadata(skill, "skills: malformed metadata map entry", "scope", scope, "index", index, "field", field, "key", key, "type", fmt.Sprintf("%T", rawValue))
+			continue
+		}
+
+		values[key] = value
+	}
+
+	if len(values) == 0 {
+		return nil
+	}
+
+	return values
+}
+
+func durationValue(skill *Skill, scope string, index int, field string, raw any) time.Duration {
+	if raw == nil {
+		return 0
+	}
+
+	value, ok := raw.(string)
+	if !ok {
+		warnAGHMetadata(skill, "skills: malformed metadata duration field", "scope", scope, "index", index, "field", field, "type", fmt.Sprintf("%T", raw))
+		return 0
+	}
+
+	parsed, err := time.ParseDuration(strings.TrimSpace(value))
+	if err != nil {
+		warnAGHMetadata(skill, "skills: invalid metadata duration value", "scope", scope, "index", index, "field", field, "value", value, "error", err)
+		return 0
+	}
+
+	return parsed
+}
+
+func warnAGHMetadata(skill *Skill, message string, args ...any) {
+	attrs := make([]any, 0, len(args)+4)
+	if skill != nil {
+		if skill.FilePath != "" {
+			attrs = append(attrs, "path", skill.FilePath)
+		}
+		if skill.Meta.Name != "" {
+			attrs = append(attrs, "name", skill.Meta.Name)
+		}
+	}
+	attrs = append(attrs, args...)
+
+	slog.Warn(message, attrs...)
 }
 
 func warnUnknownFields(document *yaml.Node) {
