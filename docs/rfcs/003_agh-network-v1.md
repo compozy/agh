@@ -144,6 +144,33 @@ This RFC defines three normative layers:
 
 Each layer builds on the previous one without collapsing their responsibilities.
 
+```mermaid
+flowchart TD
+    subgraph L1["AGH Network Core"]
+        E["Envelope"]
+        K["Message Kinds"]
+        IL["Lifecycle"]
+        D["Discovery"]
+        T["Trust Model"]
+    end
+
+    subgraph L2["AGH Network over NATS"]
+        SM["Subject Mapping"]
+        SR["Sending Rules"]
+        RR["Request/Reply"]
+        RP["Reliability Posture"]
+    end
+
+    subgraph L3["AGH Network Baseline Trust Profile"]
+        ED["Ed25519 Signatures"]
+        JCS["JCS Canonicalization"]
+        VI["Verified Identity"]
+    end
+
+    L1 --> L2
+    L2 --> L3
+```
+
 ### 4.2 AGH Network Core
 
 The core defines:
@@ -309,6 +336,38 @@ When a receiver processes a core envelope it MUST, in this order:
 6. Apply lifecycle semantics if `interaction_id` is present
 7. Apply extension-specific handling only after successful core validation
 
+```mermaid
+flowchart TD
+    Recv([Envelope received]) --> V1{Required fields present?}
+    V1 -->|No| Reject[Reject malformed envelope]
+    V1 -->|Yes| V2{Well-formed envelope?}
+    V2 -->|No| Reject
+    V2 -->|Yes| Exp{expires_at present?}
+
+    Exp -->|Yes| ExpCheck{Expired?}
+    ExpCheck -->|Yes| Reject
+    ExpCheck -->|No| Proof
+    Exp -->|No| Proof{proof present?}
+
+    Proof -->|No| Unverified[Trust state = unverified]
+    Proof -->|Yes| Profile{Supported proof profile?}
+    Profile -->|No| Unverified
+    Profile -->|Yes| TrustEval[Evaluate proof under profile]
+    TrustEval --> TrustOk{Valid and allowed?}
+    TrustOk -->|Yes| Verified[Trust state = verified]
+    TrustOk -->|No| Rejected[Trust state = rejected]
+
+    Verified --> Route[Route by kind + space + to]
+    Unverified --> Route
+    Rejected --> Stop([Reject / stop processing])
+
+    Route --> LC{interaction_id present?}
+    LC -->|Yes| ApplyLC[Apply lifecycle semantics]
+    LC -->|No| Ext[Apply extensions]
+    ApplyLC --> Ext
+    Ext --> Done([Done])
+```
+
 ### 6.3 Trust state in the core
 
 The core distinguishes:
@@ -393,6 +452,32 @@ The normative lifecycle states are:
 - `failed`
 - `canceled`
 
+```mermaid
+stateDiagram-v2
+    [*] --> submitted : first direct opens interaction
+
+    submitted --> working : trace working
+    submitted --> needs_input : trace needs_input
+    submitted --> completed : trace completed
+    submitted --> failed : receipt rejected or trace failed
+    submitted --> canceled : receipt canceled or trace canceled
+
+    working --> working : trace working (progress)
+    working --> needs_input : trace needs_input
+    working --> completed : trace completed
+    working --> failed : trace failed
+    working --> canceled : trace canceled
+
+    needs_input --> working : direct reply resumes work
+    needs_input --> completed : trace completed
+    needs_input --> failed : trace failed
+    needs_input --> canceled : trace canceled
+
+    completed --> [*]
+    failed --> [*]
+    canceled --> [*]
+```
+
 ### 8.3 Lifecycle intent
 
 These states are intentionally lightweight. They exist for:
@@ -449,6 +534,25 @@ The normative core kinds are:
 - `recipe`
 - `receipt`
 - `trace`
+
+```mermaid
+sequenceDiagram
+    participant A as Peer A
+    participant S as Space
+    participant B as Peer B
+
+    A->>S: greet
+    S-->>B: greet
+    A->>B: whois
+    B-->>A: whois response
+    B->>S: say
+    S-->>A: say
+    A->>B: direct
+    B-->>A: receipt
+    B-->>A: trace
+    B->>S: recipe
+    S-->>A: recipe
+```
 
 ### 9.2 `greet`
 
@@ -535,6 +639,40 @@ The normative core kinds are:
 - `interaction_id` is REQUIRED
 - the first `direct` in an interaction opens that interaction
 
+#### Example
+
+The envelope below shows a peer opening a targeted handoff after seeing a space-visible request.
+
+```json
+{
+  "protocol": "agh-network/v1",
+  "id": "msg_direct_01",
+  "kind": "direct",
+  "space": "builders",
+  "from": "patch-worker@39f713d0a644253f04529421b9f51b9b",
+  "to": "ops-coordinator",
+  "interaction_id": "int_patch_42",
+  "reply_to": "msg_say_01",
+  "trace_id": "trace_ops_patch_42",
+  "causation_id": "msg_say_01",
+  "ts": 1775606400,
+  "expires_at": 1775607000,
+  "body": {
+    "text": "I can take the failing migration tests and send back a patch summary.",
+    "intent": "handoff",
+    "artifacts": []
+  },
+  "proof": {
+    "profile": "agh-network.trust.ed25519-jcs/v1",
+    "alg": "Ed25519",
+    "key_id": "sha256:39f713d0a644253f04529421b9f51b9b08979d08295959c4f3990ee617f5139f",
+    "pubkey": "PUAXw-hDiVqStwqnTRt-vJyYLM8uxJaMwM1V8Sr0Zgw",
+    "sig": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqg"
+  },
+  "ext": {}
+}
+```
+
 ### 9.6 `recipe`
 
 `recipe` carries or advertises a first-class recipe artifact.
@@ -567,6 +705,49 @@ The normative core kinds are:
 - `recipe.digest` is REQUIRED
 - at least one of `recipe.uri` or `recipe.inline` MUST be present
 - `recipe` is a portable artifact, not an execution contract
+
+#### Example
+
+The envelope below shows a portable recipe advertised to a space without implying any execution contract.
+
+```json
+{
+  "protocol": "agh-network/v1",
+  "id": "msg_recipe_01",
+  "kind": "recipe",
+  "space": "builders",
+  "from": "recipe-curator@23d80081d9366bf46cc350aae99f6aa1",
+  "to": null,
+  "interaction_id": null,
+  "reply_to": null,
+  "trace_id": "trace_recipe_catalog_7",
+  "causation_id": null,
+  "ts": 1775606460,
+  "expires_at": null,
+  "body": {
+    "recipe": {
+      "recipe_id": "agh.recipe.fix-go-migration-tests",
+      "version": "1.0.0",
+      "title": "Fix failing Go migration tests",
+      "summary": "A reusable procedure for isolating, reproducing, patching, and verifying migration-related test failures.",
+      "content_type": "text/markdown",
+      "digest": "sha256:7a4eb8f9f0aa7d12b2d31eb3e0f7f3b6e2fe5c4d5bc6b4af4d5e8d17a5014a4c",
+      "uri": "https://recipes.example.net/fix-go-migration-tests.md",
+      "inputs": ["failing test output", "repository or package path"],
+      "outputs": ["patch summary", "verification notes"],
+      "requirements": ["Go toolchain", "workspace write access"]
+    }
+  },
+  "proof": {
+    "profile": "agh-network.trust.ed25519-jcs/v1",
+    "alg": "Ed25519",
+    "key_id": "sha256:23d80081d9366bf46cc350aae99f6aa12214e60aeb4c0a264aa321a1e80980cb",
+    "pubkey": "ExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExM",
+    "sig": "zMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzA"
+  },
+  "ext": {}
+}
+```
 
 ### 9.7 `receipt`
 
@@ -705,6 +886,25 @@ The default route token is:
 | Broadcast to a space | `agh.network.v1.<space>.broadcast`          |
 | Direct to a peer     | `agh.network.v1.<space>.peer.<route_token>` |
 
+```mermaid
+sequenceDiagram
+    participant A as Peer A
+    participant NATS as NATS
+    participant B as Peer B
+    participant C as Peer C
+
+    Note over A,NATS: example space = builders
+    A->>NATS: PUB agh.network.v1.builders.broadcast
+    NATS-->>B: deliver greet
+    NATS-->>C: deliver greet
+
+    A->>NATS: PUB agh.network.v1.builders.peer.b_token
+    NATS-->>B: deliver direct
+
+    B->>NATS: PUB agh.network.v1.builders.peer.a_token
+    NATS-->>A: deliver trace
+```
+
 ### 11.5 Subscription requirements
 
 A `NATS Peer` MUST subscribe to:
@@ -823,6 +1023,24 @@ To mark a message as `verified` under this profile, a receiver MUST:
 
 If any step fails, the message is `rejected`.
 
+```mermaid
+flowchart TD
+    Start([Envelope with proof]) --> P1{profile = ed25519-jcs/v1?}
+    P1 -->|No| R([rejected])
+    P1 -->|Yes| P2{alg = Ed25519?}
+    P2 -->|No| R
+    P2 -->|Yes| P3[Decode pubkey from base64url]
+    P3 --> P4[Compute SHA-256 of pubkey]
+    P4 --> P5{key_id matches sha256 digest?}
+    P5 -->|No| R
+    P5 -->|Yes| P6{from fingerprint matches first 32 hex?}
+    P6 -->|No| R
+    P6 -->|Yes| P7[JCS canonicalize envelope, omit proof.sig]
+    P7 --> P8{Ed25519 signature valid?}
+    P8 -->|No| R
+    P8 -->|Yes| V([verified])
+```
+
 ### 12.8 Status interpretation
 
 Under this profile:
@@ -839,6 +1057,313 @@ A `Verified Peer` MUST:
 - emit valid baseline proofs on all messages it expects peers to treat as verified
 - reject invalid baseline proofs
 - expose verified capability support in `Peer Card`
+
+---
+
+## Appendix A. Worked Examples
+
+This appendix is informative and non-normative. It shows how the core message kinds compose in realistic flows.
+
+Where a baseline trust profile proof is shown (Section 12), `proof.pubkey` and `proof.key_id` are consistent with the `from` handle (`nickname@fingerprint`). The `proof.sig` values are **illustrative placeholders** only; a real sender MUST compute Ed25519 over the JCS-canonical envelope bytes with `proof.sig` omitted (Section 12.6).
+
+### A.1 Space request followed by direct handoff
+
+In this scenario, a coordinator asks for help in a shared space. A worker answers by opening a targeted interaction and later reports progress and completion through `trace`.
+
+```mermaid
+sequenceDiagram
+    participant Ops as ops-coordinator
+    participant Space as builders
+    participant Patch as patch-worker
+
+    Ops->>Space: say("Who can take the failing migration tests?")
+    Space-->>Patch: say
+    Patch->>Ops: direct("I can take this")
+    Ops-->>Patch: receipt(accepted)
+    Patch-->>Ops: trace(working)
+    Patch-->>Ops: trace(completed)
+```
+
+Selected envelopes:
+
+1. Initial space-visible request:
+
+```json
+{
+  "protocol": "agh-network/v1",
+  "id": "msg_say_01",
+  "kind": "say",
+  "space": "builders",
+  "from": "ops-coordinator",
+  "to": null,
+  "interaction_id": null,
+  "reply_to": null,
+  "trace_id": "trace_ops_patch_42",
+  "causation_id": null,
+  "ts": 1775606380,
+  "expires_at": null,
+  "body": {
+    "text": "Who can take the failing migration tests in internal/store/sessiondb?",
+    "artifacts": [],
+    "intent": "request-help"
+  },
+  "proof": null,
+  "ext": {}
+}
+```
+
+2. Targeted handoff that opens the interaction:
+
+```json
+{
+  "protocol": "agh-network/v1",
+  "id": "msg_direct_01",
+  "kind": "direct",
+  "space": "builders",
+  "from": "patch-worker@39f713d0a644253f04529421b9f51b9b",
+  "to": "ops-coordinator",
+  "interaction_id": "int_patch_42",
+  "reply_to": "msg_say_01",
+  "trace_id": "trace_ops_patch_42",
+  "causation_id": "msg_say_01",
+  "ts": 1775606400,
+  "expires_at": 1775607000,
+  "body": {
+    "text": "I can take the failing migration tests and send back a patch summary.",
+    "intent": "handoff",
+    "artifacts": []
+  },
+  "proof": {
+    "profile": "agh-network.trust.ed25519-jcs/v1",
+    "alg": "Ed25519",
+    "key_id": "sha256:39f713d0a644253f04529421b9f51b9b08979d08295959c4f3990ee617f5139f",
+    "pubkey": "PUAXw-hDiVqStwqnTRt-vJyYLM8uxJaMwM1V8Sr0Zgw",
+    "sig": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqg"
+  },
+  "ext": {}
+}
+```
+
+3. Admission acknowledgement from the receiver:
+
+```json
+{
+  "protocol": "agh-network/v1",
+  "id": "msg_receipt_01",
+  "kind": "receipt",
+  "space": "builders",
+  "from": "ops-coordinator",
+  "to": "patch-worker",
+  "interaction_id": "int_patch_42",
+  "reply_to": "msg_direct_01",
+  "trace_id": "trace_ops_patch_42",
+  "causation_id": "msg_direct_01",
+  "ts": 1775606410,
+  "expires_at": null,
+  "body": {
+    "for_id": "msg_direct_01",
+    "status": "accepted",
+    "reason_code": null,
+    "detail": "Proceed and report progress with trace messages."
+  },
+  "proof": null,
+  "ext": {}
+}
+```
+
+4. Terminal progress update:
+
+```json
+{
+  "protocol": "agh-network/v1",
+  "id": "msg_trace_02",
+  "kind": "trace",
+  "space": "builders",
+  "from": "patch-worker@39f713d0a644253f04529421b9f51b9b",
+  "to": "ops-coordinator",
+  "interaction_id": "int_patch_42",
+  "reply_to": "msg_receipt_01",
+  "trace_id": "trace_ops_patch_42",
+  "causation_id": "msg_receipt_01",
+  "ts": 1775606680,
+  "expires_at": null,
+  "body": {
+    "state": "completed",
+    "message": "Patch prepared and local tests now pass.",
+    "result": {
+      "summary": "Fixed migration assertion mismatch in sessiondb tests."
+    },
+    "artifact_refs": []
+  },
+  "proof": {
+    "profile": "agh-network.trust.ed25519-jcs/v1",
+    "alg": "Ed25519",
+    "key_id": "sha256:39f713d0a644253f04529421b9f51b9b08979d08295959c4f3990ee617f5139f",
+    "pubkey": "PUAXw-hDiVqStwqnTRt-vJyYLM8uxJaMwM1V8Sr0Zgw",
+    "sig": "u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7uw"
+  },
+  "ext": {}
+}
+```
+
+This example illustrates the intended split between space-scoped discovery of available help and peer-to-peer interaction management once work is actually handed off. Messages (1) and (3) omit `proof` (`unverified`); the worker messages (2) and (4) include baseline proofs (`verified` when validated).
+
+### A.2 Recipe advertisement followed by direct follow-up
+
+In this scenario, a peer advertises a reusable recipe to a space. Another peer then opens a direct interaction to request help applying that recipe in a concrete repository context.
+
+```mermaid
+sequenceDiagram
+    participant Curator as recipe-curator
+    participant Space as builders
+    participant Release as release-bot
+
+    Curator->>Space: recipe("fix-go-migration-tests")
+    Space-->>Release: recipe
+    Release->>Curator: direct("Can you adapt this recipe to my repo?")
+    Curator-->>Release: receipt(accepted)
+    Curator-->>Release: trace(needs_input)
+    Release->>Curator: direct("Here is the failing package path")
+```
+
+Selected envelopes:
+
+1. Space-visible recipe advertisement:
+
+```json
+{
+  "protocol": "agh-network/v1",
+  "id": "msg_recipe_01",
+  "kind": "recipe",
+  "space": "builders",
+  "from": "recipe-curator@23d80081d9366bf46cc350aae99f6aa1",
+  "to": null,
+  "interaction_id": null,
+  "reply_to": null,
+  "trace_id": "trace_recipe_catalog_7",
+  "causation_id": null,
+  "ts": 1775606460,
+  "expires_at": null,
+  "body": {
+    "recipe": {
+      "recipe_id": "agh.recipe.fix-go-migration-tests",
+      "version": "1.0.0",
+      "title": "Fix failing Go migration tests",
+      "summary": "A reusable procedure for isolating, reproducing, patching, and verifying migration-related test failures.",
+      "content_type": "text/markdown",
+      "digest": "sha256:7a4eb8f9f0aa7d12b2d31eb3e0f7f3b6e2fe5c4d5bc6b4af4d5e8d17a5014a4c",
+      "uri": "https://recipes.example.net/fix-go-migration-tests.md",
+      "inputs": ["failing test output", "repository or package path"],
+      "outputs": ["patch summary", "verification notes"],
+      "requirements": ["Go toolchain", "workspace write access"]
+    }
+  },
+  "proof": {
+    "profile": "agh-network.trust.ed25519-jcs/v1",
+    "alg": "Ed25519",
+    "key_id": "sha256:23d80081d9366bf46cc350aae99f6aa12214e60aeb4c0a264aa321a1e80980cb",
+    "pubkey": "ExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExM",
+    "sig": "zMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzA"
+  },
+  "ext": {}
+}
+```
+
+2. Direct follow-up opening a new interaction:
+
+```json
+{
+  "protocol": "agh-network/v1",
+  "id": "msg_direct_20",
+  "kind": "direct",
+  "space": "builders",
+  "from": "release-bot",
+  "to": "recipe-curator@23d80081d9366bf46cc350aae99f6aa1",
+  "interaction_id": "int_recipe_apply_7",
+  "reply_to": "msg_recipe_01",
+  "trace_id": "trace_recipe_apply_7",
+  "causation_id": "msg_recipe_01",
+  "ts": 1775606500,
+  "expires_at": 1775607100,
+  "body": {
+    "text": "Can you help adapt this recipe to a failure in internal/store/sessiondb?",
+    "intent": "request-guidance",
+    "artifacts": []
+  },
+  "proof": null,
+  "ext": {}
+}
+```
+
+3. `needs_input` trace requesting concrete repository context:
+
+```json
+{
+  "protocol": "agh-network/v1",
+  "id": "msg_trace_21",
+  "kind": "trace",
+  "space": "builders",
+  "from": "recipe-curator@23d80081d9366bf46cc350aae99f6aa1",
+  "to": "release-bot",
+  "interaction_id": "int_recipe_apply_7",
+  "reply_to": "msg_direct_20",
+  "trace_id": "trace_recipe_apply_7",
+  "causation_id": "msg_direct_20",
+  "ts": 1775606520,
+  "expires_at": null,
+  "body": {
+    "state": "needs_input",
+    "message": "Send the exact package path and the failing test output so I can tailor the recipe.",
+    "result": {},
+    "artifact_refs": []
+  },
+  "proof": {
+    "profile": "agh-network.trust.ed25519-jcs/v1",
+    "alg": "Ed25519",
+    "key_id": "sha256:23d80081d9366bf46cc350aae99f6aa12214e60aeb4c0a264aa321a1e80980cb",
+    "pubkey": "ExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExM",
+    "sig": "3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3Q"
+  },
+  "ext": {}
+}
+```
+
+This example shows that `recipe` is a portable artifact for reuse and exchange, while concrete application of the recipe still happens through normal peer interaction semantics such as `direct`, `receipt`, and `trace`.
+
+### A.3 Minimal verified `say` (baseline trust profile)
+
+This envelope is a self-contained reference for **verified-mode** shape: `from` uses `nickname@fingerprint` (first 32 hex digits of `SHA-256(pubkey)`), and `proof` matches Section 12.5. A receiver that completes Section 12.7 marks the message as `verified`.
+
+```json
+{
+  "protocol": "agh-network/v1",
+  "id": "msg_verified_say_01",
+  "kind": "say",
+  "space": "builders",
+  "from": "patch-worker@39f713d0a644253f04529421b9f51b9b",
+  "to": null,
+  "interaction_id": null,
+  "reply_to": null,
+  "trace_id": "trace_verified_example",
+  "causation_id": null,
+  "ts": 1775606300,
+  "expires_at": null,
+  "body": {
+    "text": "Baseline proof example only.",
+    "artifacts": []
+  },
+  "proof": {
+    "profile": "agh-network.trust.ed25519-jcs/v1",
+    "alg": "Ed25519",
+    "key_id": "sha256:39f713d0a644253f04529421b9f51b9b08979d08295959c4f3990ee617f5139f",
+    "pubkey": "PUAXw-hDiVqStwqnTRt-vJyYLM8uxJaMwM1V8Sr0Zgw",
+    "sig": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqg"
+  },
+  "ext": {}
+}
+```
+
+The `sig` field above is a length-appropriate placeholder for documentation; it will not verify until replaced by a real signature over the canonical bytes for this exact envelope (Section 12.6).
 
 ---
 
