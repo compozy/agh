@@ -1,207 +1,296 @@
-# Design: AGH Network
+# Design: AGH Network v1
 
 **Date:** 2026-04-08
 **Status:** Approved
-**Author:** Pedro Nauck + Codex
+**Authors:** Pedro Nauck + Codex
+
+## Summary
+
+`AGH Network` is the approved direction for the project's agent network protocol. It replaces the earlier `AGORA` naming and formalizes a layered design that other projects can implement without depending on AGH, while still preserving AGH's operational advantage through the reference runtime, SDKs, observability, and ergonomics.
+
+The approved design is intentionally opinionated, but not captive:
+
+- the semantic core is transport-agnostic
+- `NATS` is the first and normative transport profile
+- verified interoperability is defined by a normative baseline trust profile
+- AGH remains the strongest implementation, not the mandatory control plane
 
 ## Problem
 
-The current `network` drafts successfully identify a differentiated direction for agent networking, but they still mix five separate concerns inside one document:
+The earlier `network` drafts established a strong conceptual direction, but they mixed several distinct concerns inside the same body of text:
 
-1. **Protocol semantics** — what a message means
-2. **Transport binding** — how a message moves across a transport
-3. **Artifact model** — recipes, traces, and related content-addressed objects
-4. **SDK/runtime ergonomics** — helper APIs, embedded broker, local defaults
-5. **Product posture** — AGH-specific zero-config and operational advantages
+1. Protocol semantics
+2. NATS transport mapping
+3. Artifact definitions such as `recipe` and `trace`
+4. SDK and runtime ergonomics
+5. Product-specific AGH advantages
 
-This is enough to prototype quickly, but it is not yet strong enough as an open protocol other projects can implement without implicitly adopting AGH's runtime model.
+That was useful for exploration, but not sufficient for a protocol RFC intended to be implemented by third parties.
 
-At the same time, the project should not give away its strategic advantage. AGH should remain the best implementation of the protocol through superior SDKs, runtime behavior, observability, memory, and operational profiles.
+At the same time, the protocol should not be flattened into a generic commodity spec. The product strategy is to keep AGH materially better through:
 
-## Decisions
+- the best Go SDK and NATS integration
+- stronger runtime defaults
+- richer observability and replay
+- memory and handoff quality
+- better operational packaging
 
-| Decision               | Choice                                                                                            |
-| ---------------------- | ------------------------------------------------------------------------------------------------- |
-| Protocol name          | `AGH Network`                                                                                     |
-| Core architecture      | Small transport-agnostic semantic core                                                            |
-| First transport        | Normative `NATS Profile` in the same RFC                                                          |
-| Runtime/product layer  | Explicitly non-core; AGH remains the best implementation                                          |
-| Wire model             | Canonical signed JSON envelope with content-addressed artifacts                                   |
-| Identity model         | Self-certified handles with Ed25519 + canonical signing                                           |
-| Core interaction model | Chat-first messaging plus first-class artifacts                                                   |
-| Discovery model        | Minimal peer card and capability surface in core; richer registries as future profiles            |
-| Observability model    | Correlation and trace identifiers in core; exporters and telemetry pipelines in profiles/runtimes |
-| Extension strategy     | Namespaced extensions and explicit profile negotiation                                            |
+## Approved Decisions
 
-## Why NATS Is Not The Entire Protocol
+| Topic                    | Approved decision                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Protocol name            | `AGH Network`                                                                                                            |
+| RFC packaging            | One RFC for v1 with internal normative sections for `Core`, `NATS Profile`, and `Baseline Trust Profile`                 |
+| Core posture             | Small semantic core, transport-agnostic                                                                                  |
+| First transport          | `AGH Network over NATS` as the normative v1 profile                                                                      |
+| Lifecycle model          | Lightweight task lifecycle, not a workflow engine                                                                        |
+| Identity/discovery       | Canonical identity plus minimal `whois/capabilities` in the core                                                         |
+| Artifact model           | `recipe` remains a first-class core artifact, but execution stays outside the core                                       |
+| Observability            | Minimal mandatory observability in core: correlation, lineage, `receipt`, and light `trace`                              |
+| Delivery model           | Core defines semantic expectations; concrete retries, ack behavior, replay, and timeouts belong to the transport profile |
+| Trust model              | Core models claimed vs verified identity; verified interoperability is defined by a normative baseline trust profile     |
+| Trust algorithm strategy | A single MTI algorithm in v1 for verified-mode interoperability                                                          |
+| Product moat             | AGH wins on runtime, SDK, observability, and DX, not by making the wire protocol AGH-only                                |
 
-There is no major technical obstacle to making `NATS` the mandatory transport of the whole protocol. The issue is architectural and strategic:
+## Approved Architecture
 
-- If NATS is mandatory in the core, the protocol becomes "an agent protocol on top of NATS", not a reusable network protocol with a first-class NATS implementation.
-- Subject grammar, wildcard behavior, broker topology, and account/ACL guidance start leaking into the semantic layer.
-- Third parties who want browser-first, HTTP-first, edge, or embedded non-broker deployments must bridge into NATS before they can even claim conformance.
-- The protocol becomes harder to evolve independently of transport assumptions.
+### 1. AGH Network Core
 
-The approved design keeps the protocol small and open while still preserving AGH's advantage:
+The core defines the protocol semantics that should survive across transports:
 
-- **AGH Network Core** defines the meaning of communication.
-- **AGH Network NATS Profile** defines the canonical mapping to NATS subjects, request/reply, and pub/sub.
-- **AGH Embedded Profile** remains an implementation advantage of AGH rather than a requirement of the protocol.
+- canonical envelope
+- canonical identity and sender/receiver fields
+- `whois/capabilities` discovery minimum
+- interaction model and lightweight lifecycle
+- normative message kinds
+- first-class `recipe` artifact
+- correlation, lineage, `receipt`, and `trace`
+- semantic delivery rules
+- extension and profile negotiation
+- trust semantics at the level of claimed vs verified identity
 
-This gives AGH a strong moat in implementation quality without turning the protocol into a thin wrapper around one product stack.
+The core does not define transport-specific addressing, runtime defaults, or broker topology.
 
-## Architecture
+### 2. AGH Network over NATS
 
-### 1. Core Semantics
+The first official transport profile is a normative NATS binding that defines:
 
-The core defines only invariants that should survive across transports:
+- subject mapping
+- broadcast and direct routing
+- request/reply behavior
+- NATS-specific delivery expectations
+- timeout, retry, and replay posture
+- operational constraints specific to the binding
 
-- Canonical signed envelope
-- Identity, sender verification, anti-replay, and expiration semantics
-- Core message kinds and artifact kinds
-- Logical namespace (`space`) and correlation fields
-- Minimal peer capability advertisement
-- Delivery/error semantics at the abstract level
-- Extension and profile negotiation rules
+This keeps the protocol open while giving AGH a natural first-class fit with Go and NATS.
 
-The core does **not** define:
+### 3. AGH Network Baseline Trust Profile
 
-- NATS subjects
-- HTTP routes
-- Broker topology
-- JetStream or persistence rules
-- Embedded broker behavior
-- SDK helper ergonomics
-- AGH daemon lifecycle
+Verified interoperability is not left to ad hoc implementation choices. The v1 RFC includes a normative baseline trust profile that defines:
 
-### 2. Transport Profiles
+- the MTI signature algorithm
+- canonicalization rules for signed messages
+- how public key material is represented
+- how `verified`, `unverified`, and `rejected` are interpreted
 
-Profiles map the core onto concrete transports. A profile is allowed to define:
+The core therefore carries trust semantics, while the concrete mechanics of verification remain fixed by the baseline profile.
 
-- Addressing grammar
-- Subscription model
-- Request/reply mapping
-- Delivery guarantees and constraints specific to the transport
-- Authentication hooks exposed by that transport
-- Profile-specific operational guidance
+## Approved Core Semantic Model
 
-The first official profile is:
+The core is intentionally small, but not vague. The main protocol primitives are:
 
-- **AGH Network NATS Profile v1**
+- `Envelope`
+- `Interaction`
+- `Peer Card`
+- `Recipe`
 
-Future profiles may include HTTP/SSE, WebSocket, gRPC, or federated transport profiles, but those remain out of scope for the first RFC.
+### Envelope
 
-### 3. Runtime Implementations
+Every message travels in a canonical envelope with:
 
-Runtimes are where product differentiation lives. AGH should compete here, not by closing the protocol:
+- protocol version
+- sender identity
+- intended target or scope
+- timestamps
+- correlation data
+- optional proof material
+- kind-specific payload
+- extension surface
 
-- Best Go SDK
-- Best NATS binding and embedded story
-- Best sandbox and worktree orchestration
-- Best trace/replay/debug tooling
-- Best memory and compaction behavior
+### Interaction
 
-This follows the pattern surfaced in the `ai-harness` knowledge base: open protocol, strong runtime moat.
+The protocol keeps a lightweight lifecycle instead of a heavy orchestration model:
 
-## Core Model
+- `submitted`
+- `working`
+- `needs_input`
+- `completed`
+- `failed`
+- `canceled`
 
-The approved protocol shape keeps the strongest parts of the current drafts:
+This is sufficient for operational handoff and progress tracking without turning the protocol into an enterprise workflow engine.
 
-- **Chat-first messaging** stays central
-- **`recipe`** remains a teaching artifact, not a deterministic workflow engine
-- **`trace`** remains a first-class verifiable execution artifact
-- **`payment`** remains an optional hook, not a settlement rail
-- **self-certified identity** remains the default core identity model
+### Message kinds
 
-Canonical core kinds:
+The approved normative kinds are:
 
 - `greet`
+- `whois`
 - `say`
 - `direct`
-- `recipe`
-- `whois`
-
-Canonical optional kinds:
-
 - `receipt`
-- `echo`
-- `revoke`
 - `trace`
+- `recipe`
 
-These names stay transport-neutral. The `NATS Profile` is responsible for mapping them onto subjects.
+These retain the chat-first and artifact-aware character of the earlier drafts.
 
-## Scope Boundaries
+### Capabilities and conformance
 
-### Core RFC must contain
+Peers advertise:
 
-- Protocol goals, non-goals, and design principles
-- Envelope schema
-- Identity model
-- Core and optional message kinds
-- Peer card / capability advertisement
-- Artifact model for recipes and traces
-- Delivery and error model
-- Security considerations
-- Extension and profile model
-- Conformance classes
-- Normative NATS profile
+- supported protocol profiles
+- supported trust modes
+- supported artifacts
+- capabilities exposed by the peer
 
-### Core RFC must not contain
+The RFC defines explicit conformance classes so implementations can be partially compliant without ambiguity:
 
-- AGH CLI UX
-- Embedded NATS startup UX
-- Reference SDK API surface
-- Full config file stories
-- AGH daemon deployment topologies
-- Product marketing claims
+- `Core Sender`
+- `Core Receiver`
+- `Core Peer`
+- `Verified Peer`
+- `NATS Peer`
 
-Those belong in companion docs or implementation-specific material.
+## Approved Profile and Interoperability Model
 
-## Conformance Strategy
+The approved conformance model separates syntax, operations, and trust:
 
-The RFC should define conformance classes early to avoid ambiguity:
+- `Core` guarantees shared semantics
+- `NATS Profile` guarantees transport interoperability on NATS
+- `Baseline Trust Profile` guarantees verified interoperability
 
-- **Core Sender**
-- **Core Receiver**
-- **Core Peer**
-- **NATS Profile Peer**
-- **NATS Profile Broker-Compatible Deployment**
+This means:
 
-AGH can then claim:
+- third-party projects can implement the core without adopting AGH
+- projects that want practical v1 interoperability implement the NATS profile
+- projects that want verified-mode interoperability implement the baseline trust profile
 
-- Core conformance
-- NATS profile conformance
-- AGH embedded runtime profile support
+## v1 Scope
 
-## Open Items For The RFC
+The RFC v1 must cover:
 
-The design is approved, but the RFC still needs to make explicit choices on:
+- `AGH Network Core`
+- `AGH Network over NATS`
+- `AGH Network Baseline Trust Profile`
+- envelope semantics
+- lifecycle semantics
+- message kinds
+- `recipe` artifact semantics
+- observability minimums
+- conformance classes
+- semantic delivery model
+- security considerations
 
-1. Exact envelope field names and canonicalization format
-2. Final shape of the peer card
-3. Minimal error code registry
-4. Required versus optional discovery surface
-5. Required correlation fields for tracing and handoff
-6. Extension advertisement and incompatibility behavior
+## v1 Non-Goals
 
-These should be resolved inside the RFC itself, not deferred back into product docs.
+The RFC v1 explicitly does not try to fully solve:
 
-## Implementation Direction
+- global federation between organizations
+- rich distributed registries
+- advanced governance or policy systems
+- fine-grained authorization and delegation frameworks
+- workflow engines or schedulers
+- execution sandbox standards
+- storage and retention backends
+- multiple official transports beyond NATS
 
-After the RFC is written, the project should proceed in this order:
+These belong in future RFCs, extension profiles, or implementation-specific documentation.
 
-1. Finalize the `AGH Network Core + NATS Profile` RFC
-2. Add a reference conformance section and canonical examples
-3. Build the Go reference SDK around the RFC, not around AGH internals
-4. Build AGH's embedded/runtime story as the best implementation profile
-5. Add conformance tests that third parties can run without AGH
+## RFC Packaging
+
+The approved primary RFC path is:
+
+- `docs/rfcs/agh-network-v1.md`
+
+The existing earlier draft in `docs/rfcs/agh-network.md` should no longer act as the main RFC and should instead point readers to the v1 document.
+
+Recommended RFC structure:
+
+1. Overview
+2. Goals and Non-Goals
+3. Terminology
+4. Architecture and Profiles
+5. Core Protocol
+6. Core Message and Artifact Model
+7. Core Lifecycle and Observability
+8. Core Identity and Capabilities
+9. NATS Profile
+10. Baseline Trust Profile
+11. Conformance
+12. Security Considerations
+13. Extensions and Future Work
+14. Normative References
+15. Informative References
+16. Research Corpus Consulted
+17. Traceability Appendix
+
+## Research Inputs
+
+The RFC is grounded in three input categories:
+
+### Local project drafts
+
+- `docs/rfcs/ideas/network/agora-spec-v0.2.md`
+- `docs/rfcs/ideas/network/agora-spec-v0.1.md`
+- `docs/rfcs/ideas/network/draft_1.md`
+- `docs/rfcs/ideas/network/draft_2.md`
+- `docs/rfcs/ideas/network/draft_3.md`
+- `docs/rfcs/ideas/network/draft_4.md`
+- `docs/rfcs/ideas/network/draft_5.md`
+- `docs/rfcs/ideas/network/agora-recipe-design.md`
+- `docs/rfcs/ideas/network/agora-council_round1.md`
+- `docs/rfcs/ideas/network/agora-council_round2.md`
+
+### Consulted knowledge-base notes from `~/dev/knowledge/agent-networks`
+
+- `~/dev/knowledge/agent-networks/wiki/index/Concept Index.md`
+- `~/dev/knowledge/agent-networks/wiki/index/Source Index.md`
+- `~/dev/knowledge/agent-networks/wiki/concepts/The A2A Protocol.md`
+- `~/dev/knowledge/agent-networks/wiki/concepts/Agent-to-Agent Protocol Landscape.md`
+- `~/dev/knowledge/agent-networks/wiki/concepts/Agent Network Protocol.md`
+- `~/dev/knowledge/agent-networks/wiki/concepts/AGNTCY and the Internet of Agents.md`
+- `~/dev/knowledge/agent-networks/wiki/concepts/Agent Discovery and Registries.md`
+- `~/dev/knowledge/agent-networks/wiki/concepts/Agent Identity and Verifiable Credentials.md`
+- `~/dev/knowledge/agent-networks/wiki/concepts/Agent Observability and Distributed Tracing.md`
+- `~/dev/knowledge/agent-networks/wiki/concepts/Agent Capability Negotiation and Binding.md`
+- `~/dev/knowledge/agent-networks/wiki/concepts/The MCP-A2A Composition Pattern.md`
+
+### Consulted knowledge-base notes from `~/dev/knowledge/ai-harness`
+
+- `~/dev/knowledge/ai-harness/wiki/index/Concept Index.md`
+- `~/dev/knowledge/ai-harness/wiki/index/Source Index.md`
+- `~/dev/knowledge/ai-harness/wiki/concepts/The Agent Harness.md`
+- `~/dev/knowledge/ai-harness/wiki/concepts/Model Context Protocol.md`
+- `~/dev/knowledge/ai-harness/wiki/concepts/Agent Communication Protocols.md`
+- `~/dev/knowledge/ai-harness/wiki/concepts/Agent Orchestration.md`
+- `~/dev/knowledge/ai-harness/wiki/concepts/Memory Systems for Agents.md`
+- `~/dev/knowledge/ai-harness/wiki/concepts/LLMOps and Observability.md`
+- `~/dev/knowledge/ai-harness/wiki/concepts/Context Engineering.md`
+- `~/dev/knowledge/ai-harness/wiki/concepts/Open Source Agent Frameworks.md`
+
+### Consulted ai-harness outputs
+
+- `~/dev/knowledge/ai-harness/outputs/briefings/State of AI Agent Harnesses 2025-2026.md`
+- `~/dev/knowledge/ai-harness/outputs/queries/2026-04-04 Key Open Questions.md`
+- `~/dev/knowledge/ai-harness/outputs/queries/2026-04-06 Skill Systems Comparison Across Six Harnesses.md`
+- `~/dev/knowledge/ai-harness/outputs/queries/2026-04-06 Workspace and Directory Access Across Six Harnesses.md`
 
 ## Outcome
 
-This design preserves all three strategic goals:
+The approved design preserves the project's three core goals:
 
-- The protocol remains implementable outside AGH
-- AGH retains a strong competitive advantage
-- The system stays ambitious without collapsing into overengineering
+- the protocol remains implementable outside AGH
+- AGH keeps a meaningful competitive advantage
+- the protocol remains distinctive instead of collapsing into either generic RPC or pure transport documentation
 
-`AGH Network` should therefore be written as an open protocol with a small semantic core and a first-class normative NATS profile, not as a NATS-only product protocol.
+The correct next step is to write the main RFC in `docs/rfcs/agh-network-v1.md` and make it the authoritative specification for v1.
