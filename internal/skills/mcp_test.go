@@ -119,7 +119,7 @@ func TestMCPResolverResolveBlocksMarketplaceServerWithoutConsent(t *testing.T) {
 func TestMCPResolverResolveAllowsMarketplaceServerWithConsent(t *testing.T) {
 	t.Parallel()
 
-	resolver, logs := newResolverForTest([]string{"marketplace-skill"})
+	resolver, logs := newResolverForTest([]string{"@test/marketplace-skill"})
 
 	got := resolver.Resolve([]*Skill{
 		newSkillWithServer("marketplace-skill", SourceMarketplace, MCPServerDecl{
@@ -140,6 +140,35 @@ func TestMCPResolverResolveAllowsMarketplaceServerWithConsent(t *testing.T) {
 	}
 	if !strings.Contains(output, "level=INFO") {
 		t.Fatalf("logs = %q, want info log", output)
+	}
+}
+
+func TestMCPResolverResolveUsesProvenanceSlugForMarketplaceConsent(t *testing.T) {
+	t.Parallel()
+
+	resolver, logs := newResolverForTest([]string{"@registry/real-skill"})
+	skill := newSkillWithServer("spoofed-name", SourceMarketplace, MCPServerDecl{
+		Name:    "github",
+		Command: "npx",
+	})
+	skill.Provenance = &Provenance{
+		Hash:     "hash-real-skill",
+		Registry: "clawhub",
+		Slug:     "@registry/real-skill",
+	}
+
+	got := resolver.Resolve([]*Skill{skill})
+	if len(got) != 1 {
+		t.Fatalf("Resolve() len = %d, want 1", len(got))
+	}
+	if got[0].Name != "github" {
+		t.Fatalf("Resolve() Name = %q, want github", got[0].Name)
+	}
+	if logs.Len() == 0 {
+		return
+	}
+	if strings.Contains(logs.String(), "level=WARN") {
+		t.Fatalf("logs = %q, want no warning log", logs.String())
 	}
 }
 
@@ -191,6 +220,32 @@ func TestMCPResolverResolveDeduplicatesByServerNameUsingHigherPrecedenceSkill(t 
 	}
 }
 
+func TestMCPResolverResolveNormalizesStoredServerNameBeforeDeduplication(t *testing.T) {
+	t.Parallel()
+
+	resolver, _ := newResolverForTest(nil)
+
+	got := resolver.Resolve([]*Skill{
+		newSkillWithServer("bundled-skill", SourceBundled, MCPServerDecl{
+			Name:    " github ",
+			Command: "bundled-cmd",
+		}),
+		newSkillWithServer("workspace-skill", SourceWorkspace, MCPServerDecl{
+			Name:    "github",
+			Command: "workspace-cmd",
+		}),
+	})
+	if len(got) != 1 {
+		t.Fatalf("Resolve() len = %d, want 1", len(got))
+	}
+	if got[0].Name != "github" {
+		t.Fatalf("Resolve() Name = %q, want trimmed name", got[0].Name)
+	}
+	if got[0].Command != "workspace-cmd" {
+		t.Fatalf("Resolve() Command = %q, want workspace override", got[0].Command)
+	}
+}
+
 func TestMCPResolverResolveReturnsNilForEmptySkillList(t *testing.T) {
 	t.Parallel()
 
@@ -217,7 +272,7 @@ func newResolverForTest(allowed []string) (*MCPResolver, *bytes.Buffer) {
 }
 
 func newSkillWithServer(name string, source SkillSource, server MCPServerDecl) *Skill {
-	return &Skill{
+	skill := &Skill{
 		Meta: SkillMeta{
 			Name:        name,
 			Description: "test skill",
@@ -225,4 +280,12 @@ func newSkillWithServer(name string, source SkillSource, server MCPServerDecl) *
 		Source:     source,
 		MCPServers: []MCPServerDecl{server},
 	}
+	if source == SourceMarketplace {
+		skill.Provenance = &Provenance{
+			Hash:     "hash-" + name,
+			Registry: "clawhub",
+			Slug:     "@test/" + name,
+		}
+	}
+	return skill
 }

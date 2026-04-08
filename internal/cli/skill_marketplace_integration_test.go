@@ -139,9 +139,9 @@ func TestSkillInstallCommandIntegrationWritesMatchingHash(t *testing.T) {
 	}
 
 	skillDir := filepath.Join(env.homePaths.SkillsDir, "hashcheck")
-	skillBytes, err := os.ReadFile(filepath.Join(skillDir, skillMarkdownFileName))
+	hash, err := skills.ComputeDirectoryHash(skillDir)
 	if err != nil {
-		t.Fatalf("ReadFile(SKILL.md) error = %v", err)
+		t.Fatalf("ComputeDirectoryHash() error = %v", err)
 	}
 	provenance, err := skills.ReadSidecar(skillDir)
 	if err != nil {
@@ -151,7 +151,7 @@ func TestSkillInstallCommandIntegrationWritesMatchingHash(t *testing.T) {
 		t.Fatal("ReadSidecar() = nil, want provenance")
 	}
 
-	if got, want := provenance.Hash, skills.ComputeHash(skillBytes); got != want {
+	if got, want := provenance.Hash, hash; got != want {
 		t.Fatalf("provenance.Hash = %q, want %q", got, want)
 	}
 }

@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/procutil"
 )
 
 func TestHookRunnerRunHooksReturnsEmptyForNoSkills(t *testing.T) {
@@ -110,7 +113,7 @@ func TestHookRunnerRunHooksOrdersBySourceAndSkillName(t *testing.T) {
 	t.Parallel()
 
 	runner, logs := newHookRunnerForTest(aghconfig.SkillsConfig{
-		AllowedMarketplaceMCP: []string{"marketplace-skill"},
+		AllowedMarketplaceHooks: []string{"@test/marketplace-skill"},
 	})
 	script := hookScriptPath(t)
 
@@ -147,6 +150,55 @@ func TestHookRunnerRunHooksOrdersBySourceAndSkillName(t *testing.T) {
 	}
 }
 
+func TestHookRunnerRunHooksRequiresDedicatedMarketplaceHookConsent(t *testing.T) {
+	t.Parallel()
+
+	runner, logs := newHookRunnerForTest(aghconfig.SkillsConfig{
+		AllowedMarketplaceMCP: []string{"@test/marketplace-skill"},
+	})
+	script := hookScriptPath(t)
+
+	results := runner.RunHooks(t.Context(), HookSessionCreated, []*Skill{
+		newSkillWithHook("marketplace-skill", SourceMarketplace, hookOutput(script, "marketplace-skill")),
+	}, HookPayload{})
+
+	if len(results) != 0 {
+		t.Fatalf("RunHooks() len = %d, want marketplace hook blocked without hook consent", len(results))
+	}
+
+	output := logs.String()
+	if !strings.Contains(output, "blocked hook") {
+		t.Fatalf("logs = %q, want blocked hook warning", output)
+	}
+}
+
+func TestHookRunnerRunHooksUsesProvenanceSlugForMarketplaceConsent(t *testing.T) {
+	t.Parallel()
+
+	runner, logs := newHookRunnerForTest(aghconfig.SkillsConfig{
+		AllowedMarketplaceHooks: []string{"@registry/real-skill"},
+	})
+	script := hookScriptPath(t)
+
+	skill := newSkillWithHook("spoofed-display-name", SourceMarketplace, hookOutput(script, "approved"))
+	skill.Provenance = &Provenance{
+		Hash:     "hash-real-skill",
+		Registry: "clawhub",
+		Slug:     "@registry/real-skill",
+	}
+
+	results := runner.RunHooks(t.Context(), HookSessionCreated, []*Skill{skill}, HookPayload{})
+	if len(results) != 1 {
+		t.Fatalf("RunHooks() len = %d, want 1 approved marketplace hook", len(results))
+	}
+	if got, want := results[0].Output, "approved"; got != want {
+		t.Fatalf("results[0].Output = %q, want %q", got, want)
+	}
+	if logs.Len() != 0 {
+		t.Fatalf("logs = %q, want empty logs", logs.String())
+	}
+}
+
 func TestHookRunnerRunHooksBlocksMarketplaceHooksWithoutConsent(t *testing.T) {
 	t.Parallel()
 
@@ -174,6 +226,46 @@ func TestHookRunnerRunHooksBlocksMarketplaceHooksWithoutConsent(t *testing.T) {
 	}
 	if !strings.Contains(output, "skill_name=marketplace-skill") {
 		t.Fatalf("logs = %q, want blocked marketplace skill name", output)
+	}
+}
+
+func TestHookRunnerRunHooksUsesSkillDirForRelativeFileAccess(t *testing.T) {
+	t.Parallel()
+
+	skillDir := t.TempDir()
+	relativeFile := filepath.Join(skillDir, "message.txt")
+	if err := os.WriteFile(relativeFile, []byte("from-skill-dir"), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", relativeFile, err)
+	}
+
+	runner, logs := newHookRunnerForTest()
+	results := runner.RunHooks(t.Context(), HookSessionCreated, []*Skill{
+		{
+			Meta: SkillMeta{
+				Name:        "relative-file-skill",
+				Description: "test skill",
+			},
+			Dir:    skillDir,
+			Source: SourceUser,
+			Hooks: []HookDecl{{
+				Event:   HookSessionCreated,
+				Command: "/bin/sh",
+				Args:    []string{"-c", "cat message.txt"},
+			}},
+		},
+	}, HookPayload{})
+
+	if len(results) != 1 {
+		t.Fatalf("RunHooks() len = %d, want 1", len(results))
+	}
+	if results[0].Error != nil {
+		t.Fatalf("results[0].Error = %v, want nil", results[0].Error)
+	}
+	if got, want := results[0].Output, "from-skill-dir"; got != want {
+		t.Fatalf("results[0].Output = %q, want %q", got, want)
+	}
+	if logs.Len() != 0 {
+		t.Fatalf("logs = %q, want empty logs", logs.String())
 	}
 }
 
@@ -271,6 +363,70 @@ func TestHookRunnerRunHooksTimesOut(t *testing.T) {
 	}
 }
 
+func TestHookRunnerRunHooksTerminatesDescendantProcessesOnTimeout(t *testing.T) {
+	skillDir := t.TempDir()
+	pidFile := filepath.Join(skillDir, "child.pid")
+	scriptPath := filepath.Join(skillDir, "spawn-child.sh")
+	script := strings.Join([]string{
+		"#!/bin/sh",
+		"set -eu",
+		"/bin/sh -c 'while :; do :; done' &",
+		"child=$!",
+		"printf '%s' \"$child\" > \"$HOOK_TEST_CHILD_PID_FILE\"",
+		"while :; do :; done",
+	}, "\n")
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", scriptPath, err)
+	}
+
+	runner, _ := newHookRunnerForTest()
+	results := runner.RunHooks(t.Context(), HookSessionCreated, []*Skill{
+		{
+			Meta: SkillMeta{
+				Name:        "descendant-cleanup-skill",
+				Description: "test skill",
+			},
+			Dir:    skillDir,
+			Source: SourceUser,
+			Hooks: []HookDecl{{
+				Event:   HookSessionCreated,
+				Command: "/bin/sh",
+				Args:    []string{scriptPath},
+				Timeout: 150 * time.Millisecond,
+				Env: map[string]string{
+					"HOOK_TEST_CHILD_PID_FILE": pidFile,
+				},
+			}},
+		},
+	}, HookPayload{})
+
+	if len(results) != 1 {
+		t.Fatalf("RunHooks() len = %d, want 1", len(results))
+	}
+	if results[0].Error == nil {
+		t.Fatal("results[0].Error = nil, want timeout error")
+	}
+
+	pidBytes, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", pidFile, err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+	if err != nil {
+		t.Fatalf("Atoi(%q) error = %v", strings.TrimSpace(string(pidBytes)), err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !procutil.Alive(pid) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatalf("child process %d still alive after hook timeout cleanup", pid)
+}
+
 func TestHookRunnerRunHooksDoesNotInheritAmbientEnvironment(t *testing.T) {
 	t.Setenv("HOOK_TEST_AMBIENT_SECRET", "ambient-secret")
 
@@ -341,7 +497,7 @@ func newHookRunnerForTest(cfgs ...aghconfig.SkillsConfig) (*HookRunner, *bytes.B
 }
 
 func newSkillWithHook(name string, source SkillSource, hook HookDecl) *Skill {
-	return &Skill{
+	skill := &Skill{
 		Meta: SkillMeta{
 			Name:        name,
 			Description: "test skill",
@@ -349,6 +505,14 @@ func newSkillWithHook(name string, source SkillSource, hook HookDecl) *Skill {
 		Source: source,
 		Hooks:  []HookDecl{hook},
 	}
+	if source == SourceMarketplace {
+		skill.Provenance = &Provenance{
+			Hash:     "hash-" + name,
+			Registry: "clawhub",
+			Slug:     "@test/" + name,
+		}
+	}
+	return skill
 }
 
 func hookOutput(scriptPath string, output string) HookDecl {

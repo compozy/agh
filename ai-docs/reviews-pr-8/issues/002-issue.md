@@ -1,17 +1,17 @@
 # Issue 2 - Review Thread Comment
 
-**File:** `internal/daemon/notifier.go:144`
-**Date:** 2026-04-08 11:02:40 America/Sao_Paulo
+**File:** `internal/skills/hooks.go:163`
+**Date:** 2026-04-08 12:09:54 America/Sao_Paulo
 **Status:** - [x] RESOLVED
 
 ## Triage
 
 - Disposition: `VALID`
-- Notes: the compile-time assertion was missing, and marketplace hooks were running without the same trust gate used for MCP servers. The fix keeps the notifier path unchanged structurally and enforces the marketplace gate inside `HookRunner`.
+- Notes: the working-directory problem is real, and the process-tree concern is broader than the suggestion text. `exec.CommandContext` only guaranteed cancellation of the top-level child, so descendants could survive a timeout. The fix sets `cmd.Dir = skill.Dir`, places hook commands in their own managed process group, and explicitly terminates/kills the group on timeout so child processes do not leak.
 
 ## Body
 
-_⚠️ Potential issue_ | _🔴 Critical_
+_⚠️ Potential issue_ | _🟠 Major_
 
 <details>
 <summary>🧩 Analysis chain</summary>
@@ -19,118 +19,177 @@ _⚠️ Potential issue_ | _🔴 Critical_
 🏁 Script executed:
 
 ```shell
-#!/bin/bash
-set -euo pipefail
-
-echo "== Hook dispatch call sites =="
-rg -n -C3 --type=go '\bRunHooks\s*\('
-
-echo
-echo "== SkillRegistry.ForWorkspace definitions / call sites =="
-rg -n -C4 --type=go '\bForWorkspace\s*\('
-
-echo
-echo "== Marketplace trust / consent filtering =="
-rg -n -C4 --type=go 'SourceMarketplace|consent|allow.*marketplace|trusted.*skill|filter.*hook'
+# First, let's examine the code at lines 149-163
+cat -n internal/skills/hooks.go | sed -n '140,170p'
 ```
 
 Repository: compozy/agh
 
-Length of output: 49661
+Length of output: 1084
 
 ---
 
 🏁 Script executed:
 
 ```shell
-#!/bin/bash
-set -euo pipefail
-
-echo "=== Registry.ForWorkspace implementation ==="
-sed -n '135,180p' internal/skills/registry.go
-
-echo
-echo "=== skillsHookDispatcher definition and interface verification ==="
-rg -n -A20 'type skillsHookDispatcher' internal/daemon/notifier.go
-
-echo
-echo "=== sessionHookPhase interface definition ==="
-rg -n -B2 -A8 'type sessionHookPhase' internal/daemon/notifier.go
-
-echo
-echo "=== Check for marketplace/consent filtering in ForWorkspace ==="
-sed -n '135,220p' internal/skills/registry.go | head -90
+# Let's also check the full context around this function to understand the overall structure
+cat -n internal/skills/hooks.go | sed -n '130,180p'
 ```
 
 Repository: compozy/agh
 
-Length of output: 4770
+Length of output: 1807
 
 ---
 
 🏁 Script executed:
 
 ```shell
-#!/bin/bash
-set -euo pipefail
-
-echo "=== Check if DisabledSkills filtering is applied to hooks ==="
-rg -n -B3 -A3 'DisabledSkills' internal/skills/registry.go
-
-echo
-echo "=== Check ForWorkspace return path - does it filter anything? ==="
-sed -n '180,200p' internal/skills/registry.go
-
-echo
-echo "=== Check mergedSkillList implementation ==="
-rg -n -B2 -A15 'func mergedSkillList' internal/skills/registry.go
-
-echo
-echo "=== Search for any hook-level marketplace filtering ==="
-rg -n -C5 'RunHooks.*marketplace|hook.*marketplace|hook.*consent|hook.*filter' --type=go
+# Check if cmd.Dir is set elsewhere in the file or if FilePath is available
+rg -n "cmd\.Dir|FilePath" internal/skills/hooks.go
 ```
 
 Repository: compozy/agh
 
-Length of output: 2505
+Length of output: 98
 
 ---
 
 🏁 Script executed:
 
 ```shell
-#!/bin/bash
-set -euo pipefail
-
-echo "=== Check if DisabledSkills filtering is applied in List() or exported from ForWorkspace ==="
-sed -n '115,135p' internal/skills/registry.go
-
-echo
-echo "=== Check RunHooks implementation to see if it filters marketplace hooks ==="
-sed -n '50,120p' internal/skills/hooks.go
-
-echo
-echo "=== Verify: does skillsHookDispatcher have compile-time interface assertion? ==="
-grep -n 'var _ sessionHookPhase.*skillsHookDispatcher' internal/daemon/notifier.go || echo "NOT FOUND: No compile-time interface assertion"
+# Search for process group handling patterns in the codebase
+rg -n "SysProcAttr|setpgid|PGRP" --type go
 ```
 
 Repository: compozy/agh
 
-Length of output: 2630
+Length of output: 353
+
+---
+
+🏁 Script executed:
+
+```shell
+# Let's check if there are any other hooks implementations or process management utilities
+fd -t f "\.go$" internal/skills | head -20
+```
+
+Repository: compozy/agh
+
+Length of output: 719
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the Skill struct definition to understand FilePath availability
+rg -n "type Skill struct" -A 20 internal/skills/
+```
+
+Repository: compozy/agh
+
+Length of output: 1204
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if process_tree_unix.go is imported or used in hooks.go
+rg -n "process_tree|acp" internal/skills/hooks.go
+```
+
+Repository: compozy/agh
+
+Length of output: 37
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at the process_tree_unix.go implementation to understand how it's used
+cat -n internal/acp/process_tree_unix.go
+```
+
+Repository: compozy/agh
+
+Length of output: 1098
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check where process_tree_unix is actually imported and used
+rg -l "process_tree_unix" --type go
+```
+
+Repository: compozy/agh
+
+Length of output: 37
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the function signature where hooks are executed to see what parameters are available
+rg -n "func.*HookRunner.*Run|func.*runHook" -A 5 internal/skills/hooks.go
+```
+
+Repository: compozy/agh
+
+Length of output: 699
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check how configureManagedCommand is used in daemon.go
+cat -n internal/cli/daemon.go | sed -n '365,380p'
+```
+
+Repository: compozy/agh
+
+Length of output: 653
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if skills with Dir field are expected to have commands relative to that directory
+rg -n "skill.Dir|hook.Command" internal/skills/ -B 2 -A 2
+```
+
+Repository: compozy/agh
+
+Length of output: 2532
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if there's any documentation or tests showing how hook commands should be executed
+cat -n internal/skills/hooks_test.go | head -100
+```
+
+Repository: compozy/agh
+
+Length of output: 3600
 
 ---
 
 </details>
 
-**Add compile-time interface assertion and implement marketplace trust gate for hooks.**
+**Apply process group containment to hook execution and set working directory.**
 
-Two issues found:
-
-1. **Missing compile-time interface verification**: `skillsHookDispatcher` (line 75) implements `sessionHookPhase` but lacks the assertion `var _ sessionHookPhase = (*skillsHookDispatcher)(nil)`. Add this at package level per guidelines.
-
-2. **No marketplace trust gate for hook execution**: `Registry.ForWorkspace()` returns all skills without filtering marketplace sources, and `RunHooks()` executes any skill passed to it without consent checks. Unlike MCP server resolution (which filters via `allowedMarketplace` in `mcp.go`), lifecycle hooks run against all returned skills—including untrusted marketplace ones. This enables automatic third-party code execution on session create/stop.
-
-Add explicit marketplace filtering to the hook dispatch path before calling `RunHooks()`, or filter marketplace hooks within `RunHooks()` itself (similar to how MCP servers require an allowlist).
+Hook commands must be executed with `Setpgid = true` on `SysProcAttr` (using the pattern already established in `internal/acp/process_tree_unix.go`) and have their working directory set to `skill.Dir`. Currently, `exec.CommandContext` only guarantees cancellation of the top-level child process—descendants can persist after timeout and escape the runner's lifecycle. Additionally, without setting `cmd.Dir`, relative commands and file operations resolve from the daemon's working directory instead of the skill's installation root. Use the `configureManagedCommand()` helper from the `acp` package and set `cmd.Dir = skill.Dir`.
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
@@ -138,16 +197,16 @@ Add explicit marketplace filtering to the hook dispatch path before calling `Run
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@internal/daemon/notifier.go` around lines 128 - 144, Add a package-level
-compile-time assertion for the sessionHookPhase interface by adding: var _
-sessionHookPhase = (*skillsHookDispatcher)(nil) so the compiler verifies
-skillsHookDispatcher implements sessionHookPhase; then prevent untrusted
-marketplace skills from being invoked by filtering the results of
-Registry.ForWorkspace(...) before calling d.runner.RunHooks: replicate the
-allowlist behavior used in mcp.go (allowedMarketplace) — either filter
-marketplace-origin skills out in the notifier path that calls RunHooks or add
-the same allowlist gating inside RunHooks itself so only marketplace-trusted
-skills are dispatched during hook execution.
+In `@internal/skills/hooks.go` around lines 149 - 163, The hook execution needs
+process-group containment and the working directory set: replace the plain
+exec.CommandContext invocation with a managed command via
+acp.configureManagedCommand (so SysProcAttr.Setpgid is applied) and set cmd.Dir
+= skill.Dir before running; specifically update the block that creates/sets up
+cmd (currently using exec.CommandContext with hook.Command/hook.Args and setting
+cmd.Stdout/Stderr) to call configureManagedCommand(ctx, hook.Command,
+hook.Args...) (or wrap the created *exec.Cmd with configureManagedCommand) and
+ensure cmd.Dir = skill.Dir so descendants are killed on timeout and relative
+paths resolve to the skill installation root.
 ```
 
 </details>
@@ -158,10 +217,10 @@ skills are dispatched during hook execution.
 
 ## Resolve
 
-Thread ID: `PRRT_kwDOR5y4QM55lKhB`
+Thread ID: `PRRT_kwDOR5y4QM55mbZ2`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOR5y4QM55lKhB
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOR5y4QM55mbZ2
 ```
 
 ---

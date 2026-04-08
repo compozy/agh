@@ -317,18 +317,12 @@ func (r *Registry) loadSkillPaths(ctx context.Context, paths []string, source Sk
 func (r *Registry) processSkill(dst map[string]*Skill, skill *Skill) bool {
 	r.applyDisabled(skill)
 
-	hashMismatch := r.verifyMarketplaceSkill(skill)
-	// Content warnings are derived from the current file body; marketplace hash
-	// mismatches only add provenance-specific logging above.
+	verifyErr := r.verifyMarketplaceSkill(skill)
 	warnings := VerifyContent(skill.Content)
-	if hashMismatch {
-		r.logger.Debug(
-			"skills: reusing content verification warnings after marketplace hash mismatch",
-			"skill_name", skill.Meta.Name,
-			"path", skill.FilePath,
-		)
-	}
 	r.logVerificationWarnings(skill, warnings)
+	if verifyErr != nil {
+		return false
+	}
 	if hasCriticalWarning(warnings) {
 		return false
 	}
@@ -367,14 +361,14 @@ func (r *Registry) assignSourceAndProvenance(skill *Skill, source SkillSource) e
 	return nil
 }
 
-func (r *Registry) verifyMarketplaceSkill(skill *Skill) bool {
+func (r *Registry) verifyMarketplaceSkill(skill *Skill) error {
 	if skill == nil || skill.Source != SourceMarketplace || skill.Provenance == nil {
-		return false
+		return nil
 	}
 
 	err := VerifyHash(skill.Dir, skill.Provenance)
 	if err == nil {
-		return false
+		return nil
 	}
 
 	var mismatch *HashMismatchError
@@ -386,7 +380,7 @@ func (r *Registry) verifyMarketplaceSkill(skill *Skill) bool {
 			"actual_hash", mismatch.ActualHash,
 			"path", skill.FilePath,
 		)
-		return true
+		return err
 	}
 
 	r.logger.Warn(
@@ -396,7 +390,7 @@ func (r *Registry) verifyMarketplaceSkill(skill *Skill) bool {
 		"error", err,
 	)
 
-	return false
+	return err
 }
 
 func recordSidecarSnapshots(paths []string, snapshots map[string]filesnap.Snapshot) error {

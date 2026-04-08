@@ -1659,8 +1659,12 @@ func writeInstalledMarketplaceSkill(
 	t.Helper()
 
 	skillPath := writeUserSkill(t, homePaths, name, content)
+	hash, err := skills.ComputeDirectoryHash(filepath.Dir(skillPath))
+	if err != nil {
+		t.Fatalf("ComputeDirectoryHash(%q) error = %v", filepath.Dir(skillPath), err)
+	}
 	if err := skills.WriteSidecar(filepath.Dir(skillPath), skills.Provenance{
-		Hash:        skills.ComputeHash([]byte(content)),
+		Hash:        hash,
 		Registry:    "clawhub",
 		Slug:        slug,
 		Version:     version,

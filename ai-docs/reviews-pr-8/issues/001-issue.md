@@ -1,17 +1,17 @@
 # Issue 1 - Review Thread Comment
 
-**File:** `internal/daemon/boot.go:72`
-**Date:** 2026-04-08 11:02:40 America/Sao_Paulo
+**File:** `internal/skills/hooks.go:76`
+**Date:** 2026-04-08 12:09:54 America/Sao_Paulo
 **Status:** - [x] RESOLVED
 
 ## Triage
 
 - Disposition: `VALID`
-- Notes: assigning nil concrete `*skills.Registry` / `*skills.MCPResolver` pointers into interface fields does produce non-nil interfaces in Go. The fix is to pass interface-typed nils from boot when skills are disabled.
+- Notes: the issue is real. Hooks were incorrectly reusing `allowed_marketplace_mcp`, which let MCP approval implicitly authorize lifecycle hooks, and marketplace gating relied on mutable `skill.Meta.Name`. The fix adds a dedicated `skills.allowed_marketplace_hooks` config field and keys marketplace consent to immutable provenance identifiers (`slug`, `registry:slug`, or `hash`) instead of display metadata.
 
 ## Body
 
-_⚠️ Potential issue_ | _🔴 Critical_
+_⚠️ Potential issue_ | _🟠 Major_
 
 <details>
 <summary>🧩 Analysis chain</summary>
@@ -19,57 +19,102 @@ _⚠️ Potential issue_ | _🔴 Critical_
 🏁 Script executed:
 
 ```shell
-#!/bin/bash
-set -euo pipefail
-
-echo '--- SessionManagerDeps field types ---'
-rg -n -C2 'type SessionManagerDeps struct|SkillRegistry\s+session\.SkillRegistry|MCPResolver\s+session\.MCPResolver' internal/daemon/daemon.go
-
-echo
-echo '--- boot() concrete locals and assignments ---'
-rg -n -C2 'skillsRegistry\s+\*skills\.Registry|mcpResolver\s+\*skills\.MCPResolver|SkillRegistry:\s+skillsRegistry|MCPResolver:\s+mcpResolver' internal/daemon/boot.go
-
-echo
-echo '--- Manager nil guard that depends on true nil interfaces ---'
-rg -n -C2 'resolveStartMCPServers|skillRegistry == nil && mcpResolver == nil|skillRegistry == nil \|\| mcpResolver == nil' internal/session/manager_lifecycle.go
+cat -n internal/skills/hooks.go | head -120
 ```
 
 Repository: compozy/agh
 
-Length of output: 1645
+Length of output: 3400
+
+---
+
+🏁 Script executed:
+
+```shell
+cat -n internal/config/config.go | grep -A 10 -B 5 "SkillsConfig\|AllowedMarketplaceMCP"
+```
+
+Repository: compozy/agh
+
+Length of output: 2660
+
+---
+
+🏁 Script executed:
+
+```shell
+rg -n "func marketplaceSkillAllowed|func marketplaceAllowlist" internal/skills/
+```
+
+Repository: compozy/agh
+
+Length of output: 263
+
+---
+
+🏁 Script executed:
+
+```shell
+rg -n "type Skill struct" internal/skills/ -A 20
+```
+
+Repository: compozy/agh
+
+Length of output: 1204
+
+---
+
+🏁 Script executed:
+
+```shell
+sed -n '119,150p' internal/skills/mcp.go
+```
+
+Repository: compozy/agh
+
+Length of output: 815
+
+---
+
+🏁 Script executed:
+
+```shell
+rg -n "type Provenance struct" internal/skills/ -A 15
+```
+
+Repository: compozy/agh
+
+Length of output: 911
 
 ---
 
 </details>
 
-**Avoid the typed-nil interface trap when assigning nil skill pointers to interface fields.**
+**Separate hook consent from MCP consent and key it to immutable marketplace identity.**
 
-`skillsRegistry` and `mcpResolver` are concrete pointer variables declared at lines 70–71. When skills are disabled, both remain `nil`, but assigning them directly to the `SessionManagerDeps` interface fields at lines 203–204 creates non-nil interface values (Go interfaces with a concrete type and nil value). This breaks the `nil` check at `internal/session/manager_lifecycle.go:406` (`case m.skillRegistry == nil && m.mcpResolver == nil:`), causing the session manager to attempt MCP server resolution even when skills are disabled, leading to failure or panic.
+`HookRunner` sources subprocess-hook consent from `AllowedMarketplaceMCP` with no separate hook allowlist, so enabling a marketplace skill's MCP server also enables its lifecycle hooks—a much broader privilege. Additionally, `marketplaceSkillAllowed` gates on `skill.Meta.Name`, which is mutable SKILL.md metadata and spoofable. Split this into a dedicated hook allowlist and key the check to immutable provenance fields (`slug`, `registry`, or `hash`) instead.
 
-Assign nil concrete pointers through interface-typed intermediates that remain truly `nil`:
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
 
-```diff
-+	var skillRegistryDep session.SkillRegistry
-+	if skillsRegistry != nil {
-+		skillRegistryDep = skillsRegistry
-+	}
-+	var mcpResolverDep session.MCPResolver
-+	if mcpResolver != nil {
-+		mcpResolverDep = mcpResolver
-+	}
-+
- 	sessions, err := d.newSessionManager(ctx, SessionManagerDeps{
- 		HomePaths:         d.homePaths,
- 		Logger:            logger,
- 		Notifier:          &fanout,
- 		PromptAssembler:   promptAssembler,
--		SkillRegistry:     skillsRegistry,
--		MCPResolver:       mcpResolver,
-+		SkillRegistry:     skillRegistryDep,
-+		MCPResolver:       mcpResolverDep,
- 		WorkspaceResolver: workspaceResolver,
- 	})
 ```
+Verify each finding against the current code and only fix it if needed.
+
+In `@internal/skills/hooks.go` around lines 68 - 76, NewHookRunner currently
+initializes HookRunner.allowedMarketplace from cfg.AllowedMarketplaceMCP which
+conflates MCP consent with hook consent and marketplaceSkillAllowed checks
+skill.Meta.Name (mutable); change this by adding a separate hook allowlist in
+the config (e.g., AllowedMarketplaceHooks or AllowedHookMarketplaceIDs),
+initialize HookRunner.allowedHooks from that list instead of
+AllowedMarketplaceMCP in NewHookRunner, and update the gating function
+marketplaceSkillAllowed (or create a new hookAllowed) to validate against
+immutable marketplace identity fields (slug, registry, or hash) on the skill
+rather than skill.Meta.Name; keep using cloneStrings for the new list to match
+existing patterns and ensure all references to allowedMarketplace are adjusted
+to use the distinct hook allowlist where lifecycle hooks are evaluated.
+```
+
+</details>
 
 <!-- fingerprinting:phantom:medusa:grasshopper -->
 
@@ -77,10 +122,10 @@ Assign nil concrete pointers through interface-typed intermediates that remain t
 
 ## Resolve
 
-Thread ID: `PRRT_kwDOR5y4QM55lKg6`
+Thread ID: `PRRT_kwDOR5y4QM55mbZm`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOR5y4QM55lKg6
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOR5y4QM55mbZm
 ```
 
 ---

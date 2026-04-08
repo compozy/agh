@@ -37,7 +37,7 @@ func TestRegistryIntegrationRefreshPromotesSidecarBackedSkillToMarketplace(t *te
 	}
 
 	if err := WriteSidecar(filepath.Dir(skillPath), Provenance{
-		Hash:        ComputeHash([]byte(content)),
+		Hash:        mustComputeDirectoryHash(t, filepath.Dir(skillPath)),
 		Registry:    "clawhub",
 		Slug:        "@author/installed",
 		Version:     "1.0.0",
@@ -65,7 +65,7 @@ func TestRegistryIntegrationRefreshPromotesSidecarBackedSkillToMarketplace(t *te
 	}
 }
 
-func TestRegistryIntegrationRefreshLogsTamperedMarketplaceSkillHashMismatch(t *testing.T) {
+func TestRegistryIntegrationRefreshBlocksTamperedMarketplaceSkill(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -73,8 +73,9 @@ func TestRegistryIntegrationRefreshLogsTamperedMarketplaceSkillHashMismatch(t *t
 	original := skillWithDescription("tampered-reload", "Original marketplace skill")
 	tampered := skillWithDescription("tampered-reload", "Tampered marketplace skill")
 	skillPath := writeSkillFile(t, userDir, filepath.Join("tampered-reload", skillFileName), original)
+	originalHash := mustComputeDirectoryHash(t, filepath.Dir(skillPath))
 	if err := WriteSidecar(filepath.Dir(skillPath), Provenance{
-		Hash:        ComputeHash([]byte(original)),
+		Hash:        originalHash,
 		Registry:    "clawhub",
 		Slug:        "@author/tampered-reload",
 		Version:     "1.0.0",
@@ -94,17 +95,14 @@ func TestRegistryIntegrationRefreshLogsTamperedMarketplaceSkillHashMismatch(t *t
 	}
 
 	rewriteSkillFile(t, skillPath, tampered)
+	actualHash := mustComputeDirectoryHash(t, filepath.Dir(skillPath))
 
 	if err := registry.RefreshGlobal(context.Background()); err != nil {
 		t.Fatalf("RefreshGlobal() error = %v", err)
 	}
 
-	skill, ok := registry.Get("tampered-reload")
-	if !ok {
-		t.Fatal("Get(tampered-reload) ok = false after tamper refresh, want clean tampered skill still loaded")
-	}
-	if skill.Source != SourceMarketplace {
-		t.Fatalf("Source = %v, want %v", skill.Source, SourceMarketplace)
+	if _, ok := registry.Get("tampered-reload"); ok {
+		t.Fatal("Get(tampered-reload) ok = true after tamper refresh, want marketplace skill blocked")
 	}
 
 	output := logs.String()
@@ -114,10 +112,10 @@ func TestRegistryIntegrationRefreshLogsTamperedMarketplaceSkillHashMismatch(t *t
 	if !strings.Contains(output, "skill_name=tampered-reload") {
 		t.Fatalf("logs = %q, want skill_name field", output)
 	}
-	if !strings.Contains(output, "expected_hash="+ComputeHash([]byte(original))) {
+	if !strings.Contains(output, "expected_hash="+originalHash) {
 		t.Fatalf("logs = %q, want expected hash", output)
 	}
-	if !strings.Contains(output, "actual_hash="+ComputeHash([]byte(tampered))) {
+	if !strings.Contains(output, "actual_hash="+actualHash) {
 		t.Fatalf("logs = %q, want actual hash", output)
 	}
 }

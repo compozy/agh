@@ -1,42 +1,23 @@
 # Issue 5 - Review Thread Comment
 
-**File:** `internal/skills/provenance.go:79`
-**Date:** 2026-04-08 11:02:41 America/Sao_Paulo
+**File:** `internal/skills/provenance.go:40`
+**Date:** 2026-04-08 12:09:55 America/Sao_Paulo
 **Status:** - [x] RESOLVED
 
 ## Triage
 
 - Disposition: `VALID`
-- Notes: `{}` was accepted as a provenance sidecar and could silently produce a zero-value `Provenance`. The loader now validates all required marketplace-management fields immediately after JSON decode.
+- Notes: the provenance hash only covered `SKILL.md`, which left hook scripts and other payload files outside the integrity envelope. The fix adds deterministic directory hashing for the installed skill payload, updates install-time sidecar generation to use it, and keeps `VerifyHash` aligned with the full payload hash instead of the markdown file alone.
 
 ## Body
 
-_⚠️ Potential issue_ | _🟡 Minor_
+_⚠️ Potential issue_ | _🟠 Major_
 
-**Reject sidecars with missing required provenance fields.**
+**Verify the full installed skill payload, not just `SKILL.md`.**
 
-`json.Unmarshal` accepts `{}` here, so `ReadSidecar` can return a zero-value `Provenance`. Because `internal/skills/registry.go` Lines 366-380 use sidecar-backed provenance to treat a skill as marketplace-managed, a partial `.agh-meta.json` can misclassify a local skill and break later hash/update/remove flows.
+`ComputeHash`/`VerifyHash` only cover the markdown file. Hooks and MCP declarations can execute auxiliary files from the same skill directory, so a modified script or helper binary will still look “verified” as long as `SKILL.md` stays unchanged. Please hash a manifest / directory contents, or at least every declared command target, before treating marketplace provenance as an integrity check.
 
-<details>
-<summary>🩹 Suggested validation</summary>
-
-```diff
- 	var provenance Provenance
- 	if err := json.Unmarshal(payload, &provenance); err != nil {
- 		return nil, fmt.Errorf("skills: parse provenance sidecar %q: %w", sidecarPath, err)
- 	}
-+	if strings.TrimSpace(provenance.Hash) == "" ||
-+		strings.TrimSpace(provenance.Registry) == "" ||
-+		strings.TrimSpace(provenance.Slug) == "" ||
-+		strings.TrimSpace(provenance.Version) == "" ||
-+		provenance.InstalledAt.IsZero() {
-+		return nil, fmt.Errorf("skills: invalid provenance sidecar %q: missing required fields", sidecarPath)
-+	}
-
- 	return &provenance, nil
-```
-
-</details>
+Also applies to: 87-111
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
@@ -44,14 +25,17 @@ _⚠️ Potential issue_ | _🟡 Minor_
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@internal/skills/provenance.go` around lines 74 - 79, After json.Unmarshal
-into the provenance variable in ReadSidecar, validate that the required
-provenance fields are present (non-zero/empty) and return a descriptive error if
-any are missing instead of returning a zero-value Provenance; update ReadSidecar
-to check the provenance struct fields that are required by registry.go (e.g.,
-the provenance identity/ownership fields used to mark marketplace-managed
-skills) and fail fast with fmt.Errorf("skills: invalid provenance sidecar %q:
-missing %s", sidecarPath, "<field>") when a required field is empty.
+In `@internal/skills/provenance.go` around lines 36 - 40, ComputeHash currently
+only hashes SKILL.md; update it (and the corresponding VerifyHash logic) to
+compute a deterministic hash of the full installed skill payload instead: gather
+SKILL.md plus every file referenced by hooks and MCP declarations (or walk the
+skill directory and build a sorted manifest of file paths and their contents),
+concatenate in a stable order and compute the SHA-256 over that manifest; then
+change VerifyHash to validate against that full-payload hash rather than just
+SKILL.md. Ensure you update the functions named ComputeHash and VerifyHash (and
+any callers between lines ~87-111 that verify hashes) to accept or derive the
+list/manifest of files so integrity covers declared command targets and
+auxiliary files.
 ```
 
 </details>
@@ -62,10 +46,10 @@ missing %s", sidecarPath, "<field>") when a required field is empty.
 
 ## Resolve
 
-Thread ID: `PRRT_kwDOR5y4QM55lKhW`
+Thread ID: `PRRT_kwDOR5y4QM55mbaf`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOR5y4QM55lKhW
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOR5y4QM55mbaf
 ```
 
 ---

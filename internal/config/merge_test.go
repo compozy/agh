@@ -22,7 +22,8 @@ func TestApplyConfigOverlayFileAppliesSkillsOverlay(t *testing.T) {
 enabled = false
 disabled_skills = ["workspace-skill", "code-review"]
 poll_interval = "9s"
-allowed_marketplace_mcp = ["marketplace-a", "marketplace-b"]
+allowed_marketplace_mcp = ["@registry/mcp-a", "@registry/mcp-b"]
+allowed_marketplace_hooks = ["@registry/hook-a", "@registry/hook-b"]
 
 [skills.marketplace]
 registry = "clawhub"
@@ -42,8 +43,11 @@ base_url = "https://registry.example.test/api/v1"
 	if got, want := cfg.Skills.DisabledSkills, []string{"workspace-skill", "code-review"}; !slices.Equal(got, want) {
 		t.Fatalf("ApplyConfigOverlayFile() Skills.DisabledSkills = %#v, want %#v", got, want)
 	}
-	if got, want := cfg.Skills.AllowedMarketplaceMCP, []string{"marketplace-a", "marketplace-b"}; !slices.Equal(got, want) {
+	if got, want := cfg.Skills.AllowedMarketplaceMCP, []string{"@registry/mcp-a", "@registry/mcp-b"}; !slices.Equal(got, want) {
 		t.Fatalf("ApplyConfigOverlayFile() Skills.AllowedMarketplaceMCP = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Skills.AllowedMarketplaceHooks, []string{"@registry/hook-a", "@registry/hook-b"}; !slices.Equal(got, want) {
+		t.Fatalf("ApplyConfigOverlayFile() Skills.AllowedMarketplaceHooks = %#v, want %#v", got, want)
 	}
 	if got, want := cfg.Skills.Marketplace.Registry, "clawhub"; got != want {
 		t.Fatalf("ApplyConfigOverlayFile() Skills.Marketplace.Registry = %q, want %q", got, want)

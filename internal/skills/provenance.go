@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -37,6 +39,56 @@ func (e *HashMismatchError) Error() string {
 func ComputeHash(content []byte) string {
 	sum := sha256.Sum256(content)
 	return hex.EncodeToString(sum[:])
+}
+
+// ComputeDirectoryHash returns a deterministic SHA-256 digest for a skill
+// directory payload, excluding the provenance sidecar itself.
+func ComputeDirectoryHash(skillDir string) (string, error) {
+	root := strings.TrimSpace(skillDir)
+	if root == "" {
+		return "", errors.New("skills: skill directory is required")
+	}
+
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("skills: resolve skill directory %q: %w", skillDir, err)
+	}
+
+	entries := make([]string, 0)
+	err = filepath.WalkDir(absRoot, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if path == absRoot {
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if filepath.Base(path) == sidecarFileName {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(absRoot, path)
+		if err != nil {
+			return err
+		}
+		entries = append(entries, relPath)
+		return nil
+	})
+	if err != nil {
+		return "", fmt.Errorf("skills: walk skill directory %q: %w", absRoot, err)
+	}
+
+	sort.Strings(entries)
+	hasher := sha256.New()
+	for _, relPath := range entries {
+		if err := writeHashEntry(hasher, absRoot, relPath); err != nil {
+			return "", err
+		}
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 // WriteSidecar writes marketplace provenance metadata alongside a skill's SKILL.md file.
@@ -82,24 +134,17 @@ func ReadSidecar(skillDir string) (*Provenance, error) {
 	return &provenance, nil
 }
 
-// VerifyHash recomputes the SKILL.md hash for a skill directory and compares it
-// with the stored provenance hash.
+// VerifyHash recomputes the installed skill payload hash for a skill directory
+// and compares it with the stored provenance hash.
 func VerifyHash(skillDir string, provenance *Provenance) error {
 	if provenance == nil {
 		return errors.New("skills: provenance is required")
 	}
 
-	skillPath, err := skillFilePath(skillDir)
+	actualHash, err := ComputeDirectoryHash(skillDir)
 	if err != nil {
 		return err
 	}
-
-	content, err := os.ReadFile(skillPath)
-	if err != nil {
-		return fmt.Errorf("skills: read skill file %q for hash verification: %w", skillPath, err)
-	}
-
-	actualHash := ComputeHash(content)
 	if actualHash == provenance.Hash {
 		return nil
 	}
@@ -108,6 +153,48 @@ func VerifyHash(skillDir string, provenance *Provenance) error {
 		ExpectedHash: provenance.Hash,
 		ActualHash:   actualHash,
 	}
+}
+
+func writeHashEntry(hasher hash.Hash, root string, relPath string) error {
+	normalizedPath := filepath.ToSlash(relPath)
+	absPath := filepath.Join(root, relPath)
+
+	info, err := os.Lstat(absPath)
+	if err != nil {
+		return fmt.Errorf("skills: stat hashed path %q: %w", absPath, err)
+	}
+
+	if info.Mode().IsRegular() {
+		content, err := os.ReadFile(absPath)
+		if err != nil {
+			return fmt.Errorf("skills: read hashed path %q: %w", absPath, err)
+		}
+
+		if err := writeHashString(hasher, fmt.Sprintf("file:%s\nmode:%#o\n", normalizedPath, info.Mode().Perm())); err != nil {
+			return err
+		}
+		if _, err := hasher.Write(content); err != nil {
+			return fmt.Errorf("skills: hash regular file %q: %w", absPath, err)
+		}
+		if _, err := hasher.Write([]byte{0}); err != nil {
+			return fmt.Errorf("skills: hash separator for %q: %w", absPath, err)
+		}
+		return nil
+	}
+
+	if info.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(absPath)
+		if err != nil {
+			return fmt.Errorf("skills: read hashed symlink %q: %w", absPath, err)
+		}
+
+		if err := writeHashString(hasher, fmt.Sprintf("symlink:%s\nmode:%#o\ntarget:%s\n", normalizedPath, info.Mode().Perm(), filepath.ToSlash(target))); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	return fmt.Errorf("skills: unsupported file type in skill payload %q", absPath)
 }
 
 // HasSidecar reports whether a skill directory contains marketplace provenance metadata.
@@ -130,10 +217,6 @@ func HasSidecar(skillDir string) (bool, error) {
 
 func sidecarPath(skillDir string) (string, error) {
 	return resolveSkillPath(skillDir, sidecarFileName)
-}
-
-func skillFilePath(skillDir string) (string, error) {
-	return resolveSkillPath(skillDir, skillFileName)
 }
 
 func resolveSkillPath(skillDir string, fileName string) (string, error) {
@@ -168,5 +251,12 @@ func validateSidecarProvenance(sidecarPath string, provenance Provenance) error 
 		}
 	}
 
+	return nil
+}
+
+func writeHashString(hasher hash.Hash, value string) error {
+	if _, err := hasher.Write([]byte(value)); err != nil {
+		return fmt.Errorf("skills: hash payload metadata: %w", err)
+	}
 	return nil
 }

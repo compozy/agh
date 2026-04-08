@@ -41,6 +41,41 @@ func TestComputeHashReturnsDifferentHashForDifferentContent(t *testing.T) {
 	}
 }
 
+func TestComputeDirectoryHashReturnsDifferentHashWhenAuxiliaryFileChanges(t *testing.T) {
+	t.Parallel()
+
+	skillDir := t.TempDir()
+	writeSkillFile(t, skillDir, skillFileName, strings.Join([]string{
+		"---",
+		"name: directory-hash",
+		"description: Example skill",
+		"---",
+		"body",
+	}, "\n"))
+	helperPath := filepath.Join(skillDir, "helper.sh")
+	if err := os.WriteFile(helperPath, []byte("#!/bin/sh\nprintf 'first'\n"), 0o755); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", helperPath, err)
+	}
+
+	first, err := ComputeDirectoryHash(skillDir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryHash() error = %v", err)
+	}
+
+	if err := os.WriteFile(helperPath, []byte("#!/bin/sh\nprintf 'second'\n"), 0o755); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", helperPath, err)
+	}
+
+	second, err := ComputeDirectoryHash(skillDir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryHash() second error = %v", err)
+	}
+
+	if first == second {
+		t.Fatalf("ComputeDirectoryHash() hashes match after helper mutation: %q", first)
+	}
+}
+
 func TestWriteSidecarCreatesStableHumanReadableJSON(t *testing.T) {
 	t.Parallel()
 
@@ -216,9 +251,13 @@ func TestVerifyHashReturnsNilWhenHashMatches(t *testing.T) {
 		"Everything is intact.",
 	}, "\n")
 	writeSkillFile(t, skillDir, skillFileName, content)
+	hash, err := ComputeDirectoryHash(skillDir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryHash() error = %v", err)
+	}
 
-	err := VerifyHash(skillDir, &Provenance{
-		Hash: ComputeHash([]byte(content)),
+	err = VerifyHash(skillDir, &Provenance{
+		Hash: hash,
 	})
 	if err != nil {
 		t.Fatalf("VerifyHash() error = %v, want nil", err)
@@ -243,10 +282,19 @@ func TestVerifyHashReturnsExpectedAndActualHashWhenTampered(t *testing.T) {
 		"---",
 		"Tampered body.",
 	}, "\n")
+	writeSkillFile(t, skillDir, skillFileName, original)
+	originalHash, err := ComputeDirectoryHash(skillDir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryHash() error = %v", err)
+	}
 	writeSkillFile(t, skillDir, skillFileName, tampered)
+	actualHash, err := ComputeDirectoryHash(skillDir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryHash() after tamper error = %v", err)
+	}
 
-	err := VerifyHash(skillDir, &Provenance{
-		Hash: ComputeHash([]byte(original)),
+	err = VerifyHash(skillDir, &Provenance{
+		Hash: originalHash,
 	})
 	if err == nil {
 		t.Fatal("VerifyHash() error = nil, want hash mismatch")
@@ -256,14 +304,54 @@ func TestVerifyHashReturnsExpectedAndActualHashWhenTampered(t *testing.T) {
 	if !errors.As(err, &mismatch) {
 		t.Fatalf("VerifyHash() error = %v, want HashMismatchError", err)
 	}
-	if mismatch.ExpectedHash != ComputeHash([]byte(original)) {
-		t.Fatalf("HashMismatchError.ExpectedHash = %q, want %q", mismatch.ExpectedHash, ComputeHash([]byte(original)))
+	if mismatch.ExpectedHash != originalHash {
+		t.Fatalf("HashMismatchError.ExpectedHash = %q, want %q", mismatch.ExpectedHash, originalHash)
 	}
-	if mismatch.ActualHash != ComputeHash([]byte(tampered)) {
-		t.Fatalf("HashMismatchError.ActualHash = %q, want %q", mismatch.ActualHash, ComputeHash([]byte(tampered)))
+	if mismatch.ActualHash != actualHash {
+		t.Fatalf("HashMismatchError.ActualHash = %q, want %q", mismatch.ActualHash, actualHash)
 	}
 	if !strings.Contains(err.Error(), mismatch.ExpectedHash) || !strings.Contains(err.Error(), mismatch.ActualHash) {
 		t.Fatalf("VerifyHash() error = %q, want expected and actual hashes in message", err.Error())
+	}
+}
+
+func TestVerifyHashDetectsTamperingOutsideSkillMarkdown(t *testing.T) {
+	t.Parallel()
+
+	skillDir := t.TempDir()
+	content := strings.Join([]string{
+		"---",
+		"name: helper-sensitive",
+		"description: Original content",
+		"---",
+		"Original body.",
+	}, "\n")
+	writeSkillFile(t, skillDir, skillFileName, content)
+	helperPath := filepath.Join(skillDir, "helper.sh")
+	if err := os.WriteFile(helperPath, []byte("#!/bin/sh\nprintf 'original'\n"), 0o755); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", helperPath, err)
+	}
+
+	hash, err := ComputeDirectoryHash(skillDir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryHash() error = %v", err)
+	}
+
+	if err := os.WriteFile(helperPath, []byte("#!/bin/sh\nprintf 'tampered'\n"), 0o755); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", helperPath, err)
+	}
+
+	err = VerifyHash(skillDir, &Provenance{Hash: hash})
+	if err == nil {
+		t.Fatal("VerifyHash() error = nil, want hash mismatch after helper tamper")
+	}
+
+	var mismatch *HashMismatchError
+	if !errors.As(err, &mismatch) {
+		t.Fatalf("VerifyHash() error = %v, want HashMismatchError", err)
+	}
+	if mismatch.ExpectedHash != hash {
+		t.Fatalf("HashMismatchError.ExpectedHash = %q, want %q", mismatch.ExpectedHash, hash)
 	}
 }
 

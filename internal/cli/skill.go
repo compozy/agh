@@ -511,11 +511,10 @@ func installMarketplaceSkill(
 		)
 	}
 
-	skillBytes, err := os.ReadFile(parsedSkill.FilePath)
+	hash, err := skills.ComputeDirectoryHash(parsedSkill.Dir)
 	if err != nil {
-		return skillInstallItem{}, fmt.Errorf("cli: read extracted skill file %q: %w", parsedSkill.FilePath, err)
+		return skillInstallItem{}, fmt.Errorf("cli: compute extracted skill hash for %q: %w", slug, err)
 	}
-	hash := skills.ComputeHash(skillBytes)
 
 	version := firstNonEmpty(archive.Version, parsedSkill.Meta.Version)
 	targetDir, err := pathWithinRoot(runtime.HomePaths.SkillsDir, parsedSkill.Meta.Name)

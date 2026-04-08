@@ -61,7 +61,8 @@ func (mr *MCPResolver) Resolve(skills []*Skill) []aghconfig.MCPServer {
 			}
 
 			resolvedServer := toConfigMCPServer(server)
-			name := strings.TrimSpace(resolvedServer.Name)
+			resolvedServer.Name = strings.TrimSpace(resolvedServer.Name)
+			name := resolvedServer.Name
 			if idx, ok := index[name]; ok && name != "" {
 				resolved[idx] = resolvedServer
 				origins[idx] = mcpOrigin{
@@ -138,11 +139,35 @@ func marketplaceSkillAllowed(skill *Skill, allowedMarketplace map[string]struct{
 	case SourceBundled, SourceUser, SourceAdditional, SourceWorkspace:
 		return true
 	case SourceMarketplace:
-		_, ok := allowedMarketplace[strings.TrimSpace(skill.Meta.Name)]
-		return ok
+		for _, key := range marketplaceConsentKeys(skill) {
+			if _, ok := allowedMarketplace[key]; ok {
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}
+}
+
+func marketplaceConsentKeys(skill *Skill) []string {
+	if skill == nil || skill.Provenance == nil {
+		return nil
+	}
+
+	provenance := skill.Provenance
+	keys := make([]string, 0, 3)
+	if slug := strings.TrimSpace(provenance.Slug); slug != "" {
+		keys = append(keys, slug)
+		if registry := strings.TrimSpace(provenance.Registry); registry != "" {
+			keys = append(keys, registry+":"+slug)
+		}
+	}
+	if hash := strings.TrimSpace(provenance.Hash); hash != "" {
+		keys = append(keys, hash)
+	}
+
+	return keys
 }
 
 func toConfigMCPServer(decl MCPServerDecl) aghconfig.MCPServer {

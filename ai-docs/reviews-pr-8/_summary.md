@@ -4,18 +4,24 @@ This folder contains exported issues (resolvable review threads) and outside-of-
 
 ## Summary
 
-- **Issues (resolvable review comments):** 6 (filtered from 6 total)
-- **Outside-of-diff entries:** 0
-  - **Resolved issues:** 6 ✓
+- **Issues (resolvable review comments):** 5 (filtered from 11 total)
+- **Outside-of-diff entries:** 1
+  - **Resolved issues:** 11 ✓
   - **Unresolved issues:** 0
 
-**Generated on:** 2026-04-08 11:29:03 America/Sao_Paulo
+**Generated on:** 2026-04-08 17:00:10 America/Sao_Paulo
 
 ## Issues
 
-- [x] [Issue 1](issues/001-issue.md) - internal/daemon/boot.go:72
-- [x] [Issue 2](issues/002-issue.md) - internal/daemon/notifier.go:144
-- [x] [Issue 3](issues/003-issue.md) - internal/skills/hooks.go:149
-- [x] [Issue 4](issues/004-issue.md) - internal/skills/loader.go:285
-- [x] [Issue 5](issues/005-issue.md) - internal/skills/provenance.go:79
-- [x] [Issue 6](issues/006-issue.md) - internal/skills/testdata/hooks/driver.sh:29
+- [x] [Issue 1](issues/001-issue.md) - internal/skills/hooks.go:76
+- [x] [Issue 2](issues/002-issue.md) - internal/skills/hooks.go:163
+- [x] [Issue 3](issues/003-issue.md) - internal/skills/hooks.go:156
+- [x] [Issue 4](issues/004-issue.md) - internal/skills/mcp.go:80
+- [x] [Issue 5](issues/005-issue.md) - internal/skills/provenance.go:40
+
+## Outside-of-diff
+
+- Resolved: 1 ✓
+- Unresolved: 0
+
+- [x] [internal/skills/registry.go](outside/003-outside_01_internal_skills_registry.go.md)

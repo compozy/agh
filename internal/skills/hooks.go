@@ -20,6 +20,7 @@ const (
 	defaultHookTimeout      = 5 * time.Second
 	hookCaptureLimitBytes   = 8 * 1024
 	hookCaptureTruncateNote = "...[truncated]"
+	hookShutdownGracePeriod = 250 * time.Millisecond
 )
 
 var hookEnvAllowlist = []string{
@@ -43,8 +44,8 @@ var hookEnvAllowlist = []string{
 
 // HookRunner dispatches subprocess hooks for skill lifecycle events.
 type HookRunner struct {
-	allowedMarketplace []string
-	logger             *slog.Logger
+	allowedMarketplaceHooks []string
+	logger                  *slog.Logger
 }
 
 // HookPayload is the JSON payload written to hook stdin.
@@ -71,8 +72,8 @@ func NewHookRunner(cfg aghconfig.SkillsConfig, logger *slog.Logger) *HookRunner 
 	}
 
 	return &HookRunner{
-		allowedMarketplace: cloneStrings(cfg.AllowedMarketplaceMCP),
-		logger:             logger,
+		allowedMarketplaceHooks: cloneStrings(cfg.AllowedMarketplaceHooks),
+		logger:                  logger,
 	}
 }
 
@@ -93,7 +94,7 @@ func (hr *HookRunner) RunHooks(ctx context.Context, event HookEvent, skills []*S
 		return nil
 	}
 
-	allowedMarketplace := marketplaceAllowlist(hr.allowedMarketplace)
+	allowedMarketplace := marketplaceAllowlist(hr.allowedMarketplaceHooks)
 	payload.Event = string(event)
 	results := make([]HookResult, 0)
 	for _, skill := range ordered {
@@ -150,7 +151,9 @@ func (hr *HookRunner) runHook(ctx context.Context, skill *Skill, hook HookDecl, 
 	hookCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(hookCtx, hook.Command, hook.Args...)
+	cmd := exec.Command(hook.Command, hook.Args...)
+	configureHookCommand(cmd)
+	cmd.Dir = hookCommandDir(skill)
 	cmd.Stdin = bytes.NewReader(stdinPayload)
 	cmd.Env = hookProcessEnv(hook.Env)
 
@@ -159,7 +162,7 @@ func (hr *HookRunner) runHook(ctx context.Context, skill *Skill, hook HookDecl, 
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
-	err = cmd.Run()
+	err = runHookCommand(hookCtx, cmd)
 	result.Output = stdout.String()
 	if err == nil {
 		result.Duration = time.Since(started)
@@ -170,6 +173,34 @@ func (hr *HookRunner) runHook(ctx context.Context, skill *Skill, hook HookDecl, 
 	result.Duration = time.Since(started)
 	hr.logHookFailure(skill, hook, result, stdout, stderr)
 	return result
+}
+
+func runHookCommand(ctx context.Context, cmd *exec.Cmd) error {
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-waitCh:
+		return err
+	case <-ctx.Done():
+		_ = terminateHookCommand(cmd)
+		timer := time.NewTimer(hookShutdownGracePeriod)
+		defer timer.Stop()
+
+		select {
+		case err := <-waitCh:
+			return err
+		case <-timer.C:
+			_ = killHookCommand(cmd)
+			return <-waitCh
+		}
+	}
 }
 
 func (hr *HookRunner) logHookFailure(skill *Skill, hook HookDecl, result HookResult, stdout hookCapture, stderr hookCapture) {
@@ -240,6 +271,14 @@ func skillName(skill *Skill) string {
 	}
 
 	return strings.TrimSpace(skill.Meta.Name)
+}
+
+func hookCommandDir(skill *Skill) string {
+	if skill == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(skill.Dir)
 }
 
 func hookTimeout(timeout time.Duration) time.Duration {
