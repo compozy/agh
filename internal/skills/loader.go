@@ -65,7 +65,9 @@ func ParseSkillFile(path string) (*Skill, error) {
 		FilePath: absPath,
 		Enabled:  true,
 	}
-	parseAGHMetadata(skill)
+	if err := parseAGHMetadata(skill); err != nil {
+		return nil, fmt.Errorf("skills: parse %q metadata.agh: %w", absPath, err)
+	}
 	if skill.Meta.Description == "" {
 		slog.Warn("skills: parsed skill without description", "path", absPath, "name", skill.Meta.Name)
 	}
@@ -188,28 +190,34 @@ func parseSkillContent(content []byte) (SkillMeta, string, error) {
 	return meta, parts.Body, nil
 }
 
-func parseAGHMetadata(skill *Skill) {
+func parseAGHMetadata(skill *Skill) error {
 	if skill == nil || skill.Meta.Metadata == nil {
-		return
+		return nil
 	}
 
 	rawAGH, ok := skill.Meta.Metadata["agh"]
 	if !ok || rawAGH == nil {
-		return
+		return nil
 	}
 
 	agh, ok := rawAGH.(map[string]any)
 	if !ok {
 		warnAGHMetadata(skill, "skills: malformed metadata.agh block", "type", fmt.Sprintf("%T", rawAGH))
-		return
+		return nil
 	}
 
 	if rawMCPServers, ok := agh["mcp_servers"]; ok {
 		skill.MCPServers = parseMCPServerDecls(skill, rawMCPServers)
 	}
 	if rawHooks, ok := agh["hooks"]; ok {
-		skill.Hooks = parseHookDecls(skill, rawHooks)
+		hooks, err := parseHookDecls(skill, rawHooks)
+		if err != nil {
+			return err
+		}
+		skill.Hooks = hooks
 	}
+
+	return nil
 }
 
 func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {
@@ -252,11 +260,11 @@ func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {
 	return slices.Clip(servers)
 }
 
-func parseHookDecls(skill *Skill, raw any) []HookDecl {
+func parseHookDecls(skill *Skill, raw any) ([]HookDecl, error) {
 	items, ok := raw.([]any)
 	if !ok {
 		warnAGHMetadata(skill, "skills: malformed metadata.agh.hooks field", "type", fmt.Sprintf("%T", raw))
-		return nil
+		return nil, nil
 	}
 
 	hooks := make([]HookDecl, 0, len(items))
@@ -280,15 +288,22 @@ func parseHookDecls(skill *Skill, raw any) []HookDecl {
 			Env:     stringMapValue(skill, "metadata.agh.hooks", idx, "env", entry["env"]),
 			Timeout: durationValue(skill, "metadata.agh.hooks", idx, "timeout", entry["timeout"]),
 		}
+		if hook.Command == "" {
+			return nil, fmt.Errorf(
+				"skills: invalid metadata.agh.hooks entry for %q at index %d: command is required",
+				skillIdentifier(skill),
+				idx,
+			)
+		}
 
 		hooks = append(hooks, hook)
 	}
 
 	if len(hooks) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	return slices.Clip(hooks)
+	return slices.Clip(hooks), nil
 }
 
 func validHookEvent(event HookEvent) bool {
@@ -307,6 +322,24 @@ func stringValue(value any) string {
 	}
 
 	return stringValue
+}
+
+func skillIdentifier(skill *Skill) string {
+	if skill == nil {
+		return "unknown skill"
+	}
+
+	name := strings.TrimSpace(skill.Meta.Name)
+	if name != "" {
+		return name
+	}
+
+	path := strings.TrimSpace(skill.FilePath)
+	if path != "" {
+		return path
+	}
+
+	return "unknown skill"
 }
 
 func stringSliceValue(skill *Skill, scope string, index int, field string, raw any) []string {

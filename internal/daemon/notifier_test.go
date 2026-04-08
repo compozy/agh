@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/pedronauck/agh/internal/acp"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -86,7 +87,7 @@ func TestSkillsHookDispatcherUsesResolvedWorkspaceForLookupAndPayload(t *testing
 		},
 	}
 
-	dispatcher := newSkillsHookDispatcher(registry, skillspkg.NewHookRunner(discardLogger()), resolver, discardLogger())
+	dispatcher := newSkillsHookDispatcher(registry, skillspkg.NewHookRunner(aghconfig.SkillsConfig{}, discardLogger()), resolver, discardLogger())
 	dispatcher.OnSessionCreated(testutil.Context(t), &session.Session{
 		ID:          "sess-1",
 		AgentName:   "coder",
@@ -126,6 +127,55 @@ func TestSkillsHookDispatcherUsesResolvedWorkspaceForLookupAndPayload(t *testing
 	}
 	if payload.Event != string(skillspkg.HookSessionCreated) {
 		t.Fatalf("payload.Event = %q, want %q", payload.Event, skillspkg.HookSessionCreated)
+	}
+}
+
+func TestSkillsHookDispatcherSkipsUntrustedMarketplaceHooks(t *testing.T) {
+	t.Parallel()
+
+	workDir := t.TempDir()
+	rootDir := filepath.Join(workDir, "workspace")
+	if err := os.MkdirAll(rootDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(workspace) error = %v", err)
+	}
+
+	scriptPath := writeHookScript(t, workDir, "capture.sh", "#!/bin/sh\ncat > \"$1\"\n")
+	outputPath := filepath.Join(workDir, "blocked.json")
+
+	registry := &hookDispatcherRegistry{
+		skills: []*skillspkg.Skill{
+			{
+				Source: skillspkg.SourceMarketplace,
+				Meta:   skillspkg.SkillMeta{Name: "marketplace-skill"},
+				Hooks: []skillspkg.HookDecl{
+					{
+						Event:   skillspkg.HookSessionCreated,
+						Command: scriptPath,
+						Args:    []string{outputPath},
+					},
+				},
+			},
+		},
+	}
+	resolver := &hookDispatcherWorkspaceResolver{
+		resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:      "ws-1",
+				RootDir: rootDir,
+				Name:    "workspace",
+			},
+		},
+	}
+
+	dispatcher := newSkillsHookDispatcher(registry, skillspkg.NewHookRunner(aghconfig.SkillsConfig{}, discardLogger()), resolver, discardLogger())
+	dispatcher.OnSessionCreated(testutil.Context(t), &session.Session{
+		ID:          "sess-1",
+		AgentName:   "coder",
+		WorkspaceID: "ws-1",
+	})
+
+	if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("os.Stat(%q) error = %v, want os.ErrNotExist", outputPath, err)
 	}
 }
 

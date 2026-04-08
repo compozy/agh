@@ -12,13 +12,39 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
-const defaultHookTimeout = 5 * time.Second
+const (
+	defaultHookTimeout      = 5 * time.Second
+	hookCaptureLimitBytes   = 8 * 1024
+	hookCaptureTruncateNote = "...[truncated]"
+)
+
+var hookEnvAllowlist = []string{
+	"COMSPEC",
+	"HOME",
+	"LANG",
+	"LC_ALL",
+	"LC_CTYPE",
+	"LOGNAME",
+	"PATH",
+	"PATHEXT",
+	"SHELL",
+	"SYSTEMROOT",
+	"TEMP",
+	"TERM",
+	"TMP",
+	"TMPDIR",
+	"USER",
+	"USERPROFILE",
+}
 
 // HookRunner dispatches subprocess hooks for skill lifecycle events.
 type HookRunner struct {
-	logger *slog.Logger
+	allowedMarketplace []string
+	logger             *slog.Logger
 }
 
 // HookPayload is the JSON payload written to hook stdin.
@@ -38,13 +64,16 @@ type HookResult struct {
 	Duration  time.Duration
 }
 
-// NewHookRunner constructs a HookRunner with the supplied logger.
-func NewHookRunner(logger *slog.Logger) *HookRunner {
+// NewHookRunner constructs a HookRunner with the supplied config and logger.
+func NewHookRunner(cfg aghconfig.SkillsConfig, logger *slog.Logger) *HookRunner {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	return &HookRunner{logger: logger}
+	return &HookRunner{
+		allowedMarketplace: cloneStrings(cfg.AllowedMarketplaceMCP),
+		logger:             logger,
+	}
 }
 
 // RunHooks executes all hooks matching the given event, in precedence order.
@@ -53,7 +82,7 @@ func (hr *HookRunner) RunHooks(ctx context.Context, event HookEvent, skills []*S
 		return nil
 	}
 	if hr == nil {
-		hr = NewHookRunner(nil)
+		hr = NewHookRunner(aghconfig.SkillsConfig{}, nil)
 	}
 	if hr.logger == nil {
 		hr.logger = slog.Default()
@@ -64,9 +93,19 @@ func (hr *HookRunner) RunHooks(ctx context.Context, event HookEvent, skills []*S
 		return nil
 	}
 
+	allowedMarketplace := marketplaceAllowlist(hr.allowedMarketplace)
 	payload.Event = string(event)
 	results := make([]HookResult, 0)
 	for _, skill := range ordered {
+		if !marketplaceSkillAllowed(skill, allowedMarketplace) {
+			hr.logger.Warn(
+				"blocked hook",
+				"skill_name", skill.Meta.Name,
+				"event", event,
+				"source", skillSourceName(skill.Source),
+			)
+			continue
+		}
 		for _, hook := range skill.Hooks {
 			if hook.Event != event {
 				continue
@@ -95,7 +134,7 @@ func (hr *HookRunner) runHook(ctx context.Context, skill *Skill, hook HookDecl, 
 	if strings.TrimSpace(hook.Command) == "" {
 		result.Error = errors.New("hook command is required")
 		result.Duration = time.Since(started)
-		hr.logHookFailure(skill, hook, result)
+		hr.logHookFailure(skill, hook, result, nil, nil)
 		return result
 	}
 
@@ -103,7 +142,7 @@ func (hr *HookRunner) runHook(ctx context.Context, skill *Skill, hook HookDecl, 
 	if err != nil {
 		result.Error = fmt.Errorf("marshal hook payload: %w", err)
 		result.Duration = time.Since(started)
-		hr.logHookFailure(skill, hook, result)
+		hr.logHookFailure(skill, hook, result, nil, nil)
 		return result
 	}
 
@@ -113,15 +152,12 @@ func (hr *HookRunner) runHook(ctx context.Context, skill *Skill, hook HookDecl, 
 
 	cmd := exec.CommandContext(hookCtx, hook.Command, hook.Args...)
 	cmd.Stdin = bytes.NewReader(stdinPayload)
+	cmd.Env = hookProcessEnv(hook.Env)
 
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if len(hook.Env) > 0 {
-		cmd.Env = append(os.Environ(), hookEnv(hook.Env)...)
-	}
+	stdout := newHookCapture()
+	stderr := newHookCapture()
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 
 	err = cmd.Run()
 	result.Output = stdout.String()
@@ -130,13 +166,13 @@ func (hr *HookRunner) runHook(ctx context.Context, skill *Skill, hook HookDecl, 
 		return result
 	}
 
-	result.Error = hookRunError(hookCtx, timeout, err, stderr.String())
+	result.Error = hookRunError(hookCtx, timeout, err, stderr)
 	result.Duration = time.Since(started)
-	hr.logHookFailure(skill, hook, result)
+	hr.logHookFailure(skill, hook, result, stdout, stderr)
 	return result
 }
 
-func (hr *HookRunner) logHookFailure(skill *Skill, hook HookDecl, result HookResult) {
+func (hr *HookRunner) logHookFailure(skill *Skill, hook HookDecl, result HookResult, stdout hookCapture, stderr hookCapture) {
 	hr.logger.Warn(
 		"hook execution failed",
 		"skill_name", result.SkillName,
@@ -144,7 +180,8 @@ func (hr *HookRunner) logHookFailure(skill *Skill, hook HookDecl, result HookRes
 		"source", skillSourceName(skill.Source),
 		"command", hook.Command,
 		"duration", result.Duration,
-		"output", result.Output,
+		"stdout", hookCaptureSummary(stdout),
+		"stderr", hookCaptureSummary(stderr),
 		"error", result.Error,
 	)
 }
@@ -213,22 +250,32 @@ func hookTimeout(timeout time.Duration) time.Duration {
 	return defaultHookTimeout
 }
 
-func hookEnv(env map[string]string) []string {
-	keys := make([]string, 0, len(env))
-	for key := range env {
+func hookProcessEnv(env map[string]string) []string {
+	merged := make(map[string]string, len(hookEnvAllowlist)+len(env))
+	for _, key := range hookEnvAllowlist {
+		if value, ok := os.LookupEnv(key); ok {
+			merged[key] = value
+		}
+	}
+	for key, value := range env {
+		merged[key] = value
+	}
+
+	keys := make([]string, 0, len(merged))
+	for key := range merged {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 
 	values := make([]string, 0, len(keys))
 	for _, key := range keys {
-		values = append(values, key+"="+env[key])
+		values = append(values, key+"="+merged[key])
 	}
 
 	return values
 }
 
-func hookRunError(ctx context.Context, timeout time.Duration, err error, stderr string) error {
+func hookRunError(ctx context.Context, timeout time.Duration, err error, stderr hookCapture) error {
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return fmt.Errorf("hook timed out after %s: %w", timeout, ctx.Err())
 	}
@@ -236,10 +283,80 @@ func hookRunError(ctx context.Context, timeout time.Duration, err error, stderr 
 		return fmt.Errorf("hook canceled: %w", ctx.Err())
 	}
 
-	trimmed := strings.TrimSpace(stderr)
-	if trimmed == "" {
+	if stderr.Len() == 0 {
 		return fmt.Errorf("hook command failed: %w", err)
 	}
 
-	return fmt.Errorf("hook command failed: %w (stderr: %s)", err, trimmed)
+	return fmt.Errorf("hook command failed: %w (%s)", err, hookCaptureSummary(stderr))
+}
+
+type hookCapture interface {
+	Write([]byte) (int, error)
+	String() string
+	Len() int
+	Truncated() bool
+}
+
+type limitedHookCapture struct {
+	buf       bytes.Buffer
+	truncated bool
+}
+
+func newHookCapture() *limitedHookCapture {
+	return &limitedHookCapture{}
+}
+
+func (c *limitedHookCapture) Write(p []byte) (int, error) {
+	if c == nil {
+		return len(p), nil
+	}
+
+	remaining := hookCaptureLimitBytes - c.buf.Len()
+	switch {
+	case remaining <= 0:
+		c.truncated = true
+	case len(p) > remaining:
+		_, _ = c.buf.Write(p[:remaining])
+		c.truncated = true
+	default:
+		_, _ = c.buf.Write(p)
+	}
+
+	return len(p), nil
+}
+
+func (c *limitedHookCapture) String() string {
+	if c == nil {
+		return ""
+	}
+
+	value := c.buf.String()
+	if !c.truncated {
+		return value
+	}
+
+	return value + hookCaptureTruncateNote
+}
+
+func (c *limitedHookCapture) Len() int {
+	if c == nil {
+		return 0
+	}
+
+	return c.buf.Len()
+}
+
+func (c *limitedHookCapture) Truncated() bool {
+	return c != nil && c.truncated
+}
+
+func hookCaptureSummary(capture hookCapture) string {
+	if capture == nil || capture.Len() == 0 {
+		return "redacted output (0 bytes)"
+	}
+	if capture.Truncated() {
+		return fmt.Sprintf("redacted output (%d+ bytes, truncated)", capture.Len())
+	}
+
+	return fmt.Sprintf("redacted output (%d bytes)", capture.Len())
 }

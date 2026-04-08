@@ -79,6 +79,8 @@ type skillsHookDispatcher struct {
 	logger            *slog.Logger
 }
 
+var _ sessionHookPhase = (*skillsHookDispatcher)(nil)
+
 func newSkillsHookDispatcher(registry session.SkillRegistry, runner *skills.HookRunner, workspaceResolver workspacepkg.WorkspaceResolver, logger *slog.Logger) *skillsHookDispatcher {
 	if logger == nil {
 		logger = slog.Default()

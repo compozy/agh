@@ -15,6 +15,9 @@ if [ -n "${HOOK_TEST_STDERR:-}" ]; then
 fi
 
 case "${HOOK_TEST_OUTPUT_MODE:-value}" in
+	value)
+		printf '%s' "${HOOK_TEST_OUTPUT:-}"
+		;;
 	payload)
 		printf '%s' "$payload"
 		;;

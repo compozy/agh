@@ -505,7 +505,7 @@ func TestSkillsConfigValidateMarketplaceConfig(t *testing.T) {
 		PollInterval: time.Second,
 	}
 
-	t.Run("accepts-valid-marketplace-config", func(t *testing.T) {
+	t.Run("ShouldAcceptValidMarketplaceConfig", func(t *testing.T) {
 		cfg := base
 		cfg.Marketplace = MarketplaceConfig{
 			Registry: "clawhub",
@@ -517,7 +517,7 @@ func TestSkillsConfigValidateMarketplaceConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects-empty-registry-when-marketplace-configured", func(t *testing.T) {
+	t.Run("ShouldRejectEmptyRegistryWhenMarketplaceConfigured", func(t *testing.T) {
 		cfg := base
 		cfg.Marketplace = MarketplaceConfig{
 			BaseURL: "https://registry.example.test/api/v1",
@@ -529,6 +529,22 @@ func TestSkillsConfigValidateMarketplaceConfig(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "skills.marketplace.registry") {
 			t.Fatalf("SkillsConfig.Validate() error = %v, want marketplace registry context", err)
+		}
+	})
+
+	t.Run("ShouldRejectInvalidMarketplaceBaseURL", func(t *testing.T) {
+		cfg := base
+		cfg.Marketplace = MarketplaceConfig{
+			Registry: "clawhub",
+			BaseURL:  "ftp://registry.example.test/api/v1",
+		}
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("SkillsConfig.Validate() error = nil, want marketplace base_url validation failure")
+		}
+		if !strings.Contains(err.Error(), "skills.marketplace.base_url") {
+			t.Fatalf("SkillsConfig.Validate() error = %v, want marketplace base_url context", err)
 		}
 	})
 }

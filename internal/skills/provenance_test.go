@@ -112,6 +112,86 @@ func TestReadSidecarReturnsDescriptiveErrorForMalformedJSON(t *testing.T) {
 	}
 }
 
+func TestReadSidecarRejectsMissingRequiredFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		field     string
+		mutate    func(*Provenance)
+		wantField string
+	}{
+		{
+			name:      "ShouldRejectMissingHash",
+			field:     "hash",
+			wantField: "missing hash",
+			mutate: func(p *Provenance) {
+				p.Hash = ""
+			},
+		},
+		{
+			name:      "ShouldRejectMissingRegistry",
+			field:     "registry",
+			wantField: "missing registry",
+			mutate: func(p *Provenance) {
+				p.Registry = ""
+			},
+		},
+		{
+			name:      "ShouldRejectMissingSlug",
+			field:     "slug",
+			wantField: "missing slug",
+			mutate: func(p *Provenance) {
+				p.Slug = ""
+			},
+		},
+		{
+			name:      "ShouldRejectMissingVersion",
+			field:     "version",
+			wantField: "missing version",
+			mutate: func(p *Provenance) {
+				p.Version = ""
+			},
+		},
+		{
+			name:      "ShouldRejectMissingInstalledAt",
+			field:     "installed_at",
+			wantField: "missing installed_at",
+			mutate: func(p *Provenance) {
+				p.InstalledAt = time.Time{}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			skillDir := t.TempDir()
+			provenance := testProvenance()
+			tt.mutate(&provenance)
+
+			payload, err := json.Marshal(provenance)
+			if err != nil {
+				t.Fatalf("json.Marshal(provenance) error = %v", err)
+			}
+			sidecarPath := filepath.Join(skillDir, sidecarFileName)
+			if err := os.WriteFile(sidecarPath, append(payload, '\n'), 0o644); err != nil {
+				t.Fatalf("os.WriteFile(%q) error = %v", sidecarPath, err)
+			}
+
+			_, err = ReadSidecar(skillDir)
+			if err == nil {
+				t.Fatalf("ReadSidecar() error = nil, want %s validation failure", tt.field)
+			}
+			if !strings.Contains(err.Error(), tt.wantField) {
+				t.Fatalf("ReadSidecar() error = %v, want %q", err, tt.wantField)
+			}
+		})
+	}
+}
+
 func TestReadSidecarReturnsNotExistForMissingSidecar(t *testing.T) {
 	t.Parallel()
 

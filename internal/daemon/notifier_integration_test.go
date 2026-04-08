@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -58,7 +59,7 @@ func TestNotifierFanoutExecutesCreatedAndStoppedHooks(t *testing.T) {
 
 	fanout := notifierFanout{
 		notifiers: []session.Notifier{&recordingNotifier{}},
-		hookPhase: newSkillsHookDispatcher(registry, skillspkg.NewHookRunner(discardLogger()), resolver, discardLogger()),
+		hookPhase: newSkillsHookDispatcher(registry, skillspkg.NewHookRunner(aghconfig.SkillsConfig{}, discardLogger()), resolver, discardLogger()),
 	}
 	sess := &session.Session{
 		ID:          "sess-1",
@@ -122,7 +123,7 @@ func TestNotifierFanoutHookFailureDoesNotBlockLifecycle(t *testing.T) {
 	notifier := &recordingNotifier{}
 	fanout := notifierFanout{
 		notifiers: []session.Notifier{notifier},
-		hookPhase: newSkillsHookDispatcher(registry, skillspkg.NewHookRunner(discardLogger()), resolver, discardLogger()),
+		hookPhase: newSkillsHookDispatcher(registry, skillspkg.NewHookRunner(aghconfig.SkillsConfig{}, discardLogger()), resolver, discardLogger()),
 	}
 
 	sess := &session.Session{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1"}

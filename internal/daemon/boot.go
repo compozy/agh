@@ -118,7 +118,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 			return fmt.Errorf("daemon: load skills registry: %w", err)
 		}
 		mcpResolver = skills.NewMCPResolver(cfg.Skills, logger)
-		hookRunner = skills.NewHookRunner(logger)
+		hookRunner = skills.NewHookRunner(cfg.Skills, logger)
 
 		skillsCancel, skillsDone = startSkillsWatcher(ctx, skillsRegistry, cfg.Skills.PollInterval)
 		cleanupFns = append(cleanupFns, func(context.Context) error {
@@ -195,13 +195,21 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 
 	startedAt := d.now().UTC()
 	fanout := notifierFanout{}
+	var skillRegistryDep session.SkillRegistry
+	if skillsRegistry != nil {
+		skillRegistryDep = skillsRegistry
+	}
+	var mcpResolverDep session.MCPResolver
+	if mcpResolver != nil {
+		mcpResolverDep = mcpResolver
+	}
 	sessions, err := d.newSessionManager(ctx, SessionManagerDeps{
 		HomePaths:         d.homePaths,
 		Logger:            logger,
 		Notifier:          &fanout,
 		PromptAssembler:   promptAssembler,
-		SkillRegistry:     skillsRegistry,
-		MCPResolver:       mcpResolver,
+		SkillRegistry:     skillRegistryDep,
+		MCPResolver:       mcpResolverDep,
 		WorkspaceResolver: workspaceResolver,
 	})
 	if err != nil {

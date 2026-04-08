@@ -27,20 +27,19 @@ func NewMCPResolver(cfg aghconfig.SkillsConfig, logger *slog.Logger) *MCPResolve
 }
 
 // Resolve returns MCP servers from active skills after trust-tier filtering.
+// When multiple declarations share the same trimmed server name, the later
+// skill in source-precedence order replaces the earlier one ("last wins").
+// The caller then passes the result through aghconfig.MergeMCPServers, which
+// keeps the first server at each final position. Combined together, skill-local
+// duplicates are resolved last-wins before config-vs-skill merge applies its
+// first-wins behavior.
 func (mr *MCPResolver) Resolve(skills []*Skill) []aghconfig.MCPServer {
 	if len(skills) == 0 {
 		return nil
 	}
 
 	ordered := orderSkillsBySource(skills)
-	allowedMarketplace := make(map[string]struct{}, len(mr.allowedMarketplace))
-	for _, name := range mr.allowedMarketplace {
-		trimmed := strings.TrimSpace(name)
-		if trimmed == "" {
-			continue
-		}
-		allowedMarketplace[trimmed] = struct{}{}
-	}
+	allowedMarketplace := marketplaceAllowlist(mr.allowedMarketplace)
 
 	resolved := make([]aghconfig.MCPServer, 0)
 	index := make(map[string]int)
@@ -51,7 +50,7 @@ func (mr *MCPResolver) Resolve(skills []*Skill) []aghconfig.MCPServer {
 			continue
 		}
 		for _, server := range skill.MCPServers {
-			if !mcpServerAllowed(skill, allowedMarketplace) {
+			if !marketplaceSkillAllowed(skill, allowedMarketplace) {
 				mr.logger.Warn(
 					"blocked MCP server",
 					"skill_name", skill.Meta.Name,
@@ -117,7 +116,20 @@ func orderSkillsBySource(skills []*Skill) []*Skill {
 	return ordered
 }
 
-func mcpServerAllowed(skill *Skill, allowedMarketplace map[string]struct{}) bool {
+func marketplaceAllowlist(values []string) map[string]struct{} {
+	allowed := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		allowed[trimmed] = struct{}{}
+	}
+
+	return allowed
+}
+
+func marketplaceSkillAllowed(skill *Skill, allowedMarketplace map[string]struct{}) bool {
 	if skill == nil {
 		return false
 	}

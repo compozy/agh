@@ -95,29 +95,31 @@ func TestBuildCatalogTruncatesDescriptionsAtTwoHundredCharactersWithEllipsis(t *
 func TestBuildCatalogExcludesDisabledSkills(t *testing.T) {
 	t.Parallel()
 
-	got := BuildCatalog([]*Skill{
-		{
-			Meta: SkillMeta{
-				Name:        "enabled",
-				Description: "Visible skill",
+	t.Run("ShouldExcludeDisabledSkills", func(t *testing.T) {
+		got := BuildCatalog([]*Skill{
+			{
+				Meta: SkillMeta{
+					Name:        "enabled",
+					Description: "Visible skill",
+				},
+				Enabled: true,
 			},
-			Enabled: true,
-		},
-		{
-			Meta: SkillMeta{
-				Name:        "disabled",
-				Description: "Hidden skill",
+			{
+				Meta: SkillMeta{
+					Name:        "disabled",
+					Description: "Hidden skill",
+				},
+				Enabled: false,
 			},
-			Enabled: false,
-		},
-	})
+		})
 
-	if strings.Contains(got, `name="disabled"`) {
-		t.Fatalf("BuildCatalog() included disabled skill: %q", got)
-	}
-	if !strings.Contains(got, `name="enabled"`) {
-		t.Fatalf("BuildCatalog() missing enabled skill: %q", got)
-	}
+		if strings.Contains(got, `name="disabled"`) {
+			t.Fatalf("BuildCatalog() included disabled skill: %q", got)
+		}
+		if !strings.Contains(got, `name="enabled"`) {
+			t.Fatalf("BuildCatalog() missing enabled skill: %q", got)
+		}
+	})
 }
 
 func TestCatalogProviderPromptSectionReturnsEmptyStringWhenWorkspaceHasNoSkills(t *testing.T) {

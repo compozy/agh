@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -456,6 +457,18 @@ func (c MarketplaceConfig) Validate() error {
 	}
 	if registry == "" {
 		return errors.New("skills.marketplace.registry is required")
+	}
+	if baseURL != "" {
+		parsed, err := url.Parse(baseURL)
+		if err != nil {
+			return fmt.Errorf("skills.marketplace.base_url is invalid: %w", err)
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fmt.Errorf("skills.marketplace.base_url must use http or https: %q", c.BaseURL)
+		}
+		if strings.TrimSpace(parsed.Host) == "" {
+			return fmt.Errorf("skills.marketplace.base_url must include a host: %q", c.BaseURL)
+		}
 	}
 
 	switch strings.ToLower(registry) {

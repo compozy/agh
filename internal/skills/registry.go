@@ -317,9 +317,16 @@ func (r *Registry) loadSkillPaths(ctx context.Context, paths []string, source Sk
 func (r *Registry) processSkill(dst map[string]*Skill, skill *Skill) bool {
 	r.applyDisabled(skill)
 
+	hashMismatch := r.verifyMarketplaceSkill(skill)
+	// Content warnings are derived from the current file body; marketplace hash
+	// mismatches only add provenance-specific logging above.
 	warnings := VerifyContent(skill.Content)
-	if r.verifyMarketplaceSkill(skill) {
-		warnings = VerifyContent(skill.Content)
+	if hashMismatch {
+		r.logger.Debug(
+			"skills: reusing content verification warnings after marketplace hash mismatch",
+			"skill_name", skill.Meta.Name,
+			"path", skill.FilePath,
+		)
 	}
 	r.logVerificationWarnings(skill, warnings)
 	if hasCriticalWarning(warnings) {
@@ -705,7 +712,9 @@ func parseBundledSkill(fsys fs.FS, skillPath string) (*Skill, error) {
 		FilePath: skillPath,
 		Enabled:  true,
 	}
-	parseAGHMetadata(skill)
+	if err := parseAGHMetadata(skill); err != nil {
+		return nil, fmt.Errorf("skills: parse bundled skill %q metadata.agh: %w", skillPath, err)
+	}
 
 	return skill, nil
 }

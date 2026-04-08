@@ -75,6 +75,9 @@ func ReadSidecar(skillDir string) (*Provenance, error) {
 	if err := json.Unmarshal(payload, &provenance); err != nil {
 		return nil, fmt.Errorf("skills: parse provenance sidecar %q: %w", sidecarPath, err)
 	}
+	if err := validateSidecarProvenance(sidecarPath, provenance); err != nil {
+		return nil, err
+	}
 
 	return &provenance, nil
 }
@@ -145,4 +148,25 @@ func resolveSkillPath(skillDir string, fileName string) (string, error) {
 	}
 
 	return filepath.Join(absRoot, fileName), nil
+}
+
+func validateSidecarProvenance(sidecarPath string, provenance Provenance) error {
+	requiredFields := []struct {
+		name    string
+		missing bool
+	}{
+		{name: "hash", missing: strings.TrimSpace(provenance.Hash) == ""},
+		{name: "registry", missing: strings.TrimSpace(provenance.Registry) == ""},
+		{name: "slug", missing: strings.TrimSpace(provenance.Slug) == ""},
+		{name: "version", missing: strings.TrimSpace(provenance.Version) == ""},
+		{name: "installed_at", missing: provenance.InstalledAt.IsZero()},
+	}
+
+	for _, field := range requiredFields {
+		if field.missing {
+			return fmt.Errorf("skills: invalid provenance sidecar %q: missing %s", sidecarPath, field.name)
+		}
+	}
+
+	return nil
 }

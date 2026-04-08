@@ -267,6 +267,52 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 	assertPromptExcludes(t, prompt, "# Persistent Memory")
 }
 
+func TestBootLeavesSkillDependenciesNilWhenSkillsDisabled(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Skills.Enabled = false
+
+	var capturedDeps SessionManagerDeps
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+		capturedDeps = deps
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if capturedDeps.SkillRegistry != nil {
+		t.Fatalf("boot() SkillRegistry = %#v, want nil when skills are disabled", capturedDeps.SkillRegistry)
+	}
+	if capturedDeps.MCPResolver != nil {
+		t.Fatalf("boot() MCPResolver = %#v, want nil when skills are disabled", capturedDeps.MCPResolver)
+	}
+}
+
 func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)

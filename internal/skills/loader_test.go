@@ -482,6 +482,21 @@ func TestParseSkillFileRejectsUnknownHookEventsWithWarnings(t *testing.T) {
 	}
 }
 
+func TestParseSkillFileRejectsHooksMissingCommand(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseSkillFile(loaderFixturePath("invalid-hook-command"))
+	if err == nil {
+		t.Fatal("ParseSkillFile() error = nil, want missing hook command failure")
+	}
+	if !strings.Contains(err.Error(), `invalid metadata.agh.hooks entry for "invalid-hook-command"`) {
+		t.Fatalf("ParseSkillFile() error = %v, want skill identifier context", err)
+	}
+	if !strings.Contains(err.Error(), "command is required") {
+		t.Fatalf("ParseSkillFile() error = %v, want missing command context", err)
+	}
+}
+
 func TestScanDirectoryHonorsDepthAndSkips(t *testing.T) {
 	t.Parallel()
 

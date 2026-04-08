@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
 func TestHookRunnerRunHooksReturnsEmptyForNoSkills(t *testing.T) {
@@ -107,7 +109,9 @@ func TestHookRunnerRunHooksFiltersEventAndCapturesPayload(t *testing.T) {
 func TestHookRunnerRunHooksOrdersBySourceAndSkillName(t *testing.T) {
 	t.Parallel()
 
-	runner, logs := newHookRunnerForTest()
+	runner, logs := newHookRunnerForTest(aghconfig.SkillsConfig{
+		AllowedMarketplaceMCP: []string{"marketplace-skill"},
+	})
 	script := hookScriptPath(t)
 
 	results := runner.RunHooks(t.Context(), HookSessionCreated, []*Skill{
@@ -140,6 +144,36 @@ func TestHookRunnerRunHooksOrdersBySourceAndSkillName(t *testing.T) {
 	}
 	if logs.Len() != 0 {
 		t.Fatalf("logs = %q, want empty logs", logs.String())
+	}
+}
+
+func TestHookRunnerRunHooksBlocksMarketplaceHooksWithoutConsent(t *testing.T) {
+	t.Parallel()
+
+	runner, logs := newHookRunnerForTest()
+	script := hookScriptPath(t)
+
+	results := runner.RunHooks(t.Context(), HookSessionCreated, []*Skill{
+		newSkillWithHook("marketplace-skill", SourceMarketplace, hookOutput(script, "marketplace-skill")),
+		newSkillWithHook("user-skill", SourceUser, hookOutput(script, "user-skill")),
+	}, HookPayload{})
+
+	if len(results) != 1 {
+		t.Fatalf("RunHooks() len = %d, want 1 allowed hook result", len(results))
+	}
+	if got, want := results[0].SkillName, "user-skill"; got != want {
+		t.Fatalf("results[0].SkillName = %q, want %q", got, want)
+	}
+	if got, want := results[0].Output, "user-skill"; got != want {
+		t.Fatalf("results[0].Output = %q, want %q", got, want)
+	}
+
+	output := logs.String()
+	if !strings.Contains(output, "blocked hook") {
+		t.Fatalf("logs = %q, want blocked hook warning", output)
+	}
+	if !strings.Contains(output, "skill_name=marketplace-skill") {
+		t.Fatalf("logs = %q, want blocked marketplace skill name", output)
 	}
 }
 
@@ -189,6 +223,15 @@ func TestHookRunnerRunHooksFailsOpenOnHookError(t *testing.T) {
 	if !strings.Contains(output, "event=on_session_created") {
 		t.Fatalf("logs = %q, want event field", output)
 	}
+	if strings.Contains(output, "before-exit") {
+		t.Fatalf("logs = %q, want stdout redacted from failure logs", output)
+	}
+	if strings.Contains(output, "hook failed") {
+		t.Fatalf("logs = %q, want stderr redacted from failure logs", output)
+	}
+	if !strings.Contains(output, "redacted output") {
+		t.Fatalf("logs = %q, want redacted output summary", output)
+	}
 }
 
 func TestHookRunnerRunHooksTimesOut(t *testing.T) {
@@ -202,7 +245,7 @@ func TestHookRunnerRunHooksTimesOut(t *testing.T) {
 			Event:   HookSessionCreated,
 			Command: "/bin/sh",
 			Args:    []string{script},
-			Timeout: 25 * time.Millisecond,
+			Timeout: 250 * time.Millisecond,
 			Env: map[string]string{
 				"HOOK_TEST_BUSY_LOOP": "1",
 			},
@@ -228,10 +271,73 @@ func TestHookRunnerRunHooksTimesOut(t *testing.T) {
 	}
 }
 
-func newHookRunnerForTest() (*HookRunner, *bytes.Buffer) {
+func TestHookRunnerRunHooksDoesNotInheritAmbientEnvironment(t *testing.T) {
+	t.Setenv("HOOK_TEST_AMBIENT_SECRET", "ambient-secret")
+
+	runner, logs := newHookRunnerForTest()
+	results := runner.RunHooks(t.Context(), HookSessionCreated, []*Skill{
+		newSkillWithHook("ambient-env-skill", SourceUser, HookDecl{
+			Event:   HookSessionCreated,
+			Command: "/bin/sh",
+			Args:    []string{"-c", `printf '%s' "${HOOK_TEST_AMBIENT_SECRET:-}"`},
+		}),
+	}, HookPayload{})
+
+	if len(results) != 1 {
+		t.Fatalf("RunHooks() len = %d, want 1", len(results))
+	}
+	if got := results[0].Output; got != "" {
+		t.Fatalf("results[0].Output = %q, want ambient secret to be absent", got)
+	}
+	if logs.Len() != 0 {
+		t.Fatalf("logs = %q, want empty logs", logs.String())
+	}
+}
+
+func TestHookRunnerRunHooksCapsCapturedOutput(t *testing.T) {
+	t.Parallel()
+
+	runner, logs := newHookRunnerForTest()
+	script := hookScriptPath(t)
+	outputValue := strings.Repeat("x", hookCaptureLimitBytes+128)
+
+	results := runner.RunHooks(t.Context(), HookSessionCreated, []*Skill{
+		newSkillWithHook("chatty-skill", SourceUser, HookDecl{
+			Event:   HookSessionCreated,
+			Command: "/bin/sh",
+			Args:    []string{script},
+			Env: map[string]string{
+				"HOOK_TEST_OUTPUT":    outputValue,
+				"HOOK_TEST_STDERR":    outputValue,
+				"HOOK_TEST_EXIT_CODE": "7",
+			},
+		}),
+	}, HookPayload{})
+
+	if len(results) != 1 {
+		t.Fatalf("RunHooks() len = %d, want 1", len(results))
+	}
+	if !strings.Contains(results[0].Output, hookCaptureTruncateNote) {
+		t.Fatalf("results[0].Output = %q, want truncation marker", results[0].Output)
+	}
+
+	output := logs.String()
+	if strings.Contains(output, outputValue[:64]) {
+		t.Fatalf("logs = %q, want large hook output redacted", output)
+	}
+	if !strings.Contains(output, "redacted output") {
+		t.Fatalf("logs = %q, want redacted output summary", output)
+	}
+}
+
+func newHookRunnerForTest(cfgs ...aghconfig.SkillsConfig) (*HookRunner, *bytes.Buffer) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
-	return NewHookRunner(logger), &logs
+	cfg := aghconfig.SkillsConfig{}
+	if len(cfgs) > 0 {
+		cfg = cfgs[0]
+	}
+	return NewHookRunner(cfg, logger), &logs
 }
 
 func newSkillWithHook(name string, source SkillSource, hook HookDecl) *Skill {
