@@ -3,7 +3,6 @@
 - **Status:** Draft
 - **Authors:** AGH Core Team
 - **Created:** 2026-04-08
-- **Supersedes:** `docs/rfcs/agh-network.md`
 - **Primary profiles in this RFC:** `AGH Network Core`, `AGH Network over NATS`, `AGH Network Baseline Trust Profile`
 
 ---

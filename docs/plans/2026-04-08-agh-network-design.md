@@ -212,7 +212,7 @@ The approved primary RFC path is:
 
 - `docs/rfcs/agh-network-v1.md`
 
-The existing earlier draft in `docs/rfcs/agh-network.md` should no longer act as the main RFC and should instead point readers to the v1 document.
+The prior draft path `docs/rfcs/agh-network.md` is removed to avoid having two competing RFC entry points in the repository.
 
 Recommended RFC structure:
 
