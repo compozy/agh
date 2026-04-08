@@ -106,9 +106,13 @@ A `Peer` is any implementation that can emit, receive, or both emit and receive 
 
 A `Space` is a logical communication namespace. Spaces are protocol-visible but transport-neutral. A transport profile decides how spaces map to transport primitives.
 
+A `space` value MUST match `[a-z0-9][a-z0-9_-]{0,63}`. Characters outside this set — including dots, whitespace, and NATS wildcard tokens (`>`, `*`) — are forbidden because space values are interpolated directly into transport subjects.
+
 ### 3.3 Interaction
 
 An `Interaction` is the lightweight logical container for work or conversation progression. It is identified by `interaction_id` and may move through a small lifecycle.
+
+An interaction is scoped to the tuple `(space, interaction_id)`. The same `interaction_id` string in different spaces denotes different interactions. Only the two original peers — the initiator who sent the first `direct` and the target identified in `to` — MAY emit lifecycle messages (`receipt`, `trace`, `direct`) for that interaction. Messages from other peers referencing an `interaction_id` they did not initiate or were not targeted by SHOULD be ignored.
 
 ### 3.4 Recipe
 
@@ -376,6 +380,8 @@ The core distinguishes:
 - `unverified` if no proof is present or the proof profile is unsupported but not malformed
 - `rejected` if proof validation fails or policy forbids acceptance
 
+If `from` uses the verified identity format (`nickname@fingerprint`) but `proof` is absent or null, the message MUST be classified as `rejected`, not `unverified`. A claimed verified-format identity without proof is treated as a failed verification, preventing proof-stripping attacks where an attacker removes `proof` from a signed message to downgrade it to `unverified` status.
+
 The core models these states. The baseline trust profile defines exactly how `verified` is achieved in v1.
 
 ---
@@ -478,6 +484,12 @@ stateDiagram-v2
     canceled --> [*]
 ```
 
+### 8.2.1 Post-terminal behavior
+
+Once an interaction reaches a terminal state (`completed`, `failed`, or `canceled`), receivers MUST ignore any subsequent `trace` messages for that `interaction_id` that attempt further state transitions. A `direct` arriving after a terminal state does not reopen the interaction; the receiver MAY emit `receipt` with `status = rejected` and `reason_code = interaction_closed`.
+
+If out-of-order delivery causes a non-terminal `trace` (for example `working`) to arrive after a terminal `trace` (for example `completed`), the receiver MUST NOT regress the interaction state. The terminal state is authoritative.
+
 ### 8.3 Lifecycle intent
 
 These states are intentionally lightweight. They exist for:
@@ -499,6 +511,15 @@ They do not imply:
 - the opening interaction message implies `submitted`
 - `receipt` MAY acknowledge acceptance or rejection
 - `trace` carries `working`, `needs_input`, `completed`, `failed`, or `canceled`
+
+#### Cancellation semantics
+
+`receipt` with `status = canceled` and `trace` with `state = canceled` serve different roles:
+
+- `receipt(canceled)` is initiator-side cancellation — the peer that opened the interaction withdraws the request before or shortly after work begins
+- `trace(canceled)` is worker-side cancellation — the peer performing work aborts during execution
+
+If both arrive for the same interaction, the first to be processed establishes the terminal state. The second MUST be ignored per Section 8.2.1.
 
 ### 8.5 Minimal observability
 
@@ -581,6 +602,7 @@ sequenceDiagram
 
 ```json
 {
+  "type": "request",
   "query": "peer_id or capability query"
 }
 ```
@@ -589,12 +611,14 @@ sequenceDiagram
 
 ```json
 {
+  "type": "response",
   "peer_card": {}
 }
 ```
 
 #### Rules
 
+- `type` is REQUIRED and MUST be either `request` or `response`
 - a response `whois` MUST set `reply_to`
 - targeted lookup SHOULD set `to`
 - untargeted lookup MAY be broadcast within a space
@@ -853,6 +877,7 @@ The core defines this initial reason-code registry:
 - `not_found`
 - `busy`
 - `internal`
+- `interaction_closed`
 
 Implementations MAY define namespaced reason codes under `ext`.
 
@@ -1385,6 +1410,8 @@ Implementations SHOULD maintain a bounded replay window using:
 - `id`
 - `ts`
 - local receipt history
+
+When `expires_at` is null, receivers SHOULD apply a maximum age check against `ts`. A RECOMMENDED default is to reject messages whose `ts` is more than 300 seconds in the past relative to the receiver's clock. This prevents indefinite replay of signed messages that carry no explicit expiration. Implementations MAY adjust this threshold but SHOULD document their chosen value.
 
 ### 13.3 Expiration
 
