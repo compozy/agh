@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 title: Build knowledge frontend system
 type: frontend
 complexity: medium
@@ -35,12 +35,12 @@ Create the `systems/knowledge/` module following the app-renderer-systems patter
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Create Zod schemas and TypeScript types for knowledge/memory domain
-- [ ] 7.2 Create knowledge API adapter wrapping existing `/api/memory` endpoints
-- [ ] 7.3 Create query keys and query options factories
-- [ ] 7.4 Create query hooks (`useMemories`, `useMemory`) and mutation hooks (`useDeleteMemory`, `useConsolidateMemory`)
-- [ ] 7.5 Create barrel export `index.ts`
-- [ ] 7.6 Write tests for adapter functions and hooks
+- [x] 7.1 Create Zod schemas and TypeScript types for knowledge/memory domain
+- [x] 7.2 Create knowledge API adapter wrapping existing `/api/memory` endpoints
+- [x] 7.3 Create query keys and query options factories
+- [x] 7.4 Create query hooks (`useMemories`, `useMemory`) and mutation hooks (`useDeleteMemory`, `useConsolidateMemory`)
+- [x] 7.5 Create barrel export `index.ts`
+- [x] 7.6 Write tests for adapter functions and hooks
 
 ## Implementation Details
 
@@ -70,16 +70,16 @@ Follow the exact pattern established by `systems/agent/` — same file structure
 
 ## Tests
 - Unit tests:
-  - [ ] `listMemories` adapter calls `GET /api/memory?scope=:scope&workspace=:ws` and returns typed array
-  - [ ] `readMemory` adapter calls `GET /api/memory/:scope/:filename` and returns content string
-  - [ ] `deleteMemory` adapter calls `DELETE /api/memory/:scope/:filename`
-  - [ ] `writeMemory` adapter calls `POST /api/memory` with body
-  - [ ] `consolidateMemory` adapter calls `POST /api/memory/consolidate` with workspace
-  - [ ] Adapter throws typed `KnowledgeApiError` on non-2xx responses
-  - [ ] `useMemories` hook returns loading state then data
-  - [ ] `useDeleteMemory` mutation invalidates memory list cache on settle
-  - [ ] Query options factory includes correct staleTime and refetchInterval
-  - [ ] Zod schema validates MemoryHeader with required name and type fields
+  - [x] `listMemories` adapter calls `GET /api/memory?scope=:scope&workspace=:ws` and returns typed array
+  - [x] `readMemory` adapter calls `GET /api/memory/:filename?scope=:scope` and returns content string
+  - [x] `deleteMemory` adapter calls `DELETE /api/memory/:filename?scope=:scope`
+  - [x] `writeMemory` adapter calls `PUT /api/memory/:filename` with body
+  - [x] `consolidateMemory` adapter calls `POST /api/memory/consolidate` with workspace
+  - [x] Adapter throws typed `KnowledgeApiError` on non-2xx responses
+  - [x] `useMemories` hook returns loading state then data
+  - [x] `useDeleteMemory` mutation invalidates memory list cache on settle
+  - [x] Query options factory includes correct staleTime and refetchInterval
+  - [x] Zod schema validates MemoryHeader with required name and type fields
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -10,5 +10,5 @@
 | 04 | Add Skills HTTP endpoints | done | medium | — |
 | 05 | Build skill frontend system | done | medium | task_04 |
 | 06 | Build Skills page | done | high | task_02, task_05 |
-| 07 | Build knowledge frontend system | pending | medium | — |
+| 07 | Build knowledge frontend system | done | medium | — |
 | 08 | Build Knowledge page | pending | high | task_02, task_07 |
