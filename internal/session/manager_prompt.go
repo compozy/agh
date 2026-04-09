@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/store"
@@ -36,6 +37,10 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 	if err != nil {
 		return nil, err
 	}
+	turnState := newPromptTurnDispatchState(session, turnID, hookInputClassUserMessage, message)
+	if err := m.dispatchTurnStart(ctx, turnState); err != nil {
+		return nil, err
+	}
 
 	proc, err := session.beginPromptSetup()
 	if err != nil {
@@ -63,7 +68,7 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 
 	out := make(chan acp.AgentEvent, m.promptBufSize)
 	// pumpPrompt terminates when the driver closes the source channel or the request context ends.
-	go m.pumpPrompt(ctx, session, turnID, source, out)
+	go m.pumpPrompt(ctx, session, turnState, source, out)
 	return out, nil
 }
 
@@ -105,8 +110,12 @@ func (m *Manager) ApprovePermission(ctx context.Context, id string, req acp.Appr
 	return nil
 }
 
-func (m *Manager) pumpPrompt(ctx context.Context, session *Session, turnID string, source <-chan acp.AgentEvent, out chan<- acp.AgentEvent) {
+func (m *Manager) pumpPrompt(ctx context.Context, session *Session, turnState *promptTurnDispatchState, source <-chan acp.AgentEvent, out chan<- acp.AgentEvent) {
 	defer close(out)
+	defer func() {
+		m.finishPromptMessage(ctx, turnState, time.Time{})
+		m.dispatchTurnEnd(ctx, turnState, time.Time{})
+	}()
 
 	for {
 		var (
@@ -122,9 +131,10 @@ func (m *Manager) pumpPrompt(ctx context.Context, session *Session, turnID strin
 			}
 		}
 
-		normalized := m.normalizeEvent(session, turnID, event)
+		normalized := m.normalizeEvent(session, turnState.turnID, event)
+		normalized = m.preparePromptEvent(ctx, turnState, normalized)
 		if err := m.recordEvent(ctx, session, normalized); err != nil {
-			m.sessionLogger(session).Warn("session: record prompt event failed", "turn_id", turnID, "error", err)
+			m.sessionLogger(session).Warn("session: record prompt event failed", "turn_id", turnState.turnID, "error", err)
 		}
 		if m.notifier != nil {
 			m.notifier.OnAgentEvent(ctx, session.ID, normalized)
@@ -133,6 +143,11 @@ func (m *Manager) pumpPrompt(ctx context.Context, session *Session, turnID strin
 		select {
 		case out <- normalized:
 		case <-ctx.Done():
+			return
+		}
+
+		if normalized.Type == acp.EventTypeDone || normalized.Type == acp.EventTypeError {
+			m.dispatchTurnEnd(ctx, turnState, normalized.Timestamp)
 			return
 		}
 	}

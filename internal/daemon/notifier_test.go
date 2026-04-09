@@ -14,7 +14,7 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
-func TestHooksNotifierDispatchesLifecycleAndAgentEvents(t *testing.T) {
+func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 	t.Parallel()
 
 	fixedNow := time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC)
@@ -47,6 +47,55 @@ func TestHooksNotifierDispatchesLifecycleAndAgentEvents(t *testing.T) {
 			}
 			return nil
 		},
+		onTurnStart: func(_ context.Context, payload hookspkg.TurnStartPayload) error {
+			order = append(order, "turn-start")
+			if payload.Event != hookspkg.HookTurnStart {
+				t.Fatalf("payload.Event = %q, want %q", payload.Event, hookspkg.HookTurnStart)
+			}
+			return nil
+		},
+		onTurnEnd: func(_ context.Context, payload hookspkg.TurnEndPayload) error {
+			order = append(order, "turn-end")
+			if payload.Event != hookspkg.HookTurnEnd {
+				t.Fatalf("payload.Event = %q, want %q", payload.Event, hookspkg.HookTurnEnd)
+			}
+			return nil
+		},
+		onMessageStart: func(_ context.Context, payload hookspkg.MessageStartPayload) error {
+			order = append(order, "message-start")
+			if payload.Event != hookspkg.HookMessageStart {
+				t.Fatalf("payload.Event = %q, want %q", payload.Event, hookspkg.HookMessageStart)
+			}
+			return nil
+		},
+		onMessageDelta: func(_ context.Context, payload hookspkg.MessageDeltaPayload) error {
+			order = append(order, "message-delta")
+			if payload.Event != hookspkg.HookMessageDelta {
+				t.Fatalf("payload.Event = %q, want %q", payload.Event, hookspkg.HookMessageDelta)
+			}
+			return nil
+		},
+		onMessageEnd: func(_ context.Context, payload hookspkg.MessageEndPayload) error {
+			order = append(order, "message-end")
+			if payload.Event != hookspkg.HookMessageEnd {
+				t.Fatalf("payload.Event = %q, want %q", payload.Event, hookspkg.HookMessageEnd)
+			}
+			return nil
+		},
+		onPreCompact: func(_ context.Context, payload hookspkg.ContextPreCompactPayload) error {
+			order = append(order, "context-pre")
+			if payload.Event != hookspkg.HookContextPreCompact {
+				t.Fatalf("payload.Event = %q, want %q", payload.Event, hookspkg.HookContextPreCompact)
+			}
+			return nil
+		},
+		onPostCompact: func(_ context.Context, payload hookspkg.ContextPostCompactPayload) error {
+			order = append(order, "context-post")
+			if payload.Event != hookspkg.HookContextPostCompact {
+				t.Fatalf("payload.Event = %q, want %q", payload.Event, hookspkg.HookContextPostCompact)
+			}
+			return nil
+		},
 		onAgentEvent: func(context.Context, string, any) {
 			order = append(order, "hook-agent")
 		},
@@ -73,9 +122,74 @@ func TestHooksNotifierDispatchesLifecycleAndAgentEvents(t *testing.T) {
 	if _, err := notifier.DispatchSessionPostStop(testutil.Context(t), hookspkg.SessionPostStopPayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostStop, fixedNow))); err != nil {
 		t.Fatalf("DispatchSessionPostStop() error = %v", err)
 	}
+	if _, err := notifier.DispatchTurnStart(testutil.Context(t), hookspkg.TurnStartPayload{
+		PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookTurnStart, Timestamp: fixedNow},
+		SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
+		TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
+	}); err != nil {
+		t.Fatalf("DispatchTurnStart() error = %v", err)
+	}
+	if _, err := notifier.DispatchMessageStart(testutil.Context(t), hookspkg.MessageStartPayload{
+		PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookMessageStart, Timestamp: fixedNow},
+		SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
+		TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
+		MessageID:      "msg-1",
+	}); err != nil {
+		t.Fatalf("DispatchMessageStart() error = %v", err)
+	}
+	if _, err := notifier.DispatchMessageDelta(testutil.Context(t), hookspkg.MessageDeltaPayload{
+		PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookMessageDelta, Timestamp: fixedNow},
+		SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
+		TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
+		MessageID:      "msg-1",
+	}); err != nil {
+		t.Fatalf("DispatchMessageDelta() error = %v", err)
+	}
+	if _, err := notifier.DispatchMessageEnd(testutil.Context(t), hookspkg.MessageEndPayload{
+		PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookMessageEnd, Timestamp: fixedNow},
+		SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
+		TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
+		MessageID:      "msg-1",
+	}); err != nil {
+		t.Fatalf("DispatchMessageEnd() error = %v", err)
+	}
+	if _, err := notifier.DispatchTurnEnd(testutil.Context(t), hookspkg.TurnEndPayload{
+		PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookTurnEnd, Timestamp: fixedNow},
+		SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
+		TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
+	}); err != nil {
+		t.Fatalf("DispatchTurnEnd() error = %v", err)
+	}
+	if _, err := notifier.DispatchContextPreCompact(testutil.Context(t), hookspkg.ContextPreCompactPayload{
+		PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookContextPreCompact, Timestamp: fixedNow},
+		SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
+		TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
+	}); err != nil {
+		t.Fatalf("DispatchContextPreCompact() error = %v", err)
+	}
+	if _, err := notifier.DispatchContextPostCompact(testutil.Context(t), hookspkg.ContextPostCompactPayload{
+		PayloadBase:    hookspkg.PayloadBase{Event: hookspkg.HookContextPostCompact, Timestamp: fixedNow},
+		SessionContext: hookspkg.SessionContext{SessionID: "sess-created"},
+		TurnContext:    hookspkg.TurnContext{TurnID: "turn-1"},
+	}); err != nil {
+		t.Fatalf("DispatchContextPostCompact() error = %v", err)
+	}
 	notifier.OnAgentEvent(testutil.Context(t), "sess-created", struct{ Type string }{Type: "done"})
 
-	wantOrder := []string{"rebuild", "create", "rebuild", "stop", "hook-agent"}
+	wantOrder := []string{
+		"rebuild",
+		"create",
+		"rebuild",
+		"stop",
+		"turn-start",
+		"message-start",
+		"message-delta",
+		"message-end",
+		"turn-end",
+		"context-pre",
+		"context-post",
+		"hook-agent",
+	}
 	if !testutil.EqualStringSlices(order, wantOrder) {
 		t.Fatalf("dispatch order = %#v, want %#v", order, wantOrder)
 	}

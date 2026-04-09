@@ -354,6 +354,314 @@ func TestRecordEventDispatchesAroundPersistence(t *testing.T) {
 	}
 }
 
+func TestPromptDispatchesTurnAndMessageHooksAtACPBoundaries(t *testing.T) {
+	t.Parallel()
+
+	order := make([]string, 0, 5)
+	var (
+		turnStartPayload    hookspkg.TurnStartPayload
+		messageStartPayload hookspkg.MessageStartPayload
+		messageDeltaPayload hookspkg.MessageDeltaPayload
+		messageEndPayload   hookspkg.MessageEndPayload
+		turnEndPayload      hookspkg.TurnEndPayload
+	)
+
+	dispatcher := &spyHookDispatcher{
+		dispatchTurnStartFn: func(_ context.Context, payload hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error) {
+			order = append(order, "turn.start")
+			turnStartPayload = payload
+			return payload, nil
+		},
+		dispatchMessageStartFn: func(_ context.Context, payload hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error) {
+			order = append(order, "message.start")
+			messageStartPayload = payload
+			return payload, nil
+		},
+		dispatchMessageDeltaFn: func(_ context.Context, payload hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error) {
+			order = append(order, "message.delta")
+			messageDeltaPayload = payload
+			return payload, nil
+		},
+		dispatchMessageEndFn: func(_ context.Context, payload hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error) {
+			order = append(order, "message.end")
+			messageEndPayload = payload
+			return payload, nil
+		},
+		dispatchTurnEndFn: func(_ context.Context, payload hookspkg.TurnEndPayload) (hookspkg.TurnEndPayload, error) {
+			order = append(order, "turn.end")
+			turnEndPayload = payload
+			return payload, nil
+		},
+	}
+
+	h := newHarness(t, WithHookDispatcher(dispatcher))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	events := collectEvents(t, eventsCh)
+	if len(events) != 2 {
+		t.Fatalf("len(events) = %d, want 2", len(events))
+	}
+
+	wantOrder := []string{"turn.start", "message.start", "message.delta", "message.end", "turn.end"}
+	if !testutil.EqualStringSlices(order, wantOrder) {
+		t.Fatalf("hook order = %#v, want %#v", order, wantOrder)
+	}
+
+	if turnStartPayload.UserMessage != "hello" {
+		t.Fatalf("turn.start user message = %q, want %q", turnStartPayload.UserMessage, "hello")
+	}
+	if turnStartPayload.TurnID == "" {
+		t.Fatal("turn.start turn id = empty, want populated turn id")
+	}
+	if turnStartPayload.InputClass != hookInputClassUserMessage {
+		t.Fatalf("turn.start input class = %q, want %q", turnStartPayload.InputClass, hookInputClassUserMessage)
+	}
+	if messageStartPayload.MessageID == "" {
+		t.Fatal("message.start message id = empty, want populated message id")
+	}
+	if messageStartPayload.Role != hookMessageRoleAssistant {
+		t.Fatalf("message.start role = %q, want %q", messageStartPayload.Role, hookMessageRoleAssistant)
+	}
+	if messageStartPayload.DeltaType != hookMessageDeltaTypeFull {
+		t.Fatalf("message.start delta type = %q, want %q", messageStartPayload.DeltaType, hookMessageDeltaTypeFull)
+	}
+	if messageStartPayload.Text != "reply" {
+		t.Fatalf("message.start text = %q, want %q", messageStartPayload.Text, "reply")
+	}
+	if messageDeltaPayload.MessageID != messageStartPayload.MessageID {
+		t.Fatalf("message.delta message id = %q, want %q", messageDeltaPayload.MessageID, messageStartPayload.MessageID)
+	}
+	if messageDeltaPayload.DeltaType != hookMessageDeltaTypeText {
+		t.Fatalf("message.delta delta type = %q, want %q", messageDeltaPayload.DeltaType, hookMessageDeltaTypeText)
+	}
+	if messageEndPayload.MessageID != messageStartPayload.MessageID {
+		t.Fatalf("message.end message id = %q, want %q", messageEndPayload.MessageID, messageStartPayload.MessageID)
+	}
+	if messageEndPayload.Text != "reply" {
+		t.Fatalf("message.end text = %q, want %q", messageEndPayload.Text, "reply")
+	}
+	if turnEndPayload.TurnID != turnStartPayload.TurnID {
+		t.Fatalf("turn.end turn id = %q, want %q", turnEndPayload.TurnID, turnStartPayload.TurnID)
+	}
+}
+
+func TestMessageStartPatchUpdatesFirstAssistantChunk(t *testing.T) {
+	t.Parallel()
+
+	patched := "patched reply"
+	hooks := newNativeHookDispatcher(t,
+		[]hookspkg.HookDecl{{
+			Name:         "patch-message-start",
+			Event:        hookspkg.HookMessageStart,
+			Mode:         hookspkg.HookModeSync,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		}},
+		map[string]hookspkg.Executor{
+			"patch-message-start": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.MessageStartPayload) (hookspkg.MessageStartPatch, error) {
+				return hookspkg.MessageStartPatch{Text: &patched}, nil
+			}),
+		},
+	)
+
+	h := newHarness(t, WithHookDispatcher(hooks))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	events := collectEvents(t, eventsCh)
+	if len(events) != 2 {
+		t.Fatalf("len(events) = %d, want 2", len(events))
+	}
+	if events[0].Text != patched {
+		t.Fatalf("first event text = %q, want %q", events[0].Text, patched)
+	}
+
+	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	if len(stored) < 2 {
+		t.Fatalf("stored events = %d, want at least 2", len(stored))
+	}
+	if !strings.Contains(stored[1].Content, patched) {
+		t.Fatalf("stored assistant content = %q, want patched reply", stored[1].Content)
+	}
+}
+
+func TestMessageDeltaAsyncHooksDoNotBlockPromptStreaming(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+
+	hooks := hookspkg.NewHooks(
+		hookspkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		hookspkg.WithAsyncWorkerCount(1),
+		hookspkg.WithAsyncQueueCapacity(1),
+		hookspkg.WithNativeDeclarations([]hookspkg.HookDecl{{
+			Name:         "observe-message-delta",
+			Event:        hookspkg.HookMessageDelta,
+			Mode:         hookspkg.HookModeAsync,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		}}),
+		hookspkg.WithExecutorResolver(func(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
+			if strings.TrimSpace(decl.Name) != "observe-message-delta" {
+				return nil, errors.New("unexpected hook name")
+			}
+			return hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPatch, error) {
+				select {
+				case started <- struct{}{}:
+				default:
+				}
+				<-release
+				return hookspkg.MessageDeltaPatch{}, nil
+			}), nil
+		}),
+	)
+	if err := hooks.Rebuild(testutil.Context(t)); err != nil {
+		t.Fatalf("Rebuild() error = %v", err)
+	}
+	t.Cleanup(hooks.Close)
+
+	h := newHarness(t, WithHookDispatcher(hooks))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+
+	select {
+	case event, ok := <-eventsCh:
+		if !ok {
+			t.Fatal("first prompt event channel read closed early, want agent message")
+		}
+		if event.Type != acp.EventTypeAgentMessage {
+			t.Fatalf("first prompt event type = %q, want %q", event.Type, acp.EventTypeAgentMessage)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("timed out waiting for first prompt event; message.delta hook blocked streaming")
+	}
+
+	select {
+	case event, ok := <-eventsCh:
+		if !ok {
+			t.Fatal("second prompt event channel read closed early, want done event")
+		}
+		if event.Type != acp.EventTypeDone {
+			t.Fatalf("second prompt event type = %q, want %q", event.Type, acp.EventTypeDone)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("timed out waiting for done event; message.delta hook blocked prompt completion")
+	}
+
+	select {
+	case _, ok := <-eventsCh:
+		if ok {
+			t.Fatal("prompt event channel still open after done event")
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("timed out waiting for prompt event channel close")
+	}
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for async message.delta hook to start")
+	}
+	close(release)
+}
+
+func TestContextCompactionDispatchesHooksAndUsesPatchedParams(t *testing.T) {
+	t.Parallel()
+
+	session := &Session{
+		ID:          "sess-context",
+		AgentName:   "coder",
+		Workspace:   "/tmp/workspace",
+		WorkspaceID: "ws-context",
+		Type:        SessionTypeUser,
+		State:       StateActive,
+	}
+
+	var (
+		prePayload     hookspkg.ContextPreCompactPayload
+		compactPayload hookspkg.ContextPreCompactPayload
+		postPayload    hookspkg.ContextPostCompactPayload
+	)
+
+	dispatcher := &spyHookDispatcher{
+		dispatchContextPreCompactFn: func(_ context.Context, payload hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPayload, error) {
+			prePayload = payload
+			patchedReason := "token_limit"
+			patchedStrategy := "summary"
+			payload.Reason = patchedReason
+			payload.Strategy = patchedStrategy
+			payload.ContextBlocks = []hookspkg.ContextBlock{{Kind: "summary", Text: "patched"}}
+			return payload, nil
+		},
+		dispatchContextPostCompactFn: func(_ context.Context, payload hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPayload, error) {
+			postPayload = payload
+			return payload, nil
+		},
+	}
+
+	h := newHarness(t, WithHookDispatcher(dispatcher))
+	result, err := h.manager.runContextCompaction(
+		testutil.Context(t),
+		session,
+		"turn-compact",
+		"manual",
+		"noop",
+		"",
+		[]hookspkg.ContextBlock{{Kind: "note", Text: "before"}},
+		func(_ context.Context, payload hookspkg.ContextPreCompactPayload) (hookspkg.ContextPostCompactPayload, error) {
+			compactPayload = payload
+			return hookspkg.ContextPostCompactPayload{
+				Summary:       "after",
+				ContextBlocks: []hookspkg.ContextBlock{{Kind: "summary", Text: "after"}},
+			}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("runContextCompaction() error = %v", err)
+	}
+
+	if prePayload.Reason != "manual" || prePayload.Strategy != "noop" {
+		t.Fatalf("pre-compaction payload = %#v, want original reason/strategy", prePayload)
+	}
+	if compactPayload.Reason != "token_limit" || compactPayload.Strategy != "summary" {
+		t.Fatalf("compaction payload = %#v, want patched reason/strategy", compactPayload)
+	}
+	if len(compactPayload.ContextBlocks) != 1 || compactPayload.ContextBlocks[0].Text != "patched" {
+		t.Fatalf("compaction context blocks = %#v, want patched blocks", compactPayload.ContextBlocks)
+	}
+	if postPayload.Summary != "after" {
+		t.Fatalf("post-compaction summary = %q, want %q", postPayload.Summary, "after")
+	}
+	if postPayload.Reason != "token_limit" || postPayload.Strategy != "summary" {
+		t.Fatalf("post-compaction reason/strategy = %#v, want patched values", postPayload)
+	}
+	if result.Summary != "after" {
+		t.Fatalf("result summary = %q, want %q", result.Summary, "after")
+	}
+}
+
 func newNativeHookDispatcher(t *testing.T, decls []hookspkg.HookDecl, executors map[string]hookspkg.Executor) *hookspkg.Hooks {
 	t.Helper()
 
@@ -390,6 +698,13 @@ type spyHookDispatcher struct {
 	dispatchAgentSpawnedFn       func(context.Context, hookspkg.AgentSpawnedPayload) (hookspkg.AgentSpawnedPayload, error)
 	dispatchAgentCrashedFn       func(context.Context, hookspkg.AgentCrashedPayload) (hookspkg.AgentCrashedPayload, error)
 	dispatchAgentStoppedFn       func(context.Context, hookspkg.AgentStoppedPayload) (hookspkg.AgentStoppedPayload, error)
+	dispatchTurnStartFn          func(context.Context, hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error)
+	dispatchTurnEndFn            func(context.Context, hookspkg.TurnEndPayload) (hookspkg.TurnEndPayload, error)
+	dispatchMessageStartFn       func(context.Context, hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error)
+	dispatchMessageDeltaFn       func(context.Context, hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error)
+	dispatchMessageEndFn         func(context.Context, hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error)
+	dispatchContextPreCompactFn  func(context.Context, hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPayload, error)
+	dispatchContextPostCompactFn func(context.Context, hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPayload, error)
 }
 
 func (s *spyHookDispatcher) DispatchSessionPreCreate(ctx context.Context, payload hookspkg.SessionPreCreatePayload) (hookspkg.SessionPreCreatePayload, error) {
@@ -486,6 +801,55 @@ func (s *spyHookDispatcher) DispatchAgentCrashed(ctx context.Context, payload ho
 func (s *spyHookDispatcher) DispatchAgentStopped(ctx context.Context, payload hookspkg.AgentStoppedPayload) (hookspkg.AgentStoppedPayload, error) {
 	if s.dispatchAgentStoppedFn != nil {
 		return s.dispatchAgentStoppedFn(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (s *spyHookDispatcher) DispatchTurnStart(ctx context.Context, payload hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error) {
+	if s.dispatchTurnStartFn != nil {
+		return s.dispatchTurnStartFn(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (s *spyHookDispatcher) DispatchTurnEnd(ctx context.Context, payload hookspkg.TurnEndPayload) (hookspkg.TurnEndPayload, error) {
+	if s.dispatchTurnEndFn != nil {
+		return s.dispatchTurnEndFn(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (s *spyHookDispatcher) DispatchMessageStart(ctx context.Context, payload hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error) {
+	if s.dispatchMessageStartFn != nil {
+		return s.dispatchMessageStartFn(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (s *spyHookDispatcher) DispatchMessageDelta(ctx context.Context, payload hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error) {
+	if s.dispatchMessageDeltaFn != nil {
+		return s.dispatchMessageDeltaFn(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (s *spyHookDispatcher) DispatchMessageEnd(ctx context.Context, payload hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error) {
+	if s.dispatchMessageEndFn != nil {
+		return s.dispatchMessageEndFn(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (s *spyHookDispatcher) DispatchContextPreCompact(ctx context.Context, payload hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPayload, error) {
+	if s.dispatchContextPreCompactFn != nil {
+		return s.dispatchContextPreCompactFn(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (s *spyHookDispatcher) DispatchContextPostCompact(ctx context.Context, payload hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPayload, error) {
+	if s.dispatchContextPostCompactFn != nil {
+		return s.dispatchContextPostCompactFn(ctx, payload)
 	}
 	return payload, nil
 }

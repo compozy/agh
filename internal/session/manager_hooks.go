@@ -18,7 +18,39 @@ import (
 const (
 	hookInputClassUserMessage = acp.EventTypeUserMessage
 	hookInputClassStartup     = "startup_prompt"
+
+	hookMessageRoleAssistant = "assistant"
+
+	hookMessageDeltaTypeFull    = "full"
+	hookMessageDeltaTypeText    = "text"
+	hookMessageDeltaTypeThought = "thought"
 )
+
+type promptTurnDispatchState struct {
+	session     *Session
+	turnID      string
+	inputClass  string
+	userMessage string
+	messageSeq  int
+	turnEnded   bool
+	openMessage *promptMessageDispatchState
+}
+
+type promptMessageDispatchState struct {
+	id      string
+	role    string
+	text    strings.Builder
+	lastRaw json.RawMessage
+}
+
+func newPromptTurnDispatchState(session *Session, turnID string, inputClass string, userMessage string) *promptTurnDispatchState {
+	return &promptTurnDispatchState{
+		session:     session,
+		turnID:      strings.TrimSpace(turnID),
+		inputClass:  strings.TrimSpace(inputClass),
+		userMessage: userMessage,
+	}
+}
 
 func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts) (CreateOpts, error) {
 	if m == nil || m.hooks == nil {
@@ -192,6 +224,167 @@ func (m *Manager) dispatchPromptPostAssemble(ctx context.Context, sessionCtx hoo
 	return strings.TrimSpace(payload.Prompt), nil
 }
 
+func (m *Manager) dispatchTurnStart(ctx context.Context, state *promptTurnDispatchState) error {
+	if m == nil || m.hooks == nil || state == nil {
+		return nil
+	}
+
+	_, err := m.hooks.DispatchTurnStart(ctx, hookspkg.TurnStartPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookTurnStart,
+			Timestamp: m.now(),
+		},
+		SessionContext: hookSessionContext(state.session),
+		TurnContext:    hookspkg.TurnContext{TurnID: state.turnID},
+		InputClass:     state.inputClass,
+		UserMessage:    state.userMessage,
+	})
+	if err != nil {
+		return fmt.Errorf("session: dispatch turn.start: %w", err)
+	}
+
+	return nil
+}
+
+func (m *Manager) dispatchTurnEnd(ctx context.Context, state *promptTurnDispatchState, eventTime time.Time) {
+	if state == nil || state.turnEnded {
+		return
+	}
+	state.turnEnded = true
+	if m == nil || m.hooks == nil {
+		return
+	}
+
+	_, err := m.hooks.DispatchTurnEnd(ctx, hookspkg.TurnEndPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookTurnEnd,
+			Timestamp: hookTimestamp(m.now(), eventTime),
+		},
+		SessionContext: hookSessionContext(state.session),
+		TurnContext:    hookspkg.TurnContext{TurnID: state.turnID},
+		InputClass:     state.inputClass,
+		UserMessage:    state.userMessage,
+	})
+	if err != nil {
+		m.warnHookDispatch(ctx, state.session, hookspkg.HookTurnEnd, err)
+	}
+}
+
+func (m *Manager) preparePromptEvent(ctx context.Context, state *promptTurnDispatchState, event acp.AgentEvent) acp.AgentEvent {
+	if state == nil {
+		return event
+	}
+
+	role, deltaType, isMessage := hookMessageDetails(event.Type)
+	if !isMessage {
+		m.finishPromptMessage(ctx, state, event.Timestamp)
+		return event
+	}
+
+	if state.openMessage == nil {
+		event = m.dispatchMessageStart(ctx, state, event, role)
+	}
+
+	if state.openMessage == nil {
+		return event
+	}
+
+	state.openMessage.text.WriteString(event.Text)
+	state.openMessage.lastRaw = cloneSessionRawMessage(event.Raw)
+	m.dispatchMessageDelta(ctx, state, event, deltaType)
+	return event
+}
+
+func (m *Manager) dispatchMessageStart(ctx context.Context, state *promptTurnDispatchState, event acp.AgentEvent, role string) acp.AgentEvent {
+	if state == nil {
+		return event
+	}
+
+	state.messageSeq++
+	message := &promptMessageDispatchState{
+		id:   nextPromptMessageID(state.turnID, state.messageSeq),
+		role: strings.TrimSpace(role),
+	}
+	state.openMessage = message
+	if m == nil || m.hooks == nil {
+		return event
+	}
+
+	payload, err := m.hooks.DispatchMessageStart(ctx, hookspkg.MessageStartPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookMessageStart,
+			Timestamp: hookTimestamp(m.now(), event.Timestamp),
+		},
+		SessionContext: hookSessionContext(state.session),
+		TurnContext:    hookspkg.TurnContext{TurnID: state.turnID},
+		MessageID:      message.id,
+		Role:           message.role,
+		DeltaType:      hookMessageDeltaTypeFull,
+		Text:           event.Text,
+		Raw:            cloneSessionRawMessage(event.Raw),
+	})
+	if err != nil {
+		m.warnHookDispatch(ctx, state.session, hookspkg.HookMessageStart, err)
+		return event
+	}
+
+	message.role = strings.TrimSpace(payload.Role)
+	event.Text = payload.Text
+	return event
+}
+
+func (m *Manager) dispatchMessageDelta(ctx context.Context, state *promptTurnDispatchState, event acp.AgentEvent, deltaType string) {
+	if m == nil || m.hooks == nil || state == nil || state.openMessage == nil {
+		return
+	}
+
+	_, err := m.hooks.DispatchMessageDelta(ctx, hookspkg.MessageDeltaPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookMessageDelta,
+			Timestamp: hookTimestamp(m.now(), event.Timestamp),
+		},
+		SessionContext: hookSessionContext(state.session),
+		TurnContext:    hookspkg.TurnContext{TurnID: state.turnID},
+		MessageID:      state.openMessage.id,
+		Role:           state.openMessage.role,
+		DeltaType:      strings.TrimSpace(deltaType),
+		Text:           event.Text,
+		Raw:            cloneSessionRawMessage(event.Raw),
+	})
+	if err != nil {
+		m.warnHookDispatch(ctx, state.session, hookspkg.HookMessageDelta, err)
+	}
+}
+
+func (m *Manager) finishPromptMessage(ctx context.Context, state *promptTurnDispatchState, eventTime time.Time) {
+	if state == nil || state.openMessage == nil {
+		return
+	}
+
+	message := state.openMessage
+	state.openMessage = nil
+	if m == nil || m.hooks == nil {
+		return
+	}
+
+	_, err := m.hooks.DispatchMessageEnd(ctx, hookspkg.MessageEndPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookMessageEnd,
+			Timestamp: hookTimestamp(m.now(), eventTime),
+		},
+		SessionContext: hookSessionContext(state.session),
+		TurnContext:    hookspkg.TurnContext{TurnID: state.turnID},
+		MessageID:      message.id,
+		Role:           message.role,
+		DeltaType:      hookMessageDeltaTypeFull,
+		Text:           message.text.String(),
+		Raw:            cloneSessionRawMessage(message.lastRaw),
+	})
+	if err != nil {
+		m.warnHookDispatch(ctx, state.session, hookspkg.HookMessageEnd, err)
+	}
+}
+
 func (m *Manager) dispatchEventPreRecord(ctx context.Context, session *Session, event acp.AgentEvent, content string) {
 	if m == nil || m.hooks == nil {
 		return
@@ -210,6 +403,80 @@ func (m *Manager) dispatchEventPreRecord(ctx context.Context, session *Session, 
 	if err != nil {
 		m.warnHookDispatch(ctx, session, hookspkg.HookEventPreRecord, err)
 	}
+}
+
+func (m *Manager) runContextCompaction(
+	ctx context.Context,
+	session *Session,
+	turnID string,
+	reason string,
+	strategy string,
+	summary string,
+	contextBlocks []hookspkg.ContextBlock,
+	compact func(context.Context, hookspkg.ContextPreCompactPayload) (hookspkg.ContextPostCompactPayload, error),
+) (hookspkg.ContextPostCompactPayload, error) {
+	if compact == nil {
+		return hookspkg.ContextPostCompactPayload{}, errors.New("session: context compactor is required")
+	}
+
+	now := time.Now().UTC
+	if m != nil {
+		now = m.now
+	}
+
+	prePayload := hookspkg.ContextPreCompactPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookContextPreCompact,
+			Timestamp: now(),
+		},
+		SessionContext: hookSessionContext(session),
+		TurnContext:    hookspkg.TurnContext{TurnID: strings.TrimSpace(turnID)},
+		Reason:         strings.TrimSpace(reason),
+		Strategy:       strings.TrimSpace(strategy),
+		Summary:        strings.TrimSpace(summary),
+		ContextBlocks:  cloneSessionContextBlocks(contextBlocks),
+	}
+
+	var err error
+	if m != nil && m.hooks != nil {
+		prePayload, err = m.hooks.DispatchContextPreCompact(ctx, prePayload)
+		if err != nil {
+			return hookspkg.ContextPostCompactPayload{}, fmt.Errorf("session: dispatch context.pre_compact: %w", err)
+		}
+	}
+
+	postPayload, err := compact(ctx, prePayload)
+	if err != nil {
+		return hookspkg.ContextPostCompactPayload{}, err
+	}
+
+	postPayload.Event = hookspkg.HookContextPostCompact
+	if postPayload.Timestamp.IsZero() {
+		postPayload.Timestamp = now()
+	}
+	if strings.TrimSpace(postPayload.SessionID) == "" {
+		postPayload.SessionContext = prePayload.SessionContext
+	}
+	if strings.TrimSpace(postPayload.TurnID) == "" {
+		postPayload.TurnContext = prePayload.TurnContext
+	}
+	if strings.TrimSpace(postPayload.Reason) == "" {
+		postPayload.Reason = prePayload.Reason
+	}
+	if strings.TrimSpace(postPayload.Strategy) == "" {
+		postPayload.Strategy = prePayload.Strategy
+	}
+	if postPayload.ContextBlocks == nil {
+		postPayload.ContextBlocks = cloneSessionContextBlocks(prePayload.ContextBlocks)
+	}
+
+	if m != nil && m.hooks != nil {
+		if _, err := m.hooks.DispatchContextPostCompact(ctx, postPayload); err != nil {
+			m.warnHookDispatch(ctx, session, hookspkg.HookContextPostCompact, err)
+		}
+	}
+
+	return postPayload, nil
 }
 
 func (m *Manager) dispatchEventPostRecord(ctx context.Context, session *Session, event acp.AgentEvent, content string) {
@@ -441,4 +708,61 @@ func (m *Manager) warnHookDispatch(ctx context.Context, session *Session, event 
 		"hook_event", event.String(),
 		"error", err,
 	)
+}
+
+func hookMessageDetails(eventType string) (string, string, bool) {
+	switch strings.TrimSpace(eventType) {
+	case acp.EventTypeAgentMessage:
+		return hookMessageRoleAssistant, hookMessageDeltaTypeText, true
+	case acp.EventTypeThought:
+		return hookMessageRoleAssistant, hookMessageDeltaTypeThought, true
+	default:
+		return "", "", false
+	}
+}
+
+func nextPromptMessageID(turnID string, sequence int) string {
+	base := strings.TrimSpace(turnID)
+	if base == "" {
+		base = "msg"
+	}
+	if sequence <= 0 {
+		return base + "-message"
+	}
+	return fmt.Sprintf("%s-message-%d", base, sequence)
+}
+
+func cloneSessionRawMessage(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	return append(json.RawMessage(nil), raw...)
+}
+
+func cloneSessionContextBlocks(blocks []hookspkg.ContextBlock) []hookspkg.ContextBlock {
+	if len(blocks) == 0 {
+		return nil
+	}
+
+	cloned := make([]hookspkg.ContextBlock, 0, len(blocks))
+	for _, block := range blocks {
+		cloned = append(cloned, hookspkg.ContextBlock{
+			Kind:     strings.TrimSpace(block.Kind),
+			Text:     block.Text,
+			Metadata: cloneStringMap(block.Metadata),
+		})
+	}
+	return cloned
+}
+
+func cloneStringMap(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]string, len(src))
+	for key, value := range src {
+		cloned[key] = value
+	}
+	return cloned
 }

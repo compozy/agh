@@ -7,6 +7,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -157,6 +158,26 @@ func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {
 			record("input.pre_submit")
 			return payload, nil
 		},
+		dispatchTurnStartFn: func(_ context.Context, payload hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error) {
+			record("turn.start")
+			return payload, nil
+		},
+		dispatchTurnEndFn: func(_ context.Context, payload hookspkg.TurnEndPayload) (hookspkg.TurnEndPayload, error) {
+			record("turn.end")
+			return payload, nil
+		},
+		dispatchMessageStartFn: func(_ context.Context, payload hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error) {
+			record("message.start")
+			return payload, nil
+		},
+		dispatchMessageDeltaFn: func(_ context.Context, payload hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error) {
+			record("message.delta:" + payload.DeltaType)
+			return payload, nil
+		},
+		dispatchMessageEndFn: func(_ context.Context, payload hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error) {
+			record("message.end")
+			return payload, nil
+		},
 		dispatchEventPreRecordFn: func(_ context.Context, payload hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error) {
 			record("event.pre_record:" + payload.RecordType)
 			return payload, nil
@@ -198,12 +219,17 @@ func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {
 		"agent.spawned",
 		"session.post_create",
 		"input.pre_submit",
+		"turn.start",
 		"event.pre_record:user_message",
 		"event.post_record:user_message",
+		"message.start",
+		"message.delta:text",
 		"event.pre_record:agent_message",
 		"event.post_record:agent_message",
+		"message.end",
 		"event.pre_record:done",
 		"event.post_record:done",
+		"turn.end",
 		"session.pre_stop",
 		"event.pre_record:session_stopped",
 		"event.post_record:session_stopped",
@@ -216,6 +242,81 @@ func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {
 	mu.Unlock()
 	if !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("hook order = %#v, want %#v", got, want)
+	}
+}
+
+func TestManagerIntegrationContextCompactionUsesPatchedParams(t *testing.T) {
+	reason := "patched-reason"
+	strategy := "patched-strategy"
+	postSeen := make(chan hookspkg.ContextPostCompactPayload, 1)
+
+	hooks := newNativeHookDispatcher(t,
+		[]hookspkg.HookDecl{
+			{
+				Name:         "context-pre",
+				Event:        hookspkg.HookContextPreCompact,
+				Mode:         hookspkg.HookModeSync,
+				ExecutorKind: hookspkg.HookExecutorNative,
+			},
+			{
+				Name:         "context-post",
+				Event:        hookspkg.HookContextPostCompact,
+				Mode:         hookspkg.HookModeAsync,
+				ExecutorKind: hookspkg.HookExecutorNative,
+			},
+		},
+		map[string]hookspkg.Executor{
+			"context-pre": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPatch, error) {
+				return hookspkg.ContextPreCompactPatch{
+					Reason:   &reason,
+					Strategy: &strategy,
+				}, nil
+			}),
+			"context-post": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPatch, error) {
+				postSeen <- payload
+				return hookspkg.ContextPostCompactPatch{}, nil
+			}),
+		},
+	)
+
+	h := newHarness(t, WithHookDispatcher(hooks))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	var seen hookspkg.ContextPreCompactPayload
+	result, err := h.manager.runContextCompaction(
+		testutil.Context(t),
+		session,
+		"turn-context",
+		"manual",
+		"noop",
+		"",
+		nil,
+		func(_ context.Context, payload hookspkg.ContextPreCompactPayload) (hookspkg.ContextPostCompactPayload, error) {
+			seen = payload
+			return hookspkg.ContextPostCompactPayload{
+				Summary: "after",
+			}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("runContextCompaction() error = %v", err)
+	}
+	if seen.Reason != reason || seen.Strategy != strategy {
+		t.Fatalf("compactor saw reason/strategy = %q/%q, want %q/%q", seen.Reason, seen.Strategy, reason, strategy)
+	}
+	if result.Reason != reason || result.Strategy != strategy {
+		t.Fatalf("result reason/strategy = %q/%q, want %q/%q", result.Reason, result.Strategy, reason, strategy)
+	}
+	select {
+	case payload := <-postSeen:
+		if payload.Reason != reason || payload.Strategy != strategy {
+			t.Fatalf("post hook saw reason/strategy = %q/%q, want %q/%q", payload.Reason, payload.Strategy, reason, strategy)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for context.post_compact hook")
 	}
 }
 

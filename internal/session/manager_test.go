@@ -395,7 +395,7 @@ func TestPumpPromptReturnsWhenContextIsCanceledWhileWaitingForSource(t *testing.
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		h.manager.pumpPrompt(ctx, nil, "turn-1", source, out)
+		h.manager.pumpPrompt(ctx, nil, newPromptTurnDispatchState(nil, "turn-1", hookInputClassUserMessage, ""), source, out)
 	}()
 
 	cancel()

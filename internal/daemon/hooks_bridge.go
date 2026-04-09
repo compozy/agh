@@ -35,6 +35,13 @@ type hookRuntime interface {
 	DispatchAgentSpawned(context.Context, hookspkg.AgentSpawnedPayload) (hookspkg.AgentSpawnedPayload, error)
 	DispatchAgentCrashed(context.Context, hookspkg.AgentCrashedPayload) (hookspkg.AgentCrashedPayload, error)
 	DispatchAgentStopped(context.Context, hookspkg.AgentStoppedPayload) (hookspkg.AgentStoppedPayload, error)
+	DispatchTurnStart(context.Context, hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error)
+	DispatchTurnEnd(context.Context, hookspkg.TurnEndPayload) (hookspkg.TurnEndPayload, error)
+	DispatchMessageStart(context.Context, hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error)
+	DispatchMessageDelta(context.Context, hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error)
+	DispatchMessageEnd(context.Context, hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error)
+	DispatchContextPreCompact(context.Context, hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPayload, error)
+	DispatchContextPostCompact(context.Context, hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPayload, error)
 	OnAgentEvent(context.Context, string, any)
 }
 
@@ -168,6 +175,48 @@ func (n *hooksNotifier) DispatchAgentCrashed(ctx context.Context, payload hooksp
 func (n *hooksNotifier) DispatchAgentStopped(ctx context.Context, payload hookspkg.AgentStoppedPayload) (hookspkg.AgentStoppedPayload, error) {
 	return dispatchRuntime(n, ctx, hookspkg.HookAgentStopped, payload, true, func(hooks hookRuntime, callCtx context.Context, item hookspkg.AgentStoppedPayload) (hookspkg.AgentStoppedPayload, error) {
 		return hooks.DispatchAgentStopped(callCtx, item)
+	})
+}
+
+func (n *hooksNotifier) DispatchTurnStart(ctx context.Context, payload hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error) {
+	return dispatchRuntime(n, ctx, hookspkg.HookTurnStart, payload, false, func(hooks hookRuntime, callCtx context.Context, item hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error) {
+		return hooks.DispatchTurnStart(callCtx, item)
+	})
+}
+
+func (n *hooksNotifier) DispatchTurnEnd(ctx context.Context, payload hookspkg.TurnEndPayload) (hookspkg.TurnEndPayload, error) {
+	return dispatchRuntime(n, ctx, hookspkg.HookTurnEnd, payload, false, func(hooks hookRuntime, callCtx context.Context, item hookspkg.TurnEndPayload) (hookspkg.TurnEndPayload, error) {
+		return hooks.DispatchTurnEnd(callCtx, item)
+	})
+}
+
+func (n *hooksNotifier) DispatchMessageStart(ctx context.Context, payload hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error) {
+	return dispatchRuntime(n, ctx, hookspkg.HookMessageStart, payload, false, func(hooks hookRuntime, callCtx context.Context, item hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error) {
+		return hooks.DispatchMessageStart(callCtx, item)
+	})
+}
+
+func (n *hooksNotifier) DispatchMessageDelta(ctx context.Context, payload hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error) {
+	return dispatchRuntime(n, ctx, hookspkg.HookMessageDelta, payload, false, func(hooks hookRuntime, callCtx context.Context, item hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error) {
+		return hooks.DispatchMessageDelta(callCtx, item)
+	})
+}
+
+func (n *hooksNotifier) DispatchMessageEnd(ctx context.Context, payload hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error) {
+	return dispatchRuntime(n, ctx, hookspkg.HookMessageEnd, payload, false, func(hooks hookRuntime, callCtx context.Context, item hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error) {
+		return hooks.DispatchMessageEnd(callCtx, item)
+	})
+}
+
+func (n *hooksNotifier) DispatchContextPreCompact(ctx context.Context, payload hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPayload, error) {
+	return dispatchRuntime(n, ctx, hookspkg.HookContextPreCompact, payload, false, func(hooks hookRuntime, callCtx context.Context, item hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPayload, error) {
+		return hooks.DispatchContextPreCompact(callCtx, item)
+	})
+}
+
+func (n *hooksNotifier) DispatchContextPostCompact(ctx context.Context, payload hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPayload, error) {
+	return dispatchRuntime(n, ctx, hookspkg.HookContextPostCompact, payload, false, func(hooks hookRuntime, callCtx context.Context, item hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPayload, error) {
+		return hooks.DispatchContextPostCompact(callCtx, item)
 	})
 }
 

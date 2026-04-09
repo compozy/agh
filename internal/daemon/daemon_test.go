@@ -2042,6 +2042,13 @@ type fakeHookRuntime struct {
 	onClose          func()
 	onDispatchCreate func(context.Context, hookspkg.SessionPostCreatePayload) error
 	onDispatchStop   func(context.Context, hookspkg.SessionPostStopPayload) error
+	onTurnStart      func(context.Context, hookspkg.TurnStartPayload) error
+	onTurnEnd        func(context.Context, hookspkg.TurnEndPayload) error
+	onMessageStart   func(context.Context, hookspkg.MessageStartPayload) error
+	onMessageDelta   func(context.Context, hookspkg.MessageDeltaPayload) error
+	onMessageEnd     func(context.Context, hookspkg.MessageEndPayload) error
+	onPreCompact     func(context.Context, hookspkg.ContextPreCompactPayload) error
+	onPostCompact    func(context.Context, hookspkg.ContextPostCompactPayload) error
 	onAgentEvent     func(context.Context, string, any)
 }
 
@@ -2121,6 +2128,55 @@ func (f *fakeHookRuntime) DispatchAgentCrashed(_ context.Context, payload hooksp
 }
 
 func (f *fakeHookRuntime) DispatchAgentStopped(_ context.Context, payload hookspkg.AgentStoppedPayload) (hookspkg.AgentStoppedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchTurnStart(ctx context.Context, payload hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error) {
+	if f.onTurnStart != nil {
+		return payload, f.onTurnStart(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchTurnEnd(ctx context.Context, payload hookspkg.TurnEndPayload) (hookspkg.TurnEndPayload, error) {
+	if f.onTurnEnd != nil {
+		return payload, f.onTurnEnd(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchMessageStart(ctx context.Context, payload hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error) {
+	if f.onMessageStart != nil {
+		return payload, f.onMessageStart(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchMessageDelta(ctx context.Context, payload hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error) {
+	if f.onMessageDelta != nil {
+		return payload, f.onMessageDelta(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchMessageEnd(ctx context.Context, payload hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error) {
+	if f.onMessageEnd != nil {
+		return payload, f.onMessageEnd(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchContextPreCompact(ctx context.Context, payload hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPayload, error) {
+	if f.onPreCompact != nil {
+		return payload, f.onPreCompact(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchContextPostCompact(ctx context.Context, payload hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPayload, error) {
+	if f.onPostCompact != nil {
+		return payload, f.onPostCompact(ctx, payload)
+	}
 	return payload, nil
 }
 
