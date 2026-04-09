@@ -6,14 +6,14 @@ import { cn } from "@/lib/utils";
 import { StatusDot } from "./status-dot";
 
 const metricStripVariants = cva(
-  "rounded-[calc(var(--ds-radius-panel)-0.25rem)] border bg-[color:var(--ds-panel-elevated)] p-4 text-[color:var(--ds-text-primary)] sm:p-5",
+  "rounded-[0.75rem] border bg-[color:var(--color-surface-elevated)] p-4 text-[color:var(--color-text-primary)] sm:p-5",
   {
     variants: {
       tone: {
-        neutral: "border-[color:var(--ds-line-subtle)]",
-        amber: "border-[color:var(--ds-pill-amber-border)]",
-        green: "border-[color:var(--ds-pill-green-border)]",
-        violet: "border-[color:var(--ds-pill-violet-border)]",
+        neutral: "border-[color:var(--color-divider)]",
+        amber: "border-[color:var(--color-accent)]",
+        green: "border-[color:var(--color-success)]",
+        violet: "border-[color:var(--color-info)]",
       },
     },
     defaultVariants: {
@@ -37,16 +37,16 @@ function MetricStrip({ className, detail, label, tone, value, ...props }: Metric
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <StatusDot tone={dotTone} />
-            <p className="font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--ds-text-mono)]">
+            <p className="font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
               {label}
             </p>
           </div>
-          <p className="font-display text-4xl leading-none font-semibold tracking-[-0.04em]">
+          <p className="font-sans text-4xl leading-none font-semibold tracking-[-0.04em]">
             {value}
           </p>
         </div>
         {detail ? (
-          <p className="max-w-[11rem] text-right text-sm leading-6 text-[color:var(--ds-text-secondary)]">
+          <p className="max-w-[11rem] text-right text-sm leading-6 text-[color:var(--color-text-secondary)]">
             {detail}
           </p>
         ) : null}

@@ -27,7 +27,7 @@ function AppIndexPage() {
             Start a new session from the sidebar or select an existing one to begin.
           </EmptyDescription>
         </EmptyHeader>
-        <div className="flex items-center gap-1.5 text-xs text-[color:var(--ds-text-muted)]">
+        <div className="flex items-center gap-1.5 text-xs text-[color:var(--color-text-tertiary)]">
           <span>Press</span>
           <Kbd>⌘K</Kbd>
           <span>to search</span>

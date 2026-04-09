@@ -14,7 +14,7 @@ function AppLayout() {
       <AppSidebar />
       <SidebarInset>
         <AppHeader />
-        <div className="ds-texture-canvas-subtle relative flex flex-1 flex-col overflow-hidden">
+        <div className="relative flex flex-1 flex-col overflow-hidden bg-background">
           <Outlet />
         </div>
       </SidebarInset>

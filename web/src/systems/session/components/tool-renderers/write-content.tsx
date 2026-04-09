@@ -17,10 +17,12 @@ export function WriteContent({ message }: { message: UIMessage }) {
   return (
     <div className="space-y-1.5 text-xs" data-testid="write-content">
       {filePath && (
-        <div className="font-mono text-[11px] text-[color:var(--ds-text-muted)]">{filePath}</div>
+        <div className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+          {filePath}
+        </div>
       )}
       {content && (
-        <pre className="max-h-48 overflow-auto rounded-md bg-[color:var(--ds-panel-base)] px-3 py-2 font-mono text-[11px] text-[color:var(--ds-text-muted)] whitespace-pre-wrap break-words">
+        <pre className="max-h-48 overflow-auto rounded-md bg-[color:var(--color-surface)] px-3 py-2 font-mono text-[11px] text-[color:var(--color-text-tertiary)] whitespace-pre-wrap break-words">
           {content.length > 2000 ? `${content.slice(0, 2000)}\u2026` : content}
         </pre>
       )}

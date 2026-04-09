@@ -148,8 +148,8 @@ export const ChatView = memo(function ChatView({ messages, isStreaming }: ChatVi
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="chat-empty-state">
         <div className="flex flex-col items-center gap-3">
-          <MessageSquare className="size-8 text-[color:var(--ds-text-muted)]/30" />
-          <p className="text-sm italic text-[color:var(--ds-text-muted)]">
+          <MessageSquare className="size-8 text-[color:var(--color-text-tertiary)]/30" />
+          <p className="text-sm italic text-[color:var(--color-text-tertiary)]">
             Send a message to start the conversation
           </p>
         </div>
@@ -300,7 +300,7 @@ function ChatViewContent({ messages, isStreaming }: ChatViewProps) {
             variant="secondary"
             size="sm"
             onClick={scrollToBottom}
-            className={cn("shadow-md", "border border-[color:var(--ds-line-subtle)]")}
+            className={cn("border border-[color:var(--color-divider)]")}
             data-testid="scroll-to-bottom"
           >
             <ArrowDown className="size-3.5" />

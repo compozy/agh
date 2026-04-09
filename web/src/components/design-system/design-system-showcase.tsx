@@ -67,11 +67,11 @@ const integrations = [
 ] as const;
 
 const swatches = [
-  { description: "Canvas", name: "Graphite", token: "--ds-canvas" },
-  { description: "Surface", name: "Panel Base", token: "--ds-panel-base" },
-  { description: "Accent", name: "Amber", token: "--ds-accent-amber" },
-  { description: "Signal", name: "Green", token: "--ds-accent-green" },
-  { description: "Utility", name: "Violet", token: "--ds-accent-violet" },
+  { description: "Canvas", name: "Graphite", token: "--color-canvas" },
+  { description: "Surface", name: "Panel Base", token: "--color-surface" },
+  { description: "Accent", name: "Amber", token: "--color-accent" },
+  { description: "Signal", name: "Green", token: "--color-success" },
+  { description: "Utility", name: "Violet", token: "--color-info" },
 ] as const;
 
 function DesignSystemShowcase() {
@@ -84,19 +84,19 @@ function DesignSystemShowcase() {
               <Panel tone="accented" className="max-w-sm gap-4 p-4 sm:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex size-11 items-center justify-center rounded-full border border-[color:var(--ds-pill-amber-border)] bg-[color:var(--ds-pill-amber)]">
-                      <Sparkles className="size-5 text-[color:var(--ds-accent-amber)]" />
+                    <div className="flex size-11 items-center justify-center rounded-full border border-[color:var(--color-accent)] bg-[color:var(--color-accent-tint)]">
+                      <Sparkles className="size-5 text-[color:var(--color-accent)]" />
                     </div>
                     <div>
-                      <p className="font-mono text-[0.625rem] uppercase tracking-[0.14em] text-[color:var(--ds-text-mono)]">
+                      <p className="font-mono text-[0.625rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
                         First pass
                       </p>
-                      <p className="text-sm text-[color:var(--ds-text-secondary)]">
+                      <p className="text-sm text-[color:var(--color-text-secondary)]">
                         Foundations only, built to migrate forward.
                       </p>
                     </div>
                   </div>
-                  <ArrowRight className="size-4 text-[color:var(--ds-text-muted)]" />
+                  <ArrowRight className="size-4 text-[color:var(--color-text-tertiary)]" />
                 </div>
               </Panel>
             }
@@ -117,7 +117,7 @@ function DesignSystemShowcase() {
                       kind: "filter",
                       tone: filter.active ? "amber" : "neutral",
                     }),
-                    "cursor-pointer hover:border-[color:var(--ds-line-strong)] hover:text-[color:var(--ds-text-primary)]"
+                    "cursor-pointer hover:border-[color:var(--color-divider)] hover:text-[color:var(--color-text-primary)]"
                   )}
                   key={filter.label}
                   type="button"
@@ -142,7 +142,7 @@ function DesignSystemShowcase() {
             <PanelHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-2">
-                  <p className="font-mono text-[0.64rem] uppercase tracking-[0.16em] text-[color:var(--ds-text-mono)]">
+                  <p className="font-mono text-[0.64rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
                     Mission threads
                   </p>
                   <PanelTitle>
@@ -162,18 +162,18 @@ function DesignSystemShowcase() {
             <PanelBody className="gap-3">
               {missionThreads.map(thread => (
                 <article
-                  className="rounded-[calc(var(--ds-radius-panel)-0.4rem)] border border-[color:var(--ds-line-subtle)] bg-black/10 p-4 transition-colors duration-200 hover:border-[color:var(--ds-line-strong)]"
+                  className="rounded-[0.6rem] border border-[color:var(--color-divider)] bg-black/10 p-4 transition-colors duration-200 hover:border-[color:var(--color-divider)]"
                   key={thread.id}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="space-y-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusDot tone={thread.tone} />
-                        <p className="font-mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--ds-text-mono)]">
+                        <p className="font-mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
                           {thread.id} / {thread.meta}
                         </p>
                       </div>
-                      <h3 className="max-w-2xl text-lg leading-7 font-medium text-[color:var(--ds-text-primary)]">
+                      <h3 className="max-w-2xl text-lg leading-7 font-medium text-[color:var(--color-text-primary)]">
                         {thread.title}
                       </h3>
                     </div>
@@ -197,8 +197,8 @@ function DesignSystemShowcase() {
                           className={cn(
                             "h-2 rounded-full border border-transparent transition-colors",
                             active
-                              ? "bg-[color:var(--ds-accent-green)]"
-                              : "bg-[color:var(--ds-panel-elevated)] border-[color:var(--ds-line-subtle)]"
+                              ? "bg-[color:var(--color-success)]"
+                              : "bg-[color:var(--color-surface-elevated)] border-[color:var(--color-divider)]"
                           )}
                           key={`${thread.id}-${index + 1}`}
                         />
@@ -216,7 +216,7 @@ function DesignSystemShowcase() {
               tone="accented"
             >
               <PanelHeader>
-                <p className="font-mono text-[0.64rem] uppercase tracking-[0.16em] text-[color:var(--ds-text-mono)]">
+                <p className="font-mono text-[0.64rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
                   Core metrics
                 </p>
                 <PanelTitle>Foundations that can scale across future AGH views.</PanelTitle>
@@ -243,7 +243,7 @@ function DesignSystemShowcase() {
               tone="elevated"
             >
               <PanelHeader>
-                <p className="font-mono text-[0.64rem] uppercase tracking-[0.16em] text-[color:var(--ds-text-mono)]">
+                <p className="font-mono text-[0.64rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
                   Integration health
                 </p>
                 <PanelTitle>Shared primitives for the surfaces AGH uses most.</PanelTitle>
@@ -252,16 +252,16 @@ function DesignSystemShowcase() {
               <PanelBody className="gap-3">
                 {integrations.map(item => (
                   <div
-                    className="rounded-[calc(var(--ds-radius-panel)-0.55rem)] border border-[color:var(--ds-line-subtle)] bg-black/10 px-4 py-3"
+                    className="rounded-[0.45rem] border border-[color:var(--color-divider)] bg-black/10 px-4 py-3"
                     key={item.name}
                   >
                     <div className="flex items-center gap-3">
                       <StatusDot tone={item.tone} />
                       <div>
-                        <p className="text-sm font-medium text-[color:var(--ds-text-primary)]">
+                        <p className="text-sm font-medium text-[color:var(--color-text-primary)]">
                           {item.name}
                         </p>
-                        <p className="mt-1 text-sm leading-6 text-[color:var(--ds-text-secondary)]">
+                        <p className="mt-1 text-sm leading-6 text-[color:var(--color-text-secondary)]">
                           {item.description}
                         </p>
                       </div>
@@ -278,7 +278,7 @@ function DesignSystemShowcase() {
             <PanelHeader>
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="space-y-2">
-                  <p className="font-mono text-[0.64rem] uppercase tracking-[0.16em] text-[color:var(--ds-text-mono)]">
+                  <p className="font-mono text-[0.64rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
                     Token preview
                   </p>
                   <PanelTitle>The route doubles as a living reference surface.</PanelTitle>
@@ -293,17 +293,17 @@ function DesignSystemShowcase() {
               <div className="grid gap-3 md:grid-cols-5">
                 {swatches.map(swatch => (
                   <div
-                    className="rounded-[calc(var(--ds-radius-panel)-0.45rem)] border border-[color:var(--ds-line-subtle)] bg-black/10 p-3"
+                    className="rounded-[0.55rem] border border-[color:var(--color-divider)] bg-black/10 p-3"
                     key={swatch.token}
                   >
                     <div
-                      className="mb-3 h-20 rounded-[calc(var(--ds-radius-panel)-0.65rem)] border border-white/12"
+                      className="mb-3 h-20 rounded-[0.35rem] border border-white/12"
                       style={{ background: `var(${swatch.token})` }}
                     />
-                    <p className="text-sm font-medium text-[color:var(--ds-text-primary)]">
+                    <p className="text-sm font-medium text-[color:var(--color-text-primary)]">
                       {swatch.name}
                     </p>
-                    <p className="mt-1 font-mono text-[0.58rem] uppercase tracking-[0.18em] text-[color:var(--ds-text-mono)]">
+                    <p className="mt-1 font-mono text-[0.58rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
                       {swatch.description}
                     </p>
                   </div>
@@ -311,7 +311,7 @@ function DesignSystemShowcase() {
               </div>
 
               <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-                <div className="rounded-[calc(var(--ds-radius-panel)-0.4rem)] border border-[color:var(--ds-line-subtle)] bg-black/10 p-4">
+                <div className="rounded-[0.6rem] border border-[color:var(--color-divider)] bg-black/10 p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Pill emphasis="strong" kind="filter" tone="amber">
                       Filters
@@ -326,15 +326,15 @@ function DesignSystemShowcase() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 rounded-[calc(var(--ds-radius-panel)-0.4rem)] border border-[color:var(--ds-line-subtle)] bg-black/10 p-4">
-                  <div className="flex size-11 items-center justify-center rounded-full border border-[color:var(--ds-line-subtle)] bg-[color:var(--ds-panel-accent)]">
-                    <Layers3 className="size-5 text-[color:var(--ds-accent-violet)]" />
+                <div className="flex items-center gap-3 rounded-[0.6rem] border border-[color:var(--color-divider)] bg-black/10 p-4">
+                  <div className="flex size-11 items-center justify-center rounded-full border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)]">
+                    <Layers3 className="size-5 text-[color:var(--color-info)]" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-[color:var(--ds-text-primary)]">
+                    <p className="text-sm font-medium text-[color:var(--color-text-primary)]">
                       Foundation layer is isolated from the raw primitive inventory.
                     </p>
-                    <p className="mt-1 text-sm leading-6 text-[color:var(--ds-text-secondary)]">
+                    <p className="mt-1 text-sm leading-6 text-[color:var(--color-text-secondary)]">
                       New routes can migrate toward these surfaces without forcing a full library
                       rewrite.
                     </p>
@@ -344,10 +344,10 @@ function DesignSystemShowcase() {
             </PanelBody>
 
             <PanelFooter>
-              <p className="font-mono text-[0.625rem] uppercase tracking-[0.14em] text-[color:var(--ds-text-mono)]">
+              <p className="font-mono text-[0.625rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
                 Graphite canvas / warm action cues / compact operator density
               </p>
-              <div className="flex items-center gap-2 text-sm text-[color:var(--ds-text-secondary)]">
+              <div className="flex items-center gap-2 text-sm text-[color:var(--color-text-secondary)]">
                 <StatusDot tone="green" />
                 Ready for incremental migration
               </div>

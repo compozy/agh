@@ -11,11 +11,11 @@ function AppHeader() {
   const { connectionStatus } = useDaemonHealth();
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-[color:var(--ds-line-subtle)] px-4">
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-[color:var(--color-divider)] px-4">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbPage className="font-mono text-[0.68rem] uppercase tracking-[0.2em] text-[color:var(--ds-text-mono)]">
+            <BreadcrumbPage className="font-mono text-[0.68rem] uppercase tracking-[0.2em] text-[color:var(--color-text-label)]">
               Dashboard
             </BreadcrumbPage>
           </BreadcrumbItem>

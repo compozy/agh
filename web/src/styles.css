@@ -1,100 +1,82 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
-@import "@fontsource/bricolage-grotesque/500.css";
-@import "@fontsource/bricolage-grotesque/700.css";
-@import "@fontsource/bricolage-grotesque/600.css";
-@import "@fontsource/bricolage-grotesque/800.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/600.css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
   color-scheme: dark;
 
-  /* Canvas — near-black neutral with minimal chroma */
-  --ds-canvas: oklch(0.145 0.002 265);
-  --ds-canvas-strong: oklch(0.115 0.002 265);
-  --ds-canvas-glow: oklch(0.75 0.17 55);
-  --ds-vignette: rgb(0 0 0 / 0.55);
-  --ds-texture-line: rgb(255 255 255 / 0.03);
+  /* Backgrounds */
+  --color-canvas: #121212;
+  --color-surface: #1c1c1e;
+  --color-surface-elevated: #2c2c2e;
+  --color-divider: #3a3a3c;
+  --color-hover: #333336;
+  --color-disabled: #48484a;
 
-  /* Surfaces — neutral dark grays, no warm cast */
-  --ds-panel-base: oklch(0.185 0.003 265);
-  --ds-panel-elevated: oklch(0.215 0.003 265);
-  --ds-panel-accent: oklch(0.235 0.004 265);
-  --ds-line-subtle: rgb(255 255 255 / 0.07);
-  --ds-line-strong: rgb(255 255 255 / 0.13);
-  --ds-inner-highlight: rgb(255 255 255 / 0.09);
+  /* Text */
+  --color-text-primary: #e5e5e7;
+  --color-text-secondary: #8e8e93;
+  --color-text-tertiary: #636366;
+  --color-text-label: #98989d;
 
-  /* Text — clean neutral white/gray */
-  --ds-text-primary: oklch(0.94 0.002 265);
-  --ds-text-secondary: oklch(0.68 0.003 265);
-  --ds-text-muted: oklch(0.56 0.003 265);
-  --ds-text-mono: oklch(0.62 0.003 265);
+  /* Accent & Semantic */
+  --color-accent: #e8572a;
+  --color-accent-hover: #d14e25;
+  --color-success: #30d158;
+  --color-danger: #ff453a;
+  --color-warning: #ffd60a;
+  --color-info: #bf5af2;
 
-  /* Accents — clean, saturated signal colors */
-  --ds-accent-amber: oklch(0.75 0.17 55);
-  --ds-accent-green: oklch(0.72 0.17 152);
-  --ds-accent-violet: oklch(0.68 0.14 310);
-  --ds-accent-danger: oklch(0.65 0.2 28);
+  /* Badge tints (15% opacity) */
+  --color-accent-tint: #e8572a26;
+  --color-success-tint: #30d15826;
+  --color-danger-tint: #ff453a26;
+  --color-warning-tint: #ffd60a26;
+  --color-info-tint: #bf5af226;
+  --color-neutral-tint: #63636626;
 
-  /* Pills — very subtle tints on dark neutral base */
-  --ds-pill-neutral: oklch(0.195 0.002 265);
-  --ds-pill-neutral-border: rgb(255 255 255 / 0.14);
-  --ds-pill-amber: color-mix(in oklch, var(--ds-accent-amber) 8%, var(--ds-panel-base));
-  --ds-pill-amber-border: color-mix(in oklch, var(--ds-accent-amber) 25%, rgb(255 255 255 / 0.1));
-  --ds-pill-green: color-mix(in oklch, var(--ds-accent-green) 8%, var(--ds-panel-base));
-  --ds-pill-green-border: color-mix(in oklch, var(--ds-accent-green) 25%, rgb(255 255 255 / 0.1));
-  --ds-pill-violet: color-mix(in oklch, var(--ds-accent-violet) 8%, var(--ds-panel-base));
-  --ds-pill-violet-border: color-mix(in oklch, var(--ds-accent-violet) 25%, rgb(255 255 255 / 0.1));
-  --ds-pill-danger: color-mix(in oklch, var(--ds-accent-danger) 8%, var(--ds-panel-base));
-  --ds-pill-danger-border: color-mix(in oklch, var(--ds-accent-danger) 25%, rgb(255 255 255 / 0.1));
+  /* shadcn theme variables */
+  --background: #121212;
+  --foreground: #e5e5e7;
+  --card: #1c1c1e;
+  --card-foreground: #e5e5e7;
+  --popover: #2c2c2e;
+  --popover-foreground: #e5e5e7;
+  --primary: #e8572a;
+  --primary-foreground: #ffffff;
+  --secondary: transparent;
+  --secondary-foreground: #e5e5e7;
+  --muted: #2c2c2e;
+  --muted-foreground: #8e8e93;
+  --accent: #2c2c2e;
+  --accent-foreground: #e5e5e7;
+  --destructive: #ff453a;
+  --destructive-foreground: #e5e5e7;
+  --border: #3a3a3c;
+  --input: #3a3a3c;
+  --ring: #e8572a;
+  --chart-1: #e8572a;
+  --chart-2: #30d158;
+  --chart-3: #bf5af2;
+  --chart-4: #ffd60a;
+  --chart-5: #ff453a;
+  --radius: 0.5rem;
 
-  /* Shape & depth */
-  --ds-radius-shell: 1.25rem;
-  --ds-radius-panel: 1rem;
-  --ds-radius-pill: 999px;
-  --ds-shadow-panel: 0 4px 20px rgb(0 0 0 / 0.25), 0 1px 6px rgb(0 0 0 / 0.18);
-  --ds-shadow-focus: 0 0 0 2px color-mix(in oklch, var(--ds-accent-amber) 30%, transparent);
+  --sidebar: #1c1c1e;
+  --sidebar-foreground: #e5e5e7;
+  --sidebar-primary: #e8572a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2c2c2e;
+  --sidebar-accent-foreground: #e5e5e7;
+  --sidebar-border: #3a3a3c;
+  --sidebar-ring: #e8572a;
 
-  --background: var(--ds-canvas);
-  --foreground: var(--ds-text-primary);
-  --card: var(--ds-panel-base);
-  --card-foreground: var(--ds-text-primary);
-  --popover: var(--ds-panel-elevated);
-  --popover-foreground: var(--ds-text-primary);
-  --primary: var(--ds-accent-amber);
-  --primary-foreground: var(--ds-canvas);
-  --secondary: var(--ds-panel-elevated);
-  --secondary-foreground: var(--ds-text-primary);
-  --muted: var(--ds-panel-accent);
-  --muted-foreground: var(--ds-text-muted);
-  --accent: var(--ds-panel-accent);
-  --accent-foreground: var(--ds-text-primary);
-  --destructive: var(--ds-accent-danger);
-  --destructive-foreground: var(--ds-text-primary);
-  --border: var(--ds-line-subtle);
-  --input: var(--ds-line-subtle);
-  --ring: var(--ds-accent-amber);
-  --chart-1: var(--ds-accent-amber);
-  --chart-2: var(--ds-accent-green);
-  --chart-3: var(--ds-accent-violet);
-  --chart-4: oklch(0.69 0.12 223);
-  --chart-5: oklch(0.68 0.11 34);
-  --radius: 1rem;
-
-  --sidebar: color-mix(in oklch, var(--ds-panel-base) 92%, black 8%);
-  --sidebar-foreground: var(--ds-text-primary);
-  --sidebar-primary: var(--ds-accent-amber);
-  --sidebar-primary-foreground: var(--ds-canvas);
-  --sidebar-accent: var(--ds-panel-accent);
-  --sidebar-accent-foreground: var(--ds-text-primary);
-  --sidebar-border: var(--ds-line-subtle);
-  --sidebar-ring: var(--ds-accent-amber);
-
-  --success: var(--ds-accent-green);
-  --accent-warm: var(--ds-accent-amber);
+  --success: #30d158;
 }
 
 .dark {
@@ -102,9 +84,8 @@
 }
 
 @theme inline {
-  --font-sans: "Geist Variable", sans-serif;
-  --font-display: "Bricolage Grotesque", sans-serif;
-  --font-mono: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", ui-monospace, monospace;
+  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", "Courier New", monospace;
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -139,15 +120,11 @@
   --color-foreground: var(--foreground);
   --color-background: var(--background);
   --color-success: var(--success);
-  --color-accent-warm: var(--accent-warm);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 12px);
 }
 
 @layer base {
@@ -164,115 +141,6 @@
   body {
     @apply bg-background font-sans text-foreground antialiased;
     text-rendering: optimizeLegibility;
-  }
-}
-
-@layer components {
-  .ds-texture-canvas {
-    background:
-      radial-gradient(
-        circle at 50% -5%,
-        color-mix(in oklch, var(--ds-canvas-glow) 7%, transparent) 0%,
-        transparent 40%
-      ),
-      linear-gradient(180deg, var(--ds-canvas), var(--ds-canvas-strong));
-  }
-
-  .ds-texture-canvas::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: repeating-linear-gradient(
-      -33deg,
-      var(--ds-texture-line) 0 1px,
-      transparent 1px 11px
-    );
-    opacity: 0.5;
-    mask-image: linear-gradient(180deg, black, rgb(0 0 0 / 0.4));
-  }
-
-  .ds-texture-canvas::after {
-    content: "";
-    position: absolute;
-    inset: -10%;
-    pointer-events: none;
-    background: radial-gradient(circle at center, transparent 50%, var(--ds-vignette) 90%);
-  }
-
-  .ds-panel {
-    position: relative;
-    overflow: hidden;
-    border-radius: var(--ds-radius-panel);
-    border: 1px solid var(--ds-line-subtle);
-    padding: 1.25rem;
-    box-shadow: var(--ds-shadow-panel);
-  }
-
-  .ds-panel::before {
-    content: "";
-    position: absolute;
-    inset-inline: 1px;
-    top: 0;
-    height: 1px;
-    pointer-events: none;
-    background: var(--ds-inner-highlight);
-  }
-
-  .ds-panel-surface {
-    background: var(--ds-panel-base);
-  }
-
-  .ds-panel-elevated {
-    background: var(--ds-panel-elevated);
-  }
-
-  .ds-panel-accented {
-    border-color: var(--ds-pill-amber-border);
-    background: var(--ds-panel-accent);
-  }
-
-  .ds-texture-canvas-subtle {
-    background:
-      radial-gradient(
-        circle at 50% -5%,
-        color-mix(in oklch, var(--ds-canvas-glow) 4%, transparent) 0%,
-        transparent 40%
-      ),
-      linear-gradient(180deg, var(--ds-canvas), var(--ds-canvas-strong));
-  }
-
-  .ds-texture-canvas-subtle::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: repeating-linear-gradient(
-      -33deg,
-      var(--ds-texture-line) 0 1px,
-      transparent 1px 11px
-    );
-    opacity: 0.3;
-    mask-image: linear-gradient(180deg, black, rgb(0 0 0 / 0.4));
-  }
-
-  .ds-toolbar-field {
-    display: flex;
-    min-height: 2.5rem;
-    align-items: center;
-    gap: 0.75rem;
-    border-radius: var(--ds-radius-pill);
-    border: 1px solid var(--ds-line-subtle);
-    background: var(--ds-panel-base);
-    padding-inline: 0.875rem;
-    transition:
-      border-color 200ms ease,
-      box-shadow 200ms ease;
-  }
-
-  .ds-toolbar-field:focus-within {
-    border-color: var(--ds-pill-amber-border);
-    box-shadow: var(--ds-shadow-focus);
   }
 }
 

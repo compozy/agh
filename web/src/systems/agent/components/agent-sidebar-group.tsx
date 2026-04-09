@@ -34,7 +34,7 @@ function AgentSidebarGroup({
     <Collapsible defaultOpen className="group/collapsible">
       <SidebarGroup className="p-0 pb-1">
         <SidebarGroupLabel
-          className="font-mono text-[0.64rem] uppercase tracking-[0.22em] text-[color:var(--ds-text-mono)]"
+          className="font-mono text-[0.64rem] uppercase tracking-[0.22em] text-[color:var(--color-text-label)]"
           render={<CollapsibleTrigger />}
         >
           <AgentIcon provider={agent.provider} className="mr-1 size-3.5" />
@@ -59,7 +59,7 @@ function AgentSidebarGroup({
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       size="sm"
-                      className="text-[color:var(--ds-text-muted)]"
+                      className="text-[color:var(--color-text-tertiary)]"
                       tooltip="No sessions"
                     >
                       <span className="text-xs">No sessions</span>

@@ -39,9 +39,9 @@ export function BashContent({ message }: { message: UIMessage }) {
   return (
     <div className="space-y-1.5 text-xs" data-testid="bash-content">
       {!!command && (
-        <div className="rounded-md bg-[color:var(--ds-panel-base)] px-3 py-2 font-mono text-[11px] whitespace-pre-wrap break-words">
-          <span className="text-[color:var(--ds-text-muted)]/40 select-none">$ </span>
-          <span className="text-[color:var(--ds-text-secondary)]">{String(command)}</span>
+        <div className="rounded-md bg-[color:var(--color-surface)] px-3 py-2 font-mono text-[11px] whitespace-pre-wrap break-words">
+          <span className="text-[color:var(--color-text-tertiary)]/40 select-none">$ </span>
+          <span className="text-[color:var(--color-text-secondary)]">{String(command)}</span>
         </div>
       )}
       {result && (
@@ -52,7 +52,7 @@ export function BashContent({ message }: { message: UIMessage }) {
             </pre>
           )}
           {displayText && (
-            <pre className="max-h-48 overflow-auto rounded-md bg-[color:var(--ds-panel-base)] px-3 py-2 font-mono text-[11px] text-[color:var(--ds-text-muted)] whitespace-pre-wrap break-words">
+            <pre className="max-h-48 overflow-auto rounded-md bg-[color:var(--color-surface)] px-3 py-2 font-mono text-[11px] text-[color:var(--color-text-tertiary)] whitespace-pre-wrap break-words">
               {displayText}
             </pre>
           )}
@@ -60,7 +60,7 @@ export function BashContent({ message }: { message: UIMessage }) {
             <button
               type="button"
               onClick={() => setExpanded(true)}
-              className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[color:var(--ds-text-muted)]/40 hover:text-[color:var(--ds-text-muted)]/70 transition-colors"
+              className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[color:var(--color-text-tertiary)]/40 hover:text-[color:var(--color-text-tertiary)]/70 transition-colors"
             >
               <ChevronsUpDown className="size-3" />
               Show full output ({totalLines} lines)
@@ -70,7 +70,7 @@ export function BashContent({ message }: { message: UIMessage }) {
             <button
               type="button"
               onClick={() => setExpanded(false)}
-              className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[color:var(--ds-text-muted)]/40 hover:text-[color:var(--ds-text-muted)]/70 transition-colors"
+              className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[color:var(--color-text-tertiary)]/40 hover:text-[color:var(--color-text-tertiary)]/70 transition-colors"
             >
               <ChevronsUpDown className="size-3" />
               Collapse

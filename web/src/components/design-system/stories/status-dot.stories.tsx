@@ -50,7 +50,7 @@ export const SignalPalette: Story = {
       {statusTones.map(tone => (
         <div className="flex items-center gap-2" key={tone}>
           <StatusDot tone={tone} />
-          <span className="font-mono text-[0.62rem] uppercase tracking-[0.18em] text-[color:var(--ds-text-mono)]">
+          <span className="font-mono text-[0.62rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
             {tone}
           </span>
         </div>

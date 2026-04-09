@@ -38,12 +38,7 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
 
   return (
     <div className="px-4 py-2" data-testid="permission-prompt">
-      <Card
-        className={cn(
-          "border-amber-500/40 bg-amber-500/5",
-          "shadow-[0_0_12px_-3px_var(--color-amber-500)]/10"
-        )}
-      >
+      <Card className={cn("border-amber-500/40 bg-amber-500/5", "")}>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <ShieldAlert className="size-4 text-amber-500" />
@@ -53,18 +48,20 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
         <CardContent className="space-y-2 pb-3">
           <div className="flex flex-col gap-1 text-xs">
             <div className="flex gap-2">
-              <span className="font-medium text-[color:var(--ds-text-muted)]">Tool:</span>
+              <span className="font-medium text-[color:var(--color-text-tertiary)]">Tool:</span>
               <span className="font-mono">{permission.toolName}</span>
             </div>
             {permission.action && (
               <div className="flex gap-2">
-                <span className="font-medium text-[color:var(--ds-text-muted)]">Action:</span>
+                <span className="font-medium text-[color:var(--color-text-tertiary)]">Action:</span>
                 <span>{permission.action}</span>
               </div>
             )}
             {permission.resource && (
               <div className="flex gap-2">
-                <span className="font-medium text-[color:var(--ds-text-muted)]">Resource:</span>
+                <span className="font-medium text-[color:var(--color-text-tertiary)]">
+                  Resource:
+                </span>
                 <span className="truncate font-mono">{permission.resource}</span>
               </div>
             )}
@@ -73,7 +70,7 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
             <pre
               className={cn(
                 "max-h-32 overflow-auto rounded-md p-2 text-[0.7rem] leading-relaxed",
-                "bg-[color:var(--ds-panel-translucent)] text-[color:var(--ds-text-secondary)]"
+                "bg-[color:var(--color-surface)] text-[color:var(--color-text-secondary)]"
               )}
               data-testid="permission-tool-input"
             >

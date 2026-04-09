@@ -90,7 +90,7 @@ export const ToolCallCard = memo(
           onClick={handleToggle}
           className={cn(
             "group relative flex w-full items-center gap-2 py-1",
-            "text-[13px] hover:text-[color:var(--ds-text-primary)] transition-colors cursor-pointer overflow-hidden"
+            "text-[13px] hover:text-[color:var(--color-text-primary)] transition-colors cursor-pointer overflow-hidden"
           )}
           aria-expanded={expanded}
           data-testid="tool-card-trigger"
@@ -99,11 +99,11 @@ export const ToolCallCard = memo(
             {isError ? (
               <AlertCircle className="size-3.5 shrink-0 text-red-400/70" />
             ) : (
-              <Icon className="size-3.5 shrink-0 text-[color:var(--ds-text-muted)]/35" />
+              <Icon className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]/35" />
             )}
             {isRunning ? (
               <span
-                className="shrink-0 whitespace-nowrap font-medium animate-shimmer bg-clip-text text-transparent bg-[length:200%_100%] bg-gradient-to-r from-[color:var(--ds-text-muted)] via-[color:var(--ds-text-primary)] to-[color:var(--ds-text-muted)]"
+                className="shrink-0 whitespace-nowrap font-medium animate-shimmer bg-clip-text text-transparent bg-[length:200%_100%] bg-gradient-to-r from-[color:var(--color-text-tertiary)] via-[color:var(--color-text-primary)] to-[color:var(--color-text-tertiary)]"
                 data-testid="tool-card-executing"
               >
                 {getToolLabel(message.toolName ?? "", "active")}
@@ -112,7 +112,7 @@ export const ToolCallCard = memo(
               <span
                 className={cn(
                   "shrink-0 whitespace-nowrap font-medium",
-                  isError ? "text-red-400/70" : "text-[color:var(--ds-text-secondary)]"
+                  isError ? "text-red-400/70" : "text-[color:var(--color-text-secondary)]"
                 )}
                 data-testid={isError ? "tool-card-error" : "tool-card-success"}
               >
@@ -122,14 +122,14 @@ export const ToolCallCard = memo(
               </span>
             )}
             {summary && (
-              <span className="truncate text-[color:var(--ds-text-muted)]/40">{summary}</span>
+              <span className="truncate text-[color:var(--color-text-tertiary)]/40">{summary}</span>
             )}
           </div>
 
           {hasResult && (
             <ChevronRight
               className={cn(
-                "ms-auto size-3 shrink-0 text-[color:var(--ds-text-muted)]/30",
+                "ms-auto size-3 shrink-0 text-[color:var(--color-text-tertiary)]/30",
                 "opacity-0 group-hover:opacity-100 transition-all duration-200",
                 expanded && "rotate-90"
               )}

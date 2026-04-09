@@ -27,15 +27,15 @@ function SectionHeading({
     >
       <div className="max-w-3xl space-y-3">
         {eyebrow ? (
-          <p className="font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--ds-text-mono)]">
+          <p className="font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
             {eyebrow}
           </p>
         ) : null}
-        <h1 className="max-w-4xl text-balance font-display text-4xl leading-[1.08] font-semibold tracking-[-0.04em] text-[color:var(--ds-text-primary)] sm:text-5xl lg:text-6xl">
+        <h1 className="max-w-4xl text-balance font-sans text-4xl leading-[1.08] font-semibold tracking-[-0.04em] text-[color:var(--color-text-primary)] sm:text-5xl lg:text-6xl">
           {title}
         </h1>
         {description ? (
-          <p className="max-w-2xl text-base leading-7 text-[color:var(--ds-text-secondary)] sm:text-lg">
+          <p className="max-w-2xl text-base leading-7 text-[color:var(--color-text-secondary)] sm:text-lg">
             {description}
           </p>
         ) : null}

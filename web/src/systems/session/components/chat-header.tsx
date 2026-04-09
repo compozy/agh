@@ -27,14 +27,14 @@ export function ChatHeader({ session, onStop, onResume, workspaceName }: ChatHea
     <div
       className={cn(
         "flex items-center justify-between border-b px-4 py-2",
-        "border-[color:var(--ds-line-subtle)] bg-[color:var(--ds-panel-base)]"
+        "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]"
       )}
       data-testid="chat-header"
     >
       <div className="flex items-center gap-3 overflow-hidden">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="truncate text-sm font-medium text-[color:var(--ds-text-primary)]">
+            <h2 className="truncate text-sm font-medium text-[color:var(--color-text-primary)]">
               {session.name ?? session.id}
             </h2>
             <Badge
@@ -45,7 +45,7 @@ export function ChatHeader({ session, onStop, onResume, workspaceName }: ChatHea
               {session.state}
             </Badge>
           </div>
-          <div className="mt-1 flex items-center gap-2 overflow-hidden text-xs text-[color:var(--ds-text-muted)]">
+          <div className="mt-1 flex items-center gap-2 overflow-hidden text-xs text-[color:var(--color-text-tertiary)]">
             <span>{session.agent_name}</span>
             {workspaceName && (
               <Badge

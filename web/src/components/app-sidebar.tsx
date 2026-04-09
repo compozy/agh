@@ -78,8 +78,8 @@ function AgentsList({ activeWorkspaceId, workspaces }: AgentsListProps) {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="Loading agents...">
-                <Loader2 className="size-4 animate-spin text-[color:var(--ds-text-muted)]" />
-                <span className="text-[color:var(--ds-text-muted)]">Loading agents...</span>
+                <Loader2 className="size-4 animate-spin text-[color:var(--color-text-tertiary)]" />
+                <span className="text-[color:var(--color-text-tertiary)]">Loading agents...</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -91,15 +91,15 @@ function AgentsList({ activeWorkspaceId, workspaces }: AgentsListProps) {
   if (isError || !agents || agents.length === 0) {
     return (
       <SidebarGroup>
-        <SidebarGroupLabel className="font-mono text-[0.64rem] uppercase tracking-[0.22em] text-[color:var(--ds-text-mono)]">
+        <SidebarGroupLabel className="font-mono text-[0.64rem] uppercase tracking-[0.22em] text-[color:var(--color-text-label)]">
           Agents
         </SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="No agents loaded">
-                <Bot className="size-4 text-[color:var(--ds-text-muted)]" />
-                <span className="text-[color:var(--ds-text-muted)]">
+                <Bot className="size-4 text-[color:var(--color-text-tertiary)]" />
+                <span className="text-[color:var(--color-text-tertiary)]">
                   Run `agh install` to bootstrap AGH
                 </span>
               </SidebarMenuButton>
@@ -160,12 +160,12 @@ function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" tooltip="AGH">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-[color:var(--ds-panel-accent)] text-[color:var(--ds-accent-amber)]">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-[color:var(--color-surface-elevated)] text-[color:var(--color-accent)]">
                 <Terminal className="size-4" />
               </div>
               <div className="grid flex-1 text-left leading-tight">
-                <span className="font-display text-sm font-semibold tracking-tight">AGH</span>
-                <span className="font-mono text-[0.58rem] uppercase tracking-[0.18em] text-[color:var(--ds-text-mono)]">
+                <span className="font-sans text-sm font-semibold tracking-tight">AGH</span>
+                <span className="font-mono text-[0.58rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
                   Agent OS
                 </span>
               </div>
@@ -176,7 +176,7 @@ function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Search (⌘K)">
               <Search className="size-4" />
-              <span className="flex-1 text-[color:var(--ds-text-muted)]">Search...</span>
+              <span className="flex-1 text-[color:var(--color-text-tertiary)]">Search...</span>
               <Kbd className="ml-auto">⌘K</Kbd>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -185,7 +185,7 @@ function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="font-mono text-[0.64rem] uppercase tracking-[0.22em] text-[color:var(--ds-text-mono)]">
+          <SidebarGroupLabel className="font-mono text-[0.64rem] uppercase tracking-[0.22em] text-[color:var(--color-text-label)]">
             Workspace
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -193,8 +193,10 @@ function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton tooltip="Loading workspaces...">
-                    <Loader2 className="size-4 animate-spin text-[color:var(--ds-text-muted)]" />
-                    <span className="text-[color:var(--ds-text-muted)]">Loading workspaces...</span>
+                    <Loader2 className="size-4 animate-spin text-[color:var(--color-text-tertiary)]" />
+                    <span className="text-[color:var(--color-text-tertiary)]">
+                      Loading workspaces...
+                    </span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -202,8 +204,8 @@ function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton tooltip="Workspace registry unavailable">
-                    <AlertCircle className="size-4 text-[color:var(--ds-accent-danger)]" />
-                    <span className="text-[color:var(--ds-text-muted)]">
+                    <AlertCircle className="size-4 text-[color:var(--color-danger)]" />
+                    <span className="text-[color:var(--color-text-tertiary)]">
                       Failed to load workspaces
                     </span>
                   </SidebarMenuButton>
@@ -213,7 +215,7 @@ function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton tooltip="No workspaces registered">
-                    <span className="text-[color:var(--ds-text-muted)]">
+                    <span className="text-[color:var(--color-text-tertiary)]">
                       Run `agh workspace add &lt;path&gt;` to register a workspace
                     </span>
                   </SidebarMenuButton>

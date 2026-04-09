@@ -75,7 +75,7 @@ function SessionSidebarItem({
               </Badge>
             )}
             <span
-              className="truncate font-mono text-[0.6rem] text-[color:var(--ds-text-muted)]"
+              className="truncate font-mono text-[0.6rem] text-[color:var(--color-text-tertiary)]"
               data-testid="workspace-id-text"
               title={session.workspace_id}
             >

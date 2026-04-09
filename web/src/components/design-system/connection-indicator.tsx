@@ -28,7 +28,7 @@ function ConnectionIndicator({ className, status, ...props }: ConnectionIndicato
         className={cn(status === "reconnecting" && "animate-pulse")}
         tone={config.dotTone}
       />
-      <span className="font-mono text-[0.62rem] uppercase tracking-[0.2em] text-[color:var(--ds-text-mono)]">
+      <span className="font-mono text-[0.62rem] uppercase tracking-[0.2em] text-[color:var(--color-text-label)]">
         {config.label}
       </span>
     </div>

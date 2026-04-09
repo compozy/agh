@@ -45,7 +45,7 @@ export const Default: Story = {
             <PanelTitle>Shell content stays readable even when the viewport grows.</PanelTitle>
           </PanelHeader>
           <PanelBody>
-            <p className="text-sm leading-6 text-[color:var(--ds-text-secondary)]">
+            <p className="text-sm leading-6 text-[color:var(--color-text-secondary)]">
               This is the outer frame future routes can reuse before composing panels, toolbars, and
               system rows.
             </p>

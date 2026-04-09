@@ -96,8 +96,8 @@ export const MessageMarkdown = memo(
             return (
               <code
                 className={cn(
-                  "rounded-md bg-[color:var(--ds-panel-accent)] px-1.5 py-0.5",
-                  "text-[0.8125rem] text-[color:var(--ds-text-primary)]",
+                  "rounded-md bg-[color:var(--color-surface-elevated)] px-1.5 py-0.5",
+                  "text-[0.8125rem] text-[color:var(--color-text-primary)]",
                   className
                 )}
                 {...props}
@@ -112,7 +112,7 @@ export const MessageMarkdown = memo(
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[color:var(--ds-accent-amber)] underline underline-offset-2 hover:opacity-80"
+                className="text-[color:var(--color-accent)] underline underline-offset-2 hover:opacity-80"
                 {...props}
               >
                 {children}

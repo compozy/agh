@@ -44,7 +44,7 @@ function WorkspaceSelector({
             {selectedWorkspace.id}
           </Badge>
           <span
-            className="truncate text-[0.68rem] text-[color:var(--ds-text-muted)]"
+            className="truncate text-[0.68rem] text-[color:var(--color-text-tertiary)]"
             data-testid="workspace-selector-root-dir"
             title={selectedWorkspace.root_dir}
           >

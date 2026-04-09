@@ -6,7 +6,7 @@ function TextureCanvas({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "ds-texture-canvas relative isolate min-h-dvh overflow-hidden bg-background text-foreground",
+        "relative isolate min-h-dvh overflow-hidden bg-background text-foreground",
         className
       )}
       {...props}

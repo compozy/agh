@@ -79,7 +79,7 @@ function SessionPage() {
   if (isLoading || isLoadingTranscript) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <Loader2 className="size-5 animate-spin text-[color:var(--ds-text-muted)]" />
+        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
       </div>
     );
   }
@@ -88,8 +88,8 @@ function SessionPage() {
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--ds-accent-danger)]" />
-          <p className="text-sm text-[color:var(--ds-text-muted)]">
+          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
+          <p className="text-sm text-[color:var(--color-text-tertiary)]">
             {error?.message ?? transcriptError?.message ?? "Session not found"}
           </p>
         </div>

@@ -32,7 +32,7 @@ function PanelTitle({ className, ...props }: ComponentProps<"h2">) {
   return (
     <h2
       className={cn(
-        "text-balance text-lg font-medium text-[color:var(--ds-text-primary)]",
+        "text-balance text-lg font-medium text-[color:var(--color-text-primary)]",
         className
       )}
       {...props}
@@ -43,7 +43,10 @@ function PanelTitle({ className, ...props }: ComponentProps<"h2">) {
 function PanelDescription({ className, ...props }: ComponentProps<"p">) {
   return (
     <p
-      className={cn("max-w-2xl text-sm leading-6 text-[color:var(--ds-text-secondary)]", className)}
+      className={cn(
+        "max-w-2xl text-sm leading-6 text-[color:var(--color-text-secondary)]",
+        className
+      )}
       {...props}
     />
   );
@@ -57,7 +60,7 @@ function PanelFooter({ className, ...props }: ComponentProps<"footer">) {
   return (
     <footer
       className={cn(
-        "mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--ds-line-subtle)] pt-4",
+        "mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--color-divider)] pt-4",
         className
       )}
       {...props}

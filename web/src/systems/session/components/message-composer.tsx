@@ -46,7 +46,7 @@ export function MessageComposer({ onSend, disabled, className }: MessageComposer
     <div
       className={cn(
         "flex items-end gap-2 border-t px-4 py-3",
-        "border-[color:var(--ds-line-subtle)] bg-[color:var(--ds-panel-base)]",
+        "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
         className
       )}
       data-testid="message-composer"
@@ -60,7 +60,7 @@ export function MessageComposer({ onSend, disabled, className }: MessageComposer
         rows={1}
         className={cn(
           "flex-1 resize-none bg-transparent text-sm",
-          "text-[color:var(--ds-text-primary)] placeholder:text-[color:var(--ds-text-muted)]",
+          "text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-tertiary)]",
           "outline-none disabled:cursor-not-allowed disabled:opacity-50",
           "max-h-[200px] py-1.5"
         )}

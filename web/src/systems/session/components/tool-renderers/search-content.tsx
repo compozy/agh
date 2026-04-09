@@ -20,39 +20,46 @@ export function SearchContent({ message }: { message: UIMessage }) {
   return (
     <div className="space-y-1.5 text-xs" data-testid="search-content">
       {pattern && (
-        <div className="font-mono text-[11px] text-[color:var(--ds-text-muted)]">
+        <div className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
           {pattern}
-          {glob && <span className="text-[color:var(--ds-text-muted)]/30 ms-1.5">in {glob}</span>}
+          {glob && (
+            <span className="text-[color:var(--color-text-tertiary)]/30 ms-1.5">in {glob}</span>
+          )}
           {!glob && path && (
-            <span className="text-[color:var(--ds-text-muted)]/30 ms-1.5">
+            <span className="text-[color:var(--color-text-tertiary)]/30 ms-1.5">
               in {shortenPath(path)}
             </span>
           )}
         </div>
       )}
       {lines.length > 0 ? (
-        <div className="rounded-md border border-[color:var(--ds-line-subtle)] overflow-hidden">
+        <div className="rounded-md border border-[color:var(--color-divider)] overflow-hidden">
           {lines.slice(0, 20).map((line, i) => (
             <div
               key={i}
               className={`flex items-center gap-2 px-3 py-1 text-[11px] ${
-                i > 0 ? "border-t border-[color:var(--ds-line-subtle)]" : ""
+                i > 0 ? "border-t border-[color:var(--color-divider)]" : ""
               }`}
             >
-              <FileText className="size-3 shrink-0 text-[color:var(--ds-text-muted)]/20" />
-              <span className="truncate text-[color:var(--ds-text-muted)] font-mono" title={line}>
+              <FileText className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]/20" />
+              <span
+                className="truncate text-[color:var(--color-text-tertiary)] font-mono"
+                title={line}
+              >
                 {shortenPath(line)}
               </span>
             </div>
           ))}
           {lines.length > 20 && (
-            <div className="px-3 py-1 border-t border-[color:var(--ds-line-subtle)] text-[10px] text-[color:var(--ds-text-muted)]/40">
+            <div className="px-3 py-1 border-t border-[color:var(--color-divider)] text-[10px] text-[color:var(--color-text-tertiary)]/40">
               +{lines.length - 20} more
             </div>
           )}
         </div>
       ) : result ? (
-        <span className="text-[10px] text-[color:var(--ds-text-muted)]/30 italic">No matches</span>
+        <span className="text-[10px] text-[color:var(--color-text-tertiary)]/30 italic">
+          No matches
+        </span>
       ) : null}
     </div>
   );

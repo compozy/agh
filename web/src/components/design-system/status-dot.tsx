@@ -6,11 +6,11 @@ import { cn } from "@/lib/utils";
 const statusDotVariants = cva("inline-flex size-2.5 rounded-full ring-2 ring-transparent", {
   variants: {
     tone: {
-      neutral: "bg-[color:var(--ds-text-muted)]",
-      amber: "bg-[color:var(--ds-accent-amber)]",
-      green: "bg-[color:var(--ds-accent-green)]",
-      violet: "bg-[color:var(--ds-accent-violet)]",
-      danger: "bg-[color:var(--ds-accent-danger)]",
+      neutral: "bg-[color:var(--color-text-tertiary)]",
+      amber: "bg-[color:var(--color-accent)]",
+      green: "bg-[color:var(--color-success)]",
+      violet: "bg-[color:var(--color-info)]",
+      danger: "bg-[color:var(--color-danger)]",
     },
   },
   defaultVariants: {

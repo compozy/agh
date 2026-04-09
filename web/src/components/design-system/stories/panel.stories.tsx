@@ -63,7 +63,7 @@ export const Default: Story = {
         </PanelDescription>
       </PanelHeader>
       <PanelBody>
-        <p className="text-sm leading-6 text-[color:var(--ds-text-secondary)]">
+        <p className="text-sm leading-6 text-[color:var(--color-text-secondary)]">
           Matte background, fine border, and inner highlight are all handled at the primitive level.
         </p>
       </PanelBody>
@@ -71,7 +71,7 @@ export const Default: Story = {
         <Pill emphasis="strong" kind="state" tone="green">
           Ready
         </Pill>
-        <span className="font-mono text-[0.625rem] uppercase tracking-[0.14em] text-[color:var(--ds-text-mono)]">
+        <span className="font-mono text-[0.625rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
           panel / default
         </span>
       </PanelFooter>
@@ -92,7 +92,9 @@ export const Tones: Story = {
             <PanelTitle>{item.label}</PanelTitle>
           </PanelHeader>
           <PanelBody>
-            <p className="text-sm leading-6 text-[color:var(--ds-text-secondary)]">{item.text}</p>
+            <p className="text-sm leading-6 text-[color:var(--color-text-secondary)]">
+              {item.text}
+            </p>
           </PanelBody>
         </Panel>
       ))}

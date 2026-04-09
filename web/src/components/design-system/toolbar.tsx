@@ -24,10 +24,10 @@ function ToolbarGroup({ className, ...props }: ComponentProps<"div">) {
 function ToolbarSearch({ className, ...props }: ComponentProps<"input">) {
   return (
     <label className={cn("ds-toolbar-field min-w-0 flex-1 sm:max-w-xs", className)}>
-      <Search className="size-4 text-[color:var(--ds-text-mono)]" />
+      <Search className="size-4 text-[color:var(--color-text-label)]" />
       <span className="sr-only">Search design system preview</span>
       <input
-        className="min-w-0 flex-1 bg-transparent text-sm text-[color:var(--ds-text-primary)] outline-none placeholder:text-[color:var(--ds-text-muted)]"
+        className="min-w-0 flex-1 bg-transparent text-sm text-[color:var(--color-text-primary)] outline-none placeholder:text-[color:var(--color-text-tertiary)]"
         {...props}
       />
     </label>
@@ -38,7 +38,7 @@ function ToolbarAction({ className, ...props }: ComponentProps<"button">) {
   return (
     <button
       className={cn(
-        "inline-flex h-10 items-center justify-center rounded-full border border-[color:var(--ds-pill-amber-border)] bg-[color:var(--ds-accent-amber)] px-4 font-medium text-[color:var(--ds-canvas)] transition-transform duration-200 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ds-accent-amber)]",
+        "inline-flex h-10 items-center justify-center rounded-full border border-[color:var(--color-accent)] bg-[color:var(--color-accent)] px-4 font-medium text-[color:var(--color-canvas)] transition-transform duration-200 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
         className
       )}
       type="button"

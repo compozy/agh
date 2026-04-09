@@ -27,8 +27,8 @@ export const MessageBubble = memo(
           className={cn(
             "flex size-7 shrink-0 items-center justify-center rounded-full",
             isUser
-              ? "bg-[color:var(--ds-accent-amber)]/10 text-[color:var(--ds-accent-amber)]"
-              : "bg-[color:var(--ds-accent-violet)]/10 text-[color:var(--ds-accent-violet)]"
+              ? "bg-[color:var(--color-accent)]/10 text-[color:var(--color-accent)]"
+              : "bg-[color:var(--color-info)]/10 text-[color:var(--color-info)]"
           )}
         >
           {isUser ? <User className="size-3.5" /> : <Bot className="size-3.5" />}
@@ -51,8 +51,8 @@ export const MessageBubble = memo(
                 "prose-pre:my-0 prose-pre:bg-transparent prose-pre:p-0",
                 "text-sm leading-relaxed",
                 isUser
-                  ? "text-[color:var(--ds-text-primary)]"
-                  : "text-[color:var(--ds-text-secondary)]"
+                  ? "text-[color:var(--color-text-primary)]"
+                  : "text-[color:var(--color-text-secondary)]"
               )}
             >
               <Suspense fallback={<span className="whitespace-pre-wrap">{message.content}</span>}>
@@ -62,7 +62,7 @@ export const MessageBubble = memo(
           )}
 
           {!message.content && message.isStreaming && (
-            <span className="text-xs italic text-[color:var(--ds-text-muted)]">...</span>
+            <span className="text-xs italic text-[color:var(--color-text-tertiary)]">...</span>
           )}
         </div>
       </div>

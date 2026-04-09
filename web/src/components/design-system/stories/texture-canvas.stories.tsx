@@ -34,7 +34,7 @@ export const Default: Story = {
             <PanelTitle>Graphite texture, edge vignette, and soft accent glow.</PanelTitle>
           </PanelHeader>
           <PanelBody>
-            <p className="text-sm leading-6 text-[color:var(--ds-text-secondary)]">
+            <p className="text-sm leading-6 text-[color:var(--color-text-secondary)]">
               The canvas exists to make centered control surfaces feel intentional instead of
               floating on flat black.
             </p>
