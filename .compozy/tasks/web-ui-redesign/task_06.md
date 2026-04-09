@@ -1,11 +1,11 @@
 ---
-status: done
+status: completed
 title: Build Skills page
 type: frontend
 complexity: high
 dependencies:
-  - task_02
-  - task_05
+    - task_02
+    - task_05
 ---
 
 # Task 06: Build Skills page

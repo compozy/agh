@@ -1,11 +1,11 @@
 ---
-status: pending
+status: completed
 title: Build Knowledge page
 type: frontend
 complexity: high
 dependencies:
-  - task_02
-  - task_07
+    - task_02
+    - task_07
 ---
 
 # Task 08: Build Knowledge page
@@ -37,12 +37,12 @@ Build the Knowledge page with a three-panel layout matching the Paper design: si
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Replace empty knowledge route with three-panel layout and scope tab pills
-- [ ] 8.2 Build knowledge list panel with search, grouped sections, type/scope badges, and selection state
-- [ ] 8.3 Build knowledge detail panel with title, status, description, content preview card, and action buttons
-- [ ] 8.4 Build metadata table component (striped key-value rows)
-- [ ] 8.5 Wire all components to knowledge system hooks and handle loading/error/empty states
-- [ ] 8.6 Write tests for page rendering, tab filtering, item selection, and detail display
+- [x] 8.1 Replace empty knowledge route with three-panel layout and scope tab pills
+- [x] 8.2 Build knowledge list panel with search, grouped sections, type/scope badges, and selection state
+- [x] 8.3 Build knowledge detail panel with title, status, description, content preview card, and action buttons
+- [x] 8.4 Build metadata table component (striped key-value rows)
+- [x] 8.5 Wire all components to knowledge system hooks and handle loading/error/empty states
+- [x] 8.6 Write tests for page rendering, tab filtering, item selection, and detail display
 
 ## Implementation Details
 
@@ -70,23 +70,23 @@ Reference DESIGN.md sections: "Badges & Tags" for type/scope badges (USER=accent
 
 ## Tests
 - Unit tests:
-  - [ ] Knowledge page renders ALL tab by default with full memory list
-  - [ ] GLOBAL tab filters to show only global-scope memories
-  - [ ] WORKSPACE tab filters to show only workspace-scope memories
-  - [ ] List groups memories by scope (GLOBAL section, WORKSPACE section) with counts
-  - [ ] Selecting a memory highlights it with accent left bar
-  - [ ] Selecting a memory shows detail panel with correct title and description
-  - [ ] Detail panel shows USER badge with accent tint for user-type memories
-  - [ ] Detail panel shows content preview card with truncated content
-  - [ ] Detail panel "View full content →" link is clickable
-  - [ ] Detail panel Delete button calls `useDeleteMemory` mutation
-  - [ ] Metadata table renders striped rows for type, scope, agent, modified
-  - [ ] Dream status indicator shows "Dream: Xh ago" in page header
-  - [ ] Search input filters the memory list
-  - [ ] Loading state shows spinner
-  - [ ] Empty state shows appropriate message
+  - [x] Knowledge page renders ALL tab by default with full memory list
+  - [x] GLOBAL tab filters to show only global-scope memories
+  - [x] WORKSPACE tab filters to show only workspace-scope memories
+  - [x] List groups memories by scope (GLOBAL section, WORKSPACE section) with counts
+  - [x] Selecting a memory highlights it with accent left bar
+  - [x] Selecting a memory shows detail panel with correct title and description
+  - [x] Detail panel shows USER badge with accent tint for user-type memories
+  - [x] Detail panel shows content preview card with truncated content
+  - [x] Detail panel "View full content →" link is clickable
+  - [x] Detail panel Delete button calls `useDeleteMemory` mutation
+  - [x] Metadata table renders striped rows for type, scope, agent, modified
+  - [x] Dream status indicator shows "Dream: Xh ago" in page header
+  - [x] Search input filters the memory list
+  - [x] Loading state shows spinner
+  - [x] Empty state shows appropriate message
 - Integration tests:
-  - [ ] Full page flow: load memories → select memory → view detail → delete memory
+  - [x] Full page flow: load memories → select memory → view detail → delete memory
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,10 +1,10 @@
 ---
-status: done
+status: completed
 title: Build skill frontend system
 type: frontend
 complexity: medium
 dependencies:
-  - task_04
+    - task_04
 ---
 
 # Task 05: Build skill frontend system

@@ -1,5 +1,5 @@
 ---
-status: done
+status: completed
 title: Build knowledge frontend system
 type: frontend
 complexity: medium

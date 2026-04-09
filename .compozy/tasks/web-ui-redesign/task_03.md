@@ -1,11 +1,11 @@
 ---
-status: done
+status: completed
 title: Restyle session chat view
 type: frontend
 complexity: medium
 dependencies:
-  - task_01
-  - task_02
+    - task_01
+    - task_02
 ---
 
 # Task 03: Restyle session chat view

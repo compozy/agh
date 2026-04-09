@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Replace design tokens and fonts
 type: frontend
 complexity: high
@@ -32,12 +32,12 @@ Replace the entire CSS design token system in `styles.css` — swapping OKLCH co
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Swap font packages in `package.json` via `bun add`/`bun remove`
-- [ ] 1.2 Rewrite `styles.css` with DESIGN.md hex tokens, new font theme, flat depth model
-- [ ] 1.3 Update all component files that reference `--ds-*` CSS variables to use new token names
-- [ ] 1.4 Remove references to `font-display` and `ds-texture-canvas` classes from components
-- [ ] 1.5 Verify `make web-lint && make web-typecheck` passes with zero errors
-- [ ] 1.6 Write tests verifying no OKLCH values, no shadow declarations remain
+- [x] 1.1 Swap font packages in `package.json` via `bun add`/`bun remove`
+- [x] 1.2 Rewrite `styles.css` with DESIGN.md hex tokens, new font theme, flat depth model
+- [x] 1.3 Update all component files that reference `--ds-*` CSS variables to use new token names
+- [x] 1.4 Remove references to `font-display` and `ds-texture-canvas` classes from components
+- [x] 1.5 Verify `make web-lint && make web-typecheck` passes with zero errors
+- [x] 1.6 Write tests verifying no OKLCH values, no shadow declarations remain
 
 ## Implementation Details
 
@@ -75,16 +75,16 @@ Key changes:
 
 ## Tests
 - Unit tests:
-  - [ ] `styles.css` contains no `oklch(` values
-  - [ ] `styles.css` contains no `box-shadow` declarations
-  - [ ] `styles.css` contains no `color-mix(` expressions
-  - [ ] `styles.css` contains no `.ds-texture-` class definitions
-  - [ ] `styles.css` defines `--color-canvas: #121212`
-  - [ ] `styles.css` defines `--color-accent: #E8572A`
-  - [ ] `@theme inline` declares `--font-sans` with "Inter Variable"
-  - [ ] `@theme inline` declares `--font-mono` with "JetBrains Mono"
-  - [ ] `@theme inline` does NOT declare `--font-display`
-  - [ ] No component file contains `var(--ds-` references
+  - [x] `styles.css` contains no `oklch(` values
+  - [x] `styles.css` contains no `box-shadow` declarations
+  - [x] `styles.css` contains no `color-mix(` expressions
+  - [x] `styles.css` contains no `.ds-texture-` class definitions
+  - [x] `styles.css` defines `--color-canvas: #121212`
+  - [x] `styles.css` defines `--color-accent: #E8572A`
+  - [x] `@theme inline` declares `--font-sans` with "Inter Variable"
+  - [x] `@theme inline` declares `--font-mono` with "JetBrains Mono"
+  - [x] `@theme inline` does NOT declare `--font-display`
+  - [x] No component file contains `var(--ds-` references
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,10 +1,10 @@
 ---
-status: done
+status: completed
 title: Build custom sidebar with workspace icon rail
 type: frontend
 complexity: high
 dependencies:
-  - task_01
+    - task_01
 ---
 
 # Task 02: Build custom sidebar with workspace icon rail

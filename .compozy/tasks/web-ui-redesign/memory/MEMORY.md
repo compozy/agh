@@ -10,6 +10,7 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - Task 05 (skill frontend system) complete on branch `pn/ui-v2`
 - Task 06 (skills page) complete on branch `pn/ui-v2`
 - Task 07 (knowledge frontend system) complete on branch `pn/ui-v2`
+- Task 08 (knowledge page) complete on branch `pn/ui-v2`
 - New token system: `--color-*` custom properties in `:root`, hex values, no OKLCH/color-mix
 - Font stack: Inter Variable (sans) + JetBrains Mono (mono), no display font
 - Flat depth model active: no shadows, no gradients, no textures in styles.css
@@ -39,6 +40,6 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 
 - Task 03 (session chat restyle) depends on task 01 tokens + task 02 sidebar — both done.
 - Task 06 (skills page) built on `systems/skill/` data layer from task 05 and the `/_app/skills` route from task 02 — now complete.
-- Task 08 (knowledge page) will build on `systems/knowledge/` data layer from task 07 and the `/_app/knowledge` route from task 02.
+- Task 08 (knowledge page) built on `systems/knowledge/` data layer from task 07 and the `/_app/knowledge` route from task 02 — now complete.
 - Components still use `text-[color:var(--color-text-tertiary)]` pattern (arbitrary Tailwind values). Future tasks may want to define shorthand Tailwind utilities via `@theme inline` for frequently used tokens.
 - Skills enable/disable endpoints are stubs — the Registry doesn't yet have mutation methods. Future work should add `Enable(name)` / `Disable(name)` to the registry.
