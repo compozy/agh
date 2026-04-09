@@ -3,6 +3,7 @@ package hooks
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 type matcherFunc[P any] func(HookMatcher, P) bool
@@ -369,7 +370,7 @@ func (h *Hooks) DispatchPermissionRequest(ctx context.Context, payload Permissio
 			match:  matchPermissionRequest,
 			apply:  mergePermissionRequestPatch,
 			denied: permissionPatchDenies,
-			guard:  newPermissionRequestGuard(h.logger),
+			guard:  newPermissionRequestGuard(h.logger, h.metrics),
 		},
 	)
 }
@@ -452,28 +453,76 @@ func executeDispatch[P any, R any](
 	}
 
 	syncHooks, asyncHooks := selectMatchingHooks(snapshot, payload, cfg.match)
+	if len(syncHooks) == 0 && len(asyncHooks) == 0 {
+		return payload, nil
+	}
+
+	dispatchDepth := currentDispatchDepth(ctx) + 1
+	dispatchStarted := time.Now()
+	h.logger.Info(
+		"hook.dispatch.started",
+		"event", event.String(),
+		"dispatch_depth", dispatchDepth,
+		"sync_hooks", len(syncHooks),
+		"async_hooks", len(asyncHooks),
+	)
 
 	result := payload
 	var dispatchErr error
 	pipe := pipeline[P, R]{
-		event:  event,
-		hooks:  func(P) []*ResolvedHook { return syncHooks },
-		apply:  cfg.apply,
-		encode: encodeJSON[P],
-		decode: decodeJSON[R],
-		denied: cfg.denied,
-		guard:  cfg.guard,
+		event:        event,
+		hooksRuntime: h,
+		hooks:        func(P) []*ResolvedHook { return syncHooks },
+		apply:        cfg.apply,
+		encode:       encodeJSON[P],
+		decode:       decodeJSON[R],
+		denied:       cfg.denied,
+		guard:        cfg.guard,
+		enter:        h.enterDispatch,
 	}
+	var report dispatchReport
 	if len(syncHooks) > 0 {
-		var denied bool
-		result, denied, dispatchErr = pipe.executeWithDisposition(ctx, payload)
-		if dispatchErr == nil && denied && cfg.denyErr != nil {
+		result, report, dispatchErr = pipe.executeWithDisposition(ctx, payload)
+		if dispatchErr == nil && report.Denied && cfg.denyErr != nil {
 			dispatchErr = cfg.denyErr(result)
 		}
 	}
 
 	if len(asyncHooks) > 0 {
 		submitAsyncHooks(h, ctx, result, asyncHooks, pipe)
+	}
+
+	pipelineDuration := time.Since(dispatchStarted)
+	h.metrics.observePipeline(event, pipelineDuration)
+	switch {
+	case report.Denied:
+		h.logger.Warn(
+			"hook.dispatch.blocked",
+			"event", event.String(),
+			"dispatch_depth", dispatchDepth,
+			"deny_source", report.DenySource,
+			"pipeline_trace", traceStrings(report.Trace),
+		)
+	case dispatchErr != nil:
+		h.logger.Warn(
+			"hook.dispatch.failed",
+			"event", event.String(),
+			"dispatch_depth", dispatchDepth,
+			"error", dispatchErr,
+			"failed_hook", report.FailedHook,
+			"required", report.FailedRequired,
+			"pipeline_trace", traceStrings(report.Trace),
+		)
+	default:
+		h.logger.Info(
+			"hook.dispatch.completed",
+			"event", event.String(),
+			"dispatch_depth", dispatchDepth,
+			"duration_ms", pipelineDuration.Milliseconds(),
+			"pipeline_trace", traceStrings(report.Trace),
+			"sync_hooks", len(syncHooks),
+			"async_hooks", len(asyncHooks),
+		)
 	}
 
 	return result, dispatchErr
@@ -522,16 +571,10 @@ func submitAsyncHooks[P any, R any](h *Hooks, parent context.Context, payload P,
 			hook: asyncHook.RegisteredHook,
 			run: func(poolCtx context.Context) {
 				baseCtx := context.WithValue(poolCtx, dispatchDepthContextKey{}, parentDepth)
-				hookCtx, _, err := enterDispatch(baseCtx, asyncHook.Event)
+				baseCtx = context.WithValue(baseCtx, dispatchChainContextKey{}, currentDispatchChain(parent))
+				hookCtx, depth, err := h.enterDispatch(baseCtx, asyncHook.Event)
 				if err != nil {
-					h.logger.WarnContext(
-						poolCtx,
-						"hook.dispatch.async_skipped",
-						"hook", asyncHook.Name,
-						"event", asyncHook.Event.String(),
-						"source", asyncHook.Source.String(),
-						"error", err,
-					)
+					h.emitHookRun(poolCtx, asyncPayload, asyncHook.RegisteredHook, HookRunOutcomeSkipped, 0, nil, err, parentDepth)
 					return
 				}
 
@@ -541,7 +584,11 @@ func submitAsyncHooks[P any, R any](h *Hooks, parent context.Context, payload P,
 				}
 				defer cancel()
 
-				if _, err := pipe.runHook(hookCtx, asyncHook.RegisteredHook, asyncPayload); err != nil {
+				started := time.Now()
+				_, rawPatch, err := pipe.runHook(hookCtx, asyncHook.RegisteredHook, asyncPayload)
+				duration := time.Since(started)
+				if err != nil {
+					h.emitHookRun(hookCtx, asyncPayload, asyncHook.RegisteredHook, HookRunOutcomeFailed, duration, rawPatch, err, depth)
 					h.logger.WarnContext(
 						hookCtx,
 						"hook.dispatch.async_failed",
@@ -550,7 +597,9 @@ func submitAsyncHooks[P any, R any](h *Hooks, parent context.Context, payload P,
 						"source", asyncHook.Source.String(),
 						"error", err,
 					)
+					return
 				}
+				h.emitHookRun(hookCtx, asyncPayload, asyncHook.RegisteredHook, HookRunOutcomeApplied, duration, rawPatch, nil, depth)
 			},
 		})
 	}

@@ -3,6 +3,7 @@ package sessiondb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
 )
 
@@ -47,6 +49,22 @@ var sessionSchemaStatements = []string{
 		timestamp          TEXT NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_usage_timestamp ON token_usage(timestamp);`,
+	`CREATE TABLE IF NOT EXISTS hook_runs (
+		id             TEXT PRIMARY KEY,
+		hook_name      TEXT NOT NULL,
+		event          TEXT NOT NULL,
+		source         TEXT NOT NULL,
+		mode           TEXT NOT NULL,
+		duration_ns    INTEGER NOT NULL,
+		outcome        TEXT NOT NULL,
+		dispatch_depth INTEGER NOT NULL,
+		patch_applied  TEXT,
+		error          TEXT,
+		required       INTEGER NOT NULL DEFAULT 0,
+		recorded_at    TEXT NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_hook_runs_event ON hook_runs(event);`,
+	`CREATE INDEX IF NOT EXISTS idx_hook_runs_recorded_at ON hook_runs(recorded_at);`,
 }
 
 const (
@@ -60,6 +78,7 @@ type sessionWriteKind int
 const (
 	sessionWriteEvent sessionWriteKind = iota + 1
 	sessionWriteUsage
+	sessionWriteHookRun
 )
 
 type sessionWriteRequest struct {
@@ -67,6 +86,7 @@ type sessionWriteRequest struct {
 	kind   sessionWriteKind
 	event  store.SessionEvent
 	usage  store.TokenUsage
+	hook   hookspkg.HookRunRecord
 	result chan error
 }
 
@@ -198,6 +218,83 @@ func (s *SessionDB) RecordTokenUsage(ctx context.Context, usage store.TokenUsage
 		usage:  usage,
 		result: make(chan error, 1),
 	})
+}
+
+// RecordHookRun stores one hook execution audit record in the per-session store.
+func (s *SessionDB) RecordHookRun(ctx context.Context, record hookspkg.HookRunRecord) error {
+	if s == nil {
+		return errors.New("store: session database is required")
+	}
+	if ctx == nil {
+		return errors.New("store: record hook run context is required")
+	}
+
+	return s.enqueueWrite(ctx, sessionWriteRequest{
+		ctx:    ctx,
+		kind:   sessionWriteHookRun,
+		hook:   cloneHookRunRecord(record),
+		result: make(chan error, 1),
+	})
+}
+
+// QueryHookRuns returns persisted hook execution records filtered by the supplied options.
+func (s *SessionDB) QueryHookRuns(ctx context.Context, query store.HookRunQuery) ([]hookspkg.HookRunRecord, error) {
+	if s == nil {
+		return nil, errors.New("store: session database is required")
+	}
+	if ctx == nil {
+		return nil, errors.New("store: query hook runs context is required")
+	}
+	if err := query.Validate(); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(query.SessionID) != "" && strings.TrimSpace(query.SessionID) != s.sessionID {
+		return nil, fmt.Errorf("store: hook run query session id %q does not match session database %q", query.SessionID, s.sessionID)
+	}
+	if event := strings.TrimSpace(query.Event); event != "" {
+		if err := hookspkg.HookEvent(event).Validate(); err != nil {
+			return nil, err
+		}
+	}
+
+	baseQuery := `SELECT rowid, hook_name, event, source, mode, duration_ns, outcome, dispatch_depth, patch_applied, error, required, recorded_at FROM hook_runs`
+	where, args := store.BuildClauses(
+		store.StringClause("event", query.Event),
+		store.TimeClause("recorded_at", ">=", query.Since),
+	)
+	baseQuery = store.AppendWhere(baseQuery, where)
+
+	sqlQuery := baseQuery
+	if query.Limit > 0 {
+		sqlQuery = `SELECT rowid, hook_name, event, source, mode, duration_ns, outcome, dispatch_depth, patch_applied, error, required, recorded_at
+			FROM (` + baseQuery + ` ORDER BY recorded_at DESC, rowid DESC LIMIT ?) AS recent_hook_runs
+			ORDER BY recorded_at ASC, rowid ASC`
+		args = append(args, query.Limit)
+	} else {
+		sqlQuery += " ORDER BY recorded_at ASC, rowid ASC"
+	}
+
+	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: query hook runs: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	records := make([]hookspkg.HookRunRecord, 0)
+	for rows.Next() {
+		record, scanErr := s.scanHookRunRecord(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate hook runs: %w", err)
+	}
+
+	return records, nil
 }
 
 // Query returns events filtered by the supplied options.
@@ -384,6 +481,8 @@ func (s *SessionDB) executeWrite(req sessionWriteRequest) error {
 		return s.writeEvent(req.ctx, req.event)
 	case sessionWriteUsage:
 		return s.writeTokenUsage(req.ctx, req.usage)
+	case sessionWriteHookRun:
+		return s.writeHookRun(req.ctx, req.hook)
 	default:
 		return fmt.Errorf("store: unsupported session write kind %d", req.kind)
 	}
@@ -462,6 +561,49 @@ func (s *SessionDB) writeTokenUsage(ctx context.Context, usage store.TokenUsage)
 	return nil
 }
 
+func (s *SessionDB) writeHookRun(ctx context.Context, record hookspkg.HookRunRecord) error {
+	if strings.TrimSpace(record.HookName) == "" {
+		return errors.New("store: hook run hook name is required")
+	}
+	if err := record.Event.Validate(); err != nil {
+		return err
+	}
+	if err := record.Source.Validate(); err != nil {
+		return err
+	}
+	if err := record.Mode.Validate(); err != nil {
+		return err
+	}
+	if record.RecordedAt.IsZero() {
+		record.RecordedAt = s.now()
+	}
+
+	id := store.NewID("hook")
+	if _, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO hook_runs (
+			id, hook_name, event, source, mode, duration_ns, outcome, dispatch_depth,
+			patch_applied, error, required, recorded_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id,
+		record.HookName,
+		record.Event.String(),
+		record.Source.String(),
+		string(record.Mode),
+		record.Duration.Nanoseconds(),
+		string(record.Outcome),
+		record.DispatchDepth,
+		store.NullableString(rawJSONText(record.PatchApplied)),
+		store.NullableString(record.Error),
+		boolToSQLite(record.Required),
+		store.FormatTimestamp(record.RecordedAt),
+	); err != nil {
+		return fmt.Errorf("store: insert hook run: %w", err)
+	}
+
+	return nil
+}
+
 func (s *SessionDB) scanSessionEvent(scanner rowScanner) (store.SessionEvent, error) {
 	var (
 		event     store.SessionEvent
@@ -486,6 +628,63 @@ func (s *SessionDB) scanSessionEvent(scanner rowScanner) (store.SessionEvent, er
 	event.Timestamp = parsed
 	event.SessionID = s.sessionID
 	return event, nil
+}
+
+func (s *SessionDB) scanHookRunRecord(scanner rowScanner) (hookspkg.HookRunRecord, error) {
+	var (
+		record        hookspkg.HookRunRecord
+		rowID         int64
+		event         string
+		source        string
+		mode          string
+		durationNS    int64
+		outcome       string
+		patchApplied  sql.NullString
+		recordError   sql.NullString
+		required      int64
+		recordedAtRaw string
+	)
+
+	if err := scanner.Scan(
+		&rowID,
+		&record.HookName,
+		&event,
+		&source,
+		&mode,
+		&durationNS,
+		&outcome,
+		&record.DispatchDepth,
+		&patchApplied,
+		&recordError,
+		&required,
+		&recordedAtRaw,
+	); err != nil {
+		return hookspkg.HookRunRecord{}, fmt.Errorf("store: scan hook run: %w", err)
+	}
+
+	record.Event = hookspkg.HookEvent(strings.TrimSpace(event))
+	if err := record.Event.Validate(); err != nil {
+		return hookspkg.HookRunRecord{}, err
+	}
+	if err := record.Source.UnmarshalText([]byte(strings.TrimSpace(source))); err != nil {
+		return hookspkg.HookRunRecord{}, err
+	}
+	record.Mode = hookspkg.HookMode(strings.TrimSpace(mode))
+	record.Duration = time.Duration(durationNS)
+	record.Outcome = hookspkg.HookRunOutcome(strings.TrimSpace(outcome))
+	record.Required = required != 0
+	record.Error = strings.TrimSpace(recordError.String)
+	if patchApplied.Valid && strings.TrimSpace(patchApplied.String) != "" {
+		record.PatchApplied = json.RawMessage(patchApplied.String)
+	}
+
+	recordedAt, err := store.ParseTimestamp(recordedAtRaw)
+	if err != nil {
+		return hookspkg.HookRunRecord{}, err
+	}
+	record.RecordedAt = recordedAt
+	_ = rowID
+	return cloneHookRunRecord(record), nil
 }
 
 func currentMaxSequence(ctx context.Context, db *sql.DB) (int64, error) {
@@ -525,4 +724,28 @@ func openSessionSQLite(ctx context.Context, path string) (*sql.DB, error) {
 	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
 		return store.EnsureSchema(ctx, db, sessionSchemaStatements)
 	})
+}
+
+func rawJSONText(raw json.RawMessage) string {
+	return strings.TrimSpace(string(raw))
+}
+
+func boolToSQLite(value bool) int64 {
+	if value {
+		return 1
+	}
+	return 0
+}
+
+func cloneHookRunRecord(src hookspkg.HookRunRecord) hookspkg.HookRunRecord {
+	cloned := src
+	cloned.PatchApplied = cloneRawJSON(src.PatchApplied)
+	return cloned
+}
+
+func cloneRawJSON(src json.RawMessage) json.RawMessage {
+	if len(src) == 0 {
+		return nil
+	}
+	return append(json.RawMessage(nil), src...)
 }

@@ -13,7 +13,7 @@ var (
 	ErrPermissionEscalationBlocked = errors.New("hooks: permission escalation blocked")
 )
 
-func newPermissionRequestGuard(logger *slog.Logger) patchGuard[PermissionRequestPayload, PermissionRequestPatch] {
+func newPermissionRequestGuard(logger *slog.Logger, metrics *hookMetrics) patchGuard[PermissionRequestPayload, PermissionRequestPatch] {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -22,6 +22,7 @@ func newPermissionRequestGuard(logger *slog.Logger) patchGuard[PermissionRequest
 		beforeDecision := normalizedPermissionDecision(payload.Decision)
 		afterDecision := normalizedPermissionDecision(permissionDecisionAfterPatch(payload.Decision, patch))
 		if permissionDecisionDenied(beforeDecision) && !permissionDecisionDenied(afterDecision) {
+			metrics.observePermissionEscalationBlock()
 			logger.WarnContext(
 				ctx,
 				"hook.dispatch.permission_escalation_blocked",

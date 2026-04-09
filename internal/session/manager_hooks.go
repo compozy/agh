@@ -145,6 +145,7 @@ func (m *Manager) dispatchSessionPreStop(ctx context.Context, session *Session) 
 	if m == nil || m.hooks == nil || session == nil {
 		return nil
 	}
+	ctx = hookDispatchContext(ctx, session)
 
 	payload, err := m.hooks.DispatchSessionPreStop(ctx, hookSessionLifecyclePayload(session, hookspkg.HookSessionPreStop, m.now()))
 	if err != nil {
@@ -163,6 +164,7 @@ func (m *Manager) dispatchSessionLifecycleObservation(ctx context.Context, sessi
 	if m == nil || m.hooks == nil || session == nil {
 		return
 	}
+	ctx = hookDispatchContext(ctx, session)
 
 	payload := hookSessionLifecyclePayload(session, event, m.now())
 	var err error
@@ -185,6 +187,7 @@ func (m *Manager) dispatchInputPreSubmit(ctx context.Context, session *Session, 
 	if m == nil || m.hooks == nil {
 		return message, nil
 	}
+	ctx = hookDispatchContext(ctx, session)
 
 	payload, err := m.hooks.DispatchInputPreSubmit(ctx, hookspkg.InputPreSubmitPayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -228,6 +231,7 @@ func (m *Manager) dispatchTurnStart(ctx context.Context, state *promptTurnDispat
 	if m == nil || m.hooks == nil || state == nil {
 		return nil
 	}
+	ctx = hookDispatchContext(ctx, state.session)
 
 	_, err := m.hooks.DispatchTurnStart(ctx, hookspkg.TurnStartPayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -254,6 +258,7 @@ func (m *Manager) dispatchTurnEnd(ctx context.Context, state *promptTurnDispatch
 	if m == nil || m.hooks == nil {
 		return
 	}
+	ctx = hookDispatchContext(ctx, state.session)
 
 	_, err := m.hooks.DispatchTurnEnd(ctx, hookspkg.TurnEndPayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -309,6 +314,7 @@ func (m *Manager) dispatchMessageStart(ctx context.Context, state *promptTurnDis
 	if m == nil || m.hooks == nil {
 		return event
 	}
+	ctx = hookDispatchContext(ctx, state.session)
 
 	payload, err := m.hooks.DispatchMessageStart(ctx, hookspkg.MessageStartPayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -337,6 +343,7 @@ func (m *Manager) dispatchMessageDelta(ctx context.Context, state *promptTurnDis
 	if m == nil || m.hooks == nil || state == nil || state.openMessage == nil {
 		return
 	}
+	ctx = hookDispatchContext(ctx, state.session)
 
 	_, err := m.hooks.DispatchMessageDelta(ctx, hookspkg.MessageDeltaPayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -366,6 +373,7 @@ func (m *Manager) finishPromptMessage(ctx context.Context, state *promptTurnDisp
 	if m == nil || m.hooks == nil {
 		return
 	}
+	ctx = hookDispatchContext(ctx, state.session)
 
 	_, err := m.hooks.DispatchMessageEnd(ctx, hookspkg.MessageEndPayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -389,6 +397,7 @@ func (m *Manager) dispatchEventPreRecord(ctx context.Context, session *Session, 
 	if m == nil || m.hooks == nil {
 		return
 	}
+	ctx = hookDispatchContext(ctx, session)
 
 	_, err := m.hooks.DispatchEventPreRecord(ctx, hookspkg.EventPreRecordPayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -423,6 +432,7 @@ func (m *Manager) runContextCompaction(
 	if m != nil {
 		now = m.now
 	}
+	ctx = hookDispatchContext(ctx, session)
 
 	prePayload := hookspkg.ContextPreCompactPayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -483,6 +493,7 @@ func (m *Manager) dispatchEventPostRecord(ctx context.Context, session *Session,
 	if m == nil || m.hooks == nil {
 		return
 	}
+	ctx = hookDispatchContext(ctx, session)
 
 	_, err := m.hooks.DispatchEventPostRecord(ctx, hookspkg.EventPostRecordPayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -503,6 +514,7 @@ func (m *Manager) dispatchAgentPreStart(ctx context.Context, session *Session, r
 	if m == nil || m.hooks == nil {
 		return opts, nil
 	}
+	ctx = hookDispatchContext(ctx, session)
 
 	command, args := splitCommand(opts.Command)
 	payload, err := m.hooks.DispatchAgentPreStart(ctx, hookspkg.AgentPreStartPayload{
@@ -543,6 +555,7 @@ func (m *Manager) dispatchAgentObservation(ctx context.Context, session *Session
 	if m == nil || m.hooks == nil {
 		return
 	}
+	ctx = hookDispatchContext(ctx, session)
 
 	command, args := agentCommandAndArgs(proc)
 	payload := hookspkg.AgentLifecyclePayload{
@@ -765,4 +778,17 @@ func cloneStringMap(src map[string]string) map[string]string {
 		cloned[key] = value
 	}
 	return cloned
+}
+
+func hookDispatchContext(ctx context.Context, session *Session) context.Context {
+	if ctx == nil || session == nil {
+		return ctx
+	}
+
+	writer, ok := session.recorderHandle().(hookspkg.HookRunWriter)
+	if !ok || writer == nil {
+		return ctx
+	}
+
+	return hookspkg.WithHookRunWriter(ctx, writer)
 }

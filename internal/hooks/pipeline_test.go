@@ -572,7 +572,7 @@ func permissionPipeline(
 		encode: failPermissionEncode,
 		decode: failPermissionDecode,
 		denied: permissionPatchDenies,
-		guard:  newPermissionRequestGuard(logger),
+		guard:  newPermissionRequestGuard(logger, nil),
 	}
 }
 

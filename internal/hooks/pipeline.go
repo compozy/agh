@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 )
 
 type hookSelector[P any] func(P) []*ResolvedHook
@@ -21,13 +22,15 @@ type typedNativeExecutor[P any, R any] interface {
 
 // pipeline executes one sync hook chain for a concrete payload/patch pair.
 type pipeline[P any, R any] struct {
-	event  HookEvent
-	hooks  hookSelector[P]
-	apply  func(P, R) P
-	encode func(P) ([]byte, error)
-	decode func([]byte) (R, error)
-	denied denyDetector[R]
-	guard  patchGuard[P, R]
+	event        HookEvent
+	hooksRuntime *Hooks
+	hooks        hookSelector[P]
+	apply        func(P, R) P
+	encode       func(P) ([]byte, error)
+	decode       func([]byte) (R, error)
+	denied       denyDetector[R]
+	guard        patchGuard[P, R]
+	enter        func(context.Context, HookEvent) (context.Context, int, error)
 }
 
 func (p pipeline[P, R]) execute(ctx context.Context, payload P) (P, error) {
@@ -35,37 +38,50 @@ func (p pipeline[P, R]) execute(ctx context.Context, payload P) (P, error) {
 	return result, err
 }
 
-func (p pipeline[P, R]) executeWithDisposition(ctx context.Context, payload P) (P, bool, error) {
+func (p pipeline[P, R]) executeWithDisposition(ctx context.Context, payload P) (P, dispatchReport, error) {
 	if err := p.validate(); err != nil {
-		return payload, false, err
+		return payload, dispatchReport{}, err
 	}
 
-	dispatchCtx, _, err := enterDispatch(ctx, p.event)
+	enterDispatchFn := p.enter
+	if enterDispatchFn == nil {
+		enterDispatchFn = enterDispatch
+	}
+
+	dispatchCtx, depth, err := enterDispatchFn(ctx, p.event)
 	if err != nil {
-		return payload, false, err
+		return payload, dispatchReport{}, err
 	}
 
 	current := payload
+	report := dispatchReport{Trace: make([]hookTraceEntry, 0)}
 	for _, hook := range OrderedResolvedHooks(p.hooks(payload)) {
 		if hook == nil {
 			continue
 		}
 
-		next, denied, err := p.executeHook(dispatchCtx, *hook, current)
+		next, denied, trace, err := p.executeHook(dispatchCtx, *hook, current, depth)
+		if trace.Hook != "" {
+			report.Trace = append(report.Trace, trace)
+		}
 		if err != nil {
+			report.FailedHook = hook.Name
+			report.FailedRequired = hook.Required
 			if hook.Required {
-				return current, false, fmt.Errorf("hooks: required hook %q failed for event %q: %w", hook.Name, p.event, err)
+				return current, report, fmt.Errorf("hooks: required hook %q failed for event %q: %w", hook.Name, p.event, err)
 			}
 			continue
 		}
 
 		current = next
 		if denied {
-			return current, true, nil
+			report.Denied = true
+			report.DenySource = hook.Name
+			return current, report, nil
 		}
 	}
 
-	return current, false, nil
+	return current, report, nil
 }
 
 func (p pipeline[P, R]) validate() error {
@@ -87,9 +103,9 @@ func (p pipeline[P, R]) validate() error {
 	return nil
 }
 
-func (p pipeline[P, R]) executeHook(ctx context.Context, hook ResolvedHook, payload P) (P, bool, error) {
+func (p pipeline[P, R]) executeHook(ctx context.Context, hook ResolvedHook, payload P, depth int) (P, bool, hookTraceEntry, error) {
 	if hook.Executor == nil {
-		return payload, false, fmt.Errorf("hooks: hook %q executor is required", hook.Name)
+		return payload, false, hookTraceEntry{}, fmt.Errorf("hooks: hook %q executor is required", hook.Name)
 	}
 
 	hookCtx := ctx
@@ -99,49 +115,83 @@ func (p pipeline[P, R]) executeHook(ctx context.Context, hook ResolvedHook, payl
 	}
 	defer cancel()
 
-	patch, err := p.runHook(hookCtx, hook.RegisteredHook, payload)
+	started := time.Now()
+	patch, rawPatch, err := p.runHook(hookCtx, hook.RegisteredHook, payload)
+	duration := time.Since(started)
+	trace := hookTraceEntry{
+		Hook:     hook.Name,
+		Duration: duration,
+		Required: hook.Required,
+		Patch:    cloneRawJSON(rawPatch),
+	}
 	if err != nil {
-		return payload, false, err
+		trace.Outcome = HookRunOutcomeFailed
+		trace.Error = err.Error()
+		p.recordHookRun(hookCtx, payload, hook.RegisteredHook, trace.Outcome, duration, rawPatch, err, depth)
+		return payload, false, trace, err
 	}
 	if p.guard != nil {
 		if err := p.guard(hookCtx, hook.RegisteredHook, payload, patch); err != nil {
 			if errors.Is(err, ErrHookPatchRejected) {
-				return payload, false, nil
+				trace.Outcome = HookRunOutcomeRejected
+				trace.Error = err.Error()
+				p.recordHookRun(hookCtx, payload, hook.RegisteredHook, trace.Outcome, duration, rawPatch, err, depth)
+				return payload, false, trace, nil
 			}
-			return payload, false, err
+			trace.Outcome = HookRunOutcomeFailed
+			trace.Error = err.Error()
+			p.recordHookRun(hookCtx, payload, hook.RegisteredHook, trace.Outcome, duration, rawPatch, err, depth)
+			return payload, false, trace, err
 		}
 	}
 
 	next := p.apply(payload, patch)
-	return next, p.denied != nil && p.denied(patch), nil
+	denied := p.denied != nil && p.denied(patch)
+	if denied {
+		trace.Outcome = HookRunOutcomeDenied
+	} else {
+		trace.Outcome = HookRunOutcomeApplied
+	}
+	p.recordHookRun(hookCtx, payload, hook.RegisteredHook, trace.Outcome, duration, rawPatch, nil, depth)
+	return next, denied, trace, nil
 }
 
-func (p pipeline[P, R]) runHook(ctx context.Context, hook RegisteredHook, payload P) (R, error) {
+func (p pipeline[P, R]) runHook(ctx context.Context, hook RegisteredHook, payload P) (R, json.RawMessage, error) {
 	if hook.Executor.Kind() == HookExecutorNative {
 		if executor, ok := hook.Executor.(typedNativeExecutor[P, R]); ok {
-			return executor.ExecuteTyped(ctx, hook, payload)
+			patch, err := executor.ExecuteTyped(ctx, hook, payload)
+			if err != nil {
+				var zero R
+				return zero, nil, err
+			}
+			rawPatch, marshalErr := json.Marshal(patch)
+			if marshalErr != nil {
+				var zero R
+				return zero, nil, fmt.Errorf("hooks: encode native patch for hook %q: %w", hook.Name, marshalErr)
+			}
+			return patch, rawPatch, nil
 		}
 	}
 
 	encoded, err := p.encode(payload)
 	if err != nil {
 		var zero R
-		return zero, fmt.Errorf("hooks: encode payload for hook %q: %w", hook.Name, err)
+		return zero, nil, fmt.Errorf("hooks: encode payload for hook %q: %w", hook.Name, err)
 	}
 
 	rawPatch, err := hook.Executor.Execute(ctx, hook, encoded)
 	if err != nil {
 		var zero R
-		return zero, err
+		return zero, nil, err
 	}
 
 	patch, err := p.decode(rawPatch)
 	if err != nil {
 		var zero R
-		return zero, fmt.Errorf("hooks: decode patch for hook %q: %w", hook.Name, err)
+		return zero, rawPatch, fmt.Errorf("hooks: decode patch for hook %q: %w", hook.Name, err)
 	}
 
-	return patch, nil
+	return patch, rawPatch, nil
 }
 
 func encodeJSON[T any](payload T) ([]byte, error) {
@@ -157,4 +207,11 @@ func decodeJSON[T any](payload []byte) (T, error) {
 		return decoded, err
 	}
 	return decoded, nil
+}
+
+func (p pipeline[P, R]) recordHookRun(ctx context.Context, payload P, hook RegisteredHook, outcome HookRunOutcome, duration time.Duration, rawPatch json.RawMessage, err error, depth int) {
+	if p.hooksRuntime == nil {
+		return
+	}
+	p.hooksRuntime.emitHookRun(ctx, payload, hook, outcome, duration, rawPatch, err, depth)
 }

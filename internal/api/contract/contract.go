@@ -4,6 +4,8 @@ package contract
 import (
 	"encoding/json"
 	"time"
+
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
 // CreateSessionRequest is the shared session creation request payload.
@@ -136,6 +138,45 @@ type ObserveHealthPayload struct {
 	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
 	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
 	Version            string `json:"version"`
+}
+
+// HookCatalogPayload is the shared resolved-hook catalog response payload.
+type HookCatalogPayload struct {
+	Order       int                  `json:"order"`
+	Name        string               `json:"name"`
+	Event       string               `json:"event"`
+	Source      string               `json:"source"`
+	SkillSource string               `json:"skill_source,omitempty"`
+	Mode        string               `json:"mode"`
+	Required    bool                 `json:"required"`
+	Priority    int                  `json:"priority"`
+	TimeoutMS   int64                `json:"timeout_ms,omitempty"`
+	Matcher     hookspkg.HookMatcher `json:"matcher,omitempty"`
+	Metadata    map[string]string    `json:"metadata,omitempty"`
+}
+
+// HookRunPayload is the shared hook execution history response payload.
+type HookRunPayload struct {
+	HookName      string          `json:"hook_name"`
+	Event         string          `json:"event"`
+	Source        string          `json:"source"`
+	Mode          string          `json:"mode"`
+	DurationMS    int64           `json:"duration_ms"`
+	Outcome       string          `json:"outcome"`
+	DispatchDepth int             `json:"dispatch_depth"`
+	PatchApplied  json.RawMessage `json:"patch_applied,omitempty"`
+	Error         string          `json:"error,omitempty"`
+	Required      bool            `json:"required,omitempty"`
+	RecordedAt    time.Time       `json:"recorded_at"`
+}
+
+// HookEventPayload is the shared hook taxonomy response payload.
+type HookEventPayload struct {
+	Event         string `json:"event"`
+	Family        string `json:"family"`
+	SyncEligible  bool   `json:"sync_eligible"`
+	PayloadSchema string `json:"payload_schema"`
+	PatchSchema   string `json:"patch_schema,omitempty"`
 }
 
 // DaemonStatusPayload is the shared daemon status response payload.

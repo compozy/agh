@@ -1905,6 +1905,18 @@ func (f *fakeObserver) QueryEvents(context.Context, store.EventSummaryQuery) ([]
 	return nil, nil
 }
 
+func (f *fakeObserver) QueryHookCatalog(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error) {
+	return nil, nil
+}
+
+func (f *fakeObserver) QueryHookRuns(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error) {
+	return nil, nil
+}
+
+func (f *fakeObserver) QueryHookEvents(context.Context) ([]hookspkg.EventDescriptor, error) {
+	return nil, nil
+}
+
 func (f *fakeObserver) Health(context.Context) (observe.Health, error) {
 	return observe.Health{Status: "ok"}, nil
 }

@@ -9,6 +9,7 @@ import (
 const maxDispatchDepth = 3
 
 type dispatchDepthContextKey struct{}
+type dispatchChainContextKey struct{}
 
 var ErrDispatchDepthExceeded = errors.New("hooks: dispatch depth exceeded")
 
@@ -24,7 +25,10 @@ func enterDispatch(ctx context.Context, event HookEvent) (context.Context, int, 
 		)
 	}
 
-	return context.WithValue(ctx, dispatchDepthContextKey{}, depth), depth, nil
+	nextChain := append(currentDispatchChain(ctx), event)
+	nextCtx := context.WithValue(ctx, dispatchDepthContextKey{}, depth)
+	nextCtx = context.WithValue(nextCtx, dispatchChainContextKey{}, nextChain)
+	return nextCtx, depth, nil
 }
 
 func currentDispatchDepth(ctx context.Context) int {
@@ -34,4 +38,19 @@ func currentDispatchDepth(ctx context.Context) int {
 
 	depth, _ := ctx.Value(dispatchDepthContextKey{}).(int)
 	return depth
+}
+
+func currentDispatchChain(ctx context.Context) []HookEvent {
+	if ctx == nil {
+		return nil
+	}
+
+	chain, _ := ctx.Value(dispatchChainContextKey{}).([]HookEvent)
+	if len(chain) == 0 {
+		return nil
+	}
+
+	cloned := make([]HookEvent, len(chain))
+	copy(cloned, chain)
+	return cloned
 }

@@ -6,15 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
+	"github.com/pedronauck/agh/internal/store/sessiondb"
 	"github.com/pedronauck/agh/internal/version"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -47,6 +51,21 @@ type PermissionModeResolver func(ctx context.Context, agentName, workspaceID str
 // VersionSource returns the current daemon build metadata.
 type VersionSource func() version.Info
 
+// HookCatalogSource provides resolved hook catalog views from the live runtime.
+type HookCatalogSource interface {
+	Catalog(filter hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
+}
+
+// HookRunStore is the session-scoped storage surface used for hook run audits.
+type HookRunStore interface {
+	RecordHookRun(context.Context, hookspkg.HookRunRecord) error
+	QueryHookRuns(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
+	Close(context.Context) error
+}
+
+// HookStoreOpener opens the per-session store used for hook run audit queries.
+type HookStoreOpener func(ctx context.Context, sessionID string, path string) (HookRunStore, error)
+
 // Option customizes Observer construction.
 type Option func(*Observer)
 
@@ -70,6 +89,8 @@ type Observer struct {
 	logger                *slog.Logger
 	versionSource         VersionSource
 	sessions              map[string]observedSession
+	hookCatalogSource     HookCatalogSource
+	openHookStore         HookStoreOpener
 }
 
 var _ session.Notifier = (*Observer)(nil)
@@ -138,6 +159,20 @@ func WithVersionSource(source VersionSource) Option {
 	}
 }
 
+// WithHookCatalogSource injects the runtime hook catalog source used by hook introspection.
+func WithHookCatalogSource(source HookCatalogSource) Option {
+	return func(observer *Observer) {
+		observer.hookCatalogSource = source
+	}
+}
+
+// WithHookStoreOpener overrides the per-session hook run store opener, mainly for tests.
+func WithHookStoreOpener(opener HookStoreOpener) Option {
+	return func(observer *Observer) {
+		observer.openHookStore = opener
+	}
+}
+
 // New constructs an Observer and opens the global AGH database when needed.
 func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	if ctx == nil {
@@ -185,6 +220,11 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	if observer.resolvePermissionMode == nil {
 		observer.resolvePermissionMode = defaultPermissionModeResolver(observer.homePaths, observer.workspaceResolver)
 	}
+	if observer.openHookStore == nil {
+		observer.openHookStore = func(ctx context.Context, sessionID string, path string) (HookRunStore, error) {
+			return sessiondb.OpenSessionDB(ctx, sessionID, path)
+		}
+	}
 
 	if observer.registry == nil {
 		if err := aghconfig.EnsureHomeLayout(observer.homePaths); err != nil {
@@ -199,6 +239,59 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	}
 
 	return observer, nil
+}
+
+// AttachHooks swaps in the live hook catalog source after the hook runtime is built.
+func (o *Observer) AttachHooks(source HookCatalogSource) {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.hookCatalogSource = source
+}
+
+func (o *Observer) hookDBPath(sessionID string) string {
+	return store.SessionDBFile(filepath.Join(o.homePaths.SessionsDir, strings.TrimSpace(sessionID)))
+}
+
+func (o *Observer) openHookRunStore(ctx context.Context, sessionID string) (HookRunStore, func() error, error) {
+	if o == nil {
+		return nil, nil, errors.New("observe: observer is required")
+	}
+	if ctx == nil {
+		return nil, nil, errors.New("observe: hook run context is required")
+	}
+
+	target := strings.TrimSpace(sessionID)
+	if target == "" {
+		return nil, nil, errors.New("observe: session id is required")
+	}
+
+	dbPath := o.hookDBPath(target)
+	if _, err := os.Stat(dbPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil, os.ErrNotExist
+		}
+		return nil, nil, fmt.Errorf("observe: stat hook database for %q: %w", target, err)
+	}
+
+	openStore := o.openHookStore
+	if openStore == nil {
+		return nil, nil, errors.New("observe: hook store opener is required")
+	}
+
+	storeHandle, err := openStore(ctx, target, dbPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("observe: open hook database for %q: %w", target, err)
+	}
+
+	cleanup := func() error {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return storeHandle.Close(closeCtx)
+	}
+	return storeHandle, cleanup, nil
 }
 
 // Close flushes and closes the backing global registry.

@@ -7,6 +7,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
@@ -38,6 +39,9 @@ type SessionManager interface {
 // Observer is the observability surface exposed by API transports.
 type Observer interface {
 	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
+	QueryHookCatalog(ctx context.Context, filter hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
+	QueryHookRuns(ctx context.Context, query store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
+	QueryHookEvents(ctx context.Context) ([]hookspkg.EventDescriptor, error)
 	Health(ctx context.Context) (observe.Health, error)
 }
 

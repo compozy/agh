@@ -14,6 +14,7 @@ import (
 	aghlogger "github.com/pedronauck/agh/internal/logger"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
+	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
@@ -254,18 +255,28 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	deps.Observer = observer
 
 	nativeDecls, nativeExecutors := daemonNativeHooks(observer, dreamRuntime)
-	hooks := hookspkg.NewHooks(
+	hookOptions := []hookspkg.Option{
 		hookspkg.WithLogger(logger),
 		hookspkg.WithNow(d.now),
+		hookspkg.WithDebugPatchAudit(strings.EqualFold(cfg.Log.Level, "debug")),
 		hookspkg.WithExecutorResolver(daemonExecutorResolver(nativeExecutors)),
 		hookspkg.WithNativeDeclarations(nativeDecls),
 		hookspkg.WithConfigDeclarationProvider(configDeclarationProvider(registry, workspaceResolver, logger)),
 		hookspkg.WithAgentDeclarationProvider(agentDeclarationProvider(registry, workspaceResolver, logger)),
 		hookspkg.WithSkillDeclarationProvider(skillDeclarationProvider(skillsRegistry, registry, workspaceResolver, cfg.Skills.AllowedMarketplaceHooks, logger)),
-	)
+	}
+	if sink, ok := observer.(hookspkg.TelemetrySink); ok {
+		hookOptions = append(hookOptions, hookspkg.WithTelemetrySink(sink))
+	}
+	hooks := hookspkg.NewHooks(hookOptions...)
 	if err := hooks.Rebuild(ctx); err != nil {
 		hooks.Close()
 		return fmt.Errorf("daemon: rebuild hooks: %w", err)
+	}
+	if hookAwareObserver, ok := observer.(interface {
+		AttachHooks(observe.HookCatalogSource)
+	}); ok {
+		hookAwareObserver.AttachHooks(hooks)
 	}
 	notifier.setRuntime(hooks, observer)
 	cleanupFns = append(cleanupFns, func(context.Context) error {

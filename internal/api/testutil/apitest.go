@@ -19,6 +19,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
@@ -130,8 +131,11 @@ func (s StubSessionManager) ApprovePermission(ctx context.Context, id string, re
 }
 
 type StubObserver struct {
-	QueryEventsFn func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
-	HealthFn      func(context.Context) (observe.Health, error)
+	QueryEventsFn      func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
+	QueryHookCatalogFn func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
+	QueryHookRunsFn    func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
+	QueryHookEventsFn  func(context.Context) ([]hookspkg.EventDescriptor, error)
+	HealthFn           func(context.Context) (observe.Health, error)
 }
 
 func (s StubObserver) QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
@@ -146,6 +150,27 @@ func (s StubObserver) Health(ctx context.Context) (observe.Health, error) {
 		return s.HealthFn(ctx)
 	}
 	return observe.Health{Status: "ok"}, nil
+}
+
+func (s StubObserver) QueryHookCatalog(ctx context.Context, filter hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error) {
+	if s.QueryHookCatalogFn != nil {
+		return s.QueryHookCatalogFn(ctx, filter)
+	}
+	return nil, nil
+}
+
+func (s StubObserver) QueryHookRuns(ctx context.Context, query store.HookRunQuery) ([]hookspkg.HookRunRecord, error) {
+	if s.QueryHookRunsFn != nil {
+		return s.QueryHookRunsFn(ctx, query)
+	}
+	return nil, nil
+}
+
+func (s StubObserver) QueryHookEvents(ctx context.Context) ([]hookspkg.EventDescriptor, error) {
+	if s.QueryHookEventsFn != nil {
+		return s.QueryHookEventsFn(ctx)
+	}
+	return nil, nil
 }
 
 type StubWorkspaceService struct {

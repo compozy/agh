@@ -30,6 +30,9 @@ type Hooks struct {
 	logger          *slog.Logger
 	now             func() time.Time
 	resolveExecutor ExecutorResolver
+	telemetrySink   TelemetrySink
+	metrics         *hookMetrics
+	debugPatchAudit bool
 
 	nativeProvider DeclarationProvider
 	configProvider DeclarationProvider
@@ -82,6 +85,21 @@ func WithNow(now func() time.Time) Option {
 func WithExecutorResolver(resolve ExecutorResolver) Option {
 	return func(hooks *Hooks) {
 		hooks.resolveExecutor = resolve
+	}
+}
+
+// WithTelemetrySink injects the persistence sink used when no active
+// session-scoped writer is attached to the dispatch context.
+func WithTelemetrySink(sink TelemetrySink) Option {
+	return func(hooks *Hooks) {
+		hooks.telemetrySink = sink
+	}
+}
+
+// WithDebugPatchAudit enables patch capture for non-security hook families.
+func WithDebugPatchAudit(enabled bool) Option {
+	return func(hooks *Hooks) {
+		hooks.debugPatchAudit = enabled
 	}
 }
 
@@ -162,6 +180,7 @@ func NewHooks(opts ...Option) *Hooks {
 		logger:             slog.Default(),
 		now:                time.Now,
 		resolveExecutor:    defaultExecutorResolver,
+		metrics:            newHookMetrics(),
 		nativeProvider:     emptyDeclarationProvider,
 		configProvider:     emptyDeclarationProvider,
 		agentProvider:      emptyDeclarationProvider,
@@ -186,6 +205,9 @@ func NewHooks(opts ...Option) *Hooks {
 	if hooks.resolveExecutor == nil {
 		hooks.resolveExecutor = defaultExecutorResolver
 	}
+	if hooks.metrics == nil {
+		hooks.metrics = newHookMetrics()
+	}
 	if hooks.nativeProvider == nil {
 		hooks.nativeProvider = emptyDeclarationProvider
 	}
@@ -204,6 +226,7 @@ func NewHooks(opts ...Option) *Hooks {
 		QueueCapacity: hooks.asyncQueueCapacity,
 		DrainTimeout:  hooks.asyncDrainTimeout,
 		Logger:        hooks.logger,
+		Metrics:       hooks.metrics,
 	})
 	hooks.pool.Start(context.Background())
 
@@ -254,6 +277,9 @@ func (h *Hooks) Rebuild(ctx context.Context) error {
 		return err
 	}
 
+	reloadStarted := h.now()
+	newHookCount := countResolvedHooks(snapshot)
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -261,9 +287,19 @@ func (h *Hooks) Rebuild(ctx context.Context) error {
 		return nil
 	}
 
+	oldHookCount := countResolvedHooks(h.snapshot)
 	h.snapshot = snapshot
 	h.fingerprint = fingerprint
-	h.version.Add(1)
+	version := h.version.Add(1)
+	reloadDuration := h.now().Sub(reloadStarted)
+	h.metrics.observeRegistryReload(reloadDuration, newHookCount-oldHookCount)
+	h.logger.Info(
+		"hook.registry.reloaded",
+		"version", version,
+		"hook_count", newHookCount,
+		"hook_count_delta", newHookCount-oldHookCount,
+		"duration_ms", reloadDuration.Milliseconds(),
+	)
 
 	return nil
 }
@@ -330,6 +366,14 @@ func buildHookSnapshot(resolved []ResolvedHook) map[HookEvent][]*ResolvedHook {
 	}
 
 	return snapshot
+}
+
+func countResolvedHooks(snapshot map[HookEvent][]*ResolvedHook) int {
+	count := 0
+	for _, hooks := range snapshot {
+		count += len(hooks)
+	}
+	return count
 }
 
 func fingerprintHookSnapshot(snapshot map[HookEvent][]*ResolvedHook) (string, error) {

@@ -23,6 +23,7 @@ type asyncPoolConfig struct {
 	QueueCapacity int
 	DrainTimeout  time.Duration
 	Logger        *slog.Logger
+	Metrics       *hookMetrics
 }
 
 type asyncPool struct {
@@ -30,6 +31,7 @@ type asyncPool struct {
 	workerCount   int
 	queueCapacity int
 	drainTimeout  time.Duration
+	metrics       *hookMetrics
 
 	mu      sync.RWMutex
 	ctx     context.Context
@@ -66,6 +68,7 @@ func newAsyncPool(cfg asyncPoolConfig) *asyncPool {
 		workerCount:   workerCount,
 		queueCapacity: queueCapacity,
 		drainTimeout:  drainTimeout,
+		metrics:       cfg.Metrics,
 	}
 }
 
@@ -111,11 +114,13 @@ func (p *asyncPool) Submit(task asyncTask) bool {
 
 	select {
 	case p.tasks <- task:
+		p.metrics.observeQueueDepth(len(p.tasks))
 		p.mu.RUnlock()
 		return true
 	default:
 		queueDepth := len(p.tasks)
 		logger := p.logger
+		p.metrics.observeAsyncDrop(queueDepth)
 		p.mu.RUnlock()
 
 		logger.Warn(

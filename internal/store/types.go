@@ -58,6 +58,19 @@ type TurnHistory struct {
 	Events []SessionEvent
 }
 
+// HookRunQuery filters persisted per-session hook run records.
+type HookRunQuery struct {
+	SessionID string
+	Event     string
+	Since     time.Time
+	Limit     int
+}
+
+// Validate ensures the query uses sane bounds.
+func (q HookRunQuery) Validate() error {
+	return requirePositiveLimit(q.Limit, "hook run limit")
+}
+
 // TokenUsage captures per-turn usage data reported by an ACP provider.
 type TokenUsage struct {
 	TurnID           string

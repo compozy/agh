@@ -438,3 +438,63 @@ type ContextPreCompactPatch = ContextCompactionPatch
 
 // ContextPostCompactPatch is the post-compact patch surface.
 type ContextPostCompactPatch = ContextCompactionPatch
+
+func (p SessionPreCreatePayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p SessionLifecyclePayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p InputPreSubmitPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p PromptPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p EventRecordPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p AgentPreStartPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p AgentLifecyclePayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p TurnPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p MessagePayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p ToolPreCallPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p ToolPostCallPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p ToolPostErrorPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p PermissionRequestPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p PermissionResolutionPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p ContextCompactPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}

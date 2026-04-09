@@ -460,6 +460,13 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		observeGroup.GET("/health", handlers.Health)
 	}
 
+	hooksGroup := api.Group("/hooks")
+	{
+		hooksGroup.GET("/catalog", handlers.HookCatalog)
+		hooksGroup.GET("/runs", handlers.HookRuns)
+		hooksGroup.GET("/events", handlers.HookEvents)
+	}
+
 	skillsGroup := api.Group("/skills")
 	{
 		skillsGroup.GET("", handlers.ListSkills)

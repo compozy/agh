@@ -239,4 +239,5 @@ type HookRunRecord struct {
 	PatchApplied  json.RawMessage `json:"patch_applied,omitempty"`
 	Error         string          `json:"error,omitempty"`
 	Required      bool            `json:"required,omitempty"`
+	RecordedAt    time.Time       `json:"recorded_at"`
 }
