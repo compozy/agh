@@ -129,6 +129,7 @@ type Daemon struct {
 	registry          Registry
 	memoryStore       *memory.Store
 	sessions          SessionManager
+	hooks             hookRuntime
 	observer          Observer
 	httpServer        Server
 	udsServer         Server
@@ -373,6 +374,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 
 	d.mu.Lock()
 	sessions := d.sessions
+	hooks := d.hooks
 	httpServer := d.httpServer
 	udsServer := d.udsServer
 	registry := d.registry
@@ -384,6 +386,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	skillsDone := d.skillsDone
 
 	d.sessions = nil
+	d.hooks = nil
 	d.httpServer = nil
 	d.udsServer = nil
 	d.observer = nil
@@ -408,6 +411,9 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	stopSkillsWatcher(skillsCancel, skillsDone)
 	if err := d.stopSessions(ctx, sessions); err != nil {
 		errs = append(errs, err)
+	}
+	if hooks != nil {
+		hooks.Close()
 	}
 	if httpServer != nil {
 		if err := httpServer.Shutdown(ctx); err != nil {

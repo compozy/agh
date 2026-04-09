@@ -19,6 +19,7 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/observe"
@@ -299,6 +300,11 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 			events = append(events, "db")
 		},
 	}
+	d.hooks = &fakeHookRuntime{
+		onClose: func() {
+			events = append(events, "hooks")
+		},
+	}
 	d.lock = &Lock{
 		path: homePaths.DaemonLock,
 		releaseFn: func() error {
@@ -315,9 +321,99 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 
-	want := []string{"session:sess-a", "session:sess-b", "http", "uds", "db", "lock", "logger"}
+	want := []string{"session:sess-a", "session:sess-b", "hooks", "http", "uds", "db", "lock", "logger"}
 	if !testutil.EqualStringSlices(events, want) {
 		t.Fatalf("Shutdown() order = %#v, want %#v", events, want)
+	}
+}
+
+func TestShutdownDrainsHooksBeforeClosingDatabase(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	d := newTestDaemon(t, homePaths, cfg)
+
+	asyncStarted := make(chan struct{}, 1)
+	asyncRelease := make(chan struct{})
+	dbClosed := make(chan struct{}, 1)
+
+	hooks := hookspkg.NewHooks(
+		hookspkg.WithLogger(discardLogger()),
+		hookspkg.WithNativeDeclarations([]hookspkg.HookDecl{
+			{
+				Name:         "async-stop",
+				Event:        hookspkg.HookSessionPostStop,
+				Mode:         hookspkg.HookModeAsync,
+				ExecutorKind: hookspkg.HookExecutorNative,
+			},
+		}),
+		hookspkg.WithExecutorResolver(testHookExecutorResolver(map[string]hookspkg.Executor{
+			"async-stop": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionLifecyclePayload) (hookspkg.SessionPostStopPatch, error) {
+				asyncStarted <- struct{}{}
+				<-asyncRelease
+				return hookspkg.SessionPostStopPatch{}, nil
+			}),
+		})),
+	)
+	t.Cleanup(hooks.Close)
+	if err := hooks.Rebuild(testutil.Context(t)); err != nil {
+		t.Fatalf("Rebuild() error = %v", err)
+	}
+
+	notifier := newHooksNotifier(discardLogger(), func() time.Time { return time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC) })
+	notifier.setRuntime(hooks, nil)
+
+	d.sessions = &fakeSessionManager{
+		infos: []*session.SessionInfo{{ID: "sess-a"}},
+		onStop: func(string) {
+			notifier.OnSessionStopped(context.Background(), &session.Session{
+				ID:          "sess-a",
+				AgentName:   "codex",
+				WorkspaceID: "ws-1",
+				Workspace:   "/tmp/ws-1",
+				Type:        session.SessionTypeUser,
+				State:       session.StateStopped,
+				CreatedAt:   time.Date(2026, 4, 9, 11, 0, 0, 0, time.UTC),
+				UpdatedAt:   time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
+			})
+		},
+	}
+	d.hooks = hooks
+	d.registry = &recordingRegistry{
+		path: homePaths.DatabaseFile,
+		onClose: func() {
+			dbClosed <- struct{}{}
+		},
+	}
+	d.closeLogger = func() error { return nil }
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- d.Shutdown(testutil.Context(t))
+	}()
+
+	select {
+	case <-asyncStarted:
+	case <-time.After(time.Second):
+		t.Fatal("async hook did not start before shutdown blocked")
+	}
+
+	select {
+	case <-dbClosed:
+		t.Fatal("database closed before hooks drained")
+	default:
+	}
+
+	close(asyncRelease)
+	if err := <-errCh; err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+
+	select {
+	case <-dbClosed:
+	case <-time.After(time.Second):
+		t.Fatal("database was not closed after hooks drained")
 	}
 }
 
@@ -780,23 +876,6 @@ func TestSignalSourceDefaultsToOSSignalRegistration(t *testing.T) {
 		t.Fatal("signalSource() channel = nil")
 	}
 	stop()
-}
-
-func TestNotifierFanoutDispatchesEvents(t *testing.T) {
-	first := &recordingNotifier{}
-	second := &recordingNotifier{}
-	fanout := notifierFanout{notifiers: []session.Notifier{first, second}}
-
-	fanout.OnSessionCreated(testutil.Context(t), &session.Session{ID: "sess-1"})
-	fanout.OnSessionStopped(testutil.Context(t), &session.Session{ID: "sess-2"})
-	fanout.OnAgentEvent(testutil.Context(t), "sess-3", acp.AgentEvent{Type: "message"})
-
-	if got, want := first.events, []string{"created", "stopped", "agent"}; !testutil.EqualStringSlices(got, want) {
-		t.Fatalf("first notifier events = %#v, want %#v", got, want)
-	}
-	if got, want := second.events, []string{"created", "stopped", "agent"}; !testutil.EqualStringSlices(got, want) {
-		t.Fatalf("second notifier events = %#v, want %#v", got, want)
-	}
 }
 
 func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
@@ -1928,6 +2007,65 @@ func (n *recordingNotifier) OnSessionStopped(context.Context, *session.Session) 
 
 func (n *recordingNotifier) OnAgentEvent(context.Context, string, any) {
 	n.events = append(n.events, "agent")
+}
+
+type fakeHookRuntime struct {
+	version          int64
+	onRebuild        func(context.Context) error
+	onClose          func()
+	onDispatchCreate func(context.Context, hookspkg.SessionPostCreatePayload) error
+	onDispatchStop   func(context.Context, hookspkg.SessionPostStopPayload) error
+	onAgentEvent     func(context.Context, string, any)
+}
+
+func (f *fakeHookRuntime) Rebuild(ctx context.Context) error {
+	if f.onRebuild != nil {
+		return f.onRebuild(ctx)
+	}
+	return nil
+}
+
+func (f *fakeHookRuntime) Close() {
+	if f.onClose != nil {
+		f.onClose()
+	}
+}
+
+func (f *fakeHookRuntime) Version() int64 {
+	return f.version
+}
+
+func (f *fakeHookRuntime) DispatchSessionPostCreate(ctx context.Context, payload hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePayload, error) {
+	if f.onDispatchCreate != nil {
+		return payload, f.onDispatchCreate(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchSessionPostStop(ctx context.Context, payload hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error) {
+	if f.onDispatchStop != nil {
+		return payload, f.onDispatchStop(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) OnAgentEvent(ctx context.Context, sessionID string, event any) {
+	if f.onAgentEvent != nil {
+		f.onAgentEvent(ctx, sessionID, event)
+	}
+}
+
+func testHookExecutorResolver(native map[string]hookspkg.Executor) hookspkg.ExecutorResolver {
+	return func(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
+		if decl.ExecutorKind == hookspkg.HookExecutorNative {
+			executor := native[strings.TrimSpace(decl.Name)]
+			if executor == nil {
+				return nil, errors.New("missing native executor")
+			}
+			return executor, nil
+		}
+		return defaultDaemonExecutorResolver(decl)
+	}
 }
 
 type fakeDreamService struct {

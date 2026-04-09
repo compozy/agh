@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/session"
@@ -313,6 +315,203 @@ func TestBootLeavesSkillDependenciesNilWhenSkillsDisabled(t *testing.T) {
 	}
 }
 
+func TestBootBuildsHooksFromWorkspaceConfigAgentAndSkills(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Memory.Enabled = false
+	cfg.Skills.Enabled = true
+
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, aghconfig.DirName), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Join(workspaceRoot, aghconfig.DirName), err)
+	}
+
+	scriptPath := writeDaemonHookScript(t, t.TempDir(), "capture.sh", "#!/bin/sh\ncat > \"$1\"\n")
+	configOutput := filepath.Join(t.TempDir(), "config-create.json")
+	agentOutput := filepath.Join(t.TempDir(), "agent-stop.json")
+	skillOutput := filepath.Join(t.TempDir(), "skill-create.json")
+
+	writeDaemonFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, "config.toml"), `
+[[hooks.declarations]]
+name = "config-create"
+event = "session.post_create"
+mode = "sync"
+command = "`+scriptPath+`"
+args = ["`+configOutput+`"]
+`)
+	writeDaemonFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, "agents", "coder", "AGENT.md"), `---
+name: coder
+provider: claude
+hooks:
+  - name: agent-stop
+    event: session.post_stop
+    mode: sync
+    command: `+scriptPath+`
+    args: ["`+agentOutput+`"]
+---
+
+Prompt.
+`)
+	writeDaemonFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, "skills", "local-hook", "SKILL.md"), `---
+name: local-hook
+description: workspace lifecycle hook
+metadata:
+  agh:
+    hooks:
+      - event: session.post_create
+        mode: sync
+        command: `+scriptPath+`
+        args:
+          - `+skillOutput+`
+---
+
+body
+`)
+
+	resolvedWorkspace := seedDaemonWorkspace(t, homePaths, workspaceRoot)
+
+	var capturedDeps SessionManagerDeps
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+		capturedDeps = deps
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if d.hooks == nil {
+		t.Fatal("boot() did not initialize hooks runtime")
+	}
+	if capturedDeps.Notifier == nil {
+		t.Fatal("boot() did not inject the hooks notifier")
+	}
+
+	sess := &session.Session{
+		ID:          "sess-1",
+		Name:        "demo",
+		AgentName:   "coder",
+		WorkspaceID: resolvedWorkspace.ID,
+		Workspace:   resolvedWorkspace.RootDir,
+		Type:        session.SessionTypeUser,
+		State:       session.StateStopped,
+		CreatedAt:   time.Date(2026, 4, 9, 10, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 9, 11, 0, 0, 0, time.UTC),
+	}
+
+	capturedDeps.Notifier.OnSessionCreated(testutil.Context(t), sess)
+	capturedDeps.Notifier.OnSessionStopped(testutil.Context(t), sess)
+
+	assertLifecycleHookPayload(t, configOutput, hookspkg.HookSessionPostCreate, resolvedWorkspace)
+	assertLifecycleHookPayload(t, skillOutput, hookspkg.HookSessionPostCreate, resolvedWorkspace)
+	assertLifecycleHookPayload(t, agentOutput, hookspkg.HookSessionPostStop, resolvedWorkspace)
+}
+
+func TestBootSkillsWatcherRebuildsHooksBeforeNextDispatch(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Memory.Enabled = false
+	cfg.Skills.Enabled = true
+	cfg.Skills.PollInterval = 10 * time.Millisecond
+
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	resolvedWorkspace := seedDaemonWorkspace(t, homePaths, workspaceRoot)
+	outputPath := filepath.Join(t.TempDir(), "watched-create.json")
+	scriptPath := writeDaemonHookScript(t, t.TempDir(), "capture.sh", "#!/bin/sh\ncat > \"$1\"\n")
+
+	var capturedDeps SessionManagerDeps
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+		capturedDeps = deps
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	initialVersion := d.hooks.Version()
+	writeDaemonFile(t, filepath.Join(homePaths.SkillsDir, "watched-hook", "SKILL.md"), `---
+name: watched-hook
+description: reloaded hook
+metadata:
+  agh:
+    hooks:
+      - event: session.post_create
+        mode: sync
+        command: `+scriptPath+`
+        args:
+          - `+outputPath+`
+---
+
+body
+`)
+
+	waitForCondition(t, "hooks rebuild after watcher refresh", func() bool {
+		if _, ok := d.skillsRegistry.Get("watched-hook"); !ok {
+			return false
+		}
+		return d.hooks.Version() > initialVersion
+	})
+
+	sess := &session.Session{
+		ID:          "sess-watch",
+		AgentName:   "general",
+		WorkspaceID: resolvedWorkspace.ID,
+		Workspace:   resolvedWorkspace.RootDir,
+		Type:        session.SessionTypeUser,
+		State:       session.StateActive,
+		CreatedAt:   time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
+	}
+
+	capturedDeps.Notifier.OnSessionCreated(testutil.Context(t), sess)
+	assertLifecycleHookPayload(t, outputPath, hookspkg.HookSessionPostCreate, resolvedWorkspace)
+}
+
 func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
@@ -443,4 +642,38 @@ func seedDaemonWorkspace(t *testing.T, homePaths aghconfig.HomePaths, root strin
 		t.Fatalf("ResolveOrRegister(%q) error = %v", root, err)
 	}
 	return resolved
+}
+
+func writeDaemonHookScript(t *testing.T, dir string, name string, contents string) string {
+	t.Helper()
+
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(contents), 0o755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+	}
+	return path
+}
+
+func assertLifecycleHookPayload(t *testing.T, path string, wantEvent hookspkg.HookEvent, wantWorkspace workspacepkg.ResolvedWorkspace) {
+	t.Helper()
+
+	payloadBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
+	}
+
+	var payload hookspkg.SessionLifecyclePayload
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(%q) error = %v", path, err)
+	}
+
+	if payload.Event != wantEvent {
+		t.Fatalf("payload.Event = %q, want %q", payload.Event, wantEvent)
+	}
+	if payload.WorkspaceID != wantWorkspace.ID {
+		t.Fatalf("payload.WorkspaceID = %q, want %q", payload.WorkspaceID, wantWorkspace.ID)
+	}
+	if payload.Workspace != wantWorkspace.RootDir {
+		t.Fatalf("payload.Workspace = %q, want %q", payload.Workspace, wantWorkspace.RootDir)
+	}
 }

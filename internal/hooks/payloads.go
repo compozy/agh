@@ -13,14 +13,16 @@ type PayloadBase struct {
 
 // SessionContext carries the common session-scoped hook attributes.
 type SessionContext struct {
-	SessionID    string `json:"session_id,omitempty"`
-	SessionName  string `json:"session_name,omitempty"`
-	SessionType  string `json:"session_type,omitempty"`
-	AgentName    string `json:"agent_name,omitempty"`
-	WorkspaceID  string `json:"workspace_id,omitempty"`
-	Workspace    string `json:"workspace,omitempty"`
-	ACPSessionID string `json:"acp_session_id,omitempty"`
-	State        string `json:"state,omitempty"`
+	SessionID    string    `json:"session_id,omitempty"`
+	SessionName  string    `json:"session_name,omitempty"`
+	SessionType  string    `json:"session_type,omitempty"`
+	AgentName    string    `json:"agent_name,omitempty"`
+	WorkspaceID  string    `json:"workspace_id,omitempty"`
+	Workspace    string    `json:"workspace,omitempty"`
+	ACPSessionID string    `json:"acp_session_id,omitempty"`
+	State        string    `json:"state,omitempty"`
+	CreatedAt    time.Time `json:"created_at,omitempty"`
+	UpdatedAt    time.Time `json:"updated_at,omitempty"`
 }
 
 // TurnContext carries the current turn identifier.

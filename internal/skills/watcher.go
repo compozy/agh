@@ -34,6 +34,8 @@ type Watcher struct {
 	roots    []string
 	logger   *slog.Logger
 
+	afterRefresh func(context.Context) error
+
 	mu          sync.Mutex
 	initialized bool
 	snapshots   map[string]filesnap.Snapshot
@@ -68,6 +70,15 @@ func newWatcher(registry globalRefresher, interval time.Duration, roots []string
 		logger:    slog.Default(),
 		snapshots: make(map[string]filesnap.Snapshot),
 	}
+}
+
+// SetAfterRefresh installs an optional callback that runs after a successful
+// registry refresh and before watcher snapshots are committed.
+func (w *Watcher) SetAfterRefresh(callback func(context.Context) error) {
+	if w == nil {
+		return
+	}
+	w.afterRefresh = callback
 }
 
 // Start runs the polling loop until the provided context is cancelled.
@@ -119,6 +130,11 @@ func (w *Watcher) pollOnce(ctx context.Context) error {
 	if w.registry != nil {
 		if err := w.registry.RefreshGlobal(ctx); err != nil {
 			return fmt.Errorf("skills: refresh global registry: %w", err)
+		}
+	}
+	if w.afterRefresh != nil {
+		if err := w.afterRefresh(ctx); err != nil {
+			return fmt.Errorf("skills: run watcher refresh callback: %w", err)
 		}
 	}
 
