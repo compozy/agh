@@ -53,6 +53,7 @@ type SkillsRegistry interface {
 	Get(name string) (*skills.Skill, bool)
 	List() []*skills.Skill
 	ForWorkspace(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error)
+	LoadContent(ctx context.Context, skill *skills.Skill) (string, error)
 	SetEnabled(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error
 }
 

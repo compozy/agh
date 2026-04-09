@@ -238,9 +238,13 @@ type SkillPayload struct {
 	Source      string             `json:"source"`
 	Enabled     bool               `json:"enabled"`
 	Dir         string             `json:"dir"`
-	Content     string             `json:"content,omitempty"`
 	Metadata    map[string]any     `json:"metadata,omitempty"`
 	Provenance  *ProvenancePayload `json:"provenance,omitempty"`
+}
+
+// SkillContentResponse is the explicit response type for one skill body.
+type SkillContentResponse struct {
+	Content string `json:"content"`
 }
 
 // ProvenancePayload is the nested provenance metadata for marketplace skills.

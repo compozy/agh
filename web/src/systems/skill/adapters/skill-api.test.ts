@@ -4,6 +4,7 @@ import {
   disableSkill,
   enableSkill,
   getSkill,
+  getSkillContent,
   listSkills,
   SkillApiError,
 } from "@/systems/skill/adapters/skill-api";
@@ -145,6 +146,42 @@ describe("getSkill", () => {
 
     await getSkill("my skill", "ws_123");
     expect(fetch).toHaveBeenCalledWith("/api/skills/my%20skill?workspace=ws_123", {
+      signal: undefined,
+    });
+  });
+});
+
+describe("getSkillContent", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("calls GET /api/skills/:name/content?workspace=:id and returns content string", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ content: "full skill content" }),
+    } as Response);
+
+    const result = await getSkillContent("test-skill", "ws_123");
+    expect(result).toBe("full skill content");
+    expect(fetch).toHaveBeenCalledWith("/api/skills/test-skill/content?workspace=ws_123", {
+      signal: undefined,
+    });
+  });
+
+  it("encodes skill name in content URL", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ content: "full skill content" }),
+    } as Response);
+
+    await getSkillContent("my skill", "ws_123");
+    expect(fetch).toHaveBeenCalledWith("/api/skills/my%20skill/content?workspace=ws_123", {
       signal: undefined,
     });
   });

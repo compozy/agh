@@ -20,12 +20,17 @@ export const skillPayloadSchema = z.object({
   source: z.string(),
   enabled: z.boolean(),
   dir: z.string(),
-  content: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   provenance: provenancePayloadSchema.nullable().optional(),
 });
 
 export type SkillPayload = z.infer<typeof skillPayloadSchema>;
+
+export const skillContentResponseSchema = z.object({
+  content: z.string(),
+});
+
+export type SkillContentResponse = z.infer<typeof skillContentResponseSchema>;
 
 // --- API Response Envelopes ---
 

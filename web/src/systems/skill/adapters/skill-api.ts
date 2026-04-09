@@ -1,5 +1,6 @@
 import {
   skillsResponseSchema,
+  skillContentResponseSchema,
   skillResponseSchema,
   skillActionResponseSchema,
   type SkillPayload,
@@ -44,6 +45,26 @@ export async function getSkill(
   const json = await res.json();
   const parsed = skillResponseSchema.parse(json);
   return parsed.skill;
+}
+
+export async function getSkillContent(
+  name: string,
+  workspace: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const res = await fetch(
+    `/api/skills/${encodeURIComponent(name)}/content?workspace=${encodeURIComponent(workspace)}`,
+    { signal }
+  );
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new SkillApiError(`Skill not found: ${name}`, 404);
+    }
+    throw new SkillApiError(`Failed to fetch skill content "${name}": ${res.status}`, res.status);
+  }
+  const json = await res.json();
+  const parsed = skillContentResponseSchema.parse(json);
+  return parsed.content;
 }
 
 export async function enableSkill(

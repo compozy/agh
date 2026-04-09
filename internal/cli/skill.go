@@ -45,6 +45,7 @@ var (
 type skillCommandContext struct {
 	workspace string
 	bundledFS fs.FS
+	registry  *skills.Registry
 	skills    []*skills.Skill
 }
 
@@ -197,7 +198,12 @@ func newSkillViewCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			rendered, err := renderSkillXML(skill, resources)
+			content, err := ctx.registry.LoadContent(cmd.Context(), skill)
+			if err != nil {
+				return err
+			}
+
+			rendered, err := renderSkillXML(skill, content, resources)
 			if err != nil {
 				return err
 			}
@@ -503,7 +509,12 @@ func installMarketplaceSkill(
 		return skillInstallItem{}, fmt.Errorf("cli: parse extracted skill for %q: %w", slug, err)
 	}
 
-	if critical := criticalWarnings(skills.VerifyContent(parsedSkill.Content)); len(critical) > 0 {
+	content, err := skills.ReadSkillContent(skillFile)
+	if err != nil {
+		return skillInstallItem{}, fmt.Errorf("cli: read extracted skill content for %q: %w", slug, err)
+	}
+
+	if critical := criticalWarnings(skills.VerifyContent(content)); len(critical) > 0 {
 		return skillInstallItem{}, fmt.Errorf(
 			"cli: install blocked for %q due to critical verification findings: %s",
 			slug,
@@ -1034,6 +1045,7 @@ func loadSkillCommandContext(ctx context.Context, deps commandDeps) (skillComman
 	return skillCommandContext{
 		workspace: workspace,
 		bundledFS: skillbundled.FS(),
+		registry:  registry,
 		skills:    skillList,
 	}, nil
 }
@@ -1388,7 +1400,7 @@ func cleanFilesystemSkillRelativePath(relativePath string) (string, error) {
 	}
 }
 
-func renderSkillXML(skill *skills.Skill, resources []string) (string, error) {
+func renderSkillXML(skill *skills.Skill, content string, resources []string) (string, error) {
 	if skill == nil {
 		return "", errors.New("skill is required")
 	}
@@ -1398,8 +1410,8 @@ func renderSkillXML(skill *skills.Skill, resources []string) (string, error) {
 	builder.WriteString(skillXMLAttributeReplacer.Replace(skill.Meta.Name))
 	builder.WriteString(`">`)
 	builder.WriteString("\n")
-	builder.WriteString(skill.Content)
-	if !strings.HasSuffix(skill.Content, "\n") {
+	builder.WriteString(content)
+	if !strings.HasSuffix(content, "\n") {
 		builder.WriteString("\n")
 	}
 	builder.WriteString("\n<skill_resources>\n")

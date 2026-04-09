@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   provenancePayloadSchema,
   skillActionResponseSchema,
+  skillContentResponseSchema,
   skillPayloadSchema,
   skillResponseSchema,
   skillsResponseSchema,
@@ -26,7 +27,6 @@ describe("skillPayloadSchema", () => {
     const full = {
       ...validSkill,
       version: "1.0.0",
-      content: "skill content here",
       metadata: { key: "value", count: 42 },
       provenance: {
         slug: "test-skill",
@@ -117,6 +117,11 @@ describe("API response envelopes", () => {
 
   it("skillResponseSchema validates single skill", () => {
     const result = skillResponseSchema.safeParse({ skill: validSkill });
+    expect(result.success).toBe(true);
+  });
+
+  it("skillContentResponseSchema validates content payload", () => {
+    const result = skillContentResponseSchema.safeParse({ content: "skill content here" });
     expect(result.success).toBe(true);
   });
 

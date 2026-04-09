@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   useSkills,
   useSkill,
+  useSkillContent,
   useDisableSkill,
   useEnableSkill,
   SkillListPanel,
@@ -31,6 +32,7 @@ type Tab = "installed" | "marketplace";
 function SkillsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("installed");
   const [selectedSkillName, setSelectedSkillName] = useState<string | null>(null);
+  const [requestedSkillContentName, setRequestedSkillContentName] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Active workspace (same logic as sidebar: first workspace)
@@ -63,12 +65,30 @@ function SkillsPage() {
     return skills?.[0]?.name ?? null;
   }, [selectedSkillName, skills]);
 
+  const shouldLoadSelectedContent =
+    effectiveSelectedName !== null && requestedSkillContentName === effectiveSelectedName;
+
+  const {
+    data: selectedSkillContent,
+    isLoading: isLoadingContent,
+    error: contentError,
+    refetch: refetchSkillContent,
+  } = useSkillContent(effectiveSelectedName ?? "", activeWorkspaceId, shouldLoadSelectedContent);
+
   const handleDisable = (name: string) => {
     disableMutation.mutate({ name, workspace: activeWorkspaceId });
   };
 
   const handleEnable = (name: string) => {
     enableMutation.mutate({ name, workspace: activeWorkspaceId });
+  };
+
+  const handleViewContent = (name: string) => {
+    setRequestedSkillContentName(name);
+  };
+
+  const handleRetryContent = () => {
+    void refetchSkillContent();
   };
 
   // Loading state
@@ -153,6 +173,11 @@ function SkillsPage() {
             }
             isLoading={isLoadingDetail && effectiveSelectedName !== null}
             error={detailError}
+            content={shouldLoadSelectedContent ? selectedSkillContent : undefined}
+            isContentLoading={shouldLoadSelectedContent && isLoadingContent}
+            contentError={shouldLoadSelectedContent ? contentError : null}
+            onViewContent={handleViewContent}
+            onRetryContent={handleRetryContent}
             onDisable={handleDisable}
             onEnable={handleEnable}
             isActionPending={disableMutation.isPending || enableMutation.isPending}

@@ -48,6 +48,7 @@ func newSkillsHandlerFixture(t *testing.T, registry core.SkillsRegistry, workspa
 	engine := gin.New()
 	engine.GET("/api/skills", handlers.ListSkills)
 	engine.GET("/api/skills/:name", handlers.GetSkill)
+	engine.GET("/api/skills/:name/content", handlers.GetSkillContent)
 	engine.POST("/api/skills/:name/enable", handlers.EnableSkill)
 	engine.POST("/api/skills/:name/disable", handlers.DisableSkill)
 
@@ -62,7 +63,6 @@ func testSkill() *skills.Skill {
 			Version:     "1.0.0",
 			Metadata:    map[string]any{"key": "value"},
 		},
-		Content: "# Test Skill\nBody content",
 		Source:  skills.SourceBundled,
 		Dir:     "test-skill",
 		Enabled: true,
@@ -108,9 +108,6 @@ func TestSkillPayloadFromSkill(t *testing.T) {
 		if payload.Dir != "test-skill" {
 			t.Errorf("Dir = %q, want %q", payload.Dir, "test-skill")
 		}
-		if payload.Content != "# Test Skill\nBody content" {
-			t.Errorf("Content = %q, want body content", payload.Content)
-		}
 		if payload.Metadata == nil || payload.Metadata["key"] != "value" {
 			t.Errorf("Metadata = %v, want map with key=value", payload.Metadata)
 		}
@@ -153,7 +150,7 @@ func TestSkillPayloadFromSkill(t *testing.T) {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
 
-		for _, key := range []string{"version", "content", "metadata", "provenance"} {
+		for _, key := range []string{"version", "metadata", "provenance"} {
 			if _, exists := m[key]; exists {
 				t.Errorf("JSON contains %q but field should be omitted", key)
 			}
@@ -273,7 +270,7 @@ func TestGetSkill(t *testing.T) {
 		}
 	})
 
-	t.Run("valid name returns skill detail with content", func(t *testing.T) {
+	t.Run("valid name returns skill metadata", func(t *testing.T) {
 		t.Parallel()
 
 		skill := testSkillWithProvenance()
@@ -299,9 +296,6 @@ func TestGetSkill(t *testing.T) {
 
 		if resp.Skill.Name != "test-skill" {
 			t.Errorf("skill.Name = %q, want %q", resp.Skill.Name, "test-skill")
-		}
-		if resp.Skill.Content != "# Test Skill\nBody content" {
-			t.Errorf("skill.Content = %q, want body content", resp.Skill.Content)
 		}
 		if resp.Skill.Provenance == nil {
 			t.Error("skill.Provenance = nil, want non-nil")
@@ -354,6 +348,85 @@ func TestGetSkill(t *testing.T) {
 		testutil.DecodeJSONResponse(t, rec, &resp)
 		if resp.Skill.Source != "workspace" {
 			t.Errorf("skill.Source = %q, want %q", resp.Skill.Source, "workspace")
+		}
+	})
+}
+
+func TestGetSkillContent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns explicit skill body", func(t *testing.T) {
+		t.Parallel()
+
+		skill := testSkill()
+		registry := &stubSkillsRegistry{
+			GetFn: func(name string) (*skills.Skill, bool) {
+				if name == "test-skill" {
+					return skill, true
+				}
+				return nil, false
+			},
+			LoadContentFn: func(_ context.Context, loaded *skills.Skill) (string, error) {
+				if loaded != skill {
+					t.Fatalf("LoadContent() skill = %#v, want %#v", loaded, skill)
+				}
+				return "# Test Skill\nBody content", nil
+			},
+		}
+		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
+		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/test-skill/content", nil)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+
+		var resp contract.SkillContentResponse
+		testutil.DecodeJSONResponse(t, rec, &resp)
+		if resp.Content != "# Test Skill\nBody content" {
+			t.Fatalf("content = %q, want %q", resp.Content, "# Test Skill\nBody content")
+		}
+	})
+
+	t.Run("workspace query resolves workspace skill content", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceSkill := testSkill()
+		workspaceSkill.Source = skills.SourceWorkspace
+		workspaceSkill.Dir = "/workspace/.agh/skills/test-skill"
+
+		registry := &stubSkillsRegistry{
+			ForWorkspaceFn: func(_ context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
+				if resolved.ID != "ws-1" {
+					t.Errorf("ForWorkspace got ID %q, want ws-1", resolved.ID)
+				}
+				return []*skills.Skill{workspaceSkill}, nil
+			},
+			LoadContentFn: func(_ context.Context, loaded *skills.Skill) (string, error) {
+				if loaded != workspaceSkill {
+					t.Fatalf("LoadContent() skill = %#v, want workspace skill", loaded)
+				}
+				return "Workspace body", nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace", Name: "test"},
+				}, nil
+			},
+		}
+
+		engine := newSkillsHandlerFixture(t, registry, workspaces)
+		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/test-skill/content?workspace=ws-1", nil)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+
+		var resp contract.SkillContentResponse
+		testutil.DecodeJSONResponse(t, rec, &resp)
+		if resp.Content != "Workspace body" {
+			t.Fatalf("content = %q, want %q", resp.Content, "Workspace body")
 		}
 	})
 }
@@ -538,6 +611,7 @@ func TestSkillsRegistryNotConfigured(t *testing.T) {
 	}{
 		{"ListSkills", http.MethodGet, "/api/skills?workspace=ws-1"},
 		{"GetSkill", http.MethodGet, "/api/skills/test"},
+		{"GetSkillContent", http.MethodGet, "/api/skills/test/content"},
 		{"EnableSkill", http.MethodPost, "/api/skills/test/enable?workspace=ws-1"},
 		{"DisableSkill", http.MethodPost, "/api/skills/test/disable?workspace=ws-1"},
 	}

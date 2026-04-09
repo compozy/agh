@@ -15,6 +15,10 @@ let mockSkillsError: Error | null = null;
 let mockSkillDetail: SkillPayload | undefined;
 let mockSkillDetailLoading = false;
 let mockSkillDetailError: Error | null = null;
+let mockSkillContent: string | undefined;
+let mockSkillContentLoading = false;
+let mockSkillContentError: Error | null = null;
+const mockRefetchSkillContent = vi.fn();
 
 const mockDisableMutate = vi.fn();
 const mockEnableMutate = vi.fn();
@@ -59,6 +63,12 @@ vi.mock("@/systems/skill", async () => {
       data: mockSkillDetail,
       isLoading: mockSkillDetailLoading,
       error: mockSkillDetailError,
+    }),
+    useSkillContent: (_name: string, _workspace: string, enabled = false) => ({
+      data: enabled ? mockSkillContent : undefined,
+      isLoading: enabled && mockSkillContentLoading,
+      error: enabled ? mockSkillContentError : null,
+      refetch: mockRefetchSkillContent,
     }),
     useDisableSkill: () => ({
       mutate: mockDisableMutate,
@@ -129,6 +139,10 @@ describe("SkillsPage", () => {
     mockSkillDetail = undefined;
     mockSkillDetailLoading = false;
     mockSkillDetailError = null;
+    mockSkillContent = undefined;
+    mockSkillContentLoading = false;
+    mockSkillContentError = null;
+    mockRefetchSkillContent.mockReset();
     mockDisablePending = false;
     mockEnablePending = false;
     mockDisableMutate.mockReset();
@@ -408,16 +422,54 @@ describe("SkillsPage", () => {
   // Content preview
   // -----------------------------------------------------------------------
 
-  it("detail panel shows content preview when skill has content", () => {
+  it("detail panel loads full content only after clicking view full content", async () => {
+    const user = userEvent.setup();
     mockSkillDetail = makeSkill({
       name: "alpha-skill",
       source: "bundled",
-      content: "## Skill instructions\nDo things.",
     });
+    mockSkillContent = "## Skill instructions\nDo things.";
     render(<SkillsPage />);
 
-    expect(screen.getByTestId("content-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("content-body")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("view-full-content-btn"));
+
+    expect(screen.getByTestId("content-body")).toBeInTheDocument();
     expect(screen.getByText(/Skill instructions/)).toBeInTheDocument();
+  });
+
+  it("detail panel shows content loading state after content is requested", async () => {
+    const user = userEvent.setup();
+    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled" });
+    mockSkillContentLoading = true;
+    render(<SkillsPage />);
+
+    await user.click(screen.getByTestId("view-full-content-btn"));
+
+    expect(screen.getByTestId("content-loading")).toBeInTheDocument();
+  });
+
+  it("detail panel shows content error state after failed content request", async () => {
+    const user = userEvent.setup();
+    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled" });
+    mockSkillContentError = new Error("Content fetch failed");
+    render(<SkillsPage />);
+
+    await user.click(screen.getByTestId("view-full-content-btn"));
+
+    expect(screen.getByTestId("content-error")).toBeInTheDocument();
+  });
+
+  it("detail panel retries content fetch after a failed request", async () => {
+    const user = userEvent.setup();
+    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled" });
+    mockSkillContentError = new Error("Content fetch failed");
+    render(<SkillsPage />);
+
+    await user.click(screen.getByTestId("view-full-content-btn"));
+    await user.click(screen.getByTestId("retry-view-content-btn"));
+
+    expect(mockRefetchSkillContent).toHaveBeenCalledTimes(1);
   });
 
   // -----------------------------------------------------------------------

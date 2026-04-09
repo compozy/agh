@@ -2,6 +2,7 @@
 export type {
   ProvenancePayload,
   SkillActionResponse,
+  SkillContentResponse,
   SkillPayload,
   SkillResponse,
   SkillsResponse,
@@ -11,6 +12,7 @@ export type {
 export {
   provenancePayloadSchema,
   skillActionResponseSchema,
+  skillContentResponseSchema,
   skillPayloadSchema,
   skillResponseSchema,
   skillsResponseSchema,
@@ -20,6 +22,7 @@ export {
 export {
   disableSkill,
   enableSkill,
+  getSkillContent,
   getSkill,
   listSkills,
   SkillApiError,
@@ -27,10 +30,10 @@ export {
 
 // Query infrastructure
 export { skillKeys } from "./lib/query-keys";
-export { skillDetailOptions, skillsListOptions } from "./lib/query-options";
+export { skillContentOptions, skillDetailOptions, skillsListOptions } from "./lib/query-options";
 
 // Hooks
-export { useSkill, useSkills } from "./hooks/use-skills";
+export { useSkill, useSkillContent, useSkills } from "./hooks/use-skills";
 export { useDisableSkill, useEnableSkill } from "./hooks/use-skill-actions";
 
 // Components

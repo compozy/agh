@@ -235,7 +235,6 @@ func SkillPayloadFromSkill(skill *skills.Skill) contract.SkillPayload {
 		Source:      skills.SkillSourceName(skill.Source),
 		Enabled:     skill.Enabled,
 		Dir:         skill.Dir,
-		Content:     skill.Content,
 		Metadata:    skill.Meta.Metadata,
 	}
 	if skill.Provenance != nil {

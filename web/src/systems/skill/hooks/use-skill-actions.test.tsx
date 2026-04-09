@@ -45,8 +45,14 @@ describe("useEnableSkill", () => {
     });
 
     expect(enableSkill).toHaveBeenCalledWith("test-skill", "ws_123");
-    expect(invalidateSpy).toHaveBeenCalledWith({
+    expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: ["skills", "list", "ws_123"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+      queryKey: ["skills", "detail", "test-skill", "ws_123"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
+      queryKey: ["skills", "content", "test-skill", "ws_123"],
     });
   });
 
@@ -71,8 +77,14 @@ describe("useEnableSkill", () => {
       expect(result.current.isError).toBe(true);
     });
 
-    expect(invalidateSpy).toHaveBeenCalledWith({
+    expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: ["skills", "list", "ws_123"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+      queryKey: ["skills", "detail", "test-skill", "ws_123"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
+      queryKey: ["skills", "content", "test-skill", "ws_123"],
     });
   });
 });
@@ -108,8 +120,14 @@ describe("useDisableSkill", () => {
     });
 
     expect(disableSkill).toHaveBeenCalledWith("test-skill", "ws_123");
-    expect(invalidateSpy).toHaveBeenCalledWith({
+    expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: ["skills", "list", "ws_123"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+      queryKey: ["skills", "detail", "test-skill", "ws_123"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
+      queryKey: ["skills", "content", "test-skill", "ws_123"],
     });
   });
 
@@ -134,8 +152,14 @@ describe("useDisableSkill", () => {
       expect(result.current.isError).toBe(true);
     });
 
-    expect(invalidateSpy).toHaveBeenCalledWith({
+    expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: ["skills", "list", "ws_123"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+      queryKey: ["skills", "detail", "test-skill", "ws_123"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
+      queryKey: ["skills", "content", "test-skill", "ws_123"],
     });
   });
 });

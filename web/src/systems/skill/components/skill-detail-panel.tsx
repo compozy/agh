@@ -11,6 +11,11 @@ interface SkillDetailPanelProps {
   skill: SkillPayload | undefined;
   isLoading: boolean;
   error: Error | null;
+  content: string | undefined;
+  isContentLoading: boolean;
+  contentError: Error | null;
+  onViewContent: (name: string) => void;
+  onRetryContent: () => void;
   onDisable: (name: string) => void;
   onEnable: (name: string) => void;
   isActionPending: boolean;
@@ -64,33 +69,81 @@ function SourceBadge({ source }: { source: string }) {
 // Content Preview Card
 // ---------------------------------------------------------------------------
 
-const CONTENT_PREVIEW_MAX_LENGTH = 300;
+function ContentCard({ content }: { content: string }) {
+  return (
+    <div className="rounded-xl bg-[color:var(--color-surface)] p-4" data-testid="content-body">
+      <h4 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+        Full Content
+      </h4>
+      <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-[color:var(--color-text-secondary)]">
+        {content}
+      </pre>
+    </div>
+  );
+}
 
-function ContentPreviewCard({ content }: { content: string }) {
-  const preview =
-    content.length > CONTENT_PREVIEW_MAX_LENGTH
-      ? `${content.slice(0, CONTENT_PREVIEW_MAX_LENGTH)}...`
-      : content;
+function ContentSection({
+  skill,
+  content,
+  isLoading,
+  error,
+  onViewContent,
+  onRetryContent,
+}: {
+  skill: SkillPayload;
+  content: string | undefined;
+  isLoading: boolean;
+  error: Error | null;
+  onViewContent: (name: string) => void;
+  onRetryContent: () => void;
+}) {
+  if (content) {
+    return <ContentCard content={content} />;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="rounded-xl bg-[color:var(--color-surface)] p-4" data-testid="content-loading">
+        <div className="flex items-center gap-2 text-sm text-[color:var(--color-text-secondary)]">
+          <Loader2 className="size-4 animate-spin text-[color:var(--color-text-tertiary)]" />
+          Loading full skill content...
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl bg-[color:var(--color-surface)] p-4" data-testid="content-error">
+        <p className="text-sm text-[color:var(--color-danger)]">Failed to load full content.</p>
+        <button
+          type="button"
+          onClick={onRetryContent}
+          className="mt-2 text-sm text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)]"
+          data-testid="retry-view-content-btn"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="rounded-xl bg-[color:var(--color-surface)] p-4" data-testid="content-preview">
+    <div className="rounded-xl bg-[color:var(--color-surface)] p-4" data-testid="content-empty">
       <h4 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
         Content
       </h4>
-      <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-[color:var(--color-text-secondary)]">
-        {preview}
-      </pre>
-      {content.length > CONTENT_PREVIEW_MAX_LENGTH && (
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          title="Full content view is not implemented yet"
-          className="mt-2 text-sm text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)]"
-        >
-          View full content
-        </button>
-      )}
+      <p className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+        Full skill instructions are loaded on demand.
+      </p>
+      <button
+        type="button"
+        onClick={() => onViewContent(skill.name)}
+        className="mt-3 text-sm text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)]"
+        data-testid="view-full-content-btn"
+      >
+        View full content
+      </button>
     </div>
   );
 }
@@ -103,6 +156,11 @@ function SkillDetailPanel({
   skill,
   isLoading,
   error,
+  content,
+  isContentLoading,
+  contentError,
+  onViewContent,
+  onRetryContent,
   onDisable,
   onEnable,
   isActionPending,
@@ -181,8 +239,15 @@ function SkillDetailPanel({
         </p>
       </div>
 
-      {/* Content preview */}
-      {skill.content && <ContentPreviewCard content={skill.content} />}
+      {/* Content */}
+      <ContentSection
+        skill={skill}
+        content={content}
+        isLoading={isContentLoading}
+        error={contentError}
+        onViewContent={onViewContent}
+        onRetryContent={onRetryContent}
+      />
 
       {/* Metadata */}
       {skill.metadata && Object.keys(skill.metadata).length > 0 && (

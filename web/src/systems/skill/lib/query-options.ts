@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import { getSkill, listSkills } from "../adapters/skill-api";
+import { getSkill, getSkillContent, listSkills } from "../adapters/skill-api";
 import { skillKeys } from "./query-keys";
 
 export function skillsListOptions(workspace: string) {
@@ -19,5 +19,14 @@ export function skillDetailOptions(name: string, workspace: string) {
     queryFn: ({ signal }) => getSkill(name, workspace, signal),
     staleTime: 30_000,
     enabled: !!name && !!workspace,
+  });
+}
+
+export function skillContentOptions(name: string, workspace: string, enabled: boolean) {
+  return queryOptions({
+    queryKey: skillKeys.content(name, workspace),
+    queryFn: ({ signal }) => getSkillContent(name, workspace, signal),
+    staleTime: 30_000,
+    enabled: enabled && !!name && !!workspace,
   });
 }

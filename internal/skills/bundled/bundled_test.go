@@ -82,11 +82,16 @@ func TestBundledSkillsParseWithLoader(t *testing.T) {
 			if strings.TrimSpace(parsed.Meta.Description) == "" {
 				t.Fatalf("ParseSkillFile(%q) description is empty", skillPath)
 			}
-			if strings.TrimSpace(parsed.Content) == "" {
-				t.Fatalf("ParseSkillFile(%q) content is empty", skillPath)
-			}
 			if !parsed.Enabled {
 				t.Fatalf("ParseSkillFile(%q) Enabled = false, want true", skillPath)
+			}
+
+			content, err := skills.ReadSkillContent(skillPath)
+			if err != nil {
+				t.Fatalf("ReadSkillContent(%q) error = %v", skillPath, err)
+			}
+			if strings.TrimSpace(content) == "" {
+				t.Fatalf("ReadSkillContent(%q) returned empty content", skillPath)
 			}
 		})
 	}

@@ -241,9 +241,6 @@ func TestParseSkillFile(t *testing.T) {
 	if skill.Meta.Name != "quality" {
 		t.Fatalf("ParseSkillFile() meta.Name = %q, want %q", skill.Meta.Name, "quality")
 	}
-	if skill.Content != "Check every requirement." {
-		t.Fatalf("ParseSkillFile() content = %q, want %q", skill.Content, "Check every requirement.")
-	}
 	if skill.FilePath != path {
 		t.Fatalf("ParseSkillFile() FilePath = %q, want %q", skill.FilePath, path)
 	}
@@ -252,6 +249,27 @@ func TestParseSkillFile(t *testing.T) {
 	}
 	if !skill.Enabled {
 		t.Fatal("ParseSkillFile() Enabled = false, want true")
+	}
+}
+
+func TestReadSkillContent(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	path := writeSkillFile(t, root, filepath.Join("quality", skillFileName), strings.Join([]string{
+		"---",
+		"name: quality",
+		"description: Validate output",
+		"---",
+		"Check every requirement.",
+	}, "\n"))
+
+	content, err := ReadSkillContent(path)
+	if err != nil {
+		t.Fatalf("ReadSkillContent() error = %v", err)
+	}
+	if content != "Check every requirement." {
+		t.Fatalf("ReadSkillContent() = %q, want %q", content, "Check every requirement.")
 	}
 }
 
@@ -402,6 +420,14 @@ func TestParseBundledSkillParsesAGHMetadata(t *testing.T) {
 	}
 	if len(skill.Hooks) != 1 || skill.Hooks[0].Event != HookSessionStopped {
 		t.Fatalf("parseBundledSkill() Hooks = %#v, want populated stop hook", skill.Hooks)
+	}
+
+	content, err := readBundledSkillContent(fsys, path.Join("combined", skillFileName))
+	if err != nil {
+		t.Fatalf("readBundledSkillContent() error = %v", err)
+	}
+	if strings.TrimSpace(content) == "" {
+		t.Fatal("readBundledSkillContent() returned empty body")
 	}
 }
 

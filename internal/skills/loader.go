@@ -36,43 +36,70 @@ var allowedFrontmatterFields = map[string]struct{}{
 
 // ParseSkillFile reads and parses a SKILL.md file from disk.
 //
-// The loader fills the parsed metadata, markdown body, and canonical file
-// locations. Callers that know the registry provenance should assign Source
-// after parsing.
+// The loader fills parsed metadata plus canonical file locations. The skill
+// body is intentionally not retained on the returned Skill; callers must use
+// ReadSkillContent when they need the full instructions.
 func ParseSkillFile(path string) (*Skill, error) {
+	skill, _, err := parseSkillFileDocument(path)
+	return skill, err
+}
+
+// ReadSkillContent reads and returns the markdown body from a SKILL.md file.
+func ReadSkillContent(path string) (string, error) {
+	_, body, err := parseSkillFileDocument(path)
+	if err != nil {
+		return "", err
+	}
+	return body, nil
+}
+
+func parseSkillFileDocument(path string) (*Skill, string, error) {
+	absPath, content, err := readSkillFile(path)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return parseSkillDocument(absPath, filepath.Dir(absPath), content, 0)
+}
+
+func readSkillFile(path string) (string, []byte, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return nil, fmt.Errorf("skills: resolve path %q: %w", path, err)
+		return "", nil, fmt.Errorf("skills: resolve path %q: %w", path, err)
 	}
 
 	content, err := os.ReadFile(absPath)
 	if err != nil {
-		return nil, fmt.Errorf("skills: read %q: %w", absPath, err)
+		return "", nil, fmt.Errorf("skills: read %q: %w", absPath, err)
 	}
 
+	return absPath, content, nil
+}
+
+func parseSkillDocument(filePath string, dir string, content []byte, source SkillSource) (*Skill, string, error) {
 	meta, body, err := parseSkillContent(content)
 	if err != nil {
-		return nil, fmt.Errorf("skills: parse %q: %w", absPath, err)
+		return nil, "", fmt.Errorf("skills: parse %q: %w", filePath, err)
 	}
 	if meta.Name == "" {
-		return nil, fmt.Errorf("skills: parse %q: %w", absPath, errSkillNameRequired)
+		return nil, "", fmt.Errorf("skills: parse %q: %w", filePath, errSkillNameRequired)
 	}
 
 	skill := &Skill{
 		Meta:     meta,
-		Content:  body,
-		Dir:      filepath.Dir(absPath),
-		FilePath: absPath,
+		Source:   source,
+		Dir:      dir,
+		FilePath: filePath,
 		Enabled:  true,
 	}
 	if err := parseAGHMetadata(skill); err != nil {
-		return nil, fmt.Errorf("skills: parse %q metadata.agh: %w", absPath, err)
+		return nil, "", fmt.Errorf("skills: parse %q metadata.agh: %w", filePath, err)
 	}
 	if skill.Meta.Description == "" {
-		slog.Warn("skills: parsed skill without description", "path", absPath, "name", skill.Meta.Name)
+		slog.Warn("skills: parsed skill without description", "path", filePath, "name", skill.Meta.Name)
 	}
 
-	return skill, nil
+	return skill, body, nil
 }
 
 // scanDirectory returns every SKILL.md file discovered under dir.

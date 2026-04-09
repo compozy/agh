@@ -15,10 +15,9 @@ type SkillMeta struct {
 	Metadata    map[string]any `yaml:"metadata,omitempty"`
 }
 
-// Skill is the complete in-memory representation of a parsed skill file.
+// Skill is the metadata-first in-memory representation of a parsed skill file.
 type Skill struct {
 	Meta          SkillMeta
-	Content       string
 	Source        SkillSource
 	Dir           string
 	FilePath      string

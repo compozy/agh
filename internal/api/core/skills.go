@@ -61,6 +61,34 @@ func (h *BaseHandlers) GetSkill(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"skill": SkillPayloadFromSkill(skill)})
 }
 
+// GetSkillContent returns the explicit body for one skill.
+func (h *BaseHandlers) GetSkillContent(c *gin.Context) {
+	if h.SkillsRegistry == nil {
+		h.respondError(c, http.StatusServiceUnavailable, fmt.Errorf("%s: skills registry is not configured", h.transportName()))
+		return
+	}
+
+	name := strings.TrimSpace(c.Param("name"))
+	if name == "" {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%w: skill name is required", ErrSkillValidation))
+		return
+	}
+
+	skill, _, err := h.resolveSkill(c, name)
+	if err != nil {
+		h.respondError(c, StatusForSkillError(err), err)
+		return
+	}
+
+	content, err := h.SkillsRegistry.LoadContent(c.Request.Context(), skill)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, fmt.Errorf("load skill content %q: %w", name, err))
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.SkillContentResponse{Content: content})
+}
+
 // EnableSkill enables a skill by name.
 func (h *BaseHandlers) EnableSkill(c *gin.Context) {
 	if h.SkillsRegistry == nil {
