@@ -67,6 +67,7 @@ type RuntimeDeps struct {
 	MemoryStore       *memory.Store
 	WorkspaceResolver workspacepkg.WorkspaceResolver
 	WorkspaceService  core.WorkspaceService
+	SkillsRegistry    core.SkillsRegistry
 	DreamTrigger      DreamTrigger
 	StartedAt         time.Time
 }
@@ -283,6 +284,7 @@ func New(opts ...Option) (*Daemon, error) {
 				httpapi.WithSessionManager(deps.Sessions),
 				httpapi.WithObserver(deps.Observer),
 				httpapi.WithWorkspaceResolver(deps.WorkspaceService),
+				httpapi.WithSkillsRegistry(deps.SkillsRegistry),
 				httpapi.WithMemoryStore(deps.MemoryStore),
 				httpapi.WithDreamTrigger(deps.DreamTrigger),
 			)
@@ -298,6 +300,7 @@ func New(opts ...Option) (*Daemon, error) {
 				udsapi.WithSessionManager(deps.Sessions),
 				udsapi.WithObserver(deps.Observer),
 				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
+				udsapi.WithSkillsRegistry(deps.SkillsRegistry),
 				udsapi.WithMemoryStore(deps.MemoryStore),
 				udsapi.WithDreamTrigger(deps.DreamTrigger),
 			)

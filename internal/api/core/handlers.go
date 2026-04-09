@@ -31,6 +31,7 @@ type BaseHandlerConfig struct {
 	Sessions                     SessionManager
 	Observer                     Observer
 	Workspaces                   WorkspaceService
+	SkillsRegistry               SkillsRegistry
 	MemoryStore                  *memory.Store
 	DreamTrigger                 DreamTrigger
 	HomePaths                    aghconfig.HomePaths
@@ -53,6 +54,7 @@ type BaseHandlers struct {
 	Sessions                     SessionManager
 	Observer                     Observer
 	Workspaces                   WorkspaceService
+	SkillsRegistry               SkillsRegistry
 	MemoryStore                  *memory.Store
 	DreamTrigger                 DreamTrigger
 	HomePaths                    aghconfig.HomePaths
@@ -110,6 +112,7 @@ func NewBaseHandlers(cfg BaseHandlerConfig) *BaseHandlers {
 		Sessions:                     cfg.Sessions,
 		Observer:                     cfg.Observer,
 		Workspaces:                   cfg.Workspaces,
+		SkillsRegistry:               cfg.SkillsRegistry,
 		MemoryStore:                  cfg.MemoryStore,
 		DreamTrigger:                 cfg.DreamTrigger,
 		HomePaths:                    cfg.HomePaths,

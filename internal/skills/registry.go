@@ -772,6 +772,11 @@ func fsPathDepth(current string, isDir bool) int {
 	return max(len(parts)-1, 0)
 }
 
+// SkillSourceName returns the canonical string label for a skill source.
+func SkillSourceName(source SkillSource) string {
+	return skillSourceName(source)
+}
+
 func skillSourceName(source SkillSource) string {
 	switch source {
 	case SourceBundled:

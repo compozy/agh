@@ -9,6 +9,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -45,6 +46,13 @@ type DreamTrigger interface {
 	Trigger(ctx context.Context, workspace string) (bool, string, error)
 	LastConsolidatedAt() (time.Time, error)
 	Enabled() bool
+}
+
+// SkillsRegistry exposes the skill catalog to the API layer.
+type SkillsRegistry interface {
+	Get(name string) (*skills.Skill, bool)
+	List() []*skills.Skill
+	ForWorkspace(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error)
 }
 
 // WorkspaceService exposes workspace registration and resolution to the API layer.

@@ -60,3 +60,23 @@ func StatusForMemoryError(err error) int {
 		return http.StatusInternalServerError
 	}
 }
+
+// ErrSkillNotFound is the sentinel for a missing skill.
+var ErrSkillNotFound = errors.New("skill not found")
+
+// ErrSkillValidation is the sentinel for skill request validation failures.
+var ErrSkillValidation = errors.New("skill validation error")
+
+// StatusForSkillError maps skill-domain errors to transport statuses.
+func StatusForSkillError(err error) int {
+	switch {
+	case err == nil:
+		return http.StatusOK
+	case errors.Is(err, ErrSkillNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, ErrSkillValidation):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}

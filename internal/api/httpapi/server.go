@@ -35,20 +35,21 @@ type Option func(*Server)
 type Server struct {
 	mu sync.Mutex
 
-	homePaths    aghconfig.HomePaths
-	config       aghconfig.Config
-	host         string
-	port         int
-	logger       *slog.Logger
-	startedAt    time.Time
-	now          func() time.Time
-	pollInterval time.Duration
-	sessions     core.SessionManager
-	observer     core.Observer
-	workspaces   core.WorkspaceService
-	memoryStore  *memory.Store
-	dreamTrigger core.DreamTrigger
-	agentLoader  core.AgentLoader
+	homePaths      aghconfig.HomePaths
+	config         aghconfig.Config
+	host           string
+	port           int
+	logger         *slog.Logger
+	startedAt      time.Time
+	now            func() time.Time
+	pollInterval   time.Duration
+	sessions       core.SessionManager
+	observer       core.Observer
+	workspaces     core.WorkspaceService
+	skillsRegistry core.SkillsRegistry
+	memoryStore    *memory.Store
+	dreamTrigger   core.DreamTrigger
+	agentLoader    core.AgentLoader
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -62,20 +63,21 @@ type Server struct {
 }
 
 type handlerConfig struct {
-	sessions     core.SessionManager
-	observer     core.Observer
-	workspaces   core.WorkspaceService
-	memoryStore  *memory.Store
-	dreamTrigger core.DreamTrigger
-	staticFS     fs.FS
-	homePaths    aghconfig.HomePaths
-	config       aghconfig.Config
-	logger       *slog.Logger
-	startedAt    time.Time
-	now          func() time.Time
-	pollInterval time.Duration
-	agentLoader  core.AgentLoader
-	httpPort     int
+	sessions       core.SessionManager
+	observer       core.Observer
+	workspaces     core.WorkspaceService
+	skillsRegistry core.SkillsRegistry
+	memoryStore    *memory.Store
+	dreamTrigger   core.DreamTrigger
+	staticFS       fs.FS
+	homePaths      aghconfig.HomePaths
+	config         aghconfig.Config
+	logger         *slog.Logger
+	startedAt      time.Time
+	now            func() time.Time
+	pollInterval   time.Duration
+	agentLoader    core.AgentLoader
+	httpPort       int
 }
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
@@ -165,6 +167,13 @@ func WithWorkspaceResolver(workspaces core.WorkspaceService) Option {
 func WithMemoryStore(store *memory.Store) Option {
 	return func(server *Server) {
 		server.memoryStore = store
+	}
+}
+
+// WithSkillsRegistry injects the skills registry surfaced by the daemon.
+func WithSkillsRegistry(registry core.SkillsRegistry) Option {
+	return func(server *Server) {
+		server.skillsRegistry = registry
 	}
 }
 
@@ -263,20 +272,21 @@ func New(opts ...Option) (*Server, error) {
 	}
 
 	server.handlers = newHandlers(handlerConfig{
-		sessions:     server.sessions,
-		observer:     server.observer,
-		workspaces:   server.workspaces,
-		memoryStore:  server.memoryStore,
-		dreamTrigger: server.dreamTrigger,
-		staticFS:     staticFS,
-		homePaths:    server.homePaths,
-		config:       server.config,
-		logger:       server.logger,
-		startedAt:    server.startedAt,
-		now:          server.now,
-		pollInterval: server.pollInterval,
-		agentLoader:  server.agentLoader,
-		httpPort:     server.port,
+		sessions:       server.sessions,
+		observer:       server.observer,
+		workspaces:     server.workspaces,
+		skillsRegistry: server.skillsRegistry,
+		memoryStore:    server.memoryStore,
+		dreamTrigger:   server.dreamTrigger,
+		staticFS:       staticFS,
+		homePaths:      server.homePaths,
+		config:         server.config,
+		logger:         server.logger,
+		startedAt:      server.startedAt,
+		now:            server.now,
+		pollInterval:   server.pollInterval,
+		agentLoader:    server.agentLoader,
+		httpPort:       server.port,
 	})
 	RegisterRoutes(server.engine, server.handlers)
 
@@ -450,6 +460,14 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		observeGroup.GET("/health", handlers.Health)
 	}
 
+	skillsGroup := api.Group("/skills")
+	{
+		skillsGroup.GET("", handlers.ListSkills)
+		skillsGroup.GET("/:name", handlers.GetSkill)
+		skillsGroup.POST("/:name/enable", handlers.EnableSkill)
+		skillsGroup.POST("/:name/disable", handlers.DisableSkill)
+	}
+
 	memoryGroup := api.Group("/memory")
 	{
 		memoryGroup.GET("", handlers.ListMemory)
@@ -485,6 +503,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			Sessions:                     cfg.sessions,
 			Observer:                     cfg.observer,
 			Workspaces:                   cfg.workspaces,
+			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,
 			DreamTrigger:                 cfg.dreamTrigger,
 			HomePaths:                    cfg.homePaths,

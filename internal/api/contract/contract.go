@@ -230,6 +230,32 @@ type WorkspaceSkillPayload struct {
 	Source string `json:"source"`
 }
 
+// SkillPayload is the HTTP response type for a skill.
+type SkillPayload struct {
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Version     string             `json:"version,omitempty"`
+	Source      string             `json:"source"`
+	Enabled     bool               `json:"enabled"`
+	Dir         string             `json:"dir"`
+	Content     string             `json:"content,omitempty"`
+	Metadata    map[string]any     `json:"metadata,omitempty"`
+	Provenance  *ProvenancePayload `json:"provenance,omitempty"`
+}
+
+// ProvenancePayload is the nested provenance metadata for marketplace skills.
+type ProvenancePayload struct {
+	Slug        string    `json:"slug"`
+	Registry    string    `json:"registry"`
+	Version     string    `json:"version"`
+	InstalledAt time.Time `json:"installed_at"`
+}
+
+// SkillActionResponse is the shared skill enable/disable response payload.
+type SkillActionResponse struct {
+	OK bool `json:"ok"`
+}
+
 // WorkspaceDetailPayload is the shared resolved workspace detail response payload.
 type WorkspaceDetailPayload struct {
 	Workspace WorkspacePayload        `json:"workspace"`

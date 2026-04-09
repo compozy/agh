@@ -9,6 +9,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -219,6 +220,46 @@ func PayloadJSON(raw string) json.RawMessage {
 		return json.RawMessage("null")
 	}
 	return json.RawMessage(encoded)
+}
+
+// SkillPayloadFromSkill converts a skills.Skill into the shared HTTP payload.
+func SkillPayloadFromSkill(skill *skills.Skill) contract.SkillPayload {
+	if skill == nil {
+		return contract.SkillPayload{}
+	}
+
+	payload := contract.SkillPayload{
+		Name:        skill.Meta.Name,
+		Description: skill.Meta.Description,
+		Version:     skill.Meta.Version,
+		Source:      skills.SkillSourceName(skill.Source),
+		Enabled:     skill.Enabled,
+		Dir:         skill.Dir,
+		Content:     skill.Content,
+		Metadata:    skill.Meta.Metadata,
+	}
+	if skill.Provenance != nil {
+		payload.Provenance = &contract.ProvenancePayload{
+			Slug:        skill.Provenance.Slug,
+			Registry:    skill.Provenance.Registry,
+			Version:     skill.Provenance.Version,
+			InstalledAt: skill.Provenance.InstalledAt,
+		}
+	}
+
+	return payload
+}
+
+// SkillPayloadsFromSkills converts a slice of skills into response payloads.
+func SkillPayloadsFromSkills(skillList []*skills.Skill) []contract.SkillPayload {
+	payload := make([]contract.SkillPayload, 0, len(skillList))
+	for _, skill := range skillList {
+		if skill == nil {
+			continue
+		}
+		payload = append(payload, SkillPayloadFromSkill(skill))
+	}
+	return payload
 }
 
 func sessionWorkspaceFromInfo(info *session.SessionInfo) (string, string) {

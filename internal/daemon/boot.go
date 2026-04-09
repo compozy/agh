@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghlogger "github.com/pedronauck/agh/internal/logger"
 	"github.com/pedronauck/agh/internal/memory"
@@ -233,6 +234,11 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		dreamTrigger = dreamRuntime
 	}
 
+	var skillsRegistryAPI core.SkillsRegistry
+	if skillsRegistry != nil {
+		skillsRegistryAPI = skillsRegistry
+	}
+
 	deps := RuntimeDeps{
 		Config:            cfg,
 		HomePaths:         d.homePaths,
@@ -242,6 +248,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		MemoryStore:       memoryStore,
 		WorkspaceResolver: workspaceResolver,
 		WorkspaceService:  workspaceResolver,
+		SkillsRegistry:    skillsRegistryAPI,
 		DreamTrigger:      dreamTrigger,
 		StartedAt:         startedAt,
 	}
