@@ -1,0 +1,89 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor, act } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { useDisableSkill, useEnableSkill } from "./use-skill-actions";
+
+vi.mock("../adapters/skill-api", () => ({
+  listSkills: vi.fn(),
+  getSkill: vi.fn(),
+  enableSkill: vi.fn(),
+  disableSkill: vi.fn(),
+}));
+
+import { disableSkill, enableSkill } from "../adapters/skill-api";
+
+describe("useEnableSkill", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("calls enableSkill and invalidates skill list cache on settle", async () => {
+    vi.mocked(enableSkill).mockResolvedValue({ ok: true });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    const { result } = renderHook(() => useEnableSkill(), { wrapper });
+
+    act(() => {
+      result.current.mutate({ name: "test-skill", workspace: "ws_123" });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(enableSkill).toHaveBeenCalledWith("test-skill", "ws_123");
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["skills", "list", "ws_123"],
+    });
+  });
+});
+
+describe("useDisableSkill", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("calls disableSkill and invalidates skill list cache on settle", async () => {
+    vi.mocked(disableSkill).mockResolvedValue({ ok: true });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    const { result } = renderHook(() => useDisableSkill(), { wrapper });
+
+    act(() => {
+      result.current.mutate({ name: "test-skill", workspace: "ws_123" });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(disableSkill).toHaveBeenCalledWith("test-skill", "ws_123");
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["skills", "list", "ws_123"],
+    });
+  });
+});

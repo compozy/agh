@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 title: Build skill frontend system
 type: frontend
 complexity: medium
@@ -35,12 +35,12 @@ Create the `systems/skill/` module following the app-renderer-systems pattern: t
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Create Zod schemas and TypeScript types for skill domain
-- [ ] 5.2 Create skill API adapter with typed fetch functions and error class
-- [ ] 5.3 Create query keys and query options factories
-- [ ] 5.4 Create query hooks (`useSkills`, `useSkill`) and mutation hooks (`useEnableSkill`, `useDisableSkill`)
-- [ ] 5.5 Create barrel export `index.ts`
-- [ ] 5.6 Write tests for adapter functions and hooks
+- [x] 5.1 Create Zod schemas and TypeScript types for skill domain
+- [x] 5.2 Create skill API adapter with typed fetch functions and error class
+- [x] 5.3 Create query keys and query options factories
+- [x] 5.4 Create query hooks (`useSkills`, `useSkill`) and mutation hooks (`useEnableSkill`, `useDisableSkill`)
+- [x] 5.5 Create barrel export `index.ts`
+- [x] 5.6 Write tests for adapter functions and hooks
 
 ## Implementation Details
 
