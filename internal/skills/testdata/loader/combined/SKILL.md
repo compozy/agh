@@ -11,7 +11,7 @@ metadata:
         env:
           REPO_ROOT: "${REPO_ROOT}"
     hooks:
-      - event: on_session_stopped
+      - event: session.post_stop
         command: /usr/bin/env
         args:
           - bash

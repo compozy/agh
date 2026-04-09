@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/filesnap"
 	"github.com/pedronauck/agh/internal/frontmatter"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"gopkg.in/yaml.v3"
 )
 
@@ -95,6 +97,7 @@ func parseSkillDocument(filePath string, dir string, content []byte, source Skil
 	if err := parseAGHMetadata(skill); err != nil {
 		return nil, "", fmt.Errorf("skills: parse %q metadata.agh: %w", filePath, err)
 	}
+	refreshSkillHookDecls(skill)
 	if skill.Meta.Description == "" {
 		slog.Warn("skills: parsed skill without description", "path", filePath, "name", skill.Meta.Name)
 	}
@@ -287,14 +290,25 @@ func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {
 	return slices.Clip(servers)
 }
 
-func parseHookDecls(skill *Skill, raw any) ([]HookDecl, error) {
+type parsedSkillHookDecl struct {
+	Event    string               `yaml:"event"`
+	Command  string               `yaml:"command"`
+	Args     []string             `yaml:"args,omitempty"`
+	Timeout  time.Duration        `yaml:"timeout,omitempty"`
+	Env      map[string]string    `yaml:"env,omitempty"`
+	Mode     hookspkg.HookMode    `yaml:"mode,omitempty"`
+	Priority *int                 `yaml:"priority,omitempty"`
+	Matcher  hookspkg.HookMatcher `yaml:"matcher,omitempty"`
+}
+
+func parseHookDecls(skill *Skill, raw any) ([]hookspkg.HookDecl, error) {
 	items, ok := raw.([]any)
 	if !ok {
 		warnAGHMetadata(skill, "skills: malformed metadata.agh.hooks field", "type", fmt.Sprintf("%T", raw))
 		return nil, nil
 	}
 
-	hooks := make([]HookDecl, 0, len(items))
+	hooks := make([]hookspkg.HookDecl, 0, len(items))
 	for idx, item := range items {
 		entry, ok := item.(map[string]any)
 		if !ok {
@@ -302,24 +316,68 @@ func parseHookDecls(skill *Skill, raw any) ([]HookDecl, error) {
 			continue
 		}
 
-		event := HookEvent(strings.TrimSpace(stringValue(entry["event"])))
-		if !validHookEvent(event) {
-			warnAGHMetadata(skill, "skills: invalid metadata.agh.hooks entry", "index", idx, "reason", "unknown event", "event", event)
-			continue
+		decoded, err := decodeSkillHookDecl(entry)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"skills: invalid metadata.agh.hooks entry for %q at index %d: %w",
+				skillIdentifier(skill),
+				idx,
+				err,
+			)
 		}
 
-		hook := HookDecl{
-			Event:   event,
-			Command: strings.TrimSpace(stringValue(entry["command"])),
-			Args:    stringSliceValue(skill, "metadata.agh.hooks", idx, "args", entry["args"]),
-			Env:     stringMapValue(skill, "metadata.agh.hooks", idx, "env", entry["env"]),
-			Timeout: durationValue(skill, "metadata.agh.hooks", idx, "timeout", entry["timeout"]),
+		eventValue := strings.TrimSpace(decoded.Event)
+		event := hookspkg.HookEvent(eventValue)
+		if replacement, ok := legacyHookEventReplacement(eventValue); ok {
+			return nil, fmt.Errorf(
+				"skills: invalid metadata.agh.hooks entry for %q at index %d: hook event %q was removed; use %q",
+				skillIdentifier(skill),
+				idx,
+				eventValue,
+				replacement,
+			)
+		}
+		if !validHookEvent(event) {
+			return nil, fmt.Errorf(
+				"skills: invalid metadata.agh.hooks entry for %q at index %d: unknown hook event %q",
+				skillIdentifier(skill),
+				idx,
+				eventValue,
+			)
+		}
+
+		mode := decoded.Mode
+		if mode == "" {
+			mode = hookspkg.HookModeAsync
+		}
+		hook := normalizeSkillHookDecl(skill, hookspkg.HookDecl{
+			Name:        skillHookName(skill, idx, len(items)),
+			Event:       event,
+			Mode:        mode,
+			Priority:    0,
+			Timeout:     decoded.Timeout,
+			Matcher:     decoded.Matcher,
+			Command:     strings.TrimSpace(decoded.Command),
+			Args:        append([]string(nil), decoded.Args...),
+			Env:         cloneStringMap(decoded.Env),
+			PrioritySet: decoded.Priority != nil,
+		}, idx, len(items))
+		if decoded.Priority != nil {
+			hook.Priority = *decoded.Priority
 		}
 		if hook.Command == "" {
 			return nil, fmt.Errorf(
 				"skills: invalid metadata.agh.hooks entry for %q at index %d: command is required",
 				skillIdentifier(skill),
 				idx,
+			)
+		}
+		if err := hookspkg.ValidateHookDecl(hook); err != nil {
+			return nil, fmt.Errorf(
+				"skills: invalid metadata.agh.hooks entry for %q at index %d: %w",
+				skillIdentifier(skill),
+				idx,
+				err,
 			)
 		}
 
@@ -333,12 +391,35 @@ func parseHookDecls(skill *Skill, raw any) ([]HookDecl, error) {
 	return slices.Clip(hooks), nil
 }
 
-func validHookEvent(event HookEvent) bool {
-	switch event {
-	case HookSessionCreated, HookSessionStopped:
-		return true
+func decodeSkillHookDecl(entry map[string]any) (parsedSkillHookDecl, error) {
+	var decoded parsedSkillHookDecl
+
+	payload, err := yaml.Marshal(entry)
+	if err != nil {
+		return parsedSkillHookDecl{}, fmt.Errorf("encode hook declaration: %w", err)
+	}
+
+	decoder := yaml.NewDecoder(bytes.NewReader(payload))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&decoded); err != nil {
+		return parsedSkillHookDecl{}, fmt.Errorf("decode hook declaration: %w", err)
+	}
+
+	return decoded, nil
+}
+
+func validHookEvent(event hookspkg.HookEvent) bool {
+	return event.Validate() == nil
+}
+
+func legacyHookEventReplacement(event string) (hookspkg.HookEvent, bool) {
+	switch strings.TrimSpace(event) {
+	case "on_session_created":
+		return hookspkg.HookSessionPostCreate, true
+	case "on_session_stopped":
+		return hookspkg.HookSessionPostStop, true
 	default:
-		return false
+		return "", false
 	}
 }
 
@@ -425,26 +506,6 @@ func stringMapValue(skill *Skill, scope string, index int, field string, raw any
 	}
 
 	return values
-}
-
-func durationValue(skill *Skill, scope string, index int, field string, raw any) time.Duration {
-	if raw == nil {
-		return 0
-	}
-
-	value, ok := raw.(string)
-	if !ok {
-		warnAGHMetadata(skill, "skills: malformed metadata duration field", "scope", scope, "index", index, "field", field, "type", fmt.Sprintf("%T", raw))
-		return 0
-	}
-
-	parsed, err := time.ParseDuration(strings.TrimSpace(value))
-	if err != nil {
-		warnAGHMetadata(skill, "skills: invalid metadata duration value", "scope", scope, "index", index, "field", field, "value", value, "error", err)
-		return 0
-	}
-
-	return parsed
 }
 
 func warnAGHMetadata(skill *Skill, message string, args ...any) {

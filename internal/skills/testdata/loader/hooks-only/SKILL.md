@@ -4,7 +4,7 @@ description: Skill with hook metadata only
 metadata:
   agh:
     hooks:
-      - event: on_session_created
+      - event: session.post_create
         command: /bin/sh
         args:
           - -c

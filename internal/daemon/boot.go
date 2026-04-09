@@ -70,7 +70,6 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		memoryStore      *memory.Store
 		skillsRegistry   *skills.Registry
 		mcpResolver      *skills.MCPResolver
-		hookRunner       *skills.HookRunner
 		dreamSvc         consolidation.Service
 		dreamRuntime     *consolidation.Runtime
 		globalMemoryDir  string
@@ -119,7 +118,6 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 			return fmt.Errorf("daemon: load skills registry: %w", err)
 		}
 		mcpResolver = skills.NewMCPResolver(cfg.Skills, logger)
-		hookRunner = skills.NewHookRunner(cfg.Skills, logger)
 
 		skillsCancel, skillsDone = startSkillsWatcher(ctx, skillsRegistry, cfg.Skills.PollInterval)
 		cleanupFns = append(cleanupFns, func(context.Context) error {
@@ -258,8 +256,8 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return fmt.Errorf("daemon: create observer: %w", err)
 	}
 	fanout.notifiers = append(fanout.notifiers, observer)
-	if skillsRegistry != nil && hookRunner != nil {
-		fanout.hookPhase = newSkillsHookDispatcher(skillsRegistry, hookRunner, workspaceResolver, logger)
+	if skillsRegistry != nil {
+		fanout.hookPhase = newSkillsHookDispatcher(skillsRegistry, cfg.Skills, workspaceResolver, logger)
 	}
 	deps.Observer = observer
 	if dreamSvc != nil {

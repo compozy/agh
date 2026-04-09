@@ -4,7 +4,7 @@ description: Skill with missing hook command
 metadata:
   agh:
     hooks:
-      - event: on_session_created
+      - event: session.post_create
         args:
           - invalid
 ---

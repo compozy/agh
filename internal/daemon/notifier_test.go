@@ -10,6 +10,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -67,11 +68,15 @@ func TestSkillsHookDispatcherUsesResolvedWorkspaceForLookupAndPayload(t *testing
 			{
 				Source: skillspkg.SourceWorkspace,
 				Meta:   skillspkg.SkillMeta{Name: "hook-skill"},
-				Hooks: []skillspkg.HookDecl{
+				Hooks: []hookspkg.HookDecl{
 					{
-						Event:   skillspkg.HookSessionCreated,
-						Command: scriptPath,
-						Args:    []string{outputPath},
+						Name:        "hook-skill",
+						Event:       hookspkg.HookSessionPostCreate,
+						Source:      hookspkg.HookSourceSkill,
+						Mode:        hookspkg.HookModeSync,
+						Command:     scriptPath,
+						Args:        []string{outputPath},
+						SkillSource: hookspkg.HookSkillSourceWorkspace,
 					},
 				},
 			},
@@ -87,7 +92,7 @@ func TestSkillsHookDispatcherUsesResolvedWorkspaceForLookupAndPayload(t *testing
 		},
 	}
 
-	dispatcher := newSkillsHookDispatcher(registry, skillspkg.NewHookRunner(aghconfig.SkillsConfig{}, discardLogger()), resolver, discardLogger())
+	dispatcher := newSkillsHookDispatcher(registry, aghconfig.SkillsConfig{}, resolver, discardLogger())
 	dispatcher.OnSessionCreated(testutil.Context(t), &session.Session{
 		ID:          "sess-1",
 		AgentName:   "coder",
@@ -112,7 +117,7 @@ func TestSkillsHookDispatcherUsesResolvedWorkspaceForLookupAndPayload(t *testing
 	if err != nil {
 		t.Fatalf("os.ReadFile(%q) error = %v", outputPath, err)
 	}
-	var payload skillspkg.HookPayload
+	var payload hookspkg.SessionPostCreatePayload
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		t.Fatalf("json.Unmarshal(payload) error = %v", err)
 	}
@@ -125,8 +130,8 @@ func TestSkillsHookDispatcherUsesResolvedWorkspaceForLookupAndPayload(t *testing
 	if payload.Workspace != rootDir {
 		t.Fatalf("payload.Workspace = %q, want %q", payload.Workspace, rootDir)
 	}
-	if payload.Event != string(skillspkg.HookSessionCreated) {
-		t.Fatalf("payload.Event = %q, want %q", payload.Event, skillspkg.HookSessionCreated)
+	if payload.Event != hookspkg.HookSessionPostCreate {
+		t.Fatalf("payload.Event = %q, want %q", payload.Event, hookspkg.HookSessionPostCreate)
 	}
 }
 
@@ -147,11 +152,15 @@ func TestSkillsHookDispatcherSkipsUntrustedMarketplaceHooks(t *testing.T) {
 			{
 				Source: skillspkg.SourceMarketplace,
 				Meta:   skillspkg.SkillMeta{Name: "marketplace-skill"},
-				Hooks: []skillspkg.HookDecl{
+				Hooks: []hookspkg.HookDecl{
 					{
-						Event:   skillspkg.HookSessionCreated,
-						Command: scriptPath,
-						Args:    []string{outputPath},
+						Name:        "marketplace-skill",
+						Event:       hookspkg.HookSessionPostCreate,
+						Source:      hookspkg.HookSourceSkill,
+						Mode:        hookspkg.HookModeSync,
+						Command:     scriptPath,
+						Args:        []string{outputPath},
+						SkillSource: hookspkg.HookSkillSourceMarketplace,
 					},
 				},
 			},
@@ -167,7 +176,7 @@ func TestSkillsHookDispatcherSkipsUntrustedMarketplaceHooks(t *testing.T) {
 		},
 	}
 
-	dispatcher := newSkillsHookDispatcher(registry, skillspkg.NewHookRunner(aghconfig.SkillsConfig{}, discardLogger()), resolver, discardLogger())
+	dispatcher := newSkillsHookDispatcher(registry, aghconfig.SkillsConfig{}, resolver, discardLogger())
 	dispatcher.OnSessionCreated(testutil.Context(t), &session.Session{
 		ID:          "sess-1",
 		AgentName:   "coder",

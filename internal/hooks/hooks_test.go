@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/session"
 )
 
 func TestNewHooksCreatesEmptyStartedRegistry(t *testing.T) {
@@ -953,13 +952,12 @@ func TestDispatchPermissionAndContextHooksApplyPatches(t *testing.T) {
 	}
 }
 
-func TestHooksOnSessionCreatedDispatchesPostCreate(t *testing.T) {
+func TestHooksDispatchSessionPostCreate(t *testing.T) {
 	t.Parallel()
 
 	called := make(chan SessionLifecyclePayload, 1)
 	hooks := newTestHooks(
 		t,
-		WithNow(func() time.Time { return time.Unix(123, 0).UTC() }),
 		WithNativeDeclarations([]HookDecl{
 			{
 				Name:         "observe-create",
@@ -980,15 +978,24 @@ func TestHooksOnSessionCreatedDispatchesPostCreate(t *testing.T) {
 		t.Fatalf("Rebuild() error = %v, want nil", err)
 	}
 
-	hooks.OnSessionCreated(t.Context(), &session.Session{
-		ID:          "sess-created",
-		Name:        "demo",
-		AgentName:   "codex",
-		WorkspaceID: "ws-1",
-		Workspace:   "/tmp/ws",
-		Type:        session.SessionTypeUser,
-		State:       session.StateActive,
+	_, err := hooks.DispatchSessionPostCreate(t.Context(), SessionPostCreatePayload{
+		PayloadBase: PayloadBase{
+			Event:     HookSessionPostCreate,
+			Timestamp: time.Unix(123, 0).UTC(),
+		},
+		SessionContext: SessionContext{
+			SessionID:   "sess-created",
+			SessionName: "demo",
+			AgentName:   "codex",
+			WorkspaceID: "ws-1",
+			Workspace:   "/tmp/ws",
+			SessionType: "user",
+			State:       "active",
+		},
 	})
+	if err != nil {
+		t.Fatalf("DispatchSessionPostCreate() error = %v, want nil", err)
+	}
 
 	select {
 	case payload := <-called:
@@ -1006,7 +1013,7 @@ func TestHooksOnSessionCreatedDispatchesPostCreate(t *testing.T) {
 	}
 }
 
-func TestHooksOnSessionStoppedDispatchesPostStop(t *testing.T) {
+func TestHooksDispatchSessionPostStop(t *testing.T) {
 	t.Parallel()
 
 	called := make(chan SessionLifecyclePayload, 1)
@@ -1032,21 +1039,27 @@ func TestHooksOnSessionStoppedDispatchesPostStop(t *testing.T) {
 		t.Fatalf("Rebuild() error = %v, want nil", err)
 	}
 
-	hooks.OnSessionStopped(t.Context(), &session.Session{
-		ID:        "sess-stopped",
-		Name:      "demo",
-		AgentName: "codex",
-		Type:      session.SessionTypeSystem,
-		State:     session.StateStopped,
+	_, err := hooks.DispatchSessionPostStop(t.Context(), SessionPostStopPayload{
+		PayloadBase: PayloadBase{Event: HookSessionPostStop},
+		SessionContext: SessionContext{
+			SessionID:   "sess-stopped",
+			SessionName: "demo",
+			AgentName:   "codex",
+			SessionType: "system",
+			State:       "stopped",
+		},
 	})
+	if err != nil {
+		t.Fatalf("DispatchSessionPostStop() error = %v, want nil", err)
+	}
 
 	select {
 	case payload := <-called:
 		if payload.Event != HookSessionPostStop {
 			t.Fatalf("payload.Event = %q, want %q", payload.Event, HookSessionPostStop)
 		}
-		if payload.State != string(session.StateStopped) {
-			t.Fatalf("payload.State = %q, want %q", payload.State, session.StateStopped)
+		if payload.State != "stopped" {
+			t.Fatalf("payload.State = %q, want %q", payload.State, "stopped")
 		}
 	case <-time.After(time.Second):
 		t.Fatal("post-stop hook was not called")

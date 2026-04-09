@@ -4,7 +4,7 @@ description: Skill with invalid hook event
 metadata:
   agh:
     hooks:
-      - event: on_session_started
+      - event: foo.bar
         command: /bin/echo
         args:
           - invalid

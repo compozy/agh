@@ -16,6 +16,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/filesnap"
 	"github.com/pedronauck/agh/internal/frontmatter"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
 func TestParseSkillContentValidCases(t *testing.T) {
@@ -328,7 +329,7 @@ func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
 		name     string
 		fixture  string
 		wantMCP  []MCPServerDecl
-		wantHook []HookDecl
+		wantHook []hookspkg.HookDecl
 	}{
 		{
 			name:    "mcp servers only",
@@ -346,14 +347,17 @@ func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
 		{
 			name:    "hooks only",
 			fixture: "hooks-only",
-			wantHook: []HookDecl{{
-				Event:   HookSessionCreated,
-				Command: "/bin/sh",
-				Args:    []string{"-c", "echo ready"},
-				Timeout: 5 * time.Second,
-				Env: map[string]string{
-					"HOOK_ENV": "enabled",
-				},
+			wantHook: []hookspkg.HookDecl{{
+				Name:        "hooks-only",
+				Event:       hookspkg.HookSessionPostCreate,
+				Source:      hookspkg.HookSourceSkill,
+				Mode:        hookspkg.HookModeAsync,
+				Priority:    0,
+				Timeout:     5 * time.Second,
+				Command:     "/bin/sh",
+				Args:        []string{"-c", "echo ready"},
+				Env:         map[string]string{"HOOK_ENV": "enabled"},
+				SkillSource: hookspkg.HookSkillSourceBundled,
 			}},
 		},
 		{
@@ -367,14 +371,17 @@ func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
 					"REPO_ROOT": "${REPO_ROOT}",
 				},
 			}},
-			wantHook: []HookDecl{{
-				Event:   HookSessionStopped,
-				Command: "/usr/bin/env",
-				Args:    []string{"bash", "-lc", "echo cleanup"},
-				Timeout: 30 * time.Second,
-				Env: map[string]string{
-					"PHASE": "stop",
-				},
+			wantHook: []hookspkg.HookDecl{{
+				Name:        "combined",
+				Event:       hookspkg.HookSessionPostStop,
+				Source:      hookspkg.HookSourceSkill,
+				Mode:        hookspkg.HookModeAsync,
+				Priority:    0,
+				Timeout:     30 * time.Second,
+				Command:     "/usr/bin/env",
+				Args:        []string{"bash", "-lc", "echo cleanup"},
+				Env:         map[string]string{"PHASE": "stop"},
+				SkillSource: hookspkg.HookSkillSourceBundled,
 			}},
 		},
 		{
@@ -418,7 +425,7 @@ func TestParseBundledSkillParsesAGHMetadata(t *testing.T) {
 	if len(skill.MCPServers) != 1 || skill.MCPServers[0].Name != "git" {
 		t.Fatalf("parseBundledSkill() MCPServers = %#v, want populated git server", skill.MCPServers)
 	}
-	if len(skill.Hooks) != 1 || skill.Hooks[0].Event != HookSessionStopped {
+	if len(skill.Hooks) != 1 || skill.Hooks[0].Event != hookspkg.HookSessionPostStop {
 		t.Fatalf("parseBundledSkill() Hooks = %#v, want populated stop hook", skill.Hooks)
 	}
 
@@ -484,27 +491,16 @@ func TestParseSkillFileRejectsInvalidMCPServerEntriesWithWarnings(t *testing.T) 
 	}
 }
 
-func TestParseSkillFileRejectsUnknownHookEventsWithWarnings(t *testing.T) {
-	original := slog.Default()
-	var logs bytes.Buffer
-	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
-	t.Cleanup(func() {
-		slog.SetDefault(original)
-	})
-
+func TestParseSkillFileRejectsUnknownHookEvents(t *testing.T) {
 	skill, err := ParseSkillFile(loaderFixturePath("invalid-hook"))
-	if err != nil {
-		t.Fatalf("ParseSkillFile() error = %v", err)
+	if err == nil {
+		t.Fatal("ParseSkillFile() error = nil, want unknown hook event failure")
 	}
-
-	if skill.Hooks != nil {
-		t.Fatalf("ParseSkillFile() Hooks = %#v, want nil", skill.Hooks)
+	if skill != nil {
+		t.Fatalf("ParseSkillFile() skill = %#v, want nil on invalid hook event", skill)
 	}
-	if !strings.Contains(logs.String(), "reason=\"unknown event\"") {
-		t.Fatalf("expected unknown event warning in logs, got %q", logs.String())
-	}
-	if !strings.Contains(logs.String(), "event=on_session_started") {
-		t.Fatalf("expected invalid event value in logs, got %q", logs.String())
+	if !strings.Contains(err.Error(), `unknown hook event "foo.bar"`) {
+		t.Fatalf("ParseSkillFile() error = %v, want unknown event detail", err)
 	}
 }
 
@@ -520,6 +516,130 @@ func TestParseSkillFileRejectsHooksMissingCommand(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "command is required") {
 		t.Fatalf("ParseSkillFile() error = %v, want missing command context", err)
+	}
+}
+
+func TestParseSkillFileRejectsLegacyHookEventsWithReplacement(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	path := writeSkillFile(t, root, filepath.Join("legacy-hook", skillFileName), strings.Join([]string{
+		"---",
+		"name: legacy-hook",
+		"description: Legacy hook names are rejected",
+		"metadata:",
+		"  agh:",
+		"    hooks:",
+		"      - event: on_session_created",
+		"        command: /bin/echo",
+		"---",
+		"body",
+	}, "\n"))
+
+	_, err := ParseSkillFile(path)
+	if err == nil {
+		t.Fatal("ParseSkillFile() error = nil, want legacy hook event failure")
+	}
+	if !strings.Contains(err.Error(), `hook event "on_session_created" was removed; use "session.post_create"`) {
+		t.Fatalf("ParseSkillFile() error = %v, want replacement guidance", err)
+	}
+}
+
+func TestParseSkillFileParsesHookOptionalFields(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	path := writeSkillFile(t, root, filepath.Join("hook-options", skillFileName), strings.Join([]string{
+		"---",
+		"name: hook-options",
+		"description: Hook with optional fields",
+		"metadata:",
+		"  agh:",
+		"    hooks:",
+		"      - event: session.post_create",
+		"        command: /bin/echo",
+		"        mode: sync",
+		"        priority: 7",
+		"        matcher:",
+		"          agent_name: codex",
+		"          workspace_id: ws-1",
+		"---",
+		"body",
+	}, "\n"))
+
+	skill, err := ParseSkillFile(path)
+	if err != nil {
+		t.Fatalf("ParseSkillFile() error = %v", err)
+	}
+
+	want := hookspkg.HookDecl{
+		Name:        "hook-options",
+		Event:       hookspkg.HookSessionPostCreate,
+		Source:      hookspkg.HookSourceSkill,
+		Mode:        hookspkg.HookModeSync,
+		Priority:    7,
+		PrioritySet: true,
+		Command:     "/bin/echo",
+		Matcher: hookspkg.HookMatcher{
+			AgentName:   "codex",
+			WorkspaceID: "ws-1",
+		},
+		SkillSource: hookspkg.HookSkillSourceBundled,
+	}
+	if got := skill.Hooks; !reflect.DeepEqual(got, []hookspkg.HookDecl{want}) {
+		t.Fatalf("ParseSkillFile() Hooks mismatch\nwant: %#v\ngot:  %#v", []hookspkg.HookDecl{want}, got)
+	}
+}
+
+func TestParseSkillFileDefaultsMinimalHookFields(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	path := writeSkillFile(t, root, filepath.Join("hook-defaults", skillFileName), strings.Join([]string{
+		"---",
+		"name: hook-defaults",
+		"description: Minimal hook declaration",
+		"metadata:",
+		"  agh:",
+		"    hooks:",
+		"      - event: session.post_create",
+		"        command: /bin/echo",
+		"---",
+		"body",
+	}, "\n"))
+
+	skill, err := ParseSkillFile(path)
+	if err != nil {
+		t.Fatalf("ParseSkillFile() error = %v", err)
+	}
+	if len(skill.Hooks) != 1 {
+		t.Fatalf("len(skill.Hooks) = %d, want 1", len(skill.Hooks))
+	}
+	hook := skill.Hooks[0]
+	if hook.Mode != hookspkg.HookModeAsync {
+		t.Fatalf("hook.Mode = %q, want %q", hook.Mode, hookspkg.HookModeAsync)
+	}
+	if hook.Priority != 0 {
+		t.Fatalf("hook.Priority = %d, want 0", hook.Priority)
+	}
+	if hook.PrioritySet {
+		t.Fatal("hook.PrioritySet = true, want false for default priority")
+	}
+	if hook.Source != hookspkg.HookSourceSkill {
+		t.Fatalf("hook.Source = %q, want skill source", hook.Source)
+	}
+	if hook.Name != "hook-defaults" {
+		t.Fatalf("hook.Name = %q, want %q", hook.Name, "hook-defaults")
+	}
+}
+
+func TestSkillHooksFieldUsesInternalHooksDeclarations(t *testing.T) {
+	t.Parallel()
+
+	got := reflect.TypeOf(Skill{}.Hooks)
+	want := reflect.TypeOf([]hookspkg.HookDecl(nil))
+	if got != want {
+		t.Fatalf("reflect.TypeOf(Skill{}.Hooks) = %v, want %v", got, want)
 	}
 }
 

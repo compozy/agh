@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/filesnap"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -292,6 +293,7 @@ func (r *Registry) loadWorkspaceSkills(ctx context.Context, paths []workspaceSki
 			return nil, err
 		}
 		skill.Source = path.source
+		refreshSkillHookDecls(skill)
 		if !r.processSkill(skills, skill, content, disabledSkills) {
 			continue
 		}
@@ -392,6 +394,7 @@ func (r *Registry) assignSourceAndProvenance(skill *Skill, source SkillSource) e
 
 	skill.Source = source
 	if source != SourceUser {
+		refreshSkillHookDecls(skill)
 		return nil
 	}
 
@@ -400,6 +403,7 @@ func (r *Registry) assignSourceAndProvenance(skill *Skill, source SkillSource) e
 		return err
 	}
 	if !hasSidecar {
+		refreshSkillHookDecls(skill)
 		return nil
 	}
 
@@ -411,6 +415,7 @@ func (r *Registry) assignSourceAndProvenance(skill *Skill, source SkillSource) e
 	skill.Source = SourceMarketplace
 	skill.Provenance = provenance
 	skill.InstalledFrom = strings.TrimSpace(provenance.Slug)
+	refreshSkillHookDecls(skill)
 
 	return nil
 }
@@ -701,7 +706,20 @@ func cloneSkill(skill *Skill) *Skill {
 	clone := *skill
 	clone.Meta = cloneSkillMeta(skill.Meta)
 	clone.MCPServers = cloneMCPServerDecls(skill.MCPServers)
-	clone.Hooks = cloneHookDecls(skill.Hooks)
+	if len(skill.Hooks) > 0 {
+		clone.Hooks = make([]hookspkg.HookDecl, 0, len(skill.Hooks))
+		for idx, decl := range skill.Hooks {
+			cloned := decl
+			cloned.Args = append([]string(nil), decl.Args...)
+			cloned.Env = cloneStringMap(decl.Env)
+			cloned.Metadata = cloneStringMap(decl.Metadata)
+			if decl.Matcher.ToolReadOnly != nil {
+				value := *decl.Matcher.ToolReadOnly
+				cloned.Matcher.ToolReadOnly = &value
+			}
+			clone.Hooks = append(clone.Hooks, normalizeSkillHookDecl(skill, cloned, idx, len(skill.Hooks)))
+		}
+	}
 	clone.Provenance = cloneProvenance(skill.Provenance)
 
 	return &clone
@@ -752,25 +770,6 @@ func cloneMCPServerDecls(decls []MCPServerDecl) []MCPServerDecl {
 			Name:    decl.Name,
 			Command: decl.Command,
 			Args:    append([]string(nil), decl.Args...),
-			Env:     cloneStringMap(decl.Env),
-		}
-	}
-
-	return clone
-}
-
-func cloneHookDecls(decls []HookDecl) []HookDecl {
-	if decls == nil {
-		return nil
-	}
-
-	clone := make([]HookDecl, len(decls))
-	for i, decl := range decls {
-		clone[i] = HookDecl{
-			Event:   decl.Event,
-			Command: decl.Command,
-			Args:    append([]string(nil), decl.Args...),
-			Timeout: decl.Timeout,
 			Env:     cloneStringMap(decl.Env),
 		}
 	}

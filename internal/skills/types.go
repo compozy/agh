@@ -5,6 +5,8 @@ package skills
 import (
 	"io/fs"
 	"time"
+
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
 // SkillMeta maps YAML frontmatter fields per the AgentSkills spec.
@@ -23,7 +25,7 @@ type Skill struct {
 	FilePath      string
 	Enabled       bool
 	MCPServers    []MCPServerDecl
-	Hooks         []HookDecl
+	Hooks         []hookspkg.HookDecl
 	Provenance    *Provenance
 	InstalledFrom string
 }
@@ -51,23 +53,6 @@ type MCPServerDecl struct {
 	Args    []string          `yaml:"args,omitempty"`
 	Env     map[string]string `yaml:"env,omitempty"`
 }
-
-// HookDecl declares a lifecycle hook in skill frontmatter.
-type HookDecl struct {
-	Event   HookEvent         `yaml:"event"`
-	Command string            `yaml:"command"`
-	Args    []string          `yaml:"args,omitempty"`
-	Timeout time.Duration     `yaml:"timeout,omitempty"`
-	Env     map[string]string `yaml:"env,omitempty"`
-}
-
-// HookEvent identifies when a hook fires.
-type HookEvent string
-
-const (
-	HookSessionCreated HookEvent = "on_session_created"
-	HookSessionStopped HookEvent = "on_session_stopped"
-)
 
 // Provenance stores marketplace install metadata for a skill.
 type Provenance struct {

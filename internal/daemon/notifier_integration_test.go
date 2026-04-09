@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -32,16 +33,24 @@ func TestNotifierFanoutExecutesCreatedAndStoppedHooks(t *testing.T) {
 			{
 				Source: skillspkg.SourceWorkspace,
 				Meta:   skillspkg.SkillMeta{Name: "hook-skill"},
-				Hooks: []skillspkg.HookDecl{
+				Hooks: []hookspkg.HookDecl{
 					{
-						Event:   skillspkg.HookSessionCreated,
-						Command: scriptPath,
-						Args:    []string{createdOutput},
+						Name:        "hook-skill#1",
+						Event:       hookspkg.HookSessionPostCreate,
+						Source:      hookspkg.HookSourceSkill,
+						Mode:        hookspkg.HookModeSync,
+						Command:     scriptPath,
+						Args:        []string{createdOutput},
+						SkillSource: hookspkg.HookSkillSourceWorkspace,
 					},
 					{
-						Event:   skillspkg.HookSessionStopped,
-						Command: scriptPath,
-						Args:    []string{stoppedOutput},
+						Name:        "hook-skill#2",
+						Event:       hookspkg.HookSessionPostStop,
+						Source:      hookspkg.HookSourceSkill,
+						Mode:        hookspkg.HookModeSync,
+						Command:     scriptPath,
+						Args:        []string{stoppedOutput},
+						SkillSource: hookspkg.HookSkillSourceWorkspace,
 					},
 				},
 			},
@@ -59,7 +68,7 @@ func TestNotifierFanoutExecutesCreatedAndStoppedHooks(t *testing.T) {
 
 	fanout := notifierFanout{
 		notifiers: []session.Notifier{&recordingNotifier{}},
-		hookPhase: newSkillsHookDispatcher(registry, skillspkg.NewHookRunner(aghconfig.SkillsConfig{}, discardLogger()), resolver, discardLogger()),
+		hookPhase: newSkillsHookDispatcher(registry, aghconfig.SkillsConfig{}, resolver, discardLogger()),
 	}
 	sess := &session.Session{
 		ID:          "sess-1",
@@ -71,18 +80,8 @@ func TestNotifierFanoutExecutesCreatedAndStoppedHooks(t *testing.T) {
 	fanout.OnSessionCreated(testutil.Context(t), sess)
 	fanout.OnSessionStopped(testutil.Context(t), sess)
 
-	assertHookPayload(t, createdOutput, skillspkg.HookPayload{
-		SessionID: "sess-1",
-		AgentName: "coder",
-		Workspace: rootDir,
-		Event:     string(skillspkg.HookSessionCreated),
-	})
-	assertHookPayload(t, stoppedOutput, skillspkg.HookPayload{
-		SessionID: "sess-1",
-		AgentName: "coder",
-		Workspace: rootDir,
-		Event:     string(skillspkg.HookSessionStopped),
-	})
+	assertSessionHookPayload(t, createdOutput, hookspkg.HookSessionPostCreate, rootDir)
+	assertSessionHookPayload(t, stoppedOutput, hookspkg.HookSessionPostStop, rootDir)
 }
 
 func TestNotifierFanoutHookFailureDoesNotBlockLifecycle(t *testing.T) {
@@ -98,14 +97,22 @@ func TestNotifierFanoutHookFailureDoesNotBlockLifecycle(t *testing.T) {
 			{
 				Source: skillspkg.SourceWorkspace,
 				Meta:   skillspkg.SkillMeta{Name: "failing-hook-skill"},
-				Hooks: []skillspkg.HookDecl{
+				Hooks: []hookspkg.HookDecl{
 					{
-						Event:   skillspkg.HookSessionCreated,
-						Command: scriptPath,
+						Name:        "failing-hook-skill#1",
+						Event:       hookspkg.HookSessionPostCreate,
+						Source:      hookspkg.HookSourceSkill,
+						Mode:        hookspkg.HookModeSync,
+						Command:     scriptPath,
+						SkillSource: hookspkg.HookSkillSourceWorkspace,
 					},
 					{
-						Event:   skillspkg.HookSessionStopped,
-						Command: scriptPath,
+						Name:        "failing-hook-skill#2",
+						Event:       hookspkg.HookSessionPostStop,
+						Source:      hookspkg.HookSourceSkill,
+						Mode:        hookspkg.HookModeSync,
+						Command:     scriptPath,
+						SkillSource: hookspkg.HookSkillSourceWorkspace,
 					},
 				},
 			},
@@ -123,7 +130,7 @@ func TestNotifierFanoutHookFailureDoesNotBlockLifecycle(t *testing.T) {
 	notifier := &recordingNotifier{}
 	fanout := notifierFanout{
 		notifiers: []session.Notifier{notifier},
-		hookPhase: newSkillsHookDispatcher(registry, skillspkg.NewHookRunner(aghconfig.SkillsConfig{}, discardLogger()), resolver, discardLogger()),
+		hookPhase: newSkillsHookDispatcher(registry, aghconfig.SkillsConfig{}, resolver, discardLogger()),
 	}
 
 	sess := &session.Session{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1"}
@@ -165,18 +172,27 @@ func writeIntegrationHookScript(t *testing.T, dir string, name string, contents 
 	return path
 }
 
-func assertHookPayload(t *testing.T, path string, want skillspkg.HookPayload) {
+func assertSessionHookPayload(t *testing.T, path string, wantEvent hookspkg.HookEvent, wantWorkspace string) {
 	t.Helper()
 
 	payloadBytes, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
 	}
-	var got skillspkg.HookPayload
+	var got hookspkg.SessionLifecyclePayload
 	if err := json.Unmarshal(payloadBytes, &got); err != nil {
 		t.Fatalf("json.Unmarshal(%q) error = %v", path, err)
 	}
-	if got != want {
-		t.Fatalf("hook payload = %#v, want %#v", got, want)
+	if got.SessionID != "sess-1" {
+		t.Fatalf("payload.SessionID = %q, want %q", got.SessionID, "sess-1")
+	}
+	if got.AgentName != "coder" {
+		t.Fatalf("payload.AgentName = %q, want %q", got.AgentName, "coder")
+	}
+	if got.Workspace != wantWorkspace {
+		t.Fatalf("payload.Workspace = %q, want %q", got.Workspace, wantWorkspace)
+	}
+	if got.Event != wantEvent {
+		t.Fatalf("payload.Event = %q, want %q", got.Event, wantEvent)
 	}
 }

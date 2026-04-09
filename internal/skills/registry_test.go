@@ -14,6 +14,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -874,14 +875,16 @@ func TestSkillTypesSupportMarketplaceDeclarations(t *testing.T) {
 			"ROOT": "/workspace",
 		},
 	}
-	hook := HookDecl{
-		Event:   HookSessionCreated,
-		Command: "/bin/sh",
-		Args:    []string{"-c", "echo ready"},
-		Timeout: 5 * time.Second,
-		Env: map[string]string{
-			"HOOK_ENV": "enabled",
-		},
+	hook := hookspkg.HookDecl{
+		Name:        "marketplace-skill",
+		Event:       hookspkg.HookSessionPostCreate,
+		Source:      hookspkg.HookSourceSkill,
+		Mode:        hookspkg.HookModeAsync,
+		Command:     "/bin/sh",
+		Args:        []string{"-c", "echo ready"},
+		Timeout:     5 * time.Second,
+		Env:         map[string]string{"HOOK_ENV": "enabled"},
+		SkillSource: hookspkg.HookSkillSourceMarketplace,
 	}
 	provenance := Provenance{
 		Hash:        "abc123",
@@ -893,7 +896,8 @@ func TestSkillTypesSupportMarketplaceDeclarations(t *testing.T) {
 	skill := Skill{
 		Meta:          SkillMeta{Name: "marketplace-skill", Description: "Marketplace skill"},
 		MCPServers:    []MCPServerDecl{mcp},
-		Hooks:         []HookDecl{hook},
+		Source:        SourceMarketplace,
+		Hooks:         []hookspkg.HookDecl{hook},
 		Provenance:    &provenance,
 		InstalledFrom: "@author/skill",
 	}
@@ -910,14 +914,17 @@ func TestSkillTypesSupportMarketplaceDeclarations(t *testing.T) {
 	if skill.MCPServers[0].Env["ROOT"] != "/workspace" {
 		t.Fatalf("MCPServers[0].Env[ROOT] = %q, want %q", skill.MCPServers[0].Env["ROOT"], "/workspace")
 	}
-	if skill.Hooks[0].Event != HookSessionCreated {
-		t.Fatalf("Hooks[0].Event = %q, want %q", skill.Hooks[0].Event, HookSessionCreated)
+	if skill.Hooks[0].Event != hookspkg.HookSessionPostCreate {
+		t.Fatalf("Hooks[0].Event = %q, want %q", skill.Hooks[0].Event, hookspkg.HookSessionPostCreate)
 	}
-	if string(HookSessionCreated) != "on_session_created" {
-		t.Fatalf("HookSessionCreated = %q, want %q", HookSessionCreated, "on_session_created")
+	if string(skill.Hooks[0].Event) != "session.post_create" {
+		t.Fatalf("Hooks[0].Event = %q, want %q", skill.Hooks[0].Event, "session.post_create")
 	}
-	if string(HookSessionStopped) != "on_session_stopped" {
-		t.Fatalf("HookSessionStopped = %q, want %q", HookSessionStopped, "on_session_stopped")
+	if skill.Hooks[0].Source != hookspkg.HookSourceSkill {
+		t.Fatalf("Hooks[0].Source = %q, want %q", skill.Hooks[0].Source, hookspkg.HookSourceSkill)
+	}
+	if skill.Hooks[0].SkillSource != hookspkg.HookSkillSourceMarketplace {
+		t.Fatalf("Hooks[0].SkillSource = %q, want %q", skill.Hooks[0].SkillSource, hookspkg.HookSkillSourceMarketplace)
 	}
 	if skill.Hooks[0].Timeout != 5*time.Second {
 		t.Fatalf("Hooks[0].Timeout = %s, want %s", skill.Hooks[0].Timeout, 5*time.Second)
@@ -962,7 +969,8 @@ func TestCloneSkillDeepCopiesExtendedFields(t *testing.T) {
 
 	installedAt := time.Date(2026, 4, 7, 9, 30, 0, 0, time.UTC)
 	original := &Skill{
-		Meta: SkillMeta{Name: "clone", Description: "Clone extended fields"},
+		Meta:   SkillMeta{Name: "clone", Description: "Clone extended fields"},
+		Source: SourceWorkspace,
 		MCPServers: []MCPServerDecl{{
 			Name:    "server",
 			Command: "cmd",
@@ -971,14 +979,16 @@ func TestCloneSkillDeepCopiesExtendedFields(t *testing.T) {
 				"ROOT": "/tmp/original",
 			},
 		}},
-		Hooks: []HookDecl{{
-			Event:   HookSessionStopped,
-			Command: "hook",
-			Args:    []string{"cleanup"},
-			Timeout: time.Second,
-			Env: map[string]string{
-				"PHASE": "stop",
-			},
+		Hooks: []hookspkg.HookDecl{{
+			Name:        "clone",
+			Event:       hookspkg.HookSessionPostStop,
+			Source:      hookspkg.HookSourceSkill,
+			Mode:        hookspkg.HookModeAsync,
+			Command:     "hook",
+			Args:        []string{"cleanup"},
+			Timeout:     time.Second,
+			Env:         map[string]string{"PHASE": "stop"},
+			SkillSource: hookspkg.HookSkillSourceWorkspace,
 		}},
 		Provenance: &Provenance{
 			Hash:        "hash-original",
