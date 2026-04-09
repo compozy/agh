@@ -1,10 +1,23 @@
 package hooks
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
 )
+
+type stubExecutor struct {
+	kind HookExecutorKind
+}
+
+func (e stubExecutor) Kind() HookExecutorKind {
+	return e.kind
+}
+
+func (e stubExecutor) Execute(_ context.Context, _ RegisteredHook, _ []byte) ([]byte, error) {
+	return nil, nil
+}
 
 func TestHookSourceOrderingAndJSON(t *testing.T) {
 	t.Parallel()
@@ -41,6 +54,17 @@ func TestHookSourceInvalid(t *testing.T) {
 	}
 	if _, err := HookSource(42).MarshalText(); err == nil {
 		t.Fatal("HookSource(42).MarshalText() error = nil, want non-nil")
+	}
+}
+
+func TestHookSkillSourceValidate(t *testing.T) {
+	t.Parallel()
+
+	if err := HookSkillSourceWorkspace.Validate(); err != nil {
+		t.Fatalf("HookSkillSourceWorkspace.Validate() error = %v, want nil", err)
+	}
+	if err := HookSkillSource("remote").Validate(); err == nil {
+		t.Fatal("invalid HookSkillSource.Validate() error = nil, want non-nil")
 	}
 }
 
@@ -145,10 +169,11 @@ func TestResolvedHookValidate(t *testing.T) {
 
 	hook := ResolvedHook{
 		RegisteredHook: RegisteredHook{
-			Name:   "resolved-hook",
-			Event:  HookToolPreCall,
-			Source: HookSourceNative,
-			Mode:   HookModeSync,
+			Name:     "resolved-hook",
+			Event:    HookToolPreCall,
+			Source:   HookSourceNative,
+			Mode:     HookModeSync,
+			Executor: stubExecutor{kind: HookExecutorNative},
 		},
 		Decl: HookDecl{Name: "other-name"},
 	}
@@ -163,15 +188,34 @@ func TestResolvedHookValidateSuccess(t *testing.T) {
 
 	hook := ResolvedHook{
 		RegisteredHook: RegisteredHook{
+			Name:     "resolved-hook",
+			Event:    HookToolPreCall,
+			Source:   HookSourceNative,
+			Mode:     HookModeSync,
+			Executor: stubExecutor{kind: HookExecutorNative},
+		},
+		Decl: HookDecl{Name: "resolved-hook", ExecutorKind: HookExecutorNative},
+	}
+
+	if err := hook.Validate(); err != nil {
+		t.Fatalf("ResolvedHook.Validate() error = %v, want nil", err)
+	}
+}
+
+func TestResolvedHookValidateRequiresExecutor(t *testing.T) {
+	t.Parallel()
+
+	hook := ResolvedHook{
+		RegisteredHook: RegisteredHook{
 			Name:   "resolved-hook",
 			Event:  HookToolPreCall,
 			Source: HookSourceNative,
 			Mode:   HookModeSync,
 		},
-		Decl: HookDecl{Name: "resolved-hook"},
+		Decl: HookDecl{Name: "resolved-hook", ExecutorKind: HookExecutorNative},
 	}
 
-	if err := hook.Validate(); err != nil {
-		t.Fatalf("ResolvedHook.Validate() error = %v, want nil", err)
+	if err := hook.Validate(); err == nil {
+		t.Fatal("ResolvedHook.Validate() error = nil, want non-nil")
 	}
 }

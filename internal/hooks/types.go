@@ -25,6 +25,18 @@ var hookSourceNames = map[HookSource]string{
 	HookSourceSkill:           "skill",
 }
 
+// HookSkillSource captures the existing skill-registry precedence without
+// importing internal/skills into the hooks base package.
+type HookSkillSource string
+
+const (
+	HookSkillSourceBundled     HookSkillSource = "bundled"
+	HookSkillSourceMarketplace HookSkillSource = "marketplace"
+	HookSkillSourceUser        HookSkillSource = "user"
+	HookSkillSourceAdditional  HookSkillSource = "additional"
+	HookSkillSourceWorkspace   HookSkillSource = "workspace"
+)
+
 // String returns the stable text form for the hook source.
 func (s HookSource) String() string {
 	name, ok := hookSourceNames[s]
@@ -60,6 +72,22 @@ func (s HookSource) Validate() error {
 		return fmt.Errorf("hooks: invalid hook source %d", s)
 	}
 	return nil
+}
+
+// Validate ensures the skill source is one of the documented values when set.
+func (s HookSkillSource) Validate() error {
+	switch s {
+	case "":
+		return nil
+	case HookSkillSourceBundled,
+		HookSkillSourceMarketplace,
+		HookSkillSourceUser,
+		HookSkillSourceAdditional,
+		HookSkillSourceWorkspace:
+		return nil
+	default:
+		return fmt.Errorf("hooks: invalid hook skill source %q", s)
+	}
 }
 
 // HookMode controls whether a hook runs inline or in the background.
@@ -139,6 +167,7 @@ type HookDecl struct {
 	Mode         HookMode          `json:"mode,omitempty" yaml:"mode,omitempty"`
 	Required     bool              `json:"required,omitempty" yaml:"required,omitempty"`
 	Priority     int               `json:"priority,omitempty" yaml:"priority,omitempty"`
+	PrioritySet  bool              `json:"-" yaml:"-"`
 	Timeout      time.Duration     `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	Matcher      HookMatcher       `json:"matcher,omitempty" yaml:"matcher,omitempty"`
 	ExecutorKind HookExecutorKind  `json:"executor_kind,omitempty" yaml:"executor_kind,omitempty"`
@@ -146,6 +175,7 @@ type HookDecl struct {
 	Args         []string          `json:"args,omitempty" yaml:"args,omitempty"`
 	Env          map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	SkillSource  HookSkillSource   `json:"-" yaml:"-"`
 }
 
 // Executor is the execution seam for hook implementations.
@@ -205,8 +235,17 @@ func (h ResolvedHook) Validate() error {
 	if err := h.RegisteredHook.Validate(); err != nil {
 		return err
 	}
+	if h.Executor == nil {
+		return fmt.Errorf("hooks: resolved hook %q executor is required", h.Name)
+	}
 	if strings.TrimSpace(h.Decl.Name) == "" {
 		return nil
+	}
+	if err := h.Decl.SkillSource.Validate(); err != nil {
+		return err
+	}
+	if h.Decl.ExecutorKind != "" && h.Executor.Kind() != h.Decl.ExecutorKind {
+		return fmt.Errorf("hooks: resolved hook %q executor kind %q does not match declaration %q", h.Name, h.Executor.Kind(), h.Decl.ExecutorKind)
 	}
 	if h.Decl.Name != h.Name {
 		return fmt.Errorf("hooks: resolved hook %q does not match declaration %q", h.Name, h.Decl.Name)
