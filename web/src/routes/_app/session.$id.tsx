@@ -105,7 +105,7 @@ function SessionPage() {
         onResume={() => resumeMutation.mutate(id)}
         workspaceName={workspaceName}
       />
-      <ChatView messages={messages} isStreaming={isStreaming} />
+      <ChatView messages={messages} isStreaming={isStreaming} agentName={session.agent_name} />
       {pendingPermission && (
         <PermissionPrompt
           permission={pendingPermission}

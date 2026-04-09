@@ -1,38 +1,25 @@
 import { Terminal } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { Kbd } from "@/components/ui/kbd";
-
 export const Route = createFileRoute("/_app/")({
   component: AppIndexPage,
 });
 
 function AppIndexPage() {
   return (
-    <div className="flex flex-1 items-center justify-center p-6">
-      <Empty>
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <Terminal className="size-5" />
-          </EmptyMedia>
-          <EmptyTitle>No session selected</EmptyTitle>
-          <EmptyDescription>
-            Start a new session from the sidebar or select an existing one to begin.
-          </EmptyDescription>
-        </EmptyHeader>
-        <div className="flex items-center gap-1.5 text-xs text-[color:var(--color-text-tertiary)]">
-          <span>Press</span>
-          <Kbd>⌘K</Kbd>
-          <span>to search</span>
-        </div>
-      </Empty>
+    <div className="flex flex-1 items-center justify-center" data-testid="app-empty-state">
+      <div className="flex flex-col items-center gap-3">
+        <Terminal
+          className="size-12 text-[color:var(--color-text-tertiary)]"
+          data-testid="empty-terminal-icon"
+        />
+        <p className="text-[15px] font-medium text-[color:var(--color-text-secondary)]">
+          Select a session to begin
+        </p>
+        <p className="text-[13px] text-[color:var(--color-text-tertiary)]">
+          or create a new one from the sidebar
+        </p>
+      </div>
     </div>
   );
 }

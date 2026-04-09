@@ -31,10 +31,54 @@ describe("ToolCallCard", () => {
     vi.useRealTimers();
   });
 
-  it("renders executing state with shimmer for tool without result", () => {
+  it("renders with card styling (border and surface background)", () => {
+    render(<ToolCallCard message={makeToolMessage()} />);
+    const trigger = screen.getByTestId("tool-card-trigger");
+    expect(trigger.className).toMatch(/border-\[color:var\(--color-divider\)\]/);
+    expect(trigger.className).toMatch(/bg-\[color:var\(--color-surface\)\]/);
+    expect(trigger.className).toContain("rounded-lg");
+  });
+
+  it("renders terminal icon for tool", () => {
+    render(<ToolCallCard message={makeToolMessage()} />);
+    expect(screen.getByTestId("tool-call-card")).toBeInTheDocument();
+  });
+
+  it("shows tool name in executing state", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
     expect(screen.getByTestId("tool-card-executing")).toBeInTheDocument();
     expect(screen.getByTestId("tool-card-executing")).toHaveTextContent("Reading...");
+  });
+
+  it("renders RUNNING status badge with accent color for executing tool", () => {
+    render(<ToolCallCard message={makeToolMessage()} />);
+    const badge = screen.getByTestId("tool-status-badge-running");
+    expect(badge).toHaveTextContent("Running");
+    expect(badge.className).toMatch(/bg-\[color:var\(--color-accent-tint\)\]/);
+    expect(badge.className).toMatch(/text-\[color:var\(--color-accent\)\]/);
+  });
+
+  it("renders DONE status badge with green color for completed tool", () => {
+    render(<ToolCallCard message={makeToolMessage({ toolResult: { content: "file content" } })} />);
+    const badge = screen.getByTestId("tool-status-badge-done");
+    expect(badge).toHaveTextContent("Done");
+    expect(badge.className).toMatch(/bg-\[color:var\(--color-success-tint\)\]/);
+    expect(badge.className).toMatch(/text-\[color:var\(--color-success\)\]/);
+  });
+
+  it("renders ERROR status badge with red color for failed tool", () => {
+    render(
+      <ToolCallCard
+        message={makeToolMessage({
+          toolResult: { error: "not found" },
+          toolError: true,
+        })}
+      />
+    );
+    const badge = screen.getByTestId("tool-status-badge-error");
+    expect(badge).toHaveTextContent("Error");
+    expect(badge.className).toMatch(/bg-\[color:var\(--color-danger-tint\)\]/);
+    expect(badge.className).toMatch(/text-\[color:var\(--color-danger\)\]/);
   });
 
   it("renders success state with past-tense label for completed tool", () => {
@@ -45,11 +89,10 @@ describe("ToolCallCard", () => {
         })}
       />
     );
-    expect(screen.getByTestId("tool-card-success")).toBeInTheDocument();
     expect(screen.getByTestId("tool-card-success")).toHaveTextContent("Read file");
   });
 
-  it("renders error state with red icon for failed tool", () => {
+  it("renders error state label for failed tool", () => {
     render(
       <ToolCallCard
         message={makeToolMessage({
@@ -58,7 +101,6 @@ describe("ToolCallCard", () => {
         })}
       />
     );
-    expect(screen.getByTestId("tool-card-error")).toBeInTheDocument();
     expect(screen.getByTestId("tool-card-error")).toHaveTextContent("Failed to read file");
   });
 
@@ -72,7 +114,6 @@ describe("ToolCallCard", () => {
     const { rerender } = render(<ToolCallCard message={msg} />);
     expect(screen.queryByTestId("tool-card-expanded")).not.toBeInTheDocument();
 
-    // Simulate result arriving
     rerender(<ToolCallCard message={{ ...msg, toolResult: { content: "file content" } }} />);
     expect(screen.getByTestId("tool-card-expanded")).toBeInTheDocument();
   });
@@ -81,11 +122,9 @@ describe("ToolCallCard", () => {
     const msg = makeToolMessage();
     const { rerender } = render(<ToolCallCard message={msg} />);
 
-    // Result arrives → auto-expand
     rerender(<ToolCallCard message={{ ...msg, toolResult: { content: "file content" } }} />);
     expect(screen.getByTestId("tool-card-expanded")).toBeInTheDocument();
 
-    // Advance 2s → auto-collapse
     act(() => {
       vi.advanceTimersByTime(2000);
     });
@@ -100,13 +139,10 @@ describe("ToolCallCard", () => {
     });
     const { rerender } = render(<ToolCallCard message={msg} />);
 
-    // Result arrives — should not trigger auto-expand/collapse cycle
     rerender(<ToolCallCard message={{ ...msg, toolResult: { content: "ok" } }} />);
 
-    // The card starts expanded for Edit, so it should be visible
     expect(screen.getByTestId("tool-card-expanded")).toBeInTheDocument();
 
-    // Should NOT auto-collapse after 2s (isEditLike bypass)
     act(() => {
       vi.advanceTimersByTime(2500);
     });
@@ -117,17 +153,14 @@ describe("ToolCallCard", () => {
     const msg = makeToolMessage();
     const { rerender } = render(<ToolCallCard message={msg} />);
 
-    // Result arrives → auto-expand fires
     rerender(<ToolCallCard message={{ ...msg, toolResult: { content: "result" } }} />);
     expect(screen.getByTestId("tool-card-expanded")).toBeInTheDocument();
 
-    // User clicks to collapse (sets userToggled = true, clears timer)
     act(() => {
       screen.getByTestId("tool-card-trigger").click();
     });
     expect(screen.queryByTestId("tool-card-expanded")).not.toBeInTheDocument();
 
-    // After 2s, card should stay collapsed because user manually toggled
     act(() => {
       vi.advanceTimersByTime(2500);
     });

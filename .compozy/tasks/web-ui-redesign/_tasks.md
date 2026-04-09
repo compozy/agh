@@ -6,7 +6,7 @@
 |---|-------|--------|------------|--------------|
 | 01 | Replace design tokens and fonts | done | high | — |
 | 02 | Build custom sidebar with workspace icon rail | done | high | task_01 |
-| 03 | Restyle session chat view | pending | medium | task_01, task_02 |
+| 03 | Restyle session chat view | done | medium | task_01, task_02 |
 | 04 | Add Skills HTTP endpoints | pending | medium | — |
 | 05 | Build skill frontend system | pending | medium | task_04 |
 | 06 | Build Skills page | pending | high | task_02, task_05 |

@@ -2,7 +2,6 @@ import { useCallback, useRef, type KeyboardEvent } from "react";
 import { SendHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 
 export interface MessageComposerProps {
   onSend: (text: string) => void;
@@ -43,38 +42,46 @@ export function MessageComposer({ onSend, disabled, className }: MessageComposer
   }, []);
 
   return (
-    <div
-      className={cn(
-        "flex items-end gap-2 border-t px-4 py-3",
-        "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
-        className
-      )}
-      data-testid="message-composer"
-    >
-      <textarea
-        ref={textareaRef}
-        placeholder="Send a message..."
-        disabled={disabled}
-        onKeyDown={handleKeyDown}
-        onInput={handleInput}
-        rows={1}
+    <div className={cn("px-4 py-3", className)} data-testid="message-composer">
+      <div
         className={cn(
-          "flex-1 resize-none bg-transparent text-sm",
-          "text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-tertiary)]",
-          "outline-none disabled:cursor-not-allowed disabled:opacity-50",
-          "max-h-[200px] py-1.5"
+          "flex items-end gap-2 rounded-xl border px-4 py-2.5",
+          "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
+          "focus-within:border-[color:var(--color-accent)]",
+          "transition-colors"
         )}
-        data-testid="composer-textarea"
-      />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        disabled={disabled}
-        onClick={handleSend}
-        data-testid="composer-send-button"
+        data-testid="composer-container"
       >
-        <SendHorizontal className="size-4" />
-      </Button>
+        <textarea
+          ref={textareaRef}
+          placeholder="Send a message..."
+          disabled={disabled}
+          onKeyDown={handleKeyDown}
+          onInput={handleInput}
+          rows={1}
+          className={cn(
+            "flex-1 resize-none bg-transparent text-sm",
+            "text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-tertiary)]",
+            "outline-none disabled:cursor-not-allowed disabled:opacity-50",
+            "max-h-[200px] py-1"
+          )}
+          data-testid="composer-textarea"
+        />
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={handleSend}
+          className={cn(
+            "flex size-9 shrink-0 items-center justify-center rounded-full",
+            "bg-[color:var(--color-accent)] text-white",
+            "hover:bg-[color:var(--color-accent-hover)] transition-colors",
+            "disabled:opacity-50 disabled:cursor-not-allowed"
+          )}
+          data-testid="composer-send-button"
+        >
+          <SendHorizontal className="size-4" />
+        </button>
+      </div>
     </div>
   );
 }

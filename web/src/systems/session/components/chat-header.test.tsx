@@ -7,22 +7,6 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
-vi.mock("@/components/ui/badge", () => ({
-  Badge: ({
-    children,
-    className,
-    ...props
-  }: {
-    children: React.ReactNode;
-    className?: string;
-    variant?: string;
-  }) => (
-    <span data-testid="session-state-badge" className={className} {...props}>
-      {children}
-    </span>
-  ),
-}));
-
 vi.mock("@/components/ui/button", () => ({
   Button: ({
     children,
@@ -53,45 +37,51 @@ const baseSession: SessionPayload = {
 };
 
 describe("ChatHeader", () => {
-  it("shows session name and agent name", () => {
-    const onStop = vi.fn();
-    const onResume = vi.fn();
-    render(<ChatHeader session={baseSession} onStop={onStop} onResume={onResume} />);
+  it("renders breadcrumb with agent name and session name", () => {
+    render(<ChatHeader session={baseSession} onStop={vi.fn()} onResume={vi.fn()} />);
 
-    expect(screen.getByText("My Test Session")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-breadcrumb")).toBeInTheDocument();
     expect(screen.getByText("claude-code")).toBeInTheDocument();
+    expect(screen.getByTestId("session-name")).toHaveTextContent("My Test Session");
   });
 
-  it("shows workspace metadata", () => {
+  it("shows agent status dot with success color for active state", () => {
+    render(<ChatHeader session={baseSession} onStop={vi.fn()} onResume={vi.fn()} />);
+
+    const dot = screen.getByTestId("agent-status-dot");
+    expect(dot.className).toMatch(/bg-\[color:var\(--color-success\)\]/);
+  });
+
+  it("shows agent status dot with warning color and pulse for starting state", () => {
+    const session = { ...baseSession, state: "starting" as const };
+    render(<ChatHeader session={session} onStop={vi.fn()} onResume={vi.fn()} />);
+
+    const dot = screen.getByTestId("agent-status-dot");
+    expect(dot.className).toMatch(/bg-\[color:var\(--color-warning\)\]/);
+    expect(dot.className).toContain("animate-pulse");
+  });
+
+  it("shows agent status dot with tertiary color for stopped state", () => {
+    const session = { ...baseSession, state: "stopped" as const };
+    render(<ChatHeader session={session} onStop={vi.fn()} onResume={vi.fn()} />);
+
+    const dot = screen.getByTestId("agent-status-dot");
+    expect(dot.className).toMatch(/bg-\[color:var\(--color-text-tertiary\)\]/);
+  });
+
+  it("shows workspace name in breadcrumb when provided", () => {
     render(
       <ChatHeader session={baseSession} onStop={vi.fn()} onResume={vi.fn()} workspaceName="alpha" />
     );
 
     expect(screen.getByTestId("session-workspace-badge")).toHaveTextContent("alpha");
-    expect(screen.getByTestId("session-workspace-id")).toHaveTextContent("ws_alpha");
   });
 
   it("shows session ID when name is not set", () => {
     const session = { ...baseSession, name: undefined };
     render(<ChatHeader session={session} onStop={vi.fn()} onResume={vi.fn()} />);
 
-    expect(screen.getByText("sess-001")).toBeInTheDocument();
-  });
-
-  it("shows correct state badge", () => {
-    render(<ChatHeader session={baseSession} onStop={vi.fn()} onResume={vi.fn()} />);
-
-    const badge = screen.getByTestId("session-state-badge");
-    expect(badge).toHaveTextContent("active");
-  });
-
-  it("shows starting badge with pulse animation", () => {
-    const session = { ...baseSession, state: "starting" as const };
-    render(<ChatHeader session={session} onStop={vi.fn()} onResume={vi.fn()} />);
-
-    const badge = screen.getByTestId("session-state-badge");
-    expect(badge).toHaveTextContent("starting");
-    expect(badge.className).toContain("animate-pulse");
+    expect(screen.getByTestId("session-name")).toHaveTextContent("sess-001");
   });
 
   it("shows stop button for active session", () => {

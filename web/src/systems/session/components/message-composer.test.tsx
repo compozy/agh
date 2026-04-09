@@ -5,34 +5,38 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
-vi.mock("@/components/ui/button", () => ({
-  Button: ({
-    children,
-    disabled,
-    onClick,
-    ...props
-  }: {
-    children: React.ReactNode;
-    disabled?: boolean;
-    onClick?: () => void;
-    [key: string]: unknown;
-  }) => (
-    <button disabled={disabled} onClick={onClick} {...props}>
-      {children}
-    </button>
-  ),
-}));
-
 import { MessageComposer } from "./message-composer";
 
 describe("MessageComposer", () => {
+  it("renders input container with rounded border and surface background", () => {
+    render(<MessageComposer onSend={vi.fn()} />);
+    const container = screen.getByTestId("composer-container");
+    expect(container.className).toContain("rounded-xl");
+    expect(container.className).toMatch(/border-\[color:var\(--color-divider\)\]/);
+    expect(container.className).toMatch(/bg-\[color:var\(--color-surface\)\]/);
+  });
+
+  it("gains accent border color on focus-within", () => {
+    render(<MessageComposer onSend={vi.fn()} />);
+    const container = screen.getByTestId("composer-container");
+    expect(container.className).toMatch(/focus-within:border-\[color:var\(--color-accent\)\]/);
+  });
+
+  it("renders circular send button with accent background", () => {
+    render(<MessageComposer onSend={vi.fn()} />);
+    const sendButton = screen.getByTestId("composer-send-button");
+    expect(sendButton.className).toContain("rounded-full");
+    expect(sendButton.className).toMatch(/bg-\[color:var\(--color-accent\)\]/);
+    expect(sendButton.className).toContain("text-white");
+    expect(sendButton.className).toContain("size-9");
+  });
+
   it("calls onSend on Enter key press", () => {
     const onSend = vi.fn();
     render(<MessageComposer onSend={onSend} />);
 
     const textarea = screen.getByTestId("composer-textarea");
     fireEvent.input(textarea, { target: { value: "Hello world" } });
-    // Manually set value since fireEvent.input doesn't set it on uncontrolled textarea
     (textarea as HTMLTextAreaElement).value = "Hello world";
 
     fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });

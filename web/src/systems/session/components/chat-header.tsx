@@ -1,7 +1,6 @@
-import { Square, Play } from "lucide-react";
+import { ChevronRight, Square, Play } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { SessionPayload } from "../types";
 
@@ -12,11 +11,11 @@ export interface ChatHeaderProps {
   workspaceName?: string;
 }
 
-const STATE_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  active: "default",
-  starting: "secondary",
-  stopping: "secondary",
-  stopped: "outline",
+const STATE_DOT_COLOR: Record<string, string> = {
+  active: "bg-[color:var(--color-success)]",
+  starting: "bg-[color:var(--color-warning)] animate-pulse",
+  stopping: "bg-[color:var(--color-warning)]",
+  stopped: "bg-[color:var(--color-text-tertiary)]",
 };
 
 export function ChatHeader({ session, onStop, onResume, workspaceName }: ChatHeaderProps) {
@@ -26,45 +25,42 @@ export function ChatHeader({ session, onStop, onResume, workspaceName }: ChatHea
   return (
     <div
       className={cn(
-        "flex items-center justify-between border-b px-4 py-2",
+        "flex h-11 items-center justify-between border-b px-4",
         "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]"
       )}
       data-testid="chat-header"
     >
-      <div className="flex items-center gap-3 overflow-hidden">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="truncate text-sm font-medium text-[color:var(--color-text-primary)]">
-              {session.name ?? session.id}
-            </h2>
-            <Badge
-              variant={STATE_BADGE_VARIANT[session.state] ?? "secondary"}
-              className={cn("text-[0.625rem]", session.state === "starting" && "animate-pulse")}
-              data-testid="session-state-badge"
-            >
-              {session.state}
-            </Badge>
-          </div>
-          <div className="mt-1 flex items-center gap-2 overflow-hidden text-xs text-[color:var(--color-text-tertiary)]">
-            <span>{session.agent_name}</span>
-            {workspaceName && (
-              <Badge
-                variant="outline"
-                className="h-4 shrink-0 px-1 text-[0.55rem] leading-none"
-                data-testid="session-workspace-badge"
-              >
-                {workspaceName}
-              </Badge>
-            )}
+      <div className="flex items-center gap-1.5 overflow-hidden" data-testid="chat-breadcrumb">
+        {/* Agent avatar dot */}
+        <span
+          className={cn("size-2.5 shrink-0 rounded-full", STATE_DOT_COLOR[session.state])}
+          data-testid="agent-status-dot"
+        />
+        <span className="truncate text-sm font-medium text-[color:var(--color-text-primary)]">
+          {session.agent_name}
+        </span>
+
+        <ChevronRight className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]" />
+
+        {/* Session name */}
+        <span
+          className="truncate text-sm text-[color:var(--color-text-secondary)]"
+          data-testid="session-name"
+        >
+          {session.name ?? session.id}
+        </span>
+
+        {workspaceName && (
+          <>
+            <ChevronRight className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]" />
             <span
-              className="truncate font-mono text-[0.68rem]"
-              data-testid="session-workspace-id"
-              title={session.workspace_id}
+              className="truncate text-xs text-[color:var(--color-text-tertiary)]"
+              data-testid="session-workspace-badge"
             >
-              {session.workspace_id}
+              {workspaceName}
             </span>
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-1">

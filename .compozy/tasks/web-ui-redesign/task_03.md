@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 title: Restyle session chat view
 type: frontend
 complexity: medium
@@ -33,12 +33,12 @@ Update the existing session chat view components to match the Paper design: righ
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Restyle `chat-header.tsx` with breadcrumb/session header pattern per Paper
-- [ ] 3.2 Restyle `message-bubble.tsx` for user (right-aligned bubble) and agent (left-aligned, no bubble) messages
-- [ ] 3.3 Restyle `tool-call-card.tsx` with new card styling and status badges
-- [ ] 3.4 Restyle `message-composer.tsx` with new input and accent send button
-- [ ] 3.5 Update `index.tsx` empty state to match Paper empty state design
-- [ ] 3.6 Write tests verifying message alignment, status badge rendering, and input styling
+- [x] 3.1 Restyle `chat-header.tsx` with breadcrumb/session header pattern per Paper
+- [x] 3.2 Restyle `message-bubble.tsx` for user (right-aligned bubble) and agent (left-aligned, no bubble) messages
+- [x] 3.3 Restyle `tool-call-card.tsx` with new card styling and status badges
+- [x] 3.4 Restyle `message-composer.tsx` with new input and accent send button
+- [x] 3.5 Update `index.tsx` empty state to match Paper empty state design
+- [x] 3.6 Write tests verifying message alignment, status badge rendering, and input styling
 
 ## Implementation Details
 
@@ -69,16 +69,16 @@ All existing hooks (`useSessionChat`, `useSessionTranscript`, `useSessionStore`)
 
 ## Tests
 - Unit tests:
-  - [ ] User message renders with right-aligned class and `#2C2C2E` background
-  - [ ] Agent message renders left-aligned with no bubble background
-  - [ ] Agent label shows JetBrains Mono uppercase name with status dot
-  - [ ] Tool call card shows terminal icon and tool name
-  - [ ] Tool call card DONE status renders green badge
-  - [ ] Tool call card RUNNING status renders accent badge
-  - [ ] Tool call card ERROR status renders red badge
-  - [ ] Chat input gains accent border color on focus
-  - [ ] Send button is circular with accent background
-  - [ ] Empty state shows terminal icon and descriptive text
+  - [x] User message renders with right-aligned class and `#2C2C2E` background
+  - [x] Agent message renders left-aligned with no bubble background
+  - [x] Agent label shows JetBrains Mono uppercase name with status dot
+  - [x] Tool call card shows terminal icon and tool name
+  - [x] Tool call card DONE status renders green badge
+  - [x] Tool call card RUNNING status renders accent badge
+  - [x] Tool call card ERROR status renders red badge
+  - [x] Chat input gains accent border color on focus
+  - [x] Send button is circular with accent background
+  - [x] Empty state shows terminal icon and descriptive text
 - Test coverage target: >=80%
 - All tests must pass
 

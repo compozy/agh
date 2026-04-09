@@ -83,58 +83,85 @@ export const ToolCallCard = memo(
       setExpanded(!expanded);
     }, [expanded, setExpanded]);
 
+    const statusBadge = isRunning ? (
+      <span
+        className="shrink-0 rounded-full bg-[color:var(--color-accent-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-accent)]"
+        data-testid="tool-status-badge-running"
+      >
+        Running
+      </span>
+    ) : isError ? (
+      <span
+        className="shrink-0 rounded-full bg-[color:var(--color-danger-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-danger)]"
+        data-testid="tool-status-badge-error"
+      >
+        Error
+      </span>
+    ) : (
+      <span
+        className="shrink-0 rounded-full bg-[color:var(--color-success-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-success)]"
+        data-testid="tool-status-badge-done"
+      >
+        Done
+      </span>
+    );
+
     return (
       <div className="min-w-0" data-testid="tool-call-card">
         <button
           type="button"
           onClick={handleToggle}
           className={cn(
-            "group relative flex w-full items-center gap-2 py-1",
-            "text-[13px] hover:text-[color:var(--color-text-primary)] transition-colors cursor-pointer overflow-hidden"
+            "group flex w-full items-center gap-2.5 rounded-lg border px-3 py-2",
+            "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
+            "text-[13px] transition-colors cursor-pointer overflow-hidden",
+            "hover:border-[color:var(--color-hover)]"
           )}
           aria-expanded={expanded}
           data-testid="tool-card-trigger"
         >
-          <div className="relative flex items-center gap-2 min-w-0">
-            {isError ? (
-              <AlertCircle className="size-3.5 shrink-0 text-red-400/70" />
-            ) : (
-              <Icon className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]/35" />
+          {isError ? (
+            <AlertCircle className="size-3.5 shrink-0 text-[color:var(--color-danger)]" />
+          ) : (
+            <Icon className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]" />
+          )}
+
+          <span
+            className={cn(
+              "shrink-0 whitespace-nowrap font-medium",
+              isError
+                ? "text-[color:var(--color-danger)]"
+                : "text-[color:var(--color-text-primary)]"
             )}
-            {isRunning ? (
-              <span
-                className="shrink-0 whitespace-nowrap font-medium animate-shimmer bg-clip-text text-transparent bg-[length:200%_100%] bg-gradient-to-r from-[color:var(--color-text-tertiary)] via-[color:var(--color-text-primary)] to-[color:var(--color-text-tertiary)]"
-                data-testid="tool-card-executing"
-              >
-                {getToolLabel(message.toolName ?? "", "active")}
-              </span>
-            ) : (
-              <span
+            data-testid={
+              isRunning ? "tool-card-executing" : isError ? "tool-card-error" : "tool-card-success"
+            }
+          >
+            {isRunning
+              ? getToolLabel(message.toolName ?? "", "active")
+              : isError
+                ? `Failed to ${getToolLabel(message.toolName ?? "", "failure")}`
+                : getToolLabel(message.toolName ?? "", "past")}
+          </span>
+
+          {summary && (
+            <span className="min-w-0 truncate text-[color:var(--color-text-tertiary)]">
+              {summary}
+            </span>
+          )}
+
+          <div className="ml-auto flex items-center gap-2">
+            {statusBadge}
+            {hasResult && (
+              <ChevronRight
                 className={cn(
-                  "shrink-0 whitespace-nowrap font-medium",
-                  isError ? "text-red-400/70" : "text-[color:var(--color-text-secondary)]"
+                  "size-3 shrink-0 text-[color:var(--color-text-tertiary)]",
+                  "opacity-0 group-hover:opacity-100 transition-all duration-200",
+                  expanded && "rotate-90"
                 )}
-                data-testid={isError ? "tool-card-error" : "tool-card-success"}
-              >
-                {isError
-                  ? `Failed to ${getToolLabel(message.toolName ?? "", "failure")}`
-                  : getToolLabel(message.toolName ?? "", "past")}
-              </span>
-            )}
-            {summary && (
-              <span className="truncate text-[color:var(--color-text-tertiary)]/40">{summary}</span>
+              />
             )}
           </div>
-
-          {hasResult && (
-            <ChevronRight
-              className={cn(
-                "ms-auto size-3 shrink-0 text-[color:var(--color-text-tertiary)]/30",
-                "opacity-0 group-hover:opacity-100 transition-all duration-200",
-                expanded && "rotate-90"
-              )}
-            />
-          )}
         </button>
 
         {expanded && hasResult && (

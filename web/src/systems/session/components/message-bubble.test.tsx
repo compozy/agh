@@ -49,16 +49,47 @@ function makeMessage(overrides: Partial<UIMessage> = {}): UIMessage {
 }
 
 describe("MessageBubble", () => {
-  it("renders user message with user icon", async () => {
+  it("renders user message right-aligned with bubble background", async () => {
     render(<MessageBubble message={makeMessage({ role: "user", content: "Hello" })} />);
-    expect(screen.getByTestId("message-bubble-user")).toBeInTheDocument();
+    const wrapper = screen.getByTestId("message-bubble-user");
+    expect(wrapper).toBeInTheDocument();
+    expect(wrapper.className).toContain("justify-end");
+
+    const bubble = screen.getByTestId("user-bubble");
+    expect(bubble.className).toMatch(/bg-\[color:var\(--color-surface-elevated\)\]/);
+    expect(bubble.className).toContain("rounded-xl");
     expect(await screen.findByText("Hello")).toBeInTheDocument();
   });
 
-  it("renders assistant message with bot icon", async () => {
+  it("renders agent message left-aligned with no bubble background", async () => {
     render(<MessageBubble message={makeMessage({ content: "Hi there" })} />);
-    expect(screen.getByTestId("message-bubble-assistant")).toBeInTheDocument();
+    const wrapper = screen.getByTestId("message-bubble-assistant");
+    expect(wrapper).toBeInTheDocument();
+    expect(wrapper.className).not.toContain("justify-end");
     expect(await screen.findByText("Hi there")).toBeInTheDocument();
+  });
+
+  it("renders agent label with JetBrains Mono uppercase name and status dot", () => {
+    render(<MessageBubble message={makeMessage({ content: "Hello" })} agentName="claude-code" />);
+
+    const label = screen.getByTestId("agent-label");
+    expect(label).toBeInTheDocument();
+
+    const agentNameEl = label.querySelector(".font-mono");
+    expect(agentNameEl).toBeInTheDocument();
+    expect(agentNameEl?.className).toContain("uppercase");
+    expect(agentNameEl?.textContent).toBe("claude-code");
+
+    // Status dot
+    const dot = label.querySelector(".rounded-full");
+    expect(dot).toBeInTheDocument();
+    expect(dot?.className).toMatch(/bg-\[color:var\(--color-success\)\]/);
+  });
+
+  it("shows default agent name when agentName prop is not provided", () => {
+    render(<MessageBubble message={makeMessage({ content: "Hello" })} />);
+    const label = screen.getByTestId("agent-label");
+    expect(label.textContent).toContain("Agent");
   });
 
   it("renders markdown headings", async () => {
@@ -104,7 +135,6 @@ describe("MessageBubble", () => {
   it("does not re-render when content is unchanged (memo check)", async () => {
     const message = makeMessage({ content: "Hello" });
     const { rerender } = render(<MessageBubble message={message} />);
-    // Same reference should not cause re-render
     rerender(<MessageBubble message={message} />);
     expect(await screen.findByText("Hello")).toBeInTheDocument();
   });
