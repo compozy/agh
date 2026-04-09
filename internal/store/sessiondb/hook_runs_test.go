@@ -119,3 +119,117 @@ func TestSessionDBQueryHookRunsFiltersByEvent(t *testing.T) {
 		t.Fatalf("filtered[0].HookName = %q, want permission-hook", filtered[0].HookName)
 	}
 }
+
+func TestSessionDBQueryHookRunsFiltersByOutcome(t *testing.T) {
+	t.Parallel()
+
+	sessionDB := openTestSessionDB(t, "sess-hook-outcome")
+	records := []hookspkg.HookRunRecord{
+		{
+			HookName:   "applied-hook",
+			Event:      hookspkg.HookPermissionRequest,
+			Source:     hookspkg.HookSourceConfig,
+			Mode:       hookspkg.HookModeSync,
+			Outcome:    hookspkg.HookRunOutcomeApplied,
+			RecordedAt: time.Date(2026, 4, 9, 18, 3, 0, 0, time.UTC),
+		},
+		{
+			HookName:   "failed-hook",
+			Event:      hookspkg.HookPermissionRequest,
+			Source:     hookspkg.HookSourceConfig,
+			Mode:       hookspkg.HookModeSync,
+			Outcome:    hookspkg.HookRunOutcomeFailed,
+			RecordedAt: time.Date(2026, 4, 9, 18, 4, 0, 0, time.UTC),
+		},
+	}
+
+	for _, record := range records {
+		if err := sessionDB.RecordHookRun(testutil.Context(t), record); err != nil {
+			t.Fatalf("RecordHookRun(%q) error = %v", record.HookName, err)
+		}
+	}
+
+	filtered, err := sessionDB.QueryHookRuns(testutil.Context(t), store.HookRunQuery{Outcome: hookspkg.HookRunOutcomeFailed})
+	if err != nil {
+		t.Fatalf("QueryHookRuns(filtered) error = %v", err)
+	}
+	if got, want := len(filtered), 1; got != want {
+		t.Fatalf("len(filtered) = %d, want %d", got, want)
+	}
+	if filtered[0].HookName != "failed-hook" {
+		t.Fatalf("filtered[0].HookName = %q, want failed-hook", filtered[0].HookName)
+	}
+}
+
+func TestSessionDBQueryHookRunsAppliesEventOutcomeSinceAndLimitInAscendingOrder(t *testing.T) {
+	t.Parallel()
+
+	sessionDB := openTestSessionDB(t, "sess-hook-combined")
+	records := []hookspkg.HookRunRecord{
+		{
+			HookName:   "ignore-other-event",
+			Event:      hookspkg.HookPromptPostAssemble,
+			Source:     hookspkg.HookSourceConfig,
+			Mode:       hookspkg.HookModeSync,
+			Outcome:    hookspkg.HookRunOutcomeApplied,
+			RecordedAt: time.Date(2026, 4, 9, 18, 0, 0, 0, time.UTC),
+		},
+		{
+			HookName:   "permission-old",
+			Event:      hookspkg.HookPermissionRequest,
+			Source:     hookspkg.HookSourceConfig,
+			Mode:       hookspkg.HookModeSync,
+			Outcome:    hookspkg.HookRunOutcomeApplied,
+			RecordedAt: time.Date(2026, 4, 9, 18, 1, 0, 0, time.UTC),
+		},
+		{
+			HookName:   "permission-denied",
+			Event:      hookspkg.HookPermissionRequest,
+			Source:     hookspkg.HookSourceConfig,
+			Mode:       hookspkg.HookModeSync,
+			Outcome:    hookspkg.HookRunOutcomeDenied,
+			RecordedAt: time.Date(2026, 4, 9, 18, 2, 0, 0, time.UTC),
+		},
+		{
+			HookName:   "permission-recent-a",
+			Event:      hookspkg.HookPermissionRequest,
+			Source:     hookspkg.HookSourceConfig,
+			Mode:       hookspkg.HookModeSync,
+			Outcome:    hookspkg.HookRunOutcomeApplied,
+			RecordedAt: time.Date(2026, 4, 9, 18, 3, 0, 0, time.UTC),
+		},
+		{
+			HookName:   "permission-recent-b",
+			Event:      hookspkg.HookPermissionRequest,
+			Source:     hookspkg.HookSourceConfig,
+			Mode:       hookspkg.HookModeSync,
+			Outcome:    hookspkg.HookRunOutcomeApplied,
+			RecordedAt: time.Date(2026, 4, 9, 18, 4, 0, 0, time.UTC),
+		},
+	}
+
+	for _, record := range records {
+		if err := sessionDB.RecordHookRun(testutil.Context(t), record); err != nil {
+			t.Fatalf("RecordHookRun(%q) error = %v", record.HookName, err)
+		}
+	}
+
+	filtered, err := sessionDB.QueryHookRuns(testutil.Context(t), store.HookRunQuery{
+		Event:   hookspkg.HookPermissionRequest.String(),
+		Outcome: hookspkg.HookRunOutcomeApplied,
+		Since:   time.Date(2026, 4, 9, 18, 0, 30, 0, time.UTC),
+		Limit:   2,
+	})
+	if err != nil {
+		t.Fatalf("QueryHookRuns(filtered) error = %v", err)
+	}
+	if got, want := len(filtered), 2; got != want {
+		t.Fatalf("len(filtered) = %d, want %d", got, want)
+	}
+	if filtered[0].HookName != "permission-recent-a" || filtered[1].HookName != "permission-recent-b" {
+		t.Fatalf("filtered = %#v, want ascending last-two applied permission hooks", filtered)
+	}
+	if !filtered[0].RecordedAt.Before(filtered[1].RecordedAt) {
+		t.Fatalf("filtered order = %s then %s, want ascending chronology", filtered[0].RecordedAt, filtered[1].RecordedAt)
+	}
+}

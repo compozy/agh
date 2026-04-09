@@ -34,6 +34,9 @@ type stubClient struct {
 	deleteWorkspaceFn     func(context.Context, string) error
 	listAgentsFn          func(context.Context) ([]AgentRecord, error)
 	getAgentFn            func(context.Context, string) (AgentRecord, error)
+	hookCatalogFn         func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error)
+	hookRunsFn            func(context.Context, HookRunsQuery) ([]HookRunRecord, error)
+	hookEventsFn          func(context.Context, HookEventsQuery) ([]HookEventRecord, error)
 	observeEventsFn       func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error)
 	streamObserveEventsFn func(context.Context, ObserveEventQuery, string, SSEHandler) error
 	observeHealthFn       func(context.Context) (HealthStatus, error)
@@ -161,6 +164,27 @@ func (s stubClient) GetAgent(ctx context.Context, name string) (AgentRecord, err
 		return s.getAgentFn(ctx, name)
 	}
 	return AgentRecord{}, errors.New("unexpected GetAgent call")
+}
+
+func (s stubClient) HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
+	if s.hookCatalogFn != nil {
+		return s.hookCatalogFn(ctx, query)
+	}
+	return nil, errors.New("unexpected HookCatalog call")
+}
+
+func (s stubClient) HookRuns(ctx context.Context, query HookRunsQuery) ([]HookRunRecord, error) {
+	if s.hookRunsFn != nil {
+		return s.hookRunsFn(ctx, query)
+	}
+	return nil, errors.New("unexpected HookRuns call")
+}
+
+func (s stubClient) HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error) {
+	if s.hookEventsFn != nil {
+		return s.hookEventsFn(ctx, query)
+	}
+	return nil, errors.New("unexpected HookEvents call")
 }
 
 func (s stubClient) ObserveEvents(ctx context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error) {

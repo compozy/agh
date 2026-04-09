@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Migrate skills hook parsing to new declarations
 type: refactor
 complexity: medium
@@ -35,12 +35,12 @@ Migrate `internal/skills` from owning hook dispatch to supplying typed declarati
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Delete `hooks.go`, `hook_process_unix.go`, `hook_process_windows.go`, `hooks_test.go`
-- [ ] 7.2 Remove old hook types from `types.go`, add new `Hooks` field using `hooks.HookDecl`
-- [ ] 7.3 Rewrite `parseHookDecls()` and `validHookEvent()` in `loader.go`
-- [ ] 7.4 Remove `cloneHookDecls()` from `registry.go`, update `cloneSkill()`
-- [ ] 7.5 Update testdata YAML and all affected tests
-- [ ] 7.6 Write new unit tests for the rewritten hook parsing
+- [x] 7.1 Delete `hooks.go`, `hook_process_unix.go`, `hook_process_windows.go`, `hooks_test.go`
+- [x] 7.2 Remove old hook types from `types.go`, add new `Hooks` field using `hooks.HookDecl`
+- [x] 7.3 Rewrite `parseHookDecls()` and `validHookEvent()` in `loader.go`
+- [x] 7.4 Remove `cloneHookDecls()` from `registry.go`, update `cloneSkill()`
+- [x] 7.5 Update testdata YAML and all affected tests
+- [x] 7.6 Write new unit tests for the rewritten hook parsing
 
 ## Implementation Details
 
@@ -76,13 +76,13 @@ Reference TechSpec "Migration from Current Hooks Implementation" section for exa
 
 ## Tests
 - Unit tests:
-  - [ ] Parse YAML with `event: session.post_create` succeeds
-  - [ ] Parse YAML with old `event: on_session_created` fails with descriptive error mentioning new name
-  - [ ] Parse YAML with unknown event `event: foo.bar` fails validation
-  - [ ] Parse YAML with new optional fields: mode, priority, matcher
-  - [ ] Parse YAML with minimal fields (just event + command) uses defaults
-  - [ ] `cloneSkill()` correctly deep-copies the new Hooks field
-  - [ ] Skill struct `Hooks` field is `[]hooks.HookDecl` type
+  - [x] Parse YAML with `event: session.post_create` succeeds
+  - [x] Parse YAML with old `event: on_session_created` fails with descriptive error mentioning new name
+  - [x] Parse YAML with unknown event `event: foo.bar` fails validation
+  - [x] Parse YAML with new optional fields: mode, priority, matcher
+  - [x] Parse YAML with minimal fields (just event + command) uses defaults
+  - [x] `cloneSkill()` correctly deep-copies the new Hooks field
+  - [x] Skill struct `Hooks` field is `[]hooks.HookDecl` type
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -100,6 +100,48 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					return newHTTPResponse(http.StatusOK, `{"agents":[{"name":"coder","provider":"fake","prompt":"You are coder."}]}`), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/agents/coder":
 					return newHTTPResponse(http.StatusOK, `{"agent":{"name":"coder","provider":"fake","prompt":"You are coder."}}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/hooks/catalog":
+					if got := req.URL.Query().Get("workspace"); got != "alpha" {
+						t.Fatalf("hook catalog workspace query = %q, want %q", got, "alpha")
+					}
+					if got := req.URL.Query().Get("agent"); got != "coder" {
+						t.Fatalf("hook catalog agent query = %q, want %q", got, "coder")
+					}
+					if got := req.URL.Query().Get("event"); got != "tool.pre_call" {
+						t.Fatalf("hook catalog event query = %q, want %q", got, "tool.pre_call")
+					}
+					if got := req.URL.Query().Get("source"); got != "config" {
+						t.Fatalf("hook catalog source query = %q, want %q", got, "config")
+					}
+					if got := req.URL.Query().Get("mode"); got != "sync" {
+						t.Fatalf("hook catalog mode query = %q, want %q", got, "sync")
+					}
+					return newHTTPResponse(http.StatusOK, `{"hooks":[{"order":1,"name":"permission-guard","event":"tool.pre_call","source":"config","mode":"sync","priority":10,"executor_kind":"subprocess"}]}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/hooks/runs":
+					if got := req.URL.Query().Get("session"); got != "sess-1" {
+						t.Fatalf("hook runs session query = %q, want %q", got, "sess-1")
+					}
+					if got := req.URL.Query().Get("event"); got != "permission.request" {
+						t.Fatalf("hook runs event query = %q, want %q", got, "permission.request")
+					}
+					if got := req.URL.Query().Get("outcome"); got != "failed" {
+						t.Fatalf("hook runs outcome query = %q, want %q", got, "failed")
+					}
+					if got := req.URL.Query().Get("since"); got != "2026-04-03T11:00:00Z" {
+						t.Fatalf("hook runs since query = %q, want %q", got, "2026-04-03T11:00:00Z")
+					}
+					if got := req.URL.Query().Get("last"); got != "2" {
+						t.Fatalf("hook runs last query = %q, want %q", got, "2")
+					}
+					return newHTTPResponse(http.StatusOK, `{"runs":[{"hook_name":"permission-guard","event":"permission.request","source":"config","mode":"sync","duration_ms":12,"outcome":"failed","error":"boom","recorded_at":"2026-04-03T12:00:00Z"}]}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/hooks/events":
+					if got := req.URL.Query().Get("family"); got != "tool" {
+						t.Fatalf("hook events family query = %q, want %q", got, "tool")
+					}
+					if got := req.URL.Query().Get("sync_only"); got != "true" {
+						t.Fatalf("hook events sync_only query = %q, want %q", got, "true")
+					}
+					return newHTTPResponse(http.StatusOK, `{"events":[{"event":"tool.pre_call","family":"tool","sync_eligible":true,"payload_schema":"ToolPreCallPayload","patch_schema":"ToolCallPatch"}]}`), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/observe/events":
 					if got := req.URL.Query().Get("session_id"); got != "sess-1" {
 						t.Fatalf("observe session_id query = %q, want %q", got, "sess-1")
@@ -199,6 +241,36 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	agent, err := client.GetAgent(ctx, "coder")
 	if err != nil || agent.Name != "coder" {
 		t.Fatalf("GetAgent() = %#v, %v", agent, err)
+	}
+
+	hookCatalog, err := client.HookCatalog(ctx, HookCatalogQuery{
+		Workspace: "alpha",
+		Agent:     "coder",
+		Event:     "tool.pre_call",
+		Source:    "config",
+		Mode:      "sync",
+	})
+	if err != nil || len(hookCatalog) != 1 || hookCatalog[0].ExecutorKind != "subprocess" {
+		t.Fatalf("HookCatalog() = %#v, %v", hookCatalog, err)
+	}
+
+	hookRuns, err := client.HookRuns(ctx, HookRunsQuery{
+		Session: "sess-1",
+		Event:   "permission.request",
+		Outcome: "failed",
+		Since:   "2026-04-03T11:00:00Z",
+		Last:    2,
+	})
+	if err != nil || len(hookRuns) != 1 || hookRuns[0].Outcome != "failed" {
+		t.Fatalf("HookRuns() = %#v, %v", hookRuns, err)
+	}
+
+	hookEvents, err := client.HookEvents(ctx, HookEventsQuery{
+		Family:   "tool",
+		SyncOnly: true,
+	})
+	if err != nil || len(hookEvents) != 1 || hookEvents[0].Family != "tool" {
+		t.Fatalf("HookEvents() = %#v, %v", hookEvents, err)
 	}
 
 	createdWorkspace, err := client.CreateWorkspace(ctx, WorkspaceCreateRequest{RootDir: "/workspace/project"})
@@ -304,6 +376,30 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		Last:      2,
 	}); got.Get("session_id") != "sess-1" || got.Get("limit") != "2" {
 		t.Fatalf("observeEventValues() = %v, want session_id/limit", got)
+	}
+
+	if got := hookCatalogValues(HookCatalogQuery{
+		Workspace: "alpha",
+		Agent:     "coder",
+		Event:     "tool.pre_call",
+		Source:    "config",
+		Mode:      "sync",
+	}); got.Get("workspace") != "alpha" || got.Get("source") != "config" || got.Get("mode") != "sync" {
+		t.Fatalf("hookCatalogValues() = %v, want all hook catalog filters", got)
+	}
+
+	if got := hookRunsValues(HookRunsQuery{
+		Session: "sess-1",
+		Event:   "permission.request",
+		Outcome: "failed",
+		Since:   "2026-04-03T11:00:00Z",
+		Last:    2,
+	}); got.Get("outcome") != "failed" || got.Get("last") != "2" || got.Get("since") != "2026-04-03T11:00:00Z" {
+		t.Fatalf("hookRunsValues() = %v, want all hook runs filters", got)
+	}
+
+	if got := hookEventsValues(HookEventsQuery{Family: "tool", SyncOnly: true}); got.Get("family") != "tool" || got.Get("sync_only") != "true" {
+		t.Fatalf("hookEventsValues() = %v, want family/sync_only", got)
 	}
 
 	if got := memoryValues(memory.ScopeWorkspace, "/workspace/project"); got.Get("scope") != "workspace" || got.Get("workspace") != "/workspace/project" {
@@ -435,6 +531,12 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 		{name: "Should alias TurnHistoryRecord to the shared contract", cliType: TurnHistoryRecord{}, want: contract.TurnHistoryPayload{}},
 		{name: "Should alias AgentRecord to the shared contract", cliType: AgentRecord{}, want: contract.AgentPayload{}},
 		{name: "Should alias AgentEventRecord to the shared contract", cliType: AgentEventRecord{}, want: contract.AgentEventPayload{}},
+		{name: "Should alias HookCatalogQuery to the shared contract", cliType: HookCatalogQuery{}, want: contract.HookCatalogQuery{}},
+		{name: "Should alias HookCatalogRecord to the shared contract", cliType: HookCatalogRecord{}, want: contract.HookCatalogPayload{}},
+		{name: "Should alias HookRunsQuery to the shared contract", cliType: HookRunsQuery{}, want: contract.HookRunsQuery{}},
+		{name: "Should alias HookRunRecord to the shared contract", cliType: HookRunRecord{}, want: contract.HookRunPayload{}},
+		{name: "Should alias HookEventsQuery to the shared contract", cliType: HookEventsQuery{}, want: contract.HookEventsQuery{}},
+		{name: "Should alias HookEventRecord to the shared contract", cliType: HookEventRecord{}, want: contract.HookEventPayload{}},
 		{name: "Should alias ObserveEventRecord to the shared contract", cliType: ObserveEventRecord{}, want: contract.ObserveEventPayload{}},
 		{name: "Should alias WorkspaceCreateRequest to the shared contract", cliType: WorkspaceCreateRequest{}, want: contract.CreateWorkspaceRequest{}},
 		{name: "Should alias WorkspaceUpdateRequest to the shared contract", cliType: WorkspaceUpdateRequest{}, want: contract.UpdateWorkspaceRequest{}},
@@ -515,6 +617,57 @@ func TestSharedContractJSONParity(t *testing.T) {
 	}
 	if !reflect.DeepEqual(cliObserve, sharedObserve) {
 		t.Fatalf("observe decode = %#v, want %#v", cliObserve, sharedObserve)
+	}
+
+	hookCatalogResponse := `{"hooks":[{"order":1,"name":"permission-guard","event":"tool.pre_call","source":"config","mode":"sync","priority":10,"executor_kind":"subprocess","matcher":{"tool_name":"shell"},"metadata":{"origin":"config"}}]}`
+	var cliHookCatalog struct {
+		Hooks []HookCatalogRecord `json:"hooks"`
+	}
+	if err := json.Unmarshal([]byte(hookCatalogResponse), &cliHookCatalog); err != nil {
+		t.Fatalf("json.Unmarshal(cli hook catalog response) error = %v", err)
+	}
+	var sharedHookCatalog struct {
+		Hooks []contract.HookCatalogPayload `json:"hooks"`
+	}
+	if err := json.Unmarshal([]byte(hookCatalogResponse), &sharedHookCatalog); err != nil {
+		t.Fatalf("json.Unmarshal(shared hook catalog response) error = %v", err)
+	}
+	if !reflect.DeepEqual(cliHookCatalog, sharedHookCatalog) {
+		t.Fatalf("hook catalog decode = %#v, want %#v", cliHookCatalog, sharedHookCatalog)
+	}
+
+	hookRunsResponse := `{"runs":[{"hook_name":"permission-guard","event":"permission.request","source":"config","mode":"sync","duration_ms":12,"outcome":"failed","error":"boom","recorded_at":"2026-04-03T12:00:00Z"}]}`
+	var cliHookRuns struct {
+		Runs []HookRunRecord `json:"runs"`
+	}
+	if err := json.Unmarshal([]byte(hookRunsResponse), &cliHookRuns); err != nil {
+		t.Fatalf("json.Unmarshal(cli hook runs response) error = %v", err)
+	}
+	var sharedHookRuns struct {
+		Runs []contract.HookRunPayload `json:"runs"`
+	}
+	if err := json.Unmarshal([]byte(hookRunsResponse), &sharedHookRuns); err != nil {
+		t.Fatalf("json.Unmarshal(shared hook runs response) error = %v", err)
+	}
+	if !reflect.DeepEqual(cliHookRuns, sharedHookRuns) {
+		t.Fatalf("hook runs decode = %#v, want %#v", cliHookRuns, sharedHookRuns)
+	}
+
+	hookEventsResponse := `{"events":[{"event":"tool.pre_call","family":"tool","sync_eligible":true,"payload_schema":"ToolPreCallPayload","patch_schema":"ToolCallPatch"}]}`
+	var cliHookEvents struct {
+		Events []HookEventRecord `json:"events"`
+	}
+	if err := json.Unmarshal([]byte(hookEventsResponse), &cliHookEvents); err != nil {
+		t.Fatalf("json.Unmarshal(cli hook events response) error = %v", err)
+	}
+	var sharedHookEvents struct {
+		Events []contract.HookEventPayload `json:"events"`
+	}
+	if err := json.Unmarshal([]byte(hookEventsResponse), &sharedHookEvents); err != nil {
+		t.Fatalf("json.Unmarshal(shared hook events response) error = %v", err)
+	}
+	if !reflect.DeepEqual(cliHookEvents, sharedHookEvents) {
+		t.Fatalf("hook events decode = %#v, want %#v", cliHookEvents, sharedHookEvents)
 	}
 
 	daemonResponse := `{"daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/agh.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":2,"version":"dev"}}`

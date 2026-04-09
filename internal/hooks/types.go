@@ -119,6 +119,21 @@ const (
 	HookRunOutcomeRejected HookRunOutcome = "rejected"
 )
 
+// Validate ensures the outcome is one of the documented execution results.
+func (o HookRunOutcome) Validate() error {
+	switch o {
+	case HookRunOutcomeApplied,
+		HookRunOutcomeDenied,
+		HookRunOutcomeFailed,
+		HookRunOutcomeSkipped,
+		HookRunOutcomeDropped,
+		HookRunOutcomeRejected:
+		return nil
+	default:
+		return fmt.Errorf("hooks: invalid hook run outcome %q", o)
+	}
+}
+
 // HookMatcher narrows when a hook is eligible to run.
 type HookMatcher struct {
 	AgentName          string `json:"agent_name,omitempty" yaml:"agent_name,omitempty"`

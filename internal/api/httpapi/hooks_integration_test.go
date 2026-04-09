@@ -62,8 +62,14 @@ func TestHTTPHookCatalogEndpointReturnsResolvedHooksInPipelineOrder(t *testing.T
 	if response.Hooks[0].Name != "native-first" || response.Hooks[0].Order != 1 || response.Hooks[0].Source != "native" {
 		t.Fatalf("hooks[0] = %#v", response.Hooks[0])
 	}
+	if response.Hooks[0].ExecutorKind != string(hookspkg.HookExecutorNative) {
+		t.Fatalf("hooks[0].ExecutorKind = %q, want %q", response.Hooks[0].ExecutorKind, hookspkg.HookExecutorNative)
+	}
 	if response.Hooks[1].Name != "config-second" || response.Hooks[1].Order != 2 || response.Hooks[1].Source != "config" {
 		t.Fatalf("hooks[1] = %#v", response.Hooks[1])
+	}
+	if response.Hooks[1].ExecutorKind != string(hookspkg.HookExecutorSubprocess) {
+		t.Fatalf("hooks[1].ExecutorKind = %q, want %q", response.Hooks[1].ExecutorKind, hookspkg.HookExecutorSubprocess)
 	}
 }
 
@@ -190,7 +196,7 @@ func TestHTTPHookEventsEndpointReturnsAllEventsWithSyncEligibility(t *testing.T)
 		Events []contract.HookEventPayload `json:"events"`
 	}
 	decodeJSONResponse(t, recorder, &response)
-	if got, want := len(response.Events), 27; got != want {
+	if got, want := len(response.Events), len(hookspkg.AllHookEvents()); got != want {
 		t.Fatalf("len(events) = %d, want %d", got, want)
 	}
 
@@ -203,6 +209,149 @@ func TestHTTPHookEventsEndpointReturnsAllEventsWithSyncEligibility(t *testing.T)
 	}
 	if event, ok := byEvent[hookspkg.HookPermissionRequest.String()]; !ok || !event.SyncEligible {
 		t.Fatalf("permission.request = %#v, want sync-eligible", event)
+	}
+}
+
+func TestHTTPHookCatalogEndpointFiltersByEventSourceAndMode(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	observer := newHookIntegrationObserver(t, homePaths)
+	hooksRuntime := newHookIntegrationRuntime(t,
+		hookspkg.WithNativeDeclarations([]hookspkg.HookDecl{{
+			Name:         "native-tool",
+			Event:        hookspkg.HookToolPreCall,
+			Mode:         hookspkg.HookModeSync,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		}}),
+		hookspkg.WithConfigDeclarations([]hookspkg.HookDecl{
+			{
+				Name:    "config-tool-sync",
+				Event:   hookspkg.HookToolPreCall,
+				Mode:    hookspkg.HookModeSync,
+				Command: "/bin/sh",
+				Args:    []string{"-c", "printf '{}'"},
+			},
+			{
+				Name:    "config-tool-async",
+				Event:   hookspkg.HookToolPreCall,
+				Mode:    hookspkg.HookModeAsync,
+				Command: "/bin/sh",
+				Args:    []string{"-c", "printf '{}'"},
+			},
+		}),
+		hookspkg.WithExecutorResolver(hookIntegrationResolver(map[string]hookspkg.Executor{
+			"native-tool": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.ToolPreCallPayload) (hookspkg.ToolCallPatch, error) {
+				return hookspkg.ToolCallPatch{}, nil
+			}),
+		})),
+	)
+	observer.AttachHooks(hooksRuntime)
+
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, observer, homePaths))
+	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/catalog?event=tool.pre_call&source=config&mode=sync", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response struct {
+		Hooks []contract.HookCatalogPayload `json:"hooks"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if got, want := len(response.Hooks), 1; got != want {
+		t.Fatalf("len(hooks) = %d, want %d", got, want)
+	}
+	if response.Hooks[0].Name != "config-tool-sync" || response.Hooks[0].ExecutorKind != string(hookspkg.HookExecutorSubprocess) {
+		t.Fatalf("hooks[0] = %#v, want filtered config sync hook", response.Hooks[0])
+	}
+}
+
+func TestHTTPHookRunsEndpointFiltersByOutcomeAndLast(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	observer := newHookIntegrationObserver(t, homePaths)
+	sessionID := "sess-history-filtered"
+	db := openHookRunSessionDB(t, homePaths, sessionID)
+	records := []hookspkg.HookRunRecord{
+		{
+			HookName:   "ignored-applied",
+			Event:      hookspkg.HookPermissionRequest,
+			Source:     hookspkg.HookSourceConfig,
+			Mode:       hookspkg.HookModeSync,
+			Outcome:    hookspkg.HookRunOutcomeApplied,
+			RecordedAt: time.Date(2026, 4, 9, 18, 31, 0, 0, time.UTC),
+		},
+		{
+			HookName:   "denied-older",
+			Event:      hookspkg.HookPermissionRequest,
+			Source:     hookspkg.HookSourceConfig,
+			Mode:       hookspkg.HookModeSync,
+			Outcome:    hookspkg.HookRunOutcomeDenied,
+			RecordedAt: time.Date(2026, 4, 9, 18, 32, 0, 0, time.UTC),
+		},
+		{
+			HookName:      "denied-newer",
+			Event:         hookspkg.HookPermissionRequest,
+			Source:        hookspkg.HookSourceConfig,
+			Mode:          hookspkg.HookModeSync,
+			Outcome:       hookspkg.HookRunOutcomeDenied,
+			PatchApplied:  []byte(`{"decision":"deny","reason":"policy"}`),
+			DispatchDepth: 1,
+			RecordedAt:    time.Date(2026, 4, 9, 18, 33, 0, 0, time.UTC),
+		},
+	}
+	for _, record := range records {
+		if err := db.RecordHookRun(testutilpkg.Context(t), record); err != nil {
+			t.Fatalf("RecordHookRun(%q) error = %v", record.HookName, err)
+		}
+	}
+	closeHookRunSessionDB(t, db)
+
+	manager := stubSessionManager{
+		StatusFn: func(_ context.Context, id string) (*session.SessionInfo, error) {
+			return newSessionInfo(id), nil
+		},
+	}
+
+	engine := newTestRouter(t, newTestHandlers(t, manager, observer, homePaths))
+	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/runs?session="+sessionID+"&event=permission.request&outcome=denied&last=1", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response struct {
+		Runs []contract.HookRunPayload `json:"runs"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if got, want := len(response.Runs), 1; got != want {
+		t.Fatalf("len(runs) = %d, want %d", got, want)
+	}
+	if response.Runs[0].HookName != "denied-newer" || response.Runs[0].Outcome != string(hookspkg.HookRunOutcomeDenied) {
+		t.Fatalf("runs[0] = %#v, want most recent denied run", response.Runs[0])
+	}
+}
+
+func TestHTTPHookEventsEndpointFiltersByFamilyAndSyncOnly(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	observer := newHookIntegrationObserver(t, homePaths)
+
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, observer, homePaths))
+	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/events?family=tool&sync_only=true", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response struct {
+		Events []contract.HookEventPayload `json:"events"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if len(response.Events) == 0 {
+		t.Fatal("len(events) = 0, want filtered tool events")
+	}
+	for _, event := range response.Events {
+		if event.Family != string(hookspkg.HookEventFamilyTool) {
+			t.Fatalf("event.Family = %q, want %q", event.Family, hookspkg.HookEventFamilyTool)
+		}
+		if !event.SyncEligible {
+			t.Fatalf("event.SyncEligible = false for %q, want true", event.Event)
+		}
 	}
 }
 

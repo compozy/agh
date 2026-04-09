@@ -468,6 +468,76 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"agent": AgentPayloadFromDef(agent)})
 }
 
+// HookCatalog returns the resolved hook catalog for the supplied workspace and agent view.
+func (h *BaseHandlers) HookCatalog(c *gin.Context) {
+	filter, err := ParseHookCatalogFilter(c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
+		resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceRef)
+		if err != nil {
+			h.respondError(c, StatusForWorkspaceError(err), err)
+			return
+		}
+		filter.WorkspaceID = strings.TrimSpace(resolved.ID)
+		filter.WorkspaceRoot = strings.TrimSpace(resolved.RootDir)
+	}
+
+	entries, err := h.Observer.QueryHookCatalog(c.Request.Context(), filter)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"hooks": HookCatalogPayloadsFromEntries(entries)})
+}
+
+// HookRuns returns persisted hook execution history for a session.
+func (h *BaseHandlers) HookRuns(c *gin.Context) {
+	query, err := ParseHookRunsQuery(c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if strings.TrimSpace(query.SessionID) == "" {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: session query is required", h.transportName()))
+		return
+	}
+
+	if _, err := h.Sessions.Status(c.Request.Context(), query.SessionID); err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+
+	records, err := h.Observer.QueryHookRuns(c.Request.Context(), query)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"runs": HookRunPayloadsFromRecords(records)})
+}
+
+// HookEvents returns the supported hook taxonomy metadata.
+func (h *BaseHandlers) HookEvents(c *gin.Context) {
+	filter, err := ParseHookEventFilter(c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	events, err := h.Observer.QueryHookEvents(c.Request.Context(), filter)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"events": HookEventPayloadsFromDescriptors(events)})
+}
+
 // ObserveEvents returns the filtered observe event list.
 func (h *BaseHandlers) ObserveEvents(c *gin.Context) {
 	query, err := ParseObserveEventQuery(c)

@@ -140,19 +140,44 @@ type ObserveHealthPayload struct {
 	Version            string `json:"version"`
 }
 
+// HookCatalogQuery captures the shared resolved-hook catalog filters.
+type HookCatalogQuery struct {
+	Workspace string
+	Agent     string
+	Event     string
+	Source    string
+	Mode      string
+}
+
+// HookRunsQuery captures the shared hook execution history filters.
+type HookRunsQuery struct {
+	Session string
+	Event   string
+	Outcome string
+	Since   string
+	Last    int
+}
+
+// HookEventsQuery captures the shared hook taxonomy filters.
+type HookEventsQuery struct {
+	Family   string
+	SyncOnly bool
+}
+
 // HookCatalogPayload is the shared resolved-hook catalog response payload.
 type HookCatalogPayload struct {
-	Order       int                  `json:"order"`
-	Name        string               `json:"name"`
-	Event       string               `json:"event"`
-	Source      string               `json:"source"`
-	SkillSource string               `json:"skill_source,omitempty"`
-	Mode        string               `json:"mode"`
-	Required    bool                 `json:"required"`
-	Priority    int                  `json:"priority"`
-	TimeoutMS   int64                `json:"timeout_ms,omitempty"`
-	Matcher     hookspkg.HookMatcher `json:"matcher,omitempty"`
-	Metadata    map[string]string    `json:"metadata,omitempty"`
+	Order        int                  `json:"order"`
+	Name         string               `json:"name"`
+	Event        string               `json:"event"`
+	Source       string               `json:"source"`
+	SkillSource  string               `json:"skill_source,omitempty"`
+	Mode         string               `json:"mode"`
+	Required     bool                 `json:"required"`
+	Priority     int                  `json:"priority"`
+	TimeoutMS    int64                `json:"timeout_ms,omitempty"`
+	ExecutorKind string               `json:"executor_kind,omitempty"`
+	Matcher      hookspkg.HookMatcher `json:"matcher,omitempty"`
+	Metadata     map[string]string    `json:"metadata,omitempty"`
 }
 
 // HookRunPayload is the shared hook execution history response payload.

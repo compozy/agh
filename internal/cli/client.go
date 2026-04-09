@@ -44,6 +44,9 @@ type DaemonClient interface {
 	DeleteWorkspace(ctx context.Context, ref string) error
 	ListAgents(ctx context.Context) ([]AgentRecord, error)
 	GetAgent(ctx context.Context, name string) (AgentRecord, error)
+	HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error)
+	HookRuns(ctx context.Context, query HookRunsQuery) ([]HookRunRecord, error)
+	HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error)
 	ObserveEvents(ctx context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error)
 	StreamObserveEvents(ctx context.Context, query ObserveEventQuery, lastEventID string, handler SSEHandler) error
 	ObserveHealth(ctx context.Context) (HealthStatus, error)
@@ -110,6 +113,24 @@ type AgentEventRecord = contract.AgentEventPayload
 
 // TokenUsageRecord is the prompt usage payload returned by the daemon API.
 type TokenUsageRecord = contract.TokenUsagePayload
+
+// HookCatalogQuery captures the CLI filters for resolved hook catalog queries.
+type HookCatalogQuery = contract.HookCatalogQuery
+
+// HookCatalogRecord is one resolved hook returned by the daemon API.
+type HookCatalogRecord = contract.HookCatalogPayload
+
+// HookRunsQuery captures the CLI filters for hook execution history queries.
+type HookRunsQuery = contract.HookRunsQuery
+
+// HookRunRecord is one persisted hook execution audit record.
+type HookRunRecord = contract.HookRunPayload
+
+// HookEventsQuery captures the CLI filters for hook taxonomy queries.
+type HookEventsQuery = contract.HookEventsQuery
+
+// HookEventRecord is one supported hook taxonomy row returned by the daemon API.
+type HookEventRecord = contract.HookEventPayload
 
 // ObserveEventRecord is one cross-session observability event row.
 type ObserveEventRecord = contract.ObserveEventPayload
@@ -351,6 +372,36 @@ func (c *unixSocketClient) GetAgent(ctx context.Context, name string) (AgentReco
 		return AgentRecord{}, err
 	}
 	return response.Agent, nil
+}
+
+func (c *unixSocketClient) HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
+	var response struct {
+		Hooks []HookCatalogRecord `json:"hooks"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/hooks/catalog", hookCatalogValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Hooks, nil
+}
+
+func (c *unixSocketClient) HookRuns(ctx context.Context, query HookRunsQuery) ([]HookRunRecord, error) {
+	var response struct {
+		Runs []HookRunRecord `json:"runs"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/hooks/runs", hookRunsValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Runs, nil
+}
+
+func (c *unixSocketClient) HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error) {
+	var response struct {
+		Events []HookEventRecord `json:"events"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/hooks/events", hookEventsValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Events, nil
 }
 
 func (c *unixSocketClient) ObserveEvents(ctx context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error) {
@@ -610,6 +661,57 @@ func observeEventValues(query ObserveEventQuery) url.Values {
 	}
 	if query.Last > 0 {
 		values.Set("limit", strconv.Itoa(query.Last))
+	}
+	return values
+}
+
+func hookCatalogValues(query HookCatalogQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
+		values.Set("workspace", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Agent); trimmed != "" {
+		values.Set("agent", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Event); trimmed != "" {
+		values.Set("event", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Source); trimmed != "" {
+		values.Set("source", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Mode); trimmed != "" {
+		values.Set("mode", trimmed)
+	}
+	return values
+}
+
+func hookRunsValues(query HookRunsQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.Session); trimmed != "" {
+		values.Set("session", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Event); trimmed != "" {
+		values.Set("event", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Outcome); trimmed != "" {
+		values.Set("outcome", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Since); trimmed != "" {
+		values.Set("since", trimmed)
+	}
+	if query.Last > 0 {
+		values.Set("last", strconv.Itoa(query.Last))
+	}
+	return values
+}
+
+func hookEventsValues(query HookEventsQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.Family); trimmed != "" {
+		values.Set("family", trimmed)
+	}
+	if query.SyncOnly {
+		values.Set("sync_only", strconv.FormatBool(query.SyncOnly))
 	}
 	return values
 }

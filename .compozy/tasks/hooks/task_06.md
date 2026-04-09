@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Hooks struct with typed dispatch, registry, and Notifier
 type: backend
 complexity: high
@@ -34,13 +34,13 @@ Assemble the main `Hooks` struct that owns the hot-reloadable registry (RWMutex 
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Define `Hooks` struct with registry, pool, mutex, version counter, and observer dependencies
-- [ ] 6.2 Implement `NewHooks(opts ...Option)` constructor with functional options
-- [ ] 6.3 Implement `Rebuild(ctx)` with build-then-validate-then-swap semantics
-- [ ] 6.4 Implement typed dispatch functions for all event families using pipeline
-- [ ] 6.5 Implement `session.Notifier` interface bridging to typed dispatch
-- [ ] 6.6 Implement `Close()` for pool shutdown
-- [ ] 6.7 Write unit tests for registry swap, dispatch, and Notifier implementation
+- [x] 6.1 Define `Hooks` struct with registry, pool, mutex, version counter, and observer dependencies
+- [x] 6.2 Implement `NewHooks(opts ...Option)` constructor with functional options
+- [x] 6.3 Implement `Rebuild(ctx)` with build-then-validate-then-swap semantics
+- [x] 6.4 Implement typed dispatch functions for all event families using pipeline
+- [x] 6.5 Implement `session.Notifier` interface bridging to typed dispatch
+- [x] 6.6 Implement `Close()` for pool shutdown
+- [x] 6.7 Write unit tests for registry swap, dispatch, and Notifier implementation
 
 ## Implementation Details
 
@@ -75,20 +75,20 @@ Follow `internal/skills/registry.go` pattern for RWMutex + snapshot swap (lines 
 
 ## Tests
 - Unit tests:
-  - [ ] `NewHooks()` creates Hooks with empty registry and started pool
-  - [ ] `Rebuild()` with valid declarations populates registry snapshot
-  - [ ] `Rebuild()` with invalid declaration keeps old snapshot and returns error
-  - [ ] `Rebuild()` with unchanged declarations skips swap (version unchanged)
-  - [ ] `Rebuild()` bumps version counter on successful swap
-  - [ ] Concurrent `Rebuild()` and dispatch do not race (test with `-race`)
-  - [ ] Typed dispatch function returns original payload when no hooks match
-  - [ ] Typed dispatch function applies patches from matching hooks in order
-  - [ ] `OnSessionCreated` calls the appropriate dispatch function
-  - [ ] `OnSessionStopped` calls the appropriate dispatch function
-  - [ ] `Close()` drains async pool and returns
-  - [ ] Compile-time check: `var _ session.Notifier = (*Hooks)(nil)` compiles
+  - [x] `NewHooks()` creates Hooks with empty registry and started pool
+  - [x] `Rebuild()` with valid declarations populates registry snapshot
+  - [x] `Rebuild()` with invalid declaration keeps old snapshot and returns error
+  - [x] `Rebuild()` with unchanged declarations skips swap (version unchanged)
+  - [x] `Rebuild()` bumps version counter on successful swap
+  - [x] Concurrent `Rebuild()` and dispatch do not race (test with `-race`)
+  - [x] Typed dispatch function returns original payload when no hooks match
+  - [x] Typed dispatch function applies patches from matching hooks in order
+  - [x] `OnSessionCreated` calls the appropriate dispatch function
+  - [x] `OnSessionStopped` calls the appropriate dispatch function
+  - [x] `Close()` drains async pool and returns
+  - [x] Compile-time check: `var _ session.Notifier = (*Hooks)(nil)` compiles
 - Integration tests:
-  - [ ] Full dispatch with native + subprocess hooks on same event — ordering correct
+  - [x] Full dispatch with native + subprocess hooks on same event — ordering correct
 - Test coverage target: >=80%
 - All tests must pass
 

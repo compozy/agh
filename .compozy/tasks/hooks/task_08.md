@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Config and agent-definition hook declarations
 type: backend
 complexity: medium
@@ -33,12 +33,12 @@ Extend `internal/config` to parse hook declarations from TOML config layers (pol
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Extend config schema with hook declaration fields
-- [ ] 8.2 Implement TOML parsing for hook declarations in config loader
-- [ ] 8.3 Implement hook declaration parsing in agent-definition loader
-- [ ] 8.4 Implement validation using hooks normalization functions
-- [ ] 8.5 Export `HookDeclarations()` function from config for registry consumption
-- [ ] 8.6 Write unit tests for config and agent-definition hook parsing
+- [x] 8.1 Extend config schema with hook declaration fields
+- [x] 8.2 Implement TOML parsing for hook declarations in config loader
+- [x] 8.3 Implement hook declaration parsing in agent-definition loader
+- [x] 8.4 Implement validation using hooks normalization functions
+- [x] 8.5 Export `HookDeclarations()` function from config for registry consumption
+- [x] 8.6 Write unit tests for config and agent-definition hook parsing
 
 ## Implementation Details
 
@@ -72,15 +72,15 @@ Reference TechSpec "Declaration Model" section. Reference existing config loadin
 
 ## Tests
 - Unit tests:
-  - [ ] Parse valid TOML hook declaration with all fields
-  - [ ] Parse TOML hook with minimal fields (name + event + command) — defaults applied
-  - [ ] Invalid event in config hook fails validation with descriptive error
-  - [ ] Config hook `required: true` with `mode: async` fails validation
-  - [ ] Config hooks from multiple precedence levels merge correctly
-  - [ ] Agent-definition hook parsed from YAML with agent name scope
-  - [ ] Agent-definition hook scoped to agent type — matcher includes agent name
-  - [ ] `HookDeclarations()` returns combined config + agent-def declarations
-  - [ ] Empty config hooks section returns empty list (not nil)
+  - [x] Parse valid TOML hook declaration with all fields
+  - [x] Parse TOML hook with minimal fields (name + event + command) — defaults applied
+  - [x] Invalid event in config hook fails validation with descriptive error
+  - [x] Config hook `required: true` with `mode: async` fails validation
+  - [x] Config hooks from multiple precedence levels merge correctly
+  - [x] Agent-definition hook parsed from YAML with agent name scope
+  - [x] Agent-definition hook scoped to agent type — matcher includes agent name
+  - [x] `HookDeclarations()` returns combined config + agent-def declarations
+  - [x] Empty config hooks section returns empty list (not nil)
 - Test coverage target: >=80%
 - All tests must pass
 

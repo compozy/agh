@@ -7,21 +7,31 @@ type CatalogFilter struct {
 	WorkspaceID   string
 	WorkspaceRoot string
 	AgentName     string
+	Event         HookEvent
+	Source        *HookSource
+	Mode          HookMode
 }
 
 // CatalogEntry describes one resolved hook in pipeline order.
 type CatalogEntry struct {
-	Order       int
-	Name        string
-	Event       HookEvent
-	Source      HookSource
-	SkillSource HookSkillSource
-	Mode        HookMode
-	Required    bool
-	Priority    int
-	Timeout     time.Duration
-	Matcher     HookMatcher
-	Metadata    map[string]string
+	Order        int
+	Name         string
+	Event        HookEvent
+	Source       HookSource
+	SkillSource  HookSkillSource
+	Mode         HookMode
+	Required     bool
+	Priority     int
+	Timeout      time.Duration
+	ExecutorKind HookExecutorKind
+	Matcher      HookMatcher
+	Metadata     map[string]string
+}
+
+// EventFilter narrows the supported hook taxonomy for introspection APIs.
+type EventFilter struct {
+	Family   HookEventFamily
+	SyncOnly bool
 }
 
 // EventDescriptor describes one supported hook event for introspection APIs.
@@ -81,17 +91,18 @@ func (h *Hooks) Catalog(filter CatalogFilter) ([]CatalogEntry, error) {
 			}
 			order++
 			entries = append(entries, CatalogEntry{
-				Order:       order,
-				Name:        hook.Name,
-				Event:       hook.Event,
-				Source:      hook.Source,
-				SkillSource: hook.Decl.SkillSource,
-				Mode:        hook.Mode,
-				Required:    hook.Required,
-				Priority:    hook.Priority,
-				Timeout:     hook.Timeout,
-				Matcher:     cloneHookMatcher(hook.Matcher),
-				Metadata:    cloneStringMap(hook.Metadata),
+				Order:        order,
+				Name:         hook.Name,
+				Event:        hook.Event,
+				Source:       hook.Source,
+				SkillSource:  hook.Decl.SkillSource,
+				Mode:         hook.Mode,
+				Required:     hook.Required,
+				Priority:     hook.Priority,
+				Timeout:      hook.Timeout,
+				ExecutorKind: hook.Executor.Kind(),
+				Matcher:      cloneHookMatcher(hook.Matcher),
+				Metadata:     cloneStringMap(hook.Metadata),
 			})
 		}
 	}
@@ -101,9 +112,20 @@ func (h *Hooks) Catalog(filter CatalogFilter) ([]CatalogEntry, error) {
 
 // AllEventDescriptors returns the hook taxonomy metadata in deterministic order.
 func AllEventDescriptors() []EventDescriptor {
+	return FilterEventDescriptors(EventFilter{})
+}
+
+// FilterEventDescriptors returns the hook taxonomy metadata in deterministic order.
+func FilterEventDescriptors(filter EventFilter) []EventDescriptor {
 	descriptors := make([]EventDescriptor, 0, len(allHookEvents))
 	for _, event := range AllHookEvents() {
 		if descriptor, ok := hookEventDescriptors[event]; ok {
+			if filter.Family != "" && descriptor.Family != filter.Family {
+				continue
+			}
+			if filter.SyncOnly && !descriptor.SyncEligible {
+				continue
+			}
 			descriptors = append(descriptors, descriptor)
 		}
 	}
@@ -111,6 +133,15 @@ func AllEventDescriptors() []EventDescriptor {
 }
 
 func catalogHookMatchesFilter(hook ResolvedHook, filter CatalogFilter) bool {
+	if filter.Event != "" && hook.Event != filter.Event {
+		return false
+	}
+	if filter.Source != nil && hook.Source != *filter.Source {
+		return false
+	}
+	if filter.Mode != "" && hook.Mode != filter.Mode {
+		return false
+	}
 	if !catalogStringMatches(filter.AgentName, hook.Matcher.AgentName) {
 		return false
 	}

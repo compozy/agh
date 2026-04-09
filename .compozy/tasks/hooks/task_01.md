@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Core types and hook taxonomy
 type: backend
 complexity: medium
@@ -33,13 +33,13 @@ Define the foundational types for the hooks platform in a new `internal/hooks` p
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Create `internal/hooks/` package directory and `doc.go`
-- [ ] 1.2 Define `HookEvent` enum with all 27 events and sync eligibility lookup
-- [ ] 1.3 Define `HookSource`, `HookMode`, `HookExecutorKind` enums
-- [ ] 1.4 Define `RegisteredHook`, `ResolvedHook`, `HookDecl` structs
-- [ ] 1.5 Define event-specific payload/patch type pairs for each family
-- [ ] 1.6 Define `HookRunRecord` observability struct with patch audit field
-- [ ] 1.7 Write unit tests for type validation and sync eligibility classification
+- [x] 1.1 Create `internal/hooks/` package directory and `doc.go`
+- [x] 1.2 Define `HookEvent` enum with all 27 events and sync eligibility lookup
+- [x] 1.3 Define `HookSource`, `HookMode`, `HookExecutorKind` enums
+- [x] 1.4 Define `RegisteredHook`, `ResolvedHook`, `HookDecl` structs
+- [x] 1.5 Define event-specific payload/patch type pairs for each family
+- [x] 1.6 Define `HookRunRecord` observability struct with patch audit field
+- [x] 1.7 Write unit tests for type validation and sync eligibility classification
 
 ## Implementation Details
 
@@ -71,14 +71,14 @@ Reference TechSpec "Hook Taxonomy", "Core Interfaces", and "Data Models" section
 
 ## Tests
 - Unit tests:
-  - [ ] All 27 HookEvent constants are defined and have non-empty string values
-  - [ ] `SyncEligible` returns true for `session.pre_create` and false for `message.delta`
-  - [ ] `SyncEligible` returns false for all 5 async-only events
-  - [ ] `SyncEligible` returns true for all sync-eligible events
-  - [ ] `HookSource` ordering: Native < Config < AgentDefinition < Skill
-  - [ ] `RegisteredHook` with `Required=true` and `Mode=Async` fails validation
-  - [ ] `RegisteredHook` with `Mode=Sync` on async-only event fails validation
-  - [ ] All payload/patch types serialize to JSON and back without data loss
+  - [x] All 27 HookEvent constants are defined and have non-empty string values
+  - [x] `SyncEligible` returns true for `session.pre_create` and false for `message.delta`
+  - [x] `SyncEligible` returns false for all 5 async-only events
+  - [x] `SyncEligible` returns true for all sync-eligible events
+  - [x] `HookSource` ordering: Native < Config < AgentDefinition < Skill
+  - [x] `RegisteredHook` with `Required=true` and `Mode=Async` fails validation
+  - [x] `RegisteredHook` with `Mode=Sync` on async-only event fails validation
+  - [x] All payload/patch types serialize to JSON and back without data loss
 - Test coverage target: >=80%
 - All tests must pass
 

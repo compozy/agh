@@ -76,8 +76,8 @@ func (o *Observer) QueryHookRuns(ctx context.Context, query store.HookRunQuery) 
 }
 
 // QueryHookEvents returns the supported hook taxonomy metadata.
-func (o *Observer) QueryHookEvents(context.Context) ([]hookspkg.EventDescriptor, error) {
-	return hookspkg.AllEventDescriptors(), nil
+func (o *Observer) QueryHookEvents(_ context.Context, filter hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error) {
+	return hookspkg.FilterEventDescriptors(filter), nil
 }
 
 // WriteHookRecord persists one hook execution record when the session database already exists.

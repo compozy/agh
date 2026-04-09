@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -38,6 +40,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/agents",
 		"GET /api/agents/:name",
 		"GET /api/daemon/status",
+		"GET /api/hooks/catalog",
+		"GET /api/hooks/events",
+		"GET /api/hooks/runs",
 		"GET /api/memory",
 		"GET /api/memory/:filename",
 		"GET /api/observe/events",
@@ -189,6 +194,44 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 	}
 	if response.Sessions[0].WorkspaceID != "ws-workspace" {
 		t.Fatalf("workspace_id = %q, want ws-workspace", response.Sessions[0].WorkspaceID)
+	}
+}
+
+func TestHookEventsHandlerAvailableOnUDSRouter(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	observer := stubObserver{
+		QueryHookEventsFn: func(_ context.Context, filter hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error) {
+			if filter.Family != hookspkg.HookEventFamilyTool {
+				t.Fatalf("filter.Family = %q, want %q", filter.Family, hookspkg.HookEventFamilyTool)
+			}
+			if !filter.SyncOnly {
+				t.Fatal("filter.SyncOnly = false, want true")
+			}
+			return []hookspkg.EventDescriptor{{
+				Event:         hookspkg.HookToolPreCall,
+				Family:        hookspkg.HookEventFamilyTool,
+				SyncEligible:  true,
+				PayloadSchema: "ToolPreCallPayload",
+				PatchSchema:   "ToolCallPatch",
+			}}, nil
+		},
+	}
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, observer, homePaths))
+
+	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/events?family=tool&sync_only=true", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response struct {
+		Events []contract.HookEventPayload `json:"events"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if got, want := len(response.Events), 1; got != want {
+		t.Fatalf("len(events) = %d, want %d", got, want)
+	}
+	if response.Events[0].Event != hookspkg.HookToolPreCall.String() {
+		t.Fatalf("events[0].Event = %q, want %q", response.Events[0].Event, hookspkg.HookToolPreCall)
 	}
 }
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Generic pipeline with sync composition and guards
 type: backend
 complexity: high
@@ -35,12 +35,12 @@ Implement the core `pipeline[P, R]` generic type that executes sync hooks as a s
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Implement `pipeline[P, R]` generic struct with `execute(ctx, payload) (P, error)` method
-- [ ] 4.2 Implement sequential sync hook composition with patch application loop
-- [ ] 4.3 Implement pipeline short-circuit on deny and required-hook failure
-- [ ] 4.4 Implement dispatch depth guard with context counter (max 3)
-- [ ] 4.5 Implement permission deny-only invariant check
-- [ ] 4.6 Implement encode/decode bridge for subprocess executors vs native bypass
+- [x] 4.1 Implement `pipeline[P, R]` generic struct with `execute(ctx, payload) (P, error)` method
+- [x] 4.2 Implement sequential sync hook composition with patch application loop
+- [x] 4.3 Implement pipeline short-circuit on deny and required-hook failure
+- [x] 4.4 Implement dispatch depth guard with context counter (max 3)
+- [x] 4.5 Implement permission deny-only invariant check
+- [x] 4.6 Implement encode/decode bridge for subprocess executors vs native bypass
 
 ## Implementation Details
 
@@ -76,20 +76,20 @@ Reference TechSpec "Core Interfaces" section for `pipeline[P, R]` design. Refere
 
 ## Tests
 - Unit tests:
-  - [ ] Pipeline with 3 sync hooks — hook 2 sees payload patched by hook 1, hook 3 sees payload patched by hook 2
-  - [ ] Pipeline with explicit deny from hook 2 — hook 3 never executes, deny returned
-  - [ ] Pipeline with required hook timeout — pipeline returns error, subsequent hooks skipped
-  - [ ] Pipeline with non-required hook failure — hook skipped, pipeline continues
-  - [ ] Pipeline with no matching hooks — returns original payload unchanged
-  - [ ] Depth guard: dispatch at depth 1 succeeds
-  - [ ] Depth guard: dispatch at depth 3 succeeds (at limit)
-  - [ ] Depth guard: dispatch at depth 4 returns error immediately
-  - [ ] Depth guard: nested dispatch increments depth from parent context
-  - [ ] Permission invariant: patch that keeps deny returns deny (allowed)
-  - [ ] Permission invariant: patch that changes deny→allow is rejected and logged
-  - [ ] Permission invariant: patch that changes allow→deny is allowed (deny escalation ok)
-  - [ ] Native executor path skips serialization — callback receives typed payload directly
-  - [ ] Subprocess executor path uses encode/decode for JSON serialization
+  - [x] Pipeline with 3 sync hooks — hook 2 sees payload patched by hook 1, hook 3 sees payload patched by hook 2
+  - [x] Pipeline with explicit deny from hook 2 — hook 3 never executes, deny returned
+  - [x] Pipeline with required hook timeout — pipeline returns error, subsequent hooks skipped
+  - [x] Pipeline with non-required hook failure — hook skipped, pipeline continues
+  - [x] Pipeline with no matching hooks — returns original payload unchanged
+  - [x] Depth guard: dispatch at depth 1 succeeds
+  - [x] Depth guard: dispatch at depth 3 succeeds (at limit)
+  - [x] Depth guard: dispatch at depth 4 returns error immediately
+  - [x] Depth guard: nested dispatch increments depth from parent context
+  - [x] Permission invariant: patch that keeps deny returns deny (allowed)
+  - [x] Permission invariant: patch that changes deny→allow is rejected and logged
+  - [x] Permission invariant: patch that changes allow→deny is allowed (deny escalation ok)
+  - [x] Native executor path skips serialization — callback receives typed payload directly
+  - [x] Subprocess executor path uses encode/decode for JSON serialization
 - Test coverage target: >=80%
 - All tests must pass
 

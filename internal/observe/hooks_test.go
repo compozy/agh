@@ -122,7 +122,7 @@ func TestObserverHookRunQueriesHandleMissingDBAndEvents(t *testing.T) {
 		t.Fatalf("records = %#v, want nil for missing session DB", records)
 	}
 
-	events, err := h.observer.QueryHookEvents(testutil.Context(t))
+	events, err := h.observer.QueryHookEvents(testutil.Context(t), hookspkg.EventFilter{})
 	if err != nil {
 		t.Fatalf("QueryHookEvents() error = %v", err)
 	}

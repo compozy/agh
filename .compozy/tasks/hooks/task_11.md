@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Integrate turn, message, and context dispatch
 type: backend
 complexity: medium
@@ -33,11 +33,11 @@ Wire typed dispatch calls for `turn.*`, `message.*`, and `context.*` hook famili
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Add turn.start and turn.end dispatch in ACP event processing
-- [ ] 11.2 Add message.start, message.delta, and message.end dispatch in message flow
-- [ ] 11.3 Add context.pre_compact and context.post_compact dispatch around compaction
-- [ ] 11.4 Verify message.delta is async-only and does not block streaming
-- [ ] 11.5 Write unit tests for turn, message, and context hooks
+- [x] 11.1 Add turn.start and turn.end dispatch in ACP event processing
+- [x] 11.2 Add message.start, message.delta, and message.end dispatch in message flow
+- [x] 11.3 Add context.pre_compact and context.post_compact dispatch around compaction
+- [x] 11.4 Verify message.delta is async-only and does not block streaming
+- [x] 11.5 Write unit tests for turn, message, and context hooks
 
 ## Implementation Details
 
@@ -65,16 +65,16 @@ Modify existing files in:
 
 ## Tests
 - Unit tests:
-  - [ ] `turn.start` fires when a new turn begins in ACP event flow
-  - [ ] `turn.end` fires when a turn completes
-  - [ ] `message.start` sync hook fires at message begin
-  - [ ] `message.delta` dispatches asynchronously — does not block token delivery
-  - [ ] `message.end` sync hook fires at message completion
-  - [ ] `context.pre_compact` hook patches compaction params — patched params used
-  - [ ] `context.post_compact` fires after compaction completes
+  - [x] `turn.start` fires when a new turn begins in ACP event flow
+  - [x] `turn.end` fires when a turn completes
+  - [x] `message.start` sync hook fires at message begin
+  - [x] `message.delta` dispatches asynchronously — does not block token delivery
+  - [x] `message.end` sync hook fires at message completion
+  - [x] `context.pre_compact` hook patches compaction params — patched params used
+  - [x] `context.post_compact` fires after compaction completes
 - Integration tests:
-  - [ ] Full message flow: start → deltas → end — hooks fire at correct points
-  - [ ] Compaction with pre_compact hook — verifies patched params are used
+  - [x] Full message flow: start → deltas → end — hooks fire at correct points
+  - [x] Compaction with pre_compact hook — verifies patched params are used
 - Test coverage target: >=80%
 - All tests must pass
 

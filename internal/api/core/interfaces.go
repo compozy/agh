@@ -41,7 +41,7 @@ type Observer interface {
 	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
 	QueryHookCatalog(ctx context.Context, filter hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
 	QueryHookRuns(ctx context.Context, query store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
-	QueryHookEvents(ctx context.Context) ([]hookspkg.EventDescriptor, error)
+	QueryHookEvents(ctx context.Context, filter hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
 	Health(ctx context.Context) (observe.Health, error)
 }
 

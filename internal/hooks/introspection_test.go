@@ -97,6 +97,103 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 	}
 }
 
+func TestHooksCatalogFiltersByEventSourceModeAndExposesExecutorKind(t *testing.T) {
+	t.Parallel()
+
+	source := HookSourceConfig
+	hooks := newTestHooks(
+		t,
+		WithNativeDeclarations([]HookDecl{{
+			Name:         "native-tool",
+			Event:        HookToolPreCall,
+			Mode:         HookModeSync,
+			ExecutorKind: HookExecutorNative,
+		}}),
+		WithConfigDeclarations([]HookDecl{
+			{
+				Name:    "config-tool-sync",
+				Event:   HookToolPreCall,
+				Mode:    HookModeSync,
+				Command: "/bin/sh",
+				Args:    []string{"-c", "printf '{}'"},
+			},
+			{
+				Name:    "config-tool-async",
+				Event:   HookToolPreCall,
+				Mode:    HookModeAsync,
+				Command: "/bin/sh",
+				Args:    []string{"-c", "printf '{}'"},
+			},
+			{
+				Name:    "config-session-sync",
+				Event:   HookSessionPostCreate,
+				Mode:    HookModeSync,
+				Command: "/bin/sh",
+				Args:    []string{"-c", "printf '{}'"},
+			},
+		}),
+		WithExecutorResolver(testExecutorResolver(map[string]Executor{
+			"native-tool": NewTypedNativeExecutor(func(_ context.Context, _ RegisteredHook, _ ToolPreCallPayload) (ToolCallPatch, error) {
+				return ToolCallPatch{}, nil
+			}),
+		})),
+	)
+
+	if err := hooks.Rebuild(t.Context()); err != nil {
+		t.Fatalf("Rebuild() error = %v", err)
+	}
+
+	entries, err := hooks.Catalog(CatalogFilter{
+		Event:  HookToolPreCall,
+		Source: &source,
+		Mode:   HookModeSync,
+	})
+	if err != nil {
+		t.Fatalf("Catalog() error = %v", err)
+	}
+	if got, want := len(entries), 1; got != want {
+		t.Fatalf("len(entries) = %d, want %d", got, want)
+	}
+	if entries[0].Name != "config-tool-sync" {
+		t.Fatalf("entries[0].Name = %q, want config-tool-sync", entries[0].Name)
+	}
+	if entries[0].ExecutorKind != HookExecutorSubprocess {
+		t.Fatalf("entries[0].ExecutorKind = %q, want %q", entries[0].ExecutorKind, HookExecutorSubprocess)
+	}
+
+	nativeEntries, err := hooks.Catalog(CatalogFilter{Event: HookToolPreCall})
+	if err != nil {
+		t.Fatalf("Catalog(native) error = %v", err)
+	}
+	if got, want := len(nativeEntries), 3; got != want {
+		t.Fatalf("len(nativeEntries) = %d, want %d", got, want)
+	}
+	if nativeEntries[0].Name != "native-tool" || nativeEntries[0].ExecutorKind != HookExecutorNative {
+		t.Fatalf("nativeEntries[0] = %#v, want native executor metadata", nativeEntries[0])
+	}
+}
+
+func TestFilterEventDescriptorsSupportsFamilyAndSyncOnly(t *testing.T) {
+	t.Parallel()
+
+	descriptors := FilterEventDescriptors(EventFilter{
+		Family:   HookEventFamilyTool,
+		SyncOnly: true,
+	})
+	if len(descriptors) == 0 {
+		t.Fatal("FilterEventDescriptors() returned no tool descriptors")
+	}
+
+	for _, descriptor := range descriptors {
+		if descriptor.Family != HookEventFamilyTool {
+			t.Fatalf("descriptor.Family = %q, want %q", descriptor.Family, HookEventFamilyTool)
+		}
+		if !descriptor.SyncEligible {
+			t.Fatalf("descriptor.SyncEligible = false for %q, want true", descriptor.Event)
+		}
+	}
+}
+
 func TestHookTelemetryHelpersExposeSessionIDAndSink(t *testing.T) {
 	t.Parallel()
 

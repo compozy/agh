@@ -1913,7 +1913,7 @@ func (f *fakeObserver) QueryHookRuns(context.Context, store.HookRunQuery) ([]hoo
 	return nil, nil
 }
 
-func (f *fakeObserver) QueryHookEvents(context.Context) ([]hookspkg.EventDescriptor, error) {
+func (f *fakeObserver) QueryHookEvents(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error) {
 	return nil, nil
 }
 

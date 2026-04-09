@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Hook observability storage and HTTP introspection
 type: backend
 complexity: medium
@@ -33,13 +33,13 @@ Implement `HookRunRecord` persistence in the observability store and three HTTP 
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Add `HookRunRecord` schema to observability store
-- [ ] 12.2 Implement telemetry emitter called by pipeline after each hook execution
-- [ ] 12.3 Implement `GET /api/hooks/catalog` endpoint
-- [ ] 12.4 Implement `GET /api/hooks/runs` endpoint with patch audit data
-- [ ] 12.5 Implement `GET /api/hooks/events` endpoint
-- [ ] 12.6 Add structured log events and metrics per TechSpec monitoring section
-- [ ] 12.7 Write tests for storage, endpoints, and telemetry
+- [x] 12.1 Add `HookRunRecord` schema to observability store
+- [x] 12.2 Implement telemetry emitter called by pipeline after each hook execution
+- [x] 12.3 Implement `GET /api/hooks/catalog` endpoint
+- [x] 12.4 Implement `GET /api/hooks/runs` endpoint with patch audit data
+- [x] 12.5 Implement `GET /api/hooks/events` endpoint
+- [x] 12.6 Add structured log events and metrics per TechSpec monitoring section
+- [x] 12.7 Write tests for storage, endpoints, and telemetry
 
 ## Implementation Details
 
@@ -75,17 +75,17 @@ Reference TechSpec "Monitoring and Observability" and "API Endpoints" sections.
 
 ## Tests
 - Unit tests:
-  - [ ] HookRunRecord persisted with all fields for security-relevant family (permission.request)
-  - [ ] HookRunRecord PatchApplied is null for non-security family (session.post_create) in normal mode
-  - [ ] HookRunRecord PatchApplied is populated for non-security family when debug mode enabled
-  - [ ] Telemetry emitter records duration and outcome correctly
-  - [ ] Permission escalation block generates `hook.dispatch.permission_escalation_blocked` log
+  - [x] HookRunRecord persisted with all fields for security-relevant family (permission.request)
+  - [x] HookRunRecord PatchApplied is null for non-security family (session.post_create) in normal mode
+  - [x] HookRunRecord PatchApplied is populated for non-security family when debug mode enabled
+  - [x] Telemetry emitter records duration and outcome correctly
+  - [x] Permission escalation block generates `hook.dispatch.permission_escalation_blocked` log
 - Integration tests:
-  - [ ] `GET /api/hooks/catalog` returns hooks sorted by pipeline order with source attribution
-  - [ ] `GET /api/hooks/catalog?workspace=X` filters to workspace-scoped hooks
-  - [ ] `GET /api/hooks/runs?session=X` returns execution history with patch diffs
-  - [ ] `GET /api/hooks/events` returns all 27 events with correct sync eligibility
-  - [ ] Dispatch → store → query cycle: hook fires, record persisted, endpoint returns it
+  - [x] `GET /api/hooks/catalog` returns hooks sorted by pipeline order with source attribution
+  - [x] `GET /api/hooks/catalog?workspace=X` filters to workspace-scoped hooks
+  - [x] `GET /api/hooks/runs?session=X` returns execution history with patch diffs
+  - [x] `GET /api/hooks/events` returns all 27 events with correct sync eligibility
+  - [x] Dispatch → store → query cycle: hook fires, record persisted, endpoint returns it
 - Test coverage target: >=80%
 - All tests must pass
 

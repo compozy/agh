@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Wire Hooks in daemon — replace notifierFanout
 type: refactor
 complexity: critical
@@ -38,13 +38,13 @@ Hard cut-over in the daemon composition root: delete `notifierFanout` and `skill
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Delete `notifierFanout`, `skillsHookDispatcher`, `sessionHookPhase` from `daemon/notifier.go`
-- [ ] 9.2 Create and configure `Hooks` in `boot.go` with all declaration providers
-- [ ] 9.3 Wire `Hooks` as `session.Notifier` in session manager creation
-- [ ] 9.4 Wire skills watcher to trigger `Hooks.Rebuild()` on change
-- [ ] 9.5 Migrate dream handler and observer callbacks to work with `Hooks`
-- [ ] 9.6 Update shutdown sequence in `daemon.go`
-- [ ] 9.7 Write integration tests for daemon wiring and hot reload
+- [x] 9.1 Delete `notifierFanout`, `skillsHookDispatcher`, `sessionHookPhase` from `daemon/notifier.go`
+- [x] 9.2 Create and configure `Hooks` in `boot.go` with all declaration providers
+- [x] 9.3 Wire `Hooks` as `session.Notifier` in session manager creation
+- [x] 9.4 Wire skills watcher to trigger `Hooks.Rebuild()` on change
+- [x] 9.5 Migrate dream handler and observer callbacks to work with `Hooks`
+- [x] 9.6 Update shutdown sequence in `daemon.go`
+- [x] 9.7 Write integration tests for daemon wiring and hot reload
 
 ## Implementation Details
 
@@ -79,15 +79,15 @@ Reference TechSpec "Migration from Current Hooks Implementation" and "Async Work
 
 ## Tests
 - Unit tests:
-  - [ ] `Hooks` is created with valid options and starts pool
-  - [ ] `Hooks` is wired as session.Notifier — compile-time check
-  - [ ] Shutdown sequence calls `Hooks.Close()` after session stop
+  - [x] `Hooks` is created with valid options and starts pool
+  - [x] `Hooks` is wired as session.Notifier — compile-time check
+  - [x] Shutdown sequence calls `Hooks.Close()` after session stop
 - Integration tests:
-  - [ ] Daemon boot creates `Hooks`, registers declarations, builds initial registry
-  - [ ] Skills watcher file change triggers `Hooks.Rebuild()` — new hooks visible in next dispatch
-  - [ ] Session create fires `session.post_create` hooks via `Hooks.OnSessionCreated`
-  - [ ] Session stop fires `session.post_stop` hooks via `Hooks.OnSessionStopped`
-  - [ ] Graceful shutdown drains async hooks before closing database
+  - [x] Daemon boot creates `Hooks`, registers declarations, builds initial registry
+  - [x] Skills watcher file change triggers `Hooks.Rebuild()` — new hooks visible in next dispatch
+  - [x] Session create fires `session.post_create` hooks via `Hooks.OnSessionCreated`
+  - [x] Session stop fires `session.post_stop` hooks via `Hooks.OnSessionStopped`
+  - [x] Graceful shutdown drains async hooks before closing database
 - Test coverage target: >=80%
 - All tests must pass
 

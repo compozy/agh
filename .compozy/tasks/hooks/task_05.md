@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Async worker pool
 type: backend
 complexity: medium
@@ -33,11 +33,11 @@ Implement the fixed-size goroutine worker pool for async hook execution using Go
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Define async task type and pool configuration struct
-- [ ] 5.2 Implement worker pool with N goroutines consuming from buffered channel
-- [ ] 5.3 Implement non-blocking submit with drop-on-full backpressure
-- [ ] 5.4 Implement graceful shutdown with drain deadline
-- [ ] 5.5 Write unit tests including backpressure, shutdown, and panic recovery
+- [x] 5.1 Define async task type and pool configuration struct
+- [x] 5.2 Implement worker pool with N goroutines consuming from buffered channel
+- [x] 5.3 Implement non-blocking submit with drop-on-full backpressure
+- [x] 5.4 Implement graceful shutdown with drain deadline
+- [x] 5.5 Write unit tests including backpressure, shutdown, and panic recovery
 
 ## Implementation Details
 
@@ -62,16 +62,16 @@ Reference `internal/memory/consolidation/runtime.go` lines 39-51, 135-150 for th
 
 ## Tests
 - Unit tests:
-  - [ ] Pool starts N workers — submitting N tasks runs them concurrently
-  - [ ] Submit to pool with available capacity succeeds
-  - [ ] Submit to full pool drops the task and returns false
-  - [ ] Dropped task is logged with queue depth
-  - [ ] Graceful shutdown: pending tasks in channel are drained before Close returns
-  - [ ] Shutdown with deadline: tasks exceeding deadline are abandoned, Close returns
-  - [ ] Panicking task is recovered — worker continues processing next task
-  - [ ] Context cancellation stops all workers
-  - [ ] Pool with 0 submitted tasks shuts down cleanly
-  - [ ] Concurrent submit from multiple goroutines is safe (no data race with -race)
+  - [x] Pool starts N workers — submitting N tasks runs them concurrently
+  - [x] Submit to pool with available capacity succeeds
+  - [x] Submit to full pool drops the task and returns false
+  - [x] Dropped task is logged with queue depth
+  - [x] Graceful shutdown: pending tasks in channel are drained before Close returns
+  - [x] Shutdown with deadline: tasks exceeding deadline are abandoned, Close returns
+  - [x] Panicking task is recovered — worker continues processing next task
+  - [x] Context cancellation stops all workers
+  - [x] Pool with 0 submitted tasks shuts down cleanly
+  - [x] Concurrent submit from multiple goroutines is safe (no data race with -race)
 - Test coverage target: >=80%
 - All tests must pass
 

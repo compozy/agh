@@ -3,6 +3,8 @@ package store
 import (
 	"fmt"
 	"time"
+
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
 // SessionEvent is a persisted event row for a single AGH session.
@@ -62,12 +64,18 @@ type TurnHistory struct {
 type HookRunQuery struct {
 	SessionID string
 	Event     string
+	Outcome   hookspkg.HookRunOutcome
 	Since     time.Time
 	Limit     int
 }
 
 // Validate ensures the query uses sane bounds.
 func (q HookRunQuery) Validate() error {
+	if q.Outcome != "" {
+		if err := q.Outcome.Validate(); err != nil {
+			return err
+		}
+	}
 	return requirePositiveLimit(q.Limit, "hook run limit")
 }
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Executor contracts and implementations
 type: backend
 complexity: medium
@@ -32,11 +32,11 @@ Implement the `Executor` interface and two concrete executors: a native Go callb
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Define `Executor` interface and `HookExecutorKind` enum
-- [ ] 3.2 Implement `NativeExecutor` for Go callback hooks
-- [ ] 3.3 Implement `SubprocessExecutor` with timeout, signal handling, env allowlist, capture
-- [ ] 3.4 Add Wasm executor stub returning `ErrNotImplemented`
-- [ ] 3.5 Write unit tests for both executors including timeout and error paths
+- [x] 3.1 Define `Executor` interface and `HookExecutorKind` enum
+- [x] 3.2 Implement `NativeExecutor` for Go callback hooks
+- [x] 3.3 Implement `SubprocessExecutor` with timeout, signal handling, env allowlist, capture
+- [x] 3.4 Add Wasm executor stub returning `ErrNotImplemented`
+- [x] 3.5 Write unit tests for both executors including timeout and error paths
 
 ## Implementation Details
 
@@ -72,16 +72,16 @@ Reference existing `internal/skills/hooks.go` lines 127-204 for subprocess execu
 
 ## Tests
 - Unit tests:
-  - [ ] NativeExecutor calls Go callback with correct payload and returns result
-  - [ ] NativeExecutor returns error when callback panics (recovered)
-  - [ ] SubprocessExecutor runs `echo` command and captures stdout as result
-  - [ ] SubprocessExecutor passes JSON payload via stdin
-  - [ ] SubprocessExecutor enforces timeout — command exceeding timeout is killed
-  - [ ] SubprocessExecutor graceful shutdown — SIGTERM sent before SIGKILL
-  - [ ] SubprocessExecutor filters environment to allowlist only
-  - [ ] SubprocessExecutor captures stderr on non-zero exit
-  - [ ] SubprocessExecutor respects 8KB stdout/stderr capture limit
-  - [ ] WasmExecutor returns ErrNotImplemented
+  - [x] NativeExecutor calls Go callback with correct payload and returns result
+  - [x] NativeExecutor returns error when callback panics (recovered)
+  - [x] SubprocessExecutor runs `echo` command and captures stdout as result
+  - [x] SubprocessExecutor passes JSON payload via stdin
+  - [x] SubprocessExecutor enforces timeout — command exceeding timeout is killed
+  - [x] SubprocessExecutor graceful shutdown — SIGTERM sent before SIGKILL
+  - [x] SubprocessExecutor filters environment to allowlist only
+  - [x] SubprocessExecutor captures stderr on non-zero exit
+  - [x] SubprocessExecutor respects 8KB stdout/stderr capture limit
+  - [x] WasmExecutor returns ErrNotImplemented
 - Test coverage target: >=80%
 - All tests must pass
 

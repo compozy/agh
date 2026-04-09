@@ -162,3 +162,5 @@ The `.old_project/` directory contains the previous AGH implementation (78K+ LOC
 - `TestMain` for expensive one-time setup/teardown
 - Use **real dependencies** (real SQLite via `t.TempDir()`, mock ACP server as subprocess)
 - Keep fast enough for CI (~30s max per package)
+
+<critical>NEVER COMMITS ai-docs/ TO THE REPO</critical>

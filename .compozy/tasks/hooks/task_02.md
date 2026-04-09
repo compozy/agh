@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Declaration normalization, matchers, and ordering
 type: backend
 complexity: medium
@@ -32,11 +32,11 @@ Implement the declaration normalization pipeline that converts raw `HookDecl` fr
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Implement `HookDecl` → `ResolvedHook` normalization with validation
-- [ ] 2.2 Implement matcher types and evaluation functions per event family
-- [ ] 2.3 Implement deterministic ordering function with three-level sort
-- [ ] 2.4 Implement skill sub-ordering using existing `SkillSource` precedence
-- [ ] 2.5 Write unit tests for normalization, matchers, and ordering
+- [x] 2.1 Implement `HookDecl` → `ResolvedHook` normalization with validation
+- [x] 2.2 Implement matcher types and evaluation functions per event family
+- [x] 2.3 Implement deterministic ordering function with three-level sort
+- [x] 2.4 Implement skill sub-ordering using existing `SkillSource` precedence
+- [x] 2.5 Write unit tests for normalization, matchers, and ordering
 
 ## Implementation Details
 
@@ -69,18 +69,18 @@ Reference TechSpec "Matcher Model" and "Dispatch Model" sections. Reference ADR-
 
 ## Tests
 - Unit tests:
-  - [ ] Normalization rejects `mode: sync` on `message.delta` with clear error
-  - [ ] Normalization rejects `required: true` on async hook
-  - [ ] Normalization applies default priority 1000 for Native source when priority unset
-  - [ ] Normalization applies default priority 0 for Skill source
-  - [ ] Session matcher matches on workspace ID and agent name, rejects non-matching
-  - [ ] Tool matcher matches on tool name and namespace, handles wildcard
-  - [ ] Permission matcher matches on tool name and decision class
-  - [ ] Ordering sorts Native before Config before AgentDef before Skill
-  - [ ] Ordering sorts higher priority first within same source
-  - [ ] Ordering sorts names ascending for equal source and priority
-  - [ ] Skill sub-ordering: Bundled before Marketplace before User before Workspace
-  - [ ] Ordering is stable across multiple sorts with same input
+  - [x] Normalization rejects `mode: sync` on `message.delta` with clear error
+  - [x] Normalization rejects `required: true` on async hook
+  - [x] Normalization applies default priority 1000 for Native source when priority unset
+  - [x] Normalization applies default priority 0 for Skill source
+  - [x] Session matcher matches on workspace ID and agent name, rejects non-matching
+  - [x] Tool matcher matches on tool name and namespace, handles wildcard
+  - [x] Permission matcher matches on tool name and decision class
+  - [x] Ordering sorts Native before Config before AgentDef before Skill
+  - [x] Ordering sorts higher priority first within same source
+  - [x] Ordering sorts names ascending for equal source and priority
+  - [x] Skill sub-ordering: Bundled before Marketplace before User before Workspace
+  - [x] Ordering is stable across multiple sorts with same input
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -256,10 +256,16 @@ func (s *SessionDB) QueryHookRuns(ctx context.Context, query store.HookRunQuery)
 			return nil, err
 		}
 	}
+	if query.Outcome != "" {
+		if err := query.Outcome.Validate(); err != nil {
+			return nil, err
+		}
+	}
 
 	baseQuery := `SELECT rowid, hook_name, event, source, mode, duration_ns, outcome, dispatch_depth, patch_applied, error, required, recorded_at FROM hook_runs`
 	where, args := store.BuildClauses(
 		store.StringClause("event", query.Event),
+		store.StringClause("outcome", string(query.Outcome)),
 		store.TimeClause("recorded_at", ">=", query.Since),
 	)
 	baseQuery = store.AppendWhere(baseQuery, where)

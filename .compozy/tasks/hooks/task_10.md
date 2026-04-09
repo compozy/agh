@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Integrate session, input, prompt, event, and agent dispatch
 type: backend
 complexity: high
@@ -38,12 +38,12 @@ Wire typed dispatch calls into the session manager at all `session.*`, `input.*`
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Add session lifecycle dispatch (pre/post create, resume, stop) in manager_lifecycle.go
-- [ ] 10.2 Add input.pre_submit dispatch in the input/prompt processing path
-- [ ] 10.3 Add prompt.post_assemble dispatch in the prompt assembly path
-- [ ] 10.4 Add event dispatch (pre/post record) in the event recording path
-- [ ] 10.5 Add agent lifecycle dispatch (pre_start, spawned, crashed, stopped)
-- [ ] 10.6 Write integration tests for session lifecycle hooks and permission escalation e2e
+- [x] 10.1 Add session lifecycle dispatch (pre/post create, resume, stop) in manager_lifecycle.go
+- [x] 10.2 Add input.pre_submit dispatch in the input/prompt processing path
+- [x] 10.3 Add prompt.post_assemble dispatch in the prompt assembly path
+- [x] 10.4 Add event dispatch (pre/post record) in the event recording path
+- [x] 10.5 Add agent lifecycle dispatch (pre_start, spawned, crashed, stopped)
+- [x] 10.6 Write integration tests for session lifecycle hooks and permission escalation e2e
 
 ## Implementation Details
 
@@ -74,17 +74,17 @@ The session manager needs access to typed dispatch functions. Either inject `*ho
 
 ## Tests
 - Unit tests:
-  - [ ] `session.pre_create` hook that denies — session creation returns error
-  - [ ] `session.pre_create` hook that patches — patched payload used for creation
-  - [ ] `session.post_create` async hook fires after session is active
-  - [ ] `input.pre_submit` hook patches message — patched message is processed
-  - [ ] `prompt.post_assemble` hook patches prompt — patched prompt is used
-  - [ ] `agent.crashed` hook fires when agent process crashes
-  - [ ] `event.pre_record` and `event.post_record` fire around event persistence (async-only)
+  - [x] `session.pre_create` hook that denies — session creation returns error
+  - [x] `session.pre_create` hook that patches — patched payload used for creation
+  - [x] `session.post_create` async hook fires after session is active
+  - [x] `input.pre_submit` hook patches message — patched message is processed
+  - [x] `prompt.post_assemble` hook patches prompt — patched prompt is used
+  - [x] `agent.crashed` hook fires when agent process crashes
+  - [x] `event.pre_record` and `event.post_record` fire around event persistence (async-only)
 - Integration tests:
-  - [ ] Full session lifecycle: create → input → prompt → agent events → stop — all hooks fire in order
-  - [ ] Permission escalation e2e: permission.request hook attempts deny→allow — blocked by invariant
-  - [ ] Pre-stop hook with required flag — hook failure prevents clean stop, error propagated
+  - [x] Full session lifecycle: create → input → prompt → agent events → stop — all hooks fire in order
+  - [x] Permission escalation e2e: permission.request hook attempts deny→allow — blocked by invariant
+  - [x] Pre-stop hook with required flag — hook failure prevents clean stop, error propagated
 - Test coverage target: >=80%
 - All tests must pass
 

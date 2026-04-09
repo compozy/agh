@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
 )
 
@@ -53,6 +54,92 @@ func ParseObserveEventQuery(c *gin.Context) (store.EventSummaryQuery, error) {
 		Since:     since,
 		Limit:     limit,
 	}, nil
+}
+
+// ParseHookCatalogFilter parses the shared hook catalog query parameters.
+func ParseHookCatalogFilter(c *gin.Context) (hookspkg.CatalogFilter, error) {
+	filter := hookspkg.CatalogFilter{
+		AgentName: strings.TrimSpace(c.Query("agent")),
+	}
+
+	if event := strings.TrimSpace(c.Query("event")); event != "" {
+		parsed := hookspkg.HookEvent(event)
+		if err := parsed.Validate(); err != nil {
+			return hookspkg.CatalogFilter{}, err
+		}
+		filter.Event = parsed
+	}
+
+	if source := strings.TrimSpace(c.Query("source")); source != "" {
+		var parsed hookspkg.HookSource
+		if err := parsed.UnmarshalText([]byte(source)); err != nil {
+			return hookspkg.CatalogFilter{}, err
+		}
+		filter.Source = &parsed
+	}
+
+	if mode := strings.TrimSpace(c.Query("mode")); mode != "" {
+		parsed := hookspkg.HookMode(mode)
+		if err := parsed.Validate(); err != nil {
+			return hookspkg.CatalogFilter{}, err
+		}
+		filter.Mode = parsed
+	}
+
+	return filter, nil
+}
+
+// ParseHookRunsQuery parses the shared hook execution history query parameters.
+func ParseHookRunsQuery(c *gin.Context) (store.HookRunQuery, error) {
+	since, err := ParseOptionalTime(c.Query("since"))
+	if err != nil {
+		return store.HookRunQuery{}, err
+	}
+	last, err := ParseOptionalInt(c.Query("last"))
+	if err != nil {
+		return store.HookRunQuery{}, err
+	}
+
+	query := store.HookRunQuery{
+		SessionID: strings.TrimSpace(c.Query("session")),
+		Event:     strings.TrimSpace(c.Query("event")),
+		Since:     since,
+		Limit:     last,
+	}
+	if outcome := strings.TrimSpace(c.Query("outcome")); outcome != "" {
+		query.Outcome = hookspkg.HookRunOutcome(outcome)
+		if err := query.Outcome.Validate(); err != nil {
+			return store.HookRunQuery{}, err
+		}
+	}
+	if event := strings.TrimSpace(query.Event); event != "" {
+		if err := hookspkg.HookEvent(event).Validate(); err != nil {
+			return store.HookRunQuery{}, err
+		}
+	}
+	if err := query.Validate(); err != nil {
+		return store.HookRunQuery{}, err
+	}
+	return query, nil
+}
+
+// ParseHookEventFilter parses the shared hook taxonomy query parameters.
+func ParseHookEventFilter(c *gin.Context) (hookspkg.EventFilter, error) {
+	syncOnly, err := ParseOptionalBool(c.Query("sync_only"))
+	if err != nil {
+		return hookspkg.EventFilter{}, err
+	}
+
+	filter := hookspkg.EventFilter{
+		SyncOnly: syncOnly,
+	}
+	if family := strings.TrimSpace(c.Query("family")); family != "" {
+		filter.Family = hookspkg.HookEventFamily(family)
+		if err := filter.Family.Validate(); err != nil {
+			return hookspkg.EventFilter{}, err
+		}
+	}
+	return filter, nil
 }
 
 // ParseObserveCursor parses a Last-Event-ID cursor for observe streaming.
@@ -133,6 +220,20 @@ func ParseOptionalInt64(raw string) (int64, error) {
 	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("invalid integer %q: %w", value, err)
+	}
+	return parsed, nil
+}
+
+// ParseOptionalBool parses an optional boolean query value.
+func ParseOptionalBool(raw string) (bool, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return false, nil
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("invalid boolean %q: %w", value, err)
 	}
 	return parsed, nil
 }

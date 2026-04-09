@@ -18,6 +18,25 @@ const (
 	HookEventFamilyContext    HookEventFamily = "context"
 )
 
+// Validate ensures the event family is part of the supported taxonomy.
+func (f HookEventFamily) Validate() error {
+	switch f {
+	case HookEventFamilySession,
+		HookEventFamilyInput,
+		HookEventFamilyPrompt,
+		HookEventFamilyEvent,
+		HookEventFamilyAgent,
+		HookEventFamilyTurn,
+		HookEventFamilyMessage,
+		HookEventFamilyTool,
+		HookEventFamilyPermission,
+		HookEventFamilyContext:
+		return nil
+	default:
+		return fmt.Errorf("hooks: invalid hook event family %q", f)
+	}
+}
+
 // HookEvent identifies when a hook fires.
 type HookEvent string
 

@@ -134,7 +134,7 @@ type StubObserver struct {
 	QueryEventsFn      func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
 	QueryHookCatalogFn func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
 	QueryHookRunsFn    func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
-	QueryHookEventsFn  func(context.Context) ([]hookspkg.EventDescriptor, error)
+	QueryHookEventsFn  func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
 	HealthFn           func(context.Context) (observe.Health, error)
 }
 
@@ -166,9 +166,9 @@ func (s StubObserver) QueryHookRuns(ctx context.Context, query store.HookRunQuer
 	return nil, nil
 }
 
-func (s StubObserver) QueryHookEvents(ctx context.Context) ([]hookspkg.EventDescriptor, error) {
+func (s StubObserver) QueryHookEvents(ctx context.Context, filter hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error) {
 	if s.QueryHookEventsFn != nil {
-		return s.QueryHookEventsFn(ctx)
+		return s.QueryHookEventsFn(ctx, filter)
 	}
 	return nil, nil
 }
