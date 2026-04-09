@@ -21,6 +21,7 @@ type stubSkillsRegistry struct {
 	GetFn          func(name string) (*skills.Skill, bool)
 	ListFn         func() []*skills.Skill
 	ForWorkspaceFn func(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error)
+	SetEnabledFn   func(name string, enabled bool) error
 }
 
 func (s *stubSkillsRegistry) Get(name string) (*skills.Skill, bool) {
@@ -42,6 +43,13 @@ func (s *stubSkillsRegistry) ForWorkspace(ctx context.Context, resolved workspac
 		return s.ForWorkspaceFn(ctx, resolved)
 	}
 	return nil, nil
+}
+
+func (s *stubSkillsRegistry) SetEnabled(name string, enabled bool) error {
+	if s.SetEnabledFn != nil {
+		return s.SetEnabledFn(name, enabled)
+	}
+	return nil
 }
 
 var _ core.SkillsRegistry = (*stubSkillsRegistry)(nil)
@@ -333,6 +341,55 @@ func TestGetSkill(t *testing.T) {
 			t.Error("skill.Provenance = nil, want non-nil")
 		}
 	})
+
+	t.Run("workspace query resolves workspace-only skills", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceSkill := testSkill()
+		workspaceSkill.Source = skills.SourceWorkspace
+		workspaceSkill.Dir = "/workspace/.agh/skills/test-skill"
+
+		registry := &stubSkillsRegistry{
+			GetFn: func(name string) (*skills.Skill, bool) {
+				return nil, false
+			},
+			ForWorkspaceFn: func(_ context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
+				if resolved.ID != "ws-1" {
+					t.Errorf("ForWorkspace got ID %q, want ws-1", resolved.ID)
+				}
+				return []*skills.Skill{workspaceSkill}, nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-1" {
+					t.Errorf("Resolve got ref %q, want ws-1", ref)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      "ws-1",
+						RootDir: "/workspace",
+						Name:    "test",
+					},
+				}, nil
+			},
+		}
+
+		engine := newSkillsHandlerFixture(t, registry, workspaces)
+		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/test-skill?workspace=ws-1", nil)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+
+		var resp struct {
+			Skill contract.SkillPayload `json:"skill"`
+		}
+		testutil.DecodeJSONResponse(t, rec, &resp)
+		if resp.Skill.Source != "workspace" {
+			t.Errorf("skill.Source = %q, want %q", resp.Skill.Source, "workspace")
+		}
+	})
 }
 
 func TestEnableSkill(t *testing.T) {
@@ -350,8 +407,31 @@ func TestEnableSkill(t *testing.T) {
 				}
 				return nil, false
 			},
+			ForWorkspaceFn: func(_ context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
+				if resolved.ID != "ws-1" {
+					t.Errorf("ForWorkspace got ID %q, want ws-1", resolved.ID)
+				}
+				return []*skills.Skill{skill}, nil
+			},
+			SetEnabledFn: func(name string, enabled bool) error {
+				if name != "test-skill" {
+					t.Errorf("SetEnabled got name %q, want %q", name, "test-skill")
+				}
+				skill.Enabled = enabled
+				return nil
+			},
 		}
-		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-1" {
+					t.Errorf("Resolve got ref %q, want ws-1", ref)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace", Name: "test"},
+				}, nil
+			},
+		}
+		engine := newSkillsHandlerFixture(t, registry, workspaces)
 		rec := testutil.PerformRequest(t, engine, http.MethodPost, "/api/skills/test-skill/enable?workspace=ws-1", nil)
 
 		if rec.Code != http.StatusOK {
@@ -364,6 +444,9 @@ func TestEnableSkill(t *testing.T) {
 		if !resp.OK {
 			t.Error("ok = false, want true")
 		}
+		if !skill.Enabled {
+			t.Error("skill.Enabled = false after enable, want true")
+		}
 	})
 
 	t.Run("not found returns 404", func(t *testing.T) {
@@ -374,7 +457,14 @@ func TestEnableSkill(t *testing.T) {
 				return nil, false
 			},
 		}
-		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace", Name: "test"},
+				}, nil
+			},
+		}
+		engine := newSkillsHandlerFixture(t, registry, workspaces)
 		rec := testutil.PerformRequest(t, engine, http.MethodPost, "/api/skills/missing/enable?workspace=ws-1", nil)
 
 		if rec.Code != http.StatusNotFound {
@@ -398,8 +488,31 @@ func TestDisableSkill(t *testing.T) {
 				}
 				return nil, false
 			},
+			ForWorkspaceFn: func(_ context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
+				if resolved.ID != "ws-1" {
+					t.Errorf("ForWorkspace got ID %q, want ws-1", resolved.ID)
+				}
+				return []*skills.Skill{skill}, nil
+			},
+			SetEnabledFn: func(name string, enabled bool) error {
+				if name != "test-skill" {
+					t.Errorf("SetEnabled got name %q, want %q", name, "test-skill")
+				}
+				skill.Enabled = enabled
+				return nil
+			},
 		}
-		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-1" {
+					t.Errorf("Resolve got ref %q, want ws-1", ref)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace", Name: "test"},
+				}, nil
+			},
+		}
+		engine := newSkillsHandlerFixture(t, registry, workspaces)
 		rec := testutil.PerformRequest(t, engine, http.MethodPost, "/api/skills/test-skill/disable?workspace=ws-1", nil)
 
 		if rec.Code != http.StatusOK {
@@ -412,6 +525,9 @@ func TestDisableSkill(t *testing.T) {
 		if !resp.OK {
 			t.Error("ok = false, want true")
 		}
+		if skill.Enabled {
+			t.Error("skill.Enabled = true after disable, want false")
+		}
 	})
 
 	t.Run("not found returns 404", func(t *testing.T) {
@@ -422,7 +538,14 @@ func TestDisableSkill(t *testing.T) {
 				return nil, false
 			},
 		}
-		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace", Name: "test"},
+				}, nil
+			},
+		}
+		engine := newSkillsHandlerFixture(t, registry, workspaces)
 		rec := testutil.PerformRequest(t, engine, http.MethodPost, "/api/skills/missing/disable?workspace=ws-1", nil)
 
 		if rec.Code != http.StatusNotFound {

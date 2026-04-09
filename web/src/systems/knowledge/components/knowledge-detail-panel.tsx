@@ -61,6 +61,10 @@ function ContentPreviewCard({ content }: { content: string }) {
       </pre>
       {content.length > 300 && (
         <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          title="Full content view is not implemented yet"
           className="mt-2 text-sm text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)]"
           data-testid="view-full-content-link"
         >
@@ -217,6 +221,7 @@ function KnowledgeDetailPanel({
       {/* Actions */}
       <div className="mt-6 flex items-center gap-3">
         <button
+          type="button"
           onClick={() => onDelete(scope, memory.filename)}
           disabled={isDeletePending}
           className="inline-flex h-9 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-transparent px-5 text-sm font-medium text-[color:var(--color-danger)] transition-colors hover:bg-[color:var(--color-hover)] disabled:opacity-50"
@@ -226,6 +231,10 @@ function KnowledgeDetailPanel({
           Delete
         </button>
         <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          title="CLI deep links are not implemented yet"
           className="inline-flex h-9 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-transparent px-5 text-sm font-medium text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-hover)]"
           data-testid="view-in-cli-btn"
         >

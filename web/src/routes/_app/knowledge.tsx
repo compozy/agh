@@ -33,7 +33,7 @@ function deriveScope(filename: string): string {
 }
 
 function formatDreamStatus(lastConsolidation?: string): string {
-  if (!lastConsolidation) return "Dream: never";
+  if (!lastConsolidation) return "Dream: status unavailable";
   try {
     const date = new Date(lastConsolidation);
     const diffMs = Date.now() - date.getTime();
@@ -143,10 +143,11 @@ function KnowledgePage() {
               onClick={() => setActiveTab(tab)}
               className={
                 activeTab === tab
-                  ? "inline-flex h-8 items-center rounded-full px-3.5 text-sm transition-colors bg-[#E8572A] text-white"
+                  ? "inline-flex h-8 items-center rounded-full px-3.5 text-sm transition-colors bg-[color:var(--color-accent)] text-white"
                   : "inline-flex h-8 items-center rounded-full px-3.5 text-sm transition-colors border border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-hover)]"
               }
               data-testid={`tab-${tab}`}
+              type="button"
             >
               {tab.toUpperCase()}
             </button>
@@ -155,8 +156,9 @@ function KnowledgePage() {
 
         {/* Dream status indicator */}
         <div className="ml-auto flex items-center gap-1.5" data-testid="dream-status">
-          <span className="size-2 rounded-full bg-[color:var(--color-success)]" />
+          <span className="size-2 rounded-full bg-[color:var(--color-text-tertiary)]" />
           <span className="text-xs text-[color:var(--color-text-tertiary)]">
+            {/* TODO: replace placeholder label when memory health/status data is available to the page. */}
             {formatDreamStatus()}
           </span>
         </div>

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { consolidateMemory, deleteMemory } from "../adapters/knowledge-api";
-import { knowledgeKeys } from "../lib/query-keys";
+import { consolidateMemory, deleteMemory } from "@/systems/knowledge/adapters/knowledge-api";
+import { knowledgeKeys } from "@/systems/knowledge/lib/query-keys";
 
 interface DeleteMemoryParams {
   scope: string;

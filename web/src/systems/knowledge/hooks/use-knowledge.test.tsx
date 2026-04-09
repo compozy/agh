@@ -3,9 +3,9 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useMemories, useMemory } from "./use-knowledge";
+import { useMemories, useMemory } from "@/systems/knowledge/hooks/use-knowledge";
 
-vi.mock("../adapters/knowledge-api", () => ({
+vi.mock("@/systems/knowledge/adapters/knowledge-api", () => ({
   listMemories: vi.fn(),
   readMemory: vi.fn(),
   deleteMemory: vi.fn(),
@@ -13,7 +13,7 @@ vi.mock("../adapters/knowledge-api", () => ({
   consolidateMemory: vi.fn(),
 }));
 
-import { listMemories, readMemory } from "../adapters/knowledge-api";
+import { listMemories, readMemory } from "@/systems/knowledge/adapters/knowledge-api";
 
 function createWrapper() {
   const queryClient = new QueryClient({

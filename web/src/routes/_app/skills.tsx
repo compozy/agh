@@ -111,10 +111,11 @@ function SkillsPage() {
             className={cn(
               "inline-flex h-8 items-center rounded-full px-3.5 text-sm transition-colors",
               activeTab === "installed"
-                ? "bg-[#E8572A] text-white"
+                ? "bg-[color:var(--color-accent)] text-white"
                 : "border border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-hover)]"
             )}
             data-testid="tab-installed"
+            type="button"
           >
             INSTALLED
           </button>
@@ -123,10 +124,11 @@ function SkillsPage() {
             className={cn(
               "inline-flex h-8 items-center rounded-full px-3.5 text-sm transition-colors",
               activeTab === "marketplace"
-                ? "bg-[#E8572A] text-white"
+                ? "bg-[color:var(--color-accent)] text-white"
                 : "border border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-hover)]"
             )}
             data-testid="tab-marketplace"
+            type="button"
           >
             MARKETPLACE
           </button>
@@ -160,7 +162,7 @@ function SkillsPage() {
         <MarketplaceView
           skills={skills ?? []}
           installedSkillNames={installedSkillNames}
-          onInstall={() => {}}
+          installUnavailableReason="Marketplace install is not implemented yet"
           isInstalling={false}
         />
       )}

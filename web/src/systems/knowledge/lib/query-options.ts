@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import { listMemories, readMemory } from "../adapters/knowledge-api";
-import { knowledgeKeys } from "./query-keys";
+import { listMemories, readMemory } from "@/systems/knowledge/adapters/knowledge-api";
+import { knowledgeKeys } from "@/systems/knowledge/lib/query-keys";
 
 export function memoriesListOptions(scope?: string, workspace?: string) {
   return queryOptions({

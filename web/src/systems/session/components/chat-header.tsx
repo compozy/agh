@@ -34,8 +34,10 @@ export function ChatHeader({ session, onStop, onResume, workspaceName }: ChatHea
         {/* Agent avatar dot */}
         <span
           className={cn("size-2.5 shrink-0 rounded-full", STATE_DOT_COLOR[session.state])}
+          aria-label={`Session state: ${session.state}`}
           data-testid="agent-status-dot"
         />
+        <span className="sr-only">{`Session state: ${session.state}`}</span>
         <span className="truncate text-sm font-medium text-[color:var(--color-text-primary)]">
           {session.agent_name}
         </span>
@@ -47,7 +49,7 @@ export function ChatHeader({ session, onStop, onResume, workspaceName }: ChatHea
           className="truncate text-sm text-[color:var(--color-text-secondary)]"
           data-testid="session-name"
         >
-          {session.name ?? session.id}
+          {session.name?.trim() || session.id}
         </span>
 
         {workspaceName && (

@@ -100,10 +100,12 @@ export const MessageBubble = memo(
     );
   },
   (prev, next) =>
+    prev.message.role === next.message.role &&
     prev.message.id === next.message.id &&
     prev.message.content === next.message.content &&
     prev.message.thinking === next.message.thinking &&
     prev.message.thinkingComplete === next.message.thinkingComplete &&
+    prev.message.timestamp === next.message.timestamp &&
     prev.message.isStreaming === next.message.isStreaming &&
     prev.agentName === next.agentName
 );

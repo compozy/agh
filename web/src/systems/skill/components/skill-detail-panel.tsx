@@ -1,8 +1,7 @@
 import { ExternalLink, Loader2, Power } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-
 import type { SkillPayload } from "../types";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,15 +20,31 @@ interface SkillDetailPanelProps {
 // Source Badge
 // ---------------------------------------------------------------------------
 
+const SOURCE_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
+  bundled: {
+    bg: "bg-[color:var(--color-success-tint)]",
+    text: "text-[color:var(--color-success)]",
+  },
+  workspace: {
+    bg: "bg-[color:var(--color-info-tint)]",
+    text: "text-[color:var(--color-info)]",
+  },
+  marketplace: {
+    bg: "bg-[color:var(--color-accent-tint)]",
+    text: "text-[color:var(--color-accent)]",
+  },
+  user: {
+    bg: "bg-[color:var(--color-warning-tint)]",
+    text: "text-[color:var(--color-warning)]",
+  },
+  additional: {
+    bg: "bg-[color:var(--color-neutral-tint)]",
+    text: "text-[color:var(--color-text-tertiary)]",
+  },
+};
+
 function SourceBadge({ source }: { source: string }) {
-  const colorMap: Record<string, { bg: string; text: string }> = {
-    bundled: { bg: "bg-[#30d15826]", text: "text-[#30d158]" },
-    workspace: { bg: "bg-[#bf5af226]", text: "text-[#bf5af2]" },
-    marketplace: { bg: "bg-[#e8572a26]", text: "text-[#e8572a]" },
-    user: { bg: "bg-[#ffd60a26]", text: "text-[#ffd60a]" },
-    additional: { bg: "bg-[#63636626]", text: "text-[#636366]" },
-  };
-  const colors = colorMap[source] ?? colorMap.additional;
+  const colors = SOURCE_BADGE_COLORS[source] ?? SOURCE_BADGE_COLORS.additional;
 
   return (
     <span
@@ -61,7 +76,13 @@ function ContentPreviewCard({ content }: { content: string }) {
         {preview}
       </pre>
       {content.length > 300 && (
-        <button className="mt-2 text-sm text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)]">
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          title="Full content view is not implemented yet"
+          className="mt-2 text-sm text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)]"
+        >
           View full content
         </button>
       )}
@@ -191,6 +212,7 @@ function SkillDetailPanel({
             disabled={isActionPending}
             className="inline-flex h-9 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-transparent px-5 text-sm font-medium text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-hover)] disabled:opacity-50"
             data-testid="disable-skill-btn"
+            type="button"
           >
             <Power className="size-3.5" />
             Disable
@@ -199,14 +221,19 @@ function SkillDetailPanel({
           <button
             onClick={() => onEnable(skill.name)}
             disabled={isActionPending}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#E8572A] px-5 text-sm font-medium text-white transition-colors hover:bg-[#D14E25] disabled:opacity-50"
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[color:var(--color-accent)] px-5 text-sm font-medium text-white transition-colors hover:bg-[color:var(--color-accent-hover)] disabled:opacity-50"
             data-testid="enable-skill-btn"
+            type="button"
           >
             <Power className="size-3.5" />
             Enable
           </button>
         )}
         <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          title="CLI deep links are not implemented yet"
           className="inline-flex h-9 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-transparent px-5 text-sm font-medium text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-hover)]"
           data-testid="view-in-cli-btn"
         >

@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { disableSkill, enableSkill, getSkill, listSkills, SkillApiError } from "./skill-api";
+import {
+  disableSkill,
+  enableSkill,
+  getSkill,
+  listSkills,
+  SkillApiError,
+} from "@/systems/skill/adapters/skill-api";
 
 const validSkill = {
   name: "test-skill",
@@ -19,6 +25,7 @@ describe("listSkills", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("calls GET /api/skills?workspace=:id and returns typed array", async () => {
@@ -88,6 +95,7 @@ describe("getSkill", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("calls GET /api/skills/:name?workspace=:id and returns typed object", async () => {
@@ -149,6 +157,7 @@ describe("enableSkill", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("calls POST /api/skills/:name/enable and returns {ok: true}", async () => {
@@ -191,6 +200,7 @@ describe("disableSkill", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("calls POST /api/skills/:name/disable and returns {ok: true}", async () => {

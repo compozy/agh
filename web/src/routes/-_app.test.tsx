@@ -16,6 +16,44 @@ vi.mock("@/components/app-sidebar", () => ({
   AppSidebar: () => <nav data-testid="app-sidebar">Sidebar</nav>,
 }));
 
+vi.mock("@/stores/sidebar-store", () => ({
+  useSidebarStore: (selector: (state: { collapsed: boolean; toggle: () => void }) => unknown) =>
+    selector({ collapsed: false, toggle: vi.fn() }),
+}));
+
+vi.mock("@/systems/daemon", () => ({
+  useDaemonHealth: () => ({
+    health: { version: "0.1.0" },
+    connectionStatus: "connected",
+  }),
+}));
+
+vi.mock("@/systems/agent", () => ({
+  useAgents: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
+vi.mock("@/systems/session", () => ({
+  useCreateSession: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+  useSessions: () => ({
+    data: [],
+  }),
+}));
+
+vi.mock("@/systems/workspace", () => ({
+  useWorkspaces: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
 import { Route } from "./_app";
 
 describe("AppLayout", () => {
@@ -34,7 +72,7 @@ describe("AppLayout", () => {
     expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
   });
 
-  it("renders outlet inside the content area", () => {
+  it("renders outlet", () => {
     render(<AppLayout />);
     const outlet = screen.getByTestId("outlet");
     expect(outlet).toBeInTheDocument();

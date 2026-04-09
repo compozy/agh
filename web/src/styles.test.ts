@@ -144,16 +144,16 @@ describe("Design Token System — styles.css", () => {
     expect(css).not.toMatch(/@fontsource\/bricolage-grotesque/);
   });
 
-  it("maps shadcn --primary to #E8572A", () => {
-    expect(css).toMatch(/--primary:\s*#E8572A/i);
+  it("maps shadcn --primary to the accent token", () => {
+    expect(css).toMatch(/--primary:\s*var\(--color-accent\)/i);
   });
 
-  it("maps shadcn --background to #121212", () => {
-    expect(css).toMatch(/--background:\s*#121212/i);
+  it("maps shadcn --background to the canvas token", () => {
+    expect(css).toMatch(/--background:\s*var\(--color-canvas\)/i);
   });
 
-  it("maps shadcn --border to #3A3A3C", () => {
-    expect(css).toMatch(/--border:\s*#3A3A3C/i);
+  it("maps shadcn --border to the divider token", () => {
+    expect(css).toMatch(/--border:\s*var\(--color-divider\)/i);
   });
 
   it("sets --radius to 0.5rem", () => {

@@ -182,6 +182,52 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved workspacepkg.Resol
 	return mergedSkillList(globalSkills, workspaceSkills), nil
 }
 
+// SetEnabled updates the runtime enabled state for a named skill and keeps the
+// disabled-skills overlay in sync so future reloads preserve the change.
+func (r *Registry) SetEnabled(name string, enabled bool) error {
+	trimmedName := strings.TrimSpace(name)
+	if trimmedName == "" {
+		return errors.New("skills: skill name is required")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	found := false
+	for skillName, skill := range r.globalSkills {
+		if skillName != trimmedName || skill == nil {
+			continue
+		}
+		skill.Enabled = enabled
+		found = true
+	}
+
+	for _, cached := range r.wsCache {
+		if cached == nil {
+			continue
+		}
+		skill := cached.skills[trimmedName]
+		if skill == nil {
+			continue
+		}
+		skill.Enabled = enabled
+		found = true
+	}
+
+	if !found {
+		return fmt.Errorf("skills: skill %q not found", trimmedName)
+	}
+
+	if enabled {
+		r.cfg.DisabledSkills = removeDisabledSkill(r.cfg.DisabledSkills, trimmedName)
+	} else {
+		r.cfg.DisabledSkills = addDisabledSkill(r.cfg.DisabledSkills, trimmedName)
+	}
+	r.globalVersion.Add(1)
+
+	return nil
+}
+
 func (r *Registry) reloadGlobal(ctx context.Context) error {
 	if err := checkRegistryContext(ctx); err != nil {
 		return err
@@ -422,6 +468,33 @@ func (r *Registry) applyDisabled(skill *Skill) {
 			return
 		}
 	}
+}
+
+func addDisabledSkill(disabled []string, name string) []string {
+	for _, existing := range disabled {
+		if strings.TrimSpace(existing) == name {
+			return disabled
+		}
+	}
+	return append(disabled, name)
+}
+
+func removeDisabledSkill(disabled []string, name string) []string {
+	if len(disabled) == 0 {
+		return nil
+	}
+
+	filtered := make([]string, 0, len(disabled))
+	for _, existing := range disabled {
+		if strings.TrimSpace(existing) == name {
+			continue
+		}
+		filtered = append(filtered, existing)
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered
 }
 
 func (r *Registry) overlaySkill(dst map[string]*Skill, skill *Skill) {

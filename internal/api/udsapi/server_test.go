@@ -41,6 +41,7 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		WithSessionManager(stubSessionManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
+		WithSkillsRegistry(stubSkillsRegistry{}),
 		WithMemoryStore(store),
 		WithDreamTrigger(dream),
 		WithAgentLoader(customLoader),
@@ -94,6 +95,14 @@ func TestNewRequiresSessionManagerObserverAndWorkspaceResolver(t *testing.T) {
 	if _, err := New(WithHomePaths(homePaths), WithSessionManager(stubSessionManager{}), WithObserver(stubObserver{})); err == nil {
 		t.Fatal("New() without workspace resolver error = nil, want non-nil")
 	}
+	if _, err := New(
+		WithHomePaths(homePaths),
+		WithSessionManager(stubSessionManager{}),
+		WithObserver(stubObserver{}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
+	); err == nil {
+		t.Fatal("New() without skills registry error = nil, want non-nil")
+	}
 }
 
 func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
@@ -114,6 +123,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 			HealthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
 		}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
+		WithSkillsRegistry(stubSkillsRegistry{}),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -169,6 +179,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 		WithSessionManager(stubSessionManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
+		WithSkillsRegistry(stubSkillsRegistry{}),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -201,6 +212,7 @@ func TestServerStartRejectsRegularFileAtSocketPath(t *testing.T) {
 		WithSessionManager(stubSessionManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
+		WithSkillsRegistry(stubSkillsRegistry{}),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)

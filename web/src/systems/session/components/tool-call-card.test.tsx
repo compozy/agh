@@ -41,7 +41,7 @@ describe("ToolCallCard", () => {
 
   it("renders terminal icon for tool", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
-    expect(screen.getByTestId("tool-call-card")).toBeInTheDocument();
+    expect(screen.getByTestId("tool-call-icon")).toBeInTheDocument();
   });
 
   it("shows tool name in executing state", () => {

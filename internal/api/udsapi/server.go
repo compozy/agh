@@ -233,6 +233,9 @@ func New(opts ...Option) (*Server, error) {
 	if server.workspaces == nil {
 		return nil, errors.New("udsapi: workspace resolver is required")
 	}
+	if server.skillsRegistry == nil {
+		return nil, errors.New("udsapi: skills registry is required")
+	}
 	if strings.TrimSpace(server.config.Daemon.Socket) == "" {
 		server.config.Daemon.Socket = server.homePaths.DaemonSocket
 	}

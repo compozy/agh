@@ -3,9 +3,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useConsolidateMemory, useDeleteMemory } from "./use-knowledge-actions";
+import {
+  useConsolidateMemory,
+  useDeleteMemory,
+} from "@/systems/knowledge/hooks/use-knowledge-actions";
 
-vi.mock("../adapters/knowledge-api", () => ({
+vi.mock("@/systems/knowledge/adapters/knowledge-api", () => ({
   listMemories: vi.fn(),
   readMemory: vi.fn(),
   deleteMemory: vi.fn(),
@@ -13,7 +16,7 @@ vi.mock("../adapters/knowledge-api", () => ({
   consolidateMemory: vi.fn(),
 }));
 
-import { consolidateMemory, deleteMemory } from "../adapters/knowledge-api";
+import { consolidateMemory, deleteMemory } from "@/systems/knowledge/adapters/knowledge-api";
 
 describe("useDeleteMemory", () => {
   beforeEach(() => {

@@ -162,7 +162,7 @@ function DesignSystemShowcase() {
             <PanelBody className="gap-3">
               {missionThreads.map(thread => (
                 <article
-                  className="rounded-[0.6rem] border border-[color:var(--color-divider)] bg-black/10 p-4 transition-colors duration-200 hover:border-[color:var(--color-divider)]"
+                  className="rounded-[0.6rem] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4 transition-colors duration-200 hover:border-[color:var(--color-divider)]"
                   key={thread.id}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
@@ -252,7 +252,7 @@ function DesignSystemShowcase() {
               <PanelBody className="gap-3">
                 {integrations.map(item => (
                   <div
-                    className="rounded-[0.45rem] border border-[color:var(--color-divider)] bg-black/10 px-4 py-3"
+                    className="rounded-[0.45rem] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3"
                     key={item.name}
                   >
                     <div className="flex items-center gap-3">
@@ -293,11 +293,11 @@ function DesignSystemShowcase() {
               <div className="grid gap-3 md:grid-cols-5">
                 {swatches.map(swatch => (
                   <div
-                    className="rounded-[0.55rem] border border-[color:var(--color-divider)] bg-black/10 p-3"
+                    className="rounded-[0.55rem] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-3"
                     key={swatch.token}
                   >
                     <div
-                      className="mb-3 h-20 rounded-[0.35rem] border border-white/12"
+                      className="mb-3 h-20 rounded-[0.35rem] border border-[color:var(--color-divider)]"
                       style={{ background: `var(${swatch.token})` }}
                     />
                     <p className="text-sm font-medium text-[color:var(--color-text-primary)]">
@@ -311,7 +311,7 @@ function DesignSystemShowcase() {
               </div>
 
               <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-                <div className="rounded-[0.6rem] border border-[color:var(--color-divider)] bg-black/10 p-4">
+                <div className="rounded-[0.6rem] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Pill emphasis="strong" kind="filter" tone="amber">
                       Filters
@@ -326,7 +326,7 @@ function DesignSystemShowcase() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 rounded-[0.6rem] border border-[color:var(--color-divider)] bg-black/10 p-4">
+                <div className="flex items-center gap-3 rounded-[0.6rem] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
                   <div className="flex size-11 items-center justify-center rounded-full border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)]">
                     <Layers3 className="size-5 text-[color:var(--color-info)]" />
                   </div>

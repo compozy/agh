@@ -171,7 +171,7 @@ describe("KnowledgePage", () => {
     await user.click(screen.getByTestId("tab-global"));
 
     // Tab should be active
-    expect(screen.getByTestId("tab-global").className).toContain("bg-[#E8572A]");
+    expect(screen.getByTestId("tab-global").className).toContain("bg-[color:var(--color-accent)]");
   });
 
   it("WORKSPACE tab filters to show only workspace-scope memories", async () => {
@@ -180,7 +180,9 @@ describe("KnowledgePage", () => {
 
     await user.click(screen.getByTestId("tab-workspace"));
 
-    expect(screen.getByTestId("tab-workspace").className).toContain("bg-[#E8572A]");
+    expect(screen.getByTestId("tab-workspace").className).toContain(
+      "bg-[color:var(--color-accent)]"
+    );
   });
 
   it("clicking ALL tab returns to full list", async () => {
@@ -190,7 +192,7 @@ describe("KnowledgePage", () => {
     await user.click(screen.getByTestId("tab-global"));
     await user.click(screen.getByTestId("tab-all"));
 
-    expect(screen.getByTestId("tab-all").className).toContain("bg-[#E8572A]");
+    expect(screen.getByTestId("tab-all").className).toContain("bg-[color:var(--color-accent)]");
   });
 
   // -----------------------------------------------------------------------
@@ -267,6 +269,7 @@ describe("KnowledgePage", () => {
 
     const link = screen.getByTestId("view-full-content-link");
     expect(link.tagName).toBe("BUTTON");
+    expect(link).toBeDisabled();
   });
 
   it("detail panel Delete button calls useDeleteMemory mutation", async () => {
@@ -276,12 +279,11 @@ describe("KnowledgePage", () => {
 
     await user.click(screen.getByTestId("delete-memory-btn"));
 
-    expect(mockDeleteMutate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        filename: expect.any(String),
-        scope: expect.any(String),
-      })
-    );
+    expect(mockDeleteMutate).toHaveBeenCalledWith({
+      filename: "user_role.md",
+      scope: "global",
+      workspace: "ws_test",
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -444,7 +446,7 @@ describe("KnowledgePage", () => {
 
     // Switch tabs
     await user.click(screen.getByTestId("tab-global"));
-    expect(screen.getByTestId("tab-global").className).toContain("bg-[#E8572A]");
+    expect(screen.getByTestId("tab-global").className).toContain("bg-[color:var(--color-accent)]");
 
     // Switch back to all
     await user.click(screen.getByTestId("tab-all"));

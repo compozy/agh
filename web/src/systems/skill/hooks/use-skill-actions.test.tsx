@@ -3,16 +3,16 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDisableSkill, useEnableSkill } from "./use-skill-actions";
+import { useDisableSkill, useEnableSkill } from "@/systems/skill/hooks/use-skill-actions";
 
-vi.mock("../adapters/skill-api", () => ({
+vi.mock("@/systems/skill/adapters/skill-api", () => ({
   listSkills: vi.fn(),
   getSkill: vi.fn(),
   enableSkill: vi.fn(),
   disableSkill: vi.fn(),
 }));
 
-import { disableSkill, enableSkill } from "../adapters/skill-api";
+import { disableSkill, enableSkill } from "@/systems/skill/adapters/skill-api";
 
 describe("useEnableSkill", () => {
   beforeEach(() => {
@@ -45,6 +45,32 @@ describe("useEnableSkill", () => {
     });
 
     expect(enableSkill).toHaveBeenCalledWith("test-skill", "ws_123");
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["skills", "list", "ws_123"],
+    });
+  });
+
+  it("invalidates skill list cache when enableSkill fails", async () => {
+    vi.mocked(enableSkill).mockRejectedValue(new Error("fail"));
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    const { result } = renderHook(() => useEnableSkill(), { wrapper });
+
+    act(() => {
+      result.current.mutate({ name: "test-skill", workspace: "ws_123" });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["skills", "list", "ws_123"],
     });
@@ -82,6 +108,32 @@ describe("useDisableSkill", () => {
     });
 
     expect(disableSkill).toHaveBeenCalledWith("test-skill", "ws_123");
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["skills", "list", "ws_123"],
+    });
+  });
+
+  it("invalidates skill list cache when disableSkill fails", async () => {
+    vi.mocked(disableSkill).mockRejectedValue(new Error("fail"));
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    const { result } = renderHook(() => useDisableSkill(), { wrapper });
+
+    act(() => {
+      result.current.mutate({ name: "test-skill", workspace: "ws_123" });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["skills", "list", "ws_123"],
     });

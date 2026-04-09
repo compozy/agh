@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { memoriesListOptions, memoryDetailOptions } from "./query-options";
+import { memoriesListOptions, memoryDetailOptions } from "@/systems/knowledge/lib/query-options";
 
 describe("memoriesListOptions", () => {
   it("includes correct staleTime and refetchInterval", () => {

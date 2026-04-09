@@ -7,7 +7,7 @@ import {
   listMemories,
   readMemory,
   writeMemory,
-} from "./knowledge-api";
+} from "@/systems/knowledge/adapters/knowledge-api";
 
 const validHeader = {
   filename: "user_role.md",
@@ -23,6 +23,7 @@ describe("listMemories", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("calls GET /api/memory?scope=:scope&workspace=:ws and returns typed array", async () => {
@@ -72,6 +73,17 @@ describe("listMemories", () => {
     await expect(listMemories()).rejects.toThrow(KnowledgeApiError);
     await expect(listMemories()).rejects.toThrow("Failed to fetch memories: 500");
   });
+
+  it("normalizes invalid success payloads into KnowledgeApiError", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ invalid: true }),
+    } as Response);
+
+    await expect(listMemories()).rejects.toThrow(KnowledgeApiError);
+    await expect(listMemories()).rejects.toThrow("Invalid memories list response");
+  });
 });
 
 describe("readMemory", () => {
@@ -81,6 +93,7 @@ describe("readMemory", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("calls GET /api/memory/:filename?scope=:scope and returns content string", async () => {
@@ -137,6 +150,19 @@ describe("readMemory", () => {
     );
   });
 
+  it("normalizes invalid success payloads into KnowledgeApiError", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ content: 123 }),
+    } as Response);
+
+    await expect(readMemory("global", "test.md")).rejects.toThrow(KnowledgeApiError);
+    await expect(readMemory("global", "test.md")).rejects.toThrow(
+      'Invalid memory payload for "test.md"'
+    );
+  });
+
   it("encodes filename in URL", async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
@@ -157,6 +183,7 @@ describe("writeMemory", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("calls PUT /api/memory/:filename with body", async () => {
@@ -171,6 +198,25 @@ describe("writeMemory", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: "content here", scope: "global", workspace: "/ws" }),
+      signal: undefined,
+    });
+  });
+
+  it("passes abort signal to fetch", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ ok: true }),
+    } as Response);
+
+    const controller = new AbortController();
+    await writeMemory("test.md", "content here", "global", "/ws", controller.signal);
+
+    expect(fetch).toHaveBeenCalledWith("/api/memory/test.md", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "content here", scope: "global", workspace: "/ws" }),
+      signal: controller.signal,
     });
   });
 
@@ -185,6 +231,19 @@ describe("writeMemory", () => {
       'Failed to write memory "test.md": 400'
     );
   });
+
+  it("normalizes invalid success payloads into KnowledgeApiError", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ ok: "yes" }),
+    } as Response);
+
+    await expect(writeMemory("test.md", "content")).rejects.toThrow(KnowledgeApiError);
+    await expect(writeMemory("test.md", "content")).rejects.toThrow(
+      'Invalid memory mutation response for "test.md"'
+    );
+  });
 });
 
 describe("deleteMemory", () => {
@@ -194,6 +253,7 @@ describe("deleteMemory", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("calls DELETE /api/memory/:filename?scope=:scope", async () => {
@@ -204,7 +264,10 @@ describe("deleteMemory", () => {
 
     const result = await deleteMemory("global", "old.md");
     expect(result).toEqual({ ok: true });
-    expect(fetch).toHaveBeenCalledWith("/api/memory/old.md?scope=global", { method: "DELETE" });
+    expect(fetch).toHaveBeenCalledWith("/api/memory/old.md?scope=global", {
+      method: "DELETE",
+      signal: undefined,
+    });
   });
 
   it("includes workspace in query params", async () => {
@@ -216,8 +279,24 @@ describe("deleteMemory", () => {
     await deleteMemory("workspace", "project.md", "/home/user/proj");
     expect(fetch).toHaveBeenCalledWith(
       "/api/memory/project.md?scope=workspace&workspace=%2Fhome%2Fuser%2Fproj",
-      { method: "DELETE" }
+      { method: "DELETE", signal: undefined }
     );
+  });
+
+  it("passes abort signal to fetch", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ ok: true }),
+    } as Response);
+
+    const controller = new AbortController();
+    await deleteMemory("global", "old.md", undefined, controller.signal);
+
+    expect(fetch).toHaveBeenCalledWith("/api/memory/old.md?scope=global", {
+      method: "DELETE",
+      signal: controller.signal,
+    });
   });
 
   it("throws KnowledgeApiError with 404 for unknown memory", async () => {
@@ -239,6 +318,19 @@ describe("deleteMemory", () => {
 
     await expect(deleteMemory("global", "test.md")).rejects.toThrow(KnowledgeApiError);
   });
+
+  it("normalizes invalid success payloads into KnowledgeApiError", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ ok: "yes" }),
+    } as Response);
+
+    await expect(deleteMemory("global", "test.md")).rejects.toThrow(KnowledgeApiError);
+    await expect(deleteMemory("global", "test.md")).rejects.toThrow(
+      'Invalid memory deletion response for "test.md"'
+    );
+  });
 });
 
 describe("consolidateMemory", () => {
@@ -248,6 +340,7 @@ describe("consolidateMemory", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("calls POST /api/memory/consolidate with workspace", async () => {
@@ -262,6 +355,25 @@ describe("consolidateMemory", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspace: "/home/user/project" }),
+      signal: undefined,
+    });
+  });
+
+  it("passes abort signal to fetch", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ triggered: true }),
+    } as Response);
+
+    const controller = new AbortController();
+    await consolidateMemory("/home/user/project", controller.signal);
+
+    expect(fetch).toHaveBeenCalledWith("/api/memory/consolidate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspace: "/home/user/project" }),
+      signal: controller.signal,
     });
   });
 
@@ -273,6 +385,17 @@ describe("consolidateMemory", () => {
 
     await expect(consolidateMemory()).rejects.toThrow(KnowledgeApiError);
     await expect(consolidateMemory()).rejects.toThrow("Failed to consolidate memory: 500");
+  });
+
+  it("normalizes invalid success payloads into KnowledgeApiError", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ triggered: "yes" }),
+    } as Response);
+
+    await expect(consolidateMemory()).rejects.toThrow(KnowledgeApiError);
+    await expect(consolidateMemory()).rejects.toThrow("Invalid memory consolidate response");
   });
 });
 

@@ -77,7 +77,7 @@ function SkillListItem({
     >
       {isSelected && (
         <span
-          className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[#E8572A]"
+          className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
           data-testid="skill-active-indicator"
         />
       )}
@@ -117,7 +117,7 @@ function SkillListPanel({
     if (!searchQuery) return skills;
     const q = searchQuery.toLowerCase();
     return skills.filter(
-      s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+      s => s.name.toLowerCase().includes(q) || (s.description ?? "").toLowerCase().includes(q)
     );
   }, [skills, searchQuery]);
 

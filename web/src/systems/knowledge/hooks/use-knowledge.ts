@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { memoriesListOptions, memoryDetailOptions } from "../lib/query-options";
+import { memoriesListOptions, memoryDetailOptions } from "@/systems/knowledge/lib/query-options";
 
 export function useMemories(scope?: string, workspace?: string) {
   return useQuery(memoriesListOptions(scope, workspace));

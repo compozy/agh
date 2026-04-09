@@ -121,9 +121,15 @@ export const ToolCallCard = memo(
           data-testid="tool-card-trigger"
         >
           {isError ? (
-            <AlertCircle className="size-3.5 shrink-0 text-[color:var(--color-danger)]" />
+            <AlertCircle
+              className="size-3.5 shrink-0 text-[color:var(--color-danger)]"
+              data-testid="tool-call-icon"
+            />
           ) : (
-            <Icon className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]" />
+            <Icon
+              className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]"
+              data-testid="tool-call-icon"
+            />
           )}
 
           <span

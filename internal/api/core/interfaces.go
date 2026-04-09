@@ -53,6 +53,7 @@ type SkillsRegistry interface {
 	Get(name string) (*skills.Skill, bool)
 	List() []*skills.Skill
 	ForWorkspace(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error)
+	SetEnabled(name string, enabled bool) error
 }
 
 // WorkspaceService exposes workspace registration and resolution to the API layer.

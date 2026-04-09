@@ -41,42 +41,42 @@
   --color-neutral-tint: #63636626;
 
   /* shadcn theme variables */
-  --background: #121212;
-  --foreground: #e5e5e7;
-  --card: #1c1c1e;
-  --card-foreground: #e5e5e7;
-  --popover: #2c2c2e;
-  --popover-foreground: #e5e5e7;
-  --primary: #e8572a;
+  --background: var(--color-canvas);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-surface-elevated);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent);
   --primary-foreground: #ffffff;
   --secondary: transparent;
-  --secondary-foreground: #e5e5e7;
-  --muted: #2c2c2e;
-  --muted-foreground: #8e8e93;
-  --accent: #2c2c2e;
-  --accent-foreground: #e5e5e7;
-  --destructive: #ff453a;
-  --destructive-foreground: #e5e5e7;
-  --border: #3a3a3c;
-  --input: #3a3a3c;
-  --ring: #e8572a;
-  --chart-1: #e8572a;
-  --chart-2: #30d158;
-  --chart-3: #bf5af2;
-  --chart-4: #ffd60a;
-  --chart-5: #ff453a;
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-surface-elevated);
+  --muted-foreground: var(--color-text-secondary);
+  --accent: var(--color-surface-elevated);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-danger);
+  --destructive-foreground: var(--color-text-primary);
+  --border: var(--color-divider);
+  --input: var(--color-divider);
+  --ring: var(--color-accent);
+  --chart-1: var(--color-accent);
+  --chart-2: var(--color-success);
+  --chart-3: var(--color-info);
+  --chart-4: var(--color-warning);
+  --chart-5: var(--color-danger);
   --radius: 0.5rem;
 
-  --sidebar: #1c1c1e;
-  --sidebar-foreground: #e5e5e7;
-  --sidebar-primary: #e8572a;
+  --sidebar: var(--color-surface);
+  --sidebar-foreground: var(--color-text-primary);
+  --sidebar-primary: var(--color-accent);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2c2c2e;
-  --sidebar-accent-foreground: #e5e5e7;
-  --sidebar-border: #3a3a3c;
-  --sidebar-ring: #e8572a;
+  --sidebar-accent: var(--color-surface-elevated);
+  --sidebar-accent-foreground: var(--color-text-primary);
+  --sidebar-border: var(--color-divider);
+  --sidebar-ring: var(--color-accent);
 
-  --success: #30d158;
+  --success: var(--color-success);
 }
 
 .dark {
@@ -84,7 +84,7 @@
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "Inter Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
   --font-mono: "JetBrains Mono", "Courier New", monospace;
 
   --color-sidebar-ring: var(--sidebar-ring);

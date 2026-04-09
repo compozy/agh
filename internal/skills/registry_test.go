@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -1106,6 +1107,52 @@ func TestRegistryRejectsCanceledContext(t *testing.T) {
 	}
 	if _, err := registry.ForWorkspace(ctx, resolvedWorkspaceForTest("ws_canceled", t.TempDir())); err == nil {
 		t.Fatal("ForWorkspace(canceled) error = nil, want context error")
+	}
+}
+
+func TestRegistrySetEnabled(t *testing.T) {
+	t.Parallel()
+
+	registry := newTestRegistry(t, RegistryConfig{
+		DisabledSkills: []string{"disabled-skill"},
+	})
+	registry.globalSkills["test-skill"] = &Skill{
+		Meta:    SkillMeta{Name: "test-skill", Description: "test"},
+		Enabled: true,
+	}
+	registry.wsCache["ws-1"] = &wsCache{
+		skills: map[string]*Skill{
+			"test-skill": {
+				Meta:    SkillMeta{Name: "test-skill", Description: "workspace"},
+				Enabled: true,
+			},
+		},
+	}
+
+	if err := registry.SetEnabled("test-skill", false); err != nil {
+		t.Fatalf("SetEnabled(false) error = %v", err)
+	}
+	if registry.globalSkills["test-skill"].Enabled {
+		t.Fatal("global skill still enabled after SetEnabled(false)")
+	}
+	if registry.wsCache["ws-1"].skills["test-skill"].Enabled {
+		t.Fatal("workspace skill still enabled after SetEnabled(false)")
+	}
+	if !slices.Contains(registry.cfg.DisabledSkills, "test-skill") {
+		t.Fatalf("DisabledSkills = %v, want test-skill present", registry.cfg.DisabledSkills)
+	}
+
+	if err := registry.SetEnabled("test-skill", true); err != nil {
+		t.Fatalf("SetEnabled(true) error = %v", err)
+	}
+	if !registry.globalSkills["test-skill"].Enabled {
+		t.Fatal("global skill disabled after SetEnabled(true)")
+	}
+	if !registry.wsCache["ws-1"].skills["test-skill"].Enabled {
+		t.Fatal("workspace skill disabled after SetEnabled(true)")
+	}
+	if slices.Contains(registry.cfg.DisabledSkills, "test-skill") {
+		t.Fatalf("DisabledSkills = %v, did not expect test-skill", registry.cfg.DisabledSkills)
 	}
 }
 

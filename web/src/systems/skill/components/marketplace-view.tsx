@@ -12,8 +12,9 @@ import type { SkillPayload } from "../types";
 interface MarketplaceViewProps {
   skills: SkillPayload[];
   installedSkillNames: Set<string>;
-  onInstall: (name: string) => void;
+  onInstall?: (name: string) => void;
   isInstalling: boolean;
+  installUnavailableReason?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -33,15 +34,19 @@ function MarketplaceRow({
   isInstalled,
   onInstall,
   isInstalling,
+  installUnavailableReason,
 }: {
   skill: SkillPayload;
   isInstalled: boolean;
-  onInstall: () => void;
+  onInstall?: () => void;
   isInstalling: boolean;
+  installUnavailableReason?: string;
 }) {
   const tags = skill.metadata?.tags;
   const tagList: string[] = Array.isArray(tags) ? (tags as string[]) : [];
   const downloads = skill.metadata?.downloads;
+
+  const installDisabled = isInstalling || !onInstall;
 
   return (
     <div
@@ -100,10 +105,13 @@ function MarketplaceRow({
         </span>
       ) : (
         <button
-          onClick={onInstall}
-          disabled={isInstalling}
-          className="inline-flex h-8 shrink-0 items-center rounded-full bg-[#E8572A] px-3.5 text-xs font-medium text-white transition-colors hover:bg-[#D14E25] disabled:opacity-50"
+          onClick={() => onInstall?.()}
+          disabled={installDisabled}
+          aria-disabled={installDisabled}
+          title={!onInstall ? installUnavailableReason : undefined}
+          className="inline-flex h-8 shrink-0 items-center rounded-full bg-[color:var(--color-accent)] px-3.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--color-accent-hover)] disabled:opacity-50"
           data-testid={`install-btn-${skill.name}`}
+          type="button"
         >
           INSTALL
         </button>
@@ -121,6 +129,7 @@ function MarketplaceView({
   installedSkillNames,
   onInstall,
   isInstalling,
+  installUnavailableReason,
 }: MarketplaceViewProps) {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("ALL");
@@ -131,7 +140,7 @@ function MarketplaceView({
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
-        s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+        s => s.name.toLowerCase().includes(q) || (s.description ?? "").toLowerCase().includes(q)
       );
     }
 
@@ -142,7 +151,7 @@ function MarketplaceView({
         if (Array.isArray(tags)) {
           return (tags as string[]).some(t => t.toLowerCase() === cat);
         }
-        return s.description.toLowerCase().includes(cat);
+        return false;
       });
     }
 
@@ -175,10 +184,11 @@ function MarketplaceView({
             className={cn(
               "inline-flex h-8 items-center rounded-full px-3.5 text-sm transition-colors",
               activeCategory === cat
-                ? "bg-[#E8572A] text-white"
+                ? "bg-[color:var(--color-accent)] text-white"
                 : "border border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-hover)]"
             )}
             data-testid={`category-chip-${cat}`}
+            type="button"
           >
             {cat}
           </button>
@@ -201,8 +211,9 @@ function MarketplaceView({
               key={skill.name}
               skill={skill}
               isInstalled={installedSkillNames.has(skill.name)}
-              onInstall={() => onInstall(skill.name)}
+              onInstall={onInstall ? () => onInstall(skill.name) : undefined}
               isInstalling={isInstalling}
+              installUnavailableReason={installUnavailableReason}
             />
           ))}
         </div>
