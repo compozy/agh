@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/skills"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 // ListSkills returns skills for a workspace.
@@ -51,7 +52,7 @@ func (h *BaseHandlers) GetSkill(c *gin.Context) {
 		return
 	}
 
-	skill, err := h.resolveSkill(c, name)
+	skill, _, err := h.resolveSkill(c, name)
 	if err != nil {
 		h.respondError(c, StatusForSkillError(err), err)
 		return
@@ -73,7 +74,7 @@ func (h *BaseHandlers) EnableSkill(c *gin.Context) {
 		return
 	}
 
-	skill, err := h.resolveSkill(c, name)
+	skill, resolved, err := h.resolveSkill(c, name)
 	if err != nil {
 		h.respondError(c, StatusForSkillError(err), err)
 		return
@@ -84,7 +85,7 @@ func (h *BaseHandlers) EnableSkill(c *gin.Context) {
 		return
 	}
 
-	if err := h.SkillsRegistry.SetEnabled(name, true); err != nil {
+	if err := h.SkillsRegistry.SetEnabled(name, resolved, true); err != nil {
 		h.respondError(c, http.StatusInternalServerError, fmt.Errorf("enable skill %q: %w", name, err))
 		return
 	}
@@ -106,7 +107,7 @@ func (h *BaseHandlers) DisableSkill(c *gin.Context) {
 		return
 	}
 
-	skill, err := h.resolveSkill(c, name)
+	skill, resolved, err := h.resolveSkill(c, name)
 	if err != nil {
 		h.respondError(c, StatusForSkillError(err), err)
 		return
@@ -117,7 +118,7 @@ func (h *BaseHandlers) DisableSkill(c *gin.Context) {
 		return
 	}
 
-	if err := h.SkillsRegistry.SetEnabled(name, false); err != nil {
+	if err := h.SkillsRegistry.SetEnabled(name, resolved, false); err != nil {
 		h.respondError(c, http.StatusInternalServerError, fmt.Errorf("disable skill %q: %w", name, err))
 		return
 	}
@@ -126,30 +127,31 @@ func (h *BaseHandlers) DisableSkill(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SkillActionResponse{OK: true})
 }
 
-func (h *BaseHandlers) resolveSkill(c *gin.Context, name string) (*skills.Skill, error) {
+func (h *BaseHandlers) resolveSkill(c *gin.Context, name string) (*skills.Skill, *workspacepkg.ResolvedWorkspace, error) {
 	workspace := strings.TrimSpace(c.Query("workspace"))
 	if workspace == "" {
 		skill, ok := h.SkillsRegistry.Get(name)
 		if !ok {
-			return nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
+			return nil, nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
 		}
-		return skill, nil
+		return skill, nil, nil
 	}
 
 	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspace)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	skillList, err := h.SkillsRegistry.ForWorkspace(c.Request.Context(), resolved)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, skill := range skillList {
 		if skill != nil && skill.Meta.Name == name {
-			return skill, nil
+			resolvedCopy := resolved
+			return skill, &resolvedCopy, nil
 		}
 	}
 
-	return nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
+	return nil, nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
 }

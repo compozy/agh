@@ -1,7 +1,7 @@
 import { ExternalLink, Loader2, Power } from "lucide-react";
 
-import type { SkillPayload } from "../types";
 import { cn } from "@/lib/utils";
+import type { SkillPayload } from "../types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,8 +64,13 @@ function SourceBadge({ source }: { source: string }) {
 // Content Preview Card
 // ---------------------------------------------------------------------------
 
+const CONTENT_PREVIEW_MAX_LENGTH = 300;
+
 function ContentPreviewCard({ content }: { content: string }) {
-  const preview = content.length > 300 ? `${content.slice(0, 300)}...` : content;
+  const preview =
+    content.length > CONTENT_PREVIEW_MAX_LENGTH
+      ? `${content.slice(0, CONTENT_PREVIEW_MAX_LENGTH)}...`
+      : content;
 
   return (
     <div className="rounded-xl bg-[color:var(--color-surface)] p-4" data-testid="content-preview">
@@ -75,7 +80,7 @@ function ContentPreviewCard({ content }: { content: string }) {
       <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-[color:var(--color-text-secondary)]">
         {preview}
       </pre>
-      {content.length > 300 && (
+      {content.length > CONTENT_PREVIEW_MAX_LENGTH && (
         <button
           type="button"
           disabled

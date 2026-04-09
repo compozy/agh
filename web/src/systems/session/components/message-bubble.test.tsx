@@ -92,6 +92,13 @@ describe("MessageBubble", () => {
     expect(label.textContent).toContain("Agent");
   });
 
+  it("omits invalid timestamps from the agent label", () => {
+    render(<MessageBubble message={makeMessage({ content: "Hello", timestamp: 0 })} />);
+    const label = screen.getByTestId("agent-label");
+    expect(label.textContent).not.toContain("Invalid Date");
+    expect(label.textContent).not.toContain("1970");
+  });
+
   it("renders markdown headings", async () => {
     render(<MessageBubble message={makeMessage({ content: "# Heading 1\n\nSome text" })} />);
     expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Heading 1");

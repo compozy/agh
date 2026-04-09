@@ -309,6 +309,14 @@ describe("KnowledgePage", () => {
     expect(screen.getByTestId("metadata-row-Modified")).toBeInTheDocument();
   });
 
+  it("detail panel falls back to the original timestamp text for invalid dates", () => {
+    mockMemories = [makeMemory({ mod_time: "not-a-date" })];
+    mockMemoryContent = "content";
+    render(<KnowledgePage />);
+
+    expect(screen.getByTestId("metadata-row-Modified")).toHaveTextContent("not-a-date");
+  });
+
   // -----------------------------------------------------------------------
   // Type/scope badges
   // -----------------------------------------------------------------------

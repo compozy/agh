@@ -16,43 +16,9 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
-// stubSkillsRegistry implements core.SkillsRegistry for testing.
-type stubSkillsRegistry struct {
-	GetFn          func(name string) (*skills.Skill, bool)
-	ListFn         func() []*skills.Skill
-	ForWorkspaceFn func(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error)
-	SetEnabledFn   func(name string, enabled bool) error
-}
+type stubSkillsRegistry = testutil.StubSkillsRegistry
 
-func (s *stubSkillsRegistry) Get(name string) (*skills.Skill, bool) {
-	if s.GetFn != nil {
-		return s.GetFn(name)
-	}
-	return nil, false
-}
-
-func (s *stubSkillsRegistry) List() []*skills.Skill {
-	if s.ListFn != nil {
-		return s.ListFn()
-	}
-	return nil
-}
-
-func (s *stubSkillsRegistry) ForWorkspace(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
-	if s.ForWorkspaceFn != nil {
-		return s.ForWorkspaceFn(ctx, resolved)
-	}
-	return nil, nil
-}
-
-func (s *stubSkillsRegistry) SetEnabled(name string, enabled bool) error {
-	if s.SetEnabledFn != nil {
-		return s.SetEnabledFn(name, enabled)
-	}
-	return nil
-}
-
-var _ core.SkillsRegistry = (*stubSkillsRegistry)(nil)
+var _ core.SkillsRegistry = (*testutil.StubSkillsRegistry)(nil)
 
 func newSkillsHandlerFixture(t *testing.T, registry core.SkillsRegistry, workspaces testutil.StubWorkspaceService) *gin.Engine {
 	t.Helper()
@@ -413,9 +379,12 @@ func TestEnableSkill(t *testing.T) {
 				}
 				return []*skills.Skill{skill}, nil
 			},
-			SetEnabledFn: func(name string, enabled bool) error {
+			SetEnabledFn: func(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error {
 				if name != "test-skill" {
 					t.Errorf("SetEnabled got name %q, want %q", name, "test-skill")
+				}
+				if resolved == nil || resolved.ID != "ws-1" {
+					t.Errorf("SetEnabled got workspace %v, want ws-1", resolved)
 				}
 				skill.Enabled = enabled
 				return nil
@@ -494,9 +463,12 @@ func TestDisableSkill(t *testing.T) {
 				}
 				return []*skills.Skill{skill}, nil
 			},
-			SetEnabledFn: func(name string, enabled bool) error {
+			SetEnabledFn: func(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error {
 				if name != "test-skill" {
 					t.Errorf("SetEnabled got name %q, want %q", name, "test-skill")
+				}
+				if resolved == nil || resolved.ID != "ws-1" {
+					t.Errorf("SetEnabled got workspace %v, want ws-1", resolved)
 				}
 				skill.Enabled = enabled
 				return nil

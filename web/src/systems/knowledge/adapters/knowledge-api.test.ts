@@ -220,6 +220,23 @@ describe("writeMemory", () => {
     });
   });
 
+  it("encodes filename in URL", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ ok: true }),
+    } as Response);
+
+    await writeMemory("my file @1.md", "content here", "global", "/ws");
+
+    expect(fetch).toHaveBeenCalledWith("/api/memory/my%20file%20%401.md", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "content here", scope: "global", workspace: "/ws" }),
+      signal: undefined,
+    });
+  });
+
   it("throws KnowledgeApiError on non-2xx response", async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: false,

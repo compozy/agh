@@ -13,14 +13,26 @@ const LazyMessageMarkdown = lazy(() =>
   import("./message-markdown").then(module => ({ default: module.MessageMarkdown }))
 );
 
+const messageProseClasses =
+  "prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:mb-2 prose-headings:mt-4 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-pre:my-0 prose-pre:bg-transparent prose-pre:p-0";
+
 function formatTimestamp(ts: number): string {
+  if (!Number.isFinite(ts) || ts <= 0) {
+    return "";
+  }
+
   const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) {
+    return "";
+  }
+
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 export const MessageBubble = memo(
   function MessageBubble({ message, agentName }: MessageBubbleProps) {
     const isUser = message.role === "user";
+    const timestamp = formatTimestamp(message.timestamp);
 
     if (isUser) {
       return (
@@ -39,10 +51,7 @@ export const MessageBubble = memo(
             {message.content && (
               <div
                 className={cn(
-                  "prose prose-sm prose-invert max-w-none",
-                  "prose-p:my-1 prose-headings:mb-2 prose-headings:mt-4",
-                  "prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5",
-                  "prose-pre:my-0 prose-pre:bg-transparent prose-pre:p-0",
+                  messageProseClasses,
                   "text-sm leading-relaxed text-[color:var(--color-text-primary)]"
                 )}
               >
@@ -68,9 +77,9 @@ export const MessageBubble = memo(
           <span className="font-mono text-[11px] font-medium uppercase tracking-wider text-[color:var(--color-text-tertiary)]">
             {agentName ?? "Agent"}
           </span>
-          <span className="text-[11px] text-[color:var(--color-text-tertiary)]">
-            {formatTimestamp(message.timestamp)}
-          </span>
+          {timestamp ? (
+            <span className="text-[11px] text-[color:var(--color-text-tertiary)]">{timestamp}</span>
+          ) : null}
         </div>
 
         {message.thinking && (
@@ -80,10 +89,7 @@ export const MessageBubble = memo(
         {message.content && (
           <div
             className={cn(
-              "prose prose-sm prose-invert max-w-none",
-              "prose-p:my-1 prose-headings:mb-2 prose-headings:mt-4",
-              "prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5",
-              "prose-pre:my-0 prose-pre:bg-transparent prose-pre:p-0",
+              messageProseClasses,
               "text-sm leading-relaxed text-[color:var(--color-text-secondary)]"
             )}
           >

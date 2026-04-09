@@ -96,8 +96,12 @@ function KnowledgePage() {
     error: contentError,
   } = useMemory(selectedScope, effectiveSelectedFilename ?? "", activeWorkspaceId || undefined);
 
-  const handleDelete = (scope: string, filename: string) => {
-    deleteMutation.mutate({ scope, filename, workspace: activeWorkspaceId || undefined });
+  const handleDelete = (filename: string) => {
+    deleteMutation.mutate({
+      scope: selectedScope,
+      filename,
+      workspace: activeWorkspaceId || undefined,
+    });
   };
 
   // Loading state
@@ -176,6 +180,7 @@ function KnowledgePage() {
         <KnowledgeDetailPanel
           memory={selectedMemory}
           content={selectedContent}
+          scope={selectedScope}
           isLoading={isContentLoading && effectiveSelectedFilename !== null}
           error={contentError}
           onDelete={handleDelete}

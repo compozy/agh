@@ -46,8 +46,9 @@ describe("ToolCallCard", () => {
 
   it("shows tool name in executing state", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
-    expect(screen.getByTestId("tool-card-executing")).toBeInTheDocument();
-    expect(screen.getByTestId("tool-card-executing")).toHaveTextContent("Reading...");
+    const executing = screen.getByTestId("tool-card-executing");
+    expect(executing).toBeInTheDocument();
+    expect(executing).toHaveTextContent("Reading...");
   });
 
   it("renders RUNNING status badge with accent color for executing tool", () => {

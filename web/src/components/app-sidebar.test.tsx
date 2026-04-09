@@ -41,8 +41,16 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/components/ui/collapsible", () => ({
-  Collapsible: ({ children, className }: { children: ReactNode; className?: string }) => (
-    <div className={className} data-state="open">
+  Collapsible: ({
+    children,
+    className,
+    defaultOpen = true,
+  }: {
+    children: ReactNode;
+    className?: string;
+    defaultOpen?: boolean;
+  }) => (
+    <div className={className} data-state={defaultOpen ? "open" : "closed"}>
       {children}
     </div>
   ),
@@ -197,6 +205,18 @@ describe("AppSidebar", () => {
     it("shows bootstrap hint when no agents are loaded", () => {
       render(<AppSidebar {...makeProps()} />);
       expect(screen.getByText("Run `agh install` to bootstrap AGH")).toBeInTheDocument();
+    });
+
+    it("starts agents with zero sessions collapsed by default", () => {
+      render(
+        <AppSidebar
+          {...makeProps({
+            agents: [{ name: "writer", provider: "openai", prompt: "write" }],
+          })}
+        />
+      );
+
+      expect(screen.getByText("writer").closest('[data-state="closed"]')).toBeInTheDocument();
     });
 
     it("creates sessions in the selected workspace", () => {

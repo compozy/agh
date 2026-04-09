@@ -18,7 +18,6 @@ import (
 	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/skills"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -27,42 +26,8 @@ var errStubWorkspaceServiceNotImplemented = testutil.ErrStubWorkspaceServiceNotI
 type stubSessionManager = testutil.StubSessionManager
 type stubObserver = testutil.StubObserver
 type stubWorkspaceService = testutil.StubWorkspaceService
+type stubSkillsRegistry = testutil.StubSkillsRegistry
 type sseRecord = testutil.SSERecord
-
-type stubSkillsRegistry struct {
-	GetFn          func(name string) (*skills.Skill, bool)
-	ListFn         func() []*skills.Skill
-	ForWorkspaceFn func(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error)
-	SetEnabledFn   func(name string, enabled bool) error
-}
-
-func (s stubSkillsRegistry) Get(name string) (*skills.Skill, bool) {
-	if s.GetFn != nil {
-		return s.GetFn(name)
-	}
-	return nil, false
-}
-
-func (s stubSkillsRegistry) List() []*skills.Skill {
-	if s.ListFn != nil {
-		return s.ListFn()
-	}
-	return nil
-}
-
-func (s stubSkillsRegistry) ForWorkspace(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
-	if s.ForWorkspaceFn != nil {
-		return s.ForWorkspaceFn(ctx, resolved)
-	}
-	return nil, nil
-}
-
-func (s stubSkillsRegistry) SetEnabled(name string, enabled bool) error {
-	if s.SetEnabledFn != nil {
-		return s.SetEnabledFn(name, enabled)
-	}
-	return nil
-}
 
 func newTestHandlers(t *testing.T, manager core.SessionManager, observer core.Observer, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()

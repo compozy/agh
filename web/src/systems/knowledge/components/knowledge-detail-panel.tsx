@@ -1,8 +1,7 @@
 import { ExternalLink, Loader2, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-
-import type { MemoryHeader } from "../types";
+import type { MemoryHeader } from "@/systems/knowledge/types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -11,9 +10,10 @@ import type { MemoryHeader } from "../types";
 interface KnowledgeDetailPanelProps {
   memory: MemoryHeader | undefined;
   content: string | undefined;
+  scope: string;
   isLoading: boolean;
   error: Error | null;
-  onDelete: (scope: string, filename: string) => void;
+  onDelete: (filename: string) => void;
   isDeletePending: boolean;
 }
 
@@ -106,29 +106,18 @@ function MetadataTable({ rows }: { rows: MetadataRow[] }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function deriveScope(mem: MemoryHeader): string {
-  if (mem.filename.startsWith("workspace/") || mem.filename.startsWith("ws/")) {
-    return "workspace";
-  }
-  return "global";
-}
-
 function formatDateTime(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) {
     return dateStr;
   }
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +127,7 @@ function formatDateTime(dateStr: string): string {
 function KnowledgeDetailPanel({
   memory,
   content,
+  scope,
   isLoading,
   error,
   onDelete,
@@ -176,7 +166,6 @@ function KnowledgeDetailPanel({
     );
   }
 
-  const scope = deriveScope(memory);
   const metadataRows: MetadataRow[] = [
     { key: "Type", value: memory.type },
     { key: "Scope", value: scope },
@@ -222,7 +211,7 @@ function KnowledgeDetailPanel({
       <div className="mt-6 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => onDelete(scope, memory.filename)}
+          onClick={() => onDelete(memory.filename)}
           disabled={isDeletePending}
           className="inline-flex h-9 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-transparent px-5 text-sm font-medium text-[color:var(--color-danger)] transition-colors hover:bg-[color:var(--color-hover)] disabled:opacity-50"
           data-testid="delete-memory-btn"
