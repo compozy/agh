@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 title: Build Skills page
 type: frontend
 complexity: high
@@ -35,12 +35,12 @@ Build the Skills page with a three-panel layout matching the Paper design: sideb
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Replace empty skills route with three-panel layout and INSTALLED/MARKETPLACE tab pills
-- [ ] 6.2 Build skill list panel component with search, grouped sections, and selection state
-- [ ] 6.3 Build skill detail panel component with name, badges, description, content preview, and action buttons
-- [ ] 6.4 Build marketplace view with search, category filter chips, and marketplace row components
-- [ ] 6.5 Wire all components to skill system hooks and handle loading/error/empty states
-- [ ] 6.6 Write tests for page rendering, tab switching, skill selection, and filter interactions
+- [x] 6.1 Replace empty skills route with three-panel layout and INSTALLED/MARKETPLACE tab pills
+- [x] 6.2 Build skill list panel component with search, grouped sections, and selection state
+- [x] 6.3 Build skill detail panel component with name, badges, description, content preview, and action buttons
+- [x] 6.4 Build marketplace view with search, category filter chips, and marketplace row components
+- [x] 6.5 Wire all components to skill system hooks and handle loading/error/empty states
+- [x] 6.6 Write tests for page rendering, tab switching, skill selection, and filter interactions
 
 ## Implementation Details
 
@@ -69,20 +69,20 @@ Reference DESIGN.md sections: "Badges & Tags" for source/status badges, "Inputs 
 
 ## Tests
 - Unit tests:
-  - [ ] Skills page renders INSTALLED tab by default with skill list
-  - [ ] Clicking MARKETPLACE tab switches to marketplace view
-  - [ ] Skill list groups skills by source (BUNDLED, WORKSPACE, MARKETPLACE)
-  - [ ] Selecting a skill highlights it with accent left bar
-  - [ ] Selecting a skill shows detail panel with correct name and description
-  - [ ] Detail panel shows BUNDLED badge for bundled skills
-  - [ ] Detail panel Disable button calls `useDisableSkill` mutation
-  - [ ] Marketplace search input filters displayed skills
-  - [ ] Category filter chips toggle active state and filter results
-  - [ ] Marketplace row shows INSTALLED pill for already-installed skills
-  - [ ] Loading state shows spinner
-  - [ ] Empty state shows appropriate message
+  - [x] Skills page renders INSTALLED tab by default with skill list
+  - [x] Clicking MARKETPLACE tab switches to marketplace view
+  - [x] Skill list groups skills by source (BUNDLED, WORKSPACE, MARKETPLACE)
+  - [x] Selecting a skill highlights it with accent left bar
+  - [x] Selecting a skill shows detail panel with correct name and description
+  - [x] Detail panel shows BUNDLED badge for bundled skills
+  - [x] Detail panel Disable button calls `useDisableSkill` mutation
+  - [x] Marketplace search input filters displayed skills
+  - [x] Category filter chips toggle active state and filter results
+  - [x] Marketplace row shows INSTALLED pill for already-installed skills
+  - [x] Loading state shows spinner
+  - [x] Empty state shows appropriate message
 - Integration tests:
-  - [ ] Full page flow: load skills → select skill → view detail → toggle enable/disable
+  - [x] Full page flow: load skills → select skill → view detail → toggle enable/disable
 - Test coverage target: >=80%
 - All tests must pass
 
