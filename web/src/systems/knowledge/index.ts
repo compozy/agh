@@ -36,3 +36,7 @@ export { memoriesListOptions, memoryDetailOptions } from "./lib/query-options";
 // Hooks
 export { useMemories, useMemory } from "./hooks/use-knowledge";
 export { useConsolidateMemory, useDeleteMemory } from "./hooks/use-knowledge-actions";
+
+// Components
+export { KnowledgeListPanel } from "./components/knowledge-list-panel";
+export { KnowledgeDetailPanel } from "./components/knowledge-detail-panel";
