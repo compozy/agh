@@ -1,7 +1,6 @@
 package hooks
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -108,25 +107,6 @@ func (m HookMode) Validate() error {
 	}
 }
 
-// HookExecutorKind identifies the execution boundary for a hook.
-type HookExecutorKind string
-
-const (
-	HookExecutorNative     HookExecutorKind = "native"
-	HookExecutorSubprocess HookExecutorKind = "subprocess"
-	HookExecutorWASM       HookExecutorKind = "wasm"
-)
-
-// Validate ensures the executor kind is supported.
-func (k HookExecutorKind) Validate() error {
-	switch k {
-	case HookExecutorNative, HookExecutorSubprocess, HookExecutorWASM:
-		return nil
-	default:
-		return fmt.Errorf("hooks: invalid hook executor kind %q", k)
-	}
-}
-
 // HookRunOutcome classifies the result of one hook execution.
 type HookRunOutcome string
 
@@ -176,12 +156,6 @@ type HookDecl struct {
 	Env          map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	SkillSource  HookSkillSource   `json:"-" yaml:"-"`
-}
-
-// Executor is the execution seam for hook implementations.
-type Executor interface {
-	Kind() HookExecutorKind
-	Execute(ctx context.Context, hook RegisteredHook, payload []byte) ([]byte, error)
 }
 
 // RegisteredHook is the normalized hook ready for dispatch.
