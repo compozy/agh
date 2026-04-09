@@ -151,7 +151,7 @@ type EventRecorder = store.EventRecorder
 type Notifier interface {
 	OnSessionCreated(ctx context.Context, session *Session)
 	OnSessionStopped(ctx context.Context, session *Session)
-	OnAgentEvent(ctx context.Context, sessionID string, event acp.AgentEvent)
+	OnAgentEvent(ctx context.Context, sessionID string, event any)
 }
 
 // PromptAssembler assembles the prompt context for a new session start.

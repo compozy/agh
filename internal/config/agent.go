@@ -7,20 +7,34 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/BurntSushi/toml"
 	"github.com/goccy/go-yaml"
 	"github.com/pedronauck/agh/internal/frontmatter"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
 // AgentDef is the parsed representation of an AGENT.md file.
 type AgentDef struct {
-	Name        string      `yaml:"name"`
-	Provider    string      `yaml:"provider"`
-	Command     string      `yaml:"command,omitempty"`
-	Model       string      `yaml:"model,omitempty"`
-	Tools       []string    `yaml:"tools,omitempty"`
-	Permissions string      `yaml:"permissions,omitempty"`
-	MCPServers  []MCPServer `yaml:"mcp_servers,omitempty"`
-	Prompt      string      `yaml:"-"`
+	Name        string              `yaml:"name" toml:"name"`
+	Provider    string              `yaml:"provider" toml:"provider"`
+	Command     string              `yaml:"command,omitempty" toml:"command,omitempty"`
+	Model       string              `yaml:"model,omitempty" toml:"model,omitempty"`
+	Tools       []string            `yaml:"tools,omitempty" toml:"tools,omitempty"`
+	Permissions string              `yaml:"permissions,omitempty" toml:"permissions,omitempty"`
+	MCPServers  []MCPServer         `yaml:"mcp_servers,omitempty" toml:"mcp_servers,omitempty"`
+	Hooks       []hookspkg.HookDecl `yaml:"hooks,omitempty" toml:"hooks,omitempty"`
+	Prompt      string              `yaml:"-"`
+}
+
+type parsedAgentDef struct {
+	Name        string                  `yaml:"name" toml:"name"`
+	Provider    string                  `yaml:"provider" toml:"provider"`
+	Command     string                  `yaml:"command,omitempty" toml:"command,omitempty"`
+	Model       string                  `yaml:"model,omitempty" toml:"model,omitempty"`
+	Tools       []string                `yaml:"tools,omitempty" toml:"tools,omitempty"`
+	Permissions string                  `yaml:"permissions,omitempty" toml:"permissions,omitempty"`
+	MCPServers  []MCPServer             `yaml:"mcp_servers,omitempty" toml:"mcp_servers,omitempty"`
+	Hooks       []parsedHookDeclaration `yaml:"hooks,omitempty" toml:"hooks,omitempty"`
 }
 
 // WorkspaceDiscoverySource identifies where a discovery root came from.
@@ -178,18 +192,25 @@ func LoadWorkspaceAgentDefs(rootDir string, additionalDirs []string, homePaths H
 
 // ParseAgentDef parses a Markdown file with YAML frontmatter into an AgentDef.
 func ParseAgentDef(content []byte) (AgentDef, error) {
-	var agent AgentDef
+	var parsed parsedAgentDef
 
 	body, err := frontmatter.Decode(content, func(data []byte) error {
-		if err := yaml.UnmarshalWithOptions(data, &agent, yaml.Strict()); err != nil {
-			return fmt.Errorf("decode YAML frontmatter: %w", err)
-		}
-		return nil
+		return decodeAgentFrontmatter(data, &parsed)
 	})
 	if err != nil {
 		return AgentDef{}, wrapFrontmatterError(err)
 	}
 
+	agent := AgentDef{
+		Name:        strings.TrimSpace(parsed.Name),
+		Provider:    strings.TrimSpace(parsed.Provider),
+		Command:     strings.TrimSpace(parsed.Command),
+		Model:       strings.TrimSpace(parsed.Model),
+		Tools:       cloneStrings(parsed.Tools),
+		Permissions: strings.TrimSpace(parsed.Permissions),
+		MCPServers:  cloneMCPServers(parsed.MCPServers),
+		Prompt:      strings.TrimSpace(body),
+	}
 	agent.Name = strings.TrimSpace(agent.Name)
 	agent.Provider = strings.TrimSpace(agent.Provider)
 	agent.Command = strings.TrimSpace(agent.Command)
@@ -198,6 +219,16 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 	agent.Prompt = strings.TrimSpace(body)
 	if len(agent.Tools) == 0 {
 		agent.Tools = []string{"*"}
+	}
+	if len(parsed.Hooks) > 0 {
+		agent.Hooks = make([]hookspkg.HookDecl, 0, len(parsed.Hooks))
+		for idx, raw := range parsed.Hooks {
+			decl, err := raw.toHookDecl(hookspkg.HookSourceAgentDefinition, agent.Name)
+			if err != nil {
+				return AgentDef{}, fmt.Errorf("agent.hooks[%d]: %w", idx, err)
+			}
+			agent.Hooks = append(agent.Hooks, decl)
+		}
 	}
 
 	if err := agent.Validate(); err != nil {
@@ -227,6 +258,11 @@ func (a AgentDef) Validate() error {
 			return err
 		}
 	}
+	for i, hook := range a.Hooks {
+		if err := hookspkg.ValidateHookDecl(hook); err != nil {
+			return fmt.Errorf("agent.hooks[%d]: %w", i, err)
+		}
+	}
 
 	return nil
 }
@@ -245,6 +281,23 @@ func wrapFrontmatterError(err error) error {
 		}
 	default:
 		return err
+	}
+}
+
+func decodeAgentFrontmatter(data []byte, parsed *parsedAgentDef) error {
+	if err := yaml.UnmarshalWithOptions(data, parsed, yaml.Strict()); err == nil {
+		return nil
+	} else {
+		var parsedTOML parsedAgentDef
+		meta, tomlErr := toml.Decode(string(data), &parsedTOML)
+		if tomlErr != nil {
+			return fmt.Errorf("decode agent frontmatter: yaml: %w; toml: %v", err, tomlErr)
+		}
+		if undecoded := meta.Undecoded(); len(undecoded) > 0 {
+			return fmt.Errorf("decode agent frontmatter: unknown field %q", undecoded[0].String())
+		}
+		*parsed = parsedTOML
+		return nil
 	}
 }
 

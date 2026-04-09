@@ -1384,10 +1384,14 @@ func (n *fakeNotifier) OnSessionStopped(_ context.Context, session *Session) {
 	n.order = append(n.order, "stopped:"+session.ID)
 }
 
-func (n *fakeNotifier) OnAgentEvent(_ context.Context, sessionID string, event acp.AgentEvent) {
+func (n *fakeNotifier) OnAgentEvent(_ context.Context, sessionID string, event any) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.events[sessionID] = append(n.events[sessionID], event)
+	agentEvent, ok := event.(acp.AgentEvent)
+	if !ok {
+		return
+	}
+	n.events[sessionID] = append(n.events[sessionID], agentEvent)
 }
 
 func (n *fakeNotifier) createdCount() int {

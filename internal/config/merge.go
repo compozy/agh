@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
 type configOverlay struct {
@@ -22,6 +23,7 @@ type configOverlay struct {
 	Log           logOverlay                 `toml:"log"`
 	Memory        memoryOverlay              `toml:"memory"`
 	Skills        skillsOverlay              `toml:"skills"`
+	Hooks         hooksOverlay               `toml:"hooks"`
 }
 
 type daemonOverlay struct {
@@ -99,6 +101,10 @@ type marketplaceOverlay struct {
 	BaseURL  *string `toml:"base_url"`
 }
 
+type hooksOverlay struct {
+	Declarations []parsedHookDeclaration `toml:"declarations"`
+}
+
 type mcpServerOverlay struct {
 	Name    *string            `toml:"name"`
 	Command *string            `toml:"command"`
@@ -117,8 +123,7 @@ func ApplyConfigOverlayFile(path string, dst *Config) error {
 		return err
 	}
 
-	overlay.Apply(dst)
-	return nil
+	return overlay.Apply(dst)
 }
 
 func loadConfigOverlayFile(path string) (configOverlay, error) {
@@ -144,7 +149,7 @@ func loadConfigOverlayFile(path string) (configOverlay, error) {
 	return overlay, nil
 }
 
-func (o configOverlay) Apply(dst *Config) {
+func (o configOverlay) Apply(dst *Config) error {
 	o.Daemon.Apply(&dst.Daemon)
 	o.HTTP.Apply(&dst.HTTP)
 	o.Defaults.Apply(&dst.Defaults)
@@ -155,6 +160,7 @@ func (o configOverlay) Apply(dst *Config) {
 	o.Log.Apply(&dst.Log)
 	o.Memory.Apply(&dst.Memory)
 	o.Skills.Apply(&dst.Skills)
+	return o.Hooks.Apply(&dst.Hooks)
 }
 
 func (o daemonOverlay) Apply(dst *DaemonConfig) {
@@ -296,6 +302,41 @@ func (o marketplaceOverlay) Apply(dst *MarketplaceConfig) {
 	if o.BaseURL != nil {
 		dst.BaseURL = *o.BaseURL
 	}
+}
+
+func (o hooksOverlay) Apply(dst *HooksConfig) error {
+	if len(o.Declarations) == 0 {
+		return nil
+	}
+
+	merged := cloneHookDecls(dst.Declarations)
+	index := make(map[string]int, len(merged))
+	for i, decl := range merged {
+		if name := strings.TrimSpace(decl.Name); name != "" {
+			index[name] = i
+		}
+	}
+
+	for idx, raw := range o.Declarations {
+		decl, err := raw.toHookDecl(hookspkg.HookSourceConfig, "")
+		if err != nil {
+			return fmt.Errorf("hooks.declarations[%d]: %w", idx, err)
+		}
+
+		name := strings.TrimSpace(decl.Name)
+		if existingIdx, ok := index[name]; ok && name != "" {
+			merged[existingIdx] = decl
+			continue
+		}
+
+		merged = append(merged, decl)
+		if name != "" {
+			index[name] = len(merged) - 1
+		}
+	}
+
+	dst.Declarations = merged
+	return nil
 }
 
 func (o mcpServerOverlay) Apply(dst *MCPServer) {

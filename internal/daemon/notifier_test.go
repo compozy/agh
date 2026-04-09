@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
@@ -205,7 +204,7 @@ func (n notifierFunc) OnSessionStopped(ctx context.Context, sess *session.Sessio
 	}
 }
 
-func (n notifierFunc) OnAgentEvent(context.Context, string, acp.AgentEvent) {}
+func (n notifierFunc) OnAgentEvent(context.Context, string, any) {}
 
 type hookPhaseRecorder struct {
 	onCreated func(context.Context, *session.Session)

@@ -246,7 +246,13 @@ func (o *Observer) OnSessionStopped(ctx context.Context, sess *session.Session) 
 }
 
 // OnAgentEvent records one lightweight cross-session event summary and any derived aggregates.
-func (o *Observer) OnAgentEvent(ctx context.Context, sessionID string, event acp.AgentEvent) {
+func (o *Observer) OnAgentEvent(ctx context.Context, sessionID string, payload any) {
+	event, ok := normalizeObservedAgentEvent(payload)
+	if !ok {
+		o.logger.Warn("observe: skipped unsupported agent event payload", "session_id", strings.TrimSpace(sessionID))
+		return
+	}
+
 	id := strings.TrimSpace(sessionID)
 	if id == "" {
 		o.logger.Warn("observe: skipped agent event with empty session id", "event_type", event.Type)
@@ -321,6 +327,20 @@ func (o *Observer) OnAgentEvent(ctx context.Context, sessionID string, event acp
 		Timestamp:  timestamp,
 	}); err != nil {
 		o.logger.Warn("observe: write permission log failed", "session_id", id, "agent_name", snapshot.agentName, "workspace_id", snapshot.workspaceID, "error", err)
+	}
+}
+
+func normalizeObservedAgentEvent(payload any) (acp.AgentEvent, bool) {
+	switch event := payload.(type) {
+	case acp.AgentEvent:
+		return event, true
+	case *acp.AgentEvent:
+		if event == nil {
+			return acp.AgentEvent{}, false
+		}
+		return *event, true
+	default:
+		return acp.AgentEvent{}, false
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
@@ -65,7 +64,7 @@ func (f *notifierFanout) OnSessionStopped(ctx context.Context, sess *session.Ses
 	}
 }
 
-func (f *notifierFanout) OnAgentEvent(ctx context.Context, sessionID string, event acp.AgentEvent) {
+func (f *notifierFanout) OnAgentEvent(ctx context.Context, sessionID string, event any) {
 	for _, notifier := range f.notifiers {
 		if notifier == nil {
 			continue

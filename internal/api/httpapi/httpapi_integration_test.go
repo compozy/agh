@@ -534,7 +534,7 @@ func (f *integrationNotifierFanout) OnSessionStopped(ctx context.Context, sess *
 	}
 }
 
-func (f *integrationNotifierFanout) OnAgentEvent(ctx context.Context, sessionID string, event acp.AgentEvent) {
+func (f *integrationNotifierFanout) OnAgentEvent(ctx context.Context, sessionID string, event any) {
 	for _, notifier := range f.notifiers {
 		notifier.OnAgentEvent(ctx, sessionID, event)
 	}

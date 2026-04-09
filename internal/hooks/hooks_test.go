@@ -8,8 +8,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/pedronauck/agh/internal/acp"
 )
 
 func TestNewHooksCreatesEmptyStartedRegistry(t *testing.T) {
@@ -1182,7 +1180,7 @@ func TestNewHooksAppliesOptionsAndDefaultResolver(t *testing.T) {
 		t.Fatal("defaultExecutorResolver(native) error = nil, want non-nil")
 	}
 
-	hooks.OnAgentEvent(t.Context(), "session-id", acp.AgentEvent{Type: acp.EventTypeDone})
+	hooks.OnAgentEvent(t.Context(), "session-id", struct{ Type string }{Type: "done"})
 }
 
 func newTestHooks(t *testing.T, opts ...Option) *Hooks {

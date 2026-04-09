@@ -77,7 +77,9 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 	overlay.Providers[selectedProvider] = providerOverlay
 
 	finalCfg := DefaultWithHome(homePaths)
-	overlay.Apply(&finalCfg)
+	if err := overlay.Apply(&finalCfg); err != nil {
+		return Config{}, fmt.Errorf("apply bootstrap config overlay: %w", err)
+	}
 	if err := normalizeConfigPaths(&finalCfg); err != nil {
 		return Config{}, err
 	}

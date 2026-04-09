@@ -3,6 +3,7 @@ package workspace
 import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/filesnap"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
 func cloneSnapshots(snapshots map[string]filesnap.Snapshot) map[string]filesnap.Snapshot {
@@ -55,9 +56,15 @@ func cloneConfig(src aghconfig.Config) aghconfig.Config {
 		Log:           src.Log,
 		Memory:        src.Memory,
 		Skills: aghconfig.SkillsConfig{
-			Enabled:        src.Skills.Enabled,
-			DisabledSkills: append([]string(nil), src.Skills.DisabledSkills...),
-			PollInterval:   src.Skills.PollInterval,
+			Enabled:                 src.Skills.Enabled,
+			DisabledSkills:          append([]string(nil), src.Skills.DisabledSkills...),
+			PollInterval:            src.Skills.PollInterval,
+			AllowedMarketplaceMCP:   append([]string(nil), src.Skills.AllowedMarketplaceMCP...),
+			AllowedMarketplaceHooks: append([]string(nil), src.Skills.AllowedMarketplaceHooks...),
+			Marketplace:             src.Skills.Marketplace,
+		},
+		Hooks: aghconfig.HooksConfig{
+			Declarations: cloneHookDecls(src.Hooks.Declarations),
 		},
 	}
 }
@@ -98,6 +105,7 @@ func cloneAgentDefs(src []aghconfig.AgentDef) []aghconfig.AgentDef {
 			Tools:       append([]string(nil), agent.Tools...),
 			Permissions: agent.Permissions,
 			MCPServers:  cloneMCPServers(agent.MCPServers),
+			Hooks:       cloneHookDecls(agent.Hooks),
 			Prompt:      agent.Prompt,
 		})
 	}
@@ -139,6 +147,31 @@ func cloneStringMap(src map[string]string) map[string]string {
 	cloned := make(map[string]string, len(src))
 	for key, value := range src {
 		cloned[key] = value
+	}
+	return cloned
+}
+
+func cloneHookDecls(src []hookspkg.HookDecl) []hookspkg.HookDecl {
+	if len(src) == 0 {
+		return nil
+	}
+
+	cloned := make([]hookspkg.HookDecl, 0, len(src))
+	for _, decl := range src {
+		cloned = append(cloned, cloneHookDecl(decl))
+	}
+
+	return cloned
+}
+
+func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
+	cloned := src
+	cloned.Args = append([]string(nil), src.Args...)
+	cloned.Env = cloneStringMap(src.Env)
+	cloned.Metadata = cloneStringMap(src.Metadata)
+	if src.Matcher.ToolReadOnly != nil {
+		value := *src.Matcher.ToolReadOnly
+		cloned.Matcher.ToolReadOnly = &value
 	}
 	return cloned
 }

@@ -1812,7 +1812,7 @@ func (f *fakeObserver) OnSessionCreated(context.Context, *session.Session) {}
 
 func (f *fakeObserver) OnSessionStopped(context.Context, *session.Session) {}
 
-func (f *fakeObserver) OnAgentEvent(context.Context, string, acp.AgentEvent) {}
+func (f *fakeObserver) OnAgentEvent(context.Context, string, any) {}
 
 type fakeServer struct {
 	name       string
@@ -1926,7 +1926,7 @@ func (n *recordingNotifier) OnSessionStopped(context.Context, *session.Session) 
 	n.events = append(n.events, "stopped")
 }
 
-func (n *recordingNotifier) OnAgentEvent(context.Context, string, acp.AgentEvent) {
+func (n *recordingNotifier) OnAgentEvent(context.Context, string, any) {
 	n.events = append(n.events, "agent")
 }
 
