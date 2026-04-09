@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/testutil"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestHooksNotifierDispatchesLifecycleAndAgentEvents(t *testing.T) {
@@ -64,8 +67,12 @@ func TestHooksNotifierDispatchesLifecycleAndAgentEvents(t *testing.T) {
 		UpdatedAt:   fixedNow,
 	}
 
-	notifier.OnSessionCreated(testutil.Context(t), sess)
-	notifier.OnSessionStopped(testutil.Context(t), sess)
+	if _, err := notifier.DispatchSessionPostCreate(testutil.Context(t), hookspkg.SessionPostCreatePayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, fixedNow))); err != nil {
+		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
+	}
+	if _, err := notifier.DispatchSessionPostStop(testutil.Context(t), hookspkg.SessionPostStopPayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostStop, fixedNow))); err != nil {
+		t.Fatalf("DispatchSessionPostStop() error = %v", err)
+	}
 	notifier.OnAgentEvent(testutil.Context(t), "sess-created", struct{ Type string }{Type: "done"})
 
 	wantOrder := []string{"rebuild", "create", "rebuild", "stop", "hook-agent"}
@@ -152,6 +159,175 @@ func TestMarketplaceHookAllowedHonorsConsentKeys(t *testing.T) {
 	}
 }
 
+func TestHooksBridgeHelperCloningAndTimestamp(t *testing.T) {
+	t.Parallel()
+
+	notifier := newHooksNotifier(discardLogger(), nil)
+	before := time.Now().UTC().Add(-time.Second)
+	got := notifier.timestamp()
+	after := time.Now().UTC().Add(time.Second)
+	if got.Before(before) || got.After(after) {
+		t.Fatalf("timestamp() = %s, want current time between %s and %s", got, before, after)
+	}
+
+	readOnly := true
+	original := hookspkg.HookDecl{
+		Name:     "config-hook",
+		Source:   hookspkg.HookSourceConfig,
+		Args:     []string{"one"},
+		Env:      map[string]string{"KEY": "value"},
+		Metadata: map[string]string{"note": "keep"},
+		Matcher: hookspkg.HookMatcher{
+			ToolReadOnly: &readOnly,
+		},
+	}
+
+	filtered := filterHookDeclsBySource([]hookspkg.HookDecl{original}, hookspkg.HookSourceConfig)
+	if len(filtered) != 1 {
+		t.Fatalf("len(filtered) = %d, want 1", len(filtered))
+	}
+	filtered[0].Args[0] = "changed"
+	filtered[0].Env["KEY"] = "changed"
+	filtered[0].Metadata["note"] = "changed"
+	*filtered[0].Matcher.ToolReadOnly = false
+
+	if original.Args[0] != "one" {
+		t.Fatalf("original.Args = %#v, want unchanged", original.Args)
+	}
+	if original.Env["KEY"] != "value" {
+		t.Fatalf("original.Env = %#v, want unchanged", original.Env)
+	}
+	if original.Metadata["note"] != "keep" {
+		t.Fatalf("original.Metadata = %#v, want unchanged", original.Metadata)
+	}
+	if !*original.Matcher.ToolReadOnly {
+		t.Fatal("original matcher ToolReadOnly was mutated")
+	}
+
+	resolved := workspaceResolvedForTest("ws-1", "/tmp/ws-1")
+	scoped := scopeWorkspaceHookDecls([]hookspkg.HookDecl{original}, resolved)
+	if len(scoped) != 1 {
+		t.Fatalf("len(scoped) = %d, want 1", len(scoped))
+	}
+	if scoped[0].Matcher.WorkspaceID != resolved.ID {
+		t.Fatalf("scoped WorkspaceID = %q, want %q", scoped[0].Matcher.WorkspaceID, resolved.ID)
+	}
+	if scoped[0].Matcher.WorkspaceRoot != resolved.RootDir {
+		t.Fatalf("scoped WorkspaceRoot = %q, want %q", scoped[0].Matcher.WorkspaceRoot, resolved.RootDir)
+	}
+	if original.Matcher.WorkspaceID != "" || original.Matcher.WorkspaceRoot != "" {
+		t.Fatalf("original matcher workspace fields were mutated: %#v", original.Matcher)
+	}
+
+	if got := cloneStringMap(nil); got != nil {
+		t.Fatalf("cloneStringMap(nil) = %#v, want nil", got)
+	}
+}
+
+func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
+	t.Parallel()
+
+	notifier := newHooksNotifier(discardLogger(), func() time.Time { return time.Date(2026, 4, 9, 16, 0, 0, 0, time.UTC) })
+	payload, err := dispatchRuntime(notifier, nil, hookspkg.HookSessionPostCreate, "seed", false, func(_ hookRuntime, _ context.Context, item string) (string, error) {
+		return item + "-unused", nil
+	})
+	if err != nil {
+		t.Fatalf("dispatchRuntime(nil runtime) error = %v, want nil", err)
+	}
+	if payload != "seed" {
+		t.Fatalf("dispatchRuntime(nil runtime) payload = %q, want %q", payload, "seed")
+	}
+
+	var rebuildCalls int
+	runtime := &fakeHookRuntime{
+		onRebuild: func(context.Context) error {
+			rebuildCalls++
+			return errors.New("rebuild failed")
+		},
+	}
+	notifier.setRuntime(runtime, nil)
+
+	result, err := dispatchRuntime(notifier, context.Background(), hookspkg.HookEventPreRecord, "seed", false, func(_ hookRuntime, _ context.Context, item string) (string, error) {
+		return item + "-ok", nil
+	})
+	if err != nil {
+		t.Fatalf("dispatchRuntime(rebuild false) error = %v, want nil", err)
+	}
+	if result != "seed-ok" {
+		t.Fatalf("dispatchRuntime(rebuild false) result = %q, want %q", result, "seed-ok")
+	}
+	if rebuildCalls != 0 {
+		t.Fatalf("rebuildCalls = %d, want 0 when rebuild=false", rebuildCalls)
+	}
+
+	result, err = dispatchRuntime(notifier, context.Background(), hookspkg.HookSessionPostCreate, "seed", true, func(_ hookRuntime, _ context.Context, item string) (string, error) {
+		return item + "-after-rebuild", nil
+	})
+	if err != nil {
+		t.Fatalf("dispatchRuntime(rebuild true) error = %v, want nil", err)
+	}
+	if result != "seed-after-rebuild" {
+		t.Fatalf("dispatchRuntime(rebuild true) result = %q, want %q", result, "seed-after-rebuild")
+	}
+	if rebuildCalls != 1 {
+		t.Fatalf("rebuildCalls = %d, want 1", rebuildCalls)
+	}
+
+	subprocessExecutor, err := defaultDaemonExecutorResolver(hookspkg.HookDecl{
+		Name:         "subprocess",
+		ExecutorKind: hookspkg.HookExecutorSubprocess,
+		Command:      "/bin/sh",
+	})
+	if err != nil {
+		t.Fatalf("defaultDaemonExecutorResolver(subprocess) error = %v, want nil", err)
+	}
+	if subprocessExecutor.Kind() != hookspkg.HookExecutorSubprocess {
+		t.Fatalf("subprocess executor kind = %q, want %q", subprocessExecutor.Kind(), hookspkg.HookExecutorSubprocess)
+	}
+
+	wasmExecutor, err := defaultDaemonExecutorResolver(hookspkg.HookDecl{
+		Name:         "wasm",
+		ExecutorKind: hookspkg.HookExecutorWASM,
+	})
+	if err != nil {
+		t.Fatalf("defaultDaemonExecutorResolver(wasm) error = %v, want nil", err)
+	}
+	if wasmExecutor.Kind() != hookspkg.HookExecutorWASM {
+		t.Fatalf("wasm executor kind = %q, want %q", wasmExecutor.Kind(), hookspkg.HookExecutorWASM)
+	}
+
+	if _, err := defaultDaemonExecutorResolver(hookspkg.HookDecl{
+		Name:         "native",
+		ExecutorKind: hookspkg.HookExecutorNative,
+	}); err == nil || !strings.Contains(err.Error(), "requires an explicit binding") {
+		t.Fatalf("defaultDaemonExecutorResolver(native) error = %v, want explicit binding error", err)
+	}
+
+	if _, err := defaultDaemonExecutorResolver(hookspkg.HookDecl{
+		Name:         "unknown",
+		ExecutorKind: hookspkg.HookExecutorKind("mystery"),
+	}); err == nil || !strings.Contains(err.Error(), "unsupported executor kind") {
+		t.Fatalf("defaultDaemonExecutorResolver(unknown) error = %v, want unsupported kind error", err)
+	}
+
+	resolver := daemonExecutorResolver(map[string]hookspkg.Executor{
+		"bound": hookspkg.NewTypedNativeExecutor(func(context.Context, hookspkg.RegisteredHook, hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePatch, error) {
+			return hookspkg.SessionPostCreatePatch{}, nil
+		}),
+	})
+	nativeExecutor, err := resolver(hookspkg.HookDecl{Name: "bound", ExecutorKind: hookspkg.HookExecutorNative})
+	if err != nil {
+		t.Fatalf("daemonExecutorResolver(bound native) error = %v, want nil", err)
+	}
+	if nativeExecutor.Kind() != hookspkg.HookExecutorNative {
+		t.Fatalf("native executor kind = %q, want %q", nativeExecutor.Kind(), hookspkg.HookExecutorNative)
+	}
+
+	if _, err := resolver(hookspkg.HookDecl{Name: "missing", ExecutorKind: hookspkg.HookExecutorNative}); err == nil || !strings.Contains(err.Error(), "missing native hook executor") {
+		t.Fatalf("daemonExecutorResolver(missing native) error = %v, want missing native executor error", err)
+	}
+}
+
 type spyLifecycleObserver struct {
 	created []*session.Session
 	stopped []*session.Session
@@ -181,6 +357,15 @@ func marketplaceSkillForTest(registry string, slug string, hash string) *skills.
 			Registry: registry,
 			Slug:     slug,
 			Hash:     hash,
+		},
+	}
+}
+
+func workspaceResolvedForTest(id string, root string) workspacepkg.ResolvedWorkspace {
+	return workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      id,
+			RootDir: root,
 		},
 	}
 }

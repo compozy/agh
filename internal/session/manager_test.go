@@ -16,6 +16,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
@@ -246,7 +247,7 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	if err := h.manager.activateAndWatch(testutil.Context(t), session, proc); err != nil {
+	if err := h.manager.activateAndWatch(testutil.Context(t), session, proc, aghconfig.ResolvedAgent{Name: "coder"}, hookspkg.HookSessionPostCreate); err != nil {
 		t.Fatalf("activateAndWatch() error = %v", err)
 	}
 
@@ -337,7 +338,7 @@ func TestActivateAndWatchRollsBackOnMetaWriteFailure(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	if err := h.manager.activateAndWatch(testutil.Context(t), session, proc); err == nil {
+	if err := h.manager.activateAndWatch(testutil.Context(t), session, proc, aghconfig.ResolvedAgent{Name: "coder"}, hookspkg.HookSessionPostCreate); err == nil {
 		t.Fatal("activateAndWatch() error = nil, want non-nil")
 	}
 	if _, ok := h.manager.Get(session.ID); ok {

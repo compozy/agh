@@ -32,6 +32,11 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 		turnID = newID("turn")
 	}
 
+	message, err = m.dispatchInputPreSubmit(ctx, session, turnID, message)
+	if err != nil {
+		return nil, err
+	}
+
 	proc, err := session.beginPromptSetup()
 	if err != nil {
 		return nil, err
@@ -161,6 +166,8 @@ func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.A
 		return err
 	}
 
+	m.dispatchEventPreRecord(ctx, session, event, payload)
+
 	if err := recorder.Record(ctx, store.SessionEvent{
 		TurnID:    event.TurnID,
 		Type:      event.Type,
@@ -189,6 +196,8 @@ func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.A
 			return err
 		}
 	}
+
+	m.dispatchEventPostRecord(ctx, session, event, payload)
 
 	return nil
 }

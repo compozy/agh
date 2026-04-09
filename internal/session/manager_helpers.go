@@ -11,25 +11,26 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
-func (m *Manager) startupPrompt(ctx context.Context, agentName string, agent aghconfig.AgentDef, workspace workspacepkg.ResolvedWorkspace) (string, error) {
+func (m *Manager) startupPrompt(ctx context.Context, sessionCtx hookspkg.SessionContext, agent aghconfig.AgentDef, workspace workspacepkg.ResolvedWorkspace) (string, error) {
 	prompt := strings.TrimSpace(agent.Prompt)
 	if m.assembler == nil {
-		return prompt, nil
+		return m.dispatchPromptPostAssemble(ctx, sessionCtx, prompt)
 	}
 
 	assembledPrompt, err := m.assembler.Assemble(ctx, agent, workspace)
 	if err != nil {
-		return "", fmt.Errorf("session: assemble prompt for %q: %w", agentName, err)
+		return "", fmt.Errorf("session: assemble prompt for %q: %w", agent.Name, err)
 	}
 	if strings.TrimSpace(assembledPrompt) == "" {
-		return prompt, nil
+		assembledPrompt = prompt
 	}
 
-	return strings.TrimSpace(assembledPrompt), nil
+	return m.dispatchPromptPostAssemble(ctx, sessionCtx, strings.TrimSpace(assembledPrompt))
 }
 
 func (m *Manager) startPermissions(sessionType SessionType, configured string) aghconfig.PermissionMode {
@@ -64,7 +65,7 @@ func (m *Manager) writeMeta(session *Session) error {
 	return nil
 }
 
-func (m *Manager) activateAndWatch(ctx context.Context, session *Session, proc *AgentProcess) error {
+func (m *Manager) activateAndWatch(ctx context.Context, session *Session, proc *AgentProcess, resolved aghconfig.ResolvedAgent, postEvent hookspkg.HookEvent) error {
 	now := m.now()
 	if err := session.activate(now); err != nil {
 		return err
@@ -78,6 +79,13 @@ func (m *Manager) activateAndWatch(ctx context.Context, session *Session, proc *
 		return errors.Join(err, rollbackErr)
 	}
 
+	m.dispatchAgentSpawned(ctx, session, proc, resolved)
+	switch postEvent {
+	case hookspkg.HookSessionPostCreate:
+		m.dispatchSessionPostCreate(ctx, session)
+	case hookspkg.HookSessionPostResume:
+		m.dispatchSessionPostResume(ctx, session)
+	}
 	if m.notifier != nil {
 		m.notifier.OnSessionCreated(ctx, session)
 	}

@@ -2,15 +2,17 @@ package hooks
 
 import (
 	"context"
+	"fmt"
 )
 
 type matcherFunc[P any] func(HookMatcher, P) bool
 
 type dispatchConfig[P any, R any] struct {
-	match  matcherFunc[P]
-	apply  func(P, R) P
-	denied denyDetector[R]
-	guard  patchGuard[P, R]
+	match   matcherFunc[P]
+	apply   func(P, R) P
+	denied  denyDetector[R]
+	denyErr func(P) error
+	guard   patchGuard[P, R]
 }
 
 // DispatchSessionPreCreate runs the session.pre_create hook pipeline.
@@ -24,6 +26,9 @@ func (h *Hooks) DispatchSessionPreCreate(ctx context.Context, payload SessionPre
 			match:  matchSessionPreCreate,
 			apply:  applySessionCreatePatch,
 			denied: sessionCreatePatchDenied,
+			denyErr: func(SessionPreCreatePayload) error {
+				return fmt.Errorf("hooks: event %q denied", HookSessionPreCreate)
+			},
 		},
 	)
 }
@@ -54,6 +59,9 @@ func (h *Hooks) DispatchSessionPreResume(ctx context.Context, payload SessionPre
 			match:  matchSessionLifecycle,
 			apply:  applySessionLifecyclePatch,
 			denied: sessionCreatePatchDenied,
+			denyErr: func(SessionPreResumePayload) error {
+				return fmt.Errorf("hooks: event %q denied", HookSessionPreResume)
+			},
 		},
 	)
 }
@@ -84,6 +92,9 @@ func (h *Hooks) DispatchSessionPreStop(ctx context.Context, payload SessionPreSt
 			match:  matchSessionLifecycle,
 			apply:  applySessionLifecyclePatch,
 			denied: sessionCreatePatchDenied,
+			denyErr: func(SessionPreStopPayload) error {
+				return fmt.Errorf("hooks: event %q denied", HookSessionPreStop)
+			},
 		},
 	)
 }
@@ -114,6 +125,9 @@ func (h *Hooks) DispatchInputPreSubmit(ctx context.Context, payload InputPreSubm
 			match:  matchInputPreSubmit,
 			apply:  applyInputPreSubmitPatch,
 			denied: inputPreSubmitPatchDenied,
+			denyErr: func(InputPreSubmitPayload) error {
+				return fmt.Errorf("hooks: event %q denied", HookInputPreSubmit)
+			},
 		},
 	)
 }
@@ -129,6 +143,9 @@ func (h *Hooks) DispatchPromptPostAssemble(ctx context.Context, payload PromptPa
 			match:  matchPrompt,
 			apply:  applyPromptPatch,
 			denied: promptPatchDenied,
+			denyErr: func(PromptPayload) error {
+				return fmt.Errorf("hooks: event %q denied", HookPromptPostAssemble)
+			},
 		},
 	)
 }
@@ -172,6 +189,9 @@ func (h *Hooks) DispatchAgentPreStart(ctx context.Context, payload AgentPreStart
 			match:  matchAgentPreStart,
 			apply:  applyAgentStartPatch,
 			denied: agentStartPatchDenied,
+			denyErr: func(AgentPreStartPayload) error {
+				return fmt.Errorf("hooks: event %q denied", HookAgentPreStart)
+			},
 		},
 	)
 }
@@ -445,7 +465,11 @@ func executeDispatch[P any, R any](
 		guard:  cfg.guard,
 	}
 	if len(syncHooks) > 0 {
-		result, dispatchErr = pipe.execute(ctx, payload)
+		var denied bool
+		result, denied, dispatchErr = pipe.executeWithDisposition(ctx, payload)
+		if dispatchErr == nil && denied && cfg.denyErr != nil {
+			dispatchErr = cfg.denyErr(result)
+		}
 	}
 
 	if len(asyncHooks) > 0 {

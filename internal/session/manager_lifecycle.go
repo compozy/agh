@@ -10,6 +10,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -18,6 +19,11 @@ import (
 func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err error) {
 	if ctx == nil {
 		return nil, errors.New("session: create context is required")
+	}
+
+	opts, err = m.dispatchSessionPreCreate(ctx, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	resolvedWorkspace, err := m.resolveCreateWorkspace(ctx, opts)
@@ -34,7 +40,21 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve workspace agent %q: %w", agentName, err)
 	}
-	startupPrompt, err := m.startupPrompt(ctx, agentName, agentDef, resolvedWorkspace)
+
+	sessionID := strings.TrimSpace(m.newSessionID())
+	if sessionID == "" {
+		return nil, errors.New("session: session id generator returned empty id")
+	}
+
+	startupPrompt, err := m.startupPrompt(ctx, hookspkg.SessionContext{
+		SessionID:   sessionID,
+		SessionName: strings.TrimSpace(opts.Name),
+		SessionType: string(normalizeSessionType(opts.Type)),
+		AgentName:   strings.TrimSpace(agentName),
+		WorkspaceID: strings.TrimSpace(resolvedWorkspace.ID),
+		Workspace:   strings.TrimSpace(resolvedWorkspace.RootDir),
+		State:       string(StateStarting),
+	}, agentDef, resolvedWorkspace)
 	if err != nil {
 		return nil, err
 	}
@@ -48,11 +68,6 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 	startMCPServers, err := m.resolveStartMCPServers(ctx, resolvedWorkspace, resolved.MCPServers)
 	if err != nil {
 		return nil, err
-	}
-
-	sessionID := strings.TrimSpace(m.newSessionID())
-	if sessionID == "" {
-		return nil, errors.New("session: session id generator returned empty id")
 	}
 
 	if err := m.reserve(sessionID, m.effectiveMaxSessions(resolvedWorkspace.Config)); err != nil {
@@ -100,11 +115,7 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 		recorder:    recorder,
 	}
 
-	if err := m.writeMeta(session); err != nil {
-		return nil, err
-	}
-
-	proc, err = m.driver.Start(ctx, acp.StartOpts{
+	startOpts := acp.StartOpts{
 		AgentName:      resolved.Name,
 		Command:        resolved.Command,
 		Cwd:            resolvedWorkspace.RootDir,
@@ -112,12 +123,22 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 		MCPServers:     startMCPServers,
 		Permissions:    m.startPermissions(session.Type, resolved.Permissions),
 		SystemPrompt:   resolved.Prompt,
-	})
+	}
+	startOpts, err = m.dispatchAgentPreStart(ctx, session, resolved, startOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := m.writeMeta(session); err != nil {
+		return nil, err
+	}
+
+	proc, err = m.driver.Start(ctx, startOpts)
 	if err != nil {
 		return nil, fmt.Errorf("session: start agent for %q: %w", sessionID, err)
 	}
 
-	if err := m.activateAndWatch(ctx, session, proc); err != nil {
+	if err := m.activateAndWatch(ctx, session, proc, resolved, hookspkg.HookSessionPostCreate); err != nil {
 		return nil, err
 	}
 
@@ -132,6 +153,9 @@ func (m *Manager) Stop(ctx context.Context, id string) error {
 
 	session, err := m.lookup(id)
 	if err != nil {
+		return err
+	}
+	if err := m.dispatchSessionPreStop(ctx, session); err != nil {
 		return err
 	}
 
@@ -187,6 +211,10 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	if err != nil {
 		return nil, fmt.Errorf("session: read session meta %q: %w", metaPath, err)
 	}
+	meta, err = m.dispatchSessionPreResume(ctx, meta)
+	if err != nil {
+		return nil, err
+	}
 
 	resolvedWorkspace, err := m.resolveResumeWorkspace(ctx, meta)
 	if err != nil {
@@ -197,7 +225,18 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve workspace agent %q: %w", meta.AgentName, err)
 	}
-	startupPrompt, err := m.startupPrompt(ctx, meta.AgentName, agentDef, resolvedWorkspace)
+	startupPrompt, err := m.startupPrompt(ctx, hookspkg.SessionContext{
+		SessionID:    strings.TrimSpace(meta.ID),
+		SessionName:  strings.TrimSpace(meta.Name),
+		SessionType:  string(normalizeSessionType(SessionType(meta.SessionType))),
+		AgentName:    strings.TrimSpace(meta.AgentName),
+		WorkspaceID:  strings.TrimSpace(resolvedWorkspace.ID),
+		Workspace:    strings.TrimSpace(resolvedWorkspace.RootDir),
+		ACPSessionID: strings.TrimSpace(derefString(meta.ACPSessionID)),
+		State:        string(StateStarting),
+		CreatedAt:    meta.CreatedAt,
+		UpdatedAt:    m.now(),
+	}, agentDef, resolvedWorkspace)
 	if err != nil {
 		return nil, err
 	}
@@ -257,11 +296,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		recorder:     recorder,
 	}
 
-	if err := m.writeMeta(session); err != nil {
-		return nil, err
-	}
-
-	proc, err = m.driver.Start(ctx, acp.StartOpts{
+	startOpts := acp.StartOpts{
 		AgentName:       resolved.Name,
 		Command:         resolved.Command,
 		Cwd:             resolvedWorkspace.RootDir,
@@ -270,12 +305,22 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		Permissions:     m.startPermissions(session.Type, resolved.Permissions),
 		SystemPrompt:    resolved.Prompt,
 		ResumeSessionID: derefString(meta.ACPSessionID),
-	})
+	}
+	startOpts, err = m.dispatchAgentPreStart(ctx, session, resolved, startOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := m.writeMeta(session); err != nil {
+		return nil, err
+	}
+
+	proc, err = m.driver.Start(ctx, startOpts)
 	if err != nil {
 		return nil, fmt.Errorf("session: resume agent for %q: %w", meta.ID, err)
 	}
 
-	if err := m.activateAndWatch(ctx, session, proc); err != nil {
+	if err := m.activateAndWatch(ctx, session, proc, resolved, hookspkg.HookSessionPostResume); err != nil {
 		return nil, err
 	}
 
@@ -336,6 +381,8 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	}
 
 	if waitErr != nil {
+		m.dispatchAgentCrashed(ctx, session, session.processHandle(), waitErr)
+
 		stderr := ""
 		if proc := session.processHandle(); proc != nil {
 			stderr = proc.Stderr()
@@ -375,6 +422,8 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 		m.notifier.OnAgentEvent(ctx, session.ID, normalizedStop)
 	}
 
+	m.dispatchAgentStopped(ctx, session, session.processHandle(), waitErr)
+
 	if recorder := session.recorderHandle(); recorder != nil {
 		func() {
 			closeCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
@@ -394,6 +443,7 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	}
 
 	m.remove(session.ID)
+	m.dispatchSessionPostStop(ctx, session)
 	if m.notifier != nil {
 		m.notifier.OnSessionStopped(ctx, session)
 	}

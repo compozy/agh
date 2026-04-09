@@ -3,9 +3,13 @@
 package session
 
 import (
+	"context"
+	"errors"
+	"sync"
 	"testing"
 
 	"github.com/pedronauck/agh/internal/acp"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -114,5 +118,139 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 	}
 	if len(events) == 0 {
 		t.Fatal("Query(reopen) returned 0 events, want persisted rows")
+	}
+}
+
+func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {
+	var (
+		mu    sync.Mutex
+		order []string
+	)
+	record := func(entry string) {
+		mu.Lock()
+		defer mu.Unlock()
+		order = append(order, entry)
+	}
+
+	dispatcher := &spyHookDispatcher{
+		dispatchSessionPreCreateFn: func(_ context.Context, payload hookspkg.SessionPreCreatePayload) (hookspkg.SessionPreCreatePayload, error) {
+			record("session.pre_create")
+			return payload, nil
+		},
+		dispatchPromptPostAssembleFn: func(_ context.Context, payload hookspkg.PromptPayload) (hookspkg.PromptPayload, error) {
+			record("prompt.post_assemble")
+			return payload, nil
+		},
+		dispatchAgentPreStartFn: func(_ context.Context, payload hookspkg.AgentPreStartPayload) (hookspkg.AgentPreStartPayload, error) {
+			record("agent.pre_start")
+			return payload, nil
+		},
+		dispatchAgentSpawnedFn: func(_ context.Context, payload hookspkg.AgentSpawnedPayload) (hookspkg.AgentSpawnedPayload, error) {
+			record("agent.spawned")
+			return payload, nil
+		},
+		dispatchSessionPostCreateFn: func(_ context.Context, payload hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePayload, error) {
+			record("session.post_create")
+			return payload, nil
+		},
+		dispatchInputPreSubmitFn: func(_ context.Context, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
+			record("input.pre_submit")
+			return payload, nil
+		},
+		dispatchEventPreRecordFn: func(_ context.Context, payload hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error) {
+			record("event.pre_record:" + payload.RecordType)
+			return payload, nil
+		},
+		dispatchEventPostRecordFn: func(_ context.Context, payload hookspkg.EventPostRecordPayload) (hookspkg.EventPostRecordPayload, error) {
+			record("event.post_record:" + payload.RecordType)
+			return payload, nil
+		},
+		dispatchSessionPreStopFn: func(_ context.Context, payload hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error) {
+			record("session.pre_stop")
+			return payload, nil
+		},
+		dispatchAgentStoppedFn: func(_ context.Context, payload hookspkg.AgentStoppedPayload) (hookspkg.AgentStoppedPayload, error) {
+			record("agent.stopped")
+			return payload, nil
+		},
+		dispatchSessionPostStopFn: func(_ context.Context, payload hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error) {
+			record("session.post_stop")
+			return payload, nil
+		},
+	}
+
+	h := newHarness(t, WithHookDispatcher(dispatcher))
+
+	session := createSession(t, h)
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	_ = collectEvents(t, eventsCh)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	want := []string{
+		"session.pre_create",
+		"prompt.post_assemble",
+		"agent.pre_start",
+		"agent.spawned",
+		"session.post_create",
+		"input.pre_submit",
+		"event.pre_record:user_message",
+		"event.post_record:user_message",
+		"event.pre_record:agent_message",
+		"event.post_record:agent_message",
+		"event.pre_record:done",
+		"event.post_record:done",
+		"session.pre_stop",
+		"event.pre_record:session_stopped",
+		"event.post_record:session_stopped",
+		"agent.stopped",
+		"session.post_stop",
+	}
+
+	mu.Lock()
+	got := append([]string(nil), order...)
+	mu.Unlock()
+	if !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("hook order = %#v, want %#v", got, want)
+	}
+}
+
+func TestManagerIntegrationPreStopRequiredHookErrorPreventsCleanStop(t *testing.T) {
+	hooks := newNativeHookDispatcher(t,
+		[]hookspkg.HookDecl{{
+			Name:         "required-pre-stop",
+			Event:        hookspkg.HookSessionPreStop,
+			Mode:         hookspkg.HookModeSync,
+			Required:     true,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		}},
+		map[string]hookspkg.Executor{
+			"required-pre-stop": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPatch, error) {
+				return hookspkg.SessionPreStopPatch{}, errors.New("required hook failed")
+			}),
+		},
+	)
+
+	h := newHarness(t, WithHookDispatcher(hooks))
+	session := createSession(t, h)
+
+	err := h.manager.Stop(testutil.Context(t), session.ID)
+	if err == nil {
+		t.Fatal("Stop() error = nil, want required pre-stop hook failure")
+	}
+	if got := session.Info().State; got != StateActive {
+		t.Fatalf("session state after failed Stop() = %q, want %q", got, StateActive)
+	}
+	if _, ok := h.manager.Get(session.ID); !ok {
+		t.Fatalf("Get(%q) = missing, want active session after failed stop", session.ID)
+	}
+
+	h.manager.hooks = nil
+	if cleanupErr := h.manager.Stop(testutil.Context(t), session.ID); cleanupErr != nil {
+		t.Fatalf("cleanup Stop() error = %v", cleanupErr)
 	}
 }

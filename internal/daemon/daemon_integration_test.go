@@ -408,6 +408,9 @@ body
 	if capturedDeps.Notifier == nil {
 		t.Fatal("boot() did not inject the hooks notifier")
 	}
+	if capturedDeps.Hooks == nil {
+		t.Fatal("boot() did not inject the hooks dispatcher")
+	}
 
 	sess := &session.Session{
 		ID:          "sess-1",
@@ -421,8 +424,12 @@ body
 		UpdatedAt:   time.Date(2026, 4, 9, 11, 0, 0, 0, time.UTC),
 	}
 
-	capturedDeps.Notifier.OnSessionCreated(testutil.Context(t), sess)
-	capturedDeps.Notifier.OnSessionStopped(testutil.Context(t), sess)
+	if _, err := capturedDeps.Hooks.DispatchSessionPostCreate(testutil.Context(t), hookspkg.SessionPostCreatePayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()))); err != nil {
+		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
+	}
+	if _, err := capturedDeps.Hooks.DispatchSessionPostStop(testutil.Context(t), hookspkg.SessionPostStopPayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostStop, time.Now().UTC()))); err != nil {
+		t.Fatalf("DispatchSessionPostStop() error = %v", err)
+	}
 
 	assertLifecycleHookPayload(t, configOutput, hookspkg.HookSessionPostCreate, resolvedWorkspace)
 	assertLifecycleHookPayload(t, skillOutput, hookspkg.HookSessionPostCreate, resolvedWorkspace)
@@ -472,6 +479,9 @@ func TestBootSkillsWatcherRebuildsHooksBeforeNextDispatch(t *testing.T) {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
+	if capturedDeps.Hooks == nil {
+		t.Fatal("boot() did not inject the hooks dispatcher")
+	}
 
 	initialVersion := d.hooks.Version()
 	writeDaemonFile(t, filepath.Join(homePaths.SkillsDir, "watched-hook", "SKILL.md"), `---
@@ -508,7 +518,9 @@ body
 		UpdatedAt:   time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
 	}
 
-	capturedDeps.Notifier.OnSessionCreated(testutil.Context(t), sess)
+	if _, err := capturedDeps.Hooks.DispatchSessionPostCreate(testutil.Context(t), hookspkg.SessionPostCreatePayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()))); err != nil {
+		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
+	}
 	assertLifecycleHookPayload(t, outputPath, hookspkg.HookSessionPostCreate, resolvedWorkspace)
 }
 

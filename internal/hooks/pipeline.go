@@ -31,13 +31,18 @@ type pipeline[P any, R any] struct {
 }
 
 func (p pipeline[P, R]) execute(ctx context.Context, payload P) (P, error) {
+	result, _, err := p.executeWithDisposition(ctx, payload)
+	return result, err
+}
+
+func (p pipeline[P, R]) executeWithDisposition(ctx context.Context, payload P) (P, bool, error) {
 	if err := p.validate(); err != nil {
-		return payload, err
+		return payload, false, err
 	}
 
 	dispatchCtx, _, err := enterDispatch(ctx, p.event)
 	if err != nil {
-		return payload, err
+		return payload, false, err
 	}
 
 	current := payload
@@ -49,18 +54,18 @@ func (p pipeline[P, R]) execute(ctx context.Context, payload P) (P, error) {
 		next, denied, err := p.executeHook(dispatchCtx, *hook, current)
 		if err != nil {
 			if hook.Required {
-				return current, fmt.Errorf("hooks: required hook %q failed for event %q: %w", hook.Name, p.event, err)
+				return current, false, fmt.Errorf("hooks: required hook %q failed for event %q: %w", hook.Name, p.event, err)
 			}
 			continue
 		}
 
 		current = next
 		if denied {
-			return current, nil
+			return current, true, nil
 		}
 	}
 
-	return current, nil
+	return current, false, nil
 }
 
 func (p pipeline[P, R]) validate() error {

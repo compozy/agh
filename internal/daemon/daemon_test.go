@@ -367,7 +367,7 @@ func TestShutdownDrainsHooksBeforeClosingDatabase(t *testing.T) {
 	d.sessions = &fakeSessionManager{
 		infos: []*session.SessionInfo{{ID: "sess-a"}},
 		onStop: func(string) {
-			notifier.OnSessionStopped(context.Background(), &session.Session{
+			if _, err := notifier.DispatchSessionPostStop(context.Background(), hookspkg.SessionPostStopPayload(hookSessionLifecyclePayload(&session.Session{
 				ID:          "sess-a",
 				AgentName:   "codex",
 				WorkspaceID: "ws-1",
@@ -376,7 +376,9 @@ func TestShutdownDrainsHooksBeforeClosingDatabase(t *testing.T) {
 				State:       session.StateStopped,
 				CreatedAt:   time.Date(2026, 4, 9, 11, 0, 0, 0, time.UTC),
 				UpdatedAt:   time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
-			})
+			}, hookspkg.HookSessionPostStop, time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC)))); err != nil {
+				t.Fatalf("DispatchSessionPostStop() error = %v", err)
+			}
 		},
 	}
 	d.hooks = hooks
@@ -1316,11 +1318,11 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 			return spawn(ctx, "memory-consolidation", "session-stop prompt", workspace)
 		},
 	}
-	var notifier session.Notifier
+	var dispatcher session.HookDispatcher
 
 	d := newTestDaemon(t, homePaths, cfg)
 	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
-		notifier = deps.Notifier
+		dispatcher = deps.Hooks
 		return sessions, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -1348,12 +1350,25 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 		defer d.mu.Unlock()
 		return d.dreamRuntime != nil
 	})
-	if notifier == nil {
-		t.Fatal("session manager notifier = nil")
+	if dispatcher == nil {
+		t.Fatal("session manager hook dispatcher = nil")
 	}
 
 	resolved := resolveDaemonWorkspace(t, d.workspaceResolver, workspace)
-	notifier.OnSessionStopped(context.Background(), &session.Session{ID: "sess-user", WorkspaceID: resolved.ID, Type: session.SessionTypeUser})
+	if _, err := dispatcher.DispatchSessionPostStop(context.Background(), hookspkg.SessionPostStopPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookSessionPostStop,
+			Timestamp: time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
+		},
+		SessionContext: hookspkg.SessionContext{
+			SessionID:   "sess-user",
+			WorkspaceID: resolved.ID,
+			SessionType: string(session.SessionTypeUser),
+			State:       string(session.StateStopped),
+		},
+	}); err != nil {
+		t.Fatalf("DispatchSessionPostStop() error = %v", err)
+	}
 	waitForCondition(t, "dream run from session stop", func() bool {
 		return dream.runCount() == 1
 	})
@@ -1367,7 +1382,19 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 		t.Fatalf("Create() workspace_path = %q, want empty", got)
 	}
 
-	notifier.OnSessionStopped(context.Background(), &session.Session{ID: "sess-dream", Type: session.SessionTypeDream})
+	if _, err := dispatcher.DispatchSessionPostStop(context.Background(), hookspkg.SessionPostStopPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookSessionPostStop,
+			Timestamp: time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
+		},
+		SessionContext: hookspkg.SessionContext{
+			SessionID:   "sess-dream",
+			SessionType: string(session.SessionTypeDream),
+			State:       string(session.StateStopped),
+		},
+	}); err != nil {
+		t.Fatalf("DispatchSessionPostStop(dream) error = %v", err)
+	}
 	time.Sleep(20 * time.Millisecond)
 	if got := dream.runCount(); got != 1 {
 		t.Fatalf("dream run count after dream-session stop = %d, want 1", got)
@@ -2035,6 +2062,10 @@ func (f *fakeHookRuntime) Version() int64 {
 	return f.version
 }
 
+func (f *fakeHookRuntime) DispatchSessionPreCreate(_ context.Context, payload hookspkg.SessionPreCreatePayload) (hookspkg.SessionPreCreatePayload, error) {
+	return payload, nil
+}
+
 func (f *fakeHookRuntime) DispatchSessionPostCreate(ctx context.Context, payload hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePayload, error) {
 	if f.onDispatchCreate != nil {
 		return payload, f.onDispatchCreate(ctx, payload)
@@ -2042,10 +2073,54 @@ func (f *fakeHookRuntime) DispatchSessionPostCreate(ctx context.Context, payload
 	return payload, nil
 }
 
+func (f *fakeHookRuntime) DispatchSessionPreResume(_ context.Context, payload hookspkg.SessionPreResumePayload) (hookspkg.SessionPreResumePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchSessionPostResume(_ context.Context, payload hookspkg.SessionPostResumePayload) (hookspkg.SessionPostResumePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchSessionPreStop(_ context.Context, payload hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error) {
+	return payload, nil
+}
+
 func (f *fakeHookRuntime) DispatchSessionPostStop(ctx context.Context, payload hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error) {
 	if f.onDispatchStop != nil {
 		return payload, f.onDispatchStop(ctx, payload)
 	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchInputPreSubmit(_ context.Context, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchPromptPostAssemble(_ context.Context, payload hookspkg.PromptPayload) (hookspkg.PromptPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchEventPreRecord(_ context.Context, payload hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchEventPostRecord(_ context.Context, payload hookspkg.EventPostRecordPayload) (hookspkg.EventPostRecordPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAgentPreStart(_ context.Context, payload hookspkg.AgentPreStartPayload) (hookspkg.AgentPreStartPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAgentSpawned(_ context.Context, payload hookspkg.AgentSpawnedPayload) (hookspkg.AgentSpawnedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAgentCrashed(_ context.Context, payload hookspkg.AgentCrashedPayload) (hookspkg.AgentCrashedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAgentStopped(_ context.Context, payload hookspkg.AgentStoppedPayload) (hookspkg.AgentStoppedPayload, error) {
 	return payload, nil
 }
 

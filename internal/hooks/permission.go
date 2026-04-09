@@ -62,8 +62,21 @@ func permissionPatchDenies(patch PermissionRequestPatch) bool {
 }
 
 func permissionDecisionDenied(decision string) bool {
-	switch normalizedPermissionDecision(decision) {
-	case "block", "blocked", "deny", "denied":
+	clean := normalizedPermissionDecision(decision)
+	switch {
+	case clean == "":
+		return false
+	case clean == "block", clean == "blocked":
+		return true
+	case clean == "deny", clean == "denied", clean == "rejected":
+		return true
+	case strings.HasPrefix(clean, "block-"):
+		return true
+	case strings.HasPrefix(clean, "deny-"):
+		return true
+	case clean == "reject":
+		return true
+	case strings.HasPrefix(clean, "reject-"):
 		return true
 	default:
 		return false

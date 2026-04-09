@@ -87,6 +87,7 @@ type SessionManagerDeps struct {
 	HomePaths         aghconfig.HomePaths
 	Logger            *slog.Logger
 	Notifier          session.Notifier
+	Hooks             session.HookDispatcher
 	PromptAssembler   session.PromptAssembler
 	SkillRegistry     session.SkillRegistry
 	MCPResolver       session.MCPResolver
@@ -246,6 +247,7 @@ func New(opts ...Option) (*Daemon, error) {
 				session.WithLifecycleContext(ctx),
 				session.WithLogger(deps.Logger),
 				session.WithNotifier(deps.Notifier),
+				session.WithHookDispatcher(deps.Hooks),
 				session.WithPromptAssembler(deps.PromptAssembler),
 				session.WithSkillRegistry(deps.SkillRegistry),
 				session.WithMCPResolver(deps.MCPResolver),

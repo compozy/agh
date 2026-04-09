@@ -201,6 +201,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		HomePaths:         d.homePaths,
 		Logger:            logger,
 		Notifier:          notifier,
+		Hooks:             notifier,
 		PromptAssembler:   promptAssembler,
 		SkillRegistry:     skillRegistryDep,
 		MCPResolver:       mcpResolverDep,

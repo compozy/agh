@@ -62,6 +62,7 @@ type Manager struct {
 	logger        *slog.Logger
 	driver        AgentDriver
 	notifier      Notifier
+	hooks         HookDispatcher
 	skillRegistry SkillRegistry
 	mcpResolver   MCPResolver
 	homePaths     aghconfig.HomePaths
@@ -108,6 +109,14 @@ func WithLifecycleContext(ctx context.Context) Option {
 func WithNotifier(notifier Notifier) Option {
 	return func(manager *Manager) {
 		manager.notifier = notifier
+	}
+}
+
+// WithHookDispatcher injects the typed hook dispatch surface used by the
+// session manager for lifecycle and runtime hook points.
+func WithHookDispatcher(dispatcher HookDispatcher) Option {
+	return func(manager *Manager) {
+		manager.hooks = dispatcher
 	}
 }
 
