@@ -55,7 +55,6 @@ vi.mock("@/components/ui/sidebar", () => ({
     <button {...props}>{children}</button>
   ),
   SidebarMenuItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SidebarRail: () => <div data-testid="sidebar-rail" />,
   SidebarSeparator: () => <hr />,
 }));
 

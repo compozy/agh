@@ -2,6 +2,8 @@
 
 React 19 SPA with Vite 8, TanStack Router (file-based), TanStack Query v5, Tailwind CSS v4, shadcn/ui (base-nova), Zustand, Zod. Formatted with oxfmt, linted with oxlint.
 
+**Design System**: Always refer to `DESIGN.md` (project root) when generating UI. Use only defined tokens — flat depth model (no shadows), hex colors, Inter + JetBrains Mono fonts. Follow the signal system: accent `#E8572A` = action, `#30D158` = success, `#FF453A` = danger, `#FFD60A` = warning, `#BF5AF2` = info.
+
 ## Greenfield Alpha — Zero Legacy Tolerance
 
 No production users exist. Never sacrifice code quality for backward compatibility. Never write migration, compat, or defensive code for old state — delete the old thing instead of working around it.

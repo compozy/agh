@@ -12,7 +12,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Kbd } from "@/components/ui/kbd";
@@ -156,7 +155,7 @@ function AppSidebar() {
   }, [selectedWorkspaceId, workspaces]);
 
   return (
-    <Sidebar side="left" collapsible="icon">
+    <Sidebar side="left" collapsible="none">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -252,8 +251,6 @@ function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-
-      <SidebarRail />
     </Sidebar>
   );
 }
