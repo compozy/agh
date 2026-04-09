@@ -2,7 +2,6 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 
 import { AppHeader } from "@/components/app-header";
 import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -10,14 +9,14 @@ export const Route = createFileRoute("/_app")({
 
 function AppLayout() {
   return (
-    <SidebarProvider defaultOpen>
+    <div className="flex h-screen overflow-hidden bg-background">
       <AppSidebar />
-      <SidebarInset>
+      <div className="flex flex-1 flex-col overflow-hidden">
         <AppHeader />
         <div className="relative flex flex-1 flex-col overflow-hidden bg-background">
           <Outlet />
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+      </div>
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 title: Build custom sidebar with workspace icon rail
 type: frontend
 complexity: high

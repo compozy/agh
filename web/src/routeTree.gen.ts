@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppSkillsRouteImport } from './routes/_app/skills'
+import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 
 const DesignSystemRoute = DesignSystemRouteImport.update({
@@ -28,6 +30,16 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSkillsRoute = AppSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
+  id: '/knowledge',
+  path: '/knowledge',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSessionIdRoute = AppSessionIdRouteImport.update({
   id: '/session/$id',
   path: '/session/$id',
@@ -37,10 +49,14 @@ const AppSessionIdRoute = AppSessionIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/design-system': typeof DesignSystemRoute
+  '/knowledge': typeof AppKnowledgeRoute
+  '/skills': typeof AppSkillsRoute
   '/session/$id': typeof AppSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
+  '/knowledge': typeof AppKnowledgeRoute
+  '/skills': typeof AppSkillsRoute
   '/': typeof AppIndexRoute
   '/session/$id': typeof AppSessionIdRoute
 }
@@ -48,15 +64,24 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/design-system': typeof DesignSystemRoute
+  '/_app/knowledge': typeof AppKnowledgeRoute
+  '/_app/skills': typeof AppSkillsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/session/$id': typeof AppSessionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/design-system' | '/session/$id'
+  fullPaths: '/' | '/design-system' | '/knowledge' | '/skills' | '/session/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/design-system' | '/' | '/session/$id'
-  id: '__root__' | '/_app' | '/design-system' | '/_app/' | '/_app/session/$id'
+  to: '/design-system' | '/knowledge' | '/skills' | '/' | '/session/$id'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/design-system'
+    | '/_app/knowledge'
+    | '/_app/skills'
+    | '/_app/'
+    | '/_app/session/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -87,6 +112,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/skills': {
+      id: '/_app/skills'
+      path: '/skills'
+      fullPath: '/skills'
+      preLoaderRoute: typeof AppSkillsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/knowledge': {
+      id: '/_app/knowledge'
+      path: '/knowledge'
+      fullPath: '/knowledge'
+      preLoaderRoute: typeof AppKnowledgeRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/session/$id': {
       id: '/_app/session/$id'
       path: '/session/$id'
@@ -98,11 +137,15 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppKnowledgeRoute: typeof AppKnowledgeRoute
+  AppSkillsRoute: typeof AppSkillsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppSessionIdRoute: typeof AppSessionIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppKnowledgeRoute: AppKnowledgeRoute,
+  AppSkillsRoute: AppSkillsRoute,
   AppIndexRoute: AppIndexRoute,
   AppSessionIdRoute: AppSessionIdRoute,
 }
