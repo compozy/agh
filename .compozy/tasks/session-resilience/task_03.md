@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Data layer propagation
 type: backend
 complexity: medium
@@ -37,13 +37,13 @@ Propagate `StopReason` and `StopDetail` through the entire data stack: global DB
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Add columns to sessions table schema and write migration SQL
-- [ ] 3.2 Update `store.SessionInfo` with StopReason/StopDetail, update `SessionStateUpdate`
-- [ ] 3.3 Update `RegisterSession`, `UpdateSessionState`, `ReconcileSessions`, `scanSessionInfo`
-- [ ] 3.4 Update `sessionInfoFromMeta()` in `query.go` to map stop reason fields
-- [ ] 3.5 Add fields to `contract.SessionPayload`, update `SessionPayloadFromInfo()`
-- [ ] 3.6 Update `Observer.OnSessionStopped()` to pass stop reason in state update
-- [ ] 3.7 Write unit tests for all DB operations, conversions, and observer updates
+- [x] 3.1 Add columns to sessions table schema and write migration SQL
+- [x] 3.2 Update `store.SessionInfo` with StopReason/StopDetail, update `SessionStateUpdate`
+- [x] 3.3 Update `RegisterSession`, `UpdateSessionState`, `ReconcileSessions`, `scanSessionInfo`
+- [x] 3.4 Update `sessionInfoFromMeta()` in `query.go` to map stop reason fields
+- [x] 3.5 Add fields to `contract.SessionPayload`, update `SessionPayloadFromInfo()`
+- [x] 3.6 Update `Observer.OnSessionStopped()` to pass stop reason in state update
+- [x] 3.7 Write unit tests for all DB operations, conversions, and observer updates
 
 ## Implementation Details
 
@@ -75,21 +75,21 @@ Note: `contract.go` already has a `StopReason` field on `AgentEventPayload` (lin
 
 ## Tests
 - Unit tests:
-  - [ ] `RegisterSession` with StopReason=nil stores NULL
-  - [ ] `RegisterSession` with valid StopReason stores the value
-  - [ ] `UpdateSessionState` with StopReason updates the column
-  - [ ] `UpdateSessionState` without StopReason leaves column unchanged
-  - [ ] `scanSessionInfo` correctly reads 11 columns including stop_reason/stop_detail
-  - [ ] `scanSessionInfo` handles NULL stop_reason gracefully
-  - [ ] `ReconcileSessions` upserts sessions with stop_reason
-  - [ ] `sessionInfoFromMeta()` maps StopReason and StopDetail from meta
-  - [ ] `sessionInfoFromMeta()` handles nil StopReason (legacy meta)
-  - [ ] `SessionPayloadFromInfo()` includes stop_reason and stop_detail in output
-  - [ ] `SessionPayloadFromInfo()` omits stop_reason when empty
-  - [ ] Observer.OnSessionStopped passes StopReason in SessionStateUpdate
+  - [x] `RegisterSession` with StopReason=nil stores NULL
+  - [x] `RegisterSession` with valid StopReason stores the value
+  - [x] `UpdateSessionState` with StopReason updates the column
+  - [x] `UpdateSessionState` without StopReason leaves column unchanged
+  - [x] `scanSessionInfo` correctly reads 11 columns including stop_reason/stop_detail
+  - [x] `scanSessionInfo` handles NULL stop_reason gracefully
+  - [x] `ReconcileSessions` upserts sessions with stop_reason
+  - [x] `sessionInfoFromMeta()` maps StopReason and StopDetail from meta
+  - [x] `sessionInfoFromMeta()` handles nil StopReason (legacy meta)
+  - [x] `SessionPayloadFromInfo()` includes stop_reason and stop_detail in output
+  - [x] `SessionPayloadFromInfo()` omits stop_reason when empty
+  - [x] Observer.OnSessionStopped passes StopReason in SessionStateUpdate
 - Integration tests:
-  - [ ] Create session → stop → query global DB → verify stop_reason column value
-  - [ ] GET /api/sessions/:id returns stop_reason in JSON response
+  - [x] Create session → stop → query global DB → verify stop_reason column value
+  - [x] GET /api/sessions/:id returns stop_reason in JSON response
 - Test coverage target: >=80%
 - All tests must pass
 
