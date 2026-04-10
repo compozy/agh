@@ -1037,9 +1037,9 @@ func (m *Manager) launchConfigFor(ext *managedExtension) (subprocess.LaunchConfi
 func (m *Manager) wrapHostHandler(extName string, method string, handler subprocess.HandlerFunc) subprocess.HandlerFunc {
 	return func(ctx context.Context, params json.RawMessage) (any, error) {
 		if err := m.capChecker.CheckHostAPI(extName, method); err != nil {
-			return nil, err
+			return nil, rpcCapabilityDenied(err)
 		}
-		return handler(ctx, params)
+		return handler(withHostAPIExtensionName(ctx, extName), params)
 	}
 }
 
