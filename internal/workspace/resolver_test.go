@@ -322,7 +322,7 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	resolver := newTestResolver(t, store,
 		WithHomePaths(homePaths),
 		WithConfigLoader(loader.Load),
-		WithNow(func() time.Time { return currentTime }),
+		withNow(func() time.Time { return currentTime }),
 		WithCacheTTL(10*time.Minute),
 	)
 
@@ -545,7 +545,7 @@ func TestNewResolverValidatesDependenciesAndDefaults(t *testing.T) {
 
 	resolver, err := NewResolver(store,
 		WithLogger(nil),
-		WithNow(nil),
+		withNow(nil),
 		WithCacheTTL(0),
 		WithIDGenerator(nil),
 	)

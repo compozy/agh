@@ -472,7 +472,7 @@ body
 	if capturedDeps.Notifier == nil {
 		t.Fatal("boot() did not inject the hooks notifier")
 	}
-	if capturedDeps.Hooks == nil {
+	if capturedDeps.Hooks.Session == nil {
 		t.Fatal("boot() did not inject the hooks dispatcher")
 	}
 
@@ -488,10 +488,10 @@ body
 		UpdatedAt:   time.Date(2026, 4, 9, 11, 0, 0, 0, time.UTC),
 	}
 
-	if _, err := capturedDeps.Hooks.DispatchSessionPostCreate(testutil.Context(t), hookspkg.SessionPostCreatePayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()))); err != nil {
+	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostCreate(testutil.Context(t), hookspkg.SessionPostCreatePayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()))); err != nil {
 		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
 	}
-	if _, err := capturedDeps.Hooks.DispatchSessionPostStop(testutil.Context(t), hookspkg.SessionPostStopPayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostStop, time.Now().UTC()))); err != nil {
+	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostStop(testutil.Context(t), hookspkg.SessionPostStopPayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostStop, time.Now().UTC()))); err != nil {
 		t.Fatalf("DispatchSessionPostStop() error = %v", err)
 	}
 
@@ -543,7 +543,7 @@ func TestBootSkillsWatcherRebuildsHooksBeforeNextDispatch(t *testing.T) {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
-	if capturedDeps.Hooks == nil {
+	if capturedDeps.Hooks.Session == nil {
 		t.Fatal("boot() did not inject the hooks dispatcher")
 	}
 
@@ -582,7 +582,7 @@ body
 		UpdatedAt:   time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
 	}
 
-	if _, err := capturedDeps.Hooks.DispatchSessionPostCreate(testutil.Context(t), hookspkg.SessionPostCreatePayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()))); err != nil {
+	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostCreate(testutil.Context(t), hookspkg.SessionPostCreatePayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()))); err != nil {
 		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
 	}
 	assertLifecycleHookPayload(t, outputPath, hookspkg.HookSessionPostCreate, resolvedWorkspace)

@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+type matcherFunc[P any] func(HookMatcher, P) bool
+
 var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 	HookEventFamilySession: {
 		"agent_name":     {},
@@ -164,6 +166,92 @@ func (m HookMatcher) MatchesPermissionResolution(payload PermissionResolutionPay
 func (m HookMatcher) MatchesContextCompact(payload ContextCompactPayload) bool {
 	return matchStringField(m.CompactionReason, payload.Reason) &&
 		matchStringField(m.CompactionStrategy, payload.Strategy)
+}
+
+func selectMatchingHooks[P any](
+	snapshot []*ResolvedHook,
+	payload P,
+	match matcherFunc[P],
+) ([]*ResolvedHook, []*ResolvedHook) {
+	syncHooks := make([]*ResolvedHook, 0, len(snapshot))
+	asyncHooks := make([]*ResolvedHook, 0, len(snapshot))
+
+	for _, hook := range snapshot {
+		if hook == nil {
+			continue
+		}
+		if match != nil && !match(hook.Matcher, payload) {
+			continue
+		}
+		switch hook.Mode {
+		case HookModeAsync:
+			asyncHooks = append(asyncHooks, hook)
+		case HookModeSync:
+			syncHooks = append(syncHooks, hook)
+		}
+	}
+
+	return syncHooks, asyncHooks
+}
+
+func matchSessionPreCreate(matcher HookMatcher, payload SessionPreCreatePayload) bool {
+	return matcher.MatchesSession(payload.SessionContext)
+}
+
+func matchSessionLifecycle(matcher HookMatcher, payload SessionLifecyclePayload) bool {
+	return matcher.MatchesSession(payload.SessionContext)
+}
+
+func matchInputPreSubmit(matcher HookMatcher, payload InputPreSubmitPayload) bool {
+	return matcher.MatchesInput(payload)
+}
+
+func matchPrompt(matcher HookMatcher, payload PromptPayload) bool {
+	return matcher.MatchesPrompt(payload)
+}
+
+func matchEventRecord(matcher HookMatcher, payload EventRecordPayload) bool {
+	return matcher.MatchesEvent(payload)
+}
+
+func matchAgentPreStart(matcher HookMatcher, payload AgentPreStartPayload) bool {
+	return matcher.MatchesAgentPreStart(payload)
+}
+
+func matchAgentLifecycle(matcher HookMatcher, payload AgentLifecyclePayload) bool {
+	return matcher.MatchesAgentLifecycle(payload)
+}
+
+func matchTurn(matcher HookMatcher, payload TurnPayload) bool {
+	return matcher.MatchesTurn(payload)
+}
+
+func matchMessage(matcher HookMatcher, payload MessagePayload) bool {
+	return matcher.MatchesMessage(payload)
+}
+
+func matchToolPreCall(matcher HookMatcher, payload ToolPreCallPayload) bool {
+	return matcher.MatchesToolPreCall(payload)
+}
+
+func matchToolPostCall(matcher HookMatcher, payload ToolPostCallPayload) bool {
+	return matcher.MatchesToolPostCall(payload)
+}
+
+func matchToolPostError(matcher HookMatcher, payload ToolPostErrorPayload) bool {
+	return matcher.MatchesToolPostError(payload)
+}
+
+func matchPermissionRequest(matcher HookMatcher, payload PermissionRequestPayload) bool {
+	return matcher.MatchesPermissionRequest(payload)
+}
+
+func matchPermissionResolution(matcher HookMatcher, payload PermissionResolutionPayload) bool {
+	return matcher.MatchesPermissionResolution(payload)
+}
+
+func matchContextCompact(matcher HookMatcher, payload ContextCompactPayload) bool {
+	return matcher.MatchesContextCompact(payload)
 }
 
 func (m HookMatcher) matchSessionContext(payload SessionContext, includeSessionType bool) bool {

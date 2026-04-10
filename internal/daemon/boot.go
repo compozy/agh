@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -21,27 +22,116 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+type bootState struct {
+	cfg               aghconfig.Config
+	logger            *slog.Logger
+	closeLogger       func() error
+	lock              *Lock
+	memoryStore       *memory.Store
+	skillsRegistry    *skills.Registry
+	mcpResolver       *skills.MCPResolver
+	dreamSvc          consolidation.Service
+	dreamRuntime      *consolidation.Runtime
+	globalMemoryDir   string
+	promptAssembler   session.PromptAssembler
+	notifier          *hooksNotifier
+	registry          Registry
+	workspaceResolver workspacepkg.WorkspaceResolver
+	sessions          SessionManager
+	observer          Observer
+	hooks             hookRuntime
+	httpServer        Server
+	udsServer         Server
+	skillsCancel      context.CancelFunc
+	skillsDone        chan struct{}
+	startedAt         time.Time
+	info              Info
+	deps              RuntimeDeps
+}
+
+type bootCleanup struct {
+	fns []func(context.Context) error
+}
+
+func (c *bootCleanup) add(fn func(context.Context) error) {
+	if fn == nil {
+		return
+	}
+	c.fns = append(c.fns, fn)
+}
+
+func (c *bootCleanup) run(err *error) {
+	if err == nil || *err == nil {
+		return
+	}
+
+	var cleanupErrs []error
+	for i := len(c.fns) - 1; i >= 0; i-- {
+		if cleanupErr := c.fns[i](context.Background()); cleanupErr != nil {
+			cleanupErrs = append(cleanupErrs, cleanupErr)
+		}
+	}
+	*err = errors.Join(*err, errors.Join(cleanupErrs...))
+}
+
 func (d *Daemon) boot(ctx context.Context) (err error) {
 	if ctx == nil {
 		return errors.New("daemon: boot context is required")
 	}
 
+	if err := d.beginBoot(); err != nil {
+		return err
+	}
+	defer d.finishBoot(&err)
+
+	state := &bootState{}
+	cleanup := &bootCleanup{}
+	defer cleanup.run(&err)
+
+	if err := d.bootConfig(state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootPromptProviders(ctx, state); err != nil {
+		return err
+	}
+	if err := d.bootRuntime(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootHooks(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootServers(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootFinalize(ctx, state); err != nil {
+		return err
+	}
+
+	d.publishBootState(state)
+	return nil
+}
+
+func (d *Daemon) beginBoot() error {
 	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	if d.booting || d.lock != nil || d.registry != nil || d.sessions != nil || d.observer != nil {
-		d.mu.Unlock()
 		return errors.New("daemon: already booted")
 	}
 	d.booting = true
-	d.mu.Unlock()
-	defer func() {
-		if err == nil {
-			return
-		}
-		d.mu.Lock()
-		d.booting = false
-		d.mu.Unlock()
-	}()
+	return nil
+}
 
+func (d *Daemon) finishBoot(err *error) {
+	if err == nil || *err == nil {
+		return
+	}
+	d.mu.Lock()
+	d.booting = false
+	d.mu.Unlock()
+}
+
+func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 	cfg, err := d.loadConfig()
 	if err != nil {
 		return err
@@ -68,74 +158,62 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		closeLogger = func() error { return nil }
 	}
 
-	var (
-		memoryStore      *memory.Store
-		skillsRegistry   *skills.Registry
-		mcpResolver      *skills.MCPResolver
-		dreamSvc         consolidation.Service
-		dreamRuntime     *consolidation.Runtime
-		globalMemoryDir  string
-		skillsCancel     context.CancelFunc
-		skillsDone       chan struct{}
-		prependProviders []session.PromptProvider
-		appendProviders  []session.PromptProvider
-	)
-	if cfg.Memory.Enabled {
-		globalMemoryDir = strings.TrimSpace(cfg.Memory.GlobalDir)
-		if globalMemoryDir == "" {
-			globalMemoryDir = d.homePaths.MemoryDir
-		}
-		memoryStore = memory.NewStore(globalMemoryDir)
-		if err := memoryStore.EnsureDirs(); err != nil {
-			return fmt.Errorf("daemon: ensure memory store directories: %w", err)
-		}
-		prependProviders = append(prependProviders, memory.NewAssembler(memoryStore))
-	}
-
-	cleanupFns := make([]func(context.Context) error, 0, 8)
-	defer func() {
-		if err == nil {
-			return
-		}
-		var cleanupErrs []error
-		for i := len(cleanupFns) - 1; i >= 0; i-- {
-			if cleanupErr := cleanupFns[i](context.Background()); cleanupErr != nil {
-				cleanupErrs = append(cleanupErrs, cleanupErr)
-			}
-		}
-		err = errors.Join(err, errors.Join(cleanupErrs...))
-	}()
-	cleanupFns = append(cleanupFns, func(context.Context) error {
+	state.cfg = cfg
+	state.logger = logger
+	state.closeLogger = closeLogger
+	cleanup.add(func(context.Context) error {
 		return closeLogger()
 	})
+	return nil
+}
 
-	if cfg.Skills.Enabled {
-		skillsCfg, err := d.skillsRegistryConfig(cfg)
+func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) error {
+	var prependProviders []session.PromptProvider
+	var appendProviders []session.PromptProvider
+
+	if state.cfg.Memory.Enabled {
+		state.globalMemoryDir = strings.TrimSpace(state.cfg.Memory.GlobalDir)
+		if state.globalMemoryDir == "" {
+			state.globalMemoryDir = d.homePaths.MemoryDir
+		}
+		state.memoryStore = memory.NewStore(state.globalMemoryDir)
+		if err := state.memoryStore.EnsureDirs(); err != nil {
+			return fmt.Errorf("daemon: ensure memory store directories: %w", err)
+		}
+		prependProviders = append(prependProviders, memory.NewAssembler(state.memoryStore))
+	}
+
+	if state.cfg.Skills.Enabled {
+		skillsCfg, err := d.skillsRegistryConfig(state.cfg)
 		if err != nil {
 			return err
 		}
 
-		skillsRegistry = skills.NewRegistry(skillsCfg, skills.WithLogger(logger))
-		if err := skillsRegistry.LoadAll(ctx); err != nil {
+		state.skillsRegistry = skills.NewRegistry(skillsCfg, skills.WithLogger(state.logger))
+		if err := state.skillsRegistry.LoadAll(ctx); err != nil {
 			return fmt.Errorf("daemon: load skills registry: %w", err)
 		}
-		mcpResolver = skills.NewMCPResolver(cfg.Skills, logger)
-		appendProviders = append(appendProviders, skills.NewCatalogProvider(skillsRegistry))
+		state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
+		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))
 	}
 
-	promptAssembler := NewComposedAssembler(
+	state.promptAssembler = NewComposedAssembler(
 		WithPrependPromptProviders(prependProviders...),
 		WithAppendPromptProviders(appendProviders...),
 	)
+	return nil
+}
 
+func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	pid := d.pid()
 	lock, err := d.acquireLock(d.homePaths.DaemonLock, pid)
 	if err != nil {
 		return err
 	}
-	cleanupFns = append(cleanupFns, func(context.Context) error {
+	cleanup.add(func(context.Context) error {
 		return lock.Release()
 	})
+	state.lock = lock
 
 	stalePID := lock.StalePID()
 	if stalePID == 0 {
@@ -144,16 +222,16 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		case readErr == nil && existingInfo.PID > 0 && existingInfo.PID != pid && !d.processAlive(existingInfo.PID):
 			stalePID = existingInfo.PID
 		case readErr != nil && !errors.Is(readErr, os.ErrNotExist):
-			logger.Warn("daemon: read stale daemon info failed", "path", d.homePaths.DaemonInfo, "error", readErr)
+			state.logger.Warn("daemon: read stale daemon info failed", "path", d.homePaths.DaemonInfo, "error", readErr)
 		}
 	}
 	if stalePID > 0 {
 		if cleanupErr := d.cleanupOrphans(ctx, stalePID); cleanupErr != nil {
-			logger.Warn("daemon: cleanup orphan processes failed", "stale_pid", stalePID, "error", cleanupErr)
+			state.logger.Warn("daemon: cleanup orphan processes failed", "stale_pid", stalePID, "error", cleanupErr)
 		}
 	}
 
-	if err := removeStaleSocket(cfg.Daemon.Socket); err != nil {
+	if err := removeStaleSocket(state.cfg.Daemon.Socket); err != nil {
 		return err
 	}
 
@@ -161,14 +239,14 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("daemon: open global database %q: %w", d.homePaths.DatabaseFile, err)
 	}
-	cleanupFns = append(cleanupFns, func(ctx context.Context) error {
+	cleanup.add(func(ctx context.Context) error {
 		return registry.Close(ctx)
 	})
 
 	workspaceResolver, err := workspacepkg.NewResolver(
 		registry,
 		workspacepkg.WithHomePaths(d.homePaths),
-		workspacepkg.WithLogger(logger),
+		workspacepkg.WithLogger(state.logger),
 		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
 			return aghconfig.LoadForHome(d.homePaths, aghconfig.WithWorkspaceRoot(rootDir))
 		}),
@@ -177,33 +255,42 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}
 
-	if cfg.Memory.Enabled && cfg.Memory.Dream.Enabled {
-		dreamSvc = d.newDreamService(
-			memory.WithMemoryStore(memoryStore),
+	if state.cfg.Memory.Enabled && state.cfg.Memory.Dream.Enabled {
+		state.dreamSvc = d.newDreamService(
+			memory.WithMemoryStore(state.memoryStore),
 			memory.WithSessionsDir(d.homePaths.SessionsDir),
-			memory.WithMinHours(cfg.Memory.Dream.MinHours),
-			memory.WithMinSessions(cfg.Memory.Dream.MinSessions),
-			memory.WithLogger(logger),
+			memory.WithMinHours(state.cfg.Memory.Dream.MinHours),
+			memory.WithMinSessions(state.cfg.Memory.Dream.MinSessions),
+			memory.WithLogger(state.logger),
 			memory.WithWorkspaceResolver(workspaceResolver),
 		)
 	}
 
-	startedAt := d.now().UTC()
-	notifier := newHooksNotifier(logger, d.now)
+	state.startedAt = d.now().UTC()
+	state.notifier = newHooksNotifier(state.logger, d.now)
+
 	var skillRegistryDep session.SkillRegistry
-	if skillsRegistry != nil {
-		skillRegistryDep = skillsRegistry
+	if state.skillsRegistry != nil {
+		skillRegistryDep = state.skillsRegistry
 	}
 	var mcpResolverDep session.MCPResolver
-	if mcpResolver != nil {
-		mcpResolverDep = mcpResolver
+	if state.mcpResolver != nil {
+		mcpResolverDep = state.mcpResolver
 	}
+
 	sessions, err := d.newSessionManager(ctx, SessionManagerDeps{
-		HomePaths:         d.homePaths,
-		Logger:            logger,
-		Notifier:          notifier,
-		Hooks:             notifier,
-		PromptAssembler:   promptAssembler,
+		HomePaths: d.homePaths,
+		Logger:    state.logger,
+		Notifier:  state.notifier,
+		Hooks: session.HookSet{
+			Session:      state.notifier,
+			Prompt:       state.notifier,
+			Events:       state.notifier,
+			Agent:        state.notifier,
+			Conversation: state.notifier,
+			Compaction:   state.notifier,
+		},
+		PromptAssembler:   state.promptAssembler,
 		SkillRegistry:     skillRegistryDep,
 		MCPResolver:       mcpResolverDep,
 		WorkspaceResolver: workspaceResolver,
@@ -212,127 +299,148 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 
-	dreamSpawner := consolidation.NewSessionSpawner(sessions, workspaceResolver, cfg, globalMemoryDir)
+	dreamSpawner := consolidation.NewSessionSpawner(sessions, workspaceResolver, state.cfg, state.globalMemoryDir)
 	var dreamTrigger DreamTrigger
-	if dreamSvc != nil {
-		lockPath := memory.ConsolidationLockPath(globalMemoryDir)
-		dreamRuntime = consolidation.NewRuntime(
-			cfg.Memory.Dream.Enabled,
-			dreamSvc,
+	if state.dreamSvc != nil {
+		lockPath := memory.ConsolidationLockPath(state.globalMemoryDir)
+		state.dreamRuntime = consolidation.NewRuntime(
+			state.cfg.Memory.Dream.Enabled,
+			state.dreamSvc,
 			dreamSpawner,
-			cfg.Memory.Dream.CheckInterval,
-			logger,
+			state.cfg.Memory.Dream.CheckInterval,
+			state.logger,
 			func() (time.Time, error) {
 				return memory.NewConsolidationLock(lockPath).LastConsolidatedAt()
 			},
 		)
-		dreamTrigger = dreamRuntime
+		dreamTrigger = state.dreamRuntime
 	}
 
 	var skillsRegistryAPI core.SkillsRegistry
-	if skillsRegistry != nil {
-		skillsRegistryAPI = skillsRegistry
+	if state.skillsRegistry != nil {
+		skillsRegistryAPI = state.skillsRegistry
 	}
 
-	deps := RuntimeDeps{
-		Config:            cfg,
+	state.deps = RuntimeDeps{
+		Config:            state.cfg,
 		HomePaths:         d.homePaths,
-		Logger:            logger,
+		Logger:            state.logger,
 		Sessions:          sessions,
 		Registry:          registry,
-		MemoryStore:       memoryStore,
+		MemoryStore:       state.memoryStore,
 		WorkspaceResolver: workspaceResolver,
 		WorkspaceService:  workspaceResolver,
 		SkillsRegistry:    skillsRegistryAPI,
 		DreamTrigger:      dreamTrigger,
-		StartedAt:         startedAt,
+		StartedAt:         state.startedAt,
 	}
 
-	observer, err := d.newObserver(ctx, deps)
+	observer, err := d.newObserver(ctx, state.deps)
 	if err != nil {
 		return fmt.Errorf("daemon: create observer: %w", err)
 	}
-	deps.Observer = observer
 
-	nativeDecls, nativeExecutors := daemonNativeHooks(observer, dreamRuntime)
+	state.registry = registry
+	state.workspaceResolver = workspaceResolver
+	state.sessions = sessions
+	state.observer = observer
+	state.deps.Observer = observer
+	return nil
+}
+
+func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	nativeDecls, nativeExecutors := daemonNativeHooks(state.observer, state.dreamRuntime)
 	hookOptions := []hookspkg.Option{
-		hookspkg.WithLogger(logger),
+		hookspkg.WithLogger(state.logger),
 		hookspkg.WithNow(d.now),
-		hookspkg.WithDebugPatchAudit(strings.EqualFold(cfg.Log.Level, "debug")),
+		hookspkg.WithDebugPatchAudit(strings.EqualFold(state.cfg.Log.Level, "debug")),
 		hookspkg.WithExecutorResolver(daemonExecutorResolver(nativeExecutors)),
 		hookspkg.WithNativeDeclarations(nativeDecls),
-		hookspkg.WithConfigDeclarationProvider(configDeclarationProvider(registry, workspaceResolver, logger)),
-		hookspkg.WithAgentDeclarationProvider(agentDeclarationProvider(registry, workspaceResolver, logger)),
-		hookspkg.WithSkillDeclarationProvider(skillDeclarationProvider(skillsRegistry, registry, workspaceResolver, cfg.Skills.AllowedMarketplaceHooks, logger)),
+		hookspkg.WithConfigDeclarationProvider(configDeclarationProvider(state.registry, state.workspaceResolver, state.logger)),
+		hookspkg.WithAgentDeclarationProvider(agentDeclarationProvider(state.registry, state.workspaceResolver, state.logger)),
+		hookspkg.WithSkillDeclarationProvider(skillDeclarationProvider(state.skillsRegistry, state.registry, state.workspaceResolver, state.cfg.Skills.AllowedMarketplaceHooks, state.logger)),
 	}
-	if sink, ok := observer.(hookspkg.TelemetrySink); ok {
+	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {
 		hookOptions = append(hookOptions, hookspkg.WithTelemetrySink(sink))
 	}
+
 	hooks := hookspkg.NewHooks(hookOptions...)
 	if err := hooks.Rebuild(ctx); err != nil {
 		hooks.Close()
 		return fmt.Errorf("daemon: rebuild hooks: %w", err)
 	}
-	if hookAwareObserver, ok := observer.(interface {
+	if hookAwareObserver, ok := state.observer.(interface {
 		AttachHooks(observe.HookCatalogSource)
 	}); ok {
 		hookAwareObserver.AttachHooks(hooks)
 	}
-	notifier.setRuntime(hooks, observer)
-	cleanupFns = append(cleanupFns, func(context.Context) error {
+	state.notifier.setRuntime(hooks, state.observer)
+	cleanup.add(func(context.Context) error {
 		hooks.Close()
 		return nil
 	})
 
-	if skillsRegistry != nil {
-		skillsCancel, skillsDone = startSkillsWatcher(ctx, skillsRegistry, cfg.Skills.PollInterval, func(refreshCtx context.Context) error {
+	if state.skillsRegistry != nil {
+		state.skillsCancel, state.skillsDone = startSkillsWatcher(ctx, state.skillsRegistry, state.cfg.Skills.PollInterval, func(refreshCtx context.Context) error {
 			return hooks.Rebuild(refreshCtx)
 		})
-		cleanupFns = append(cleanupFns, func(context.Context) error {
-			stopSkillsWatcher(skillsCancel, skillsDone)
+		cleanup.add(func(context.Context) error {
+			stopSkillsWatcher(state.skillsCancel, state.skillsDone)
 			return nil
 		})
 	}
 
-	httpServer, err := d.httpFactory(ctx, deps)
+	state.hooks = hooks
+	return nil
+}
+
+func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	httpServer, err := d.httpFactory(ctx, state.deps)
 	if err != nil {
 		return fmt.Errorf("daemon: create http server: %w", err)
 	}
 	if err := httpServer.Start(ctx); err != nil {
 		return fmt.Errorf("daemon: start http server: %w", err)
 	}
-	cleanupFns = append(cleanupFns, func(ctx context.Context) error {
+	cleanup.add(func(ctx context.Context) error {
 		return httpServer.Shutdown(ctx)
 	})
 
-	udsServer, err := d.udsFactory(ctx, deps)
+	udsServer, err := d.udsFactory(ctx, state.deps)
 	if err != nil {
 		return fmt.Errorf("daemon: create uds server: %w", err)
 	}
 	if err := udsServer.Start(ctx); err != nil {
 		return fmt.Errorf("daemon: start uds server: %w", err)
 	}
-	cleanupFns = append(cleanupFns, func(ctx context.Context) error {
+	cleanup.add(func(ctx context.Context) error {
 		return udsServer.Shutdown(ctx)
 	})
 
 	info := Info{
-		PID:       pid,
-		Port:      resolveDaemonPort(cfg.HTTP.Port, httpServer),
-		StartedAt: startedAt,
+		PID:       d.pid(),
+		Port:      resolveDaemonPort(state.cfg.HTTP.Port, httpServer),
+		StartedAt: state.startedAt,
 	}
 	if err := WriteInfo(d.homePaths.DaemonInfo, info); err != nil {
 		return err
 	}
-	cleanupFns = append(cleanupFns, func(context.Context) error {
+	cleanup.add(func(context.Context) error {
 		return RemoveInfo(d.homePaths.DaemonInfo)
 	})
 
-	reconcileResult, err := observer.Reconcile(ctx)
+	state.httpServer = httpServer
+	state.udsServer = udsServer
+	state.info = info
+	return nil
+}
+
+func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
+	reconcileResult, err := state.observer.Reconcile(ctx)
 	if err != nil {
 		return fmt.Errorf("daemon: reconcile sessions: %w", err)
 	}
-	logger.Info(
+	state.logger.Info(
 		"daemon: boot reconciliation complete",
 		"indexed_sessions", len(reconcileResult.Indexed),
 		"orphaned_sessions", len(reconcileResult.Orphaned),
@@ -340,37 +448,39 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 
 	if d.shouldVerifyBoundaries() {
 		if boundaryErr := d.Boundaries(ctx); boundaryErr != nil {
-			logger.Warn("daemon: boundary verification warning", "error", boundaryErr)
+			state.logger.Warn("daemon: boundary verification warning", "error", boundaryErr)
 		}
 	}
+	return nil
+}
 
+func (d *Daemon) publishBootState(state *bootState) {
 	d.mu.Lock()
-	d.config = cfg
-	d.logger = logger
-	d.closeLogger = closeLogger
+	defer d.mu.Unlock()
+
+	d.config = state.cfg
+	d.logger = state.logger
+	d.closeLogger = state.closeLogger
 	d.booting = false
-	d.lock = lock
-	d.registry = registry
-	d.memoryStore = memoryStore
-	d.sessions = sessions
-	d.hooks = hooks
-	d.observer = observer
-	d.httpServer = httpServer
-	d.udsServer = udsServer
-	d.dreamRuntime = dreamRuntime
-	d.workspaceResolver = workspaceResolver
-	d.skillsRegistry = skillsRegistry
-	d.skillsCancel = skillsCancel
-	d.skillsDone = skillsDone
-	d.startedAt = startedAt
-	d.info = info
+	d.lock = state.lock
+	d.registry = state.registry
+	d.memoryStore = state.memoryStore
+	d.sessions = state.sessions
+	d.hooks = state.hooks
+	d.observer = state.observer
+	d.httpServer = state.httpServer
+	d.udsServer = state.udsServer
+	d.dreamRuntime = state.dreamRuntime
+	d.workspaceResolver = state.workspaceResolver
+	d.skillsRegistry = state.skillsRegistry
+	d.skillsCancel = state.skillsCancel
+	d.skillsDone = state.skillsDone
+	d.startedAt = state.startedAt
+	d.info = state.info
 	if !d.readyClosed {
 		close(d.readyCh)
 		d.readyClosed = true
 	}
-	d.mu.Unlock()
-
-	return nil
 }
 
 func (d *Daemon) skillsRegistryConfig(cfg aghconfig.Config) (skills.RegistryConfig, error) {

@@ -124,7 +124,27 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 		return nil, err
 	}
 
+	process, err := d.spawnProcess(normalized)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := d.initializeConnection(ctx, process, normalized.AgentName); err != nil {
+		return nil, d.cleanupFailedStart(process, err)
+	}
+	if err := d.negotiateSession(ctx, process, normalized); err != nil {
+		return nil, d.cleanupFailedStart(process, err)
+	}
+	return process, nil
+}
+
+func (d *Driver) spawnProcess(normalized StartOpts) (*AgentProcess, error) {
 	command, args, err := parseCommandString(normalized.Command)
+	if err != nil {
+		return nil, err
+	}
+
+	policy, err := newPermissionPolicy(normalized.Permissions, normalized.Cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -158,12 +178,6 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 		return nil, fmt.Errorf("acp: start subprocess %q: %w", normalized.Command, err)
 	}
 
-	policy, err := newPermissionPolicy(normalized.Permissions, normalized.Cwd)
-	if err != nil {
-		cancelProcess()
-		return nil, err
-	}
-
 	process := &AgentProcess{
 		PID:                cmd.Process.Pid,
 		AgentName:          normalized.AgentName,
@@ -186,6 +200,10 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 
 	go process.waitForExit()
 
+	return process, nil
+}
+
+func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess, agentName string) error {
 	initRequest := acpsdk.InitializeRequest{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		ClientCapabilities: acpsdk.ClientCapabilities{
@@ -202,41 +220,49 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 	}
 	initializeResponse, err := acpsdk.SendRequest[acpsdk.InitializeResponse](process.conn, ctx, acpsdk.AgentMethodInitialize, initRequest)
 	if err != nil {
-		return nil, d.cleanupFailedStart(process, fmt.Errorf("acp: initialize session for %q: %w", normalized.AgentName, err))
+		return fmt.Errorf("acp: initialize session for %q: %w", agentName, err)
 	}
 
 	process.Caps = ACPCaps{
 		SupportsLoadSession: initializeResponse.AgentCapabilities.LoadSession,
 	}
+	return nil
+}
 
+func (d *Driver) negotiateSession(ctx context.Context, process *AgentProcess, normalized StartOpts) error {
 	if normalized.ResumeSessionID != "" {
-		if !process.Caps.SupportsLoadSession {
-			startErr := fmt.Errorf("%w: agent %q does not support session/load for resume %q", ErrAgentDoesNotSupportSession, normalized.AgentName, normalized.ResumeSessionID)
-			return nil, d.cleanupFailedStart(process, startErr)
-		}
+		return d.loadSession(ctx, process, normalized)
+	}
+	return d.createSession(ctx, process, normalized)
+}
 
-		loadRequest := acpsdk.LoadSessionRequest{
-			Cwd:        normalized.Cwd,
-			McpServers: toSDKMCPServers(normalized.MCPServers),
-			SessionId:  acpsdk.SessionId(normalized.ResumeSessionID),
-		}
-		loadWireRequest := wireLoadSessionRequest{
-			Cwd:            loadRequest.Cwd,
-			McpServers:     loadRequest.McpServers,
-			AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
-			SessionID:      loadRequest.SessionId,
-		}
-		loadResponse, loadErr := acpsdk.SendRequest[acpsdk.LoadSessionResponse](process.conn, ctx, acpsdk.AgentMethodSessionLoad, loadWireRequest)
-		if loadErr != nil {
-			startErr := fmt.Errorf("%w: load session %q for %q: %w", ErrLoadSessionFailed, normalized.ResumeSessionID, normalized.AgentName, loadErr)
-			return nil, d.cleanupFailedStart(process, startErr)
-		}
-
-		process.SessionID = normalized.ResumeSessionID
-		process.Caps = captureCaps(process.Caps.SupportsLoadSession, loadResponse.Modes, loadResponse.Models)
-		return process, nil
+func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normalized StartOpts) error {
+	if !process.Caps.SupportsLoadSession {
+		return fmt.Errorf("%w: agent %q does not support session/load for resume %q", ErrAgentDoesNotSupportSession, normalized.AgentName, normalized.ResumeSessionID)
 	}
 
+	loadRequest := acpsdk.LoadSessionRequest{
+		Cwd:        normalized.Cwd,
+		McpServers: toSDKMCPServers(normalized.MCPServers),
+		SessionId:  acpsdk.SessionId(normalized.ResumeSessionID),
+	}
+	loadWireRequest := wireLoadSessionRequest{
+		Cwd:            loadRequest.Cwd,
+		McpServers:     loadRequest.McpServers,
+		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
+		SessionID:      loadRequest.SessionId,
+	}
+	loadResponse, err := acpsdk.SendRequest[acpsdk.LoadSessionResponse](process.conn, ctx, acpsdk.AgentMethodSessionLoad, loadWireRequest)
+	if err != nil {
+		return fmt.Errorf("%w: load session %q for %q: %w", ErrLoadSessionFailed, normalized.ResumeSessionID, normalized.AgentName, err)
+	}
+
+	process.SessionID = normalized.ResumeSessionID
+	process.Caps = captureCaps(process.Caps.SupportsLoadSession, loadResponse.Modes, loadResponse.Models)
+	return nil
+}
+
+func (d *Driver) createSession(ctx context.Context, process *AgentProcess, normalized StartOpts) error {
 	newRequest := acpsdk.NewSessionRequest{
 		Cwd:        normalized.Cwd,
 		McpServers: toSDKMCPServers(normalized.MCPServers),
@@ -248,12 +274,12 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 	}
 	newResponse, err := acpsdk.SendRequest[acpsdk.NewSessionResponse](process.conn, ctx, acpsdk.AgentMethodSessionNew, newWireRequest)
 	if err != nil {
-		return nil, d.cleanupFailedStart(process, fmt.Errorf("acp: create session for %q: %w", normalized.AgentName, err))
+		return fmt.Errorf("acp: create session for %q: %w", normalized.AgentName, err)
 	}
 
 	process.SessionID = string(newResponse.SessionId)
 	process.Caps = captureCaps(process.Caps.SupportsLoadSession, newResponse.Modes, newResponse.Models)
-	return process, nil
+	return nil
 }
 
 func (d *Driver) cleanupFailedStart(process *AgentProcess, startErr error) error {

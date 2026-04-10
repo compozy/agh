@@ -72,10 +72,7 @@ func TestInstallCommandWritesBootstrapConfigAndAgent(t *testing.T) {
 func TestBuildInstallWizardInputAndBundleFormats(t *testing.T) {
 	t.Parallel()
 
-	cfg, err := aghconfig.Default()
-	if err != nil {
-		t.Fatalf("aghconfig.Default() error = %v", err)
-	}
+	cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
 	cfg.Defaults.Provider = "codex"
 	cfg.Providers["custom"] = aghconfig.ProviderConfig{DefaultModel: "custom-model"}
 

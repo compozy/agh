@@ -61,6 +61,11 @@
             "sourceType": "github",
             "computedHash": "8bc7a75020275e4ad1813cb4b616dc9e0c7624a6e71178f98341e69c39bd65f4"
         },
+        "kodebase": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "66fe9703df1731b1db4b32093be7dcd67b925ee264e781f462c4ea25e77a30d0"
+        },
         "mermaid-diagrams": {
             "source": "pedronauck/skills",
             "sourceType": "github",

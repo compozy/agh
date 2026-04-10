@@ -57,22 +57,6 @@ type checkRequest struct {
 
 const defaultSessionStopTimeout = 10 * time.Second
 
-type sessionSpawnerConfig struct {
-	stopTimeout time.Duration
-}
-
-// SessionSpawnerOption customizes dream session spawning.
-type SessionSpawnerOption func(*sessionSpawnerConfig)
-
-// WithSessionStopTimeout overrides the timeout used when stopping dream sessions after prompting.
-func WithSessionStopTimeout(timeout time.Duration) SessionSpawnerOption {
-	return func(cfg *sessionSpawnerConfig) {
-		if timeout > 0 {
-			cfg.stopTimeout = timeout
-		}
-	}
-}
-
 // NewRuntime constructs a dream runtime that can be started by the daemon.
 func NewRuntime(
 	enabled bool,
@@ -253,17 +237,9 @@ func NewSessionSpawner(
 	resolver workspacepkg.WorkspaceResolver,
 	cfg aghconfig.Config,
 	globalMemoryDir string,
-	opts ...SessionSpawnerOption,
 ) memory.SessionSpawner {
 	if !cfg.Memory.Enabled || !cfg.Memory.Dream.Enabled || sessions == nil || resolver == nil {
 		return nil
-	}
-
-	spawnerCfg := sessionSpawnerConfig{stopTimeout: defaultSessionStopTimeout}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(&spawnerCfg)
-		}
 	}
 
 	return func(ctx context.Context, goal, prompt, workspace string) error {
@@ -273,7 +249,7 @@ func NewSessionSpawner(
 		}
 
 		for _, workspaceID := range workspaces {
-			if err := spawnSession(ctx, sessions, cfg.Memory.Dream.Agent, goal, prompt, workspaceID, spawnerCfg.stopTimeout); err != nil {
+			if err := spawnSession(ctx, sessions, cfg.Memory.Dream.Agent, goal, prompt, workspaceID, defaultSessionStopTimeout); err != nil {
 				return err
 			}
 		}

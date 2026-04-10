@@ -10,7 +10,6 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -21,128 +20,12 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 		return nil, errors.New("session: create context is required")
 	}
 
-	opts, err = m.dispatchSessionPreCreate(ctx, opts)
+	spec, err := m.prepareCreateStart(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	resolvedWorkspace, err := m.resolveCreateWorkspace(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	agentName, err := aghconfig.ResolveAgentName(opts.AgentName, resolvedWorkspace.Config)
-	if err != nil {
-		return nil, fmt.Errorf("session: resolve agent name: %w", err)
-	}
-
-	agentDef, err := resolveWorkspaceAgent(agentName, resolvedWorkspace)
-	if err != nil {
-		return nil, fmt.Errorf("session: resolve workspace agent %q: %w", agentName, err)
-	}
-
-	sessionID := strings.TrimSpace(m.newSessionID())
-	if sessionID == "" {
-		return nil, errors.New("session: session id generator returned empty id")
-	}
-
-	startupPrompt, err := m.startupPrompt(ctx, hookspkg.SessionContext{
-		SessionID:   sessionID,
-		SessionName: strings.TrimSpace(opts.Name),
-		SessionType: string(normalizeSessionType(opts.Type)),
-		AgentName:   strings.TrimSpace(agentName),
-		WorkspaceID: strings.TrimSpace(resolvedWorkspace.ID),
-		Workspace:   strings.TrimSpace(resolvedWorkspace.RootDir),
-		State:       string(StateStarting),
-	}, agentDef, resolvedWorkspace)
-	if err != nil {
-		return nil, err
-	}
-	agentDef.Prompt = startupPrompt
-
-	resolved, err := resolvedWorkspace.Config.ResolveAgent(agentDef)
-	if err != nil {
-		return nil, fmt.Errorf("session: resolve agent %q: %w", agentName, err)
-	}
-
-	startMCPServers, err := m.resolveStartMCPServers(ctx, resolvedWorkspace, resolved.MCPServers)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := m.reserve(sessionID, m.effectiveMaxSessions(resolvedWorkspace.Config)); err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err != nil {
-			m.releaseReservation(sessionID)
-		}
-	}()
-
-	sessionDir := filepath.Join(m.homePaths.SessionsDir, sessionID)
-	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
-		return nil, fmt.Errorf("session: create session directory %q: %w", sessionDir, err)
-	}
-
-	dbPath := store.SessionDBFile(sessionDir)
-	recorder, err := m.openStore(ctx, sessionID, dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("session: open session store %q: %w", dbPath, err)
-	}
-
-	var proc *AgentProcess
-	defer func() {
-		if err == nil {
-			return
-		}
-		err = errors.Join(err, m.cleanupFailedStart(sessionDir, recorder, proc))
-	}()
-
-	now := m.now()
-	session := &Session{
-		ID:          sessionID,
-		Name:        strings.TrimSpace(opts.Name),
-		AgentName:   resolved.Name,
-		WorkspaceID: resolvedWorkspace.ID,
-		Workspace:   resolvedWorkspace.RootDir,
-		Type:        normalizeSessionType(opts.Type),
-		State:       StateStarting,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		sessionDir:  sessionDir,
-		metaPath:    store.SessionMetaFile(sessionDir),
-		dbPath:      dbPath,
-		recorder:    recorder,
-	}
-
-	startOpts := acp.StartOpts{
-		AgentName:      resolved.Name,
-		Command:        resolved.Command,
-		Cwd:            resolvedWorkspace.RootDir,
-		AdditionalDirs: append([]string(nil), resolvedWorkspace.AdditionalDirs...),
-		MCPServers:     startMCPServers,
-		Permissions:    m.startPermissions(session.Type, resolved.Permissions),
-		SystemPrompt:   resolved.Prompt,
-	}
-	startOpts, err = m.dispatchAgentPreStart(ctx, session, resolved, startOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := m.writeMeta(session); err != nil {
-		return nil, err
-	}
-
-	proc, err = m.driver.Start(ctx, startOpts)
-	if err != nil {
-		return nil, fmt.Errorf("session: start agent for %q: %w", sessionID, err)
-	}
-
-	if err := m.activateAndWatch(ctx, session, proc, resolved, hookspkg.HookSessionPostCreate); err != nil {
-		return nil, err
-	}
-
-	return session, nil
+	return m.startSession(ctx, spec)
 }
 
 // Stop stops an active session and persists the stopped state to disk.
@@ -188,122 +71,12 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		)
 	}
 
-	meta, err = m.dispatchSessionPreResume(ctx, meta)
+	spec, err := m.prepareResumeStart(ctx, meta)
 	if err != nil {
 		return nil, err
 	}
 
-	resolvedWorkspace, err := m.resolveResumeWorkspace(ctx, meta)
-	if err != nil {
-		return nil, err
-	}
-
-	agentDef, err := resolveWorkspaceAgent(meta.AgentName, resolvedWorkspace)
-	if err != nil {
-		return nil, fmt.Errorf("session: resolve workspace agent %q: %w", meta.AgentName, err)
-	}
-	startupPrompt, err := m.startupPrompt(ctx, hookspkg.SessionContext{
-		SessionID:    strings.TrimSpace(meta.ID),
-		SessionName:  strings.TrimSpace(meta.Name),
-		SessionType:  string(normalizeSessionType(SessionType(meta.SessionType))),
-		AgentName:    strings.TrimSpace(meta.AgentName),
-		WorkspaceID:  strings.TrimSpace(resolvedWorkspace.ID),
-		Workspace:    strings.TrimSpace(resolvedWorkspace.RootDir),
-		ACPSessionID: strings.TrimSpace(derefString(meta.ACPSessionID)),
-		State:        string(StateStarting),
-		CreatedAt:    meta.CreatedAt,
-		UpdatedAt:    m.now(),
-	}, agentDef, resolvedWorkspace)
-	if err != nil {
-		return nil, err
-	}
-	agentDef.Prompt = startupPrompt
-
-	resolved, err := resolvedWorkspace.Config.ResolveAgent(agentDef)
-	if err != nil {
-		return nil, fmt.Errorf("session: resolve agent %q: %w", meta.AgentName, err)
-	}
-
-	startMCPServers, err := m.resolveStartMCPServers(ctx, resolvedWorkspace, resolved.MCPServers)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := m.reserve(meta.ID, m.effectiveMaxSessions(resolvedWorkspace.Config)); err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err != nil {
-			m.releaseReservation(meta.ID)
-		}
-	}()
-
-	dbPath := store.SessionDBFile(sessionDir)
-	recorder, err := m.openStore(ctx, meta.ID, dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("session: open session store %q: %w", dbPath, err)
-	}
-
-	var proc *AgentProcess
-	defer func() {
-		if err == nil {
-			return
-		}
-		err = errors.Join(err, m.cleanupFailedStart("", recorder, proc))
-	}()
-
-	createdAt := meta.CreatedAt
-	if createdAt.IsZero() {
-		createdAt = m.now()
-	}
-	session := &Session{
-		ID:           meta.ID,
-		Name:         meta.Name,
-		AgentName:    meta.AgentName,
-		WorkspaceID:  strings.TrimSpace(meta.WorkspaceID),
-		Workspace:    resolvedWorkspace.RootDir,
-		Type:         normalizeSessionType(SessionType(meta.SessionType)),
-		State:        StateStarting,
-		stopReason:   sessionMetaStopReason(meta),
-		stopDetail:   strings.TrimSpace(meta.StopDetail),
-		ACPSessionID: derefString(meta.ACPSessionID),
-		CreatedAt:    createdAt,
-		UpdatedAt:    m.now(),
-		sessionDir:   sessionDir,
-		metaPath:     metaPath,
-		dbPath:       dbPath,
-		recorder:     recorder,
-	}
-
-	startOpts := acp.StartOpts{
-		AgentName:       resolved.Name,
-		Command:         resolved.Command,
-		Cwd:             resolvedWorkspace.RootDir,
-		AdditionalDirs:  append([]string(nil), resolvedWorkspace.AdditionalDirs...),
-		MCPServers:      startMCPServers,
-		Permissions:     m.startPermissions(session.Type, resolved.Permissions),
-		SystemPrompt:    resolved.Prompt,
-		ResumeSessionID: derefString(meta.ACPSessionID),
-	}
-	startOpts, err = m.dispatchAgentPreStart(ctx, session, resolved, startOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := m.writeMeta(session); err != nil {
-		return nil, err
-	}
-
-	proc, err = m.driver.Start(ctx, startOpts)
-	if err != nil {
-		return nil, fmt.Errorf("session: resume agent for %q: %w", meta.ID, err)
-	}
-
-	if err := m.activateAndWatch(ctx, session, proc, resolved, hookspkg.HookSessionPostResume); err != nil {
-		return nil, err
-	}
-
-	return session, nil
+	return m.startSession(ctx, spec)
 }
 
 func (m *Manager) watchProcess(ctx context.Context, session *Session) {

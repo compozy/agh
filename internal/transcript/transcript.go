@@ -614,8 +614,7 @@ func firstNonNil(values ...any) any {
 	return nil
 }
 
-// CanonicalPayload returns the stored canonical event envelope for replay-aware events.
-func CanonicalPayload(eventType string, turnID string, timestamp time.Time, text string, toolName string, toolCallID string, toolInput json.RawMessage, toolResult *ToolResult, toolError bool) ([]byte, error) {
+func canonicalPayload(eventType string, turnID string, timestamp time.Time, text string, toolName string, toolCallID string, toolInput json.RawMessage, toolResult *ToolResult, toolError bool) ([]byte, error) {
 	payload := canonicalEventPayload{
 		Schema:     CanonicalSchema,
 		Type:       strings.TrimSpace(eventType),

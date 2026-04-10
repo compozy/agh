@@ -100,8 +100,8 @@ func TestNewRequiresSessionManagerObserverAndWorkspaceResolver(t *testing.T) {
 		WithSessionManager(stubSessionManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
-	); err == nil {
-		t.Fatal("New() without skills registry error = nil, want non-nil")
+	); err != nil {
+		t.Fatalf("New() without skills registry error = %v, want nil", err)
 	}
 }
 

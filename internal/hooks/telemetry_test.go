@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestHookTelemetrySecurityPatchPersistsAllFields(t *testing.T) {
@@ -169,21 +171,99 @@ func TestHookTelemetryRecordsFailureOutcomeAndDuration(t *testing.T) {
 	}
 }
 
+func TestHookTelemetryRecordsDroppedAsyncSubmission(t *testing.T) {
+	t.Parallel()
+
+	writer := &captureHookRunWriter{}
+	blocked := make(chan struct{})
+	hooks := NewHooks(
+		WithLogger(discardPoolLogger()),
+		WithAsyncWorkerCount(1),
+		WithAsyncQueueCapacity(1),
+		WithNativeDeclarations([]HookDecl{{
+			Name:         "async-event",
+			Event:        HookEventPreRecord,
+			Mode:         HookModeAsync,
+			ExecutorKind: HookExecutorNative,
+		}}),
+		WithExecutorResolver(func(decl HookDecl) (Executor, error) {
+			if decl.Name != "async-event" {
+				return nil, errors.New("missing executor")
+			}
+			return NewTypedNativeExecutor(func(context.Context, RegisteredHook, EventPreRecordPayload) (EventPreRecordPatch, error) {
+				<-blocked
+				return EventPreRecordPatch{}, nil
+			}), nil
+		}),
+	)
+	t.Cleanup(hooks.Close)
+	if err := hooks.Rebuild(t.Context()); err != nil {
+		t.Fatalf("Rebuild() error = %v", err)
+	}
+
+	ctx := WithHookRunWriter(t.Context(), writer)
+	payload := EventPreRecordPayload{PayloadBase: PayloadBase{Event: HookEventPreRecord}, RecordType: "agent_message"}
+	for i := 0; i < 3; i++ {
+		if _, err := hooks.DispatchEventPreRecord(ctx, payload); err != nil {
+			t.Fatalf("DispatchEventPreRecord() #%d error = %v", i+1, err)
+		}
+	}
+
+	deadline := time.After(time.Second)
+	for {
+		records := writer.recordsSnapshot()
+		if len(records) > 0 {
+			record := records[0]
+			if record.Outcome != HookRunOutcomeDropped {
+				t.Fatalf("record.Outcome = %q, want %q", record.Outcome, HookRunOutcomeDropped)
+			}
+			if record.Error != errAsyncHookDropped.Error() {
+				t.Fatalf("record.Error = %q, want %q", record.Error, errAsyncHookDropped.Error())
+			}
+			close(blocked)
+			return
+		}
+
+		select {
+		case <-deadline:
+			close(blocked)
+			t.Fatal("expected dropped async hook telemetry record")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
+
 type captureHookRunWriter struct {
+	mu      sync.Mutex
 	records []HookRunRecord
 }
 
 func (c *captureHookRunWriter) RecordHookRun(_ context.Context, record HookRunRecord) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.records = append(c.records, cloneTelemetryRecord(record))
 	return nil
 }
 
 func (c *captureHookRunWriter) singleRecord(t *testing.T) HookRunRecord {
 	t.Helper()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if got, want := len(c.records), 1; got != want {
 		t.Fatalf("len(records) = %d, want %d", got, want)
 	}
 	return c.records[0]
+}
+
+func (c *captureHookRunWriter) recordsSnapshot() []HookRunRecord {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	records := make([]HookRunRecord, len(c.records))
+	for i, record := range c.records {
+		records[i] = cloneTelemetryRecord(record)
+	}
+	return records
 }
 
 func newTelemetryTestHooks(t *testing.T, debug bool, decl HookDecl, executors map[string]Executor) *Hooks {
