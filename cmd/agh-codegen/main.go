@@ -2,9 +2,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"reflect"
+	"strings"
 
 	"github.com/pedronauck/agh/internal/api/spec"
 	"github.com/pedronauck/agh/internal/codegen/sdkts"
@@ -45,54 +49,62 @@ func run(args []string) error {
 }
 
 func writeOpenAPI(path string) error {
-	return spec.WriteFile(path)
+	if err := spec.WriteFile(path); err != nil {
+		return fmt.Errorf("write openapi to %q: %w", path, err)
+	}
+	return nil
 }
 
 func writeSDKContracts(path string) error {
-	content, err := sdkts.Generate()
+	content, err := generateFormattedSDKContracts(path)
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+		return fmt.Errorf("create sdk contracts directory %q: %w", filepath.Dir(path), err)
 	}
-	return os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		return fmt.Errorf("write sdk contracts to %q: %w", path, err)
+	}
+	return nil
 }
 
 func checkOpenAPI(path string) error {
-	doc, err := spec.Document()
+	want, err := marshalOpenAPI()
 	if err != nil {
 		return err
 	}
-	want, err := marshalOpenAPI(doc)
-	if err != nil {
-		return err
-	}
-	return checkFile(path, want)
+	return checkJSONFile(path, want)
 }
 
 func checkSDKContracts(path string) error {
-	content, err := sdkts.Generate()
+	content, err := generateFormattedSDKContracts(path)
 	if err != nil {
 		return err
 	}
-	return checkFile(path, []byte(content))
+	return checkFile(path, content)
 }
 
-func marshalOpenAPI(doc any) ([]byte, error) {
+func marshalOpenAPI() ([]byte, error) {
 	file, err := os.CreateTemp("", "agh-openapi-*.json")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create temporary openapi file: %w", err)
 	}
-	_ = file.Close()
+	if err := file.Close(); err != nil {
+		return nil, fmt.Errorf("close temporary openapi file %q: %w", file.Name(), err)
+	}
 	defer func() {
 		_ = os.Remove(file.Name())
 	}()
 
 	if err := spec.WriteFile(file.Name()); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("write openapi to temporary file %q: %w", file.Name(), err)
 	}
-	return os.ReadFile(file.Name())
+	data, err := os.ReadFile(file.Name())
+	if err != nil {
+		return nil, fmt.Errorf("read temporary openapi file %q: %w", file.Name(), err)
+	}
+	return data, nil
 }
 
 func checkFile(path string, want []byte) error {
@@ -101,10 +113,72 @@ func checkFile(path string, want []byte) error {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("%s is missing; run codegen", path)
 		}
-		return err
+		return fmt.Errorf("read %q: %w", path, err)
 	}
 	if !bytes.Equal(got, want) {
 		return fmt.Errorf("%s is stale; run codegen", path)
 	}
 	return nil
+}
+
+func checkJSONFile(path string, want []byte) error {
+	got, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("%s is missing; run codegen", path)
+		}
+		return fmt.Errorf("read %q: %w", path, err)
+	}
+
+	gotCanonical, err := canonicalJSON(got)
+	if err != nil {
+		return fmt.Errorf("decode %q: %w", path, err)
+	}
+	wantCanonical, err := canonicalJSON(want)
+	if err != nil {
+		return fmt.Errorf("decode generated json for %q: %w", path, err)
+	}
+	if !reflect.DeepEqual(gotCanonical, wantCanonical) {
+		return fmt.Errorf("%s is stale; run codegen", path)
+	}
+	return nil
+}
+
+func canonicalJSON(data []byte) (any, error) {
+	var value any
+	if err := json.Unmarshal(data, &value); err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+func generateFormattedSDKContracts(path string) ([]byte, error) {
+	content, err := sdkts.Generate()
+	if err != nil {
+		return nil, fmt.Errorf("generate sdk contracts: %w", err)
+	}
+	formatted, err := formatTypeScript(path, []byte(content))
+	if err != nil {
+		return nil, err
+	}
+	return formatted, nil
+}
+
+func formatTypeScript(path string, content []byte) ([]byte, error) {
+	cmd := exec.Command("bunx", "oxfmt", "--stdin-filepath", path)
+	cmd.Stdin = bytes.NewReader(content)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		detail := strings.TrimSpace(stderr.String())
+		if detail == "" {
+			return nil, fmt.Errorf("format typescript %q with oxfmt: %w", path, err)
+		}
+		return nil, fmt.Errorf("format typescript %q with oxfmt: %w: %s", path, err, detail)
+	}
+	return stdout.Bytes(), nil
 }

@@ -69,7 +69,7 @@ func extensionHealth(manifest *Manifest, info ExtensionInfo, status ExtensionSta
 		return "unknown"
 	}
 	if status.Active {
-		if status.Healthy || !requiresSubprocess(manifest) && len(info.Capabilities.Provides) == 0 && len(info.Actions.Requires) == 0 {
+		if status.Healthy || (!requiresSubprocess(manifest) && len(info.Capabilities.Provides) == 0 && len(info.Actions.Requires) == 0) {
 			return "healthy"
 		}
 		return "unhealthy"

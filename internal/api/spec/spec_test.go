@@ -14,39 +14,47 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 		t.Fatalf("Document() error = %v", err)
 	}
 
-	listSessions := operationFor(t, doc, "/api/sessions", "GET")
-	listSessionsSchema := jsonResponseSchema(t, listSessions, 200)
-	assertRequired(t, listSessionsSchema, "sessions")
+	t.Run("ShouldDescribeSessionListRequiredFieldsAndEnums", func(t *testing.T) {
+		listSessions := operationFor(t, doc, "/api/sessions", "GET")
+		listSessionsSchema := jsonResponseSchema(t, listSessions, 200)
+		assertRequired(t, listSessionsSchema, "sessions")
 
-	sessionSchema := propertySchema(t, listSessionsSchema, "sessions").Items.Value
-	assertRequired(t, sessionSchema, "id", "agent_name", "state", "created_at", "updated_at")
-	assertNotRequired(t, sessionSchema, "workspace_id", "workspace_path", "stop_reason", "stop_detail")
-	assertEnumValues(t, propertySchema(t, sessionSchema, "state"), "starting", "active", "stopping", "stopped")
-	assertEnumValues(t, propertySchema(t, sessionSchema, "stop_reason"),
-		"completed",
-		"user_canceled",
-		"max_iterations",
-		"loop_detected",
-		"timeout",
-		"budget_exceeded",
-		"error",
-		"agent_crashed",
-		"hook_stopped",
-		"shutdown",
-	)
+		sessionSchema := propertySchema(t, listSessionsSchema, "sessions").Items.Value
+		assertRequired(t, sessionSchema, "id", "agent_name", "state", "created_at", "updated_at")
+		assertNotRequired(t, sessionSchema, "workspace_id", "workspace_path", "stop_reason", "stop_detail")
+		assertEnumValues(t, propertySchema(t, sessionSchema, "state"), "starting", "active", "stopping", "stopped")
+		assertEnumValues(t, propertySchema(t, sessionSchema, "stop_reason"),
+			"completed",
+			"user_canceled",
+			"max_iterations",
+			"loop_detected",
+			"timeout",
+			"budget_exceeded",
+			"error",
+			"agent_crashed",
+			"hook_stopped",
+			"shutdown",
+		)
+	})
 
-	createSession := operationFor(t, doc, "/api/sessions", "POST")
-	createSessionSchema := jsonRequestSchema(t, createSession)
-	assertNotRequired(t, createSessionSchema, "agent_name", "name", "workspace", "workspace_path")
+	t.Run("ShouldDescribeCreateSessionOptionalFields", func(t *testing.T) {
+		createSession := operationFor(t, doc, "/api/sessions", "POST")
+		createSessionSchema := jsonRequestSchema(t, createSession)
+		assertNotRequired(t, createSessionSchema, "agent_name", "name", "workspace", "workspace_path")
+	})
 
-	approveSession := operationFor(t, doc, "/api/sessions/{id}/approve", "POST")
-	approveSchema := jsonRequestSchema(t, approveSession)
-	assertRequired(t, approveSchema, "request_id", "turn_id", "decision")
+	t.Run("ShouldDescribeApproveSessionRequiredFields", func(t *testing.T) {
+		approveSession := operationFor(t, doc, "/api/sessions/{id}/approve", "POST")
+		approveSchema := jsonRequestSchema(t, approveSession)
+		assertRequired(t, approveSchema, "request_id", "turn_id", "decision")
+	})
 
-	writeMemory := operationFor(t, doc, "/api/memory/{filename}", "PUT")
-	writeMemorySchema := jsonRequestSchema(t, writeMemory)
-	assertRequired(t, writeMemorySchema, "content")
-	assertNotRequired(t, writeMemorySchema, "scope", "workspace")
+	t.Run("ShouldDescribeWriteMemoryRequiredAndOptionalFields", func(t *testing.T) {
+		writeMemory := operationFor(t, doc, "/api/memory/{filename}", "PUT")
+		writeMemorySchema := jsonRequestSchema(t, writeMemory)
+		assertRequired(t, writeMemorySchema, "content")
+		assertNotRequired(t, writeMemorySchema, "scope", "workspace")
+	})
 }
 
 func operationFor(t *testing.T, doc *openapi3.T, path string, method string) *openapi3.Operation {

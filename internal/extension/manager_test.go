@@ -701,6 +701,233 @@ func TestManagerHelperPathsAndAccessors(t *testing.T) {
 	}
 }
 
+func TestManagerResolveCommandKeepsPathLikeValuesInsideExtensionRoot(t *testing.T) {
+	t.Parallel()
+
+	manager := NewManager(nil)
+	root := t.TempDir()
+	inside := filepath.Join(root, "bin", "tool")
+
+	got, err := manager.resolveCommand(root, "./bin/tool")
+	if err != nil {
+		t.Fatalf("resolveCommand(relative) error = %v", err)
+	}
+	if got != inside {
+		t.Fatalf("resolveCommand(relative) = %q, want %q", got, inside)
+	}
+
+	got, err = manager.resolveCommand(root, inside)
+	if err != nil {
+		t.Fatalf("resolveCommand(absolute inside) error = %v", err)
+	}
+	if got != inside {
+		t.Fatalf("resolveCommand(absolute inside) = %q, want %q", got, inside)
+	}
+
+	outsideCommand := filepath.Join(t.TempDir(), "tool")
+	got, err = manager.resolveCommand(root, outsideCommand)
+	if err != nil {
+		t.Fatalf("resolveCommand(absolute outside) error = %v", err)
+	}
+	if got != outsideCommand {
+		t.Fatalf("resolveCommand(absolute outside) = %q, want %q", got, outsideCommand)
+	}
+
+	got, err = manager.resolveCommand(root, "node")
+	if err != nil {
+		t.Fatalf("resolveCommand(bare) error = %v", err)
+	}
+	if got != "node" {
+		t.Fatalf("resolveCommand(bare) = %q, want %q", got, "node")
+	}
+
+	if _, err := manager.resolveCommand(root, "../outside/tool"); err == nil || !strings.Contains(err.Error(), "escapes extension root") {
+		t.Fatalf("resolveCommand(escape) error = %v, want extension-root escape failure", err)
+	}
+
+	if _, err := resolveResourcePath(root, "../skills"); err == nil || !strings.Contains(err.Error(), "escapes extension root") {
+		t.Fatalf("resolveResourcePath(escape) error = %v, want extension-root escape failure", err)
+	}
+
+	resourceRoot, err := resolveResourcePath(root, "skills")
+	if err != nil {
+		t.Fatalf("resolveResourcePath(within root) error = %v", err)
+	}
+	if resourceRoot != filepath.Join(root, "skills") {
+		t.Fatalf("resolveResourcePath(within root) = %q, want %q", resourceRoot, filepath.Join(root, "skills"))
+	}
+}
+
+func TestManagerResolveEnvMapUsesSafeBaselineOnly(t *testing.T) {
+	t.Parallel()
+
+	manager := NewManager(nil, WithGetenv(func(key string) string {
+		switch key {
+		case "PATH":
+			return "/usr/bin:/bin"
+		case "HOME":
+			return "/tmp/home"
+		case "LANG":
+			return "en_US.UTF-8"
+		case "SECRET_TOKEN":
+			return "top-secret"
+		default:
+			return ""
+		}
+	}))
+
+	env, err := manager.resolveEnvMap(t.TempDir(), map[string]string{
+		"APP_MODE": "sandbox",
+		"PATH":     "/custom/bin",
+	})
+	if err != nil {
+		t.Fatalf("resolveEnvMap() error = %v", err)
+	}
+
+	decoded := envListToMap(t, env)
+	if decoded["PATH"] != "/custom/bin" {
+		t.Fatalf("PATH = %q, want %q", decoded["PATH"], "/custom/bin")
+	}
+	if decoded["HOME"] != "/tmp/home" {
+		t.Fatalf("HOME = %q, want %q", decoded["HOME"], "/tmp/home")
+	}
+	if decoded["LANG"] != "en_US.UTF-8" {
+		t.Fatalf("LANG = %q, want %q", decoded["LANG"], "en_US.UTF-8")
+	}
+	if decoded["APP_MODE"] != "sandbox" {
+		t.Fatalf("APP_MODE = %q, want %q", decoded["APP_MODE"], "sandbox")
+	}
+	if _, ok := decoded["SECRET_TOKEN"]; ok {
+		t.Fatalf("resolveEnvMap() leaked SECRET_TOKEN in %#v", decoded)
+	}
+}
+
+func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
+	t.Parallel()
+
+	manager := NewManager(nil)
+	ext := &managedExtension{
+		info: ExtensionInfo{
+			Name:    "snapshot",
+			Version: "1.0.0",
+			Source:  SourceUser,
+			Enabled: true,
+			Capabilities: CapabilitiesConfig{
+				Provides: []string{"memory.backend"},
+			},
+			Actions: ActionsConfig{
+				Requires: []string{"sessions/list"},
+			},
+		},
+		manifest: &Manifest{
+			Name:    "snapshot",
+			Version: "1.0.0",
+			Resources: ResourcesConfig{
+				Skills: []string{"skills/"},
+			},
+			Capabilities: CapabilitiesConfig{
+				Provides: []string{"memory.backend"},
+			},
+			Actions: ActionsConfig{
+				Requires: []string{"sessions/list"},
+			},
+			Subprocess: SubprocessConfig{
+				Command: "snapshot-extension",
+				Args:    []string{"--config", "snapshot.toml"},
+				Env: map[string]string{
+					"TOKEN": "value",
+				},
+			},
+			Security: SecurityConfig{
+				Capabilities: []string{"memory.read"},
+			},
+		},
+		skills: []*skillspkg.Skill{{
+			Meta: skillspkg.SkillMeta{
+				Name:        "snapshot-skill",
+				Description: "Snapshot skill",
+				Metadata: map[string]any{
+					"nested": map[string]any{"value": "original"},
+				},
+			},
+			Hooks: []hookspkg.HookDecl{{
+				Name: "snapshot-hook",
+				Args: []string{"cleanup"},
+				Env:  map[string]string{"PHASE": "stop"},
+			}},
+			MCPServers: []skillspkg.MCPServerDecl{{
+				Name:    "snapshot-server",
+				Command: "server",
+				Args:    []string{"--once"},
+				Env:     map[string]string{"ROOT": "/tmp/original"},
+			}},
+			Provenance: &skillspkg.Provenance{
+				Hash: "hash-original",
+			},
+		}},
+		initialize: &subprocess.InitializeResponse{
+			ImplementedMethods:  []string{"shutdown"},
+			SupportedHookEvents: []string{"turn.start"},
+			AcceptedCapabilities: subprocess.AcceptedCapabilities{
+				Provides: []string{"memory.backend"},
+				Actions:  []extensionprotocol.HostAPIMethod{"sessions/list"},
+				Security: []string{"memory.read"},
+			},
+		},
+	}
+
+	clone := manager.cloneExtension(ext)
+	if clone == nil {
+		t.Fatal("cloneExtension() = nil, want snapshot")
+	}
+
+	clone.Info.Capabilities.Provides[0] = "changed"
+	clone.Info.Actions.Requires[0] = "changed"
+	clone.Manifest.Resources.Skills[0] = "changed"
+	clone.Manifest.Subprocess.Env["TOKEN"] = "changed"
+	clone.Skills[0].Meta.Name = "changed"
+	clone.Skills[0].Meta.Metadata["nested"].(map[string]any)["value"] = "changed"
+	clone.Skills[0].Hooks[0].Args[0] = "changed"
+	clone.Skills[0].MCPServers[0].Env["ROOT"] = "/tmp/changed"
+	clone.Skills[0].Provenance.Hash = "hash-changed"
+	clone.InitializeResult.ImplementedMethods[0] = "changed"
+	clone.InitializeResult.AcceptedCapabilities.Provides[0] = "changed"
+
+	if ext.info.Capabilities.Provides[0] != "memory.backend" {
+		t.Fatalf("original capabilities mutated to %#v", ext.info.Capabilities.Provides)
+	}
+	if ext.info.Actions.Requires[0] != "sessions/list" {
+		t.Fatalf("original actions mutated to %#v", ext.info.Actions.Requires)
+	}
+	if ext.manifest.Resources.Skills[0] != "skills/" {
+		t.Fatalf("original manifest resources mutated to %#v", ext.manifest.Resources.Skills)
+	}
+	if ext.manifest.Subprocess.Env["TOKEN"] != "value" {
+		t.Fatalf("original manifest env mutated to %#v", ext.manifest.Subprocess.Env)
+	}
+	if ext.skills[0].Meta.Name != "snapshot-skill" {
+		t.Fatalf("original skill name mutated to %q", ext.skills[0].Meta.Name)
+	}
+	if ext.skills[0].Meta.Metadata["nested"].(map[string]any)["value"] != "original" {
+		t.Fatalf("original skill metadata mutated to %#v", ext.skills[0].Meta.Metadata)
+	}
+	if ext.skills[0].Hooks[0].Args[0] != "cleanup" {
+		t.Fatalf("original skill hook args mutated to %#v", ext.skills[0].Hooks[0].Args)
+	}
+	if ext.skills[0].MCPServers[0].Env["ROOT"] != "/tmp/original" {
+		t.Fatalf("original skill MCP env mutated to %#v", ext.skills[0].MCPServers[0].Env)
+	}
+	if ext.skills[0].Provenance.Hash != "hash-original" {
+		t.Fatalf("original skill provenance mutated to %#v", ext.skills[0].Provenance)
+	}
+	if ext.initialize.ImplementedMethods[0] != "shutdown" {
+		t.Fatalf("original initialize methods mutated to %#v", ext.initialize.ImplementedMethods)
+	}
+	if ext.initialize.AcceptedCapabilities.Provides[0] != "memory.backend" {
+		t.Fatalf("original initialize provides mutated to %#v", ext.initialize.AcceptedCapabilities.Provides)
+	}
+}
+
 func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	t.Parallel()
 
@@ -1379,6 +1606,20 @@ func helperEnv(scenario string, markerPath string) map[string]string {
 		env[extensionHelperMarkerKey] = markerPath
 	}
 	return env
+}
+
+func envListToMap(t testing.TB, env []string) map[string]string {
+	t.Helper()
+
+	decoded := make(map[string]string, len(env))
+	for _, entry := range env {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			t.Fatalf("env entry %q missing '=' separator", entry)
+		}
+		decoded[key] = value
+	}
+	return decoded
 }
 
 func waitForManagerCondition(t *testing.T, timeout time.Duration, fn func() bool) {

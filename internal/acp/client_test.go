@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"os"
 	"os/exec"
@@ -20,6 +19,8 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/subprocess"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 const (
@@ -633,6 +634,45 @@ func stopProcess(t *testing.T, driver *Driver, proc *AgentProcess) {
 	}
 	if err := driver.Stop(testutil.Context(t), proc); err != nil {
 		t.Fatalf("Stop() error = %v", err)
+	}
+}
+
+func TestStopManagedProcessRespectsContext(t *testing.T) {
+	t.Parallel()
+
+	driver := New(WithStopTimeout(5 * time.Second))
+	managed, err := subprocess.Launch(context.Background(), subprocess.LaunchConfig{
+		Command:          "sh",
+		Args:             []string{"-c", "sleep 30"},
+		DisableTransport: true,
+		ShutdownTimeout:  time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Launch() error = %v", err)
+	}
+
+	proc := &AgentProcess{
+		managed: managed,
+		done:    make(chan struct{}),
+	}
+	go proc.waitForExit()
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = managed.Shutdown(cleanupCtx)
+		<-proc.Done()
+	})
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+
+	startedAt := time.Now()
+	err = driver.Stop(stopCtx, proc)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Stop() error = %v, want context deadline exceeded", err)
+	}
+	if elapsed := time.Since(startedAt); elapsed > time.Second {
+		t.Fatalf("Stop() elapsed = %v, want <= 1s", elapsed)
 	}
 }
 

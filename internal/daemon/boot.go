@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	core "github.com/pedronauck/agh/internal/api/core"
@@ -41,6 +42,7 @@ type bootState struct {
 	sessions          SessionManager
 	observer          Observer
 	hooks             hookRuntime
+	extMu             sync.RWMutex
 	extensions        extensionRuntime
 	httpServer        Server
 	udsServer         Server
@@ -49,6 +51,24 @@ type bootState struct {
 	startedAt         time.Time
 	info              Info
 	deps              RuntimeDeps
+}
+
+func (s *bootState) currentExtensionRuntime() extensionRuntime {
+	if s == nil {
+		return nil
+	}
+	s.extMu.RLock()
+	defer s.extMu.RUnlock()
+	return s.extensions
+}
+
+func (s *bootState) setExtensionRuntime(runtime extensionRuntime) {
+	if s == nil {
+		return
+	}
+	s.extMu.Lock()
+	defer s.extMu.Unlock()
+	s.extensions = runtime
 }
 
 type bootCleanup struct {
@@ -363,7 +383,7 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 		hookspkg.WithNativeDeclarations(nativeDecls),
 		hookspkg.WithConfigDeclarationProvider(chainDeclarationProviders(
 			configDeclarationProvider(state.registry, state.workspaceResolver, state.logger),
-			extensionDeclarationProvider(func() extensionRuntime { return state.extensions }),
+			extensionDeclarationProvider(state.currentExtensionRuntime),
 		)),
 		hookspkg.WithAgentDeclarationProvider(agentDeclarationProvider(state.registry, state.workspaceResolver, state.logger)),
 		hookspkg.WithSkillDeclarationProvider(skillDeclarationProvider(state.skillsRegistry, state.registry, state.workspaceResolver, state.cfg.Skills.AllowedMarketplaceHooks, state.logger)),
@@ -428,7 +448,7 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		return nil
 	}
 
-	state.extensions = manager
+	state.setExtensionRuntime(manager)
 	state.deps.Extensions = newDaemonExtensionService(extRegistry, manager, state.hooks, state.logger, d.now)
 	cleanup.add(func(ctx context.Context) error {
 		return manager.Stop(ctx)
@@ -519,7 +539,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.memoryStore = state.memoryStore
 	d.sessions = state.sessions
 	d.hooks = state.hooks
-	d.extensions = state.extensions
+	d.extensions = state.currentExtensionRuntime()
 	d.observer = state.observer
 	d.httpServer = state.httpServer
 	d.udsServer = state.udsServer

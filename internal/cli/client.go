@@ -514,7 +514,7 @@ func (c *unixSocketClient) extensionAction(ctx context.Context, name string, act
 	var response struct {
 		Extension ExtensionRecord `json:"extension"`
 	}
-	path := "/api/extensions/" + url.PathEscape(strings.TrimSpace(name)) + "/" + strings.TrimSpace(action)
+	path := "/api/extensions/" + url.PathEscape(name) + "/" + action
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
 		return ExtensionRecord{}, err
 	}

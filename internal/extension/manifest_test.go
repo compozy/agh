@@ -35,14 +35,72 @@ func TestLoadManifest_ParsesTOMLAndJSONEquivalently(t *testing.T) {
 	}
 
 	want := expectedManifest()
-	if !reflect.DeepEqual(*gotTOML, want) {
-		t.Fatalf("unexpected TOML manifest\n got: %#v\nwant: %#v", *gotTOML, want)
+	t.Run("ShouldMatchExpectedManifestFromTOML", func(t *testing.T) {
+		if !reflect.DeepEqual(*gotTOML, want) {
+			t.Fatalf("unexpected TOML manifest\n got: %#v\nwant: %#v", *gotTOML, want)
+		}
+	})
+	t.Run("ShouldMatchExpectedManifestFromJSON", func(t *testing.T) {
+		if !reflect.DeepEqual(*gotJSON, want) {
+			t.Fatalf("unexpected JSON manifest\n got: %#v\nwant: %#v", *gotJSON, want)
+		}
+	})
+	t.Run("ShouldParseTOMLAndJSONEquivalently", func(t *testing.T) {
+		if !reflect.DeepEqual(*gotTOML, *gotJSON) {
+			t.Fatalf("TOML and JSON manifests differ\n toml: %#v\n json: %#v", *gotTOML, *gotJSON)
+		}
+	})
+}
+
+func TestLoadManifest_FiltersBlankStringEntries(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "filtered"
+version = "0.2.1"
+description = "Normalization coverage"
+min_agh_version = "0.5.0"
+
+[resources]
+skills = ["skills/", "  ", ""]
+agents = ["agents/", "\t"]
+
+[capabilities]
+provides = ["memory.backend", "   "]
+
+[actions]
+requires = ["sessions/list", ""]
+
+[subprocess]
+command = "agh-ext-filtered"
+args = ["--config", " ", "\t", "config.toml"]
+
+[security]
+capabilities = ["memory.read", "   "]
+`)
+
+	manifest, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest() error = %v", err)
 	}
-	if !reflect.DeepEqual(*gotJSON, want) {
-		t.Fatalf("unexpected JSON manifest\n got: %#v\nwant: %#v", *gotJSON, want)
+	if !reflect.DeepEqual(manifest.Resources.Skills, []string{"skills/"}) {
+		t.Fatalf("Resources.Skills = %#v, want %#v", manifest.Resources.Skills, []string{"skills/"})
 	}
-	if !reflect.DeepEqual(*gotTOML, *gotJSON) {
-		t.Fatalf("TOML and JSON manifests differ\n toml: %#v\n json: %#v", *gotTOML, *gotJSON)
+	if !reflect.DeepEqual(manifest.Resources.Agents, []string{"agents/"}) {
+		t.Fatalf("Resources.Agents = %#v, want %#v", manifest.Resources.Agents, []string{"agents/"})
+	}
+	if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"memory.backend"}) {
+		t.Fatalf("Capabilities.Provides = %#v, want %#v", manifest.Capabilities.Provides, []string{"memory.backend"})
+	}
+	if !reflect.DeepEqual(manifest.Actions.Requires, []string{"sessions/list"}) {
+		t.Fatalf("Actions.Requires = %#v, want %#v", manifest.Actions.Requires, []string{"sessions/list"})
+	}
+	if !reflect.DeepEqual(manifest.Subprocess.Args, []string{"--config", "config.toml"}) {
+		t.Fatalf("Subprocess.Args = %#v, want %#v", manifest.Subprocess.Args, []string{"--config", "config.toml"})
+	}
+	if !reflect.DeepEqual(manifest.Security.Capabilities, []string{"memory.read"}) {
+		t.Fatalf("Security.Capabilities = %#v, want %#v", manifest.Security.Capabilities, []string{"memory.read"})
 	}
 }
 

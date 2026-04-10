@@ -1,30 +1,80 @@
 package extension_test
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNonEmptyLines(t *testing.T) {
 	t.Parallel()
 
-	got := nonEmptyLines("\n first \n\nsecond\n  \n third  \n")
-	want := []string{"first", "second", "third"}
-	if len(got) != len(want) {
-		t.Fatalf("len(nonEmptyLines()) = %d, want %d", len(got), len(want))
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "ShouldTrimAndDropBlankLines",
+			input: "\n first \n\nsecond\n  \n third  \n",
+			want:  []string{"first", "second", "third"},
+		},
+		{
+			name:  "ShouldReturnEmptySliceWhenEveryLineIsBlank",
+			input: "\n \n\t\n",
+			want:  []string{},
+		},
 	}
-	for index := range want {
-		if got[index] != want[index] {
-			t.Fatalf("nonEmptyLines()[%d] = %q, want %q", index, got[index], want[index])
-		}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := nonEmptyLines(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("len(nonEmptyLines()) = %d, want %d", len(got), len(tt.want))
+			}
+			for index := range tt.want {
+				if got[index] != tt.want[index] {
+					t.Fatalf("nonEmptyLines()[%d] = %q, want %q", index, got[index], tt.want[index])
+				}
+			}
+		})
 	}
 }
 
 func TestContainsFragmentsInOrder(t *testing.T) {
 	t.Parallel()
 
-	if !containsFragmentsInOrder("alpha beta gamma", "alpha", "beta", "gamma") {
-		t.Fatal("containsFragmentsInOrder() = false, want true for ordered fragments")
+	tests := []struct {
+		name      string
+		text      string
+		fragments []string
+		want      bool
+	}{
+		{
+			name:      "ShouldMatchOrderedFragments",
+			text:      "alpha beta gamma",
+			fragments: []string{"alpha", "beta", "gamma"},
+			want:      true,
+		},
+		{
+			name:      "ShouldRejectOutOfOrderFragments",
+			text:      "alpha gamma beta",
+			fragments: []string{"alpha", "beta", "gamma"},
+			want:      false,
+		},
+		{
+			name:      "ShouldIgnoreEmptyFragments",
+			text:      "alpha beta",
+			fragments: []string{"alpha", "", "beta"},
+			want:      true,
+		},
 	}
-	if containsFragmentsInOrder("alpha gamma beta", "alpha", "beta", "gamma") {
-		t.Fatal("containsFragmentsInOrder() = true, want false for out-of-order fragments")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := containsFragmentsInOrder(tt.text, tt.fragments...); got != tt.want {
+				t.Fatalf("containsFragmentsInOrder() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -35,18 +85,52 @@ func TestDecodeJSONLines(t *testing.T) {
 		Name string `json:"name"`
 	}
 
-	items, err := decodeJSONLines[sample]([]byte("{\"name\":\"alpha\"}\n\n{\"name\":\"beta\"}\n"))
-	if err != nil {
-		t.Fatalf("decodeJSONLines() error = %v", err)
-	}
-	if len(items) != 2 {
-		t.Fatalf("len(decodeJSONLines()) = %d, want 2", len(items))
-	}
-	if items[0].Name != "alpha" || items[1].Name != "beta" {
-		t.Fatalf("decodeJSONLines() = %#v, want alpha/beta", items)
+	tests := []struct {
+		name      string
+		payload   []byte
+		wantNames []string
+		wantError string
+	}{
+		{
+			name:      "ShouldDecodeMultipleJSONLines",
+			payload:   []byte("{\"name\":\"alpha\"}\n\n{\"name\":\"beta\"}\n"),
+			wantNames: []string{"alpha", "beta"},
+		},
+		{
+			name:      "ShouldDecodeEmptyPayloadIntoEmptySlice",
+			payload:   []byte("\n\t\n"),
+			wantNames: []string{},
+		},
+		{
+			name:      "ShouldReportInvalidJSONLineContent",
+			payload:   []byte("{not-json}\n"),
+			wantError: "invalid character",
+		},
 	}
 
-	if _, err := decodeJSONLines[sample]([]byte("{not-json}\n")); err == nil {
-		t.Fatal("decodeJSONLines(invalid) error = nil, want non-nil")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			items, err := decodeJSONLines[sample](tt.payload)
+			if tt.wantError != "" {
+				if err == nil {
+					t.Fatalf("decodeJSONLines() error = nil, want containing %q", tt.wantError)
+				}
+				if !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("decodeJSONLines() error = %q, want containing %q", err.Error(), tt.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("decodeJSONLines() error = %v", err)
+			}
+			if len(items) != len(tt.wantNames) {
+				t.Fatalf("len(decodeJSONLines()) = %d, want %d", len(items), len(tt.wantNames))
+			}
+			for index, wantName := range tt.wantNames {
+				if items[index].Name != wantName {
+					t.Fatalf("decodeJSONLines()[%d].Name = %q, want %q", index, items[index].Name, wantName)
+				}
+			}
+		})
 	}
 }

@@ -40,6 +40,23 @@ var capabilityServiceMethods = map[string][]string{
 	"memory.backend": {"memory/store", "memory/recall", "memory/forget"},
 }
 
+var safeSubprocessEnvKeys = []string{
+	"PATH",
+	"HOME",
+	"USER",
+	"LOGNAME",
+	"TMPDIR",
+	"TMP",
+	"TEMP",
+	"LANG",
+	"LC_ALL",
+	"SHELL",
+	"SystemRoot",
+	"ComSpec",
+	"PATHEXT",
+	"USERPROFILE",
+}
+
 // Option customizes an extension manager.
 type Option func(*Manager)
 
@@ -1093,7 +1110,11 @@ func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill,
 	source := skillSourceForExtension(ext.info.Source)
 	loaded := make(map[string]*skillspkg.Skill)
 	for _, resourcePath := range ext.manifest.Resources.Skills {
-		files, err := collectMarkdownFiles(resolveResourcePath(ext.rootDir, resourcePath))
+		resourceRoot, err := resolveResourcePath(ext.rootDir, resourcePath)
+		if err != nil {
+			return nil, err
+		}
+		files, err := collectMarkdownFiles(resourceRoot)
 		if err != nil {
 			return nil, err
 		}
@@ -1120,7 +1141,11 @@ func (m *Manager) loadAgentResources(ext *managedExtension) ([]aghconfig.AgentDe
 
 	loaded := make(map[string]aghconfig.AgentDef)
 	for _, resourcePath := range ext.manifest.Resources.Agents {
-		files, err := collectMarkdownFiles(resolveResourcePath(ext.rootDir, resourcePath))
+		resourceRoot, err := resolveResourcePath(ext.rootDir, resourcePath)
+		if err != nil {
+			return nil, err
+		}
+		files, err := collectMarkdownFiles(resourceRoot)
 		if err != nil {
 			return nil, err
 		}
@@ -1285,10 +1310,10 @@ func (m *Manager) resolveCommand(rootDir string, value string) (string, error) {
 		return "", nil
 	}
 	if filepath.IsAbs(resolved) {
-		return resolved, nil
+		return filepath.Clean(resolved), nil
 	}
 	if strings.ContainsRune(resolved, filepath.Separator) || strings.HasPrefix(resolved, ".") {
-		return filepath.Clean(filepath.Join(rootDir, resolved)), nil
+		return resolvePathWithinRoot(rootDir, resolved)
 	}
 	return resolved, nil
 }
@@ -1326,13 +1351,19 @@ func (m *Manager) resolveStringMap(rootDir string, env map[string]string) (map[s
 }
 
 func (m *Manager) resolveEnvMap(rootDir string, env map[string]string) ([]string, error) {
-	if len(env) == 0 {
-		return os.Environ(), nil
-	}
-
 	resolvedMap, err := m.resolveStringMap(rootDir, env)
 	if err != nil {
 		return nil, err
+	}
+
+	valuesMap := make(map[string]string, len(safeSubprocessEnvKeys)+len(resolvedMap))
+	order := make([]string, 0, len(safeSubprocessEnvKeys)+len(resolvedMap))
+	for _, key := range safeSubprocessEnvKeys {
+		if _, exists := valuesMap[key]; exists {
+			continue
+		}
+		valuesMap[key] = m.getenv(key)
+		order = append(order, key)
 	}
 
 	keys := make([]string, 0, len(resolvedMap))
@@ -1341,10 +1372,16 @@ func (m *Manager) resolveEnvMap(rootDir string, env map[string]string) ([]string
 	}
 	slices.Sort(keys)
 
-	values := make([]string, 0, len(os.Environ())+len(keys))
-	values = append(values, os.Environ()...)
 	for _, key := range keys {
-		values = append(values, key+"="+resolvedMap[key])
+		if _, exists := valuesMap[key]; !exists {
+			order = append(order, key)
+		}
+		valuesMap[key] = resolvedMap[key]
+	}
+
+	values := make([]string, 0, len(order))
+	for _, key := range order {
+		values = append(values, key+"="+valuesMap[key])
 	}
 	return values, nil
 }
@@ -1537,15 +1574,14 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 	defer m.mu.RUnlock()
 
 	clone := &Extension{
-		Info:            ext.info,
+		Info:            cloneExtensionInfo(ext.info),
 		RootDir:         ext.rootDir,
 		GrantedActions:  slices.Clone(ext.grantedActions),
 		GrantedSecurity: slices.Clone(ext.grantedSecurity),
 		Status:          m.statusLocked(ext),
 	}
 	if ext.manifest != nil {
-		manifest := *ext.manifest
-		clone.Manifest = &manifest
+		clone.Manifest = cloneManifest(ext.manifest)
 	}
 	for _, decl := range ext.hooks {
 		clone.Hooks = append(clone.Hooks, cloneHookDecl(decl))
@@ -1556,10 +1592,14 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 	for _, server := range ext.mcpServers {
 		clone.MCPServers = append(clone.MCPServers, cloneMCPServer(server))
 	}
-	clone.Skills = append(clone.Skills, ext.skills...)
+	if len(ext.skills) > 0 {
+		clone.Skills = make([]*skillspkg.Skill, 0, len(ext.skills))
+		for _, skill := range ext.skills {
+			clone.Skills = append(clone.Skills, cloneSkillSnapshot(skill))
+		}
+	}
 	if ext.initialize != nil {
-		initResult := *ext.initialize
-		clone.InitializeResult = &initResult
+		clone.InitializeResult = cloneInitializeResponse(ext.initialize)
 	}
 	return clone
 }
@@ -1712,12 +1752,37 @@ func skillSourceForExtension(source ExtensionSource) skillspkg.SkillSource {
 	}
 }
 
-func resolveResourcePath(rootDir string, value string) string {
-	resolved := strings.TrimSpace(value)
-	if filepath.IsAbs(resolved) {
-		return filepath.Clean(resolved)
+func resolveResourcePath(rootDir string, value string) (string, error) {
+	return resolvePathWithinRoot(rootDir, value)
+}
+
+func resolvePathWithinRoot(rootDir string, value string) (string, error) {
+	trimmedRoot := filepath.Clean(strings.TrimSpace(rootDir))
+	if trimmedRoot == "" {
+		return "", errors.New("extension: root directory is required")
 	}
-	return filepath.Clean(filepath.Join(rootDir, resolved))
+
+	resolved := strings.TrimSpace(value)
+	if resolved == "" {
+		return "", nil
+	}
+
+	var candidate string
+	if filepath.IsAbs(resolved) {
+		candidate = filepath.Clean(resolved)
+	} else {
+		candidate = filepath.Clean(filepath.Join(trimmedRoot, resolved))
+	}
+
+	rel, err := filepath.Rel(trimmedRoot, candidate)
+	if err != nil {
+		return "", fmt.Errorf("extension: resolve path %q: %w", resolved, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("extension: path %q escapes extension root %q", resolved, trimmedRoot)
+	}
+
+	return candidate, nil
 }
 
 func collectMarkdownFiles(root string) ([]string, error) {
@@ -1803,4 +1868,115 @@ func cloneStringMap(src map[string]string) map[string]string {
 		dst[key] = value
 	}
 	return dst
+}
+
+func cloneExtensionInfo(info ExtensionInfo) ExtensionInfo {
+	cloned := info
+	cloned.Capabilities = normalizeCapabilitiesConfig(info.Capabilities)
+	cloned.Actions = normalizeActionsConfig(info.Actions)
+	return cloned
+}
+
+func cloneManifest(src *Manifest) *Manifest {
+	if src == nil {
+		return nil
+	}
+
+	cloned := *src
+	cloned.Resources = normalizeResourcesConfig(src.Resources)
+	cloned.Capabilities = normalizeCapabilitiesConfig(src.Capabilities)
+	cloned.Actions = normalizeActionsConfig(src.Actions)
+	cloned.Subprocess = normalizeSubprocessConfig(src.Subprocess)
+	cloned.Security = normalizeSecurityConfig(src.Security)
+	return &cloned
+}
+
+func cloneSkillSnapshot(skill *skillspkg.Skill) *skillspkg.Skill {
+	if skill == nil {
+		return nil
+	}
+
+	clone := *skill
+	clone.Meta = cloneSkillMeta(skill.Meta)
+	clone.MCPServers = cloneSkillMCPServers(skill.MCPServers)
+	if len(skill.Hooks) > 0 {
+		clone.Hooks = make([]hookspkg.HookDecl, 0, len(skill.Hooks))
+		for _, decl := range skill.Hooks {
+			clone.Hooks = append(clone.Hooks, cloneHookDecl(decl))
+		}
+	}
+	clone.Provenance = cloneSkillProvenance(skill.Provenance)
+	return &clone
+}
+
+func cloneSkillMeta(meta skillspkg.SkillMeta) skillspkg.SkillMeta {
+	cloned := meta
+	cloned.Metadata = cloneSkillMetadataMap(meta.Metadata)
+	return cloned
+}
+
+func cloneSkillMetadataMap(metadata map[string]any) map[string]any {
+	if metadata == nil {
+		return nil
+	}
+
+	cloned := make(map[string]any, len(metadata))
+	for key, value := range metadata {
+		cloned[key] = cloneSkillMetadataValue(value)
+	}
+	return cloned
+}
+
+func cloneSkillMetadataValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneSkillMetadataMap(typed)
+	case []any:
+		cloned := make([]any, len(typed))
+		for index := range typed {
+			cloned[index] = cloneSkillMetadataValue(typed[index])
+		}
+		return cloned
+	default:
+		return typed
+	}
+}
+
+func cloneSkillMCPServers(src []skillspkg.MCPServerDecl) []skillspkg.MCPServerDecl {
+	if src == nil {
+		return nil
+	}
+
+	cloned := make([]skillspkg.MCPServerDecl, len(src))
+	for index, decl := range src {
+		cloned[index] = skillspkg.MCPServerDecl{
+			Name:    decl.Name,
+			Command: decl.Command,
+			Args:    slices.Clone(decl.Args),
+			Env:     cloneStringMap(decl.Env),
+		}
+	}
+	return cloned
+}
+
+func cloneSkillProvenance(src *skillspkg.Provenance) *skillspkg.Provenance {
+	if src == nil {
+		return nil
+	}
+	cloned := *src
+	return &cloned
+}
+
+func cloneInitializeResponse(src *subprocess.InitializeResponse) *subprocess.InitializeResponse {
+	if src == nil {
+		return nil
+	}
+
+	cloned := *src
+	cloned.ImplementedMethods = slices.Clone(src.ImplementedMethods)
+	cloned.SupportedHookEvents = slices.Clone(src.SupportedHookEvents)
+	cloned.AcceptedCapabilities.Provides = slices.Clone(src.AcceptedCapabilities.Provides)
+	cloned.AcceptedCapabilities.Actions = slices.Clone(src.AcceptedCapabilities.Actions)
+	cloned.AcceptedCapabilities.Security = slices.Clone(src.AcceptedCapabilities.Security)
+	return &cloned
 }

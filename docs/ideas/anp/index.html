@@ -223,8 +223,12 @@
       <p>Visualização estilo chat — Claude-A ↔ Claude-B (ANP / AGH)</p>
       <div class="toolbar">
         <label class="file-btn">
-          Abrir arquivo .jsonl
-          <input id="file" type="file" accept=".jsonl,.json,application/jsonl,text/plain" />
+          Abrir arquivo .jsonl ou .json
+          <input
+            id="file"
+            type="file"
+            accept=".jsonl,.json,application/json,application/x-ndjson,text/plain"
+          />
         </label>
         <span class="hint"
           >Fetch automático: sirva esta pasta (ex.: <code>python3 -m http.server</code>) ou use
@@ -243,7 +247,7 @@
         const fileInput = document.getElementById("file");
 
         function escapeHtml(s) {
-          return s
+          return String(s ?? "")
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
@@ -267,9 +271,12 @@
         }
 
         function parseJsonl(text) {
-          const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+          const lines = text.split(/\r?\n/);
           const rows = [];
           for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim() === "") {
+              continue;
+            }
             try {
               rows.push(JSON.parse(lines[i]));
             } catch (e) {
@@ -279,13 +286,39 @@
           return rows;
         }
 
+        function parseRows(text) {
+          const trimmed = text.trim();
+          if (trimmed === "") {
+            return [];
+          }
+
+          let parsed;
+          try {
+            parsed = JSON.parse(trimmed);
+          } catch (jsonError) {
+            return parseJsonl(text);
+          }
+
+          if (Array.isArray(parsed)) {
+            return parsed;
+          }
+          if (parsed && typeof parsed === "object") {
+            return [parsed];
+          }
+          throw new Error("JSON deve conter um objeto ou uma lista de objetos.");
+        }
+
         function render(rows) {
           const thread = document.createElement("div");
           thread.className = "thread";
           rows.forEach((row, i) => {
             const ts = row.ts || "";
+            const contentRaw =
+              row && Object.prototype.hasOwnProperty.call(row, "content") ? row.content : "";
             const content =
-              typeof row.content === "string" ? row.content : JSON.stringify(row.content, null, 2);
+              typeof contentRaw === "string"
+                ? contentRaw
+                : (JSON.stringify(contentRaw, null, 2) ?? "");
             const cls = classForRow(row);
             const article = document.createElement("article");
             article.className = "msg " + cls;
@@ -319,7 +352,7 @@
 
         function run(text) {
           try {
-            const rows = parseJsonl(text);
+            const rows = parseRows(text);
             if (rows.length === 0) {
               root.innerHTML = '<div class="empty">Arquivo vazio.</div>';
               return;

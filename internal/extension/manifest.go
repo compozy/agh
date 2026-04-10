@@ -542,7 +542,14 @@ func normalizeStrings(src []string) []string {
 
 	dst := make([]string, 0, len(src))
 	for _, value := range src {
-		dst = append(dst, strings.TrimSpace(value))
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		dst = append(dst, trimmed)
+	}
+	if len(dst) == 0 {
+		return nil
 	}
 	return dst
 }

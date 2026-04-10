@@ -391,12 +391,12 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		t.Fatalf("InstallExtension() = %#v, %v", installed, err)
 	}
 
-	enabled, err := client.EnableExtension(ctx, "ext-a")
+	enabled, err := client.EnableExtension(ctx, " ext-a ")
 	if err != nil || !enabled.Enabled {
 		t.Fatalf("EnableExtension() = %#v, %v", enabled, err)
 	}
 
-	disabled, err := client.DisableExtension(ctx, "ext-a")
+	disabled, err := client.DisableExtension(ctx, " ext-a ")
 	if err != nil || disabled.Enabled {
 		t.Fatalf("DisableExtension() = %#v, %v", disabled, err)
 	}

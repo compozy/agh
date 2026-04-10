@@ -79,7 +79,7 @@ min_agh_version = "0.5.0"
 func TestInstallPreparedExtensionDetectsChecksumMismatch(t *testing.T) {
 	t.Parallel()
 
-	deps, homePaths := newExtensionLocalDeps(t, stubClient{})
+	_, homePaths := newExtensionLocalDeps(t, stubClient{})
 	dir := writeExtensionFixture(t, "checksum-ext", extensionFixtureOptions{})
 	prepared, err := prepareExtensionInstall(dir)
 	if err != nil {
@@ -96,8 +96,6 @@ func TestInstallPreparedExtensionDetectsChecksumMismatch(t *testing.T) {
 	if err := installPreparedExtension(registry, prepared); err == nil || !errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch) {
 		t.Fatalf("installPreparedExtension(checksum mismatch) error = %v, want ErrExtensionChecksumMismatch", err)
 	}
-
-	_ = deps
 }
 
 func TestExtensionListFormatsOffline(t *testing.T) {

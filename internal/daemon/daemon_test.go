@@ -627,6 +627,86 @@ func TestExtensionDeclarationProviderReturnsRuntimeDeclarations(t *testing.T) {
 	}
 }
 
+func TestChainDeclarationProvidersWrapsProviderErrors(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("provider boom")
+	provider := chainDeclarationProviders(
+		func(context.Context) ([]hookspkg.HookDecl, error) {
+			return nil, wantErr
+		},
+	)
+
+	_, err := provider(testutil.Context(t))
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("provider error = %v, want wrapped %v", err, wantErr)
+	}
+	if err == nil || !strings.Contains(err.Error(), "provider 1") {
+		t.Fatalf("provider error = %v, want provider context", err)
+	}
+}
+
+func TestExtensionDeclarationProviderWrapsRuntimeErrors(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("runtime boom")
+	runtime := &fakeExtensionRuntime{hookErr: wantErr}
+
+	_, err := extensionDeclarationProvider(func() extensionRuntime { return runtime })(testutil.Context(t))
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("extensionDeclarationProvider() error = %v, want wrapped %v", err, wantErr)
+	}
+	if err == nil || !strings.Contains(err.Error(), "extension runtime") {
+		t.Fatalf("extensionDeclarationProvider() error = %v, want runtime context", err)
+	}
+}
+
+func TestBootStateExtensionRuntimeAccessIsSynchronized(t *testing.T) {
+	t.Parallel()
+
+	state := &bootState{}
+	runtime := &fakeExtensionRuntime{
+		hookDecls: []hookspkg.HookDecl{{
+			Name:         "ext-turn-start",
+			Event:        hookspkg.HookTurnStart,
+			Mode:         hookspkg.HookModeSync,
+			ExecutorKind: hookspkg.HookExecutorSubprocess,
+			Command:      "/bin/sh",
+			Args:         []string{"-c", "printf '{}'"},
+		}},
+	}
+	provider := extensionDeclarationProvider(state.currentExtensionRuntime)
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(2)
+
+		go func(iteration int) {
+			defer wg.Done()
+			<-start
+			for j := 0; j < 128; j++ {
+				if (iteration+j)%2 == 0 {
+					state.setExtensionRuntime(runtime)
+				} else {
+					state.setExtensionRuntime(nil)
+				}
+			}
+		}(i)
+
+		go func() {
+			defer wg.Done()
+			<-start
+			for j := 0; j < 128; j++ {
+				_, _ = provider(context.Background())
+			}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+}
+
 func TestShutdownDrainsHooksBeforeClosingDatabase(t *testing.T) {
 	t.Parallel()
 

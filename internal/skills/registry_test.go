@@ -239,6 +239,33 @@ func TestRegistryWorkspaceSkillOverridesGlobalSkill(t *testing.T) {
 	}
 }
 
+func TestRegistryRegisterExternalNormalizesStoredSkillName(t *testing.T) {
+	t.Parallel()
+
+	registry := newTestRegistry(t, RegistryConfig{})
+	input := &Skill{
+		Meta:     SkillMeta{Name: "  external-review  ", Description: "External override"},
+		Source:   SourceWorkspace,
+		FilePath: "/tmp/external-review/SKILL.md",
+		Enabled:  true,
+	}
+
+	if err := registry.RegisterExternal("extension-owner", []*Skill{input}); err != nil {
+		t.Fatalf("RegisterExternal() error = %v", err)
+	}
+
+	skill, ok := registry.Get("external-review")
+	if !ok {
+		t.Fatal("Get(external-review) ok = false, want registered external skill")
+	}
+	if skill.Meta.Name != "external-review" {
+		t.Fatalf("Get(external-review).Meta.Name = %q, want %q", skill.Meta.Name, "external-review")
+	}
+	if input.Meta.Name != "  external-review  " {
+		t.Fatalf("input.Meta.Name mutated to %q, want original whitespace-preserving value", input.Meta.Name)
+	}
+}
+
 func TestRegistryForWorkspaceReturnsCachedResultWhenUnchanged(t *testing.T) {
 	t.Parallel()
 

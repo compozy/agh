@@ -351,6 +351,9 @@ func (h *HostAPIHandler) handleSessionsStop(ctx context.Context, raw json.RawMes
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
+	if h.sessions == nil {
+		return nil, errors.New("extension: session manager is not configured")
+	}
 	if strings.TrimSpace(params.SessionID) == "" {
 		return nil, invalidParamsRPCError(errors.New("session_id is required"))
 	}
@@ -364,6 +367,9 @@ func (h *HostAPIHandler) handleSessionsStatus(ctx context.Context, raw json.RawM
 	var params hostAPISessionTargetParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
+	}
+	if h.sessions == nil {
+		return nil, errors.New("extension: session manager is not configured")
 	}
 	if strings.TrimSpace(params.SessionID) == "" {
 		return nil, invalidParamsRPCError(errors.New("session_id is required"))
@@ -380,6 +386,9 @@ func (h *HostAPIHandler) handleSessionsEvents(ctx context.Context, raw json.RawM
 	var params hostAPISessionEventsParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
+	}
+	if h.sessions == nil {
+		return nil, errors.New("extension: session manager is not configured")
 	}
 	if strings.TrimSpace(params.SessionID) == "" {
 		return nil, invalidParamsRPCError(errors.New("session_id is required"))
@@ -658,6 +667,10 @@ func (h *HostAPIHandler) memorySourcesForRecall(
 	rawScope string,
 	rawWorkspace string,
 ) ([]hostAPIMemorySource, error) {
+	if h.memory == nil {
+		return nil, errors.New("extension: memory store is not configured")
+	}
+
 	scope := memory.Scope(strings.TrimSpace(rawScope)).Normalize()
 	switch scope {
 	case "":

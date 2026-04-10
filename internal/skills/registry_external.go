@@ -28,7 +28,9 @@ func (r *Registry) RegisterExternal(owner string, skills []*Skill) error {
 		if name == "" {
 			continue
 		}
-		registered[name] = cloneSkill(skill)
+		cloned := cloneSkill(skill)
+		cloned.Meta.Name = name
+		registered[name] = cloned
 	}
 
 	r.mu.Lock()

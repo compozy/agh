@@ -34,6 +34,24 @@ func newTestHandlers(t *testing.T, manager core.SessionManager, observer core.Ob
 	return newTestHandlersWithWorkspace(t, manager, observer, stubWorkspaceService{}, homePaths)
 }
 
+func newTestHandlersWithExtensions(t *testing.T, manager core.SessionManager, observer core.Observer, extensions ExtensionService, homePaths aghconfig.HomePaths) *Handlers {
+	t.Helper()
+
+	return newHandlers(handlerConfig{
+		sessions:     manager,
+		observer:     observer,
+		workspaces:   stubWorkspaceService{},
+		homePaths:    homePaths,
+		config:       aghconfig.DefaultWithHome(homePaths),
+		logger:       discardLogger(),
+		startedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
+		pollInterval: 5 * time.Millisecond,
+		agentLoader:  aghconfig.LoadAgentDef,
+		extensions:   extensions,
+	})
+}
+
 func newTestHandlersWithWorkspace(t *testing.T, manager core.SessionManager, observer core.Observer, workspaces core.WorkspaceService, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()
 

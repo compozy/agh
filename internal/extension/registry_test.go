@@ -344,6 +344,24 @@ func TestRegistryInstallRejectsInvalidSourceAndBlankChecksum(t *testing.T) {
 	}
 }
 
+func TestRegistryInstallRejectsOnDiskManifestIdentityMismatch(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	env := newRegistryTestEnv(t)
+	dir, manifest, checksum := createRegistryTestExtension(t, "identity-registry", registryManifestOptions{})
+
+	spoofed := *manifest
+	spoofed.Name = "spoofed-registry"
+
+	err := env.registry.installWithSource(&spoofed, dir, checksum, SourceUser)
+	if err == nil {
+		t.Fatal("installWithSource(mismatched manifest) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "does not match provided identity") {
+		t.Fatalf("installWithSource(mismatched manifest) error = %v, want identity mismatch detail", err)
+	}
+}
+
 func TestRegistryUtilityHelpers(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
@@ -481,7 +499,7 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("checksum helper handles errors and symlinks", func(t *testing.T) {
+	t.Run("checksum helper handles errors and rejects symlinks", func(t *testing.T) {
 		if _, err := ComputeDirectoryChecksum(""); err == nil {
 			t.Fatal("ComputeDirectoryChecksum(blank) error = nil, want non-nil")
 		}
@@ -500,20 +518,14 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 			t.Skipf("os.Symlink() unavailable: %v", err)
 		}
 
-		sum, err := ComputeDirectoryChecksum(dir)
-		if err != nil {
-			t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", dir, err)
-		}
-		if len(sum) != 64 {
-			t.Fatalf("len(checksum) = %d, want 64", len(sum))
+		if _, err := ComputeDirectoryChecksum(dir); err == nil {
+			t.Fatal("ComputeDirectoryChecksum(dir with symlink) error = nil, want non-nil")
+		} else if !strings.Contains(err.Error(), "symlinks are not allowed") {
+			t.Fatalf("ComputeDirectoryChecksum(dir with symlink) error = %v, want symlink rejection", err)
 		}
 	})
 
 	t.Run("constraint mapper preserves passthrough errors", func(t *testing.T) {
-		if err := mapRegistryConstraintError(errors.New("UNIQUE constraint failed: extensions.name"), "duplicate"); !errors.Is(err, ErrExtensionExists) {
-			t.Fatalf("mapRegistryConstraintError(duplicate) = %v, want ErrExtensionExists", err)
-		}
-
 		original := errors.New("boom")
 		if err := mapRegistryConstraintError(original, "duplicate"); !errors.Is(err, original) {
 			t.Fatalf("mapRegistryConstraintError(boom) = %v, want wrapped boom", err)

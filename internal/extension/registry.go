@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/store"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 var (
@@ -261,20 +263,33 @@ func (r *Registry) installWithSource(manifest *Manifest, path string, checksum s
 		}
 	}
 
-	capabilities := normalizeCapabilitiesConfig(manifest.Capabilities)
-	actions := normalizeActionsConfig(manifest.Actions)
+	resolvedManifest, err := loadManifestAtPath(manifestPath)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(manifest.Name) != strings.TrimSpace(resolvedManifest.Name) || strings.TrimSpace(manifest.Version) != strings.TrimSpace(resolvedManifest.Version) {
+		return fmt.Errorf(
+			"extension: manifest %q does not match provided identity %q@%q",
+			manifestPath,
+			strings.TrimSpace(manifest.Name),
+			strings.TrimSpace(manifest.Version),
+		)
+	}
+
+	capabilities := normalizeCapabilitiesConfig(resolvedManifest.Capabilities)
+	actions := normalizeActionsConfig(resolvedManifest.Actions)
 	capabilitiesJSON, err := json.Marshal(capabilities)
 	if err != nil {
-		return fmt.Errorf("extension: marshal capabilities for %q: %w", manifest.Name, err)
+		return fmt.Errorf("extension: marshal capabilities for %q: %w", resolvedManifest.Name, err)
 	}
 	actionsJSON, err := json.Marshal(actions)
 	if err != nil {
-		return fmt.Errorf("extension: marshal actions for %q: %w", manifest.Name, err)
+		return fmt.Errorf("extension: marshal actions for %q: %w", resolvedManifest.Name, err)
 	}
 
 	info := ExtensionInfo{
-		Name:         strings.TrimSpace(manifest.Name),
-		Version:      strings.TrimSpace(manifest.Version),
+		Name:         strings.TrimSpace(resolvedManifest.Name),
+		Version:      strings.TrimSpace(resolvedManifest.Version),
 		Source:       source,
 		Enabled:      true,
 		ManifestPath: manifestPath,
@@ -481,8 +496,7 @@ func mapRegistryConstraintError(err error, name string) error {
 		return nil
 	}
 
-	message := strings.ToLower(err.Error())
-	if strings.Contains(message, "unique constraint failed: extensions.name") {
+	if sqliteErr, ok := err.(*sqlite.Error); ok && sqliteErr.Code()&0xff == sqlite3.SQLITE_CONSTRAINT {
 		return &ExtensionExistsError{Name: name}
 	}
 	return fmt.Errorf("extension: persist %q: %w", name, err)
@@ -516,15 +530,7 @@ func writeChecksumEntry(hasher hash.Hash, root string, relPath string) error {
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 {
-		target, err := os.Readlink(absPath)
-		if err != nil {
-			return fmt.Errorf("extension: read checksum symlink %q: %w", absPath, err)
-		}
-
-		return writeChecksumString(
-			hasher,
-			fmt.Sprintf("symlink:%s\nmode:%#o\ntarget:%s\n", normalizedPath, info.Mode().Perm(), filepath.ToSlash(target)),
-		)
+		return fmt.Errorf("extension: symlinks are not allowed in extension payload %q", absPath)
 	}
 
 	return fmt.Errorf("extension: unsupported file type in extension payload %q", absPath)

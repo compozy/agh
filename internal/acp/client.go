@@ -353,7 +353,12 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 		if err := proc.managed.Shutdown(ctx); err != nil {
 			errs = append(errs, err)
 		}
-		return errors.Join(append(errs, proc.Wait())...)
+		select {
+		case <-proc.Done():
+			return errors.Join(append(errs, proc.Wait())...)
+		case <-ctx.Done():
+			return errors.Join(append(errs, ctx.Err())...)
+		}
 	}
 
 	if err := terminateManagedProcess(proc.cmd); err != nil {

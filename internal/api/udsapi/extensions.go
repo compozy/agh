@@ -70,7 +70,13 @@ func (h *Handlers) ExtensionStatus(c *gin.Context) {
 		return
 	}
 
-	item, err := h.Extensions.Status(c.Request.Context(), c.Param("name"))
+	name := strings.TrimSpace(c.Param("name"))
+	if name == "" {
+		core.RespondError(c, http.StatusBadRequest, errors.New("name is required"), false)
+		return
+	}
+
+	item, err := h.Extensions.Status(c.Request.Context(), name)
 	if err != nil {
 		core.RespondError(c, extensionStatusCode(err), err, false)
 		return

@@ -216,6 +216,61 @@ func TestHostAPIHandlerSessionsEventsSupportsSinceFilter(t *testing.T) {
 	}
 }
 
+func TestHostAPIHandlerSessionsMethodsRequireConfiguredManager(t *testing.T) {
+	t.Parallel()
+
+	checker := &CapabilityChecker{}
+	checker.Register("ext-sessions", SourceUser, &Manifest{
+		Actions: ActionsConfig{Requires: []string{"sessions/stop", "sessions/status", "sessions/events"}},
+		Security: SecurityConfig{
+			Capabilities: []string{"session.read", "session.write"},
+		},
+	})
+
+	handler := NewHostAPIHandler(
+		nil,
+		nil,
+		nil,
+		nil,
+		WithHostAPICapabilityChecker(checker),
+		WithHostAPIRateLimit(1000, 1000),
+	)
+
+	tests := []struct {
+		name   string
+		method string
+		params any
+	}{
+		{
+			name:   "ShouldRejectStopWithoutManager",
+			method: "sessions/stop",
+			params: map[string]any{"session_id": "sess-1"},
+		},
+		{
+			name:   "ShouldRejectStatusWithoutManager",
+			method: "sessions/status",
+			params: map[string]any{"session_id": "sess-1"},
+		},
+		{
+			name:   "ShouldRejectEventsWithoutManager",
+			method: "sessions/events",
+			params: map[string]any{"session_id": "sess-1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params, err := marshalParams(tt.params)
+			if err != nil {
+				t.Fatalf("marshalParams() error = %v", err)
+			}
+
+			_, err = handler.Handle(testutil.Context(t), "ext-sessions", tt.method, params)
+			assertErrorContains(t, err, "session manager is not configured")
+		})
+	}
+}
+
 func TestHostAPIHandlerMemoryStorePersistsContentWithTags(t *testing.T) {
 	t.Parallel()
 
@@ -275,6 +330,35 @@ func TestHostAPIHandlerMemoryRecallReturnsRankedMatches(t *testing.T) {
 	if entries[0].Score <= 0 {
 		t.Fatalf("memory/recall first score = %f, want > 0", entries[0].Score)
 	}
+}
+
+func TestHostAPIHandlerMemoryRecallRequiresConfiguredStore(t *testing.T) {
+	t.Parallel()
+
+	checker := &CapabilityChecker{}
+	checker.Register("ext-memory", SourceUser, &Manifest{
+		Actions: ActionsConfig{Requires: []string{"memory/recall"}},
+		Security: SecurityConfig{
+			Capabilities: []string{"memory.read"},
+		},
+	})
+
+	handler := NewHostAPIHandler(
+		nil,
+		nil,
+		nil,
+		nil,
+		WithHostAPICapabilityChecker(checker),
+		WithHostAPIRateLimit(1000, 1000),
+	)
+
+	params, err := marshalParams(map[string]any{"query": "needle"})
+	if err != nil {
+		t.Fatalf("marshalParams() error = %v", err)
+	}
+
+	_, err = handler.Handle(testutil.Context(t), "ext-memory", "memory/recall", params)
+	assertErrorContains(t, err, "memory store is not configured")
 }
 
 func TestHostAPIHandlerMemoryForgetRemovesEntries(t *testing.T) {
@@ -434,7 +518,6 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.method, func(t *testing.T) {
 			t.Parallel()
 
@@ -874,6 +957,17 @@ func assertRPCErrorCode(t testing.TB, err error, want int) {
 	}
 	if rpcErr.Code != want {
 		t.Fatalf("rpc error code = %d, want %d", rpcErr.Code, want)
+	}
+}
+
+func assertErrorContains(t testing.TB, err error, fragment string) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatalf("error = nil, want containing %q", fragment)
+	}
+	if !strings.Contains(err.Error(), fragment) {
+		t.Fatalf("error = %q, want containing %q", err.Error(), fragment)
 	}
 }
 

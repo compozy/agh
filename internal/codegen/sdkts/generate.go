@@ -170,7 +170,11 @@ func (g *generator) ensureNamed(name string, t reflect.Type) error {
 		out.WriteString("}\n")
 		g.blocks = append(g.blocks, out.String())
 	default:
-		g.blocks = append(g.blocks, fmt.Sprintf("export type %s = %s;\n", name, g.tsType(t)))
+		tsType, err := g.tsType(t)
+		if err != nil {
+			return err
+		}
+		g.blocks = append(g.blocks, fmt.Sprintf("export type %s = %s;\n", name, tsType))
 	}
 
 	g.emitted[name] = true
@@ -209,7 +213,10 @@ func (g *generator) structFields(t reflect.Type) ([]fieldSpec, error) {
 		if jsonName == "" {
 			continue
 		}
-		tsType := g.tsType(field.Type)
+		tsType, err := g.tsType(field.Type)
+		if err != nil {
+			return nil, fmt.Errorf("resolve field %s.%s: %w", t.Name(), field.Name, err)
+		}
 		fields = append(fields, fieldSpec{
 			Name:     jsonName,
 			Type:     tsType,
@@ -241,58 +248,75 @@ func jsonFieldName(field reflect.StructField) (string, bool) {
 	return name, omitempty
 }
 
-func (g *generator) tsType(t reflect.Type) string {
+func (g *generator) tsType(t reflect.Type) (string, error) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
 	switch {
 	case t == rawMessageType:
-		return "JSONValue"
+		return "JSONValue", nil
 	case t == timeType:
-		return "ISODateTime"
+		return "ISODateTime", nil
 	case t == durationType:
-		return "number"
+		return "number", nil
 	case t.Kind() == reflect.Interface:
-		return "JSONValue"
+		return "JSONValue", nil
 	}
 
 	if name, ok := g.typeNames[t]; ok {
-		_ = g.ensureNamed(name, t)
-		return name
+		if err := g.ensureNamed(name, t); err != nil {
+			return "", err
+		}
+		return name, nil
 	}
 	if shouldAutoEmitNamedType(t) {
 		name := t.Name()
 		g.typeNames[t] = name
 		g.queued[name] = t
-		_ = g.ensureNamed(name, t)
-		return name
+		if err := g.ensureNamed(name, t); err != nil {
+			return "", err
+		}
+		return name, nil
 	}
 
 	if isEnumType(t) {
 		name := t.Name()
 		g.typeNames[t] = name
-		_ = g.ensureNamed(name, t)
-		return name
+		if err := g.ensureNamed(name, t); err != nil {
+			return "", err
+		}
+		return name, nil
 	}
 
 	switch t.Kind() {
 	case reflect.Bool:
-		return "boolean"
+		return "boolean", nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Float32, reflect.Float64:
-		return "number"
+		return "number", nil
 	case reflect.String:
-		return "string"
+		return "string", nil
 	case reflect.Slice, reflect.Array:
-		return parenthesizeIfNeeded(g.tsType(t.Elem())) + "[]"
+		elemType, err := g.tsType(t.Elem())
+		if err != nil {
+			return "", err
+		}
+		return parenthesizeIfNeeded(elemType) + "[]", nil
 	case reflect.Map:
-		return fmt.Sprintf("Record<string, %s>", g.tsType(t.Elem()))
+		elemType, err := g.tsType(t.Elem())
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("Record<string, %s>", elemType), nil
 	case reflect.Struct:
 		fields, err := g.structFields(t)
-		if err != nil || len(fields) == 0 {
-			return "Record<string, never>"
+		if err != nil {
+			return "", err
+		}
+		if len(fields) == 0 {
+			return "Record<string, never>", nil
 		}
 		var out strings.Builder
 		out.WriteString("{ ")
@@ -308,9 +332,9 @@ func (g *generator) tsType(t reflect.Type) string {
 			out.WriteString(field.Type)
 		}
 		out.WriteString(" }")
-		return out.String()
+		return out.String(), nil
 	default:
-		return "JSONValue"
+		return "JSONValue", nil
 	}
 }
 

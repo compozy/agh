@@ -426,14 +426,14 @@ func defaultDaemonExecutorResolver(decl hookspkg.HookDecl) (hookspkg.Executor, e
 func chainDeclarationProviders(providers ...hookspkg.DeclarationProvider) hookspkg.DeclarationProvider {
 	return func(ctx context.Context) ([]hookspkg.HookDecl, error) {
 		chained := make([]hookspkg.HookDecl, 0, len(providers))
-		for _, provider := range providers {
+		for idx, provider := range providers {
 			if provider == nil {
 				continue
 			}
 
 			decls, err := provider(ctx)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("daemon: load hook declarations from provider %d: %w", idx+1, err)
 			}
 			chained = append(chained, decls...)
 		}
@@ -451,7 +451,11 @@ func extensionDeclarationProvider(getRuntime func() extensionRuntime) hookspkg.D
 		if runtime == nil {
 			return nil, nil
 		}
-		return runtime.HookDeclarations(ctx)
+		decls, err := runtime.HookDeclarations(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: load hook declarations from extension runtime: %w", err)
+		}
+		return decls, nil
 	}
 }
 
