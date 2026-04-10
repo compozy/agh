@@ -42,7 +42,7 @@ func corsMiddleware(boundHost string) gin.HandlerFunc {
 		headers.Set("Access-Control-Expose-Headers", "Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream")
 		headers.Set("Vary", "Origin")
 		if origin != "" {
-			allowedOrigin, ok := resolveAllowedOrigin(origin, c.Request.Host, boundHost)
+			allowedOrigin, ok := resolveAllowedOrigin(origin, requestScheme(c.Request), c.Request.Host, boundHost)
 			if !ok {
 				c.AbortWithStatusJSON(http.StatusForbidden, contract.ErrorPayload{Error: "origin not allowed"})
 				return
@@ -58,43 +58,146 @@ func corsMiddleware(boundHost string) gin.HandlerFunc {
 	}
 }
 
-func resolveAllowedOrigin(origin string, requestHost string, boundHost string) (string, bool) {
+func resolveAllowedOrigin(origin string, requestScheme string, requestHost string, boundHost string) (string, bool) {
 	parsed, err := url.Parse(strings.TrimSpace(origin))
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return "", false
 	}
 
-	originHost := canonicalHost(parsed.Hostname())
-	requestHostname := canonicalHost(hostOnly(requestHost))
-	boundHostname := canonicalHost(hostOnly(boundHost))
-
-	switch {
-	case originHost == "" || requestHostname == "":
+	originSpec, ok := canonicalOriginFromURL(parsed)
+	if !ok {
 		return "", false
-	case originHost == requestHostname:
+	}
+
+	requestSpec, ok := canonicalOriginFromHost(requestHost, requestScheme, "")
+	if !ok {
+		return "", false
+	}
+
+	boundSpec, ok := canonicalOriginFromHost(boundHost, requestSpec.scheme, requestSpec.port)
+	switch {
+	case originSpec.canonical == requestSpec.canonical:
 		return origin, true
-	case isLoopbackHost(originHost) && isLoopbackHost(requestHostname):
+	case originSpec.loopback && requestSpec.loopback && originSpec.scheme == requestSpec.scheme:
 		return origin, true
-	case boundHostname != "" && !isWildcardHost(boundHostname) && originHost == boundHostname:
+	case ok && !boundSpec.wildcard && originSpec.canonical == boundSpec.canonical:
 		return origin, true
 	default:
 		return "", false
 	}
 }
 
-func hostOnly(value string) string {
+type canonicalOrigin struct {
+	scheme    string
+	hostname  string
+	port      string
+	canonical string
+	loopback  bool
+	wildcard  bool
+}
+
+func requestScheme(r *http.Request) string {
+	if r == nil {
+		return "http"
+	}
+	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); forwarded != "" {
+		return strings.ToLower(forwarded)
+	}
+	if r.TLS != nil {
+		return "https"
+	}
+	if scheme := strings.TrimSpace(r.URL.Scheme); scheme != "" {
+		return strings.ToLower(scheme)
+	}
+	return "http"
+}
+
+func canonicalOriginFromURL(parsed *url.URL) (canonicalOrigin, bool) {
+	scheme := strings.ToLower(strings.TrimSpace(parsed.Scheme))
+	hostname := canonicalHost(parsed.Hostname())
+	port := normalizePort(scheme, parsed.Port())
+	if scheme == "" || hostname == "" || port == "" {
+		return canonicalOrigin{}, false
+	}
+
+	return canonicalOrigin{
+		scheme:    scheme,
+		hostname:  hostname,
+		port:      port,
+		canonical: scheme + "://" + net.JoinHostPort(hostname, port),
+		loopback:  isLoopbackHost(hostname),
+		wildcard:  isWildcardHost(hostname),
+	}, true
+}
+
+func canonicalOriginFromHost(host string, scheme string, fallbackPort string) (canonicalOrigin, bool) {
+	trimmedHost := strings.TrimSpace(host)
+	scheme = strings.ToLower(strings.TrimSpace(scheme))
+	if trimmedHost == "" || scheme == "" {
+		return canonicalOrigin{}, false
+	}
+
+	hostname := canonicalHost(trimmedHost)
+	port := ""
+	if parsedHost, parsedPort, err := net.SplitHostPort(trimmedHost); err == nil {
+		hostname = canonicalHost(parsedHost)
+		port = parsedPort
+	}
+	if hostname == "" {
+		return canonicalOrigin{}, false
+	}
+
+	port = normalizePort(scheme, firstNonEmptyString(port, fallbackPort))
+	if port == "" {
+		return canonicalOrigin{}, false
+	}
+
+	return canonicalOrigin{
+		scheme:    scheme,
+		hostname:  hostname,
+		port:      port,
+		canonical: scheme + "://" + net.JoinHostPort(hostname, port),
+		loopback:  isLoopbackHost(hostname),
+		wildcard:  isWildcardHost(hostname),
+	}, true
+}
+
+func normalizePort(scheme string, port string) string {
+	trimmed := strings.TrimSpace(port)
+	if trimmed != "" {
+		return trimmed
+	}
+
+	switch strings.ToLower(strings.TrimSpace(scheme)) {
+	case "http":
+		return "80"
+	case "https":
+		return "443"
+	default:
+		return ""
+	}
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func canonicalHost(value string) string {
 	host := strings.TrimSpace(value)
 	if host == "" {
 		return ""
 	}
-	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
-		return parsedHost
+	if strings.Contains(host, "://") {
+		if parsed, err := url.Parse(host); err == nil {
+			host = parsed.Hostname()
+		}
 	}
-	return host
-}
-
-func canonicalHost(value string) string {
-	return strings.Trim(strings.TrimSpace(value), "[]")
+	return strings.Trim(strings.TrimSpace(host), "[]")
 }
 
 func isLoopbackHost(host string) bool {

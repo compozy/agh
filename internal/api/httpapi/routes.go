@@ -4,6 +4,10 @@ import "github.com/gin-gonic/gin"
 
 // RegisterRoutes registers the shared AGH API routes on the supplied Gin router.
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
+	if handlers == nil {
+		return
+	}
+
 	api := router.Group("/api")
 
 	registerWorkspaceRoutes(api, handlers)
@@ -15,7 +19,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerMemoryRoutes(api, handlers)
 	registerDaemonRoutes(api, handlers)
 
-	if engine, ok := router.(*gin.Engine); ok && handlers != nil {
+	if engine, ok := router.(*gin.Engine); ok {
 		engine.NoRoute(handlers.serveStaticRoute)
 	}
 }

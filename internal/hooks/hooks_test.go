@@ -737,6 +737,52 @@ func TestDispatchEventPreRecordRunsAsyncHook(t *testing.T) {
 	}
 }
 
+func TestDispatchEventPreRecordAsyncHookUsesParentCancellation(t *testing.T) {
+	t.Parallel()
+
+	canceled := make(chan error, 1)
+	hooks := newTestHooks(
+		t,
+		WithNativeDeclarations([]HookDecl{
+			{
+				Name:         "event-observer",
+				Event:        HookEventPreRecord,
+				Mode:         HookModeAsync,
+				ExecutorKind: HookExecutorNative,
+			},
+		}),
+		WithExecutorResolver(testExecutorResolver(map[string]Executor{
+			"event-observer": NewTypedNativeExecutor(func(ctx context.Context, _ RegisteredHook, _ EventPreRecordPayload) (EventPreRecordPatch, error) {
+				<-ctx.Done()
+				canceled <- ctx.Err()
+				return EventPreRecordPatch{}, ctx.Err()
+			}),
+		})),
+	)
+
+	if err := hooks.Rebuild(t.Context()); err != nil {
+		t.Fatalf("Rebuild() error = %v, want nil", err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	if _, err := hooks.DispatchEventPreRecord(ctx, EventPreRecordPayload{
+		PayloadBase: PayloadBase{Event: HookEventPreRecord},
+		RecordType:  "agent_message",
+	}); err != nil {
+		t.Fatalf("DispatchEventPreRecord() error = %v, want nil", err)
+	}
+	cancel()
+
+	select {
+	case err := <-canceled:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("async hook ctx err = %v, want context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("async hook did not observe parent cancellation")
+	}
+}
+
 func TestDispatchInputPreSubmitSkipsAsyncHooksWhenSyncPhaseDoesNotSucceed(t *testing.T) {
 	t.Parallel()
 

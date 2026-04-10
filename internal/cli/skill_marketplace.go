@@ -66,7 +66,8 @@ func installMarketplaceSkill(
 	registryName string,
 	slug string,
 	replaceExisting bool,
-) (skillInstallItem, error) {
+	targetDirOverride string,
+) (item skillInstallItem, err error) {
 	if err := os.MkdirAll(runtime.HomePaths.SkillsDir, 0o755); err != nil {
 		return skillInstallItem{}, fmt.Errorf("cli: create skills directory %q: %w", runtime.HomePaths.SkillsDir, err)
 	}
@@ -82,7 +83,7 @@ func installMarketplaceSkill(
 		return skillInstallItem{}, fmt.Errorf("cli: marketplace download returned no archive stream for %q", slug)
 	}
 	defer func() {
-		_ = archive.Data.Close()
+		err = joinContextError(err, archive.Data.Close(), "cli: close marketplace archive for %q: %w", slug)
 	}()
 
 	tempRoot, err := os.MkdirTemp(runtime.HomePaths.SkillsDir, ".agh-skill-install-*")
@@ -90,6 +91,7 @@ func installMarketplaceSkill(
 		return skillInstallItem{}, fmt.Errorf("cli: create temporary install directory: %w", err)
 	}
 	defer func() {
+		// Best-effort cleanup; install correctness is determined by the primary result.
 		_ = os.RemoveAll(tempRoot)
 	}()
 
@@ -126,9 +128,9 @@ func installMarketplaceSkill(
 	}
 
 	version := firstNonEmpty(archive.Version, parsedSkill.Meta.Version)
-	targetDir, err := pathWithinRoot(runtime.HomePaths.SkillsDir, parsedSkill.Meta.Name)
+	targetDir, err := resolveMarketplaceInstallTarget(runtime.HomePaths.SkillsDir, parsedSkill.Meta.Name, targetDirOverride)
 	if err != nil {
-		return skillInstallItem{}, fmt.Errorf("cli: resolve install path for %q: %w", parsedSkill.Meta.Name, err)
+		return skillInstallItem{}, fmt.Errorf("cli: resolve install path for %q: %w", slug, err)
 	}
 
 	if err := skills.WriteSidecar(parsedSkill.Dir, skills.Provenance{
@@ -231,7 +233,7 @@ func updateMarketplaceSkill(
 		}, nil
 	}
 
-	installedItem, err := installMarketplaceSkill(ctx, runtime, registry, registryName, slug, true)
+	installedItem, err := installMarketplaceSkill(ctx, runtime, registry, registryName, slug, true, installed.Dir)
 	if err != nil {
 		return skillUpdateItem{}, err
 	}
@@ -360,7 +362,7 @@ func readInstalledMarketplaceSkill(skillDir string) (installedMarketplaceSkill, 
 	}, nil
 }
 
-func extractMarketplaceArchive(reader io.Reader, destRoot string) error {
+func extractMarketplaceArchive(reader io.Reader, destRoot string) (err error) {
 	if strings.TrimSpace(destRoot) == "" {
 		return errors.New("destination root is required")
 	}
@@ -373,7 +375,7 @@ func extractMarketplaceArchive(reader io.Reader, destRoot string) error {
 		return fmt.Errorf("open gzip stream: %w", err)
 	}
 	defer func() {
-		_ = gzipReader.Close()
+		err = joinContextError(err, gzipReader.Close(), "close gzip stream: %w")
 	}()
 
 	tarReader := tar.NewReader(gzipReader)
@@ -410,8 +412,11 @@ func extractMarketplaceArchive(reader io.Reader, destRoot string) error {
 				return fmt.Errorf("create archive file %q: %w", targetPath, err)
 			}
 			if _, err := io.Copy(file, tarReader); err != nil {
-				_ = file.Close()
-				return fmt.Errorf("write archive file %q: %w", targetPath, err)
+				writeErr := fmt.Errorf("write archive file %q: %w", targetPath, err)
+				if closeErr := file.Close(); closeErr != nil {
+					return errors.Join(writeErr, fmt.Errorf("close archive file %q after write failure: %w", targetPath, closeErr))
+				}
+				return writeErr
 			}
 			if err := file.Close(); err != nil {
 				return fmt.Errorf("close archive file %q: %w", targetPath, err)
@@ -530,6 +535,47 @@ func pathWithinRoot(root string, child string) (string, error) {
 	return absTarget, nil
 }
 
+func pathInsideRoot(root string, target string) (string, error) {
+	absRoot, err := filepath.Abs(strings.TrimSpace(root))
+	if err != nil {
+		return "", fmt.Errorf("resolve root %q: %w", root, err)
+	}
+
+	absTarget, err := filepath.Abs(strings.TrimSpace(target))
+	if err != nil {
+		return "", fmt.Errorf("resolve target %q: %w", target, err)
+	}
+
+	relative, err := filepath.Rel(absRoot, absTarget)
+	if err != nil {
+		return "", fmt.Errorf("resolve target %q within %q: %w", absTarget, absRoot, err)
+	}
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", errors.New("path must stay within the root directory")
+	}
+	return absTarget, nil
+}
+
+func resolveMarketplaceInstallTarget(skillsDir string, parsedName string, targetDirOverride string) (string, error) {
+	if trimmedOverride := strings.TrimSpace(targetDirOverride); trimmedOverride != "" {
+		return pathInsideRoot(skillsDir, trimmedOverride)
+	}
+	return pathWithinRoot(skillsDir, parsedName)
+}
+
+func joinContextError(base error, extra error, format string, args ...any) error {
+	if extra == nil {
+		return base
+	}
+
+	args = append(args, extra)
+	wrapped := fmt.Errorf(format, args...)
+	if base == nil {
+		return wrapped
+	}
+	return errors.Join(base, wrapped)
+}
+
 func criticalWarnings(warnings []skills.Warning) []string {
 	items := make([]string, 0, len(warnings))
 	for _, warning := range warnings {
@@ -551,20 +597,10 @@ func versionIsNewer(current string, latest string) bool {
 		return true
 	}
 
-	currentParts, currentNumeric := parseVersionParts(normalizedCurrent)
-	latestParts, latestNumeric := parseVersionParts(normalizedLatest)
-	if currentNumeric && latestNumeric {
-		for i := 0; i < max(len(currentParts), len(latestParts)); i++ {
-			currentPart := versionPartAt(currentParts, i)
-			latestPart := versionPartAt(latestParts, i)
-			switch {
-			case latestPart > currentPart:
-				return true
-			case latestPart < currentPart:
-				return false
-			}
-		}
-		return false
+	currentVersion, currentOK := parseSemanticVersion(normalizedCurrent)
+	latestVersion, latestOK := parseSemanticVersion(normalizedLatest)
+	if currentOK && latestOK {
+		return compareSemanticVersions(currentVersion, latestVersion) < 0
 	}
 
 	return normalizedLatest > normalizedCurrent
@@ -602,4 +638,125 @@ func versionPartAt(parts []int, index int) int {
 		return 0
 	}
 	return parts[index]
+}
+
+type semanticVersion struct {
+	core       []int
+	prerelease []string
+}
+
+func parseSemanticVersion(version string) (semanticVersion, bool) {
+	trimmed := strings.TrimSpace(version)
+	if trimmed == "" {
+		return semanticVersion{}, false
+	}
+
+	corePart, _, _ := strings.Cut(trimmed, "+")
+	corePart, prereleasePart, hasPrerelease := strings.Cut(corePart, "-")
+
+	core, ok := parseVersionParts(corePart)
+	if !ok {
+		return semanticVersion{}, false
+	}
+
+	parsed := semanticVersion{core: core}
+	if !hasPrerelease {
+		return parsed, true
+	}
+
+	identifiers, ok := parsePrereleaseIdentifiers(prereleasePart)
+	if !ok {
+		return semanticVersion{}, false
+	}
+	parsed.prerelease = identifiers
+	return parsed, true
+}
+
+func parsePrereleaseIdentifiers(value string) ([]string, bool) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil, false
+	}
+
+	parts := strings.Split(trimmed, ".")
+	identifiers := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return nil, false
+		}
+		identifiers = append(identifiers, part)
+	}
+	return identifiers, true
+}
+
+func compareSemanticVersions(current semanticVersion, latest semanticVersion) int {
+	for i := 0; i < max(len(current.core), len(latest.core)); i++ {
+		currentPart := versionPartAt(current.core, i)
+		latestPart := versionPartAt(latest.core, i)
+		switch {
+		case currentPart < latestPart:
+			return -1
+		case currentPart > latestPart:
+			return 1
+		}
+	}
+
+	switch {
+	case len(current.prerelease) == 0 && len(latest.prerelease) == 0:
+		return 0
+	case len(current.prerelease) == 0:
+		return 1
+	case len(latest.prerelease) == 0:
+		return -1
+	default:
+		return comparePrereleaseIdentifiers(current.prerelease, latest.prerelease)
+	}
+}
+
+func comparePrereleaseIdentifiers(current []string, latest []string) int {
+	for i := 0; i < max(len(current), len(latest)); i++ {
+		switch {
+		case i >= len(current):
+			return -1
+		case i >= len(latest):
+			return 1
+		}
+
+		currentID := current[i]
+		latestID := latest[i]
+		currentNumber, currentNumeric := parseNumericIdentifier(currentID)
+		latestNumber, latestNumeric := parseNumericIdentifier(latestID)
+
+		switch {
+		case currentNumeric && latestNumeric:
+			switch {
+			case currentNumber < latestNumber:
+				return -1
+			case currentNumber > latestNumber:
+				return 1
+			}
+		case currentNumeric:
+			return -1
+		case latestNumeric:
+			return 1
+		case currentID < latestID:
+			return -1
+		case currentID > latestID:
+			return 1
+		}
+	}
+
+	return 0
+}
+
+func parseNumericIdentifier(value string) (int, bool) {
+	if value == "" {
+		return 0, false
+	}
+	number, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, false
+	}
+	return number, true
 }

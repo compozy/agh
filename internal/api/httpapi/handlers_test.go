@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
@@ -82,6 +83,19 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("route[%d] = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestRegisterRoutesSkipsNilHandlers(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	RegisterRoutes(engine, nil)
+
+	if got := len(engine.Routes()); got != 0 {
+		t.Fatalf("len(routes) = %d, want 0", got)
 	}
 }
 

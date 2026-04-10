@@ -51,7 +51,7 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, skillListBundle(items))
 		},
 	}
-	cmd.Flags().StringVar(&sourceFilter, "source", "", "Filter by source: bundled, user, additional, or workspace")
+	cmd.Flags().StringVar(&sourceFilter, "source", "", "Filter by source: bundled, marketplace, user, additional (or agents/.agents), or workspace")
 	return cmd
 }
 
@@ -253,7 +253,7 @@ func newSkillInstallCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			item, err := installMarketplaceSkill(cmd.Context(), runtime, registry, registryName, slug, false)
+			item, err := installMarketplaceSkill(cmd.Context(), runtime, registry, registryName, slug, false, "")
 			if err != nil {
 				return err
 			}

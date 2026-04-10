@@ -99,6 +99,7 @@ func (h *BaseHandlers) pollSessionStreamTick(
 
 	events, pollErr := h.Sessions.Events(c.Request.Context(), sessionID, pollQuery)
 	if pollErr != nil {
+		// Best-effort notification; the SSE client may already be disconnected.
 		_ = WriteSSE(writer, SSEMessage{
 			Name: "error",
 			Data: contract.ErrorPayload{Error: pollErr.Error()},
@@ -116,6 +117,7 @@ func (h *BaseHandlers) pollSessionStreamTick(
 
 	latest, statusErr := h.Sessions.Status(c.Request.Context(), sessionID)
 	if statusErr != nil {
+		// Best-effort notification; the SSE client may already be disconnected.
 		_ = WriteSSE(writer, SSEMessage{
 			Name: "error",
 			Data: contract.ErrorPayload{Error: statusErr.Error()},
@@ -123,6 +125,7 @@ func (h *BaseHandlers) pollSessionStreamTick(
 		return afterSequence, info, true
 	}
 	if latest != nil && latest.State == session.StateStopped {
+		// Best-effort terminal event; there is nothing else to do if the stream is closed.
 		_ = h.writeSessionStoppedEvent(writer, latest)
 		return afterSequence, latest, true
 	}

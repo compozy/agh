@@ -22,17 +22,17 @@ import (
 func loadSkillCommandContext(ctx context.Context, deps commandDeps) (skillCommandContext, error) {
 	runtime, err := loadRuntimeContext(deps)
 	if err != nil {
-		return skillCommandContext{}, err
+		return skillCommandContext{}, fmt.Errorf("cli: load skill runtime context: %w", err)
 	}
 
 	workspace, err := resolveCLIWorkspaceRoot(deps)
 	if err != nil {
-		return skillCommandContext{}, err
+		return skillCommandContext{}, fmt.Errorf("cli: resolve skill workspace root: %w", err)
 	}
 
 	userAgentsDir, err := aghconfig.ResolveUserAgentsSkillsDir(deps.getenv)
 	if err != nil {
-		return skillCommandContext{}, err
+		return skillCommandContext{}, fmt.Errorf("cli: resolve user agent skills directory: %w", err)
 	}
 
 	registry := skills.NewRegistry(skills.RegistryConfig{
@@ -42,17 +42,17 @@ func loadSkillCommandContext(ctx context.Context, deps commandDeps) (skillComman
 		DisabledSkills: append([]string(nil), runtime.Config.Skills.DisabledSkills...),
 	})
 	if err := registry.LoadAll(ctx); err != nil {
-		return skillCommandContext{}, err
+		return skillCommandContext{}, fmt.Errorf("cli: load skill registry: %w", err)
 	}
 
 	resolvedWorkspace, err := resolveSkillWorkspace(ctx, runtime, workspace)
 	if err != nil {
-		return skillCommandContext{}, err
+		return skillCommandContext{}, fmt.Errorf("cli: resolve skill workspace: %w", err)
 	}
 
 	skillList, err := registry.ForWorkspace(ctx, resolvedWorkspace)
 	if err != nil {
-		return skillCommandContext{}, err
+		return skillCommandContext{}, fmt.Errorf("cli: load workspace skills: %w", err)
 	}
 
 	return skillCommandContext{
@@ -423,7 +423,7 @@ func renderSkillXML(skill *skills.Skill, content string, resources []string) (st
 	builder.WriteString(skillXMLAttributeReplacer.Replace(skill.Meta.Name))
 	builder.WriteString(`">`)
 	builder.WriteString("\n")
-	builder.WriteString(content)
+	builder.WriteString(skillXMLTextReplacer.Replace(content))
 	if !strings.HasSuffix(content, "\n") {
 		builder.WriteString("\n")
 	}

@@ -1286,6 +1286,52 @@ func TestRegistrySetEnabled(t *testing.T) {
 	})
 }
 
+func TestRegistrySetEnabledUsesSkillOnlyWorkspaceCacheKey(t *testing.T) {
+	t.Parallel()
+
+	workspaceDir := t.TempDir()
+	writeSkillFile(t, filepath.Join(workspaceDir, ".agh", "skills"), filepath.Join("workspace-skill", skillFileName), skillWithBody("workspace-skill", "Workspace skill", "body"))
+
+	registry := newTestRegistry(t, RegistryConfig{})
+	resolved := resolvedWorkspaceForTest("", "",
+		resolvedSkillPath(filepath.Join(workspaceDir, ".agh", "skills", "workspace-skill"), "workspace"),
+	)
+
+	if _, err := registry.ForWorkspace(context.Background(), resolved); err != nil {
+		t.Fatalf("ForWorkspace(skill-only) error = %v", err)
+	}
+	if entry := cacheEntryForWorkspace(t, registry, resolved); entry == nil {
+		t.Fatal("cacheEntryForWorkspace(skill-only) = nil, want cached workspace entry")
+	}
+
+	if err := registry.SetEnabled("workspace-skill", &resolved, false); err != nil {
+		t.Fatalf("SetEnabled(skill-only workspace) error = %v", err)
+	}
+
+	entry := cacheEntryForWorkspace(t, registry, resolved)
+	if entry == nil || entry.skills["workspace-skill"] == nil {
+		t.Fatalf("workspace cache entry = %#v, want workspace-skill override", entry)
+	}
+	if entry.skills["workspace-skill"].Enabled {
+		t.Fatal("workspace-skill enabled = true, want false after SetEnabled")
+	}
+}
+
+func TestWorkspaceLoadFromResolvedWrapsWorkspaceSourceErrors(t *testing.T) {
+	t.Parallel()
+
+	registry := newTestRegistry(t, RegistryConfig{})
+	_, err := registry.workspaceLoadFromResolved(context.Background(), resolvedWorkspaceForTest("ws-invalid-source", "",
+		resolvedSkillPath(t.TempDir(), "unknown-source"),
+	))
+	if err == nil {
+		t.Fatal("workspaceLoadFromResolved(invalid source) error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), `skills: resolve workspace skill source "unknown-source"`) {
+		t.Fatalf("workspaceLoadFromResolved(invalid source) error = %v, want wrapped source context", err)
+	}
+}
+
 func newTestRegistry(t *testing.T, cfg RegistryConfig, opts ...Option) *Registry {
 	t.Helper()
 
@@ -1362,7 +1408,11 @@ func cacheEntryForWorkspace(t *testing.T, registry *Registry, workspace workspac
 	registry.mu.RLock()
 	defer registry.mu.RUnlock()
 
-	return registry.wsCache[workspaceCacheKey(workspace, nil)]
+	paths, ok := workspaceCacheKeyPaths(workspace)
+	if !ok {
+		return nil
+	}
+	return registry.wsCache[workspaceCacheKey(workspace, paths)]
 }
 
 func resolvedWorkspaceForTest(id string, root string, skills ...workspacepkg.SkillPath) workspacepkg.ResolvedWorkspace {

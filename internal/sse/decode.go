@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 )
 
@@ -29,6 +30,16 @@ var ErrStop = errors.New("sse: stop stream")
 // Decode reads one SSE stream from body until EOF, context cancellation, or a
 // handler error.
 func Decode(ctx context.Context, body io.Reader, handler Handler) error {
+	if ctx == nil {
+		return fmt.Errorf("sse: context is required")
+	}
+	if readerIsNil(body) {
+		return fmt.Errorf("sse: body is required")
+	}
+	if handler == nil {
+		return fmt.Errorf("sse: handler is required")
+	}
+
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineBytes)
 
@@ -92,4 +103,18 @@ func Decode(ctx context.Context, body io.Reader, handler Handler) error {
 		return err
 	}
 	return nil
+}
+
+func readerIsNil(reader io.Reader) bool {
+	if reader == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(reader)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }

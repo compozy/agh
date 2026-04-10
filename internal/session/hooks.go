@@ -62,6 +62,13 @@ type HookSet struct {
 	Compaction   CompactionHooks
 }
 
+var _ SessionLifecycleHooks = noopSessionLifecycleHooks{}
+var _ PromptHooks = noopPromptHooks{}
+var _ EventHooks = noopEventHooks{}
+var _ AgentHooks = noopAgentHooks{}
+var _ ConversationHooks = noopConversationHooks{}
+var _ CompactionHooks = noopCompactionHooks{}
+
 func (h HookSet) session() SessionLifecycleHooks {
 	if h.Session != nil {
 		return h.Session

@@ -45,7 +45,12 @@ func (r *Registry) workspaceSkillTargetLocked(name string, resolved *workspacepk
 		return "", nil
 	}
 
-	cacheKey := workspaceCacheKey(*resolved, nil)
+	paths, ok := workspaceCacheKeyPaths(*resolved)
+	if !ok {
+		return "", nil
+	}
+
+	cacheKey := workspaceCacheKey(*resolved, paths)
 	if cacheKey == "" {
 		return "", nil
 	}
@@ -66,10 +71,10 @@ func (r *Registry) workspaceLoadFromResolved(ctx context.Context, resolved works
 
 	for _, skillPath := range resolved.Skills {
 		if err := checkRegistryContext(ctx); err != nil {
-			return workspaceLoad{}, err
+			return workspaceLoad{}, fmt.Errorf("skills: check registry context while loading workspace skills: %w", err)
 		}
 
-		source, include, err := skillSourceFromWorkspacePath(skillPath.Source)
+		path, include, err := workspaceSkillLoadPath(skillPath)
 		if err != nil {
 			return workspaceLoad{}, err
 		}
@@ -77,28 +82,53 @@ func (r *Registry) workspaceLoadFromResolved(ctx context.Context, resolved works
 			continue
 		}
 
-		skillDir := strings.TrimSpace(skillPath.Dir)
-		if skillDir == "" {
-			continue
-		}
-
-		skillFile := filepath.Join(skillDir, skillFileName)
-		snapshot, err := filesnap.FromPath(skillFile)
+		snapshot, err := filesnap.FromPath(path.filePath)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
-			return workspaceLoad{}, fmt.Errorf("skills: snapshot workspace skill %q: %w", skillFile, err)
+			return workspaceLoad{}, fmt.Errorf("skills: snapshot workspace skill %q: %w", path.filePath, err)
 		}
 
-		load.snapshots[skillFile] = snapshot
-		load.paths = append(load.paths, workspaceSkillPath{
-			filePath: skillFile,
-			source:   source,
-		})
+		load.snapshots[path.filePath] = snapshot
+		load.paths = append(load.paths, path)
 	}
 
 	return load, nil
+}
+
+func workspaceCacheKeyPaths(resolved workspacepkg.ResolvedWorkspace) ([]workspaceSkillPath, bool) {
+	paths := make([]workspaceSkillPath, 0, len(resolved.Skills))
+	for _, skillPath := range resolved.Skills {
+		path, include, err := workspaceSkillLoadPath(skillPath)
+		if err != nil {
+			return nil, false
+		}
+		if include {
+			paths = append(paths, path)
+		}
+	}
+	return paths, true
+}
+
+func workspaceSkillLoadPath(skillPath workspacepkg.SkillPath) (workspaceSkillPath, bool, error) {
+	source, include, err := skillSourceFromWorkspacePath(skillPath.Source)
+	if err != nil {
+		return workspaceSkillPath{}, false, fmt.Errorf("skills: resolve workspace skill source %q: %w", skillPath.Source, err)
+	}
+	if !include {
+		return workspaceSkillPath{}, false, nil
+	}
+
+	skillDir := strings.TrimSpace(skillPath.Dir)
+	if skillDir == "" {
+		return workspaceSkillPath{}, false, nil
+	}
+
+	return workspaceSkillPath{
+		filePath: filepath.Join(skillDir, skillFileName),
+		source:   source,
+	}, true, nil
 }
 
 func (r *Registry) evictExpiredWorkspaceLocked(now time.Time) {

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -36,6 +37,15 @@ type marketplaceRegistryStub struct {
 	searchFn   func(context.Context, string, marketplace.SearchOpts) ([]marketplace.SkillListing, error)
 	downloadFn func(context.Context, string) (*marketplace.SkillArchive, error)
 	infoFn     func(context.Context, string) (*marketplace.SkillDetail, error)
+}
+
+type errorReadCloser struct {
+	io.Reader
+	closeErr error
+}
+
+func (r errorReadCloser) Close() error {
+	return r.closeErr
 }
 
 func (s marketplaceRegistryStub) Search(ctx context.Context, query string, opts marketplace.SearchOpts) ([]marketplace.SkillListing, error) {
@@ -195,6 +205,19 @@ func TestSkillListCommandFiltersBySource(t *testing.T) {
 		}
 		if item.Name == "workspace-skill" || item.Name == "user-skill" || item.Name == "agent-skill" {
 			t.Fatalf("filtered payload unexpectedly contains non-bundled skill %#v", item)
+		}
+	}
+}
+
+func TestSkillListCommandSourceHelpIncludesMarketplaceAndAgents(t *testing.T) {
+	t.Parallel()
+
+	cmd := newSkillListCommand(newSkillTestEnv(t, nil).deps)
+	usage := cmd.Flags().Lookup("source").Usage
+
+	for _, expected := range []string{"marketplace", "agents", ".agents"} {
+		if !strings.Contains(usage, expected) {
+			t.Fatalf("source flag usage = %q, want mention of %q", usage, expected)
 		}
 	}
 }
@@ -1065,7 +1088,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			t.Fatalf("loadMarketplaceRegistry() error = %v", err)
 		}
 
-		item, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, registryName, "@agh/review", true)
+		item, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, registryName, "@agh/review", true, "")
 		if err != nil {
 			t.Fatalf("installMarketplaceSkill(replace) error = %v", err)
 		}
@@ -1108,7 +1131,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			t.Fatalf("loadMarketplaceRegistry() error = %v", err)
 		}
 
-		if _, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, registryName, "@agh/review", false); err == nil {
+		if _, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, registryName, "@agh/review", false, ""); err == nil {
 			t.Fatal("installMarketplaceSkill(no replace) error = nil, want existing-target failure")
 		}
 	})
@@ -1122,7 +1145,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			downloadFn: func(context.Context, string) (*marketplace.SkillArchive, error) {
 				return nil, nil
 			},
-		}, "clawhub", "@agh/review", false)
+		}, "clawhub", "@agh/review", false, "")
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(nil archive) error = nil, want failure")
 		}
@@ -1140,7 +1163,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			downloadFn: func(context.Context, string) (*marketplace.SkillArchive, error) {
 				return &marketplace.SkillArchive{Version: "1.0.0"}, nil
 			},
-		}, "clawhub", "@agh/review", false)
+		}, "clawhub", "@agh/review", false, "")
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(nil stream) error = nil, want failure")
 		}
@@ -1174,10 +1197,34 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			t.Fatalf("loadMarketplaceRegistry() error = %v", err)
 		}
 
-		if _, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, registryName, "@agh/review", false); err == nil {
+		if _, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, registryName, "@agh/review", false, ""); err == nil {
 			t.Fatal("installMarketplaceSkill(missing skill file) error = nil, want failure")
 		} else if !strings.Contains(err.Error(), "archive did not contain SKILL.md") {
 			t.Fatalf("installMarketplaceSkill(missing skill file) error = %v, want missing-skill-file context", err)
+		}
+	})
+
+	t.Run("install-marketplace-skill-surfaces-archive-close-errors", func(t *testing.T) {
+		env := newSkillTestEnv(t, nil)
+
+		_, err := installMarketplaceSkill(testutil.Context(t), runtimeContext{
+			HomePaths: env.homePaths,
+		}, marketplaceRegistryStub{
+			downloadFn: func(context.Context, string) (*marketplace.SkillArchive, error) {
+				return &marketplace.SkillArchive{
+					Version: "1.0.0",
+					Data: errorReadCloser{
+						Reader:   bytes.NewReader(mustTarGz(t, map[string]string{"review/SKILL.md": skillDocument("review", "Review helper", "body")})),
+						closeErr: errors.New("stream close failed"),
+					},
+				}, nil
+			},
+		}, "clawhub", "@agh/review", false, "")
+		if err == nil {
+			t.Fatal("installMarketplaceSkill(close error) error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "close marketplace archive") {
+			t.Fatalf("installMarketplaceSkill(close error) error = %v, want archive close context", err)
 		}
 	})
 
@@ -1208,6 +1255,62 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "missing registry slug metadata") {
 			t.Fatalf("updateMarketplaceSkill(missing slug) error = %v, want slug-metadata validation", err)
+		}
+	})
+
+	t.Run("update-marketplace-skill-keeps-existing-directory-when-package-name-changes", func(t *testing.T) {
+		server := newMarketplaceTestServer(t, marketplaceServerFixture{
+			info: map[string]marketplace.SkillDetail{
+				"@agh/review": {SkillListing: marketplace.SkillListing{Slug: "@agh/review", Name: "review", Version: "2.0.0"}},
+			},
+			downloads: map[string]marketplaceDownloadFixture{
+				"@agh/review": {
+					version: "2.0.0",
+					files: map[string]string{
+						"renamed-review/SKILL.md": skillDocument("renamed-review", "Renamed review helper", "renamed body"),
+					},
+				},
+			},
+		})
+		defer server.Close()
+
+		env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
+			cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+				Registry: "clawhub",
+				BaseURL:  server.URL(),
+			}
+		})
+		writeInstalledMarketplaceSkill(t, env.homePaths, "review", "@agh/review", "1.0.0", skillDocument("review", "Review helper", "old body"))
+
+		runtime, registry, registryName, err := loadMarketplaceRegistry(env.deps)
+		if err != nil {
+			t.Fatalf("loadMarketplaceRegistry() error = %v", err)
+		}
+
+		installed, err := findInstalledMarketplaceSkill(env.homePaths.SkillsDir, "review")
+		if err != nil {
+			t.Fatalf("findInstalledMarketplaceSkill() error = %v", err)
+		}
+
+		item, err := updateMarketplaceSkill(testutil.Context(t), runtime, registry, registryName, installed)
+		if err != nil {
+			t.Fatalf("updateMarketplaceSkill(rename) error = %v", err)
+		}
+
+		expectedDir := filepath.Join(env.homePaths.SkillsDir, "review")
+		if item.Path != expectedDir {
+			t.Fatalf("updateMarketplaceSkill(rename) path = %q, want %q", item.Path, expectedDir)
+		}
+		if _, statErr := os.Stat(filepath.Join(env.homePaths.SkillsDir, "renamed-review")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("renamed install directory stat error = %v, want not-exist", statErr)
+		}
+
+		content, err := os.ReadFile(filepath.Join(expectedDir, skillMarkdownFileName))
+		if err != nil {
+			t.Fatalf("ReadFile(updated renamed skill) error = %v", err)
+		}
+		if !strings.Contains(string(content), "renamed body") {
+			t.Fatalf("updated renamed skill content = %q, want replacement content", string(content))
 		}
 	})
 }
@@ -1270,8 +1373,34 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	if got := versionIsNewer("1.0.1", "1.0.0"); got {
 		t.Fatal("versionIsNewer(1.0.1, 1.0.0) = true, want false")
 	}
+	if got := versionIsNewer("1.0.0-rc1", "1.0.0"); !got {
+		t.Fatal("versionIsNewer(1.0.0-rc1, 1.0.0) = false, want true")
+	}
+	if got := versionIsNewer("1.0.0", "1.0.0-rc1"); got {
+		t.Fatal("versionIsNewer(1.0.0, 1.0.0-rc1) = true, want false")
+	}
 	if got := criticalWarnings([]skills.Warning{{Severity: skills.SeverityCritical, Message: "bad"}}); len(got) != 1 || got[0] != "bad" {
 		t.Fatalf("criticalWarnings() = %#v, want bad", got)
+	}
+
+	if _, err := loadSkillCommandContext(testutil.Context(t), func() commandDeps {
+		deps := env.deps
+		deps.getwd = func() (string, error) {
+			return "", errors.New("boom")
+		}
+		return deps
+	}()); err == nil || !strings.Contains(err.Error(), "cli: resolve skill workspace root") {
+		t.Fatalf("loadSkillCommandContext(getwd failure) error = %v, want wrapped workspace-root context", err)
+	}
+
+	rendered, err := renderSkillXML(&skills.Skill{
+		Meta: skills.SkillMeta{Name: "xml-skill"},
+	}, "<skill>&body</skill>", []string{"refs/checklist.md"})
+	if err != nil {
+		t.Fatalf("renderSkillXML() error = %v", err)
+	}
+	if !strings.Contains(rendered, "&lt;skill&gt;&amp;body&lt;/skill&gt;") {
+		t.Fatalf("renderSkillXML() = %q, want escaped body", rendered)
 	}
 
 	if got := formatSkillMetadataValue(map[string]any{"alpha": 1}); got != `{"alpha":1}` {

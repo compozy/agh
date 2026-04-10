@@ -333,6 +333,15 @@ func TestCORSMiddlewareAllowsLoopbackOrigins(t *testing.T) {
 	}
 }
 
+func TestResolveAllowedOriginRejectsSameHostDifferentPort(t *testing.T) {
+	t.Parallel()
+
+	allowedOrigin, ok := resolveAllowedOrigin("http://example.com:3000", "http", "example.com:2123", "example.com")
+	if ok {
+		t.Fatalf("resolveAllowedOrigin() = %q, true, want rejection for same-host different-port origin", allowedOrigin)
+	}
+}
+
 func TestRespondErrorSanitizesInternalFailures(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{

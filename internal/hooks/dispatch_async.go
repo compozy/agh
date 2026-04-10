@@ -2,8 +2,11 @@ package hooks
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+var errAsyncHookDropped = errors.New("hooks: async hook submission dropped")
 
 func submitAsyncHooks[P any, R any](h *Hooks, parent context.Context, payload P, hooks []*ResolvedHook, pipe pipeline[P, R]) {
 	if h == nil || h.pool == nil {
@@ -18,14 +21,21 @@ func submitAsyncHooks[P any, R any](h *Hooks, parent context.Context, payload P,
 
 		asyncHook := *hook
 		asyncPayload := payload
-		h.pool.Submit(asyncTask{
+		if !h.pool.Submit(asyncTask{
 			hook: asyncHook.RegisteredHook,
 			run: func(poolCtx context.Context) {
-				baseCtx := context.WithValue(poolCtx, dispatchDepthContextKey{}, parentDepth)
+				baseCtx, cancelBase := context.WithCancel(parent)
+				stopPoolCancel := context.AfterFunc(poolCtx, cancelBase)
+				defer func() {
+					stopPoolCancel()
+					cancelBase()
+				}()
+
+				baseCtx = context.WithValue(baseCtx, dispatchDepthContextKey{}, parentDepth)
 				baseCtx = context.WithValue(baseCtx, dispatchChainContextKey{}, currentDispatchChain(parent))
 				hookCtx, depth, err := h.enterDispatch(baseCtx, asyncHook.Event)
 				if err != nil {
-					h.emitHookRun(poolCtx, asyncPayload, asyncHook.RegisteredHook, HookRunOutcomeSkipped, 0, nil, err, parentDepth)
+					h.emitHookRun(baseCtx, asyncPayload, asyncHook.RegisteredHook, HookRunOutcomeSkipped, 0, nil, err, parentDepth)
 					return
 				}
 
@@ -52,6 +62,8 @@ func submitAsyncHooks[P any, R any](h *Hooks, parent context.Context, payload P,
 				}
 				h.emitHookRun(hookCtx, asyncPayload, asyncHook.RegisteredHook, HookRunOutcomeApplied, duration, rawPatch, nil, depth)
 			},
-		})
+		}) {
+			h.emitHookRun(parent, asyncPayload, asyncHook.RegisteredHook, HookRunOutcomeDropped, 0, nil, errAsyncHookDropped, parentDepth)
+		}
 	}
 }
