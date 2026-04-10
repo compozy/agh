@@ -171,6 +171,23 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	if err != nil {
 		return nil, fmt.Errorf("session: read session meta %q: %w", metaPath, err)
 	}
+
+	meta, classified := classifyPreviousStop(meta)
+	if classified {
+		meta, err = m.persistResumeCrashClassification(metaPath, meta)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if validationErrs := m.validateInfrastructure(ctx, meta); len(validationErrs) > 0 {
+		m.logResumeValidationFailures(meta, validationErrs)
+		return nil, fmt.Errorf(
+			"session: validate resume infrastructure for %q: %w",
+			target,
+			errors.Join(validationErrs...),
+		)
+	}
+
 	meta, err = m.dispatchSessionPreResume(ctx, meta)
 	if err != nil {
 		return nil, err
@@ -247,6 +264,8 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		Workspace:    resolvedWorkspace.RootDir,
 		Type:         normalizeSessionType(SessionType(meta.SessionType)),
 		State:        StateStarting,
+		stopReason:   sessionMetaStopReason(meta),
+		stopDetail:   strings.TrimSpace(meta.StopDetail),
 		ACPSessionID: derefString(meta.ACPSessionID),
 		CreatedAt:    createdAt,
 		UpdatedAt:    m.now(),

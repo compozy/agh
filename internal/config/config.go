@@ -43,6 +43,16 @@ type LimitsConfig struct {
 	MaxConcurrentAgents int `toml:"max_concurrent_agents"`
 }
 
+// SessionConfig defines session-scoped runtime controls.
+type SessionConfig struct {
+	Limits SessionLimitsConfig `toml:"limits"`
+}
+
+// SessionLimitsConfig defines runtime limits applied to every session.
+type SessionLimitsConfig struct {
+	Timeout time.Duration `toml:"timeout,omitempty"`
+}
+
 // PermissionMode is the static permission policy applied by the daemon.
 type PermissionMode string
 
@@ -117,6 +127,7 @@ type Config struct {
 	HTTP          HTTPConfig                `toml:"http"`
 	Defaults      DefaultsConfig            `toml:"defaults"`
 	Limits        LimitsConfig              `toml:"limits"`
+	Session       SessionConfig             `toml:"session"`
 	Permissions   PermissionsConfig         `toml:"permissions"`
 	Providers     map[string]ProviderConfig `toml:"providers"`
 	Observability ObservabilityConfig       `toml:"observability"`
@@ -260,6 +271,9 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			MaxSessions:         10,
 			MaxConcurrentAgents: 20,
 		},
+		Session: SessionConfig{
+			Limits: SessionLimitsConfig{},
+		},
 		Permissions: PermissionsConfig{
 			Mode: PermissionModeApproveAll,
 		},
@@ -307,6 +321,9 @@ func (c Config) Validate() error {
 		return err
 	}
 	if err := c.Limits.Validate(); err != nil {
+		return err
+	}
+	if err := c.Session.Validate(); err != nil {
 		return err
 	}
 	if err := c.Permissions.Validate(); err != nil {
@@ -382,6 +399,19 @@ func (c LimitsConfig) Validate() error {
 	default:
 		return nil
 	}
+}
+
+// Validate ensures session-scoped controls are internally consistent.
+func (c SessionConfig) Validate() error {
+	return c.Limits.Validate()
+}
+
+// Validate ensures session timeout settings are internally consistent.
+func (c SessionLimitsConfig) Validate() error {
+	if c.Timeout < 0 {
+		return fmt.Errorf("session.limits.timeout must be zero or positive: %s", c.Timeout)
+	}
+	return nil
 }
 
 // Validate ensures the permission mode is supported.

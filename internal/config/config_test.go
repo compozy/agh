@@ -40,6 +40,9 @@ provider = "claude"
 max_sessions = 11
 max_concurrent_agents = 22
 
+[session.limits]
+timeout = "30m"
+
 [permissions]
 mode = "approve-all"
 
@@ -107,6 +110,9 @@ check_interval = "45m"
 	}
 	if cfg.Limits.MaxSessions != 11 || cfg.Limits.MaxConcurrentAgents != 22 {
 		t.Fatalf("Load() Limits = %#v", cfg.Limits)
+	}
+	if got, want := cfg.Session.Limits.Timeout, 30*time.Minute; got != want {
+		t.Fatalf("Load() Session.Limits.Timeout = %s, want %s", got, want)
 	}
 	if cfg.Permissions.Mode != PermissionModeApproveAll {
 		t.Fatalf("Load() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
@@ -198,6 +204,9 @@ port = 2123
 default_model = "global-model"
 api_key_env = "GLOBAL_KEY"
 
+[session.limits]
+timeout = "20m"
+
 [skills]
 enabled = true
 disabled_skills = ["global-skill"]
@@ -215,6 +224,9 @@ port = 4242
 
 [providers.claude]
 default_model = "workspace-model"
+
+[session.limits]
+timeout = "45m"
 
 [skills]
 enabled = false
@@ -235,6 +247,9 @@ base_url = "https://workspace.example.test/api/v1"
 
 	if cfg.HTTP.Host != "localhost" || cfg.HTTP.Port != 4242 {
 		t.Fatalf("Load() HTTP = %#v", cfg.HTTP)
+	}
+	if got, want := cfg.Session.Limits.Timeout, 45*time.Minute; got != want {
+		t.Fatalf("Load() Session.Limits.Timeout = %s, want %s", got, want)
 	}
 
 	claude, err := cfg.ResolveProvider("claude")
@@ -267,6 +282,15 @@ base_url = "https://workspace.example.test/api/v1"
 	}
 	if got, want := cfg.Skills.DisabledSkills, []string{"workspace-skill"}; !slices.Equal(got, want) {
 		t.Fatalf("Load() Skills.DisabledSkills = %#v, want %#v", got, want)
+	}
+}
+
+func TestSessionLimitsConfigValidateRejectsNegativeTimeout(t *testing.T) {
+	t.Parallel()
+
+	cfg := SessionLimitsConfig{Timeout: -time.Second}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("SessionLimitsConfig.Validate() error = nil, want non-nil")
 	}
 }
 

@@ -500,6 +500,13 @@ func stopReasonPointer(value store.StopReason) *store.StopReason {
 	return &copyValue
 }
 
+func sessionMetaStopReason(meta store.SessionMeta) store.StopReason {
+	if meta.StopReason == nil {
+		return ""
+	}
+	return *meta.StopReason
+}
+
 func closedSignalChan() chan struct{} {
 	ch := make(chan struct{})
 	close(ch)

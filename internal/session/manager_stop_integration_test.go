@@ -259,6 +259,212 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 	}
 }
 
+func TestManagerIntegrationResumeClassifiesCrashAndActivates(t *testing.T) {
+	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	waitForStoppedSession(t, h.manager, session)
+
+	meta := readMeta(t, session.MetaPath())
+	meta.State = string(StateActive)
+	meta.StopReason = nil
+	meta.StopDetail = ""
+	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+		t.Fatalf("WriteSessionMeta() error = %v", err)
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+			t.Fatalf("cleanup Stop() error = %v", err)
+		}
+	})
+
+	if got := resumed.Info().State; got != StateActive {
+		t.Fatalf("resumed state = %q, want %q", got, StateActive)
+	}
+	if got := resumed.Info().StopReason; got != store.StopAgentCrashed {
+		t.Fatalf("resumed stop reason = %q, want %q", got, store.StopAgentCrashed)
+	}
+	if got := resumed.Info().StopDetail; got != "daemon crashed while session active" {
+		t.Fatalf("resumed stop detail = %q, want %q", got, "daemon crashed while session active")
+	}
+
+	meta = readMeta(t, resumed.MetaPath())
+	if meta.StopReason == nil {
+		t.Fatal("meta.StopReason = nil, want non-nil")
+	}
+	if *meta.StopReason != store.StopAgentCrashed {
+		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopAgentCrashed)
+	}
+}
+
+func TestManagerIntegrationResumeFailsWhenWorkspaceDirectoryMissing(t *testing.T) {
+	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	waitForStoppedSession(t, h.manager, session)
+	if err := os.RemoveAll(h.workspace); err != nil {
+		t.Fatalf("os.RemoveAll(%q) error = %v", h.workspace, err)
+	}
+
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
+		t.Fatal("Resume(missing workspace dir) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), h.workspace) {
+		t.Fatalf("Resume(missing workspace dir) error = %v, want workspace path %q", err, h.workspace)
+	}
+}
+
+func TestManagerIntegrationResumeFailsWhenAgentRemoved(t *testing.T) {
+	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	waitForStoppedSession(t, h.manager, session)
+
+	h.resolver.upsert(workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{{
+			Name:     aghconfig.DefaultAgentName,
+			Provider: "claude",
+			Command:  sessionStopHelperCommand(t),
+			Prompt:   "You are a coding assistant.",
+		}},
+	})
+
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
+		t.Fatal("Resume(missing agent) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), "coder") {
+		t.Fatalf("Resume(missing agent) error = %v, want agent name", err)
+	}
+}
+
+func TestManagerIntegrationResumeFailsWhenEventStoreIsEmpty(t *testing.T) {
+	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	waitForStoppedSession(t, h.manager, session)
+	if err := os.WriteFile(session.DBPath(), nil, 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", session.DBPath(), err)
+	}
+
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
+		t.Fatal("Resume(empty event store) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), session.DBPath()) || !strings.Contains(err.Error(), "file is empty") {
+		t.Fatalf("Resume(empty event store) error = %v, want db path and empty-file detail", err)
+	}
+}
+
+func TestManagerIntegrationFullStopResumeStopPersistsStopReasons(t *testing.T) {
+	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("first Stop() error = %v", err)
+	}
+	waitForStoppedSession(t, h.manager, session)
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+		t.Fatalf("second Stop() error = %v", err)
+	}
+	waitForStoppedSession(t, h.manager, resumed)
+
+	meta := readMeta(t, resumed.MetaPath())
+	if meta.StopReason == nil {
+		t.Fatal("meta.StopReason = nil, want non-nil")
+	}
+	if *meta.StopReason != store.StopUserCanceled {
+		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopUserCanceled)
+	}
+
+	waitForCondition(t, "two stop events after resume flow", func() bool {
+		events := readStoredEvents(t, resumed)
+		return countEventType(events, EventTypeSessionStopped) == 2
+	})
+
+	events := readStoredEvents(t, resumed)
+	if got := countEventType(events, EventTypeSessionStopped); got != 2 {
+		t.Fatalf("session_stopped events = %d, want 2", got)
+	}
+	stopReasons := make([]string, 0, 2)
+	for _, event := range events {
+		if event.Type != EventTypeSessionStopped {
+			continue
+		}
+		payload := decodeStoredEventPayload(t, event)
+		stopReasons = append(stopReasons, payload["stop_reason"].(string))
+	}
+	if got, want := len(stopReasons), 2; got != want {
+		t.Fatalf("stop reason payload count = %d, want %d", got, want)
+	}
+	for index, reason := range stopReasons {
+		if reason != string(store.StopUserCanceled) {
+			t.Fatalf("stop reason payload %d = %q, want %q", index, reason, store.StopUserCanceled)
+		}
+	}
+}
+
+func newRealACPIntegrationHarness(t *testing.T, command string) *harness {
+	t.Helper()
+
+	h := newHarness(t)
+	driver := acp.New(
+		acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		acp.WithStopTimeout(100*time.Millisecond),
+	)
+	h.resolver.upsert(workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{{
+			Name:     "coder",
+			Provider: "claude",
+			Command:  command,
+			Prompt:   "You are a coding assistant.",
+		}},
+	})
+	h.manager = newManagerWithHarness(t, h, WithDriver(NewACPDriverAdapter(driver)))
+	return h
+}
+
+func waitForStoppedSession(t *testing.T, manager *Manager, sess *Session) {
+	t.Helper()
+
+	waitForCondition(t, "stopped session state", func() bool {
+		if _, ok := manager.Get(sess.ID); ok {
+			return false
+		}
+		meta := readMeta(t, sess.MetaPath())
+		return meta.State == string(StateStopped)
+	})
+}
+
 func sessionStopWrapperCommand(t *testing.T, pidFile string) string {
 	t.Helper()
 
