@@ -103,10 +103,11 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 }
 
 func TestReadSessionMetaLegacyStopFieldsOmitted(t *testing.T) {
-	t.Parallel()
+	t.Run("Should handle legacy stop fields omitted", func(t *testing.T) {
+		t.Parallel()
 
-	path := filepath.Join(t.TempDir(), SessionMetaName)
-	payload := []byte(`{
+		path := filepath.Join(t.TempDir(), SessionMetaName)
+		payload := []byte(`{
   "id": "sess-legacy",
   "name": "Legacy Session",
   "agent_name": "coder",
@@ -117,18 +118,19 @@ func TestReadSessionMetaLegacyStopFieldsOmitted(t *testing.T) {
   "updated_at": "2026-04-03T17:01:00Z"
 }
 `)
-	if err := os.WriteFile(path, payload, 0o644); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
+		if err := os.WriteFile(path, payload, 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
 
-	meta, err := ReadSessionMeta(path)
-	if err != nil {
-		t.Fatalf("ReadSessionMeta() error = %v", err)
-	}
-	if meta.StopReason != nil {
-		t.Fatalf("ReadSessionMeta().StopReason = %v, want nil", *meta.StopReason)
-	}
-	if meta.StopDetail != "" {
-		t.Fatalf("ReadSessionMeta().StopDetail = %q, want empty", meta.StopDetail)
-	}
+		meta, err := ReadSessionMeta(path)
+		if err != nil {
+			t.Fatalf("ReadSessionMeta() error = %v", err)
+		}
+		if meta.StopReason != nil {
+			t.Fatalf("ReadSessionMeta().StopReason = %v, want nil", *meta.StopReason)
+		}
+		if meta.StopDetail != "" {
+			t.Fatalf("ReadSessionMeta().StopDetail = %q, want empty", meta.StopDetail)
+		}
+	})
 }

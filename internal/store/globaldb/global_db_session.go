@@ -52,7 +52,7 @@ func (g *GlobalDB) UpdateSessionState(ctx context.Context, update store.SessionS
 		assignments = append(assignments, "acp_session_id = ?")
 		args = append(args, store.NullableStringPointer(update.ACPSessionID))
 	}
-	if update.StopReason != nil {
+	if update.StopReasonSet {
 		assignments = append(assignments, "stop_reason = ?", "stop_detail = ?")
 		args = append(args, store.NullableStringPointer(update.StopReason), store.NullableString(update.StopDetail))
 	}

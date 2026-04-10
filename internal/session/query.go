@@ -210,11 +210,6 @@ func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMet
 }
 
 func sessionInfoFromMeta(meta store.SessionMeta) *SessionInfo {
-	stopReason := store.StopReason("")
-	if meta.StopReason != nil {
-		stopReason = *meta.StopReason
-	}
-
 	return &SessionInfo{
 		ID:           meta.ID,
 		Name:         meta.Name,
@@ -222,7 +217,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *SessionInfo {
 		WorkspaceID:  meta.WorkspaceID,
 		Type:         normalizeSessionType(SessionType(meta.SessionType)),
 		State:        SessionState(meta.State),
-		StopReason:   stopReason,
+		StopReason:   sessionMetaStopReason(meta),
 		StopDetail:   meta.StopDetail,
 		ACPSessionID: stringValue(meta.ACPSessionID),
 		CreatedAt:    meta.CreatedAt,

@@ -181,12 +181,13 @@ func (q SessionListQuery) Validate() error {
 
 // SessionStateUpdate updates only the stateful fields of an indexed session.
 type SessionStateUpdate struct {
-	ID           string
-	State        string
-	ACPSessionID *string
-	StopReason   *string
-	StopDetail   string
-	UpdatedAt    time.Time
+	ID            string
+	State         string
+	ACPSessionID  *string
+	StopReasonSet bool
+	StopReason    *string
+	StopDetail    string
+	UpdatedAt     time.Time
 }
 
 // Validate ensures the update contains the required fields.

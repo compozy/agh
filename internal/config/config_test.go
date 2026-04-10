@@ -286,12 +286,18 @@ base_url = "https://workspace.example.test/api/v1"
 }
 
 func TestSessionLimitsConfigValidateRejectsNegativeTimeout(t *testing.T) {
-	t.Parallel()
+	t.Run("Should reject negative timeout", func(t *testing.T) {
+		t.Parallel()
 
-	cfg := SessionLimitsConfig{Timeout: -time.Second}
-	if err := cfg.Validate(); err == nil {
-		t.Fatal("SessionLimitsConfig.Validate() error = nil, want non-nil")
-	}
+		cfg := SessionLimitsConfig{Timeout: -time.Second}
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("SessionLimitsConfig.Validate() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "session.limits.timeout") {
+			t.Fatalf("SessionLimitsConfig.Validate() error = %v, want session.limits.timeout context", err)
+		}
+	})
 }
 
 func TestLoadWorkspaceAddsValuesWithoutClobberingGlobal(t *testing.T) {

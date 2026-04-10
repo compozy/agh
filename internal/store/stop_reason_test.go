@@ -24,7 +24,7 @@ func TestValidStopReason(t *testing.T) {
 
 	for _, reason := range validReasons {
 		reason := reason
-		t.Run(string(reason), func(t *testing.T) {
+		t.Run("Should validate "+string(reason), func(t *testing.T) {
 			t.Parallel()
 
 			if !ValidStopReason(reason) {
@@ -36,7 +36,12 @@ func TestValidStopReason(t *testing.T) {
 	invalidReasons := []StopReason{"", "unknown", " completed "}
 	for _, reason := range invalidReasons {
 		reason := reason
-		t.Run("invalid_"+strings.ReplaceAll(string(reason), " ", "_"), func(t *testing.T) {
+		name := strings.TrimSpace(string(reason))
+		if name == "" {
+			name = "empty"
+		}
+		name = strings.ReplaceAll(name, " ", "_")
+		t.Run("Should reject invalid "+name, func(t *testing.T) {
 			t.Parallel()
 
 			if ValidStopReason(reason) {
@@ -58,9 +63,9 @@ func TestSessionMetaValidateStopReason(t *testing.T) {
 		reason    *StopReason
 		wantError bool
 	}{
-		{name: "nil stop reason", reason: nil},
-		{name: "valid stop reason", reason: &validReason},
-		{name: "invalid stop reason", reason: &invalidReason, wantError: true},
+		{name: "Should validate nil stop reason", reason: nil},
+		{name: "Should validate supported stop reason", reason: &validReason},
+		{name: "Should reject invalid stop reason", reason: &invalidReason, wantError: true},
 	}
 
 	for _, tt := range tests {
@@ -81,6 +86,9 @@ func TestSessionMetaValidateStopReason(t *testing.T) {
 			err := meta.Validate()
 			if tt.wantError && err == nil {
 				t.Fatal("Validate() error = nil, want non-nil")
+			}
+			if tt.wantError && !strings.Contains(err.Error(), "invalid session stop reason") {
+				t.Fatalf("Validate() error = %v, want to contain %q", err, "invalid session stop reason")
 			}
 			if !tt.wantError && err != nil {
 				t.Fatalf("Validate() error = %v", err)

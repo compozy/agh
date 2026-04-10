@@ -1052,11 +1052,12 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 
 		stopReason := string(store.StopUserCanceled)
 		if err := globalDB.UpdateSessionState(testutil.Context(t), SessionStateUpdate{
-			ID:         "sess-update-stop",
-			State:      "stopped",
-			StopReason: &stopReason,
-			StopDetail: "requested by user",
-			UpdatedAt:  time.Date(2026, 4, 3, 13, 2, 0, 0, time.UTC),
+			ID:            "sess-update-stop",
+			State:         "stopped",
+			StopReasonSet: true,
+			StopReason:    &stopReason,
+			StopDetail:    "requested by user",
+			UpdatedAt:     time.Date(2026, 4, 3, 13, 2, 0, 0, time.UTC),
 		}); err != nil {
 			t.Fatalf("UpdateSessionState() error = %v", err)
 		}
@@ -1095,6 +1096,38 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 		gotStopReason, gotStopDetail := queryStoredSessionStopFields(t, globalDB.db, "sess-preserve-stop")
 		assertOptionalStringEqual(t, gotStopReason, stringPointerForTest(string(store.StopTimeout)), "stop_reason")
 		assertOptionalStringEqual(t, gotStopDetail, stringPointerForTest("deadline exceeded"), "stop_detail")
+	})
+
+	t.Run("explicit nil stop reason clears existing columns", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "clear-stop-reason", filepath.Join(t.TempDir(), "workspace"))
+		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ID:          "sess-clear-stop",
+			AgentName:   "coder",
+			WorkspaceID: workspaceID,
+			State:       "stopped",
+			StopReason:  store.StopTimeout,
+			StopDetail:  "deadline exceeded",
+			CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+
+		if err := globalDB.UpdateSessionState(testutil.Context(t), SessionStateUpdate{
+			ID:            "sess-clear-stop",
+			State:         "active",
+			StopReasonSet: true,
+			UpdatedAt:     time.Date(2026, 4, 3, 13, 5, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("UpdateSessionState() error = %v", err)
+		}
+
+		gotStopReason, gotStopDetail := queryStoredSessionStopFields(t, globalDB.db, "sess-clear-stop")
+		assertOptionalStringEqual(t, gotStopReason, nil, "stop_reason")
+		assertOptionalStringEqual(t, gotStopDetail, nil, "stop_detail")
 	})
 }
 

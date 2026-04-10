@@ -70,14 +70,24 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 	_, hasWorkspaceID := columns["workspace_id"]
 	_, hasLegacyWorkspace := columns["workspace"]
 	if !hasWorkspaceID && hasLegacyWorkspace {
-		if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
-			return fmt.Errorf("store: disable foreign keys for global schema migration: %w", err)
+		conn, err := db.Conn(ctx)
+		if err != nil {
+			return fmt.Errorf("store: open global schema migration connection: %w", err)
 		}
+		foreignKeysDisabled := false
 		defer func() {
-			_, _ = db.ExecContext(context.Background(), "PRAGMA foreign_keys = ON")
+			if foreignKeysDisabled {
+				_, _ = conn.ExecContext(context.Background(), "PRAGMA foreign_keys = ON")
+			}
+			_ = conn.Close()
 		}()
 
-		tx, err := db.BeginTx(ctx, nil)
+		if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+			return fmt.Errorf("store: disable foreign keys for global schema migration: %w", err)
+		}
+		foreignKeysDisabled = true
+
+		tx, err := conn.BeginTx(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("store: begin global schema migration transaction: %w", err)
 		}

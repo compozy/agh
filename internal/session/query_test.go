@@ -355,20 +355,22 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 		t.Fatalf("sessionInfoFromMeta().StopDetail = %q, want %q", got, "deadline exceeded")
 	}
 
-	legacyInfo := sessionInfoFromMeta(store.SessionMeta{
-		ID:          "sess-legacy",
-		AgentName:   "coder",
-		WorkspaceID: "ws-1",
-		State:       string(StateStopped),
-		CreatedAt:   createdAt,
-		UpdatedAt:   updatedAt,
+	t.Run("Should keep stop fields empty for legacy metadata", func(t *testing.T) {
+		legacyInfo := sessionInfoFromMeta(store.SessionMeta{
+			ID:          "sess-legacy",
+			AgentName:   "coder",
+			WorkspaceID: "ws-1",
+			State:       string(StateStopped),
+			CreatedAt:   createdAt,
+			UpdatedAt:   updatedAt,
+		})
+		if got := legacyInfo.StopReason; got != "" {
+			t.Fatalf("sessionInfoFromMeta(legacy).StopReason = %q, want empty", got)
+		}
+		if got := legacyInfo.StopDetail; got != "" {
+			t.Fatalf("sessionInfoFromMeta(legacy).StopDetail = %q, want empty", got)
+		}
 	})
-	if got := legacyInfo.StopReason; got != "" {
-		t.Fatalf("sessionInfoFromMeta(legacy).StopReason = %q, want empty", got)
-	}
-	if got := legacyInfo.StopDetail; got != "" {
-		t.Fatalf("sessionInfoFromMeta(legacy).StopDetail = %q, want empty", got)
-	}
 
 	sameTime := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
 	sorted := sortSessionInfos([]*SessionInfo{

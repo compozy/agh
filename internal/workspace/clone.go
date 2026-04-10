@@ -50,6 +50,7 @@ func cloneConfig(src aghconfig.Config) aghconfig.Config {
 		HTTP:          src.HTTP,
 		Defaults:      src.Defaults,
 		Limits:        src.Limits,
+		Session:       src.Session,
 		Permissions:   src.Permissions,
 		Providers:     cloneProviders(src.Providers),
 		Observability: src.Observability,
