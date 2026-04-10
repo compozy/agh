@@ -289,7 +289,7 @@ func (s *Session) finishPromptSetup() {
 	}
 }
 
-func (s *Session) prepareStop(now time.Time) (bool, <-chan struct{}, error) {
+func (s *Session) prepareStop(now time.Time, cause StopCause, detail string) (bool, <-chan struct{}, error) {
 	if s == nil {
 		return false, nil, errors.New("session: session is required")
 	}
@@ -303,13 +303,16 @@ func (s *Session) prepareStop(now time.Time) (bool, <-chan struct{}, error) {
 
 	switch s.State {
 	case StateStopped:
+		s.applyStopCauseLocked(cause, detail)
 		return false, s.promptSetupDone, nil
 	case StateStopping:
+		s.applyStopCauseLocked(cause, detail)
 		return false, s.promptSetupDone, nil
 	case StateActive:
 		if !canTransition(s.State, StateStopping) {
 			return false, nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, s.State, StateStopping)
 		}
+		s.applyStopCauseLocked(cause, detail)
 		s.State = StateStopping
 		if !now.IsZero() {
 			s.UpdatedAt = now
@@ -318,6 +321,53 @@ func (s *Session) prepareStop(now time.Time) (bool, <-chan struct{}, error) {
 	default:
 		return false, nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, s.State, StateStopping)
 	}
+}
+
+func (s *Session) setStopCause(cause StopCause, detail string) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.applyStopCauseLocked(cause, detail)
+}
+
+func (s *Session) stopCauseDetail() (StopCause, string) {
+	if s == nil {
+		return CauseNone, ""
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.stopCause, s.stopDetail
+}
+
+func (s *Session) stopWasRequested() bool {
+	if s == nil {
+		return false
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	switch s.stopCause {
+	case CauseUserRequested, CauseShutdown, CauseHookDenied:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Session) setStopClassification(reason store.StopReason, detail string) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stopReason = reason
+	s.stopDetail = strings.TrimSpace(detail)
 }
 
 func (s *Session) activate(now time.Time) error {
@@ -356,6 +406,22 @@ func (s *Session) transition(next SessionState, now time.Time) error {
 		s.UpdatedAt = now
 	}
 	return nil
+}
+
+func (s *Session) applyStopCauseLocked(cause StopCause, detail string) {
+	if cause == CauseNone {
+		return
+	}
+
+	if s.stopCause == CauseNone {
+		s.stopCause = cause
+		s.stopDetail = strings.TrimSpace(detail)
+		return
+	}
+
+	if s.stopCause == cause && strings.TrimSpace(detail) != "" {
+		s.stopDetail = strings.TrimSpace(detail)
+	}
 }
 
 // Meta returns the current metadata snapshot for persistence.

@@ -8,19 +8,25 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/kballard/go-shellquote"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
+
+const daemonSessionStopHelperEnvKey = "AGH_TEST_DAEMON_SESSION_STOP_HELPER"
 
 func (f *fakeSessionManager) promptCall(index int) struct {
 	id  string
@@ -147,6 +153,64 @@ func TestRunGracefulShutdownViaSignal(t *testing.T) {
 	}
 	if _, err := os.Stat(homePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("daemon.json after signal shutdown: stat error = %v, want os.ErrNotExist", err)
+	}
+}
+
+func TestShutdownPersistsShutdownStopReason(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	command := daemonSessionStopHelperCommand(t)
+	cfg.Providers["claude"] = aghconfig.ProviderConfig{Command: command}
+	writeDaemonIntegrationAgentDef(t, homePaths, "coder", command)
+
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", workspaceRoot, err)
+	}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	shutdown := false
+	t.Cleanup(func() {
+		if shutdown {
+			return
+		}
+		_ = d.Shutdown(testutil.Context(t))
+	})
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+
+	sess, err := d.sessions.Create(testutil.Context(t), session.CreateOpts{
+		AgentName:     "coder",
+		WorkspacePath: workspaceRoot,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	shutdown = true
+
+	meta, err := store.ReadSessionMeta(sess.MetaPath())
+	if err != nil {
+		t.Fatalf("ReadSessionMeta(%q) error = %v", sess.MetaPath(), err)
+	}
+	if meta.StopReason == nil {
+		t.Fatal("meta.StopReason = nil, want non-nil")
+	}
+	if *meta.StopReason != store.StopShutdown {
+		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopShutdown)
 	}
 }
 
@@ -617,6 +681,16 @@ func integrationHomePaths(t *testing.T) aghconfig.HomePaths {
 	return homePaths
 }
 
+func TestDaemonSessionStopACPHelperProcess(t *testing.T) {
+	if os.Getenv(daemonSessionStopHelperEnvKey) != "1" {
+		return
+	}
+
+	conn := acpsdk.NewAgentSideConnection(daemonSessionStopACPAgent{}, os.Stdout, os.Stdin)
+	<-conn.Done()
+	os.Exit(0)
+}
+
 func seedDaemonWorkspace(t *testing.T, homePaths aghconfig.HomePaths, root string) workspacepkg.ResolvedWorkspace {
 	t.Helper()
 
@@ -664,6 +738,80 @@ func writeDaemonHookScript(t *testing.T, dir string, name string, contents strin
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
 	}
 	return path
+}
+
+func daemonSessionStopHelperCommand(t *testing.T) string {
+	t.Helper()
+
+	bin, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable() error = %v", err)
+	}
+
+	return shellquote.Join(
+		"env",
+		daemonSessionStopHelperEnvKey+"=1",
+		bin,
+		"-test.run=TestDaemonSessionStopACPHelperProcess",
+	)
+}
+
+func writeDaemonIntegrationAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string, command string) {
+	t.Helper()
+
+	path := filepath.Join(homePaths.AgentsDir, name, "AGENT.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(path), err)
+	}
+
+	content := strings.Join([]string{
+		"---",
+		"name: " + name,
+		"provider: claude",
+		"command: " + command,
+		"---",
+		"You are a coding assistant.",
+		"",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+	}
+}
+
+type daemonSessionStopACPAgent struct{}
+
+func (daemonSessionStopACPAgent) Authenticate(context.Context, acpsdk.AuthenticateRequest) (acpsdk.AuthenticateResponse, error) {
+	return acpsdk.AuthenticateResponse{}, nil
+}
+
+func (daemonSessionStopACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (acpsdk.InitializeResponse, error) {
+	return acpsdk.InitializeResponse{
+		ProtocolVersion: acpsdk.ProtocolVersionNumber,
+		AgentCapabilities: acpsdk.AgentCapabilities{
+			LoadSession: true,
+		},
+		AuthMethods: []acpsdk.AuthMethod{},
+	}, nil
+}
+
+func (daemonSessionStopACPAgent) Cancel(context.Context, acpsdk.CancelNotification) error {
+	return nil
+}
+
+func (daemonSessionStopACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
+	return acpsdk.NewSessionResponse{SessionId: "daemon-stop-helper"}, nil
+}
+
+func (daemonSessionStopACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest) (acpsdk.LoadSessionResponse, error) {
+	return acpsdk.LoadSessionResponse{}, nil
+}
+
+func (daemonSessionStopACPAgent) Prompt(context.Context, acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
+	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
+}
+
+func (daemonSessionStopACPAgent) SetSessionMode(context.Context, acpsdk.SetSessionModeRequest) (acpsdk.SetSessionModeResponse, error) {
+	return acpsdk.SetSessionModeResponse{}, nil
 }
 
 func assertLifecycleHookPayload(t *testing.T, path string, wantEvent hookspkg.HookEvent, wantWorkspace workspacepkg.ResolvedWorkspace) {

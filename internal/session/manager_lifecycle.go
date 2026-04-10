@@ -147,47 +147,7 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 
 // Stop stops an active session and persists the stopped state to disk.
 func (m *Manager) Stop(ctx context.Context, id string) error {
-	if ctx == nil {
-		return errors.New("session: stop context is required")
-	}
-
-	session, err := m.lookup(id)
-	if err != nil {
-		return err
-	}
-	if err := m.dispatchSessionPreStop(ctx, session); err != nil {
-		return err
-	}
-
-	writeMeta, promptSetupDone, err := session.prepareStop(m.now())
-	if err != nil {
-		return err
-	}
-	if writeMeta {
-		if err := m.writeMeta(session); err != nil {
-			return err
-		}
-	}
-	if err := waitForPromptSetup(ctx, session, promptSetupDone); err != nil {
-		return err
-	}
-
-	state := session.Info().State
-	if state == StateStopped {
-		return nil
-	}
-
-	proc := session.processHandle()
-	if proc == nil {
-		return m.finalizeStopped(ctx, session, nil)
-	}
-
-	stopErr := m.driver.Stop(ctx, proc)
-	if !isProcessDone(proc) {
-		return stopErr
-	}
-
-	return errors.Join(stopErr, m.finalizeStopped(ctx, session, nil))
+	return m.StopWithCause(ctx, id, CauseUserRequested, "")
 }
 
 // Resume restarts a stopped session from its persisted metadata and event history.
@@ -356,6 +316,15 @@ func (m *Manager) handleProcessExit(ctx context.Context, session *Session, waitE
 		return nil
 	}
 
+	if !session.stopWasRequested() {
+		switch waitErr {
+		case nil:
+			session.setStopCause(CauseCompleted, "")
+		default:
+			session.setStopCause(CauseProcessExited, "")
+		}
+	}
+
 	return m.finalizeStopped(ctx, session, waitErr)
 }
 
@@ -378,6 +347,13 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 		} else if err := m.writeMeta(session); err != nil {
 			errs = append(errs, err)
 		}
+	}
+
+	stopCause, stopDetailHint := session.stopCauseDetail()
+	stopReason, stopDetail := classifyStopReason(stopCause, waitErr, stopDetailHint)
+	session.setStopClassification(stopReason, stopDetail)
+	if err := m.writeMeta(session); err != nil {
+		errs = append(errs, err)
 	}
 
 	if waitErr != nil {
@@ -404,9 +380,10 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	}
 
 	stopEvent := acp.AgentEvent{
-		Type:      EventTypeSessionStopped,
-		TurnID:    newID("turn"),
-		Timestamp: m.now(),
+		Type:       EventTypeSessionStopped,
+		TurnID:     newID("turn"),
+		Timestamp:  m.now(),
+		StopReason: string(stopReason),
 	}
 	if waitErr != nil {
 		stopEvent.Error = waitErr.Error()

@@ -20,6 +20,7 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -113,6 +114,57 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 		meta := readMeta(t, session.MetaPath())
 		return meta.State == string(StateStopped)
 	})
+
+	meta := readMeta(t, session.MetaPath())
+	if meta.StopReason == nil {
+		t.Fatal("meta.StopReason = nil, want non-nil")
+	}
+	if *meta.StopReason != store.StopUserCanceled {
+		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopUserCanceled)
+	}
+}
+
+func TestManagerIntegrationKillProcessPersistsAgentCrashedStopReason(t *testing.T) {
+	h := newHarness(t)
+	driver := acp.New(
+		acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		acp.WithStopTimeout(100*time.Millisecond),
+	)
+	command := sessionStopHelperCommand(t)
+	h.resolver.upsert(workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{{
+			Name:     "coder",
+			Provider: "claude",
+			Command:  command,
+			Prompt:   "You are a coding assistant.",
+		}},
+	})
+	h.manager = newManagerWithHarness(t, h, WithDriver(NewACPDriverAdapter(driver)))
+
+	session := createSession(t, h)
+	proc := session.processHandle()
+	if proc == nil {
+		t.Fatal("session process = nil, want ACP process")
+	}
+	if err := syscall.Kill(proc.PID, syscall.SIGKILL); err != nil {
+		t.Fatalf("syscall.Kill(%d, SIGKILL) error = %v", proc.PID, err)
+	}
+
+	waitForCondition(t, "agent crash metadata", func() bool {
+		meta := readMeta(t, session.MetaPath())
+		return meta.State == string(StateStopped) && meta.StopReason != nil
+	})
+
+	meta := readMeta(t, session.MetaPath())
+	if *meta.StopReason != store.StopAgentCrashed {
+		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopAgentCrashed)
+	}
 }
 
 func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
