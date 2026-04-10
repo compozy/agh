@@ -104,6 +104,62 @@ capabilities = ["memory.read", "   "]
 	}
 }
 
+func TestNormalizeMCPServersDropsBlankKeysAndUsesDeterministicCollisions(t *testing.T) {
+	t.Parallel()
+
+	got := normalizeMCPServers(map[string]MCPServerConfig{
+		"  ": {
+			Command: "ignored",
+		},
+		" foo": {
+			Command: " first ",
+			Env: map[string]string{
+				" BAR ": " first ",
+			},
+		},
+		"foo": {
+			Command: " second ",
+			Env: map[string]string{
+				" ":     "ignored",
+				" BAR ": "second",
+				"BAR":   "final",
+			},
+		},
+	})
+
+	want := map[string]MCPServerConfig{
+		"foo": {
+			Command: "second",
+			Env: map[string]string{
+				"BAR": "final",
+			},
+		},
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("normalizeMCPServers() = %#v, want %#v", got, want)
+	}
+}
+
+func TestNormalizeStringMapDropsBlankKeysAndUsesDeterministicCollisions(t *testing.T) {
+	t.Parallel()
+
+	got := normalizeStringMap(map[string]string{
+		"   ":   "ignored",
+		" KEY":  "first",
+		"KEY":   "second",
+		"\tKEY": "third",
+	})
+
+	want := map[string]string{
+		"KEY": "second",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("normalizeStringMap() = %#v, want %#v", got, want)
+	}
+}
+
 func TestLoadManifest_ValidationErrors(t *testing.T) {
 	testCases := []struct {
 		name          string

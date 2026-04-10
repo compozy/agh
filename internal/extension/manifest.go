@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -525,12 +526,21 @@ func normalizeMCPServers(src map[string]MCPServerConfig) map[string]MCPServerCon
 	}
 
 	dst := make(map[string]MCPServerConfig, len(src))
-	for name, server := range src {
-		dst[strings.TrimSpace(name)] = MCPServerConfig{
+	for _, name := range sortedMapKeys(src) {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" {
+			continue
+		}
+
+		server := src[name]
+		dst[trimmedName] = MCPServerConfig{
 			Command: strings.TrimSpace(server.Command),
 			Args:    normalizeStrings(server.Args),
 			Env:     normalizeStringMap(server.Env),
 		}
+	}
+	if len(dst) == 0 {
+		return nil
 	}
 	return dst
 }
@@ -560,10 +570,26 @@ func normalizeStringMap(src map[string]string) map[string]string {
 	}
 
 	dst := make(map[string]string, len(src))
-	for key, value := range src {
-		dst[strings.TrimSpace(key)] = strings.TrimSpace(value)
+	for _, key := range sortedMapKeys(src) {
+		trimmedKey := strings.TrimSpace(key)
+		if trimmedKey == "" {
+			continue
+		}
+		dst[trimmedKey] = strings.TrimSpace(src[key])
+	}
+	if len(dst) == 0 {
+		return nil
 	}
 	return dst
+}
+
+func sortedMapKeys[V any](src map[string]V) []string {
+	keys := make([]string, 0, len(src))
+	for key := range src {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func cloneIntPointer(value *int) *int {

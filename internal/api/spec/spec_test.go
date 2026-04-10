@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -15,11 +16,18 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 	}
 
 	t.Run("ShouldDescribeSessionListRequiredFieldsAndEnums", func(t *testing.T) {
+		t.Parallel()
+
 		listSessions := operationFor(t, doc, "/api/sessions", "GET")
 		listSessionsSchema := jsonResponseSchema(t, listSessions, 200)
 		assertRequired(t, listSessionsSchema, "sessions")
 
-		sessionSchema := propertySchema(t, listSessionsSchema, "sessions").Items.Value
+		sessionsSchema := propertySchema(t, listSessionsSchema, "sessions")
+		if sessionsSchema.Items == nil || sessionsSchema.Items.Value == nil {
+			t.Fatal("expected sessions to define an items schema")
+		}
+
+		sessionSchema := sessionsSchema.Items.Value
 		assertRequired(t, sessionSchema, "id", "agent_name", "state", "created_at", "updated_at")
 		assertNotRequired(t, sessionSchema, "workspace_id", "workspace_path", "stop_reason", "stop_detail")
 		assertEnumValues(t, propertySchema(t, sessionSchema, "state"), "starting", "active", "stopping", "stopped")
@@ -38,18 +46,24 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 	})
 
 	t.Run("ShouldDescribeCreateSessionOptionalFields", func(t *testing.T) {
+		t.Parallel()
+
 		createSession := operationFor(t, doc, "/api/sessions", "POST")
 		createSessionSchema := jsonRequestSchema(t, createSession)
 		assertNotRequired(t, createSessionSchema, "agent_name", "name", "workspace", "workspace_path")
 	})
 
 	t.Run("ShouldDescribeApproveSessionRequiredFields", func(t *testing.T) {
+		t.Parallel()
+
 		approveSession := operationFor(t, doc, "/api/sessions/{id}/approve", "POST")
 		approveSchema := jsonRequestSchema(t, approveSession)
 		assertRequired(t, approveSchema, "request_id", "turn_id", "decision")
 	})
 
 	t.Run("ShouldDescribeWriteMemoryRequiredAndOptionalFields", func(t *testing.T) {
+		t.Parallel()
+
 		writeMemory := operationFor(t, doc, "/api/memory/{filename}", "PUT")
 		writeMemorySchema := jsonRequestSchema(t, writeMemory)
 		assertRequired(t, writeMemorySchema, "content")
@@ -130,16 +144,19 @@ func assertEnumValues(t *testing.T, schema *openapi3.Schema, values ...string) {
 	t.Helper()
 
 	got := make([]string, 0, len(schema.Enum))
-	for _, value := range schema.Enum {
+	for idx, value := range schema.Enum {
 		text, ok := value.(string)
-		if ok {
-			got = append(got, text)
+		if !ok {
+			t.Fatalf("expected enum[%d] to be string, got %T", idx, value)
 		}
+		got = append(got, text)
 	}
-	for _, value := range values {
-		if !contains(got, value) {
-			t.Fatalf("expected enum %q in %v", value, got)
-		}
+
+	want := append([]string(nil), values...)
+	slices.Sort(got)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("expected enum values %v, got %v", want, got)
 	}
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,6 +16,8 @@ import (
 )
 
 const defaultSDKContractsPath = "sdk/typescript/src/generated/contracts.ts"
+
+var ErrStaleGeneratedFile = errors.New("generated file is stale")
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -116,7 +119,7 @@ func checkFile(path string, want []byte) error {
 		return fmt.Errorf("read %q: %w", path, err)
 	}
 	if !bytes.Equal(got, want) {
-		return fmt.Errorf("%s is stale; run codegen", path)
+		return fmt.Errorf("%s: %w; run codegen", path, ErrStaleGeneratedFile)
 	}
 	return nil
 }
@@ -139,7 +142,7 @@ func checkJSONFile(path string, want []byte) error {
 		return fmt.Errorf("decode generated json for %q: %w", path, err)
 	}
 	if !reflect.DeepEqual(gotCanonical, wantCanonical) {
-		return fmt.Errorf("%s is stale; run codegen", path)
+		return fmt.Errorf("%s: %w; run codegen", path, ErrStaleGeneratedFile)
 	}
 	return nil
 }

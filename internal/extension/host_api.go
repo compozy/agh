@@ -57,6 +57,8 @@ type HostAPIHandler struct {
 	capChecker *CapabilityChecker
 	limiter    *hostAPIRateLimiter
 	now        func() time.Time
+	rateLimit  int
+	rateBurst  int
 
 	methods map[string]hostAPIMethodFunc
 }
@@ -99,7 +101,8 @@ func WithHostAPIWorkspaceResolver(resolver workspacepkg.WorkspaceResolver) HostA
 // WithHostAPIRateLimit overrides the per-extension Host API token bucket settings.
 func WithHostAPIRateLimit(limit int, burst int) HostAPIOption {
 	return func(handler *HostAPIHandler) {
-		handler.limiter = newHostAPIRateLimiter(limit, burst, handler.now)
+		handler.rateLimit = limit
+		handler.rateBurst = burst
 	}
 }
 
@@ -124,6 +127,8 @@ func NewHostAPIHandler(
 		observer:   observer,
 		skills:     skillsRegistry,
 		capChecker: &CapabilityChecker{},
+		rateLimit:  defaultHostAPIRateLimit,
+		rateBurst:  defaultHostAPIBurst,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -143,9 +148,7 @@ func NewHostAPIHandler(
 	if handler.capChecker == nil {
 		handler.capChecker = &CapabilityChecker{}
 	}
-	if handler.limiter == nil {
-		handler.limiter = newHostAPIRateLimiter(defaultHostAPIRateLimit, defaultHostAPIBurst, handler.now)
-	}
+	handler.limiter = newHostAPIRateLimiter(handler.rateLimit, handler.rateBurst, handler.now)
 
 	handler.methods = map[string]hostAPIMethodFunc{
 		"memory/forget":   handler.handleMemoryForget,

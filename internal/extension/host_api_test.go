@@ -493,6 +493,33 @@ func TestHostAPIHandlerRateLimitExceededReturnsRetryAfter(t *testing.T) {
 	}
 }
 
+func TestHostAPIHandlerRateLimitUsesConfiguredClockRegardlessOfOptionOrder(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-rate", []string{"observe/health"}, []string{"observe.read"})
+
+	handler := NewHostAPIHandler(
+		env.sessions,
+		env.memory,
+		env.observer,
+		env.skills,
+		WithHostAPICapabilityChecker(env.checker),
+		WithHostAPIWorkspaceResolver(env.workspaces),
+		WithHostAPIRateLimit(1, 1),
+		WithHostAPINow(func() time.Time { return env.now }),
+	)
+
+	if _, err := handler.Handle(testutil.Context(t), "ext-rate", "observe/health", nil); err != nil {
+		t.Fatalf("first Handle(observe/health) error = %v, want nil", err)
+	}
+
+	env.now = env.now.Add(2 * time.Second)
+	if _, err := handler.Handle(testutil.Context(t), "ext-rate", "observe/health", nil); err != nil {
+		t.Fatalf("second Handle(observe/health) error = %v, want nil after refill from injected clock", err)
+	}
+}
+
 func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *testing.T) {
 	t.Parallel()
 
