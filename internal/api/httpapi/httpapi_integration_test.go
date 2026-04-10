@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -219,6 +221,118 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 	}
 	if replayed[0].ID != initial[1].ID {
 		t.Fatalf("replayed first id = %q, want %q", replayed[0].ID, initial[1].ID)
+	}
+}
+
+func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	sessionID := createIntegrationSession(t, runtime)
+
+	stopIntegrationSession(t, runtime, sessionID)
+
+	sessions, err := runtime.registry.ListSessions(context.Background(), store.SessionListQuery{State: "stopped"})
+	if err != nil {
+		t.Fatalf("runtime.registry.ListSessions() error = %v", err)
+	}
+	if got, want := len(sessions), 1; got != want {
+		t.Fatalf("len(stopped sessions) = %d, want %d", got, want)
+	}
+	if sessions[0].ID != sessionID {
+		t.Fatalf("sessions[0].ID = %q, want %q", sessions[0].ID, sessionID)
+	}
+	if sessions[0].StopReason != store.StopUserCanceled {
+		t.Fatalf("sessions[0].StopReason = %q, want %q", sessions[0].StopReason, store.StopUserCanceled)
+	}
+
+	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions"), nil, nil)
+	if listResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(listResp.Body)
+		_ = listResp.Body.Close()
+		t.Fatalf("list sessions status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
+	}
+	var listed struct {
+		Sessions []sessionPayload `json:"sessions"`
+	}
+	decodeHTTPJSON(t, listResp, &listed)
+	if got, want := len(listed.Sessions), 1; got != want {
+		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
+	}
+	if listed.Sessions[0].StopReason != string(store.StopUserCanceled) {
+		t.Fatalf("listed.Sessions[0].StopReason = %q, want %q", listed.Sessions[0].StopReason, store.StopUserCanceled)
+	}
+
+	statusResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID), nil, nil)
+	if statusResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(statusResp.Body)
+		_ = statusResp.Body.Close()
+		t.Fatalf("status session response = %d, want %d; body=%s", statusResp.StatusCode, http.StatusOK, string(body))
+	}
+	var detail struct {
+		Session sessionPayload `json:"session"`
+	}
+	decodeHTTPJSON(t, statusResp, &detail)
+	if detail.Session.ID != sessionID {
+		t.Fatalf("detail.Session.ID = %q, want %q", detail.Session.ID, sessionID)
+	}
+	if detail.Session.StopReason != string(store.StopUserCanceled) {
+		t.Fatalf("detail.Session.StopReason = %q, want %q", detail.Session.StopReason, store.StopUserCanceled)
+	}
+}
+
+func TestHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	sessionID := createIntegrationSession(t, runtime)
+
+	sess, ok := runtime.manager.Get(sessionID)
+	if !ok {
+		t.Fatalf("manager.Get(%q) = missing, want active session", sessionID)
+	}
+	if err := runtime.driver.Crash(sess.Info().ACPSessionID, errors.New("integration crash")); err != nil {
+		t.Fatalf("driver.Crash() error = %v", err)
+	}
+
+	waitForRegistryStopReason(t, runtime, sessionID, store.StopAgentCrashed)
+
+	meta, err := store.ReadSessionMeta(sess.MetaPath())
+	if err != nil {
+		t.Fatalf("ReadSessionMeta(%q) error = %v", sess.MetaPath(), err)
+	}
+	if meta.StopReason == nil {
+		t.Fatal("meta.StopReason = nil, want non-nil")
+	}
+	if *meta.StopReason != store.StopAgentCrashed {
+		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopAgentCrashed)
+	}
+
+	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions"), nil, nil)
+	if listResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(listResp.Body)
+		_ = listResp.Body.Close()
+		t.Fatalf("list sessions status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
+	}
+	var listed struct {
+		Sessions []sessionPayload `json:"sessions"`
+	}
+	decodeHTTPJSON(t, listResp, &listed)
+	if got, want := len(listed.Sessions), 1; got != want {
+		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
+	}
+	if listed.Sessions[0].StopReason != string(store.StopAgentCrashed) {
+		t.Fatalf("listed.Sessions[0].StopReason = %q, want %q", listed.Sessions[0].StopReason, store.StopAgentCrashed)
+	}
+
+	statusResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID), nil, nil)
+	if statusResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(statusResp.Body)
+		_ = statusResp.Body.Close()
+		t.Fatalf("status session response = %d, want %d; body=%s", statusResp.StatusCode, http.StatusOK, string(body))
+	}
+	var detail struct {
+		Session sessionPayload `json:"session"`
+	}
+	decodeHTTPJSON(t, statusResp, &detail)
+	if detail.Session.StopReason != string(store.StopAgentCrashed) {
+		t.Fatalf("detail.Session.StopReason = %q, want %q", detail.Session.StopReason, store.StopAgentCrashed)
 	}
 }
 
@@ -489,7 +603,9 @@ type integrationRuntime struct {
 	client    *http.Client
 	server    *Server
 	manager   *session.Manager
+	driver    *integrationDriver
 	observer  *observe.Observer
+	registry  *globaldb.GlobalDB
 	memory    *memory.Store
 	dream     *integrationDreamTrigger
 	host      string
@@ -547,6 +663,8 @@ type integrationDriver struct {
 	permissionWait time.Duration
 	states         map[*session.AgentProcess]chan struct{}
 	approvals      map[*session.AgentProcess]chan acp.ApproveRequest
+	waitErrs       map[*session.AgentProcess]error
+	bySessionID    map[string]*session.AgentProcess
 }
 
 func newIntegrationDriver(permissionWait time.Duration) *integrationDriver {
@@ -559,6 +677,8 @@ func newIntegrationDriver(permissionWait time.Duration) *integrationDriver {
 		permissionWait: permissionWait,
 		states:         make(map[*session.AgentProcess]chan struct{}),
 		approvals:      make(map[*session.AgentProcess]chan acp.ApproveRequest),
+		waitErrs:       make(map[*session.AgentProcess]error),
+		bySessionID:    make(map[string]*session.AgentProcess),
 	}
 }
 
@@ -589,7 +709,15 @@ func (d *integrationDriver) Start(_ context.Context, opts acp.StartOpts) (*sessi
 		Done:      done,
 		Wait: func() error {
 			<-done
-			return nil
+			d.mu.Lock()
+			defer d.mu.Unlock()
+
+			err := d.waitErrs[proc]
+			delete(d.waitErrs, proc)
+			delete(d.states, proc)
+			delete(d.approvals, proc)
+			delete(d.bySessionID, proc.SessionID)
+			return err
 		},
 		ApprovePermission: func(ctx context.Context, req acp.ApproveRequest) error {
 			d.mu.Lock()
@@ -608,6 +736,7 @@ func (d *integrationDriver) Start(_ context.Context, opts acp.StartOpts) (*sessi
 		},
 	})
 	d.states[proc] = done
+	d.bySessionID[proc.SessionID] = proc
 	return proc, nil
 }
 
@@ -734,8 +863,30 @@ func (d *integrationDriver) Stop(_ context.Context, proc *session.AgentProcess) 
 	default:
 		close(done)
 	}
-	delete(d.states, proc)
-	delete(d.approvals, proc)
+	return nil
+}
+
+func (d *integrationDriver) Crash(acpSessionID string, waitErr error) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	proc := d.bySessionID[strings.TrimSpace(acpSessionID)]
+	if proc == nil {
+		return fmt.Errorf("integration driver: session %q not found", acpSessionID)
+	}
+	done := d.states[proc]
+	if done == nil {
+		return fmt.Errorf("integration driver: runtime for session %q not found", acpSessionID)
+	}
+	if waitErr == nil {
+		waitErr = errors.New("integration crash")
+	}
+	d.waitErrs[proc] = waitErr
+	select {
+	case <-done:
+	default:
+		close(done)
+	}
 	return nil
 }
 
@@ -777,11 +928,12 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
 	}
+	driver := newIntegrationDriver(permissionWait)
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
-		session.WithDriver(newIntegrationDriver(permissionWait)),
+		session.WithDriver(driver),
 		session.WithNotifier(fanout),
 	)
 	if err != nil {
@@ -841,7 +993,9 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		client:    &http.Client{},
 		server:    server,
 		manager:   manager,
+		driver:    driver,
 		observer:  observer,
+		registry:  registry,
 		memory:    memoryStore,
 		dream:     dreamTrigger,
 		host:      cfg.HTTP.Host,
@@ -1011,4 +1165,22 @@ func stopIntegrationSession(t *testing.T, runtime integrationRuntime, sessionID 
 		t.Fatalf("stop status = %d, want %d; body=%s", resp.StatusCode, http.StatusNoContent, string(body))
 	}
 	_ = resp.Body.Close()
+}
+
+func waitForRegistryStopReason(t *testing.T, runtime integrationRuntime, sessionID string, want store.StopReason) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		sessions, err := runtime.registry.ListSessions(context.Background(), store.SessionListQuery{State: "stopped"})
+		if err == nil {
+			for _, item := range sessions {
+				if item.ID == sessionID && item.StopReason == want {
+					return
+				}
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for stopped session %q with stop reason %q", sessionID, want)
 }

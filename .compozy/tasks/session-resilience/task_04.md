@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Resume repair + config + verification
 type: backend
 complexity: high
@@ -36,13 +36,13 @@ Implement the infrastructure-level repair pipeline in `Resume()` that validates 
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Implement `classifyPreviousStop(meta)` — map meta.State to StopReason for crashed sessions
-- [ ] 4.2 Implement `validateInfrastructure(meta)` — 4 independent checks returning []error
-- [ ] 4.3 Insert repair pipeline into `Resume()` flow with crash classification and meta persistence
-- [ ] 4.4 Add hook seams as no-op functions (prepared for future `session.pre_resume`/`session.post_resume`)
-- [ ] 4.5 Add `SessionLimitsConfig` with `Timeout` to config, TOML parsing, and merge logic
-- [ ] 4.6 Write end-to-end integration tests for stop reason + resume repair flows
-- [ ] 4.7 Run `make verify` and fix any issues
+- [x] 4.1 Implement `classifyPreviousStop(meta)` — map meta.State to StopReason for crashed sessions
+- [x] 4.2 Implement `validateInfrastructure(meta)` — 4 independent checks returning []error
+- [x] 4.3 Insert repair pipeline into `Resume()` flow with crash classification and meta persistence
+- [x] 4.4 Add hook seams as no-op functions (prepared for future `session.pre_resume`/`session.post_resume`)
+- [x] 4.5 Add `SessionLimitsConfig` with `Timeout` to config, TOML parsing, and merge logic
+- [x] 4.6 Write end-to-end integration tests for stop reason + resume repair flows
+- [x] 4.7 Run `make verify` and fix any issues
 
 ## Implementation Details
 
@@ -77,36 +77,36 @@ Hook seams are plain function calls that do nothing in Phase 1. When the hooks p
 
 ## Tests
 - Unit tests:
-  - [ ] `classifyPreviousStop` with meta.State="active" → StopReason="agent_crashed"
-  - [ ] `classifyPreviousStop` with meta.State="stopping" → StopReason="agent_crashed"
-  - [ ] `classifyPreviousStop` with meta.State="starting" → StopReason="error"
-  - [ ] `classifyPreviousStop` with meta.State="stopped" + existing StopReason → preserved
-  - [ ] `classifyPreviousStop` with meta.State="stopped" + nil StopReason → no change
-  - [ ] `validateInfrastructure` with valid workspace/agent/store/meta → no errors
-  - [ ] `validateInfrastructure` with missing workspace dir → error with path
-  - [ ] `validateInfrastructure` with unresolvable agent → error with agent name
-  - [ ] `validateInfrastructure` with missing event store → error with DB path
-  - [ ] `validateInfrastructure` with zero-size event store → error
-  - [ ] `validateInfrastructure` with empty meta.ID → error
-  - [ ] `validateInfrastructure` with multiple failures → all errors collected
-  - [ ] SessionLimitsConfig TOML parsing with valid timeout
-  - [ ] SessionLimitsConfig merge with overlay
+  - [x] `classifyPreviousStop` with meta.State="active" → StopReason="agent_crashed"
+  - [x] `classifyPreviousStop` with meta.State="stopping" → StopReason="agent_crashed"
+  - [x] `classifyPreviousStop` with meta.State="starting" → StopReason="error"
+  - [x] `classifyPreviousStop` with meta.State="stopped" + existing StopReason → preserved
+  - [x] `classifyPreviousStop` with meta.State="stopped" + nil StopReason → no change
+  - [x] `validateInfrastructure` with valid workspace/agent/store/meta → no errors
+  - [x] `validateInfrastructure` with missing workspace dir → error with path
+  - [x] `validateInfrastructure` with unresolvable agent → error with agent name
+  - [x] `validateInfrastructure` with missing event store → error with DB path
+  - [x] `validateInfrastructure` with zero-size event store → error
+  - [x] `validateInfrastructure` with empty meta.ID → error
+  - [x] `validateInfrastructure` with multiple failures → all errors collected
+  - [x] SessionLimitsConfig TOML parsing with valid timeout
+  - [x] SessionLimitsConfig merge with overlay
 - Integration tests:
-  - [ ] Create → explicit Stop → verify StopReason="user_canceled" in meta + global DB + API
-  - [ ] Create → kill subprocess → verify StopReason="agent_crashed" in meta + global DB + API
-  - [ ] Create → write meta State="active" (simulate crash) → Resume → verify crash classified
-  - [ ] Create → delete workspace dir → Resume → verify descriptive error
-  - [ ] Create → remove agent from config → Resume → verify descriptive error
-  - [ ] Create → truncate event store → Resume → verify descriptive error
-  - [ ] Create → crash → Resume → verify session activates successfully after classification
-  - [ ] Full flow: create → stop → resume → stop → verify both stops have correct StopReasons
+  - [x] Create → explicit Stop → verify StopReason="user_canceled" in meta + global DB + API
+  - [x] Create → kill subprocess → verify StopReason="agent_crashed" in meta + global DB + API
+  - [x] Create → write meta State="active" (simulate crash) → Resume → verify crash classified
+  - [x] Create → delete workspace dir → Resume → verify descriptive error
+  - [x] Create → remove agent from config → Resume → verify descriptive error
+  - [x] Create → truncate event store → Resume → verify descriptive error
+  - [x] Create → crash → Resume → verify session activates successfully after classification
+  - [x] Full flow: create → stop → resume → stop → verify both stops have correct StopReasons
 - Test coverage target: >=80%
 - All tests must pass
 
 ## Success Criteria
-- All tests passing
-- Test coverage >=80%
-- `make verify` passes
-- Crashed sessions are correctly classified on resume
-- Infrastructure validation catches all 4 failure modes with descriptive errors
-- Full create → stop → resume flow works end-to-end with correct StopReasons throughout
+- [x] All tests passing
+- [x] Test coverage >=80%
+- [x] `make verify` passes
+- [x] Crashed sessions are correctly classified on resume
+- [x] Infrastructure validation catches all 4 failure modes with descriptive errors
+- [x] Full create → stop → resume flow works end-to-end with correct StopReasons throughout

@@ -17,6 +17,7 @@ type configOverlay struct {
 	HTTP          httpOverlay                `toml:"http"`
 	Defaults      defaultsOverlay            `toml:"defaults"`
 	Limits        limitsOverlay              `toml:"limits"`
+	Session       sessionOverlay             `toml:"session"`
 	Permissions   permissionsOverlay         `toml:"permissions"`
 	Providers     map[string]providerOverlay `toml:"providers"`
 	Observability observabilityOverlay       `toml:"observability"`
@@ -43,6 +44,14 @@ type defaultsOverlay struct {
 type limitsOverlay struct {
 	MaxSessions         *int `toml:"max_sessions"`
 	MaxConcurrentAgents *int `toml:"max_concurrent_agents"`
+}
+
+type sessionOverlay struct {
+	Limits sessionLimitsOverlay `toml:"limits"`
+}
+
+type sessionLimitsOverlay struct {
+	Timeout *time.Duration `toml:"timeout"`
 }
 
 type permissionsOverlay struct {
@@ -154,6 +163,7 @@ func (o configOverlay) Apply(dst *Config) error {
 	o.HTTP.Apply(&dst.HTTP)
 	o.Defaults.Apply(&dst.Defaults)
 	o.Limits.Apply(&dst.Limits)
+	o.Session.Apply(&dst.Session)
 	o.Permissions.Apply(&dst.Permissions)
 	applyProviderOverlays(dst, o.Providers)
 	o.Observability.Apply(&dst.Observability)
@@ -193,6 +203,16 @@ func (o limitsOverlay) Apply(dst *LimitsConfig) {
 	}
 	if o.MaxConcurrentAgents != nil {
 		dst.MaxConcurrentAgents = *o.MaxConcurrentAgents
+	}
+}
+
+func (o sessionOverlay) Apply(dst *SessionConfig) {
+	o.Limits.Apply(&dst.Limits)
+}
+
+func (o sessionLimitsOverlay) Apply(dst *SessionLimitsConfig) {
+	if o.Timeout != nil {
+		dst.Timeout = *o.Timeout
 	}
 }
 

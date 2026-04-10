@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: StopReason + StopCause types
 type: backend
 complexity: medium
@@ -34,12 +34,12 @@ Define the foundational types for session resilience: a `StopReason` enum in `in
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Define `StopReason` type, 10 constants, and `ValidStopReason()` in `internal/store/types.go`
-- [ ] 1.2 Add `StopReason`/`StopDetail` fields to `SessionMeta`, update `Validate()`
-- [ ] 1.3 Define `StopCause` type and 6 constants in new file `internal/session/stop_cause.go`
-- [ ] 1.4 Add stop fields to `Session` struct and update `Info()` and `Meta()` methods
-- [ ] 1.5 Verify `ReadSessionMeta`/`WriteSessionMeta` round-trip with new fields
-- [ ] 1.6 Write unit tests for all new types and validation
+- [x] 1.1 Define `StopReason` type, 10 constants, and `ValidStopReason()` in `internal/store/types.go`
+- [x] 1.2 Add `StopReason`/`StopDetail` fields to `SessionMeta`, update `Validate()`
+- [x] 1.3 Define `StopCause` type and 6 constants in new file `internal/session/stop_cause.go`
+- [x] 1.4 Add stop fields to `Session` struct and update `Info()` and `Meta()` methods
+- [x] 1.5 Verify `ReadSessionMeta`/`WriteSessionMeta` round-trip with new fields
+- [x] 1.6 Write unit tests for all new types and validation
 
 ## Implementation Details
 
@@ -67,15 +67,15 @@ See TechSpec "Core Interfaces" and "Data Models" sections for exact type definit
 
 ## Tests
 - Unit tests:
-  - [ ] All 10 StopReason constants pass `ValidStopReason()`
-  - [ ] Empty string and arbitrary strings fail `ValidStopReason()`
-  - [ ] `SessionMeta.Validate()` passes when StopReason is nil
-  - [ ] `SessionMeta.Validate()` passes when StopReason is valid
-  - [ ] `SessionMeta.Validate()` fails when StopReason is invalid string
-  - [ ] `Session.Info()` includes StopReason and StopDetail in snapshot
-  - [ ] `Session.Meta()` includes StopReason and StopDetail in output
-  - [ ] `ReadSessionMeta`/`WriteSessionMeta` round-trip preserves StopReason and StopDetail
-  - [ ] `ReadSessionMeta` of legacy meta without StopReason fields succeeds (nil StopReason)
+  - [x] All 10 StopReason constants pass `ValidStopReason()`
+  - [x] Empty string and arbitrary strings fail `ValidStopReason()`
+  - [x] `SessionMeta.Validate()` passes when StopReason is nil
+  - [x] `SessionMeta.Validate()` passes when StopReason is valid
+  - [x] `SessionMeta.Validate()` fails when StopReason is invalid string
+  - [x] `Session.Info()` includes StopReason and StopDetail in snapshot
+  - [x] `Session.Meta()` includes StopReason and StopDetail in output
+  - [x] `ReadSessionMeta`/`WriteSessionMeta` round-trip preserves StopReason and StopDetail
+  - [x] `ReadSessionMeta` of legacy meta without StopReason fields succeeds (nil StopReason)
 - Test coverage target: >=80%
 - All tests must pass
 

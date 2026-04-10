@@ -50,6 +50,8 @@ type SessionInfo struct {
 	Workspace    string
 	Type         SessionType
 	State        SessionState
+	StopReason   store.StopReason
+	StopDetail   string
 	ACPSessionID string
 	ACPCaps      acp.ACPCaps
 	CreatedAt    time.Time
@@ -67,6 +69,9 @@ type Session struct {
 	Workspace    string
 	Type         SessionType
 	State        SessionState
+	stopCause    StopCause
+	stopReason   store.StopReason
+	stopDetail   string
 	ACPSessionID string
 	ACPCaps      acp.ACPCaps
 	CreatedAt    time.Time
@@ -99,6 +104,8 @@ func (s *Session) Info() *SessionInfo {
 		Workspace:    s.Workspace,
 		Type:         normalizeSessionType(s.Type),
 		State:        s.State,
+		StopReason:   s.stopReason,
+		StopDetail:   s.stopDetail,
 		ACPSessionID: s.ACPSessionID,
 		ACPCaps:      cloneCaps(s.ACPCaps),
 		CreatedAt:    s.CreatedAt,
@@ -282,7 +289,7 @@ func (s *Session) finishPromptSetup() {
 	}
 }
 
-func (s *Session) prepareStop(now time.Time) (bool, <-chan struct{}, error) {
+func (s *Session) prepareStop(now time.Time, cause StopCause, detail string) (bool, <-chan struct{}, error) {
 	if s == nil {
 		return false, nil, errors.New("session: session is required")
 	}
@@ -296,13 +303,16 @@ func (s *Session) prepareStop(now time.Time) (bool, <-chan struct{}, error) {
 
 	switch s.State {
 	case StateStopped:
+		s.applyStopCauseLocked(cause, detail)
 		return false, s.promptSetupDone, nil
 	case StateStopping:
+		s.applyStopCauseLocked(cause, detail)
 		return false, s.promptSetupDone, nil
 	case StateActive:
 		if !canTransition(s.State, StateStopping) {
 			return false, nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, s.State, StateStopping)
 		}
+		s.applyStopCauseLocked(cause, detail)
 		s.State = StateStopping
 		if !now.IsZero() {
 			s.UpdatedAt = now
@@ -311,6 +321,53 @@ func (s *Session) prepareStop(now time.Time) (bool, <-chan struct{}, error) {
 	default:
 		return false, nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, s.State, StateStopping)
 	}
+}
+
+func (s *Session) setStopCause(cause StopCause, detail string) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.applyStopCauseLocked(cause, detail)
+}
+
+func (s *Session) stopCauseDetail() (StopCause, string) {
+	if s == nil {
+		return CauseNone, ""
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.stopCause, s.stopDetail
+}
+
+func (s *Session) stopWasRequested() bool {
+	if s == nil {
+		return false
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	switch s.stopCause {
+	case CauseUserRequested, CauseShutdown, CauseHookDenied:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Session) setStopClassification(reason store.StopReason, detail string) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stopReason = reason
+	s.stopDetail = strings.TrimSpace(detail)
 }
 
 func (s *Session) activate(now time.Time) error {
@@ -351,7 +408,24 @@ func (s *Session) transition(next SessionState, now time.Time) error {
 	return nil
 }
 
-func (s *Session) meta() store.SessionMeta {
+func (s *Session) applyStopCauseLocked(cause StopCause, detail string) {
+	if cause == CauseNone {
+		return
+	}
+
+	if s.stopCause == CauseNone {
+		s.stopCause = cause
+		s.stopDetail = strings.TrimSpace(detail)
+		return
+	}
+
+	if s.stopCause == cause && strings.TrimSpace(detail) != "" {
+		s.stopDetail = strings.TrimSpace(detail)
+	}
+}
+
+// Meta returns the current metadata snapshot for persistence.
+func (s *Session) Meta() store.SessionMeta {
 	if s == nil {
 		return store.SessionMeta{}
 	}
@@ -366,10 +440,16 @@ func (s *Session) meta() store.SessionMeta {
 		WorkspaceID:  s.WorkspaceID,
 		SessionType:  string(normalizeSessionType(s.Type)),
 		State:        string(s.State),
+		StopReason:   stopReasonPointer(s.stopReason),
+		StopDetail:   s.stopDetail,
 		ACPSessionID: stringPointer(s.ACPSessionID),
 		CreatedAt:    s.CreatedAt,
 		UpdatedAt:    s.UpdatedAt,
 	}
+}
+
+func (s *Session) meta() store.SessionMeta {
+	return s.Meta()
 }
 
 func normalizeSessionType(sessionType SessionType) SessionType {
@@ -410,6 +490,21 @@ func stringPointer(value string) *string {
 	}
 	copyValue := value
 	return &copyValue
+}
+
+func stopReasonPointer(value store.StopReason) *store.StopReason {
+	if strings.TrimSpace(string(value)) == "" {
+		return nil
+	}
+	copyValue := value
+	return &copyValue
+}
+
+func sessionMetaStopReason(meta store.SessionMeta) store.StopReason {
+	if meta.StopReason == nil {
+		return ""
+	}
+	return *meta.StopReason
 }
 
 func closedSignalChan() chan struct{} {

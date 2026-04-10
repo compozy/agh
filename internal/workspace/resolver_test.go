@@ -653,6 +653,11 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 	t.Parallel()
 
 	original := aghconfig.Config{
+		Session: aghconfig.SessionConfig{
+			Limits: aghconfig.SessionLimitsConfig{
+				Timeout: time.Minute,
+			},
+		},
 		Providers: map[string]aghconfig.ProviderConfig{
 			"claude": {
 				Command:      "claude",
@@ -676,9 +681,13 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 	}
 
 	cloned := cloneConfig(original)
+	cloned.Session.Limits.Timeout = 2 * time.Minute
 	cloned.Providers["claude"] = aghconfig.ProviderConfig{}
 	cloned.Skills.DisabledSkills[0] = "beta"
 
+	if got, want := original.Session.Limits.Timeout, time.Minute; got != want {
+		t.Fatalf("original Session.Limits.Timeout = %s, want %s", got, want)
+	}
 	provider := original.Providers["claude"]
 	if provider.Command != "claude" || provider.MCPServers[0].Env["TOKEN"] != "one" {
 		t.Fatalf("original provider mutated: %#v", provider)

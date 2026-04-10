@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -99,6 +100,14 @@ func TestCreateNotifiesSessionCreationBeforeImmediateExit(t *testing.T) {
 	if !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("notification order = %#v, want %#v", got, want)
 	}
+
+	meta := readMeta(t, session.MetaPath())
+	if meta.StopReason == nil {
+		t.Fatal("meta.StopReason = nil, want non-nil")
+	}
+	if *meta.StopReason != store.StopCompleted {
+		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopCompleted)
+	}
 }
 
 func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
@@ -162,13 +171,21 @@ func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
 	if meta.State != string(StateStopped) {
 		t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
 	}
-
-	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
-	if err != nil {
-		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
+	if meta.StopReason == nil {
+		t.Fatal("meta.StopReason = nil, want non-nil")
 	}
-	if err := reopened.Close(testutil.Context(t)); err != nil {
-		t.Fatalf("Close(reopened) error = %v", err)
+	if *meta.StopReason != store.StopUserCanceled {
+		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopUserCanceled)
+	}
+	if got := session.Info().StopReason; got != store.StopUserCanceled {
+		t.Fatalf("session.Info().StopReason = %q, want %q", got, store.StopUserCanceled)
+	}
+
+	events := readStoredEvents(t, session)
+	stopEvent := storedEventByType(t, events, EventTypeSessionStopped)
+	stopPayload := decodeStoredEventPayload(t, stopEvent)
+	if got, want := stopPayload["stop_reason"], string(store.StopUserCanceled); got != want {
+		t.Fatalf("session_stopped stop_reason = %v, want %q", got, want)
 	}
 }
 
@@ -642,21 +659,21 @@ func TestAgentCrashTransitionsToStoppedAndNotifies(t *testing.T) {
 	if meta.State != string(StateStopped) {
 		t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
 	}
-
-	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
-	if err != nil {
-		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
+	if meta.StopReason == nil {
+		t.Fatal("meta.StopReason = nil, want non-nil")
 	}
-	defer func() {
-		_ = reopened.Close(testutil.Context(t))
-	}()
-
-	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})
-	if err != nil {
-		t.Fatalf("Query(reopened) error = %v", err)
+	if *meta.StopReason != store.StopAgentCrashed {
+		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopAgentCrashed)
 	}
+
+	events := readStoredEvents(t, session)
 	if !containsEventType(events, acp.EventTypeError) {
 		t.Fatalf("stored events missing crash error: %#v", events)
+	}
+	stopEvent := storedEventByType(t, events, EventTypeSessionStopped)
+	stopPayload := decodeStoredEventPayload(t, stopEvent)
+	if got, want := stopPayload["stop_reason"], string(store.StopAgentCrashed); got != want {
+		t.Fatalf("session_stopped stop_reason = %v, want %q", got, want)
 	}
 }
 
@@ -704,6 +721,13 @@ func TestStopAndProcessExitFinalizeOnlyOnce(t *testing.T) {
 	}
 	if got := countEventType(events, EventTypeSessionStopped); got != 1 {
 		t.Fatalf("countEventType(session_stopped) = %d, want 1", got)
+	}
+	meta := readMeta(t, session.MetaPath())
+	if meta.StopReason == nil {
+		t.Fatal("meta.StopReason = nil, want non-nil")
+	}
+	if *meta.StopReason != store.StopUserCanceled {
+		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopUserCanceled)
 	}
 }
 
@@ -1300,6 +1324,49 @@ func readMeta(t *testing.T, path string) store.SessionMeta {
 		t.Fatalf("ReadSessionMeta(%q) error = %v", path, err)
 	}
 	return meta
+}
+
+func readStoredEvents(t *testing.T, session *Session) []store.SessionEvent {
+	t.Helper()
+
+	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
+	if err != nil {
+		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
+	}
+	defer func() {
+		if err := reopened.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(reopened) error = %v", err)
+		}
+	}()
+
+	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query(reopened) error = %v", err)
+	}
+	return events
+}
+
+func storedEventByType(t *testing.T, events []store.SessionEvent, want string) store.SessionEvent {
+	t.Helper()
+
+	for _, event := range events {
+		if event.Type == want {
+			return event
+		}
+	}
+
+	t.Fatalf("stored event type %q not found", want)
+	return store.SessionEvent{}
+}
+
+func decodeStoredEventPayload(t *testing.T, event store.SessionEvent) map[string]any {
+	t.Helper()
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(event.Content), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(event.Content) error = %v", err)
+	}
+	return payload
 }
 
 func collectEvents(t *testing.T, eventsCh <-chan acp.AgentEvent) []acp.AgentEvent {

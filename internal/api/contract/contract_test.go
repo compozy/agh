@@ -9,72 +9,113 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 )
 
 func TestSessionPayloadJSONShape(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve session payload JSON shape", func(t *testing.T) {
+		t.Parallel()
 
-	now := time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC)
-	payload := core.SessionPayloadFromInfo(&session.SessionInfo{
-		ID:           "sess-1",
-		Name:         "demo",
-		AgentName:    "coder",
-		WorkspaceID:  "ws_alpha",
-		Workspace:    "/workspace",
-		State:        session.StateActive,
-		ACPSessionID: "acp-123",
-		CreatedAt:    now,
-		UpdatedAt:    now,
-		ACPCaps: acp.ACPCaps{
-			SupportsLoadSession: true,
-			SupportedModes:      []string{"chat"},
-			SupportedModels:     []string{"gpt-test"},
-		},
+		now := time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC)
+		payload := core.SessionPayloadFromInfo(&session.SessionInfo{
+			ID:           "sess-1",
+			Name:         "demo",
+			AgentName:    "coder",
+			WorkspaceID:  "ws_alpha",
+			Workspace:    "/workspace",
+			State:        session.StateActive,
+			ACPSessionID: "acp-123",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+			ACPCaps: acp.ACPCaps{
+				SupportsLoadSession: true,
+				SupportedModes:      []string{"chat"},
+				SupportedModels:     []string{"gpt-test"},
+			},
+		})
+
+		var got map[string]any
+		marshalJSON(t, payload, &got)
+
+		if got["agent_name"] != "coder" || got["workspace_id"] != "ws_alpha" || got["workspace_path"] != "/workspace" {
+			t.Fatalf("session JSON = %#v", got)
+		}
+		if _, exists := got["stop_reason"]; exists {
+			t.Fatalf("session JSON should omit empty stop_reason: %#v", got)
+		}
+		if _, exists := got["stop_detail"]; exists {
+			t.Fatalf("session JSON should omit empty stop_detail: %#v", got)
+		}
+		if _, exists := got["acp_session_id"]; !exists {
+			t.Fatalf("session JSON missing acp_session_id: %#v", got)
+		}
+		acpCaps, ok := got["acp_caps"].(map[string]any)
+		if !ok {
+			t.Fatalf("acp_caps type = %T, want object", got["acp_caps"])
+		}
+		if acpCaps["supports_load_session"] != true {
+			t.Fatalf("acp_caps JSON = %#v", acpCaps)
+		}
 	})
+}
 
-	var got map[string]any
-	marshalJSON(t, payload, &got)
+func TestSessionPayloadJSONIncludesSessionStopFields(t *testing.T) {
+	t.Run("Should include session stop fields in JSON", func(t *testing.T) {
+		t.Parallel()
 
-	if got["agent_name"] != "coder" || got["workspace_id"] != "ws_alpha" || got["workspace_path"] != "/workspace" {
-		t.Fatalf("session JSON = %#v", got)
-	}
-	if _, exists := got["acp_session_id"]; !exists {
-		t.Fatalf("session JSON missing acp_session_id: %#v", got)
-	}
-	acpCaps, ok := got["acp_caps"].(map[string]any)
-	if !ok {
-		t.Fatalf("acp_caps type = %T, want object", got["acp_caps"])
-	}
-	if acpCaps["supports_load_session"] != true {
-		t.Fatalf("acp_caps JSON = %#v", acpCaps)
-	}
+		now := time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC)
+		payload := core.SessionPayloadFromInfo(&session.SessionInfo{
+			ID:          "sess-stopped",
+			Name:        "demo",
+			AgentName:   "coder",
+			WorkspaceID: "ws_alpha",
+			Workspace:   "/workspace",
+			State:       session.StateStopped,
+			StopReason:  store.StopUserCanceled,
+			StopDetail:  "requested by API",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		})
+
+		var got map[string]any
+		marshalJSON(t, payload, &got)
+
+		if got["stop_reason"] != string(store.StopUserCanceled) {
+			t.Fatalf("stop_reason = %#v, want %q", got["stop_reason"], store.StopUserCanceled)
+		}
+		if got["stop_detail"] != "requested by API" {
+			t.Fatalf("stop_detail = %#v, want %q", got["stop_detail"], "requested by API")
+		}
+	})
 }
 
 func TestWorkspacePayloadPreservesOmitEmptyBehavior(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve workspace omit-empty behavior", func(t *testing.T) {
+		t.Parallel()
 
-	payload := contract.WorkspacePayload{
-		ID:        "ws_alpha",
-		RootDir:   "/workspace",
-		AddDirs:   []string{},
-		Name:      "alpha",
-		CreatedAt: time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 4, 7, 11, 30, 0, 0, time.UTC),
-	}
+		payload := contract.WorkspacePayload{
+			ID:        "ws_alpha",
+			RootDir:   "/workspace",
+			AddDirs:   []string{},
+			Name:      "alpha",
+			CreatedAt: time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 4, 7, 11, 30, 0, 0, time.UTC),
+		}
 
-	var got map[string]any
-	marshalJSON(t, payload, &got)
+		var got map[string]any
+		marshalJSON(t, payload, &got)
 
-	if _, exists := got["default_agent"]; exists {
-		t.Fatalf("default_agent should be omitted: %#v", got)
-	}
-	addDirs, ok := got["add_dirs"].([]any)
-	if !ok {
-		t.Fatalf("add_dirs type = %T, want array", got["add_dirs"])
-	}
-	if len(addDirs) != 0 {
-		t.Fatalf("add_dirs length = %d, want 0", len(addDirs))
-	}
+		if _, exists := got["default_agent"]; exists {
+			t.Fatalf("default_agent should be omitted: %#v", got)
+		}
+		addDirs, ok := got["add_dirs"].([]any)
+		if !ok {
+			t.Fatalf("add_dirs type = %T, want array", got["add_dirs"])
+		}
+		if len(addDirs) != 0 {
+			t.Fatalf("add_dirs length = %d, want 0", len(addDirs))
+		}
+	})
 }
 
 func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {

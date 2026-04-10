@@ -28,6 +28,8 @@ func SessionPayloadFromInfo(info *session.SessionInfo) contract.SessionPayload {
 		WorkspaceID:   info.WorkspaceID,
 		WorkspacePath: info.Workspace,
 		State:         string(info.State),
+		StopReason:    string(info.StopReason),
+		StopDetail:    info.StopDetail,
 		ACPSessionID:  info.ACPSessionID,
 		CreatedAt:     info.CreatedAt,
 		UpdatedAt:     info.UpdatedAt,

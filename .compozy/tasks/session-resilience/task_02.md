@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Stop classification + cause propagation
 type: backend
 complexity: medium
@@ -35,12 +35,12 @@ Implement the stop reason classification logic in `finalizeStopped()` and propag
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Implement `classifyStopReason()` function with deterministic mapping from StopCause + waitErr
-- [ ] 2.2 Wire classification into `finalizeStopped()` — set session.stopReason/stopDetail, write meta, include in stop event
-- [ ] 2.3 Modify `Stop()` to set `CauseUserRequested` on the session before proceeding
-- [ ] 2.4 Modify `handleProcessExit()` to set `CauseCompleted` or `CauseProcessExited` based on waitErr and stop-request state
-- [ ] 2.5 Modify `daemon.stopSessions()` to set `CauseShutdown` on each session before calling Stop
-- [ ] 2.6 Write unit and integration tests for classification and cause propagation
+- [x] 2.1 Implement `classifyStopReason()` function with deterministic mapping from StopCause + waitErr
+- [x] 2.2 Wire classification into `finalizeStopped()` — set session.stopReason/stopDetail, write meta, include in stop event
+- [x] 2.3 Modify `Stop()` to set `CauseUserRequested` on the session before proceeding
+- [x] 2.4 Modify `handleProcessExit()` to set `CauseCompleted` or `CauseProcessExited` based on waitErr and stop-request state
+- [x] 2.5 Modify `daemon.stopSessions()` to set `CauseShutdown` on each session before calling Stop
+- [x] 2.6 Write unit and integration tests for classification and cause propagation
 
 ## Implementation Details
 
@@ -70,22 +70,22 @@ The key design principle: `StopCause` is set by the code path that initiates the
 
 ## Tests
 - Unit tests:
-  - [ ] `classifyStopReason(CauseShutdown, nil, "")` → `StopShutdown`
-  - [ ] `classifyStopReason(CauseShutdown, someErr, "")` → `StopShutdown` (shutdown wins)
-  - [ ] `classifyStopReason(CauseUserRequested, nil, "")` → `StopUserCanceled`
-  - [ ] `classifyStopReason(CauseUserRequested, nil, "max_iterations")` → `StopMaxIterations`
-  - [ ] `classifyStopReason(CauseUserRequested, nil, "loop_detected")` → `StopLoopDetected`
-  - [ ] `classifyStopReason(CauseUserRequested, nil, "budget_exceeded")` → `StopBudgetExceeded`
-  - [ ] `classifyStopReason(CauseProcessExited, waitErr, "")` → `StopAgentCrashed`
-  - [ ] `classifyStopReason(CauseProcessExited, nil, "")` → `StopError`
-  - [ ] `classifyStopReason(CauseCompleted, nil, "")` → `StopCompleted`
-  - [ ] `classifyStopReason(CauseHookDenied, nil, "reason")` → `StopHookStopped`
-  - [ ] `classifyStopReason(CauseNone, waitErr, "")` → `StopError` (fallback)
-  - [ ] `classifyStopReason(CauseNone, nil, "")` → `StopCompleted` (fallback)
+  - [x] `classifyStopReason(CauseShutdown, nil, "")` → `StopShutdown`
+  - [x] `classifyStopReason(CauseShutdown, someErr, "")` → `StopShutdown` (shutdown wins)
+  - [x] `classifyStopReason(CauseUserRequested, nil, "")` → `StopUserCanceled`
+  - [x] `classifyStopReason(CauseUserRequested, nil, "max_iterations")` → `StopMaxIterations`
+  - [x] `classifyStopReason(CauseUserRequested, nil, "loop_detected")` → `StopLoopDetected`
+  - [x] `classifyStopReason(CauseUserRequested, nil, "budget_exceeded")` → `StopBudgetExceeded`
+  - [x] `classifyStopReason(CauseProcessExited, waitErr, "")` → `StopAgentCrashed`
+  - [x] `classifyStopReason(CauseProcessExited, nil, "")` → `StopError`
+  - [x] `classifyStopReason(CauseCompleted, nil, "")` → `StopCompleted`
+  - [x] `classifyStopReason(CauseHookDenied, nil, "reason")` → `StopHookStopped`
+  - [x] `classifyStopReason(CauseNone, waitErr, "")` → `StopError` (fallback)
+  - [x] `classifyStopReason(CauseNone, nil, "")` → `StopCompleted` (fallback)
 - Integration tests:
-  - [ ] Create session → Stop() → verify meta.json has `stop_reason: "user_canceled"`
-  - [ ] Create session → kill subprocess → verify meta.json has `stop_reason: "agent_crashed"`
-  - [ ] Create session → daemon shutdown → verify meta.json has `stop_reason: "shutdown"`
+  - [x] Create session → Stop() → verify meta.json has `stop_reason: "user_canceled"`
+  - [x] Create session → kill subprocess → verify meta.json has `stop_reason: "agent_crashed"`
+  - [x] Create session → daemon shutdown → verify meta.json has `stop_reason: "shutdown"`
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -12,13 +12,16 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), SessionMetaName)
+	stopReason := StopHookStopped
 	meta := SessionMeta{
 		ID:          "sess-meta",
 		Name:        "Session Meta",
 		AgentName:   "coder",
 		WorkspaceID: "ws-meta",
 		SessionType: "system",
-		State:       "active",
+		State:       "stopped",
+		StopReason:  &stopReason,
+		StopDetail:  "hook denied continuation",
 		CreatedAt:   time.Date(2026, 4, 3, 17, 0, 0, 0, time.UTC),
 		UpdatedAt:   time.Date(2026, 4, 3, 17, 1, 0, 0, time.UTC),
 	}
@@ -35,8 +38,15 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 		readBack.AgentName != meta.AgentName ||
 		readBack.WorkspaceID != meta.WorkspaceID ||
 		readBack.State != meta.State ||
-		readBack.SessionType != meta.SessionType {
+		readBack.SessionType != meta.SessionType ||
+		readBack.StopDetail != meta.StopDetail {
 		t.Fatalf("ReadSessionMeta() = %#v, want %#v", readBack, meta)
+	}
+	if readBack.StopReason == nil {
+		t.Fatal("ReadSessionMeta().StopReason = nil, want non-nil")
+	}
+	if *readBack.StopReason != *meta.StopReason {
+		t.Fatalf("ReadSessionMeta().StopReason = %q, want %q", *readBack.StopReason, *meta.StopReason)
 	}
 }
 
@@ -90,4 +100,37 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 			base.WorkspaceID,
 		)
 	}
+}
+
+func TestReadSessionMetaLegacyStopFieldsOmitted(t *testing.T) {
+	t.Run("Should handle legacy stop fields omitted", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), SessionMetaName)
+		payload := []byte(`{
+  "id": "sess-legacy",
+  "name": "Legacy Session",
+  "agent_name": "coder",
+  "workspace_id": "ws-legacy",
+  "session_type": "user",
+  "state": "stopped",
+  "created_at": "2026-04-03T17:00:00Z",
+  "updated_at": "2026-04-03T17:01:00Z"
+}
+`)
+		if err := os.WriteFile(path, payload, 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+
+		meta, err := ReadSessionMeta(path)
+		if err != nil {
+			t.Fatalf("ReadSessionMeta() error = %v", err)
+		}
+		if meta.StopReason != nil {
+			t.Fatalf("ReadSessionMeta().StopReason = %v, want nil", *meta.StopReason)
+		}
+		if meta.StopDetail != "" {
+			t.Fatalf("ReadSessionMeta().StopDetail = %q, want empty", meta.StopDetail)
+		}
+	})
 }

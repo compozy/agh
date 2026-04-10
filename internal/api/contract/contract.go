@@ -25,16 +25,20 @@ type ApproveSessionRequest struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
-	ID            string          `json:"id"`
-	Name          string          `json:"name,omitempty"`
-	AgentName     string          `json:"agent_name"`
-	WorkspaceID   string          `json:"workspace_id,omitempty"`
-	WorkspacePath string          `json:"workspace_path,omitempty"`
-	State         string          `json:"state"`
-	ACPSessionID  string          `json:"acp_session_id,omitempty"`
-	ACPCaps       *ACPCapsPayload `json:"acp_caps,omitempty"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
+	ID            string `json:"id"`
+	Name          string `json:"name,omitempty"`
+	AgentName     string `json:"agent_name"`
+	WorkspaceID   string `json:"workspace_id,omitempty"`
+	WorkspacePath string `json:"workspace_path,omitempty"`
+	State         string `json:"state"`
+	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
+	StopReason string `json:"stop_reason,omitempty"`
+	// StopDetail is the session-level stop context paired with StopReason.
+	StopDetail   string          `json:"stop_detail,omitempty"`
+	ACPSessionID string          `json:"acp_session_id,omitempty"`
+	ACPCaps      *ACPCapsPayload `json:"acp_caps,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
 // ACPCapsPayload is the JSON representation of ACP capabilities.

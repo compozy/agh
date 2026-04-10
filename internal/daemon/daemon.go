@@ -82,6 +82,10 @@ type registryOpener func(ctx context.Context, path string) (Registry, error)
 type sessionManagerFactory func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error)
 type observerFactory func(ctx context.Context, deps RuntimeDeps) (Observer, error)
 
+type shutdownStopper interface {
+	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
+}
+
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
 type SessionManagerDeps struct {
 	HomePaths         aghconfig.HomePaths
@@ -481,7 +485,13 @@ func (d *Daemon) stopSessions(ctx context.Context, sessions SessionManager) erro
 		if info == nil {
 			continue
 		}
-		if err := sessions.Stop(ctx, info.ID); err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+		var err error
+		if stopper, ok := sessions.(shutdownStopper); ok {
+			err = stopper.StopWithCause(ctx, info.ID, session.CauseShutdown, "daemon shutdown")
+		} else {
+			err = sessions.Stop(ctx, info.ID)
+		}
+		if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
 			errs = append(errs, fmt.Errorf("daemon: stop session %q: %w", info.ID, err))
 		}
 	}

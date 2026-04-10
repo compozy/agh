@@ -631,6 +631,37 @@ func TestStopSessionsIgnoresNotFoundAndHandlesNilManager(t *testing.T) {
 	}
 }
 
+func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
+	d, err := New(WithLogger(discardLogger()))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	manager := &fakeSessionManager{
+		infos: []*session.SessionInfo{{ID: "sess-a"}},
+	}
+	if err := d.stopSessions(testutil.Context(t), manager); err != nil {
+		t.Fatalf("stopSessions() error = %v", err)
+	}
+
+	if got := len(manager.stopWithCauseCalls); got != 1 {
+		t.Fatalf("StopWithCause() calls = %d, want 1", got)
+	}
+	call := manager.stopWithCauseCalls[0]
+	if call.id != "sess-a" {
+		t.Fatalf("StopWithCause() id = %q, want %q", call.id, "sess-a")
+	}
+	if call.cause != session.CauseShutdown {
+		t.Fatalf("StopWithCause() cause = %v, want %v", call.cause, session.CauseShutdown)
+	}
+	if call.detail != "daemon shutdown" {
+		t.Fatalf("StopWithCause() detail = %q, want %q", call.detail, "daemon shutdown")
+	}
+	if got := len(manager.stopCalls); got != 0 {
+		t.Fatalf("Stop() calls = %d, want 0 when StopWithCause is available", got)
+	}
+}
+
 func TestCleanupOrphansHandlesListAndSignalErrors(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {
@@ -1784,16 +1815,24 @@ func freeTCPPort(t *testing.T) int {
 }
 
 type fakeSessionManager struct {
-	mu          sync.Mutex
-	infos       []*session.SessionInfo
-	onStop      func(string)
-	stopErr     func(string) error
-	createCalls []session.CreateOpts
-	promptCalls []struct {
+	mu               sync.Mutex
+	infos            []*session.SessionInfo
+	onStop           func(string)
+	stopErr          func(string) error
+	stopWithCauseErr func(string, session.StopCause, string) error
+	createCalls      []session.CreateOpts
+	promptCalls      []struct {
 		id  string
 		msg string
 	}
-	stopCalls []string
+	stopCalls          []string
+	stopWithCauseCalls []fakeStopWithCauseCall
+}
+
+type fakeStopWithCauseCall struct {
+	id     string
+	cause  session.StopCause
+	detail string
 }
 
 func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -1856,6 +1895,27 @@ func (f *fakeSessionManager) Stop(_ context.Context, id string) error {
 	if f.onStop != nil && len(f.infos) > 0 {
 		f.onStop(f.infos[0].ID)
 		f.infos = f.infos[1:]
+	}
+	if f.stopErr != nil {
+		return f.stopErr(id)
+	}
+	return nil
+}
+
+func (f *fakeSessionManager) StopWithCause(_ context.Context, id string, cause session.StopCause, detail string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.stopWithCauseCalls = append(f.stopWithCauseCalls, fakeStopWithCauseCall{
+		id:     id,
+		cause:  cause,
+		detail: detail,
+	})
+	if f.onStop != nil && len(f.infos) > 0 {
+		f.onStop(f.infos[0].ID)
+		f.infos = f.infos[1:]
+	}
+	if f.stopWithCauseErr != nil {
+		return f.stopWithCauseErr(id, cause, detail)
 	}
 	if f.stopErr != nil {
 		return f.stopErr(id)
