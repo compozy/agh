@@ -421,6 +421,38 @@ func defaultDaemonExecutorResolver(decl hookspkg.HookDecl) (hookspkg.Executor, e
 	}
 }
 
+func chainDeclarationProviders(providers ...hookspkg.DeclarationProvider) hookspkg.DeclarationProvider {
+	return func(ctx context.Context) ([]hookspkg.HookDecl, error) {
+		chained := make([]hookspkg.HookDecl, 0, len(providers))
+		for _, provider := range providers {
+			if provider == nil {
+				continue
+			}
+
+			decls, err := provider(ctx)
+			if err != nil {
+				return nil, err
+			}
+			chained = append(chained, decls...)
+		}
+		return chained, nil
+	}
+}
+
+func extensionDeclarationProvider(getRuntime func() extensionRuntime) hookspkg.DeclarationProvider {
+	return func(ctx context.Context) ([]hookspkg.HookDecl, error) {
+		if getRuntime == nil {
+			return nil, nil
+		}
+
+		runtime := getRuntime()
+		if runtime == nil {
+			return nil, nil
+		}
+		return runtime.HookDeclarations(ctx)
+	}
+}
+
 func configDeclarationProvider(registry Registry, workspaceResolver workspacepkg.WorkspaceResolver, logger *slog.Logger) hookspkg.DeclarationProvider {
 	if logger == nil {
 		logger = slog.Default()

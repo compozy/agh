@@ -1,7 +1,10 @@
 package daemon
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -19,13 +23,17 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
+	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -286,6 +294,11 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 	d := newTestDaemon(t, homePaths, cfg)
 
 	var events []string
+	d.extensions = &fakeExtensionRuntime{
+		onStop: func() {
+			events = append(events, "extensions")
+		},
+	}
 	d.sessions = &fakeSessionManager{
 		infos: []*session.SessionInfo{{ID: "sess-a"}, {ID: "sess-b"}},
 		onStop: func(id string) {
@@ -321,9 +334,202 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 
-	want := []string{"session:sess-a", "session:sess-b", "hooks", "http", "uds", "db", "lock", "logger"}
+	want := []string{"extensions", "session:sess-a", "session:sess-b", "hooks", "http", "uds", "db", "lock", "logger"}
 	if !testutil.EqualStringSlices(events, want) {
 		t.Fatalf("Shutdown() order = %#v, want %#v", events, want)
+	}
+}
+
+func TestBootExtensionsSkipsWhenNoExtensionsInstalled(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	homePaths := testHomePaths(t)
+	d := newTestDaemon(t, homePaths, testConfig(t, homePaths))
+
+	var managerBuilt bool
+	d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+		managerBuilt = true
+		return &fakeExtensionRuntime{}
+	}
+
+	rebuilds := 0
+	state := &bootState{
+		logger:   discardLogger(),
+		registry: db,
+		sessions: &fakeSessionManager{},
+		observer: &fakeObserver{},
+		hooks: &fakeHookRuntime{
+			onRebuild: func(context.Context) error {
+				rebuilds++
+				return nil
+			},
+		},
+	}
+	cleanup := &bootCleanup{}
+
+	if err := d.bootExtensions(testutil.Context(t), state, cleanup); err != nil {
+		t.Fatalf("bootExtensions() error = %v", err)
+	}
+
+	if managerBuilt {
+		t.Fatal("bootExtensions() built an extension manager with no installed extensions")
+	}
+	if rebuilds != 0 {
+		t.Fatalf("hook rebuild count = %d, want 0", rebuilds)
+	}
+	if state.extensions != nil {
+		t.Fatalf("state.extensions = %#v, want nil", state.extensions)
+	}
+	if len(cleanup.fns) != 0 {
+		t.Fatalf("cleanup fns = %d, want 0", len(cleanup.fns))
+	}
+}
+
+func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	installDaemonTestExtension(t, db, "ext-present", daemonTestExtensionOptions{}, true)
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	memStore := memory.NewStore(t.TempDir())
+	skillsRegistry := skills.NewRegistry(skills.RegistryConfig{})
+	sessions := &fakeSessionManager{}
+	observer := &fakeObserver{}
+	logger := discardLogger()
+	runtime := &fakeExtensionRuntime{}
+
+	var captured extensionManagerDeps
+	d := newTestDaemon(t, homePaths, cfg)
+	d.newExtensionManager = func(deps extensionManagerDeps) extensionRuntime {
+		captured = deps
+		return runtime
+	}
+
+	rebuilds := 0
+	state := &bootState{
+		logger:         logger,
+		registry:       db,
+		memoryStore:    memStore,
+		skillsRegistry: skillsRegistry,
+		sessions:       sessions,
+		observer:       observer,
+		hooks: &fakeHookRuntime{
+			onRebuild: func(context.Context) error {
+				rebuilds++
+				return nil
+			},
+		},
+	}
+	cleanup := &bootCleanup{}
+
+	if err := d.bootExtensions(testutil.Context(t), state, cleanup); err != nil {
+		t.Fatalf("bootExtensions() error = %v", err)
+	}
+
+	if runtime.startCount != 1 {
+		t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
+	}
+	if rebuilds != 1 {
+		t.Fatalf("hook rebuild count = %d, want 1", rebuilds)
+	}
+	if captured.Registry == nil {
+		t.Fatal("captured extension registry = nil")
+	}
+	if captured.Sessions != sessions {
+		t.Fatal("captured sessions dependency mismatch")
+	}
+	if captured.MemoryStore != memStore {
+		t.Fatal("captured memory store dependency mismatch")
+	}
+	if captured.Observer != observer {
+		t.Fatal("captured observer dependency mismatch")
+	}
+	if captured.SkillsRegistry != skillsRegistry {
+		t.Fatal("captured skills registry dependency mismatch")
+	}
+	if captured.Logger != logger {
+		t.Fatal("captured logger dependency mismatch")
+	}
+	if state.extensions != runtime {
+		t.Fatalf("state.extensions = %#v, want runtime", state.extensions)
+	}
+	if len(cleanup.fns) != 1 {
+		t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
+	}
+}
+
+func TestBootExtensionsLogsStartFailureAndContinues(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	installDaemonTestExtension(t, db, "ext-broken", daemonTestExtensionOptions{}, true)
+
+	var logBuffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
+	runtime := &fakeExtensionRuntime{startErr: errors.New("boom")}
+	homePaths := testHomePaths(t)
+	d := newTestDaemon(t, homePaths, testConfig(t, homePaths))
+	d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+		return runtime
+	}
+
+	rebuilds := 0
+	state := &bootState{
+		logger:   logger,
+		registry: db,
+		sessions: &fakeSessionManager{},
+		observer: &fakeObserver{},
+		hooks: &fakeHookRuntime{
+			onRebuild: func(context.Context) error {
+				rebuilds++
+				return nil
+			},
+		},
+	}
+	cleanup := &bootCleanup{}
+
+	if err := d.bootExtensions(testutil.Context(t), state, cleanup); err != nil {
+		t.Fatalf("bootExtensions() error = %v, want nil", err)
+	}
+
+	if runtime.startCount != 1 {
+		t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
+	}
+	if rebuilds != 1 {
+		t.Fatalf("hook rebuild count = %d, want 1 after failed start", rebuilds)
+	}
+	if len(cleanup.fns) != 1 {
+		t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
+	}
+	if !strings.Contains(logBuffer.String(), "extension manager start failed") {
+		t.Fatalf("log output = %q, want extension start failure message", logBuffer.String())
+	}
+}
+
+func TestExtensionDeclarationProviderReturnsRuntimeDeclarations(t *testing.T) {
+	t.Parallel()
+
+	want := []hookspkg.HookDecl{
+		{
+			Name:         "ext-turn-start",
+			Event:        hookspkg.HookTurnStart,
+			Mode:         hookspkg.HookModeSync,
+			ExecutorKind: hookspkg.HookExecutorSubprocess,
+			Command:      "/bin/sh",
+			Args:         []string{"-c", "printf '{}'"},
+		},
+	}
+	runtime := &fakeExtensionRuntime{hookDecls: want}
+
+	got, err := extensionDeclarationProvider(func() extensionRuntime { return runtime })(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("extensionDeclarationProvider() error = %v", err)
+	}
+	if !testutil.EqualStringSlices([]string{got[0].Name}, []string{want[0].Name}) {
+		t.Fatalf("extensionDeclarationProvider() = %#v, want %#v", got, want)
 	}
 }
 
@@ -2321,4 +2527,353 @@ func (s portReportingServer) Shutdown(context.Context) error {
 
 func (s portReportingServer) Port() int {
 	return s.port
+}
+
+const (
+	daemonExtensionHelperEnvKey    = "AGH_TEST_DAEMON_EXTENSION_HELPER"
+	daemonExtensionHelperMarkerKey = "AGH_TEST_DAEMON_EXTENSION_MARKER"
+)
+
+func TestDaemonExtensionHelperProcess(t *testing.T) {
+	if os.Getenv(daemonExtensionHelperEnvKey) != "1" {
+		return
+	}
+
+	server := newDaemonExtensionHelperServer(strings.TrimSpace(os.Getenv(daemonExtensionHelperMarkerKey)))
+	os.Exit(server.run())
+}
+
+type fakeExtensionRuntime struct {
+	startCount int
+	stopCount  int
+	startErr   error
+	stopErr    error
+	hookDecls  []hookspkg.HookDecl
+	hookErr    error
+	onStart    func()
+	onStop     func()
+}
+
+func (f *fakeExtensionRuntime) Start(context.Context) error {
+	f.startCount++
+	if f.onStart != nil {
+		f.onStart()
+	}
+	return f.startErr
+}
+
+func (f *fakeExtensionRuntime) Stop(context.Context) error {
+	f.stopCount++
+	if f.onStop != nil {
+		f.onStop()
+	}
+	return f.stopErr
+}
+
+func (f *fakeExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
+	decls := make([]hookspkg.HookDecl, 0, len(f.hookDecls))
+	for _, decl := range f.hookDecls {
+		cloned := decl
+		cloned.Args = append([]string(nil), decl.Args...)
+		if len(decl.Env) > 0 {
+			cloned.Env = make(map[string]string, len(decl.Env))
+			for key, value := range decl.Env {
+				cloned.Env[key] = value
+			}
+		}
+		if len(decl.Metadata) > 0 {
+			cloned.Metadata = make(map[string]string, len(decl.Metadata))
+			for key, value := range decl.Metadata {
+				cloned.Metadata[key] = value
+			}
+		}
+		decls = append(decls, cloned)
+	}
+	return decls, f.hookErr
+}
+
+type daemonTestExtensionOptions struct {
+	runtimeCommand string
+	runtimeArgs    []string
+	runtimeEnv     map[string]string
+	hookCommand    string
+	hookArgs       []string
+	hookEvent      hookspkg.HookEvent
+}
+
+func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
+	t.Helper()
+
+	db, err := globaldb.OpenGlobalDB(testutil.Context(t), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("GlobalDB.Close() error = %v", err)
+		}
+	})
+	return db
+}
+
+func installDaemonTestExtension(t *testing.T, db *globaldb.GlobalDB, name string, opts daemonTestExtensionOptions, enabled bool) string {
+	t.Helper()
+
+	if db == nil {
+		t.Fatal("installDaemonTestExtension() db = nil")
+	}
+
+	dir := filepath.Join(t.TempDir(), name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", dir, err)
+	}
+	manifestPath := filepath.Join(dir, "extension.toml")
+	if err := os.WriteFile(manifestPath, []byte(daemonTestExtensionManifest(name, opts)), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", manifestPath, err)
+	}
+
+	manifest, err := extensionpkg.LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest(%q) error = %v", dir, err)
+	}
+	checksum, err := extensionpkg.ComputeDirectoryChecksum(dir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", dir, err)
+	}
+
+	registry := extensionpkg.NewRegistry(db.DB())
+	if err := registry.Install(manifest, dir, checksum); err != nil {
+		t.Fatalf("Registry.Install(%q) error = %v", name, err)
+	}
+	if !enabled {
+		if err := registry.Disable(name); err != nil {
+			t.Fatalf("Registry.Disable(%q) error = %v", name, err)
+		}
+	}
+
+	return dir
+}
+
+func daemonTestExtensionManifest(name string, opts daemonTestExtensionOptions) string {
+	command := strings.TrimSpace(opts.runtimeCommand)
+	if command == "" {
+		command = "fake-extension"
+	}
+
+	event := opts.hookEvent
+	if event == "" {
+		event = hookspkg.HookSessionPostCreate
+	}
+
+	var builder strings.Builder
+	fmt.Fprintf(&builder, `[extension]
+name = %q
+version = "0.2.1"
+description = "Daemon extension test fixture"
+min_agh_version = "0.5.0"
+
+[resources]
+`, name)
+
+	if strings.TrimSpace(opts.hookCommand) != "" {
+		fmt.Fprintf(&builder, `
+[[resources.hooks]]
+name = %q
+event = %q
+mode = "sync"
+executor.kind = "subprocess"
+executor.command = %q
+`, name+"-hook", string(event), opts.hookCommand)
+		if len(opts.hookArgs) > 0 {
+			builder.WriteString("executor.args = " + daemonTOMLStringArray(opts.hookArgs) + "\n")
+		}
+	}
+
+	builder.WriteString(`
+[capabilities]
+provides = ["memory.backend"]
+
+[actions]
+requires = ["sessions/list"]
+
+[subprocess]
+command = ` + fmt.Sprintf("%q", command) + `
+`)
+	if len(opts.runtimeArgs) > 0 {
+		builder.WriteString("args = " + daemonTOMLStringArray(opts.runtimeArgs) + "\n")
+	}
+	if len(opts.runtimeEnv) > 0 {
+		builder.WriteString("\n[subprocess.env]\n")
+		keys := make([]string, 0, len(opts.runtimeEnv))
+		for key := range opts.runtimeEnv {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		for _, key := range keys {
+			fmt.Fprintf(&builder, "%s = %q\n", key, opts.runtimeEnv[key])
+		}
+	}
+
+	builder.WriteString(`
+[security]
+capabilities = ["session.read"]
+`)
+
+	return builder.String()
+}
+
+func daemonTOMLStringArray(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, fmt.Sprintf("%q", value))
+	}
+	return "[" + strings.Join(quoted, ", ") + "]"
+}
+
+func TestDaemonExtensionHelperHarness(t *testing.T) {
+	t.Parallel()
+
+	command := daemonExtensionHelperCommand(t)
+	if strings.TrimSpace(command) == "" {
+		t.Fatal("daemonExtensionHelperCommand() returned an empty path")
+	}
+
+	if got := daemonExtensionHelperArgs(); !testutil.EqualStringSlices(got, []string{"-test.run=TestDaemonExtensionHelperProcess"}) {
+		t.Fatalf("daemonExtensionHelperArgs() = %#v, want helper test selector", got)
+	}
+
+	env := daemonExtensionHelperEnv("/tmp/daemon-helper-marker")
+	if env[daemonExtensionHelperEnvKey] != "1" {
+		t.Fatalf("daemonExtensionHelperEnv() helper flag = %q, want 1", env[daemonExtensionHelperEnvKey])
+	}
+	if env[daemonExtensionHelperMarkerKey] != "/tmp/daemon-helper-marker" {
+		t.Fatalf("daemonExtensionHelperEnv() marker = %q, want /tmp/daemon-helper-marker", env[daemonExtensionHelperMarkerKey])
+	}
+
+	withoutMarker := daemonExtensionHelperEnv("")
+	if _, ok := withoutMarker[daemonExtensionHelperMarkerKey]; ok {
+		t.Fatalf("daemonExtensionHelperEnv(\"\") unexpectedly set %q", daemonExtensionHelperMarkerKey)
+	}
+}
+
+func daemonExtensionHelperCommand(t *testing.T) string {
+	t.Helper()
+
+	command, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable() error = %v", err)
+	}
+	return command
+}
+
+func daemonExtensionHelperArgs() []string {
+	return []string{"-test.run=TestDaemonExtensionHelperProcess"}
+}
+
+func daemonExtensionHelperEnv(markerPath string) map[string]string {
+	env := map[string]string{
+		daemonExtensionHelperEnvKey: "1",
+	}
+	if strings.TrimSpace(markerPath) != "" {
+		env[daemonExtensionHelperMarkerKey] = markerPath
+	}
+	return env
+}
+
+type daemonExtensionHelperServer struct {
+	marker  string
+	scanner *bufio.Scanner
+	encoder *json.Encoder
+	mu      sync.Mutex
+}
+
+type daemonExtensionHelperRequest struct {
+	ID     any             `json:"id"`
+	Method string          `json:"method"`
+	Params json.RawMessage `json:"params,omitempty"`
+}
+
+func newDaemonExtensionHelperServer(marker string) *daemonExtensionHelperServer {
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
+
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetEscapeHTML(false)
+
+	return &daemonExtensionHelperServer{
+		marker:  marker,
+		scanner: scanner,
+		encoder: encoder,
+	}
+}
+
+func (h *daemonExtensionHelperServer) run() int {
+	for h.scanner.Scan() {
+		var req daemonExtensionHelperRequest
+		if err := json.Unmarshal(h.scanner.Bytes(), &req); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		if err := h.handleRequest(req); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+	}
+	if err := h.scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
+}
+
+func (h *daemonExtensionHelperServer) handleRequest(req daemonExtensionHelperRequest) error {
+	switch req.Method {
+	case "initialize":
+		var params subprocess.InitializeRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		return h.sendResult(req.ID, daemonExtensionInitializeResponse(params))
+	case "health_check":
+		return h.sendResult(req.ID, subprocess.HealthCheckResponse{Healthy: true})
+	case "shutdown":
+		if strings.TrimSpace(h.marker) != "" {
+			if err := os.WriteFile(h.marker, []byte("shutdown"), 0o600); err != nil {
+				return err
+			}
+		}
+		return h.sendResult(req.ID, subprocess.ShutdownResponse{Acknowledged: true})
+	default:
+		return h.sendResult(req.ID, map[string]any{})
+	}
+}
+
+func (h *daemonExtensionHelperServer) sendResult(id any, result any) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.encoder.Encode(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"result":  result,
+	})
+}
+
+func daemonExtensionInitializeResponse(req subprocess.InitializeRequest) subprocess.InitializeResponse {
+	return subprocess.InitializeResponse{
+		ProtocolVersion: req.ProtocolVersion,
+		ExtensionInfo: subprocess.InitializeExtensionInfo{
+			Name:    req.Extension.Name,
+			Version: req.Extension.Version,
+		},
+		AcceptedCapabilities: subprocess.AcceptedCapabilities{
+			Provides: append([]string(nil), req.Capabilities.Provides...),
+			Actions:  append([]string(nil), req.Capabilities.GrantedActions...),
+			Security: append([]string(nil), req.Capabilities.GrantedSecurity...),
+		},
+		ImplementedMethods:  []string{"health_check", "shutdown"},
+		SupportedHookEvents: []string{string(hookspkg.HookSessionPostCreate)},
+		Supports: subprocess.InitializeSupports{
+			HealthCheck: true,
+		},
+	}
 }

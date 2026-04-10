@@ -138,6 +138,15 @@ func (g *GlobalDB) Path() string {
 	return g.path
 }
 
+// DB exposes the underlying SQL connection for composition-root adapters such
+// as the extension registry.
+func (g *GlobalDB) DB() *sql.DB {
+	if g == nil {
+		return nil
+	}
+	return g.db
+}
+
 // Close checkpoints the WAL and closes the database.
 func (g *GlobalDB) Close(ctx context.Context) error {
 	if g == nil {

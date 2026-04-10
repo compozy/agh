@@ -464,6 +464,8 @@ func (m *Manager) Stop(ctx context.Context) error {
 			item.awaitingStability = false
 			item.phase = ExtensionPhaseStop
 			m.mu.Unlock()
+
+			m.logger.Info("extension.lifecycle.shutdown", "extension", item.info.Name)
 		}(ext)
 	}
 	stopWG.Wait()
@@ -808,13 +810,34 @@ func (m *Manager) initializeExtension(ctx context.Context, ext *managedExtension
 }
 
 func (m *Manager) activateExtension(ext *managedExtension) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	if ext == nil {
+		return
+	}
 
+	m.mu.Lock()
 	ext.phase = ExtensionPhaseActivate
 	ext.active = ext.process != nil || !requiresSubprocess(ext.manifest)
 	ext.restartBackoff = 0
 	ext.lastError = ""
+	name := ext.info.Name
+	source := ext.info.Source.String()
+	active := ext.active
+	skillCount := len(ext.skills)
+	agentCount := len(ext.agents)
+	hookCount := len(ext.hooks)
+	mcpServerCount := len(ext.mcpServers)
+	m.mu.Unlock()
+
+	m.logger.Info(
+		"extension.lifecycle.loaded",
+		"extension", name,
+		"source", source,
+		"active", active,
+		"skill_count", skillCount,
+		"agent_count", agentCount,
+		"hook_count", hookCount,
+		"mcp_server_count", mcpServerCount,
+	)
 }
 
 func (m *Manager) superviseExtension(name string, generation int64) {
@@ -928,7 +951,11 @@ func (m *Manager) recoverExtension(name string, reason error) (int64, bool) {
 		ext.lastStartedAt = m.now()
 		ext.generation++
 		nextGeneration := ext.generation
+		name := ext.info.Name
+		source := ext.info.Source.String()
 		m.mu.Unlock()
+
+		m.logger.Info("extension.lifecycle.loaded", "extension", name, "source", source, "recovered", true)
 
 		return nextGeneration, true
 	}
@@ -1330,11 +1357,18 @@ func (m *Manager) resolveString(rootDir string, value string) (string, error) {
 }
 
 func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err error) {
+	if ext == nil || err == nil {
+		return
+	}
+
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	ext.phase = phase
 	ext.lastError = err.Error()
 	ext.active = false
+	name := ext.info.Name
+	m.mu.Unlock()
+
+	m.logger.Error("extension.lifecycle.failed", "extension", name, "phase", phase, "error", err)
 }
 
 func (m *Manager) lookupManaged(name string) (*managedExtension, bool) {
@@ -1368,10 +1402,9 @@ func (m *Manager) shouldStopSupervision(name string, generation int64, proc proc
 
 func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool, bool) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	ext := m.extensions[name]
 	if ext == nil || m.stopping {
+		m.mu.Unlock()
 		return 0, false, false
 	}
 
@@ -1382,12 +1415,26 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.lastExitedAt = m.now()
 	ext.lastError = reason.Error()
 	ext.consecutiveFailures++
+	failures := ext.consecutiveFailures
 	if ext.consecutiveFailures >= m.restartFailureThreshold {
+		m.mu.Unlock()
+		m.logger.Error("extension.lifecycle.failed", "extension", name, "phase", ExtensionPhaseRecover, "error", reason, "consecutive_failures", failures)
 		return 0, true, true
 	}
 
 	ext.restartBackoff = restartBackoff(ext.consecutiveFailures, m.restartBackoffMax)
-	return ext.restartBackoff, false, true
+	backoff := ext.restartBackoff
+	m.mu.Unlock()
+
+	m.logger.Warn(
+		"extension.lifecycle.failed",
+		"extension", name,
+		"phase", ExtensionPhaseRecover,
+		"error", reason,
+		"consecutive_failures", failures,
+		"restart_backoff_ms", backoff.Milliseconds(),
+	)
+	return backoff, false, true
 }
 
 func (m *Manager) disableExtension(name string, reason error) {
