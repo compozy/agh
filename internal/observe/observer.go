@@ -330,6 +330,8 @@ func (o *Observer) OnSessionStopped(ctx context.Context, sess *session.Session) 
 		ID:           info.ID,
 		State:        string(info.State),
 		ACPSessionID: stringPointer(info.ACPSessionID),
+		StopReason:   stringPointer(string(info.StopReason)),
+		StopDetail:   info.StopDetail,
 		UpdatedAt:    info.UpdatedAt,
 	}); err != nil {
 		o.logger.Warn("observe: update session state failed", "session_id", info.ID, "agent_name", info.AgentName, "workspace_id", info.WorkspaceID, "state", info.State, "error", err)
@@ -529,6 +531,8 @@ func sessionInfoFromSession(info *session.SessionInfo) store.SessionInfo {
 		SessionType:  string(info.Type),
 		State:        string(info.State),
 		ACPSessionID: stringPointer(info.ACPSessionID),
+		StopReason:   info.StopReason,
+		StopDetail:   info.StopDetail,
 		CreatedAt:    info.CreatedAt,
 		UpdatedAt:    info.UpdatedAt,
 	}

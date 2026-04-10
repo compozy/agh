@@ -14,6 +14,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 )
 
 func TestSessionPayloadFromInfo(t *testing.T) {
@@ -27,6 +28,8 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		WorkspaceID:  "ws_alpha",
 		Workspace:    "/workspace",
 		State:        session.StateActive,
+		StopReason:   store.StopTimeout,
+		StopDetail:   "deadline exceeded",
 		ACPSessionID: "acp-123",
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -39,6 +42,9 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 
 	if payload.ID != "sess-1" || payload.WorkspaceID != "ws_alpha" || payload.WorkspacePath != "/workspace" {
 		t.Fatalf("payload = %#v", payload)
+	}
+	if payload.StopReason != string(store.StopTimeout) || payload.StopDetail != "deadline exceeded" {
+		t.Fatalf("payload stop fields = %#v", payload)
 	}
 	if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession || len(payload.ACPCaps.SupportedModels) != 1 {
 		t.Fatalf("caps = %#v", payload.ACPCaps)

@@ -63,6 +63,10 @@ func (o *Observer) loadSessionMetadata() ([]store.SessionInfo, error) {
 		if err != nil {
 			return nil, err
 		}
+		stopReason := store.StopReason("")
+		if normalized.StopReason != nil {
+			stopReason = *normalized.StopReason
+		}
 		sessions = append(sessions, store.SessionInfo{
 			ID:           normalized.ID,
 			Name:         normalized.Name,
@@ -71,6 +75,8 @@ func (o *Observer) loadSessionMetadata() ([]store.SessionInfo, error) {
 			SessionType:  normalized.SessionType,
 			State:        normalized.State,
 			ACPSessionID: normalized.ACPSessionID,
+			StopReason:   stopReason,
+			StopDetail:   normalized.StopDetail,
 			CreatedAt:    normalized.CreatedAt,
 			UpdatedAt:    normalized.UpdatedAt,
 		})

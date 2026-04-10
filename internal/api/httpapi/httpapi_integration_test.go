@@ -20,6 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -219,6 +220,61 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 	}
 	if replayed[0].ID != initial[1].ID {
 		t.Fatalf("replayed first id = %q, want %q", replayed[0].ID, initial[1].ID)
+	}
+}
+
+func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	sessionID := createIntegrationSession(t, runtime)
+
+	stopIntegrationSession(t, runtime, sessionID)
+
+	sessions, err := runtime.registry.ListSessions(context.Background(), store.SessionListQuery{State: "stopped"})
+	if err != nil {
+		t.Fatalf("runtime.registry.ListSessions() error = %v", err)
+	}
+	if got, want := len(sessions), 1; got != want {
+		t.Fatalf("len(stopped sessions) = %d, want %d", got, want)
+	}
+	if sessions[0].ID != sessionID {
+		t.Fatalf("sessions[0].ID = %q, want %q", sessions[0].ID, sessionID)
+	}
+	if sessions[0].StopReason != store.StopUserCanceled {
+		t.Fatalf("sessions[0].StopReason = %q, want %q", sessions[0].StopReason, store.StopUserCanceled)
+	}
+
+	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions"), nil, nil)
+	if listResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(listResp.Body)
+		_ = listResp.Body.Close()
+		t.Fatalf("list sessions status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
+	}
+	var listed struct {
+		Sessions []sessionPayload `json:"sessions"`
+	}
+	decodeHTTPJSON(t, listResp, &listed)
+	if got, want := len(listed.Sessions), 1; got != want {
+		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
+	}
+	if listed.Sessions[0].StopReason != string(store.StopUserCanceled) {
+		t.Fatalf("listed.Sessions[0].StopReason = %q, want %q", listed.Sessions[0].StopReason, store.StopUserCanceled)
+	}
+
+	statusResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID), nil, nil)
+	if statusResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(statusResp.Body)
+		_ = statusResp.Body.Close()
+		t.Fatalf("status session response = %d, want %d; body=%s", statusResp.StatusCode, http.StatusOK, string(body))
+	}
+	var detail struct {
+		Session sessionPayload `json:"session"`
+	}
+	decodeHTTPJSON(t, statusResp, &detail)
+	if detail.Session.ID != sessionID {
+		t.Fatalf("detail.Session.ID = %q, want %q", detail.Session.ID, sessionID)
+	}
+	if detail.Session.StopReason != string(store.StopUserCanceled) {
+		t.Fatalf("detail.Session.StopReason = %q, want %q", detail.Session.StopReason, store.StopUserCanceled)
 	}
 }
 
@@ -490,6 +546,7 @@ type integrationRuntime struct {
 	server    *Server
 	manager   *session.Manager
 	observer  *observe.Observer
+	registry  *globaldb.GlobalDB
 	memory    *memory.Store
 	dream     *integrationDreamTrigger
 	host      string
@@ -842,6 +899,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		server:    server,
 		manager:   manager,
 		observer:  observer,
+		registry:  registry,
 		memory:    memoryStore,
 		dream:     dreamTrigger,
 		host:      cfg.HTTP.Host,

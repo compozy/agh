@@ -32,6 +32,8 @@ var globalSchemaStatements = []string{
 		session_type   TEXT NOT NULL DEFAULT 'user',
 		state          TEXT NOT NULL,
 		acp_session_id TEXT,
+		stop_reason    TEXT,
+		stop_detail    TEXT,
 		created_at     TEXT NOT NULL,
 		updated_at     TEXT NOT NULL
 	);`,

@@ -138,6 +138,68 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 	}
 }
 
+func TestGlobalDBRegisterSessionPersistsStopFields(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name           string
+		stopReason     store.StopReason
+		stopDetail     string
+		wantStopReason *string
+		wantStopDetail *string
+	}{
+		{
+			name: "empty stop reason stores nulls",
+		},
+		{
+			name:           "valid stop reason stores values",
+			stopReason:     store.StopTimeout,
+			stopDetail:     "deadline exceeded",
+			wantStopReason: stringPointerForTest(string(store.StopTimeout)),
+			wantStopDetail: stringPointerForTest("deadline exceeded"),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			globalDB := openTestGlobalDB(t)
+			workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "persist-stop-workspace-"+strings.ReplaceAll(tc.name, " ", "-"), filepath.Join(t.TempDir(), "workspace"))
+			session := SessionInfo{
+				ID:          "sess-" + strings.ReplaceAll(tc.name, " ", "-"),
+				AgentName:   "coder",
+				WorkspaceID: workspaceID,
+				State:       "stopped",
+				StopReason:  tc.stopReason,
+				StopDetail:  tc.stopDetail,
+				CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+				UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+			}
+
+			if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
+				t.Fatalf("RegisterSession() error = %v", err)
+			}
+
+			gotStopReason, gotStopDetail := queryStoredSessionStopFields(t, globalDB.db, session.ID)
+			assertOptionalStringEqual(t, gotStopReason, tc.wantStopReason, "stop_reason")
+			assertOptionalStringEqual(t, gotStopDetail, tc.wantStopDetail, "stop_detail")
+
+			sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+			if err != nil {
+				t.Fatalf("ListSessions() error = %v", err)
+			}
+			if got, want := len(sessions), 1; got != want {
+				t.Fatalf("len(sessions) = %d, want %d", got, want)
+			}
+			if got, want := sessions[0].StopReason, tc.stopReason; got != want {
+				t.Fatalf("sessions[0].StopReason = %q, want %q", got, want)
+			}
+			if got, want := sessions[0].StopDetail, tc.stopDetail; got != want {
+				t.Fatalf("sessions[0].StopDetail = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestGlobalDBRegisterSessionDefaultsTypeToUser(t *testing.T) {
 	t.Parallel()
 
@@ -590,7 +652,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 		t.Fatalf("sessions[0].WorkspaceID = %q, want %q", got, want)
 	}
 
-	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "state", "acp_session_id", "created_at", "updated_at"})
+	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "state", "acp_session_id", "stop_reason", "stop_detail", "created_at", "updated_at"})
 }
 
 func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
@@ -689,7 +751,7 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 		}
 	})
 
-	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "state", "acp_session_id", "created_at", "updated_at"})
+	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "state", "acp_session_id", "stop_reason", "stop_detail", "created_at", "updated_at"})
 	assertTableColumns(t, globalDB.db, "workspaces", []string{"id", "root_dir", "add_dirs", "name", "default_agent", "created_at", "updated_at"})
 
 	workspaces, err := globalDB.ListWorkspaces(ctx)
@@ -969,6 +1031,73 @@ func TestGlobalDBUpdateSessionStateReturnsNotFoundForMissingSession(t *testing.T
 	}
 }
 
+func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
+	t.Parallel()
+
+	t.Run("stop reason updates columns", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "update-stop-reason", filepath.Join(t.TempDir(), "workspace"))
+		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ID:          "sess-update-stop",
+			AgentName:   "coder",
+			WorkspaceID: workspaceID,
+			State:       "active",
+			CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+
+		stopReason := string(store.StopUserCanceled)
+		if err := globalDB.UpdateSessionState(testutil.Context(t), SessionStateUpdate{
+			ID:         "sess-update-stop",
+			State:      "stopped",
+			StopReason: &stopReason,
+			StopDetail: "requested by user",
+			UpdatedAt:  time.Date(2026, 4, 3, 13, 2, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("UpdateSessionState() error = %v", err)
+		}
+
+		gotStopReason, gotStopDetail := queryStoredSessionStopFields(t, globalDB.db, "sess-update-stop")
+		assertOptionalStringEqual(t, gotStopReason, stringPointerForTest(string(store.StopUserCanceled)), "stop_reason")
+		assertOptionalStringEqual(t, gotStopDetail, stringPointerForTest("requested by user"), "stop_detail")
+	})
+
+	t.Run("missing stop reason leaves existing columns unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "preserve-stop-reason", filepath.Join(t.TempDir(), "workspace"))
+		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ID:          "sess-preserve-stop",
+			AgentName:   "coder",
+			WorkspaceID: workspaceID,
+			State:       "stopped",
+			StopReason:  store.StopTimeout,
+			StopDetail:  "deadline exceeded",
+			CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+
+		if err := globalDB.UpdateSessionState(testutil.Context(t), SessionStateUpdate{
+			ID:        "sess-preserve-stop",
+			State:     "orphaned",
+			UpdatedAt: time.Date(2026, 4, 3, 13, 5, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("UpdateSessionState() error = %v", err)
+		}
+
+		gotStopReason, gotStopDetail := queryStoredSessionStopFields(t, globalDB.db, "sess-preserve-stop")
+		assertOptionalStringEqual(t, gotStopReason, stringPointerForTest(string(store.StopTimeout)), "stop_reason")
+		assertOptionalStringEqual(t, gotStopDetail, stringPointerForTest("deadline exceeded"), "stop_detail")
+	})
+}
+
 func TestGlobalDBWritePermissionLogEntry(t *testing.T) {
 	t.Parallel()
 
@@ -1012,6 +1141,7 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 			AgentName:   "coder",
 			WorkspaceID: registerWorkspaceForGlobalTests(t, globalDB, "sess-keep-reconciled-workspace", filepath.Join(t.TempDir(), "sess-keep")),
 			State:       "stopped",
+			StopReason:  store.StopCompleted,
 			CreatedAt:   time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
 			UpdatedAt:   time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
 		},
@@ -1020,6 +1150,8 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 			AgentName:   "reviewer",
 			WorkspaceID: registerWorkspaceForGlobalTests(t, globalDB, "sess-new-reconciled-workspace", filepath.Join(t.TempDir(), "sess-new")),
 			State:       "stopped",
+			StopReason:  store.StopUserCanceled,
+			StopDetail:  "requested by API",
 			CreatedAt:   time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
 			UpdatedAt:   time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
 		},
@@ -1043,14 +1175,102 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
 	stateByID := make(map[string]string, len(sessions))
+	stopReasonByID := make(map[string]store.StopReason, len(sessions))
 	for _, session := range sessions {
 		stateByID[session.ID] = session.State
+		stopReasonByID[session.ID] = session.StopReason
 	}
 	if stateByID["sess-new"] != "stopped" {
 		t.Fatalf("stateByID[sess-new] = %q, want stopped", stateByID["sess-new"])
 	}
+	if stopReasonByID["sess-new"] != store.StopUserCanceled {
+		t.Fatalf("stopReasonByID[sess-new] = %q, want %q", stopReasonByID["sess-new"], store.StopUserCanceled)
+	}
 	if stateByID["sess-orphan"] != "orphaned" {
 		t.Fatalf("stateByID[sess-orphan] = %q, want orphaned", stateByID["sess-orphan"])
+	}
+}
+
+func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, GlobalDatabaseName)
+
+	db, err := sql.Open(sqliteDriverName, sqliteDSN(path))
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	ctx := testutil.Context(t)
+	if _, err := db.ExecContext(ctx, `CREATE TABLE workspaces (
+		id TEXT PRIMARY KEY,
+		root_dir TEXT NOT NULL UNIQUE,
+		add_dirs TEXT NOT NULL DEFAULT '[]',
+		name TEXT NOT NULL UNIQUE,
+		default_agent TEXT DEFAULT '',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create workspaces error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE TABLE sessions (
+		id TEXT PRIMARY KEY,
+		name TEXT,
+		agent_name TEXT NOT NULL,
+		workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+		session_type TEXT NOT NULL DEFAULT 'user',
+		state TEXT NOT NULL,
+		acp_session_id TEXT,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create current sessions error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO workspaces (id, root_dir, add_dirs, name, default_agent, created_at, updated_at) VALUES (?, ?, '[]', ?, '', ?, ?)`,
+		"ws-current",
+		filepath.Join(dir, "workspace"),
+		"current",
+		formatTimestamp(time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC)),
+		formatTimestamp(time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC)),
+	); err != nil {
+		t.Fatalf("insert workspace error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO sessions (id, name, agent_name, workspace_id, session_type, state, acp_session_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"sess-current", "Current", "coder", "ws-current", "user", "stopped", "acp-current",
+		formatTimestamp(time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)),
+		formatTimestamp(time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)),
+	); err != nil {
+		t.Fatalf("insert session error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(current schema db) error = %v", err)
+	}
+
+	globalDB, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+			t.Fatalf("Close() error = %v", closeErr)
+		}
+	})
+
+	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "state", "acp_session_id", "created_at", "updated_at", "stop_reason", "stop_detail"})
+
+	sessions, err := globalDB.ListSessions(ctx, SessionListQuery{})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if got, want := len(sessions), 1; got != want {
+		t.Fatalf("len(sessions) = %d, want %d", got, want)
+	}
+	if sessions[0].StopReason != "" || sessions[0].StopDetail != "" {
+		t.Fatalf("sessions[0] stop fields = %#v, want empty after migration", sessions[0])
 	}
 }
 
@@ -1196,6 +1416,39 @@ func assertTableColumns(t *testing.T, db *sql.DB, table string, want []string) {
 	if !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("columns(%s) = %#v, want %#v", table, got, want)
 	}
+}
+
+func queryStoredSessionStopFields(t *testing.T, db *sql.DB, sessionID string) (*string, *string) {
+	t.Helper()
+
+	var stopReason sql.NullString
+	var stopDetail sql.NullString
+	if err := db.QueryRowContext(testutil.Context(t), `SELECT stop_reason, stop_detail FROM sessions WHERE id = ?`, sessionID).Scan(&stopReason, &stopDetail); err != nil {
+		t.Fatalf("QueryRowContext(stop fields %q) error = %v", sessionID, err)
+	}
+	return store.NullString(stopReason), store.NullString(stopDetail)
+}
+
+func assertOptionalStringEqual(t *testing.T, got *string, want *string, field string) {
+	t.Helper()
+
+	switch {
+	case got == nil && want == nil:
+		return
+	case got == nil || want == nil:
+		t.Fatalf("%s = %#v, want %#v", field, got, want)
+	case *got != *want:
+		t.Fatalf("%s = %q, want %q", field, *got, *want)
+	}
+}
+
+func stringPointerForTest(value string) *string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	copyValue := value
+	return &copyValue
 }
 
 func assertTablesPresent(t *testing.T, db *sql.DB, want ...string) {

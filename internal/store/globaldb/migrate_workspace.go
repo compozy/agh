@@ -66,63 +66,81 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	if _, ok := columns["workspace_id"]; ok {
-		return nil
-	}
-	if _, ok := columns["workspace"]; !ok {
-		return nil
+
+	_, hasWorkspaceID := columns["workspace_id"]
+	_, hasLegacyWorkspace := columns["workspace"]
+	if !hasWorkspaceID && hasLegacyWorkspace {
+		if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+			return fmt.Errorf("store: disable foreign keys for global schema migration: %w", err)
+		}
+		defer func() {
+			_, _ = db.ExecContext(context.Background(), "PRAGMA foreign_keys = ON")
+		}()
+
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("store: begin global schema migration transaction: %w", err)
+		}
+		defer func() {
+			_ = tx.Rollback()
+		}()
+
+		if _, err := tx.ExecContext(ctx, globalSchemaStatements[0]); err != nil {
+			return fmt.Errorf("store: create workspaces table during migration: %w", err)
+		}
+
+		sessionRows, workspaceSeeds, err := loadLegacySessions(ctx, tx)
+		if err != nil {
+			return err
+		}
+
+		workspaceIDs, err := ensureMigratedWorkspaces(ctx, tx, workspaceSeeds)
+		if err != nil {
+			return err
+		}
+
+		if err := createMigratedGlobalTables(ctx, tx); err != nil {
+			return err
+		}
+		if err := copyMigratedSessions(ctx, tx, sessionRows, workspaceIDs); err != nil {
+			return err
+		}
+		if err := copyGlobalTableIfExists(ctx, tx, "event_summaries", "event_summaries_new", `INSERT INTO event_summaries_new (id, session_id, type, agent_name, summary, timestamp) SELECT id, session_id, type, agent_name, summary, timestamp FROM event_summaries`); err != nil {
+			return err
+		}
+		if err := copyGlobalTableIfExists(ctx, tx, "token_stats", "token_stats_new", `INSERT INTO token_stats_new (id, session_id, agent_name, input_tokens, output_tokens, total_tokens, total_cost, cost_currency, turn_count, updated_at) SELECT id, session_id, agent_name, input_tokens, output_tokens, total_tokens, total_cost, cost_currency, turn_count, updated_at FROM token_stats`); err != nil {
+			return err
+		}
+		if err := copyGlobalTableIfExists(ctx, tx, "permission_log", "permission_log_new", `INSERT INTO permission_log_new (id, session_id, agent_name, action, resource, decision, policy_used, timestamp) SELECT id, session_id, agent_name, action, resource, decision, policy_used, timestamp FROM permission_log`); err != nil {
+			return err
+		}
+		if err := swapMigratedGlobalTables(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("store: commit global schema migration: %w", err)
+		}
 	}
 
-	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
-		return fmt.Errorf("store: disable foreign keys for global schema migration: %w", err)
-	}
-	defer func() {
-		_, _ = db.ExecContext(context.Background(), "PRAGMA foreign_keys = ON")
-	}()
+	return migrateSessionStopColumns(ctx, db)
+}
 
-	tx, err := db.BeginTx(ctx, nil)
+func migrateSessionStopColumns(ctx context.Context, db *sql.DB) error {
+	columns, err := tableColumns(ctx, db, "sessions")
 	if err != nil {
-		return fmt.Errorf("store: begin global schema migration transaction: %w", err)
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
-	if _, err := tx.ExecContext(ctx, globalSchemaStatements[0]); err != nil {
-		return fmt.Errorf("store: create workspaces table during migration: %w", err)
-	}
-
-	sessionRows, workspaceSeeds, err := loadLegacySessions(ctx, tx)
-	if err != nil {
 		return err
 	}
 
-	workspaceIDs, err := ensureMigratedWorkspaces(ctx, tx, workspaceSeeds)
-	if err != nil {
-		return err
+	if _, ok := columns["stop_reason"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE sessions ADD COLUMN stop_reason TEXT`); err != nil {
+			return fmt.Errorf("store: add sessions.stop_reason column: %w", err)
+		}
 	}
-
-	if err := createMigratedGlobalTables(ctx, tx); err != nil {
-		return err
-	}
-	if err := copyMigratedSessions(ctx, tx, sessionRows, workspaceIDs); err != nil {
-		return err
-	}
-	if err := copyGlobalTableIfExists(ctx, tx, "event_summaries", "event_summaries_new", `INSERT INTO event_summaries_new (id, session_id, type, agent_name, summary, timestamp) SELECT id, session_id, type, agent_name, summary, timestamp FROM event_summaries`); err != nil {
-		return err
-	}
-	if err := copyGlobalTableIfExists(ctx, tx, "token_stats", "token_stats_new", `INSERT INTO token_stats_new (id, session_id, agent_name, input_tokens, output_tokens, total_tokens, total_cost, cost_currency, turn_count, updated_at) SELECT id, session_id, agent_name, input_tokens, output_tokens, total_tokens, total_cost, cost_currency, turn_count, updated_at FROM token_stats`); err != nil {
-		return err
-	}
-	if err := copyGlobalTableIfExists(ctx, tx, "permission_log", "permission_log_new", `INSERT INTO permission_log_new (id, session_id, agent_name, action, resource, decision, policy_used, timestamp) SELECT id, session_id, agent_name, action, resource, decision, policy_used, timestamp FROM permission_log`); err != nil {
-		return err
-	}
-	if err := swapMigratedGlobalTables(ctx, tx); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit global schema migration: %w", err)
+	if _, ok := columns["stop_detail"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE sessions ADD COLUMN stop_detail TEXT`); err != nil {
+			return fmt.Errorf("store: add sessions.stop_detail column: %w", err)
+		}
 	}
 
 	return nil
@@ -240,6 +258,8 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 			session_type   TEXT NOT NULL DEFAULT 'user',
 			state          TEXT NOT NULL,
 			acp_session_id TEXT,
+			stop_reason    TEXT,
+			stop_detail    TEXT,
 			created_at     TEXT NOT NULL,
 			updated_at     TEXT NOT NULL
 		);`,

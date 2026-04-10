@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -45,26 +46,20 @@ func (g *GlobalDB) UpdateSessionState(ctx context.Context, update store.SessionS
 		updatedAt = g.now()
 	}
 
-	var (
-		query string
-		args  []any
-	)
+	assignments := []string{"state = ?"}
+	args := []any{update.State}
 	if update.ACPSessionID != nil {
-		query = `UPDATE sessions SET state = ?, acp_session_id = ?, updated_at = ? WHERE id = ?`
-		args = []any{
-			update.State,
-			store.NullableStringPointer(update.ACPSessionID),
-			store.FormatTimestamp(updatedAt),
-			update.ID,
-		}
-	} else {
-		query = `UPDATE sessions SET state = ?, updated_at = ? WHERE id = ?`
-		args = []any{
-			update.State,
-			store.FormatTimestamp(updatedAt),
-			update.ID,
-		}
+		assignments = append(assignments, "acp_session_id = ?")
+		args = append(args, store.NullableStringPointer(update.ACPSessionID))
 	}
+	if update.StopReason != nil {
+		assignments = append(assignments, "stop_reason = ?", "stop_detail = ?")
+		args = append(args, store.NullableStringPointer(update.StopReason), store.NullableString(update.StopDetail))
+	}
+	assignments = append(assignments, "updated_at = ?")
+	args = append(args, store.FormatTimestamp(updatedAt), update.ID)
+
+	query := fmt.Sprintf("UPDATE sessions SET %s WHERE id = ?", strings.Join(assignments, ", "))
 
 	result, err := g.db.ExecContext(ctx, query, args...)
 	if err != nil {
@@ -89,7 +84,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, name, agent_name, workspace_id, session_type, state, acp_session_id, created_at, updated_at FROM sessions`
+	sqlQuery := `SELECT id, name, agent_name, workspace_id, session_type, state, acp_session_id, stop_reason, stop_detail, created_at, updated_at FROM sessions`
 	where, args := store.BuildClauses(
 		store.StringClause("state", query.State),
 		store.StringClause("agent_name", query.AgentName),
@@ -198,8 +193,8 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 	_, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO sessions (
-			id, name, agent_name, workspace_id, session_type, state, acp_session_id, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			id, name, agent_name, workspace_id, session_type, state, acp_session_id, stop_reason, stop_detail, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			agent_name = excluded.agent_name,
@@ -207,6 +202,8 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			session_type = excluded.session_type,
 			state = excluded.state,
 			acp_session_id = excluded.acp_session_id,
+			stop_reason = excluded.stop_reason,
+			stop_detail = excluded.stop_detail,
 			updated_at = excluded.updated_at`,
 		session.ID,
 		store.NullableString(session.Name),
@@ -215,6 +212,8 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		store.NormalizeSessionType(session.SessionType),
 		session.State,
 		store.NullableStringPointer(session.ACPSessionID),
+		store.NullableString(string(session.StopReason)),
+		store.NullableString(session.StopDetail),
 		store.FormatTimestamp(session.CreatedAt),
 		store.FormatTimestamp(session.UpdatedAt),
 	)
@@ -255,6 +254,8 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		name         sql.NullString
 		sessionType  string
 		acpSessionID sql.NullString
+		stopReason   sql.NullString
+		stopDetail   sql.NullString
 		createdAtRaw string
 		updatedAtRaw string
 	)
@@ -266,6 +267,8 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		&sessionType,
 		&session.State,
 		&acpSessionID,
+		&stopReason,
+		&stopDetail,
 		&createdAtRaw,
 		&updatedAtRaw,
 	); err != nil {
@@ -277,6 +280,12 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	}
 	session.SessionType = store.NormalizeSessionType(sessionType)
 	session.ACPSessionID = store.NullString(acpSessionID)
+	if reason := store.NullString(stopReason); reason != nil {
+		session.StopReason = store.StopReason(*reason)
+	}
+	if detail := store.NullString(stopDetail); detail != nil {
+		session.StopDetail = *detail
+	}
 
 	createdAt, err := store.ParseTimestamp(createdAtRaw)
 	if err != nil {

@@ -18,13 +18,16 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-new")
 	metaPath := store.SessionMetaFile(sessionDir)
 	now := h.now.Add(30 * time.Minute)
+	stopReason := store.StopUserCanceled
 
 	if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
 		ID:          "sess-new",
 		Name:        "New",
 		AgentName:   "coder",
 		WorkspaceID: h.workspaceID,
-		State:       "active",
+		State:       "stopped",
+		StopReason:  &stopReason,
+		StopDetail:  "requested by API",
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}); err != nil {
@@ -49,6 +52,12 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 	}
 	if sessions[0].State != "stopped" {
 		t.Fatalf("sessions[0].State = %q, want stopped", sessions[0].State)
+	}
+	if sessions[0].StopReason != store.StopUserCanceled {
+		t.Fatalf("sessions[0].StopReason = %q, want %q", sessions[0].StopReason, store.StopUserCanceled)
+	}
+	if sessions[0].StopDetail != "requested by API" {
+		t.Fatalf("sessions[0].StopDetail = %q, want %q", sessions[0].StopDetail, "requested by API")
 	}
 
 	meta, err := store.ReadSessionMeta(metaPath)

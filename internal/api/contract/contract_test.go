@@ -9,6 +9,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 )
 
 func TestSessionPayloadJSONShape(t *testing.T) {
@@ -38,6 +39,12 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 	if got["agent_name"] != "coder" || got["workspace_id"] != "ws_alpha" || got["workspace_path"] != "/workspace" {
 		t.Fatalf("session JSON = %#v", got)
 	}
+	if _, exists := got["stop_reason"]; exists {
+		t.Fatalf("session JSON should omit empty stop_reason: %#v", got)
+	}
+	if _, exists := got["stop_detail"]; exists {
+		t.Fatalf("session JSON should omit empty stop_detail: %#v", got)
+	}
 	if _, exists := got["acp_session_id"]; !exists {
 		t.Fatalf("session JSON missing acp_session_id: %#v", got)
 	}
@@ -47,6 +54,34 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 	}
 	if acpCaps["supports_load_session"] != true {
 		t.Fatalf("acp_caps JSON = %#v", acpCaps)
+	}
+}
+
+func TestSessionPayloadJSONIncludesSessionStopFields(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC)
+	payload := core.SessionPayloadFromInfo(&session.SessionInfo{
+		ID:          "sess-stopped",
+		Name:        "demo",
+		AgentName:   "coder",
+		WorkspaceID: "ws_alpha",
+		Workspace:   "/workspace",
+		State:       session.StateStopped,
+		StopReason:  store.StopUserCanceled,
+		StopDetail:  "requested by API",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+
+	var got map[string]any
+	marshalJSON(t, payload, &got)
+
+	if got["stop_reason"] != string(store.StopUserCanceled) {
+		t.Fatalf("stop_reason = %#v, want %q", got["stop_reason"], store.StopUserCanceled)
+	}
+	if got["stop_detail"] != "requested by API" {
+		t.Fatalf("stop_detail = %#v, want %q", got["stop_detail"], "requested by API")
 	}
 }
 

@@ -144,6 +144,8 @@ type SessionInfo struct {
 	SessionType  string
 	State        string
 	ACPSessionID *string
+	StopReason   StopReason
+	StopDetail   string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -182,6 +184,8 @@ type SessionStateUpdate struct {
 	ID           string
 	State        string
 	ACPSessionID *string
+	StopReason   *string
+	StopDetail   string
 	UpdatedAt    time.Time
 }
 
