@@ -153,6 +153,25 @@ func (c *CapabilityChecker) Register(extName string, source ExtensionSource, man
 	c.grants[name] = grant
 }
 
+// Unregister removes any effective grants tracked for one extension.
+func (c *CapabilityChecker) Unregister(extName string) {
+	if c == nil {
+		return
+	}
+
+	name := strings.TrimSpace(extName)
+	if name == "" {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.grants == nil {
+		return
+	}
+	delete(c.grants, name)
+}
+
 // Check reports whether extName has the requested security capability.
 func (c *CapabilityChecker) Check(extName, capability string) error {
 	required := strings.TrimSpace(capability)

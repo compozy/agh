@@ -46,6 +46,22 @@ func ParseSkillFile(path string) (*Skill, error) {
 	return skill, err
 }
 
+// ParseSkillFileWithSource reads and parses a skill file from disk while
+// preserving the caller-selected source tier for downstream precedence and hook
+// metadata handling.
+func ParseSkillFileWithSource(path string, source SkillSource) (*Skill, error) {
+	absPath, content, err := readSkillFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	skill, _, err := parseSkillDocument(absPath, filepath.Dir(absPath), content, source)
+	if err != nil {
+		return nil, err
+	}
+	return skill, nil
+}
+
 // ReadSkillContent reads and returns the markdown body from a SKILL.md file.
 func ReadSkillContent(path string) (string, error) {
 	_, body, err := parseSkillFileDocument(path)
