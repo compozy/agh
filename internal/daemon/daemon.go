@@ -91,7 +91,7 @@ type SessionManagerDeps struct {
 	HomePaths         aghconfig.HomePaths
 	Logger            *slog.Logger
 	Notifier          session.Notifier
-	Hooks             session.HookDispatcher
+	Hooks             session.HookSet
 	PromptAssembler   session.PromptAssembler
 	SkillRegistry     session.SkillRegistry
 	MCPResolver       session.MCPResolver
@@ -228,6 +228,14 @@ func New(opts ...Option) (*Daemon, error) {
 		}
 	}
 
+	if err := d.applyDefaults(); err != nil {
+		return nil, err
+	}
+
+	return d, nil
+}
+
+func (d *Daemon) applyDefaults() error {
 	if d.now == nil {
 		d.now = func() time.Time {
 			return time.Now().UTC()
@@ -251,7 +259,7 @@ func New(opts ...Option) (*Daemon, error) {
 				session.WithLifecycleContext(ctx),
 				session.WithLogger(deps.Logger),
 				session.WithNotifier(deps.Notifier),
-				session.WithHookDispatcher(deps.Hooks),
+				session.WithHookSet(deps.Hooks),
 				session.WithPromptAssembler(deps.PromptAssembler),
 				session.WithSkillRegistry(deps.SkillRegistry),
 				session.WithMCPResolver(deps.MCPResolver),
@@ -340,7 +348,7 @@ func New(opts ...Option) (*Daemon, error) {
 		d.orphanPollWait = orphanCleanupPollWait
 	}
 
-	return d, nil
+	return nil
 }
 
 // Run boots the daemon, blocks until signal or context cancellation, then performs graceful shutdown.

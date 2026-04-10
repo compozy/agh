@@ -200,7 +200,7 @@ func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {
 		},
 	}
 
-	h := newHarness(t, WithHookDispatcher(dispatcher))
+	h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
 
 	session := createSession(t, h)
 	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
@@ -279,7 +279,7 @@ func TestManagerIntegrationContextCompactionUsesPatchedParams(t *testing.T) {
 		},
 	)
 
-	h := newHarness(t, WithHookDispatcher(hooks))
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	session := createSession(t, h)
 	t.Cleanup(func() {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
@@ -336,7 +336,7 @@ func TestManagerIntegrationPreStopRequiredHookErrorPreventsCleanStop(t *testing.
 		},
 	)
 
-	h := newHarness(t, WithHookDispatcher(hooks))
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	session := createSession(t, h)
 
 	err := h.manager.Stop(testutil.Context(t), session.ID)
@@ -350,7 +350,7 @@ func TestManagerIntegrationPreStopRequiredHookErrorPreventsCleanStop(t *testing.
 		t.Fatalf("Get(%q) = missing, want active session after failed stop", session.ID)
 	}
 
-	h.manager.hooks = nil
+	h.manager.hooks = HookSet{}
 	if cleanupErr := h.manager.Stop(testutil.Context(t), session.ID); cleanupErr != nil {
 		t.Fatalf("cleanup Stop() error = %v", cleanupErr)
 	}

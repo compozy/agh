@@ -160,8 +160,7 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
-// WithGoal overrides the goal passed to the session spawner.
-func WithGoal(goal string) Option {
+func withGoal(goal string) Option {
 	return func(service *Service) {
 		if trimmed := strings.TrimSpace(goal); trimmed != "" {
 			service.goal = trimmed

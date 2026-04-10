@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -318,13 +317,9 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	if lastEventID := strings.TrimSpace(c.GetHeader("Last-Event-ID")); lastEventID != "" {
-		after, parseErr := strconv.ParseInt(lastEventID, 10, 64)
-		if parseErr != nil {
-			h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: invalid Last-Event-ID %q: %w", h.transportName(), lastEventID, parseErr))
-			return
-		}
-		query.AfterSequence = after
+	if query.AfterSequence, err = parseLastEventID(c.GetHeader("Last-Event-ID"), h.transportName()); err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
 	}
 
 	initial, err := h.Sessions.Events(c.Request.Context(), c.Param("id"), query)
@@ -339,79 +334,14 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 		return
 	}
 
-	afterSequence := query.AfterSequence
-	for _, event := range initial {
-		afterSequence = event.Sequence
-		if err := WriteSSE(writer, SSEMessage{
-			ID:   strconv.FormatInt(event.Sequence, 10),
-			Name: event.Type,
-			Data: SessionEventPayloadFromEvent(event, info),
-		}); err != nil {
-			return
-		}
+	afterSequence, err := h.writeSessionEventBatch(writer, initial, info)
+	if err != nil {
+		return
 	}
 
 	pollQuery := query
 	pollQuery.Limit = 0
-	pollQuery.AfterSequence = afterSequence
-
-	ticker := time.NewTicker(h.PollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-c.Request.Context().Done():
-			return
-		case <-h.StreamDoneChannel():
-			return
-		case <-ticker.C:
-			pollQuery.AfterSequence = afterSequence
-			events, pollErr := h.Sessions.Events(c.Request.Context(), c.Param("id"), pollQuery)
-			if pollErr != nil {
-				_ = WriteSSE(writer, SSEMessage{
-					Name: "error",
-					Data: contract.ErrorPayload{Error: pollErr.Error()},
-				})
-				return
-			}
-			for _, event := range events {
-				afterSequence = event.Sequence
-				if err := WriteSSE(writer, SSEMessage{
-					ID:   strconv.FormatInt(event.Sequence, 10),
-					Name: event.Type,
-					Data: SessionEventPayloadFromEvent(event, info),
-				}); err != nil {
-					return
-				}
-			}
-			if len(events) == 0 {
-				latest, statusErr := h.Sessions.Status(c.Request.Context(), c.Param("id"))
-				if statusErr != nil {
-					_ = WriteSSE(writer, SSEMessage{
-						Name: "error",
-						Data: contract.ErrorPayload{Error: statusErr.Error()},
-					})
-					return
-				}
-				if latest != nil && latest.State == session.StateStopped {
-					_ = WriteSSE(writer, SSEMessage{
-						Name: session.EventTypeSessionStopped,
-						Data: contract.SessionEventPayload{
-							SessionID:     latest.ID,
-							Type:          session.EventTypeSessionStopped,
-							WorkspaceID:   strings.TrimSpace(latest.WorkspaceID),
-							WorkspacePath: strings.TrimSpace(latest.Workspace),
-							Timestamp:     latest.UpdatedAt,
-						},
-					})
-					return
-				}
-				if h.IncludeSessionWorkspaceInSSE {
-					info = latest
-				}
-			}
-		}
-	}
+	h.pollAndStreamSessionEvents(c, writer, c.Param("id"), info, pollQuery, afterSequence)
 }
 
 // ListAgents returns all readable agent definitions in home paths.

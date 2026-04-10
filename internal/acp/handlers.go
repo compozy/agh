@@ -102,95 +102,70 @@ type terminalOutputWriter struct {
 }
 
 func (p *AgentProcess) handleInbound(ctx context.Context, method string, params json.RawMessage) (any, *acpsdk.RequestError) {
-	switch method {
-	case acpsdk.ClientMethodFsReadTextFile:
-		var request acpsdk.ReadTextFileRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
-		}
-		response, err := p.handleReadTextFile(ctx, request)
-		if err != nil {
-			return nil, requestError(err)
-		}
-		return response, nil
-	case acpsdk.ClientMethodFsWriteTextFile:
-		var request acpsdk.WriteTextFileRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
-		}
-		response, err := p.handleWriteTextFile(ctx, request)
-		if err != nil {
-			return nil, requestError(err)
-		}
-		return response, nil
-	case acpsdk.ClientMethodSessionRequestPermission:
-		var request acpsdk.RequestPermissionRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
-		}
-		response, err := p.handleRequestPermission(ctx, request)
-		if err != nil {
-			return nil, requestError(err)
-		}
-		return response, nil
-	case acpsdk.ClientMethodSessionUpdate:
-		if err := p.handleSessionUpdate(params); err != nil {
-			return nil, requestError(err)
-		}
-		return nil, nil
-	case acpsdk.ClientMethodTerminalCreate:
-		var request acpsdk.CreateTerminalRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
-		}
-		response, err := p.handleCreateTerminal(request)
-		if err != nil {
-			return nil, requestError(err)
-		}
-		return response, nil
-	case acpsdk.ClientMethodTerminalKill:
-		var request acpsdk.KillTerminalCommandRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
-		}
-		response, err := p.handleKillTerminal(request)
-		if err != nil {
-			return nil, requestError(err)
-		}
-		return response, nil
-	case acpsdk.ClientMethodTerminalOutput:
-		var request acpsdk.TerminalOutputRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
-		}
-		response, err := p.handleTerminalOutput(request)
-		if err != nil {
-			return nil, requestError(err)
-		}
-		return response, nil
-	case acpsdk.ClientMethodTerminalWaitForExit:
-		var request acpsdk.WaitForTerminalExitRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
-		}
-		response, err := p.handleWaitForTerminalExit(ctx, request)
-		if err != nil {
-			return nil, requestError(err)
-		}
-		return response, nil
-	case acpsdk.ClientMethodTerminalRelease:
-		var request acpsdk.ReleaseTerminalRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
-		}
-		response, err := p.handleReleaseTerminal(request)
-		if err != nil {
-			return nil, requestError(err)
-		}
-		return response, nil
-	default:
+	handlers := map[string]func(context.Context, json.RawMessage) (any, *acpsdk.RequestError){
+		acpsdk.ClientMethodFsReadTextFile: func(ctx context.Context, params json.RawMessage) (any, *acpsdk.RequestError) {
+			return handleInboundRequest(ctx, params, p.handleReadTextFile)
+		},
+		acpsdk.ClientMethodFsWriteTextFile: func(ctx context.Context, params json.RawMessage) (any, *acpsdk.RequestError) {
+			return handleInboundRequest(ctx, params, p.handleWriteTextFile)
+		},
+		acpsdk.ClientMethodSessionRequestPermission: func(ctx context.Context, params json.RawMessage) (any, *acpsdk.RequestError) {
+			return handleInboundRequest(ctx, params, p.handleRequestPermission)
+		},
+		acpsdk.ClientMethodSessionUpdate: func(_ context.Context, params json.RawMessage) (any, *acpsdk.RequestError) {
+			if err := p.handleSessionUpdate(params); err != nil {
+				return nil, requestError(err)
+			}
+			return nil, nil
+		},
+		acpsdk.ClientMethodTerminalCreate: func(_ context.Context, params json.RawMessage) (any, *acpsdk.RequestError) {
+			return handleInboundRequestNoContext(params, p.handleCreateTerminal)
+		},
+		acpsdk.ClientMethodTerminalKill: func(_ context.Context, params json.RawMessage) (any, *acpsdk.RequestError) {
+			return handleInboundRequestNoContext(params, p.handleKillTerminal)
+		},
+		acpsdk.ClientMethodTerminalOutput: func(_ context.Context, params json.RawMessage) (any, *acpsdk.RequestError) {
+			return handleInboundRequestNoContext(params, p.handleTerminalOutput)
+		},
+		acpsdk.ClientMethodTerminalWaitForExit: func(ctx context.Context, params json.RawMessage) (any, *acpsdk.RequestError) {
+			return handleInboundRequest(ctx, params, p.handleWaitForTerminalExit)
+		},
+		acpsdk.ClientMethodTerminalRelease: func(_ context.Context, params json.RawMessage) (any, *acpsdk.RequestError) {
+			return handleInboundRequestNoContext(params, p.handleReleaseTerminal)
+		},
+	}
+
+	handler, ok := handlers[method]
+	if !ok {
 		return nil, acpsdk.NewMethodNotFound(method)
 	}
+	return handler(ctx, params)
+}
+
+func handleInboundRequest[Req any, Resp any](ctx context.Context, params json.RawMessage, fn func(context.Context, Req) (Resp, error)) (any, *acpsdk.RequestError) {
+	var request Req
+	if err := json.Unmarshal(params, &request); err != nil {
+		return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
+	}
+
+	response, err := fn(ctx, request)
+	if err != nil {
+		return nil, requestError(err)
+	}
+	return response, nil
+}
+
+func handleInboundRequestNoContext[Req any, Resp any](params json.RawMessage, fn func(Req) (Resp, error)) (any, *acpsdk.RequestError) {
+	var request Req
+	if err := json.Unmarshal(params, &request); err != nil {
+		return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
+	}
+
+	response, err := fn(request)
+	if err != nil {
+		return nil, requestError(err)
+	}
+	return response, nil
 }
 
 func (p *AgentProcess) handleReadTextFile(_ context.Context, request acpsdk.ReadTextFileRequest) (acpsdk.ReadTextFileResponse, error) {

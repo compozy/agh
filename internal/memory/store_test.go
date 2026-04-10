@@ -657,29 +657,29 @@ func TestStalenessHelpers(t *testing.T) {
 	yesterday := today.Add(-24 * time.Hour)
 	threeDaysAgo := today.Add(-72 * time.Hour)
 
-	if got := AgeDays(today, now); got != 0 {
-		t.Fatalf("AgeDays(today) = %d, want 0", got)
+	if got := ageDays(today, now); got != 0 {
+		t.Fatalf("ageDays(today) = %d, want 0", got)
 	}
-	if got := AgeDays(yesterday, now); got != 1 {
-		t.Fatalf("AgeDays(yesterday) = %d, want 1", got)
+	if got := ageDays(yesterday, now); got != 1 {
+		t.Fatalf("ageDays(yesterday) = %d, want 1", got)
 	}
-	if got := AgeText(today, now); got != "today" {
-		t.Fatalf("AgeText(today) = %q, want %q", got, "today")
+	if got := ageText(today, now); got != "today" {
+		t.Fatalf("ageText(today) = %q, want %q", got, "today")
 	}
-	if got := AgeText(yesterday, now); got != "yesterday" {
-		t.Fatalf("AgeText(yesterday) = %q, want %q", got, "yesterday")
+	if got := ageText(yesterday, now); got != "yesterday" {
+		t.Fatalf("ageText(yesterday) = %q, want %q", got, "yesterday")
 	}
-	if got := AgeText(threeDaysAgo, now); got != "3 days ago" {
-		t.Fatalf("AgeText(threeDaysAgo) = %q, want %q", got, "3 days ago")
+	if got := ageText(threeDaysAgo, now); got != "3 days ago" {
+		t.Fatalf("ageText(threeDaysAgo) = %q, want %q", got, "3 days ago")
 	}
-	if got := FreshnessWarning(today, now); got != "" {
-		t.Fatalf("FreshnessWarning(today) = %q, want empty", got)
+	if got := freshnessWarning(today, now); got != "" {
+		t.Fatalf("freshnessWarning(today) = %q, want empty", got)
 	}
-	if got := FreshnessWarning(yesterday, now); got != "" {
-		t.Fatalf("FreshnessWarning(yesterday) = %q, want empty", got)
+	if got := freshnessWarning(yesterday, now); got != "" {
+		t.Fatalf("freshnessWarning(yesterday) = %q, want empty", got)
 	}
-	if got := FreshnessWarning(threeDaysAgo, now); !strings.Contains(got, "3 days old") {
-		t.Fatalf("FreshnessWarning(threeDaysAgo) = %q, want age caveat", got)
+	if got := freshnessWarning(threeDaysAgo, now); !strings.Contains(got, "3 days old") {
+		t.Fatalf("freshnessWarning(threeDaysAgo) = %q, want age caveat", got)
 	}
 }
 

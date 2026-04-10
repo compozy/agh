@@ -154,15 +154,13 @@ func WithWorkspaceRoot(root string) LoadOption {
 	}
 }
 
-// WithoutDotEnv disables automatic `.env` loading during config load.
-func WithoutDotEnv() LoadOption {
+func withoutDotEnv() LoadOption {
 	return func(opts *loadOptions) {
 		opts.skipDotEnv = true
 	}
 }
 
-// WithoutValidation returns the merged config without validating it.
-func WithoutValidation() LoadOption {
+func withoutValidation() LoadOption {
 	return func(opts *loadOptions) {
 		opts.skipValidate = true
 	}
@@ -244,8 +242,7 @@ func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool) 
 	return cfg, nil
 }
 
-// Default returns the built-in default configuration for the resolved AGH home.
-func Default() (Config, error) {
+func defaultConfig() (Config, error) {
 	homePaths, err := ResolveHomePaths()
 	if err != nil {
 		return Config{}, err

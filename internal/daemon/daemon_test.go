@@ -1349,7 +1349,7 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 			return spawn(ctx, "memory-consolidation", "session-stop prompt", workspace)
 		},
 	}
-	var dispatcher session.HookDispatcher
+	var dispatcher session.HookSet
 
 	d := newTestDaemon(t, homePaths, cfg)
 	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
@@ -1381,12 +1381,12 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 		defer d.mu.Unlock()
 		return d.dreamRuntime != nil
 	})
-	if dispatcher == nil {
-		t.Fatal("session manager hook dispatcher = nil")
+	if dispatcher.Session == nil {
+		t.Fatal("session manager hook set = nil")
 	}
 
 	resolved := resolveDaemonWorkspace(t, d.workspaceResolver, workspace)
-	if _, err := dispatcher.DispatchSessionPostStop(context.Background(), hookspkg.SessionPostStopPayload{
+	if _, err := dispatcher.Session.DispatchSessionPostStop(context.Background(), hookspkg.SessionPostStopPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookSessionPostStop,
 			Timestamp: time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
@@ -1413,7 +1413,7 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 		t.Fatalf("Create() workspace_path = %q, want empty", got)
 	}
 
-	if _, err := dispatcher.DispatchSessionPostStop(context.Background(), hookspkg.SessionPostStopPayload{
+	if _, err := dispatcher.Session.DispatchSessionPostStop(context.Background(), hookspkg.SessionPostStopPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookSessionPostStop,
 			Timestamp: time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),

@@ -46,8 +46,7 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
-// WithNow overrides the clock used for timestamps and cache eviction.
-func WithNow(now func() time.Time) Option {
+func withNow(now func() time.Time) Option {
 	return func(opts *resolverOptions) {
 		opts.now = now
 	}

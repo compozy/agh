@@ -82,7 +82,7 @@ func (c Config) ResolveProvider(name string) (ProviderConfig, error) {
 
 	resolved, hasBuiltin := builtinProviders[providerName]
 	if override, ok := c.Providers[providerName]; ok {
-		resolved = MergeProvider(resolved, override)
+		resolved = mergeProvider(resolved, override)
 	}
 
 	if !hasBuiltin {
@@ -161,8 +161,7 @@ func (c Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 	return resolved, nil
 }
 
-// MergeProvider merges an override provider config into a base provider config.
-func MergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig {
+func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig {
 	merged := cloneProvider(base)
 	if strings.TrimSpace(override.Command) != "" {
 		merged.Command = override.Command

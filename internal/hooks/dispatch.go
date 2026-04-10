@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-type matcherFunc[P any] func(HookMatcher, P) bool
-
 type dispatchConfig[P any, R any] struct {
 	match   matcherFunc[P]
 	apply   func(P, R) P
@@ -529,145 +527,8 @@ func executeDispatch[P any, R any](
 	return result, dispatchErr
 }
 
-func selectMatchingHooks[P any](
-	snapshot []*ResolvedHook,
-	payload P,
-	match matcherFunc[P],
-) ([]*ResolvedHook, []*ResolvedHook) {
-	syncHooks := make([]*ResolvedHook, 0, len(snapshot))
-	asyncHooks := make([]*ResolvedHook, 0, len(snapshot))
-
-	for _, hook := range snapshot {
-		if hook == nil {
-			continue
-		}
-		if match != nil && !match(hook.Matcher, payload) {
-			continue
-		}
-		switch hook.Mode {
-		case HookModeAsync:
-			asyncHooks = append(asyncHooks, hook)
-		case HookModeSync:
-			syncHooks = append(syncHooks, hook)
-		}
-	}
-
-	return syncHooks, asyncHooks
-}
-
-func submitAsyncHooks[P any, R any](h *Hooks, parent context.Context, payload P, hooks []*ResolvedHook, pipe pipeline[P, R]) {
-	if h == nil || h.pool == nil {
-		return
-	}
-
-	parentDepth := currentDispatchDepth(parent)
-	for _, hook := range hooks {
-		if hook == nil {
-			continue
-		}
-
-		asyncHook := *hook
-		asyncPayload := payload
-		h.pool.Submit(asyncTask{
-			hook: asyncHook.RegisteredHook,
-			run: func(poolCtx context.Context) {
-				baseCtx := context.WithValue(poolCtx, dispatchDepthContextKey{}, parentDepth)
-				baseCtx = context.WithValue(baseCtx, dispatchChainContextKey{}, currentDispatchChain(parent))
-				hookCtx, depth, err := h.enterDispatch(baseCtx, asyncHook.Event)
-				if err != nil {
-					h.emitHookRun(poolCtx, asyncPayload, asyncHook.RegisteredHook, HookRunOutcomeSkipped, 0, nil, err, parentDepth)
-					return
-				}
-
-				cancel := func() {}
-				if asyncHook.Timeout > 0 {
-					hookCtx, cancel = context.WithTimeout(hookCtx, asyncHook.Timeout)
-				}
-				defer cancel()
-
-				started := time.Now()
-				_, rawPatch, err := pipe.runHook(hookCtx, asyncHook.RegisteredHook, asyncPayload)
-				duration := time.Since(started)
-				if err != nil {
-					h.emitHookRun(hookCtx, asyncPayload, asyncHook.RegisteredHook, HookRunOutcomeFailed, duration, rawPatch, err, depth)
-					h.logger.WarnContext(
-						hookCtx,
-						"hook.dispatch.async_failed",
-						"hook", asyncHook.Name,
-						"event", asyncHook.Event.String(),
-						"source", asyncHook.Source.String(),
-						"error", err,
-					)
-					return
-				}
-				h.emitHookRun(hookCtx, asyncPayload, asyncHook.RegisteredHook, HookRunOutcomeApplied, duration, rawPatch, nil, depth)
-			},
-		})
-	}
-}
-
 func applyNoop[P any, R any](payload P, _ R) P {
 	return payload
-}
-
-func matchSessionPreCreate(matcher HookMatcher, payload SessionPreCreatePayload) bool {
-	return matcher.MatchesSession(payload.SessionContext)
-}
-
-func matchSessionLifecycle(matcher HookMatcher, payload SessionLifecyclePayload) bool {
-	return matcher.MatchesSession(payload.SessionContext)
-}
-
-func matchInputPreSubmit(matcher HookMatcher, payload InputPreSubmitPayload) bool {
-	return matcher.MatchesInput(payload)
-}
-
-func matchPrompt(matcher HookMatcher, payload PromptPayload) bool {
-	return matcher.MatchesPrompt(payload)
-}
-
-func matchEventRecord(matcher HookMatcher, payload EventRecordPayload) bool {
-	return matcher.MatchesEvent(payload)
-}
-
-func matchAgentPreStart(matcher HookMatcher, payload AgentPreStartPayload) bool {
-	return matcher.MatchesAgentPreStart(payload)
-}
-
-func matchAgentLifecycle(matcher HookMatcher, payload AgentLifecyclePayload) bool {
-	return matcher.MatchesAgentLifecycle(payload)
-}
-
-func matchTurn(matcher HookMatcher, payload TurnPayload) bool {
-	return matcher.MatchesTurn(payload)
-}
-
-func matchMessage(matcher HookMatcher, payload MessagePayload) bool {
-	return matcher.MatchesMessage(payload)
-}
-
-func matchToolPreCall(matcher HookMatcher, payload ToolPreCallPayload) bool {
-	return matcher.MatchesToolPreCall(payload)
-}
-
-func matchToolPostCall(matcher HookMatcher, payload ToolPostCallPayload) bool {
-	return matcher.MatchesToolPostCall(payload)
-}
-
-func matchToolPostError(matcher HookMatcher, payload ToolPostErrorPayload) bool {
-	return matcher.MatchesToolPostError(payload)
-}
-
-func matchPermissionRequest(matcher HookMatcher, payload PermissionRequestPayload) bool {
-	return matcher.MatchesPermissionRequest(payload)
-}
-
-func matchPermissionResolution(matcher HookMatcher, payload PermissionResolutionPayload) bool {
-	return matcher.MatchesPermissionResolution(payload)
-}
-
-func matchContextCompact(matcher HookMatcher, payload ContextCompactPayload) bool {
-	return matcher.MatchesContextCompact(payload)
 }
 
 func applySessionContextPatch(payload SessionContext, patch SessionCreatePatch) SessionContext {

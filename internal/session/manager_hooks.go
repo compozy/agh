@@ -13,6 +13,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/workref"
 )
 
 const (
@@ -53,11 +54,11 @@ func newPromptTurnDispatchState(session *Session, turnID string, inputClass stri
 }
 
 func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts) (CreateOpts, error) {
-	if m == nil || m.hooks == nil {
+	if m == nil {
 		return opts, nil
 	}
 
-	payload, err := m.hooks.DispatchSessionPreCreate(ctx, hookspkg.SessionPreCreatePayload{
+	payload, err := m.hooks.session().DispatchSessionPreCreate(ctx, hookspkg.SessionPreCreatePayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookSessionPreCreate,
 			Timestamp: m.now(),
@@ -100,11 +101,11 @@ func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts)
 }
 
 func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta store.SessionMeta) (store.SessionMeta, error) {
-	if m == nil || m.hooks == nil {
+	if m == nil {
 		return meta, nil
 	}
 
-	payload, err := m.hooks.DispatchSessionPreResume(ctx, hookspkg.SessionPreResumePayload{
+	payload, err := m.hooks.session().DispatchSessionPreResume(ctx, hookspkg.SessionPreResumePayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookSessionPreResume,
 			Timestamp: m.now(),
@@ -142,12 +143,12 @@ func (m *Manager) dispatchSessionPostResume(ctx context.Context, session *Sessio
 }
 
 func (m *Manager) dispatchSessionPreStop(ctx context.Context, session *Session) error {
-	if m == nil || m.hooks == nil || session == nil {
+	if m == nil || session == nil {
 		return nil
 	}
 	ctx = hookDispatchContext(ctx, session)
 
-	payload, err := m.hooks.DispatchSessionPreStop(ctx, hookSessionLifecyclePayload(session, hookspkg.HookSessionPreStop, m.now()))
+	payload, err := m.hooks.session().DispatchSessionPreStop(ctx, hookSessionLifecyclePayload(session, hookspkg.HookSessionPreStop, m.now()))
 	if err != nil {
 		return fmt.Errorf("session: dispatch session.pre_stop: %w", err)
 	}
@@ -161,20 +162,21 @@ func (m *Manager) dispatchSessionPostStop(ctx context.Context, session *Session)
 }
 
 func (m *Manager) dispatchSessionLifecycleObservation(ctx context.Context, session *Session, event hookspkg.HookEvent) {
-	if m == nil || m.hooks == nil || session == nil {
+	if m == nil || session == nil {
 		return
 	}
 	ctx = hookDispatchContext(ctx, session)
 
 	payload := hookSessionLifecyclePayload(session, event, m.now())
 	var err error
+	lifecycleHooks := m.hooks.session()
 	switch event {
 	case hookspkg.HookSessionPostCreate:
-		_, err = m.hooks.DispatchSessionPostCreate(ctx, hookspkg.SessionPostCreatePayload(payload))
+		_, err = lifecycleHooks.DispatchSessionPostCreate(ctx, hookspkg.SessionPostCreatePayload(payload))
 	case hookspkg.HookSessionPostResume:
-		_, err = m.hooks.DispatchSessionPostResume(ctx, hookspkg.SessionPostResumePayload(payload))
+		_, err = lifecycleHooks.DispatchSessionPostResume(ctx, hookspkg.SessionPostResumePayload(payload))
 	case hookspkg.HookSessionPostStop:
-		_, err = m.hooks.DispatchSessionPostStop(ctx, hookspkg.SessionPostStopPayload(payload))
+		_, err = lifecycleHooks.DispatchSessionPostStop(ctx, hookspkg.SessionPostStopPayload(payload))
 	default:
 		return
 	}
@@ -184,12 +186,12 @@ func (m *Manager) dispatchSessionLifecycleObservation(ctx context.Context, sessi
 }
 
 func (m *Manager) dispatchInputPreSubmit(ctx context.Context, session *Session, turnID string, message string) (string, error) {
-	if m == nil || m.hooks == nil {
+	if m == nil {
 		return message, nil
 	}
 	ctx = hookDispatchContext(ctx, session)
 
-	payload, err := m.hooks.DispatchInputPreSubmit(ctx, hookspkg.InputPreSubmitPayload{
+	payload, err := m.hooks.prompt().DispatchInputPreSubmit(ctx, hookspkg.InputPreSubmitPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookInputPreSubmit,
 			Timestamp: m.now(),
@@ -207,11 +209,11 @@ func (m *Manager) dispatchInputPreSubmit(ctx context.Context, session *Session, 
 }
 
 func (m *Manager) dispatchPromptPostAssemble(ctx context.Context, sessionCtx hookspkg.SessionContext, prompt string) (string, error) {
-	if m == nil || m.hooks == nil {
+	if m == nil {
 		return prompt, nil
 	}
 
-	payload, err := m.hooks.DispatchPromptPostAssemble(ctx, hookspkg.PromptPayload{
+	payload, err := m.hooks.prompt().DispatchPromptPostAssemble(ctx, hookspkg.PromptPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookPromptPostAssemble,
 			Timestamp: m.now(),
@@ -228,12 +230,12 @@ func (m *Manager) dispatchPromptPostAssemble(ctx context.Context, sessionCtx hoo
 }
 
 func (m *Manager) dispatchTurnStart(ctx context.Context, state *promptTurnDispatchState) error {
-	if m == nil || m.hooks == nil || state == nil {
+	if m == nil || state == nil {
 		return nil
 	}
 	ctx = hookDispatchContext(ctx, state.session)
 
-	_, err := m.hooks.DispatchTurnStart(ctx, hookspkg.TurnStartPayload{
+	_, err := m.hooks.conversation().DispatchTurnStart(ctx, hookspkg.TurnStartPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTurnStart,
 			Timestamp: m.now(),
@@ -255,12 +257,12 @@ func (m *Manager) dispatchTurnEnd(ctx context.Context, state *promptTurnDispatch
 		return
 	}
 	state.turnEnded = true
-	if m == nil || m.hooks == nil {
+	if m == nil {
 		return
 	}
 	ctx = hookDispatchContext(ctx, state.session)
 
-	_, err := m.hooks.DispatchTurnEnd(ctx, hookspkg.TurnEndPayload{
+	_, err := m.hooks.conversation().DispatchTurnEnd(ctx, hookspkg.TurnEndPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTurnEnd,
 			Timestamp: hookTimestamp(m.now(), eventTime),
@@ -311,12 +313,12 @@ func (m *Manager) dispatchMessageStart(ctx context.Context, state *promptTurnDis
 		role: strings.TrimSpace(role),
 	}
 	state.openMessage = message
-	if m == nil || m.hooks == nil {
+	if m == nil {
 		return event
 	}
 	ctx = hookDispatchContext(ctx, state.session)
 
-	payload, err := m.hooks.DispatchMessageStart(ctx, hookspkg.MessageStartPayload{
+	payload, err := m.hooks.conversation().DispatchMessageStart(ctx, hookspkg.MessageStartPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookMessageStart,
 			Timestamp: hookTimestamp(m.now(), event.Timestamp),
@@ -340,12 +342,12 @@ func (m *Manager) dispatchMessageStart(ctx context.Context, state *promptTurnDis
 }
 
 func (m *Manager) dispatchMessageDelta(ctx context.Context, state *promptTurnDispatchState, event acp.AgentEvent, deltaType string) {
-	if m == nil || m.hooks == nil || state == nil || state.openMessage == nil {
+	if m == nil || state == nil || state.openMessage == nil {
 		return
 	}
 	ctx = hookDispatchContext(ctx, state.session)
 
-	_, err := m.hooks.DispatchMessageDelta(ctx, hookspkg.MessageDeltaPayload{
+	_, err := m.hooks.conversation().DispatchMessageDelta(ctx, hookspkg.MessageDeltaPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookMessageDelta,
 			Timestamp: hookTimestamp(m.now(), event.Timestamp),
@@ -370,12 +372,12 @@ func (m *Manager) finishPromptMessage(ctx context.Context, state *promptTurnDisp
 
 	message := state.openMessage
 	state.openMessage = nil
-	if m == nil || m.hooks == nil {
+	if m == nil {
 		return
 	}
 	ctx = hookDispatchContext(ctx, state.session)
 
-	_, err := m.hooks.DispatchMessageEnd(ctx, hookspkg.MessageEndPayload{
+	_, err := m.hooks.conversation().DispatchMessageEnd(ctx, hookspkg.MessageEndPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookMessageEnd,
 			Timestamp: hookTimestamp(m.now(), eventTime),
@@ -394,12 +396,12 @@ func (m *Manager) finishPromptMessage(ctx context.Context, state *promptTurnDisp
 }
 
 func (m *Manager) dispatchEventPreRecord(ctx context.Context, session *Session, event acp.AgentEvent, content string) {
-	if m == nil || m.hooks == nil {
+	if m == nil {
 		return
 	}
 	ctx = hookDispatchContext(ctx, session)
 
-	_, err := m.hooks.DispatchEventPreRecord(ctx, hookspkg.EventPreRecordPayload{
+	_, err := m.hooks.events().DispatchEventPreRecord(ctx, hookspkg.EventPreRecordPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookEventPreRecord,
 			Timestamp: hookTimestamp(m.now(), event.Timestamp),
@@ -448,8 +450,8 @@ func (m *Manager) runContextCompaction(
 	}
 
 	var err error
-	if m != nil && m.hooks != nil {
-		prePayload, err = m.hooks.DispatchContextPreCompact(ctx, prePayload)
+	if m != nil {
+		prePayload, err = m.hooks.compaction().DispatchContextPreCompact(ctx, prePayload)
 		if err != nil {
 			return hookspkg.ContextPostCompactPayload{}, fmt.Errorf("session: dispatch context.pre_compact: %w", err)
 		}
@@ -480,8 +482,8 @@ func (m *Manager) runContextCompaction(
 		postPayload.ContextBlocks = cloneSessionContextBlocks(prePayload.ContextBlocks)
 	}
 
-	if m != nil && m.hooks != nil {
-		if _, err := m.hooks.DispatchContextPostCompact(ctx, postPayload); err != nil {
+	if m != nil {
+		if _, err := m.hooks.compaction().DispatchContextPostCompact(ctx, postPayload); err != nil {
 			m.warnHookDispatch(ctx, session, hookspkg.HookContextPostCompact, err)
 		}
 	}
@@ -490,12 +492,12 @@ func (m *Manager) runContextCompaction(
 }
 
 func (m *Manager) dispatchEventPostRecord(ctx context.Context, session *Session, event acp.AgentEvent, content string) {
-	if m == nil || m.hooks == nil {
+	if m == nil {
 		return
 	}
 	ctx = hookDispatchContext(ctx, session)
 
-	_, err := m.hooks.DispatchEventPostRecord(ctx, hookspkg.EventPostRecordPayload{
+	_, err := m.hooks.events().DispatchEventPostRecord(ctx, hookspkg.EventPostRecordPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookEventPostRecord,
 			Timestamp: hookTimestamp(m.now(), event.Timestamp),
@@ -511,13 +513,13 @@ func (m *Manager) dispatchEventPostRecord(ctx context.Context, session *Session,
 }
 
 func (m *Manager) dispatchAgentPreStart(ctx context.Context, session *Session, resolved aghconfig.ResolvedAgent, opts acp.StartOpts) (acp.StartOpts, error) {
-	if m == nil || m.hooks == nil {
+	if m == nil {
 		return opts, nil
 	}
 	ctx = hookDispatchContext(ctx, session)
 
 	command, args := splitCommand(opts.Command)
-	payload, err := m.hooks.DispatchAgentPreStart(ctx, hookspkg.AgentPreStartPayload{
+	payload, err := m.hooks.agent().DispatchAgentPreStart(ctx, hookspkg.AgentPreStartPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookAgentPreStart,
 			Timestamp: m.now(),
@@ -552,7 +554,7 @@ func (m *Manager) dispatchAgentStopped(ctx context.Context, session *Session, pr
 }
 
 func (m *Manager) dispatchAgentObservation(ctx context.Context, session *Session, proc *AgentProcess, resolved aghconfig.ResolvedAgent, waitErr error, event hookspkg.HookEvent) {
-	if m == nil || m.hooks == nil {
+	if m == nil {
 		return
 	}
 	ctx = hookDispatchContext(ctx, session)
@@ -576,13 +578,14 @@ func (m *Manager) dispatchAgentObservation(ctx context.Context, session *Session
 	}
 
 	var err error
+	agentHooks := m.hooks.agent()
 	switch event {
 	case hookspkg.HookAgentSpawned:
-		_, err = m.hooks.DispatchAgentSpawned(ctx, hookspkg.AgentSpawnedPayload(payload))
+		_, err = agentHooks.DispatchAgentSpawned(ctx, hookspkg.AgentSpawnedPayload(payload))
 	case hookspkg.HookAgentCrashed:
-		_, err = m.hooks.DispatchAgentCrashed(ctx, hookspkg.AgentCrashedPayload(payload))
+		_, err = agentHooks.DispatchAgentCrashed(ctx, hookspkg.AgentCrashedPayload(payload))
 	case hookspkg.HookAgentStopped:
-		_, err = m.hooks.DispatchAgentStopped(ctx, hookspkg.AgentStoppedPayload(payload))
+		_, err = agentHooks.DispatchAgentStopped(ctx, hookspkg.AgentStoppedPayload(payload))
 	default:
 		return
 	}
@@ -611,13 +614,14 @@ func hookSessionContext(session *Session) hookspkg.SessionContext {
 		return hookspkg.SessionContext{}
 	}
 
+	ref := workref.NewRoot(info.WorkspaceID, info.Workspace)
 	return hookspkg.SessionContext{
 		SessionID:    strings.TrimSpace(info.ID),
 		SessionName:  strings.TrimSpace(info.Name),
 		SessionType:  string(info.Type),
 		AgentName:    strings.TrimSpace(info.AgentName),
-		WorkspaceID:  strings.TrimSpace(info.WorkspaceID),
-		Workspace:    strings.TrimSpace(info.Workspace),
+		WorkspaceID:  ref.WorkspaceID,
+		Workspace:    ref.Workspace,
 		ACPSessionID: strings.TrimSpace(info.ACPSessionID),
 		State:        string(info.State),
 		CreatedAt:    info.CreatedAt,

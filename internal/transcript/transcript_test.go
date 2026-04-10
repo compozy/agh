@@ -358,9 +358,9 @@ func TestMarshalAgentEventPreservesRawToolResultShape(t *testing.T) {
 func mustMarshalCanonical(t *testing.T, eventType string, turnID string, timestamp time.Time, text string, toolName string, toolCallID string, toolInput json.RawMessage, toolResult *ToolResult, toolError bool) string {
 	t.Helper()
 
-	payload, err := CanonicalPayload(eventType, turnID, timestamp, text, toolName, toolCallID, toolInput, toolResult, toolError)
+	payload, err := canonicalPayload(eventType, turnID, timestamp, text, toolName, toolCallID, toolInput, toolResult, toolError)
 	if err != nil {
-		t.Fatalf("CanonicalPayload() error = %v", err)
+		t.Fatalf("canonicalPayload() error = %v", err)
 	}
 	return string(payload)
 }

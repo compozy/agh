@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -17,11 +16,11 @@ import (
 
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/sse"
 )
 
 const (
 	baseURL              = "http://unix"
-	maxSSELineBytes      = 1024 * 1024
 	defaultUserAgentName = "agh-cli"
 )
 
@@ -173,21 +172,15 @@ type IdentityRecord struct {
 }
 
 // SSEEvent is one parsed server-sent event frame.
-type SSEEvent struct {
-	ID    string
-	Event string
-	Data  json.RawMessage
-}
-
-// SSEHandler consumes parsed SSE frames.
-type SSEHandler func(SSEEvent) error
+type SSEEvent = sse.Event
+type SSEHandler = sse.Handler
 
 type unixSocketClient struct {
 	socketPath string
 	httpClient *http.Client
 }
 
-var errStopSSE = errors.New("cli: stop sse stream")
+var errStopSSE = sse.ErrStop
 
 // NewClient constructs a daemon client that talks HTTP over a Unix domain socket.
 func NewClient(socketPath string) (DaemonClient, error) {
@@ -549,69 +542,7 @@ func (c *unixSocketClient) doRequest(ctx context.Context, method string, path st
 }
 
 func decodeSSE(ctx context.Context, body io.Reader, handler SSEHandler) error {
-	scanner := bufio.NewScanner(body)
-	scanner.Buffer(make([]byte, 0, 64*1024), maxSSELineBytes)
-
-	event := SSEEvent{}
-	dataLines := make([]string, 0, 4)
-	emit := func() error {
-		if event.ID == "" && event.Event == "" && len(dataLines) == 0 {
-			return nil
-		}
-		if len(dataLines) > 0 {
-			event.Data = json.RawMessage(strings.Join(dataLines, "\n"))
-		}
-		err := handler(event)
-		event = SSEEvent{}
-		dataLines = dataLines[:0]
-		return err
-	}
-
-	for scanner.Scan() {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-
-		line := scanner.Text()
-		if line == "" {
-			if err := emit(); err != nil {
-				if errors.Is(err, errStopSSE) {
-					return nil
-				}
-				return err
-			}
-			continue
-		}
-		if strings.HasPrefix(line, ":") {
-			continue
-		}
-
-		field, value, found := strings.Cut(line, ":")
-		if !found {
-			continue
-		}
-		value = strings.TrimPrefix(value, " ")
-
-		switch field {
-		case "id":
-			event.ID = value
-		case "event":
-			event.Event = value
-		case "data":
-			dataLines = append(dataLines, value)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("cli: read sse stream: %w", err)
-	}
-	if err := emit(); err != nil {
-		if errors.Is(err, errStopSSE) {
-			return nil
-		}
-		return err
-	}
-	return nil
+	return sse.Decode(ctx, body, handler)
 }
 
 func sessionListValues(query SessionListQuery) url.Values {

@@ -11,6 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/workref"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -21,12 +22,13 @@ func SessionPayloadFromInfo(info *session.SessionInfo) contract.SessionPayload {
 		return payload
 	}
 
+	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
 		ID:            info.ID,
 		Name:          info.Name,
 		AgentName:     info.AgentName,
-		WorkspaceID:   info.WorkspaceID,
-		WorkspacePath: info.Workspace,
+		WorkspaceID:   ref.WorkspaceID,
+		WorkspacePath: ref.WorkspacePath,
 		State:         string(info.State),
 		StopReason:    string(info.StopReason),
 		StopDetail:    info.StopDetail,
@@ -67,7 +69,7 @@ func ACPCapsPayloadFromInfo(caps acp.ACPCaps) *contract.ACPCapsPayload {
 
 // SessionEventPayloadFromEvent converts a session event into the shared payload.
 func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.SessionInfo) contract.SessionEventPayload {
-	workspaceID, workspacePath := sessionWorkspaceFromInfo(info)
+	ref := workref.NewPath(sessionWorkspaceFromInfo(info))
 	return contract.SessionEventPayload{
 		ID:            event.ID,
 		SessionID:     event.SessionID,
@@ -75,8 +77,8 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Sessio
 		TurnID:        event.TurnID,
 		Type:          event.Type,
 		AgentName:     event.AgentName,
-		WorkspaceID:   workspaceID,
-		WorkspacePath: workspacePath,
+		WorkspaceID:   ref.WorkspaceID,
+		WorkspacePath: ref.WorkspacePath,
 		Content:       PayloadJSON(event.Content),
 		Timestamp:     event.Timestamp,
 	}

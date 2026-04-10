@@ -38,7 +38,7 @@ func TestCreateFailsWhenSessionPreCreateDenied(t *testing.T) {
 		},
 	)
 
-	h := newHarness(t, WithHookDispatcher(hooks))
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	_, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
@@ -77,7 +77,7 @@ func TestCreateUsesPatchedSessionPreCreatePayload(t *testing.T) {
 		},
 	)
 
-	h := newHarness(t, WithHookDispatcher(hooks))
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Name:      "original",
@@ -121,7 +121,7 @@ func TestPostCreateHookFiresAfterSessionActive(t *testing.T) {
 		},
 	)
 
-	h := newHarness(t, WithHookDispatcher(hooks))
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	session := createSession(t, h)
 	t.Cleanup(func() {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
@@ -165,7 +165,7 @@ func TestResumeUsesPatchedPreResumePayloadAndFiresPostResume(t *testing.T) {
 		},
 	}
 
-	h.manager = newManagerWithHarness(t, h, WithHookDispatcher(dispatcher))
+	h.manager = newManagerWithHarness(t, h, WithHookSet(fullHookSet(dispatcher)))
 	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Resume() error = %v", err)
@@ -209,7 +209,7 @@ func TestPromptUsesPatchedInputMessage(t *testing.T) {
 		},
 	)
 
-	h := newHarness(t, WithHookDispatcher(hooks))
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	session := createSession(t, h)
 	t.Cleanup(func() {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
@@ -252,7 +252,7 @@ func TestCreateUsesPatchedPrompt(t *testing.T) {
 		},
 	)
 
-	h := newHarness(t, WithHookDispatcher(hooks))
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	session := createSession(t, h)
 	t.Cleanup(func() {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
@@ -282,7 +282,7 @@ func TestAgentCrashedHookFiresOnProcessCrash(t *testing.T) {
 		},
 	)
 
-	h := newHarness(t, WithHookDispatcher(hooks))
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	session := createSession(t, h)
 
 	h.driver.lastProcess().crash(errors.New("boom"), "stderr trace")
@@ -318,7 +318,7 @@ func TestRecordEventDispatchesAroundPersistence(t *testing.T) {
 			return payload, nil
 		},
 	}
-	h := newHarness(t, WithHookDispatcher(dispatcher))
+	h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
 
 	recorder := &orderedRecorder{
 		onRecord: func(event store.SessionEvent) {
@@ -394,7 +394,7 @@ func TestPromptDispatchesTurnAndMessageHooksAtACPBoundaries(t *testing.T) {
 		},
 	}
 
-	h := newHarness(t, WithHookDispatcher(dispatcher))
+	h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
 	session := createSession(t, h)
 	t.Cleanup(func() {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
@@ -470,7 +470,7 @@ func TestMessageStartPatchUpdatesFirstAssistantChunk(t *testing.T) {
 		},
 	)
 
-	h := newHarness(t, WithHookDispatcher(hooks))
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	session := createSession(t, h)
 	t.Cleanup(func() {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
@@ -535,7 +535,7 @@ func TestMessageDeltaAsyncHooksDoNotBlockPromptStreaming(t *testing.T) {
 	}
 	t.Cleanup(hooks.Close)
 
-	h := newHarness(t, WithHookDispatcher(hooks))
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	session := createSession(t, h)
 	t.Cleanup(func() {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
@@ -621,7 +621,7 @@ func TestContextCompactionDispatchesHooksAndUsesPatchedParams(t *testing.T) {
 		},
 	}
 
-	h := newHarness(t, WithHookDispatcher(dispatcher))
+	h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
 	result, err := h.manager.runContextCompaction(
 		testutil.Context(t),
 		session,
@@ -681,6 +681,24 @@ func newNativeHookDispatcher(t *testing.T, decls []hookspkg.HookDecl, executors 
 	}
 	t.Cleanup(hooks.Close)
 	return hooks
+}
+
+func fullHookSet(runtime interface {
+	SessionLifecycleHooks
+	PromptHooks
+	EventHooks
+	AgentHooks
+	ConversationHooks
+	CompactionHooks
+}) HookSet {
+	return HookSet{
+		Session:      runtime,
+		Prompt:       runtime,
+		Events:       runtime,
+		Agent:        runtime,
+		Conversation: runtime,
+		Compaction:   runtime,
+	}
 }
 
 type spyHookDispatcher struct {

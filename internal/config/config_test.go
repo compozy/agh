@@ -766,7 +766,7 @@ func TestLoadWithoutDotEnvOptionIgnoresDotEnv(t *testing.T) {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 
-	cfg, err := Load(WithWorkspaceRoot(workspaceRoot), WithoutDotEnv())
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot), withoutDotEnv())
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -794,7 +794,7 @@ host = "localhost"
 port = 0
 `)
 
-	cfg, err := Load(WithWorkspaceRoot(workspaceRoot), WithoutValidation())
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot), withoutValidation())
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -833,27 +833,27 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 	}
 }
 
-func TestDefaultUsesResolvedHomePaths(t *testing.T) {
+func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
 	t.Setenv("AGH_HOME", "")
 
-	cfg, err := Default()
+	cfg, err := defaultConfig()
 	if err != nil {
-		t.Fatalf("Default() error = %v", err)
+		t.Fatalf("defaultConfig() error = %v", err)
 	}
 	if cfg.HTTP.Port != 2123 || cfg.Defaults.Agent != DefaultAgentName {
-		t.Fatalf("Default() = %#v", cfg)
+		t.Fatalf("defaultConfig() = %#v", cfg)
 	}
 	if cfg.Permissions.Mode != PermissionModeApproveAll {
-		t.Fatalf("Default() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
+		t.Fatalf("defaultConfig() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
 	}
 	if cfg.Memory.Dream.Agent != DefaultAgentName {
-		t.Fatalf("Default() Memory.Dream.Agent = %q, want %q", cfg.Memory.Dream.Agent, DefaultAgentName)
+		t.Fatalf("defaultConfig() Memory.Dream.Agent = %q, want %q", cfg.Memory.Dream.Agent, DefaultAgentName)
 	}
 	if !cfg.Skills.Enabled {
-		t.Fatal("Default() Skills.Enabled = false, want true")
+		t.Fatal("defaultConfig() Skills.Enabled = false, want true")
 	}
 	if got, want := cfg.Skills.PollInterval, 3*time.Second; got != want {
-		t.Fatalf("Default() Skills.PollInterval = %s, want %s", got, want)
+		t.Fatalf("defaultConfig() Skills.PollInterval = %s, want %s", got, want)
 	}
 }
 

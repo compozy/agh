@@ -56,7 +56,7 @@ func TestServiceConstructionOverridesDefaults(t *testing.T) {
 		WithMinHours(12),
 		WithMinSessions(5),
 		WithLogger(logger),
-		WithGoal("custom-goal"),
+		withGoal("custom-goal"),
 	)
 
 	if service.memStore != store {
@@ -254,7 +254,7 @@ func TestServiceRunCallsSessionSpawnerWithGoalPromptAndWorkspaceID(t *testing.T)
 	workspaceID := "ws-dream"
 	service := NewService(
 		withLock(lock),
-		WithGoal("custom-goal"),
+		withGoal("custom-goal"),
 		WithMemoryStore(NewStore(globalMemoryDir)),
 		WithWorkspaceResolver(&fakeDreamWorkspaceResolver{
 			resolved: workspacepkg.ResolvedWorkspace{

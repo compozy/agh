@@ -1,0 +1,562 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/skills"
+	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
+	"github.com/pedronauck/agh/internal/store/globaldb"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+)
+
+func loadSkillCommandContext(ctx context.Context, deps commandDeps) (skillCommandContext, error) {
+	runtime, err := loadRuntimeContext(deps)
+	if err != nil {
+		return skillCommandContext{}, err
+	}
+
+	workspace, err := resolveCLIWorkspaceRoot(deps)
+	if err != nil {
+		return skillCommandContext{}, err
+	}
+
+	userAgentsDir, err := aghconfig.ResolveUserAgentsSkillsDir(deps.getenv)
+	if err != nil {
+		return skillCommandContext{}, err
+	}
+
+	registry := skills.NewRegistry(skills.RegistryConfig{
+		BundledFS:      skillbundled.FS(),
+		UserSkillsDir:  runtime.HomePaths.SkillsDir,
+		UserAgentsDir:  userAgentsDir,
+		DisabledSkills: append([]string(nil), runtime.Config.Skills.DisabledSkills...),
+	})
+	if err := registry.LoadAll(ctx); err != nil {
+		return skillCommandContext{}, err
+	}
+
+	resolvedWorkspace, err := resolveSkillWorkspace(ctx, runtime, workspace)
+	if err != nil {
+		return skillCommandContext{}, err
+	}
+
+	skillList, err := registry.ForWorkspace(ctx, resolvedWorkspace)
+	if err != nil {
+		return skillCommandContext{}, err
+	}
+
+	return skillCommandContext{
+		workspace: workspace,
+		bundledFS: skillbundled.FS(),
+		registry:  registry,
+		skills:    skillList,
+	}, nil
+}
+
+func resolveSkillWorkspace(ctx context.Context, runtime runtimeContext, workspaceRoot string) (workspacepkg.ResolvedWorkspace, error) {
+	fallback, err := cliResolvedWorkspace(workspaceRoot)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+
+	if strings.TrimSpace(workspaceRoot) == "" {
+		return fallback, nil
+	}
+
+	if _, err := os.Stat(runtime.HomePaths.DatabaseFile); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fallback, nil
+		}
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: stat workspace database %q: %w", runtime.HomePaths.DatabaseFile, err)
+	}
+
+	resolved, err := resolveRegisteredSkillWorkspace(ctx, runtime, workspaceRoot)
+	if err != nil {
+		if errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			return fallback, nil
+		}
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+
+	return resolved, nil
+}
+
+func resolveRegisteredSkillWorkspace(ctx context.Context, runtime runtimeContext, workspaceRoot string) (resolved workspacepkg.ResolvedWorkspace, err error) {
+	globalDB, err := globaldb.OpenGlobalDB(ctx, runtime.HomePaths.DatabaseFile)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: open workspace database %q: %w", runtime.HomePaths.DatabaseFile, err)
+	}
+	defer func() {
+		if closeErr := globalDB.Close(ctx); closeErr != nil {
+			closeErr = fmt.Errorf("cli: close workspace database %q: %w", runtime.HomePaths.DatabaseFile, closeErr)
+			if err == nil {
+				err = closeErr
+				return
+			}
+			err = errors.Join(err, closeErr)
+		}
+	}()
+
+	resolver, err := workspacepkg.NewResolver(
+		globalDB,
+		workspacepkg.WithHomePaths(runtime.HomePaths),
+		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
+			return aghconfig.LoadForHome(runtime.HomePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		}),
+	)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: create workspace resolver: %w", err)
+	}
+
+	resolved, err = resolver.Resolve(ctx, workspaceRoot)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: resolve workspace %q: %w", workspaceRoot, err)
+	}
+
+	return resolved, nil
+}
+
+func cliResolvedWorkspace(root string) (workspacepkg.ResolvedWorkspace, error) {
+	workspaceRoot := strings.TrimSpace(root)
+	if workspaceRoot == "" {
+		return workspacepkg.ResolvedWorkspace{}, nil
+	}
+
+	skillRoots, err := os.ReadDir(filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.SkillsDirName))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{RootDir: workspaceRoot},
+			}, nil
+		}
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: read workspace skills %q: %w", workspaceRoot, err)
+	}
+
+	skillPaths := make([]workspacepkg.SkillPath, 0, len(skillRoots))
+	for _, entry := range skillRoots {
+		if !entry.IsDir() {
+			continue
+		}
+
+		skillDir := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.SkillsDirName, entry.Name())
+		skillFile := filepath.Join(skillDir, skillMarkdownFileName)
+		if _, err := os.Stat(skillFile); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: inspect workspace skill %q: %w", skillFile, err)
+		}
+
+		skillPaths = append(skillPaths, workspacepkg.SkillPath{
+			Dir:    skillDir,
+			Source: "workspace",
+		})
+	}
+
+	return workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{RootDir: workspaceRoot},
+		Skills:    skillPaths,
+	}, nil
+}
+
+func resolveCLIWorkspaceRoot(deps commandDeps) (string, error) {
+	workspace, err := currentWorkingDirectory(deps)
+	if err != nil {
+		return "", err
+	}
+
+	absWorkspace, err := filepath.Abs(workspace)
+	if err != nil {
+		return "", fmt.Errorf("cli: resolve workspace root %q: %w", workspace, err)
+	}
+	return absWorkspace, nil
+}
+
+func skillListItems(allSkills []*skills.Skill, sourceFilter string) ([]skillListItem, error) {
+	filter, err := normalizeSkillSourceFilter(sourceFilter)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]skillListItem, 0, len(allSkills))
+	for _, skill := range allSkills {
+		if skill == nil {
+			continue
+		}
+
+		source := skillSourceLabel(skill.Source)
+		if filter != "" && source != filter {
+			continue
+		}
+
+		items = append(items, skillListItem{
+			Name:        skill.Meta.Name,
+			Description: skill.Meta.Description,
+			Source:      source,
+			Enabled:     skill.Enabled,
+		})
+	}
+
+	return items, nil
+}
+
+func normalizeSkillSourceFilter(sourceFilter string) (string, error) {
+	filter := strings.ToLower(strings.TrimSpace(sourceFilter))
+	switch filter {
+	case "":
+		return "", nil
+	case "bundled", "marketplace", "user", "additional", "workspace":
+		return filter, nil
+	case "agents", ".agents":
+		return "additional", nil
+	default:
+		return "", fmt.Errorf("cli: invalid skill source %q", sourceFilter)
+	}
+}
+
+func findSkillByName(allSkills []*skills.Skill, name string) (*skills.Skill, error) {
+	skillName := strings.TrimSpace(name)
+	if skillName == "" {
+		return nil, errors.New("skill name is required")
+	}
+
+	for _, skill := range allSkills {
+		if skill == nil {
+			continue
+		}
+		if skill.Meta.Name == skillName {
+			return skill, nil
+		}
+	}
+
+	return nil, fmt.Errorf("skill %q not found", skillName)
+}
+
+func listSkillResources(skill *skills.Skill, bundledFS fs.FS) ([]string, error) {
+	if skill == nil {
+		return nil, errors.New("skill is required")
+	}
+
+	resources := make([]string, 0)
+	switch skill.Source {
+	case skills.SourceBundled:
+		if bundledFS == nil {
+			return nil, errors.New("bundled skills filesystem is required")
+		}
+
+		root := strings.TrimSpace(skill.Dir)
+		if root == "" {
+			return []string{}, nil
+		}
+
+		err := fs.WalkDir(bundledFS, root, func(resourcePath string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() {
+				return nil
+			}
+
+			relative := strings.TrimPrefix(resourcePath, root+"/")
+			if resourcePath == root {
+				relative = skillMarkdownFileName
+			}
+			if relative == skillMarkdownFileName {
+				return nil
+			}
+
+			resources = append(resources, relative)
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("cli: list bundled skill resources for %q: %w", skill.Meta.Name, err)
+		}
+	default:
+		root := strings.TrimSpace(skill.Dir)
+		if root == "" {
+			return []string{}, nil
+		}
+
+		err := filepath.WalkDir(root, func(resourcePath string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() {
+				return nil
+			}
+
+			relative, err := filepath.Rel(root, resourcePath)
+			if err != nil {
+				return err
+			}
+			if filepath.Clean(relative) == skillMarkdownFileName {
+				return nil
+			}
+
+			resources = append(resources, filepath.ToSlash(relative))
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("cli: list skill resources for %q: %w", skill.Meta.Name, err)
+		}
+	}
+
+	sort.Strings(resources)
+	return resources, nil
+}
+
+func readSkillResource(skill *skills.Skill, bundledFS fs.FS, relativePath string) (string, error) {
+	if skill == nil {
+		return "", errors.New("skill is required")
+	}
+
+	switch skill.Source {
+	case skills.SourceBundled:
+		if bundledFS == nil {
+			return "", errors.New("bundled skills filesystem is required")
+		}
+
+		cleanPath, err := cleanBundledSkillRelativePath(relativePath)
+		if err != nil {
+			return "", err
+		}
+		root := strings.TrimSpace(skill.Dir)
+		if root == "" {
+			return "", errors.New("skill directory is required")
+		}
+
+		content, err := fs.ReadFile(bundledFS, path.Join(root, cleanPath))
+		if err != nil {
+			return "", fmt.Errorf("cli: read bundled skill file %q: %w", cleanPath, err)
+		}
+		return string(content), nil
+	default:
+		cleanPath, err := cleanFilesystemSkillRelativePath(relativePath)
+		if err != nil {
+			return "", err
+		}
+
+		root := strings.TrimSpace(skill.Dir)
+		if root == "" {
+			return "", errors.New("skill directory is required")
+		}
+
+		targetPath := filepath.Join(root, cleanPath)
+		absRoot, err := filepath.Abs(root)
+		if err != nil {
+			return "", fmt.Errorf("cli: resolve skill directory %q: %w", root, err)
+		}
+		resolvedRoot, err := filepath.EvalSymlinks(absRoot)
+		if err != nil {
+			return "", fmt.Errorf("cli: resolve skill directory %q: %w", absRoot, err)
+		}
+		absTarget, err := filepath.Abs(targetPath)
+		if err != nil {
+			return "", fmt.Errorf("cli: resolve skill file %q: %w", targetPath, err)
+		}
+		resolvedTarget, err := filepath.EvalSymlinks(absTarget)
+		if err != nil {
+			return "", fmt.Errorf("cli: resolve skill file %q: %w", absTarget, err)
+		}
+
+		relativeToRoot, err := filepath.Rel(resolvedRoot, resolvedTarget)
+		if err != nil {
+			return "", fmt.Errorf("cli: resolve skill file %q within %q: %w", resolvedTarget, resolvedRoot, err)
+		}
+		if relativeToRoot == ".." || strings.HasPrefix(relativeToRoot, ".."+string(filepath.Separator)) {
+			return "", errors.New("skill file path must stay within the skill directory")
+		}
+
+		content, err := os.ReadFile(resolvedTarget)
+		if err != nil {
+			return "", fmt.Errorf("cli: read skill file %q: %w", cleanPath, err)
+		}
+		return string(content), nil
+	}
+}
+
+func cleanBundledSkillRelativePath(relativePath string) (string, error) {
+	cleaned := path.Clean(strings.TrimSpace(strings.ReplaceAll(relativePath, "\\", "/")))
+	switch {
+	case cleaned == ".", cleaned == "":
+		return "", errors.New("skill file path is required")
+	case strings.HasPrefix(cleaned, "/"):
+		return "", errors.New("skill file path must be relative")
+	case cleaned == "..", strings.HasPrefix(cleaned, "../"):
+		return "", errors.New("skill file path must stay within the skill directory")
+	default:
+		return cleaned, nil
+	}
+}
+
+func cleanFilesystemSkillRelativePath(relativePath string) (string, error) {
+	cleaned := filepath.Clean(strings.TrimSpace(relativePath))
+	switch {
+	case cleaned == ".", cleaned == "":
+		return "", errors.New("skill file path is required")
+	case filepath.IsAbs(cleaned):
+		return "", errors.New("skill file path must be relative")
+	case cleaned == "..", strings.HasPrefix(cleaned, ".."+string(filepath.Separator)):
+		return "", errors.New("skill file path must stay within the skill directory")
+	default:
+		return cleaned, nil
+	}
+}
+
+func renderSkillXML(skill *skills.Skill, content string, resources []string) (string, error) {
+	if skill == nil {
+		return "", errors.New("skill is required")
+	}
+
+	var builder strings.Builder
+	builder.WriteString(`<skill_content name="`)
+	builder.WriteString(skillXMLAttributeReplacer.Replace(skill.Meta.Name))
+	builder.WriteString(`">`)
+	builder.WriteString("\n")
+	builder.WriteString(content)
+	if !strings.HasSuffix(content, "\n") {
+		builder.WriteString("\n")
+	}
+	builder.WriteString("\n<skill_resources>\n")
+	for _, resource := range resources {
+		builder.WriteString("  <file>")
+		builder.WriteString(skillXMLTextReplacer.Replace(resource))
+		builder.WriteString("</file>\n")
+	}
+	builder.WriteString("</skill_resources>\n")
+	builder.WriteString("</skill_content>")
+	return builder.String(), nil
+}
+
+func normalizeSkillName(name string) (string, error) {
+	trimmed := strings.TrimSpace(name)
+	switch {
+	case trimmed == "":
+		return "", errors.New("skill name is required")
+	case trimmed == ".", trimmed == "..":
+		return "", errors.New("skill name must not be a relative path segment")
+	case filepath.IsAbs(trimmed):
+		return "", errors.New("skill name must be relative")
+	case strings.Contains(trimmed, "/"), strings.Contains(trimmed, `\`):
+		return "", errors.New("skill name must not include path separators")
+	case !validSkillNamePattern.MatchString(trimmed):
+		return "", errors.New("skill name must contain only letters, numbers, dots, underscores, and hyphens")
+	default:
+		return trimmed, nil
+	}
+}
+
+func defaultSkillTemplate(name string) string {
+	trimmedName := strings.TrimSpace(name)
+	if trimmedName == "" {
+		trimmedName = defaultSkillName
+	}
+
+	return fmt.Sprintf(`---
+name: %q
+description: Describe when to use this skill.
+---
+
+# %s
+
+Describe the workflow, constraints, and expected outcome for this skill.
+`, trimmedName, titleizeSkillName(trimmedName))
+}
+
+func titleizeSkillName(name string) string {
+	parts := strings.FieldsFunc(name, func(r rune) bool {
+		return r == '-' || r == '_' || r == ' '
+	})
+	if len(parts) == 0 {
+		return "New Skill"
+	}
+
+	titled := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+
+		lower := strings.ToLower(part)
+		titled = append(titled, strings.ToUpper(lower[:1])+lower[1:])
+	}
+	if len(titled) == 0 {
+		return "New Skill"
+	}
+	return strings.Join(titled, " ")
+}
+
+func skillSourceLabel(source skills.SkillSource) string {
+	switch source {
+	case skills.SourceBundled:
+		return "bundled"
+	case skills.SourceMarketplace:
+		return "marketplace"
+	case skills.SourceUser:
+		return "user"
+	case skills.SourceAdditional:
+		return "additional"
+	case skills.SourceWorkspace:
+		return "workspace"
+	default:
+		return "unknown"
+	}
+}
+
+func sortedSkillMetadataEntries(metadata map[string]any) []keyValue {
+	if len(metadata) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(metadata))
+	for key := range metadata {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	entries := make([]keyValue, 0, len(keys))
+	for _, key := range keys {
+		entries = append(entries, keyValue{
+			Label: key,
+			Value: formatSkillMetadataValue(metadata[key]),
+		})
+	}
+	return entries
+}
+
+func formatSkillMetadataValue(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return typed
+	default:
+		payload, err := json.Marshal(typed)
+		if err != nil {
+			return fmt.Sprint(typed)
+		}
+		return compactJSON(payload)
+	}
+}
+
+func cloneMetadata(metadata map[string]any) map[string]any {
+	if metadata == nil {
+		return nil
+	}
+
+	clone := make(map[string]any, len(metadata))
+	for key, value := range metadata {
+		clone[key] = value
+	}
+	return clone
+}

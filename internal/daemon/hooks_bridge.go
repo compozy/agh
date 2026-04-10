@@ -64,7 +64,12 @@ type hooksNotifier struct {
 }
 
 var _ session.Notifier = (*hooksNotifier)(nil)
-var _ session.HookDispatcher = (*hooksNotifier)(nil)
+var _ session.SessionLifecycleHooks = (*hooksNotifier)(nil)
+var _ session.PromptHooks = (*hooksNotifier)(nil)
+var _ session.EventHooks = (*hooksNotifier)(nil)
+var _ session.AgentHooks = (*hooksNotifier)(nil)
+var _ session.ConversationHooks = (*hooksNotifier)(nil)
+var _ session.CompactionHooks = (*hooksNotifier)(nil)
 
 func newHooksNotifier(logger *slog.Logger, now func() time.Time) *hooksNotifier {
 	if logger == nil {
