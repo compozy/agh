@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -16,6 +15,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/subprocess"
 )
 
 const (
@@ -149,44 +149,28 @@ func (d *Driver) spawnProcess(normalized StartOpts) (*AgentProcess, error) {
 		return nil, err
 	}
 
-	procCtx, cancelProcess := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(procCtx, command, args...)
-	configureManagedCommand(cmd)
-	cmd.Dir = normalized.Cwd
-	if len(normalized.Env) > 0 {
-		cmd.Env = append([]string(nil), normalized.Env...)
-	} else {
-		cmd.Env = os.Environ()
-	}
-
-	stdin, err := cmd.StdinPipe()
+	managed, err := subprocess.Launch(context.Background(), subprocess.LaunchConfig{
+		Command:          command,
+		Args:             args,
+		Dir:              normalized.Cwd,
+		Env:              normalized.Env,
+		Logger:           d.logger,
+		DisableTransport: true,
+		ShutdownTimeout:  d.stopTimeout,
+	})
 	if err != nil {
-		cancelProcess()
-		return nil, fmt.Errorf("acp: open stdin pipe: %w", err)
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		cancelProcess()
-		return nil, fmt.Errorf("acp: open stdout pipe: %w", err)
-	}
-
-	stderr := &lockedBuffer{}
-	cmd.Stderr = stderr
-
-	if err := cmd.Start(); err != nil {
-		cancelProcess()
 		return nil, fmt.Errorf("acp: start subprocess %q: %w", normalized.Command, err)
 	}
+	procCtx, cancelProcess := context.WithCancel(context.Background())
 
 	process := &AgentProcess{
-		PID:                cmd.Process.Pid,
+		PID:                managed.PID(),
 		AgentName:          normalized.AgentName,
 		Command:            command,
 		Args:               append([]string(nil), args...),
 		Cwd:                normalized.Cwd,
 		StartedAt:          timeNowUTC(),
-		cmd:                cmd,
-		stderr:             stderr,
+		managed:            managed,
 		cancelProcess:      cancelProcess,
 		permissions:        policy,
 		done:               make(chan struct{}),
@@ -195,7 +179,7 @@ func (d *Driver) spawnProcess(normalized StartOpts) (*AgentProcess, error) {
 		systemPrompt:       normalized.SystemPrompt,
 	}
 	process.terminals = newTerminalManager(procCtx, d.logger)
-	process.conn = acpsdk.NewConnection(process.handleInbound, stdin, stdout)
+	process.conn = acpsdk.NewConnection(process.handleInbound, managed.Stdin(), managed.Stdout())
 	process.conn.SetLogger(d.logger)
 
 	go process.waitForExit()
@@ -365,6 +349,13 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 		_ = d.Cancel(cancelCtx, proc)
 		cancel()
 	}
+	if proc.managed != nil {
+		if err := proc.managed.Shutdown(ctx); err != nil {
+			errs = append(errs, err)
+		}
+		return errors.Join(append(errs, proc.Wait())...)
+	}
+
 	if err := terminateManagedProcess(proc.cmd); err != nil {
 		errs = append(errs, fmt.Errorf("acp: terminate subprocess tree: %w", err))
 	}
@@ -444,13 +435,24 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 }
 
 func (p *AgentProcess) waitForExit() {
-	waitErr := p.cmd.Wait()
+	var waitErr error
+	switch {
+	case p.managed != nil:
+		waitErr = p.managed.Wait()
+	case p.cmd != nil:
+		waitErr = p.cmd.Wait()
+	default:
+		waitErr = nil
+	}
 	if p.stopWasRequested() {
 		waitErr = nil
 	} else if waitErr != nil {
-		waitErr = fmt.Errorf("acp: subprocess exited: %w", attachStderr(waitErr, p.stderr.String()))
+		waitErr = fmt.Errorf("acp: subprocess exited: %w", attachStderr(waitErr, p.Stderr()))
 	}
 	p.setWaitError(waitErr)
+	if p.cancelProcess != nil {
+		p.cancelProcess()
+	}
 	if p.terminals != nil {
 		p.terminals.closeAll()
 	}

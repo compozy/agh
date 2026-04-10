@@ -14,6 +14,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/subprocess"
 )
 
 const (
@@ -198,6 +199,7 @@ type AgentProcess struct {
 	Caps      ACPCaps
 	StartedAt time.Time
 
+	managed       *subprocess.Process
 	cmd           *exec.Cmd
 	conn          *acpsdk.Connection
 	stderr        *lockedBuffer
@@ -262,6 +264,12 @@ func (p *AgentProcess) Wait() error {
 
 // Stderr returns the currently captured stderr output for the subprocess.
 func (p *AgentProcess) Stderr() string {
+	if p.managed != nil {
+		return p.managed.Stderr()
+	}
+	if p.stderr == nil {
+		return ""
+	}
 	return p.stderr.String()
 }
 
