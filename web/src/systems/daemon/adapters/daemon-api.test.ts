@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
+
 import { fetchHealth } from "./daemon-api";
 
 describe("fetchHealth", () => {
@@ -24,48 +26,35 @@ describe("fetchHealth", () => {
   });
 
   it("returns parsed HealthPayload on success", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(validResponse),
-    } as Response);
+    mockJsonResponse(validResponse);
 
     const result = await fetchHealth();
+
     expect(result).toEqual(validResponse.health);
-    expect(fetch).toHaveBeenCalledWith("/api/observe/health", { signal: undefined });
+    await expectFetchRequest({ path: "/api/observe/health" });
   });
 
   it("passes abort signal to fetch", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(validResponse),
-    } as Response);
+    mockJsonResponse(validResponse);
 
     const controller = new AbortController();
     await fetchHealth(controller.signal);
-    expect(fetch).toHaveBeenCalledWith("/api/observe/health", { signal: controller.signal });
+
+    await expectFetchRequest({
+      path: "/api/observe/health",
+      signal: controller.signal,
+    });
   });
 
   it("throws on network error (non-ok response)", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 500,
-    } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
     await expect(fetchHealth()).rejects.toThrow("Daemon health check failed: 500");
   });
 
   it("throws on fetch rejection", async () => {
-    vi.mocked(fetch).mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.mocked(globalThis.fetch).mockRejectedValue(new TypeError("Failed to fetch"));
 
     await expect(fetchHealth()).rejects.toThrow("Failed to fetch");
-  });
-
-  it("throws on invalid response shape", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ invalid: "shape" }),
-    } as Response);
-
-    await expect(fetchHealth()).rejects.toThrow();
   });
 });

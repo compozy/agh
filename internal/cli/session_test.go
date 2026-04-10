@@ -51,7 +51,7 @@ func TestSessionNewUsesConfigDefaultWhenAgentFlagIsOmitted(t *testing.T) {
 				AgentName:     "general",
 				WorkspaceID:   "ws-1",
 				WorkspacePath: request.WorkspacePath,
-				State:         string(session.StateActive),
+				State:         session.StateActive,
 				CreatedAt:     fixedTestNow,
 				UpdatedAt:     fixedTestNow,
 			}, nil
@@ -118,7 +118,7 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 						AgentName:     "general",
 						WorkspaceID:   "ws-1",
 						WorkspacePath: request.WorkspacePath,
-						State:         string(session.StateActive),
+						State:         session.StateActive,
 						CreatedAt:     fixedTestNow,
 						UpdatedAt:     fixedTestNow,
 					}, nil
@@ -190,7 +190,7 @@ func TestSessionListPassesWorkspaceFilter(t *testing.T) {
 				AgentName:     "general",
 				WorkspaceID:   "ws-filtered",
 				WorkspacePath: "/workspace/project",
-				State:         string(session.StateActive),
+				State:         session.StateActive,
 				CreatedAt:     fixedTestNow,
 				UpdatedAt:     fixedTestNow,
 			}}, nil
@@ -280,7 +280,7 @@ func TestSessionWaitReturnsImmediatelyForStoppedSession(t *testing.T) {
 				AgentName:     "coder",
 				WorkspaceID:   "ws-1",
 				WorkspacePath: "/workspace/project",
-				State:         string(session.StateStopped),
+				State:         session.StateStopped,
 				CreatedAt:     fixedTestNow,
 				UpdatedAt:     fixedTestNow,
 			}, nil
@@ -300,7 +300,7 @@ func TestSessionWaitReturnsImmediatelyForStoppedSession(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if decoded.State != string(session.StateStopped) {
+	if decoded.State != session.StateStopped {
 		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStopped)
 	}
 }
@@ -312,9 +312,9 @@ func TestSessionWaitStreamsUntilStopped(t *testing.T) {
 	deps := newTestDeps(t, stubClient{
 		getSessionFn: func(context.Context, string) (SessionRecord, error) {
 			getCalls++
-			state := string(session.StateActive)
+			state := session.StateActive
 			if getCalls > 1 {
-				state = string(session.StateStopped)
+				state = session.StateStopped
 			}
 			return SessionRecord{
 				ID:            "sess-1",
@@ -354,7 +354,7 @@ func TestSessionWaitStreamsUntilStopped(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if decoded.State != string(session.StateStopped) {
+	if decoded.State != session.StateStopped {
 		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStopped)
 	}
 }
@@ -375,7 +375,7 @@ func TestSessionStopFetchesUpdatedSession(t *testing.T) {
 				AgentName:     "coder",
 				WorkspaceID:   "ws-1",
 				WorkspacePath: "/workspace/project",
-				State:         string(session.StateStopped),
+				State:         session.StateStopped,
 				CreatedAt:     fixedTestNow,
 				UpdatedAt:     fixedTestNow,
 			}, nil
@@ -394,7 +394,7 @@ func TestSessionStopFetchesUpdatedSession(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if decoded.State != string(session.StateStopped) {
+	if decoded.State != session.StateStopped {
 		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStopped)
 	}
 }
@@ -409,7 +409,7 @@ func TestSessionStatusReturnsSessionRecord(t *testing.T) {
 				AgentName:     "coder",
 				WorkspaceID:   "ws-1",
 				WorkspacePath: "/workspace/project",
-				State:         string(session.StateActive),
+				State:         session.StateActive,
 				CreatedAt:     fixedTestNow,
 				UpdatedAt:     fixedTestNow,
 			}, nil
@@ -425,7 +425,7 @@ func TestSessionStatusReturnsSessionRecord(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if decoded.ID != "sess-1" || decoded.State != string(session.StateActive) {
+	if decoded.ID != "sess-1" || decoded.State != session.StateActive {
 		t.Fatalf("decoded = %#v, want sess-1 active", decoded)
 	}
 }
@@ -440,7 +440,7 @@ func TestSessionResumeReturnsSessionRecord(t *testing.T) {
 				AgentName:     "coder",
 				WorkspaceID:   "ws-1",
 				WorkspacePath: "/workspace/project",
-				State:         string(session.StateActive),
+				State:         session.StateActive,
 				CreatedAt:     fixedTestNow,
 				UpdatedAt:     fixedTestNow,
 			}, nil
@@ -456,7 +456,7 @@ func TestSessionResumeReturnsSessionRecord(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if decoded.ID != "sess-1" || decoded.State != string(session.StateActive) {
+	if decoded.ID != "sess-1" || decoded.State != session.StateActive {
 		t.Fatalf("decoded = %#v, want sess-1 active", decoded)
 	}
 }
@@ -509,7 +509,7 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		AgentName:     "coder",
 		WorkspaceID:   "ws-1",
 		WorkspacePath: "/workspace/project",
-		State:         string(session.StateActive),
+		State:         session.StateActive,
 		UpdatedAt:     fixedTestNow,
 	}}
 

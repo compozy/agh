@@ -36,7 +36,7 @@ func (h *BaseHandlers) ListSkills(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"skills": SkillPayloadsFromSkills(skillList)})
+	c.JSON(http.StatusOK, contract.SkillsResponse{Skills: SkillPayloadsFromSkills(skillList)})
 }
 
 // GetSkill returns one skill by name.
@@ -58,7 +58,7 @@ func (h *BaseHandlers) GetSkill(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"skill": SkillPayloadFromSkill(skill)})
+	c.JSON(http.StatusOK, contract.SkillResponse{Skill: SkillPayloadFromSkill(skill)})
 }
 
 // GetSkillContent returns the explicit body for one skill.

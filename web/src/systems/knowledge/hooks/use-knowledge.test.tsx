@@ -81,8 +81,8 @@ describe("useMemory", () => {
     expect(readMemory).toHaveBeenCalledWith("global", "test.md", "/ws", expect.any(AbortSignal));
   });
 
-  it("does not fetch when scope is empty", () => {
-    renderHook(() => useMemory("", "test.md"), {
+  it("does not fetch when scope is omitted", () => {
+    renderHook(() => useMemory(undefined, "test.md"), {
       wrapper: createWrapper(),
     });
 

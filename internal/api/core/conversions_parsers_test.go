@@ -43,7 +43,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	if payload.ID != "sess-1" || payload.WorkspaceID != "ws_alpha" || payload.WorkspacePath != "/workspace" {
 		t.Fatalf("payload = %#v", payload)
 	}
-	if payload.StopReason != string(store.StopTimeout) || payload.StopDetail != "deadline exceeded" {
+	if payload.StopReason != store.StopTimeout || payload.StopDetail != "deadline exceeded" {
 		t.Fatalf("payload stop fields = %#v", payload)
 	}
 	if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession || len(payload.ACPCaps.SupportedModels) != 1 {

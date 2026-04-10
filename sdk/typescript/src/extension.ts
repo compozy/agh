@@ -21,7 +21,6 @@ import type {
   InitializeRuntime,
   JSONRPCRequestEnvelope,
   ProvideToolsResult,
-  ProtocolVersion,
   ShutdownRequest,
   ShutdownResponse,
 } from "./types.js";
@@ -29,7 +28,7 @@ import type { TransportLike } from "./transport.js";
 
 const SDK_NAME = "@agh/extension-sdk";
 const SDK_VERSION = "0.1.0";
-const SUPPORTED_PROTOCOL_VERSIONS: ProtocolVersion[] = ["1"];
+const SUPPORTED_PROTOCOL_VERSIONS = ["1"];
 const REQUIRED_PROVIDES_METHODS: Record<string, string[]> = {
   "memory.backend": ["memory/store", "memory/recall", "memory/forget"],
 };

@@ -1,8 +1,5 @@
 // Types
-export type { HealthPayload, HealthResponse } from "./types";
-
-// Schemas
-export { healthPayloadSchema, healthResponseSchema } from "./types";
+export type { HealthPayload, MemoryHealthPayload, ObserveHealthResponse } from "./types";
 
 // Adapters
 export { fetchHealth } from "./adapters/daemon-api";

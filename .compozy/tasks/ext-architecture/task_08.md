@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon boot integration
 type: backend
 complexity: medium
@@ -33,12 +33,12 @@ Wire the Extension Manager into AGH's daemon composition root. Add a new boot ph
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add `bootExtensions()` phase in `internal/daemon/boot.go` between `bootHooks` and `bootServers`
-- [ ] 8.2 Wire `extension.Manager` with real session manager, memory, observer, skills dependencies
-- [ ] 8.3 Extend `internal/daemon/hooks_bridge.go` with extension declaration provider
-- [ ] 8.4 Trigger `hooks.Rebuild()` after extension manager starts
-- [ ] 8.5 Add extension manager Stop() to LIFO cleanup chain
-- [ ] 8.6 Write integration tests validating extension boot phase and shutdown order
+- [x] 8.1 Add `bootExtensions()` phase in `internal/daemon/boot.go` between `bootHooks` and `bootServers`
+- [x] 8.2 Wire `extension.Manager` with real session manager, memory, observer, skills dependencies
+- [x] 8.3 Extend `internal/daemon/hooks_bridge.go` with extension declaration provider
+- [x] 8.4 Trigger `hooks.Rebuild()` after extension manager starts
+- [x] 8.5 Add extension manager Stop() to LIFO cleanup chain
+- [x] 8.6 Write integration tests validating extension boot phase and shutdown order
 
 ## Implementation Details
 
@@ -70,16 +70,16 @@ The new `bootExtensions` phase follows the existing `bootXxx()` pattern: takes a
 
 ## Tests
 - Unit tests:
-  - [ ] `bootExtensions()` initializes Manager with correct dependencies
-  - [ ] `bootExtensions()` returns no-op cleanup when no extensions installed
-  - [ ] Extension Manager start failure logs error but does not fail boot
-  - [ ] Extension declaration provider returns declarations from loaded extensions
-  - [ ] `hooks.Rebuild()` is called after Extension Manager starts
-  - [ ] Shutdown order: Extension Manager stops before servers
+  - [x] `bootExtensions()` initializes Manager with correct dependencies
+  - [x] `bootExtensions()` returns no-op cleanup when no extensions installed
+  - [x] Extension Manager start failure logs error but does not fail boot
+  - [x] Extension declaration provider returns declarations from loaded extensions
+  - [x] `hooks.Rebuild()` is called after Extension Manager starts
+  - [x] Shutdown order: Extension Manager stops before servers
 - Integration tests:
-  - [ ] Full daemon boot with one test extension → extension loads → hooks rebuild → extension stops on daemon shutdown
-  - [ ] Daemon boot with corrupt extension → logs error, continues boot, other extensions load normally
-  - [ ] Extension provides hook declarations → hook dispatches route to extension correctly
+  - [x] Full daemon boot with one test extension → extension loads → hooks rebuild → extension stops on daemon shutdown
+  - [x] Daemon boot with corrupt extension → logs error, continues boot, other extensions load normally
+  - [x] Extension provides hook declarations → hook dispatches route to extension correctly
 - Test coverage target: >=80%
 - All existing daemon tests continue passing
 

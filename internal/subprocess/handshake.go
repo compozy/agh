@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 )
 
 // InitializeRequest is the AGH -> extension session contract request.
@@ -28,9 +30,9 @@ type InitializeExtension struct {
 
 // InitializeCapabilities carries runtime-granted capabilities.
 type InitializeCapabilities struct {
-	Provides        []string `json:"provides"`
-	GrantedActions  []string `json:"granted_actions"`
-	GrantedSecurity []string `json:"granted_security"`
+	Provides        []string                          `json:"provides"`
+	GrantedActions  []extensionprotocol.HostAPIMethod `json:"granted_actions"`
+	GrantedSecurity []string                          `json:"granted_security"`
 }
 
 // InitializeMethods lists callable method families for the session.
@@ -67,9 +69,9 @@ type InitializeExtensionInfo struct {
 
 // AcceptedCapabilities is the subset the extension accepted for this session.
 type AcceptedCapabilities struct {
-	Provides []string `json:"provides"`
-	Actions  []string `json:"actions"`
-	Security []string `json:"security"`
+	Provides []string                          `json:"provides"`
+	Actions  []extensionprotocol.HostAPIMethod `json:"actions"`
+	Security []string                          `json:"security"`
 }
 
 // InitializeSupports advertises optional protocol features.
@@ -169,7 +171,7 @@ func validateInitializeResponse(request InitializeRequest, response InitializeRe
 	return nil
 }
 
-func validateSubset(label string, accepted []string, granted []string) error {
+func validateSubset[T ~string](label string, accepted []T, granted []T) error {
 	for _, value := range accepted {
 		if !slices.Contains(granted, value) {
 			return fmt.Errorf("subprocess: %s %q is not granted", label, value)

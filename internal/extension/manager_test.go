@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/subprocess"
@@ -94,7 +95,9 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	if request.ProtocolVersion != defaultProtocolVersion {
 		t.Fatalf("initialize protocol version = %q, want %q", request.ProtocolVersion, defaultProtocolVersion)
 	}
-	if !slices.Equal(request.Capabilities.GrantedActions, []string{"sessions/list"}) {
+	if !slices.Equal(request.Capabilities.GrantedActions, []extensionprotocol.HostAPIMethod{
+		extensionprotocol.HostAPIMethodSessionsList,
+	}) {
 		t.Fatalf("initialize granted actions = %#v, want [sessions/list]", request.Capabilities.GrantedActions)
 	}
 	if !slices.Equal(request.Capabilities.GrantedSecurity, []string{"session.read"}) {
@@ -321,6 +324,52 @@ func TestManagerCrashTriggersRestartWithBackoff(t *testing.T) {
 	if !loaded.Status.Active || loaded.Status.PID != 302 {
 		t.Fatalf("Get(ext-restart).Status = %#v, want restarted process pid 302", loaded.Status)
 	}
+}
+
+func TestManagerStartDetachesSupervisorFromStartContext(t *testing.T) {
+	t.Parallel()
+
+	withDaemonVersion(t, "0.5.0")
+	env := newRegistryTestEnv(t)
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-detached", managerManifestOptions{
+		command:      "fake-extension",
+		capabilities: []string{"memory.backend"},
+		actions:      []string{"sessions/list"},
+		security:     []string{"session.read"},
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+	first := newFakeProcess(601)
+	second := newFakeProcess(602)
+	launcher := &fakeLauncher{queue: []*fakeProcess{first, second}}
+
+	manager := NewManager(
+		env.registry,
+		withProcessLauncher(launcher.launch),
+		withRestartBackoffMax(2*time.Millisecond),
+		withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
+	)
+
+	startCtx, cancelStart := context.WithCancel(testutil.Context(t))
+	if err := manager.Start(startCtx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	cancelStart()
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	first.crash(errors.New("boom"))
+
+	waitForManagerCondition(t, time.Second, func() bool {
+		if launcher.launchCount() != 2 {
+			return false
+		}
+		loaded, err := manager.Get("ext-detached")
+		return err == nil && loaded.Status.Active && loaded.Status.PID == 602
+	})
 }
 
 func TestManagerDisablesExtensionAfterConsecutiveFailures(t *testing.T) {

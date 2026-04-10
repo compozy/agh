@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: TypeScript SDK (@agh/extension-sdk)
 type: frontend
 complexity: high
@@ -38,13 +38,13 @@ Create the TypeScript SDK npm package that TypeScript extension authors use to b
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Initialize `@agh/extension-sdk` npm package with TypeScript configuration
-- [ ] 10.2 Implement `StdioTransport` with line-delimited JSON-RPC framing and multiplexing
-- [ ] 10.3 Implement `Extension` class with initialize handshake, handle(), onReady(), start()
-- [ ] 10.4 Implement typed `HostAPI` client for all Host API methods
-- [ ] 10.5 Implement `TestHarness` for unit testing extensions
-- [ ] 10.6 Create scaffolding CLI `@agh/create-extension` with starter templates
-- [ ] 10.7 Write unit tests using Vitest and the in-memory transport
+- [x] 10.1 Initialize `@agh/extension-sdk` npm package with TypeScript configuration
+- [x] 10.2 Implement `StdioTransport` with line-delimited JSON-RPC framing and multiplexing
+- [x] 10.3 Implement `Extension` class with initialize handshake, handle(), onReady(), start()
+- [x] 10.4 Implement typed `HostAPI` client for all Host API methods
+- [x] 10.5 Implement `TestHarness` for unit testing extensions
+- [x] 10.6 Create scaffolding CLI `@agh/create-extension` with starter templates
+- [x] 10.7 Write unit tests using Vitest and the in-memory transport
 
 ## Implementation Details
 
@@ -77,25 +77,25 @@ Follow AGH's existing web frontend patterns for TypeScript conventions (biome fo
 
 ## Tests
 - Unit tests:
-  - [ ] `StdioTransport` encodes one JSON object per line
-  - [ ] `StdioTransport` decodes multiple concurrent requests correctly
-  - [ ] `StdioTransport` rejects messages over 10 MiB
-  - [ ] `StdioTransport` ignores notifications (no id field)
-  - [ ] `Extension.start()` performs initialize handshake first
-  - [ ] `Extension.handle()` routes inbound requests to correct handler
-  - [ ] `Extension.handle()` returns error if method not registered
-  - [ ] `Extension.onReady()` fires after successful handshake
-  - [ ] `HostAPI.sessions.create()` sends correct JSON-RPC request
-  - [ ] `HostAPI.sessions.list()` parses response array
-  - [ ] `HostAPI.memory.store()` sends correct params
-  - [ ] `HostAPI.observe.events()` supports `since` parameter
-  - [ ] Capability denied error throws typed error with code -32001
-  - [ ] Rate limited error throws typed error with retry_after_ms
-  - [ ] `TestHarness.mockHostAPI()` returns mocked responses
-  - [ ] `TestHarness.loadExtension()` loads extension without spawning subprocess
-  - [ ] `TestHarness.call()` invokes extension handlers directly
+  - [x] `StdioTransport` encodes one JSON object per line
+  - [x] `StdioTransport` decodes multiple concurrent requests correctly
+  - [x] `StdioTransport` rejects messages over 10 MiB
+  - [x] `StdioTransport` ignores notifications (no id field)
+  - [x] `Extension.start()` performs initialize handshake first
+  - [x] `Extension.handle()` routes inbound requests to correct handler
+  - [x] `Extension.handle()` returns error if method not registered
+  - [x] `Extension.onReady()` fires after successful handshake
+  - [x] `HostAPI.sessions.create()` sends correct JSON-RPC request
+  - [x] `HostAPI.sessions.list()` parses response array
+  - [x] `HostAPI.memory.store()` sends correct params
+  - [x] `HostAPI.observe.events()` supports `since` parameter
+  - [x] Capability denied error throws typed error with code -32001
+  - [x] Rate limited error throws typed error with retry_after_ms
+  - [x] `TestHarness.mockHostAPI()` returns mocked responses
+  - [x] `TestHarness.loadExtension()` loads extension without spawning subprocess
+  - [x] `TestHarness.call()` invokes extension handlers directly
 - Integration tests:
-  - [ ] Build an SDK-based extension, spawn it as a subprocess, send real JSON-RPC, verify responses
+  - [x] Build an SDK-based extension, spawn it as a subprocess, send real JSON-RPC, verify responses
 - Test coverage target: >=80%
 - All tests must pass
 

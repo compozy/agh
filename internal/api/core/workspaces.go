@@ -43,7 +43,9 @@ func (h *BaseHandlers) CreateWorkspace(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"workspace": WorkspacePayloadFromWorkspace(workspace)})
+	c.JSON(http.StatusCreated, contract.WorkspaceResponse{
+		Workspace: WorkspacePayloadFromWorkspace(workspace),
+	})
 }
 
 // ListWorkspaces returns all registered workspaces.
@@ -59,7 +61,7 @@ func (h *BaseHandlers) ListWorkspaces(c *gin.Context) {
 		payload = append(payload, WorkspacePayloadFromWorkspace(workspace))
 	}
 
-	c.JSON(http.StatusOK, gin.H{"workspaces": payload})
+	c.JSON(http.StatusOK, contract.WorkspacesResponse{Workspaces: payload})
 }
 
 // GetWorkspace returns one resolved workspace with related sessions, agents, and skills.
@@ -76,11 +78,11 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"workspace": WorkspacePayloadFromWorkspace(resolved.Workspace),
-		"sessions":  SessionPayloadsFromInfos(filterSessionInfosByWorkspaceIDInternal(sessions, resolved.ID)),
-		"agents":    AgentPayloadsFromDefs(resolved.Agents),
-		"skills":    WorkspaceSkillPayloads(resolved.Skills),
+	c.JSON(http.StatusOK, contract.WorkspaceDetailPayload{
+		Workspace: WorkspacePayloadFromWorkspace(resolved.Workspace),
+		Sessions:  SessionPayloadsFromInfos(filterSessionInfosByWorkspaceIDInternal(sessions, resolved.ID)),
+		Agents:    AgentPayloadsFromDefs(resolved.Agents),
+		Skills:    WorkspaceSkillPayloads(resolved.Skills),
 	})
 }
 
@@ -131,7 +133,9 @@ func (h *BaseHandlers) UpdateWorkspace(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"workspace": WorkspacePayloadFromWorkspace(updated)})
+	c.JSON(http.StatusOK, contract.WorkspaceResponse{
+		Workspace: WorkspacePayloadFromWorkspace(updated),
+	})
 }
 
 // DeleteWorkspace unregisters a workspace.
@@ -170,7 +174,9 @@ func (h *BaseHandlers) ResolveWorkspace(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"workspace": WorkspacePayloadFromWorkspace(resolved.Workspace)})
+	c.JSON(http.StatusOK, contract.WorkspaceResponse{
+		Workspace: WorkspacePayloadFromWorkspace(resolved.Workspace),
+	})
 }
 
 func (h *BaseHandlers) validateCreateSessionRequest(req contract.CreateSessionRequest) error {

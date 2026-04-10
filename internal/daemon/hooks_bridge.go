@@ -404,7 +404,9 @@ func defaultDaemonExecutorResolver(decl hookspkg.HookDecl) (hookspkg.Executor, e
 		opts := []hookspkg.SubprocessExecutorOption{
 			hookspkg.WithSubprocessEnv(decl.Env),
 		}
-		if root := strings.TrimSpace(decl.Matcher.WorkspaceRoot); root != "" {
+		if dir := strings.TrimSpace(decl.WorkingDir); dir != "" {
+			opts = append(opts, hookspkg.WithSubprocessDir(dir))
+		} else if root := strings.TrimSpace(decl.Matcher.WorkspaceRoot); root != "" {
 			opts = append(opts, hookspkg.WithSubprocessDir(root))
 		}
 		return hookspkg.NewSubprocessExecutor(

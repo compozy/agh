@@ -1,5 +1,17 @@
 {
     "$schema": "https://turbo.build/schema.json",
+    "globalDependencies": [
+        "cmd/agh-codegen/**",
+        "internal/api/contract/**",
+        "internal/api/spec/**",
+        "internal/codegen/sdkts/**",
+        "internal/extension/contract/**",
+        "internal/extension/protocol/**",
+        "internal/hooks/**",
+        "internal/subprocess/handshake.go",
+        "magefile.go",
+        "openapi/agh.json"
+    ],
     "tasks": {
         "build": {
             "dependsOn": ["^build"],

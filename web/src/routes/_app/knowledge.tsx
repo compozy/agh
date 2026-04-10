@@ -9,6 +9,7 @@ import {
   KnowledgeListPanel,
   KnowledgeDetailPanel,
 } from "@/systems/knowledge";
+import type { MemoryScope } from "@/systems/knowledge/types";
 import { useWorkspaces } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/knowledge")({
@@ -25,7 +26,7 @@ type Tab = "all" | "global" | "workspace";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function deriveScope(filename: string): string {
+function deriveScope(filename: string): Exclude<MemoryScope, undefined> {
   if (filename.startsWith("workspace/") || filename.startsWith("ws/")) {
     return "workspace";
   }
@@ -89,7 +90,9 @@ function KnowledgePage() {
   );
 
   // Load content for selected memory
-  const selectedScope = effectiveSelectedFilename ? deriveScope(effectiveSelectedFilename) : "";
+  const selectedScope = effectiveSelectedFilename
+    ? deriveScope(effectiveSelectedFilename)
+    : undefined;
   const {
     data: selectedContent,
     isLoading: isContentLoading,
@@ -97,6 +100,9 @@ function KnowledgePage() {
   } = useMemory(selectedScope, effectiveSelectedFilename ?? "", activeWorkspaceId || undefined);
 
   const handleDelete = (filename: string) => {
+    if (!selectedScope) {
+      return;
+    }
     deleteMutation.mutate({
       scope: selectedScope,
       filename,

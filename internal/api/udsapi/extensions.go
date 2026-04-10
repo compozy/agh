@@ -23,7 +23,7 @@ func (h *Handlers) ListExtensions(c *gin.Context) {
 		core.RespondError(c, http.StatusInternalServerError, err, false)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"extensions": items})
+	c.JSON(http.StatusOK, contract.ExtensionsResponse{Extensions: items})
 }
 
 func (h *Handlers) InstallExtension(c *gin.Context) {
@@ -53,7 +53,7 @@ func (h *Handlers) InstallExtension(c *gin.Context) {
 		core.RespondError(c, extensionStatusCode(err), err, false)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"extension": item})
+	c.JSON(http.StatusCreated, contract.ExtensionResponse{Extension: item})
 }
 
 func (h *Handlers) EnableExtension(c *gin.Context) {
@@ -75,7 +75,7 @@ func (h *Handlers) ExtensionStatus(c *gin.Context) {
 		core.RespondError(c, extensionStatusCode(err), err, false)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"extension": item})
+	c.JSON(http.StatusOK, contract.ExtensionResponse{Extension: item})
 }
 
 func (h *Handlers) mutateExtensionEnabled(c *gin.Context, enabled bool) {
@@ -103,7 +103,7 @@ func (h *Handlers) mutateExtensionEnabled(c *gin.Context, enabled bool) {
 		core.RespondError(c, extensionStatusCode(err), err, false)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"extension": item})
+	c.JSON(http.StatusOK, contract.ExtensionResponse{Extension: item})
 }
 
 func extensionStatusCode(err error) int {

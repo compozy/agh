@@ -6,14 +6,16 @@ import (
 	"time"
 
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 )
 
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
-	AgentName     string `json:"agent_name"`
-	Name          string `json:"name"`
-	Workspace     string `json:"workspace"`
-	WorkspacePath string `json:"workspace_path"`
+	AgentName     string `json:"agent_name,omitempty"`
+	Name          string `json:"name,omitempty"`
+	Workspace     string `json:"workspace,omitempty"`
+	WorkspacePath string `json:"workspace_path,omitempty"`
 }
 
 // ApproveSessionRequest is the interactive permission approval payload.
@@ -25,14 +27,14 @@ type ApproveSessionRequest struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
-	ID            string `json:"id"`
-	Name          string `json:"name,omitempty"`
-	AgentName     string `json:"agent_name"`
-	WorkspaceID   string `json:"workspace_id,omitempty"`
-	WorkspacePath string `json:"workspace_path,omitempty"`
-	State         string `json:"state"`
+	ID            string               `json:"id"`
+	Name          string               `json:"name,omitempty"`
+	AgentName     string               `json:"agent_name"`
+	WorkspaceID   string               `json:"workspace_id,omitempty"`
+	WorkspacePath string               `json:"workspace_path,omitempty"`
+	State         session.SessionState `json:"state"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
-	StopReason string `json:"stop_reason,omitempty"`
+	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
 	StopDetail   string          `json:"stop_detail,omitempty"`
 	ACPSessionID string          `json:"acp_session_id,omitempty"`
@@ -289,9 +291,9 @@ type MemoryHealthPayload struct {
 // CreateWorkspaceRequest is the shared workspace creation request payload.
 type CreateWorkspaceRequest struct {
 	RootDir      string   `json:"root_dir"`
-	Name         string   `json:"name"`
-	AddDirs      []string `json:"add_dirs"`
-	DefaultAgent string   `json:"default_agent"`
+	Name         string   `json:"name,omitempty"`
+	AddDirs      []string `json:"add_dirs,omitempty"`
+	DefaultAgent string   `json:"default_agent,omitempty"`
 }
 
 // UpdateWorkspaceRequest is the shared workspace update request payload.

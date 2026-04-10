@@ -117,6 +117,7 @@ func sanitizedHookDecl(decl HookDecl) (HookDecl, error) {
 		ExecutorKind: decl.ExecutorKind,
 		Command:      strings.TrimSpace(decl.Command),
 		Args:         append([]string(nil), decl.Args...),
+		WorkingDir:   strings.TrimSpace(decl.WorkingDir),
 		Env:          cloneStringMap(decl.Env),
 		Metadata:     cloneStringMap(decl.Metadata),
 		SkillSource:  decl.SkillSource,

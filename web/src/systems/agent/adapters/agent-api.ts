@@ -1,24 +1,30 @@
-import { agentsResponseSchema, agentResponseSchema, type AgentPayload } from "../types";
+import {
+  apiClient,
+  apiRequestFailed,
+  defaultApiErrorMessage,
+  requireResponseData,
+} from "@/lib/api-client";
+
+import type { AgentPayload } from "../types";
 
 export async function fetchAgents(signal?: AbortSignal): Promise<AgentPayload[]> {
-  const res = await fetch("/api/agents", { signal });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch agents: ${res.status}`);
+  const { data, error, response } = await apiClient.GET("/api/agents", { signal });
+  if (apiRequestFailed(response, error)) {
+    throw new Error(defaultApiErrorMessage("Failed to fetch agents", response, error));
   }
-  const json = await res.json();
-  const parsed = agentsResponseSchema.parse(json);
-  return parsed.agents;
+  return requireResponseData(data, response, "Failed to fetch agents").agents;
 }
 
 export async function fetchAgent(name: string, signal?: AbortSignal): Promise<AgentPayload> {
-  const res = await fetch(`/api/agents/${encodeURIComponent(name)}`, { signal });
-  if (!res.ok) {
-    if (res.status === 404) {
+  const { data, error, response } = await apiClient.GET("/api/agents/{name}", {
+    params: { path: { name } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new Error(`Agent not found: ${name}`);
     }
-    throw new Error(`Failed to fetch agent "${name}": ${res.status}`);
+    throw new Error(defaultApiErrorMessage(`Failed to fetch agent "${name}"`, response, error));
   }
-  const json = await res.json();
-  const parsed = agentResponseSchema.parse(json);
-  return parsed.agent;
+  return requireResponseData(data, response, `Failed to fetch agent "${name}"`).agent;
 }

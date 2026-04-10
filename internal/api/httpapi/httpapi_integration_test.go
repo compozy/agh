@@ -257,7 +257,7 @@ func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
 	}
-	if listed.Sessions[0].StopReason != string(store.StopUserCanceled) {
+	if listed.Sessions[0].StopReason != store.StopUserCanceled {
 		t.Fatalf("listed.Sessions[0].StopReason = %q, want %q", listed.Sessions[0].StopReason, store.StopUserCanceled)
 	}
 
@@ -274,7 +274,7 @@ func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	if detail.Session.ID != sessionID {
 		t.Fatalf("detail.Session.ID = %q, want %q", detail.Session.ID, sessionID)
 	}
-	if detail.Session.StopReason != string(store.StopUserCanceled) {
+	if detail.Session.StopReason != store.StopUserCanceled {
 		t.Fatalf("detail.Session.StopReason = %q, want %q", detail.Session.StopReason, store.StopUserCanceled)
 	}
 }
@@ -317,7 +317,7 @@ func TestHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
 	}
-	if listed.Sessions[0].StopReason != string(store.StopAgentCrashed) {
+	if listed.Sessions[0].StopReason != store.StopAgentCrashed {
 		t.Fatalf("listed.Sessions[0].StopReason = %q, want %q", listed.Sessions[0].StopReason, store.StopAgentCrashed)
 	}
 
@@ -331,7 +331,7 @@ func TestHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, statusResp, &detail)
-	if detail.Session.StopReason != string(store.StopAgentCrashed) {
+	if detail.Session.StopReason != store.StopAgentCrashed {
 		t.Fatalf("detail.Session.StopReason = %q, want %q", detail.Session.StopReason, store.StopAgentCrashed)
 	}
 }

@@ -32,5 +32,5 @@ func (h *Handlers) approveSession(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "approved"})
+	c.JSON(http.StatusOK, contract.SessionApprovalResponse{Status: "approved"})
 }

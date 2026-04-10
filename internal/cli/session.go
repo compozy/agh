@@ -185,7 +185,7 @@ func newSessionWaitCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if info.State != string(session.StateStopped) {
+			if info.State != session.StateStopped {
 				err = client.StreamSessionEvents(cmd.Context(), args[0], SessionEventQuery{}, "", func(event SSEEvent) error {
 					if event.Event == session.EventTypeSessionStopped {
 						return errStopSSE
@@ -367,7 +367,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				{Label: "Name", Value: stringOrDash(info.Name)},
 				{Label: "Agent", Value: stringOrDash(info.AgentName)},
 				{Label: "Workspace", Value: stringOrDash(displaySessionWorkspace(info))},
-				{Label: "State", Value: stringOrDash(info.State)},
+				{Label: "State", Value: stringOrDash(string(info.State))},
 				{Label: "ACP Session", Value: stringOrDash(info.ACPSessionID)},
 				{Label: "Created", Value: stringOrDash(formatTime(info.CreatedAt))},
 				{Label: "Updated", Value: stringOrDash(formatTime(info.UpdatedAt))},
@@ -392,7 +392,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				info.Name,
 				info.AgentName,
 				displaySessionWorkspace(info),
-				info.State,
+				string(info.State),
 				info.ACPSessionID,
 				formatTime(info.CreatedAt),
 				formatTime(info.UpdatedAt),
@@ -414,7 +414,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 				stringOrDash(item.ID),
 				stringOrDash(item.Name),
 				stringOrDash(item.AgentName),
-				stringOrDash(item.State),
+				stringOrDash(string(item.State)),
 				stringOrDash(displaySessionWorkspace(item)),
 				stringOrDash(formatAge(now, item.UpdatedAt)),
 			}
@@ -424,7 +424,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 				item.ID,
 				item.Name,
 				item.AgentName,
-				item.State,
+				string(item.State),
 				displaySessionWorkspace(item),
 				formatTime(item.UpdatedAt),
 			}
@@ -525,7 +525,7 @@ func agentEventsBundle(events []AgentEventRecord) outputBundle {
 func filterActiveSessions(items []SessionRecord) []SessionRecord {
 	filtered := make([]SessionRecord, 0, len(items))
 	for _, item := range items {
-		if strings.TrimSpace(item.State) == string(session.StateStopped) {
+		if strings.TrimSpace(string(item.State)) == string(session.StateStopped) {
 			continue
 		}
 		filtered = append(filtered, item)

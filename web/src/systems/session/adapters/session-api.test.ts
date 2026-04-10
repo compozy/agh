@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  expectFetchRequest,
+  fetchRequest,
+  mockEmptyResponse,
+  mockJsonResponse,
+} from "@/test/fetch-test-utils";
+
+import {
   createSession,
   fetchSession,
   fetchSessionEvents,
@@ -29,239 +36,211 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// --- fetchSessions ---
-
 describe("fetchSessions", () => {
   it("returns parsed SessionPayload array", async () => {
     const sessions = [mockSession, { ...mockSession, id: "sess-002", name: "Second" }];
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ sessions }),
-    } as Response);
+    mockJsonResponse({ sessions });
 
     const result = await fetchSessions();
+
     expect(result).toEqual(sessions);
     expect(result).toHaveLength(2);
+    await expectFetchRequest({ path: "/api/sessions" });
   });
 
   it("passes abort signal to fetch", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ sessions: [] }),
-    } as Response);
+    mockJsonResponse({ sessions: [] });
 
     const controller = new AbortController();
     await fetchSessions(undefined, controller.signal);
-    expect(fetch).toHaveBeenCalledWith("/api/sessions", { signal: controller.signal });
+
+    await expectFetchRequest({
+      path: "/api/sessions",
+      signal: controller.signal,
+    });
   });
 
   it("adds the workspace filter when provided", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ sessions: [] }),
-    } as Response);
+    mockJsonResponse({ sessions: [] });
 
     await fetchSessions("ws_alpha");
 
-    expect(fetch).toHaveBeenCalledWith("/api/sessions?workspace=ws_alpha", {
-      signal: undefined,
-    });
+    await expectFetchRequest({ path: "/api/sessions?workspace=ws_alpha" });
   });
 
   it("treats blank workspace filters as unfiltered requests", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ sessions: [] }),
-    } as Response);
+    mockJsonResponse({ sessions: [] });
 
     await fetchSessions("   ");
 
-    expect(fetch).toHaveBeenCalledWith("/api/sessions", {
-      signal: undefined,
-    });
+    await expectFetchRequest({ path: "/api/sessions" });
   });
 
   it("throws on non-ok response", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 500 } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
     await expect(fetchSessions()).rejects.toThrow("Failed to fetch sessions: 500");
   });
 
   it("returns empty array when server returns empty list", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ sessions: [] }),
-    } as Response);
+    mockJsonResponse({ sessions: [] });
 
     const result = await fetchSessions();
+
     expect(result).toEqual([]);
   });
 });
 
-// --- createSession ---
-
 describe("createSession", () => {
   it("sends correct POST body with agent_name", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ session: mockSession }),
-    } as Response);
+    mockJsonResponse({ session: mockSession });
 
     const result = await createSession({ agent_name: "claude-agent" });
+
     expect(result).toEqual(mockSession);
-    expect(fetch).toHaveBeenCalledWith("/api/sessions", {
+    await expectFetchRequest({
+      body: { agent_name: "claude-agent" },
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agent_name: "claude-agent" }),
-      signal: undefined,
+      path: "/api/sessions",
     });
   });
 
   it("allows create session without agent_name", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ session: mockSession }),
-    } as Response);
+    mockJsonResponse({ session: mockSession });
 
     await createSession({});
-    expect(fetch).toHaveBeenCalledWith("/api/sessions", {
+
+    await expectFetchRequest({
+      body: {},
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-      signal: undefined,
+      path: "/api/sessions",
     });
   });
 
   it("sends optional name and workspace", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ session: mockSession }),
-    } as Response);
+    mockJsonResponse({ session: mockSession });
 
-    await createSession({ agent_name: "claude-agent", name: "My Session", workspace: "/home" });
-    expect(fetch).toHaveBeenCalledWith("/api/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    await createSession({
+      agent_name: "claude-agent",
+      name: "My Session",
+      workspace: "/home",
+    });
+
+    await expectFetchRequest({
+      body: {
         agent_name: "claude-agent",
         name: "My Session",
         workspace: "/home",
-      }),
-      signal: undefined,
+      },
+      method: "POST",
+      path: "/api/sessions",
     });
   });
 
   it("sends workspace_path when creating from an explicit path", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ session: mockSession }),
-    } as Response);
+    mockJsonResponse({ session: mockSession });
 
-    await createSession({ agent_name: "claude-agent", workspace_path: "/workspace/demo" });
+    await createSession({
+      agent_name: "claude-agent",
+      workspace_path: "/workspace/demo",
+    });
 
-    expect(fetch).toHaveBeenCalledWith("/api/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    await expectFetchRequest({
+      body: {
         agent_name: "claude-agent",
         workspace_path: "/workspace/demo",
-      }),
-      signal: undefined,
+      },
+      method: "POST",
+      path: "/api/sessions",
     });
   });
 
   it("throws 'Max sessions reached' on 409", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 409 } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 409 }));
+
     await expect(createSession({ agent_name: "claude-agent" })).rejects.toThrow(
       "Max sessions reached"
     );
   });
 
   it("throws generic error for other failures", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 500 } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
     await expect(createSession({ agent_name: "claude-agent" })).rejects.toThrow(
       "Failed to create session: 500"
     );
   });
 });
 
-// --- fetchSession ---
-
 describe("fetchSession", () => {
   it("returns single SessionPayload on success", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ session: mockSession }),
-    } as Response);
+    mockJsonResponse({ session: mockSession });
 
     const result = await fetchSession("sess-001");
+
     expect(result).toEqual(mockSession);
-    expect(fetch).toHaveBeenCalledWith("/api/sessions/sess-001", { signal: undefined });
+    await expectFetchRequest({ path: "/api/sessions/sess-001" });
   });
 
   it("throws 404 error for unknown session", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
     await expect(fetchSession("unknown")).rejects.toThrow("Session not found: unknown");
   });
 
   it("encodes session id in URL", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ session: mockSession }),
-    } as Response);
+    mockJsonResponse({ session: mockSession });
 
     await fetchSession("id with spaces");
-    expect(fetch).toHaveBeenCalledWith("/api/sessions/id%20with%20spaces", { signal: undefined });
+
+    await expectFetchRequest({ path: "/api/sessions/id%20with%20spaces" });
   });
 });
 
-// --- stopSession ---
-
 describe("stopSession", () => {
   it("calls DELETE endpoint", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
+    mockEmptyResponse();
 
     await stopSession("sess-001");
-    expect(fetch).toHaveBeenCalledWith("/api/sessions/sess-001", {
+
+    await expectFetchRequest({
       method: "DELETE",
-      signal: undefined,
+      path: "/api/sessions/sess-001",
     });
   });
 
   it("throws 404 error for unknown session", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
     await expect(stopSession("unknown")).rejects.toThrow("Session not found: unknown");
   });
 
   it("throws generic error for other failures", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 500 } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
     await expect(stopSession("sess-001")).rejects.toThrow('Failed to stop session "sess-001": 500');
   });
 });
 
-// --- resumeSession ---
-
 describe("resumeSession", () => {
   it("calls POST resume endpoint", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ session: { ...mockSession, state: "active" } }),
-    } as Response);
+    mockJsonResponse({ session: { ...mockSession, state: "active" } });
 
     const result = await resumeSession("sess-001");
+
     expect(result.state).toBe("active");
-    expect(fetch).toHaveBeenCalledWith("/api/sessions/sess-001/resume", {
+    await expectFetchRequest({
       method: "POST",
-      signal: undefined,
+      path: "/api/sessions/sess-001/resume",
     });
   });
 
   it("throws 404 error for unknown session", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
     await expect(resumeSession("unknown")).rejects.toThrow("Session not found: unknown");
   });
 });
-
-// --- fetchSessionEvents ---
 
 describe("fetchSessionEvents", () => {
   const mockEvents = [
@@ -278,20 +257,16 @@ describe("fetchSessionEvents", () => {
   ];
 
   it("returns parsed events array", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ events: mockEvents }),
-    } as Response);
+    mockJsonResponse({ events: mockEvents });
 
     const result = await fetchSessionEvents("sess-001");
+
     expect(result).toEqual(mockEvents);
+    await expectFetchRequest({ path: "/api/sessions/sess-001/events" });
   });
 
   it("passes query params correctly", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ events: [] }),
-    } as Response);
+    mockJsonResponse({ events: [] });
 
     await fetchSessionEvents("sess-001", {
       since: "2026-04-01T00:00:00Z",
@@ -302,8 +277,8 @@ describe("fetchSessionEvents", () => {
       turn_id: "turn-1",
     });
 
-    const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
-    const url = new URL(calledUrl);
+    const request = fetchRequest();
+    const url = new URL(request.url);
     expect(url.pathname).toBe("/api/sessions/sess-001/events");
     expect(url.searchParams.get("since")).toBe("2026-04-01T00:00:00Z");
     expect(url.searchParams.get("limit")).toBe("50");
@@ -314,27 +289,23 @@ describe("fetchSessionEvents", () => {
   });
 
   it("omits undefined params", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ events: [] }),
-    } as Response);
+    mockJsonResponse({ events: [] });
 
     await fetchSessionEvents("sess-001", { limit: 10 });
 
-    const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
-    const url = new URL(calledUrl);
+    const request = fetchRequest();
+    const url = new URL(request.url);
     expect(url.searchParams.get("limit")).toBe("10");
     expect(url.searchParams.has("since")).toBe(false);
     expect(url.searchParams.has("type")).toBe(false);
   });
 
   it("throws 404 for unknown session", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
     await expect(fetchSessionEvents("unknown")).rejects.toThrow("Session not found: unknown");
   });
 });
-
-// --- fetchSessionTranscript ---
 
 describe("fetchSessionTranscript", () => {
   const mockTranscript = {
@@ -370,20 +341,17 @@ describe("fetchSessionTranscript", () => {
   };
 
   it("returns parsed transcript messages", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockTranscript),
-    } as Response);
+    mockJsonResponse(mockTranscript);
 
     const result = await fetchSessionTranscript("sess-001");
+
     expect(result).toEqual(mockTranscript.messages);
-    expect(fetch).toHaveBeenCalledWith("/api/sessions/sess-001/transcript", {
-      signal: undefined,
-    });
+    await expectFetchRequest({ path: "/api/sessions/sess-001/transcript" });
   });
 
   it("throws 404 for unknown session", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
     await expect(fetchSessionTranscript("unknown")).rejects.toThrow("Session not found: unknown");
   });
 });

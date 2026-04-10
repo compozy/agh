@@ -13,6 +13,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/pedronauck/agh/internal/acp"
+	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	"github.com/pedronauck/agh/internal/frontmatter"
 	"github.com/pedronauck/agh/internal/memory"
 	observepkg "github.com/pedronauck/agh/internal/observe"
@@ -206,105 +207,39 @@ func (h *HostAPIHandler) MethodHandlers() map[string]subprocess.HandlerFunc {
 	return out
 }
 
-type hostAPISessionsListParams struct {
-	Workspace string `json:"workspace,omitempty"`
-}
+type hostAPISessionsListParams = extensioncontract.SessionsListParams
 
-type hostAPISessionCreateParams struct {
-	Agent     string `json:"agent"`
-	Prompt    string `json:"prompt,omitempty"`
-	Workspace string `json:"workspace,omitempty"`
-}
+type hostAPISessionCreateParams = extensioncontract.SessionsCreateParams
 
-type hostAPISessionPromptParams struct {
-	SessionID string `json:"session_id"`
-	Message   string `json:"message"`
-}
+type hostAPISessionPromptParams = extensioncontract.SessionsPromptParams
 
-type hostAPISessionTargetParams struct {
-	SessionID string `json:"session_id"`
-}
+type hostAPISessionTargetParams = extensioncontract.SessionTargetParams
 
-type hostAPISessionEventsParams struct {
-	SessionID string `json:"session_id"`
-	Type      string `json:"type,omitempty"`
-	AgentName string `json:"agent_name,omitempty"`
-	TurnID    string `json:"turn_id,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
-	Offset    int64  `json:"offset,omitempty"`
-	Since     string `json:"since,omitempty"`
-}
+type hostAPISessionEventsParams = extensioncontract.SessionEventsParams
 
-type hostAPIMemoryScopeParams struct {
-	Key       string   `json:"key,omitempty"`
-	Query     string   `json:"query,omitempty"`
-	Content   string   `json:"content,omitempty"`
-	Scope     string   `json:"scope,omitempty"`
-	Workspace string   `json:"workspace,omitempty"`
-	Tags      []string `json:"tags,omitempty"`
-	Limit     int      `json:"limit,omitempty"`
-}
+type hostAPIMemoryStoreParams = extensioncontract.MemoryStoreParams
 
-type hostAPIObserveEventsParams struct {
-	SessionID string `json:"session_id,omitempty"`
-	AgentName string `json:"agent_name,omitempty"`
-	Type      string `json:"type,omitempty"`
-	Since     string `json:"since,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
-}
+type hostAPIMemoryRecallParams = extensioncontract.MemoryRecallParams
 
-type hostAPISkillsListParams struct {
-	Workspace string `json:"workspace,omitempty"`
-}
+type hostAPIMemoryForgetParams = extensioncontract.MemoryForgetParams
 
-type hostAPISessionSummary struct {
-	ID        string               `json:"id"`
-	Name      string               `json:"name,omitempty"`
-	Agent     string               `json:"agent"`
-	Workspace string               `json:"workspace,omitempty"`
-	State     session.SessionState `json:"state"`
-	CreatedAt time.Time            `json:"created_at"`
-}
+type hostAPIObserveEventsParams = extensioncontract.ObserveEventsParams
 
-type hostAPISessionStatus struct {
-	SessionID    string               `json:"session_id"`
-	Name         string               `json:"name,omitempty"`
-	Agent        string               `json:"agent"`
-	WorkspaceID  string               `json:"workspace_id,omitempty"`
-	Workspace    string               `json:"workspace,omitempty"`
-	State        session.SessionState `json:"state"`
-	StopReason   store.StopReason     `json:"stop_reason,omitempty"`
-	StopDetail   string               `json:"stop_detail,omitempty"`
-	ACPSessionID string               `json:"acp_session_id,omitempty"`
-	CreatedAt    time.Time            `json:"created_at"`
-	UpdatedAt    time.Time            `json:"updated_at"`
-}
+type hostAPISkillsListParams = extensioncontract.SkillsListParams
 
-type hostAPISessionEvent struct {
-	Type      string    `json:"type"`
-	Timestamp time.Time `json:"timestamp"`
-	Data      any       `json:"data,omitempty"`
-}
+type hostAPISessionSummary = extensioncontract.SessionSummary
 
-type hostAPISessionCreateResult struct {
-	SessionID string `json:"session_id"`
-}
+type hostAPISessionStatus = extensioncontract.SessionStatus
 
-type hostAPISessionPromptResult struct {
-	TurnID string `json:"turn_id"`
-}
+type hostAPISessionEvent = extensioncontract.SessionEvent
 
-type hostAPIMemoryRecallEntry struct {
-	Key     string  `json:"key"`
-	Content string  `json:"content"`
-	Score   float64 `json:"score"`
-}
+type hostAPISessionCreateResult = extensioncontract.SessionCreateResult
 
-type hostAPISkillSummary struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	Source      string `json:"source"`
-}
+type hostAPISessionPromptResult = extensioncontract.SessionPromptResult
+
+type hostAPIMemoryRecallEntry = extensioncontract.MemoryRecallEntry
+
+type hostAPISkillSummary = extensioncontract.SkillSummary
 
 func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMessage) (any, error) {
 	if h.sessions == nil {
@@ -450,16 +385,11 @@ func (h *HostAPIHandler) handleSessionsEvents(ctx context.Context, raw json.RawM
 		return nil, invalidParamsRPCError(errors.New("session_id is required"))
 	}
 
-	since, err := parseHostAPITime(params.Since)
-	if err != nil {
-		return nil, invalidParamsRPCError(err)
-	}
-
 	events, err := h.sessions.Events(ctx, params.SessionID, store.EventQuery{
 		Type:          strings.TrimSpace(params.Type),
 		AgentName:     strings.TrimSpace(params.AgentName),
 		TurnID:        strings.TrimSpace(params.TurnID),
-		Since:         since,
+		Since:         params.Since,
 		Limit:         params.Limit,
 		AfterSequence: params.Offset,
 	})
@@ -479,7 +409,7 @@ func (h *HostAPIHandler) handleSessionsEvents(ctx context.Context, raw json.RawM
 }
 
 func (h *HostAPIHandler) handleMemoryStore(ctx context.Context, raw json.RawMessage) (any, error) {
-	var params hostAPIMemoryScopeParams
+	var params hostAPIMemoryStoreParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
@@ -490,7 +420,7 @@ func (h *HostAPIHandler) handleMemoryStore(ctx context.Context, raw json.RawMess
 		return nil, invalidParamsRPCError(errors.New("content is required"))
 	}
 
-	storeHandle, scope, err := h.memoryStoreFor(ctx, params.Scope, params.Workspace)
+	storeHandle, scope, err := h.memoryStoreFor(ctx, string(params.Scope), params.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -513,7 +443,7 @@ func (h *HostAPIHandler) handleMemoryStore(ctx context.Context, raw json.RawMess
 }
 
 func (h *HostAPIHandler) handleMemoryRecall(ctx context.Context, raw json.RawMessage) (any, error) {
-	var params hostAPIMemoryScopeParams
+	var params hostAPIMemoryRecallParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
@@ -522,7 +452,7 @@ func (h *HostAPIHandler) handleMemoryRecall(ctx context.Context, raw json.RawMes
 		return nil, invalidParamsRPCError(errors.New("query is required"))
 	}
 
-	sources, err := h.memorySourcesForRecall(ctx, params.Scope, params.Workspace)
+	sources, err := h.memorySourcesForRecall(ctx, string(params.Scope), params.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -570,7 +500,7 @@ func (h *HostAPIHandler) handleMemoryRecall(ctx context.Context, raw json.RawMes
 }
 
 func (h *HostAPIHandler) handleMemoryForget(ctx context.Context, raw json.RawMessage) (any, error) {
-	var params hostAPIMemoryScopeParams
+	var params hostAPIMemoryForgetParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
@@ -578,7 +508,7 @@ func (h *HostAPIHandler) handleMemoryForget(ctx context.Context, raw json.RawMes
 		return nil, invalidParamsRPCError(errors.New("key is required"))
 	}
 
-	storeHandle, scope, err := h.memoryStoreFor(ctx, params.Scope, params.Workspace)
+	storeHandle, scope, err := h.memoryStoreFor(ctx, string(params.Scope), params.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -605,15 +535,11 @@ func (h *HostAPIHandler) handleObserveEvents(ctx context.Context, raw json.RawMe
 		return nil, err
 	}
 
-	since, err := parseHostAPITime(params.Since)
-	if err != nil {
-		return nil, invalidParamsRPCError(err)
-	}
 	events, err := h.observer.QueryEvents(ctx, store.EventSummaryQuery{
 		SessionID: strings.TrimSpace(params.SessionID),
 		AgentName: strings.TrimSpace(params.AgentName),
 		Type:      strings.TrimSpace(params.Type),
-		Since:     since,
+		Since:     params.Since,
 		Limit:     params.Limit,
 	})
 	if err != nil {
@@ -985,23 +911,6 @@ func decodeHostAPIParams(raw json.RawMessage, target any) error {
 		return invalidParamsRPCError(fmt.Errorf("decode params: %w", err))
 	}
 	return nil
-}
-
-func parseHostAPITime(raw string) (time.Time, error) {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return time.Time{}, nil
-	}
-
-	parsed, err := time.Parse(time.RFC3339Nano, value)
-	if err == nil {
-		return parsed.UTC(), nil
-	}
-	parsed, err = time.Parse(time.RFC3339, value)
-	if err == nil {
-		return parsed.UTC(), nil
-	}
-	return time.Time{}, fmt.Errorf("invalid time %q", value)
 }
 
 func decodeJSONValue(raw string) any {

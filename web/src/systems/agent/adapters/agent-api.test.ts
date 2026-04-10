@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
+
 import { fetchAgent, fetchAgents } from "./agent-api";
 
 describe("fetchAgents", () => {
@@ -28,43 +30,38 @@ describe("fetchAgents", () => {
   });
 
   it("returns array of AgentPayload on success", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(validResponse),
-    } as Response);
+    mockJsonResponse(validResponse);
 
     const result = await fetchAgents();
+
     expect(result).toEqual(validResponse.agents);
     expect(result).toHaveLength(2);
+    await expectFetchRequest({ path: "/api/agents" });
   });
 
   it("passes abort signal to fetch", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(validResponse),
-    } as Response);
+    mockJsonResponse(validResponse);
 
     const controller = new AbortController();
     await fetchAgents(controller.signal);
-    expect(fetch).toHaveBeenCalledWith("/api/agents", { signal: controller.signal });
+
+    await expectFetchRequest({
+      path: "/api/agents",
+      signal: controller.signal,
+    });
   });
 
   it("throws on non-ok response", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 500,
-    } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
     await expect(fetchAgents()).rejects.toThrow("Failed to fetch agents: 500");
   });
 
   it("returns empty array when server returns empty list", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ agents: [] }),
-    } as Response);
+    mockJsonResponse({ agents: [] });
 
     const result = await fetchAgents();
+
     expect(result).toEqual([]);
   });
 });
@@ -87,30 +84,22 @@ describe("fetchAgent", () => {
   });
 
   it("returns single AgentPayload on success", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(validResponse),
-    } as Response);
+    mockJsonResponse(validResponse);
 
     const result = await fetchAgent("claude-agent");
+
     expect(result).toEqual(validResponse.agent);
-    expect(fetch).toHaveBeenCalledWith("/api/agents/claude-agent", { signal: undefined });
+    await expectFetchRequest({ path: "/api/agents/claude-agent" });
   });
 
   it("throws 404 error for unknown agent", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 404,
-    } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
     await expect(fetchAgent("unknown")).rejects.toThrow("Agent not found: unknown");
   });
 
   it("throws generic error for other failures", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 503,
-    } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 503 }));
 
     await expect(fetchAgent("claude-agent")).rejects.toThrow(
       'Failed to fetch agent "claude-agent": 503'
@@ -118,12 +107,10 @@ describe("fetchAgent", () => {
   });
 
   it("encodes agent name in URL", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(validResponse),
-    } as Response);
+    mockJsonResponse(validResponse);
 
     await fetchAgent("my agent");
-    expect(fetch).toHaveBeenCalledWith("/api/agents/my%20agent", { signal: undefined });
+
+    await expectFetchRequest({ path: "/api/agents/my%20agent" });
   });
 });

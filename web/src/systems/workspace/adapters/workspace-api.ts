@@ -1,35 +1,35 @@
-import { workspaceResponseSchema, workspacesResponseSchema, type WorkspacePayload } from "../types";
+import {
+  apiClient,
+  apiRequestFailed,
+  defaultApiErrorMessage,
+  requireResponseData,
+} from "@/lib/api-client";
+import type { OperationRequestBody } from "@/lib/api-contract";
+
+import type { WorkspacePayload } from "../types";
+
+export type ResolveWorkspaceParams = OperationRequestBody<"resolveWorkspace">;
 
 export async function fetchWorkspaces(signal?: AbortSignal): Promise<WorkspacePayload[]> {
-  const res = await fetch("/api/workspaces", { signal });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch workspaces: ${res.status}`);
+  const { data, error, response } = await apiClient.GET("/api/workspaces", { signal });
+  if (apiRequestFailed(response, error)) {
+    throw new Error(defaultApiErrorMessage("Failed to fetch workspaces", response, error));
   }
 
-  const json = await res.json();
-  const parsed = workspacesResponseSchema.parse(json);
-  return parsed.workspaces;
-}
-
-export interface ResolveWorkspaceParams {
-  path: string;
+  return requireResponseData(data, response, "Failed to fetch workspaces").workspaces;
 }
 
 export async function resolveWorkspace(
   params: ResolveWorkspaceParams,
   signal?: AbortSignal
 ): Promise<WorkspacePayload> {
-  const res = await fetch("/api/workspaces/resolve", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+  const { data, error, response } = await apiClient.POST("/api/workspaces/resolve", {
+    body: params,
     signal,
   });
-  if (!res.ok) {
-    throw new Error(`Failed to resolve workspace: ${res.status}`);
+  if (apiRequestFailed(response, error)) {
+    throw new Error(defaultApiErrorMessage("Failed to resolve workspace", response, error));
   }
 
-  const json = await res.json();
-  const parsed = workspaceResponseSchema.parse(json);
-  return parsed.workspace;
+  return requireResponseData(data, response, "Failed to resolve workspace").workspace;
 }

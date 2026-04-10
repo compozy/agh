@@ -14,6 +14,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/subprocess"
@@ -374,7 +375,7 @@ func (m *Manager) Start(ctx context.Context) error {
 		m.mu.Unlock()
 		return errors.New("extension: manager already started")
 	}
-	m.lifecycleCtx, m.cancel = context.WithCancel(ctx)
+	m.lifecycleCtx, m.cancel = context.WithCancel(context.Background())
 	m.started = true
 	m.stopping = false
 	m.extensions = make(map[string]*managedExtension)
@@ -400,7 +401,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			continue
 		}
 
-		if err := m.startOne(m.lifecycleCtx, ext); err != nil {
+		if err := m.startOne(ctx, ext); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1006,7 +1007,7 @@ func (m *Manager) launchRuntime(ctx context.Context, ext *managedExtension) (pro
 		},
 		Capabilities: subprocess.InitializeCapabilities{
 			Provides:        normalizeUniqueStrings(ext.manifest.Capabilities.Provides),
-			GrantedActions:  normalizeUniqueStrings(ext.grantedActions),
+			GrantedActions:  hostAPIMethodsFromStrings(ext.grantedActions),
 			GrantedSecurity: normalizeUniqueStrings(ext.grantedSecurity),
 		},
 		Methods: subprocess.InitializeMethods{
@@ -1258,6 +1259,7 @@ func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg HookConfig) (hooks
 		ExecutorKind: kind,
 		Command:      resolvedCommand,
 		Args:         resolvedArgs,
+		WorkingDir:   ext.rootDir,
 		Env:          resolvedEnv,
 		Metadata: map[string]string{
 			"extension": ext.info.Name,
@@ -1686,6 +1688,15 @@ func capabilityMethods(provides []string) []string {
 		methods = append(methods, capabilityServiceMethods[capability]...)
 	}
 	return normalizeUniqueStrings(methods)
+}
+
+func hostAPIMethodsFromStrings(values []string) []extensionprotocol.HostAPIMethod {
+	normalized := normalizeUniqueStrings(values)
+	methods := make([]extensionprotocol.HostAPIMethod, 0, len(normalized))
+	for _, value := range normalized {
+		methods = append(methods, extensionprotocol.HostAPIMethod(value))
+	}
+	return methods
 }
 
 func skillSourceForExtension(source ExtensionSource) skillspkg.SkillSource {

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CLI commands (list, install, enable, disable)
 type: backend
 complexity: medium
@@ -35,12 +35,12 @@ Add the `agh extension` subcommand tree to the existing Cobra CLI. Users install
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Create `internal/cli/extension.go` with root `agh extension` command and subcommands
-- [ ] 9.2 Implement `install <path>` subcommand with manifest parsing and registry write
-- [ ] 9.3 Implement `list` subcommand with --format support
-- [ ] 9.4 Implement `enable`, `disable`, `status` subcommands
-- [ ] 9.5 Add `agh extension` command tree to `internal/cli/root.go`
-- [ ] 9.6 Write unit and integration tests using CLI test harness
+- [x] 9.1 Create `internal/cli/extension.go` with root `agh extension` command and subcommands
+- [x] 9.2 Implement `install <path>` subcommand with manifest parsing and registry write
+- [x] 9.3 Implement `list` subcommand with --format support
+- [x] 9.4 Implement `enable`, `disable`, `status` subcommands
+- [x] 9.5 Add `agh extension` command tree to `internal/cli/root.go`
+- [x] 9.6 Write unit and integration tests using CLI test harness
 
 ## Implementation Details
 
@@ -71,20 +71,20 @@ See TechSpec "Development Sequencing" section for the CLI scope. See `_examples.
 
 ## Tests
 - Unit tests:
-  - [ ] `install` parses valid manifest directory and calls registry.Install
-  - [ ] `install` with missing directory returns clear error
-  - [ ] `install` with invalid manifest returns parsing error
-  - [ ] `install` with checksum mismatch returns verification error
-  - [ ] `list` outputs human format with columns: name, version, type, state, capabilities
-  - [ ] `list --format=json` outputs valid JSON array
-  - [ ] `list --format=toon` outputs TOON format
-  - [ ] `enable <name>` sets registry enabled=true
-  - [ ] `enable <unknown>` returns `ErrExtensionNotFound`
-  - [ ] `disable <name>` sets registry enabled=false
-  - [ ] `status <name>` shows runtime state when daemon is running
-  - [ ] `status <name>` shows registry-only state when daemon is offline
+  - [x] `install` parses valid manifest directory and calls registry.Install
+  - [x] `install` with missing directory returns clear error
+  - [x] `install` with invalid manifest returns parsing error
+  - [x] `install` with checksum mismatch returns verification error
+  - [x] `list` outputs human format with columns: name, version, type, state, capabilities
+  - [x] `list --format=json` outputs valid JSON array
+  - [x] `list --format=toon` outputs TOON format
+  - [x] `enable <name>` sets registry enabled=true
+  - [x] `enable <unknown>` returns `ErrExtensionNotFound`
+  - [x] `disable <name>` sets registry enabled=false
+  - [x] `status <name>` shows runtime state when daemon is running
+  - [x] `status <name>` shows registry-only state when daemon is offline
 - Integration tests:
-  - [ ] Full CLI flow: install test extension → list shows it → status shows active → disable → list shows disabled
+  - [x] Full CLI flow: install test extension → list shows it → status shows active → disable → list shows disabled
 - Test coverage target: >=80%
 - All tests must pass
 

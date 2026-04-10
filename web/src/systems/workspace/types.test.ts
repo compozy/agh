@@ -1,58 +1,31 @@
-import { describe, expect, it } from "vitest";
+import { describe, expectTypeOf, it } from "vitest";
 
-import { workspacePayloadSchema, workspaceResponseSchema, workspacesResponseSchema } from "./types";
+import type {
+  WorkspaceDetailPayload,
+  WorkspacePayload,
+  WorkspaceResponse,
+  WorkspacesResponse,
+} from "./types";
 
-describe("workspacePayloadSchema", () => {
-  const validWorkspace = {
-    id: "ws_alpha",
-    root_dir: "/workspace/alpha",
-    add_dirs: ["/workspace/shared"],
-    name: "alpha",
-    created_at: "2026-04-06T10:00:00Z",
-    updated_at: "2026-04-06T10:00:00Z",
-  };
+describe("workspace contract types", () => {
+  it("derives workspace payloads from the generated contract", () => {
+    expectTypeOf<WorkspacePayload>().toMatchTypeOf<{
+      id: string;
+      root_dir: string;
+      add_dirs: string[];
+      name: string;
+      created_at: string;
+      updated_at: string;
+      default_agent?: string;
+    }>();
 
-  it("validates a minimal workspace payload", () => {
-    const result = workspacePayloadSchema.safeParse(validWorkspace);
-    expect(result.success).toBe(true);
-  });
-
-  it("validates a workspace with a default agent", () => {
-    const result = workspacePayloadSchema.safeParse({
-      ...validWorkspace,
-      default_agent: "coder",
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects incomplete payloads", () => {
-    const { id: _, ...missingID } = validWorkspace;
-    const result = workspacePayloadSchema.safeParse(missingID);
-    expect(result.success).toBe(false);
-  });
-});
-
-describe("workspace response schemas", () => {
-  const validWorkspace = {
-    id: "ws_alpha",
-    root_dir: "/workspace/alpha",
-    add_dirs: [],
-    name: "alpha",
-    created_at: "2026-04-06T10:00:00Z",
-    updated_at: "2026-04-06T10:00:00Z",
-  };
-
-  it("validates workspaces list responses", () => {
-    const result = workspacesResponseSchema.safeParse({
-      workspaces: [validWorkspace],
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("validates single workspace responses", () => {
-    const result = workspaceResponseSchema.safeParse({
-      workspace: validWorkspace,
-    });
-    expect(result.success).toBe(true);
+    expectTypeOf<WorkspacesResponse>().toMatchTypeOf<{ workspaces: WorkspacePayload[] }>();
+    expectTypeOf<WorkspaceResponse>().toMatchTypeOf<{ workspace: WorkspacePayload }>();
+    expectTypeOf<WorkspaceDetailPayload>().toMatchTypeOf<{
+      workspace: WorkspacePayload;
+      sessions?: unknown[];
+      agents?: unknown[];
+      skills?: unknown[];
+    }>();
   });
 });

@@ -25,6 +25,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
@@ -2976,7 +2977,7 @@ func daemonExtensionInitializeResponse(req subprocess.InitializeRequest) subproc
 		},
 		AcceptedCapabilities: subprocess.AcceptedCapabilities{
 			Provides: append([]string(nil), req.Capabilities.Provides...),
-			Actions:  append([]string(nil), req.Capabilities.GrantedActions...),
+			Actions:  append([]extensionprotocol.HostAPIMethod(nil), req.Capabilities.GrantedActions...),
 			Security: append([]string(nil), req.Capabilities.GrantedSecurity...),
 		},
 		ImplementedMethods:  []string{"health_check", "shutdown"},

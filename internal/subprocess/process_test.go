@@ -15,6 +15,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 )
 
 const (
@@ -494,7 +496,9 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 		{
 			name: "action-outside-grant",
 			mutate: func(response *InitializeResponse) {
-				response.AcceptedCapabilities.Actions = []string{"sessions/create"}
+				response.AcceptedCapabilities.Actions = []extensionprotocol.HostAPIMethod{
+					extensionprotocol.HostAPIMethodSessionsCreate,
+				}
 			},
 			wantSub: "accepted actions",
 		},
@@ -523,7 +527,7 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 				ProtocolVersion: defaultProtocolVersion,
 				AcceptedCapabilities: AcceptedCapabilities{
 					Provides: append([]string(nil), request.Capabilities.Provides...),
-					Actions:  append([]string(nil), request.Capabilities.GrantedActions...),
+					Actions:  append([]extensionprotocol.HostAPIMethod(nil), request.Capabilities.GrantedActions...),
 					Security: append([]string(nil), request.Capabilities.GrantedSecurity...),
 				},
 				ImplementedMethods: []string{"health_check", "shutdown"},
@@ -674,7 +678,7 @@ func newInitializeRequest(runtimeCfg InitializeRuntime) InitializeRequest {
 		},
 		Capabilities: InitializeCapabilities{
 			Provides:        []string{"memory.backend"},
-			GrantedActions:  []string{"sessions/list"},
+			GrantedActions:  []extensionprotocol.HostAPIMethod{extensionprotocol.HostAPIMethodSessionsList},
 			GrantedSecurity: []string{"memory.read", "memory.write"},
 		},
 		Methods: InitializeMethods{
@@ -818,7 +822,7 @@ func (h *helperServer) handleInitialize(envelope rpcEnvelope) {
 		},
 		AcceptedCapabilities: AcceptedCapabilities{
 			Provides: append([]string(nil), request.Capabilities.Provides...),
-			Actions:  append([]string(nil), request.Capabilities.GrantedActions...),
+			Actions:  append([]extensionprotocol.HostAPIMethod(nil), request.Capabilities.GrantedActions...),
 			Security: append([]string(nil), request.Capabilities.GrantedSecurity...),
 		},
 		ImplementedMethods: []string{"echo", "sleep", "relay_to_host", "health_check", "shutdown", "oversize"},
