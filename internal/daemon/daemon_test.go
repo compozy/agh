@@ -22,6 +22,7 @@ import (
 
 	"github.com/gofrs/flock"
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -340,17 +341,18 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 	}
 }
 
-func TestBootExtensionsSkipsWhenNoExtensionsInstalled(t *testing.T) {
+func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
 	t.Parallel()
 
 	db := openDaemonTestGlobalDB(t)
 	homePaths := testHomePaths(t)
 	d := newTestDaemon(t, homePaths, testConfig(t, homePaths))
 
+	runtime := &fakeExtensionRuntime{}
 	var managerBuilt bool
 	d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
 		managerBuilt = true
-		return &fakeExtensionRuntime{}
+		return runtime
 	}
 
 	rebuilds := 0
@@ -372,17 +374,23 @@ func TestBootExtensionsSkipsWhenNoExtensionsInstalled(t *testing.T) {
 		t.Fatalf("bootExtensions() error = %v", err)
 	}
 
-	if managerBuilt {
-		t.Fatal("bootExtensions() built an extension manager with no installed extensions")
+	if !managerBuilt {
+		t.Fatal("bootExtensions() did not build an extension manager")
 	}
-	if rebuilds != 0 {
-		t.Fatalf("hook rebuild count = %d, want 0", rebuilds)
+	if runtime.startCount != 1 {
+		t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
 	}
-	if state.extensions != nil {
-		t.Fatalf("state.extensions = %#v, want nil", state.extensions)
+	if rebuilds != 1 {
+		t.Fatalf("hook rebuild count = %d, want 1", rebuilds)
 	}
-	if len(cleanup.fns) != 0 {
-		t.Fatalf("cleanup fns = %d, want 0", len(cleanup.fns))
+	if state.extensions != runtime {
+		t.Fatalf("state.extensions = %#v, want runtime", state.extensions)
+	}
+	if state.deps.Extensions == nil {
+		t.Fatal("state.deps.Extensions = nil, want extension service")
+	}
+	if len(cleanup.fns) != 1 {
+		t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
 	}
 }
 
@@ -506,6 +514,91 @@ func TestBootExtensionsLogsStartFailureAndContinues(t *testing.T) {
 	}
 	if !strings.Contains(logBuffer.String(), "extension manager start failed") {
 		t.Fatalf("log output = %q, want extension start failure message", logBuffer.String())
+	}
+}
+
+func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	registry := extensionpkg.NewRegistry(db.DB())
+	manager := extensionpkg.NewManager(registry, extensionpkg.WithLogger(discardLogger()))
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Stop() error = %v", err)
+		}
+	})
+
+	rebuilds := 0
+	fixedNow := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+	service := newDaemonExtensionService(
+		registry,
+		manager,
+		&fakeHookRuntime{
+			onRebuild: func(context.Context) error {
+				rebuilds++
+				return nil
+			},
+		},
+		discardLogger(),
+		func() time.Time { return fixedNow },
+	)
+
+	fixtureDir := filepath.Join(t.TempDir(), "service-ext")
+	if err := os.MkdirAll(fixtureDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", fixtureDir, err)
+	}
+	if err := os.WriteFile(filepath.Join(fixtureDir, "extension.toml"), []byte(daemonTestExtensionManifest("service-ext", daemonTestExtensionOptions{
+		runtimeCommand: daemonExtensionHelperCommand(t),
+		runtimeArgs:    daemonExtensionHelperArgs(),
+		runtimeEnv:     daemonExtensionHelperEnv(""),
+	})), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
+	}
+	checksum, err := extensionpkg.ComputeDirectoryChecksum(fixtureDir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
+	}
+
+	installed, err := service.Install(testutil.Context(t), contract.InstallExtensionRequest{
+		Path:     fixtureDir,
+		Checksum: checksum,
+	})
+	if err != nil {
+		t.Fatalf("service.Install() error = %v", err)
+	}
+	if installed.Name != "service-ext" || installed.State != "active" || !installed.DaemonRunning {
+		t.Fatalf("installed extension = %#v, want active daemon-backed extension", installed)
+	}
+
+	status, err := service.Status(testutil.Context(t), "service-ext")
+	if err != nil {
+		t.Fatalf("service.Status() error = %v", err)
+	}
+	if status.Name != "service-ext" || status.State != "active" {
+		t.Fatalf("status = %#v, want active extension", status)
+	}
+
+	disabled, err := service.Disable(testutil.Context(t), "service-ext")
+	if err != nil {
+		t.Fatalf("service.Disable() error = %v", err)
+	}
+	if disabled.State != "disabled" || disabled.Enabled {
+		t.Fatalf("disabled extension = %#v, want disabled extension", disabled)
+	}
+
+	listed, err := service.List(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("service.List() error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].State != "disabled" {
+		t.Fatalf("listed extensions = %#v, want one disabled extension", listed)
+	}
+	if rebuilds != 2 {
+		t.Fatalf("hook rebuild count = %d, want 2", rebuilds)
 	}
 }
 
@@ -2544,14 +2637,18 @@ func TestDaemonExtensionHelperProcess(t *testing.T) {
 }
 
 type fakeExtensionRuntime struct {
-	startCount int
-	stopCount  int
-	startErr   error
-	stopErr    error
-	hookDecls  []hookspkg.HookDecl
-	hookErr    error
-	onStart    func()
-	onStop     func()
+	startCount  int
+	stopCount   int
+	reloadCount int
+	startErr    error
+	stopErr     error
+	reloadErr   error
+	hookDecls   []hookspkg.HookDecl
+	hookErr     error
+	getExt      *extensionpkg.Extension
+	getErr      error
+	onStart     func()
+	onStop      func()
 }
 
 func (f *fakeExtensionRuntime) Start(context.Context) error {
@@ -2568,6 +2665,18 @@ func (f *fakeExtensionRuntime) Stop(context.Context) error {
 		f.onStop()
 	}
 	return f.stopErr
+}
+
+func (f *fakeExtensionRuntime) Reload(context.Context) error {
+	f.reloadCount++
+	return f.reloadErr
+}
+
+func (f *fakeExtensionRuntime) Get(string) (*extensionpkg.Extension, error) {
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
+	return f.getExt, nil
 }
 
 func (f *fakeExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
@@ -28,6 +29,15 @@ const (
 
 // Option customizes UDS server construction.
 type Option func(*Server)
+
+// ExtensionService exposes daemon-backed extension management to the UDS API.
+type ExtensionService interface {
+	List(ctx context.Context) ([]contract.ExtensionPayload, error)
+	Install(ctx context.Context, req contract.InstallExtensionRequest) (contract.ExtensionPayload, error)
+	Enable(ctx context.Context, name string) (contract.ExtensionPayload, error)
+	Disable(ctx context.Context, name string) (contract.ExtensionPayload, error)
+	Status(ctx context.Context, name string) (contract.ExtensionPayload, error)
+}
 
 // Server exposes the daemon API over a Unix domain socket.
 type Server struct {
@@ -47,6 +57,7 @@ type Server struct {
 	memoryStore    *memory.Store
 	dreamTrigger   core.DreamTrigger
 	agentLoader    core.AgentLoader
+	extensions     ExtensionService
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -72,11 +83,13 @@ type handlerConfig struct {
 	now            func() time.Time
 	pollInterval   time.Duration
 	agentLoader    core.AgentLoader
+	extensions     ExtensionService
 }
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
 type Handlers struct {
 	*core.BaseHandlers
+	Extensions ExtensionService
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -177,6 +190,13 @@ func WithAgentLoader(loader core.AgentLoader) Option {
 	}
 }
 
+// WithExtensionService injects daemon-backed extension management handlers.
+func WithExtensionService(service ExtensionService) Option {
+	return func(server *Server) {
+		server.extensions = service
+	}
+}
+
 // WithEngine overrides the Gin engine used by the server, mainly for tests.
 func WithEngine(engine *gin.Engine) Option {
 	return func(server *Server) {
@@ -261,6 +281,7 @@ func New(opts ...Option) (*Server, error) {
 		now:            server.now,
 		pollInterval:   server.pollInterval,
 		agentLoader:    server.agentLoader,
+		extensions:     server.extensions,
 	})
 	RegisterRoutes(server.engine, server.handlers)
 
@@ -468,6 +489,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			PollInterval:                 cfg.pollInterval,
 			AgentLoader:                  cfg.agentLoader,
 		}),
+		Extensions: cfg.extensions,
 	}
 }
 

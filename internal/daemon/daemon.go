@@ -72,6 +72,7 @@ type RuntimeDeps struct {
 	WorkspaceService  core.WorkspaceService
 	SkillsRegistry    core.SkillsRegistry
 	DreamTrigger      DreamTrigger
+	Extensions        udsapi.ExtensionService
 	StartedAt         time.Time
 }
 
@@ -97,6 +98,8 @@ type extensionDBSource interface {
 type extensionRuntime interface {
 	Start(context.Context) error
 	Stop(context.Context) error
+	Reload(context.Context) error
+	Get(string) (*extensionpkg.Extension, error)
 	HookDeclarations(context.Context) ([]hookspkg.HookDecl, error)
 }
 
@@ -372,6 +375,7 @@ func (d *Daemon) applyDefaults() error {
 				udsapi.WithSkillsRegistry(deps.SkillsRegistry),
 				udsapi.WithMemoryStore(deps.MemoryStore),
 				udsapi.WithDreamTrigger(deps.DreamTrigger),
+				udsapi.WithExtensionService(deps.Extensions),
 			)
 		}
 	}

@@ -27,6 +27,11 @@ const (
 // DaemonClient is the CLI transport surface for talking to the AGH daemon over UDS.
 type DaemonClient interface {
 	DaemonStatus(ctx context.Context) (DaemonStatus, error)
+	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
+	InstallExtension(ctx context.Context, request InstallExtensionRequest) (ExtensionRecord, error)
+	EnableExtension(ctx context.Context, name string) (ExtensionRecord, error)
+	DisableExtension(ctx context.Context, name string) (ExtensionRecord, error)
+	ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error)
 	ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error)
 	CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error)
 	GetSession(ctx context.Context, id string) (SessionRecord, error)
@@ -164,6 +169,12 @@ type HealthStatus = contract.ObserveHealthPayload
 // DaemonStatus is the shared daemon status payload.
 type DaemonStatus = contract.DaemonStatusPayload
 
+// InstallExtensionRequest captures the shared extension install payload.
+type InstallExtensionRequest = contract.InstallExtensionRequest
+
+// ExtensionRecord is the shared extension response payload.
+type ExtensionRecord = contract.ExtensionPayload
+
 // IdentityRecord is the local agent identity exposed by `agh whoami`.
 type IdentityRecord struct {
 	SessionID string `json:"session_id,omitempty"`
@@ -210,6 +221,44 @@ func (c *unixSocketClient) DaemonStatus(ctx context.Context) (DaemonStatus, erro
 		return DaemonStatus{}, err
 	}
 	return response.Daemon, nil
+}
+
+func (c *unixSocketClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, error) {
+	var response struct {
+		Extensions []ExtensionRecord `json:"extensions"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/extensions", nil, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Extensions, nil
+}
+
+func (c *unixSocketClient) InstallExtension(ctx context.Context, request InstallExtensionRequest) (ExtensionRecord, error) {
+	var response struct {
+		Extension ExtensionRecord `json:"extension"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/api/extensions", nil, request, &response); err != nil {
+		return ExtensionRecord{}, err
+	}
+	return response.Extension, nil
+}
+
+func (c *unixSocketClient) EnableExtension(ctx context.Context, name string) (ExtensionRecord, error) {
+	return c.extensionAction(ctx, strings.TrimSpace(name), "enable")
+}
+
+func (c *unixSocketClient) DisableExtension(ctx context.Context, name string) (ExtensionRecord, error) {
+	return c.extensionAction(ctx, strings.TrimSpace(name), "disable")
+}
+
+func (c *unixSocketClient) ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error) {
+	var response struct {
+		Extension ExtensionRecord `json:"extension"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/extensions/"+url.PathEscape(strings.TrimSpace(name)), nil, nil, &response); err != nil {
+		return ExtensionRecord{}, err
+	}
+	return response.Extension, nil
 }
 
 func (c *unixSocketClient) ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error) {
@@ -459,6 +508,17 @@ func (c *unixSocketClient) ConsolidateMemory(ctx context.Context, workspace stri
 		return MemoryConsolidateRecord{}, err
 	}
 	return response, nil
+}
+
+func (c *unixSocketClient) extensionAction(ctx context.Context, name string, action string) (ExtensionRecord, error) {
+	var response struct {
+		Extension ExtensionRecord `json:"extension"`
+	}
+	path := "/api/extensions/" + url.PathEscape(strings.TrimSpace(name)) + "/" + strings.TrimSpace(action)
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+		return ExtensionRecord{}, err
+	}
+	return response.Extension, nil
 }
 
 func (c *unixSocketClient) doJSON(ctx context.Context, method string, path string, query url.Values, requestBody any, responseBody any) error {

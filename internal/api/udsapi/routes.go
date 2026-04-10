@@ -73,4 +73,13 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	{
 		daemon.GET("/status", handlers.DaemonStatus)
 	}
+
+	extensions := api.Group("/extensions")
+	{
+		extensions.GET("", handlers.ListExtensions)
+		extensions.POST("", handlers.InstallExtension)
+		extensions.GET("/:name", handlers.ExtensionStatus)
+		extensions.POST("/:name/enable", handlers.EnableExtension)
+		extensions.POST("/:name/disable", handlers.DisableExtension)
+	}
 }

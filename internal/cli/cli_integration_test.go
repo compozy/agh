@@ -19,9 +19,11 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/udsapi"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -156,6 +158,70 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	}
 	if !strings.Contains(toonOut, "sessions[1]{id,name,agent_name,state,workspace,updated_at}:") {
 		t.Fatalf("toon output = %q, want TOON table", toonOut)
+	}
+}
+
+func TestExtensionCommandRoundTripIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	dir := writeExtensionFixture(t, "integration-ext", extensionFixtureOptions{})
+
+	installOut, _, err := executeRootCommand(t, h.deps, "extension", "install", dir, "-o", "json")
+	if err != nil {
+		t.Fatalf("extension install error = %v", err)
+	}
+	var installed ExtensionRecord
+	if err := json.Unmarshal([]byte(installOut), &installed); err != nil {
+		t.Fatalf("json.Unmarshal(extension install) error = %v", err)
+	}
+	if installed.Name != "integration-ext" || installed.State != "active" || !installed.DaemonRunning {
+		t.Fatalf("installed extension = %#v, want active daemon-backed extension", installed)
+	}
+
+	listOut, _, err := executeRootCommand(t, h.deps, "extension", "list", "-o", "json")
+	if err != nil {
+		t.Fatalf("extension list error = %v", err)
+	}
+	var listed []ExtensionRecord
+	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
+		t.Fatalf("json.Unmarshal(extension list) error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].Name != "integration-ext" || listed[0].State != "active" {
+		t.Fatalf("listed extensions = %#v, want one active extension", listed)
+	}
+
+	statusOut, _, err := executeRootCommand(t, h.deps, "extension", "status", "integration-ext", "-o", "json")
+	if err != nil {
+		t.Fatalf("extension status error = %v", err)
+	}
+	var status ExtensionRecord
+	if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
+		t.Fatalf("json.Unmarshal(extension status) error = %v", err)
+	}
+	if status.Name != "integration-ext" || status.State != "active" {
+		t.Fatalf("extension status = %#v, want active extension", status)
+	}
+
+	if _, _, err := executeRootCommand(t, h.deps, "extension", "disable", "integration-ext", "-o", "json"); err != nil {
+		t.Fatalf("extension disable error = %v", err)
+	}
+
+	listOut, _, err = executeRootCommand(t, h.deps, "extension", "list", "-o", "json")
+	if err != nil {
+		t.Fatalf("extension list after disable error = %v", err)
+	}
+	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
+		t.Fatalf("json.Unmarshal(extension list after disable) error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].State != "disabled" || listed[0].Enabled {
+		t.Fatalf("listed after disable = %#v, want one disabled extension", listed)
 	}
 }
 
@@ -358,6 +424,11 @@ type integrationDaemonProcess struct {
 	done <-chan error
 }
 
+type integrationExtensionService struct {
+	registry *extensionpkg.Registry
+	manager  *extensionpkg.Manager
+}
+
 type integrationNotifierFanout struct {
 	notifiers []session.Notifier
 }
@@ -372,6 +443,71 @@ type integrationDriver struct {
 type lockedBuffer struct {
 	mu     sync.Mutex
 	buffer bytes.Buffer
+}
+
+func (s *integrationExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
+	infos, err := s.registry.List()
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]contract.ExtensionPayload, 0, len(infos))
+	for _, info := range infos {
+		item, err := s.Status(ctx, info.Name)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (s *integrationExtensionService) Install(ctx context.Context, req contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+	manifest, err := extensionpkg.LoadManifest(req.Path)
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.registry.Install(manifest, req.Path, req.Checksum); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.manager.Reload(ctx); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	return s.Status(ctx, manifest.Name)
+}
+
+func (s *integrationExtensionService) Enable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+	if err := s.registry.Enable(name); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.manager.Reload(ctx); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	return s.Status(ctx, name)
+}
+
+func (s *integrationExtensionService) Disable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+	if err := s.registry.Disable(name); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.manager.Reload(ctx); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	return s.Status(ctx, name)
+}
+
+func (s *integrationExtensionService) Status(_ context.Context, name string) (contract.ExtensionPayload, error) {
+	ext, err := s.manager.Get(name)
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if ext.Manifest == nil && strings.TrimSpace(ext.Info.ManifestPath) != "" {
+		manifest, loadErr := extensionpkg.LoadManifest(filepath.Dir(ext.Info.ManifestPath))
+		if loadErr == nil {
+			ext.Manifest = manifest
+		}
+	}
+	return extensionpkg.DescribeExtension(ext, true, time.Now().UTC()), nil
 }
 
 func (b *lockedBuffer) Write(p []byte) (int, error) {
@@ -541,6 +677,23 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		triggered: true,
 		last:      time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC),
 	}
+	extRegistry := extensionpkg.NewRegistry(registry.DB())
+	extManager := extensionpkg.NewManager(
+		extRegistry,
+		extensionpkg.WithLogger(discardLogger()),
+	)
+	if err := extManager.Start(context.Background()); err != nil {
+		return fmt.Errorf("start extension manager: %w", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = extManager.Stop(shutdownCtx)
+	}()
+	extService := &integrationExtensionService{
+		registry: extRegistry,
+		manager:  extManager,
+	}
 
 	server, err := udsapi.New(
 		udsapi.WithHomePaths(d.homePaths),
@@ -554,6 +707,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		udsapi.WithWorkspaceResolver(resolver),
 		udsapi.WithMemoryStore(memoryStore),
 		udsapi.WithDreamTrigger(dreamTrigger),
+		udsapi.WithExtensionService(extService),
 	)
 	if err != nil {
 		return fmt.Errorf("new uds server: %w", err)

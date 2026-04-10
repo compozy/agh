@@ -18,6 +18,11 @@ var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
 type stubClient struct {
 	daemonStatusFn        func(context.Context) (DaemonStatus, error)
+	listExtensionsFn      func(context.Context) ([]ExtensionRecord, error)
+	installExtensionFn    func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
+	enableExtensionFn     func(context.Context, string) (ExtensionRecord, error)
+	disableExtensionFn    func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusFn     func(context.Context, string) (ExtensionRecord, error)
 	listSessionsFn        func(context.Context, SessionListQuery) ([]SessionRecord, error)
 	createSessionFn       func(context.Context, CreateSessionRequest) (SessionRecord, error)
 	getSessionFn          func(context.Context, string) (SessionRecord, error)
@@ -52,6 +57,41 @@ func (s stubClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
 		return s.daemonStatusFn(ctx)
 	}
 	return DaemonStatus{}, errors.New("unexpected DaemonStatus call")
+}
+
+func (s stubClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, error) {
+	if s.listExtensionsFn != nil {
+		return s.listExtensionsFn(ctx)
+	}
+	return nil, errors.New("unexpected ListExtensions call")
+}
+
+func (s stubClient) InstallExtension(ctx context.Context, request InstallExtensionRequest) (ExtensionRecord, error) {
+	if s.installExtensionFn != nil {
+		return s.installExtensionFn(ctx, request)
+	}
+	return ExtensionRecord{}, errors.New("unexpected InstallExtension call")
+}
+
+func (s stubClient) EnableExtension(ctx context.Context, name string) (ExtensionRecord, error) {
+	if s.enableExtensionFn != nil {
+		return s.enableExtensionFn(ctx, name)
+	}
+	return ExtensionRecord{}, errors.New("unexpected EnableExtension call")
+}
+
+func (s stubClient) DisableExtension(ctx context.Context, name string) (ExtensionRecord, error) {
+	if s.disableExtensionFn != nil {
+		return s.disableExtensionFn(ctx, name)
+	}
+	return ExtensionRecord{}, errors.New("unexpected DisableExtension call")
+}
+
+func (s stubClient) ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error) {
+	if s.extensionStatusFn != nil {
+		return s.extensionStatusFn(ctx, name)
+	}
+	return ExtensionRecord{}, errors.New("unexpected ExtensionStatus call")
 }
 
 func (s stubClient) ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error) {

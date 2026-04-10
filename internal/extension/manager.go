@@ -487,6 +487,20 @@ func (m *Manager) Stop(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
+// Reload restarts the manager from the current registry state.
+func (m *Manager) Reload(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("extension: context is required")
+	}
+	if m == nil {
+		return errors.New("extension: manager is required")
+	}
+
+	stopErr := m.Stop(ctx)
+	startErr := m.Start(ctx)
+	return errors.Join(stopErr, startErr)
+}
+
 // Get returns the current snapshot for one installed extension.
 func (m *Manager) Get(name string) (*Extension, error) {
 	if m == nil {

@@ -83,6 +83,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionCommand(deps))
 	cmd.AddCommand(newWorkspaceCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))
+	cmd.AddCommand(newExtensionCommand(deps))
 	cmd.AddCommand(newHooksCommand(deps))
 	cmd.AddCommand(newSkillCommand(deps))
 	cmd.AddCommand(newMemoryCommand(deps))

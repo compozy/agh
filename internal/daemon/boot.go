@@ -414,15 +414,6 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
-	installed, err := extRegistry.List()
-	if err != nil {
-		state.logger.Error("daemon: list installed extensions failed", "error", err)
-		return nil
-	}
-	if len(installed) == 0 {
-		return nil
-	}
-
 	manager := d.newExtensionManager(extensionManagerDeps{
 		Registry:          extRegistry,
 		Sessions:          state.sessions,
@@ -438,6 +429,7 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 
 	state.extensions = manager
+	state.deps.Extensions = newDaemonExtensionService(extRegistry, manager, state.hooks, state.logger, d.now)
 	cleanup.add(func(ctx context.Context) error {
 		return manager.Stop(ctx)
 	})

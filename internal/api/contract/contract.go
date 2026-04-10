@@ -221,6 +221,30 @@ type DaemonStatusPayload struct {
 	Version        string    `json:"version,omitempty"`
 }
 
+// InstallExtensionRequest is the shared extension install request payload.
+type InstallExtensionRequest struct {
+	Path     string `json:"path"`
+	Checksum string `json:"checksum"`
+}
+
+// ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
+type ExtensionPayload struct {
+	Name          string   `json:"name"`
+	Version       string   `json:"version"`
+	Type          string   `json:"type"`
+	Source        string   `json:"source"`
+	Enabled       bool     `json:"enabled"`
+	State         string   `json:"state"`
+	Capabilities  []string `json:"capabilities,omitempty"`
+	Actions       []string `json:"actions,omitempty"`
+	PID           int      `json:"pid,omitempty"`
+	UptimeSeconds int64    `json:"uptime_seconds,omitempty"`
+	Health        string   `json:"health,omitempty"`
+	HealthMessage string   `json:"health_message,omitempty"`
+	LastError     string   `json:"last_error,omitempty"`
+	DaemonRunning bool     `json:"daemon_running"`
+}
+
 // ErrorPayload is the shared error response payload.
 type ErrorPayload struct {
 	Error string `json:"error"`
