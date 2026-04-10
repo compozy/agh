@@ -54,6 +54,22 @@ const (
 	SourceMarketplace
 )
 
+// String returns the persisted text form for one extension source tier.
+func (s ExtensionSource) String() string {
+	switch s {
+	case SourceBundled:
+		return "bundled"
+	case SourceUser:
+		return "user"
+	case SourceWorkspace:
+		return "workspace"
+	case SourceMarketplace:
+		return "marketplace"
+	default:
+		return ""
+	}
+}
+
 // CapabilityDeniedData is the structured data for capability-denied failures.
 type CapabilityDeniedData struct {
 	Method   string   `json:"method"`

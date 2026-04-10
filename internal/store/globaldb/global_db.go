@@ -73,6 +73,17 @@ var globalSchemaStatements = []string{
 		timestamp   TEXT NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_perm_session ON permission_log(session_id);`,
+	`CREATE TABLE IF NOT EXISTS extensions (
+		name          TEXT PRIMARY KEY,
+		version       TEXT NOT NULL,
+		source        TEXT NOT NULL,
+		enabled       BOOLEAN NOT NULL DEFAULT 1,
+		manifest_path TEXT NOT NULL,
+		installed_at  TEXT NOT NULL,
+		capabilities  TEXT NOT NULL DEFAULT '{}',
+		actions       TEXT NOT NULL DEFAULT '{}',
+		checksum      TEXT NOT NULL
+	);`,
 }
 
 // GlobalDB owns the global session index and observability database.
