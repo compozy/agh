@@ -197,11 +197,6 @@ func (e HookEvent) Validate() error {
 	return nil
 }
 
-// SyncEligible reports whether the event accepts sync hooks.
-func SyncEligible(event HookEvent) bool {
-	return event.SyncEligible()
-}
-
 func validateHookEventSpecsConsistency() error {
 	eventsFromList := make(map[HookEvent]struct{}, len(allHookEvents))
 	for _, event := range allHookEvents {

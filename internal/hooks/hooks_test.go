@@ -328,89 +328,211 @@ func TestDispatchInputPreSubmitReturnsOriginalPayloadWhenNoHooksMatch(t *testing
 func TestDispatchMethodsSmokeNoHooks(t *testing.T) {
 	t.Parallel()
 
-	hooks := newTestHooks(t)
-	ctx := t.Context()
+	testCases := []struct {
+		name string
+		run  func(context.Context, *Hooks) error
+	}{
+		{
+			name: "Should dispatch session.pre_create without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchSessionPreCreate(ctx, SessionPreCreatePayload{PayloadBase: PayloadBase{Event: HookSessionPreCreate}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch session.post_create without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchSessionPostCreate(ctx, SessionPostCreatePayload{PayloadBase: PayloadBase{Event: HookSessionPostCreate}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch session.pre_resume without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchSessionPreResume(ctx, SessionPreResumePayload{PayloadBase: PayloadBase{Event: HookSessionPreResume}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch session.post_resume without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchSessionPostResume(ctx, SessionPostResumePayload{PayloadBase: PayloadBase{Event: HookSessionPostResume}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch session.pre_stop without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchSessionPreStop(ctx, SessionPreStopPayload{PayloadBase: PayloadBase{Event: HookSessionPreStop}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch session.post_stop without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchSessionPostStop(ctx, SessionPostStopPayload{PayloadBase: PayloadBase{Event: HookSessionPostStop}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch input.pre_submit without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchInputPreSubmit(ctx, InputPreSubmitPayload{PayloadBase: PayloadBase{Event: HookInputPreSubmit}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch prompt.post_assemble without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchPromptPostAssemble(ctx, PromptPayload{PayloadBase: PayloadBase{Event: HookPromptPostAssemble}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch event.pre_record without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchEventPreRecord(ctx, EventPreRecordPayload{PayloadBase: PayloadBase{Event: HookEventPreRecord}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch event.post_record without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchEventPostRecord(ctx, EventPostRecordPayload{PayloadBase: PayloadBase{Event: HookEventPostRecord}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch agent.pre_start without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchAgentPreStart(ctx, AgentPreStartPayload{PayloadBase: PayloadBase{Event: HookAgentPreStart}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch agent.spawned without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchAgentSpawned(ctx, AgentSpawnedPayload{PayloadBase: PayloadBase{Event: HookAgentSpawned}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch agent.crashed without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchAgentCrashed(ctx, AgentCrashedPayload{PayloadBase: PayloadBase{Event: HookAgentCrashed}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch agent.stopped without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchAgentStopped(ctx, AgentStoppedPayload{PayloadBase: PayloadBase{Event: HookAgentStopped}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch turn.start without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchTurnStart(ctx, TurnStartPayload{PayloadBase: PayloadBase{Event: HookTurnStart}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch turn.end without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchTurnEnd(ctx, TurnEndPayload{PayloadBase: PayloadBase{Event: HookTurnEnd}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch message.start without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchMessageStart(ctx, MessageStartPayload{PayloadBase: PayloadBase{Event: HookMessageStart}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch message.delta without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchMessageDelta(ctx, MessageDeltaPayload{PayloadBase: PayloadBase{Event: HookMessageDelta}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch message.end without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchMessageEnd(ctx, MessageEndPayload{PayloadBase: PayloadBase{Event: HookMessageEnd}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch tool.pre_call without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchToolPreCall(ctx, ToolPreCallPayload{PayloadBase: PayloadBase{Event: HookToolPreCall}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch tool.post_call without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchToolPostCall(ctx, ToolPostCallPayload{PayloadBase: PayloadBase{Event: HookToolPostCall}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch tool.post_error without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchToolPostError(ctx, ToolPostErrorPayload{PayloadBase: PayloadBase{Event: HookToolPostError}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch permission.request without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchPermissionRequest(ctx, PermissionRequestPayload{PayloadBase: PayloadBase{Event: HookPermissionRequest}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch permission.resolved without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchPermissionResolved(ctx, PermissionResolvedPayload{PayloadBase: PayloadBase{Event: HookPermissionResolved}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch permission.denied without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchPermissionDenied(ctx, PermissionDeniedPayload{PayloadBase: PayloadBase{Event: HookPermissionDenied}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch context.pre_compact without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchContextPreCompact(ctx, ContextPreCompactPayload{PayloadBase: PayloadBase{Event: HookContextPreCompact}})
+				return err
+			},
+		},
+		{
+			name: "Should dispatch context.post_compact without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchContextPostCompact(ctx, ContextPostCompactPayload{PayloadBase: PayloadBase{Event: HookContextPostCompact}})
+				return err
+			},
+		},
+	}
 
-	if _, err := hooks.DispatchSessionPreCreate(ctx, SessionPreCreatePayload{PayloadBase: PayloadBase{Event: HookSessionPreCreate}}); err != nil {
-		t.Fatalf("DispatchSessionPreCreate() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchSessionPostCreate(ctx, SessionPostCreatePayload{PayloadBase: PayloadBase{Event: HookSessionPostCreate}}); err != nil {
-		t.Fatalf("DispatchSessionPostCreate() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchSessionPreResume(ctx, SessionPreResumePayload{PayloadBase: PayloadBase{Event: HookSessionPreResume}}); err != nil {
-		t.Fatalf("DispatchSessionPreResume() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchSessionPostResume(ctx, SessionPostResumePayload{PayloadBase: PayloadBase{Event: HookSessionPostResume}}); err != nil {
-		t.Fatalf("DispatchSessionPostResume() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchSessionPreStop(ctx, SessionPreStopPayload{PayloadBase: PayloadBase{Event: HookSessionPreStop}}); err != nil {
-		t.Fatalf("DispatchSessionPreStop() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchSessionPostStop(ctx, SessionPostStopPayload{PayloadBase: PayloadBase{Event: HookSessionPostStop}}); err != nil {
-		t.Fatalf("DispatchSessionPostStop() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchInputPreSubmit(ctx, InputPreSubmitPayload{PayloadBase: PayloadBase{Event: HookInputPreSubmit}}); err != nil {
-		t.Fatalf("DispatchInputPreSubmit() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchPromptPostAssemble(ctx, PromptPayload{PayloadBase: PayloadBase{Event: HookPromptPostAssemble}}); err != nil {
-		t.Fatalf("DispatchPromptPostAssemble() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchEventPreRecord(ctx, EventPreRecordPayload{PayloadBase: PayloadBase{Event: HookEventPreRecord}}); err != nil {
-		t.Fatalf("DispatchEventPreRecord() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchEventPostRecord(ctx, EventPostRecordPayload{PayloadBase: PayloadBase{Event: HookEventPostRecord}}); err != nil {
-		t.Fatalf("DispatchEventPostRecord() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchAgentPreStart(ctx, AgentPreStartPayload{PayloadBase: PayloadBase{Event: HookAgentPreStart}}); err != nil {
-		t.Fatalf("DispatchAgentPreStart() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchAgentSpawned(ctx, AgentSpawnedPayload{PayloadBase: PayloadBase{Event: HookAgentSpawned}}); err != nil {
-		t.Fatalf("DispatchAgentSpawned() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchAgentCrashed(ctx, AgentCrashedPayload{PayloadBase: PayloadBase{Event: HookAgentCrashed}}); err != nil {
-		t.Fatalf("DispatchAgentCrashed() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchAgentStopped(ctx, AgentStoppedPayload{PayloadBase: PayloadBase{Event: HookAgentStopped}}); err != nil {
-		t.Fatalf("DispatchAgentStopped() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchTurnStart(ctx, TurnStartPayload{PayloadBase: PayloadBase{Event: HookTurnStart}}); err != nil {
-		t.Fatalf("DispatchTurnStart() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchTurnEnd(ctx, TurnEndPayload{PayloadBase: PayloadBase{Event: HookTurnEnd}}); err != nil {
-		t.Fatalf("DispatchTurnEnd() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchMessageStart(ctx, MessageStartPayload{PayloadBase: PayloadBase{Event: HookMessageStart}}); err != nil {
-		t.Fatalf("DispatchMessageStart() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchMessageDelta(ctx, MessageDeltaPayload{PayloadBase: PayloadBase{Event: HookMessageDelta}}); err != nil {
-		t.Fatalf("DispatchMessageDelta() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchMessageEnd(ctx, MessageEndPayload{PayloadBase: PayloadBase{Event: HookMessageEnd}}); err != nil {
-		t.Fatalf("DispatchMessageEnd() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchToolPreCall(ctx, ToolPreCallPayload{PayloadBase: PayloadBase{Event: HookToolPreCall}}); err != nil {
-		t.Fatalf("DispatchToolPreCall() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchToolPostCall(ctx, ToolPostCallPayload{PayloadBase: PayloadBase{Event: HookToolPostCall}}); err != nil {
-		t.Fatalf("DispatchToolPostCall() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchToolPostError(ctx, ToolPostErrorPayload{PayloadBase: PayloadBase{Event: HookToolPostError}}); err != nil {
-		t.Fatalf("DispatchToolPostError() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchPermissionRequest(ctx, PermissionRequestPayload{PayloadBase: PayloadBase{Event: HookPermissionRequest}}); err != nil {
-		t.Fatalf("DispatchPermissionRequest() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchPermissionResolved(ctx, PermissionResolvedPayload{PayloadBase: PayloadBase{Event: HookPermissionResolved}}); err != nil {
-		t.Fatalf("DispatchPermissionResolved() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchPermissionDenied(ctx, PermissionDeniedPayload{PayloadBase: PayloadBase{Event: HookPermissionDenied}}); err != nil {
-		t.Fatalf("DispatchPermissionDenied() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchContextPreCompact(ctx, ContextPreCompactPayload{PayloadBase: PayloadBase{Event: HookContextPreCompact}}); err != nil {
-		t.Fatalf("DispatchContextPreCompact() error = %v, want nil", err)
-	}
-	if _, err := hooks.DispatchContextPostCompact(ctx, ContextPostCompactPayload{PayloadBase: PayloadBase{Event: HookContextPostCompact}}); err != nil {
-		t.Fatalf("DispatchContextPostCompact() error = %v, want nil", err)
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			hooks := newTestHooks(t)
+			if err := tc.run(t.Context(), hooks); err != nil {
+				t.Fatalf("%s: %v", tc.name, err)
+			}
+		})
 	}
 }
 
@@ -612,6 +734,87 @@ func TestDispatchEventPreRecordRunsAsyncHook(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("async event hook was not called")
+	}
+}
+
+func TestDispatchInputPreSubmitSkipsAsyncHooksWhenSyncPhaseDoesNotSucceed(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		required     bool
+		syncExecutor func(context.Context, RegisteredHook, InputPreSubmitPayload) (InputPreSubmitPatch, error)
+		wantErr      string
+	}{
+		{
+			name: "Should skip async hooks after a sync deny",
+			syncExecutor: func(_ context.Context, _ RegisteredHook, _ InputPreSubmitPayload) (InputPreSubmitPatch, error) {
+				return InputPreSubmitPatch{
+					ControlPatch: ControlPatch{Deny: true, DenyReason: "blocked"},
+				}, nil
+			},
+			wantErr: "denied",
+		},
+		{
+			name:     "Should skip async hooks after a sync failure",
+			required: true,
+			syncExecutor: func(_ context.Context, _ RegisteredHook, _ InputPreSubmitPayload) (InputPreSubmitPatch, error) {
+				return InputPreSubmitPatch{}, errors.New("sync hook failed")
+			},
+			wantErr: "sync hook failed",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			asyncCalled := make(chan struct{}, 1)
+			hooks := newTestHooks(
+				t,
+				WithNativeDeclarations([]HookDecl{
+					{
+						Name:         "sync-input",
+						Event:        HookInputPreSubmit,
+						Mode:         HookModeSync,
+						Required:     tc.required,
+						ExecutorKind: HookExecutorNative,
+					},
+					{
+						Name:         "async-input",
+						Event:        HookInputPreSubmit,
+						Mode:         HookModeAsync,
+						ExecutorKind: HookExecutorNative,
+					},
+				}),
+				WithExecutorResolver(testExecutorResolver(map[string]Executor{
+					"sync-input": NewTypedNativeExecutor(tc.syncExecutor),
+					"async-input": NewTypedNativeExecutor(func(_ context.Context, _ RegisteredHook, _ InputPreSubmitPayload) (InputPreSubmitPatch, error) {
+						asyncCalled <- struct{}{}
+						return InputPreSubmitPatch{}, nil
+					}),
+				})),
+			)
+
+			if err := hooks.Rebuild(t.Context()); err != nil {
+				t.Fatalf("Rebuild() error = %v, want nil", err)
+			}
+
+			_, err := hooks.DispatchInputPreSubmit(t.Context(), InputPreSubmitPayload{
+				PayloadBase: PayloadBase{Event: HookInputPreSubmit},
+				Message:     "seed",
+			})
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("DispatchInputPreSubmit() error = %v, want detail %q", err, tc.wantErr)
+			}
+
+			select {
+			case <-asyncCalled:
+				t.Fatal("async hook ran after sync phase did not succeed")
+			case <-time.After(100 * time.Millisecond):
+			}
+		})
 	}
 }
 

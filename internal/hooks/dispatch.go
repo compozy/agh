@@ -489,7 +489,7 @@ func executeDispatch[P any, R any](
 		}
 	}
 
-	if len(asyncHooks) > 0 {
+	if dispatchErr == nil && !report.Denied && len(asyncHooks) > 0 {
 		submitAsyncHooks(h, ctx, result, asyncHooks, pipe)
 	}
 

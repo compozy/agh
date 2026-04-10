@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -394,16 +395,31 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 		t.Fatalf("dispatchRuntime(nil context) error = %v, want non-nil context detail", err)
 	}
 
+	workspaceRoot := t.TempDir()
 	subprocessExecutor, err := defaultDaemonExecutorResolver(hookspkg.HookDecl{
 		Name:         "subprocess",
 		ExecutorKind: hookspkg.HookExecutorSubprocess,
 		Command:      "/bin/sh",
+		Args:         []string{"-c", "printf '%s|' \"$HOOK_SCOPE_ENV\"; pwd"},
+		Env:          map[string]string{"HOOK_SCOPE_ENV": "kept"},
+		Matcher:      hookspkg.HookMatcher{WorkspaceRoot: workspaceRoot},
 	})
 	if err != nil {
 		t.Fatalf("defaultDaemonExecutorResolver(subprocess) error = %v, want nil", err)
 	}
 	if subprocessExecutor.Kind() != hookspkg.HookExecutorSubprocess {
 		t.Fatalf("subprocess executor kind = %q, want %q", subprocessExecutor.Kind(), hookspkg.HookExecutorSubprocess)
+	}
+	output, err := subprocessExecutor.Execute(t.Context(), hookspkg.RegisteredHook{Name: "subprocess"}, nil)
+	if err != nil {
+		t.Fatalf("subprocess executor.Execute() error = %v, want nil", err)
+	}
+	resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(workspaceRoot) error = %v, want nil", err)
+	}
+	if got := strings.TrimSpace(string(output)); got != "kept|"+resolvedWorkspaceRoot {
+		t.Fatalf("subprocess executor output = %q, want %q", got, "kept|"+resolvedWorkspaceRoot)
 	}
 
 	wasmExecutor, err := defaultDaemonExecutorResolver(hookspkg.HookDecl{

@@ -63,6 +63,8 @@ type SubprocessExecutor struct {
 	env     map[string]string
 }
 
+var _ Executor = (*SubprocessExecutor)(nil)
+
 // NewSubprocessExecutor constructs a subprocess-backed executor.
 func NewSubprocessExecutor(command string, args []string, opts ...SubprocessExecutorOption) *SubprocessExecutor {
 	executor := &SubprocessExecutor{

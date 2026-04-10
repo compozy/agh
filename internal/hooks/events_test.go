@@ -39,21 +39,21 @@ func TestSyncEligibleClassification(t *testing.T) {
 		HookPermissionDenied:   {},
 	}
 
-	if !SyncEligible(HookSessionPreCreate) {
-		t.Fatal("SyncEligible(session.pre_create) = false, want true")
+	if !HookSessionPreCreate.SyncEligible() {
+		t.Fatal("HookSessionPreCreate.SyncEligible() = false, want true")
 	}
-	if SyncEligible(HookMessageDelta) {
-		t.Fatal("SyncEligible(message.delta) = true, want false")
+	if HookMessageDelta.SyncEligible() {
+		t.Fatal("HookMessageDelta.SyncEligible() = true, want false")
 	}
 
 	for _, event := range AllHookEvents() {
 		_, wantAsyncOnly := asyncOnly[event]
-		got := SyncEligible(event)
+		got := event.SyncEligible()
 		if wantAsyncOnly && got {
-			t.Fatalf("SyncEligible(%q) = true, want false", event)
+			t.Fatalf("%s.SyncEligible() = true, want false", event)
 		}
 		if !wantAsyncOnly && !got {
-			t.Fatalf("SyncEligible(%q) = false, want true", event)
+			t.Fatalf("%s.SyncEligible() = false, want true", event)
 		}
 	}
 }

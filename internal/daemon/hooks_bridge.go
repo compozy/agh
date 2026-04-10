@@ -396,10 +396,16 @@ func daemonExecutorResolver(nativeExecutors map[string]hookspkg.Executor) hooksp
 func defaultDaemonExecutorResolver(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
 	switch decl.ExecutorKind {
 	case hookspkg.HookExecutorSubprocess:
+		opts := []hookspkg.SubprocessExecutorOption{
+			hookspkg.WithSubprocessEnv(decl.Env),
+		}
+		if root := strings.TrimSpace(decl.Matcher.WorkspaceRoot); root != "" {
+			opts = append(opts, hookspkg.WithSubprocessDir(root))
+		}
 		return hookspkg.NewSubprocessExecutor(
 			decl.Command,
 			decl.Args,
-			hookspkg.WithSubprocessEnv(decl.Env),
+			opts...,
 		), nil
 	case hookspkg.HookExecutorWASM:
 		return &hookspkg.WasmExecutor{}, nil

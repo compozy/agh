@@ -603,6 +603,8 @@ func TestValidateRejectsUnknownPermissionMode(t *testing.T) {
 }
 
 func TestValidateWrapsHooksConfigErrors(t *testing.T) {
+	t.Parallel()
+
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
