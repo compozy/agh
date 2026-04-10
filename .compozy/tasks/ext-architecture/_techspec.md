@@ -418,7 +418,7 @@ const ext = new Extension({
     name: 'my-memory-backend',
     version: '0.1.0',
     capabilities: { provides: ['memory.backend'] },
-    actions: { requires: ['sessions.list'] },
+    actions: { requires: ['sessions/list'] },
 });
 
 // Handle daemon → extension calls

@@ -231,7 +231,7 @@ const ext = new Extension({
     name: 'pgvector-memory-ts',
     version: '0.2.0',
     capabilities: { provides: ['memory.backend'] },
-    actions: { requires: ['sessions.list'] },
+    actions: { requires: ['sessions/list'] },
 });
 
 const db = new PgVector(process.env.DATABASE_URL!);
@@ -515,7 +515,7 @@ const ext = new Extension({
     name: 'slack-adapter',
     version: '0.1.0',
     capabilities: { provides: [] },
-    actions: { requires: ['sessions.create', 'sessions.prompt', 'sessions.stop'] },
+    actions: { requires: ['sessions/create', 'sessions/prompt', 'sessions/stop'] },
 });
 
 const slack = new SlackClient(process.env.SLACK_TOKEN!);
@@ -652,7 +652,7 @@ PID:          42891
 Uptime:       2h 15m
 Health:       healthy (last check 12s ago)
 Capabilities: memory.backend
-Actions:      sessions.list, memory.store, memory.recall
+Actions:      sessions/list, memory/store, memory/recall
 Resources:    2 skills
 ```
 
@@ -748,22 +748,44 @@ func TestSubprocessExtensionEndToEnd(t *testing.T) {
 
 ## 10. JSON-RPC Protocol Example (Raw)
 
-What the bidirectional communication looks like on the wire between AGH and a subprocess extension:
+What the bidirectional communication looks like on the wire between AGH and a subprocess extension. This matches the normative protocol spec in `_protocol.md`.
 
 ```
 ── AGH → Extension (initialize handshake) ──────────────────────
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{
-  "agh_version":"0.5.0",
   "protocol_version":"1",
-  "capabilities":{"host_api":["sessions","memory","observe","skills"]}
+  "supported_protocol_versions":["1"],
+  "agh_version":"0.5.0",
+  "extension":{"name":"pgvector-memory","version":"0.2.0","source_tier":"user"},
+  "capabilities":{
+    "provides":["memory.backend"],
+    "granted_actions":["sessions/list","sessions/events"],
+    "granted_security":["memory.read","memory.write","session.read"]
+  },
+  "methods":{
+    "daemon_requests":["execute_hook","health_check","shutdown"],
+    "extension_services":["memory/store","memory/recall","memory/forget"]
+  },
+  "runtime":{
+    "health_check_interval_ms":30000,
+    "health_check_timeout_ms":5000,
+    "shutdown_timeout_ms":10000,
+    "default_hook_timeout_ms":5000
+  }
 }}
 
 ── Extension → AGH (initialize response) ──────────────────────
 {"jsonrpc":"2.0","id":1,"result":{
-  "name":"pgvector-memory",
-  "version":"0.2.0",
-  "capabilities":{"provides":["memory.backend"]},
-  "actions":{"requires":["sessions.list","memory.store","memory.recall"]}
+  "protocol_version":"1",
+  "extension_info":{"name":"pgvector-memory","version":"0.2.0","sdk_name":"@agh/extension-sdk","sdk_version":"0.1.0"},
+  "accepted_capabilities":{
+    "provides":["memory.backend"],
+    "actions":["sessions/list","sessions/events"],
+    "security":["memory.read","memory.write","session.read"]
+  },
+  "implemented_methods":["memory/store","memory/recall","memory/forget","health_check","shutdown"],
+  "supported_hook_events":[],
+  "supports":{"health_check":true,"provide_tools":false}
 }}
 
 ── AGH → Extension (daemon calls memory/store) ────────────────
@@ -789,11 +811,14 @@ What the bidirectional communication looks like on the wire between AGH and a su
 {"jsonrpc":"2.0","id":3,"method":"health_check","params":{}}
 
 ── Extension → AGH (healthy) ──────────────────────────────────
-{"jsonrpc":"2.0","id":3,"result":{"healthy":true}}
+{"jsonrpc":"2.0","id":3,"result":{"healthy":true,"message":"","details":{}}}
 
 ── AGH → Extension (shutdown) ─────────────────────────────────
-{"jsonrpc":"2.0","id":4,"method":"shutdown","params":{}}
+{"jsonrpc":"2.0","id":4,"method":"shutdown","params":{
+  "reason":"daemon_shutdown",
+  "deadline_ms":10000
+}}
 
 ── Extension → AGH (ack and exit) ─────────────────────────────
-{"jsonrpc":"2.0","id":4,"result":{}}
+{"jsonrpc":"2.0","id":4,"result":{"acknowledged":true}}
 ```
