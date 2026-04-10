@@ -82,7 +82,7 @@ func ValidateMatcherForEvent(event HookEvent, matcher HookMatcher) error {
 		invalid = append(invalid, field)
 	}
 	if len(invalid) == 0 {
-		return nil
+		return validateMatcherPatterns(matcher)
 	}
 
 	sort.Strings(invalid)
@@ -254,6 +254,46 @@ func matcherFieldNames(matcher HookMatcher) []string {
 	return fields
 }
 
+func validateMatcherPatterns(matcher HookMatcher) error {
+	patterns := []struct {
+		field   string
+		pattern string
+	}{
+		{field: "agent_name", pattern: matcher.AgentName},
+		{field: "agent_type", pattern: matcher.AgentType},
+		{field: "workspace_id", pattern: matcher.WorkspaceID},
+		{field: "workspace_root", pattern: matcher.WorkspaceRoot},
+		{field: "session_type", pattern: matcher.SessionType},
+		{field: "input_class", pattern: matcher.InputClass},
+		{field: "acp_event_type", pattern: matcher.ACPEventType},
+		{field: "turn_id", pattern: matcher.TurnID},
+		{field: "tool_name", pattern: matcher.ToolName},
+		{field: "tool_namespace", pattern: matcher.ToolNamespace},
+		{field: "decision_class", pattern: matcher.DecisionClass},
+		{field: "message_role", pattern: matcher.MessageRole},
+		{field: "message_delta_type", pattern: matcher.MessageDeltaType},
+		{field: "compaction_reason", pattern: matcher.CompactionReason},
+		{field: "compaction_strategy", pattern: matcher.CompactionStrategy},
+	}
+	for _, item := range patterns {
+		if err := validateMatcherPattern(item.field, item.pattern); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateMatcherPattern(field string, pattern string) error {
+	pattern = strings.TrimSpace(pattern)
+	if pattern == "" || !strings.ContainsAny(pattern, "*?[]") {
+		return nil
+	}
+	if _, err := path.Match(pattern, ""); err != nil {
+		return fmt.Errorf("hooks: matcher.%s pattern %q is invalid: %w", field, pattern, err)
+	}
+	return nil
+}
+
 func matchStringField(pattern string, value string) bool {
 	pattern = strings.TrimSpace(pattern)
 	if pattern == "" || pattern == "*" {
@@ -266,5 +306,7 @@ func matchStringField(pattern string, value string) bool {
 	}
 
 	matched, err := path.Match(pattern, value)
+	// Invalid patterns are treated as non-matching at runtime; validation should
+	// reject them earlier during normalization.
 	return err == nil && matched
 }

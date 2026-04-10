@@ -198,6 +198,8 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 }
 
 func TestHookEventsHandlerAvailableOnUDSRouter(t *testing.T) {
+	t.Parallel()
+
 	homePaths := newTestHomePaths(t)
 	observer := stubObserver{
 		QueryHookEventsFn: func(_ context.Context, filter hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error) {

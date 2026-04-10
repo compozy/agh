@@ -217,6 +217,39 @@ func TestHookTelemetryHelpersExposeSessionIDAndSink(t *testing.T) {
 	}
 }
 
+func TestHooksCatalogAllowsNilExecutorInSnapshot(t *testing.T) {
+	t.Parallel()
+
+	hooks := &Hooks{
+		snapshot: map[HookEvent][]*ResolvedHook{
+			HookToolPreCall: {&ResolvedHook{
+				RegisteredHook: RegisteredHook{
+					Name:     "nil-executor",
+					Event:    HookToolPreCall,
+					Source:   HookSourceConfig,
+					Mode:     HookModeSync,
+					Priority: 500,
+				},
+				Decl: HookDecl{
+					Name:  "nil-executor",
+					Event: HookToolPreCall,
+				},
+			}},
+		},
+	}
+
+	entries, err := hooks.Catalog(CatalogFilter{Event: HookToolPreCall})
+	if err != nil {
+		t.Fatalf("Catalog() error = %v", err)
+	}
+	if got, want := len(entries), 1; got != want {
+		t.Fatalf("len(entries) = %d, want %d", got, want)
+	}
+	if entries[0].ExecutorKind != "" {
+		t.Fatalf("entries[0].ExecutorKind = %q, want empty string for nil executor", entries[0].ExecutorKind)
+	}
+}
+
 type captureTelemetrySink struct{}
 
 func (*captureTelemetrySink) WriteHookRecord(context.Context, string, HookRunRecord) error {

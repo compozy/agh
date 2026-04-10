@@ -4,6 +4,7 @@ package hooks
 
 import (
 	"errors"
+	"fmt"
 	"os/exec"
 	"syscall"
 )
@@ -34,7 +35,7 @@ func signalSubprocessCommand(cmd *exec.Cmd, sig syscall.Signal) error {
 		if errors.Is(err, syscall.ESRCH) {
 			return nil
 		}
-		return err
+		return fmt.Errorf("kill process group (pid %d, sig %v): %w", cmd.Process.Pid, sig, err)
 	}
 	return nil
 }

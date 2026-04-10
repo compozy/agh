@@ -1,9 +1,12 @@
 package hooks
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 )
+
+var ErrInvalidHookSource = errors.New("hooks: invalid hook source")
 
 // DefaultHookPriority returns the documented default priority for the source.
 func DefaultHookPriority(source HookSource) (int, error) {
@@ -17,7 +20,7 @@ func DefaultHookPriority(source HookSource) (int, error) {
 	case HookSourceSkill:
 		return 0, nil
 	default:
-		return 0, fmt.Errorf("hooks: invalid hook source %d", source)
+		return 0, fmt.Errorf("%w: %d", ErrInvalidHookSource, source)
 	}
 }
 

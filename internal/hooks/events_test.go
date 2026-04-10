@@ -2,12 +2,15 @@ package hooks
 
 import "testing"
 
+const expectedHookEventCount = 27
+
 func TestAllHookEvents(t *testing.T) {
 	t.Parallel()
 
 	events := AllHookEvents()
-	if len(events) != 27 {
-		t.Fatalf("len(AllHookEvents()) = %d, want 27", len(events))
+	// Assert the exact count so accidental taxonomy additions/removals are caught explicitly.
+	if len(events) != expectedHookEventCount {
+		t.Fatalf("len(AllHookEvents()) = %d, want %d", len(events), expectedHookEventCount)
 	}
 
 	seen := make(map[HookEvent]struct{}, len(events))

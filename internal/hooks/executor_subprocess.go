@@ -135,7 +135,7 @@ func runSubprocessCommand(ctx context.Context, cmd *exec.Cmd) error {
 	case err := <-waitCh:
 		return err
 	case <-ctx.Done():
-		_ = terminateSubprocessCommand(cmd)
+		_ = terminateSubprocessCommand(cmd) // best-effort cleanup; the process may already be gone
 		timer := time.NewTimer(subprocessShutdownGrace)
 		defer timer.Stop()
 
@@ -143,7 +143,7 @@ func runSubprocessCommand(ctx context.Context, cmd *exec.Cmd) error {
 		case err := <-waitCh:
 			return err
 		case <-timer.C:
-			_ = killSubprocessCommand(cmd)
+			_ = killSubprocessCommand(cmd) // best-effort cleanup; the process may already be gone
 			return <-waitCh
 		}
 	}

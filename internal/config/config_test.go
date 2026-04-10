@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
 func TestLoadValidTOMLConfigWithAllSections(t *testing.T) {
@@ -597,6 +599,28 @@ func TestValidateRejectsUnknownPermissionMode(t *testing.T) {
 	cfg.Permissions.Mode = PermissionMode("maybe")
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("Validate() error = nil, want non-nil")
+	}
+}
+
+func TestValidateWrapsHooksConfigErrors(t *testing.T) {
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg := DefaultWithHome(homePaths)
+	cfg.Hooks.Declarations = []hookspkg.HookDecl{{
+		Name:   "broken-hook",
+		Event:  "bad.event",
+		Source: hookspkg.HookSourceConfig,
+	}}
+
+	err = cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "validate hooks config") {
+		t.Fatalf("Validate() error = %q, want hooks config context", err)
 	}
 }
 

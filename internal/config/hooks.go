@@ -59,6 +59,8 @@ type hookValidationExecutor struct {
 	kind hookspkg.HookExecutorKind
 }
 
+var _ hookspkg.Executor = hookValidationExecutor{}
+
 func (e hookValidationExecutor) Kind() hookspkg.HookExecutorKind {
 	return e.kind
 }
@@ -69,7 +71,11 @@ func (hookValidationExecutor) Execute(context.Context, hookspkg.RegisteredHook, 
 
 // HookDeclarations returns normalized config and agent-definition hook declarations for registry consumption.
 func HookDeclarations(cfg Config, agents []AgentDef) ([]hookspkg.HookDecl, error) {
-	raw := make([]hookspkg.HookDecl, 0, len(cfg.Hooks.Declarations)+len(agents))
+	capacity := len(cfg.Hooks.Declarations)
+	for _, agent := range agents {
+		capacity += len(agent.Hooks)
+	}
+	raw := make([]hookspkg.HookDecl, 0, capacity)
 	raw = append(raw, cloneHookDecls(cfg.Hooks.Declarations)...)
 	for _, agent := range agents {
 		raw = append(raw, cloneHookDecls(agent.Hooks)...)

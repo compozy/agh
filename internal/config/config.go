@@ -325,7 +325,7 @@ func (c Config) Validate() error {
 		return err
 	}
 	if err := c.Hooks.Validate(); err != nil {
-		return err
+		return fmt.Errorf("validate hooks config: %w", err)
 	}
 
 	for name := range c.Providers {

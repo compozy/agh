@@ -112,7 +112,7 @@ func ParseHookRunsQuery(c *gin.Context) (store.HookRunQuery, error) {
 			return store.HookRunQuery{}, err
 		}
 	}
-	if event := strings.TrimSpace(query.Event); event != "" {
+	if event := query.Event; event != "" {
 		if err := hookspkg.HookEvent(event).Validate(); err != nil {
 			return store.HookRunQuery{}, err
 		}

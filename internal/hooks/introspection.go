@@ -89,6 +89,10 @@ func (h *Hooks) Catalog(filter CatalogFilter) ([]CatalogEntry, error) {
 			if hook == nil || !catalogHookMatchesFilter(*hook, filter) {
 				continue
 			}
+			executorKind := HookExecutorKind("")
+			if hook.Executor != nil {
+				executorKind = hook.Executor.Kind()
+			}
 			order++
 			entries = append(entries, CatalogEntry{
 				Order:        order,
@@ -100,7 +104,7 @@ func (h *Hooks) Catalog(filter CatalogFilter) ([]CatalogEntry, error) {
 				Required:     hook.Required,
 				Priority:     hook.Priority,
 				Timeout:      hook.Timeout,
-				ExecutorKind: hook.Executor.Kind(),
+				ExecutorKind: executorKind,
 				Matcher:      cloneHookMatcher(hook.Matcher),
 				Metadata:     cloneStringMap(hook.Metadata),
 			})

@@ -3,6 +3,7 @@ package hooks
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 )
@@ -81,8 +82,8 @@ func TestHookModeAndExecutorKindValidate(t *testing.T) {
 	if err := HookExecutorSubprocess.Validate(); err != nil {
 		t.Fatalf("HookExecutorSubprocess.Validate() error = %v, want nil", err)
 	}
-	if err := HookExecutorKind("socket").Validate(); err == nil {
-		t.Fatal("invalid HookExecutorKind.Validate() error = nil, want non-nil")
+	if err := HookExecutorKind("socket").Validate(); !errors.Is(err, ErrInvalidHookExecutorKind) {
+		t.Fatalf("invalid HookExecutorKind.Validate() error = %v, want ErrInvalidHookExecutorKind", err)
 	}
 }
 

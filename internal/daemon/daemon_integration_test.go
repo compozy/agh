@@ -669,23 +669,56 @@ func writeDaemonHookScript(t *testing.T, dir string, name string, contents strin
 func assertLifecycleHookPayload(t *testing.T, path string, wantEvent hookspkg.HookEvent, wantWorkspace workspacepkg.ResolvedWorkspace) {
 	t.Helper()
 
-	payloadBytes, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
-	}
+	var (
+		payloadBytes []byte
+		payload      hookspkg.SessionLifecyclePayload
+		readOK       bool
+		unmarshalOK  bool
+	)
 
-	var payload hookspkg.SessionLifecyclePayload
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		t.Fatalf("json.Unmarshal(%q) error = %v", path, err)
-	}
+	t.Run("read file", func(t *testing.T) {
+		var err error
+		payloadBytes, err = os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", path, err)
+		}
+		readOK = true
+	})
 
-	if payload.Event != wantEvent {
-		t.Fatalf("payload.Event = %q, want %q", payload.Event, wantEvent)
-	}
-	if payload.WorkspaceID != wantWorkspace.ID {
-		t.Fatalf("payload.WorkspaceID = %q, want %q", payload.WorkspaceID, wantWorkspace.ID)
-	}
-	if payload.Workspace != wantWorkspace.RootDir {
-		t.Fatalf("payload.Workspace = %q, want %q", payload.Workspace, wantWorkspace.RootDir)
-	}
+	t.Run("unmarshal", func(t *testing.T) {
+		if !readOK {
+			t.Skip("payload unavailable after read failure")
+		}
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(%q) error = %v", path, err)
+		}
+		unmarshalOK = true
+	})
+
+	t.Run("event", func(t *testing.T) {
+		if !unmarshalOK {
+			t.Skip("payload unavailable after unmarshal failure")
+		}
+		if payload.Event != wantEvent {
+			t.Fatalf("payload.Event = %q, want %q", payload.Event, wantEvent)
+		}
+	})
+
+	t.Run("workspace id", func(t *testing.T) {
+		if !unmarshalOK {
+			t.Skip("payload unavailable after unmarshal failure")
+		}
+		if payload.WorkspaceID != wantWorkspace.ID {
+			t.Fatalf("payload.WorkspaceID = %q, want %q", payload.WorkspaceID, wantWorkspace.ID)
+		}
+	})
+
+	t.Run("workspace path", func(t *testing.T) {
+		if !unmarshalOK {
+			t.Skip("payload unavailable after unmarshal failure")
+		}
+		if payload.Workspace != wantWorkspace.RootDir {
+			t.Fatalf("payload.Workspace = %q, want %q", payload.Workspace, wantWorkspace.RootDir)
+		}
+	})
 }

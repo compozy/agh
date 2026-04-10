@@ -156,6 +156,12 @@ var allHookEvents = []HookEvent{
 	HookContextPostCompact,
 }
 
+func init() {
+	if err := validateHookEventSpecsConsistency(); err != nil {
+		panic(err)
+	}
+}
+
 // AllHookEvents returns the full taxonomy in deterministic order.
 func AllHookEvents() []HookEvent {
 	events := make([]HookEvent, len(allHookEvents))
@@ -194,4 +200,20 @@ func (e HookEvent) Validate() error {
 // SyncEligible reports whether the event accepts sync hooks.
 func SyncEligible(event HookEvent) bool {
 	return event.SyncEligible()
+}
+
+func validateHookEventSpecsConsistency() error {
+	eventsFromList := make(map[HookEvent]struct{}, len(allHookEvents))
+	for _, event := range allHookEvents {
+		eventsFromList[event] = struct{}{}
+		if _, ok := hookEventSpecs[event]; !ok {
+			return fmt.Errorf("hooks: event %q exists in allHookEvents but is missing from hookEventSpecs", event)
+		}
+	}
+	for event := range hookEventSpecs {
+		if _, ok := eventsFromList[event]; !ok {
+			return fmt.Errorf("hooks: event %q exists in hookEventSpecs but is missing from allHookEvents", event)
+		}
+	}
+	return nil
 }

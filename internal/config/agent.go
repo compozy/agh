@@ -211,12 +211,6 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 		MCPServers:  cloneMCPServers(parsed.MCPServers),
 		Prompt:      strings.TrimSpace(body),
 	}
-	agent.Name = strings.TrimSpace(agent.Name)
-	agent.Provider = strings.TrimSpace(agent.Provider)
-	agent.Command = strings.TrimSpace(agent.Command)
-	agent.Model = strings.TrimSpace(agent.Model)
-	agent.Permissions = strings.TrimSpace(agent.Permissions)
-	agent.Prompt = strings.TrimSpace(body)
 	if len(agent.Tools) == 0 {
 		agent.Tools = []string{"*"}
 	}

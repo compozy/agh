@@ -5,6 +5,8 @@ import "context"
 // WasmExecutor is the future execution seam for sandboxed hook runtimes.
 type WasmExecutor struct{}
 
+var _ Executor = (*WasmExecutor)(nil)
+
 // Kind returns the executor type.
 func (*WasmExecutor) Kind() HookExecutorKind {
 	return HookExecutorWASM

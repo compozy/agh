@@ -387,6 +387,13 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 		t.Fatalf("rebuildCalls = %d, want 1", rebuildCalls)
 	}
 
+	_, err = dispatchRuntime(notifier, nil, hookspkg.HookSessionPostCreate, "seed", false, func(_ hookRuntime, _ context.Context, item string) (string, error) {
+		return item, nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "requires a non-nil context") {
+		t.Fatalf("dispatchRuntime(nil context) error = %v, want non-nil context detail", err)
+	}
+
 	subprocessExecutor, err := defaultDaemonExecutorResolver(hookspkg.HookDecl{
 		Name:         "subprocess",
 		ExecutorKind: hookspkg.HookExecutorSubprocess,

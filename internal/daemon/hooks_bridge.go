@@ -88,9 +88,11 @@ func (n *hooksNotifier) setRuntime(hooks hookRuntime, agentEventNotify session.N
 	n.agentEventNotify = agentEventNotify
 }
 
+// OnSessionCreated is a no-op; lifecycle observation is handled via hook dispatch.
 func (n *hooksNotifier) OnSessionCreated(ctx context.Context, sess *session.Session) {
 }
 
+// OnSessionStopped is a no-op; lifecycle observation is handled via hook dispatch.
 func (n *hooksNotifier) OnSessionStopped(ctx context.Context, sess *session.Session) {
 }
 
@@ -252,7 +254,7 @@ func dispatchRuntime[P any](n *hooksNotifier, ctx context.Context, event hookspk
 		return payload, nil
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return payload, fmt.Errorf("daemon: dispatch %s requires a non-nil context", event)
 	}
 	if rebuild {
 		if err := hooks.Rebuild(ctx); err != nil {

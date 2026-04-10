@@ -15,6 +15,8 @@ var (
 	// ErrSubprocessCommandRequired reports that a subprocess executor lacks a
 	// command to start.
 	ErrSubprocessCommandRequired = errors.New("hooks: subprocess executor command is required")
+	// ErrInvalidHookExecutorKind reports an unsupported executor kind.
+	ErrInvalidHookExecutorKind = errors.New("hooks: invalid hook executor kind")
 )
 
 // HookExecutorKind identifies the execution boundary for a hook.
@@ -32,7 +34,7 @@ func (k HookExecutorKind) Validate() error {
 	case HookExecutorNative, HookExecutorSubprocess, HookExecutorWASM:
 		return nil
 	default:
-		return fmt.Errorf("hooks: invalid hook executor kind %q", k)
+		return fmt.Errorf("hooks: invalid hook executor kind %q: %w", k, ErrInvalidHookExecutorKind)
 	}
 }
 

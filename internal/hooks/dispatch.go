@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -441,10 +442,10 @@ func executeDispatch[P any, R any](
 	cfg dispatchConfig[P, R],
 ) (P, error) {
 	if h == nil {
-		return payload, context.Canceled
+		return payload, errors.New("hooks: dispatcher is nil")
 	}
 	if ctx == nil {
-		return payload, context.Canceled
+		return payload, errors.New("hooks: dispatch context is nil")
 	}
 
 	snapshot, err := h.hookSnapshot(event)

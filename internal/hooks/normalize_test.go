@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -258,8 +259,28 @@ func TestValidateHookDeclRejectsSkillSourceOnNonSkillDeclaration(t *testing.T) {
 func TestDefaultHookPriorityRejectsUnknownSource(t *testing.T) {
 	t.Parallel()
 
-	if _, err := DefaultHookPriority(HookSource(99)); err == nil {
-		t.Fatal("DefaultHookPriority() error = nil, want non-nil")
+	if _, err := DefaultHookPriority(HookSource(99)); !errors.Is(err, ErrInvalidHookSource) {
+		t.Fatalf("DefaultHookPriority() error = %v, want ErrInvalidHookSource", err)
+	}
+}
+
+func TestValidateHookDeclRejectsInvalidMatcherPattern(t *testing.T) {
+	t.Parallel()
+
+	err := ValidateHookDecl(HookDecl{
+		Name:    "bad-pattern",
+		Event:   HookToolPreCall,
+		Source:  HookSourceConfig,
+		Command: "./hook.sh",
+		Matcher: HookMatcher{
+			ToolName: "[",
+		},
+	})
+	if err == nil {
+		t.Fatal("ValidateHookDecl() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "matcher.tool_name pattern") {
+		t.Fatalf("ValidateHookDecl() error = %q, want matcher pattern detail", err)
 	}
 }
 

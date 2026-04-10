@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -275,6 +276,35 @@ func TestHooksConcurrentRebuildAndDispatch(t *testing.T) {
 			t.Fatalf("concurrent hooks operation error = %v, want nil", err)
 		}
 	}
+}
+
+func TestDispatchInputPreSubmitRejectsNilHooksAndContext(t *testing.T) {
+	t.Parallel()
+
+	payload := InputPreSubmitPayload{
+		PayloadBase: PayloadBase{Event: HookInputPreSubmit},
+		Message:     "seed",
+	}
+
+	var nilHooks *Hooks
+	if _, err := nilHooks.DispatchInputPreSubmit(context.Background(), payload); err == nil || !strings.Contains(err.Error(), "dispatcher is nil") {
+		t.Fatalf("DispatchInputPreSubmit(nil hooks) error = %v, want nil dispatcher detail", err)
+	}
+
+	hooks := newTestHooks(t, WithConfigDeclarations([]HookDecl{
+		testSubprocessDecl("input-hook", HookInputPreSubmit),
+	}))
+	if err := hooks.Rebuild(t.Context()); err != nil {
+		t.Fatalf("Rebuild() error = %v", err)
+	}
+	if _, err := hooks.DispatchInputPreSubmit(nilTestContext(), payload); err == nil || !strings.Contains(err.Error(), "dispatch context is nil") {
+		t.Fatalf("DispatchInputPreSubmit(nil context) error = %v, want nil context detail", err)
+	}
+}
+
+func nilTestContext() context.Context {
+	var ctx context.Context
+	return ctx
 }
 
 func TestDispatchInputPreSubmitReturnsOriginalPayloadWhenNoHooksMatch(t *testing.T) {

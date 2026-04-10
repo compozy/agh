@@ -105,7 +105,7 @@ func TestHookMatcherMatchesMessageAndContext(t *testing.T) {
 	}
 }
 
-func TestHookMatcherMatchesAdditionalFamilies(t *testing.T) {
+func TestHookMatcherMatchesInput(t *testing.T) {
 	t.Parallel()
 
 	scopeMatcher := HookMatcher{
@@ -114,7 +114,6 @@ func TestHookMatcherMatchesAdditionalFamilies(t *testing.T) {
 		WorkspaceRoot: "/workspace/demo",
 		InputClass:    "chat",
 	}
-
 	if !scopeMatcher.MatchesInput(InputPreSubmitPayload{
 		SessionContext: SessionContext{
 			AgentName:   "claude",
@@ -125,7 +124,17 @@ func TestHookMatcherMatchesAdditionalFamilies(t *testing.T) {
 	}) {
 		t.Fatal("MatchesInput() = false, want true")
 	}
+}
 
+func TestHookMatcherMatchesPrompt(t *testing.T) {
+	t.Parallel()
+
+	scopeMatcher := HookMatcher{
+		AgentName:     "claude",
+		WorkspaceID:   "ws-1",
+		WorkspaceRoot: "/workspace/demo",
+		InputClass:    "chat",
+	}
 	if !scopeMatcher.MatchesPrompt(PromptPayload{
 		SessionContext: SessionContext{
 			AgentName:   "claude",
@@ -136,7 +145,16 @@ func TestHookMatcherMatchesAdditionalFamilies(t *testing.T) {
 	}) {
 		t.Fatal("MatchesPrompt() = false, want true")
 	}
+}
 
+func TestHookMatcherMatchesAgentPreStart(t *testing.T) {
+	t.Parallel()
+
+	scopeMatcher := HookMatcher{
+		AgentName:     "claude",
+		WorkspaceID:   "ws-1",
+		WorkspaceRoot: "/workspace/demo",
+	}
 	if !scopeMatcher.MatchesAgentPreStart(AgentPreStartPayload{
 		SessionContext: SessionContext{
 			AgentName:   "claude",
@@ -146,7 +164,16 @@ func TestHookMatcherMatchesAdditionalFamilies(t *testing.T) {
 	}) {
 		t.Fatal("MatchesAgentPreStart() = false, want true")
 	}
+}
 
+func TestHookMatcherMatchesAgentLifecycle(t *testing.T) {
+	t.Parallel()
+
+	scopeMatcher := HookMatcher{
+		AgentName:     "claude",
+		WorkspaceID:   "ws-1",
+		WorkspaceRoot: "/workspace/demo",
+	}
 	if !scopeMatcher.MatchesAgentLifecycle(AgentLifecyclePayload{
 		SessionContext: SessionContext{
 			AgentName:   "claude",
@@ -156,7 +183,17 @@ func TestHookMatcherMatchesAdditionalFamilies(t *testing.T) {
 	}) {
 		t.Fatal("MatchesAgentLifecycle() = false, want true")
 	}
+}
 
+func TestHookMatcherMatchesTurn(t *testing.T) {
+	t.Parallel()
+
+	scopeMatcher := HookMatcher{
+		AgentName:     "claude",
+		WorkspaceID:   "ws-1",
+		WorkspaceRoot: "/workspace/demo",
+		InputClass:    "chat",
+	}
 	if !scopeMatcher.MatchesTurn(TurnPayload{
 		SessionContext: SessionContext{
 			AgentName:   "claude",
@@ -167,6 +204,10 @@ func TestHookMatcherMatchesAdditionalFamilies(t *testing.T) {
 	}) {
 		t.Fatal("MatchesTurn() = false, want true")
 	}
+}
+
+func TestHookMatcherMatchesEvent(t *testing.T) {
+	t.Parallel()
 
 	eventMatcher := HookMatcher{
 		AgentName:    "claude",
@@ -180,6 +221,10 @@ func TestHookMatcherMatchesAdditionalFamilies(t *testing.T) {
 	}) {
 		t.Fatal("MatchesEvent() = false, want true")
 	}
+}
+
+func TestHookMatcherMatchesToolResponses(t *testing.T) {
+	t.Parallel()
 
 	toolMatcher := HookMatcher{
 		ToolName:      "run",
@@ -195,6 +240,10 @@ func TestHookMatcherMatchesAdditionalFamilies(t *testing.T) {
 	}) {
 		t.Fatal("MatchesToolPostError() = false, want true")
 	}
+}
+
+func TestHookMatcherMatchesPermissionResolution(t *testing.T) {
+	t.Parallel()
 
 	permissionMatcher := HookMatcher{
 		ToolName:      "terminal/run",
