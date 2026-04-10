@@ -100,6 +100,41 @@ func (u TokenUsage) Validate() error {
 	return requireField(u.TurnID, "token usage turn id")
 }
 
+// StopReason classifies why a session ended.
+type StopReason string
+
+const (
+	StopCompleted      StopReason = "completed"
+	StopUserCanceled   StopReason = "user_canceled"
+	StopMaxIterations  StopReason = "max_iterations"
+	StopLoopDetected   StopReason = "loop_detected"
+	StopTimeout        StopReason = "timeout"
+	StopBudgetExceeded StopReason = "budget_exceeded"
+	StopError          StopReason = "error"
+	StopAgentCrashed   StopReason = "agent_crashed"
+	StopHookStopped    StopReason = "hook_stopped"
+	StopShutdown       StopReason = "shutdown"
+)
+
+// ValidStopReason reports whether r is a supported stop reason enum member.
+func ValidStopReason(r StopReason) bool {
+	switch r {
+	case StopCompleted,
+		StopUserCanceled,
+		StopMaxIterations,
+		StopLoopDetected,
+		StopTimeout,
+		StopBudgetExceeded,
+		StopError,
+		StopAgentCrashed,
+		StopHookStopped,
+		StopShutdown:
+		return true
+	default:
+		return false
+	}
+}
+
 // SessionInfo is the canonical session index row stored in the global database.
 type SessionInfo struct {
 	ID           string
@@ -307,15 +342,17 @@ type ReconcileResult struct {
 
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name,omitempty"`
-	AgentName    string    `json:"agent_name"`
-	WorkspaceID  string    `json:"workspace_id,omitempty"`
-	SessionType  string    `json:"session_type,omitempty"`
-	State        string    `json:"state"`
-	ACPSessionID *string   `json:"acp_session_id,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID           string      `json:"id"`
+	Name         string      `json:"name,omitempty"`
+	AgentName    string      `json:"agent_name"`
+	WorkspaceID  string      `json:"workspace_id,omitempty"`
+	SessionType  string      `json:"session_type,omitempty"`
+	State        string      `json:"state"`
+	StopReason   *StopReason `json:"stop_reason,omitempty"`
+	StopDetail   string      `json:"stop_detail,omitempty"`
+	ACPSessionID *string     `json:"acp_session_id,omitempty"`
+	CreatedAt    time.Time   `json:"created_at"`
+	UpdatedAt    time.Time   `json:"updated_at"`
 }
 
 // Validate ensures the metadata file remains aligned with the session index schema.
@@ -331,6 +368,9 @@ func (m SessionMeta) Validate() error {
 	}
 	if err := requireField(m.State, "session state"); err != nil {
 		return err
+	}
+	if m.StopReason != nil && !ValidStopReason(*m.StopReason) {
+		return fmt.Errorf("store: invalid session stop reason %q", *m.StopReason)
 	}
 	return nil
 }

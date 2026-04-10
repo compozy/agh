@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/store"
 )
 
 func TestSessionStateTransitions(t *testing.T) {
@@ -97,6 +98,45 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 	}
 	if latest.ACPCaps.SupportedModels[0] != "gpt" {
 		t.Fatalf("SupportedModels mutated through Info() copy: %#v", latest.ACPCaps.SupportedModels)
+	}
+}
+
+func TestSessionInfoAndMetaIncludeStopFields(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC)
+	session := &Session{
+		ID:          "sess-stop",
+		Name:        "Stopped Session",
+		AgentName:   "coder",
+		WorkspaceID: "ws-stop",
+		Workspace:   t.TempDir(),
+		Type:        SessionTypeSystem,
+		State:       StateStopped,
+		stopCause:   CauseShutdown,
+		stopReason:  store.StopShutdown,
+		stopDetail:  "daemon shutdown",
+		CreatedAt:   now,
+		UpdatedAt:   now.Add(time.Minute),
+	}
+
+	info := session.Info()
+	if info.StopReason != store.StopShutdown {
+		t.Fatalf("Info().StopReason = %q, want %q", info.StopReason, store.StopShutdown)
+	}
+	if info.StopDetail != "daemon shutdown" {
+		t.Fatalf("Info().StopDetail = %q, want %q", info.StopDetail, "daemon shutdown")
+	}
+
+	meta := session.Meta()
+	if meta.StopReason == nil {
+		t.Fatal("Meta().StopReason = nil, want non-nil")
+	}
+	if *meta.StopReason != store.StopShutdown {
+		t.Fatalf("Meta().StopReason = %q, want %q", *meta.StopReason, store.StopShutdown)
+	}
+	if meta.StopDetail != "daemon shutdown" {
+		t.Fatalf("Meta().StopDetail = %q, want %q", meta.StopDetail, "daemon shutdown")
 	}
 }
 

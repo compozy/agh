@@ -50,6 +50,8 @@ type SessionInfo struct {
 	Workspace    string
 	Type         SessionType
 	State        SessionState
+	StopReason   store.StopReason
+	StopDetail   string
 	ACPSessionID string
 	ACPCaps      acp.ACPCaps
 	CreatedAt    time.Time
@@ -67,6 +69,9 @@ type Session struct {
 	Workspace    string
 	Type         SessionType
 	State        SessionState
+	stopCause    StopCause
+	stopReason   store.StopReason
+	stopDetail   string
 	ACPSessionID string
 	ACPCaps      acp.ACPCaps
 	CreatedAt    time.Time
@@ -99,6 +104,8 @@ func (s *Session) Info() *SessionInfo {
 		Workspace:    s.Workspace,
 		Type:         normalizeSessionType(s.Type),
 		State:        s.State,
+		StopReason:   s.stopReason,
+		StopDetail:   s.stopDetail,
 		ACPSessionID: s.ACPSessionID,
 		ACPCaps:      cloneCaps(s.ACPCaps),
 		CreatedAt:    s.CreatedAt,
@@ -351,7 +358,8 @@ func (s *Session) transition(next SessionState, now time.Time) error {
 	return nil
 }
 
-func (s *Session) meta() store.SessionMeta {
+// Meta returns the current metadata snapshot for persistence.
+func (s *Session) Meta() store.SessionMeta {
 	if s == nil {
 		return store.SessionMeta{}
 	}
@@ -366,10 +374,16 @@ func (s *Session) meta() store.SessionMeta {
 		WorkspaceID:  s.WorkspaceID,
 		SessionType:  string(normalizeSessionType(s.Type)),
 		State:        string(s.State),
+		StopReason:   stopReasonPointer(s.stopReason),
+		StopDetail:   s.stopDetail,
 		ACPSessionID: stringPointer(s.ACPSessionID),
 		CreatedAt:    s.CreatedAt,
 		UpdatedAt:    s.UpdatedAt,
 	}
+}
+
+func (s *Session) meta() store.SessionMeta {
+	return s.Meta()
 }
 
 func normalizeSessionType(sessionType SessionType) SessionType {
@@ -406,6 +420,14 @@ func cloneCaps(caps acp.ACPCaps) acp.ACPCaps {
 
 func stringPointer(value string) *string {
 	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	copyValue := value
+	return &copyValue
+}
+
+func stopReasonPointer(value store.StopReason) *store.StopReason {
+	if strings.TrimSpace(string(value)) == "" {
 		return nil
 	}
 	copyValue := value

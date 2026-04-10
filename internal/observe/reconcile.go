@@ -63,7 +63,17 @@ func (o *Observer) loadSessionMetadata() ([]store.SessionInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		sessions = append(sessions, store.SessionInfo(normalized))
+		sessions = append(sessions, store.SessionInfo{
+			ID:           normalized.ID,
+			Name:         normalized.Name,
+			AgentName:    normalized.AgentName,
+			WorkspaceID:  normalized.WorkspaceID,
+			SessionType:  normalized.SessionType,
+			State:        normalized.State,
+			ACPSessionID: normalized.ACPSessionID,
+			CreatedAt:    normalized.CreatedAt,
+			UpdatedAt:    normalized.UpdatedAt,
+		})
 	}
 
 	sort.Slice(sessions, func(i, j int) bool {
