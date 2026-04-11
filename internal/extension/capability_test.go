@@ -90,6 +90,18 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates(t *testing.T) {
 			wantGranted:  []string{"observe.read"},
 			wantErr:      true,
 		},
+		{
+			name:     "automation read requires action and automation.read capability",
+			actions:  []string{"automation/jobs"},
+			security: []string{"automation.read"},
+			method:   "automation/jobs",
+		},
+		{
+			name:     "automation write requires action and automation.write capability",
+			actions:  []string{"automation/jobs/create"},
+			security: []string{"automation.write"},
+			method:   "automation/jobs/create",
+		},
 	}
 
 	for _, tt := range tests {
@@ -121,6 +133,43 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates(t *testing.T) {
 			}
 			if !slices.Equal(denied.Data.Granted, tt.wantGranted) {
 				t.Fatalf("Data.Granted = %v, want %v", denied.Data.Granted, tt.wantGranted)
+			}
+		})
+	}
+}
+
+func TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		method     string
+		capability string
+	}{
+		{method: "automation/jobs", capability: "automation.read"},
+		{method: "automation/jobs/get", capability: "automation.read"},
+		{method: "automation/jobs/create", capability: "automation.write"},
+		{method: "automation/jobs/update", capability: "automation.write"},
+		{method: "automation/jobs/delete", capability: "automation.write"},
+		{method: "automation/jobs/trigger", capability: "automation.write"},
+		{method: "automation/jobs/runs", capability: "automation.read"},
+		{method: "automation/triggers", capability: "automation.read"},
+		{method: "automation/triggers/get", capability: "automation.read"},
+		{method: "automation/triggers/create", capability: "automation.write"},
+		{method: "automation/triggers/update", capability: "automation.write"},
+		{method: "automation/triggers/delete", capability: "automation.write"},
+		{method: "automation/triggers/runs", capability: "automation.read"},
+		{method: "automation/triggers/fire", capability: "automation.write"},
+		{method: "automation/runs", capability: "automation.read"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.method, func(t *testing.T) {
+			t.Parallel()
+
+			checker := newTestCapabilityChecker("ext", SourceUser, []string{tt.method}, []string{tt.capability})
+			if err := checker.CheckHostAPI("ext", tt.method); err != nil {
+				t.Fatalf("CheckHostAPI(%q) error = %v, want nil", tt.method, err)
 			}
 		})
 	}

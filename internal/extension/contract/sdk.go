@@ -52,6 +52,15 @@ func SDKRootTypes() []NamedType {
 		{Name: "PromptPatch", Value: hooks.PromptPatch{}},
 		{Name: "EventRecordPayload", Value: hooks.EventRecordPayload{}},
 		{Name: "EventRecordPatch", Value: hooks.EventRecordPatch{}},
+		{Name: "AutomationSchedulePayload", Value: hooks.AutomationSchedulePayload{}},
+		{Name: "AutomationJobPreFirePayload", Value: hooks.AutomationJobPreFirePayload{}},
+		{Name: "AutomationJobPostFirePayload", Value: hooks.AutomationJobPostFirePayload{}},
+		{Name: "AutomationTriggerPreFirePayload", Value: hooks.AutomationTriggerPreFirePayload{}},
+		{Name: "AutomationTriggerPostFirePayload", Value: hooks.AutomationTriggerPostFirePayload{}},
+		{Name: "AutomationRunCompletedPayload", Value: hooks.AutomationRunCompletedPayload{}},
+		{Name: "AutomationRunFailedPayload", Value: hooks.AutomationRunFailedPayload{}},
+		{Name: "AutomationFirePatch", Value: hooks.AutomationFirePatch{}},
+		{Name: "AutomationObservationPatch", Value: hooks.AutomationObservationPatch{}},
 		{Name: "AgentPreStartPayload", Value: hooks.AgentPreStartPayload{}},
 		{Name: "AgentLifecyclePayload", Value: hooks.AgentLifecyclePayload{}},
 		{Name: "AgentStartPatch", Value: hooks.AgentStartPatch{}},
@@ -163,6 +172,24 @@ func namedHookType(name string) (NamedType, error) {
 		return NamedType{Name: name, Value: hooks.EventPreRecordPatch{}}, nil
 	case "EventPostRecordPatch":
 		return NamedType{Name: name, Value: hooks.EventPostRecordPatch{}}, nil
+	case "AutomationSchedulePayload":
+		return NamedType{Name: name, Value: hooks.AutomationSchedulePayload{}}, nil
+	case "AutomationJobPreFirePayload":
+		return NamedType{Name: name, Value: hooks.AutomationJobPreFirePayload{}}, nil
+	case "AutomationJobPostFirePayload":
+		return NamedType{Name: name, Value: hooks.AutomationJobPostFirePayload{}}, nil
+	case "AutomationTriggerPreFirePayload":
+		return NamedType{Name: name, Value: hooks.AutomationTriggerPreFirePayload{}}, nil
+	case "AutomationTriggerPostFirePayload":
+		return NamedType{Name: name, Value: hooks.AutomationTriggerPostFirePayload{}}, nil
+	case "AutomationRunCompletedPayload":
+		return NamedType{Name: name, Value: hooks.AutomationRunCompletedPayload{}}, nil
+	case "AutomationRunFailedPayload":
+		return NamedType{Name: name, Value: hooks.AutomationRunFailedPayload{}}, nil
+	case "AutomationFirePatch":
+		return NamedType{Name: name, Value: hooks.AutomationFirePatch{}}, nil
+	case "AutomationObservationPatch":
+		return NamedType{Name: name, Value: hooks.AutomationObservationPatch{}}, nil
 	case "AgentPreStartPayload":
 		return NamedType{Name: name, Value: hooks.AgentPreStartPayload{}}, nil
 	case "AgentLifecyclePayload":

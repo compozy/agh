@@ -25,6 +25,7 @@ type configOverlay struct {
 	Log           logOverlay                 `toml:"log"`
 	Memory        memoryOverlay              `toml:"memory"`
 	Skills        skillsOverlay              `toml:"skills"`
+	Automation    automationOverlay          `toml:"automation"`
 	Hooks         hooksOverlay               `toml:"hooks"`
 }
 
@@ -174,6 +175,9 @@ func (o configOverlay) Apply(dst *Config) error {
 	o.Log.Apply(&dst.Log)
 	o.Memory.Apply(&dst.Memory)
 	o.Skills.Apply(&dst.Skills)
+	if err := o.Automation.Apply(&dst.Automation); err != nil {
+		return err
+	}
 	return o.Hooks.Apply(&dst.Hooks)
 }
 

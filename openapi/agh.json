@@ -234,6 +234,2982 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
+        "/api/automation/jobs": {
+            "get": {
+                "operationId": "listAutomationJobs",
+                "parameters": [
+                    {
+                        "description": "Filter by automation scope",
+                        "in": "query",
+                        "name": "scope",
+                        "schema": {
+                            "enum": ["global", "workspace"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by workspace id",
+                        "in": "query",
+                        "name": "workspace_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by job source",
+                        "in": "query",
+                        "name": "source",
+                        "schema": {
+                            "enum": ["config", "dynamic"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of records to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "jobs": {
+                                            "items": {
+                                                "properties": {
+                                                    "agent_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "created_at": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "enabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "fire_limit": {
+                                                        "properties": {
+                                                            "max": {
+                                                                "type": "integer"
+                                                            },
+                                                            "window": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["max", "window"],
+                                                        "type": "object"
+                                                    },
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "next_run": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "prompt": {
+                                                        "type": "string"
+                                                    },
+                                                    "retry": {
+                                                        "properties": {
+                                                            "base_delay": {
+                                                                "type": "string"
+                                                            },
+                                                            "max_retries": {
+                                                                "type": "integer"
+                                                            },
+                                                            "strategy": {
+                                                                "enum": ["none", "backoff"],
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "base_delay",
+                                                            "max_retries",
+                                                            "strategy"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "schedule": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "expr": {
+                                                                "type": "string"
+                                                            },
+                                                            "interval": {
+                                                                "type": "string"
+                                                            },
+                                                            "mode": {
+                                                                "enum": ["cron", "every", "at"],
+                                                                "type": "string"
+                                                            },
+                                                            "time": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["mode"],
+                                                        "type": "object"
+                                                    },
+                                                    "scope": {
+                                                        "enum": ["global", "workspace"],
+                                                        "type": "string"
+                                                    },
+                                                    "source": {
+                                                        "enum": ["config", "dynamic"],
+                                                        "type": "string"
+                                                    },
+                                                    "updated_at": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "workspace_id": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "agent_name",
+                                                    "created_at",
+                                                    "enabled",
+                                                    "fire_limit",
+                                                    "id",
+                                                    "name",
+                                                    "prompt",
+                                                    "retry",
+                                                    "scope",
+                                                    "source",
+                                                    "updated_at"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["jobs"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid automation filter"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List automation jobs",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "post": {
+                "operationId": "createAutomationJob",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "agent_name": {
+                                        "type": "string"
+                                    },
+                                    "enabled": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                    },
+                                    "fire_limit": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "max": {
+                                                "type": "integer"
+                                            },
+                                            "window": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["max", "window"],
+                                        "type": "object"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "prompt": {
+                                        "type": "string"
+                                    },
+                                    "retry": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "base_delay": {
+                                                "type": "string"
+                                            },
+                                            "max_retries": {
+                                                "type": "integer"
+                                            },
+                                            "strategy": {
+                                                "enum": ["none", "backoff"],
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["base_delay", "max_retries", "strategy"],
+                                        "type": "object"
+                                    },
+                                    "schedule": {
+                                        "properties": {
+                                            "expr": {
+                                                "type": "string"
+                                            },
+                                            "interval": {
+                                                "type": "string"
+                                            },
+                                            "mode": {
+                                                "enum": ["cron", "every", "at"],
+                                                "type": "string"
+                                            },
+                                            "time": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["mode"],
+                                        "type": "object"
+                                    },
+                                    "scope": {
+                                        "enum": ["global", "workspace"],
+                                        "type": "string"
+                                    },
+                                    "workspace_id": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["agent_name", "name", "prompt", "schedule", "scope"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "job": {
+                                            "properties": {
+                                                "agent_name": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "fire_limit": {
+                                                    "properties": {
+                                                        "max": {
+                                                            "type": "integer"
+                                                        },
+                                                        "window": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["max", "window"],
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "next_run": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "prompt": {
+                                                    "type": "string"
+                                                },
+                                                "retry": {
+                                                    "properties": {
+                                                        "base_delay": {
+                                                            "type": "string"
+                                                        },
+                                                        "max_retries": {
+                                                            "type": "integer"
+                                                        },
+                                                        "strategy": {
+                                                            "enum": ["none", "backoff"],
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "base_delay",
+                                                        "max_retries",
+                                                        "strategy"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "schedule": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "expr": {
+                                                            "type": "string"
+                                                        },
+                                                        "interval": {
+                                                            "type": "string"
+                                                        },
+                                                        "mode": {
+                                                            "enum": ["cron", "every", "at"],
+                                                            "type": "string"
+                                                        },
+                                                        "time": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["mode"],
+                                                    "type": "object"
+                                                },
+                                                "scope": {
+                                                    "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "source": {
+                                                    "enum": ["config", "dynamic"],
+                                                    "type": "string"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "agent_name",
+                                                "created_at",
+                                                "enabled",
+                                                "fire_limit",
+                                                "id",
+                                                "name",
+                                                "prompt",
+                                                "retry",
+                                                "scope",
+                                                "source",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["job"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid automation job request"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation job conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Create an automation job",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/automation/jobs/{id}": {
+            "delete": {
+                "operationId": "deleteAutomationJob",
+                "parameters": [
+                    {
+                        "description": "Automation job id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid automation job delete request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation job not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Delete one automation job",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "get": {
+                "operationId": "getAutomationJob",
+                "parameters": [
+                    {
+                        "description": "Automation job id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "job": {
+                                            "properties": {
+                                                "agent_name": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "fire_limit": {
+                                                    "properties": {
+                                                        "max": {
+                                                            "type": "integer"
+                                                        },
+                                                        "window": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["max", "window"],
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "next_run": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "prompt": {
+                                                    "type": "string"
+                                                },
+                                                "retry": {
+                                                    "properties": {
+                                                        "base_delay": {
+                                                            "type": "string"
+                                                        },
+                                                        "max_retries": {
+                                                            "type": "integer"
+                                                        },
+                                                        "strategy": {
+                                                            "enum": ["none", "backoff"],
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "base_delay",
+                                                        "max_retries",
+                                                        "strategy"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "schedule": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "expr": {
+                                                            "type": "string"
+                                                        },
+                                                        "interval": {
+                                                            "type": "string"
+                                                        },
+                                                        "mode": {
+                                                            "enum": ["cron", "every", "at"],
+                                                            "type": "string"
+                                                        },
+                                                        "time": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["mode"],
+                                                    "type": "object"
+                                                },
+                                                "scope": {
+                                                    "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "source": {
+                                                    "enum": ["config", "dynamic"],
+                                                    "type": "string"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "agent_name",
+                                                "created_at",
+                                                "enabled",
+                                                "fire_limit",
+                                                "id",
+                                                "name",
+                                                "prompt",
+                                                "retry",
+                                                "scope",
+                                                "source",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["job"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation job not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get one automation job",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "patch": {
+                "operationId": "updateAutomationJob",
+                "parameters": [
+                    {
+                        "description": "Automation job id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "agent_name": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
+                                    "enabled": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                    },
+                                    "fire_limit": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "max": {
+                                                "type": "integer"
+                                            },
+                                            "window": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["max", "window"],
+                                        "type": "object"
+                                    },
+                                    "name": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
+                                    "prompt": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
+                                    "retry": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "base_delay": {
+                                                "type": "string"
+                                            },
+                                            "max_retries": {
+                                                "type": "integer"
+                                            },
+                                            "strategy": {
+                                                "enum": ["none", "backoff"],
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["base_delay", "max_retries", "strategy"],
+                                        "type": "object"
+                                    },
+                                    "schedule": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "expr": {
+                                                "type": "string"
+                                            },
+                                            "interval": {
+                                                "type": "string"
+                                            },
+                                            "mode": {
+                                                "enum": ["cron", "every", "at"],
+                                                "type": "string"
+                                            },
+                                            "time": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["mode"],
+                                        "type": "object"
+                                    },
+                                    "workspace_id": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "job": {
+                                            "properties": {
+                                                "agent_name": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "fire_limit": {
+                                                    "properties": {
+                                                        "max": {
+                                                            "type": "integer"
+                                                        },
+                                                        "window": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["max", "window"],
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "next_run": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "prompt": {
+                                                    "type": "string"
+                                                },
+                                                "retry": {
+                                                    "properties": {
+                                                        "base_delay": {
+                                                            "type": "string"
+                                                        },
+                                                        "max_retries": {
+                                                            "type": "integer"
+                                                        },
+                                                        "strategy": {
+                                                            "enum": ["none", "backoff"],
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "base_delay",
+                                                        "max_retries",
+                                                        "strategy"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "schedule": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "expr": {
+                                                            "type": "string"
+                                                        },
+                                                        "interval": {
+                                                            "type": "string"
+                                                        },
+                                                        "mode": {
+                                                            "enum": ["cron", "every", "at"],
+                                                            "type": "string"
+                                                        },
+                                                        "time": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["mode"],
+                                                    "type": "object"
+                                                },
+                                                "scope": {
+                                                    "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "source": {
+                                                    "enum": ["config", "dynamic"],
+                                                    "type": "string"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "agent_name",
+                                                "created_at",
+                                                "enabled",
+                                                "fire_limit",
+                                                "id",
+                                                "name",
+                                                "prompt",
+                                                "retry",
+                                                "scope",
+                                                "source",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["job"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid automation job update"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation job not found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation job conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Update one automation job",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/automation/jobs/{id}/runs": {
+            "get": {
+                "operationId": "listAutomationJobRuns",
+                "parameters": [
+                    {
+                        "description": "Automation job id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by run status",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "enum": ["scheduled", "running", "completed", "failed", "cancelled"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Only runs started since this timestamp",
+                        "in": "query",
+                        "name": "since",
+                        "schema": {
+                            "format": "date-time",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Only runs started before this timestamp",
+                        "in": "query",
+                        "name": "until",
+                        "schema": {
+                            "format": "date-time",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of records to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "runs": {
+                                            "items": {
+                                                "properties": {
+                                                    "attempt": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ended_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "error": {
+                                                        "type": "string"
+                                                    },
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "job_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "started_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "status": {
+                                                        "enum": [
+                                                            "scheduled",
+                                                            "running",
+                                                            "completed",
+                                                            "failed",
+                                                            "cancelled"
+                                                        ],
+                                                        "type": "string"
+                                                    },
+                                                    "trigger_id": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["attempt", "id", "status"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["runs"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid automation run filter"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation job not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List run history for one automation job",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/automation/jobs/{id}/trigger": {
+            "post": {
+                "operationId": "triggerAutomationJob",
+                "parameters": [
+                    {
+                        "description": "Automation job id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "run": {
+                                            "properties": {
+                                                "attempt": {
+                                                    "type": "integer"
+                                                },
+                                                "ended_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "error": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "job_id": {
+                                                    "type": "string"
+                                                },
+                                                "session_id": {
+                                                    "type": "string"
+                                                },
+                                                "started_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "enum": [
+                                                        "scheduled",
+                                                        "running",
+                                                        "completed",
+                                                        "failed",
+                                                        "cancelled"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "trigger_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["attempt", "id", "status"],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["run"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation job not found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation run conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Trigger one automation job immediately",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/automation/runs": {
+            "get": {
+                "operationId": "listAutomationRuns",
+                "parameters": [
+                    {
+                        "description": "Filter by automation job id",
+                        "in": "query",
+                        "name": "job_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by automation trigger id",
+                        "in": "query",
+                        "name": "trigger_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by run status",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "enum": ["scheduled", "running", "completed", "failed", "cancelled"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Only runs started since this timestamp",
+                        "in": "query",
+                        "name": "since",
+                        "schema": {
+                            "format": "date-time",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Only runs started before this timestamp",
+                        "in": "query",
+                        "name": "until",
+                        "schema": {
+                            "format": "date-time",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of records to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "runs": {
+                                            "items": {
+                                                "properties": {
+                                                    "attempt": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ended_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "error": {
+                                                        "type": "string"
+                                                    },
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "job_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "started_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "status": {
+                                                        "enum": [
+                                                            "scheduled",
+                                                            "running",
+                                                            "completed",
+                                                            "failed",
+                                                            "cancelled"
+                                                        ],
+                                                        "type": "string"
+                                                    },
+                                                    "trigger_id": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["attempt", "id", "status"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["runs"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid automation run filter"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List automation runs",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/automation/runs/{id}": {
+            "get": {
+                "operationId": "getAutomationRun",
+                "parameters": [
+                    {
+                        "description": "Automation run id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "run": {
+                                            "properties": {
+                                                "attempt": {
+                                                    "type": "integer"
+                                                },
+                                                "ended_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "error": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "job_id": {
+                                                    "type": "string"
+                                                },
+                                                "session_id": {
+                                                    "type": "string"
+                                                },
+                                                "started_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "enum": [
+                                                        "scheduled",
+                                                        "running",
+                                                        "completed",
+                                                        "failed",
+                                                        "cancelled"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "trigger_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["attempt", "id", "status"],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["run"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation run not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get one automation run",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/automation/triggers": {
+            "get": {
+                "operationId": "listAutomationTriggers",
+                "parameters": [
+                    {
+                        "description": "Filter by automation scope",
+                        "in": "query",
+                        "name": "scope",
+                        "schema": {
+                            "enum": ["global", "workspace"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by workspace id",
+                        "in": "query",
+                        "name": "workspace_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by trigger source",
+                        "in": "query",
+                        "name": "source",
+                        "schema": {
+                            "enum": ["config", "dynamic"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by trigger event",
+                        "in": "query",
+                        "name": "event",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of records to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "triggers": {
+                                            "items": {
+                                                "properties": {
+                                                    "agent_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "created_at": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "enabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "endpoint_slug": {
+                                                        "type": "string"
+                                                    },
+                                                    "event": {
+                                                        "type": "string"
+                                                    },
+                                                    "filter": {
+                                                        "additionalProperties": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "fire_limit": {
+                                                        "properties": {
+                                                            "max": {
+                                                                "type": "integer"
+                                                            },
+                                                            "window": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["max", "window"],
+                                                        "type": "object"
+                                                    },
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "prompt": {
+                                                        "type": "string"
+                                                    },
+                                                    "retry": {
+                                                        "properties": {
+                                                            "base_delay": {
+                                                                "type": "string"
+                                                            },
+                                                            "max_retries": {
+                                                                "type": "integer"
+                                                            },
+                                                            "strategy": {
+                                                                "enum": ["none", "backoff"],
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "base_delay",
+                                                            "max_retries",
+                                                            "strategy"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "scope": {
+                                                        "enum": ["global", "workspace"],
+                                                        "type": "string"
+                                                    },
+                                                    "source": {
+                                                        "enum": ["config", "dynamic"],
+                                                        "type": "string"
+                                                    },
+                                                    "updated_at": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "webhook_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "workspace_id": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "agent_name",
+                                                    "created_at",
+                                                    "enabled",
+                                                    "event",
+                                                    "fire_limit",
+                                                    "id",
+                                                    "name",
+                                                    "prompt",
+                                                    "retry",
+                                                    "scope",
+                                                    "source",
+                                                    "updated_at"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["triggers"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid automation filter"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List automation triggers",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "post": {
+                "operationId": "createAutomationTrigger",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "agent_name": {
+                                        "type": "string"
+                                    },
+                                    "enabled": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                    },
+                                    "endpoint_slug": {
+                                        "type": "string"
+                                    },
+                                    "event": {
+                                        "type": "string"
+                                    },
+                                    "filter": {
+                                        "additionalProperties": {
+                                            "type": "string"
+                                        },
+                                        "type": "object"
+                                    },
+                                    "fire_limit": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "max": {
+                                                "type": "integer"
+                                            },
+                                            "window": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["max", "window"],
+                                        "type": "object"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "prompt": {
+                                        "type": "string"
+                                    },
+                                    "retry": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "base_delay": {
+                                                "type": "string"
+                                            },
+                                            "max_retries": {
+                                                "type": "integer"
+                                            },
+                                            "strategy": {
+                                                "enum": ["none", "backoff"],
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["base_delay", "max_retries", "strategy"],
+                                        "type": "object"
+                                    },
+                                    "scope": {
+                                        "enum": ["global", "workspace"],
+                                        "type": "string"
+                                    },
+                                    "webhook_id": {
+                                        "type": "string"
+                                    },
+                                    "webhook_secret": {
+                                        "type": "string"
+                                    },
+                                    "workspace_id": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["agent_name", "event", "name", "prompt", "scope"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "trigger": {
+                                            "properties": {
+                                                "agent_name": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "endpoint_slug": {
+                                                    "type": "string"
+                                                },
+                                                "event": {
+                                                    "type": "string"
+                                                },
+                                                "filter": {
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "fire_limit": {
+                                                    "properties": {
+                                                        "max": {
+                                                            "type": "integer"
+                                                        },
+                                                        "window": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["max", "window"],
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "prompt": {
+                                                    "type": "string"
+                                                },
+                                                "retry": {
+                                                    "properties": {
+                                                        "base_delay": {
+                                                            "type": "string"
+                                                        },
+                                                        "max_retries": {
+                                                            "type": "integer"
+                                                        },
+                                                        "strategy": {
+                                                            "enum": ["none", "backoff"],
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "base_delay",
+                                                        "max_retries",
+                                                        "strategy"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "scope": {
+                                                    "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "source": {
+                                                    "enum": ["config", "dynamic"],
+                                                    "type": "string"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "webhook_id": {
+                                                    "type": "string"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "agent_name",
+                                                "created_at",
+                                                "enabled",
+                                                "event",
+                                                "fire_limit",
+                                                "id",
+                                                "name",
+                                                "prompt",
+                                                "retry",
+                                                "scope",
+                                                "source",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["trigger"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid automation trigger request"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation trigger conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Create an automation trigger",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/automation/triggers/{id}": {
+            "delete": {
+                "operationId": "deleteAutomationTrigger",
+                "parameters": [
+                    {
+                        "description": "Automation trigger id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid automation trigger delete request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation trigger not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Delete one automation trigger",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "get": {
+                "operationId": "getAutomationTrigger",
+                "parameters": [
+                    {
+                        "description": "Automation trigger id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "trigger": {
+                                            "properties": {
+                                                "agent_name": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "endpoint_slug": {
+                                                    "type": "string"
+                                                },
+                                                "event": {
+                                                    "type": "string"
+                                                },
+                                                "filter": {
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "fire_limit": {
+                                                    "properties": {
+                                                        "max": {
+                                                            "type": "integer"
+                                                        },
+                                                        "window": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["max", "window"],
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "prompt": {
+                                                    "type": "string"
+                                                },
+                                                "retry": {
+                                                    "properties": {
+                                                        "base_delay": {
+                                                            "type": "string"
+                                                        },
+                                                        "max_retries": {
+                                                            "type": "integer"
+                                                        },
+                                                        "strategy": {
+                                                            "enum": ["none", "backoff"],
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "base_delay",
+                                                        "max_retries",
+                                                        "strategy"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "scope": {
+                                                    "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "source": {
+                                                    "enum": ["config", "dynamic"],
+                                                    "type": "string"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "webhook_id": {
+                                                    "type": "string"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "agent_name",
+                                                "created_at",
+                                                "enabled",
+                                                "event",
+                                                "fire_limit",
+                                                "id",
+                                                "name",
+                                                "prompt",
+                                                "retry",
+                                                "scope",
+                                                "source",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["trigger"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation trigger not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get one automation trigger",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "patch": {
+                "operationId": "updateAutomationTrigger",
+                "parameters": [
+                    {
+                        "description": "Automation trigger id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "agent_name": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
+                                    "enabled": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                    },
+                                    "endpoint_slug": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
+                                    "event": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
+                                    "filter": {
+                                        "additionalProperties": {
+                                            "type": "string"
+                                        },
+                                        "type": "object"
+                                    },
+                                    "fire_limit": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "max": {
+                                                "type": "integer"
+                                            },
+                                            "window": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["max", "window"],
+                                        "type": "object"
+                                    },
+                                    "name": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
+                                    "prompt": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
+                                    "retry": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "base_delay": {
+                                                "type": "string"
+                                            },
+                                            "max_retries": {
+                                                "type": "integer"
+                                            },
+                                            "strategy": {
+                                                "enum": ["none", "backoff"],
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["base_delay", "max_retries", "strategy"],
+                                        "type": "object"
+                                    },
+                                    "webhook_id": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
+                                    "webhook_secret": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
+                                    "workspace_id": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "trigger": {
+                                            "properties": {
+                                                "agent_name": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "endpoint_slug": {
+                                                    "type": "string"
+                                                },
+                                                "event": {
+                                                    "type": "string"
+                                                },
+                                                "filter": {
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "fire_limit": {
+                                                    "properties": {
+                                                        "max": {
+                                                            "type": "integer"
+                                                        },
+                                                        "window": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["max", "window"],
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "prompt": {
+                                                    "type": "string"
+                                                },
+                                                "retry": {
+                                                    "properties": {
+                                                        "base_delay": {
+                                                            "type": "string"
+                                                        },
+                                                        "max_retries": {
+                                                            "type": "integer"
+                                                        },
+                                                        "strategy": {
+                                                            "enum": ["none", "backoff"],
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "base_delay",
+                                                        "max_retries",
+                                                        "strategy"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "scope": {
+                                                    "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "source": {
+                                                    "enum": ["config", "dynamic"],
+                                                    "type": "string"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "webhook_id": {
+                                                    "type": "string"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "agent_name",
+                                                "created_at",
+                                                "enabled",
+                                                "event",
+                                                "fire_limit",
+                                                "id",
+                                                "name",
+                                                "prompt",
+                                                "retry",
+                                                "scope",
+                                                "source",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["trigger"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid automation trigger update"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation trigger not found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation trigger conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Update one automation trigger",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/automation/triggers/{id}/runs": {
+            "get": {
+                "operationId": "listAutomationTriggerRuns",
+                "parameters": [
+                    {
+                        "description": "Automation trigger id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by run status",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "enum": ["scheduled", "running", "completed", "failed", "cancelled"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Only runs started since this timestamp",
+                        "in": "query",
+                        "name": "since",
+                        "schema": {
+                            "format": "date-time",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Only runs started before this timestamp",
+                        "in": "query",
+                        "name": "until",
+                        "schema": {
+                            "format": "date-time",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of records to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "runs": {
+                                            "items": {
+                                                "properties": {
+                                                    "attempt": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ended_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "error": {
+                                                        "type": "string"
+                                                    },
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "job_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "started_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "status": {
+                                                        "enum": [
+                                                            "scheduled",
+                                                            "running",
+                                                            "completed",
+                                                            "failed",
+                                                            "cancelled"
+                                                        ],
+                                                        "type": "string"
+                                                    },
+                                                    "trigger_id": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["attempt", "id", "status"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["runs"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid automation run filter"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation trigger not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List run history for one automation trigger",
+                "tags": ["automation"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
         "/api/daemon/status": {
             "get": {
                 "operationId": "getDaemonStatus",
@@ -1082,6 +4058,12 @@
                                 "prompt.post_assemble",
                                 "event.pre_record",
                                 "event.post_record",
+                                "automation.job.pre_fire",
+                                "automation.job.post_fire",
+                                "automation.trigger.pre_fire",
+                                "automation.trigger.post_fire",
+                                "automation.run.completed",
+                                "automation.run.failed",
                                 "agent.pre_start",
                                 "agent.spawned",
                                 "agent.crashed",
@@ -1447,6 +4429,12 @@
                                 "prompt.post_assemble",
                                 "event.pre_record",
                                 "event.post_record",
+                                "automation.job.pre_fire",
+                                "automation.job.post_fire",
+                                "automation.trigger.pre_fire",
+                                "automation.trigger.post_fire",
+                                "automation.run.completed",
+                                "automation.run.failed",
                                 "agent.pre_start",
                                 "agent.spawned",
                                 "agent.crashed",
@@ -2304,6 +5292,52 @@
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "automation": {
+                                            "properties": {
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "jobs": {
+                                                    "properties": {
+                                                        "enabled": {
+                                                            "type": "integer"
+                                                        },
+                                                        "total": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": ["enabled", "total"],
+                                                    "type": "object"
+                                                },
+                                                "next_fire": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "scheduler_running": {
+                                                    "type": "boolean"
+                                                },
+                                                "triggers": {
+                                                    "properties": {
+                                                        "enabled": {
+                                                            "type": "integer"
+                                                        },
+                                                        "total": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": ["enabled", "total"],
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "required": [
+                                                "enabled",
+                                                "jobs",
+                                                "scheduler_running",
+                                                "triggers"
+                                            ],
+                                            "type": "object"
+                                        },
                                         "health": {
                                             "properties": {
                                                 "active_agents": {
@@ -2368,7 +5402,7 @@
                                             "type": "object"
                                         }
                                     },
-                                    "required": ["health", "memory"],
+                                    "required": ["automation", "health", "memory"],
                                     "type": "object"
                                 }
                             }
@@ -4419,6 +7453,421 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
+        "/api/webhooks/global/{endpoint}": {
+            "post": {
+                "operationId": "deliverGlobalWebhook",
+                "parameters": [
+                    {
+                        "description": "Webhook endpoint slug and id",
+                        "in": "path",
+                        "name": "endpoint",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Signed webhook timestamp",
+                        "in": "header",
+                        "name": "X-AGH-Webhook-Timestamp",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Signed webhook HMAC signature",
+                        "in": "header",
+                        "name": "X-AGH-Webhook-Signature",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "additionalProperties": {},
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "result": {
+                                            "properties": {
+                                                "matched": {
+                                                    "type": "integer"
+                                                },
+                                                "runs": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "attempt": {
+                                                                "type": "integer"
+                                                            },
+                                                            "ended_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "error": {
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "job_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "session_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "started_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "status": {
+                                                                "enum": [
+                                                                    "scheduled",
+                                                                    "running",
+                                                                    "completed",
+                                                                    "failed",
+                                                                    "cancelled"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "trigger_id": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["attempt", "id", "status"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                }
+                                            },
+                                            "required": ["matched"],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["result"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid webhook request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Webhook authentication failed"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Webhook trigger not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Deliver one global automation webhook",
+                "tags": ["automation"],
+                "x-agh-transports": ["http"]
+            }
+        },
+        "/api/webhooks/workspaces/{workspace_id}/{endpoint}": {
+            "post": {
+                "operationId": "deliverWorkspaceWebhook",
+                "parameters": [
+                    {
+                        "description": "Workspace id",
+                        "in": "path",
+                        "name": "workspace_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Webhook endpoint slug and id",
+                        "in": "path",
+                        "name": "endpoint",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Signed webhook timestamp",
+                        "in": "header",
+                        "name": "X-AGH-Webhook-Timestamp",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Signed webhook HMAC signature",
+                        "in": "header",
+                        "name": "X-AGH-Webhook-Signature",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "additionalProperties": {},
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "result": {
+                                            "properties": {
+                                                "matched": {
+                                                    "type": "integer"
+                                                },
+                                                "runs": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "attempt": {
+                                                                "type": "integer"
+                                                            },
+                                                            "ended_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "error": {
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "job_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "session_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "started_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "status": {
+                                                                "enum": [
+                                                                    "scheduled",
+                                                                    "running",
+                                                                    "completed",
+                                                                    "failed",
+                                                                    "cancelled"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "trigger_id": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["attempt", "id", "status"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                }
+                                            },
+                                            "required": ["matched"],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["result"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid webhook request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Webhook authentication failed"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Webhook trigger not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Automation manager is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Deliver one workspace-scoped automation webhook",
+                "tags": ["automation"],
+                "x-agh-transports": ["http"]
+            }
+        },
         "/api/workspaces": {
             "get": {
                 "operationId": "listWorkspaces",
@@ -5261,6 +8710,9 @@
     "tags": [
         {
             "name": "agents"
+        },
+        {
+            "name": "automation"
         },
         {
             "name": "daemon"

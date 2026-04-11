@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Expose automation over core API, HTTP/UDS routes, and OpenAPI
 type: backend
 complexity: high
@@ -29,11 +29,11 @@ Expose the built-in automation manager through the shared API layer used by both
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Add automation DTOs and manager interfaces to the shared API layer
-- [ ] 7.2 Implement shared handler methods for jobs, triggers, runs, webhook delivery, and automation health
-- [ ] 7.3 Register automation and webhook routes in HTTP and UDS transports with the correct exposure rules
-- [ ] 7.4 Update the OpenAPI operation registry and generated spec output
-- [ ] 7.5 Add transport tests for CRUD, history, webhook rejection, and health reporting
+- [x] 7.1 Add automation DTOs and manager interfaces to the shared API layer
+- [x] 7.2 Implement shared handler methods for jobs, triggers, runs, webhook delivery, and automation health
+- [x] 7.3 Register automation and webhook routes in HTTP and UDS transports with the correct exposure rules
+- [x] 7.4 Update the OpenAPI operation registry and generated spec output
+- [x] 7.5 Add transport tests for CRUD, history, webhook rejection, and health reporting
 
 ## Implementation Details
 
@@ -64,15 +64,15 @@ Follow the TechSpec sections "API Endpoints", "Webhook HTTP Integration", "Healt
 
 ## Tests
 - Unit tests:
-  - [ ] Handler validation rejects definition edits for config-backed jobs and triggers while allowing enabled toggles
-  - [ ] Handler validation rejects webhook requests with an invalid scope or malformed endpoint path before dispatch
-  - [ ] Contract serialization includes `scope`, `workspace_id`, `source`, `endpoint_slug`, and `webhook_id` fields in the expected wire shape
+  - [x] Handler validation rejects definition edits for config-backed jobs and triggers while allowing enabled toggles
+  - [x] Handler validation rejects webhook requests with an invalid scope or malformed endpoint path before dispatch
+  - [x] Contract serialization includes `scope`, `workspace_id`, `source`, `endpoint_slug`, and `webhook_id` fields in the expected wire shape
 - Integration tests:
-  - [ ] `GET/POST/PATCH/DELETE /api/automation/jobs` round-trips the expected payloads through the shared handler layer
-  - [ ] `GET/POST/PATCH/DELETE /api/automation/triggers` and run-history endpoints return the expected trigger and run data
-  - [ ] `POST /api/webhooks/global/:endpoint` rejects invalid HMAC and accepts a valid signed request
-  - [ ] UDS exposes the automation management routes that CLI consumers need, while webhook delivery remains HTTP-only
-  - [ ] `GET /api/observe/health` includes the additive automation status block and `internal/api/spec` includes automation operations
+  - [x] `GET/POST/PATCH/DELETE /api/automation/jobs` round-trips the expected payloads through the shared handler layer
+  - [x] `GET/POST/PATCH/DELETE /api/automation/triggers` and run-history endpoints return the expected trigger and run data
+  - [x] `POST /api/webhooks/global/:endpoint` rejects invalid HMAC and accepts a valid signed request
+  - [x] UDS exposes the automation management routes that CLI consumers need, while webhook delivery remains HTTP-only
+  - [x] `GET /api/observe/health` includes the additive automation status block and `internal/api/spec` includes automation operations
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -81,4 +81,3 @@ Follow the TechSpec sections "API Endpoints", "Webhook HTTP Integration", "Healt
 - Test coverage >=80%
 - Automation is reachable through the shared daemon API surface with typed contracts
 - OpenAPI and generated downstream clients can describe the new automation endpoints
-

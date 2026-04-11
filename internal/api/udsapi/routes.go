@@ -51,6 +51,30 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		hooksGroup.GET("/events", handlers.HookEvents)
 	}
 
+	automationGroup := api.Group("/automation")
+	{
+		jobs := automationGroup.Group("/jobs")
+		jobs.GET("", handlers.ListAutomationJobs)
+		jobs.POST("", handlers.CreateAutomationJob)
+		jobs.GET("/:id", handlers.GetAutomationJob)
+		jobs.PATCH("/:id", handlers.UpdateAutomationJob)
+		jobs.DELETE("/:id", handlers.DeleteAutomationJob)
+		jobs.POST("/:id/trigger", handlers.TriggerAutomationJob)
+		jobs.GET("/:id/runs", handlers.AutomationJobRuns)
+
+		triggers := automationGroup.Group("/triggers")
+		triggers.GET("", handlers.ListAutomationTriggers)
+		triggers.POST("", handlers.CreateAutomationTrigger)
+		triggers.GET("/:id", handlers.GetAutomationTrigger)
+		triggers.PATCH("/:id", handlers.UpdateAutomationTrigger)
+		triggers.DELETE("/:id", handlers.DeleteAutomationTrigger)
+		triggers.GET("/:id/runs", handlers.AutomationTriggerRuns)
+
+		runs := automationGroup.Group("/runs")
+		runs.GET("", handlers.ListAutomationRuns)
+		runs.GET("/:id", handlers.GetAutomationRun)
+	}
+
 	skillsGroup := api.Group("/skills")
 	{
 		skillsGroup.GET("", handlers.ListSkills)

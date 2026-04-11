@@ -13,6 +13,7 @@ import (
 type handlerConfig struct {
 	sessions       core.SessionManager
 	observer       core.Observer
+	automation     core.AutomationManager
 	workspaces     core.WorkspaceService
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
@@ -49,6 +50,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			IncludeSessionWorkspaceInSSE: false,
 			Sessions:                     cfg.sessions,
 			Observer:                     cfg.observer,
+			Automation:                   cfg.automation,
 			Workspaces:                   cfg.workspaces,
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,

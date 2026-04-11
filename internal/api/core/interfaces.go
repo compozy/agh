@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/observe"
@@ -31,6 +32,7 @@ type SessionManager interface {
 	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
 	Transcript(ctx context.Context, id string) ([]transcript.Message, error)
 	Stop(ctx context.Context, id string) error
+	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 	Resume(ctx context.Context, id string) (*session.Session, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
 	ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error
@@ -50,6 +52,30 @@ type DreamTrigger interface {
 	Trigger(ctx context.Context, workspace string) (bool, string, error)
 	LastConsolidatedAt() (time.Time, error)
 	Enabled() bool
+}
+
+// AutomationManager exposes automation state and control surfaces to the API layer.
+type AutomationManager interface {
+	ListJobs(ctx context.Context, query automationpkg.JobListQuery) ([]automationpkg.Job, error)
+	Jobs(ctx context.Context) ([]automationpkg.Job, error)
+	GetJob(ctx context.Context, id string) (automationpkg.Job, error)
+	CreateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
+	UpdateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
+	DeleteJob(ctx context.Context, id string) error
+	TriggerJob(ctx context.Context, id string) (automationpkg.Run, error)
+	ListTriggers(ctx context.Context, query automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error)
+	Triggers(ctx context.Context) ([]automationpkg.Trigger, error)
+	GetTrigger(ctx context.Context, id string) (automationpkg.Trigger, error)
+	CreateTrigger(ctx context.Context, trigger automationpkg.Trigger, webhookSecret string) (automationpkg.Trigger, error)
+	UpdateTrigger(ctx context.Context, trigger automationpkg.Trigger, webhookSecret *string) (automationpkg.Trigger, error)
+	DeleteTrigger(ctx context.Context, id string) error
+	ListRuns(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
+	Runs(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
+	GetRun(ctx context.Context, id string) (automationpkg.Run, error)
+	Status(ctx context.Context) (automationpkg.ManagerStatus, error)
+	SetJobEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Job, error)
+	SetTriggerEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Trigger, error)
+	HandleWebhook(ctx context.Context, request automationpkg.WebhookRequest) (automationpkg.TriggerResult, error)
 }
 
 // SkillsRegistry exposes the skill catalog to the API layer.

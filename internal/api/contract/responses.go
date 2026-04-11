@@ -44,6 +44,41 @@ type AgentResponse struct {
 	Agent AgentPayload `json:"agent"`
 }
 
+// JobsResponse wraps the shared automation job list payload.
+type JobsResponse struct {
+	Jobs []JobPayload `json:"jobs"`
+}
+
+// JobResponse wraps one shared automation job payload.
+type JobResponse struct {
+	Job JobPayload `json:"job"`
+}
+
+// TriggersResponse wraps the shared automation trigger list payload.
+type TriggersResponse struct {
+	Triggers []TriggerPayload `json:"triggers"`
+}
+
+// TriggerResponse wraps one shared automation trigger payload.
+type TriggerResponse struct {
+	Trigger TriggerPayload `json:"trigger"`
+}
+
+// RunsResponse wraps the shared automation run list payload.
+type RunsResponse struct {
+	Runs []RunPayload `json:"runs"`
+}
+
+// RunResponse wraps one shared automation run payload.
+type RunResponse struct {
+	Run RunPayload `json:"run"`
+}
+
+// WebhookDeliveryResponse wraps the shared webhook delivery result payload.
+type WebhookDeliveryResponse struct {
+	Result WebhookDeliveryPayload `json:"result"`
+}
+
 // HookCatalogResponse wraps the resolved hook catalog payload.
 type HookCatalogResponse struct {
 	Hooks []HookCatalogPayload `json:"hooks"`
@@ -66,8 +101,9 @@ type ObserveEventsResponse struct {
 
 // HealthResponse wraps daemon health plus memory health.
 type HealthResponse struct {
-	Health ObserveHealthPayload `json:"health"`
-	Memory MemoryHealthPayload  `json:"memory"`
+	Health     ObserveHealthPayload    `json:"health"`
+	Memory     MemoryHealthPayload     `json:"memory"`
+	Automation AutomationHealthPayload `json:"automation"`
 }
 
 // DaemonStatusResponse wraps the daemon status payload.

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add automation persistence and overlay storage in globaldb
 type: backend
 complexity: high
@@ -29,11 +29,11 @@ Create the SQLite persistence model for jobs, triggers, runs, and the config-bac
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Extend the global database schema with automation jobs, triggers, runs, and overlay tables
-- [ ] 2.2 Add store methods for create, update, delete, list, and history queries across jobs, triggers, and runs
-- [ ] 2.3 Add scope-aware uniqueness and webhook identifier lookup behavior
-- [ ] 2.4 Add overlay read and write behavior for config-backed enabled state
-- [ ] 2.5 Add restart-safe run window queries that later dispatcher logic can use for fire-limit evaluation
+- [x] 2.1 Extend the global database schema with automation jobs, triggers, runs, and overlay tables
+- [x] 2.2 Add store methods for create, update, delete, list, and history queries across jobs, triggers, and runs
+- [x] 2.3 Add scope-aware uniqueness and webhook identifier lookup behavior
+- [x] 2.4 Add overlay read and write behavior for config-backed enabled state
+- [x] 2.5 Add restart-safe run window queries that later dispatcher logic can use for fire-limit evaluation
 
 ## Implementation Details
 
@@ -62,14 +62,14 @@ Follow the TechSpec sections "Database Schema", "Development Sequencing", and "T
 
 ## Tests
 - Unit tests:
-  - [ ] Opening the global DB creates all automation tables and expected uniqueness indexes
-  - [ ] Creating a global job and a workspace job with the same human name succeeds, while duplicating the name inside the same scope fails
-  - [ ] Webhook trigger lookup by stable `webhook_id` returns the correct trigger even when the slug text differs
-  - [ ] Config-backed overlay writes update only the enabled override and do not mutate the stored definition payload
-  - [ ] Run history queries filter correctly by job, trigger, status, and time window
+  - [x] Opening the global DB creates all automation tables and expected uniqueness indexes
+  - [x] Creating a global job and a workspace job with the same human name succeeds, while duplicating the name inside the same scope fails
+  - [x] Webhook trigger lookup by stable `webhook_id` returns the correct trigger even when the slug text differs
+  - [x] Config-backed overlay writes update only the enabled override and do not mutate the stored definition payload
+  - [x] Run history queries filter correctly by job, trigger, status, and time window
 - Integration tests:
-  - [ ] Reopening the database preserves jobs, triggers, overlays, and run history
-  - [ ] Persisted run-window queries still see recent runs after process restart so fire-limit evaluation data survives reboot
+  - [x] Reopening the database preserves jobs, triggers, overlays, and run history
+  - [x] Persisted run-window queries still see recent runs after process restart so fire-limit evaluation data survives reboot
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -78,4 +78,3 @@ Follow the TechSpec sections "Database Schema", "Development Sequencing", and "T
 - Test coverage >=80%
 - Automation persistence lives entirely inside `internal/store/globaldb`
 - Store queries can answer scope-aware CRUD, history, overlay, and fire-limit inputs without raw SQL escaping the package
-

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add CLI automation command group
 type: backend
 complexity: medium
@@ -29,11 +29,11 @@ Add the `agh automation` command tree so operators and agents can manage automat
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add daemon-client request methods for automation jobs, triggers, runs, and manual job fires
-- [ ] 8.2 Add the `agh automation` Cobra command tree and subcommands
-- [ ] 8.3 Add flag parsing and validation for scope, workspace, schedule, filter, and retry inputs
-- [ ] 8.4 Add renderers and error messages consistent with the rest of the CLI
-- [ ] 8.5 Add command and client tests for happy-path and invalid-usage cases
+- [x] 8.1 Add daemon-client request methods for automation jobs, triggers, runs, and manual job fires
+- [x] 8.2 Add the `agh automation` Cobra command tree and subcommands
+- [x] 8.3 Add flag parsing and validation for scope, workspace, schedule, filter, and retry inputs
+- [x] 8.4 Add renderers and error messages consistent with the rest of the CLI
+- [x] 8.5 Add command and client tests for happy-path and invalid-usage cases
 
 ## Implementation Details
 
@@ -60,13 +60,13 @@ Follow the TechSpec sections "CLI Commands" and "API Endpoints". Reuse the exist
 
 ## Tests
 - Unit tests:
-  - [ ] Client methods issue the expected HTTP verbs and `/api/automation/*` paths for list, create, update, delete, trigger, and history operations
-  - [ ] Job creation flag parsing accepts `--scope workspace --workspace <id>` and rejects missing workspace input
-  - [ ] Trigger creation flag parsing accepts `data.branch=main` style filters and rejects malformed filter expressions
-  - [ ] CLI commands surface a descriptive error when attempting to mutate a config-backed definition beyond the enabled overlay
+  - [x] Client methods issue the expected HTTP verbs and `/api/automation/*` paths for list, create, update, delete, trigger, and history operations
+  - [x] Job creation flag parsing accepts `--scope workspace --workspace <id>` and rejects missing workspace input
+  - [x] Trigger creation flag parsing accepts `data.branch=main` style filters and rejects malformed filter expressions
+  - [x] CLI commands surface a descriptive error when attempting to mutate a config-backed definition beyond the enabled overlay
 - Integration tests:
-  - [ ] `agh automation jobs create` round-trips through a stub daemon client and prints a created job in human and JSON output modes
-  - [ ] `agh automation triggers history <id>` and `agh automation runs` render run history correctly for both human and JSON output
+  - [x] `agh automation jobs create` round-trips through a stub daemon client and prints a created job in human and JSON output modes
+  - [x] `agh automation triggers history <id>` and `agh automation runs` render run history correctly for both human and JSON output
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -75,4 +75,3 @@ Follow the TechSpec sections "CLI Commands" and "API Endpoints". Reuse the exist
 - Test coverage >=80%
 - Operators can manage automation end-to-end through the CLI without calling raw API endpoints
 - CLI validation and output stay consistent with the existing AGH command surface
-

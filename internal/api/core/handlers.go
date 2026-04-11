@@ -30,6 +30,7 @@ type BaseHandlerConfig struct {
 	IncludeSessionWorkspaceInSSE bool
 	Sessions                     SessionManager
 	Observer                     Observer
+	Automation                   AutomationManager
 	Workspaces                   WorkspaceService
 	SkillsRegistry               SkillsRegistry
 	MemoryStore                  *memory.Store
@@ -53,6 +54,7 @@ type BaseHandlers struct {
 	IncludeSessionWorkspaceInSSE bool
 	Sessions                     SessionManager
 	Observer                     Observer
+	Automation                   AutomationManager
 	Workspaces                   WorkspaceService
 	SkillsRegistry               SkillsRegistry
 	MemoryStore                  *memory.Store
@@ -111,6 +113,7 @@ func NewBaseHandlers(cfg BaseHandlerConfig) *BaseHandlers {
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
 		Sessions:                     cfg.Sessions,
 		Observer:                     cfg.Observer,
+		Automation:                   cfg.Automation,
 		Workspaces:                   cfg.Workspaces,
 		SkillsRegistry:               cfg.SkillsRegistry,
 		MemoryStore:                  cfg.MemoryStore,
@@ -568,9 +571,16 @@ func (h *BaseHandlers) Health(c *gin.Context) {
 		return
 	}
 
+	automationHealth, err := h.automationHealth(c.Request.Context())
+	if err != nil {
+		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+
 	c.JSON(http.StatusOK, contract.HealthResponse{
-		Health: ObserveHealthPayloadFromHealth(health),
-		Memory: memoryHealth,
+		Health:     ObserveHealthPayloadFromHealth(health),
+		Memory:     memoryHealth,
+		Automation: automationHealth,
 	})
 }
 

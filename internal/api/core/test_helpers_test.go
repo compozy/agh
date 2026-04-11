@@ -53,6 +53,18 @@ func newHandlerFixture(
 	store *memory.Store,
 	dream core.DreamTrigger,
 ) handlerFixture {
+	return newHandlerFixtureWithAutomation(t, manager, observer, testutil.StubAutomationManager{}, workspaces, store, dream)
+}
+
+func newHandlerFixtureWithAutomation(
+	t *testing.T,
+	manager testutil.StubSessionManager,
+	observer testutil.StubObserver,
+	automation testutil.StubAutomationManager,
+	workspaces testutil.StubWorkspaceService,
+	store *memory.Store,
+	dream core.DreamTrigger,
+) handlerFixture {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -68,6 +80,7 @@ func newHandlerFixture(
 		IncludeSessionWorkspaceInSSE: true,
 		Sessions:                     manager,
 		Observer:                     observer,
+		Automation:                   automation,
 		Workspaces:                   workspaces,
 		MemoryStore:                  store,
 		DreamTrigger:                 dream,
@@ -98,6 +111,23 @@ func newHandlerFixture(
 	engine.GET("/observe/events", handlers.ObserveEvents)
 	engine.GET("/observe/events/stream", handlers.StreamObserveEvents)
 	engine.GET("/observe/health", handlers.Health)
+	engine.GET("/automation/jobs", handlers.ListAutomationJobs)
+	engine.POST("/automation/jobs", handlers.CreateAutomationJob)
+	engine.GET("/automation/jobs/:id", handlers.GetAutomationJob)
+	engine.PATCH("/automation/jobs/:id", handlers.UpdateAutomationJob)
+	engine.DELETE("/automation/jobs/:id", handlers.DeleteAutomationJob)
+	engine.POST("/automation/jobs/:id/trigger", handlers.TriggerAutomationJob)
+	engine.GET("/automation/jobs/:id/runs", handlers.AutomationJobRuns)
+	engine.GET("/automation/triggers", handlers.ListAutomationTriggers)
+	engine.POST("/automation/triggers", handlers.CreateAutomationTrigger)
+	engine.GET("/automation/triggers/:id", handlers.GetAutomationTrigger)
+	engine.PATCH("/automation/triggers/:id", handlers.UpdateAutomationTrigger)
+	engine.DELETE("/automation/triggers/:id", handlers.DeleteAutomationTrigger)
+	engine.GET("/automation/triggers/:id/runs", handlers.AutomationTriggerRuns)
+	engine.GET("/automation/runs", handlers.ListAutomationRuns)
+	engine.GET("/automation/runs/:id", handlers.GetAutomationRun)
+	engine.POST("/webhooks/global/:endpoint", handlers.DeliverGlobalWebhook)
+	engine.POST("/webhooks/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
 	engine.GET("/daemon/status", handlers.DaemonStatus)
 	engine.GET("/memory", handlers.ListMemory)
 	engine.GET("/memory/:filename", handlers.ReadMemory)

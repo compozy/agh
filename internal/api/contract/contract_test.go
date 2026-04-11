@@ -8,6 +8,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -153,6 +154,286 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 	if string(roundTrip.Raw) != `{"ok":true}` {
 		t.Fatalf("raw payload = %s", string(roundTrip.Raw))
 	}
+}
+
+func TestAutomationJobPayloadJSONShape(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve automation job JSON shape", func(t *testing.T) {
+		t.Parallel()
+
+		nextRun := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+		payload := contract.JobPayload{
+			ID:          "job-1",
+			Scope:       automationpkg.AutomationScopeWorkspace,
+			Name:        "nightly-review",
+			AgentName:   "coder",
+			WorkspaceID: "ws-alpha",
+			Prompt:      "review repo",
+			Schedule: &automationpkg.ScheduleSpec{
+				Mode:     automationpkg.ScheduleModeEvery,
+				Interval: "1h",
+			},
+			Enabled: true,
+			Retry: automationpkg.RetryConfig{
+				Strategy:   automationpkg.RetryStrategyBackoff,
+				MaxRetries: 2,
+				BaseDelay:  "1m",
+			},
+			FireLimit: automationpkg.FireLimitConfig{
+				Max:    5,
+				Window: "24h",
+			},
+			Source:    automationpkg.JobSourceDynamic,
+			CreatedAt: time.Date(2026, 4, 11, 11, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 4, 11, 11, 30, 0, 0, time.UTC),
+			NextRun:   &nextRun,
+		}
+
+		var got map[string]any
+		marshalJSON(t, payload, &got)
+
+		if got["scope"] != string(automationpkg.AutomationScopeWorkspace) {
+			t.Fatalf("scope = %#v, want %q", got["scope"], automationpkg.AutomationScopeWorkspace)
+		}
+		if got["workspace_id"] != "ws-alpha" {
+			t.Fatalf("workspace_id = %#v, want %q", got["workspace_id"], "ws-alpha")
+		}
+		if got["source"] != string(automationpkg.JobSourceDynamic) {
+			t.Fatalf("source = %#v, want %q", got["source"], automationpkg.JobSourceDynamic)
+		}
+		if _, exists := got["next_run"]; !exists {
+			t.Fatalf("job payload missing next_run: %#v", got)
+		}
+	})
+}
+
+func TestAutomationTriggerPayloadJSONShape(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve automation trigger JSON shape", func(t *testing.T) {
+		t.Parallel()
+
+		payload := contract.TriggerPayload{
+			ID:           "trigger-1",
+			Scope:        automationpkg.AutomationScopeWorkspace,
+			Name:         "deploy-review",
+			AgentName:    "coder",
+			WorkspaceID:  "ws-alpha",
+			Prompt:       `review {{ index .Data "payload" }}`,
+			Event:        "webhook",
+			Filter:       map[string]string{"branch": "main"},
+			Enabled:      true,
+			Retry:        automationpkg.DefaultRetryConfig(),
+			FireLimit:    automationpkg.DefaultFireLimitConfig(),
+			Source:       automationpkg.JobSourceDynamic,
+			WebhookID:    "wbh_123",
+			EndpointSlug: "deploy-review",
+			CreatedAt:    time.Date(2026, 4, 11, 11, 0, 0, 0, time.UTC),
+			UpdatedAt:    time.Date(2026, 4, 11, 11, 30, 0, 0, time.UTC),
+		}
+
+		var got map[string]any
+		marshalJSON(t, payload, &got)
+
+		if got["scope"] != string(automationpkg.AutomationScopeWorkspace) {
+			t.Fatalf("scope = %#v, want %q", got["scope"], automationpkg.AutomationScopeWorkspace)
+		}
+		if got["workspace_id"] != "ws-alpha" {
+			t.Fatalf("workspace_id = %#v, want %q", got["workspace_id"], "ws-alpha")
+		}
+		if got["source"] != string(automationpkg.JobSourceDynamic) {
+			t.Fatalf("source = %#v, want %q", got["source"], automationpkg.JobSourceDynamic)
+		}
+		if got["endpoint_slug"] != "deploy-review" {
+			t.Fatalf("endpoint_slug = %#v, want %q", got["endpoint_slug"], "deploy-review")
+		}
+		if got["webhook_id"] != "wbh_123" {
+			t.Fatalf("webhook_id = %#v, want %q", got["webhook_id"], "wbh_123")
+		}
+	})
+}
+
+func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
+	t.Parallel()
+
+	name := "updated"
+	agentName := "reviewer"
+	workspaceID := "ws-alpha"
+	prompt := "updated prompt"
+	schedule := automationpkg.ScheduleSpec{
+		Mode:     automationpkg.ScheduleModeEvery,
+		Interval: "1h",
+	}
+	retry := automationpkg.RetryConfig{
+		Strategy:   automationpkg.RetryStrategyBackoff,
+		MaxRetries: 2,
+		BaseDelay:  "1m",
+	}
+	fireLimit := automationpkg.FireLimitConfig{
+		Max:    3,
+		Window: "15m",
+	}
+	event := "session.created"
+	filter := map[string]string{"kind": "session"}
+	webhookID := "wbh_123"
+	endpointSlug := "deploy-review"
+	secret := "secret"
+	disabled := false
+
+	t.Run("Should report changes for automation job update requests", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name string
+			req  contract.UpdateJobRequest
+			want bool
+		}{
+			{
+				name: "Should return false for an empty job update",
+				req:  contract.UpdateJobRequest{},
+				want: false,
+			},
+			{
+				name: "Should return true when the job name is set",
+				req:  contract.UpdateJobRequest{Name: &name},
+				want: true,
+			},
+			{
+				name: "Should return true when the job agent name is set",
+				req:  contract.UpdateJobRequest{AgentName: &agentName},
+				want: true,
+			},
+			{
+				name: "Should return true when the job workspace id is set",
+				req:  contract.UpdateJobRequest{WorkspaceID: &workspaceID},
+				want: true,
+			},
+			{
+				name: "Should return true when the job prompt is set",
+				req:  contract.UpdateJobRequest{Prompt: &prompt},
+				want: true,
+			},
+			{
+				name: "Should return true when the job schedule is set",
+				req:  contract.UpdateJobRequest{Schedule: &schedule},
+				want: true,
+			},
+			{
+				name: "Should return true when the job enabled flag is set",
+				req:  contract.UpdateJobRequest{Enabled: &disabled},
+				want: true,
+			},
+			{
+				name: "Should return true when the job retry policy is set",
+				req:  contract.UpdateJobRequest{Retry: &retry},
+				want: true,
+			},
+			{
+				name: "Should return true when the job fire limit is set",
+				req:  contract.UpdateJobRequest{FireLimit: &fireLimit},
+				want: true,
+			},
+		}
+
+		for _, tc := range testCases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				if got := tc.req.HasChanges(); got != tc.want {
+					t.Fatalf("UpdateJobRequest.HasChanges() = %v, want %v", got, tc.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should report changes for automation trigger update requests", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name string
+			req  contract.UpdateTriggerRequest
+			want bool
+		}{
+			{
+				name: "Should return false for an empty trigger update",
+				req:  contract.UpdateTriggerRequest{},
+				want: false,
+			},
+			{
+				name: "Should return true when the trigger name is set",
+				req:  contract.UpdateTriggerRequest{Name: &name},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger agent name is set",
+				req:  contract.UpdateTriggerRequest{AgentName: &agentName},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger workspace id is set",
+				req:  contract.UpdateTriggerRequest{WorkspaceID: &workspaceID},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger prompt is set",
+				req:  contract.UpdateTriggerRequest{Prompt: &prompt},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger event is set",
+				req:  contract.UpdateTriggerRequest{Event: &event},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger filter is set",
+				req:  contract.UpdateTriggerRequest{Filter: filter},
+				want: true,
+			},
+			{
+				name: "Should return true when the webhook secret is set",
+				req:  contract.UpdateTriggerRequest{WebhookSecret: &secret},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger enabled flag is set",
+				req:  contract.UpdateTriggerRequest{Enabled: &disabled},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger retry policy is set",
+				req:  contract.UpdateTriggerRequest{Retry: &retry},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger fire limit is set",
+				req:  contract.UpdateTriggerRequest{FireLimit: &fireLimit},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger webhook id is set",
+				req:  contract.UpdateTriggerRequest{WebhookID: &webhookID},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger endpoint slug is set",
+				req:  contract.UpdateTriggerRequest{EndpointSlug: &endpointSlug},
+				want: true,
+			},
+		}
+
+		for _, tc := range testCases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				if got := tc.req.HasChanges(); got != tc.want {
+					t.Fatalf("UpdateTriggerRequest.HasChanges() = %v, want %v", got, tc.want)
+				}
+			})
+		}
+	})
 }
 
 func marshalJSON[T any](t *testing.T, value any, target *T) {

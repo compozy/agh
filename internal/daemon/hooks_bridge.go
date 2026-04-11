@@ -31,6 +31,12 @@ type hookRuntime interface {
 	DispatchPromptPostAssemble(context.Context, hookspkg.PromptPayload) (hookspkg.PromptPayload, error)
 	DispatchEventPreRecord(context.Context, hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error)
 	DispatchEventPostRecord(context.Context, hookspkg.EventPostRecordPayload) (hookspkg.EventPostRecordPayload, error)
+	DispatchAutomationJobPreFire(context.Context, hookspkg.AutomationJobPreFirePayload) (hookspkg.AutomationJobPreFirePayload, error)
+	DispatchAutomationJobPostFire(context.Context, hookspkg.AutomationJobPostFirePayload) (hookspkg.AutomationJobPostFirePayload, error)
+	DispatchAutomationTriggerPreFire(context.Context, hookspkg.AutomationTriggerPreFirePayload) (hookspkg.AutomationTriggerPreFirePayload, error)
+	DispatchAutomationTriggerPostFire(context.Context, hookspkg.AutomationTriggerPostFirePayload) (hookspkg.AutomationTriggerPostFirePayload, error)
+	DispatchAutomationRunCompleted(context.Context, hookspkg.AutomationRunCompletedPayload) (hookspkg.AutomationRunCompletedPayload, error)
+	DispatchAutomationRunFailed(context.Context, hookspkg.AutomationRunFailedPayload) (hookspkg.AutomationRunFailedPayload, error)
 	DispatchAgentPreStart(context.Context, hookspkg.AgentPreStartPayload) (hookspkg.AgentPreStartPayload, error)
 	DispatchAgentSpawned(context.Context, hookspkg.AgentSpawnedPayload) (hookspkg.AgentSpawnedPayload, error)
 	DispatchAgentCrashed(context.Context, hookspkg.AgentCrashedPayload) (hookspkg.AgentCrashedPayload, error)
@@ -52,6 +58,90 @@ type sessionLifecycleObserver interface {
 
 type dreamCheckEnqueuer interface {
 	EnqueueCheck(reason string, workspaceRef string)
+}
+
+type sessionLifecycleFanout struct {
+	mu        sync.RWMutex
+	observers []sessionLifecycleObserver
+}
+
+func newSessionLifecycleFanout(observers ...sessionLifecycleObserver) *sessionLifecycleFanout {
+	fanout := &sessionLifecycleFanout{}
+	for _, observer := range observers {
+		fanout.Add(observer)
+	}
+	return fanout
+}
+
+func (f *sessionLifecycleFanout) Add(observer sessionLifecycleObserver) {
+	if f == nil || observer == nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.observers = append(f.observers, observer)
+}
+
+func (f *sessionLifecycleFanout) OnSessionCreated(ctx context.Context, sess *session.Session) {
+	for _, observer := range f.snapshot() {
+		observer.OnSessionCreated(ctx, sess)
+	}
+}
+
+func (f *sessionLifecycleFanout) OnSessionStopped(ctx context.Context, sess *session.Session) {
+	for _, observer := range f.snapshot() {
+		observer.OnSessionStopped(ctx, sess)
+	}
+}
+
+func (f *sessionLifecycleFanout) snapshot() []sessionLifecycleObserver {
+	if f == nil {
+		return nil
+	}
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return append([]sessionLifecycleObserver(nil), f.observers...)
+}
+
+type hookTelemetryFanout struct {
+	mu    sync.RWMutex
+	sinks []hookspkg.TelemetrySink
+}
+
+func newHookTelemetryFanout(sinks ...hookspkg.TelemetrySink) *hookTelemetryFanout {
+	fanout := &hookTelemetryFanout{}
+	for _, sink := range sinks {
+		fanout.Add(sink)
+	}
+	return fanout
+}
+
+func (f *hookTelemetryFanout) Add(sink hookspkg.TelemetrySink) {
+	if f == nil || sink == nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sinks = append(f.sinks, sink)
+}
+
+func (f *hookTelemetryFanout) WriteHookRecord(ctx context.Context, sessionID string, record hookspkg.HookRunRecord) error {
+	var errs []error
+	for _, sink := range f.snapshot() {
+		if err := sink.WriteHookRecord(ctx, sessionID, record); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (f *hookTelemetryFanout) snapshot() []hookspkg.TelemetrySink {
+	if f == nil {
+		return nil
+	}
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return append([]hookspkg.TelemetrySink(nil), f.sinks...)
 }
 
 type hooksNotifier struct {

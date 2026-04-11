@@ -84,6 +84,90 @@ var globalSchemaStatements = []string{
 		actions       TEXT NOT NULL DEFAULT '{}',
 		checksum      TEXT NOT NULL
 	);`,
+	`CREATE TABLE IF NOT EXISTS automation_jobs (
+		id           TEXT PRIMARY KEY,
+		scope        TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+		name         TEXT NOT NULL,
+		agent_name   TEXT NOT NULL,
+		workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+		prompt       TEXT NOT NULL,
+		schedule     TEXT,
+		enabled      BOOLEAN NOT NULL DEFAULT 1,
+		retry        TEXT NOT NULL,
+		fire_limit   TEXT NOT NULL,
+		source       TEXT NOT NULL DEFAULT 'dynamic',
+		created_at   TEXT NOT NULL,
+		updated_at   TEXT NOT NULL,
+		CHECK (
+			(scope = 'global' AND workspace_id IS NULL) OR
+			(scope = 'workspace' AND workspace_id IS NOT NULL)
+		)
+	);`,
+	`CREATE TABLE IF NOT EXISTS automation_triggers (
+		id            TEXT PRIMARY KEY,
+		scope         TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+		name          TEXT NOT NULL,
+		agent_name    TEXT NOT NULL,
+		workspace_id  TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+		prompt        TEXT NOT NULL,
+		event         TEXT NOT NULL,
+		filter        TEXT,
+		enabled       BOOLEAN NOT NULL DEFAULT 1,
+		retry         TEXT NOT NULL,
+		fire_limit    TEXT NOT NULL,
+		source        TEXT NOT NULL DEFAULT 'dynamic',
+		webhook_id    TEXT,
+		endpoint_slug TEXT,
+		created_at    TEXT NOT NULL,
+		updated_at    TEXT NOT NULL,
+		CHECK (
+			(scope = 'global' AND workspace_id IS NULL) OR
+			(scope = 'workspace' AND workspace_id IS NOT NULL)
+		)
+	);`,
+	`CREATE TABLE IF NOT EXISTS automation_runs (
+		id         TEXT PRIMARY KEY,
+		job_id     TEXT,
+		trigger_id TEXT,
+		session_id TEXT,
+		status     TEXT NOT NULL,
+		attempt    INTEGER NOT NULL DEFAULT 1,
+		started_at TEXT,
+		ended_at   TEXT,
+		error      TEXT,
+		FOREIGN KEY(job_id) REFERENCES automation_jobs(id) ON DELETE SET NULL,
+		FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE SET NULL
+	);`,
+	`CREATE TABLE IF NOT EXISTS automation_job_overlays (
+		job_id            TEXT PRIMARY KEY,
+		enabled_override  BOOLEAN NOT NULL,
+		updated_at        TEXT NOT NULL,
+		FOREIGN KEY(job_id) REFERENCES automation_jobs(id) ON DELETE CASCADE
+	);`,
+	`CREATE TABLE IF NOT EXISTS automation_trigger_overlays (
+		trigger_id        TEXT PRIMARY KEY,
+		enabled_override  BOOLEAN NOT NULL,
+		updated_at        TEXT NOT NULL,
+		FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE CASCADE
+	);`,
+	`CREATE TABLE IF NOT EXISTS automation_trigger_webhook_secrets (
+		trigger_id  TEXT PRIMARY KEY,
+		secret      TEXT NOT NULL,
+		updated_at  TEXT NOT NULL,
+		FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE CASCADE
+	);`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_global_name ON automation_jobs(name) WHERE scope = 'global';`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_workspace_name ON automation_jobs(workspace_id, name) WHERE scope = 'workspace';`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_global_name ON automation_triggers(name) WHERE scope = 'global';`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_workspace_name ON automation_triggers(workspace_id, name) WHERE scope = 'workspace';`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_webhook_id ON automation_triggers(webhook_id) WHERE webhook_id IS NOT NULL;`,
+	`CREATE INDEX IF NOT EXISTS idx_automation_jobs_enabled ON automation_jobs(enabled);`,
+	`CREATE INDEX IF NOT EXISTS idx_automation_triggers_enabled ON automation_triggers(enabled);`,
+	`CREATE INDEX IF NOT EXISTS idx_automation_triggers_event ON automation_triggers(event);`,
+	`CREATE INDEX IF NOT EXISTS idx_automation_runs_job ON automation_runs(job_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_automation_runs_trigger ON automation_runs(trigger_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status);`,
+	`CREATE INDEX IF NOT EXISTS idx_automation_runs_started ON automation_runs(started_at);`,
 }
 
 // GlobalDB owns the global session index and observability database.

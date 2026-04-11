@@ -95,6 +95,12 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 	if descriptor := byEvent[HookPermissionRequest]; !descriptor.SyncEligible {
 		t.Fatalf("permission.request SyncEligible = false, want true")
 	}
+	if descriptor := byEvent[HookAutomationJobPreFire]; descriptor.Family != HookEventFamilyAutomation || !descriptor.SyncEligible || descriptor.PatchSchema != "AutomationFirePatch" {
+		t.Fatalf("automation.job.pre_fire descriptor = %#v, want automation sync fire patch schema", descriptor)
+	}
+	if descriptor := byEvent[HookAutomationRunFailed]; descriptor.Family != HookEventFamilyAutomation || descriptor.SyncEligible || descriptor.PatchSchema != "AutomationObservationPatch" {
+		t.Fatalf("automation.run.failed descriptor = %#v, want automation async observation schema", descriptor)
+	}
 }
 
 func TestHooksCatalogFiltersByEventSourceModeAndExposesExecutorKind(t *testing.T) {

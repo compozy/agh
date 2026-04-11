@@ -38,6 +38,8 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 		return store.StopError, "process exited unexpectedly"
 	case CauseCompleted:
 		return store.StopCompleted, ""
+	case CauseFailed:
+		return store.StopError, trimmedDetail
 	default:
 		if waitErr != nil {
 			return store.StopError, waitErr.Error()

@@ -33,6 +33,10 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"acp_event_type": {},
 		"turn_id":        {},
 	},
+	HookEventFamilyAutomation: {
+		"agent_name":   {},
+		"workspace_id": {},
+	},
 	HookEventFamilyAgent: {
 		"agent_name":     {},
 		"workspace_id":   {},
@@ -113,6 +117,12 @@ func (m HookMatcher) MatchesEvent(payload EventRecordPayload) bool {
 	return matchStringField(m.AgentName, payload.AgentName) &&
 		matchStringField(m.ACPEventType, payload.RecordType) &&
 		matchStringField(m.TurnID, payload.TurnID)
+}
+
+// MatchesAutomation matches automation lifecycle hooks.
+func (m HookMatcher) MatchesAutomation(agentName string, workspaceID string) bool {
+	return matchStringField(m.AgentName, agentName) &&
+		matchStringField(m.WorkspaceID, workspaceID)
 }
 
 // MatchesAgentPreStart matches pre-start agent hooks.
@@ -212,6 +222,30 @@ func matchPrompt(matcher HookMatcher, payload PromptPayload) bool {
 
 func matchEventRecord(matcher HookMatcher, payload EventRecordPayload) bool {
 	return matcher.MatchesEvent(payload)
+}
+
+func matchAutomationJobPreFire(matcher HookMatcher, payload AutomationJobPreFirePayload) bool {
+	return matcher.MatchesAutomation(payload.AgentName, payload.WorkspaceID)
+}
+
+func matchAutomationJobPostFire(matcher HookMatcher, payload AutomationJobPostFirePayload) bool {
+	return matcher.MatchesAutomation(payload.AgentName, payload.WorkspaceID)
+}
+
+func matchAutomationTriggerPreFire(matcher HookMatcher, payload AutomationTriggerPreFirePayload) bool {
+	return matcher.MatchesAutomation(payload.AgentName, payload.WorkspaceID)
+}
+
+func matchAutomationTriggerPostFire(matcher HookMatcher, payload AutomationTriggerPostFirePayload) bool {
+	return matcher.MatchesAutomation(payload.AgentName, payload.WorkspaceID)
+}
+
+func matchAutomationRunCompleted(matcher HookMatcher, payload AutomationRunCompletedPayload) bool {
+	return matcher.MatchesAutomation(payload.AgentName, payload.WorkspaceID)
+}
+
+func matchAutomationRunFailed(matcher HookMatcher, payload AutomationRunFailedPayload) bool {
+	return matcher.MatchesAutomation(payload.AgentName, payload.WorkspaceID)
 }
 
 func matchAgentPreStart(matcher HookMatcher, payload AgentPreStartPayload) bool {

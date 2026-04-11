@@ -3,6 +3,8 @@ package contract
 import (
 	"time"
 
+	apicontract "github.com/pedronauck/agh/internal/api/contract"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/memory"
 	observepkg "github.com/pedronauck/agh/internal/observe"
@@ -14,18 +16,33 @@ import (
 type HostAPIMethod = extensionprotocol.HostAPIMethod
 
 const (
-	HostAPIMethodSessionsList   = extensionprotocol.HostAPIMethodSessionsList
-	HostAPIMethodSessionsCreate = extensionprotocol.HostAPIMethodSessionsCreate
-	HostAPIMethodSessionsPrompt = extensionprotocol.HostAPIMethodSessionsPrompt
-	HostAPIMethodSessionsStop   = extensionprotocol.HostAPIMethodSessionsStop
-	HostAPIMethodSessionsStatus = extensionprotocol.HostAPIMethodSessionsStatus
-	HostAPIMethodSessionsEvents = extensionprotocol.HostAPIMethodSessionsEvents
-	HostAPIMethodMemoryRecall   = extensionprotocol.HostAPIMethodMemoryRecall
-	HostAPIMethodMemoryStore    = extensionprotocol.HostAPIMethodMemoryStore
-	HostAPIMethodMemoryForget   = extensionprotocol.HostAPIMethodMemoryForget
-	HostAPIMethodObserveHealth  = extensionprotocol.HostAPIMethodObserveHealth
-	HostAPIMethodObserveEvents  = extensionprotocol.HostAPIMethodObserveEvents
-	HostAPIMethodSkillsList     = extensionprotocol.HostAPIMethodSkillsList
+	HostAPIMethodSessionsList             = extensionprotocol.HostAPIMethodSessionsList
+	HostAPIMethodSessionsCreate           = extensionprotocol.HostAPIMethodSessionsCreate
+	HostAPIMethodSessionsPrompt           = extensionprotocol.HostAPIMethodSessionsPrompt
+	HostAPIMethodSessionsStop             = extensionprotocol.HostAPIMethodSessionsStop
+	HostAPIMethodSessionsStatus           = extensionprotocol.HostAPIMethodSessionsStatus
+	HostAPIMethodSessionsEvents           = extensionprotocol.HostAPIMethodSessionsEvents
+	HostAPIMethodMemoryRecall             = extensionprotocol.HostAPIMethodMemoryRecall
+	HostAPIMethodMemoryStore              = extensionprotocol.HostAPIMethodMemoryStore
+	HostAPIMethodMemoryForget             = extensionprotocol.HostAPIMethodMemoryForget
+	HostAPIMethodObserveHealth            = extensionprotocol.HostAPIMethodObserveHealth
+	HostAPIMethodObserveEvents            = extensionprotocol.HostAPIMethodObserveEvents
+	HostAPIMethodSkillsList               = extensionprotocol.HostAPIMethodSkillsList
+	HostAPIMethodAutomationJobs           = extensionprotocol.HostAPIMethodAutomationJobs
+	HostAPIMethodAutomationJobsGet        = extensionprotocol.HostAPIMethodAutomationJobsGet
+	HostAPIMethodAutomationJobsCreate     = extensionprotocol.HostAPIMethodAutomationJobsCreate
+	HostAPIMethodAutomationJobsUpdate     = extensionprotocol.HostAPIMethodAutomationJobsUpdate
+	HostAPIMethodAutomationJobsDelete     = extensionprotocol.HostAPIMethodAutomationJobsDelete
+	HostAPIMethodAutomationJobsTrigger    = extensionprotocol.HostAPIMethodAutomationJobsTrigger
+	HostAPIMethodAutomationJobsRuns       = extensionprotocol.HostAPIMethodAutomationJobsRuns
+	HostAPIMethodAutomationTriggers       = extensionprotocol.HostAPIMethodAutomationTriggers
+	HostAPIMethodAutomationTriggersGet    = extensionprotocol.HostAPIMethodAutomationTriggersGet
+	HostAPIMethodAutomationTriggersCreate = extensionprotocol.HostAPIMethodAutomationTriggersCreate
+	HostAPIMethodAutomationTriggersUpdate = extensionprotocol.HostAPIMethodAutomationTriggersUpdate
+	HostAPIMethodAutomationTriggersDelete = extensionprotocol.HostAPIMethodAutomationTriggersDelete
+	HostAPIMethodAutomationTriggersRuns   = extensionprotocol.HostAPIMethodAutomationTriggersRuns
+	HostAPIMethodAutomationTriggersFire   = extensionprotocol.HostAPIMethodAutomationTriggersFire
+	HostAPIMethodAutomationRuns           = extensionprotocol.HostAPIMethodAutomationRuns
 )
 
 // NamedType links a generated TypeScript export name to a Go type.
@@ -115,6 +132,80 @@ type ObserveEventsParams struct {
 // SkillsListParams filters skills by workspace scope.
 type SkillsListParams struct {
 	Workspace string `json:"workspace,omitempty"`
+}
+
+// AutomationJobsParams filters visible automation jobs.
+type AutomationJobsParams struct {
+	Scope       automationpkg.AutomationScope `json:"scope,omitempty"`
+	WorkspaceID string                        `json:"workspace_id,omitempty"`
+	Enabled     *bool                         `json:"enabled,omitempty"`
+}
+
+// AutomationTriggersParams filters visible automation triggers.
+type AutomationTriggersParams struct {
+	Scope       automationpkg.AutomationScope `json:"scope,omitempty"`
+	WorkspaceID string                        `json:"workspace_id,omitempty"`
+	Event       string                        `json:"event,omitempty"`
+	Enabled     *bool                         `json:"enabled,omitempty"`
+}
+
+// AutomationRunsParams filters visible automation runs.
+type AutomationRunsParams struct {
+	JobID     string                  `json:"job_id,omitempty"`
+	TriggerID string                  `json:"trigger_id,omitempty"`
+	Status    automationpkg.RunStatus `json:"status,omitempty"`
+	Limit     int                     `json:"limit,omitempty"`
+}
+
+// AutomationTargetParams identifies one automation resource by id.
+type AutomationTargetParams struct {
+	ID string `json:"id"`
+}
+
+// AutomationJobCreateParams starts a new dynamic automation job.
+type AutomationJobCreateParams = apicontract.CreateJobRequest
+
+// AutomationJobUpdateParams patches one automation job definition by id.
+type AutomationJobUpdateParams struct {
+	ID string `json:"id"`
+	apicontract.UpdateJobRequest
+}
+
+// AutomationJobTriggerParams forces one immediate automation job run.
+type AutomationJobTriggerParams struct {
+	ID      string         `json:"id"`
+	Payload map[string]any `json:"payload,omitempty"`
+}
+
+// AutomationJobRunsParams filters run history for one automation job.
+type AutomationJobRunsParams struct {
+	ID     string                  `json:"id"`
+	Status automationpkg.RunStatus `json:"status,omitempty"`
+	Limit  int                     `json:"limit,omitempty"`
+}
+
+// AutomationTriggerCreateParams starts a new dynamic automation trigger.
+type AutomationTriggerCreateParams = apicontract.CreateTriggerRequest
+
+// AutomationTriggerUpdateParams patches one automation trigger definition by id.
+type AutomationTriggerUpdateParams struct {
+	ID string `json:"id"`
+	apicontract.UpdateTriggerRequest
+}
+
+// AutomationTriggerRunsParams filters run history for one automation trigger.
+type AutomationTriggerRunsParams struct {
+	ID     string                  `json:"id"`
+	Status automationpkg.RunStatus `json:"status,omitempty"`
+	Limit  int                     `json:"limit,omitempty"`
+}
+
+// AutomationTriggerFireParams injects one extension-originated trigger event.
+type AutomationTriggerFireParams struct {
+	Event       string                        `json:"event"`
+	Scope       automationpkg.AutomationScope `json:"scope"`
+	WorkspaceID string                        `json:"workspace_id,omitempty"`
+	Payload     map[string]any                `json:"payload,omitempty"`
 }
 
 // SessionSummary is the lightweight host-visible session listing shape.
@@ -241,6 +332,84 @@ func HostAPIMethodSpecs() []HostAPIMethodSpec {
 			Method:         HostAPIMethodSkillsList,
 			Params:         NamedType{Name: "SkillsListParams", Value: SkillsListParams{}},
 			Result:         NamedType{Name: "SkillSummary", Value: []SkillSummary{}},
+			OptionalParams: true,
+		},
+		{
+			Method:         HostAPIMethodAutomationJobs,
+			Params:         NamedType{Name: "AutomationJobsParams", Value: AutomationJobsParams{}},
+			Result:         NamedType{Name: "Job", Value: []automationpkg.Job{}},
+			OptionalParams: true,
+		},
+		{
+			Method: HostAPIMethodAutomationJobsGet,
+			Params: NamedType{Name: "AutomationTargetParams", Value: AutomationTargetParams{}},
+			Result: NamedType{Name: "Job", Value: automationpkg.Job{}},
+		},
+		{
+			Method: HostAPIMethodAutomationJobsCreate,
+			Params: NamedType{Name: "AutomationJobCreateParams", Value: AutomationJobCreateParams{}},
+			Result: NamedType{Name: "Job", Value: automationpkg.Job{}},
+		},
+		{
+			Method: HostAPIMethodAutomationJobsUpdate,
+			Params: NamedType{Name: "AutomationJobUpdateParams", Value: AutomationJobUpdateParams{}},
+			Result: NamedType{Name: "Job", Value: automationpkg.Job{}},
+		},
+		{
+			Method: HostAPIMethodAutomationJobsDelete,
+			Params: NamedType{Name: "AutomationTargetParams", Value: AutomationTargetParams{}},
+			Result: NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		},
+		{
+			Method: HostAPIMethodAutomationJobsTrigger,
+			Params: NamedType{Name: "AutomationJobTriggerParams", Value: AutomationJobTriggerParams{}},
+			Result: NamedType{Name: "Run", Value: automationpkg.Run{}},
+		},
+		{
+			Method: HostAPIMethodAutomationJobsRuns,
+			Params: NamedType{Name: "AutomationJobRunsParams", Value: AutomationJobRunsParams{}},
+			Result: NamedType{Name: "Run", Value: []automationpkg.Run{}},
+		},
+		{
+			Method:         HostAPIMethodAutomationTriggers,
+			Params:         NamedType{Name: "AutomationTriggersParams", Value: AutomationTriggersParams{}},
+			Result:         NamedType{Name: "Trigger", Value: []automationpkg.Trigger{}},
+			OptionalParams: true,
+		},
+		{
+			Method: HostAPIMethodAutomationTriggersGet,
+			Params: NamedType{Name: "AutomationTargetParams", Value: AutomationTargetParams{}},
+			Result: NamedType{Name: "Trigger", Value: automationpkg.Trigger{}},
+		},
+		{
+			Method: HostAPIMethodAutomationTriggersCreate,
+			Params: NamedType{Name: "AutomationTriggerCreateParams", Value: AutomationTriggerCreateParams{}},
+			Result: NamedType{Name: "Trigger", Value: automationpkg.Trigger{}},
+		},
+		{
+			Method: HostAPIMethodAutomationTriggersUpdate,
+			Params: NamedType{Name: "AutomationTriggerUpdateParams", Value: AutomationTriggerUpdateParams{}},
+			Result: NamedType{Name: "Trigger", Value: automationpkg.Trigger{}},
+		},
+		{
+			Method: HostAPIMethodAutomationTriggersDelete,
+			Params: NamedType{Name: "AutomationTargetParams", Value: AutomationTargetParams{}},
+			Result: NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		},
+		{
+			Method: HostAPIMethodAutomationTriggersRuns,
+			Params: NamedType{Name: "AutomationTriggerRunsParams", Value: AutomationTriggerRunsParams{}},
+			Result: NamedType{Name: "Run", Value: []automationpkg.Run{}},
+		},
+		{
+			Method: HostAPIMethodAutomationTriggersFire,
+			Params: NamedType{Name: "AutomationTriggerFireParams", Value: AutomationTriggerFireParams{}},
+			Result: NamedType{Name: "TriggerResult", Value: automationpkg.TriggerResult{}},
+		},
+		{
+			Method:         HostAPIMethodAutomationRuns,
+			Params:         NamedType{Name: "AutomationRunsParams", Value: AutomationRunsParams{}},
+			Result:         NamedType{Name: "Run", Value: []automationpkg.Run{}},
 			OptionalParams: true,
 		},
 	}
