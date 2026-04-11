@@ -15,7 +15,9 @@ export { workspaceKeys } from "./lib/query-keys";
 export { workspacesListOptions } from "./lib/query-options";
 
 // Hooks
+export { useActiveWorkspace } from "./hooks/use-active-workspace";
 export { useResolveWorkspace, useWorkspaces } from "./hooks/use-workspaces";
 
 // Components
 export { WorkspaceSelector } from "./components/workspace-selector";
+export { WorkspaceOnboarding, WorkspaceSetupDialog } from "./components/workspace-setup";

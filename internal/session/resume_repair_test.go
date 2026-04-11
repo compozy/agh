@@ -21,13 +21,16 @@ func TestClassifyPreviousStop(t *testing.T) {
 		name        string
 		meta        store.SessionMeta
 		wantChanged bool
+		wantState   string
 		wantReason  *store.StopReason
 		wantDetail  string
+		wantACP     *string
 	}{
 		{
 			name:        "active session classified as crashed",
 			meta:        store.SessionMeta{State: string(StateActive)},
 			wantChanged: true,
+			wantState:   string(StateStopped),
 			wantReason:  stopReasonPointer(store.StopAgentCrashed),
 			wantDetail:  "daemon crashed while session active",
 		},
@@ -35,15 +38,18 @@ func TestClassifyPreviousStop(t *testing.T) {
 			name:        "stopping session classified as crashed",
 			meta:        store.SessionMeta{State: string(StateStopping)},
 			wantChanged: true,
+			wantState:   string(StateStopped),
 			wantReason:  stopReasonPointer(store.StopAgentCrashed),
 			wantDetail:  "stop did not complete",
 		},
 		{
 			name:        "starting session classified as error",
-			meta:        store.SessionMeta{State: string(StateStarting)},
+			meta:        store.SessionMeta{State: string(StateStarting), ACPSessionID: stringPointer("acp-stale")},
 			wantChanged: true,
+			wantState:   string(StateStopped),
 			wantReason:  stopReasonPointer(store.StopError),
 			wantDetail:  "start did not complete",
+			wantACP:     nil,
 		},
 		{
 			name: "stopped session preserves existing reason",
@@ -53,6 +59,7 @@ func TestClassifyPreviousStop(t *testing.T) {
 				StopDetail: "requested by user",
 			},
 			wantChanged: false,
+			wantState:   string(StateStopped),
 			wantReason:  &existingReason,
 			wantDetail:  "requested by user",
 		},
@@ -60,8 +67,23 @@ func TestClassifyPreviousStop(t *testing.T) {
 			name:        "stopped session with no reason remains unchanged",
 			meta:        store.SessionMeta{State: string(StateStopped)},
 			wantChanged: false,
+			wantState:   string(StateStopped),
 			wantReason:  nil,
 			wantDetail:  "",
+		},
+		{
+			name: "stopped incomplete start clears stale acp session id",
+			meta: store.SessionMeta{
+				State:        string(StateStopped),
+				StopReason:   stopReasonPointer(store.StopError),
+				StopDetail:   "start did not complete",
+				ACPSessionID: stringPointer("acp-stale"),
+			},
+			wantChanged: true,
+			wantState:   string(StateStopped),
+			wantReason:  stopReasonPointer(store.StopError),
+			wantDetail:  "start did not complete",
+			wantACP:     nil,
 		},
 	}
 
@@ -74,10 +96,14 @@ func TestClassifyPreviousStop(t *testing.T) {
 			if gotChanged != tc.wantChanged {
 				t.Fatalf("classifyPreviousStop() changed = %v, want %v", gotChanged, tc.wantChanged)
 			}
+			if gotMeta.State != tc.wantState {
+				t.Fatalf("classifyPreviousStop() state = %q, want %q", gotMeta.State, tc.wantState)
+			}
 			assertOptionalStopReasonEqual(t, gotMeta.StopReason, tc.wantReason)
 			if gotMeta.StopDetail != tc.wantDetail {
 				t.Fatalf("classifyPreviousStop() detail = %q, want %q", gotMeta.StopDetail, tc.wantDetail)
 			}
+			assertOptionalStringEqual(t, gotMeta.ACPSessionID, tc.wantACP)
 		})
 	}
 }
@@ -235,6 +261,19 @@ func assertOptionalStopReasonEqual(t *testing.T, got *store.StopReason, want *st
 		t.Fatalf("stop reason = %v, want %v", got, want)
 	case *got != *want:
 		t.Fatalf("stop reason = %q, want %q", *got, *want)
+	}
+}
+
+func assertOptionalStringEqual(t *testing.T, got *string, want *string) {
+	t.Helper()
+
+	switch {
+	case got == nil && want == nil:
+		return
+	case got == nil || want == nil:
+		t.Fatalf("string = %v, want %v", got, want)
+	case *got != *want:
+		t.Fatalf("string = %q, want %q", *got, *want)
 	}
 }
 

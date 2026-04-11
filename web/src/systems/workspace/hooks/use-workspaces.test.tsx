@@ -55,14 +55,15 @@ describe("workspace hooks", () => {
   });
 
   it("invalidates the workspace list after resolving a workspace", async () => {
-    vi.mocked(resolveWorkspace).mockResolvedValue({
+    const resolvedWorkspace = {
       id: "ws_alpha",
       root_dir: "/workspace/alpha",
       add_dirs: [],
       name: "alpha",
       created_at: "2026-04-06T10:00:00Z",
       updated_at: "2026-04-06T10:00:00Z",
-    });
+    };
+    vi.mocked(resolveWorkspace).mockResolvedValue(resolvedWorkspace);
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -80,6 +81,7 @@ describe("workspace hooks", () => {
     });
 
     expect(resolveWorkspace).toHaveBeenCalledWith({ path: "/workspace/alpha" });
+    expect(queryClient.getQueryData(workspaceKeys.list())).toEqual([resolvedWorkspace]);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() });
   });
 });

@@ -205,4 +205,19 @@ describe("SessionPage", () => {
     expect(screen.getByTestId("message-count")).toHaveTextContent("1");
     expect(screen.getByTestId("message-content")).toHaveTextContent("from-b");
   });
+
+  it("hides the composer until the session is active", () => {
+    sessionState = {
+      data: {
+        ...makeSession("sess-1"),
+        state: "starting",
+      },
+      isLoading: false,
+      error: null,
+    };
+
+    render(<SessionPage />);
+
+    expect(screen.queryByTestId("message-composer")).not.toBeInTheDocument();
+  });
 });

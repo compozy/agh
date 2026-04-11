@@ -10,11 +10,7 @@ import (
 )
 
 func TestRunPrintsVersion(t *testing.T) {
-	original := version.Version
-	version.Version = "test-version"
-	t.Cleanup(func() {
-		version.Version = original
-	})
+	t.Cleanup(version.OverrideVersionForTesting("test-version"))
 
 	var stdout bytes.Buffer
 	exitCode := run(context.Background(), []string{"version"}, &stdout, &bytes.Buffer{})

@@ -303,7 +303,7 @@ func daemonStatusWithState(runtime runtimeContext, info aghdaemon.Info, status s
 		HTTPPort:       runtime.Config.HTTP.Port,
 		ActiveSessions: 0,
 		TotalSessions:  0,
-		Version:        version.Version,
+		Version:        version.Current().Version,
 	}
 }
 

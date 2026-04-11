@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AlertCircle, Book, Loader2 } from "lucide-react";
 
+import { PillButton } from "@/components/design-system";
 import {
   useMemories,
   useMemory,
@@ -10,7 +11,8 @@ import {
   KnowledgeDetailPanel,
 } from "@/systems/knowledge";
 import type { MemoryScope } from "@/systems/knowledge/types";
-import { useWorkspaces } from "@/systems/workspace";
+import { useActiveWorkspace } from "@/systems/workspace";
+import { WorkspacePageShell } from "@/systems/workspace/components/workspace-page-shell";
 
 export const Route = createFileRoute("/_app/knowledge")({
   component: KnowledgePage,
@@ -57,9 +59,7 @@ function KnowledgePage() {
   const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Active workspace
-  const { data: workspaces } = useWorkspaces();
-  const activeWorkspaceId = workspaces?.[0]?.id ?? "";
+  const { activeWorkspaceId } = useActiveWorkspace();
 
   // Determine scope filter for API
   const scopeFilter = activeTab === "all" ? undefined : activeTab;
@@ -134,65 +134,49 @@ function KnowledgePage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Page header bar */}
-      <div className="flex items-center gap-3 border-b border-[color:var(--color-divider)] px-4 py-3">
-        <Book className="size-4 text-[color:var(--color-text-primary)]" />
-        <h1 className="text-base font-semibold text-[color:var(--color-text-primary)]">
-          Knowledge
-        </h1>
-        <span className="inline-flex h-[22px] items-center rounded-md bg-[color:var(--color-surface-elevated)] px-2 text-xs text-[color:var(--color-text-secondary)]">
-          {memoryCount}
-        </span>
-
-        {/* Tab pills */}
-        <div className="ml-4 flex items-center gap-1.5" data-testid="tab-pills">
+    <WorkspacePageShell
+      title="Knowledge"
+      icon={<Book className="size-4" />}
+      count={memoryCount}
+      controls={
+        <div className="flex items-center gap-1.5" data-testid="tab-pills">
           {(["all", "global", "workspace"] as const).map(tab => (
-            <button
+            <PillButton
               key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={
-                activeTab === tab
-                  ? "inline-flex h-8 items-center rounded-full px-3.5 text-sm transition-colors bg-[color:var(--color-accent)] text-white"
-                  : "inline-flex h-8 items-center rounded-full px-3.5 text-sm transition-colors border border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-hover)]"
-              }
+              active={activeTab === tab}
               data-testid={`tab-${tab}`}
-              type="button"
+              onClick={() => setActiveTab(tab)}
             >
               {tab.toUpperCase()}
-            </button>
+            </PillButton>
           ))}
         </div>
-
-        {/* Dream status indicator */}
-        <div className="ml-auto flex items-center gap-1.5" data-testid="dream-status">
+      }
+      meta={
+        <div className="flex items-center gap-1.5" data-testid="dream-status">
           <span className="size-2 rounded-full bg-[color:var(--color-text-tertiary)]" />
           <span className="text-xs text-[color:var(--color-text-tertiary)]">
-            {/* TODO: replace placeholder label when memory health/status data is available to the page. */}
             {formatDreamStatus()}
           </span>
         </div>
-      </div>
-
-      {/* Content area: list + detail */}
-      <div className="flex flex-1 overflow-hidden">
-        <KnowledgeListPanel
-          memories={memories ?? []}
-          selectedFilename={effectiveSelectedFilename}
-          onSelectMemory={setSelectedFilename}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-        />
-        <KnowledgeDetailPanel
-          memory={selectedMemory}
-          content={selectedContent}
-          scope={selectedScope}
-          isLoading={isContentLoading && effectiveSelectedFilename !== null}
-          error={contentError}
-          onDelete={handleDelete}
-          isDeletePending={deleteMutation.isPending}
-        />
-      </div>
-    </div>
+      }
+    >
+      <KnowledgeListPanel
+        memories={memories ?? []}
+        selectedFilename={effectiveSelectedFilename}
+        onSelectMemory={setSelectedFilename}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+      <KnowledgeDetailPanel
+        memory={selectedMemory}
+        content={selectedContent}
+        scope={selectedScope}
+        isLoading={isContentLoading && effectiveSelectedFilename !== null}
+        error={contentError}
+        onDelete={handleDelete}
+        isDeletePending={deleteMutation.isPending}
+      />
+    </WorkspacePageShell>
   );
 }

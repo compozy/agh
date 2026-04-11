@@ -218,6 +218,7 @@ type DaemonStatusPayload struct {
 	Socket         string    `json:"socket"`
 	HTTPHost       string    `json:"http_host"`
 	HTTPPort       int       `json:"http_port"`
+	UserHomeDir    string    `json:"user_home_dir"`
 	ActiveSessions int       `json:"active_sessions"`
 	TotalSessions  int       `json:"total_sessions"`
 	Version        string    `json:"version,omitempty"`

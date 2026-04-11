@@ -684,6 +684,7 @@ export interface operations {
               started_at: string;
               status: string;
               total_sessions: number;
+              user_home_dir: string;
               version?: string;
             };
           };

@@ -1016,7 +1016,7 @@ func (m *Manager) launchRuntime(ctx context.Context, ext *managedExtension) (pro
 	request := subprocess.InitializeRequest{
 		ProtocolVersion:          m.protocolVersion,
 		SupportedProtocolVersion: slices.Clone(m.supportedProtocolVersions),
-		AGHVersion:               version.Version,
+		AGHVersion:               version.Current().Version,
 		Extension: subprocess.InitializeExtension{
 			Name:       ext.manifest.Name,
 			Version:    ext.manifest.Version,

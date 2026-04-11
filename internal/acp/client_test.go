@@ -485,6 +485,51 @@ func TestStartResumeReturnsSentinelErrors(t *testing.T) {
 	}
 }
 
+func TestIsLoadSessionResourceMissing(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		err  error
+		want bool
+	}{
+		"resource missing request error": {
+			err: fmt.Errorf(
+				"%w: load session %q for %q: %w",
+				ErrLoadSessionFailed,
+				"sess-existing",
+				"helper",
+				&acpsdk.RequestError{Code: -32002, Message: "Resource not found: sess-existing"},
+			),
+			want: true,
+		},
+		"different request error": {
+			err: fmt.Errorf(
+				"%w: load session %q for %q: %w",
+				ErrLoadSessionFailed,
+				"sess-existing",
+				"helper",
+				&acpsdk.RequestError{Code: -32603, Message: "Internal error"},
+			),
+			want: false,
+		},
+		"non load session error": {
+			err:  errors.New("boom"),
+			want: false,
+		},
+	}
+
+	for name, tc := range tests {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := IsLoadSessionResourceMissing(tc.err); got != tc.want {
+				t.Fatalf("IsLoadSessionResourceMissing() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCleanupFailedStartReturnsJoinedErrorWhenStopFails(t *testing.T) {
 	t.Parallel()
 

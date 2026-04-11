@@ -291,6 +291,13 @@ func TestPromptErrorPaths(t *testing.T) {
 	}
 	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "after-stop"); err == nil {
 		t.Fatal("Prompt(stopped) error = nil, want non-nil")
+	} else {
+		if !errors.Is(err, ErrSessionNotActive) {
+			t.Fatalf("Prompt(stopped) error = %v, want ErrSessionNotActive", err)
+		}
+		if !strings.Contains(err.Error(), string(StateStopped)) {
+			t.Fatalf("Prompt(stopped) error = %v, want stopped state context", err)
+		}
 	}
 
 	h = newHarness(t)

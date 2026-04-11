@@ -25,6 +25,7 @@ Create the foundational `internal/network` protocol package that models AGH Netw
 - MUST support all seven message kinds defined by the tech spec, including per-kind required field validation and lifecycle-related body parsing
 - MUST enforce protocol validation rules for `space`, `peer_id`, `interaction_id`, targeted versus broadcast `to`, expiration, and reason-code usage
 - MUST provide deterministic route token derivation and reusable lifecycle helpers that later router code can call directly
+- MUST preserve opaque `ext` payloads while leaving AGH workflow and handoff metadata optional and non-normative
 </requirements>
 
 ## Subtasks
@@ -36,6 +37,7 @@ Create the foundational `internal/network` protocol package that models AGH Netw
 ## Implementation Details
 
 This task should stay entirely inside the protocol layer. Follow the implementation sections of the tech spec for field rules, ordering, and reason-code semantics instead of re-explaining the protocol here.
+It should model and round-trip `ext` cleanly, but it must not embed coordinator-mode workflow policy, circuit-breaker state, or saga/compensation logic.
 
 ### Relevant Files
 - `.compozy/tasks/agh-network/_techspec.md` - Normative implementation design, data model, and receiver rules
@@ -67,6 +69,7 @@ This task should stay entirely inside the protocol layer. Follow the implementat
 - [ ] Invalid `space`, `peer_id`, `to`, or `interaction_id` fields are rejected with descriptive errors
 - [ ] Lifecycle helpers reject invalid ownership and invalid terminal-state regressions
 - [ ] Route token derivation matches known vectors and remains deterministic
+- [ ] `ext` metadata round-trips without dropping unknown keys or making AGH workflow/handoff keys mandatory
 - Integration tests:
 - [ ] End-to-end protocol fixtures from the tech spec can be parsed and re-serialized without semantic drift
 - Test coverage target: >=80%

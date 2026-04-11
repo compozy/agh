@@ -12,6 +12,7 @@ This TechSpec defines the implementation of AGH Network v0 — the agent-to-agen
 - Inbound: daemon auto-prompts sessions with queued network messages after current turn completes
 - Runtime-created spaces with explicit session opt-in via `--space` flag (no space catalog in config)
 - Peer state in-memory and reconstructable; audit log persisted to globaldb + flat file
+- v0 network runtime remains a transport/router/correlation layer, not a workflow engine
 
 **Primary trade-off:** CLI-based outbound messaging has ~50ms subprocess overhead per command, but reuses existing infrastructure (terminal tools, UDS transport, skills system) and avoids new MCP server implementation. MCP tools can be added to the skill later without breaking changes.
 
@@ -450,6 +451,35 @@ type RemotePeerEntry struct {
 
 The remote peer cache is populated by processing received `greet` messages on broadcast subscriptions. When a `greet` is received from a peer_id that is not in the local session registry, it is stored in the remote cache with a TTL of 2x the heartbeat interval. `agh network peers` lists BOTH local peers (from session registry) and remote peers (from cache). Directed sends consult both registries before publish: local first, then remote cache. If the target peer is absent or expired, `NetworkManager.Send()` returns `not_found` locally and no NATS publish occurs.
 
+### AGH `ext` Conventions for Multi-Agent Workflows
+
+RFC v0 intentionally keeps orchestration metadata out of the core protocol and allows implementation-specific keys through `ext`. For AGH, the following namespaced keys are RECOMMENDED conventions for multi-agent workflows and cross-daemon handoffs:
+
+```json
+{
+  "ext": {
+    "agh.workflow_id": "wf_abc123",
+    "agh.workflow_step": 3,
+    "agh.workflow_total_steps": 5,
+    "agh.handoff_version": 3,
+    "agh.handoff_digest": "sha256:abc123...",
+    "agh.handoff_source": "reviewer.sess-xyz"
+  }
+}
+```
+
+These keys are optional and non-normative in v0:
+- `agh.workflow_id`: workflow-level correlation spanning multiple sessions or peers
+- `agh.workflow_step` / `agh.workflow_total_steps`: optional progress hints for timeline views
+- `agh.handoff_version`: sender-defined immutable handoff version number
+- `agh.handoff_digest`: content digest of the handed-off payload or referenced artifact
+- `agh.handoff_source`: originating peer or session for the handoff payload
+
+Receiver rules:
+- Receivers MUST continue to ignore unknown `ext` keys
+- Receivers MUST NOT require these keys for RFC v0 interoperability
+- AGH observability surfaces SHOULD preserve these keys when present so operators can reconstruct workflow lineage
+
 ### API Endpoints
 
 CLI commands (via UDS transport):
@@ -543,6 +573,18 @@ The current prompt assembly pipeline (`PromptAssembler.Assemble()` in `daemon/co
 ### Extension Host API
 
 Future: add `network/send` and `network/peers` methods to the extension Host API so extensions can also participate as network peers.
+
+### Explicit Non-Goals for v0 Network Runtime
+
+The `internal/network` package implements the RFC v0 wire/runtime surface. It MUST NOT evolve into a daemon-local workflow engine. The following concerns remain out of scope for this techspec and belong to later daemon orchestration phases or separate ADRs/specs:
+
+- coordinator-mode workflow planning or DAG execution
+- circuit breaker policy/state for peer or worker selection
+- append-only handoff state stores beyond per-message correlation metadata
+- compensation / saga rollback semantics across sessions or daemons
+- workflow-global metrics schemas or telemetry backends beyond the local observability surfaces defined here
+
+This boundary is intentional and matches RFC 003: AGH Network provides the transport, routing, discovery, lifecycle, and correlation primitives that later orchestration layers can build on. It is not itself the orchestration layer.
 
 ### Turn-End Delivery Mechanism
 
@@ -915,12 +957,14 @@ Test infrastructure:
   - `network.message.rejected` — reason (malformed|expired|duplicate)
   - `network.message.queued` — session_id, queue_depth
   - `network.stopped` — drain duration, pending messages
+  - When available, preserve `reply_to`, `trace_id`, `causation_id`, and AGH workflow/handoff `ext` keys in structured fields for debugging and timeline reconstruction
 
 - **Metrics** (via Observer integration):
   - Active peers count per space
   - Messages sent/received per kind
   - Inbound queue depth per session
   - Delivery latency (receive → prompt)
+  - Correlated workflow/handoff counts when `agh.workflow_id` or `agh.handoff_version` metadata is present
 
 - **CLI observability**:
   - `agh network status` — master dashboard

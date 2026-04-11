@@ -270,6 +270,9 @@
                                                 "total_sessions": {
                                                     "type": "integer"
                                                 },
+                                                "user_home_dir": {
+                                                    "type": "string"
+                                                },
                                                 "version": {
                                                     "type": "string"
                                                 }
@@ -282,7 +285,8 @@
                                                 "socket",
                                                 "started_at",
                                                 "status",
-                                                "total_sessions"
+                                                "total_sessions",
+                                                "user_home_dir"
                                             ],
                                             "type": "object"
                                         }

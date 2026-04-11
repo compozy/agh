@@ -26,6 +26,7 @@ Expose the network runtime through shared contracts, UDS handlers, CLI commands,
 - MUST expose UDS routes and handlers for the network control plane without bypassing daemon-owned validation
 - MUST add CLI commands for `agh network status`, `peers`, `spaces`, `send`, and `inbox`, including machine-readable output where the spec requires it
 - MUST surface structured logs, metrics, and daemon status fields needed to observe the runtime
+- MUST preserve and expose correlation fields and AGH workflow/handoff `ext` metadata when present, without making them required for v0 operation
 </requirements>
 
 ## Subtasks
@@ -37,6 +38,7 @@ Expose the network runtime through shared contracts, UDS handlers, CLI commands,
 ## Implementation Details
 
 The CLI and UDS layers should only talk through contracts and daemon handlers. They must not reach into transport or router internals directly.
+Observability output should make multi-hop debugging possible by preserving `reply_to`, `trace_id`, `causation_id`, and optional AGH `ext` workflow/handoff keys when they are available in runtime data.
 
 ### Relevant Files
 - `.compozy/tasks/agh-network/_techspec.md` - API endpoints, CLI expectations, and monitoring sections
@@ -69,6 +71,7 @@ The CLI and UDS layers should only talk through contracts and daemon handlers. T
 - [ ] UDS handlers validate required arguments and report structured errors
 - [ ] CLI output formatting supports human-readable and machine-readable use cases
 - [ ] Observability surfaces include the expected network metrics and log events
+- [ ] Optional workflow/handoff metadata remains visible in status/audit surfaces without being treated as mandatory protocol state
 - Integration tests:
 - [ ] CLI commands can list peers/spaces, send messages, and inspect inbox/status through the daemon
 - Test coverage target: >=80%

@@ -101,7 +101,7 @@ func newVersionCommand() *cobra.Command {
 			return writeCommandOutput(cmd, outputBundle{
 				jsonValue: version.Current(),
 				human: func() (string, error) {
-					return fmt.Sprintf("agh %s", version.Version), nil
+					return fmt.Sprintf("agh %s", version.Current().Version), nil
 				},
 				toon: func() (string, error) {
 					info := version.Current()

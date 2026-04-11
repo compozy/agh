@@ -30,6 +30,7 @@ Close the remaining runtime risk items after the core feature is in place by har
 - MUST ensure structured logs, metrics, and diagnostics remain accurate across reconnects, shutdowns, retries, and overflow conditions
 - MUST validate the final end-to-end user and agent workflows through real integration paths rather than isolated mocks alone
 - MUST not introduce workaround logic that bypasses the guardrails or provenance model established by earlier tasks
+- MUST preserve the v0 phase boundary: hardening may improve routing, correlation, and recovery behavior, but it must not turn `internal/network` into a workflow engine
 </requirements>
 
 ## Subtasks
@@ -41,6 +42,7 @@ Close the remaining runtime risk items after the core feature is in place by har
 ## Implementation Details
 
 Use this task to converge the fully integrated feature, not to create alternate code paths. The goal is to remove ambiguity and prove the final runtime under real daemon/session/network flows.
+This task can harden correlation and recommended `ext` metadata handling, but coordinator planning, circuit breaker policy, immutable handoff stores, and compensation logic remain outside the v0 network runtime.
 
 ### Relevant Files
 - `.compozy/tasks/agh-network/_techspec.md` - Known risks, testing approach, and monitoring sections
@@ -72,6 +74,7 @@ Use this task to converge the fully integrated feature, not to create alternate 
 - [ ] Queue overflow, retry, and shutdown-drain logic preserve the configured invariants
 - [ ] Observability surfaces reflect degraded and recovered network states correctly
 - [ ] Busy-session delivery semantics remain FIFO and provenance-safe under stress
+- [ ] Optional workflow/handoff metadata survives recovery paths and remains debuggable without becoming required runtime state
 - Integration tests:
 - [ ] Full CLI -> UDS -> daemon -> network -> session flows succeed for direct, broadcast, retry, resume, and reconnect scenarios
 - [ ] Failure injection cases surface the correct diagnostics without bypassing runtime guardrails

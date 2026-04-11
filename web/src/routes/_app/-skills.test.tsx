@@ -36,8 +36,8 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/systems/workspace", () => ({
-  useWorkspaces: () => ({
-    data: [
+  useActiveWorkspace: () => ({
+    workspaces: [
       {
         id: "ws_test",
         root_dir: "/workspace",
@@ -47,6 +47,20 @@ vi.mock("@/systems/workspace", () => ({
         updated_at: "2026-04-03T12:00:00Z",
       },
     ],
+    hasWorkspaces: true,
+    activeWorkspace: {
+      id: "ws_test",
+      root_dir: "/workspace",
+      add_dirs: [],
+      name: "test-workspace",
+      created_at: "2026-04-03T12:00:00Z",
+      updated_at: "2026-04-03T12:00:00Z",
+    },
+    activeWorkspaceId: "ws_test",
+    setActiveWorkspaceId: vi.fn(),
+    clearActiveWorkspaceSelection: vi.fn(),
+    isLoading: false,
+    isError: false,
   }),
 }));
 

@@ -171,6 +171,13 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 	if payload.Daemon.HTTPPort != 4321 {
 		t.Fatalf("daemon http port = %d, want 4321", payload.Daemon.HTTPPort)
 	}
+	resolvedUserHomeDir, err := aghconfig.ResolvePath(os.Getenv("HOME"))
+	if err != nil {
+		t.Fatalf("ResolvePath(HOME) error = %v", err)
+	}
+	if payload.Daemon.UserHomeDir != resolvedUserHomeDir {
+		t.Fatalf("daemon user home dir = %q, want %q", payload.Daemon.UserHomeDir, resolvedUserHomeDir)
+	}
 
 	handlers := core.NewBaseHandlers(core.BaseHandlerConfig{})
 	if handlers.TransportName != "" {

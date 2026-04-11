@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AlertCircle, Loader2, Wrench } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { PillButton } from "@/components/design-system";
 import {
   useSkills,
   useSkill,
@@ -13,7 +13,8 @@ import {
   SkillDetailPanel,
   MarketplaceView,
 } from "@/systems/skill";
-import { useWorkspaces } from "@/systems/workspace";
+import { useActiveWorkspace } from "@/systems/workspace";
+import { WorkspacePageShell } from "@/systems/workspace/components/workspace-page-shell";
 
 export const Route = createFileRoute("/_app/skills")({
   component: SkillsPage,
@@ -35,17 +36,16 @@ function SkillsPage() {
   const [requestedSkillContentName, setRequestedSkillContentName] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Active workspace (same logic as sidebar: first workspace)
-  const { data: workspaces } = useWorkspaces();
-  const activeWorkspaceId = workspaces?.[0]?.id ?? "";
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = activeWorkspaceId ?? "";
 
   // Data hooks
-  const { data: skills, isLoading, error } = useSkills(activeWorkspaceId);
+  const { data: skills, isLoading, error } = useSkills(workspaceId);
   const {
     data: selectedSkill,
     isLoading: isLoadingDetail,
     error: detailError,
-  } = useSkill(selectedSkillName ?? "", activeWorkspaceId);
+  } = useSkill(selectedSkillName ?? "", workspaceId);
 
   const disableMutation = useDisableSkill();
   const enableMutation = useEnableSkill();
@@ -73,14 +73,14 @@ function SkillsPage() {
     isLoading: isLoadingContent,
     error: contentError,
     refetch: refetchSkillContent,
-  } = useSkillContent(effectiveSelectedName ?? "", activeWorkspaceId, shouldLoadSelectedContent);
+  } = useSkillContent(effectiveSelectedName ?? "", workspaceId, shouldLoadSelectedContent);
 
   const handleDisable = (name: string) => {
-    disableMutation.mutate({ name, workspace: activeWorkspaceId });
+    disableMutation.mutate({ name, workspace: workspaceId });
   };
 
   const handleEnable = (name: string) => {
-    enableMutation.mutate({ name, workspace: activeWorkspaceId });
+    enableMutation.mutate({ name, workspace: workspaceId });
   };
 
   const handleViewContent = (name: string) => {
@@ -115,49 +115,31 @@ function SkillsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Page header bar */}
-      <div className="flex items-center gap-3 border-b border-[color:var(--color-divider)] px-4 py-3">
-        <Wrench className="size-4 text-[color:var(--color-text-primary)]" />
-        <h1 className="text-base font-semibold text-[color:var(--color-text-primary)]">Skills</h1>
-        <span className="inline-flex h-[22px] items-center rounded-md bg-[color:var(--color-surface-elevated)] px-2 text-xs text-[color:var(--color-text-secondary)]">
-          {skillCount}
-        </span>
-
-        {/* Tab pills */}
-        <div className="ml-4 flex items-center gap-1.5" data-testid="tab-pills">
-          <button
-            onClick={() => setActiveTab("installed")}
-            className={cn(
-              "inline-flex h-8 items-center rounded-full px-3.5 text-sm transition-colors",
-              activeTab === "installed"
-                ? "bg-[color:var(--color-accent)] text-white"
-                : "border border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-hover)]"
-            )}
+    <WorkspacePageShell
+      title="Skills"
+      icon={<Wrench className="size-4" />}
+      count={skillCount}
+      controls={
+        <div className="flex items-center gap-1.5" data-testid="tab-pills">
+          <PillButton
+            active={activeTab === "installed"}
             data-testid="tab-installed"
-            type="button"
+            onClick={() => setActiveTab("installed")}
           >
             INSTALLED
-          </button>
-          <button
-            onClick={() => setActiveTab("marketplace")}
-            className={cn(
-              "inline-flex h-8 items-center rounded-full px-3.5 text-sm transition-colors",
-              activeTab === "marketplace"
-                ? "bg-[color:var(--color-accent)] text-white"
-                : "border border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-hover)]"
-            )}
+          </PillButton>
+          <PillButton
+            active={activeTab === "marketplace"}
             data-testid="tab-marketplace"
-            type="button"
+            onClick={() => setActiveTab("marketplace")}
           >
             MARKETPLACE
-          </button>
+          </PillButton>
         </div>
-      </div>
-
-      {/* Content area */}
+      }
+    >
       {activeTab === "installed" ? (
-        <div className="flex flex-1 overflow-hidden">
+        <>
           <SkillListPanel
             skills={skills ?? []}
             selectedSkillName={effectiveSelectedName}
@@ -182,7 +164,7 @@ function SkillsPage() {
             onEnable={handleEnable}
             isActionPending={disableMutation.isPending || enableMutation.isPending}
           />
-        </div>
+        </>
       ) : (
         <MarketplaceView
           skills={skills ?? []}
@@ -191,6 +173,6 @@ function SkillsPage() {
           isInstalling={false}
         />
       )}
-    </div>
+    </WorkspacePageShell>
   );
 }

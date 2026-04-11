@@ -34,6 +34,8 @@ var (
 	ErrLoadSessionFailed = errors.New("acp: load session failed")
 )
 
+const requestErrorResourceNotFoundCode = -32002
+
 // Option customizes the ACP driver.
 type Option func(*Driver)
 
@@ -274,6 +276,22 @@ func (d *Driver) cleanupFailedStart(process *AgentProcess, startErr error) error
 		return errors.Join(startErr, fmt.Errorf("acp: stop failed while cleaning up failed start: %w", stopErr))
 	}
 	return startErr
+}
+
+// IsLoadSessionResourceMissing reports whether a resume failed because the
+// upstream ACP implementation no longer knows the referenced session id.
+func IsLoadSessionResourceMissing(err error) bool {
+	if !errors.Is(err, ErrLoadSessionFailed) {
+		return false
+	}
+
+	var reqErr *acpsdk.RequestError
+	if !errors.As(err, &reqErr) {
+		return false
+	}
+
+	return reqErr.Code == requestErrorResourceNotFoundCode &&
+		strings.Contains(strings.ToLower(strings.TrimSpace(reqErr.Message)), "resource not found")
 }
 
 // Prompt starts one prompt turn and returns the streamed event channel.

@@ -47,9 +47,15 @@ interface IconRailProps {
   workspaces: WorkspacePayload[] | undefined;
   activeWorkspaceId: string | null;
   onSelectWorkspace: (id: string) => void;
+  onAddWorkspace: () => void;
 }
 
-function IconRail({ workspaces, activeWorkspaceId, onSelectWorkspace }: IconRailProps) {
+function IconRail({
+  workspaces,
+  activeWorkspaceId,
+  onSelectWorkspace,
+  onAddWorkspace,
+}: IconRailProps) {
   return (
     <div
       className="flex w-10 shrink-0 flex-col items-center border-r border-[color:var(--color-divider)] bg-[color:var(--color-surface)] py-2"
@@ -74,8 +80,8 @@ function IconRail({ workspaces, activeWorkspaceId, onSelectWorkspace }: IconRail
               key={workspace.id}
               onClick={() => onSelectWorkspace(workspace.id)}
               className={cn(
-                "flex size-8 items-center justify-center rounded-full bg-[color:var(--color-surface-elevated)] text-xs font-medium text-[color:var(--color-text-primary)] transition-colors",
-                isActive && "ring-2 ring-[color:var(--color-accent)]"
+                "flex size-8 items-center justify-center rounded-full border-2 border-transparent bg-[color:var(--color-surface-elevated)] text-xs font-medium text-[color:var(--color-text-primary)] transition-colors",
+                isActive && "border-[color:var(--color-accent)]"
               )}
               aria-label={`Workspace: ${workspace.name}`}
               data-testid={`workspace-avatar-${workspace.id}`}
@@ -89,6 +95,7 @@ function IconRail({ workspaces, activeWorkspaceId, onSelectWorkspace }: IconRail
       </div>
 
       <button
+        onClick={onAddWorkspace}
         className="mt-2 flex size-8 items-center justify-center rounded-full text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-secondary)]"
         aria-label="Add workspace"
         data-testid="add-workspace-btn"
@@ -419,6 +426,7 @@ export interface AppSidebarProps {
   activeWorkspace: WorkspacePayload | undefined;
   activeWorkspaceId: string | null;
   onSelectWorkspace: (id: string) => void;
+  onAddWorkspace: () => void;
   health: { version: string } | undefined;
   connectionStatus: "connected" | "disconnected" | "reconnecting";
   agents: AgentPayload[] | undefined;
@@ -436,6 +444,7 @@ function AppSidebar({
   activeWorkspace,
   activeWorkspaceId,
   onSelectWorkspace,
+  onAddWorkspace,
   health,
   connectionStatus,
   agents,
@@ -446,11 +455,15 @@ function AppSidebar({
   isCreatingSession,
 }: AppSidebarProps) {
   return (
-    <aside className="relative flex h-screen shrink-0" data-testid="app-sidebar">
+    <aside
+      className="relative flex h-screen shrink-0 border-r border-[color:var(--color-divider)]"
+      data-testid="app-sidebar"
+    >
       <IconRail
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
         onSelectWorkspace={onSelectWorkspace}
+        onAddWorkspace={onAddWorkspace}
       />
       <SidebarPanel
         collapsed={collapsed}

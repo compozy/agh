@@ -195,7 +195,14 @@ func (m *Manager) readMeta(id string) (store.SessionMeta, error) {
 		}
 		return store.SessionMeta{}, fmt.Errorf("session: read metadata for %q: %w", target, err)
 	}
-	return meta, nil
+	if _, ok := m.Get(target); ok {
+		return meta, nil
+	}
+	repaired, err := m.repairInactiveMeta(metaPath, meta)
+	if err != nil {
+		return store.SessionMeta{}, err
+	}
+	return repaired, nil
 }
 
 func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMeta) *SessionInfo {

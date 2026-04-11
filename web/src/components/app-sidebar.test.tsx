@@ -7,6 +7,7 @@ import { AppSidebar, type AppSidebarProps } from "@/components/app-sidebar";
 const onSelectWorkspace = vi.fn();
 const onToggleCollapsed = vi.fn();
 const onNewSession = vi.fn();
+const onAddWorkspace = vi.fn();
 let matchedRoute: Record<string, boolean> = {};
 
 vi.mock("lucide-react", () => ({
@@ -103,6 +104,7 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
     activeWorkspace: workspaces[0],
     activeWorkspaceId: "ws_alpha",
     onSelectWorkspace,
+    onAddWorkspace,
     health: { version: "0.1.0" },
     connectionStatus: "connected",
     agents: [],
@@ -121,6 +123,7 @@ describe("AppSidebar", () => {
     onSelectWorkspace.mockReset();
     onToggleCollapsed.mockReset();
     onNewSession.mockReset();
+    onAddWorkspace.mockReset();
   });
 
   describe("Icon Rail", () => {
@@ -140,17 +143,17 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("app-logo").className).toContain("bg-[color:var(--color-accent)]");
     });
 
-    it("highlights active workspace with accent ring border", () => {
+    it("highlights active workspace with accent border", () => {
       render(<AppSidebar {...makeProps()} />);
       expect(screen.getByTestId("workspace-avatar-ws_alpha").className).toContain(
-        "ring-[color:var(--color-accent)]"
+        "border-[color:var(--color-accent)]"
       );
     });
 
     it("does not highlight inactive workspaces", () => {
       render(<AppSidebar {...makeProps()} />);
       expect(screen.getByTestId("workspace-avatar-ws_beta").className).not.toContain(
-        "ring-[color:var(--color-accent)]"
+        "border-[color:var(--color-accent)]"
       );
     });
 
@@ -158,6 +161,12 @@ describe("AppSidebar", () => {
       render(<AppSidebar {...makeProps()} />);
       fireEvent.click(screen.getByTestId("workspace-avatar-ws_beta"));
       expect(onSelectWorkspace).toHaveBeenCalledWith("ws_beta");
+    });
+
+    it("opens workspace setup from the add button", () => {
+      render(<AppSidebar {...makeProps()} />);
+      fireEvent.click(screen.getByTestId("add-workspace-btn"));
+      expect(onAddWorkspace).toHaveBeenCalledOnce();
     });
   });
 
@@ -234,6 +243,11 @@ describe("AppSidebar", () => {
   });
 
   describe("Navigation", () => {
+    it("renders the outer sidebar with a right border", () => {
+      render(<AppSidebar {...makeProps()} />);
+      expect(screen.getByTestId("app-sidebar").className).toContain("border-r");
+    });
+
     it("renders Knowledge nav item linking to /knowledge", () => {
       render(<AppSidebar {...makeProps()} />);
       expect(screen.getByTestId("nav-knowledge")).toHaveAttribute("href", "/knowledge");

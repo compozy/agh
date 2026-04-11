@@ -18,13 +18,29 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 		return nil, errors.New("session: prompt context is required")
 	}
 
+	target := strings.TrimSpace(id)
+	if target == "" {
+		return nil, errors.New("session: session id is required")
+	}
+
 	message := strings.TrimSpace(msg)
 	if message == "" {
 		return nil, errors.New("session: prompt message is required")
 	}
 
-	session, err := m.lookup(id)
+	session, err := m.lookup(target)
 	if err != nil {
+		if errors.Is(err, ErrSessionNotFound) {
+			meta, metaErr := m.readMeta(target)
+			switch {
+			case metaErr == nil:
+				return nil, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, meta.State)
+			case errors.Is(metaErr, ErrSessionNotFound):
+				return nil, err
+			default:
+				return nil, metaErr
+			}
+		}
 		return nil, err
 	}
 
@@ -55,7 +71,7 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 		Text:      message,
 	})
 	if err := m.recordEvent(ctx, session, userEvent); err != nil {
-		return nil, fmt.Errorf("session: persist prompt message for %q: %w", id, err)
+		return nil, fmt.Errorf("session: persist prompt message for %q: %w", target, err)
 	}
 	if m.notifier != nil {
 		m.notifier.OnAgentEvent(ctx, session.ID, userEvent)
@@ -63,7 +79,7 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 
 	source, err := m.driver.Prompt(ctx, proc, acp.PromptRequest{TurnID: turnID, Message: message})
 	if err != nil {
-		return nil, fmt.Errorf("session: prompt session %q: %w", id, err)
+		return nil, fmt.Errorf("session: prompt session %q: %w", target, err)
 	}
 
 	out := make(chan acp.AgentEvent, m.promptBufSize)

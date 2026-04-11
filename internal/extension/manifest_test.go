@@ -6,14 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/pedronauck/agh/internal/version"
 )
-
-var daemonVersionMu sync.Mutex
 
 func TestLoadManifest_ParsesTOMLAndJSONEquivalently(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
@@ -580,13 +577,7 @@ func TestSemanticVersion_HelperValidation(t *testing.T) {
 func withDaemonVersion(t *testing.T, current string) {
 	t.Helper()
 
-	daemonVersionMu.Lock()
-	original := version.Version
-	version.Version = current
-	t.Cleanup(func() {
-		version.Version = original
-		daemonVersionMu.Unlock()
-	})
+	t.Cleanup(version.OverrideVersionForTesting(current))
 }
 
 func writeFile(t *testing.T, path, content string) {

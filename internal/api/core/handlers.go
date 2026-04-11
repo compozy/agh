@@ -592,6 +592,12 @@ func (h *BaseHandlers) DaemonStatus(c *gin.Context) {
 		httpPort = h.Config.HTTP.Port
 	}
 
+	userHomeDir, err := resolveUserHomeDir()
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
 	c.JSON(http.StatusOK, contract.DaemonStatusResponse{
 		Daemon: contract.DaemonStatusPayload{
 			Status:         "running",
@@ -600,11 +606,26 @@ func (h *BaseHandlers) DaemonStatus(c *gin.Context) {
 			Socket:         h.Config.Daemon.Socket,
 			HTTPHost:       h.Config.HTTP.Host,
 			HTTPPort:       httpPort,
+			UserHomeDir:    userHomeDir,
 			ActiveSessions: health.ActiveSessions,
 			TotalSessions:  len(sessions),
 			Version:        health.Version,
 		},
 	})
+}
+
+func resolveUserHomeDir() (string, error) {
+	userHomeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve user home directory: %w", err)
+	}
+
+	resolvedUserHomeDir, err := aghconfig.ResolvePath(userHomeDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve user home directory %q: %w", userHomeDir, err)
+	}
+
+	return resolvedUserHomeDir, nil
 }
 
 // HTTPPortValue returns the configured HTTP port in a concurrency-safe way.
