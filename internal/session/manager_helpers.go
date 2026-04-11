@@ -65,9 +65,16 @@ func (m *Manager) writeMeta(session *Session) error {
 	return nil
 }
 
-func (m *Manager) activateAndWatch(ctx context.Context, session *Session, proc *AgentProcess, resolved aghconfig.ResolvedAgent, postEvent hookspkg.HookEvent) error {
+func (m *Manager) activateAndWatch(
+	ctx context.Context,
+	session *Session,
+	proc *AgentProcess,
+	resolved aghconfig.ResolvedAgent,
+	postEvent hookspkg.HookEvent,
+	preserveStopReason bool,
+) error {
 	now := m.now()
-	if err := session.activate(now); err != nil {
+	if err := session.activate(now, preserveStopReason); err != nil {
 		return err
 	}
 	if err := m.activate(session); err != nil {

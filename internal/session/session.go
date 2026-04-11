@@ -417,11 +417,13 @@ func (s *Session) setStopClassification(reason store.StopReason, detail string) 
 	s.stopDetail = strings.TrimSpace(detail)
 }
 
-func (s *Session) activate(now time.Time) error {
+func (s *Session) activate(now time.Time, preserveStopReason bool) error {
 	if err := s.transition(StateActive, now); err != nil {
 		return err
 	}
-	s.clearStopClassification()
+	if !preserveStopReason {
+		s.clearStopClassification()
+	}
 	return nil
 }
 

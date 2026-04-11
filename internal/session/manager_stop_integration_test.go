@@ -237,6 +237,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 	if err := manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
+	waitForStoppedSession(t, manager, session)
 
 	resumed, err := manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
@@ -246,6 +247,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		if err := manager.Stop(testutil.Context(t), resumed.ID); err != nil {
 			t.Fatalf("cleanup Stop() error = %v", err)
 		}
+		waitForStoppedSession(t, manager, resumed)
 	})
 
 	if got := resumed.Info().WorkspaceID; got != workspaceID {

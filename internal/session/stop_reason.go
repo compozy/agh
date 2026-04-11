@@ -90,7 +90,11 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 
 	stopErr := m.driver.Stop(ctx, proc)
 	if !isProcessDone(proc) {
-		return stopErr
+		select {
+		case <-proc.Done():
+		case <-ctx.Done():
+			return errors.Join(stopErr, ctx.Err())
+		}
 	}
 
 	return errors.Join(stopErr, m.finalizeStopped(ctx, session, nil))

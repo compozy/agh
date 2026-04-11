@@ -23,7 +23,7 @@ func TestSessionStateTransitions(t *testing.T) {
 		UpdatedAt: now,
 	}
 
-	if err := session.activate(now.Add(time.Second)); err != nil {
+	if err := session.activate(now.Add(time.Second), false); err != nil {
 		t.Fatalf("activate() error = %v", err)
 	}
 	if got := session.Info().State; got != StateActive {
@@ -61,7 +61,7 @@ func TestSessionInvalidTransitionRejected(t *testing.T) {
 		UpdatedAt: time.Now().UTC(),
 	}
 
-	err := session.activate(time.Now().UTC())
+	err := session.activate(time.Now().UTC(), false)
 	if err == nil {
 		t.Fatal("activate() error = nil, want non-nil")
 	}
@@ -98,6 +98,37 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 	}
 	if latest.ACPCaps.SupportedModels[0] != "gpt" {
 		t.Fatalf("SupportedModels mutated through Info() copy: %#v", latest.ACPCaps.SupportedModels)
+	}
+}
+
+func TestSessionActivateCanPreserveRecoveredStopClassification(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC)
+	session := &Session{
+		ID:         "sess-recovered",
+		AgentName:  "coder",
+		Workspace:  t.TempDir(),
+		State:      StateStarting,
+		stopReason: store.StopAgentCrashed,
+		stopDetail: "daemon crashed while session active",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+
+	if err := session.activate(now.Add(time.Second), true); err != nil {
+		t.Fatalf("activate(preserve) error = %v", err)
+	}
+
+	info := session.Info()
+	if got := info.State; got != StateActive {
+		t.Fatalf("State = %q, want %q", got, StateActive)
+	}
+	if got := info.StopReason; got != store.StopAgentCrashed {
+		t.Fatalf("StopReason = %q, want %q", got, store.StopAgentCrashed)
+	}
+	if got := info.StopDetail; got != "daemon crashed while session active" {
+		t.Fatalf("StopDetail = %q, want %q", got, "daemon crashed while session active")
 	}
 }
 

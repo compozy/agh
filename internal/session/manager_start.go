@@ -28,6 +28,7 @@ type sessionStartSpec struct {
 	startAction            string
 	cleanupSessionDir      bool
 	includePromptUpdatedAt bool
+	preserveStopReason     bool
 	createdAt              time.Time
 	acpSessionID           string
 	stopReason             store.StopReason
@@ -89,6 +90,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		postEvent:              hookspkg.HookSessionPostResume,
 		startAction:            "resume",
 		includePromptUpdatedAt: true,
+		preserveStopReason:     sessionMetaStopReason(meta) == store.StopAgentCrashed,
 		createdAt:              meta.CreatedAt,
 		acpSessionID:           derefString(meta.ACPSessionID),
 		stopReason:             sessionMetaStopReason(meta),
@@ -209,7 +211,7 @@ func (m *Manager) startSession(ctx context.Context, spec sessionStartSpec) (_ *S
 	}
 	proc.configureRuntime(session.CurrentTurnSource)
 
-	if err := m.activateAndWatch(ctx, session, proc, resolved, spec.postEvent); err != nil {
+	if err := m.activateAndWatch(ctx, session, proc, resolved, spec.postEvent, spec.preserveStopReason); err != nil {
 		return nil, err
 	}
 

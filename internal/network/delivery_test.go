@@ -234,6 +234,52 @@ func TestDeliveryCoordinatorWorkerLifecycleStopsCleanly(t *testing.T) {
 	}
 }
 
+func TestDeliveryCoordinatorCancelsInFlightDeliveryWithoutCountingItAsDelivered(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	prompter := newFakeDeliveryPrompter()
+	delivered := make(chan struct{}, 1)
+	coordinator, err := newDeliveryCoordinator(
+		ctx,
+		4,
+		prompter,
+		withDeliveryDeliveredHook(func(string, Envelope, string, time.Duration) {
+			delivered <- struct{}{}
+		}),
+	)
+	if err != nil {
+		t.Fatalf("newDeliveryCoordinator() error = %v", err)
+	}
+
+	if err := coordinator.acceptOne(context.Background(), Delivery{
+		SessionID: "sess-cancel",
+		Envelope:  testDeliveryEnvelope(t, "msg-cancel", "cancel me"),
+	}); err != nil {
+		t.Fatalf("acceptOne() error = %v", err)
+	}
+
+	prompter.waitForCalls(t, 1)
+	stats := coordinator.stats()
+	if stats.QueuedMessages != 0 || stats.QueuedSessions != 0 || stats.DeliveryWorkers != 1 || stats.InFlightMessages != 1 {
+		t.Fatalf("stats(before cancel) = %#v, want inflight=1 worker=1 with no queued messages", stats)
+	}
+
+	cancel()
+	coordinator.wait()
+
+	select {
+	case <-delivered:
+		t.Fatal("delivered hook called after lifecycle cancellation")
+	default:
+	}
+
+	stats = coordinator.stats()
+	if stats.DeliveryWorkers != 0 || stats.InFlightMessages != 0 {
+		t.Fatalf("stats(after cancel) = %#v, want zero in-flight workers", stats)
+	}
+}
+
 func TestNewDeliveryCoordinatorOptionsAndBatchAccept(t *testing.T) {
 	t.Parallel()
 

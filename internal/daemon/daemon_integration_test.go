@@ -521,6 +521,113 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 		t.Fatalf("daemon info exists after shutdown: stat error = %v, want os.ErrNotExist", err)
 	}
 }
+
+func TestBootNetworkShutdownTracksInterruptedInFlightDelivery(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = true
+
+	var logBuffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	bindableSessions := newFakeNetworkBindableSessionManager()
+	promptStarted := make(chan string, 1)
+	bindableSessions.promptNetworkFn = func(ctx context.Context, sessionID string, message string) (<-chan acp.AgentEvent, error) {
+		bindableSessions.setPrompting(sessionID, true)
+		select {
+		case promptStarted <- message:
+		default:
+		}
+
+		events := make(chan acp.AgentEvent)
+		go func() {
+			<-ctx.Done()
+			bindableSessions.setPrompting(sessionID, false)
+			close(events)
+		}()
+		return events, nil
+	}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(logger),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return bindableSessions, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+
+	lifecycle := bindableSessions.currentNetworkPeerLifecycle()
+	if lifecycle == nil {
+		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
+	}
+	if err := lifecycle.JoinSpace(testutil.Context(t), "sess-net", "coder.sess-net", "builders"); err != nil {
+		t.Fatalf("JoinSpace() error = %v", err)
+	}
+
+	body, err := json.Marshal(map[string]any{"text": "shutdown during delivery"})
+	if err != nil {
+		t.Fatalf("json.Marshal(body) error = %v", err)
+	}
+	if _, err := d.network.Send(testutil.Context(t), network.SendRequest{
+		SessionID: "sess-net",
+		Space:     "builders",
+		Kind:      network.KindSay,
+		Body:      body,
+	}); err != nil {
+		t.Fatalf("network.Send() error = %v", err)
+	}
+
+	select {
+	case message := <-promptStarted:
+		if !strings.Contains(message, "shutdown during delivery") {
+			t.Fatalf("prompt message = %q, want network payload preview", message)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for inbound network delivery")
+	}
+
+	status, err := d.network.Status(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("network.Status() error = %v", err)
+	}
+	if status.MessagesDelivered != 0 || status.DeliveryWorkers != 1 {
+		t.Fatalf("network.Status() before shutdown = %#v, want delivered=0 workers=1", status)
+	}
+
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+
+	logOutput := logBuffer.String()
+	for _, want := range []string{
+		"network.message.delivery_interrupted",
+		"pending_messages=1",
+		"inflight_messages=1",
+	} {
+		if !strings.Contains(logOutput, want) {
+			t.Fatalf("log output missing %q:\n%s", want, logOutput)
+		}
+	}
+	if strings.Contains(logOutput, "network.message.delivered") {
+		t.Fatalf("log output unexpectedly reported delivered message:\n%s", logOutput)
+	}
+}
 func TestBootLoadsExtensionsRebuildsHooksAndStopsOnShutdown(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)

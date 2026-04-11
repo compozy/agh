@@ -460,7 +460,7 @@ func (m *Manager) Status(ctx context.Context) (*NetworkStatus, error) {
 	if !connected {
 		status = StatusDisconnected
 	}
-	queuedMessages, queuedSessions, deliveryWorkers := m.deliveries.stats()
+	deliveryStats := m.deliveries.stats()
 	stats := m.stats.snapshot()
 
 	return &NetworkStatus{
@@ -471,9 +471,9 @@ func (m *Manager) Status(ctx context.Context) (*NetworkStatus, error) {
 		LocalPeers:           localPeers,
 		RemotePeers:          len(peers) - localPeers,
 		Spaces:               len(spaces),
-		QueuedMessages:       queuedMessages,
-		QueuedSessions:       queuedSessions,
-		DeliveryWorkers:      deliveryWorkers,
+		QueuedMessages:       deliveryStats.QueuedMessages,
+		QueuedSessions:       deliveryStats.QueuedSessions,
+		DeliveryWorkers:      deliveryStats.DeliveryWorkers,
 		MessagesSent:         stats.MessagesSent,
 		MessagesReceived:     stats.MessagesReceived,
 		MessagesRejected:     stats.MessagesRejected,
@@ -527,8 +527,8 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	m.spaces = make(map[string]*managedSpace)
 	m.mu.Unlock()
 
+	deliveryStats := m.deliveries.stats()
 	m.cancel()
-	queuedMessages, _, _ := m.deliveries.stats()
 
 	var errs []error
 	for _, runtime := range sessions {
@@ -563,7 +563,10 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	}
 	m.logger.Info(
 		"network.stopped",
-		"pending_messages", queuedMessages,
+		"pending_messages", deliveryStats.QueuedMessages+deliveryStats.InFlightMessages,
+		"queued_messages", deliveryStats.QueuedMessages,
+		"inflight_messages", deliveryStats.InFlightMessages,
+		"delivery_workers", deliveryStats.DeliveryWorkers,
 	)
 
 	return errors.Join(errs...)

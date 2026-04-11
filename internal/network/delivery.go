@@ -29,8 +29,9 @@ type deliveryCoordinator struct {
 	logger        *slog.Logger
 	now           func() time.Time
 
-	mu     sync.Mutex
-	queues map[string]*inboundQueue
+	mu       sync.Mutex
+	queues   map[string]*inboundQueue
+	inFlight map[string]queuedEnvelope
 
 	deliveries sync.Map
 	wg         sync.WaitGroup
@@ -58,6 +59,13 @@ type queuedEnvelope struct {
 	Envelope     Envelope
 	AcceptedAt   time.Time
 	DeliveryMode string
+}
+
+type deliveryCoordinatorStats struct {
+	QueuedMessages   int
+	QueuedSessions   int
+	DeliveryWorkers  int
+	InFlightMessages int
 }
 
 func withDeliveryLogger(logger *slog.Logger) deliveryOption {
@@ -102,7 +110,8 @@ func newDeliveryCoordinator(
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		queues: make(map[string]*inboundQueue),
+		queues:   make(map[string]*inboundQueue),
+		inFlight: make(map[string]queuedEnvelope),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -287,10 +296,12 @@ func (c *deliveryCoordinator) runWorker(sessionID string, state *deliveryState) 
 		if !ok {
 			return
 		}
+		c.markInFlight(target, item)
 		envelope := item.Envelope
 
 		message, err := formatNetworkMessage(envelope)
 		if err != nil {
+			c.clearInFlight(target)
 			c.requeueFront(target, item)
 			c.logger.Warn(
 				"network.message.render_failed",
@@ -303,6 +314,7 @@ func (c *deliveryCoordinator) runWorker(sessionID string, state *deliveryState) 
 
 		events, err := c.prompter.PromptNetwork(c.lifecycleCtx, target, message)
 		if err != nil {
+			c.clearInFlight(target)
 			c.requeueFront(target, item)
 			c.logger.Warn(
 				"network.message.delivery_failed",
@@ -313,7 +325,20 @@ func (c *deliveryCoordinator) runWorker(sessionID string, state *deliveryState) 
 			return
 		}
 
-		c.drainPromptEvents(events)
+		if !c.drainPromptEvents(events) {
+			c.clearInFlight(target)
+			c.logger.Warn(
+				"network.message.delivery_interrupted",
+				"session_id", target,
+				"message_id", envelope.ID,
+				"kind", string(envelope.Kind),
+				"space", envelope.Space,
+				"delivery_mode", item.DeliveryMode,
+				"error", c.lifecycleCtx.Err(),
+			)
+			return
+		}
+		c.clearInFlight(target)
 		latency := c.now().Sub(item.AcceptedAt)
 		if latency < 0 {
 			latency = 0
@@ -333,18 +358,18 @@ func (c *deliveryCoordinator) runWorker(sessionID string, state *deliveryState) 
 	}
 }
 
-func (c *deliveryCoordinator) drainPromptEvents(events <-chan acp.AgentEvent) {
+func (c *deliveryCoordinator) drainPromptEvents(events <-chan acp.AgentEvent) bool {
 	if events == nil {
-		return
+		return true
 	}
 
 	for {
 		select {
 		case <-c.lifecycleCtx.Done():
-			return
+			return false
 		case _, ok := <-events:
 			if !ok {
-				return
+				return true
 			}
 		}
 	}
@@ -370,9 +395,9 @@ func (c *deliveryCoordinator) requeueFront(sessionID string, item queuedEnvelope
 	queue.prepend(item)
 }
 
-func (c *deliveryCoordinator) stats() (queuedMessages int, queuedSessions int, deliveryWorkers int) {
+func (c *deliveryCoordinator) stats() deliveryCoordinatorStats {
 	if c == nil {
-		return 0, 0, 0
+		return deliveryCoordinatorStats{}
 	}
 
 	c.mu.Lock()
@@ -380,21 +405,45 @@ func (c *deliveryCoordinator) stats() (queuedMessages int, queuedSessions int, d
 	for _, queue := range c.queues {
 		queues = append(queues, queue)
 	}
+	inFlightMessages := len(c.inFlight)
 	c.mu.Unlock()
 
+	stats := deliveryCoordinatorStats{
+		InFlightMessages: inFlightMessages,
+	}
 	for _, queue := range queues {
 		depth := queue.len()
 		if depth <= 0 {
 			continue
 		}
-		queuedMessages += depth
-		queuedSessions++
+		stats.QueuedMessages += depth
+		stats.QueuedSessions++
 	}
 	c.deliveries.Range(func(_, _ any) bool {
-		deliveryWorkers++
+		stats.DeliveryWorkers++
 		return true
 	})
-	return queuedMessages, queuedSessions, deliveryWorkers
+	return stats
+}
+
+func (c *deliveryCoordinator) markInFlight(sessionID string, item queuedEnvelope) {
+	if c == nil {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.inFlight[strings.TrimSpace(sessionID)] = item
+}
+
+func (c *deliveryCoordinator) clearInFlight(sessionID string) {
+	if c == nil {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.inFlight, strings.TrimSpace(sessionID))
 }
 
 func newInboundQueue(maxDepth int) *inboundQueue {

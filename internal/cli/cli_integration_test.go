@@ -337,6 +337,183 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	h.runner.releaseBlocked(created.ID)
 }
 
+func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	newSession := func(name string) SessionRecord {
+		t.Helper()
+
+		out, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", name, "--space", "builders", "--cwd", h.workspace, "-o", "json")
+		if err != nil {
+			t.Fatalf("session new %s error = %v", name, err)
+		}
+		var created SessionRecord
+		if err := json.Unmarshal([]byte(out), &created); err != nil {
+			t.Fatalf("json.Unmarshal(session new %s) error = %v", name, err)
+		}
+		return created
+	}
+
+	sender := newSession("sender")
+	receiver := newSession("receiver")
+	receiverPeerID := "coder." + receiver.ID
+
+	events, err := h.runner.blockSession(receiver.ID)
+	if err != nil {
+		t.Fatalf("blockSession() error = %v", err)
+	}
+	if events == nil {
+		t.Fatal("blockSession() events = nil, want event stream")
+	}
+	if !h.runner.waitForBlocked(receiver.ID, 2*time.Second) {
+		t.Fatal("timed out waiting for blocked receiver prompt")
+	}
+
+	sendDirect := func(messageID string, text string) {
+		t.Helper()
+
+		out, _, err := executeRootCommand(t, h.deps,
+			"network", "send",
+			"--session", sender.ID,
+			"--space", "builders",
+			"--kind", "direct",
+			"--to", receiverPeerID,
+			"--interaction-id", "int-review-1",
+			"--id", messageID,
+			"--body", fmt.Sprintf(`{"text":%q}`, text),
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("network send direct error = %v", err)
+		}
+		var sent NetworkSendRecord
+		if err := json.Unmarshal([]byte(out), &sent); err != nil {
+			t.Fatalf("json.Unmarshal(network send direct) error = %v", err)
+		}
+		if sent.ID != messageID {
+			t.Fatalf("sent.ID = %q, want %q", sent.ID, messageID)
+		}
+	}
+
+	readInbox := func(sessionID string) []NetworkEnvelopeRecord {
+		t.Helper()
+
+		out, _, err := executeRootCommand(t, h.deps, "network", "inbox", "--session", sessionID, "-o", "json")
+		if err != nil {
+			t.Fatalf("network inbox error = %v", err)
+		}
+		var inbox []NetworkEnvelopeRecord
+		if err := json.Unmarshal([]byte(out), &inbox); err != nil {
+			t.Fatalf("json.Unmarshal(network inbox) error = %v", err)
+		}
+		return inbox
+	}
+
+	readStatus := func() NetworkStatusRecord {
+		t.Helper()
+
+		out, _, err := executeRootCommand(t, h.deps, "network", "status", "-o", "json")
+		if err != nil {
+			t.Fatalf("network status error = %v", err)
+		}
+		var status NetworkStatusRecord
+		if err := json.Unmarshal([]byte(out), &status); err != nil {
+			t.Fatalf("json.Unmarshal(network status) error = %v", err)
+		}
+		return status
+	}
+
+	sendDirect("msg-direct-retry-1", "please review auth.go")
+	sendDirect("msg-direct-retry-1", "please review auth.go")
+
+	waitForCondition(t, 2*time.Second, func() bool {
+		inbox := readInbox(receiver.ID)
+		return len(inbox) == 1 && inbox[0].ID == "msg-direct-retry-1"
+	})
+	waitForCondition(t, 2*time.Second, func() bool {
+		status := readStatus()
+		return status.MessagesRejected >= 1 && status.QueuedMessages == 1
+	})
+
+	h.runner.releaseBlocked(receiver.ID)
+	waitForCondition(t, 2*time.Second, func() bool {
+		return len(readInbox(receiver.ID)) == 0
+	})
+
+	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", receiver.ID, "-o", "json")
+	if err != nil {
+		t.Fatalf("session stop receiver error = %v", err)
+	}
+	var stopped SessionRecord
+	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
+		t.Fatalf("json.Unmarshal(session stop receiver) error = %v", err)
+	}
+	if stopped.State != session.StateStopped {
+		t.Fatalf("stopped receiver = %#v, want stopped state", stopped)
+	}
+
+	resumeOut, _, err := executeRootCommand(t, h.deps, "session", "resume", receiver.ID, "-o", "json")
+	if err != nil {
+		t.Fatalf("session resume receiver error = %v", err)
+	}
+	var resumed SessionRecord
+	if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
+		t.Fatalf("json.Unmarshal(session resume receiver) error = %v", err)
+	}
+	if resumed.State != session.StateActive || resumed.Space != "builders" {
+		t.Fatalf("resumed receiver = %#v, want active builders session", resumed)
+	}
+
+	resumedEvents, err := h.runner.blockSession(receiver.ID)
+	if err != nil {
+		t.Fatalf("blockSession(resumed) error = %v", err)
+	}
+	if resumedEvents == nil {
+		t.Fatal("blockSession(resumed) events = nil, want event stream")
+	}
+	if !h.runner.waitForBlocked(receiver.ID, 2*time.Second) {
+		t.Fatal("timed out waiting for blocked resumed receiver prompt")
+	}
+
+	sendDirect("msg-direct-resume-1", "please review after resume")
+
+	waitForCondition(t, 2*time.Second, func() bool {
+		inbox := readInbox(receiver.ID)
+		return len(inbox) == 1 && inbox[0].ID == "msg-direct-resume-1"
+	})
+
+	peersOut, _, err := executeRootCommand(t, h.deps, "network", "peers", "builders", "-o", "json")
+	if err != nil {
+		t.Fatalf("network peers error = %v", err)
+	}
+	var peers []NetworkPeerRecord
+	if err := json.Unmarshal([]byte(peersOut), &peers); err != nil {
+		t.Fatalf("json.Unmarshal(network peers) error = %v", err)
+	}
+	var receiverPresent bool
+	for _, peer := range peers {
+		if peer.SessionID != nil && *peer.SessionID == receiver.ID && peer.PeerID == receiverPeerID {
+			receiverPresent = true
+			break
+		}
+	}
+	if !receiverPresent {
+		t.Fatalf("network peers = %#v, want resumed receiver peer", peers)
+	}
+
+	h.runner.releaseBlocked(receiver.ID)
+	waitForCondition(t, 2*time.Second, func() bool {
+		return len(readInbox(receiver.ID)) == 0
+	})
+}
+
 func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 	t.Parallel()
 

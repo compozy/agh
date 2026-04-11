@@ -301,6 +301,71 @@ func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 	}
 }
 
+func TestManagerShutdownTracksInterruptedInFlightMessages(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	prompter := newFakeDeliveryPrompter()
+
+	manager, err := NewManager(
+		ctx,
+		testManagerConfig(),
+		prompter,
+		filepath.Join(t.TempDir(), "network.audit"),
+		nil,
+		WithManagerLogger(logger),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	if err := manager.JoinSpace(ctx, "sess-stop", "reviewer.sess-stop", "builders"); err != nil {
+		t.Fatalf("JoinSpace() error = %v", err)
+	}
+
+	if _, err := manager.Send(ctx, SendRequest{
+		SessionID: "sess-stop",
+		Space:     "builders",
+		Kind:      KindSay,
+		Body:      mustRawJSON(t, map[string]any{"text": "hello before shutdown"}),
+	}); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	prompter.waitForCalls(t, 1)
+
+	status, err := manager.Status(ctx)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if status.MessagesDelivered != 0 || status.DeliveryWorkers != 1 {
+		t.Fatalf("status before shutdown = %#v, want delivered=0 workers=1", status)
+	}
+
+	if err := manager.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+
+	logOutput := logs.String()
+	for _, want := range []string{
+		"network.message.delivery_interrupted",
+		"pending_messages=1",
+		"inflight_messages=1",
+		"delivery_workers=1",
+	} {
+		if !strings.Contains(logOutput, want) {
+			t.Fatalf("logs missing %q:\n%s", want, logOutput)
+		}
+	}
+	if strings.Contains(logOutput, "network.message.delivered") {
+		t.Fatalf("logs unexpectedly reported delivered message:\n%s", logOutput)
+	}
+}
+
 func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 	t.Parallel()
 

@@ -576,7 +576,7 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	if err := h.manager.activateAndWatch(testutil.Context(t), session, proc, aghconfig.ResolvedAgent{Name: "coder"}, hookspkg.HookSessionPostCreate); err != nil {
+	if err := h.manager.activateAndWatch(testutil.Context(t), session, proc, aghconfig.ResolvedAgent{Name: "coder"}, hookspkg.HookSessionPostCreate, false); err != nil {
 		t.Fatalf("activateAndWatch() error = %v", err)
 	}
 
@@ -667,7 +667,7 @@ func TestActivateAndWatchRollsBackOnMetaWriteFailure(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	if err := h.manager.activateAndWatch(testutil.Context(t), session, proc, aghconfig.ResolvedAgent{Name: "coder"}, hookspkg.HookSessionPostCreate); err == nil {
+	if err := h.manager.activateAndWatch(testutil.Context(t), session, proc, aghconfig.ResolvedAgent{Name: "coder"}, hookspkg.HookSessionPostCreate, false); err == nil {
 		t.Fatal("activateAndWatch() error = nil, want non-nil")
 	}
 	if _, ok := h.manager.Get(session.ID); ok {
@@ -1081,6 +1081,47 @@ func TestStopAndProcessExitFinalizeOnlyOnce(t *testing.T) {
 	if *meta.StopReason != store.StopUserCanceled {
 		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopUserCanceled)
 	}
+}
+
+func TestStopWaitsForProcessDoneAfterSuccessfulDriverStop(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+
+	release := make(chan struct{})
+	h.driver.stopHook = func(proc *fakeProcess) error {
+		go func() {
+			<-release
+			proc.exit()
+		}()
+		return nil
+	}
+
+	stopCtx, cancel := context.WithTimeout(testutil.Context(t), time.Second)
+	defer cancel()
+
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- h.manager.Stop(stopCtx, session.ID)
+	}()
+
+	select {
+	case err := <-stopDone:
+		t.Fatalf("Stop() completed early with %v, want it blocked on process exit", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+
+	if err := <-stopDone; err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	waitForCondition(t, "stopped session finalization", func() bool {
+		_, ok := h.manager.Get(session.ID)
+		return !ok && readMeta(t, session.MetaPath()).State == string(StateStopped)
+	})
 }
 
 func TestPromptSerializesSetupAgainstConcurrentStop(t *testing.T) {
