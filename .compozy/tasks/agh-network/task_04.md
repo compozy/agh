@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Session space opt-in and metadata
 type: backend
 complexity: medium
@@ -29,10 +29,10 @@ Add `Space` as a first-class session attribute across session creation, persiste
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Add `Space` to session create/resume inputs and session runtime read models
-- [ ] 4.2 Persist `Space` in `SessionMeta` and any indexed session metadata needed by list/get operations
-- [ ] 4.3 Extend CLI and shared contract payloads to accept and return `Space`
-- [ ] 4.4 Add unit and integration coverage for create, list, stop, and resume flows with and without `Space`
+- [x] 4.1 Add `Space` to session create/resume inputs and session runtime read models
+- [x] 4.2 Persist `Space` in `SessionMeta` and any indexed session metadata needed by list/get operations
+- [x] 4.3 Extend CLI and shared contract payloads to accept and return `Space`
+- [x] 4.4 Add unit and integration coverage for create, list, stop, and resume flows with and without `Space`
 
 ## Implementation Details
 
@@ -66,14 +66,25 @@ This task should only handle opt-in metadata and persistence. Joining a space, b
 
 ## Tests
 - Unit tests:
-- [ ] `CreateOpts`, `SessionMeta`, and session read models preserve `Space` when provided
-- [ ] Sessions created without `Space` remain behaviorally unchanged
-- [ ] Resume flows reload persisted `Space` metadata accurately
-- [ ] Contract and parser conversions preserve `Space` consistently
+- [x] `CreateOpts`, `SessionMeta`, and session read models preserve `Space` when provided
+- [x] Sessions created without `Space` remain behaviorally unchanged
+- [x] Resume flows reload persisted `Space` metadata accurately
+- [x] Contract and parser conversions preserve `Space` consistently
 - Integration tests:
-- [ ] `agh session` creation and resume surfaces round-trip `Space` through CLI, UDS, and manager layers
+- [x] `agh session` creation and resume surfaces round-trip `Space` through CLI, UDS, and manager layers
 - Test coverage target: >=80%
 - All tests must pass
+
+## Validation Evidence
+- `go test ./internal/session ./internal/store ./internal/store/globaldb ./internal/observe ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/cli`
+- `go test -tags integration ./internal/api/httpapi ./internal/api/udsapi ./internal/cli`
+- `go test -cover ./internal/session ./internal/store ./internal/store/globaldb ./internal/observe ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/cli`
+- Coverage results:
+  `internal/session` 83.0%, `internal/store` 80.3%, `internal/store/globaldb` 80.4%, `internal/observe` 81.6%, `internal/api/core` 80.3%, `internal/api/httpapi` 82.1%, `internal/api/udsapi` 81.8%, `internal/cli` 80.1%
+- `make codegen`
+  Required after contract changes so `openapi/agh.json` and `web/src/generated/agh-openapi.d.ts` matched the new `Space` field.
+- `make verify`
+  Passed after regenerating the OpenAPI artifacts.
 
 ## Success Criteria
 - All tests passing

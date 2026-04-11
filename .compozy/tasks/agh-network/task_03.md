@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Presence registry and router
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Implement runtime peer tracking and message routing on top of the protocol and t
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Implement peer registry and remote peer cache structures under `internal/network`
-- [ ] 3.2 Add heartbeat, greet, leave, and whois handling with expiry semantics
-- [ ] 3.3 Build router logic for subject mapping, deduplication, direct versus broadcast routing, and local preflight
-- [ ] 3.4 Cover presence and routing policy with unit and integration tests
+- [x] 3.1 Implement peer registry and remote peer cache structures under `internal/network`
+- [x] 3.2 Add heartbeat, greet, leave, and whois handling with expiry semantics
+- [x] 3.3 Build router logic for subject mapping, deduplication, direct versus broadcast routing, and local preflight
+- [x] 3.4 Cover presence and routing policy with unit and integration tests
 
 ## Implementation Details
 
@@ -65,13 +65,13 @@ This task should continue to keep all protocol and transport behavior inside `in
 
 ## Tests
 - Unit tests:
-- [ ] Local and remote peers are isolated by space and expire on schedule
-- [ ] Directed sends to absent or expired peers fail locally without publish
-- [ ] Broadcast routing and direct routing choose the correct subjects and targets
-- [ ] Duplicate envelopes are rejected without reprocessing lifecycle state
+- [x] Local and remote peers are isolated by space and expire on schedule
+- [x] Directed sends to absent or expired peers fail locally without publish
+- [x] Broadcast routing and direct routing choose the correct subjects and targets
+- [x] Duplicate envelopes are rejected without reprocessing lifecycle state
 - Integration tests:
-- [ ] Two in-process peers can greet, observe each other, and exchange direct and broadcast messages through the router
-- [ ] Stale peers disappear after heartbeat expiry and recover after fresh greet traffic
+- [x] Two in-process peers can greet, observe each other, and exchange direct and broadcast messages through the router
+- [x] Stale peers disappear after heartbeat expiry and recover after fresh greet traffic
 - Test coverage target: >=80%
 - All tests must pass
 

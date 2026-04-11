@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Network manager and daemon boot integration
 type: backend
 complexity: high
@@ -32,10 +32,10 @@ Wire the network runtime into the daemon as a boot-phase service with explicit l
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Create the top-level network manager and runtime interfaces it implements
-- [ ] 7.2 Add daemon boot, shutdown, and diagnostic wiring for the network service
-- [ ] 7.3 Late-bind session lifecycle callbacks for join, leave, turn-end, and inbound delivery integration
-- [ ] 7.4 Add daemon-level tests for startup, shutdown, and optional disabled-network mode
+- [x] 7.1 Create the top-level network manager and runtime interfaces it implements
+- [x] 7.2 Add daemon boot, shutdown, and diagnostic wiring for the network service
+- [x] 7.3 Late-bind session lifecycle callbacks for join, leave, turn-end, and inbound delivery integration
+- [x] 7.4 Add daemon-level tests for startup, shutdown, and optional disabled-network mode
 
 ## Implementation Details
 
@@ -67,12 +67,12 @@ This task is the composition-root layer for the feature. Keep `internal/network`
 
 ## Tests
 - Unit tests:
-- [ ] Disabled network mode leaves the daemon operational without booting transport or manager services
-- [ ] Runtime dependency wiring rejects incomplete network manager setup cleanly
-- [ ] Daemon info/status surfaces network diagnostics without exposing credentials
-- [ ] Session callbacks are late-bound without introducing package import cycles
+- [x] Disabled network mode leaves the daemon operational without booting transport or manager services
+- [x] Runtime dependency wiring rejects incomplete network manager setup cleanly
+- [x] Daemon info/status surfaces network diagnostics without exposing credentials
+- [x] Session callbacks are late-bound without introducing package import cycles
 - Integration tests:
-- [ ] Full daemon startup and shutdown with network enabled drains transport and delivery workers cleanly
+- [x] Full daemon startup and shutdown with network enabled drains transport and delivery workers cleanly
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Bundled agh-network skill and prompt injection
 type: backend
 complexity: medium
@@ -30,10 +30,10 @@ Add the bundled `agh-network` skill content and wire it into session startup and
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Add the bundled `agh-network` skill asset under the bundled skills tree
-- [ ] 9.2 Wire space-aware skill injection into session start and resume flows
-- [ ] 9.3 Validate that injected content references only supported CLI commands and safe wrapper semantics
-- [ ] 9.4 Add tests for skill discovery, injection timing, and resume behavior
+- [x] 9.1 Add the bundled `agh-network` skill asset under the bundled skills tree
+- [x] 9.2 Wire space-aware skill injection into session start and resume flows
+- [x] 9.3 Validate that injected content references only supported CLI commands and safe wrapper semantics
+- [x] 9.4 Add tests for skill discovery, injection timing, and resume behavior
 
 ## Implementation Details
 
@@ -63,12 +63,12 @@ Keep the skill content grounded in the corrected tech spec and the real CLI surf
 
 ## Tests
 - Unit tests:
-- [ ] Bundled skill registry can load `agh-network` successfully
-- [ ] Sessions without `Space` do not receive network skill content
-- [ ] Sessions with `Space` receive the network skill content exactly once per startup or resume
-- [ ] Skill examples stay consistent with supported CLI command names and flags
+- [x] Bundled skill registry can load `agh-network` successfully
+- [x] Sessions without `Space` do not receive network skill content
+- [x] Sessions with `Space` receive the network skill content exactly once per startup or resume
+- [x] Skill examples stay consistent with supported CLI command names and flags
 - Integration tests:
-- [ ] A resumed space-participating session receives the bundled skill guidance again before ACP start
+- [x] A resumed space-participating session receives the bundled skill guidance again before ACP start
 - Test coverage target: >=80%
 - All tests must pass
 

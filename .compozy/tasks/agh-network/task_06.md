@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Inbound delivery workers and turn-end handoff
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Create the inbound delivery layer that queues routed messages per session and de
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Implement per-session inbox queues and worker lifecycle management under `internal/network`
-- [ ] 6.2 Connect delivery triggering to turn-end notifications and session readiness
-- [ ] 6.3 Build safe inbound message rendering with escaped preview and structured body payload
-- [ ] 6.4 Add concurrency and overflow tests for delivery ordering and shutdown behavior
+- [x] 6.1 Implement per-session inbox queues and worker lifecycle management under `internal/network`
+- [x] 6.2 Connect delivery triggering to turn-end notifications and session readiness
+- [x] 6.3 Build safe inbound message rendering with escaped preview and structured body payload
+- [x] 6.4 Add concurrency and overflow tests for delivery ordering and shutdown behavior
 
 ## Implementation Details
 
@@ -63,13 +63,13 @@ This task should consume the routing outputs from task 03 and the prompt provena
 
 ## Tests
 - Unit tests:
-- [ ] Queues preserve FIFO ordering per session and drop oldest messages on configured overflow
-- [ ] Worker lifecycle starts and stops cleanly without leaking goroutines
-- [ ] Safe wrapper rendering escapes untrusted preview content and preserves the structured payload body
-- [ ] Idle and busy session states produce the expected immediate versus deferred delivery behavior
+- [x] Queues preserve FIFO ordering per session and drop oldest messages on configured overflow
+- [x] Worker lifecycle starts and stops cleanly without leaking goroutines
+- [x] Safe wrapper rendering escapes untrusted preview content and preserves the structured payload body
+- [x] Idle and busy session states produce the expected immediate versus deferred delivery behavior
 - Integration tests:
-- [ ] Concurrent inbound messages for multiple sessions are delivered independently without cross-session head-of-line blocking
-- [ ] A busy session receives exactly one queued network prompt after each turn ends until the queue drains
+- [x] Concurrent inbound messages for multiple sessions are delivered independently without cross-session head-of-line blocking
+- [x] A busy session receives exactly one queued network prompt after each turn ends until the queue drains
 - Test coverage target: >=80%
 - All tests must pass
 

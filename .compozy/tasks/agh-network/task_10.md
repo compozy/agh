@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Operational hardening and reliability sweep
 type: backend
 complexity: high
@@ -34,10 +34,10 @@ Close the remaining runtime risk items after the core feature is in place by har
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Harden reconnect, re-greet, queue overflow, and shutdown-drain behavior against real runtime edge cases
-- [ ] 10.2 Tighten observability so logs, metrics, and status surfaces reflect degraded and recovered states correctly
-- [ ] 10.3 Exercise the full agent workflow from CLI control plane to inbound session delivery and retry behavior
-- [ ] 10.4 Fix any integration defects uncovered by the hardening pass without weakening tests or guardrails
+- [x] 10.1 Harden reconnect, re-greet, queue overflow, and shutdown-drain behavior against real runtime edge cases
+- [x] 10.2 Tighten observability so logs, metrics, and status surfaces reflect degraded and recovered states correctly
+- [x] 10.3 Exercise the full agent workflow from CLI control plane to inbound session delivery and retry behavior
+- [x] 10.4 Fix any integration defects uncovered by the hardening pass without weakening tests or guardrails
 
 ## Implementation Details
 
@@ -70,14 +70,14 @@ This task can harden correlation and recommended `ext` metadata handling, but co
 
 ## Tests
 - Unit tests:
-- [ ] Reconnect and re-greet paths preserve peer visibility and delivery readiness
-- [ ] Queue overflow, retry, and shutdown-drain logic preserve the configured invariants
-- [ ] Observability surfaces reflect degraded and recovered network states correctly
-- [ ] Busy-session delivery semantics remain FIFO and provenance-safe under stress
-- [ ] Optional workflow/handoff metadata survives recovery paths and remains debuggable without becoming required runtime state
+- [x] Reconnect and re-greet paths preserve peer visibility and delivery readiness
+- [x] Queue overflow, retry, and shutdown-drain logic preserve the configured invariants
+- [x] Observability surfaces reflect degraded and recovered network states correctly
+- [x] Busy-session delivery semantics remain FIFO and provenance-safe under stress
+- [x] Optional workflow/handoff metadata survives recovery paths and remains debuggable without becoming required runtime state
 - Integration tests:
-- [ ] Full CLI -> UDS -> daemon -> network -> session flows succeed for direct, broadcast, retry, resume, and reconnect scenarios
-- [ ] Failure injection cases surface the correct diagnostics without bypassing runtime guardrails
+- [x] Full CLI -> UDS -> daemon -> network -> session flows succeed for direct, broadcast, retry, resume, and reconnect scenarios
+- [x] Failure injection cases surface the correct diagnostics without bypassing runtime guardrails
 - Test coverage target: >=80%
 - All tests must pass
 

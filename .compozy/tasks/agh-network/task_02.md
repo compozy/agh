@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Transport, config, and audit foundation
 type: backend
 complexity: high
@@ -29,10 +29,10 @@ Build the infrastructure layer that boots embedded NATS, carries the daemon-only
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Add `[network]` configuration structs, defaults, merge behavior, and validation tests
-- [ ] 2.2 Implement embedded transport startup, shutdown, publish, subscribe, and reconnect-ready plumbing
-- [ ] 2.3 Add network audit writer surfaces for append-only file output and `globaldb` persistence
-- [ ] 2.4 Cover transport boot, config validation, and audit persistence with tests
+- [x] 2.1 Add `[network]` configuration structs, defaults, merge behavior, and validation tests
+- [x] 2.2 Implement embedded transport startup, shutdown, publish, subscribe, and reconnect-ready plumbing
+- [x] 2.3 Add network audit writer surfaces for append-only file output and `globaldb` persistence
+- [x] 2.4 Cover transport boot, config validation, and audit persistence with tests
 
 ## Implementation Details
 
@@ -67,13 +67,13 @@ Keep credential handling inside daemon-owned runtime state. This task should not
 
 ## Tests
 - Unit tests:
-- [ ] `[network]` defaults and validation reject invalid ports, payload limits, heartbeat values, and default-space names
-- [ ] Transport setup fails safely when required runtime inputs are missing
-- [ ] Audit writer normalizes records consistently for file and database sinks
-- [ ] Home path resolution includes the new audit file path
+- [x] `[network]` defaults and validation reject invalid ports, payload limits, heartbeat values, and default-space names
+- [x] Transport setup fails safely when required runtime inputs are missing
+- [x] Audit writer normalizes records consistently for file and database sinks
+- [x] Home path resolution includes the new audit file path
 - Integration tests:
-- [ ] Embedded NATS can start, accept an in-process daemon connection, drain, and stop cleanly
-- [ ] Audit events are persisted to `globaldb` and append-only file output without leaking broker credentials
+- [x] Embedded NATS can start, accept an in-process daemon connection, drain, and stop cleanly
+- [x] Audit events are persisted to `globaldb` and append-only file output without leaking broker credentials
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Network CLI/API surface and observability
 type: backend
 complexity: medium
@@ -30,10 +30,10 @@ Expose the network runtime through shared contracts, UDS handlers, CLI commands,
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add shared network DTOs and conversion helpers in the API contract layer
-- [ ] 8.2 Implement UDS routes and handlers for network control-plane actions
-- [ ] 8.3 Add CLI commands and client methods for network status, discovery, send, and inbox operations
-- [ ] 8.4 Extend observability and status reporting for network lifecycle and queue metrics
+- [x] 8.1 Add shared network DTOs and conversion helpers in the API contract layer
+- [x] 8.2 Implement UDS routes and handlers for network control-plane actions
+- [x] 8.3 Add CLI commands and client methods for network status, discovery, send, and inbox operations
+- [x] 8.4 Extend observability and status reporting for network lifecycle and queue metrics
 
 ## Implementation Details
 
@@ -67,13 +67,13 @@ Observability output should make multi-hop debugging possible by preserving `rep
 
 ## Tests
 - Unit tests:
-- [ ] Contract payload conversions preserve network request and response semantics
-- [ ] UDS handlers validate required arguments and report structured errors
-- [ ] CLI output formatting supports human-readable and machine-readable use cases
-- [ ] Observability surfaces include the expected network metrics and log events
-- [ ] Optional workflow/handoff metadata remains visible in status/audit surfaces without being treated as mandatory protocol state
+- [x] Contract payload conversions preserve network request and response semantics
+- [x] UDS handlers validate required arguments and report structured errors
+- [x] CLI output formatting supports human-readable and machine-readable use cases
+- [x] Observability surfaces include the expected network metrics and log events
+- [x] Optional workflow/handoff metadata remains visible in status/audit surfaces without being treated as mandatory protocol state
 - Integration tests:
-- [ ] CLI commands can list peers/spaces, send messages, and inspect inbox/status through the daemon
+- [x] CLI commands can list peers/spaces, send messages, and inspect inbox/status through the daemon
 - Test coverage target: >=80%
 - All tests must pass
 

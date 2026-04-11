@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Network protocol core
 type: backend
 complexity: high
@@ -29,10 +29,10 @@ Create the foundational `internal/network` protocol package that models AGH Netw
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Create protocol types for the shared envelope and all kind-specific bodies under `internal/network`
-- [ ] 1.2 Implement validation and normalization helpers for field rules, expiration handling, and targeted versus broadcast semantics
-- [ ] 1.3 Model interaction lifecycle ownership and terminal-state decisions in package-local helpers
-- [ ] 1.4 Add unit tests for parsing, validation, lifecycle transitions, and route token derivation
+- [x] 1.1 Create protocol types for the shared envelope and all kind-specific bodies under `internal/network`
+- [x] 1.2 Implement validation and normalization helpers for field rules, expiration handling, and targeted versus broadcast semantics
+- [x] 1.3 Model interaction lifecycle ownership and terminal-state decisions in package-local helpers
+- [x] 1.4 Add unit tests for parsing, validation, lifecycle transitions, and route token derivation
 
 ## Implementation Details
 

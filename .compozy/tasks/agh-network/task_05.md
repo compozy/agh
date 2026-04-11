@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Prompt provenance and ACP guardrails
 type: backend
 complexity: high
@@ -29,10 +29,10 @@ Introduce prompt-source metadata so the daemon can distinguish user turns from n
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Extend session prompt APIs to carry `TurnSource` and record current prompt provenance
-- [ ] 5.2 Add runtime helpers that mark terminals as network-owned when created by allowlisted control-plane commands
-- [ ] 5.3 Enforce file and terminal restrictions for network-originated turns in ACP handlers
-- [ ] 5.4 Add coverage for prompt provenance, allowlist enforcement, and ownership-aware terminal operations
+- [x] 5.1 Extend session prompt APIs to carry `TurnSource` and record current prompt provenance
+- [x] 5.2 Add runtime helpers that mark terminals as network-owned when created by allowlisted control-plane commands
+- [x] 5.3 Enforce file and terminal restrictions for network-originated turns in ACP handlers
+- [x] 5.4 Add coverage for prompt provenance, allowlist enforcement, and ownership-aware terminal operations
 
 ## Implementation Details
 
@@ -63,12 +63,12 @@ This task should make ACP restrictions depend only on session/runtime metadata, 
 
 ## Tests
 - Unit tests:
-- [ ] User turns and network turns are distinguishable through session prompt metadata
-- [ ] Non-allowlisted terminal invocations are rejected for network-originated turns
-- [ ] Network-owned terminal checks gate output, wait, kill, and release operations correctly
-- [ ] Existing user-turn permission flows still behave exactly as before
+- [x] User turns and network turns are distinguishable through session prompt metadata
+- [x] Non-allowlisted terminal invocations are rejected for network-originated turns
+- [x] Network-owned terminal checks gate output, wait, kill, and release operations correctly
+- [x] Existing user-turn permission flows still behave exactly as before
 - Integration tests:
-- [ ] A simulated network turn can invoke only allowlisted `agh network` commands and is blocked from arbitrary file writes or shell wrappers
+- [x] A simulated network turn can invoke only allowlisted `agh network` commands and is blocked from arbitrary file writes or shell wrappers
 - Test coverage target: >=80%
 - All tests must pass
 
