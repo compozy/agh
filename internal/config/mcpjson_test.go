@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -53,6 +54,35 @@ func TestParseMCPServersJSONRejectsInvalidEntries(t *testing.T) {
 
 	if _, err := ParseMCPServersJSON([]byte(`{"mcpServers":{"broken":{"args":["--missing-command"]}}}`), "broken.json"); err == nil {
 		t.Fatal("ParseMCPServersJSON() error = nil, want missing command failure")
+	}
+}
+
+func TestParseMCPServersJSONRejectsDuplicateNormalizedNames(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseMCPServersJSON([]byte(`{
+  "mcpServers": {
+    " foo ": { "command": "alpha" },
+    "foo": { "command": "beta" }
+  }
+}`), "duplicates.json")
+	if err == nil {
+		t.Fatal("ParseMCPServersJSON() error = nil, want duplicate normalized-name failure")
+	}
+	if !strings.Contains(err.Error(), `duplicate MCP server name "foo" after normalization`) {
+		t.Fatalf("ParseMCPServersJSON() error = %q, want duplicate normalized-name context", err.Error())
+	}
+}
+
+func TestParseMCPServersJSONRejectsTrailingJSON(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseMCPServersJSON([]byte(`{"mcpServers":{"alpha":{"command":"npx"}}}{"extra":true}`), "trailing.json")
+	if err == nil {
+		t.Fatal("ParseMCPServersJSON() error = nil, want trailing JSON failure")
+	}
+	if !strings.Contains(err.Error(), "unexpected trailing JSON value") {
+		t.Fatalf("ParseMCPServersJSON() error = %q, want trailing JSON context", err.Error())
 	}
 }
 

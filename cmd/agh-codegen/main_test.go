@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -28,6 +30,11 @@ func TestCheckJSONFile(t *testing.T) {
 			want:        []byte("{\"version\":2}\n"),
 			wantErr:     ErrStaleGeneratedFile,
 		},
+		{
+			name:        "ShouldIgnoreEquivalentNumberRepresentations",
+			fileContent: []byte("{\"version\":1.0}\n"),
+			want:        []byte("{\"version\":1}\n"),
+		},
 	}
 
 	for _, tt := range tests {
@@ -48,6 +55,22 @@ func TestCheckJSONFile(t *testing.T) {
 				t.Fatalf("checkJSONFile() error = %v, want %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestShutdownSignals(t *testing.T) {
+	t.Parallel()
+
+	signals := shutdownSignals()
+	if !slices.ContainsFunc(signals, func(signal os.Signal) bool {
+		return signal == os.Interrupt
+	}) {
+		t.Fatalf("shutdownSignals() = %#v, want os.Interrupt", signals)
+	}
+	if !slices.ContainsFunc(signals, func(signal os.Signal) bool {
+		return signal == syscall.SIGTERM
+	}) {
+		t.Fatalf("shutdownSignals() = %#v, want syscall.SIGTERM", signals)
 	}
 }
 

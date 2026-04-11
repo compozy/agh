@@ -624,10 +624,22 @@ func (h *BaseHandlers) daemonUserHomeDir() string {
 }
 
 func resolveUserHomeDir(homePaths aghconfig.HomePaths, lookupHomeDir func() (string, error)) (string, error) {
+	return resolveUserHomeDirWithResolver(homePaths, lookupHomeDir, aghconfig.ResolvePath)
+}
+
+func resolveUserHomeDirWithResolver(
+	homePaths aghconfig.HomePaths,
+	lookupHomeDir func() (string, error),
+	resolvePath func(string) (string, error),
+) (string, error) {
+	if resolvePath == nil {
+		resolvePath = aghconfig.ResolvePath
+	}
+
 	if lookupHomeDir != nil {
 		userHomeDir, err := lookupHomeDir()
 		if err == nil {
-			resolvedUserHomeDir, resolveErr := aghconfig.ResolvePath(userHomeDir)
+			resolvedUserHomeDir, resolveErr := resolvePath(userHomeDir)
 			if resolveErr == nil && strings.TrimSpace(resolvedUserHomeDir) != "" {
 				return resolvedUserHomeDir, nil
 			}
@@ -635,7 +647,7 @@ func resolveUserHomeDir(homePaths aghconfig.HomePaths, lookupHomeDir func() (str
 				return fallback, nil
 			}
 			if resolveErr != nil {
-				return "", fmt.Errorf("resolve user home directory %q: %w", userHomeDir, resolveErr)
+				return "", fmt.Errorf("resolve user home directory: %w", resolveErr)
 			}
 			return "", nil
 		}

@@ -11,8 +11,8 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"reflect"
 	"strings"
+	"syscall"
 
 	"github.com/pedronauck/agh/internal/api/spec"
 	"github.com/pedronauck/agh/internal/codegen/sdkts"
@@ -23,7 +23,7 @@ const defaultSDKContractsPath = "sdk/typescript/src/generated/contracts.ts"
 var ErrStaleGeneratedFile = errors.New("generated file is stale")
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), shutdownSignals()...)
 	defer stop()
 
 	if err := run(ctx, os.Args[1:]); err != nil {
@@ -149,18 +149,22 @@ func checkJSONFile(path string, want []byte) error {
 	if err != nil {
 		return fmt.Errorf("decode generated json for %q: %w", path, err)
 	}
-	if !reflect.DeepEqual(gotCanonical, wantCanonical) {
+	if !bytes.Equal(gotCanonical, wantCanonical) {
 		return fmt.Errorf("%s: %w; run codegen", path, ErrStaleGeneratedFile)
 	}
 	return nil
 }
 
-func canonicalJSON(data []byte) (any, error) {
+func canonicalJSON(data []byte) ([]byte, error) {
 	var value any
 	if err := json.Unmarshal(data, &value); err != nil {
 		return nil, err
 	}
-	return value, nil
+	return json.Marshal(value)
+}
+
+func shutdownSignals() []os.Signal {
+	return []os.Signal{os.Interrupt, syscall.SIGTERM}
 }
 
 func generateFormattedSDKContracts(ctx context.Context, path string) ([]byte, error) {

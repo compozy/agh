@@ -48,6 +48,9 @@ func ParseMCPServersJSON(content []byte, source string) ([]MCPServer, error) {
 
 	servers := sortedMCPJSONServers(document.MCPServersCamel)
 	servers = OverrideMCPServers(servers, sortedMCPJSONServers(document.MCPServersSnake))
+	if err := validateUniqueMCPJSONServerNames(servers, sourceName); err != nil {
+		return nil, err
+	}
 	for idx, server := range servers {
 		if err := server.Validate(fmt.Sprintf("mcp.json %q[%d]", sourceName, idx)); err != nil {
 			return nil, fmt.Errorf("config: validate MCP JSON %q: %w", sourceName, err)
@@ -81,7 +84,7 @@ func ensureJSONEOF(decoder *json.Decoder, source string) error {
 		return errors.New("config: JSON decoder is required")
 	}
 
-	var trailing any
+	var trailing json.RawMessage
 	if err := decoder.Decode(&trailing); err != nil {
 		if errors.Is(err, io.EOF) {
 			return nil
@@ -107,7 +110,7 @@ func sortedMCPJSONServers(values map[string]mcpJSONServer) []MCPServer {
 	for _, name := range names {
 		entry := values[name]
 		servers = append(servers, MCPServer{
-			Name:    strings.TrimSpace(name),
+			Name:    normalizeMCPServerName(name),
 			Command: strings.TrimSpace(entry.Command),
 			Args:    append([]string(nil), entry.Args...),
 			Env:     mergeStringMaps(nil, entry.Env),
@@ -115,4 +118,26 @@ func sortedMCPJSONServers(values map[string]mcpJSONServer) []MCPServer {
 	}
 
 	return servers
+}
+
+func validateUniqueMCPJSONServerNames(servers []MCPServer, sourceName string) error {
+	seen := make(map[string]int, len(servers))
+	for idx, server := range servers {
+		name := normalizeMCPServerName(server.Name)
+		if name == "" {
+			continue
+		}
+		if priorIdx, ok := seen[name]; ok {
+			return fmt.Errorf(
+				"config: validate MCP JSON %q: duplicate MCP server name %q after normalization at indexes %d and %d",
+				sourceName,
+				name,
+				priorIdx,
+				idx,
+			)
+		}
+		seen[name] = idx
+	}
+
+	return nil
 }

@@ -137,6 +137,25 @@ func TestMergeMCPServersSameNameOverlaysFields(t *testing.T) {
 	}
 }
 
+func TestMergeMCPServersTrimmedNamesCollide(t *testing.T) {
+	t.Parallel()
+
+	merged := MergeMCPServers(
+		[]MCPServer{{Name: "  github  ", Command: "npx"}},
+		[]MCPServer{{Name: "github", Args: []string{"-y"}}},
+	)
+
+	if len(merged) != 1 {
+		t.Fatalf("MergeMCPServers() len = %d, want 1", len(merged))
+	}
+	if got, want := merged[0].Command, "npx"; got != want {
+		t.Fatalf("MergeMCPServers() Command = %q, want %q", got, want)
+	}
+	if got, want := merged[0].Args[0], "-y"; got != want {
+		t.Fatalf("MergeMCPServers() Args[0] = %q, want %q", got, want)
+	}
+}
+
 func TestOverrideMCPServersSameNameReplacesObject(t *testing.T) {
 	t.Parallel()
 
@@ -156,6 +175,25 @@ func TestOverrideMCPServersSameNameReplacesObject(t *testing.T) {
 	}
 	if got := len(merged[0].Env); got != 0 {
 		t.Fatalf("OverrideMCPServers() Env = %#v, want replacement semantics", merged[0].Env)
+	}
+}
+
+func TestOverrideMCPServersTrimmedNamesCollide(t *testing.T) {
+	t.Parallel()
+
+	merged := OverrideMCPServers(
+		[]MCPServer{{Name: "  github  ", Command: "npx", Args: []string{"-y"}}},
+		[]MCPServer{{Name: "github", Command: "node"}},
+	)
+
+	if len(merged) != 1 {
+		t.Fatalf("OverrideMCPServers() len = %d, want 1", len(merged))
+	}
+	if got, want := merged[0].Command, "node"; got != want {
+		t.Fatalf("OverrideMCPServers() Command = %q, want %q", got, want)
+	}
+	if got := len(merged[0].Args); got != 0 {
+		t.Fatalf("OverrideMCPServers() Args = %#v, want replacement semantics", merged[0].Args)
 	}
 }
 

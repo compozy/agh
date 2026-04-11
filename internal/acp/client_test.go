@@ -498,7 +498,7 @@ func TestIsLoadSessionResourceMissing(t *testing.T) {
 				ErrLoadSessionFailed,
 				"sess-existing",
 				"helper",
-				&acpsdk.RequestError{Code: -32002, Message: "Resource not found: sess-existing"},
+				&acpsdk.RequestError{Code: requestErrorResourceNotFoundCode, Message: "Resource not found: sess-existing"},
 			),
 			want: true,
 		},
