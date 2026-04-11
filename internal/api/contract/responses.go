@@ -111,6 +111,31 @@ type DaemonStatusResponse struct {
 	Daemon DaemonStatusPayload `json:"daemon"`
 }
 
+// NetworkStatusResponse wraps the network runtime status payload.
+type NetworkStatusResponse struct {
+	Network NetworkStatusPayload `json:"network"`
+}
+
+// NetworkPeersResponse wraps the visible peer list payload.
+type NetworkPeersResponse struct {
+	Peers []NetworkPeerPayload `json:"peers"`
+}
+
+// NetworkSpacesResponse wraps the active space list payload.
+type NetworkSpacesResponse struct {
+	Spaces []NetworkSpacePayload `json:"spaces"`
+}
+
+// NetworkSendResponse wraps the outbound send result payload.
+type NetworkSendResponse struct {
+	Message NetworkSendPayload `json:"message"`
+}
+
+// NetworkInboxResponse wraps the queued inbox payload.
+type NetworkInboxResponse struct {
+	Messages []NetworkEnvelopePayload `json:"messages"`
+}
+
 // WorkspacesResponse wraps the shared workspace list payload.
 type WorkspacesResponse struct {
 	Workspaces []WorkspacePayload `json:"workspaces"`

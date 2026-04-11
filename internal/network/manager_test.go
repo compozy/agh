@@ -1,6 +1,7 @@
 package network
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -211,6 +212,92 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 	}
 	if err := manager.Shutdown(context.Background()); err != nil {
 		t.Fatalf("Shutdown(repeated) error = %v, want nil", err)
+	}
+}
+
+func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	fixedNow := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	prompter := newFakeDeliveryPrompter()
+
+	manager, err := NewManager(
+		ctx,
+		testManagerConfig(),
+		prompter,
+		filepath.Join(t.TempDir(), "network.audit"),
+		nil,
+		WithManagerLogger(logger),
+		WithManagerClock(func() time.Time { return fixedNow }),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	defer func() {
+		if err := manager.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	}()
+
+	if err := manager.JoinSpace(ctx, "sess-a", "reviewer.sess-a", "builders"); err != nil {
+		t.Fatalf("JoinSpace() error = %v", err)
+	}
+
+	_, err = manager.Send(ctx, SendRequest{
+		SessionID:     "sess-a",
+		Space:         "builders",
+		Kind:          KindSay,
+		Body:          mustRawJSON(t, map[string]any{"text": "hello builders"}),
+		ReplyTo:       ptrString("msg-root"),
+		TraceID:       ptrString("trace-1"),
+		CausationID:   ptrString("cause-1"),
+		InteractionID: ptrString("int-1"),
+		Ext: ExtensionMap{
+			"agh.workflow_id":     mustRawJSON(t, "wf-1"),
+			"agh.handoff_version": mustRawJSON(t, 3),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	prompter.waitForCalls(t, 1)
+	prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: fixedNow})
+	manager.deliveries.wait()
+
+	status, err := manager.Status(ctx)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if status.MessagesSent != 1 || status.MessagesDelivered != 1 {
+		t.Fatalf("status message counts = %#v, want sent=1 delivered=1", status)
+	}
+	if status.WorkflowTaggedEvents != 3 || status.HandoffTaggedEvents != 3 {
+		t.Fatalf("status tagged counts = %#v, want workflow=3 handoff=3", status)
+	}
+	if len(status.KindMetrics) != 1 || status.KindMetrics[0].Kind != KindSay || status.KindMetrics[0].Sent != 1 || status.KindMetrics[0].Delivered != 1 {
+		t.Fatalf("status kind metrics = %#v, want say sent/delivered", status.KindMetrics)
+	}
+
+	logOutput := logs.String()
+	for _, want := range []string{
+		"network.started",
+		"network.message.sent",
+		"network.message.delivered",
+		"agh.workflow_id=wf-1",
+		"agh.handoff_version=3",
+		"reply_to=msg-root",
+		"trace_id=trace-1",
+		"causation_id=cause-1",
+	} {
+		if !strings.Contains(logOutput, want) {
+			t.Fatalf("logs missing %q:\n%s", want, logOutput)
+		}
 	}
 }
 

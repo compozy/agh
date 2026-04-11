@@ -41,6 +41,7 @@ type SendRequest struct {
 	CausationID   *string
 	ExpiresAt     *int64
 	ID            *string
+	Ext           ExtensionMap
 }
 
 // SendResult summarizes one outbound publish.
@@ -487,6 +488,7 @@ func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error)
 		TS:            now.Unix(),
 		ExpiresAt:     cloneInt64Ptr(req.ExpiresAt),
 		Body:          cloneRawMessage(req.Body),
+		Ext:           cloneExtensionMap(req.Ext),
 	}
 
 	if err := ValidateEnvelope(envelope, ValidateOptions{Now: now, MaxReplayAge: r.maxReplayAge}); err != nil {

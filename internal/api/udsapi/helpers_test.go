@@ -26,6 +26,7 @@ var errStubWorkspaceServiceNotImplemented = testutil.ErrStubWorkspaceServiceNotI
 type stubSessionManager = testutil.StubSessionManager
 type stubObserver = testutil.StubObserver
 type stubChannelService = testutil.StubChannelService
+type stubNetworkService = testutil.StubNetworkService
 type stubWorkspaceService = testutil.StubWorkspaceService
 type stubSkillsRegistry = testutil.StubSkillsRegistry
 type sseRecord = testutil.SSERecord

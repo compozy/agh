@@ -340,9 +340,41 @@ func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle 
 		rows = append(rows,
 			keyValue{Label: "Network", Value: stringOrDash(status.Network.Status)},
 			keyValue{Label: "Network Listener", Value: stringOrDash(networkListener(status.Network))},
+			keyValue{Label: "Network Local Peers", Value: strconv.Itoa(status.Network.LocalPeers)},
+			keyValue{Label: "Network Remote Peers", Value: strconv.Itoa(status.Network.RemotePeers)},
+			keyValue{Label: "Network Spaces", Value: strconv.Itoa(status.Network.Spaces)},
+			keyValue{Label: "Network Queued Messages", Value: strconv.Itoa(status.Network.QueuedMessages)},
+			keyValue{Label: "Network Delivery Workers", Value: strconv.Itoa(status.Network.DeliveryWorkers)},
+			keyValue{Label: "Network Messages Sent", Value: strconv.FormatInt(status.Network.MessagesSent, 10)},
+			keyValue{Label: "Network Messages Received", Value: strconv.FormatInt(status.Network.MessagesReceived, 10)},
+			keyValue{Label: "Network Messages Rejected", Value: strconv.FormatInt(status.Network.MessagesRejected, 10)},
+			keyValue{Label: "Network Messages Delivered", Value: strconv.FormatInt(status.Network.MessagesDelivered, 10)},
+			keyValue{Label: "Network Workflow Tagged", Value: strconv.FormatInt(status.Network.WorkflowTaggedEvents, 10)},
+			keyValue{Label: "Network Handoff Tagged", Value: strconv.FormatInt(status.Network.HandoffTaggedEvents, 10)},
+			keyValue{Label: "Network Last Disconnect", Value: stringOrDash(status.Network.LastDisconnect)},
 		)
-		labels = append(labels, "network_status", "network_listener")
-		values = append(values, status.Network.Status, networkListener(status.Network))
+		labels = append(labels,
+			"network_status", "network_listener", "network_local_peers", "network_remote_peers", "network_spaces",
+			"network_queued_messages", "network_delivery_workers", "network_messages_sent", "network_messages_received",
+			"network_messages_rejected", "network_messages_delivered", "network_workflow_tagged_events",
+			"network_handoff_tagged_events", "network_last_disconnect",
+		)
+		values = append(values,
+			status.Network.Status,
+			networkListener(status.Network),
+			strconv.Itoa(status.Network.LocalPeers),
+			strconv.Itoa(status.Network.RemotePeers),
+			strconv.Itoa(status.Network.Spaces),
+			strconv.Itoa(status.Network.QueuedMessages),
+			strconv.Itoa(status.Network.DeliveryWorkers),
+			strconv.FormatInt(status.Network.MessagesSent, 10),
+			strconv.FormatInt(status.Network.MessagesReceived, 10),
+			strconv.FormatInt(status.Network.MessagesRejected, 10),
+			strconv.FormatInt(status.Network.MessagesDelivered, 10),
+			strconv.FormatInt(status.Network.WorkflowTaggedEvents, 10),
+			strconv.FormatInt(status.Network.HandoffTaggedEvents, 10),
+			status.Network.LastDisconnect,
+		)
 	}
 
 	return outputBundle{

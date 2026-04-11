@@ -29,6 +29,11 @@ const (
 // DaemonClient is the CLI transport surface for talking to the AGH daemon over UDS.
 type DaemonClient interface {
 	DaemonStatus(ctx context.Context) (DaemonStatus, error)
+	NetworkStatus(ctx context.Context) (NetworkStatusRecord, error)
+	NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error)
+	NetworkSpaces(ctx context.Context) ([]NetworkSpaceRecord, error)
+	NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error)
+	NetworkInbox(ctx context.Context, sessionID string) ([]NetworkEnvelopeRecord, error)
 	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
 	InstallExtension(ctx context.Context, request InstallExtensionRequest) (ExtensionRecord, error)
 	EnableExtension(ctx context.Context, name string) (ExtensionRecord, error)
@@ -225,6 +230,35 @@ type HealthStatus = contract.ObserveHealthPayload
 // DaemonStatus is the shared daemon status payload.
 type DaemonStatus = contract.DaemonStatusPayload
 
+// NetworkStatusRecord is the shared network status payload.
+type NetworkStatusRecord = contract.NetworkStatusPayload
+
+// NetworkKindMetricRecord is one per-kind network metric row.
+type NetworkKindMetricRecord = contract.NetworkKindMetricPayload
+
+// NetworkSendRequest captures one outbound network send payload.
+type NetworkSendRequest = contract.NetworkSendRequest
+
+// NetworkSendRecord is the shared network send response payload.
+type NetworkSendRecord = contract.NetworkSendPayload
+
+// NetworkPeerRecord is the shared visible-peer payload.
+type NetworkPeerRecord = contract.NetworkPeerPayload
+
+// NetworkPeerCardRecord is the shared peer-card payload nested under peers.
+type NetworkPeerCardRecord = contract.NetworkPeerCardPayload
+
+// NetworkSpaceRecord is the shared active-space payload.
+type NetworkSpaceRecord = contract.NetworkSpacePayload
+
+// NetworkEnvelopeRecord is the shared surfaced envelope payload.
+type NetworkEnvelopeRecord = contract.NetworkEnvelopePayload
+
+// NetworkPeersQuery captures CLI filters for peer listing.
+type NetworkPeersQuery struct {
+	Space string
+}
+
 // InstallExtensionRequest captures the shared extension install payload.
 type InstallExtensionRequest = contract.InstallExtensionRequest
 
@@ -301,6 +335,56 @@ func (c *unixSocketClient) DaemonStatus(ctx context.Context) (DaemonStatus, erro
 		return DaemonStatus{}, err
 	}
 	return response.Daemon, nil
+}
+
+func (c *unixSocketClient) NetworkStatus(ctx context.Context) (NetworkStatusRecord, error) {
+	var response struct {
+		Network NetworkStatusRecord `json:"network"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/network/status", nil, nil, &response); err != nil {
+		return NetworkStatusRecord{}, err
+	}
+	return response.Network, nil
+}
+
+func (c *unixSocketClient) NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error) {
+	var response struct {
+		Peers []NetworkPeerRecord `json:"peers"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/network/peers", networkPeersValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Peers, nil
+}
+
+func (c *unixSocketClient) NetworkSpaces(ctx context.Context) ([]NetworkSpaceRecord, error) {
+	var response struct {
+		Spaces []NetworkSpaceRecord `json:"spaces"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/network/spaces", nil, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Spaces, nil
+}
+
+func (c *unixSocketClient) NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
+	var response struct {
+		Message NetworkSendRecord `json:"message"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/api/network/send", nil, request, &response); err != nil {
+		return NetworkSendRecord{}, err
+	}
+	return response.Message, nil
+}
+
+func (c *unixSocketClient) NetworkInbox(ctx context.Context, sessionID string) ([]NetworkEnvelopeRecord, error) {
+	var response struct {
+		Messages []NetworkEnvelopeRecord `json:"messages"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/network/inbox", networkInboxValues(sessionID), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Messages, nil
 }
 
 func (c *unixSocketClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, error) {
@@ -896,6 +980,22 @@ func sessionListValues(query SessionListQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
 		values.Set("workspace", trimmed)
+	}
+	return values
+}
+
+func networkPeersValues(query NetworkPeersQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.Space); trimmed != "" {
+		values.Set("space", trimmed)
+	}
+	return values
+}
+
+func networkInboxValues(sessionID string) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(sessionID); trimmed != "" {
+		values.Set("session_id", trimmed)
 	}
 	return values
 }

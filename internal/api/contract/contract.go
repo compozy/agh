@@ -230,13 +230,113 @@ type DaemonStatusPayload struct {
 
 // NetworkStatusPayload is the shared network diagnostics response payload.
 type NetworkStatusPayload struct {
-	Enabled      bool   `json:"enabled"`
-	Status       string `json:"status"`
-	ListenerHost string `json:"listener_host,omitempty"`
-	ListenerPort int    `json:"listener_port,omitempty"`
-	LocalPeers   int    `json:"local_peers,omitempty"`
-	RemotePeers  int    `json:"remote_peers,omitempty"`
-	Spaces       int    `json:"spaces,omitempty"`
+	Enabled              bool                       `json:"enabled"`
+	Status               string                     `json:"status"`
+	ListenerHost         string                     `json:"listener_host,omitempty"`
+	ListenerPort         int                        `json:"listener_port,omitempty"`
+	LocalPeers           int                        `json:"local_peers,omitempty"`
+	RemotePeers          int                        `json:"remote_peers,omitempty"`
+	Spaces               int                        `json:"spaces,omitempty"`
+	QueuedMessages       int                        `json:"queued_messages,omitempty"`
+	QueuedSessions       int                        `json:"queued_sessions,omitempty"`
+	DeliveryWorkers      int                        `json:"delivery_workers,omitempty"`
+	MessagesSent         int64                      `json:"messages_sent,omitempty"`
+	MessagesReceived     int64                      `json:"messages_received,omitempty"`
+	MessagesRejected     int64                      `json:"messages_rejected,omitempty"`
+	MessagesDelivered    int64                      `json:"messages_delivered,omitempty"`
+	WorkflowTaggedEvents int64                      `json:"workflow_tagged_events,omitempty"`
+	HandoffTaggedEvents  int64                      `json:"handoff_tagged_events,omitempty"`
+	LastDisconnect       string                     `json:"last_disconnect,omitempty"`
+	KindMetrics          []NetworkKindMetricPayload `json:"kind_metrics,omitempty"`
+}
+
+// NetworkKindMetricPayload is the per-kind network runtime metric snapshot.
+type NetworkKindMetricPayload struct {
+	Kind      string `json:"kind"`
+	Sent      int64  `json:"sent,omitempty"`
+	Received  int64  `json:"received,omitempty"`
+	Rejected  int64  `json:"rejected,omitempty"`
+	Delivered int64  `json:"delivered,omitempty"`
+}
+
+// NetworkSendRequest is the shared daemon network send request payload.
+type NetworkSendRequest struct {
+	SessionID     string                     `json:"session_id"`
+	Space         string                     `json:"space"`
+	Kind          string                     `json:"kind"`
+	To            string                     `json:"to,omitempty"`
+	Body          json.RawMessage            `json:"body"`
+	InteractionID string                     `json:"interaction_id,omitempty"`
+	ReplyTo       string                     `json:"reply_to,omitempty"`
+	TraceID       string                     `json:"trace_id,omitempty"`
+	CausationID   string                     `json:"causation_id,omitempty"`
+	ExpiresAt     *int64                     `json:"expires_at,omitempty"`
+	ID            string                     `json:"id,omitempty"`
+	Ext           map[string]json.RawMessage `json:"ext,omitempty"`
+}
+
+// NetworkSendPayload is the shared daemon network send response payload.
+type NetworkSendPayload struct {
+	ID            string                     `json:"id"`
+	SessionID     string                     `json:"session_id"`
+	Space         string                     `json:"space"`
+	Kind          string                     `json:"kind"`
+	To            string                     `json:"to,omitempty"`
+	InteractionID string                     `json:"interaction_id,omitempty"`
+	ReplyTo       string                     `json:"reply_to,omitempty"`
+	TraceID       string                     `json:"trace_id,omitempty"`
+	CausationID   string                     `json:"causation_id,omitempty"`
+	ExpiresAt     *int64                     `json:"expires_at,omitempty"`
+	Ext           map[string]json.RawMessage `json:"ext,omitempty"`
+}
+
+// NetworkPeerCardPayload is the shared JSON representation of one peer card.
+type NetworkPeerCardPayload struct {
+	PeerID              string                     `json:"peer_id"`
+	DisplayName         *string                    `json:"display_name,omitempty"`
+	ProfilesSupported   []string                   `json:"profiles_supported"`
+	Capabilities        []string                   `json:"capabilities"`
+	ArtifactsSupported  []string                   `json:"artifacts_supported"`
+	TrustModesSupported []string                   `json:"trust_modes_supported"`
+	Ext                 map[string]json.RawMessage `json:"ext,omitempty"`
+}
+
+// NetworkPeerPayload is the shared JSON representation of one visible peer.
+type NetworkPeerPayload struct {
+	SessionID *string                `json:"session_id,omitempty"`
+	PeerID    string                 `json:"peer_id"`
+	Space     string                 `json:"space"`
+	Local     bool                   `json:"local"`
+	PeerCard  NetworkPeerCardPayload `json:"peer_card"`
+	JoinedAt  *time.Time             `json:"joined_at,omitempty"`
+	LastSeen  *time.Time             `json:"last_seen,omitempty"`
+	ExpiresAt *time.Time             `json:"expires_at,omitempty"`
+}
+
+// NetworkSpacePayload is the shared JSON representation of one active space.
+type NetworkSpacePayload struct {
+	Space     string `json:"space"`
+	PeerCount int    `json:"peer_count"`
+}
+
+// NetworkEnvelopePayload is the shared JSON representation of one surfaced
+// network envelope used by inbox and audit-facing views.
+type NetworkEnvelopePayload struct {
+	Protocol      string                     `json:"protocol"`
+	ID            string                     `json:"id"`
+	Kind          string                     `json:"kind"`
+	Space         string                     `json:"space"`
+	From          string                     `json:"from"`
+	To            *string                    `json:"to,omitempty"`
+	InteractionID *string                    `json:"interaction_id,omitempty"`
+	ReplyTo       *string                    `json:"reply_to,omitempty"`
+	TraceID       *string                    `json:"trace_id,omitempty"`
+	CausationID   *string                    `json:"causation_id,omitempty"`
+	TS            int64                      `json:"ts"`
+	ExpiresAt     *int64                     `json:"expires_at,omitempty"`
+	Body          json.RawMessage            `json:"body"`
+	Proof         map[string]json.RawMessage `json:"proof,omitempty"`
+	Ext           map[string]json.RawMessage `json:"ext,omitempty"`
 }
 
 // InstallExtensionRequest is the shared extension install request payload.

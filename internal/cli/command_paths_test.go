@@ -41,6 +41,21 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		getAgentFn: func(context.Context, string) (AgentRecord, error) {
 			return AgentRecord{Name: "coder", Provider: "fake", Prompt: "hi"}, nil
 		},
+		networkStatusFn: func(context.Context) (NetworkStatusRecord, error) {
+			return NetworkStatusRecord{Enabled: true, Status: "running"}, nil
+		},
+		networkPeersFn: func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error) {
+			return []NetworkPeerRecord{{PeerID: "reviewer.sess-1", Space: "builders"}}, nil
+		},
+		networkSpacesFn: func(context.Context) ([]NetworkSpaceRecord, error) {
+			return []NetworkSpaceRecord{{Space: "builders", PeerCount: 1}}, nil
+		},
+		networkSendFn: func(context.Context, NetworkSendRequest) (NetworkSendRecord, error) {
+			return NetworkSendRecord{ID: "msg-1", SessionID: "sess-1", Space: "builders", Kind: "say"}, nil
+		},
+		networkInboxFn: func(context.Context, string) ([]NetworkEnvelopeRecord, error) {
+			return []NetworkEnvelopeRecord{{ID: "msg-1", Kind: "say", Space: "builders", From: "reviewer.sess-1"}}, nil
+		},
 		observeEventsFn: func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error) {
 			return []ObserveEventRecord{{ID: "sum-1", SessionID: "sess-1", Type: "done", AgentName: "coder", Timestamp: fixedTestNow}}, nil
 		},
@@ -87,6 +102,11 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 
 	tests := [][]string{
 		{"agent", "info", "coder", "-o", "json"},
+		{"network", "status", "-o", "json"},
+		{"network", "peers", "builders", "-o", "json"},
+		{"network", "spaces", "-o", "json"},
+		{"network", "send", "--session", "sess-1", "--space", "builders", "--kind", "say", "--body", `{"text":"hello"}`, "-o", "json"},
+		{"network", "inbox", "--session", "sess-1", "-o", "json"},
 		{"observe", "events", "-o", "json"},
 		{"observe", "events", "--follow", "-o", "json"},
 		{"observe", "health", "-o", "json"},

@@ -27,6 +27,7 @@ import (
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store/globaldb"
@@ -223,6 +224,117 @@ func TestCLISessionSpaceRoundTripIntegration(t *testing.T) {
 	if resumed.Space != "builders" || resumed.State != session.StateActive {
 		t.Fatalf("resumed = %#v, want active builders session", resumed)
 	}
+}
+
+func TestCLINetworkRoundTripIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	newOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "net-demo", "--space", "builders", "--cwd", h.workspace, "-o", "json")
+	if err != nil {
+		t.Fatalf("session new --space error = %v", err)
+	}
+	var created SessionRecord
+	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
+		t.Fatalf("json.Unmarshal(session new --space) error = %v", err)
+	}
+
+	statusOut, _, err := executeRootCommand(t, h.deps, "network", "status", "-o", "json")
+	if err != nil {
+		t.Fatalf("network status error = %v", err)
+	}
+	var status NetworkStatusRecord
+	if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
+		t.Fatalf("json.Unmarshal(network status) error = %v", err)
+	}
+	if !status.Enabled || status.Status != "running" {
+		t.Fatalf("network status = %#v, want enabled running", status)
+	}
+
+	peersOut, _, err := executeRootCommand(t, h.deps, "network", "peers", "builders", "-o", "json")
+	if err != nil {
+		t.Fatalf("network peers error = %v", err)
+	}
+	var peers []NetworkPeerRecord
+	if err := json.Unmarshal([]byte(peersOut), &peers); err != nil {
+		t.Fatalf("json.Unmarshal(network peers) error = %v", err)
+	}
+	if len(peers) != 1 || peers[0].SessionID == nil || *peers[0].SessionID != created.ID {
+		t.Fatalf("network peers = %#v, want created session peer", peers)
+	}
+
+	spacesOut, _, err := executeRootCommand(t, h.deps, "network", "spaces", "-o", "json")
+	if err != nil {
+		t.Fatalf("network spaces error = %v", err)
+	}
+	var spaces []NetworkSpaceRecord
+	if err := json.Unmarshal([]byte(spacesOut), &spaces); err != nil {
+		t.Fatalf("json.Unmarshal(network spaces) error = %v", err)
+	}
+	if len(spaces) != 1 || spaces[0].Space != "builders" || spaces[0].PeerCount != 1 {
+		t.Fatalf("network spaces = %#v, want builders peer_count=1", spaces)
+	}
+
+	events, err := h.runner.blockSession(created.ID)
+	if err != nil {
+		t.Fatalf("blockSession() error = %v", err)
+	}
+	if events == nil {
+		t.Fatal("blockSession() events = nil, want event stream")
+	}
+	if !h.runner.waitForBlocked(created.ID, 2*time.Second) {
+		t.Fatal("timed out waiting for blocked session prompt")
+	}
+
+	sendOut, _, err := executeRootCommand(t, h.deps,
+		"network", "send",
+		"--session", created.ID,
+		"--space", "builders",
+		"--kind", "say",
+		"--body", `{"text":"queued hello"}`,
+		"--ext", `{"agh.workflow_id":"wf-1","agh.handoff_version":3}`,
+		"-o", "json",
+	)
+	if err != nil {
+		t.Fatalf("network send error = %v", err)
+	}
+	var sent NetworkSendRecord
+	if err := json.Unmarshal([]byte(sendOut), &sent); err != nil {
+		t.Fatalf("json.Unmarshal(network send) error = %v", err)
+	}
+	if sent.ID == "" || string(sent.Ext["agh.workflow_id"]) != `"wf-1"` {
+		t.Fatalf("sent = %#v, want message id and ext metadata", sent)
+	}
+
+	var inbox []NetworkEnvelopeRecord
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		inboxOut, _, inboxErr := executeRootCommand(t, h.deps, "network", "inbox", "--session", created.ID, "-o", "json")
+		if inboxErr != nil {
+			t.Fatalf("network inbox error = %v", inboxErr)
+		}
+		if err := json.Unmarshal([]byte(inboxOut), &inbox); err != nil {
+			t.Fatalf("json.Unmarshal(network inbox) error = %v", err)
+		}
+		if len(inbox) > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if len(inbox) == 0 {
+		t.Fatal("network inbox = empty, want queued message while prompt is blocked")
+	}
+	if string(inbox[0].Ext["agh.workflow_id"]) != `"wf-1"` || string(inbox[0].Ext["agh.handoff_version"]) != `3` {
+		t.Fatalf("network inbox = %#v, want workflow metadata", inbox)
+	}
+
+	h.runner.releaseBlocked(created.ID)
 }
 
 func TestExtensionCommandRoundTripIntegration(t *testing.T) {
@@ -812,6 +924,8 @@ type integrationDaemon struct {
 	done    chan error
 
 	channels *integrationChannelService
+	driver   *integrationDriver
+	manager  *session.Manager
 }
 
 type integrationDaemonProcess struct {
@@ -837,6 +951,7 @@ type integrationDriver struct {
 	nextPID  int
 	nextSess int
 	states   map[*session.AgentProcess]chan struct{}
+	blocked  map[string]chan struct{}
 }
 
 type lockedBuffer struct {
@@ -964,6 +1079,9 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 
 	cfg := aghconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = socketPath
+	cfg.Network.Enabled = true
+	cfg.Network.Port = -1
+	cfg.Network.GreetInterval = 1
 	cfg.Providers = map[string]aghconfig.ProviderConfig{
 		"fake": {Command: "fake-agent"},
 	}
@@ -1072,12 +1190,21 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		session.WithHomePaths(d.homePaths),
 		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
-		session.WithDriver(newIntegrationDriver()),
+		session.WithDriver(func() *integrationDriver {
+			driver := newIntegrationDriver()
+			d.mu.Lock()
+			d.driver = driver
+			d.mu.Unlock()
+			return driver
+		}()),
 		session.WithNotifier(fanout),
 	)
 	if err != nil {
 		return fmt.Errorf("new session manager: %w", err)
 	}
+	d.mu.Lock()
+	d.manager = manager
+	d.mu.Unlock()
 
 	observer, err := observe.New(
 		context.Background(),
@@ -1143,7 +1270,19 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		_ = automationManager.Shutdown(shutdownCtx)
 	}()
 	fanout.notifiers = append(fanout.notifiers, automationManager.SessionObserver())
-
+	networkManager, err := network.NewManager(
+		ctx,
+		d.cfg.Network,
+		manager,
+		d.homePaths.NetworkAuditFile,
+		registry,
+		network.WithManagerLogger(discardLogger()),
+	)
+	if err != nil {
+		return fmt.Errorf("new network manager: %w", err)
+	}
+	manager.SetNetworkPeerLifecycle(networkManager)
+	manager.SetTurnEndNotifier(networkManager.OnTurnEnd)
 	server, err := udsapi.New(
 		udsapi.WithHomePaths(d.homePaths),
 		udsapi.WithConfig(d.cfg),
@@ -1152,6 +1291,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		udsapi.WithStartedAt(d.startedAt),
 		udsapi.WithPollInterval(10*time.Millisecond),
 		udsapi.WithSessionManager(manager),
+		udsapi.WithNetworkService(networkManager),
 		udsapi.WithObserver(observer),
 		udsapi.WithAutomation(automationManager),
 		udsapi.WithChannelService(channelService),
@@ -1179,10 +1319,13 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 			}
 			_ = manager.Stop(shutdownCtx, info.ID)
 		}
+		_ = networkManager.Shutdown(shutdownCtx)
 		_ = server.Shutdown(shutdownCtx)
 		_ = aghdaemon.RemoveInfo(d.homePaths.DaemonInfo)
 		d.mu.Lock()
 		d.channels = nil
+		d.manager = nil
+		d.driver = nil
 		d.mu.Unlock()
 	}()
 
@@ -1262,6 +1405,7 @@ func newIntegrationDriver() *integrationDriver {
 		nextPID:  2000,
 		nextSess: 1,
 		states:   make(map[*session.AgentProcess]chan struct{}),
+		blocked:  make(map[string]chan struct{}),
 	}
 }
 
@@ -1307,6 +1451,28 @@ func (d *integrationDriver) Prompt(_ context.Context, proc *session.AgentProcess
 		Timestamp: time.Now().UTC(),
 		Text:      req.Message,
 	}
+	if strings.Contains(req.Message, "__block__") {
+		release := make(chan struct{})
+		d.mu.Lock()
+		d.blocked[proc.SessionID] = release
+		d.mu.Unlock()
+
+		go func() {
+			<-release
+			ch <- acp.AgentEvent{
+				Type:       "done",
+				SessionID:  proc.SessionID,
+				TurnID:     req.TurnID,
+				Timestamp:  time.Now().UTC(),
+				StopReason: "end_turn",
+			}
+			close(ch)
+			d.mu.Lock()
+			delete(d.blocked, proc.SessionID)
+			d.mu.Unlock()
+		}()
+		return ch, nil
+	}
 	ch <- acp.AgentEvent{
 		Type:       "done",
 		SessionID:  proc.SessionID,
@@ -1316,6 +1482,34 @@ func (d *integrationDriver) Prompt(_ context.Context, proc *session.AgentProcess
 	}
 	close(ch)
 	return ch, nil
+}
+
+func (d *integrationDriver) releaseBlocked(sessionID string) {
+	d.mu.Lock()
+	release := d.blocked[sessionID]
+	d.mu.Unlock()
+	if release == nil {
+		return
+	}
+	select {
+	case <-release:
+	default:
+		close(release)
+	}
+}
+
+func (d *integrationDriver) waitForBlocked(sessionID string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		d.mu.Lock()
+		_, ok := d.blocked[sessionID]
+		d.mu.Unlock()
+		if ok {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
 }
 
 func (d *integrationDriver) Cancel(context.Context, *session.AgentProcess) error {
@@ -1336,7 +1530,59 @@ func (d *integrationDriver) Stop(_ context.Context, proc *session.AgentProcess) 
 		close(done)
 	}
 	delete(d.states, proc)
+	if release, ok := d.blocked[proc.SessionID]; ok {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+		delete(d.blocked, proc.SessionID)
+	}
 	return nil
+}
+
+func (d *integrationDaemon) releaseBlocked(sessionID string) {
+	d.mu.Lock()
+	driver := d.driver
+	manager := d.manager
+	d.mu.Unlock()
+	if driver == nil {
+		return
+	}
+	target := sessionID
+	if manager != nil {
+		if info, err := manager.Status(context.Background(), sessionID); err == nil && strings.TrimSpace(info.ACPSessionID) != "" {
+			target = info.ACPSessionID
+		}
+	}
+	driver.releaseBlocked(target)
+}
+
+func (d *integrationDaemon) waitForBlocked(sessionID string, timeout time.Duration) bool {
+	d.mu.Lock()
+	driver := d.driver
+	manager := d.manager
+	d.mu.Unlock()
+	if driver == nil {
+		return false
+	}
+	target := sessionID
+	if manager != nil {
+		if info, err := manager.Status(context.Background(), sessionID); err == nil && strings.TrimSpace(info.ACPSessionID) != "" {
+			target = info.ACPSessionID
+		}
+	}
+	return driver.waitForBlocked(target, timeout)
+}
+
+func (d *integrationDaemon) blockSession(sessionID string) (<-chan acp.AgentEvent, error) {
+	d.mu.Lock()
+	manager := d.manager
+	d.mu.Unlock()
+	if manager == nil {
+		return nil, errors.New("integration daemon session manager is not ready")
+	}
+	return manager.Prompt(context.Background(), sessionID, "__block__")
 }
 
 func discardLogger() *slog.Logger {

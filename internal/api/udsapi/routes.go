@@ -111,6 +111,15 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		daemon.GET("/status", handlers.DaemonStatus)
 	}
 
+	network := api.Group("/network")
+	{
+		network.GET("/status", handlers.NetworkStatus)
+		network.GET("/peers", handlers.NetworkPeers)
+		network.GET("/spaces", handlers.NetworkSpaces)
+		network.POST("/send", handlers.NetworkSend)
+		network.GET("/inbox", handlers.NetworkInbox)
+	}
+
 	extensions := api.Group("/extensions")
 	{
 		extensions.GET("", handlers.ListExtensions)

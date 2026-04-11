@@ -1,7 +1,9 @@
 package network
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -27,13 +29,24 @@ const (
 // NetworkStatus is the manager-facing diagnostics snapshot consumed by daemon
 // status and later transport surfaces.
 type NetworkStatus struct {
-	Enabled      bool
-	Status       string
-	ListenerHost string
-	ListenerPort int
-	LocalPeers   int
-	RemotePeers  int
-	Spaces       int
+	Enabled              bool
+	Status               string
+	ListenerHost         string
+	ListenerPort         int
+	LocalPeers           int
+	RemotePeers          int
+	Spaces               int
+	QueuedMessages       int
+	QueuedSessions       int
+	DeliveryWorkers      int
+	MessagesSent         int64
+	MessagesReceived     int64
+	MessagesRejected     int64
+	MessagesDelivered    int64
+	WorkflowTaggedEvents int64
+	HandoffTaggedEvents  int64
+	LastDisconnect       string
+	KindMetrics          []KindMetric
 }
 
 // ManagerOption customizes network manager construction.
@@ -73,6 +86,7 @@ type Manager struct {
 	router     *Router
 	auditor    AuditWriter
 	deliveries *deliveryCoordinator
+	stats      *runtimeStats
 
 	mu             sync.Mutex
 	sessions       map[string]*managedSession
@@ -156,6 +170,7 @@ func NewManager(
 		sessions:     make(map[string]*managedSession),
 		spaces:       make(map[string]*managedSpace),
 		connected:    true,
+		stats:        newRuntimeStats(),
 	}
 
 	transport, err := NewTransport(
@@ -209,6 +224,7 @@ func NewManager(
 		prompter,
 		withDeliveryLogger(manager.logger),
 		withDeliveryClock(manager.now),
+		withDeliveryDeliveredHook(manager.recordDelivered),
 	)
 	if err != nil {
 		cancel()
@@ -216,6 +232,13 @@ func NewManager(
 		return nil, err
 	}
 	manager.deliveries = deliveries
+	host, port := transportListener(manager.transport)
+	manager.logger.Info(
+		"network.started",
+		"listener_host", host,
+		"listener_port", port,
+		"connected", true,
+	)
 
 	return manager, nil
 }
@@ -433,18 +456,32 @@ func (m *Manager) Status(ctx context.Context) (*NetworkStatus, error) {
 	}
 	host, port := transportListener(m.transport)
 	status := StatusRunning
-	if !m.isConnected() {
+	connected, lastDisconnect := m.connectionState()
+	if !connected {
 		status = StatusDisconnected
 	}
+	queuedMessages, queuedSessions, deliveryWorkers := m.deliveries.stats()
+	stats := m.stats.snapshot()
 
 	return &NetworkStatus{
-		Enabled:      true,
-		Status:       status,
-		ListenerHost: host,
-		ListenerPort: port,
-		LocalPeers:   localPeers,
-		RemotePeers:  len(peers) - localPeers,
-		Spaces:       len(spaces),
+		Enabled:              true,
+		Status:               status,
+		ListenerHost:         host,
+		ListenerPort:         port,
+		LocalPeers:           localPeers,
+		RemotePeers:          len(peers) - localPeers,
+		Spaces:               len(spaces),
+		QueuedMessages:       queuedMessages,
+		QueuedSessions:       queuedSessions,
+		DeliveryWorkers:      deliveryWorkers,
+		MessagesSent:         stats.MessagesSent,
+		MessagesReceived:     stats.MessagesReceived,
+		MessagesRejected:     stats.MessagesRejected,
+		MessagesDelivered:    stats.MessagesDelivered,
+		WorkflowTaggedEvents: stats.WorkflowTaggedEvents,
+		HandoffTaggedEvents:  stats.HandoffTaggedEvents,
+		LastDisconnect:       lastDisconnect,
+		KindMetrics:          stats.KindMetrics,
 	}, nil
 }
 
@@ -491,6 +528,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	m.mu.Unlock()
 
 	m.cancel()
+	queuedMessages, _, _ := m.deliveries.stats()
 
 	var errs []error
 	for _, runtime := range sessions {
@@ -523,6 +561,10 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 			errs = append(errs, err)
 		}
 	}
+	m.logger.Info(
+		"network.stopped",
+		"pending_messages", queuedMessages,
+	)
 
 	return errors.Join(errs...)
 }
@@ -691,6 +733,7 @@ func (m *Manager) handleDisconnect(err error) {
 	m.connected = false
 	m.lastDisconnect = message
 	m.mu.Unlock()
+	m.logger.Warn("network.disconnected", "error", message)
 }
 
 func (m *Manager) handleReconnect() {
@@ -713,12 +756,13 @@ func (m *Manager) handleReconnect() {
 			m.logger.Warn("network.peer.regreet_failed", "session_id", sessionID, "error", err)
 		}
 	}
+	m.logger.Info("network.reconnected", "sessions", len(sessionIDs))
 }
 
-func (m *Manager) isConnected() bool {
+func (m *Manager) connectionState() (bool, string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.connected
+	return m.connected, m.lastDisconnect
 }
 
 func (m *Manager) recordAuditSent(ctx context.Context, sessionID string, envelope Envelope) {
@@ -727,7 +771,10 @@ func (m *Manager) recordAuditSent(ctx context.Context, sessionID string, envelop
 	}
 	if err := m.auditor.RecordSent(ctx, sessionID, envelope); err != nil {
 		m.logger.Warn("network.audit.record_sent_failed", "session_id", sessionID, "envelope_id", envelope.ID, "error", err)
+		return
 	}
+	m.stats.recordSent(envelope)
+	m.logger.Info("network.message.sent", networkLogFields(envelope, "session_id", sessionID)...)
 }
 
 func (m *Manager) recordAuditReceived(ctx context.Context, sessionID string, envelope Envelope) {
@@ -736,7 +783,10 @@ func (m *Manager) recordAuditReceived(ctx context.Context, sessionID string, env
 	}
 	if err := m.auditor.RecordReceived(ctx, sessionID, envelope); err != nil {
 		m.logger.Warn("network.audit.record_received_failed", "session_id", sessionID, "envelope_id", envelope.ID, "error", err)
+		return
 	}
+	m.stats.recordReceived(envelope)
+	m.logger.Info("network.message.received", networkLogFields(envelope, "session_id", sessionID)...)
 }
 
 func (m *Manager) recordAuditRejected(ctx context.Context, sessionID string, envelope Envelope, reason string) {
@@ -745,7 +795,19 @@ func (m *Manager) recordAuditRejected(ctx context.Context, sessionID string, env
 	}
 	if err := m.auditor.RecordRejected(ctx, sessionID, envelope, reason); err != nil {
 		m.logger.Warn("network.audit.record_rejected_failed", "session_id", sessionID, "envelope_id", envelope.ID, "error", err)
+		return
 	}
+	m.stats.recordRejected(envelope)
+	fields := networkLogFields(envelope, "session_id", sessionID)
+	fields = append(fields, "reason", strings.TrimSpace(reason))
+	m.logger.Info("network.message.rejected", fields...)
+}
+
+func (m *Manager) recordDelivered(sessionID string, envelope Envelope, _ string, _ time.Duration) {
+	if m == nil || m.stats == nil {
+		return
+	}
+	m.stats.recordDelivered(envelope)
 }
 
 func transportListener(transport *Transport) (string, int) {
@@ -773,4 +835,77 @@ func transportListener(transport *Transport) (string, int) {
 		}
 	}
 	return host, port
+}
+
+func networkLogFields(envelope Envelope, extra ...any) []any {
+	fields := []any{
+		"message_id", strings.TrimSpace(envelope.ID),
+		"kind", string(envelope.Kind),
+		"space", strings.TrimSpace(envelope.Space),
+		"from", strings.TrimSpace(envelope.From),
+	}
+	if envelope.To != nil {
+		fields = append(fields, "to", strings.TrimSpace(*envelope.To))
+	}
+	if envelope.ReplyTo != nil {
+		fields = append(fields, "reply_to", strings.TrimSpace(*envelope.ReplyTo))
+	}
+	if envelope.TraceID != nil {
+		fields = append(fields, "trace_id", strings.TrimSpace(*envelope.TraceID))
+	}
+	if envelope.CausationID != nil {
+		fields = append(fields, "causation_id", strings.TrimSpace(*envelope.CausationID))
+	}
+	if value, ok := extensionLogValue(envelope.Ext, "agh.workflow_id"); ok {
+		fields = append(fields, "agh.workflow_id", value)
+	}
+	if value, ok := extensionLogValue(envelope.Ext, "agh.handoff_version"); ok {
+		fields = append(fields, "agh.handoff_version", value)
+	}
+	if value, ok := extensionLogValue(envelope.Ext, "agh.handoff_digest"); ok {
+		fields = append(fields, "agh.handoff_digest", value)
+	}
+	if value, ok := extensionLogValue(envelope.Ext, "agh.handoff_source"); ok {
+		fields = append(fields, "agh.handoff_source", value)
+	}
+	return append(fields, extra...)
+}
+
+func extensionLogValue(ext ExtensionMap, key string) (string, bool) {
+	if len(ext) == 0 {
+		return "", false
+	}
+	raw, ok := ext[key]
+	if !ok || len(raw) == 0 {
+		return "", false
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		text = strings.TrimSpace(text)
+		if text != "" {
+			return text, true
+		}
+	}
+	return compactJSON(raw), strings.TrimSpace(compactJSON(raw)) != ""
+}
+
+func hasWorkflowID(ext ExtensionMap) bool {
+	_, ok := extensionLogValue(ext, "agh.workflow_id")
+	return ok
+}
+
+func hasHandoffVersion(ext ExtensionMap) bool {
+	_, ok := extensionLogValue(ext, "agh.handoff_version")
+	return ok
+}
+
+func compactJSON(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var compacted bytes.Buffer
+	if err := json.Compact(&compacted, raw); err != nil {
+		return strings.TrimSpace(string(raw))
+	}
+	return strings.TrimSpace(compacted.String())
 }

@@ -21,14 +21,15 @@ func TestInboundQueuePreservesFIFOAndDropsOldestOnOverflow(t *testing.T) {
 	first := testDeliveryEnvelope(t, "msg-1", "first")
 	second := testDeliveryEnvelope(t, "msg-2", "second")
 	third := testDeliveryEnvelope(t, "msg-3", "third")
+	now := time.Date(2026, 4, 11, 13, 0, 0, 0, time.UTC)
 
-	if result := queue.enqueue(first); result.Dropped != nil || result.Depth != 1 {
+	if result := queue.enqueue(first, now, false); result.Dropped != nil || result.Depth != 1 {
 		t.Fatalf("enqueue(first) = %#v, want depth=1 with no drop", result)
 	}
-	if result := queue.enqueue(second); result.Dropped != nil || result.Depth != 2 {
+	if result := queue.enqueue(second, now.Add(time.Second), false); result.Dropped != nil || result.Depth != 2 {
 		t.Fatalf("enqueue(second) = %#v, want depth=2 with no drop", result)
 	}
-	if result := queue.enqueue(third); result.Dropped == nil || result.Dropped.ID != first.ID || result.Depth != 2 {
+	if result := queue.enqueue(third, now.Add(2*time.Second), true); result.Dropped == nil || result.Dropped.ID != first.ID || result.Depth != 2 {
 		t.Fatalf("enqueue(third) = %#v, want drop=%q depth=2", result, first.ID)
 	}
 
@@ -44,11 +45,11 @@ func TestInboundQueuePreservesFIFOAndDropsOldestOnOverflow(t *testing.T) {
 		t.Fatal("dequeue(third) = present, want queue empty")
 	}
 
-	if gotFirst.ID != second.ID {
-		t.Fatalf("first dequeue id = %q, want %q", gotFirst.ID, second.ID)
+	if gotFirst.Envelope.ID != second.ID {
+		t.Fatalf("first dequeue id = %q, want %q", gotFirst.Envelope.ID, second.ID)
 	}
-	if gotSecond.ID != third.ID {
-		t.Fatalf("second dequeue id = %q, want %q", gotSecond.ID, third.ID)
+	if gotSecond.Envelope.ID != third.ID {
+		t.Fatalf("second dequeue id = %q, want %q", gotSecond.Envelope.ID, third.ID)
 	}
 }
 

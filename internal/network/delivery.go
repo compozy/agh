@@ -34,6 +34,8 @@ type deliveryCoordinator struct {
 
 	deliveries sync.Map
 	wg         sync.WaitGroup
+
+	onDelivered func(sessionID string, envelope Envelope, mode string, latency time.Duration)
 }
 
 type deliveryState struct {
@@ -43,12 +45,19 @@ type deliveryState struct {
 type inboundQueue struct {
 	mu       sync.Mutex
 	maxDepth int
-	items    []Envelope
+	items    []queuedEnvelope
 }
 
 type enqueueResult struct {
-	Depth   int
-	Dropped *Envelope
+	Depth        int
+	DeliveryMode string
+	Dropped      *Envelope
+}
+
+type queuedEnvelope struct {
+	Envelope     Envelope
+	AcceptedAt   time.Time
+	DeliveryMode string
 }
 
 func withDeliveryLogger(logger *slog.Logger) deliveryOption {
@@ -60,6 +69,12 @@ func withDeliveryLogger(logger *slog.Logger) deliveryOption {
 func withDeliveryClock(now func() time.Time) deliveryOption {
 	return func(coordinator *deliveryCoordinator) {
 		coordinator.now = now
+	}
+}
+
+func withDeliveryDeliveredHook(hook func(sessionID string, envelope Envelope, mode string, latency time.Duration)) deliveryOption {
+	return func(coordinator *deliveryCoordinator) {
+		coordinator.onDelivered = hook
 	}
 }
 
@@ -136,12 +151,22 @@ func (c *deliveryCoordinator) acceptOne(ctx context.Context, delivery Delivery) 
 	}
 
 	queue := c.queueForSession(sessionID)
-	result := queue.enqueue(delivery.Envelope)
+	result := queue.enqueue(delivery.Envelope, c.now(), c.prompter.IsPrompting(sessionID))
 	if result.Dropped != nil {
 		c.logger.Warn(
 			"network.message.queue_overflow",
 			"session_id", sessionID,
 			"dropped_envelope_id", result.Dropped.ID,
+			"queue_depth", result.Depth,
+		)
+	}
+	if result.DeliveryMode == "queued" {
+		c.logger.Info(
+			"network.message.queued",
+			"session_id", sessionID,
+			"message_id", delivery.Envelope.ID,
+			"kind", string(delivery.Envelope.Kind),
+			"space", delivery.Envelope.Space,
 			"queue_depth", result.Depth,
 		)
 	}
@@ -258,14 +283,15 @@ func (c *deliveryCoordinator) runWorker(sessionID string, state *deliveryState) 
 			return
 		}
 
-		envelope, ok := c.dequeue(target)
+		item, ok := c.dequeue(target)
 		if !ok {
 			return
 		}
+		envelope := item.Envelope
 
 		message, err := formatNetworkMessage(envelope)
 		if err != nil {
-			c.requeueFront(target, envelope)
+			c.requeueFront(target, item)
 			c.logger.Warn(
 				"network.message.render_failed",
 				"session_id", target,
@@ -277,7 +303,7 @@ func (c *deliveryCoordinator) runWorker(sessionID string, state *deliveryState) 
 
 		events, err := c.prompter.PromptNetwork(c.lifecycleCtx, target, message)
 		if err != nil {
-			c.requeueFront(target, envelope)
+			c.requeueFront(target, item)
 			c.logger.Warn(
 				"network.message.delivery_failed",
 				"session_id", target,
@@ -288,6 +314,22 @@ func (c *deliveryCoordinator) runWorker(sessionID string, state *deliveryState) 
 		}
 
 		c.drainPromptEvents(events)
+		latency := c.now().Sub(item.AcceptedAt)
+		if latency < 0 {
+			latency = 0
+		}
+		c.logger.Info(
+			"network.message.delivered",
+			"session_id", target,
+			"message_id", envelope.ID,
+			"kind", string(envelope.Kind),
+			"space", envelope.Space,
+			"delivery_mode", item.DeliveryMode,
+			"latency_ms", latency.Milliseconds(),
+		)
+		if c.onDelivered != nil {
+			c.onDelivered(target, envelope, item.DeliveryMode, latency)
+		}
 	}
 }
 
@@ -308,65 +350,102 @@ func (c *deliveryCoordinator) drainPromptEvents(events <-chan acp.AgentEvent) {
 	}
 }
 
-func (c *deliveryCoordinator) dequeue(sessionID string) (Envelope, bool) {
+func (c *deliveryCoordinator) dequeue(sessionID string) (queuedEnvelope, bool) {
 	c.mu.Lock()
 	queue := c.queues[strings.TrimSpace(sessionID)]
 	c.mu.Unlock()
 	if queue == nil {
-		return Envelope{}, false
+		return queuedEnvelope{}, false
 	}
 	return queue.dequeue()
 }
 
-func (c *deliveryCoordinator) requeueFront(sessionID string, envelope Envelope) {
+func (c *deliveryCoordinator) requeueFront(sessionID string, item queuedEnvelope) {
 	c.mu.Lock()
 	queue := c.queues[strings.TrimSpace(sessionID)]
 	c.mu.Unlock()
 	if queue == nil {
 		return
 	}
-	queue.prepend(envelope)
+	queue.prepend(item)
+}
+
+func (c *deliveryCoordinator) stats() (queuedMessages int, queuedSessions int, deliveryWorkers int) {
+	if c == nil {
+		return 0, 0, 0
+	}
+
+	c.mu.Lock()
+	queues := make([]*inboundQueue, 0, len(c.queues))
+	for _, queue := range c.queues {
+		queues = append(queues, queue)
+	}
+	c.mu.Unlock()
+
+	for _, queue := range queues {
+		depth := queue.len()
+		if depth <= 0 {
+			continue
+		}
+		queuedMessages += depth
+		queuedSessions++
+	}
+	c.deliveries.Range(func(_, _ any) bool {
+		deliveryWorkers++
+		return true
+	})
+	return queuedMessages, queuedSessions, deliveryWorkers
 }
 
 func newInboundQueue(maxDepth int) *inboundQueue {
 	return &inboundQueue{maxDepth: maxDepth}
 }
 
-func (q *inboundQueue) enqueue(envelope Envelope) enqueueResult {
+func (q *inboundQueue) enqueue(envelope Envelope, acceptedAt time.Time, prompting bool) enqueueResult {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
 	var dropped *Envelope
+	wasEmpty := len(q.items) == 0
 	if len(q.items) >= q.maxDepth {
-		evicted := cloneEnvelope(q.items[0])
+		evicted := cloneEnvelope(q.items[0].Envelope)
 		dropped = &evicted
 		copy(q.items[0:], q.items[1:])
 		q.items = q.items[:len(q.items)-1]
 	}
-	q.items = append(q.items, cloneEnvelope(envelope))
+	deliveryMode := "queued"
+	if !prompting && wasEmpty {
+		deliveryMode = "immediate"
+	}
+	q.items = append(q.items, queuedEnvelope{
+		Envelope:     cloneEnvelope(envelope),
+		AcceptedAt:   acceptedAt.UTC(),
+		DeliveryMode: deliveryMode,
+	})
 
 	return enqueueResult{
-		Depth:   len(q.items),
-		Dropped: dropped,
+		Depth:        len(q.items),
+		DeliveryMode: deliveryMode,
+		Dropped:      dropped,
 	}
 }
 
-func (q *inboundQueue) prepend(envelope Envelope) {
+func (q *inboundQueue) prepend(item queuedEnvelope) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	q.items = append([]Envelope{cloneEnvelope(envelope)}, q.items...)
+	q.items = append([]queuedEnvelope{cloneQueuedEnvelope(item)}, q.items...)
 }
 
-func (q *inboundQueue) dequeue() (Envelope, bool) {
+func (q *inboundQueue) dequeue() (queuedEnvelope, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
 	if len(q.items) == 0 {
-		return Envelope{}, false
+		return queuedEnvelope{}, false
 	}
 
-	envelope := cloneEnvelope(q.items[0])
+	envelope := cloneQueuedEnvelope(q.items[0])
 	copy(q.items[0:], q.items[1:])
 	q.items = q.items[:len(q.items)-1]
 	return envelope, true
@@ -382,7 +461,7 @@ func (q *inboundQueue) snapshot() []Envelope {
 
 	out := make([]Envelope, 0, len(q.items))
 	for _, envelope := range q.items {
-		out = append(out, cloneEnvelope(envelope))
+		out = append(out, cloneEnvelope(envelope.Envelope))
 	}
 	return out
 }
@@ -500,5 +579,13 @@ func cloneEnvelope(envelope Envelope) Envelope {
 		Body:          cloneRawMessage(envelope.Body),
 		Proof:         cloneProof(envelope.Proof),
 		Ext:           cloneExtensionMap(envelope.Ext),
+	}
+}
+
+func cloneQueuedEnvelope(item queuedEnvelope) queuedEnvelope {
+	return queuedEnvelope{
+		Envelope:     cloneEnvelope(item.Envelope),
+		AcceptedAt:   item.AcceptedAt,
+		DeliveryMode: item.DeliveryMode,
 	}
 }

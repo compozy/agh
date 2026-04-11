@@ -12,6 +12,7 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	channelspkg "github.com/pedronauck/agh/internal/channels"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/network"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -101,6 +102,9 @@ var ErrSkillValidation = errors.New("skill validation error")
 // ErrAutomationValidation is the sentinel for automation request validation failures.
 var ErrAutomationValidation = errors.New("automation validation error")
 
+// ErrNetworkValidation is the sentinel for malformed network control-plane requests.
+var ErrNetworkValidation = errors.New("network validation error")
+
 // StatusForSkillError maps skill-domain errors to transport statuses.
 func StatusForSkillError(err error) int {
 	switch {
@@ -158,6 +162,35 @@ func StatusForAutomationError(err error) int {
 		return http.StatusUnauthorized
 	case errors.Is(err, automationpkg.ErrManagerNotRunning):
 		return http.StatusServiceUnavailable
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// NewNetworkValidationError wraps a network request validation failure with the shared sentinel.
+func NewNetworkValidationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %v", ErrNetworkValidation, err)
+}
+
+// StatusForNetworkError maps network-domain errors to transport statuses.
+func StatusForNetworkError(err error) int {
+	switch {
+	case err == nil:
+		return http.StatusOK
+	case errors.Is(err, ErrNetworkValidation):
+		return http.StatusBadRequest
+	case errors.Is(err, network.ErrLocalPeerNotFound), errors.Is(err, network.ErrTargetPeerNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, network.ErrMissingField),
+		errors.Is(err, network.ErrInvalidField),
+		errors.Is(err, network.ErrInvalidKind),
+		errors.Is(err, network.ErrInvalidBody),
+		errors.Is(err, network.ErrExpired),
+		errors.Is(err, network.ErrReplayTooOld):
+		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError
 	}

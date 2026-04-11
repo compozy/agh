@@ -20,6 +20,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerSkillRoutes(api, handlers)
 	registerMemoryRoutes(api, handlers)
 	registerDaemonRoutes(api, handlers)
+	registerNetworkRoutes(api, handlers)
 	registerWebhookRoutes(api, handlers)
 
 	if engine, ok := router.(*gin.Engine); ok {
@@ -131,6 +132,15 @@ func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 func registerDaemonRoutes(api gin.IRouter, handlers *Handlers) {
 	daemonGroup := api.Group("/daemon")
 	daemonGroup.GET("/status", handlers.DaemonStatus)
+}
+
+func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
+	networkGroup := api.Group("/network")
+	networkGroup.GET("/status", handlers.NetworkStatus)
+	networkGroup.GET("/peers", handlers.NetworkPeers)
+	networkGroup.GET("/spaces", handlers.NetworkSpaces)
+	networkGroup.POST("/send", handlers.NetworkSend)
+	networkGroup.GET("/inbox", handlers.NetworkInbox)
 }
 
 func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {

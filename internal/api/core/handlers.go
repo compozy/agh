@@ -651,15 +651,7 @@ func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.Netw
 		return nil, errors.New("api: network status is required")
 	}
 
-	return &contract.NetworkStatusPayload{
-		Enabled:      status.Enabled,
-		Status:       strings.TrimSpace(status.Status),
-		ListenerHost: strings.TrimSpace(status.ListenerHost),
-		ListenerPort: status.ListenerPort,
-		LocalPeers:   status.LocalPeers,
-		RemotePeers:  status.RemotePeers,
-		Spaces:       status.Spaces,
-	}, nil
+	return NetworkStatusPayloadFromStatus(status), nil
 }
 
 func (h *BaseHandlers) daemonUserHomeDir() string {

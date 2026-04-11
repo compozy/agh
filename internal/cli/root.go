@@ -80,6 +80,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newVersionCommand())
 	cmd.AddCommand(newInstallCommand(deps))
 	cmd.AddCommand(newDaemonCommand(deps))
+	cmd.AddCommand(newNetworkCommand(deps))
 	cmd.AddCommand(newSessionCommand(deps))
 	cmd.AddCommand(newChannelCommand(deps))
 	cmd.AddCommand(newWorkspaceCommand(deps))

@@ -18,6 +18,11 @@ var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
 type stubClient struct {
 	daemonStatusFn            func(context.Context) (DaemonStatus, error)
+	networkStatusFn           func(context.Context) (NetworkStatusRecord, error)
+	networkPeersFn            func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
+	networkSpacesFn           func(context.Context) ([]NetworkSpaceRecord, error)
+	networkSendFn             func(context.Context, NetworkSendRequest) (NetworkSendRecord, error)
+	networkInboxFn            func(context.Context, string) ([]NetworkEnvelopeRecord, error)
 	listExtensionsFn          func(context.Context) ([]ExtensionRecord, error)
 	installExtensionFn        func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
 	enableExtensionFn         func(context.Context, string) (ExtensionRecord, error)
@@ -81,6 +86,41 @@ func (s stubClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
 		return s.daemonStatusFn(ctx)
 	}
 	return DaemonStatus{}, errors.New("unexpected DaemonStatus call")
+}
+
+func (s stubClient) NetworkStatus(ctx context.Context) (NetworkStatusRecord, error) {
+	if s.networkStatusFn != nil {
+		return s.networkStatusFn(ctx)
+	}
+	return NetworkStatusRecord{}, errors.New("unexpected NetworkStatus call")
+}
+
+func (s stubClient) NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error) {
+	if s.networkPeersFn != nil {
+		return s.networkPeersFn(ctx, query)
+	}
+	return nil, errors.New("unexpected NetworkPeers call")
+}
+
+func (s stubClient) NetworkSpaces(ctx context.Context) ([]NetworkSpaceRecord, error) {
+	if s.networkSpacesFn != nil {
+		return s.networkSpacesFn(ctx)
+	}
+	return nil, errors.New("unexpected NetworkSpaces call")
+}
+
+func (s stubClient) NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
+	if s.networkSendFn != nil {
+		return s.networkSendFn(ctx, request)
+	}
+	return NetworkSendRecord{}, errors.New("unexpected NetworkSend call")
+}
+
+func (s stubClient) NetworkInbox(ctx context.Context, sessionID string) ([]NetworkEnvelopeRecord, error) {
+	if s.networkInboxFn != nil {
+		return s.networkInboxFn(ctx, sessionID)
+	}
+	return nil, errors.New("unexpected NetworkInbox call")
 }
 
 func (s stubClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, error) {
