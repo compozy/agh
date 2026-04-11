@@ -21,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/udsapi"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
@@ -92,7 +93,7 @@ func TestCLIRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(stop) error = %v", err)
 	}
-	if stopped.State != string(session.StateStopped) {
+	if stopped.State != session.StateStopped {
 		t.Fatalf("stopped.State = %q, want %q", stopped.State, session.StateStopped)
 	}
 
@@ -377,6 +378,172 @@ func TestMemoryWriteListIntegration(t *testing.T) {
 	}
 	if len(memories) != 1 || memories[0].Filename != "prefs.md" {
 		t.Fatalf("memories = %#v, want prefs.md", memories)
+	}
+}
+
+func TestAutomationJobsCreateOutputFormatsIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	humanOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"automation", "jobs", "create",
+		"--name", "nightly-human",
+		"--scope", "global",
+		"--schedule", "every:30m",
+		"--agent", "coder",
+		"--prompt", "review repo",
+		"-o", "human",
+	)
+	if err != nil {
+		t.Fatalf("automation jobs create human error = %v", err)
+	}
+	if !strings.Contains(humanOut, "Automation Job") || !strings.Contains(humanOut, "nightly-human") {
+		t.Fatalf("human output = %q, want created job detail", humanOut)
+	}
+
+	jsonOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"automation", "jobs", "create",
+		"--name", "nightly-json",
+		"--scope", "global",
+		"--schedule", "every:45m",
+		"--agent", "coder",
+		"--prompt", "review repo later",
+		"-o", "json",
+	)
+	if err != nil {
+		t.Fatalf("automation jobs create json error = %v", err)
+	}
+	var created JobRecord
+	if err := json.Unmarshal([]byte(jsonOut), &created); err != nil {
+		t.Fatalf("json.Unmarshal(automation jobs create) error = %v", err)
+	}
+	if created.ID == "" || created.Name != "nightly-json" || created.Scope != automationpkg.AutomationScopeGlobal {
+		t.Fatalf("created job = %#v, want global created job", created)
+	}
+}
+
+func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	workspaceOut := mustExecuteRoot(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json")
+	var workspace WorkspaceRecord
+	if err := json.Unmarshal([]byte(workspaceOut), &workspace); err != nil {
+		t.Fatalf("json.Unmarshal(workspace add) error = %v", err)
+	}
+	if workspace.ID == "" {
+		t.Fatal("expected workspace id after registration")
+	}
+
+	triggerOut := mustExecuteRoot(
+		t,
+		h.deps,
+		"automation", "triggers", "create",
+		"--name", "stop-review",
+		"--scope", "workspace",
+		"--workspace", "alpha",
+		"--event", "session.stopped",
+		"--agent", "coder",
+		"--prompt", `review {{ index .Data "session_id" }}`,
+		"-o", "json",
+	)
+	var createdTrigger TriggerRecord
+	if err := json.Unmarshal([]byte(triggerOut), &createdTrigger); err != nil {
+		t.Fatalf("json.Unmarshal(trigger create) error = %v", err)
+	}
+	if createdTrigger.ID == "" || createdTrigger.WorkspaceID != workspace.ID {
+		t.Fatalf("created trigger = %#v, want workspace-bound trigger", createdTrigger)
+	}
+
+	sessionOut := mustExecuteRoot(t, h.deps, "session", "new", "--agent", "coder", "--name", "demo", "--workspace", "alpha", "-o", "json")
+	var createdSession SessionRecord
+	if err := json.Unmarshal([]byte(sessionOut), &createdSession); err != nil {
+		t.Fatalf("json.Unmarshal(session new) error = %v", err)
+	}
+	if createdSession.ID == "" {
+		t.Fatal("expected session id for trigger test")
+	}
+
+	if _, _, err := executeRootCommand(t, h.deps, "session", "stop", createdSession.ID, "-o", "json"); err != nil {
+		t.Fatalf("session stop error = %v", err)
+	}
+
+	waitForCondition(t, 5*time.Second, func() bool {
+		stdout, _, err := executeRootCommand(t, h.deps, "automation", "triggers", "history", createdTrigger.ID, "-o", "json")
+		if err != nil {
+			return false
+		}
+		var runs []RunRecord
+		if err := json.Unmarshal([]byte(stdout), &runs); err != nil {
+			return false
+		}
+		return len(runs) > 0
+	})
+
+	historyHuman, _, err := executeRootCommand(t, h.deps, "automation", "triggers", "history", createdTrigger.ID, "-o", "human")
+	if err != nil {
+		t.Fatalf("automation triggers history human error = %v", err)
+	}
+	if !strings.Contains(historyHuman, "Automation Runs") || !strings.Contains(historyHuman, "trigger:"+createdTrigger.ID) {
+		t.Fatalf("history human output = %q, want trigger run table", historyHuman)
+	}
+
+	historyJSON, _, err := executeRootCommand(t, h.deps, "automation", "triggers", "history", createdTrigger.ID, "-o", "json")
+	if err != nil {
+		t.Fatalf("automation triggers history json error = %v", err)
+	}
+	var triggerRuns []RunRecord
+	if err := json.Unmarshal([]byte(historyJSON), &triggerRuns); err != nil {
+		t.Fatalf("json.Unmarshal(trigger history) error = %v", err)
+	}
+	if len(triggerRuns) == 0 || triggerRuns[0].TriggerID != createdTrigger.ID {
+		t.Fatalf("trigger runs = %#v, want at least one run for trigger %q", triggerRuns, createdTrigger.ID)
+	}
+
+	runsHuman, _, err := executeRootCommand(t, h.deps, "automation", "runs", "-o", "human")
+	if err != nil {
+		t.Fatalf("automation runs human error = %v", err)
+	}
+	if !strings.Contains(runsHuman, "Automation Runs") || !strings.Contains(runsHuman, createdTrigger.ID) {
+		t.Fatalf("runs human output = %q, want shared run table", runsHuman)
+	}
+
+	runsJSON, _, err := executeRootCommand(t, h.deps, "automation", "runs", "-o", "json")
+	if err != nil {
+		t.Fatalf("automation runs json error = %v", err)
+	}
+	var allRuns []RunRecord
+	if err := json.Unmarshal([]byte(runsJSON), &allRuns); err != nil {
+		t.Fatalf("json.Unmarshal(automation runs) error = %v", err)
+	}
+	if len(allRuns) == 0 {
+		t.Fatal("expected at least one automation run in shared history")
+	}
+	found := false
+	for _, run := range allRuns {
+		if run.TriggerID == createdTrigger.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("allRuns = %#v, want one run for trigger %q", allRuns, createdTrigger.ID)
 	}
 }
 
@@ -695,6 +862,22 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		manager:  extManager,
 	}
 
+	automationManager, err := automationpkg.New(
+		automationpkg.WithStore(registry),
+		automationpkg.WithSessions(manager),
+		automationpkg.WithWorkspaceResolver(resolver),
+		automationpkg.WithConfig(d.cfg.Automation),
+		automationpkg.WithLogger(discardLogger()),
+		automationpkg.WithGlobalWorkspacePath(d.homePaths.HomeDir),
+	)
+	if err != nil {
+		return fmt.Errorf("new automation manager: %w", err)
+	}
+	if err := automationManager.Start(context.Background()); err != nil {
+		return fmt.Errorf("start automation manager: %w", err)
+	}
+	fanout.notifiers = append(fanout.notifiers, automationManager.SessionObserver())
+
 	server, err := udsapi.New(
 		udsapi.WithHomePaths(d.homePaths),
 		udsapi.WithConfig(d.cfg),
@@ -704,6 +887,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		udsapi.WithPollInterval(10*time.Millisecond),
 		udsapi.WithSessionManager(manager),
 		udsapi.WithObserver(observer),
+		udsapi.WithAutomation(automationManager),
 		udsapi.WithWorkspaceResolver(resolver),
 		udsapi.WithMemoryStore(memoryStore),
 		udsapi.WithDreamTrigger(dreamTrigger),
@@ -716,6 +900,11 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	if err := server.Start(context.Background()); err != nil {
 		return fmt.Errorf("start uds server: %w", err)
 	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = automationManager.Shutdown(shutdownCtx)
+	}()
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()

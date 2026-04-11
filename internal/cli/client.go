@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/api/contract"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/sse"
 )
@@ -59,6 +60,21 @@ type DaemonClient interface {
 	WriteMemory(ctx context.Context, filename string, request MemoryWriteRequest) (MemoryMutationRecord, error)
 	DeleteMemory(ctx context.Context, filename string, scope memory.Scope, workspace string) (MemoryMutationRecord, error)
 	ConsolidateMemory(ctx context.Context, workspace string) (MemoryConsolidateRecord, error)
+	ListAutomationJobs(ctx context.Context, query AutomationJobQuery) ([]JobRecord, error)
+	CreateAutomationJob(ctx context.Context, request AutomationJobCreateRequest) (JobRecord, error)
+	GetAutomationJob(ctx context.Context, id string) (JobRecord, error)
+	UpdateAutomationJob(ctx context.Context, id string, request AutomationJobUpdateRequest) (JobRecord, error)
+	DeleteAutomationJob(ctx context.Context, id string) error
+	TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error)
+	AutomationJobRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error)
+	ListAutomationTriggers(ctx context.Context, query AutomationTriggerQuery) ([]TriggerRecord, error)
+	CreateAutomationTrigger(ctx context.Context, request AutomationTriggerCreateRequest) (TriggerRecord, error)
+	GetAutomationTrigger(ctx context.Context, id string) (TriggerRecord, error)
+	UpdateAutomationTrigger(ctx context.Context, id string, request AutomationTriggerUpdateRequest) (TriggerRecord, error)
+	DeleteAutomationTrigger(ctx context.Context, id string) error
+	AutomationTriggerRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error)
+	ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error)
+	GetAutomationRun(ctx context.Context, id string) (RunRecord, error)
 }
 
 // CreateSessionRequest captures the shared daemon session creation payload.
@@ -162,6 +178,36 @@ type MemoryMutationRecord = contract.MemoryMutationResponse
 
 // MemoryConsolidateRecord captures the daemon API consolidation response.
 type MemoryConsolidateRecord = contract.MemoryConsolidateResponse
+
+// AutomationJobQuery captures CLI filters for automation job list calls.
+type AutomationJobQuery = automationpkg.JobListQuery
+
+// AutomationTriggerQuery captures CLI filters for automation trigger list calls.
+type AutomationTriggerQuery = automationpkg.TriggerListQuery
+
+// AutomationRunQuery captures CLI filters for automation run history calls.
+type AutomationRunQuery = automationpkg.RunQuery
+
+// AutomationJobCreateRequest captures the shared automation job create payload.
+type AutomationJobCreateRequest = contract.CreateJobRequest
+
+// AutomationJobUpdateRequest captures mutable automation job fields.
+type AutomationJobUpdateRequest = contract.UpdateJobRequest
+
+// AutomationTriggerCreateRequest captures the shared automation trigger create payload.
+type AutomationTriggerCreateRequest = contract.CreateTriggerRequest
+
+// AutomationTriggerUpdateRequest captures mutable automation trigger fields.
+type AutomationTriggerUpdateRequest = contract.UpdateTriggerRequest
+
+// JobRecord is the shared automation job payload.
+type JobRecord = contract.JobPayload
+
+// TriggerRecord is the shared automation trigger payload.
+type TriggerRecord = contract.TriggerPayload
+
+// RunRecord is the shared automation run payload.
+type RunRecord = contract.RunPayload
 
 // HealthStatus is the daemon API observability health payload.
 type HealthStatus = contract.ObserveHealthPayload
@@ -510,6 +556,128 @@ func (c *unixSocketClient) ConsolidateMemory(ctx context.Context, workspace stri
 	return response, nil
 }
 
+func (c *unixSocketClient) ListAutomationJobs(ctx context.Context, query AutomationJobQuery) ([]JobRecord, error) {
+	var response contract.JobsResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/api/automation/jobs", automationJobValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Jobs, nil
+}
+
+func (c *unixSocketClient) CreateAutomationJob(ctx context.Context, request AutomationJobCreateRequest) (JobRecord, error) {
+	var response contract.JobResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/api/automation/jobs", nil, request, &response); err != nil {
+		return JobRecord{}, err
+	}
+	return response.Job, nil
+}
+
+func (c *unixSocketClient) GetAutomationJob(ctx context.Context, id string) (JobRecord, error) {
+	var response contract.JobResponse
+	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return JobRecord{}, err
+	}
+	return response.Job, nil
+}
+
+func (c *unixSocketClient) UpdateAutomationJob(ctx context.Context, id string, request AutomationJobUpdateRequest) (JobRecord, error) {
+	var response contract.JobResponse
+	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
+		return JobRecord{}, err
+	}
+	return response.Job, nil
+}
+
+func (c *unixSocketClient) DeleteAutomationJob(ctx context.Context, id string) error {
+	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id))
+	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
+}
+
+func (c *unixSocketClient) TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error) {
+	var response contract.RunResponse
+	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id)) + "/trigger"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+		return RunRecord{}, err
+	}
+	return response.Run, nil
+}
+
+func (c *unixSocketClient) AutomationJobRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error) {
+	var response contract.RunsResponse
+	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(id)) + "/runs"
+	if err := c.doJSON(ctx, http.MethodGet, path, automationRunValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Runs, nil
+}
+
+func (c *unixSocketClient) ListAutomationTriggers(ctx context.Context, query AutomationTriggerQuery) ([]TriggerRecord, error) {
+	var response contract.TriggersResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/api/automation/triggers", automationTriggerValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Triggers, nil
+}
+
+func (c *unixSocketClient) CreateAutomationTrigger(ctx context.Context, request AutomationTriggerCreateRequest) (TriggerRecord, error) {
+	var response contract.TriggerResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/api/automation/triggers", nil, request, &response); err != nil {
+		return TriggerRecord{}, err
+	}
+	return response.Trigger, nil
+}
+
+func (c *unixSocketClient) GetAutomationTrigger(ctx context.Context, id string) (TriggerRecord, error) {
+	var response contract.TriggerResponse
+	path := "/api/automation/triggers/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return TriggerRecord{}, err
+	}
+	return response.Trigger, nil
+}
+
+func (c *unixSocketClient) UpdateAutomationTrigger(ctx context.Context, id string, request AutomationTriggerUpdateRequest) (TriggerRecord, error) {
+	var response contract.TriggerResponse
+	path := "/api/automation/triggers/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
+		return TriggerRecord{}, err
+	}
+	return response.Trigger, nil
+}
+
+func (c *unixSocketClient) DeleteAutomationTrigger(ctx context.Context, id string) error {
+	path := "/api/automation/triggers/" + url.PathEscape(strings.TrimSpace(id))
+	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
+}
+
+func (c *unixSocketClient) AutomationTriggerRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error) {
+	var response contract.RunsResponse
+	path := "/api/automation/triggers/" + url.PathEscape(strings.TrimSpace(id)) + "/runs"
+	if err := c.doJSON(ctx, http.MethodGet, path, automationRunValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Runs, nil
+}
+
+func (c *unixSocketClient) ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error) {
+	var response contract.RunsResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/api/automation/runs", automationRunValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Runs, nil
+}
+
+func (c *unixSocketClient) GetAutomationRun(ctx context.Context, id string) (RunRecord, error) {
+	var response contract.RunResponse
+	path := "/api/automation/runs/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return RunRecord{}, err
+	}
+	return response.Run, nil
+}
+
 func (c *unixSocketClient) extensionAction(ctx context.Context, name string, action string) (ExtensionRecord, error) {
 	var response struct {
 		Extension ExtensionRecord `json:"extension"`
@@ -714,6 +882,66 @@ func memoryValues(scope memory.Scope, workspace string) url.Values {
 	}
 	if trimmed := strings.TrimSpace(workspace); trimmed != "" {
 		values.Set("workspace", trimmed)
+	}
+	return values
+}
+
+func automationJobValues(query AutomationJobQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
+		values.Set("scope", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.WorkspaceID); trimmed != "" {
+		values.Set("workspace_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(string(query.Source)); trimmed != "" {
+		values.Set("source", trimmed)
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
+}
+
+func automationTriggerValues(query AutomationTriggerQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
+		values.Set("scope", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.WorkspaceID); trimmed != "" {
+		values.Set("workspace_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Event); trimmed != "" {
+		values.Set("event", trimmed)
+	}
+	if trimmed := strings.TrimSpace(string(query.Source)); trimmed != "" {
+		values.Set("source", trimmed)
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
+}
+
+func automationRunValues(query AutomationRunQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.JobID); trimmed != "" {
+		values.Set("job_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.TriggerID); trimmed != "" {
+		values.Set("trigger_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(string(query.Status)); trimmed != "" {
+		values.Set("status", trimmed)
+	}
+	if !query.Since.IsZero() {
+		values.Set("since", query.Since.UTC().Format(time.RFC3339Nano))
+	}
+	if !query.Until.IsZero() {
+		values.Set("until", query.Until.UTC().Format(time.RFC3339Nano))
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
 	}
 	return values
 }

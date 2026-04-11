@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/api/contract"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	"github.com/pedronauck/agh/internal/memory"
 )
 
@@ -407,6 +408,273 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 	}
 }
 
+func TestUnixSocketClientAutomationMethods(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	endedAt := startedAt.Add(2 * time.Minute)
+
+	client := &unixSocketClient{
+		socketPath: "/tmp/agh.sock",
+		httpClient: &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				switch {
+				case req.Method == http.MethodGet && req.URL.Path == "/api/automation/jobs":
+					if got := req.URL.Query().Get("scope"); got != "workspace" {
+						t.Fatalf("job scope query = %q, want %q", got, "workspace")
+					}
+					if got := req.URL.Query().Get("workspace_id"); got != "ws-alpha" {
+						t.Fatalf("job workspace_id query = %q, want %q", got, "ws-alpha")
+					}
+					if got := req.URL.Query().Get("source"); got != "dynamic" {
+						t.Fatalf("job source query = %q, want %q", got, "dynamic")
+					}
+					if got := req.URL.Query().Get("limit"); got != "3" {
+						t.Fatalf("job limit query = %q, want %q", got, "3")
+					}
+					return newHTTPResponse(http.StatusOK, `{"jobs":[{"id":"job-1","scope":"workspace","workspace_id":"ws-alpha","name":"nightly","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"},"enabled":true,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}]}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/automation/jobs":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(job create body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"workspace_id":"ws-alpha"`) || !strings.Contains(string(body), `"mode":"every"`) {
+						t.Fatalf("job create body = %s, want workspace_id and schedule", body)
+					}
+					return newHTTPResponse(http.StatusCreated, `{"job":{"id":"job-created","scope":"workspace","workspace_id":"ws-alpha","name":"nightly","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"},"enabled":true,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/automation/jobs/job-created":
+					return newHTTPResponse(http.StatusOK, `{"job":{"id":"job-created","scope":"workspace","workspace_id":"ws-alpha","name":"nightly","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"},"enabled":true,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z","next_run":"2026-04-11T13:00:00Z"}}`), nil
+				case req.Method == http.MethodPatch && req.URL.Path == "/api/automation/jobs/job-created":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(job update body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"enabled":false`) || !strings.Contains(string(body), `"prompt":"review now"`) {
+						t.Fatalf("job update body = %s, want enabled and prompt", body)
+					}
+					return newHTTPResponse(http.StatusOK, `{"job":{"id":"job-created","scope":"workspace","workspace_id":"ws-alpha","name":"nightly","agent_name":"coder","prompt":"review now","schedule":{"mode":"every","interval":"1h"},"enabled":false,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:05:00Z"}}`), nil
+				case req.Method == http.MethodDelete && req.URL.Path == "/api/automation/jobs/job-created":
+					return newHTTPResponse(http.StatusNoContent, ``), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/automation/jobs/job-created/trigger":
+					return newHTTPResponse(http.StatusOK, `{"run":{"id":"run-job","job_id":"job-created","session_id":"sess-job","status":"completed","attempt":1,"started_at":"2026-04-11T12:00:00Z","ended_at":"2026-04-11T12:02:00Z"}}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/automation/jobs/job-created/runs":
+					if got := req.URL.Query().Get("status"); got != "completed" {
+						t.Fatalf("job runs status query = %q, want %q", got, "completed")
+					}
+					if got := req.URL.Query().Get("since"); got != "2026-04-11T11:00:00Z" {
+						t.Fatalf("job runs since query = %q, want %q", got, "2026-04-11T11:00:00Z")
+					}
+					if got := req.URL.Query().Get("until"); got != "2026-04-11T13:00:00Z" {
+						t.Fatalf("job runs until query = %q, want %q", got, "2026-04-11T13:00:00Z")
+					}
+					if got := req.URL.Query().Get("limit"); got != "2" {
+						t.Fatalf("job runs limit query = %q, want %q", got, "2")
+					}
+					return newHTTPResponse(http.StatusOK, `{"runs":[{"id":"run-job","job_id":"job-created","session_id":"sess-job","status":"completed","attempt":1,"started_at":"2026-04-11T12:00:00Z","ended_at":"2026-04-11T12:02:00Z"}]}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/automation/triggers":
+					if got := req.URL.Query().Get("scope"); got != "workspace" {
+						t.Fatalf("trigger scope query = %q, want %q", got, "workspace")
+					}
+					if got := req.URL.Query().Get("workspace_id"); got != "ws-alpha" {
+						t.Fatalf("trigger workspace_id query = %q, want %q", got, "ws-alpha")
+					}
+					if got := req.URL.Query().Get("event"); got != "webhook" {
+						t.Fatalf("trigger event query = %q, want %q", got, "webhook")
+					}
+					if got := req.URL.Query().Get("source"); got != "dynamic" {
+						t.Fatalf("trigger source query = %q, want %q", got, "dynamic")
+					}
+					if got := req.URL.Query().Get("limit"); got != "2" {
+						t.Fatalf("trigger limit query = %q, want %q", got, "2")
+					}
+					return newHTTPResponse(http.StatusOK, `{"triggers":[{"id":"trg-1","scope":"workspace","workspace_id":"ws-alpha","name":"deploy-review","agent_name":"coder","prompt":"review {{ index .Data \"payload\" }}","event":"webhook","filter":{"data.branch":"main"},"enabled":true,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","webhook_id":"wbh_123","endpoint_slug":"deploy-review","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}]}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/automation/triggers":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(trigger create body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"event":"webhook"`) || !strings.Contains(string(body), `"data.branch":"main"`) {
+						t.Fatalf("trigger create body = %s, want event and filter", body)
+					}
+					return newHTTPResponse(http.StatusCreated, `{"trigger":{"id":"trg-created","scope":"workspace","workspace_id":"ws-alpha","name":"deploy-review","agent_name":"coder","prompt":"review {{ index .Data \"payload\" }}","event":"webhook","filter":{"data.branch":"main"},"enabled":true,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","webhook_id":"wbh_123","endpoint_slug":"deploy-review","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/automation/triggers/trg-created":
+					return newHTTPResponse(http.StatusOK, `{"trigger":{"id":"trg-created","scope":"workspace","workspace_id":"ws-alpha","name":"deploy-review","agent_name":"coder","prompt":"review {{ index .Data \"payload\" }}","event":"webhook","filter":{"data.branch":"main"},"enabled":true,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","webhook_id":"wbh_123","endpoint_slug":"deploy-review","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`), nil
+				case req.Method == http.MethodPatch && req.URL.Path == "/api/automation/triggers/trg-created":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(trigger update body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"prompt":"inspect {{ index .Data \"payload\" }}"`) || !strings.Contains(string(body), `"enabled":false`) {
+						t.Fatalf("trigger update body = %s, want prompt and enabled", body)
+					}
+					return newHTTPResponse(http.StatusOK, `{"trigger":{"id":"trg-created","scope":"workspace","workspace_id":"ws-alpha","name":"deploy-review","agent_name":"coder","prompt":"inspect {{ index .Data \"payload\" }}","event":"webhook","filter":{"data.branch":"main"},"enabled":false,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","webhook_id":"wbh_123","endpoint_slug":"deploy-review","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:05:00Z"}}`), nil
+				case req.Method == http.MethodDelete && req.URL.Path == "/api/automation/triggers/trg-created":
+					return newHTTPResponse(http.StatusNoContent, ``), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/automation/triggers/trg-created/runs":
+					if got := req.URL.Query().Get("status"); got != "completed" {
+						t.Fatalf("trigger runs status query = %q, want %q", got, "completed")
+					}
+					if got := req.URL.Query().Get("limit"); got != "1" {
+						t.Fatalf("trigger runs limit query = %q, want %q", got, "1")
+					}
+					return newHTTPResponse(http.StatusOK, `{"runs":[{"id":"run-trigger","trigger_id":"trg-created","session_id":"sess-trigger","status":"completed","attempt":1,"started_at":"2026-04-11T12:00:00Z","ended_at":"2026-04-11T12:02:00Z"}]}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/automation/runs":
+					if got := req.URL.Query().Get("job_id"); got != "job-created" {
+						t.Fatalf("runs job_id query = %q, want %q", got, "job-created")
+					}
+					if got := req.URL.Query().Get("trigger_id"); got != "trg-created" {
+						t.Fatalf("runs trigger_id query = %q, want %q", got, "trg-created")
+					}
+					if got := req.URL.Query().Get("status"); got != "completed" {
+						t.Fatalf("runs status query = %q, want %q", got, "completed")
+					}
+					if got := req.URL.Query().Get("since"); got != "2026-04-11T12:00:00Z" {
+						t.Fatalf("runs since query = %q, want %q", got, "2026-04-11T12:00:00Z")
+					}
+					if got := req.URL.Query().Get("until"); got != "2026-04-11T13:00:00Z" {
+						t.Fatalf("runs until query = %q, want %q", got, "2026-04-11T13:00:00Z")
+					}
+					if got := req.URL.Query().Get("limit"); got != "5" {
+						t.Fatalf("runs limit query = %q, want %q", got, "5")
+					}
+					return newHTTPResponse(http.StatusOK, `{"runs":[{"id":"run-shared","job_id":"job-created","trigger_id":"trg-created","session_id":"sess-shared","status":"completed","attempt":1,"started_at":"2026-04-11T12:00:00Z","ended_at":"2026-04-11T12:02:00Z"}]}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/automation/runs/run-shared":
+					return newHTTPResponse(http.StatusOK, `{"run":{"id":"run-shared","job_id":"job-created","trigger_id":"trg-created","session_id":"sess-shared","status":"completed","attempt":1,"started_at":"2026-04-11T12:00:00Z","ended_at":"2026-04-11T12:02:00Z"}}`), nil
+				default:
+					return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
+				}
+			}),
+		},
+	}
+
+	ctx := context.Background()
+
+	jobs, err := client.ListAutomationJobs(ctx, AutomationJobQuery{
+		Scope:       automationpkg.AutomationScopeWorkspace,
+		WorkspaceID: "ws-alpha",
+		Source:      automationpkg.JobSourceDynamic,
+		Limit:       3,
+	})
+	if err != nil || len(jobs) != 1 || jobs[0].ID != "job-1" {
+		t.Fatalf("ListAutomationJobs() = %#v, %v", jobs, err)
+	}
+
+	createdJob, err := client.CreateAutomationJob(ctx, AutomationJobCreateRequest{
+		Scope:       automationpkg.AutomationScopeWorkspace,
+		WorkspaceID: "ws-alpha",
+		Name:        "nightly",
+		AgentName:   "coder",
+		Prompt:      "review repo",
+		Schedule: automationpkg.ScheduleSpec{
+			Mode:     automationpkg.ScheduleModeEvery,
+			Interval: "1h",
+		},
+	})
+	if err != nil || createdJob.ID != "job-created" {
+		t.Fatalf("CreateAutomationJob() = %#v, %v", createdJob, err)
+	}
+
+	job, err := client.GetAutomationJob(ctx, "job-created")
+	if err != nil || job.NextRun == nil {
+		t.Fatalf("GetAutomationJob() = %#v, %v", job, err)
+	}
+
+	updatedJob, err := client.UpdateAutomationJob(ctx, "job-created", AutomationJobUpdateRequest{
+		Prompt:  ptr("review now"),
+		Enabled: ptr(false),
+	})
+	if err != nil || updatedJob.Enabled {
+		t.Fatalf("UpdateAutomationJob() = %#v, %v", updatedJob, err)
+	}
+
+	triggeredRun, err := client.TriggerAutomationJob(ctx, "job-created")
+	if err != nil || triggeredRun.ID != "run-job" {
+		t.Fatalf("TriggerAutomationJob() = %#v, %v", triggeredRun, err)
+	}
+
+	jobRuns, err := client.AutomationJobRuns(ctx, "job-created", AutomationRunQuery{
+		Status: automationpkg.RunCompleted,
+		Since:  startedAt.Add(-time.Hour),
+		Until:  startedAt.Add(time.Hour),
+		Limit:  2,
+	})
+	if err != nil || len(jobRuns) != 1 || jobRuns[0].JobID != "job-created" {
+		t.Fatalf("AutomationJobRuns() = %#v, %v", jobRuns, err)
+	}
+
+	if err := client.DeleteAutomationJob(ctx, "job-created"); err != nil {
+		t.Fatalf("DeleteAutomationJob() error = %v", err)
+	}
+
+	triggers, err := client.ListAutomationTriggers(ctx, AutomationTriggerQuery{
+		Scope:       automationpkg.AutomationScopeWorkspace,
+		WorkspaceID: "ws-alpha",
+		Event:       "webhook",
+		Source:      automationpkg.JobSourceDynamic,
+		Limit:       2,
+	})
+	if err != nil || len(triggers) != 1 || triggers[0].ID != "trg-1" {
+		t.Fatalf("ListAutomationTriggers() = %#v, %v", triggers, err)
+	}
+
+	createdTrigger, err := client.CreateAutomationTrigger(ctx, AutomationTriggerCreateRequest{
+		Scope:         automationpkg.AutomationScopeWorkspace,
+		WorkspaceID:   "ws-alpha",
+		Name:          "deploy-review",
+		AgentName:     "coder",
+		Prompt:        `review {{ index .Data "payload" }}`,
+		Event:         "webhook",
+		Filter:        map[string]string{"data.branch": "main"},
+		EndpointSlug:  "deploy-review",
+		WebhookSecret: "shared-secret",
+	})
+	if err != nil || createdTrigger.ID != "trg-created" {
+		t.Fatalf("CreateAutomationTrigger() = %#v, %v", createdTrigger, err)
+	}
+
+	trigger, err := client.GetAutomationTrigger(ctx, "trg-created")
+	if err != nil || trigger.WebhookID != "wbh_123" {
+		t.Fatalf("GetAutomationTrigger() = %#v, %v", trigger, err)
+	}
+
+	updatedTrigger, err := client.UpdateAutomationTrigger(ctx, "trg-created", AutomationTriggerUpdateRequest{
+		Prompt:  ptr(`inspect {{ index .Data "payload" }}`),
+		Enabled: ptr(false),
+	})
+	if err != nil || updatedTrigger.Enabled {
+		t.Fatalf("UpdateAutomationTrigger() = %#v, %v", updatedTrigger, err)
+	}
+
+	triggerRuns, err := client.AutomationTriggerRuns(ctx, "trg-created", AutomationRunQuery{
+		Status: automationpkg.RunCompleted,
+		Limit:  1,
+	})
+	if err != nil || len(triggerRuns) != 1 || triggerRuns[0].TriggerID != "trg-created" {
+		t.Fatalf("AutomationTriggerRuns() = %#v, %v", triggerRuns, err)
+	}
+
+	if err := client.DeleteAutomationTrigger(ctx, "trg-created"); err != nil {
+		t.Fatalf("DeleteAutomationTrigger() error = %v", err)
+	}
+
+	runs, err := client.ListAutomationRuns(ctx, AutomationRunQuery{
+		JobID:     "job-created",
+		TriggerID: "trg-created",
+		Status:    automationpkg.RunCompleted,
+		Since:     startedAt,
+		Until:     startedAt.Add(time.Hour),
+		Limit:     5,
+	})
+	if err != nil || len(runs) != 1 || runs[0].ID != "run-shared" {
+		t.Fatalf("ListAutomationRuns() = %#v, %v", runs, err)
+	}
+
+	run, err := client.GetAutomationRun(ctx, "run-shared")
+	if err != nil || run.EndedAt == nil || !run.EndedAt.Equal(endedAt) {
+		t.Fatalf("GetAutomationRun() = %#v, %v", run, err)
+	}
+}
+
 func TestReadAPIErrorAndHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -467,6 +735,36 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 
 	if got := memoryValues(memory.ScopeWorkspace, "/workspace/project"); got.Get("scope") != "workspace" || got.Get("workspace") != "/workspace/project" {
 		t.Fatalf("memoryValues() = %v, want scope/workspace", got)
+	}
+
+	if got := automationJobValues(AutomationJobQuery{
+		Scope:       automationpkg.AutomationScopeWorkspace,
+		WorkspaceID: "ws-alpha",
+		Source:      automationpkg.JobSourceDynamic,
+		Limit:       3,
+	}); got.Get("scope") != "workspace" || got.Get("workspace_id") != "ws-alpha" || got.Get("source") != "dynamic" || got.Get("limit") != "3" {
+		t.Fatalf("automationJobValues() = %v, want all job filters", got)
+	}
+
+	if got := automationTriggerValues(AutomationTriggerQuery{
+		Scope:       automationpkg.AutomationScopeWorkspace,
+		WorkspaceID: "ws-alpha",
+		Event:       "webhook",
+		Source:      automationpkg.JobSourceDynamic,
+		Limit:       2,
+	}); got.Get("scope") != "workspace" || got.Get("workspace_id") != "ws-alpha" || got.Get("event") != "webhook" || got.Get("source") != "dynamic" || got.Get("limit") != "2" {
+		t.Fatalf("automationTriggerValues() = %v, want all trigger filters", got)
+	}
+
+	if got := automationRunValues(AutomationRunQuery{
+		JobID:     "job-1",
+		TriggerID: "trg-1",
+		Status:    automationpkg.RunCompleted,
+		Since:     fixedTestNow,
+		Until:     fixedTestNow.Add(time.Hour),
+		Limit:     4,
+	}); got.Get("job_id") != "job-1" || got.Get("trigger_id") != "trg-1" || got.Get("status") != "completed" || got.Get("limit") != "4" {
+		t.Fatalf("automationRunValues() = %v, want all run filters", got)
 	}
 
 	plain := newHTTPResponse(http.StatusInternalServerError, "plain failure")
@@ -609,6 +907,13 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 		{name: "Should alias MemoryWriteRequest to the shared contract", cliType: MemoryWriteRequest{}, want: contract.MemoryWriteRequest{}},
 		{name: "Should alias MemoryMutationRecord to the shared contract", cliType: MemoryMutationRecord{}, want: contract.MemoryMutationResponse{}},
 		{name: "Should alias MemoryConsolidateRecord to the shared contract", cliType: MemoryConsolidateRecord{}, want: contract.MemoryConsolidateResponse{}},
+		{name: "Should alias AutomationJobCreateRequest to the shared contract", cliType: AutomationJobCreateRequest{}, want: contract.CreateJobRequest{}},
+		{name: "Should alias AutomationJobUpdateRequest to the shared contract", cliType: AutomationJobUpdateRequest{}, want: contract.UpdateJobRequest{}},
+		{name: "Should alias AutomationTriggerCreateRequest to the shared contract", cliType: AutomationTriggerCreateRequest{}, want: contract.CreateTriggerRequest{}},
+		{name: "Should alias AutomationTriggerUpdateRequest to the shared contract", cliType: AutomationTriggerUpdateRequest{}, want: contract.UpdateTriggerRequest{}},
+		{name: "Should alias JobRecord to the shared contract", cliType: JobRecord{}, want: contract.JobPayload{}},
+		{name: "Should alias TriggerRecord to the shared contract", cliType: TriggerRecord{}, want: contract.TriggerPayload{}},
+		{name: "Should alias RunRecord to the shared contract", cliType: RunRecord{}, want: contract.RunPayload{}},
 		{name: "Should alias DaemonStatus to the shared contract", cliType: DaemonStatus{}, want: contract.DaemonStatusPayload{}},
 	}
 

@@ -85,6 +85,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newAgentCommand(deps))
 	cmd.AddCommand(newExtensionCommand(deps))
 	cmd.AddCommand(newHooksCommand(deps))
+	cmd.AddCommand(newAutomationCommand(deps))
 	cmd.AddCommand(newSkillCommand(deps))
 	cmd.AddCommand(newMemoryCommand(deps))
 	cmd.AddCommand(newObserveCommand(deps))

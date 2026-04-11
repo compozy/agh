@@ -17,39 +17,54 @@ import (
 var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
 type stubClient struct {
-	daemonStatusFn        func(context.Context) (DaemonStatus, error)
-	listExtensionsFn      func(context.Context) ([]ExtensionRecord, error)
-	installExtensionFn    func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
-	enableExtensionFn     func(context.Context, string) (ExtensionRecord, error)
-	disableExtensionFn    func(context.Context, string) (ExtensionRecord, error)
-	extensionStatusFn     func(context.Context, string) (ExtensionRecord, error)
-	listSessionsFn        func(context.Context, SessionListQuery) ([]SessionRecord, error)
-	createSessionFn       func(context.Context, CreateSessionRequest) (SessionRecord, error)
-	getSessionFn          func(context.Context, string) (SessionRecord, error)
-	stopSessionFn         func(context.Context, string) error
-	resumeSessionFn       func(context.Context, string) (SessionRecord, error)
-	promptSessionFn       func(context.Context, string, string) ([]AgentEventRecord, error)
-	sessionEventsFn       func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
-	streamSessionFn       func(context.Context, string, SessionEventQuery, string, SSEHandler) error
-	sessionHistoryFn      func(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)
-	createWorkspaceFn     func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error)
-	listWorkspacesFn      func(context.Context) ([]WorkspaceRecord, error)
-	getWorkspaceFn        func(context.Context, string) (WorkspaceDetailRecord, error)
-	updateWorkspaceFn     func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
-	deleteWorkspaceFn     func(context.Context, string) error
-	listAgentsFn          func(context.Context) ([]AgentRecord, error)
-	getAgentFn            func(context.Context, string) (AgentRecord, error)
-	hookCatalogFn         func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error)
-	hookRunsFn            func(context.Context, HookRunsQuery) ([]HookRunRecord, error)
-	hookEventsFn          func(context.Context, HookEventsQuery) ([]HookEventRecord, error)
-	observeEventsFn       func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error)
-	streamObserveEventsFn func(context.Context, ObserveEventQuery, string, SSEHandler) error
-	observeHealthFn       func(context.Context) (HealthStatus, error)
-	listMemoryFn          func(context.Context, memory.Scope, string) ([]MemoryHeaderRecord, error)
-	readMemoryFn          func(context.Context, string, memory.Scope, string) (MemoryReadRecord, error)
-	writeMemoryFn         func(context.Context, string, MemoryWriteRequest) (MemoryMutationRecord, error)
-	deleteMemoryFn        func(context.Context, string, memory.Scope, string) (MemoryMutationRecord, error)
-	consolidateMemoryFn   func(context.Context, string) (MemoryConsolidateRecord, error)
+	daemonStatusFn            func(context.Context) (DaemonStatus, error)
+	listExtensionsFn          func(context.Context) ([]ExtensionRecord, error)
+	installExtensionFn        func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
+	enableExtensionFn         func(context.Context, string) (ExtensionRecord, error)
+	disableExtensionFn        func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusFn         func(context.Context, string) (ExtensionRecord, error)
+	listSessionsFn            func(context.Context, SessionListQuery) ([]SessionRecord, error)
+	createSessionFn           func(context.Context, CreateSessionRequest) (SessionRecord, error)
+	getSessionFn              func(context.Context, string) (SessionRecord, error)
+	stopSessionFn             func(context.Context, string) error
+	resumeSessionFn           func(context.Context, string) (SessionRecord, error)
+	promptSessionFn           func(context.Context, string, string) ([]AgentEventRecord, error)
+	sessionEventsFn           func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
+	streamSessionFn           func(context.Context, string, SessionEventQuery, string, SSEHandler) error
+	sessionHistoryFn          func(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)
+	createWorkspaceFn         func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error)
+	listWorkspacesFn          func(context.Context) ([]WorkspaceRecord, error)
+	getWorkspaceFn            func(context.Context, string) (WorkspaceDetailRecord, error)
+	updateWorkspaceFn         func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
+	deleteWorkspaceFn         func(context.Context, string) error
+	listAgentsFn              func(context.Context) ([]AgentRecord, error)
+	getAgentFn                func(context.Context, string) (AgentRecord, error)
+	hookCatalogFn             func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error)
+	hookRunsFn                func(context.Context, HookRunsQuery) ([]HookRunRecord, error)
+	hookEventsFn              func(context.Context, HookEventsQuery) ([]HookEventRecord, error)
+	observeEventsFn           func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error)
+	streamObserveEventsFn     func(context.Context, ObserveEventQuery, string, SSEHandler) error
+	observeHealthFn           func(context.Context) (HealthStatus, error)
+	listMemoryFn              func(context.Context, memory.Scope, string) ([]MemoryHeaderRecord, error)
+	readMemoryFn              func(context.Context, string, memory.Scope, string) (MemoryReadRecord, error)
+	writeMemoryFn             func(context.Context, string, MemoryWriteRequest) (MemoryMutationRecord, error)
+	deleteMemoryFn            func(context.Context, string, memory.Scope, string) (MemoryMutationRecord, error)
+	consolidateMemoryFn       func(context.Context, string) (MemoryConsolidateRecord, error)
+	listAutomationJobsFn      func(context.Context, AutomationJobQuery) ([]JobRecord, error)
+	createAutomationJobFn     func(context.Context, AutomationJobCreateRequest) (JobRecord, error)
+	getAutomationJobFn        func(context.Context, string) (JobRecord, error)
+	updateAutomationJobFn     func(context.Context, string, AutomationJobUpdateRequest) (JobRecord, error)
+	deleteAutomationJobFn     func(context.Context, string) error
+	triggerAutomationJobFn    func(context.Context, string) (RunRecord, error)
+	automationJobRunsFn       func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
+	listAutomationTriggersFn  func(context.Context, AutomationTriggerQuery) ([]TriggerRecord, error)
+	createAutomationTriggerFn func(context.Context, AutomationTriggerCreateRequest) (TriggerRecord, error)
+	getAutomationTriggerFn    func(context.Context, string) (TriggerRecord, error)
+	updateAutomationTriggerFn func(context.Context, string, AutomationTriggerUpdateRequest) (TriggerRecord, error)
+	deleteAutomationTriggerFn func(context.Context, string) error
+	automationTriggerRunsFn   func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
+	listAutomationRunsFn      func(context.Context, AutomationRunQuery) ([]RunRecord, error)
+	getAutomationRunFn        func(context.Context, string) (RunRecord, error)
 }
 
 func (s stubClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
@@ -281,6 +296,111 @@ func (s stubClient) ConsolidateMemory(ctx context.Context, workspace string) (Me
 		return s.consolidateMemoryFn(ctx, workspace)
 	}
 	return MemoryConsolidateRecord{}, errors.New("unexpected ConsolidateMemory call")
+}
+
+func (s stubClient) ListAutomationJobs(ctx context.Context, query AutomationJobQuery) ([]JobRecord, error) {
+	if s.listAutomationJobsFn != nil {
+		return s.listAutomationJobsFn(ctx, query)
+	}
+	return nil, errors.New("unexpected ListAutomationJobs call")
+}
+
+func (s stubClient) CreateAutomationJob(ctx context.Context, request AutomationJobCreateRequest) (JobRecord, error) {
+	if s.createAutomationJobFn != nil {
+		return s.createAutomationJobFn(ctx, request)
+	}
+	return JobRecord{}, errors.New("unexpected CreateAutomationJob call")
+}
+
+func (s stubClient) GetAutomationJob(ctx context.Context, id string) (JobRecord, error) {
+	if s.getAutomationJobFn != nil {
+		return s.getAutomationJobFn(ctx, id)
+	}
+	return JobRecord{}, errors.New("unexpected GetAutomationJob call")
+}
+
+func (s stubClient) UpdateAutomationJob(ctx context.Context, id string, request AutomationJobUpdateRequest) (JobRecord, error) {
+	if s.updateAutomationJobFn != nil {
+		return s.updateAutomationJobFn(ctx, id, request)
+	}
+	return JobRecord{}, errors.New("unexpected UpdateAutomationJob call")
+}
+
+func (s stubClient) DeleteAutomationJob(ctx context.Context, id string) error {
+	if s.deleteAutomationJobFn != nil {
+		return s.deleteAutomationJobFn(ctx, id)
+	}
+	return errors.New("unexpected DeleteAutomationJob call")
+}
+
+func (s stubClient) TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error) {
+	if s.triggerAutomationJobFn != nil {
+		return s.triggerAutomationJobFn(ctx, id)
+	}
+	return RunRecord{}, errors.New("unexpected TriggerAutomationJob call")
+}
+
+func (s stubClient) AutomationJobRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error) {
+	if s.automationJobRunsFn != nil {
+		return s.automationJobRunsFn(ctx, id, query)
+	}
+	return nil, errors.New("unexpected AutomationJobRuns call")
+}
+
+func (s stubClient) ListAutomationTriggers(ctx context.Context, query AutomationTriggerQuery) ([]TriggerRecord, error) {
+	if s.listAutomationTriggersFn != nil {
+		return s.listAutomationTriggersFn(ctx, query)
+	}
+	return nil, errors.New("unexpected ListAutomationTriggers call")
+}
+
+func (s stubClient) CreateAutomationTrigger(ctx context.Context, request AutomationTriggerCreateRequest) (TriggerRecord, error) {
+	if s.createAutomationTriggerFn != nil {
+		return s.createAutomationTriggerFn(ctx, request)
+	}
+	return TriggerRecord{}, errors.New("unexpected CreateAutomationTrigger call")
+}
+
+func (s stubClient) GetAutomationTrigger(ctx context.Context, id string) (TriggerRecord, error) {
+	if s.getAutomationTriggerFn != nil {
+		return s.getAutomationTriggerFn(ctx, id)
+	}
+	return TriggerRecord{}, errors.New("unexpected GetAutomationTrigger call")
+}
+
+func (s stubClient) UpdateAutomationTrigger(ctx context.Context, id string, request AutomationTriggerUpdateRequest) (TriggerRecord, error) {
+	if s.updateAutomationTriggerFn != nil {
+		return s.updateAutomationTriggerFn(ctx, id, request)
+	}
+	return TriggerRecord{}, errors.New("unexpected UpdateAutomationTrigger call")
+}
+
+func (s stubClient) DeleteAutomationTrigger(ctx context.Context, id string) error {
+	if s.deleteAutomationTriggerFn != nil {
+		return s.deleteAutomationTriggerFn(ctx, id)
+	}
+	return errors.New("unexpected DeleteAutomationTrigger call")
+}
+
+func (s stubClient) AutomationTriggerRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error) {
+	if s.automationTriggerRunsFn != nil {
+		return s.automationTriggerRunsFn(ctx, id, query)
+	}
+	return nil, errors.New("unexpected AutomationTriggerRuns call")
+}
+
+func (s stubClient) ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error) {
+	if s.listAutomationRunsFn != nil {
+		return s.listAutomationRunsFn(ctx, query)
+	}
+	return nil, errors.New("unexpected ListAutomationRuns call")
+}
+
+func (s stubClient) GetAutomationRun(ctx context.Context, id string) (RunRecord, error) {
+	if s.getAutomationRunFn != nil {
+		return s.getAutomationRunFn(ctx, id)
+	}
+	return RunRecord{}, errors.New("unexpected GetAutomationRun call")
 }
 
 func newTestDeps(t *testing.T, client DaemonClient) commandDeps {
