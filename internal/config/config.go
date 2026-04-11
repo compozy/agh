@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 )
 
 const (
@@ -135,6 +136,7 @@ type Config struct {
 	Log           LogConfig                 `toml:"log"`
 	Memory        MemoryConfig              `toml:"memory"`
 	Skills        SkillsConfig              `toml:"skills"`
+	Automation    AutomationConfig          `toml:"automation"`
 	Hooks         HooksConfig               `toml:"hooks"`
 }
 
@@ -310,6 +312,12 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Enabled:      true,
 			PollInterval: 3 * time.Second,
 		},
+		Automation: AutomationConfig{
+			Enabled:           true,
+			Timezone:          automationpkg.DefaultTimezone,
+			MaxConcurrentJobs: automationpkg.DefaultMaxConcurrentJobs,
+			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
+		},
 	}
 }
 
@@ -349,6 +357,9 @@ func (c Config) Validate() error {
 	}
 	if err := c.Skills.Validate(); err != nil {
 		return err
+	}
+	if err := c.Automation.Validate(); err != nil {
+		return fmt.Errorf("validate automation config: %w", err)
 	}
 	if err := c.Hooks.Validate(); err != nil {
 		return fmt.Errorf("validate hooks config: %w", err)
