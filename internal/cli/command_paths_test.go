@@ -196,6 +196,9 @@ func TestDaemonStatusFallbackStartingAndStopped(t *testing.T) {
 	if status.Status != "stopped" {
 		t.Fatalf("stopped status = %q, want %q", status.Status, "stopped")
 	}
+	if status.Network != nil {
+		t.Fatalf("stopped network = %#v, want nil", status.Network)
+	}
 }
 
 func TestWriteCommandOutputErrors(t *testing.T) {

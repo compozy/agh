@@ -280,6 +280,38 @@ func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 	}
 }
 
+func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
+	t.Parallel()
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable() error = %v", err)
+	}
+	if resolved, resolveErr := filepath.EvalSymlinks(executable); resolveErr == nil && strings.TrimSpace(resolved) != "" {
+		executable = resolved
+	}
+	binDir := filepath.Dir(executable)
+
+	env := daemonMatchedEnv([]string{
+		"PATH=/usr/local/bin" + string(os.PathListSeparator) + binDir + string(os.PathListSeparator) + "/usr/bin",
+		"FOO=bar",
+	})
+
+	gotAGHBin, ok := envValue(env, "AGH_BIN")
+	if !ok || gotAGHBin != executable {
+		t.Fatalf("daemonMatchedEnv() AGH_BIN = %q, %v, want %q", gotAGHBin, ok, executable)
+	}
+
+	gotPath, ok := envValue(env, "PATH")
+	if !ok {
+		t.Fatal("daemonMatchedEnv() PATH missing")
+	}
+	wantPath := binDir + string(os.PathListSeparator) + "/usr/local/bin" + string(os.PathListSeparator) + "/usr/bin"
+	if gotPath != wantPath {
+		t.Fatalf("daemonMatchedEnv() PATH = %q, want %q", gotPath, wantPath)
+	}
+}
+
 func TestPromptStreamsSessionUpdates(t *testing.T) {
 	t.Parallel()
 

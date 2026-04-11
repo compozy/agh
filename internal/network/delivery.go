@@ -602,6 +602,7 @@ func formatNetworkMessage(envelope Envelope) (string, error) {
 	builder.WriteString(encodedBody)
 	builder.WriteString("</network-body>\n")
 	builder.WriteString("</network-message>")
+	builder.WriteString("\n\nUse `agh network send` to respond. See `agh network --help` for options.")
 
 	return builder.String(), nil
 }

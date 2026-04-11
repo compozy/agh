@@ -191,6 +191,7 @@ func (m *Manager) startSession(ctx context.Context, spec sessionStartSpec) (_ *S
 		Command:         resolved.Command,
 		Cwd:             spec.workspace.RootDir,
 		AdditionalDirs:  append([]string(nil), spec.workspace.AdditionalDirs...),
+		Env:             sessionStartEnv(os.Environ(), session),
 		MCPServers:      startMCPServers,
 		Permissions:     m.startPermissions(session.Type, resolved.Permissions),
 		SystemPrompt:    resolved.Prompt,
@@ -235,4 +236,71 @@ func (s sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.Se
 		ctx.UpdatedAt = updatedAt
 	}
 	return ctx
+}
+
+func sessionStartEnv(base []string, session *Session) []string {
+	env := append([]string(nil), base...)
+	if len(env) == 0 {
+		env = os.Environ()
+	}
+	if session == nil {
+		return env
+	}
+
+	env = setSessionStartEnvValue(env, "AGH_SESSION_ID", strings.TrimSpace(session.ID))
+	env = unsetSessionStartEnvKeys(env, "AGH_SESSION_SPACE", "AGH_PEER_ID")
+
+	space := strings.TrimSpace(session.Space)
+	if space == "" {
+		return env
+	}
+
+	env = setSessionStartEnvValue(env, "AGH_SESSION_SPACE", space)
+	env = setSessionStartEnvValue(env, "AGH_PEER_ID", networkPeerID(session.AgentName, session.ID))
+	return env
+}
+
+func setSessionStartEnvValue(env []string, key string, value string) []string {
+	trimmedKey := strings.TrimSpace(key)
+	if trimmedKey == "" {
+		return env
+	}
+	entry := trimmedKey + "=" + value
+	for i, current := range env {
+		existingKey, _, ok := strings.Cut(current, "=")
+		if ok && existingKey == trimmedKey {
+			env[i] = entry
+			return env
+		}
+	}
+	return append(env, entry)
+}
+
+func unsetSessionStartEnvKeys(env []string, keys ...string) []string {
+	if len(env) == 0 || len(keys) == 0 {
+		return env
+	}
+
+	blocked := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		trimmedKey := strings.TrimSpace(key)
+		if trimmedKey != "" {
+			blocked[trimmedKey] = struct{}{}
+		}
+	}
+	if len(blocked) == 0 {
+		return env
+	}
+
+	filtered := make([]string, 0, len(env))
+	for _, current := range env {
+		existingKey, _, ok := strings.Cut(current, "=")
+		if ok {
+			if _, blockedKey := blocked[existingKey]; blockedKey {
+				continue
+			}
+		}
+		filtered = append(filtered, current)
+	}
+	return filtered
 }

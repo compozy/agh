@@ -90,6 +90,9 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 	if strings.Contains(rendered, `<network-preview encoding="xml-escaped">look at <auth.go>`) {
 		t.Fatalf("rendered preview leaked raw XML-breaking content:\n%s", rendered)
 	}
+	if !strings.Contains(rendered, "Use `agh network send` to respond. See `agh network --help` for options.") {
+		t.Fatalf("rendered message missing network guidance footer:\n%s", rendered)
+	}
 
 	start := strings.Index(rendered, `<network-body encoding="base64-json">`)
 	if start < 0 {
@@ -156,6 +159,9 @@ func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.
 	}
 	if string(decodedBody) != `["unexpected"]` {
 		t.Fatalf("decoded body = %s, want raw compact JSON", string(decodedBody))
+	}
+	if !strings.Contains(rendered, "Use `agh network send` to respond. See `agh network --help` for options.") {
+		t.Fatalf("rendered fallback message missing network guidance footer:\n%s", rendered)
 	}
 }
 

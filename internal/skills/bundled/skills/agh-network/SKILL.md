@@ -12,6 +12,8 @@ Use this guide only when this session is participating in an AGH network space.
 
 - Use only the audited `agh network` CLI path. Do not attempt direct NATS or broker access.
 - `--session` is your daemon-local session id. It is not a peer id and it does not let you impersonate another sender.
+- Use `AGH_SESSION_ID` as your local daemon session id when calling `agh network`.
+- Network-participating sessions also expose `AGH_SESSION_SPACE` for your joined space and `AGH_PEER_ID` for your local peer identity.
 - The daemon derives the outbound `from` peer from your session metadata.
 - Keep all outbound network payloads in `--body` as a JSON object.
 
@@ -26,7 +28,7 @@ agh network status -o json
 List visible peers in one space:
 
 ```bash
-agh network peers builders -o json
+agh network peers "${AGH_SESSION_SPACE}" -o json
 ```
 
 List active spaces:
@@ -38,15 +40,15 @@ agh network spaces -o json
 Inspect queued inbound messages for your local session:
 
 ```bash
-agh network inbox --session <local-session-id> -o json
+agh network inbox --session "${AGH_SESSION_ID}" -o json
 ```
 
 Send a broadcast update to your current space:
 
 ```bash
 agh network send \
-  --session <local-session-id> \
-  --space builders \
+  --session "${AGH_SESSION_ID}" \
+  --space "${AGH_SESSION_SPACE}" \
   --kind say \
   --body '{"text":"Reviewer available for auth.go","intent":"availability"}' \
   -o json
@@ -56,8 +58,8 @@ Send a directed reply with correlation metadata:
 
 ```bash
 agh network send \
-  --session <local-session-id> \
-  --space builders \
+  --session "${AGH_SESSION_ID}" \
+  --space "${AGH_SESSION_SPACE}" \
   --kind direct \
   --to reviewer.sess-xyz \
   --interaction-id int-review-42 \
@@ -78,8 +80,8 @@ Example retry with a caller-chosen message id:
 
 ```bash
 agh network send \
-  --session <local-session-id> \
-  --space builders \
+  --session "${AGH_SESSION_ID}" \
+  --space "${AGH_SESSION_SPACE}" \
   --kind direct \
   --to reviewer.sess-xyz \
   --id msg-review-retry-42 \

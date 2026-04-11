@@ -295,6 +295,11 @@ func daemonInfo(homePaths aghconfig.HomePaths, deps commandDeps) (aghdaemon.Info
 }
 
 func daemonStatusWithState(runtime runtimeContext, info aghdaemon.Info, status string) DaemonStatus {
+	networkStatus := daemonNetworkStatusFromInfo(runtime.Config, info.Network)
+	if strings.EqualFold(strings.TrimSpace(status), "stopped") {
+		networkStatus = nil
+	}
+
 	return DaemonStatus{
 		Status:         status,
 		PID:            info.PID,
@@ -305,7 +310,7 @@ func daemonStatusWithState(runtime runtimeContext, info aghdaemon.Info, status s
 		ActiveSessions: 0,
 		TotalSessions:  0,
 		Version:        version.Current().Version,
-		Network:        daemonNetworkStatusFromInfo(runtime.Config, info.Network),
+		Network:        networkStatus,
 	}
 }
 

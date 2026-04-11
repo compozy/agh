@@ -151,11 +151,13 @@ func (d *Driver) spawnProcess(normalized StartOpts) (*AgentProcess, error) {
 		return nil, err
 	}
 
+	processEnv := daemonMatchedEnv(normalized.Env)
+
 	managed, err := subprocess.Launch(context.Background(), subprocess.LaunchConfig{
 		Command:          command,
 		Args:             args,
 		Dir:              normalized.Cwd,
-		Env:              normalized.Env,
+		Env:              processEnv,
 		Logger:           d.logger,
 		DisableTransport: true,
 		ShutdownTimeout:  d.stopTimeout,
@@ -514,6 +516,77 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 	normalized.SystemPrompt = strings.TrimSpace(normalized.SystemPrompt)
 
 	return normalized, nil
+}
+
+func daemonMatchedEnv(base []string) []string {
+	env := append([]string(nil), base...)
+	if len(env) == 0 {
+		env = os.Environ()
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		return env
+	}
+	if resolved, resolveErr := filepath.EvalSymlinks(executable); resolveErr == nil && strings.TrimSpace(resolved) != "" {
+		executable = resolved
+	}
+	executable = strings.TrimSpace(executable)
+	if executable == "" {
+		return env
+	}
+
+	env = setEnvValue(env, "AGH_BIN", executable)
+
+	binDir := strings.TrimSpace(filepath.Dir(executable))
+	if binDir == "" {
+		return env
+	}
+
+	pathValue, _ := envValue(env, "PATH")
+	env = setEnvValue(env, "PATH", prependPathEntry(pathValue, binDir))
+	return env
+}
+
+func prependPathEntry(pathValue string, entry string) string {
+	cleanEntry := strings.TrimSpace(entry)
+	if cleanEntry == "" {
+		return pathValue
+	}
+
+	separator := string(os.PathListSeparator)
+	segments := strings.Split(pathValue, separator)
+	filtered := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		trimmed := strings.TrimSpace(segment)
+		if trimmed == "" || trimmed == cleanEntry {
+			continue
+		}
+		filtered = append(filtered, trimmed)
+	}
+	return strings.Join(append([]string{cleanEntry}, filtered...), separator)
+}
+
+func envValue(env []string, key string) (string, bool) {
+	prefix := key + "="
+	for _, variable := range env {
+		if strings.HasPrefix(variable, prefix) {
+			return variable[len(prefix):], true
+		}
+	}
+	return "", false
+}
+
+func setEnvValue(env []string, key string, value string) []string {
+	prefix := key + "="
+	entry := prefix + value
+	for idx, variable := range env {
+		if strings.HasPrefix(variable, prefix) {
+			env[idx] = entry
+			return env
+		}
+	}
+	return append(env, entry)
 }
 
 func normalizeWorkspaceDir(path string, field string) (string, error) {

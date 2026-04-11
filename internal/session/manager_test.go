@@ -1625,6 +1625,102 @@ func TestResumeWithSpaceReinjectsBundledNetworkSkillOnce(t *testing.T) {
 	}
 }
 
+func TestCreateWithSpaceInjectsNetworkSessionEnv(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptAssembler(nil))
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Space:     "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	env := h.driver.startCalls[0].Env
+	if got, ok := lookupEnvValue(env, "AGH_SESSION_ID"); !ok || got != session.ID {
+		t.Fatalf("AGH_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
+	}
+	if got, ok := lookupEnvValue(env, "AGH_SESSION_SPACE"); !ok || got != "builders" {
+		t.Fatalf("AGH_SESSION_SPACE = %q, %v, want %q", got, ok, "builders")
+	}
+	if got, ok := lookupEnvValue(env, "AGH_PEER_ID"); !ok || got != "coder."+session.ID {
+		t.Fatalf("AGH_PEER_ID = %q, %v, want %q", got, ok, "coder."+session.ID)
+	}
+}
+
+func TestCreateWithoutSpaceOmitsNetworkSpaceEnv(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptAssembler(nil))
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Workspace: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	env := h.driver.startCalls[0].Env
+	if got, ok := lookupEnvValue(env, "AGH_SESSION_ID"); !ok || got != session.ID {
+		t.Fatalf("AGH_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
+	}
+	if got, ok := lookupEnvValue(env, "AGH_SESSION_SPACE"); ok {
+		t.Fatalf("AGH_SESSION_SPACE = %q, want unset", got)
+	}
+	if got, ok := lookupEnvValue(env, "AGH_PEER_ID"); ok {
+		t.Fatalf("AGH_PEER_ID = %q, want unset", got)
+	}
+}
+
+func TestResumeWithSpaceReinjectsNetworkSessionEnv(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptAssembler(nil))
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Space:     "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+	})
+
+	env := h.driver.startCalls[1].Env
+	if got, ok := lookupEnvValue(env, "AGH_SESSION_ID"); !ok || got != resumed.ID {
+		t.Fatalf("AGH_SESSION_ID = %q, %v, want %q", got, ok, resumed.ID)
+	}
+	if got, ok := lookupEnvValue(env, "AGH_SESSION_SPACE"); !ok || got != "builders" {
+		t.Fatalf("AGH_SESSION_SPACE = %q, %v, want %q", got, ok, "builders")
+	}
+	if got, ok := lookupEnvValue(env, "AGH_PEER_ID"); !ok || got != "coder."+resumed.ID {
+		t.Fatalf("AGH_PEER_ID = %q, %v, want %q", got, ok, "coder."+resumed.ID)
+	}
+}
+
 func TestCreateAppliesDreamPermissionsOverride(t *testing.T) {
 	t.Parallel()
 
@@ -2372,6 +2468,16 @@ func (d *fakeDriver) lastProcess() *fakeProcess {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.lastProc
+}
+
+func lookupEnvValue(env []string, key string) (string, bool) {
+	for _, entry := range env {
+		existingKey, value, ok := strings.Cut(entry, "=")
+		if ok && existingKey == key {
+			return value, true
+		}
+	}
+	return "", false
 }
 
 type fakeProcess struct {
