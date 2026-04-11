@@ -10,6 +10,7 @@ import (
 	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
@@ -56,6 +57,15 @@ type ChannelService interface {
 	StartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error)
 	StopInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error)
 	RestartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error)
+}
+
+// NetworkService is the runtime network surface exposed to daemon transports.
+type NetworkService interface {
+	Send(ctx context.Context, req network.SendRequest) (string, error)
+	ListPeers(ctx context.Context, space string) ([]network.PeerInfo, error)
+	ListSpaces(ctx context.Context) ([]network.SpaceInfo, error)
+	Status(ctx context.Context) (*network.NetworkStatus, error)
+	Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error)
 }
 
 // DreamTrigger exposes consolidation controls and state to the API layer.

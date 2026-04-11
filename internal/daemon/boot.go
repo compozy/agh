@@ -19,6 +19,7 @@ import (
 	aghlogger "github.com/pedronauck/agh/internal/logger"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
@@ -42,6 +43,7 @@ type bootState struct {
 	registry           Registry
 	workspaceResolver  workspacepkg.WorkspaceResolver
 	sessions           SessionManager
+	network            networkRuntime
 	observer           Observer
 	lifecycleObservers *sessionLifecycleFanout
 	hookTelemetrySinks *hookTelemetryFanout
@@ -125,6 +127,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	if err := d.bootRuntime(ctx, state, cleanup); err != nil {
 		return err
 	}
+	if err := d.bootNetwork(ctx, state, cleanup); err != nil {
+		return err
+	}
 	if err := d.bootHooks(ctx, state, cleanup); err != nil {
 		return err
 	}
@@ -153,6 +158,7 @@ func (d *Daemon) beginBoot() error {
 		d.lock != nil ||
 		d.registry != nil ||
 		d.sessions != nil ||
+		d.network != nil ||
 		d.observer != nil ||
 		d.automation != nil ||
 		d.channels != nil {
@@ -395,6 +401,45 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 	return nil
 }
 
+func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	if state == nil {
+		return errors.New("daemon: boot network state is required")
+	}
+	if !state.cfg.Network.Enabled {
+		return nil
+	}
+	if state.sessions == nil {
+		return errors.New("daemon: session manager is required before booting network")
+	}
+
+	bindable, ok := state.sessions.(networkBindableSessionManager)
+	if !ok {
+		return errors.New("daemon: session manager does not implement the network binding surface")
+	}
+
+	manager, err := network.NewManager(
+		ctx,
+		state.cfg.Network,
+		bindable,
+		d.homePaths.NetworkAuditFile,
+		state.registry,
+		network.WithManagerLogger(state.logger),
+	)
+	if err != nil {
+		return fmt.Errorf("daemon: create network manager: %w", err)
+	}
+
+	bindable.SetNetworkPeerLifecycle(manager)
+	bindable.SetTurnEndNotifier(manager.OnTurnEnd)
+	cleanup.add(func(ctx context.Context) error {
+		return manager.Shutdown(ctx)
+	})
+
+	state.network = manager
+	state.deps.Network = manager
+	return nil
+}
+
 func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	state.lifecycleObservers = newSessionLifecycleFanout()
 	if state.observer != nil {
@@ -579,10 +624,15 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 		return udsServer.Shutdown(ctx)
 	})
 
+	networkInfo, err := daemonNetworkInfo(ctx, state.cfg.Network, state.deps.Network)
+	if err != nil {
+		return err
+	}
 	info := Info{
 		PID:       d.pid(),
 		Port:      resolveDaemonPort(state.cfg.HTTP.Port, httpServer),
 		StartedAt: state.startedAt,
+		Network:   networkInfo,
 	}
 	if err := WriteInfo(d.homePaths.DaemonInfo, info); err != nil {
 		return err
@@ -595,6 +645,33 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 	state.udsServer = udsServer
 	state.info = info
 	return nil
+}
+
+func daemonNetworkInfo(ctx context.Context, cfg aghconfig.NetworkConfig, service core.NetworkService) (*NetworkInfo, error) {
+	if !cfg.Enabled {
+		return &NetworkInfo{
+			Enabled: false,
+			Status:  network.StatusDisabled,
+		}, nil
+	}
+	if service == nil {
+		return nil, errors.New("daemon: network service is required when network is enabled")
+	}
+
+	status, err := service.Status(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: read network status: %w", err)
+	}
+	if status == nil {
+		return nil, errors.New("daemon: network status is required")
+	}
+
+	return &NetworkInfo{
+		Enabled:      status.Enabled,
+		Status:       strings.TrimSpace(status.Status),
+		ListenerHost: strings.TrimSpace(status.ListenerHost),
+		ListenerPort: status.ListenerPort,
+	}, nil
 }
 
 func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
@@ -628,6 +705,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.registry = state.registry
 	d.memoryStore = state.memoryStore
 	d.sessions = state.sessions
+	d.network = state.network
 	d.hooks = state.hooks
 	d.extensions = state.currentExtensionRuntime()
 	d.channels = state.channels

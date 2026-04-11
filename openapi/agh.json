@@ -5910,6 +5910,37 @@
                         "http_port": {
                           "type": "integer"
                         },
+                        "network": {
+                          "nullable": true,
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "listener_host": {
+                              "type": "string"
+                            },
+                            "listener_port": {
+                              "type": "integer"
+                            },
+                            "local_peers": {
+                              "type": "integer"
+                            },
+                            "remote_peers": {
+                              "type": "integer"
+                            },
+                            "spaces": {
+                              "type": "integer"
+                            },
+                            "status": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
                         "pid": {
                           "type": "integer"
                         },

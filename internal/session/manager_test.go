@@ -282,6 +282,76 @@ func TestCreateAndResumePreserveSpace(t *testing.T) {
 	}
 }
 
+func TestCreateResumeAndStopInvokeLateBoundNetworkPeerLifecycle(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	lifecycle := newFakeNetworkPeerLifecycle()
+	h.manager.SetNetworkPeerLifecycle(lifecycle)
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Space:     "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if got := lifecycle.joinCount(); got != 1 {
+		t.Fatalf("join calls after Create() = %d, want 1", got)
+	}
+	firstJoin := lifecycle.joinCall(0)
+	if got, want := firstJoin.sessionID, session.ID; got != want {
+		t.Fatalf("first join session_id = %q, want %q", got, want)
+	}
+	if got, want := firstJoin.peerID, "coder."+session.ID; got != want {
+		t.Fatalf("first join peer_id = %q, want %q", got, want)
+	}
+	if got, want := firstJoin.space, "builders"; got != want {
+		t.Fatalf("first join space = %q, want %q", got, want)
+	}
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if got := lifecycle.leaveCount(); got != 1 {
+		t.Fatalf("leave calls after Stop() = %d, want 1", got)
+	}
+	if got, want := lifecycle.leaveCall(0), session.ID; got != want {
+		t.Fatalf("first leave session_id = %q, want %q", got, want)
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	if got := lifecycle.joinCount(); got != 2 {
+		t.Fatalf("join calls after Resume() = %d, want 2", got)
+	}
+	secondJoin := lifecycle.joinCall(1)
+	if got, want := secondJoin.sessionID, resumed.ID; got != want {
+		t.Fatalf("second join session_id = %q, want %q", got, want)
+	}
+	if got, want := secondJoin.peerID, "coder."+resumed.ID; got != want {
+		t.Fatalf("second join peer_id = %q, want %q", got, want)
+	}
+	if got, want := secondJoin.space, "builders"; got != want {
+		t.Fatalf("second join space = %q, want %q", got, want)
+	}
+
+	if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+		t.Fatalf("Stop(resumed) error = %v", err)
+	}
+	if got := lifecycle.leaveCount(); got != 2 {
+		t.Fatalf("leave calls after resumed Stop() = %d, want 2", got)
+	}
+	if got, want := lifecycle.leaveCall(1), resumed.ID; got != want {
+		t.Fatalf("second leave session_id = %q, want %q", got, want)
+	}
+}
+
 func TestResumeRepairsIncompleteStartAndStartsFreshACPClient(t *testing.T) {
 	t.Parallel()
 
@@ -1771,6 +1841,64 @@ func (n *fakeNotifier) notificationOrder() []string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return append([]string(nil), n.order...)
+}
+
+type fakeNetworkPeerLifecycle struct {
+	mu    sync.Mutex
+	joins []fakeNetworkJoinCall
+	left  []string
+}
+
+type fakeNetworkJoinCall struct {
+	sessionID string
+	peerID    string
+	space     string
+}
+
+func newFakeNetworkPeerLifecycle() *fakeNetworkPeerLifecycle {
+	return &fakeNetworkPeerLifecycle{}
+}
+
+func (f *fakeNetworkPeerLifecycle) JoinSpace(_ context.Context, sessionID string, peerID string, space string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.joins = append(f.joins, fakeNetworkJoinCall{
+		sessionID: sessionID,
+		peerID:    peerID,
+		space:     space,
+	})
+	return nil
+}
+
+func (f *fakeNetworkPeerLifecycle) LeaveSpace(_ context.Context, sessionID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.left = append(f.left, sessionID)
+	return nil
+}
+
+func (f *fakeNetworkPeerLifecycle) joinCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.joins)
+}
+
+func (f *fakeNetworkPeerLifecycle) joinCall(index int) fakeNetworkJoinCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.joins[index]
+}
+
+func (f *fakeNetworkPeerLifecycle) leaveCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.left)
+}
+
+func (f *fakeNetworkPeerLifecycle) leaveCall(index int) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.left[index]
 }
 
 type fakeEventRecorder struct {

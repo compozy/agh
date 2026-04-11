@@ -28,6 +28,13 @@ type PromptOpts struct {
 	TurnSource TurnSource
 }
 
+// NetworkPeerLifecycle is the late-bound network join/leave surface consumed by
+// the session manager without importing the network package.
+type NetworkPeerLifecycle interface {
+	JoinSpace(ctx context.Context, sessionID string, peerID string, space string) error
+	LeaveSpace(ctx context.Context, sessionID string) error
+}
+
 // TurnEndNotifier is invoked once after a prompt turn finishes dispatching.
 type TurnEndNotifier func(sessionID string)
 

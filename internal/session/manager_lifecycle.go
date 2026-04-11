@@ -242,6 +242,9 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	} else if err := m.writeMeta(session); err != nil {
 		errs = append(errs, err)
 	}
+	if err := m.leaveNetworkPeer(ctx, session); err != nil {
+		errs = append(errs, fmt.Errorf("session: leave network space for %q: %w", session.ID, err))
+	}
 
 	m.remove(session.ID)
 	m.dispatchSessionPostStop(ctx, session)

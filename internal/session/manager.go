@@ -63,6 +63,7 @@ type Manager struct {
 	logger          *slog.Logger
 	driver          AgentDriver
 	notifier        Notifier
+	networkPeers    NetworkPeerLifecycle
 	turnEndNotifier TurnEndNotifier
 	hooks           HookSet
 	skillRegistry   SkillRegistry
@@ -279,6 +280,18 @@ func (m *Manager) Get(id string) (*Session, bool) {
 	return session, ok
 }
 
+// SetNetworkPeerLifecycle installs the late-bound network join/leave callbacks
+// used after session activation and before final stop cleanup.
+func (m *Manager) SetNetworkPeerLifecycle(lifecycle NetworkPeerLifecycle) {
+	if m == nil {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.networkPeers = lifecycle
+}
+
 // SetTurnEndNotifier installs a post-construction callback invoked after each
 // prompt turn finishes.
 func (m *Manager) SetTurnEndNotifier(fn TurnEndNotifier) {
@@ -299,6 +312,16 @@ func (m *Manager) IsPrompting(id string) bool {
 		return false
 	}
 	return session.IsPrompting()
+}
+
+func (m *Manager) currentNetworkPeerLifecycle() NetworkPeerLifecycle {
+	if m == nil {
+		return nil
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.networkPeers
 }
 
 func (m *Manager) currentTurnEndNotifier() TurnEndNotifier {

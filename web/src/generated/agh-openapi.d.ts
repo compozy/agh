@@ -3514,6 +3514,15 @@ export interface operations {
               active_sessions: number;
               http_host: string;
               http_port: number;
+              network?: {
+                enabled: boolean;
+                listener_host?: string;
+                listener_port?: number;
+                local_peers?: number;
+                remote_peers?: number;
+                spaces?: number;
+                status: string;
+              } | null;
               pid: number;
               socket: string;
               /** Format: date-time */

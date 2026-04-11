@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	"github.com/pedronauck/agh/internal/version"
@@ -304,41 +305,89 @@ func daemonStatusWithState(runtime runtimeContext, info aghdaemon.Info, status s
 		ActiveSessions: 0,
 		TotalSessions:  0,
 		Version:        version.Current().Version,
+		Network:        daemonNetworkStatusFromInfo(runtime.Config, info.Network),
 	}
 }
 
 func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle {
+	rows := []keyValue{
+		{Label: "Status", Value: stringOrDash(status.Status)},
+		{Label: "PID", Value: intOrDash(status.PID)},
+		{Label: "Started", Value: stringOrDash(formatTime(status.StartedAt))},
+		{Label: "Uptime", Value: stringOrDash(formatAge(now, status.StartedAt))},
+		{Label: "Socket", Value: stringOrDash(status.Socket)},
+		{Label: "HTTP", Value: stringOrDash(strings.TrimSpace(status.HTTPHost) + ":" + intOrDash(status.HTTPPort))},
+		{Label: "Active Sessions", Value: strconv.Itoa(status.ActiveSessions)},
+		{Label: "Total Sessions", Value: strconv.Itoa(status.TotalSessions)},
+		{Label: "Version", Value: stringOrDash(status.Version)},
+	}
+	labels := []string{
+		"status", "pid", "started_at", "uptime", "socket", "http_host", "http_port", "active_sessions", "total_sessions", "version",
+	}
+	values := []string{
+		status.Status,
+		strconv.Itoa(status.PID),
+		formatTime(status.StartedAt),
+		formatAge(now, status.StartedAt),
+		status.Socket,
+		status.HTTPHost,
+		strconv.Itoa(status.HTTPPort),
+		strconv.Itoa(status.ActiveSessions),
+		strconv.Itoa(status.TotalSessions),
+		status.Version,
+	}
+	if status.Network != nil {
+		rows = append(rows,
+			keyValue{Label: "Network", Value: stringOrDash(status.Network.Status)},
+			keyValue{Label: "Network Listener", Value: stringOrDash(networkListener(status.Network))},
+		)
+		labels = append(labels, "network_status", "network_listener")
+		values = append(values, status.Network.Status, networkListener(status.Network))
+	}
+
 	return outputBundle{
 		jsonValue: status,
 		human: func() (string, error) {
-			return renderHumanSection("Daemon", []keyValue{
-				{Label: "Status", Value: stringOrDash(status.Status)},
-				{Label: "PID", Value: intOrDash(status.PID)},
-				{Label: "Started", Value: stringOrDash(formatTime(status.StartedAt))},
-				{Label: "Uptime", Value: stringOrDash(formatAge(now, status.StartedAt))},
-				{Label: "Socket", Value: stringOrDash(status.Socket)},
-				{Label: "HTTP", Value: stringOrDash(strings.TrimSpace(status.HTTPHost) + ":" + intOrDash(status.HTTPPort))},
-				{Label: "Active Sessions", Value: strconv.Itoa(status.ActiveSessions)},
-				{Label: "Total Sessions", Value: strconv.Itoa(status.TotalSessions)},
-				{Label: "Version", Value: stringOrDash(status.Version)},
-			}), nil
+			return renderHumanSection("Daemon", rows), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("daemon", []string{
-				"status", "pid", "started_at", "uptime", "socket", "http_host", "http_port", "active_sessions", "total_sessions", "version",
-			}, []string{
-				status.Status,
-				strconv.Itoa(status.PID),
-				formatTime(status.StartedAt),
-				formatAge(now, status.StartedAt),
-				status.Socket,
-				status.HTTPHost,
-				strconv.Itoa(status.HTTPPort),
-				strconv.Itoa(status.ActiveSessions),
-				strconv.Itoa(status.TotalSessions),
-				status.Version,
-			}), nil
+			return renderToonObject("daemon", labels, values), nil
 		},
+	}
+}
+
+func daemonNetworkStatusFromInfo(cfg aghconfig.Config, info *aghdaemon.NetworkInfo) *contract.NetworkStatusPayload {
+	if info != nil {
+		return &contract.NetworkStatusPayload{
+			Enabled:      info.Enabled,
+			Status:       strings.TrimSpace(info.Status),
+			ListenerHost: strings.TrimSpace(info.ListenerHost),
+			ListenerPort: info.ListenerPort,
+		}
+	}
+	if !cfg.Network.Enabled {
+		return &contract.NetworkStatusPayload{
+			Enabled: false,
+			Status:  "disabled",
+		}
+	}
+	return nil
+}
+
+func networkListener(info *contract.NetworkStatusPayload) string {
+	if info == nil {
+		return ""
+	}
+	host := strings.TrimSpace(info.ListenerHost)
+	switch {
+	case host == "" && info.ListenerPort <= 0:
+		return ""
+	case host == "":
+		return intOrDash(info.ListenerPort)
+	case info.ListenerPort <= 0:
+		return host
+	default:
+		return host + ":" + strconv.Itoa(info.ListenerPort)
 	}
 }
 

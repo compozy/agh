@@ -78,6 +78,9 @@ func (m *Manager) activateAndWatch(ctx context.Context, session *Session, proc *
 		rollbackErr := m.rollbackActivation(session, proc, now)
 		return errors.Join(err, rollbackErr)
 	}
+	if err := m.joinNetworkPeer(ctx, session); err != nil {
+		m.sessionLogger(session).Warn("session: join network space failed", "space", session.Info().Space, "error", err)
+	}
 
 	m.dispatchAgentSpawned(ctx, session, proc, resolved)
 	switch postEvent {
@@ -91,6 +94,48 @@ func (m *Manager) activateAndWatch(ctx context.Context, session *Session, proc *
 	}
 	m.watchProcess(m.lifecycleCtx, session)
 	return nil
+}
+
+func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session) error {
+	if ctx == nil {
+		return errors.New("session: join network peer context is required")
+	}
+	if session == nil {
+		return nil
+	}
+
+	info := session.Info()
+	if info == nil || strings.TrimSpace(info.Space) == "" {
+		return nil
+	}
+
+	lifecycle := m.currentNetworkPeerLifecycle()
+	if lifecycle == nil {
+		return nil
+	}
+
+	return lifecycle.JoinSpace(ctx, info.ID, networkPeerID(info.AgentName, info.ID), info.Space)
+}
+
+func (m *Manager) leaveNetworkPeer(ctx context.Context, session *Session) error {
+	if ctx == nil {
+		return errors.New("session: leave network peer context is required")
+	}
+	if session == nil {
+		return nil
+	}
+
+	info := session.Info()
+	if info == nil || strings.TrimSpace(info.Space) == "" {
+		return nil
+	}
+
+	lifecycle := m.currentNetworkPeerLifecycle()
+	if lifecycle == nil {
+		return nil
+	}
+
+	return lifecycle.LeaveSpace(ctx, info.ID)
 }
 
 func (m *Manager) rollbackActivation(session *Session, proc *AgentProcess, now time.Time) error {
@@ -128,6 +173,10 @@ func derefString(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+func networkPeerID(agentName string, sessionID string) string {
+	return strings.ToLower(strings.TrimSpace(agentName)) + "." + strings.TrimSpace(sessionID)
 }
 
 func isProcessDone(proc *AgentProcess) bool {

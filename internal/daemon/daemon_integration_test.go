@@ -17,6 +17,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/kballard/go-shellquote"
+	"github.com/pedronauck/agh/internal/acp"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -24,6 +25,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
@@ -68,6 +70,16 @@ func (f *fakeSessionManager) promptCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.promptCalls)
+}
+
+func (f *fakeNetworkBindableSessionManager) setPrompting(sessionID string, prompting bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if prompting {
+		f.prompting[sessionID] = true
+		return
+	}
+	delete(f.prompting, sessionID)
 }
 
 func TestBootSequenceReady(t *testing.T) {
@@ -416,7 +428,99 @@ func TestShutdownCancelsActiveAutomationPrompt(t *testing.T) {
 		t.Fatal("Shutdown() did not finish after automation prompt cancellation")
 	}
 }
+func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = true
 
+	bindableSessions := newFakeNetworkBindableSessionManager()
+	promptStarted := make(chan string, 1)
+	bindableSessions.promptNetworkFn = func(ctx context.Context, sessionID string, message string) (<-chan acp.AgentEvent, error) {
+		bindableSessions.setPrompting(sessionID, true)
+		select {
+		case promptStarted <- message:
+		default:
+		}
+
+		events := make(chan acp.AgentEvent)
+		go func() {
+			<-ctx.Done()
+			bindableSessions.setPrompting(sessionID, false)
+			close(events)
+		}()
+		return events, nil
+	}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return bindableSessions, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+
+	lifecycle := bindableSessions.currentNetworkPeerLifecycle()
+	if lifecycle == nil {
+		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
+	}
+	if err := lifecycle.JoinSpace(testutil.Context(t), "sess-net", "coder.sess-net", "builders"); err != nil {
+		t.Fatalf("JoinSpace() error = %v", err)
+	}
+
+	body, err := json.Marshal(map[string]any{"text": "hello from network"})
+	if err != nil {
+		t.Fatalf("json.Marshal(body) error = %v", err)
+	}
+	if _, err := d.network.Send(testutil.Context(t), network.SendRequest{
+		SessionID: "sess-net",
+		Space:     "builders",
+		Kind:      network.KindSay,
+		Body:      body,
+	}); err != nil {
+		t.Fatalf("network.Send() error = %v", err)
+	}
+
+	select {
+	case message := <-promptStarted:
+		if !strings.Contains(message, "hello from network") {
+			t.Fatalf("prompt message = %q, want network payload preview", message)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for inbound network delivery")
+	}
+
+	status, err := d.network.Status(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("network.Status() error = %v", err)
+	}
+	if status.LocalPeers != 1 || status.Spaces != 1 {
+		t.Fatalf("network.Status() = %#v, want 1 local peer and 1 space", status)
+	}
+
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if _, err := os.Stat(homePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("daemon info exists after shutdown: stat error = %v, want os.ErrNotExist", err)
+	}
+}
 func TestBootLoadsExtensionsRebuildsHooksAndStopsOnShutdown(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)

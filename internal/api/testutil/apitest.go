@@ -22,6 +22,7 @@ import (
 	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
@@ -327,6 +328,49 @@ func (s StubAutomationManager) HandleWebhook(ctx context.Context, request automa
 func (s StubObserver) QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
 	if s.QueryEventsFn != nil {
 		return s.QueryEventsFn(ctx, query)
+	}
+	return nil, nil
+}
+
+type StubNetworkService struct {
+	SendFn       func(context.Context, network.SendRequest) (string, error)
+	ListPeersFn  func(context.Context, string) ([]network.PeerInfo, error)
+	ListSpacesFn func(context.Context) ([]network.SpaceInfo, error)
+	StatusFn     func(context.Context) (*network.NetworkStatus, error)
+	InboxFn      func(context.Context, string) ([]network.Envelope, error)
+}
+
+func (s StubNetworkService) Send(ctx context.Context, req network.SendRequest) (string, error) {
+	if s.SendFn != nil {
+		return s.SendFn(ctx, req)
+	}
+	return "", nil
+}
+
+func (s StubNetworkService) ListPeers(ctx context.Context, space string) ([]network.PeerInfo, error) {
+	if s.ListPeersFn != nil {
+		return s.ListPeersFn(ctx, space)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkService) ListSpaces(ctx context.Context) ([]network.SpaceInfo, error) {
+	if s.ListSpacesFn != nil {
+		return s.ListSpacesFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkService) Status(ctx context.Context) (*network.NetworkStatus, error) {
+	if s.StatusFn != nil {
+		return s.StatusFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkService) Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error) {
+	if s.InboxFn != nil {
+		return s.InboxFn(ctx, sessionID)
 	}
 	return nil, nil
 }
@@ -740,6 +784,7 @@ func DiscardLogger() *slog.Logger {
 }
 
 var _ core.SessionManager = (*StubSessionManager)(nil)
+var _ core.NetworkService = (*StubNetworkService)(nil)
 var _ core.Observer = (*StubObserver)(nil)
 var _ core.AutomationManager = (*StubAutomationManager)(nil)
 var _ core.WorkspaceService = (*StubWorkspaceService)(nil)

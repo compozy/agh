@@ -51,6 +51,7 @@ type Server struct {
 	now            func() time.Time
 	pollInterval   time.Duration
 	sessions       core.SessionManager
+	network        core.NetworkService
 	observer       core.Observer
 	automation     core.AutomationManager
 	channels       core.ChannelService
@@ -73,6 +74,7 @@ type Server struct {
 
 type handlerConfig struct {
 	sessions       core.SessionManager
+	network        core.NetworkService
 	observer       core.Observer
 	automation     core.AutomationManager
 	channels       core.ChannelService
@@ -149,6 +151,13 @@ func WithPollInterval(interval time.Duration) Option {
 func WithSessionManager(manager core.SessionManager) Option {
 	return func(server *Server) {
 		server.sessions = manager
+	}
+}
+
+// WithNetworkService injects the runtime network manager.
+func WithNetworkService(service core.NetworkService) Option {
+	return func(server *Server) {
+		server.network = service
 	}
 }
 
@@ -287,6 +296,7 @@ func New(opts ...Option) (*Server, error) {
 
 	server.handlers = newHandlers(handlerConfig{
 		sessions:       server.sessions,
+		network:        server.network,
 		observer:       server.observer,
 		automation:     server.automation,
 		channels:       server.channels,
@@ -496,6 +506,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			MaskInternalErrors:           false,
 			IncludeSessionWorkspaceInSSE: true,
 			Sessions:                     cfg.sessions,
+			Network:                      cfg.network,
 			Observer:                     cfg.observer,
 			Automation:                   cfg.automation,
 			Channels:                     cfg.channels,

@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pedronauck/agh/internal/acp"
 	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/httpapi"
 	"github.com/pedronauck/agh/internal/api/udsapi"
@@ -52,6 +53,7 @@ type Observer interface {
 // Registry is the narrowed global database surface shared by observe and workspace.
 type Registry interface {
 	observe.Registry
+	store.NetworkAuditStore
 	workspacepkg.WorkspaceStore
 }
 
@@ -67,6 +69,7 @@ type RuntimeDeps struct {
 	HomePaths         aghconfig.HomePaths
 	Logger            *slog.Logger
 	Sessions          SessionManager
+	Network           core.NetworkService
 	Observer          Observer
 	Automation        core.AutomationManager
 	Channels          core.ChannelService
@@ -91,6 +94,20 @@ type sessionManagerFactory func(ctx context.Context, deps SessionManagerDeps) (S
 type observerFactory func(ctx context.Context, deps RuntimeDeps) (Observer, error)
 type extensionManagerFactory func(deps extensionManagerDeps) extensionRuntime
 type automationManagerFactory func(deps automationManagerDeps) (automationRuntime, error)
+
+type networkRuntime interface {
+	core.NetworkService
+	session.NetworkPeerLifecycle
+	Shutdown(context.Context) error
+	OnTurnEnd(string)
+}
+
+type networkBindableSessionManager interface {
+	PromptNetwork(ctx context.Context, sessionID string, message string) (<-chan acp.AgentEvent, error)
+	IsPrompting(sessionID string) bool
+	SetNetworkPeerLifecycle(session.NetworkPeerLifecycle)
+	SetTurnEndNotifier(session.TurnEndNotifier)
+}
 
 type shutdownStopper interface {
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
@@ -202,6 +219,7 @@ type Daemon struct {
 	registry              Registry
 	memoryStore           *memory.Store
 	sessions              SessionManager
+	network               networkRuntime
 	hooks                 hookRuntime
 	extensions            extensionRuntime
 	observer              Observer
@@ -442,6 +460,7 @@ func (d *Daemon) applyDefaults() error {
 				httpapi.WithLogger(deps.Logger),
 				httpapi.WithStartedAt(deps.StartedAt),
 				httpapi.WithSessionManager(deps.Sessions),
+				httpapi.WithNetworkService(deps.Network),
 				httpapi.WithObserver(deps.Observer),
 				httpapi.WithAutomation(deps.Automation),
 				httpapi.WithChannelService(deps.Channels),
@@ -460,6 +479,7 @@ func (d *Daemon) applyDefaults() error {
 				udsapi.WithLogger(deps.Logger),
 				udsapi.WithStartedAt(deps.StartedAt),
 				udsapi.WithSessionManager(deps.Sessions),
+				udsapi.WithNetworkService(deps.Network),
 				udsapi.WithObserver(deps.Observer),
 				udsapi.WithAutomation(deps.Automation),
 				udsapi.WithChannelService(deps.Channels),
@@ -538,6 +558,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 
 	d.mu.Lock()
 	sessions := d.sessions
+	network := d.network
 	hooks := d.hooks
 	extensions := d.extensions
 	automation := d.automation
@@ -572,6 +593,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	d.skillsCancel = nil
 	d.skillsDone = nil
 	d.channels = nil
+	d.network = nil
 	d.mu.Unlock()
 
 	var errs []error
@@ -594,6 +616,11 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	}
 	if channels != nil {
 		channels.Close()
+	}
+	if network != nil {
+		if err := network.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("daemon: shutdown network runtime: %w", err))
+		}
 	}
 	if hooks != nil {
 		hooks.Close()

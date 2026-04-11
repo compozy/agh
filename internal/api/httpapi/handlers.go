@@ -12,6 +12,7 @@ import (
 
 type handlerConfig struct {
 	sessions       core.SessionManager
+	network        core.NetworkService
 	observer       core.Observer
 	automation     core.AutomationManager
 	channels       core.ChannelService
@@ -50,6 +51,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			MaskInternalErrors:           true,
 			IncludeSessionWorkspaceInSSE: false,
 			Sessions:                     cfg.sessions,
+			Network:                      cfg.network,
 			Observer:                     cfg.observer,
 			Automation:                   cfg.automation,
 			Channels:                     cfg.channels,

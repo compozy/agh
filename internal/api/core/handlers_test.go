@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -273,5 +276,57 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 	missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
 	if missingResp.Code != http.StatusInternalServerError {
 		t.Fatalf("missing agent status = %d, want %d", missingResp.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) {
+	t.Parallel()
+
+	manager := testutil.StubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+			return []*session.SessionInfo{{ID: "sess-1"}}, nil
+		},
+	}
+	observer := testutil.StubObserver{
+		HealthFn: func(context.Context) (observe.Health, error) {
+			return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
+		},
+	}
+	fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+	fixture.Handlers.Config.Network.Enabled = true
+	fixture.Handlers.Network = testutil.StubNetworkService{
+		StatusFn: func(context.Context) (*network.NetworkStatus, error) {
+			return &network.NetworkStatus{
+				Enabled:      true,
+				Status:       network.StatusRunning,
+				ListenerHost: "127.0.0.1",
+				ListenerPort: 4222,
+				LocalPeers:   1,
+				RemotePeers:  2,
+				Spaces:       3,
+			}, nil
+		},
+	}
+
+	resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("daemon status = %d, want %d", resp.Code, http.StatusOK)
+	}
+
+	var payload struct {
+		Daemon contract.DaemonStatusPayload `json:"daemon"`
+	}
+	testutil.DecodeJSONResponse(t, resp, &payload)
+	if payload.Daemon.Network == nil {
+		t.Fatal("daemon network payload = nil, want diagnostics")
+	}
+	if got, want := payload.Daemon.Network.ListenerPort, 4222; got != want {
+		t.Fatalf("daemon network listener port = %d, want %d", got, want)
+	}
+	if got, want := payload.Daemon.Network.RemotePeers, 2; got != want {
+		t.Fatalf("daemon network remote peers = %d, want %d", got, want)
+	}
+	if strings.Contains(strings.ToLower(resp.Body.String()), "token") {
+		t.Fatalf("daemon status leaked credentials: %s", resp.Body.String())
 	}
 }

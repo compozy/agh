@@ -31,6 +31,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/session"
@@ -122,6 +123,12 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 		PID:       4242,
 		Port:      2123,
 		StartedAt: now,
+		Network: &NetworkInfo{
+			Enabled:      true,
+			Status:       network.StatusRunning,
+			ListenerHost: "127.0.0.1",
+			ListenerPort: 4222,
+		},
 	}
 
 	if err := WriteInfo(path, info); err != nil {
@@ -141,6 +148,141 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("daemon.json exists after RemoveInfo(): stat error = %v, want os.ErrNotExist", err)
+	}
+}
+
+func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = false
+
+	d := newTestDaemon(t, homePaths, cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if d.network != nil {
+		t.Fatal("boot() network runtime = non-nil, want nil when disabled")
+	}
+	if d.info.Network == nil {
+		t.Fatal("boot() daemon info network = nil, want disabled diagnostics")
+	}
+	if d.info.Network.Enabled {
+		t.Fatalf("boot() daemon info network enabled = %v, want false", d.info.Network.Enabled)
+	}
+	if got, want := d.info.Network.Status, network.StatusDisabled; got != want {
+		t.Fatalf("boot() daemon info network status = %q, want %q", got, want)
+	}
+}
+
+func TestBootEnabledNetworkLateBindsSessionCallbacksAndPersistsSafeDiagnostics(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = true
+
+	bindableSessions := newFakeNetworkBindableSessionManager()
+	d := newTestDaemon(t, homePaths, cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return bindableSessions, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if d.network == nil {
+		t.Fatal("boot() network runtime = nil, want initialized manager")
+	}
+	if bindableSessions.currentNetworkPeerLifecycle() == nil {
+		t.Fatal("boot() did not late-bind network peer lifecycle")
+	}
+	if bindableSessions.currentTurnEndNotifier() == nil {
+		t.Fatal("boot() did not late-bind turn-end notifier")
+	}
+
+	info, err := ReadInfo(homePaths.DaemonInfo)
+	if err != nil {
+		t.Fatalf("ReadInfo(daemon.json) error = %v", err)
+	}
+	if info.Network == nil {
+		t.Fatal("daemon info network diagnostics = nil, want populated diagnostics")
+	}
+	if !info.Network.Enabled {
+		t.Fatal("daemon info network enabled = false, want true")
+	}
+	if got, want := info.Network.Status, network.StatusRunning; got != want {
+		t.Fatalf("daemon info network status = %q, want %q", got, want)
+	}
+	if info.Network.ListenerPort <= 0 {
+		t.Fatalf("daemon info network listener port = %d, want positive", info.Network.ListenerPort)
+	}
+
+	rawInfo, err := os.ReadFile(homePaths.DaemonInfo)
+	if err != nil {
+		t.Fatalf("os.ReadFile(daemon.json) error = %v", err)
+	}
+	if strings.Contains(strings.ToLower(string(rawInfo)), "token") {
+		t.Fatalf("daemon info leaked credentials: %s", string(rawInfo))
+	}
+}
+
+func TestBootEnabledNetworkRejectsSessionManagersMissingBindingSurface(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = true
+
+	d := newTestDaemon(t, homePaths, cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+
+	err := d.boot(testutil.Context(t))
+	if err == nil || !strings.Contains(err.Error(), "network binding surface") {
+		t.Fatalf("boot() error = %v, want missing network binding surface", err)
 	}
 }
 
@@ -314,6 +456,11 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 			events = append(events, "session:"+id)
 		},
 	}
+	d.network = &fakeNetworkRuntime{
+		onShutdown: func() {
+			events = append(events, "network")
+		},
+	}
 	d.httpServer = &fakeServer{name: "http", onShutdown: func() { events = append(events, "http") }}
 	d.udsServer = &fakeServer{name: "uds", onShutdown: func() { events = append(events, "uds") }}
 	d.registry = &recordingRegistry{
@@ -343,7 +490,7 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 
-	want := []string{"extensions", "automation", "session:sess-a", "session:sess-b", "hooks", "http", "uds", "db", "lock", "logger"}
+	want := []string{"extensions", "automation", "session:sess-a", "session:sess-b", "network", "hooks", "http", "uds", "db", "lock", "logger"}
 	if !testutil.EqualStringSlices(events, want) {
 		t.Fatalf("Shutdown() order = %#v, want %#v", events, want)
 	}
@@ -2089,6 +2236,53 @@ func TestInfoValidationAndReadFailures(t *testing.T) {
 	}
 }
 
+func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
+	ctx := testutil.Context(t)
+
+	if err := (NetworkInfo{}).Validate(); err == nil {
+		t.Fatal("NetworkInfo.Validate() error = nil, want non-nil")
+	}
+	if err := (NetworkInfo{Status: network.StatusRunning, ListenerPort: 65536}).Validate(); err == nil {
+		t.Fatal("NetworkInfo.Validate(invalid port) error = nil, want non-nil")
+	}
+	if err := (NetworkInfo{Status: network.StatusRunning, ListenerPort: 4222}).Validate(); err != nil {
+		t.Fatalf("NetworkInfo.Validate(valid) error = %v", err)
+	}
+
+	disabledInfo, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{}, nil)
+	if err != nil {
+		t.Fatalf("daemonNetworkInfo(disabled) error = %v", err)
+	}
+	if disabledInfo == nil || disabledInfo.Enabled || disabledInfo.Status != network.StatusDisabled {
+		t.Fatalf("daemonNetworkInfo(disabled) = %#v, want disabled snapshot", disabledInfo)
+	}
+
+	if _, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{Enabled: true}, nil); err == nil {
+		t.Fatal("daemonNetworkInfo(enabled nil service) error = nil, want non-nil")
+	}
+	if _, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{Enabled: true}, &fakeNetworkRuntime{}); err == nil {
+		t.Fatal("daemonNetworkInfo(nil status) error = nil, want non-nil")
+	}
+
+	info, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{Enabled: true}, &fakeNetworkRuntime{
+		status: &network.NetworkStatus{
+			Enabled:      true,
+			Status:       " running ",
+			ListenerHost: " 127.0.0.1 ",
+			ListenerPort: 4222,
+		},
+	})
+	if err != nil {
+		t.Fatalf("daemonNetworkInfo(runtime status) error = %v", err)
+	}
+	if info == nil {
+		t.Fatal("daemonNetworkInfo(runtime status) = nil, want populated diagnostics")
+	}
+	if !info.Enabled || info.Status != network.StatusRunning || info.ListenerHost != "127.0.0.1" || info.ListenerPort != 4222 {
+		t.Fatalf("daemonNetworkInfo(runtime status) = %#v, want trimmed listener diagnostics", info)
+	}
+}
+
 func TestLockHelpersAndErrors(t *testing.T) {
 	lock := &Lock{path: "/tmp/daemon.lock"}
 	if got := lock.Path(); got != "/tmp/daemon.lock" {
@@ -2538,6 +2732,161 @@ func (f *fakeSessionManager) createCall(index int) session.CreateOpts {
 	return f.createCalls[index]
 }
 
+type fakeNetworkBindableSessionManager struct {
+	*fakeSessionManager
+	networkPeers    session.NetworkPeerLifecycle
+	turnEndNotifier session.TurnEndNotifier
+	promptNetworkFn func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	prompting       map[string]bool
+}
+
+func newFakeNetworkBindableSessionManager() *fakeNetworkBindableSessionManager {
+	return &fakeNetworkBindableSessionManager{
+		fakeSessionManager: &fakeSessionManager{},
+		prompting:          make(map[string]bool),
+	}
+}
+
+func (f *fakeNetworkBindableSessionManager) SetNetworkPeerLifecycle(lifecycle session.NetworkPeerLifecycle) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.networkPeers = lifecycle
+}
+
+func (f *fakeNetworkBindableSessionManager) currentNetworkPeerLifecycle() session.NetworkPeerLifecycle {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.networkPeers
+}
+
+func (f *fakeNetworkBindableSessionManager) SetTurnEndNotifier(fn session.TurnEndNotifier) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.turnEndNotifier = fn
+}
+
+func (f *fakeNetworkBindableSessionManager) currentTurnEndNotifier() session.TurnEndNotifier {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.turnEndNotifier
+}
+
+func (f *fakeNetworkBindableSessionManager) PromptNetwork(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
+	f.mu.Lock()
+	fn := f.promptNetworkFn
+	f.mu.Unlock()
+	if fn != nil {
+		return fn(ctx, id, msg)
+	}
+
+	ch := make(chan acp.AgentEvent)
+	close(ch)
+	return ch, nil
+}
+
+func (f *fakeNetworkBindableSessionManager) IsPrompting(sessionID string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.prompting[sessionID]
+}
+
+type fakeNetworkRuntime struct {
+	mu          sync.Mutex
+	status      *network.NetworkStatus
+	statusErr   error
+	sendID      string
+	sendErr     error
+	sendCalls   []network.SendRequest
+	joinCalls   []fakeNetworkJoinCall
+	leaveCalls  []string
+	turnEnds    []string
+	inboxes     map[string][]network.Envelope
+	shutdownErr error
+	onShutdown  func()
+}
+
+type fakeNetworkJoinCall struct {
+	sessionID string
+	peerID    string
+	space     string
+}
+
+func (f *fakeNetworkRuntime) Send(_ context.Context, req network.SendRequest) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sendCalls = append(f.sendCalls, req)
+	if f.sendErr != nil {
+		return "", f.sendErr
+	}
+	if strings.TrimSpace(f.sendID) != "" {
+		return f.sendID, nil
+	}
+	return "msg-test", nil
+}
+
+func (f *fakeNetworkRuntime) ListPeers(context.Context, string) ([]network.PeerInfo, error) {
+	return nil, nil
+}
+
+func (f *fakeNetworkRuntime) ListSpaces(context.Context) ([]network.SpaceInfo, error) {
+	return nil, nil
+}
+
+func (f *fakeNetworkRuntime) Status(context.Context) (*network.NetworkStatus, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.statusErr != nil {
+		return nil, f.statusErr
+	}
+	if f.status == nil {
+		return nil, nil
+	}
+	status := *f.status
+	return &status, nil
+}
+
+func (f *fakeNetworkRuntime) Inbox(_ context.Context, sessionID string) ([]network.Envelope, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.inboxes) == 0 {
+		return nil, nil
+	}
+	return append([]network.Envelope(nil), f.inboxes[sessionID]...), nil
+}
+
+func (f *fakeNetworkRuntime) JoinSpace(_ context.Context, sessionID string, peerID string, space string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.joinCalls = append(f.joinCalls, fakeNetworkJoinCall{
+		sessionID: sessionID,
+		peerID:    peerID,
+		space:     space,
+	})
+	return nil
+}
+
+func (f *fakeNetworkRuntime) LeaveSpace(_ context.Context, sessionID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.leaveCalls = append(f.leaveCalls, sessionID)
+	return nil
+}
+
+func (f *fakeNetworkRuntime) OnTurnEnd(sessionID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.turnEnds = append(f.turnEnds, sessionID)
+}
+
+func (f *fakeNetworkRuntime) Shutdown(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.onShutdown != nil {
+		f.onShutdown()
+	}
+	return f.shutdownErr
+}
+
 type fakeObserver struct {
 	reconciled bool
 	result     store.ReconcileResult
@@ -2669,6 +3018,14 @@ func (r *recordingRegistry) WritePermissionLog(context.Context, store.Permission
 }
 
 func (r *recordingRegistry) ListPermissionLog(context.Context, store.PermissionLogQuery) ([]store.PermissionLogEntry, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) WriteNetworkAudit(context.Context, store.NetworkAuditEntry) error {
+	return nil
+}
+
+func (r *recordingRegistry) ListNetworkAudit(context.Context, store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error) {
 	return nil, nil
 }
 

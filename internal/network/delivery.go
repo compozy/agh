@@ -192,6 +192,16 @@ func (c *deliveryCoordinator) queueDepth(sessionID string) int {
 	return queue.len()
 }
 
+func (c *deliveryCoordinator) dropSession(sessionID string) {
+	if c == nil {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.queues, strings.TrimSpace(sessionID))
+}
+
 func (c *deliveryCoordinator) wait() {
 	if c == nil {
 		return
