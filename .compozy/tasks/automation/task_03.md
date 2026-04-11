@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement dispatcher, run recording, and execution governance
 type: backend
 complexity: high
@@ -29,11 +29,11 @@ Implement the shared execution path that turns an approved automation activation
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Create the dispatcher and the narrow session-creation interface it depends on
-- [ ] 3.2 Add run lifecycle recording for scheduled, running, completed, failed, and cancelled states
-- [ ] 3.3 Add global concurrency gating shared by all dispatch callers
-- [ ] 3.4 Add retry orchestration and restart-safe fire-limit checks backed by persisted runs
-- [ ] 3.5 Add tests proving one execution path is shared across activation sources
+- [x] 3.1 Create the dispatcher and the narrow session-creation interface it depends on
+- [x] 3.2 Add run lifecycle recording for scheduled, running, completed, failed, and cancelled states
+- [x] 3.3 Add global concurrency gating shared by all dispatch callers
+- [x] 3.4 Add retry orchestration and restart-safe fire-limit checks backed by persisted runs
+- [x] 3.5 Add tests proving one execution path is shared across activation sources
 
 ## Implementation Details
 
@@ -62,14 +62,14 @@ Use the TechSpec sections "Dispatcher", "Development Sequencing", "Testing Appro
 
 ## Tests
 - Unit tests:
-  - [ ] Dispatching a workspace-scoped automation uses the expected workspace-aware `session.CreateOpts`
-  - [ ] Dispatching a global automation omits workspace binding and still records the run correctly
-  - [ ] Exceeding the configured global concurrency limit rejects a dispatch before session creation
-  - [ ] Exceeding the persisted fire-limit window rejects a dispatch even after the dispatcher is recreated
-  - [ ] A failed run with `backoff` retry settings records the next attempt and retry metadata correctly
+  - [x] Dispatching a workspace-scoped automation uses the expected workspace-aware `session.CreateOpts`
+  - [x] Dispatching a global automation omits workspace binding and still records the run correctly
+  - [x] Exceeding the configured global concurrency limit rejects a dispatch before session creation
+  - [x] Exceeding the persisted fire-limit window rejects a dispatch even after the dispatcher is recreated
+  - [x] A failed run with `backoff` retry settings records the next attempt and retry metadata correctly
 - Integration tests:
-  - [ ] Two concurrent dispatch requests from different activation kinds share the same concurrency gate
-  - [ ] A successful dispatch records scheduled/running/completed state transitions that can be queried back from the store
+  - [x] Two concurrent dispatch requests from different activation kinds share the same concurrency gate
+  - [x] A successful dispatch records scheduled/running/completed state transitions that can be queried back from the store
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -78,4 +78,3 @@ Use the TechSpec sections "Dispatcher", "Development Sequencing", "Testing Appro
 - Test coverage >=80%
 - Every automation execution path can route through one dispatcher
 - Global concurrency and persisted fire-limit behavior are enforced in runtime rather than by caller convention
-

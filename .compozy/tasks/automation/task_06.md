@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Compose automation manager and wire daemon boot lifecycle
 type: infra
 complexity: high
@@ -30,11 +30,11 @@ Compose the store, dispatcher, scheduler, and trigger engine into the built-in a
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Implement the composed automation manager and its lifecycle methods
-- [ ] 6.2 Add TOML sync and config-source overlay resolution for jobs and triggers
-- [ ] 6.3 Wire the manager into daemon runtime dependencies and boot ordering
-- [ ] 6.4 Add lifecycle status and health data needed by later transport work
-- [ ] 6.5 Add integration tests for boot, sync, restart, and shutdown behavior
+- [x] 6.1 Implement the composed automation manager and its lifecycle methods
+- [x] 6.2 Add TOML sync and config-source overlay resolution for jobs and triggers
+- [x] 6.3 Wire the manager into daemon runtime dependencies and boot ordering
+- [x] 6.4 Add lifecycle status and health data needed by later transport work
+- [x] 6.5 Add integration tests for boot, sync, restart, and shutdown behavior
 
 ## Implementation Details
 
@@ -63,14 +63,14 @@ Use the TechSpec sections "Manager", "Daemon Boot Integration", "TOML jobs are s
 
 ## Tests
 - Unit tests:
-  - [ ] TOML sync creates missing config-backed jobs and triggers while leaving dynamic entries intact
-  - [ ] TOML sync updates definition-owned fields from config but preserves runtime enabled overlays separately
-  - [ ] Manager status reports enabled counts, trigger counts, and next-fire metadata without requiring transport-specific wrappers
-  - [ ] Disabling a config-backed definition at runtime updates only the overlay state returned by the manager
+  - [x] TOML sync creates missing config-backed jobs and triggers while leaving dynamic entries intact
+  - [x] TOML sync updates definition-owned fields from config but preserves runtime enabled overlays separately
+  - [x] Manager status reports enabled counts, trigger counts, and next-fire metadata without requiring transport-specific wrappers
+  - [x] Disabling a config-backed definition at runtime updates only the overlay state returned by the manager
 - Integration tests:
-  - [ ] Daemon boot initializes automation after hooks are available and before servers start accepting requests
-  - [ ] Restarting the daemon preserves config-backed enabled overlays across TOML resync
-  - [ ] Manager shutdown cancels active scheduler and trigger work cleanly without leaked goroutines
+  - [x] Daemon boot initializes automation after hooks are available and before servers start accepting requests
+  - [x] Restarting the daemon preserves config-backed enabled overlays across TOML resync
+  - [x] Manager shutdown cancels active scheduler and trigger work cleanly without leaked goroutines
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -79,4 +79,3 @@ Use the TechSpec sections "Manager", "Daemon Boot Integration", "TOML jobs are s
 - Test coverage >=80%
 - Automation is booted and shut down as a first-class daemon subsystem
 - TOML sync and enabled-overlay semantics are enforced by the manager rather than by transport-specific logic
-

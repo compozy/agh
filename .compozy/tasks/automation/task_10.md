@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Build web automation management UI
 type: frontend
 complexity: high
@@ -29,11 +29,11 @@ Build the `/automation` experience in the web app so users can inspect, create, 
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Create the `web/src/systems/automation/` module with types, adapters, query keys, query options, and hooks
-- [ ] 10.2 Add the `/automation` route and page shell composition
-- [ ] 10.3 Add list, detail, and form components for jobs, triggers, and runs
-- [ ] 10.4 Add sidebar navigation and route-active state for Automation
-- [ ] 10.5 Add component, hook, and route tests for the main user flows
+- [x] 10.1 Create the `web/src/systems/automation/` module with types, adapters, query keys, query options, and hooks
+- [x] 10.2 Add the `/automation` route and page shell composition
+- [x] 10.3 Add list, detail, and form components for jobs, triggers, and runs
+- [x] 10.4 Add sidebar navigation and route-active state for Automation
+- [x] 10.5 Add component, hook, and route tests for the main user flows
 
 ## Implementation Details
 
@@ -61,14 +61,14 @@ Follow the TechSpec sections "Web UI", "Impact Analysis", and the project's exis
 
 ## Tests
 - Unit tests:
-  - [ ] Automation adapters call the expected `/api/automation/*` endpoints and map the returned payload shapes correctly
-  - [ ] Query keys and invalidation behavior distinguish jobs, triggers, runs, and workspace-scoped filters
-  - [ ] Automation page components render loading, empty, and error states for jobs and triggers
+  - [x] Automation adapters call the expected `/api/automation/*` endpoints and map the returned payload shapes correctly
+  - [x] Query keys and invalidation behavior distinguish jobs, triggers, runs, and workspace-scoped filters
+  - [x] Automation page components render loading, empty, and error states for jobs and triggers
 - Integration tests:
-  - [ ] Visiting `/automation` renders list and detail panes backed by mocked automation API responses
-  - [ ] Sidebar navigation shows an Automation item and marks it active on the automation route
-  - [ ] Creating or editing a workspace-scoped automation entry submits the expected scope and workspace payload fields
-  - [ ] Manual trigger and run-history interactions update the UI after a successful mutation
+  - [x] Visiting `/automation` renders list and detail panes backed by mocked automation API responses
+  - [x] Sidebar navigation shows an Automation item and marks it active on the automation route
+  - [x] Creating or editing a workspace-scoped automation entry submits the expected scope and workspace payload fields
+  - [x] Manual trigger and run-history interactions update the UI after a successful mutation
 - Test coverage target: >=80%
 - All tests must pass
 

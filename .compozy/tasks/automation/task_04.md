@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Build scheduler runtime for scheduled jobs
 type: backend
 complexity: high
@@ -29,11 +29,11 @@ Build the time-based automation runtime on top of `gocron v2` so cron, interval,
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Add the scheduler runtime wrapper around `gocron v2`
-- [ ] 4.2 Map `cron`, `every`, and `at` schedule specs into scheduler registrations
-- [ ] 4.3 Add singleton overlap protection and unregister behavior for disabled or deleted jobs
-- [ ] 4.4 Surface next-run metadata so later API and UI tasks can display it
-- [ ] 4.5 Add tests for scheduling, overlap protection, and shutdown behavior
+- [x] 4.1 Add the scheduler runtime wrapper around `gocron v2`
+- [x] 4.2 Map `cron`, `every`, and `at` schedule specs into scheduler registrations
+- [x] 4.3 Add singleton overlap protection and unregister behavior for disabled or deleted jobs
+- [x] 4.4 Surface next-run metadata so later API and UI tasks can display it
+- [x] 4.5 Add tests for scheduling, overlap protection, and shutdown behavior
 
 ## Implementation Details
 
@@ -61,14 +61,14 @@ Implement this task using the TechSpec sections "Scheduler", "Testing Approach",
 
 ## Tests
 - Unit tests:
-  - [ ] A `cron` job computes the expected next run from a deterministic clock input
-  - [ ] An `every:30m` job registers with the expected interval semantics
-  - [ ] An `at:` one-shot job unregisters after firing once
-  - [ ] Singleton protection blocks an overlapping second fire while the previous run is still active
-  - [ ] Disabling or unregistering a job removes future scheduler fires
+  - [x] A `cron` job computes the expected next run from a deterministic clock input
+  - [x] An `every:30m` job registers with the expected interval semantics
+  - [x] An `at:` one-shot job unregisters after firing once
+  - [x] Singleton protection blocks an overlapping second fire while the previous run is still active
+  - [x] Disabling or unregistering a job removes future scheduler fires
 - Integration tests:
-  - [ ] A fast `@every 1s` schedule dispatches through the shared dispatcher and records a run
-  - [ ] Scheduler shutdown cancels in-flight work via context instead of leaving goroutines behind
+  - [x] A fast `@every 1s` schedule dispatches through the shared dispatcher and records a run
+  - [x] Scheduler shutdown cancels in-flight work via context instead of leaving goroutines behind
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -77,4 +77,3 @@ Implement this task using the TechSpec sections "Scheduler", "Testing Approach",
 - Test coverage >=80%
 - Scheduled jobs can be registered and fired without bypassing dispatcher governance
 - Scheduler lifecycle is cleanly startable and stoppable from the daemon runtime
-

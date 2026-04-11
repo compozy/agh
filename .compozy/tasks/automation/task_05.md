@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Build trigger engine with normalized ingress and webhook auth
 type: backend
 complexity: critical
@@ -29,11 +29,11 @@ Implement the event-driven side of automation around normalized activation envel
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Implement trigger matching against normalized activation envelopes
-- [ ] 5.2 Add strict filter and prompt-template evaluation behavior
-- [ ] 5.3 Add internal ingress adapters for observer/hooks-backed session, memory, and hook-completion events
-- [ ] 5.4 Add webhook endpoint parsing, slug-plus-id resolution, timestamp validation, and HMAC verification helpers
-- [ ] 5.5 Add tests proving authenticated webhook and internal event normalization behavior
+- [x] 5.1 Implement trigger matching against normalized activation envelopes
+- [x] 5.2 Add strict filter and prompt-template evaluation behavior
+- [x] 5.3 Add internal ingress adapters for observer/hooks-backed session, memory, and hook-completion events
+- [x] 5.4 Add webhook endpoint parsing, slug-plus-id resolution, timestamp validation, and HMAC verification helpers
+- [x] 5.5 Add tests proving authenticated webhook and internal event normalization behavior
 
 ## Implementation Details
 
@@ -62,15 +62,15 @@ Follow the TechSpec sections "ActivationEnvelope", "Session Notifier Integration
 
 ## Tests
 - Unit tests:
-  - [ ] A trigger with `filter = {"data.agent_name": "researcher"}` matches only envelopes with the exact field value
-  - [ ] A trigger prompt template referencing a missing envelope field fails validation under `missingkey=error`
-  - [ ] Webhook endpoint parsing resolves the stable `webhook_id` from a `slug--wbh_*` endpoint value
-  - [ ] Webhook HMAC validation rejects an invalid signature before trigger lookup returns a dispatchable activation
-  - [ ] Webhook validation rejects a stale timestamp outside the accepted freshness window
+  - [x] A trigger with `filter = {"data.agent_name": "researcher"}` matches only envelopes with the exact field value
+  - [x] A trigger prompt template referencing a missing envelope field fails validation under `missingkey=error`
+  - [x] Webhook endpoint parsing resolves the stable `webhook_id` from a `slug--wbh_*` endpoint value
+  - [x] Webhook HMAC validation rejects an invalid signature before trigger lookup returns a dispatchable activation
+  - [x] Webhook validation rejects a stale timestamp outside the accepted freshness window
 - Integration tests:
-  - [ ] A `session.stopped` event flowing through the existing observer/hooks boundary produces one matched trigger activation without a direct session subscription
-  - [ ] A `memory.consolidated` event is normalized and can dispatch a matching trigger
-  - [ ] A valid webhook request is normalized into an activation envelope and dispatched exactly once
+  - [x] A `session.stopped` event flowing through the existing observer/hooks boundary produces one matched trigger activation without a direct session subscription
+  - [x] A `memory.consolidated` event is normalized and can dispatch a matching trigger
+  - [x] A valid webhook request is normalized into an activation envelope and dispatched exactly once
 - Test coverage target: >=80%
 - All tests must pass
 
