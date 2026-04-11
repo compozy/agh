@@ -106,6 +106,10 @@ func (m *Manager) startSession(ctx context.Context, spec sessionStartSpec) (_ *S
 	if err != nil {
 		return nil, err
 	}
+	startupPrompt, err = appendBundledNetworkSkill(startupPrompt, spec.space)
+	if err != nil {
+		return nil, err
+	}
 	agentDef.Prompt = startupPrompt
 
 	resolved, err := spec.workspace.Config.ResolveAgent(agentDef)

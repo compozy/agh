@@ -21,6 +21,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -1453,6 +1454,44 @@ func TestCreateInvokesPromptAssemblerWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestCreateWithSpaceAppendsBundledNetworkSkillAfterPromptAssembly(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	networkSkill, err := bundled.LoadContent(networkSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+	}
+
+	h.manager = newManagerWithHarness(t, h, WithPromptAssembler(promptAssemblerFunc(func(_ context.Context, agent aghconfig.AgentDef, workspace workspacepkg.ResolvedWorkspace) (string, error) {
+		if got, want := workspace.RootDir, h.workspace; got != want {
+			t.Fatalf("assembler workspace = %q, want %q", got, want)
+		}
+		return agent.Prompt + "\n\nmemory block", nil
+	})))
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Space:     "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	wantPrompt := "You are a coding assistant.\n\nmemory block\n\n" + networkSkill
+	if got := h.driver.startCalls[0].SystemPrompt; got != wantPrompt {
+		t.Fatalf("start system prompt = %q, want %q", got, wantPrompt)
+	}
+	if got := strings.Count(h.driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
+		t.Fatalf("network skill occurrences = %d, want 1", got)
+	}
+}
+
 func TestCreateUsesRawPromptWhenAssemblerIsNil(t *testing.T) {
 	t.Parallel()
 
@@ -1471,6 +1510,77 @@ func TestCreateUsesRawPromptWhenAssemblerIsNil(t *testing.T) {
 
 	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant." {
 		t.Fatalf("start system prompt = %q, want raw agent prompt", got)
+	}
+}
+
+func TestCreateWithoutSpaceDoesNotAppendBundledNetworkSkill(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptAssembler(nil))
+	networkSkill, err := bundled.LoadContent(networkSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+	}
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Workspace: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant." {
+		t.Fatalf("start system prompt = %q, want raw agent prompt", got)
+	}
+	if strings.Contains(h.driver.startCalls[0].SystemPrompt, networkSkill) {
+		t.Fatalf("start system prompt unexpectedly contains bundled network skill")
+	}
+}
+
+func TestResumeWithSpaceReinjectsBundledNetworkSkillOnce(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptAssembler(nil))
+	networkSkill, err := bundled.LoadContent(networkSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+	}
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Space:     "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if got := strings.Count(h.driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
+		t.Fatalf("create prompt network skill occurrences = %d, want 1", got)
+	}
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+	})
+
+	wantPrompt := "You are a coding assistant.\n\n" + networkSkill
+	if got := h.driver.startCalls[1].SystemPrompt; got != wantPrompt {
+		t.Fatalf("resume system prompt = %q, want %q", got, wantPrompt)
+	}
+	if got := strings.Count(h.driver.startCalls[1].SystemPrompt, networkSkill); got != 1 {
+		t.Fatalf("resume prompt network skill occurrences = %d, want 1", got)
 	}
 }
 

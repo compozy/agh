@@ -5,12 +5,14 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -119,6 +121,46 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 	}
 	if len(events) == 0 {
 		t.Fatal("Query(reopen) returned 0 events, want persisted rows")
+	}
+}
+
+func TestManagerIntegrationResumeWithSpaceReinjectsBundledNetworkSkillBeforeACPStart(t *testing.T) {
+	h := newHarness(t)
+	networkSkill, err := bundled.LoadContent(networkSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+	}
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Space:     "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if got := strings.Count(h.driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
+		t.Fatalf("create prompt network skill occurrences = %d, want 1", got)
+	}
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+	})
+
+	if got := h.driver.startCalls[1].SystemPrompt; !strings.Contains(got, networkSkill) {
+		t.Fatalf("resume system prompt = %q, want bundled network skill content", got)
+	}
+	if got := strings.Count(h.driver.startCalls[1].SystemPrompt, networkSkill); got != 1 {
+		t.Fatalf("resume prompt network skill occurrences = %d, want 1", got)
 	}
 }
 
