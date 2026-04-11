@@ -379,7 +379,7 @@ func (d *Dispatcher) transitionRun(ctx context.Context, current *Run, mutate fun
 	next := *current
 	mutate(&next, d.now())
 
-	updated, err := d.runs.UpdateRun(ctx, next)
+	updated, err := d.runs.UpdateRun(persistenceContext(ctx), next)
 	if err != nil {
 		return cloneRun(current), fmt.Errorf("automation: update run %q: %w", current.ID, err)
 	}
@@ -627,6 +627,16 @@ func sleepWithContext(ctx context.Context, delay time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
+}
+
+func persistenceContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return nil
+	}
+	if ctx.Err() == nil {
+		return ctx
+	}
+	return context.WithoutCancel(ctx)
 }
 
 func timePointer(value time.Time) *time.Time {

@@ -177,6 +177,78 @@ func TestDispatcherIntegrationRunLifecycleStateTransitionsPersist(t *testing.T) 
 	}
 }
 
+func TestDispatcherIntegrationCancelledPromptPersistsCancelledRunState(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openAutomationIntegrationDB(t, ctx)
+
+	job, err := db.CreateJob(ctx, testJob(AutomationScopeGlobal, "integration-cancelled", ""))
+	if err != nil {
+		t.Fatalf("CreateJob() error = %v", err)
+	}
+
+	promptStarted := make(chan struct{}, 1)
+	promptRelease := make(chan struct{})
+	creator := newRecordingSessionCreator(sessionAttemptPlan{
+		promptStarted: promptStarted,
+		promptRelease: promptRelease,
+	})
+	dispatcher := newTestDispatcher(t, creator, db)
+
+	dispatchCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	runCh := make(chan *Run, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		run, err := dispatcher.Dispatch(dispatchCtx, DispatchRequest{
+			Kind: DispatchKindSchedule,
+			Job:  &job,
+		})
+		runCh <- run
+		errCh <- err
+	}()
+
+	select {
+	case <-promptStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("dispatch did not reach Prompt() in time")
+	}
+
+	cancel()
+
+	var run *Run
+	select {
+	case run = <-runCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("dispatch did not return after cancellation")
+	}
+	if run == nil {
+		t.Fatal("Dispatch() run = nil, want populated")
+	}
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Dispatch() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("dispatch error channel did not return")
+	}
+
+	reloaded, err := db.GetRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRun() error = %v", err)
+	}
+	if got, want := reloaded.Status, RunCancelled; got != want {
+		t.Fatalf("GetRun().Status = %q, want %q", got, want)
+	}
+	if reloaded.EndedAt == nil {
+		t.Fatal("GetRun().EndedAt = nil, want populated")
+	}
+}
+
 func openAutomationIntegrationDB(t *testing.T, ctx context.Context) *globaldb.GlobalDB {
 	t.Helper()
 
