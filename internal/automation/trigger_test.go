@@ -11,6 +11,12 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
+type testStringer string
+
+func (s testStringer) String() string {
+	return string(s)
+}
+
 func TestTriggerEngineExactFilterMatchesActivationEnvelope(t *testing.T) {
 	t.Parallel()
 
@@ -463,6 +469,63 @@ func TestEnvelopeFilterValueHandlesNestedMapsAndScalarKinds(t *testing.T) {
 		if ok && got != tc.want {
 			t.Fatalf("envelopeFilterValue(%q) = %q, want %q", tc.path, got, tc.want)
 		}
+	}
+}
+
+func TestStringifyEnvelopeValueHandlesScalarKindsAndFallbacks(t *testing.T) {
+	t.Parallel()
+
+	recordedAt := time.Date(2026, 4, 11, 6, 45, 0, 123, time.UTC)
+	testCases := []struct {
+		name   string
+		value  any
+		want   string
+		wantOK bool
+	}{
+		{name: "nil", value: nil, wantOK: false},
+		{name: "string", value: "value", want: "value", wantOK: true},
+		{name: "int8", value: int8(-8), want: "-8", wantOK: true},
+		{name: "int16", value: int16(-16), want: "-16", wantOK: true},
+		{name: "int32", value: int32(-32), want: "-32", wantOK: true},
+		{name: "int64", value: int64(-64), want: "-64", wantOK: true},
+		{name: "uint", value: uint(8), want: "8", wantOK: true},
+		{name: "uint8", value: uint8(16), want: "16", wantOK: true},
+		{name: "uint16", value: uint16(32), want: "32", wantOK: true},
+		{name: "uint32", value: uint32(64), want: "64", wantOK: true},
+		{name: "uint64", value: uint64(128), want: "128", wantOK: true},
+		{name: "float32", value: float32(2.5), want: "2.5", wantOK: true},
+		{name: "time", value: recordedAt, want: recordedAt.Format(time.RFC3339Nano), wantOK: true},
+		{name: "stringer", value: testStringer("stringer-value"), want: "stringer-value", wantOK: true},
+		{name: "unsupported", value: struct{}{}, wantOK: false},
+	}
+
+	for _, tc := range testCases {
+		got, ok := stringifyEnvelopeValue(tc.value)
+		if ok != tc.wantOK {
+			t.Fatalf("stringifyEnvelopeValue(%s) ok = %v, want %v", tc.name, ok, tc.wantOK)
+		}
+		if got != tc.want {
+			t.Fatalf("stringifyEnvelopeValue(%s) = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestTriggerObserversHandleNilReceiversAndAgentEvents(t *testing.T) {
+	t.Parallel()
+
+	var sessionObserver *triggerSessionObserver
+	sessionObserver.OnSessionCreated(testutil.Context(t), nil)
+	sessionObserver.OnSessionStopped(testutil.Context(t), nil)
+	sessionObserver.OnAgentEvent(testutil.Context(t), "agent.event", map[string]any{"k": "v"})
+
+	var hookSink *triggerHookTelemetrySink
+	if err := hookSink.WriteHookRecord(testutil.Context(t), "sess", hookspkg.HookRunRecord{}); err != nil {
+		t.Fatalf("WriteHookRecord(nil engine) error = %v", err)
+	}
+
+	var memoryObserver *triggerMemoryObserver
+	if err := memoryObserver.OnMemoryConsolidated(testutil.Context(t), MemoryConsolidatedEvent{}); err != nil {
+		t.Fatalf("OnMemoryConsolidated(nil engine) error = %v", err)
 	}
 }
 

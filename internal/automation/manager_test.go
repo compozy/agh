@@ -329,6 +329,25 @@ func TestManagerStatusReportsCountsAndNextFire(t *testing.T) {
 	}
 }
 
+func TestManagerObserversHandleNilManagerAndAgentEvents(t *testing.T) {
+	t.Parallel()
+
+	var sessionObserver managerSessionObserver
+	sessionObserver.OnSessionCreated(testutil.Context(t), nil)
+	sessionObserver.OnSessionStopped(testutil.Context(t), nil)
+	sessionObserver.OnAgentEvent(testutil.Context(t), "agent.event", map[string]any{"k": "v"})
+
+	var hookSink managerHookTelemetrySink
+	if err := hookSink.WriteHookRecord(testutil.Context(t), "sess", hookspkg.HookRunRecord{}); err != nil {
+		t.Fatalf("WriteHookRecord(nil manager) error = %v", err)
+	}
+
+	var memoryObserver managerMemoryObserver
+	if err := memoryObserver.OnMemoryConsolidated(testutil.Context(t), MemoryConsolidatedEvent{}); err != nil {
+		t.Fatalf("OnMemoryConsolidated(nil manager) error = %v", err)
+	}
+}
+
 func TestManagerSetEnabledForConfigBackedDefinitionsUsesOverlaysOnly(t *testing.T) {
 	t.Parallel()
 
