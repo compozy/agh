@@ -204,6 +204,18 @@ func (s *Session) CurrentTurnSource() TurnSource {
 	return s.currentTurnSource
 }
 
+// IsPrompting reports whether the session currently has prompt setup or turn
+// execution in flight.
+func (s *Session) IsPrompting() bool {
+	if s == nil {
+		return false
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.promptSetupCount > 0 || s.currentTurnSource != ""
+}
+
 func (s *Session) setCurrentTurnSource(source TurnSource) {
 	if s == nil {
 		return

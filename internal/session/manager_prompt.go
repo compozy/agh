@@ -162,6 +162,10 @@ func (m *Manager) pumpPrompt(ctx context.Context, session *Session, turnState *p
 		if session != nil {
 			session.clearCurrentTurnSource()
 		}
+		notifier := m.currentTurnEndNotifier()
+		if notifier != nil && session != nil {
+			notifier(session.ID)
+		}
 	}()
 
 	for {

@@ -28,6 +28,9 @@ type PromptOpts struct {
 	TurnSource TurnSource
 }
 
+// TurnEndNotifier is invoked once after a prompt turn finishes dispatching.
+type TurnEndNotifier func(sessionID string)
+
 func normalizeTurnSource(source TurnSource) TurnSource {
 	switch TurnSource(strings.TrimSpace(string(source))) {
 	case "", TurnSourceUser:
