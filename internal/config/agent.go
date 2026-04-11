@@ -92,6 +92,12 @@ func LoadAgentDefFile(path string) (AgentDef, error) {
 	if err != nil {
 		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", path, err)
 	}
+	if err := mergeAgentMCPSidecar(filepath.Dir(path), &agent); err != nil {
+		return AgentDef{}, fmt.Errorf("load agent file %q MCP JSON: %w", path, err)
+	}
+	if err := agent.Validate(); err != nil {
+		return AgentDef{}, fmt.Errorf("validate agent file %q: %w", path, err)
+	}
 
 	return agent, nil
 }
@@ -306,4 +312,21 @@ func (e mappedFrontmatterError) Error() string {
 
 func (e mappedFrontmatterError) Unwrap() []error {
 	return e.causes
+}
+
+func mergeAgentMCPSidecar(dir string, agent *AgentDef) error {
+	if agent == nil {
+		return errors.New("agent is required")
+	}
+
+	servers, err := LoadMCPServersJSONFile(filepath.Join(strings.TrimSpace(dir), MCPJSONName))
+	if err != nil {
+		return err
+	}
+	if len(servers) == 0 {
+		return nil
+	}
+
+	agent.MCPServers = OverrideMCPServers(agent.MCPServers, servers)
+	return nil
 }

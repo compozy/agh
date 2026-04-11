@@ -145,7 +145,7 @@ func (c Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		Tools:       tools,
 		Permissions: permissions,
 		APIKeyEnv:   provider.APIKeyEnv,
-		MCPServers:  MergeMCPServers(provider.MCPServers, agent.MCPServers),
+		MCPServers:  MergeMCPServers(MergeMCPServers(c.MCPServers, provider.MCPServers), agent.MCPServers),
 		Prompt:      agent.Prompt,
 	}
 
@@ -192,6 +192,34 @@ func MergeMCPServers(base []MCPServer, overlay []MCPServer) []MCPServer {
 		name := strings.TrimSpace(server.Name)
 		if idx, ok := index[name]; ok && name != "" {
 			merged[idx] = mergeMCPServer(merged[idx], server)
+			continue
+		}
+
+		merged = append(merged, cloneMCPServer(server))
+		if name != "" {
+			index[name] = len(merged) - 1
+		}
+	}
+
+	return merged
+}
+
+// OverrideMCPServers overlays MCP servers by name, replacing the full server object
+// on collision instead of field-merging it.
+func OverrideMCPServers(base []MCPServer, overlay []MCPServer) []MCPServer {
+	merged := cloneMCPServers(base)
+	index := make(map[string]int, len(merged))
+	for i, server := range merged {
+		if strings.TrimSpace(server.Name) == "" {
+			continue
+		}
+		index[server.Name] = i
+	}
+
+	for _, server := range overlay {
+		name := strings.TrimSpace(server.Name)
+		if idx, ok := index[name]; ok && name != "" {
+			merged[idx] = cloneMCPServer(server)
 			continue
 		}
 

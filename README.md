@@ -136,6 +136,7 @@ AGH uses TOML configuration with global + workspace overlay:
 
 - **Global**: `~/.agh/config.toml`
 - **Workspace**: `.agh/config.toml` (merged on top)
+- **Optional MCP sidecars**: `~/.agh/mcp.json` and `.agh/mcp.json`
 
 ```toml
 [daemon]
@@ -155,6 +156,11 @@ max_concurrent_agents = 20
 
 [permissions]
 mode = "approve-all"      # deny-all | approve-reads | approve-all
+
+[[mcp_servers]]
+name = "filesystem"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
 [providers.claude]
 default_model = "claude-sonnet-4-20250514"
@@ -176,6 +182,8 @@ retention_days = 7
 level = "info"    # debug | info | warn | error
 ```
 
+`mcp_servers` at the top level applies to every session as a baseline before provider-specific MCP servers. If you prefer keeping MCP declarations out of TOML, AGH also auto-loads `mcp.json` from the same global or workspace `.agh/` directory. `mcp.json` accepts either `mcpServers` or `mcp_servers` as the top-level key.
+
 ## Agent Definitions
 
 Agents are defined via `AGENT.md` files with YAML frontmatter:
@@ -186,9 +194,15 @@ provider: claude
 model: claude-sonnet-4-20250514
 tools: [read, glob, grep, write, bash]
 permissions: approve-all
+mcp_servers:
+  - name: github
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
 ```
 
 `provider` and `model` may be omitted when the user-global defaults written by `agh install` should be used.
+
+Agents and skills are also self-contained MCP containers: AGH auto-loads `<agent-dir>/mcp.json` and `<skill-dir>/mcp.json` when present. If both inline declarations and `mcp.json` exist in the same container, AGH keeps both and lets the sidecar replace same-name servers.
 
 ## Web UI
 

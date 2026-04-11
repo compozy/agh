@@ -15,17 +15,7 @@ const legacyDreamAgentName = "claude"
 
 // LoadGlobalConfig loads only the user-global AGH config from the resolved home.
 func LoadGlobalConfig(homePaths HomePaths) (Config, error) {
-	cfg := DefaultWithHome(homePaths)
-	if err := ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
-		return Config{}, fmt.Errorf("load global config: %w", err)
-	}
-	if err := normalizeConfigPaths(&cfg); err != nil {
-		return Config{}, err
-	}
-	if err := cfg.Validate(); err != nil {
-		return Config{}, fmt.Errorf("validate config: %w", err)
-	}
-	return cfg, nil
+	return loadWithHome(homePaths, "", false)
 }
 
 // ResolveAgentName resolves an explicit session agent name or falls back to config defaults.
@@ -79,6 +69,9 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 	finalCfg := DefaultWithHome(homePaths)
 	if err := overlay.Apply(&finalCfg); err != nil {
 		return Config{}, fmt.Errorf("apply bootstrap config overlay: %w", err)
+	}
+	if err := applyConfigMCPSidecarFile(globalMCPJSONFile(homePaths), &finalCfg); err != nil {
+		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
 	}
 	if err := normalizeConfigPaths(&finalCfg); err != nil {
 		return Config{}, err

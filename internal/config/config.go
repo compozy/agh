@@ -129,6 +129,7 @@ type Config struct {
 	Limits        LimitsConfig              `toml:"limits"`
 	Session       SessionConfig             `toml:"session"`
 	Permissions   PermissionsConfig         `toml:"permissions"`
+	MCPServers    []MCPServer               `toml:"mcp_servers,omitempty"`
 	Providers     map[string]ProviderConfig `toml:"providers"`
 	Observability ObservabilityConfig       `toml:"observability"`
 	Log           LogConfig                 `toml:"log"`
@@ -224,9 +225,15 @@ func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool) 
 	if err := ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global config: %w", err)
 	}
+	if err := applyConfigMCPSidecarFile(globalMCPJSONFile(homePaths), &cfg); err != nil {
+		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
+	}
 	if workspaceRoot != "" {
 		if err := ApplyConfigOverlayFile(workspaceConfigFile(workspaceRoot), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load workspace config: %w", err)
+		}
+		if err := applyConfigMCPSidecarFile(workspaceMCPJSONFile(workspaceRoot), &cfg); err != nil {
+			return Config{}, fmt.Errorf("load workspace MCP JSON: %w", err)
 		}
 	}
 	if err := normalizeConfigPaths(&cfg); err != nil {
@@ -325,6 +332,11 @@ func (c Config) Validate() error {
 	}
 	if err := c.Permissions.Validate(); err != nil {
 		return err
+	}
+	for i, server := range c.MCPServers {
+		if err := server.Validate(fmt.Sprintf("mcp_servers[%d]", i)); err != nil {
+			return err
+		}
 	}
 	if err := c.Observability.Validate(); err != nil {
 		return err
@@ -559,6 +571,36 @@ func resolveWorkspaceRoot(root string) (string, error) {
 	}
 
 	return resolveAbsoluteDir(root)
+}
+
+func applyConfigMCPSidecarFile(path string, cfg *Config) error {
+	if cfg == nil {
+		return errors.New("config is required")
+	}
+
+	servers, err := LoadMCPServersJSONFile(path)
+	if err != nil {
+		return err
+	}
+	if len(servers) == 0 {
+		return nil
+	}
+
+	cfg.MCPServers = OverrideMCPServers(cfg.MCPServers, servers)
+	return nil
+}
+
+func globalMCPJSONFile(homePaths HomePaths) string {
+	return filepath.Join(homePaths.HomeDir, MCPJSONName)
+}
+
+func workspaceMCPJSONFile(root string) string {
+	trimmed := strings.TrimSpace(root)
+	if trimmed == "" {
+		return ""
+	}
+
+	return filepath.Join(trimmed, DirName, MCPJSONName)
 }
 
 func workspaceConfigFile(root string) string {

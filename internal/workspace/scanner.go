@@ -48,8 +48,14 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceSc
 	if err := addSnapshotIfExists(r.homePaths.ConfigFile, scan.snapshots); err != nil {
 		return workspaceScan{}, fmt.Errorf("workspace: snapshot global config %q: %w", r.homePaths.ConfigFile, err)
 	}
+	if err := addSnapshotIfExists(filepath.Join(r.homePaths.HomeDir, aghconfig.MCPJSONName), scan.snapshots); err != nil {
+		return workspaceScan{}, fmt.Errorf("workspace: snapshot global MCP JSON %q: %w", r.homePaths.HomeDir, err)
+	}
 	if err := addSnapshotIfExists(filepath.Join(ws.RootDir, aghconfig.DirName, aghconfig.ConfigName), scan.snapshots); err != nil {
 		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace config %q: %w", ws.RootDir, err)
+	}
+	if err := addSnapshotIfExists(filepath.Join(ws.RootDir, aghconfig.DirName, aghconfig.MCPJSONName), scan.snapshots); err != nil {
+		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace MCP JSON %q: %w", ws.RootDir, err)
 	}
 
 	for _, root := range aghconfig.WorkspaceDiscoveryRoots(ws.RootDir, ws.AdditionalDirs, r.homePaths) {
@@ -87,7 +93,11 @@ func scanAgentSource(root aghconfig.WorkspaceDiscoveryRoot, snapshots map[string
 			continue
 		}
 
+		agentDir := filepath.Join(agentsDir, entry.Name())
 		agentPath := filepath.Join(agentsDir, entry.Name(), agentDefinitionFile)
+		if err := addSnapshotIfExists(filepath.Join(agentDir, aghconfig.MCPJSONName), snapshots); err != nil {
+			return fmt.Errorf("workspace: snapshot agent MCP sidecar %q: %w", agentDir, err)
+		}
 		if err := addSnapshotIfExists(agentPath, snapshots); err != nil {
 			return fmt.Errorf("workspace: snapshot agent definition %q: %w", agentPath, err)
 		}
@@ -126,6 +136,9 @@ func scanSkillSource(root aghconfig.WorkspaceDiscoveryRoot, snapshots map[string
 		skillFile := filepath.Join(skillDir, skillDefinitionFile)
 		if err := addSnapshotIfExists(skillDir, snapshots); err != nil {
 			return fmt.Errorf("workspace: snapshot skill directory %q: %w", skillDir, err)
+		}
+		if err := addSnapshotIfExists(filepath.Join(skillDir, aghconfig.MCPJSONName), snapshots); err != nil {
+			return fmt.Errorf("workspace: snapshot skill MCP sidecar %q: %w", skillDir, err)
 		}
 		if err := addSnapshotIfExists(skillFile, snapshots); err != nil {
 			return fmt.Errorf("workspace: snapshot skill definition %q: %w", skillFile, err)

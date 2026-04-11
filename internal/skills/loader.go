@@ -77,7 +77,15 @@ func parseSkillFileDocument(path string) (*Skill, string, error) {
 		return nil, "", err
 	}
 
-	return parseSkillDocument(absPath, filepath.Dir(absPath), content, 0)
+	skill, body, err := parseSkillDocument(absPath, filepath.Dir(absPath), content, 0)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := mergeSkillMCPSidecarFile(filepath.Dir(absPath), skill); err != nil {
+		return nil, "", fmt.Errorf("skills: parse %q MCP JSON: %w", absPath, err)
+	}
+
+	return skill, body, nil
 }
 
 func readSkillFile(path string) (string, []byte, error) {

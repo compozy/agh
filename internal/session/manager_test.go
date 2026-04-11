@@ -1045,6 +1045,9 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 
 	h := newHarness(t)
 	skillRegistry := newFakeSkillRegistry()
+	h.cfg.MCPServers = []aghconfig.MCPServer{
+		{Name: "global", Command: "global-command"},
+	}
 	h.cfg.Providers["claude"] = aghconfig.ProviderConfig{
 		Command: "provider-command",
 		MCPServers: []aghconfig.MCPServer{
@@ -1092,20 +1095,23 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 	})
 
 	got := h.driver.startCalls[0].MCPServers
-	if len(got) != 4 {
-		t.Fatalf("start MCPServers = %#v, want 4 entries", got)
+	if len(got) != 5 {
+		t.Fatalf("start MCPServers = %#v, want 5 entries", got)
 	}
-	if got[0].Name != "base" || got[0].Command != "base-command" {
-		t.Fatalf("base MCP server = %#v", got[0])
+	if got[0].Name != "global" || got[0].Command != "global-command" {
+		t.Fatalf("global MCP server = %#v", got[0])
 	}
-	if got[1].Name != "override" || got[1].Command != "skill-override" {
-		t.Fatalf("override MCP server = %#v", got[1])
+	if got[1].Name != "base" || got[1].Command != "base-command" {
+		t.Fatalf("base MCP server = %#v", got[1])
 	}
-	if got[2].Name != "extra" || got[2].Command != "extra-command" {
-		t.Fatalf("extra MCP server = %#v", got[2])
+	if got[2].Name != "override" || got[2].Command != "skill-override" {
+		t.Fatalf("override MCP server = %#v", got[2])
 	}
-	if got[3].Name != "skill-extra" || got[3].Command != "skill-extra-command" {
-		t.Fatalf("skill-extra MCP server = %#v", got[3])
+	if got[3].Name != "extra" || got[3].Command != "extra-command" {
+		t.Fatalf("extra MCP server = %#v", got[3])
+	}
+	if got[4].Name != "skill-extra" || got[4].Command != "skill-extra-command" {
+		t.Fatalf("skill-extra MCP server = %#v", got[4])
 	}
 	if got := skillRegistry.callCount(); got != 1 {
 		t.Fatalf("skill registry call count = %d, want 1", got)

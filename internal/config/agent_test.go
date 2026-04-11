@@ -170,6 +170,54 @@ func TestLoadAgentDefFileMissingReturnsError(t *testing.T) {
 	}
 }
 
+func TestLoadAgentDefFileMergesMCPSidecar(t *testing.T) {
+	t.Parallel()
+
+	agentDir := filepath.Join(t.TempDir(), "coder")
+	agentPath := filepath.Join(agentDir, agentDefName)
+	writeFile(t, agentPath, `---
+name: coder
+provider: claude
+mcp_servers:
+  - name: inline-only
+    command: inline-only-command
+  - name: shared
+    command: inline-shared
+    args: ["--inline"]
+---
+
+Prompt.
+`)
+	writeFile(t, filepath.Join(agentDir, MCPJSONName), `{
+  "mcpServers": {
+    "shared": {
+      "command": "sidecar-shared"
+    },
+    "sidecar-only": {
+      "command": "sidecar-only-command"
+    }
+  }
+}`)
+
+	agent, err := LoadAgentDefFile(agentPath)
+	if err != nil {
+		t.Fatalf("LoadAgentDefFile() error = %v", err)
+	}
+
+	if got, want := len(agent.MCPServers), 3; got != want {
+		t.Fatalf("LoadAgentDefFile() MCPServers len = %d, want %d (%#v)", got, want, agent.MCPServers)
+	}
+	if got, want := agent.MCPServers[1].Command, "sidecar-shared"; got != want {
+		t.Fatalf("LoadAgentDefFile() shared.Command = %q, want %q", got, want)
+	}
+	if got := len(agent.MCPServers[1].Args); got != 0 {
+		t.Fatalf("LoadAgentDefFile() shared.Args = %#v, want sidecar whole-object replacement", agent.MCPServers[1].Args)
+	}
+	if got, want := agent.MCPServers[2].Name, "sidecar-only"; got != want {
+		t.Fatalf("LoadAgentDefFile() MCPServers[2].Name = %q, want %q", got, want)
+	}
+}
+
 func TestLoadAgentDefRejectsBlankAndMismatchedNames(t *testing.T) {
 	t.Parallel()
 

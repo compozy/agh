@@ -9,23 +9,28 @@ import (
 	"slices"
 	"strings"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/filesnap"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
 func recordSidecarSnapshots(paths []string, snapshots map[string]filesnap.Snapshot) error {
 	for _, skillPath := range paths {
-		sidecarPath := filepath.Join(filepath.Dir(skillPath), sidecarFileName)
-		snapshot, err := filesnap.FromPath(sidecarPath)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
+		for _, sidecarPath := range []string{
+			filepath.Join(filepath.Dir(skillPath), sidecarFileName),
+			filepath.Join(filepath.Dir(skillPath), aghconfig.MCPJSONName),
+		} {
+			snapshot, err := filesnap.FromPath(sidecarPath)
+			if err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					continue
+				}
+
+				return fmt.Errorf("skills: snapshot sidecar %q: %w", sidecarPath, err)
 			}
 
-			return fmt.Errorf("skills: snapshot provenance sidecar %q: %w", sidecarPath, err)
+			snapshots[sidecarPath] = snapshot
 		}
-
-		snapshots[sidecarPath] = snapshot
 	}
 
 	return nil
@@ -203,7 +208,15 @@ func parseBundledSkillDocument(fsys fs.FS, skillPath string) (*Skill, string, er
 		dir = ""
 	}
 
-	return parseSkillDocument(skillPath, dir, content, SourceBundled)
+	skill, body, err := parseSkillDocument(skillPath, dir, content, SourceBundled)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := mergeSkillMCPSidecarFS(fsys, dir, skill); err != nil {
+		return nil, "", fmt.Errorf("skills: parse bundled skill %q MCP JSON: %w", skillPath, err)
+	}
+
+	return skill, body, nil
 }
 
 func scanBundledFS(fsys fs.FS) ([]string, error) {
