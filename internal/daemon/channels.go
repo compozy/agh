@@ -193,9 +193,12 @@ func (r *channelRuntime) ResolveChannelRuntime(ctx context.Context, extensionNam
 		return nil, fmt.Errorf("daemon: resolve bound secrets for channel instance %q: %w", instance.ID, err)
 	}
 
-	launching, err := r.transitionInstance(ctx, instance.ID, true, channelspkg.ChannelStatusStarting, false, "launch")
-	if err != nil {
-		return nil, err
+	launching := instance
+	if !instance.Enabled || instance.Status.Normalize() != channelspkg.ChannelStatusStarting {
+		launching, err = r.transitionInstance(ctx, instance.ID, true, channelspkg.ChannelStatusStarting, false, "launch")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &subprocess.InitializeChannelRuntime{
@@ -359,7 +362,7 @@ func (r *channelRuntime) instanceForExtension(ctx context.Context, extensionName
 
 	switch len(matches) {
 	case 0:
-		return nil, fmt.Errorf("daemon: no enabled channel instance configured for extension %q", trimmed)
+		return nil, fmt.Errorf("%w: no enabled channel instance configured for extension %q", extensionpkg.ErrChannelRuntimeDeferred, trimmed)
 	case 1:
 		instance := matches[0]
 		return &instance, nil

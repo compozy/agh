@@ -57,7 +57,7 @@ type Manager struct {
 	mu         sync.RWMutex
 	sessions   map[string]*Session
 	pending    map[string]struct{}
-	finalizing map[string]struct{}
+	finalizing map[string]chan struct{}
 
 	logger        *slog.Logger
 	driver        AgentDriver
@@ -200,7 +200,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 	manager := &Manager{
 		sessions:   make(map[string]*Session),
 		pending:    make(map[string]struct{}),
-		finalizing: make(map[string]struct{}),
+		finalizing: make(map[string]chan struct{}),
 		logger:     slog.Default(),
 		driver:     NewACPDriverAdapter(acp.New()),
 		homePaths:  homePaths,
@@ -362,14 +362,17 @@ func (m *Manager) releaseReservation(id string) {
 func (m *Manager) remove(id string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if done, ok := m.finalizing[id]; ok {
+		close(done)
+	}
 	delete(m.sessions, id)
 	delete(m.pending, id)
 	delete(m.finalizing, id)
 }
 
-func (m *Manager) claimFinalization(session *Session) bool {
+func (m *Manager) claimFinalization(session *Session) (bool, <-chan struct{}) {
 	if session == nil {
-		return false
+		return false, nil
 	}
 
 	m.mu.Lock()
@@ -377,14 +380,15 @@ func (m *Manager) claimFinalization(session *Session) bool {
 
 	current, ok := m.sessions[session.ID]
 	if !ok || current != session {
-		return false
+		return false, nil
 	}
-	if _, ok := m.finalizing[session.ID]; ok {
-		return false
+	if done, ok := m.finalizing[session.ID]; ok {
+		return false, done
 	}
 
-	m.finalizing[session.ID] = struct{}{}
-	return true
+	done := make(chan struct{})
+	m.finalizing[session.ID] = done
+	return true, done
 }
 
 type maxSessionsReachedError struct {

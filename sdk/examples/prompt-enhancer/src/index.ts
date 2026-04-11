@@ -119,6 +119,7 @@ export function createExtension(options: ExtensionOptions = {}): Extension {
     await writeJSON(handshakePath, {
       request: session.initializeRequest,
       response: session.initializeResponse,
+      pid: process.pid,
     });
 
     try {
@@ -128,10 +129,12 @@ export function createExtension(options: ExtensionOptions = {}): Extension {
       await writeJSON(hostCallPath, {
         session_count: sessions.length,
         sessions,
+        pid: process.pid,
       });
     } catch (error) {
       await writeJSON(hostCallPath, {
         error: error instanceof Error ? error.message : String(error),
+        pid: process.pid,
       });
     }
 

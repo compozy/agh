@@ -135,7 +135,7 @@ func TestGlobalDBGetTriggerByWebhookIDUsesStableID(t *testing.T) {
 
 	globalDB := openTestGlobalDB(t)
 	trigger := automationWebhookTriggerForTest(automation.AutomationScopeGlobal, "deploy-review", "", automation.JobSourceDynamic)
-	trigger.WebhookID = "webhook-stable-001"
+	trigger.WebhookID = "wbh_stable-001"
 	trigger.EndpointSlug = "deploy-review-v1"
 
 	created, err := globalDB.CreateTrigger(testutil.Context(t), trigger)
@@ -149,7 +149,7 @@ func TestGlobalDBGetTriggerByWebhookIDUsesStableID(t *testing.T) {
 		t.Fatalf("UpdateTrigger() error = %v", err)
 	}
 
-	lookedUp, err := globalDB.GetTriggerByWebhookID(testutil.Context(t), "webhook-stable-001")
+	lookedUp, err := globalDB.GetTriggerByWebhookID(testutil.Context(t), "wbh_stable-001")
 	if err != nil {
 		t.Fatalf("GetTriggerByWebhookID() error = %v", err)
 	}
@@ -159,7 +159,7 @@ func TestGlobalDBGetTriggerByWebhookIDUsesStableID(t *testing.T) {
 	if got, want := lookedUp.EndpointSlug, "deploy-review-renamed"; got != want {
 		t.Fatalf("trigger.EndpointSlug = %q, want %q", got, want)
 	}
-	if got, want := lookedUp.WebhookID, "webhook-stable-001"; got != want {
+	if got, want := lookedUp.WebhookID, "wbh_stable-001"; got != want {
 		t.Fatalf("trigger.WebhookID = %q, want %q", got, want)
 	}
 }
@@ -318,7 +318,7 @@ func TestGlobalDBTriggerEnabledOverlayDoesNotMutateDefinition(t *testing.T) {
 	}
 
 	dynamicTriggerDef := automationWebhookTriggerForTest(automation.AutomationScopeWorkspace, "dynamic-trigger", workspaceID, automation.JobSourceDynamic)
-	dynamicTriggerDef.WebhookID = "dynamic-trigger-webhook"
+	dynamicTriggerDef.WebhookID = "wbh_dynamic-trigger-webhook"
 	dynamicTriggerDef.EndpointSlug = "dynamic-trigger-endpoint"
 	dynamicTrigger, err := globalDB.CreateTrigger(testutil.Context(t), dynamicTriggerDef)
 	if err != nil {
@@ -346,25 +346,25 @@ func TestGlobalDBTriggerUniquenessAndWebhookIDConstraints(t *testing.T) {
 	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "automation-trigger-constraints", t.TempDir())
 
 	globalWebhook := automationWebhookTriggerForTest(automation.AutomationScopeGlobal, "deploy-review", "", automation.JobSourceDynamic)
-	globalWebhook.WebhookID = "stable-webhook-a"
+	globalWebhook.WebhookID = "wbh_stable-webhook-a"
 	if _, err := globalDB.CreateTrigger(testutil.Context(t), globalWebhook); err != nil {
 		t.Fatalf("CreateTrigger(globalWebhook) error = %v", err)
 	}
 
 	workspaceTrigger := automationWebhookTriggerForTest(automation.AutomationScopeWorkspace, "deploy-review", workspaceID, automation.JobSourceDynamic)
-	workspaceTrigger.WebhookID = "stable-webhook-b"
+	workspaceTrigger.WebhookID = "wbh_stable-webhook-b"
 	if _, err := globalDB.CreateTrigger(testutil.Context(t), workspaceTrigger); err != nil {
 		t.Fatalf("CreateTrigger(workspace same name) error = %v", err)
 	}
 
 	duplicateName := automationWebhookTriggerForTest(automation.AutomationScopeGlobal, "deploy-review", "", automation.JobSourceDynamic)
-	duplicateName.WebhookID = "stable-webhook-c"
+	duplicateName.WebhookID = "wbh_stable-webhook-c"
 	if _, err := globalDB.CreateTrigger(testutil.Context(t), duplicateName); !errors.Is(err, automation.ErrTriggerNameTaken) {
 		t.Fatalf("CreateTrigger(duplicate name) error = %v, want ErrTriggerNameTaken", err)
 	}
 
 	duplicateWebhook := automationWebhookTriggerForTest(automation.AutomationScopeWorkspace, "another-name", workspaceID, automation.JobSourceDynamic)
-	duplicateWebhook.WebhookID = "stable-webhook-a"
+	duplicateWebhook.WebhookID = "wbh_stable-webhook-a"
 	if _, err := globalDB.CreateTrigger(testutil.Context(t), duplicateWebhook); !errors.Is(err, automation.ErrTriggerWebhookIDTaken) {
 		t.Fatalf("CreateTrigger(duplicate webhook) error = %v, want ErrTriggerWebhookIDTaken", err)
 	}
@@ -546,7 +546,7 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 		Enabled:   true,
 		Retry:     automation.DefaultRetryConfig(),
 		FireLimit: automation.DefaultFireLimitConfig(),
-		WebhookID: "helper-webhook",
+		WebhookID: "wbh_helper-webhook",
 	})
 	if err != nil {
 		t.Fatalf("normalizeTriggerForCreate() error = %v", err)
@@ -842,7 +842,7 @@ func automationWebhookTriggerForTest(scope automation.AutomationScope, name stri
 		Retry:        automation.DefaultRetryConfig(),
 		FireLimit:    automation.DefaultFireLimitConfig(),
 		Source:       source,
-		WebhookID:    "webhook-default",
+		WebhookID:    "wbh_default",
 		EndpointSlug: "endpoint-default",
 		CreatedAt:    createdAt,
 		UpdatedAt:    createdAt,

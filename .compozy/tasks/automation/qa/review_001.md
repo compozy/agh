@@ -2,70 +2,37 @@
 
 Date: 2026-04-11
 Scope: `.compozy/tasks/automation`
-Method: real daemon + CLI + HTTP usage against the branch implementation
+Method: real daemon + CLI + HTTP webhook usage with a live `codex` agent
 
-## Issue 1: automation runs complete but leave system sessions active
+## Confirmed Issues
 
-- Severity: high
-- Status: resolved
-- Surfaces: dispatcher, session lifecycle, runtime health
-
-### Reproduction
-
-1. Start the daemon with automation enabled and a real `codex` agent.
-2. Create a dynamic automation job and trigger it.
-3. Wait for the run to reach `status = "completed"`.
-4. Inspect `agh session list` or `GET /api/observe/health`.
-
-### Observed
-
-- Completed automation runs keep their created system sessions in `state = "active"`.
-- Repeating the same job accumulates leaked active sessions.
-- Runtime health showed `active_sessions` climbing from `1` to `2` after two successful runs.
-
-### Expected
-
-- When an automation run reaches a terminal state, its system session must also be driven to a terminal stopped state.
-
-### Root Cause
-
-- `internal/automation/dispatch.go` marks the run as completed after prompt collection finishes, but it never stops the created session.
-
-### Resolution
-
-- The dispatcher now explicitly stops automation-created sessions on terminal run states.
-- Successful runs stop with `completed`; failed runs stop with an error-classified cause.
-- Regression tests now assert that terminal automation runs also invoke session shutdown.
-
-## Issue 2: config-backed webhook triggers are listed but not actually registered
+### 1. Manual `webhook_id` overrides can create dead webhook endpoints that the runtime will always reject
 
 - Severity: high
-- Status: resolved
-- Surfaces: config sync, runtime registration, webhook ingress
+- Status: fixed in this run
+- Surfaces: trigger create/update validation, external webhook ingress
+- Reproduction:
+  1. Start the daemon with automation enabled.
+  2. Run:
+     - `agh automation triggers create --name qa-webhook --scope global --event webhook --agent qa-codex --prompt '...' --endpoint-slug qa-endpoint --webhook-id qa-webhook-id --webhook-secret qa-secret --enabled`
+  3. POST a correctly signed request to:
+     - `/api/webhooks/global/qa-endpoint--qa-webhook-id`
+- Expected:
+  - If the CLI/API accepts a manual `webhook_id`, the created public endpoint must be valid and dispatchable.
+  - Otherwise creation should fail fast with validation.
+- Actual:
+  - Trigger creation succeeds and the trigger is listed as enabled.
+  - The public endpoint rejects every request with:
+    - `automation validation error: automation: invalid webhook endpoint: webhook id "qa-webhook-id" must start with "wbh_"`
+- Notes:
+  - This is a contract mismatch between definition validation and runtime endpoint parsing.
+  - Dynamic webhook triggers created without a manual override worked correctly in the same environment.
 
-### Reproduction
+## Verified Non-Issues In This Run
 
-1. Define a config-backed webhook trigger under `automation.triggers`.
-2. Start the daemon and list triggers through CLI/API.
-3. POST to the advertised webhook endpoint.
-
-### Observed
-
-- The trigger is persisted and listed as enabled.
-- The webhook endpoint returns `404` with `automation: webhook trigger not registered`.
-- Daemon logs show `automation.trigger.skipped_webhook_registration`.
-
-### Expected
-
-- A config-backed webhook trigger must either register successfully with a usable secret source, or be rejected during config load/sync so the system never exposes a dead endpoint.
-
-### Root Cause
-
-- Config triggers currently have no secure secret source, but the runtime registration path requires one.
-- The manager silently skips runtime registration while still surfacing the trigger as available.
-
-### Resolution
-
-- Config-backed webhook triggers now require `webhook_secret_env`.
-- Config validation fails fast if the env var is missing or empty.
-- The automation manager sync persists the resolved secret into write-only trigger secret storage so runtime registration succeeds on startup and sync.
+- Dynamic automation jobs complete and their system sessions are stopped correctly after completion.
+- Dynamic webhook triggers without a manual `webhook_id` override work end-to-end with signed HTTP delivery.
+- Config-backed webhook triggers with `webhook_secret_env` set work end-to-end after daemon restart.
+- After the fix above:
+  - `agh automation triggers create ... --webhook-id qa-webhook-id` now fails fast with `trigger.webhook_id must start with "wbh_"`
+  - a real signed webhook dispatch with a live `qa-codex` agent completed successfully, produced `matched=1`, and left `active_sessions=0`

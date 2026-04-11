@@ -411,6 +411,18 @@ func TestChannelRuntimeResolveChannelRuntime(t *testing.T) {
 			t.Fatalf("instance status after failed secret resolution = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("ShouldDeferWhenNoEnabledInstanceExistsForExtension", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		runtime := newChannelRuntime(db, discardLogger(), nil, nil)
+
+		_, err := runtime.ResolveChannelRuntime(testutil.Context(t), "ext-missing")
+		if !errors.Is(err, extensionpkg.ErrChannelRuntimeDeferred) {
+			t.Fatalf("ResolveChannelRuntime() error = %v, want deferred sentinel", err)
+		}
+	})
 }
 
 func TestChannelRuntimeStopInstance(t *testing.T) {

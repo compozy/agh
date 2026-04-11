@@ -37,6 +37,13 @@ const (
 	extensionHookSource            = hookspkg.HookSourceConfig
 )
 
+var (
+	// ErrChannelRuntimeDeferred reports that a channel-capable extension is
+	// installed and registered, but no enabled channel instance exists yet for
+	// the runtime launch handshake.
+	ErrChannelRuntimeDeferred = errors.New("extension: channel runtime deferred")
+)
+
 var safeSubprocessEnvKeys = []string{
 	"PATH",
 	"HOME",
@@ -902,6 +909,19 @@ func (m *Manager) initializeExtension(ctx context.Context, ext *managedExtension
 
 	process, response, runtime, healthInterval, err := m.launchRuntime(ctx, ext)
 	if err != nil {
+		if errors.Is(err, ErrChannelRuntimeDeferred) {
+			m.mu.Lock()
+			ext.process = nil
+			ext.initialize = nil
+			ext.runtime = subprocess.InitializeRuntime{}
+			ext.healthInterval = 0
+			ext.awaitingStability = false
+			ext.lastStartedAt = time.Time{}
+			ext.phase = ExtensionPhaseInitialize
+			ext.lastError = ""
+			m.mu.Unlock()
+			return nil
+		}
 		m.setFailure(ext, ExtensionPhaseInitialize, err)
 		return phaseError(ext.info.Name, ExtensionPhaseInitialize, err)
 	}

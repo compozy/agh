@@ -146,7 +146,20 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	if session == nil {
 		return nil
 	}
-	if !m.claimFinalization(session) {
+	owned, done := m.claimFinalization(session)
+	if !owned {
+		if done == nil {
+			return nil
+		}
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	if done == nil {
 		return nil
 	}
 

@@ -325,6 +325,7 @@ func (r *secretGuardRuntime) handleInitialize(params json.RawMessage) (any, erro
 	writeJSONFile(os.Getenv(goHandshakeEnv), map[string]any{
 		"request":  request,
 		"response": response,
+		"pid":      os.Getpid(),
 	})
 
 	go r.afterInitialize()
@@ -344,6 +345,7 @@ func (r *secretGuardRuntime) afterInitialize() {
 		marker["session_count"] = len(summaries)
 		marker["sessions"] = summaries
 	}
+	marker["pid"] = os.Getpid()
 	writeJSONFile(os.Getenv(goHostCallEnv), marker)
 
 	crashMarker := strings.TrimSpace(os.Getenv(goCrashOnceEnv))

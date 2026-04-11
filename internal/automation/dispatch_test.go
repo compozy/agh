@@ -980,7 +980,7 @@ func testTrigger(scope AutomationScope, name string, workspaceID string) Trigger
 		Retry:       DefaultRetryConfig(),
 		FireLimit:   DefaultFireLimitConfig(),
 		Source:      JobSourceDynamic,
-		WebhookID:   "webhook-" + name,
+		WebhookID:   "wbh_" + name,
 	}
 }
 

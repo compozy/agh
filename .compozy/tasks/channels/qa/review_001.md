@@ -2,58 +2,56 @@
 
 Date: 2026-04-11
 Scope: `.compozy/tasks/channels`
-Mode: operator-style QA using real CLI/daemon flows plus integration verification
+Method: real daemon + CLI flows, adapter runtime markers, targeted integration stress
 
 ## Confirmed Issues
 
-### 1. Enabled channel creation does not start or recover the adapter runtime
+### 1. Installing or enabling a channel adapter while the daemon is running leaves the extension in an error state before any channel exists
 
 - Severity: high
-- Scope: channels runtime / operator flow
+- Status: fixed in this run
+- Surfaces: extension install/enable flow, channel adapter lifecycle
 - Reproduction:
-  1. Build and install `sdk/examples/telegram-reference`.
-  2. Start an isolated daemon with its own `AGH_HOME`.
-  3. Run `agh channel create --scope global --platform telegram --extension telegram-reference --display-name 'QA Telegram' --include-peer`.
-  4. Run `agh channel get <id>`, `agh extension status telegram-reference`, and `agh observe health`.
+  1. Start an isolated daemon with `AGH_HOME=/tmp/...`.
+  2. Run `agh extension install ./sdk/examples/telegram-reference`.
+  3. Inspect `agh extension status telegram-reference`.
 - Expected:
-  - The enabled channel should trigger extension reload/start automatically.
-  - The channel should transition out of `starting` once the adapter reports state.
-  - The extension should recover from the initial "no enabled channel instance" condition on its own.
+  - Installing or enabling a channel adapter before any channel instance exists should succeed without surfacing a hard runtime error.
+  - The extension may stay idle/registered until a channel is created, but it should not be marked unhealthy.
 - Actual:
-  - The channel remains stuck in `starting`.
-  - The extension remains `state=error`, `health=unhealthy`, with:
+  - Install/enable tries to initialize the adapter immediately.
+  - The extension transitions to `state=error`, `health=unhealthy`, with:
     - `extension: resolve channel runtime for "telegram-reference": daemon: no enabled channel instance configured for extension "telegram-reference"`
-  - A manual `agh channel restart <id>` immediately recovers the flow and moves the channel to `auth_required`.
+  - If the install is executed through the daemon-backed path, the CLI command itself fails.
 - Notes:
-  - This is a real user-facing lifecycle bug.
-  - Root-cause hypothesis from code inspection: create persists the channel instance but does not execute the daemon runtime reload/start path used by `enable` / `restart`.
+  - This is a real operator-facing bug in the happy path for installing channel adapters.
+  - Creating the channel afterward does recover the extension, so the broken behavior is specifically the premature launch attempt.
 
-### 2. Installing a local extension directory fails when common package-manager symlinks exist
+### 2. Fast prompt output can race prompt-delivery registration and drop the final projected sequence
 
 - Severity: medium
-- Scope: extension install path discovered during wide QA run
-- Reproduction:
-  1. Use a fresh `AGH_HOME`.
-  2. Run `agh extension install sdk/examples/prompt-enhancer`.
-- Expected:
-  - Local extension installation should succeed for a standard checked-out example directory, or at least ignore transient developer-managed payloads like `node_modules/.bin/*` symlinks.
-- Actual:
-  - Install fails with:
-    - `extension: symlinks are not allowed in extension payload "/.../sdk/examples/prompt-enhancer/node_modules/.bin/tsc"`
-- Notes:
-  - This is also reproducible via `go test -tags integration ./internal/extension -run TestReferenceExtensionsEndToEnd`.
-  - This issue is broader than channels, but it surfaced during the required wide QA pass.
-
-### 3. Fast prompt output can race delivery registration and drop the final projected sequence
-
-- Severity: medium
-- Scope: channel delivery projection / channel ingest lifecycle
+- Status: fixed in this run
+- Surfaces: channel delivery projection, prompt-to-broker handoff
 - Reproduction:
   1. Run `go test -tags integration ./internal/extension -run TestChannelDeliveryIntegrationSlowAdapterCoalescesIntermediateDeltas -count=50`.
 - Expected:
-  - Even when adapter delivery is slow and deltas are coalesced, the final delivery event should still represent the latest projected state and keep `seq=5`.
+  - Even with a slow adapter and broker coalescing, the last delivery event should still be the terminal state with `seq=5`.
 - Actual:
   - The test flakes with:
     - `last delivery seq = 4, want 5`
+  - In the broader integration suite this also shows up as the ordered-delivery test ending on `delta` instead of `final`.
 - Notes:
-  - Root-cause hypothesis from debugging: `channels/messages/ingest` starts the prompt before registering the prompt delivery, then only seeds from a partial event snapshot. Fast prompt events can land between the initial seed read and the later `RegisterPromptDelivery`, causing one projected event to be lost before the broker is attached.
+  - Root-cause hypothesis from code inspection: `channels/messages/ingest` starts the prompt, waits to collect seed events, and only then registers the delivery. Very fast ACP events can be emitted before registration and only partially persisted by the time replay runs, so one terminal event is lost.
+
+## Verified Non-Issues In This Run
+
+- Creating an enabled channel after the adapter is already installed now recovers correctly:
+  - `agh channel create ... --extension telegram-reference`
+  - channel transitions from `starting` to `auth_required`
+  - `agh extension status telegram-reference` becomes `active` / `healthy`
+- After the fixes above:
+  - `agh extension install ./sdk/examples/telegram-reference` with the daemon already running now succeeds and leaves the extension `registered` instead of `error`
+  - targeted integration stress passed:
+    - `go test -tags integration ./internal/extension -run 'TestChannelDeliveryIntegration(SlowAdapterCoalescesIntermediateDeltas|PromptProducesOrderedDeliveryStream)' -count=50`
+    - `go test -tags integration ./internal/daemon -run TestCreateEnabledChannelAfterBootReloadsErroredExtension -count=20`
+- The previous local install failure for `sdk/examples/prompt-enhancer` caused by `node_modules/.bin/*` symlinks did not reproduce in this run.

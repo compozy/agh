@@ -421,25 +421,54 @@ func (h *HostAPIHandler) replayPromptDeliveryEvents(ctx context.Context, session
 		return nil
 	}
 
-	events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{TurnID: turnID})
-	if err != nil {
-		return err
-	}
-	for _, storedEvent := range events {
-		projected, err := promptProjectionEventFromStoredEvent(storedEvent)
+	const (
+		replayPollInterval = 5 * time.Millisecond
+		replayPollWindow   = 30 * time.Millisecond
+	)
+
+	deadline := h.now().Add(replayPollWindow)
+	for {
+		events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{TurnID: turnID})
 		if err != nil {
 			return err
 		}
-		switch projected.Type {
-		case acp.EventTypeAgentMessage, acp.EventTypeDone, acp.EventTypeError:
-		default:
-			continue
+
+		hasTerminal := false
+		for _, storedEvent := range events {
+			projected, err := promptProjectionEventFromStoredEvent(storedEvent)
+			if err != nil {
+				return err
+			}
+			switch projected.Type {
+			case acp.EventTypeAgentMessage, acp.EventTypeDone, acp.EventTypeError:
+			default:
+				continue
+			}
+			if err := h.deliveryBroker.ProjectEvent(ctx, sessionID, projected); err != nil {
+				return err
+			}
+			if projected.Type == acp.EventTypeDone || projected.Type == acp.EventTypeError {
+				hasTerminal = true
+			}
 		}
-		if err := h.deliveryBroker.ProjectEvent(ctx, sessionID, projected); err != nil {
-			return err
+
+		if hasTerminal || !h.now().Before(deadline) {
+			return nil
+		}
+
+		timer := time.NewTimer(replayPollInterval)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return ctx.Err()
 		}
 	}
-	return nil
 }
 
 func (h *HostAPIHandler) createChannelSession(ctx context.Context, instance channelspkg.ChannelInstance) (*session.Session, error) {

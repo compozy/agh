@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 )
@@ -371,6 +372,9 @@ func (p *Process) waitForExit() {
 	p.setState(processStateStopped)
 
 	transportErr := p.currentTransportError()
+	if p.stopWasRequested() && isBenignTransportShutdownError(transportErr) {
+		transportErr = nil
+	}
 	if waitErr == nil && transportErr != nil {
 		waitErr = transportErr
 	} else if waitErr != nil && transportErr != nil {
@@ -467,6 +471,16 @@ func attachStderr(err error, stderr string) error {
 		return err
 	}
 	return fmt.Errorf("%w: stderr=%s", err, stderr)
+}
+
+func isBenignTransportShutdownError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, os.ErrClosed) {
+		return true
+	}
+	return strings.Contains(err.Error(), "file already closed")
 }
 
 func (cfg LaunchConfig) defaultShutdownReason() string {

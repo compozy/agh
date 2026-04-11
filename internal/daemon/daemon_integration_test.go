@@ -1313,9 +1313,9 @@ func TestCreateEnabledChannelAfterBootReloadsErroredExtension(t *testing.T) {
 		t.Fatal("boot() did not publish the channel runtime")
 	}
 
-	waitForCondition(t, "channel extension enters no-instance error state", func() bool {
+	waitForCondition(t, "channel extension stays registered until an instance exists", func() bool {
 		ext, err := d.extensions.Get(extensionName)
-		return err == nil && ext != nil && !ext.Status.Active && strings.Contains(ext.Status.LastError, "no enabled channel instance configured")
+		return err == nil && ext != nil && ext.Status.Registered && !ext.Status.Active && ext.Status.LastError == ""
 	})
 	if got := markerLineCount(markerPath); got != 0 {
 		t.Fatalf("initialize marker count before create = %d, want 0", got)

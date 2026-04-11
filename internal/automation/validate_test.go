@@ -574,6 +574,22 @@ func TestTriggerValidate(t *testing.T) {
 			wantErr: "endpoint_slug",
 		},
 		{
+			name: "webhook invalid webhook id prefix",
+			trigger: Trigger{
+				Scope:        AutomationScopeGlobal,
+				Name:         "deploy",
+				AgentName:    "reviewer",
+				Prompt:       `{{ .Kind }}`,
+				Event:        "webhook",
+				Retry:        DefaultRetryConfig(),
+				FireLimit:    DefaultFireLimitConfig(),
+				Source:       JobSourceConfig,
+				EndpointSlug: "deploy-review",
+				WebhookID:    "qa-webhook-id",
+			},
+			wantErr: "webhook_id",
+		},
+		{
 			name: "invalid prompt invalid",
 			trigger: Trigger{
 				Scope:     AutomationScopeGlobal,

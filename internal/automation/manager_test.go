@@ -1246,7 +1246,7 @@ func TestManagerWebhookSecretHelpers(t *testing.T) {
 		FireLimit:    DefaultFireLimitConfig(),
 		Source:       JobSourceDynamic,
 		EndpointSlug: "secret-helpers",
-		WebhookID:    "wbh-secret-helpers",
+		WebhookID:    "wbh_secret-helpers",
 	}
 	if _, err := h.db.CreateTrigger(h.ctx, webhookTrigger); err != nil {
 		t.Fatalf("CreateTrigger(webhook) error = %v", err)

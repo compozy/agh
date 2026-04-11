@@ -1222,7 +1222,7 @@ func (h *HostAPIHandler) submitPrompt(ctx context.Context, sessionID string, mes
 		return hostAPIPromptSubmission{}, errors.New("extension: prompt turn id not found after prompt submission")
 	}
 
-	seedEvents, err := h.loadPromptSeedEvents(ctx, sessionID, lastSequence, turnID)
+	seedEvents, err := promptSeedEventsFromStoredEvents(events, turnID)
 	if err != nil {
 		return hostAPIPromptSubmission{}, err
 	}
@@ -1233,59 +1233,28 @@ func (h *HostAPIHandler) submitPrompt(ctx context.Context, sessionID string, mes
 	}, nil
 }
 
-func (h *HostAPIHandler) loadPromptSeedEvents(
-	ctx context.Context,
-	sessionID string,
-	lastSequence int64,
+func promptSeedEventsFromStoredEvents(
+	events []store.SessionEvent,
 	turnID string,
 ) ([]channelspkg.DeliveryProjectionEvent, error) {
-	const (
-		seedPollInterval = 5 * time.Millisecond
-		seedPollWindow   = 30 * time.Millisecond
-	)
+	turnID = strings.TrimSpace(turnID)
+	if turnID == "" || len(events) == 0 {
+		return nil, nil
+	}
 
-	deadline := h.now().Add(seedPollWindow)
-	for {
-		events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{
-			TurnID:        turnID,
-			AfterSequence: lastSequence,
-		})
+	seedEvents := make([]channelspkg.DeliveryProjectionEvent, 0, len(events))
+	for _, storedEvent := range events {
+		if strings.TrimSpace(storedEvent.TurnID) != turnID {
+			continue
+		}
+
+		projected, err := promptProjectionEventFromStoredEvent(storedEvent)
 		if err != nil {
 			return nil, err
 		}
-
-		seedEvents := make([]channelspkg.DeliveryProjectionEvent, 0, len(events))
-		hasProjectedEvent := false
-		for _, storedEvent := range events {
-			projected, decodeErr := promptProjectionEventFromStoredEvent(storedEvent)
-			if decodeErr != nil {
-				return nil, decodeErr
-			}
-
-			seedEvents = append(seedEvents, projected)
-			switch projected.Type {
-			case acp.EventTypeAgentMessage, acp.EventTypeDone, acp.EventTypeError:
-				hasProjectedEvent = true
-			}
-		}
-
-		if hasProjectedEvent || !h.now().Before(deadline) {
-			return seedEvents, nil
-		}
-
-		timer := time.NewTimer(seedPollInterval)
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
-			return nil, ctx.Err()
-		}
+		seedEvents = append(seedEvents, projected)
 	}
+	return seedEvents, nil
 }
 
 func promptProjectionEventFromStoredEvent(storedEvent store.SessionEvent) (channelspkg.DeliveryProjectionEvent, error) {

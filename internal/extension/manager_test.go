@@ -265,6 +265,57 @@ func TestManagerStartChannelAdapterRequiresScopedLaunchRuntime(t *testing.T) {
 	}
 }
 
+func TestManagerStartChannelAdapterDefersUntilRuntimeExists(t *testing.T) {
+	t.Parallel()
+
+	withDaemonVersion(t, "0.5.0")
+	env := newRegistryTestEnv(t)
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-channel-deferred", managerManifestOptions{
+		command:      "fake-extension",
+		capabilities: []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
+		},
+		security: []string{"channel.read"},
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+	launcher := &fakeLauncher{}
+	manager := NewManager(
+		env.registry,
+		WithChannelRuntimeResolver(&stubChannelRuntimeResolver{err: ErrChannelRuntimeDeferred}),
+		withProcessLauncher(launcher.launch),
+	)
+
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	if got := launcher.launchCount(); got != 0 {
+		t.Fatalf("launch count = %d, want 0 while runtime is deferred", got)
+	}
+
+	loaded, err := manager.Get("ext-channel-deferred")
+	if err != nil {
+		t.Fatalf("Get(ext-channel-deferred) error = %v", err)
+	}
+	if loaded.Status.Active {
+		t.Fatal("Get(ext-channel-deferred).Status.Active = true, want false")
+	}
+	if !loaded.Status.Registered {
+		t.Fatal("Get(ext-channel-deferred).Status.Registered = false, want true")
+	}
+	if loaded.Status.LastError != "" {
+		t.Fatalf("Get(ext-channel-deferred).Status.LastError = %q, want empty", loaded.Status.LastError)
+	}
+}
+
 func TestManagerStartSkipsDisabledExtensions(t *testing.T) {
 	t.Parallel()
 
