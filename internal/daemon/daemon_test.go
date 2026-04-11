@@ -23,6 +23,7 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
@@ -301,6 +302,11 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 			events = append(events, "extensions")
 		},
 	}
+	d.automation = &fakeAutomationManager{
+		onShutdown: func() {
+			events = append(events, "automation")
+		},
+	}
 	d.sessions = &fakeSessionManager{
 		infos: []*session.SessionInfo{{ID: "sess-a"}, {ID: "sess-b"}},
 		onStop: func(id string) {
@@ -336,7 +342,7 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 
-	want := []string{"extensions", "session:sess-a", "session:sess-b", "hooks", "http", "uds", "db", "lock", "logger"}
+	want := []string{"extensions", "automation", "session:sess-a", "session:sess-b", "hooks", "http", "uds", "db", "lock", "logger"}
 	if !testutil.EqualStringSlices(events, want) {
 		t.Fatalf("Shutdown() order = %#v, want %#v", events, want)
 	}
@@ -515,6 +521,162 @@ func TestBootExtensionsLogsStartFailureAndContinues(t *testing.T) {
 	}
 	if !strings.Contains(logBuffer.String(), "extension manager start failed") {
 		t.Fatalf("log output = %q, want extension start failure message", logBuffer.String())
+	}
+}
+
+func TestBootAutomationBuildsManagerDepsAndAttachesHookBoundary(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Automation.Enabled = true
+
+	resolver, err := workspacepkg.NewResolver(
+		db,
+		workspacepkg.WithHomePaths(homePaths),
+		workspacepkg.WithLogger(discardLogger()),
+		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
+			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewResolver() error = %v", err)
+	}
+
+	baseLifecycle := &recordingNotifier{}
+	managerLifecycle := &recordingNotifier{}
+	baseTelemetry := &recordingHookTelemetrySink{}
+	managerTelemetry := &recordingHookTelemetrySink{}
+	manager := &fakeAutomationManager{
+		sessionObserver:   managerLifecycle,
+		hookTelemetrySink: managerTelemetry,
+		status:            automationpkg.ManagerStatus{Running: true, SchedulerRunning: true},
+	}
+
+	var captured automationManagerDeps
+	d := newTestDaemon(t, homePaths, cfg)
+	d.newAutomationManager = func(deps automationManagerDeps) (automationRuntime, error) {
+		captured = deps
+		return manager, nil
+	}
+
+	state := &bootState{
+		cfg:                cfg,
+		logger:             discardLogger(),
+		registry:           db,
+		sessions:           &fakeSessionManager{},
+		workspaceResolver:  resolver,
+		lifecycleObservers: newSessionLifecycleFanout(baseLifecycle),
+		hookTelemetrySinks: newHookTelemetryFanout(baseTelemetry),
+	}
+	cleanup := &bootCleanup{}
+
+	if err := d.bootAutomation(testutil.Context(t), state, cleanup); err != nil {
+		t.Fatalf("bootAutomation() error = %v", err)
+	}
+
+	if captured.Store == nil {
+		t.Fatal("captured.Store = nil")
+	}
+	if captured.Sessions != state.sessions {
+		t.Fatal("captured.Sessions dependency mismatch")
+	}
+	if captured.WorkspaceResolver != resolver {
+		t.Fatal("captured.WorkspaceResolver dependency mismatch")
+	}
+	if got, want := captured.Config.Enabled, cfg.Automation.Enabled; got != want {
+		t.Fatalf("captured.Config.Enabled = %v, want %v", got, want)
+	}
+	if got, want := captured.Config.Timezone, cfg.Automation.Timezone; got != want {
+		t.Fatalf("captured.Config.Timezone = %q, want %q", got, want)
+	}
+	if got, want := captured.Config.MaxConcurrentJobs, cfg.Automation.MaxConcurrentJobs; got != want {
+		t.Fatalf("captured.Config.MaxConcurrentJobs = %d, want %d", got, want)
+	}
+	if got, want := captured.Config.DefaultFireLimit, cfg.Automation.DefaultFireLimit; got != want {
+		t.Fatalf("captured.Config.DefaultFireLimit = %#v, want %#v", got, want)
+	}
+	if got, want := captured.GlobalWorkspacePath, homePaths.HomeDir; got != want {
+		t.Fatalf("captured.GlobalWorkspacePath = %q, want %q", got, want)
+	}
+	if manager.startCount != 1 {
+		t.Fatalf("manager start count = %d, want 1", manager.startCount)
+	}
+	if state.automation != manager {
+		t.Fatalf("state.automation = %#v, want manager", state.automation)
+	}
+	if state.deps.Automation != manager {
+		t.Fatalf("state.deps.Automation = %#v, want manager", state.deps.Automation)
+	}
+	if len(cleanup.fns) != 1 {
+		t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
+	}
+
+	state.lifecycleObservers.OnSessionCreated(testutil.Context(t), &session.Session{ID: "sess-automation"})
+	if got, want := managerLifecycle.events, []string{"created"}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("manager lifecycle events = %#v, want %#v", got, want)
+	}
+	if got, want := baseLifecycle.events, []string{"created"}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("base lifecycle events = %#v, want %#v", got, want)
+	}
+
+	if err := state.hookTelemetrySinks.WriteHookRecord(testutil.Context(t), "sess-automation", hookspkg.HookRunRecord{HookName: "post-stop"}); err != nil {
+		t.Fatalf("WriteHookRecord() error = %v", err)
+	}
+	if got, want := baseTelemetry.count(), 1; got != want {
+		t.Fatalf("base telemetry count = %d, want %d", got, want)
+	}
+	if got, want := managerTelemetry.count(), 1; got != want {
+		t.Fatalf("manager telemetry count = %d, want %d", got, want)
+	}
+}
+
+func TestHooksNotifierNoopDispatchesWithoutRuntime(t *testing.T) {
+	t.Parallel()
+
+	notifier := newHooksNotifier(discardLogger(), func() time.Time {
+		return time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	})
+
+	notifier.OnSessionCreated(testutil.Context(t), &session.Session{ID: "sess-created"})
+	notifier.OnSessionStopped(testutil.Context(t), &session.Session{ID: "sess-stopped"})
+
+	if _, err := notifier.DispatchSessionPreCreate(testutil.Context(t), hookspkg.SessionPreCreatePayload{}); err != nil {
+		t.Fatalf("DispatchSessionPreCreate() error = %v", err)
+	}
+	if _, err := notifier.DispatchSessionPreResume(testutil.Context(t), hookspkg.SessionPreResumePayload{}); err != nil {
+		t.Fatalf("DispatchSessionPreResume() error = %v", err)
+	}
+	if _, err := notifier.DispatchSessionPostResume(testutil.Context(t), hookspkg.SessionPostResumePayload{}); err != nil {
+		t.Fatalf("DispatchSessionPostResume() error = %v", err)
+	}
+	if _, err := notifier.DispatchSessionPreStop(testutil.Context(t), hookspkg.SessionPreStopPayload{}); err != nil {
+		t.Fatalf("DispatchSessionPreStop() error = %v", err)
+	}
+	if _, err := notifier.DispatchInputPreSubmit(testutil.Context(t), hookspkg.InputPreSubmitPayload{}); err != nil {
+		t.Fatalf("DispatchInputPreSubmit() error = %v", err)
+	}
+	if _, err := notifier.DispatchPromptPostAssemble(testutil.Context(t), hookspkg.PromptPayload{}); err != nil {
+		t.Fatalf("DispatchPromptPostAssemble() error = %v", err)
+	}
+	if _, err := notifier.DispatchEventPreRecord(testutil.Context(t), hookspkg.EventPreRecordPayload{}); err != nil {
+		t.Fatalf("DispatchEventPreRecord() error = %v", err)
+	}
+	if _, err := notifier.DispatchEventPostRecord(testutil.Context(t), hookspkg.EventPostRecordPayload{}); err != nil {
+		t.Fatalf("DispatchEventPostRecord() error = %v", err)
+	}
+	if _, err := notifier.DispatchAgentPreStart(testutil.Context(t), hookspkg.AgentPreStartPayload{}); err != nil {
+		t.Fatalf("DispatchAgentPreStart() error = %v", err)
+	}
+	if _, err := notifier.DispatchAgentSpawned(testutil.Context(t), hookspkg.AgentSpawnedPayload{}); err != nil {
+		t.Fatalf("DispatchAgentSpawned() error = %v", err)
+	}
+	if _, err := notifier.DispatchAgentCrashed(testutil.Context(t), hookspkg.AgentCrashedPayload{}); err != nil {
+		t.Fatalf("DispatchAgentCrashed() error = %v", err)
+	}
+	if _, err := notifier.DispatchAgentStopped(testutil.Context(t), hookspkg.AgentStoppedPayload{}); err != nil {
+		t.Fatalf("DispatchAgentStopped() error = %v", err)
 	}
 }
 
@@ -2020,6 +2182,7 @@ func testConfig(t *testing.T, homePaths aghconfig.HomePaths) aghconfig.Config {
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 	cfg.Daemon.Socket = homePaths.DaemonSocket
+	cfg.Automation.Enabled = false
 	return cfg
 }
 
@@ -2205,6 +2368,9 @@ type fakeSessionManager struct {
 		id  string
 		msg string
 	}
+	promptStarted      chan struct{}
+	promptRelease      <-chan struct{}
+	promptCtxCancelled chan struct{}
 	stopCalls          []string
 	stopWithCauseCalls []fakeStopWithCauseCall
 }
@@ -2307,13 +2473,49 @@ func (f *fakeSessionManager) Resume(context.Context, string) (*session.Session, 
 	return nil, nil
 }
 
-func (f *fakeSessionManager) Prompt(_ context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
+func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	f.mu.Lock()
 	f.promptCalls = append(f.promptCalls, struct {
 		id  string
 		msg string
 	}{id: id, msg: msg})
+	promptStarted := f.promptStarted
+	promptRelease := f.promptRelease
+	promptCtxCancelled := f.promptCtxCancelled
 	f.mu.Unlock()
+
+	if promptStarted != nil {
+		select {
+		case promptStarted <- struct{}{}:
+		default:
+		}
+	}
+
+	if promptRelease != nil || promptCtxCancelled != nil {
+		ch := make(chan acp.AgentEvent)
+		go func() {
+			defer close(ch)
+			if promptRelease == nil {
+				if ctx != nil {
+					<-ctx.Done()
+				}
+			} else {
+				select {
+				case <-promptRelease:
+					return
+				case <-ctx.Done():
+				}
+			}
+			if promptCtxCancelled != nil {
+				select {
+				case promptCtxCancelled <- struct{}{}:
+				default:
+				}
+			}
+		}()
+		return ch, nil
+	}
+
 	ch := make(chan acp.AgentEvent)
 	close(ch)
 	return ch, nil
@@ -2486,6 +2688,117 @@ func (n *recordingNotifier) OnSessionStopped(context.Context, *session.Session) 
 
 func (n *recordingNotifier) OnAgentEvent(context.Context, string, any) {
 	n.events = append(n.events, "agent")
+}
+
+type recordingHookTelemetrySink struct {
+	calls []struct {
+		sessionID string
+		record    hookspkg.HookRunRecord
+	}
+}
+
+func (s *recordingHookTelemetrySink) WriteHookRecord(_ context.Context, sessionID string, record hookspkg.HookRunRecord) error {
+	s.calls = append(s.calls, struct {
+		sessionID string
+		record    hookspkg.HookRunRecord
+	}{
+		sessionID: sessionID,
+		record:    record,
+	})
+	return nil
+}
+
+func (s *recordingHookTelemetrySink) count() int {
+	if s == nil {
+		return 0
+	}
+	return len(s.calls)
+}
+
+type noopMemoryObserver struct{}
+
+func (noopMemoryObserver) OnMemoryConsolidated(context.Context, automationpkg.MemoryConsolidatedEvent) error {
+	return nil
+}
+
+type fakeAutomationManager struct {
+	jobs              []automationpkg.Job
+	triggers          []automationpkg.Trigger
+	runs              []automationpkg.Run
+	status            automationpkg.ManagerStatus
+	startCount        int
+	shutdownCount     int
+	startErr          error
+	shutdownErr       error
+	onStart           func()
+	onShutdown        func()
+	sessionObserver   session.Notifier
+	hookTelemetrySink hookspkg.TelemetrySink
+}
+
+func (f *fakeAutomationManager) Start(context.Context) error {
+	f.startCount++
+	if f.onStart != nil {
+		f.onStart()
+	}
+	f.status.Running = true
+	return f.startErr
+}
+
+func (f *fakeAutomationManager) Shutdown(context.Context) error {
+	f.shutdownCount++
+	if f.onShutdown != nil {
+		f.onShutdown()
+	}
+	f.status.Running = false
+	f.status.SchedulerRunning = false
+	return f.shutdownErr
+}
+
+func (f *fakeAutomationManager) Jobs(context.Context) ([]automationpkg.Job, error) {
+	return append([]automationpkg.Job(nil), f.jobs...), nil
+}
+
+func (f *fakeAutomationManager) Triggers(context.Context) ([]automationpkg.Trigger, error) {
+	return append([]automationpkg.Trigger(nil), f.triggers...), nil
+}
+
+func (f *fakeAutomationManager) Runs(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error) {
+	return append([]automationpkg.Run(nil), f.runs...), nil
+}
+
+func (f *fakeAutomationManager) Status(context.Context) (automationpkg.ManagerStatus, error) {
+	return f.status, nil
+}
+
+func (f *fakeAutomationManager) SetJobEnabled(context.Context, string, bool) (automationpkg.Job, error) {
+	return automationpkg.Job{}, nil
+}
+
+func (f *fakeAutomationManager) SetTriggerEnabled(context.Context, string, bool) (automationpkg.Trigger, error) {
+	return automationpkg.Trigger{}, nil
+}
+
+func (f *fakeAutomationManager) HandleWebhook(context.Context, automationpkg.WebhookRequest) (automationpkg.TriggerResult, error) {
+	return automationpkg.TriggerResult{}, nil
+}
+
+func (f *fakeAutomationManager) SessionObserver() session.Notifier {
+	if f.sessionObserver != nil {
+		return f.sessionObserver
+	}
+	return &recordingNotifier{}
+}
+
+func (f *fakeAutomationManager) HookTelemetrySink() hookspkg.TelemetrySink {
+	if f.hookTelemetrySink != nil {
+		return f.hookTelemetrySink
+	}
+	return &recordingHookTelemetrySink{}
+}
+
+func (*fakeAutomationManager) MemoryObserver() automationpkg.MemoryConsolidationObserver {
+	return noopMemoryObserver{}
 }
 
 type fakeHookRuntime struct {

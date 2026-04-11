@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/observe"
@@ -50,6 +51,17 @@ type DreamTrigger interface {
 	Trigger(ctx context.Context, workspace string) (bool, string, error)
 	LastConsolidatedAt() (time.Time, error)
 	Enabled() bool
+}
+
+// AutomationManager exposes automation state and control surfaces to the API layer.
+type AutomationManager interface {
+	Jobs(ctx context.Context) ([]automationpkg.Job, error)
+	Triggers(ctx context.Context) ([]automationpkg.Trigger, error)
+	Runs(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
+	Status(ctx context.Context) (automationpkg.ManagerStatus, error)
+	SetJobEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Job, error)
+	SetTriggerEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Trigger, error)
+	HandleWebhook(ctx context.Context, request automationpkg.WebhookRequest) (automationpkg.TriggerResult, error)
 }
 
 // SkillsRegistry exposes the skill catalog to the API layer.

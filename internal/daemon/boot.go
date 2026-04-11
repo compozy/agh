@@ -11,6 +11,7 @@ import (
 	"time"
 
 	core "github.com/pedronauck/agh/internal/api/core"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -25,32 +26,35 @@ import (
 )
 
 type bootState struct {
-	cfg               aghconfig.Config
-	logger            *slog.Logger
-	closeLogger       func() error
-	lock              *Lock
-	memoryStore       *memory.Store
-	skillsRegistry    *skills.Registry
-	mcpResolver       *skills.MCPResolver
-	dreamSvc          consolidation.Service
-	dreamRuntime      *consolidation.Runtime
-	globalMemoryDir   string
-	promptAssembler   session.PromptAssembler
-	notifier          *hooksNotifier
-	registry          Registry
-	workspaceResolver workspacepkg.WorkspaceResolver
-	sessions          SessionManager
-	observer          Observer
-	hooks             hookRuntime
-	extMu             sync.RWMutex
-	extensions        extensionRuntime
-	httpServer        Server
-	udsServer         Server
-	skillsCancel      context.CancelFunc
-	skillsDone        chan struct{}
-	startedAt         time.Time
-	info              Info
-	deps              RuntimeDeps
+	cfg                aghconfig.Config
+	logger             *slog.Logger
+	closeLogger        func() error
+	lock               *Lock
+	memoryStore        *memory.Store
+	skillsRegistry     *skills.Registry
+	mcpResolver        *skills.MCPResolver
+	dreamSvc           consolidation.Service
+	dreamRuntime       *consolidation.Runtime
+	globalMemoryDir    string
+	promptAssembler    session.PromptAssembler
+	notifier           *hooksNotifier
+	registry           Registry
+	workspaceResolver  workspacepkg.WorkspaceResolver
+	sessions           SessionManager
+	observer           Observer
+	lifecycleObservers *sessionLifecycleFanout
+	hookTelemetrySinks *hookTelemetryFanout
+	hooks              hookRuntime
+	extMu              sync.RWMutex
+	extensions         extensionRuntime
+	automation         automationRuntime
+	httpServer         Server
+	udsServer          Server
+	skillsCancel       context.CancelFunc
+	skillsDone         chan struct{}
+	startedAt          time.Time
+	info               Info
+	deps               RuntimeDeps
 }
 
 func (s *bootState) currentExtensionRuntime() extensionRuntime {
@@ -125,6 +129,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	if err := d.bootExtensions(ctx, state, cleanup); err != nil {
 		return err
 	}
+	if err := d.bootAutomation(ctx, state, cleanup); err != nil {
+		return err
+	}
 	if err := d.bootServers(ctx, state, cleanup); err != nil {
 		return err
 	}
@@ -140,7 +147,7 @@ func (d *Daemon) beginBoot() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.booting || d.lock != nil || d.registry != nil || d.sessions != nil || d.observer != nil {
+	if d.booting || d.lock != nil || d.registry != nil || d.sessions != nil || d.observer != nil || d.automation != nil {
 		return errors.New("daemon: already booted")
 	}
 	d.booting = true
@@ -374,7 +381,16 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 }
 
 func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
-	nativeDecls, nativeExecutors := daemonNativeHooks(state.observer, state.dreamRuntime)
+	state.lifecycleObservers = newSessionLifecycleFanout()
+	if state.observer != nil {
+		state.lifecycleObservers.Add(state.observer)
+	}
+	state.hookTelemetrySinks = newHookTelemetryFanout()
+	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {
+		state.hookTelemetrySinks.Add(sink)
+	}
+
+	nativeDecls, nativeExecutors := daemonNativeHooks(state.lifecycleObservers, state.dreamRuntime)
 	hookOptions := []hookspkg.Option{
 		hookspkg.WithLogger(state.logger),
 		hookspkg.WithNow(d.now),
@@ -387,9 +403,7 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 		)),
 		hookspkg.WithAgentDeclarationProvider(agentDeclarationProvider(state.registry, state.workspaceResolver, state.logger)),
 		hookspkg.WithSkillDeclarationProvider(skillDeclarationProvider(state.skillsRegistry, state.registry, state.workspaceResolver, state.cfg.Skills.AllowedMarketplaceHooks, state.logger)),
-	}
-	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {
-		hookOptions = append(hookOptions, hookspkg.WithTelemetrySink(sink))
+		hookspkg.WithTelemetrySink(state.hookTelemetrySinks),
 	}
 
 	hooks := hookspkg.NewHooks(hookOptions...)
@@ -419,6 +433,56 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	}
 
 	state.hooks = hooks
+	return nil
+}
+
+func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	if state == nil {
+		return nil
+	}
+	if !state.cfg.Automation.Enabled {
+		state.logger.Info("daemon: automation disabled")
+		return nil
+	}
+
+	store, ok := state.registry.(automationpkg.Store)
+	if !ok {
+		return errors.New("daemon: global registry does not implement automation store")
+	}
+	if d.newAutomationManager == nil {
+		return errors.New("daemon: automation manager factory is required")
+	}
+
+	manager, err := d.newAutomationManager(automationManagerDeps{
+		Store:               store,
+		Sessions:            state.sessions,
+		WorkspaceResolver:   state.workspaceResolver,
+		Config:              state.cfg.Automation,
+		Logger:              state.logger.With("component", "automation"),
+		GlobalWorkspacePath: d.homePaths.HomeDir,
+	})
+	if err != nil {
+		return fmt.Errorf("daemon: create automation manager: %w", err)
+	}
+	if manager == nil {
+		return errors.New("daemon: automation manager factory returned nil")
+	}
+	if err := manager.Start(ctx); err != nil {
+		return fmt.Errorf("daemon: start automation manager: %w", err)
+	}
+
+	cleanup.add(func(ctx context.Context) error {
+		return manager.Shutdown(ctx)
+	})
+	if state.lifecycleObservers != nil {
+		state.lifecycleObservers.Add(manager.SessionObserver())
+	}
+	if state.hookTelemetrySinks != nil {
+		state.hookTelemetrySinks.Add(manager.HookTelemetrySink())
+	}
+
+	state.automation = manager
+	state.deps.Automation = manager
 	return nil
 }
 
@@ -541,6 +605,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.hooks = state.hooks
 	d.extensions = state.currentExtensionRuntime()
 	d.observer = state.observer
+	d.automation = state.automation
 	d.httpServer = state.httpServer
 	d.udsServer = state.udsServer
 	d.dreamRuntime = state.dreamRuntime

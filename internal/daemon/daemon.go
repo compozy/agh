@@ -15,6 +15,7 @@ import (
 	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/httpapi"
 	"github.com/pedronauck/agh/internal/api/udsapi"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -66,6 +67,7 @@ type RuntimeDeps struct {
 	Logger            *slog.Logger
 	Sessions          SessionManager
 	Observer          Observer
+	Automation        core.AutomationManager
 	Registry          Registry
 	MemoryStore       *memory.Store
 	WorkspaceResolver workspacepkg.WorkspaceResolver
@@ -86,6 +88,7 @@ type registryOpener func(ctx context.Context, path string) (Registry, error)
 type sessionManagerFactory func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error)
 type observerFactory func(ctx context.Context, deps RuntimeDeps) (Observer, error)
 type extensionManagerFactory func(deps extensionManagerDeps) extensionRuntime
+type automationManagerFactory func(deps automationManagerDeps) (automationRuntime, error)
 
 type shutdownStopper interface {
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
@@ -113,6 +116,24 @@ type extensionManagerDeps struct {
 	Logger            *slog.Logger
 }
 
+type automationRuntime interface {
+	core.AutomationManager
+	Start(ctx context.Context) error
+	Shutdown(ctx context.Context) error
+	SessionObserver() session.Notifier
+	HookTelemetrySink() hookspkg.TelemetrySink
+	MemoryObserver() automationpkg.MemoryConsolidationObserver
+}
+
+type automationManagerDeps struct {
+	Store               automationpkg.Store
+	Sessions            SessionManager
+	WorkspaceResolver   workspacepkg.WorkspaceResolver
+	Config              aghconfig.AutomationConfig
+	Logger              *slog.Logger
+	GlobalWorkspacePath string
+}
+
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
 type SessionManagerDeps struct {
 	HomePaths         aghconfig.HomePaths
@@ -129,49 +150,51 @@ type SessionManagerDeps struct {
 type Daemon struct {
 	mu sync.Mutex
 
-	homePaths           aghconfig.HomePaths
-	loadConfig          ConfigLoader
-	logger              *slog.Logger
-	closeLogger         func() error
-	now                 func() time.Time
-	pid                 func() int
-	acquireLock         func(path string, pid int) (*Lock, error)
-	openRegistry        registryOpener
-	newSessionManager   sessionManagerFactory
-	newDreamService     consolidation.ServiceFactory
-	newObserver         observerFactory
-	newExtensionManager extensionManagerFactory
-	httpFactory         ServerFactory
-	udsFactory          ServerFactory
-	listProcesses       func(context.Context) ([]processInfo, error)
-	signalProcess       func(int, syscall.Signal) error
-	processAlive        func(int) bool
-	signalCh            <-chan os.Signal
-	verifyBoundaries    bool
-	boundaryRoot        string
-	getenv              func(string) string
-	readyCh             chan struct{}
-	readyClosed         bool
-	booting             bool
-	orphanGraceWait     time.Duration
-	orphanPollWait      time.Duration
-	config              aghconfig.Config
-	startedAt           time.Time
-	info                Info
-	lock                *Lock
-	registry            Registry
-	memoryStore         *memory.Store
-	sessions            SessionManager
-	hooks               hookRuntime
-	extensions          extensionRuntime
-	observer            Observer
-	httpServer          Server
-	udsServer           Server
-	dreamRuntime        *consolidation.Runtime
-	workspaceResolver   workspacepkg.WorkspaceResolver
-	skillsRegistry      *skills.Registry
-	skillsCancel        context.CancelFunc
-	skillsDone          chan struct{}
+	homePaths            aghconfig.HomePaths
+	loadConfig           ConfigLoader
+	logger               *slog.Logger
+	closeLogger          func() error
+	now                  func() time.Time
+	pid                  func() int
+	acquireLock          func(path string, pid int) (*Lock, error)
+	openRegistry         registryOpener
+	newSessionManager    sessionManagerFactory
+	newDreamService      consolidation.ServiceFactory
+	newObserver          observerFactory
+	newExtensionManager  extensionManagerFactory
+	newAutomationManager automationManagerFactory
+	httpFactory          ServerFactory
+	udsFactory           ServerFactory
+	listProcesses        func(context.Context) ([]processInfo, error)
+	signalProcess        func(int, syscall.Signal) error
+	processAlive         func(int) bool
+	signalCh             <-chan os.Signal
+	verifyBoundaries     bool
+	boundaryRoot         string
+	getenv               func(string) string
+	readyCh              chan struct{}
+	readyClosed          bool
+	booting              bool
+	orphanGraceWait      time.Duration
+	orphanPollWait       time.Duration
+	config               aghconfig.Config
+	startedAt            time.Time
+	info                 Info
+	lock                 *Lock
+	registry             Registry
+	memoryStore          *memory.Store
+	sessions             SessionManager
+	hooks                hookRuntime
+	extensions           extensionRuntime
+	observer             Observer
+	automation           automationRuntime
+	httpServer           Server
+	udsServer            Server
+	dreamRuntime         *consolidation.Runtime
+	workspaceResolver    workspacepkg.WorkspaceResolver
+	skillsRegistry       *skills.Registry
+	skillsCancel         context.CancelFunc
+	skillsDone           chan struct{}
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -346,6 +369,22 @@ func (d *Daemon) applyDefaults() error {
 			return extensionpkg.NewManager(deps.Registry, opts...)
 		}
 	}
+	if d.newAutomationManager == nil {
+		d.newAutomationManager = func(deps automationManagerDeps) (automationRuntime, error) {
+			manager, err := automationpkg.New(
+				automationpkg.WithStore(deps.Store),
+				automationpkg.WithSessions(deps.Sessions),
+				automationpkg.WithWorkspaceResolver(deps.WorkspaceResolver),
+				automationpkg.WithConfig(deps.Config),
+				automationpkg.WithLogger(deps.Logger),
+				automationpkg.WithGlobalWorkspacePath(deps.GlobalWorkspacePath),
+			)
+			if err != nil {
+				return nil, err
+			}
+			return manager, nil
+		}
+	}
 	if d.httpFactory == nil {
 		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
 			return httpapi.New(
@@ -448,6 +487,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	sessions := d.sessions
 	hooks := d.hooks
 	extensions := d.extensions
+	automation := d.automation
 	httpServer := d.httpServer
 	udsServer := d.udsServer
 	registry := d.registry
@@ -461,6 +501,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	d.sessions = nil
 	d.hooks = nil
 	d.extensions = nil
+	d.automation = nil
 	d.httpServer = nil
 	d.udsServer = nil
 	d.observer = nil
@@ -486,6 +527,11 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	if extensions != nil {
 		if err := extensions.Stop(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("daemon: stop extensions: %w", err))
+		}
+	}
+	if automation != nil {
+		if err := automation.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("daemon: shutdown automation: %w", err))
 		}
 	}
 	if err := d.stopSessions(ctx, sessions); err != nil {

@@ -17,6 +17,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/kballard/go-shellquote"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
@@ -102,6 +103,315 @@ func TestBootSequenceReady(t *testing.T) {
 	}
 	if _, err := AcquireLock(homePaths.DaemonLock, os.Getpid()); !errors.Is(err, ErrAlreadyRunning) {
 		t.Fatalf("AcquireLock(second instance) error = %v, want ErrAlreadyRunning", err)
+	}
+}
+
+func TestBootPublishesRunningAutomationBeforeServersStart(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Automation.Enabled = true
+
+	var httpSawRunning bool
+	var udsSawRunning bool
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(ctx context.Context, deps RuntimeDeps) (Server, error) {
+		if deps.Automation == nil {
+			t.Fatal("http factory received nil automation manager")
+		}
+		status, err := deps.Automation.Status(ctx)
+		if err != nil {
+			t.Fatalf("deps.Automation.Status(http) error = %v", err)
+		}
+		if !status.Running || !status.SchedulerRunning {
+			t.Fatalf("http factory automation status = %#v, want running scheduler", status)
+		}
+		httpSawRunning = true
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(ctx context.Context, deps RuntimeDeps) (Server, error) {
+		if deps.Automation == nil {
+			t.Fatal("uds factory received nil automation manager")
+		}
+		status, err := deps.Automation.Status(ctx)
+		if err != nil {
+			t.Fatalf("deps.Automation.Status(uds) error = %v", err)
+		}
+		if !status.Running || !status.SchedulerRunning {
+			t.Fatalf("uds factory automation status = %#v, want running scheduler", status)
+		}
+		udsSawRunning = true
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if d.automation == nil {
+		t.Fatal("boot() did not publish the automation manager")
+	}
+	if !httpSawRunning || !udsSawRunning {
+		t.Fatalf("server factories observed automation running: http=%v uds=%v, want both true", httpSawRunning, udsSawRunning)
+	}
+}
+
+func TestBootPreservesAutomationEnabledOverlaysAcrossRestart(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Automation.Enabled = true
+	cfg.Automation.Jobs = []aghconfig.AutomationJob{
+		{
+			Scope:     automationpkg.AutomationScopeGlobal,
+			Name:      "restart-job",
+			AgentName: "researcher",
+			Prompt:    "Summarize the latest state.",
+			Schedule: automationpkg.ScheduleSpec{
+				Mode:     automationpkg.ScheduleModeEvery,
+				Interval: "1h",
+			},
+			Enabled:   true,
+			Retry:     automationpkg.DefaultRetryConfig(),
+			FireLimit: automationpkg.DefaultFireLimitConfig(),
+			Source:    automationpkg.JobSourceConfig,
+		},
+	}
+	cfg.Automation.Triggers = []aghconfig.AutomationTrigger{
+		{
+			Scope:     automationpkg.AutomationScopeGlobal,
+			Name:      "restart-trigger",
+			AgentName: "reviewer",
+			Prompt:    `Review session {{ index .Data "session_id" }}`,
+			Event:     "session.stopped",
+			Filter:    map[string]string{"data.agent_name": "reviewer"},
+			Enabled:   true,
+			Retry:     automationpkg.DefaultRetryConfig(),
+			FireLimit: automationpkg.DefaultFireLimitConfig(),
+			Source:    automationpkg.JobSourceConfig,
+		},
+	}
+
+	newDaemon := func() *Daemon {
+		d, err := New(
+			WithHomePaths(homePaths),
+			WithConfig(cfg),
+			WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+		return d
+	}
+
+	first := newDaemon()
+	if err := first.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("first boot() error = %v", err)
+	}
+
+	jobs, err := first.automation.Jobs(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("first automation.Jobs() error = %v", err)
+	}
+	job := findAutomationJobByName(jobs, "restart-job")
+	if job == nil {
+		t.Fatal("first boot missing restart-job")
+	}
+	triggers, err := first.automation.Triggers(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("first automation.Triggers() error = %v", err)
+	}
+	trigger := findAutomationTriggerByName(triggers, "restart-trigger")
+	if trigger == nil {
+		t.Fatal("first boot missing restart-trigger")
+	}
+
+	if _, err := first.automation.SetJobEnabled(testutil.Context(t), job.ID, false); err != nil {
+		t.Fatalf("SetJobEnabled() error = %v", err)
+	}
+	if _, err := first.automation.SetTriggerEnabled(testutil.Context(t), trigger.ID, false); err != nil {
+		t.Fatalf("SetTriggerEnabled() error = %v", err)
+	}
+	if err := first.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("first Shutdown() error = %v", err)
+	}
+
+	second := newDaemon()
+	if err := second.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("second boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := second.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("second Shutdown() error = %v", err)
+		}
+	})
+
+	jobs, err = second.automation.Jobs(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("second automation.Jobs() error = %v", err)
+	}
+	job = findAutomationJobByName(jobs, "restart-job")
+	if job == nil || job.Enabled {
+		t.Fatalf("restarted job = %#v, want disabled overlay", job)
+	}
+
+	triggers, err = second.automation.Triggers(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("second automation.Triggers() error = %v", err)
+	}
+	trigger = findAutomationTriggerByName(triggers, "restart-trigger")
+	if trigger == nil || trigger.Enabled {
+		t.Fatalf("restarted trigger = %#v, want disabled overlay", trigger)
+	}
+
+	db, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	defer func() {
+		if err := db.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("GlobalDB.Close() error = %v", err)
+		}
+	}()
+
+	storedJob, err := db.GetJob(testutil.Context(t), job.ID)
+	if err != nil {
+		t.Fatalf("GetJob() error = %v", err)
+	}
+	if !storedJob.Enabled {
+		t.Fatal("stored config job enabled default = false, want true")
+	}
+	jobOverlay, err := db.GetJobEnabledOverlay(testutil.Context(t), job.ID)
+	if err != nil {
+		t.Fatalf("GetJobEnabledOverlay() error = %v", err)
+	}
+	if jobOverlay.EnabledOverride {
+		t.Fatal("job overlay enabled_override = true, want false")
+	}
+
+	storedTrigger, err := db.GetTrigger(testutil.Context(t), trigger.ID)
+	if err != nil {
+		t.Fatalf("GetTrigger() error = %v", err)
+	}
+	if !storedTrigger.Enabled {
+		t.Fatal("stored config trigger enabled default = false, want true")
+	}
+	triggerOverlay, err := db.GetTriggerEnabledOverlay(testutil.Context(t), trigger.ID)
+	if err != nil {
+		t.Fatalf("GetTriggerEnabledOverlay() error = %v", err)
+	}
+	if triggerOverlay.EnabledOverride {
+		t.Fatal("trigger overlay enabled_override = true, want false")
+	}
+}
+
+func TestShutdownCancelsActiveAutomationPrompt(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Automation.Enabled = true
+	cfg.Automation.MaxConcurrentJobs = 1
+	cfg.Automation.Jobs = []aghconfig.AutomationJob{
+		{
+			Scope:     automationpkg.AutomationScopeGlobal,
+			Name:      "shutdown-job",
+			AgentName: "researcher",
+			Prompt:    "Summarize the latest state.",
+			Schedule: automationpkg.ScheduleSpec{
+				Mode:     automationpkg.ScheduleModeEvery,
+				Interval: "10ms",
+			},
+			Enabled:   true,
+			Retry:     automationpkg.DefaultRetryConfig(),
+			FireLimit: automationpkg.DefaultFireLimitConfig(),
+			Source:    automationpkg.JobSourceConfig,
+		},
+	}
+
+	promptStarted := make(chan struct{}, 1)
+	promptCancelled := make(chan struct{}, 1)
+	sessions := &fakeSessionManager{
+		promptStarted:      promptStarted,
+		promptCtxCancelled: promptCancelled,
+	}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return sessions, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+
+	select {
+	case <-promptStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("automation scheduler did not reach Prompt() in time")
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- d.Shutdown(testutil.Context(t))
+	}()
+
+	select {
+	case <-promptCancelled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("automation prompt context was not cancelled during shutdown")
+	}
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Shutdown() did not finish after automation prompt cancellation")
 	}
 }
 
@@ -922,6 +1232,24 @@ func seedDaemonWorkspace(t *testing.T, homePaths aghconfig.HomePaths, root strin
 		t.Fatalf("ResolveOrRegister(%q) error = %v", root, err)
 	}
 	return resolved
+}
+
+func findAutomationJobByName(jobs []automationpkg.Job, name string) *automationpkg.Job {
+	for idx := range jobs {
+		if jobs[idx].Name == name {
+			return &jobs[idx]
+		}
+	}
+	return nil
+}
+
+func findAutomationTriggerByName(triggers []automationpkg.Trigger, name string) *automationpkg.Trigger {
+	for idx := range triggers {
+		if triggers[idx].Name == name {
+			return &triggers[idx]
+		}
+	}
+	return nil
 }
 
 func writeDaemonHookScript(t *testing.T, dir string, name string, contents string) string {
