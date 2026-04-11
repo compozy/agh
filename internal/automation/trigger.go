@@ -417,7 +417,11 @@ func (e *TriggerEngine) HandleWebhook(ctx context.Context, request WebhookReques
 	}
 
 	envelope := webhookEnvelope(request, parsed)
-	return e.dispatchMatches(ctx, envelope, []TriggerRegistration{registration})
+	result, err := e.dispatchMatches(ctx, envelope, []TriggerRegistration{registration})
+	if err != nil && len(result.Runs) == 0 {
+		e.releaseWebhookDelivery(registration.Trigger.ID, request.DeliveryID)
+	}
+	return result, err
 }
 
 // SessionObserver exposes the existing session notifier shape for internal lifecycle ingress.
@@ -655,6 +659,13 @@ func (e *TriggerEngine) claimWebhookDelivery(triggerID string, deliveryID string
 
 	e.deliveries[key] = now.Add(e.webhookFreshnessWindow)
 	return nil
+}
+
+func (e *TriggerEngine) releaseWebhookDelivery(triggerID string, deliveryID string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	delete(e.deliveries, webhookDeliveryKey(triggerID, deliveryID))
 }
 
 func (e *TriggerEngine) purgeDeliveriesLocked(now time.Time) {

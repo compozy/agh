@@ -314,7 +314,7 @@ func New(opts ...Option) (*Manager, error) {
 	dispatcherOpts = append(dispatcherOpts, options.dispatcherOptions...)
 	dispatcher, err := NewDispatcher(options.sessions, options.store, dispatcherOpts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("automation: construct dispatcher: %w", err)
 	}
 
 	manager := &Manager{
@@ -350,16 +350,16 @@ func (m *Manager) Start(ctx context.Context) error {
 
 	syncStats, err := m.syncConfigDefinitions(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("automation: sync config definitions: %w", err)
 	}
 
 	jobs, err := m.loadEffectiveJobs(ctx, JobListQuery{})
 	if err != nil {
-		return err
+		return fmt.Errorf("automation: load effective jobs: %w", err)
 	}
 	triggers, err := m.loadEffectiveTriggers(ctx, TriggerListQuery{})
 	if err != nil {
-		return err
+		return fmt.Errorf("automation: load effective triggers: %w", err)
 	}
 
 	runtimeCtx, runtimeCancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -370,16 +370,28 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 
 	if err := m.loadSchedulerRegistrations(jobs, scheduler); err != nil {
-		return errors.Join(err, m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine))
+		return errors.Join(
+			fmt.Errorf("automation: register scheduler jobs: %w", err),
+			m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine),
+		)
 	}
 	if err := m.loadTriggerRegistrations(ctx, triggers, triggerEngine); err != nil {
-		return errors.Join(err, m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine))
+		return errors.Join(
+			fmt.Errorf("automation: register trigger definitions: %w", err),
+			m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine),
+		)
 	}
 	if err := triggerEngine.Start(ctx); err != nil {
-		return errors.Join(err, m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine))
+		return errors.Join(
+			fmt.Errorf("automation: start trigger engine: %w", err),
+			m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine),
+		)
 	}
 	if err := scheduler.Start(ctx); err != nil {
-		return errors.Join(err, m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine))
+		return errors.Join(
+			fmt.Errorf("automation: start scheduler: %w", err),
+			m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine),
+		)
 	}
 
 	m.running = true
@@ -1117,7 +1129,7 @@ func (m *Manager) buildRuntimes(ctx context.Context) (*Scheduler, *TriggerEngine
 	schedulerOpts = append(schedulerOpts, m.schedulerOptions...)
 	scheduler, err := NewScheduler(m.dispatcher, schedulerOpts...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("automation: construct scheduler: %w", err)
 	}
 
 	triggerOpts := []TriggerEngineOption{
@@ -1127,7 +1139,10 @@ func (m *Manager) buildRuntimes(ctx context.Context) (*Scheduler, *TriggerEngine
 	triggerOpts = append(triggerOpts, m.triggerOptions...)
 	triggerEngine, err := NewTriggerEngine(m.dispatcher, triggerOpts...)
 	if err != nil {
-		return nil, nil, errors.Join(err, m.shutdownRuntimeComponent(ctx, "scheduler", scheduler))
+		return nil, nil, errors.Join(
+			fmt.Errorf("automation: construct trigger engine: %w", err),
+			m.shutdownRuntimeComponent(ctx, "scheduler", scheduler),
+		)
 	}
 
 	return scheduler, triggerEngine, nil

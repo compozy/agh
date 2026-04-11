@@ -38,6 +38,15 @@ func ValidateTriggerPromptTemplate(prompt string) error {
 }
 
 func validateTemplateNode(node parse.Node) error {
+	return validateTemplateNodeWithState(node, templateValidationState{dotKnown: true})
+}
+
+type templateValidationState struct {
+	dotPath  []string
+	dotKnown bool
+}
+
+func validateTemplateNodeWithState(node parse.Node, state templateValidationState) error {
 	switch n := node.(type) {
 	case nil:
 		return nil
@@ -46,7 +55,7 @@ func validateTemplateNode(node parse.Node) error {
 			return nil
 		}
 		for _, child := range n.Nodes {
-			if err := validateTemplateNode(child); err != nil {
+			if err := validateTemplateNodeWithState(child, state); err != nil {
 				return err
 			}
 		}
@@ -54,45 +63,45 @@ func validateTemplateNode(node parse.Node) error {
 		if n == nil {
 			return nil
 		}
-		return validatePipeNode(n.Pipe)
+		return validatePipeNodeWithState(n.Pipe, state)
 	case *parse.IfNode:
 		if n == nil {
 			return nil
 		}
-		if err := validatePipeNode(n.Pipe); err != nil {
+		if err := validatePipeNodeWithState(n.Pipe, state); err != nil {
 			return err
 		}
-		if err := validateTemplateNode(n.List); err != nil {
+		if err := validateTemplateNodeWithState(n.List, state); err != nil {
 			return err
 		}
-		return validateTemplateNode(n.ElseList)
+		return validateTemplateNodeWithState(n.ElseList, state)
 	case *parse.RangeNode:
 		if n == nil {
 			return nil
 		}
-		if err := validatePipeNode(n.Pipe); err != nil {
+		if err := validatePipeNodeWithState(n.Pipe, state); err != nil {
 			return err
 		}
-		if err := validateTemplateNode(n.List); err != nil {
+		if err := validateTemplateNodeWithState(n.List, templateValidationState{}); err != nil {
 			return err
 		}
-		return validateTemplateNode(n.ElseList)
+		return validateTemplateNodeWithState(n.ElseList, state)
 	case *parse.WithNode:
 		if n == nil {
 			return nil
 		}
-		if err := validatePipeNode(n.Pipe); err != nil {
+		if err := validatePipeNodeWithState(n.Pipe, state); err != nil {
 			return err
 		}
-		if err := validateTemplateNode(n.List); err != nil {
+		if err := validateTemplateNodeWithState(n.List, withTemplateValidationState(n.Pipe, state)); err != nil {
 			return err
 		}
-		return validateTemplateNode(n.ElseList)
+		return validateTemplateNodeWithState(n.ElseList, state)
 	case *parse.TemplateNode:
 		if n == nil {
 			return nil
 		}
-		return validatePipeNode(n.Pipe)
+		return validatePipeNodeWithState(n.Pipe, state)
 	case *parse.TextNode, *parse.CommentNode, *parse.BreakNode, *parse.ContinueNode:
 		return nil
 	}
@@ -100,19 +109,19 @@ func validateTemplateNode(node parse.Node) error {
 	return nil
 }
 
-func validatePipeNode(pipe *parse.PipeNode) error {
+func validatePipeNodeWithState(pipe *parse.PipeNode, state templateValidationState) error {
 	if pipe == nil {
 		return nil
 	}
 	for _, cmd := range pipe.Cmds {
-		if err := validateCommandNode(cmd); err != nil {
+		if err := validateCommandNodeWithState(cmd, state); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateCommandNode(cmd *parse.CommandNode) error {
+func validateCommandNodeWithState(cmd *parse.CommandNode, state templateValidationState) error {
 	if cmd == nil {
 		return nil
 	}
@@ -121,13 +130,13 @@ func validateCommandNode(cmd *parse.CommandNode) error {
 	}
 
 	if ident, ok := cmd.Args[0].(*parse.IdentifierNode); ok && ident.Ident == "index" {
-		if err := validateIndexArgs(cmd.Args[1:]); err != nil {
+		if err := validateIndexArgs(cmd.Args[1:], state); err != nil {
 			return err
 		}
 	}
 
 	for _, arg := range cmd.Args {
-		if err := validateTemplateArg(arg); err != nil {
+		if err := validateTemplateArgWithState(arg, state); err != nil {
 			return err
 		}
 	}
@@ -135,17 +144,17 @@ func validateCommandNode(cmd *parse.CommandNode) error {
 	return nil
 }
 
-func validateIndexArgs(args []parse.Node) error {
+func validateIndexArgs(args []parse.Node, state templateValidationState) error {
 	if len(args) == 0 {
-		return nil
+		return errors.New("index requires a target expression")
 	}
 	if expression, ok := variableRootExpression(args[0]); ok {
 		return fmt.Errorf("unsupported index target %q; variable-rooted lookups are not supported", expression)
 	}
 
-	path, ok := templateFieldPath(args[0])
+	path, ok := scopedTemplateFieldPath(args[0], state)
 	if !ok || len(path) == 0 {
-		return nil
+		return fmt.Errorf("unsupported index target %q; only .Data is supported for dynamic lookups", args[0].String())
 	}
 	if path[0] != "Data" {
 		return fmt.Errorf("unsupported index target %q; only .Data is supported for dynamic lookups", dottedPath(path))
@@ -153,7 +162,7 @@ func validateIndexArgs(args []parse.Node) error {
 	return nil
 }
 
-func validateTemplateArg(node parse.Node) error {
+func validateTemplateArgWithState(node parse.Node, state templateValidationState) error {
 	switch n := node.(type) {
 	case nil:
 		return nil
@@ -174,12 +183,56 @@ func validateTemplateArg(node parse.Node) error {
 		}
 		return validateActivationFieldPath(path)
 	case *parse.PipeNode:
-		return validatePipeNode(n)
+		return validatePipeNodeWithState(n, state)
 	case *parse.CommandNode:
-		return validateCommandNode(n)
+		return validateCommandNodeWithState(n, state)
 	}
 
 	return nil
+}
+
+func withTemplateValidationState(pipe *parse.PipeNode, state templateValidationState) templateValidationState {
+	path, ok := scopedTemplateFieldPath(pipe, state)
+	if !ok {
+		return templateValidationState{}
+	}
+	return templateValidationState{
+		dotPath:  append([]string(nil), path...),
+		dotKnown: true,
+	}
+}
+
+func scopedTemplateFieldPath(node parse.Node, state templateValidationState) ([]string, bool) {
+	switch n := node.(type) {
+	case *parse.FieldNode:
+		if !state.dotKnown {
+			return nil, false
+		}
+		return append(append([]string(nil), state.dotPath...), n.Ident...), true
+	case *parse.ChainNode:
+		base, ok := scopedTemplateFieldPath(n.Node, state)
+		if !ok {
+			return nil, false
+		}
+		return append(base, n.Field...), true
+	case *parse.PipeNode:
+		if n == nil || len(n.Cmds) != 1 {
+			return nil, false
+		}
+		return scopedTemplateFieldPath(n.Cmds[0], state)
+	case *parse.CommandNode:
+		if n == nil || len(n.Args) != 1 {
+			return nil, false
+		}
+		return scopedTemplateFieldPath(n.Args[0], state)
+	case *parse.DotNode:
+		if !state.dotKnown {
+			return nil, false
+		}
+		return append([]string(nil), state.dotPath...), true
+	default:
+		return nil, false
+	}
 }
 
 func templateFieldPath(node parse.Node) ([]string, bool) {

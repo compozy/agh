@@ -1548,6 +1548,32 @@ func TestManagerCRUDBeforeStartUsesPersistenceWithoutRuntime(t *testing.T) {
 	}
 }
 
+func TestManagerStartWrapsSyncConfigDefinitionFailure(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+		Jobs: []aghconfig.AutomationJob{
+			managerConfigJob(AutomationScopeWorkspace, "missing-workspace", "", ScheduleSpec{
+				Mode:     ScheduleModeEvery,
+				Interval: "1h",
+			}),
+		},
+	})
+
+	err := manager.Start(h.ctx)
+	if err == nil {
+		t.Fatal("manager.Start() error = nil, want non-nil")
+	}
+	if got := err.Error(); !containsAll(got, "automation: sync config definitions", "workspace reference is required") {
+		t.Fatalf("manager.Start() error = %q, want wrapped sync context", got)
+	}
+}
+
 func TestManagerTriggerJobReturnsStoredRunOnDispatchFailure(t *testing.T) {
 	t.Parallel()
 

@@ -103,6 +103,8 @@ func StatusForAutomationError(err error) int {
 		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, ErrAutomationValidation):
 		return http.StatusBadRequest
+	case errors.Is(err, automationpkg.ErrWebhookSecretRequired):
+		return http.StatusBadRequest
 	case errors.Is(err, automationpkg.ErrJobNotFound),
 		errors.Is(err, automationpkg.ErrTriggerNotFound),
 		errors.Is(err, automationpkg.ErrRunNotFound),
@@ -115,6 +117,7 @@ func StatusForAutomationError(err error) int {
 		errors.Is(err, automationpkg.ErrTriggerWebhookIDTaken),
 		errors.Is(err, automationpkg.ErrConcurrencyLimitReached),
 		errors.Is(err, automationpkg.ErrFireLimitReached),
+		errors.Is(err, automationpkg.ErrDefinitionReadOnly),
 		errors.Is(err, automationpkg.ErrOverlayRequiresConfigSource),
 		errors.Is(err, automationpkg.ErrWebhookReplayDetected):
 		return http.StatusConflict

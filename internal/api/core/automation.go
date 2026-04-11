@@ -83,11 +83,7 @@ func (h *BaseHandlers) CreateAutomationJob(c *gin.Context) {
 		return
 	}
 
-	nextRunByID, err := h.automationNextRunByJobID(c.Request.Context(), manager)
-	if err != nil {
-		h.respondError(c, StatusForAutomationError(err), err)
-		return
-	}
+	nextRunByID := h.automationNextRunByJobIDBestEffort(c.Request.Context(), manager, "create_job")
 
 	c.JSON(http.StatusCreated, contract.JobResponse{Job: JobPayloadFromJob(created, timePointerFromMap(nextRunByID, created.ID))})
 }
@@ -158,11 +154,7 @@ func (h *BaseHandlers) UpdateAutomationJob(c *gin.Context) {
 		return
 	}
 
-	nextRunByID, err := h.automationNextRunByJobID(c.Request.Context(), manager)
-	if err != nil {
-		h.respondError(c, StatusForAutomationError(err), err)
-		return
-	}
+	nextRunByID := h.automationNextRunByJobIDBestEffort(c.Request.Context(), manager, "update_job")
 
 	c.JSON(http.StatusOK, contract.JobResponse{Job: JobPayloadFromJob(updated, timePointerFromMap(nextRunByID, updated.ID))})
 }
@@ -493,6 +485,21 @@ func (h *BaseHandlers) automationNextRunByJobID(ctx context.Context, manager Aut
 		nextRunByID[scheduled.JobID] = &next
 	}
 	return nextRunByID, nil
+}
+
+func (h *BaseHandlers) automationNextRunByJobIDBestEffort(ctx context.Context, manager AutomationManager, operation string) map[string]*time.Time {
+	nextRunByID, err := h.automationNextRunByJobID(ctx, manager)
+	if err == nil {
+		return nextRunByID
+	}
+
+	h.Logger.Warn(
+		"api: automation next_run enrichment failed",
+		"transport", h.transportName(),
+		"operation", strings.TrimSpace(operation),
+		"error", err,
+	)
+	return nil
 }
 
 func (h *BaseHandlers) automationHealth(ctx context.Context) (contract.AutomationHealthPayload, error) {

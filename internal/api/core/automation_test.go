@@ -145,6 +145,102 @@ func TestUpdateAutomationTriggerConfigBackedRejectsDefinitionEditsButAllowsEnabl
 	}
 }
 
+func TestAutomationJobWriteHandlersIgnoreNextRunLookupFailures(t *testing.T) {
+	t.Parallel()
+
+	current := automationpkg.Job{
+		ID:        "job-dynamic",
+		Scope:     automationpkg.AutomationScopeGlobal,
+		Name:      "nightly-review",
+		AgentName: "coder",
+		Prompt:    "review repo",
+		Schedule: &automationpkg.ScheduleSpec{
+			Mode:     automationpkg.ScheduleModeEvery,
+			Interval: "1h",
+		},
+		Enabled:   true,
+		Retry:     automationpkg.DefaultRetryConfig(),
+		FireLimit: automationpkg.DefaultFireLimitConfig(),
+		Source:    automationpkg.JobSourceDynamic,
+	}
+
+	t.Run("Should create a job even when next-run enrichment fails", func(t *testing.T) {
+		t.Parallel()
+
+		router := newAutomationCoreTestRouter(t, stubAutomationManager{
+			CreateJobFn: func(_ context.Context, created automationpkg.Job) (automationpkg.Job, error) {
+				return current, nil
+			},
+			StatusFn: func(context.Context) (automationpkg.ManagerStatus, error) {
+				return automationpkg.ManagerStatus{}, errors.New("status unavailable")
+			},
+		})
+
+		response := performAutomationCoreRequest(t, router, http.MethodPost, "/automation/jobs", []byte(`{"scope":"global","name":"nightly-review","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"}}`), nil)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("create status = %d, want %d; body=%s", response.Code, http.StatusCreated, response.Body.String())
+		}
+
+		var payload map[string]any
+		decodeAutomationCoreJSON(t, response, &payload)
+
+		job, ok := payload["job"].(map[string]any)
+		if !ok {
+			t.Fatalf("job payload type = %T, want object", payload["job"])
+		}
+		if job["id"] != current.ID {
+			t.Fatalf("job.id = %#v, want %q", job["id"], current.ID)
+		}
+		if nextRun, exists := job["next_run"]; exists && nextRun != nil {
+			t.Fatalf("job.next_run = %#v, want omitted or nil", nextRun)
+		}
+	})
+
+	t.Run("Should update a job even when next-run enrichment fails", func(t *testing.T) {
+		t.Parallel()
+
+		updated := current
+		updated.Prompt = "updated prompt"
+
+		router := newAutomationCoreTestRouter(t, stubAutomationManager{
+			GetJobFn: func(_ context.Context, id string) (automationpkg.Job, error) {
+				if id != current.ID {
+					t.Fatalf("GetJob() id = %q, want %q", id, current.ID)
+				}
+				return current, nil
+			},
+			UpdateJobFn: func(_ context.Context, job automationpkg.Job) (automationpkg.Job, error) {
+				if job.Prompt != updated.Prompt {
+					t.Fatalf("UpdateJob() prompt = %q, want %q", job.Prompt, updated.Prompt)
+				}
+				return updated, nil
+			},
+			StatusFn: func(context.Context) (automationpkg.ManagerStatus, error) {
+				return automationpkg.ManagerStatus{}, errors.New("status unavailable")
+			},
+		})
+
+		response := performAutomationCoreRequest(t, router, http.MethodPatch, "/automation/jobs/"+current.ID, []byte(`{"prompt":"updated prompt"}`), nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("update status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+
+		var payload map[string]any
+		decodeAutomationCoreJSON(t, response, &payload)
+
+		job, ok := payload["job"].(map[string]any)
+		if !ok {
+			t.Fatalf("job payload type = %T, want object", payload["job"])
+		}
+		if job["prompt"] != updated.Prompt {
+			t.Fatalf("job.prompt = %#v, want %q", job["prompt"], updated.Prompt)
+		}
+		if nextRun, exists := job["next_run"]; exists && nextRun != nil {
+			t.Fatalf("job.next_run = %#v, want omitted or nil", nextRun)
+		}
+	})
+}
+
 func TestWebhookRequestValidationRejectsInvalidScopeAndMalformedEndpointBeforeDispatch(t *testing.T) {
 	t.Parallel()
 
@@ -628,6 +724,38 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 	}
 	if status := StatusForAutomationError(automationpkg.ErrManagerNotRunning); status != http.StatusServiceUnavailable {
 		t.Fatalf("StatusForAutomationError(unavailable) = %d, want %d", status, http.StatusServiceUnavailable)
+	}
+}
+
+func TestStatusForAutomationErrorMapsAdditionalSentinels(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{
+			name: "Should map missing webhook secret to bad request",
+			err:  automationpkg.ErrWebhookSecretRequired,
+			want: http.StatusBadRequest,
+		},
+		{
+			name: "Should map read-only definitions to conflict",
+			err:  automationpkg.ErrDefinitionReadOnly,
+			want: http.StatusConflict,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := StatusForAutomationError(tc.err); got != tc.want {
+				t.Fatalf("StatusForAutomationError(%v) = %d, want %d", tc.err, got, tc.want)
+			}
+		})
 	}
 }
 

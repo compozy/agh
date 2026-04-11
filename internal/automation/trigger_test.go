@@ -411,6 +411,102 @@ func TestTriggerEngineRejectsReplayedWebhookDeliveriesWithinFreshnessWindow(t *t
 	}
 }
 
+func TestTriggerEngineAllowsWebhookRetryAfterDispatchFailsWithoutPersistingARun(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	createStarted := make(chan struct{}, 1)
+	createRelease := make(chan struct{})
+	creator := newRecordingSessionCreator(sessionAttemptPlan{
+		createStarted: createStarted,
+		createRelease: createRelease,
+	})
+	current := time.Date(2026, 4, 11, 5, 0, 0, 0, time.UTC)
+	dispatcher := newTestDispatcher(
+		t,
+		creator,
+		store,
+		WithDispatcherNow(func() time.Time { return current }),
+		WithDispatcherMaxConcurrent(1),
+	)
+	engine := newTestTriggerEngine(
+		t,
+		dispatcher,
+		WithTriggerEngineNow(func() time.Time { return current }),
+		WithTriggerEngineWebhookFreshnessWindow(5*time.Minute),
+	)
+
+	trigger := testWebhookTrigger(AutomationScopeGlobal, "webhook-retry-after-failure", "")
+	if err := engine.Register(TriggerRegistration{
+		Trigger:       trigger,
+		WebhookSecret: "shared-secret",
+	}); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+
+	blockingJob := testJob(AutomationScopeGlobal, "blocking-webhook-dispatch", "")
+	blockingDispatchErr := make(chan error, 1)
+	go func() {
+		_, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+			Kind: DispatchKindManual,
+			Job:  &blockingJob,
+		})
+		blockingDispatchErr <- err
+	}()
+
+	<-createStarted
+
+	payload := []byte(`{"payload":"deploy"}`)
+	signature, err := SignWebhookPayload("shared-secret", current, payload)
+	if err != nil {
+		t.Fatalf("SignWebhookPayload() error = %v", err)
+	}
+
+	firstResult, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
+		Scope:      AutomationScopeGlobal,
+		Endpoint:   "deploy-review--" + trigger.WebhookID,
+		DeliveryID: "delivery-transient-failure",
+		Timestamp:  current,
+		Signature:  signature,
+		Payload:    payload,
+		Data: map[string]any{
+			"payload": "deploy",
+		},
+	})
+	if !errors.Is(err, ErrConcurrencyLimitReached) {
+		t.Fatalf("HandleWebhook(first) error = %v, want ErrConcurrencyLimitReached", err)
+	}
+	if got := len(firstResult.Runs); got != 0 {
+		t.Fatalf("len(firstResult.Runs) = %d, want 0", got)
+	}
+
+	close(createRelease)
+	if err := <-blockingDispatchErr; err != nil {
+		t.Fatalf("blocking dispatcher.Dispatch() error = %v", err)
+	}
+
+	secondResult, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
+		Scope:      AutomationScopeGlobal,
+		Endpoint:   "deploy-review--" + trigger.WebhookID,
+		DeliveryID: "delivery-transient-failure",
+		Timestamp:  current,
+		Signature:  signature,
+		Payload:    payload,
+		Data: map[string]any{
+			"payload": "deploy",
+		},
+	})
+	if err != nil {
+		t.Fatalf("HandleWebhook(second) error = %v", err)
+	}
+	if got, want := secondResult.Matched, 1; got != want {
+		t.Fatalf("secondResult.Matched = %d, want %d", got, want)
+	}
+	if got, want := len(secondResult.Runs), 1; got != want {
+		t.Fatalf("len(secondResult.Runs) = %d, want %d", got, want)
+	}
+}
+
 func TestTriggerEngineRegisterUpdateUnregisterAndLifecycle(t *testing.T) {
 	t.Parallel()
 

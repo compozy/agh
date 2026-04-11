@@ -83,6 +83,16 @@ func TestValidateTriggerPromptTemplateRejectsUnsupportedEnvelopeReferences(t *te
 			prompt: `{{ index .Kind "anything" }}`,
 			want:   ".Kind",
 		},
+		{
+			name:   "root dot index at top level",
+			prompt: `{{ index . "payload" }}`,
+			want:   "only .Data",
+		},
+		{
+			name:   "with non-data dot index",
+			prompt: `{{ with .Kind }}{{ index . "payload" }}{{ end }}`,
+			want:   ".Kind",
+		},
 	}
 
 	for _, tc := range testCases {
