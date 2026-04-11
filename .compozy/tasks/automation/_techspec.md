@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-AGH gains a built-in automation system that enables both time-based scheduling (cron, interval, one-shot) and event-driven triggers (session events, webhook, memory consolidation, hook events). The system lives in `internal/automation/`, boots as a daemon `Server`, and shares a unified dispatch mechanism that creates agent sessions with configured prompts. Jobs are defined via TOML config (declarative, version-controlled) and API/CLI (dynamic, agent-managed), both persisted in SQLite. gocron v2 drives the in-process scheduling runtime. Extensions can observe and manage the automation engine via Host API methods once the extension system (P1) is complete.
+AGH gains a built-in automation system that enables both time-based scheduling (cron, interval, one-shot) and event-driven triggers (session events, webhook, memory consolidation, hook events). The system lives in `internal/automation/`, boots as a daemon `Server`, and shares a unified dispatch mechanism that creates agent sessions with configured prompts. Automation definitions support both `global` and `workspace` scope. Jobs are defined via TOML config (declarative, version-controlled) and API/CLI (dynamic, agent-managed), both persisted in SQLite. Config-defined jobs and triggers may be overlaid at runtime only for `enabled/disabled` operational state. gocron v2 drives the in-process scheduling runtime. Internal trigger ingress reuses the daemon's existing `observer/hooks` boundary, and external webhook triggers are authenticated with per-trigger HMAC. Extensions can observe and manage the automation engine via Host API methods once the extension system (P1) is complete.
 
 **Primary trade-off**: Building schedules and triggers together in one package increases initial scope but prevents duplication of storage, API, CLI, and UI layers that both subsystems share. The unified `Dispatcher` ensures both activation paths produce identical session creation behavior.
 
@@ -59,9 +59,10 @@ AGH gains a built-in automation system that enables both time-based scheduling (
 **Data flow**:
 1. Daemon boots → loads TOML automation config → syncs to SQLite → registers with gocron / trigger engine
 2. User creates job via CLI/API → persists to SQLite → registers with gocron / trigger engine
-3. Schedule fires (time) or trigger activates (event) → Dispatcher creates session via `session.Manager`
-4. Session lifecycle events flow back through Observer → automation store records run history
-5. Web UI queries automation API for job/trigger list, run history, next-run times
+3. Schedule fires (time) or an internal/external event is normalized into an `ActivationEnvelope`
+4. Trigger engine matches envelopes to triggers → Dispatcher applies the global concurrency gate and creates the session via `session.Manager`
+5. Runs are recorded in SQLite and reused for run history, fire-limit evaluation, and restart-safe operational state
+6. Web UI queries automation API for job/trigger list, run history, next-run times, and webhook endpoints
 
 ## Implementation Design
 
@@ -115,15 +116,20 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, e
 ```go
 // internal/automation/trigger.go
 
-// TriggerSource represents a kind of event that can activate a trigger.
-type TriggerSource interface {
-    Kind() string
-    Subscribe(ctx context.Context, ch chan<- Activation) error
-    Unsubscribe(ctx context.Context) error
+// ActivationEnvelope is the normalized trigger input regardless of source.
+type ActivationEnvelope struct {
+    Kind        string          `json:"kind"`
+    Scope       AutomationScope `json:"scope"`
+    WorkspaceID string          `json:"workspace_id,omitempty"`
+    Source      string          `json:"source"` // "observer", "hook", "webhook", "extension"
+    Data        map[string]any  `json:"data"`
 }
 
-// Built-in sources: SessionEventSource, WebhookSource,
-// MemoryEventSource, HookEventSource
+// Trigger ingress adapters convert existing daemon/runtime events into
+// ActivationEnvelope values. Built-in ingress paths:
+// - session + memory lifecycle events via observer/hooks
+// - authenticated webhook deliveries via HTTP
+// - extension-triggered events via Host API
 ```
 
 ### Data Models
@@ -133,9 +139,10 @@ type TriggerSource interface {
 
 type Job struct {
     ID          string          `json:"id"`
+    Scope       AutomationScope `json:"scope"`
     Name        string          `json:"name"`
     AgentName   string          `json:"agent_name"`
-    WorkspaceID string          `json:"workspace_id"`
+    WorkspaceID string          `json:"workspace_id,omitempty"`
     Prompt      string          `json:"prompt"`
     Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
     Enabled     bool            `json:"enabled"`
@@ -154,19 +161,22 @@ type ScheduleSpec struct {
 }
 
 type Trigger struct {
-    ID          string            `json:"id"`
-    Name        string            `json:"name"`
-    AgentName   string            `json:"agent_name"`
-    WorkspaceID string            `json:"workspace_id"`
-    Prompt      string            `json:"prompt"` // supports {{.payload}} template
-    Event       string            `json:"event"`  // "session.stopped", "webhook", etc.
-    Filter      map[string]string `json:"filter,omitempty"` // e.g. {"agent": "researcher", "stop_reason": "completed"}
-    Enabled     bool              `json:"enabled"`
-    Retry       RetryConfig       `json:"retry"`
-    FireLimit   FireLimitConfig   `json:"fire_limit"`
-    Source      JobSource         `json:"source"`
-    CreatedAt   time.Time         `json:"created_at"`
-    UpdatedAt   time.Time         `json:"updated_at"`
+    ID           string            `json:"id"`
+    Scope        AutomationScope   `json:"scope"`
+    Name         string            `json:"name"`
+    AgentName    string            `json:"agent_name"`
+    WorkspaceID  string            `json:"workspace_id,omitempty"`
+    Prompt       string            `json:"prompt"` // supports strict text/template execution against ActivationEnvelope
+    Event        string            `json:"event"`  // "session.stopped", "webhook", etc.
+    Filter       map[string]string `json:"filter,omitempty"` // exact-match against allowed ActivationEnvelope field paths
+    Enabled      bool              `json:"enabled"`
+    Retry        RetryConfig       `json:"retry"`
+    FireLimit    FireLimitConfig   `json:"fire_limit"`
+    Source       JobSource         `json:"source"`
+    WebhookID    string            `json:"webhook_id,omitempty"`
+    EndpointSlug string            `json:"endpoint_slug,omitempty"`
+    CreatedAt    time.Time         `json:"created_at"`
+    UpdatedAt    time.Time         `json:"updated_at"`
 }
 
 type RetryConfig struct {
@@ -206,6 +216,13 @@ const (
     JobSourceConfig  JobSource = "config"
     JobSourceDynamic JobSource = "dynamic"
 )
+
+type AutomationScope string
+
+const (
+    AutomationScopeGlobal    AutomationScope = "global"
+    AutomationScopeWorkspace AutomationScope = "workspace"
+)
 ```
 
 ### Database Schema
@@ -213,33 +230,45 @@ const (
 ```sql
 CREATE TABLE automation_jobs (
     id           TEXT PRIMARY KEY,
-    name         TEXT NOT NULL UNIQUE,
+    scope        TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+    name         TEXT NOT NULL,
     agent_name   TEXT NOT NULL,
-    workspace_id TEXT NOT NULL,
+    workspace_id TEXT,
     prompt       TEXT NOT NULL,
     schedule     TEXT,          -- JSON: ScheduleSpec
-    enabled      BOOLEAN NOT NULL DEFAULT 1,
+    enabled      BOOLEAN NOT NULL DEFAULT 1, -- definition default / dynamic desired state
     retry        TEXT NOT NULL,  -- JSON: RetryConfig
     fire_limit   TEXT NOT NULL,  -- JSON: FireLimitConfig
     source       TEXT NOT NULL DEFAULT 'dynamic',
     created_at   TEXT NOT NULL,
-    updated_at   TEXT NOT NULL
+    updated_at   TEXT NOT NULL,
+    CHECK (
+        (scope = 'global' AND workspace_id IS NULL) OR
+        (scope = 'workspace' AND workspace_id IS NOT NULL)
+    )
 );
 
 CREATE TABLE automation_triggers (
     id           TEXT PRIMARY KEY,
-    name         TEXT NOT NULL UNIQUE,
+    scope        TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+    name         TEXT NOT NULL,
     agent_name   TEXT NOT NULL,
-    workspace_id TEXT NOT NULL,
+    workspace_id TEXT,
     prompt       TEXT NOT NULL,
     event        TEXT NOT NULL,
     filter       TEXT,          -- JSON: map[string]string
-    enabled      BOOLEAN NOT NULL DEFAULT 1,
+    enabled      BOOLEAN NOT NULL DEFAULT 1, -- definition default / dynamic desired state
     retry        TEXT NOT NULL,
     fire_limit   TEXT NOT NULL,
     source       TEXT NOT NULL DEFAULT 'dynamic',
+    webhook_id   TEXT,
+    endpoint_slug TEXT,
     created_at   TEXT NOT NULL,
-    updated_at   TEXT NOT NULL
+    updated_at   TEXT NOT NULL,
+    CHECK (
+        (scope = 'global' AND workspace_id IS NULL) OR
+        (scope = 'workspace' AND workspace_id IS NOT NULL)
+    )
 );
 
 CREATE TABLE automation_runs (
@@ -256,6 +285,30 @@ CREATE TABLE automation_runs (
     FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE SET NULL
 );
 
+CREATE TABLE automation_job_overlays (
+    job_id            TEXT PRIMARY KEY,
+    enabled_override  BOOLEAN NOT NULL,
+    updated_at        TEXT NOT NULL,
+    FOREIGN KEY(job_id) REFERENCES automation_jobs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE automation_trigger_overlays (
+    trigger_id        TEXT PRIMARY KEY,
+    enabled_override  BOOLEAN NOT NULL,
+    updated_at        TEXT NOT NULL,
+    FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX uq_automation_jobs_global_name
+    ON automation_jobs(name) WHERE scope = 'global';
+CREATE UNIQUE INDEX uq_automation_jobs_workspace_name
+    ON automation_jobs(workspace_id, name) WHERE scope = 'workspace';
+CREATE UNIQUE INDEX uq_automation_triggers_global_name
+    ON automation_triggers(name) WHERE scope = 'global';
+CREATE UNIQUE INDEX uq_automation_triggers_workspace_name
+    ON automation_triggers(workspace_id, name) WHERE scope = 'workspace';
+CREATE UNIQUE INDEX uq_automation_triggers_webhook_id
+    ON automation_triggers(webhook_id) WHERE webhook_id IS NOT NULL;
 CREATE INDEX idx_automation_jobs_enabled ON automation_jobs(enabled);
 CREATE INDEX idx_automation_triggers_enabled ON automation_triggers(enabled);
 CREATE INDEX idx_automation_triggers_event ON automation_triggers(event);
@@ -275,6 +328,7 @@ max_concurrent_jobs = 5             # global concurrent execution limit
 default_fire_limit = { max = 12, window = "1h" }
 
 [[automation.jobs]]
+scope = "workspace"
 name = "daily-report"
 schedule = { mode = "cron", expr = "0 9 * * *" }
 agent = "researcher"
@@ -283,6 +337,7 @@ prompt = "Generate daily AI news summary"
 retry = { strategy = "none" }
 
 [[automation.jobs]]
+scope = "global"
 name = "health-check"
 schedule = { mode = "every", interval = "30m" }
 agent = "monitor"
@@ -290,17 +345,21 @@ prompt = "Check system health and report anomalies"
 retry = { strategy = "backoff", max_retries = 3, base_delay = "2s" }
 
 [[automation.triggers]]
+scope = "workspace"
 name = "post-research"
 event = "session.stopped"
-filter = { agent = "researcher", stop_reason = "completed" }
+workspace = "/home/user/project"
+filter = { "data.agent_name" = "researcher", "data.stop_reason" = "completed" }
 agent = "summarizer"
-prompt = "Summarize findings from session {{.session_id}}"
+prompt = "Summarize findings from session {{ index .Data \"session_id\" }}"
 
 [[automation.triggers]]
+scope = "global"
 name = "on-deploy"
 event = "webhook"
+endpoint_slug = "deploy-review"
 agent = "deploy-reviewer"
-prompt = "Review deployment: {{.payload}}"
+prompt = "Review deployment payload: {{ index .Data \"payload\" }}"
 ```
 
 ### API Endpoints
@@ -309,10 +368,10 @@ prompt = "Review deployment: {{.payload}}"
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/automation/jobs` | List all jobs |
+| `GET` | `/api/automation/jobs` | List all jobs (filterable by `scope`, `workspace_id`, `source`) |
 | `POST` | `/api/automation/jobs` | Create a new job |
 | `GET` | `/api/automation/jobs/:id` | Get job details + next run time |
-| `PATCH` | `/api/automation/jobs/:id` | Update job (name, schedule, enabled, retry, etc.) |
+| `PATCH` | `/api/automation/jobs/:id` | Update job; config-sourced jobs accept only operational `enabled` overlay updates |
 | `DELETE` | `/api/automation/jobs/:id` | Delete a job (config-sourced jobs cannot be deleted, only disabled) |
 | `POST` | `/api/automation/jobs/:id/trigger` | Force immediate execution |
 | `GET` | `/api/automation/jobs/:id/runs` | List execution history for job |
@@ -321,18 +380,19 @@ prompt = "Review deployment: {{.payload}}"
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/automation/triggers` | List all triggers |
+| `GET` | `/api/automation/triggers` | List all triggers (filterable by `scope`, `workspace_id`, `event`) |
 | `POST` | `/api/automation/triggers` | Create a new trigger |
 | `GET` | `/api/automation/triggers/:id` | Get trigger details |
-| `PATCH` | `/api/automation/triggers/:id` | Update trigger |
-| `DELETE` | `/api/automation/triggers/:id` | Delete a trigger |
+| `PATCH` | `/api/automation/triggers/:id` | Update trigger; config-sourced triggers accept only operational `enabled` overlay updates |
+| `DELETE` | `/api/automation/triggers/:id` | Delete a trigger (config-sourced triggers cannot be deleted, only disabled) |
 | `GET` | `/api/automation/triggers/:id/runs` | List execution history for trigger |
 
 #### Webhooks
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/webhooks/:trigger-name` | External webhook delivery endpoint |
+| `POST` | `/api/webhooks/global/:endpoint` | External webhook delivery endpoint for global webhook triggers |
+| `POST` | `/api/webhooks/workspaces/:workspace_id/:endpoint` | External webhook delivery endpoint for workspace-scoped webhook triggers |
 
 #### Runs (Shared)
 
@@ -347,9 +407,10 @@ prompt = "Review deployment: {{.payload}}"
 agh automation jobs                     # List all scheduled jobs
 agh automation jobs create              # Create a job (interactive or flags)
   --name <name>
+  --scope <global|workspace>
   --schedule <cron-expr|every:30m|at:2026-04-15T15:00>
   --agent <agent-name>
-  --workspace <path>
+  --workspace <path-or-id>              # required when --scope=workspace
   --prompt <prompt>
   --retry <none|backoff:3:2s>
 agh automation jobs get <id>            # Get job details
@@ -361,8 +422,10 @@ agh automation jobs history <id>        # Show execution history
 agh automation triggers                 # List all triggers
 agh automation triggers create          # Create a trigger
   --name <name>
+  --scope <global|workspace>
   --event <session.stopped|webhook|memory.consolidated|hook.*>
-  --filter agent=researcher,stop_reason=completed
+  --workspace <path-or-id>              # required when --scope=workspace
+  --filter data.agent_name=researcher,data.stop_reason=completed
   --agent <agent-name>
   --prompt <prompt-template>
 agh automation triggers get <id>        # Get trigger details
@@ -380,31 +443,25 @@ agh automation runs get <id>            # Get run details
 New boot phase `bootAutomation` after `bootHooks`, before `bootServers`:
 
 ```go
-func (d *Daemon) bootAutomation(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
     if !state.cfg.Automation.Enabled {
-        d.logger.Info("automation disabled")
+        state.logger.Info("automation disabled")
         return nil
     }
 
-    store, err := automation.NewStore(state.registry.DB())
-    if err != nil {
-        return fmt.Errorf("automation store: %w", err)
-    }
-
     mgr, err := automation.New(
-        automation.WithStore(store),
+        automation.WithRegistry(state.registry),
         automation.WithSessions(state.sessions),
         automation.WithObserver(state.observer),
-        automation.WithHookRunner(state.hookRunner),
+        automation.WithHooks(state.hooks),
         automation.WithConfig(state.cfg.Automation),
-        automation.WithLogger(d.logger.With("component", "automation")),
+        automation.WithLogger(state.logger.With("component", "automation")),
     )
     if err != nil {
         return fmt.Errorf("automation manager: %w", err)
     }
 
-    state.automation = mgr
-    state.cleanup.add(func(ctx context.Context) error {
+    cleanup.add(func(ctx context.Context) error {
         return mgr.Shutdown(ctx)
     })
 
@@ -414,28 +471,30 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState) error {
 
 ### Session Notifier Integration
 
-The trigger engine subscribes to session lifecycle events via `session.Notifier`:
+The trigger engine does **not** add a second direct subscription mechanism to `session/`. Instead, session lifecycle events are consumed from the existing daemon `observer/hooks` boundary and normalized into `ActivationEnvelope` values:
 
-- `OnSessionCreated` → matches triggers with `event = "session.created"`
-- `OnSessionStopped` → matches triggers with `event = "session.stopped"` + filter by agent, stop_reason
+- `session.created` → normalized to `ActivationEnvelope{Kind: "session.created", ...}`
+- `session.stopped` → normalized to `ActivationEnvelope{Kind: "session.stopped", ...}` with `data.agent_name`, `data.stop_reason`
 
 ### Memory Consolidation Integration
 
-Subscribe to dream consolidation events via callback on `memory.Store` or `consolidation.Runtime`:
+Dream consolidation completion is exposed through the same observer/hooks-facing boundary rather than through a dedicated automation-only callback:
 
-- `OnConsolidationComplete` → matches triggers with `event = "memory.consolidated"`
+- `memory.consolidated` → normalized to `ActivationEnvelope{Kind: "memory.consolidated", ...}`
 
 ### Hook System Integration
 
-Subscribe to hook completion events:
+Automation consumes hook-derived events from the existing hook runtime and also emits its own automation lifecycle hook points:
 
-- After any hook runs, emit an internal event that triggers matching `event = "hook.*.completed"` triggers
+- Existing hook completions may be normalized to `ActivationEnvelope{Kind: "hook.<name>.completed", ...}`
+- Automation emits `automation.job.pre_fire`, `automation.job.post_fire`, `automation.trigger.pre_fire`, `automation.trigger.post_fire`, `automation.run.completed`, and `automation.run.failed`
 
 ### Webhook HTTP Integration
 
 Register webhook routes in `httpapi/routes.go`:
 
-- `POST /api/webhooks/:trigger-name` — validates trigger exists, enabled, event type is "webhook", then dispatches
+- `POST /api/webhooks/global/:endpoint` — resolves stable `webhook_id` from the endpoint suffix, validates HMAC + timestamp, then normalizes and dispatches
+- `POST /api/webhooks/workspaces/:workspace_id/:endpoint` — same behavior for workspace-scoped webhook triggers
 
 ### Observer Integration
 
@@ -460,7 +519,7 @@ Extensions with the `automation.read` or `automation.write` security capabilitie
   "jsonrpc": "2.0",
   "id": 1,
   "method": "automation/jobs",
-  "params": { "workspace_id": "ws_123", "enabled": true }
+  "params": { "scope": "workspace", "workspace_id": "ws_123", "enabled": true }
 }
 // Response: { "result": [{ "id": "job_1", "name": "daily-report", ... }] }
 
@@ -471,6 +530,7 @@ Extensions with the `automation.read` or `automation.write` security capabilitie
   "method": "automation/jobs/create",
   "params": {
     "name": "ext-health-check",
+    "scope": "workspace",
     "agent_name": "monitor",
     "workspace_id": "ws_123",
     "prompt": "Check extension health",
@@ -496,6 +556,7 @@ Extensions with the `automation.read` or `automation.write` security capabilitie
   "method": "automation/triggers/create",
   "params": {
     "name": "on-memory-consolidated",
+    "scope": "workspace",
     "agent_name": "knowledge-updater",
     "workspace_id": "ws_123",
     "event": "memory.consolidated",
@@ -516,14 +577,14 @@ Extensions with the `automation.read` or `automation.write` security capabilitie
 
 | Method | Params | Result | Security Capability |
 |--------|--------|--------|---------------------|
-| `automation/jobs` | `{workspace_id?, enabled?}` | `[Job]` | `automation.read` |
+| `automation/jobs` | `{scope?, workspace_id?, enabled?}` | `[Job]` | `automation.read` |
 | `automation/jobs/get` | `{id}` | `Job` | `automation.read` |
 | `automation/jobs/create` | `CreateJobRequest` | `Job` | `automation.write` |
 | `automation/jobs/update` | `{id, ...fields}` | `Job` | `automation.write` |
 | `automation/jobs/delete` | `{id}` | `{}` | `automation.write` |
 | `automation/jobs/trigger` | `{id, payload?}` | `Run` | `automation.write` |
 | `automation/jobs/runs` | `{id, limit?, status?}` | `[Run]` | `automation.read` |
-| `automation/triggers` | `{workspace_id?, event?}` | `[Trigger]` | `automation.read` |
+| `automation/triggers` | `{scope?, workspace_id?, event?}` | `[Trigger]` | `automation.read` |
 | `automation/triggers/get` | `{id}` | `Trigger` | `automation.read` |
 | `automation/triggers/create` | `CreateTriggerRequest` | `Trigger` | `automation.write` |
 | `automation/triggers/update` | `{id, ...fields}` | `Trigger` | `automation.write` |
@@ -670,6 +731,8 @@ An extension that wants to act as a trigger source:
   "method": "automation/triggers/fire",
   "params": {
     "event": "ext.github.push",
+    "scope": "workspace",
+    "workspace_id": "ws_123",
     "payload": {
       "repo": "acme/api",
       "branch": "main",
@@ -687,17 +750,19 @@ An extension that wants to act as a trigger source:
 
 | Method | Params | Result | Security Capability |
 |--------|--------|--------|---------------------|
-| `automation/triggers/fire` | `{event: string, payload: object}` | `{matched: int, runs: [Run]}` | `automation.write` |
+| `automation/triggers/fire` | `{event: string, scope: string, workspace_id?: string, payload: object}` | `{matched: int, runs: [Run]}` | `automation.write` |
 
 **Trigger configuration referencing extension events:**
 
 ```toml
 [[automation.triggers]]
+scope = "workspace"
 name = "code-review-on-push"
 event = "ext.github.push"
-filter = { branch = "main" }
+workspace = "/home/user/project"
+filter = { "data.branch" = "main" }
 agent = "code-reviewer"
-prompt = "Review push to {{.payload.repo}} by {{.payload.author}}: {{.payload.message}}"
+prompt = "Review push to {{ .Data.repo }} by {{ .Data.author }}: {{ .Data.message }}"
 ```
 
 **Convention**: Extension-provided events use the `ext.` prefix (e.g., `ext.github.push`, `ext.slack.message`, `ext.grafana.alert`). Built-in events use bare names (e.g., `session.stopped`, `webhook`, `memory.consolidated`).
@@ -719,15 +784,16 @@ prompt = "Review push to {{.payload.repo}} by {{.payload.author}}: {{.payload.me
 | `internal/config/` | Modified | Add `AutomationConfig` struct and validation | Low risk — additive |
 | `internal/daemon/boot.go` | Modified | Add `bootAutomation` phase | Low risk — new phase between hooks and servers |
 | `internal/daemon/daemon.go` | Modified | Add automation field to `RuntimeDeps` | Low risk — additive |
-| `internal/store/globaldb/` | Modified | Add automation tables to schema | Low risk — new tables |
+| `internal/store/globaldb/` | Modified | Add scope-aware automation tables, overlays, and run queries | Low risk — new tables |
 | `internal/api/contract/` | Modified | Add automation request/response types | Low risk — additive |
 | `internal/api/httpapi/` | Modified | Add automation + webhook route handlers | Medium risk — new route groups |
 | `internal/api/core/` | Modified | Add `AutomationManager` interface | Low risk — additive |
 | `internal/cli/` | Modified | Add `automation` command group | Low risk — new subcommand |
 | `internal/extension/host_api.go` | Modified | Add `automation/*` Host API method handlers | Low risk — additive, follows existing pattern |
 | `internal/hooks/events.go` | Modified | Add `automation.*` hook event constants | Low risk — additive |
-| `internal/session/` | None | No changes — dispatcher uses existing `Manager.Create` | No action |
-| `internal/observe/` | Minor | Record automation event summaries | Low risk — new event types |
+| `internal/session/` | None | No direct subscription changes — automation consumes observer/hooks outputs | No action |
+| `internal/memory/consolidation/` | Minor | Emit a normalized observable completion event for automation ingress | Low risk — additive |
+| `internal/observe/` | Minor | Record automation event summaries and normalized ingress metadata | Low risk — additive |
 | `web/` | Modified | New `/automation` page, sidebar entry, components | Medium risk — new feature page |
 | `openapi/agh.json` | Modified | Add automation endpoints to OpenAPI spec | Low risk — additive |
 | `go.mod` | Modified | Add `go-co-op/gocron/v2` dependency | Low risk |
@@ -737,17 +803,20 @@ prompt = "Review push to {{.payload.repo}} by {{.payload.author}}: {{.payload.me
 ### Unit Tests
 
 - **Scheduler**: Register cron/interval/one-shot jobs, verify next-run calculation using `clockwork.FakeClock`, verify singleton mode prevents overlap, verify fire limits, verify retry strategies
-- **Trigger engine**: Emit mock session/memory/hook events, verify trigger matching with filters, verify fire limits, verify prompt template rendering with `{{.payload}}`
+- **Trigger engine**: Emit mock normalized activation envelopes, verify exact-match filtering, verify strict prompt template validation, verify scope-aware matching
 - **Dispatcher**: Mock `SessionCreator`, verify session creation with correct `CreateOpts`, verify run recording, verify retry on failure
-- **Store**: Table-driven CRUD tests with `t.TempDir()` SQLite, verify constraint enforcement (unique names), verify query filtering
+- **Store**: Table-driven CRUD tests with `t.TempDir()` SQLite, verify scope-aware uniqueness, overlay persistence, and query filtering
 - **Config**: Parse TOML automation section, validate schedule expressions, validate retry config, verify config-to-SQLite sync logic
 
 ### Integration Tests
 
 - **Daemon boot → schedule fires → session created**: Full lifecycle test with real scheduler (fast cron expression like `@every 1s`), verify session appears in session list
-- **Event → trigger → session**: Create a trigger for `session.stopped`, complete a session, verify trigger dispatches new session
-- **Webhook → trigger → session**: POST to webhook endpoint, verify trigger fires and session is created
-- **TOML sync**: Boot with TOML jobs, verify they appear in SQLite, modify via API, reboot, verify TOML jobs re-synced
+- **Event → trigger → session**: Create a trigger for `session.stopped`, complete a session, verify the observer/hooks boundary produces a normalized activation and dispatches the new session
+- **Webhook → trigger → session**: POST to webhook endpoint with valid HMAC, verify trigger fires and session is created
+- **Webhook auth reject**: Invalid HMAC or stale timestamp is rejected before any dispatch
+- **Scope-aware naming**: Global and workspace-scoped automations with the same human name coexist correctly
+- **TOML sync**: Boot with TOML jobs, verify they appear in SQLite, toggle only `enabled` via overlay, reboot, and verify the overlay still applies while the definition remains TOML-owned
+- **Fire limit persistence**: Restart daemon inside the active fire-limit window and verify the limit still applies
 - **Graceful shutdown**: Start jobs, initiate shutdown, verify running jobs receive context cancellation
 
 ## Development Sequencing
@@ -756,10 +825,10 @@ prompt = "Review push to {{.payload.repo}} by {{.payload.author}}: {{.payload.me
 
 1. **Config + Store** (no dependencies) — `AutomationConfig` struct, TOML parsing, validation, SQLite schema, CRUD queries
 2. **Job + Trigger types** (depends on 1) — domain types, `ScheduleSpec`, `RetryConfig`, `FireLimitConfig`, serialization
-3. **Dispatcher** (depends on 2) — `SessionCreator` interface, dispatch logic, run recording, retry engine, fire limit tracking
-4. **Scheduler** (depends on 2, 3) — gocron v2 wrapper, register/unregister jobs, lifecycle hooks wiring to dispatcher
-5. **Trigger engine** (depends on 2, 3) — `TriggerSource` interface, session/webhook/memory/hook source implementations, event matching, filter evaluation
-6. **Manager** (depends on 3, 4, 5) — compose scheduler + trigger engine + dispatcher + store, TOML sync, `Server` interface
+3. **Dispatcher** (depends on 2) — `SessionCreator` interface, dispatch logic, run recording, global concurrency gate, restart-safe fire-limit evaluation
+4. **Scheduler** (depends on 2, 3) — gocron v2 wrapper, register/unregister jobs, singleton protection, lifecycle hooks wiring to dispatcher
+5. **Trigger engine** (depends on 2, 3) — activation-envelope ingress, observer/hooks-backed internal event normalization, authenticated webhook normalization, filter evaluation
+6. **Manager** (depends on 3, 4, 5) — compose scheduler + trigger engine + dispatcher + store, TOML sync, overlay resolution, `Server` interface
 7. **Daemon integration** (depends on 6) — `bootAutomation` phase, wire `RuntimeDeps`, shutdown ordering
 8. **API contract + handlers** (depends on 6) — request/response types, HTTP handlers, webhook endpoint, route registration
 9. **CLI commands** (depends on 6) — `agh automation` subcommand tree, output formats
@@ -783,7 +852,7 @@ prompt = "Review push to {{.payload.repo}} by {{.payload.author}}: {{.payload.me
 | `automation.triggers.total` | Gauge | Total registered triggers (enabled/disabled) |
 | `automation.runs.total` | Counter | Total runs by status (completed/failed/cancelled) |
 | `automation.runs.duration_ms` | Histogram | Run duration from dispatch to session completion |
-| `automation.fire_limit.rejected` | Counter | Dispatch attempts rejected by fire limits |
+| `automation.fire_limit.rejected` | Counter | Dispatch attempts rejected by restart-safe fire-limit evaluation |
 | `automation.retry.attempts` | Counter | Retry attempts by job/trigger |
 
 ### Log Events
@@ -797,7 +866,8 @@ prompt = "Review push to {{.payload.repo}} by {{.payload.author}}: {{.payload.me
 | Fire limit hit | WARN | `job_id`/`trigger_id`, `name`, `limit`, `window` |
 | Retry scheduled | INFO | `run_id`, `attempt`, `delay` |
 | TOML sync | INFO | `jobs_synced`, `triggers_synced`, `jobs_removed` |
-| Webhook received | INFO | `trigger_name`, `remote_addr`, `payload_size` |
+| Webhook received | INFO | `webhook_id`, `trigger_name`, `remote_addr`, `payload_size` |
+| Webhook rejected | WARN | `webhook_id`, `reason`, `remote_addr` |
 | Scheduler started | INFO | `jobs_loaded`, `triggers_loaded` |
 | Scheduler shutdown | INFO | `running_jobs_cancelled`, `shutdown_duration_ms` |
 
@@ -827,13 +897,17 @@ Add automation status to `GET /api/observe/health`:
 
 3. **Built-in with extension hooks** — extension system (P1) is incomplete. Building in-process now with Host API exposure later avoids blocking on unfinished infrastructure. (ADR-001)
 
-4. **Configurable retry per job** — agent sessions are expensive. Default `none` prevents cost amplification. Jobs with transient failure modes opt into `backoff`. Fire limits provide a global safety net. (ADR-004)
+4. **Configurable retry per job** — agent sessions are expensive. Default `none` prevents cost amplification. Jobs with transient failure modes opt into `backoff`. Fire limits provide a restart-safe safety net based on persisted runs. (ADR-004)
 
 5. **No missed-job backfill** — if the daemon is down when a cron fires, the job is skipped. Running stale jobs hours late is usually wrong for LLM-powered agents. Record the miss, let the user decide. (Aligned with OpenFang's deliberate choice.)
 
-6. **TOML jobs are source-of-truth** — on daemon boot, TOML-defined jobs sync to SQLite (create if missing, update if changed). Dynamic jobs (API/CLI) coexist in SQLite. Config-sourced jobs cannot be deleted via API (only disabled). This prevents config drift.
+6. **TOML jobs are source-of-truth** — on daemon boot, TOML-defined jobs sync to SQLite (create if missing, update if changed). Dynamic jobs (API/CLI) coexist in SQLite. Config-sourced jobs may persist only an `enabled/disabled` operational overlay; definition edits remain TOML-owned. This prevents config drift without removing runtime operational control.
 
-7. **Prompt templates** — trigger prompts support Go `text/template` syntax for injecting event payload data (e.g., `{{.session_id}}`, `{{.payload}}`). Schedule prompts are static strings.
+7. **Prompt templates** — trigger prompts support Go `text/template` syntax against normalized activation envelopes, with strict validation and `missingkey=error`. Schedule prompts are static strings.
+
+8. **Explicit scope model** — automation definitions are either `global` or `workspace` scoped. Name uniqueness and webhook routes are derived from that scope boundary.
+
+9. **Observer/hooks as canonical ingress** — internal automation triggers consume normalized events from the daemon's existing observer/hooks boundary instead of adding new direct subscriptions to `session` or `memory/consolidation`.
 
 ### Known Risks
 
@@ -841,9 +915,11 @@ Add automation status to `GET /api/observe/health`:
 
 2. **Trigger fan-out performance** — many triggers with complex filters on high-frequency events (e.g., `session.created`) could cause latency. Mitigation: fire limits, efficient filter matching (exact string match, not regex in v1), async dispatch.
 
-3. **TOML ↔ SQLite sync conflicts** — user modifies a TOML job via API, then reboots. TOML wins (source-of-truth), overwriting API changes. Mitigation: log a warning on sync when TOML overrides a modified dynamic state. Config-sourced jobs are marked `source: "config"` to make this visible.
+3. **TOML ↔ SQLite sync clarity** — operators may expect broader mutation of config-backed definitions than v1 allows. Mitigation: explicit overlay model, clear API errors, and visible `source: "config"` semantics.
 
-4. **Webhook security** — unauthenticated webhook endpoints could be abused. Mitigation: fire limits prevent runaway execution. Future: add HMAC signature verification for webhook payloads (not in v1).
+4. **Webhook secret management** — HMAC removes unauthenticated webhook abuse, but secret distribution and rotation become operator concerns. Mitigation: per-trigger secrets, explicit rotation workflow, and write-only secret handling in API/CLI surfaces.
+
+5. **Fire-limit query cost** — evaluating fire limits from persisted runs introduces read pressure on hot automation paths. Mitigation: bounded-window queries plus optional in-memory cache, with SQLite remaining the source of truth.
 
 ## Architecture Decision Records
 
