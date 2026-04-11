@@ -370,6 +370,7 @@ function SidebarPanel({
             </span>
           </div>
           <div className="flex flex-col gap-0.5 px-1">
+            <NavItem to="/automation" icon={<Bot className="size-3.5" />} label="Automation" />
             <NavItem to="/knowledge" icon={<Book className="size-3.5" />} label="Knowledge" />
             <NavItem to="/skills" icon={<Wrench className="size-3.5" />} label="Skills" />
           </div>

@@ -1,0 +1,156 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { describe, expect, it, vi } from "vitest";
+
+import { AutomationJobForm } from "./automation-job-form";
+import { createAutomationJobDraft } from "../lib/automation-drafts";
+import type { CreateAutomationJobRequest } from "../types";
+
+interface RenderJobFormOptions {
+  activeWorkspaceId?: string | null;
+  draft?: CreateAutomationJobRequest;
+  isPending?: boolean;
+  mode?: "create" | "edit";
+}
+
+function renderJobForm({
+  activeWorkspaceId = "ws_alpha",
+  draft = createAutomationJobDraft(activeWorkspaceId),
+  isPending = false,
+  mode = "create" as "create" | "edit",
+}: RenderJobFormOptions = {}) {
+  const onCancel = vi.fn();
+  const onChange = vi.fn();
+  const onSubmit = vi.fn();
+
+  function Harness() {
+    const [currentDraft, setCurrentDraft] = useState<CreateAutomationJobRequest>(draft);
+
+    return (
+      <AutomationJobForm
+        activeWorkspaceId={activeWorkspaceId}
+        draft={currentDraft}
+        isPending={isPending}
+        mode={mode}
+        onCancel={onCancel}
+        onChange={nextDraft => {
+          onChange(nextDraft);
+          setCurrentDraft(nextDraft);
+        }}
+        onSubmit={onSubmit}
+      />
+    );
+  }
+
+  render(<Harness />);
+
+  return { onCancel, onChange, onSubmit };
+}
+
+describe("AutomationJobForm", () => {
+  it("updates core, scope, schedule, governance, and submit state for a create flow", () => {
+    const { onCancel, onChange, onSubmit } = renderJobForm();
+
+    expect(screen.getByTestId("submit-job-form")).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("job-name-input"), {
+      target: { value: "nightly-docs" },
+    });
+    fireEvent.change(screen.getByTestId("job-agent-input"), {
+      target: { value: "writer" },
+    });
+    fireEvent.change(screen.getByTestId("job-prompt-input"), {
+      target: { value: "Summarize documentation changes." },
+    });
+
+    fireEvent.click(screen.getByTestId("job-scope-global"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "global", workspace_id: undefined })
+    );
+
+    fireEvent.click(screen.getByTestId("job-scope-workspace"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "workspace", workspace_id: "ws_alpha" })
+    );
+
+    fireEvent.change(screen.getByTestId("job-schedule-mode"), {
+      target: { value: "every" },
+    });
+    fireEvent.change(screen.getByTestId("job-schedule-interval"), {
+      target: { value: "45m" },
+    });
+
+    fireEvent.change(screen.getByTestId("job-schedule-mode"), {
+      target: { value: "at" },
+    });
+    fireEvent.change(screen.getByTestId("job-schedule-time"), {
+      target: { value: "2026-04-15T15:00:00Z" },
+    });
+
+    fireEvent.change(screen.getByTestId("job-retry-strategy"), {
+      target: { value: "backoff" },
+    });
+    fireEvent.change(screen.getByTestId("job-retry-max"), {
+      target: { value: "5" },
+    });
+    fireEvent.change(screen.getByTestId("job-retry-delay"), {
+      target: { value: "10s" },
+    });
+    fireEvent.change(screen.getByTestId("job-fire-limit-max"), {
+      target: { value: "7" },
+    });
+    fireEvent.change(screen.getByTestId("job-fire-limit-window"), {
+      target: { value: "2h" },
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    expect(screen.getByTestId("submit-job-form")).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId("submit-job-form"));
+    fireEvent.click(screen.getByText("Cancel"));
+
+    expect(onSubmit).toHaveBeenCalledOnce();
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        enabled: false,
+        fire_limit: { max: 7, window: "2h" },
+        retry: { strategy: "backoff", max_retries: 5, base_delay: "10s" },
+        schedule: { mode: "at", time: "2026-04-15T15:00:00Z" },
+      })
+    );
+  });
+
+  it("shows workspace guidance when no active workspace is bound", () => {
+    const { onChange } = renderJobForm({
+      activeWorkspaceId: null,
+      draft: createAutomationJobDraft(undefined),
+    });
+
+    fireEvent.click(screen.getByTestId("job-scope-workspace"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "workspace", workspace_id: undefined })
+    );
+  });
+
+  it("renders edit and pending labels without submitting", () => {
+    const { onSubmit } = renderJobForm({
+      draft: {
+        ...createAutomationJobDraft("ws_alpha"),
+        name: "daily-review",
+        agent_name: "reviewer",
+        prompt: "Review recent changes.",
+      },
+      isPending: true,
+      mode: "edit",
+    });
+
+    expect(screen.getByText("Edit job")).toBeInTheDocument();
+    expect(screen.getByTestId("submit-job-form")).toHaveTextContent("Saving...");
+
+    fireEvent.submit(screen.getByTestId("automation-job-form"));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});

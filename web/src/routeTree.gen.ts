@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSkillsRouteImport } from './routes/_app/skills'
 import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
+import { Route as AppAutomationRouteImport } from './routes/_app/automation'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 
 const DesignSystemRoute = DesignSystemRouteImport.update({
@@ -40,6 +41,11 @@ const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
   path: '/knowledge',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAutomationRoute = AppAutomationRouteImport.update({
+  id: '/automation',
+  path: '/automation',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSessionIdRoute = AppSessionIdRouteImport.update({
   id: '/session/$id',
   path: '/session/$id',
@@ -49,12 +55,14 @@ const AppSessionIdRoute = AppSessionIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/design-system': typeof DesignSystemRoute
+  '/automation': typeof AppAutomationRoute
   '/knowledge': typeof AppKnowledgeRoute
   '/skills': typeof AppSkillsRoute
   '/session/$id': typeof AppSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
+  '/automation': typeof AppAutomationRoute
   '/knowledge': typeof AppKnowledgeRoute
   '/skills': typeof AppSkillsRoute
   '/': typeof AppIndexRoute
@@ -64,6 +72,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/design-system': typeof DesignSystemRoute
+  '/_app/automation': typeof AppAutomationRoute
   '/_app/knowledge': typeof AppKnowledgeRoute
   '/_app/skills': typeof AppSkillsRoute
   '/_app/': typeof AppIndexRoute
@@ -71,13 +80,26 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/design-system' | '/knowledge' | '/skills' | '/session/$id'
+  fullPaths:
+    | '/'
+    | '/design-system'
+    | '/automation'
+    | '/knowledge'
+    | '/skills'
+    | '/session/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/design-system' | '/knowledge' | '/skills' | '/' | '/session/$id'
+  to:
+    | '/design-system'
+    | '/automation'
+    | '/knowledge'
+    | '/skills'
+    | '/'
+    | '/session/$id'
   id:
     | '__root__'
     | '/_app'
     | '/design-system'
+    | '/_app/automation'
     | '/_app/knowledge'
     | '/_app/skills'
     | '/_app/'
@@ -126,6 +148,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppKnowledgeRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/automation': {
+      id: '/_app/automation'
+      path: '/automation'
+      fullPath: '/automation'
+      preLoaderRoute: typeof AppAutomationRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/session/$id': {
       id: '/_app/session/$id'
       path: '/session/$id'
@@ -137,6 +166,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAutomationRoute: typeof AppAutomationRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppSkillsRoute: typeof AppSkillsRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -144,6 +174,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAutomationRoute: AppAutomationRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppSkillsRoute: AppSkillsRoute,
   AppIndexRoute: AppIndexRoute,

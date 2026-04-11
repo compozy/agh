@@ -253,9 +253,22 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("nav-knowledge")).toHaveAttribute("href", "/knowledge");
     });
 
+    it("renders Automation nav item linking to /automation", () => {
+      render(<AppSidebar {...makeProps()} />);
+      expect(screen.getByTestId("nav-automation")).toHaveAttribute("href", "/automation");
+    });
+
     it("renders Skills nav item linking to /skills", () => {
       render(<AppSidebar {...makeProps()} />);
       expect(screen.getByTestId("nav-skills")).toHaveAttribute("href", "/skills");
+    });
+
+    it("shows active indicator on active Automation nav", () => {
+      matchedRoute["/automation"] = true;
+      render(<AppSidebar {...makeProps()} />);
+      const indicator = screen.getByTestId("nav-active-automation");
+      expect(indicator.className).toContain("w-[3px]");
+      expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
     });
 
     it("shows active indicator on active Knowledge nav", () => {
@@ -276,6 +289,7 @@ describe("AppSidebar", () => {
 
     it("does not show active indicator when nav is not active", () => {
       render(<AppSidebar {...makeProps()} />);
+      expect(screen.queryByTestId("nav-active-automation")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-knowledge")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-skills")).not.toBeInTheDocument();
     });
