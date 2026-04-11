@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extend extension protocol, capabilities, and instance-scoped launch negotiation
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Update the extension runtime contract so channel-capable extensions can negotiat
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Extend the protocol and contract definitions for `channels/deliver` and channel-related Host API methods
-- [ ] 4.2 Update capability-checking and manifest/runtime negotiation for channel-capable extensions
-- [ ] 4.3 Add instance-scoped launch metadata and bound-secret injection behavior in the extension manager
-- [ ] 4.4 Add unit and integration tests for negotiation, capability enforcement, and bound-secret scoping
+- [x] 4.1 Extend the protocol and contract definitions for `channels/deliver` and channel-related Host API methods
+- [x] 4.2 Update capability-checking and manifest/runtime negotiation for channel-capable extensions
+- [x] 4.3 Add instance-scoped launch metadata and bound-secret injection behavior in the extension manager
+- [x] 4.4 Add unit and integration tests for negotiation, capability enforcement, and bound-secret scoping
 
 ## Implementation Details
 
@@ -64,14 +64,14 @@ Follow the TechSpec sections "Extension Protocol", "Secret Storage", and "Techni
 
 ## Tests
 - Unit tests:
-  - [ ] Capability checks reject channel Host API methods when the extension lacks the required action or security grant
-  - [ ] Protocol negotiation rejects `channels/deliver` requests from extensions that do not declare the required capability surface
-  - [ ] Instance-scoped launch material includes only the secrets bound to the selected channel instance
-  - [ ] Launch negotiation does not expose arbitrary vault or secret lookup methods to the extension contract
+  - [x] Capability checks reject channel Host API methods when the extension lacks the required action or security grant
+  - [x] Protocol negotiation rejects `channels/deliver` requests from extensions that do not declare the required capability surface
+  - [x] Instance-scoped launch material includes only the secrets bound to the selected channel instance
+  - [x] Launch negotiation does not expose arbitrary vault or secret lookup methods to the extension contract
 - Integration tests:
-  - [ ] A fake channel extension can negotiate `channels/deliver` during initialize and receives the expected runtime metadata
-  - [ ] A non-channel extension still starts successfully without channel negotiation or channel-scoped launch bindings
-  - [ ] Restarting a channel extension preserves the negotiated channel service surface across launches
+  - [x] A fake channel extension can negotiate `channels/deliver` during initialize and receives the expected runtime metadata
+  - [x] A non-channel extension still starts successfully without channel negotiation or channel-scoped launch bindings
+  - [x] Restarting a channel extension preserves the negotiated channel service surface across launches
 - Test coverage target: >=80%
 - All tests must pass
 

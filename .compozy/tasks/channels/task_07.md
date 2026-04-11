@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Compose channel manager and wire daemon boot lifecycle
 type: backend
 complexity: high
@@ -31,10 +31,10 @@ Compose the channel subsystem into the daemon so the registry, Host API, deliver
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Add a channel manager/runtime composition entry point under `internal/channels/` or `internal/daemon/`
-- [ ] 7.2 Wire the new runtime into daemon boot and shutdown lifecycle paths
-- [ ] 7.3 Connect instance startup, restart, and stop flows to extension manager lifecycle handling
-- [ ] 7.4 Add tests for daemon composition, lifecycle transitions, and route continuity across restarts
+- [x] 7.1 Add a channel manager/runtime composition entry point under `internal/channels/` or `internal/daemon/`
+- [x] 7.2 Wire the new runtime into daemon boot and shutdown lifecycle paths
+- [x] 7.3 Connect instance startup, restart, and stop flows to extension manager lifecycle handling
+- [x] 7.4 Add tests for daemon composition, lifecycle transitions, and route continuity across restarts
 
 ## Implementation Details
 
@@ -65,14 +65,14 @@ Follow the TechSpec sections "System Architecture", "Data flow", "Impact Analysi
 
 ## Tests
 - Unit tests:
-  - [ ] Daemon composition builds the channel runtime only when its dependencies are present and valid
-  - [ ] Channel instance startup resolves bound secret material through the daemon-owned resolver before launching the extension
-  - [ ] Disabling or stopping a channel instance prevents new ingress while preserving prior route data
-  - [ ] Restart logic reuses daemon-owned routing state instead of rebuilding it from extension-local storage
+  - [x] Daemon composition builds the channel runtime only when its dependencies are present and valid
+  - [x] Channel instance startup resolves bound secret material through the daemon-owned resolver before launching the extension
+  - [x] Disabling or stopping a channel instance prevents new ingress while preserving prior route data
+  - [x] Restart logic reuses daemon-owned routing state instead of rebuilding it from extension-local storage
 - Integration tests:
-  - [ ] Starting the daemon with one configured channel instance launches the channel-capable extension and exposes a ready channel runtime
-  - [ ] Restarting the extension process preserves route continuity and allows later delivery to resume through the same channel instance
-  - [ ] Daemon shutdown drains the channel runtime cleanly without leaving active delivery goroutines behind
+  - [x] Starting the daemon with one configured channel instance launches the channel-capable extension and exposes a ready channel runtime
+  - [x] Restarting the extension process preserves route continuity and allows later delivery to resume through the same channel instance
+  - [x] Daemon shutdown drains the channel runtime cleanly without leaving active delivery goroutines behind
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -81,3 +81,8 @@ Follow the TechSpec sections "System Architecture", "Data flow", "Impact Analysi
 - Test coverage >=80%
 - The channel subsystem starts and stops as a first-class daemon runtime component
 - Route continuity remains daemon-owned across channel extension restarts
+
+## Verification Evidence
+- `go test -coverprofile=/tmp/daemon.cover ./internal/daemon` → passed, `80.0%` statement coverage for `internal/daemon`
+- `go test -tags integration ./internal/daemon` → passed
+- `make verify` → passed

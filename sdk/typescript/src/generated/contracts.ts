@@ -17,6 +17,9 @@ export type HostAPIMethod =
   | "automation/triggers/get"
   | "automation/triggers/runs"
   | "automation/triggers/update"
+  | "channels/instances/get"
+  | "channels/instances/report_state"
+  | "channels/messages/ingest"
   | "memory/forget"
   | "memory/recall"
   | "memory/store"
@@ -410,6 +413,50 @@ export interface AutomationTriggersParams {
   enabled?: boolean;
 }
 
+export type ChannelScope = string;
+
+export type ChannelStatus = string;
+
+export interface RoutingPolicy {
+  include_peer: boolean;
+  include_thread: boolean;
+  include_group: boolean;
+}
+
+export interface ChannelInstance {
+  id: string;
+  scope: ChannelScope;
+  workspace_id?: string;
+  platform: string;
+  extension_name: string;
+  display_name: string;
+  enabled: boolean;
+  status: ChannelStatus;
+  routing_policy: RoutingPolicy;
+  delivery_defaults?: JSONValue;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+}
+
+export interface ChannelsInstancesReportStateParams {
+  status: ChannelStatus;
+}
+
+export interface RoutingKey {
+  scope: ChannelScope;
+  workspace_id?: string;
+  channel_instance_id: string;
+  peer_id?: string;
+  thread_id?: string;
+  group_id?: string;
+}
+
+export interface ChannelsMessagesIngestResult {
+  session_id: string;
+  route_created: boolean;
+  routing_key: RoutingKey;
+}
+
 export interface ContextBlock {
   kind?: string;
   text?: string;
@@ -503,6 +550,63 @@ export interface ContextPreCompactPayload {
 export interface ControlPatch {
   deny?: boolean;
   deny_reason?: string;
+}
+
+export interface DeliveryAck {
+  delivery_id?: string;
+  seq?: number;
+  remote_message_id?: string;
+  replace_remote_message_id?: string;
+}
+
+export type DeliveryMode = string;
+
+export interface DeliveryTarget {
+  channel_instance_id: string;
+  peer_id?: string;
+  thread_id?: string;
+  group_id?: string;
+  mode?: DeliveryMode;
+}
+
+export interface MessageContent {
+  text?: string;
+}
+
+export interface DeliveryEvent {
+  delivery_id: string;
+  channel_instance_id: string;
+  routing_key: RoutingKey;
+  delivery_target: DeliveryTarget;
+  seq: number;
+  event_type: string;
+  content: MessageContent;
+  final: boolean;
+  metadata?: JSONValue;
+}
+
+export interface DeliverySnapshot {
+  delivery_id: string;
+  session_id: string;
+  turn_id: string;
+  channel_instance_id: string;
+  routing_key: RoutingKey;
+  delivery_target: DeliveryTarget;
+  latest_seq: number;
+  latest_event_type: string;
+  current_content?: MessageContent;
+  last_sent_seq?: number;
+  last_acked_seq?: number;
+  remote_message_id?: string;
+  replace_remote_message_id?: string;
+  final: boolean;
+  error?: string;
+  updated_at: ISODateTime;
+}
+
+export interface DeliveryRequest {
+  event: DeliveryEvent;
+  snapshot?: DeliverySnapshot;
 }
 
 export type EmptyResult = Record<string, never>;
@@ -633,10 +737,49 @@ export type HookRunOutcome = "applied" | "denied" | "failed" | "skipped" | "drop
 
 export type HookSkillSource = "bundled" | "marketplace" | "user" | "additional" | "workspace";
 
+export interface MessageSender {
+  id?: string;
+  username?: string;
+  display_name?: string;
+}
+
+export interface MessageAttachment {
+  id?: string;
+  name?: string;
+  mime_type?: string;
+  url?: string;
+}
+
+export interface InboundMessageEnvelope {
+  channel_instance_id: string;
+  scope: ChannelScope;
+  workspace_id?: string;
+  peer_id?: string;
+  thread_id?: string;
+  group_id?: string;
+  platform_message_id: string;
+  received_at: ISODateTime;
+  sender: MessageSender;
+  content: MessageContent;
+  attachments?: MessageAttachment[];
+  idempotency_key: string;
+}
+
 export interface InitializeCapabilities {
   provides: string[];
   granted_actions: HostAPIMethod[];
   granted_security: string[];
+}
+
+export interface InitializeChannelBoundSecret {
+  binding_name: string;
+  kind: string;
+  value: string;
+}
+
+export interface InitializeChannelRuntime {
+  instance: ChannelInstance;
+  bound_secrets?: InitializeChannelBoundSecret[];
 }
 
 export interface InitializeExtension {
@@ -662,6 +805,7 @@ export interface InitializeRuntime {
   health_check_timeout_ms: number;
   shutdown_timeout_ms: number;
   default_hook_timeout_ms: number;
+  channel?: InitializeChannelRuntime;
 }
 
 export interface InitializeRequest {
@@ -885,6 +1029,25 @@ export interface ObserveEventsParams {
   limit?: number;
 }
 
+export interface ChannelStatusCounts {
+  disabled: number;
+  starting: number;
+  ready: number;
+  degraded: number;
+  auth_required: number;
+  error: number;
+}
+
+export interface ChannelAggregateHealth {
+  total_instances: number;
+  route_count: number;
+  delivery_backlog: number;
+  delivery_dropped_total: number;
+  delivery_failures_total: number;
+  auth_failures_total: number;
+  status_counts: ChannelStatusCounts;
+}
+
 export interface ObserveHealth {
   status: string;
   uptime_seconds: number;
@@ -892,6 +1055,7 @@ export interface ObserveHealth {
   active_agents: number;
   global_db_size_bytes: number;
   session_db_size_bytes: number;
+  channels: ChannelAggregateHealth;
   version: string;
 }
 
@@ -1730,5 +1894,17 @@ export interface HostAPIMethodMap {
   "automation/runs": {
     params: AutomationRunsParams | undefined;
     result: Run[];
+  };
+  "channels/messages/ingest": {
+    params: InboundMessageEnvelope;
+    result: ChannelsMessagesIngestResult;
+  };
+  "channels/instances/get": {
+    params: undefined;
+    result: ChannelInstance;
+  };
+  "channels/instances/report_state": {
+    params: ChannelsInstancesReportStateParams;
+    result: ChannelInstance;
   };
 }

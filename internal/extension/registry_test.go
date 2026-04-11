@@ -499,7 +499,7 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("checksum helper handles errors and rejects symlinks", func(t *testing.T) {
+	t.Run("checksum helper handles errors and hashes symlinks deterministically", func(t *testing.T) {
 		if _, err := ComputeDirectoryChecksum(""); err == nil {
 			t.Fatal("ComputeDirectoryChecksum(blank) error = nil, want non-nil")
 		}
@@ -517,11 +517,47 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		if err := os.Symlink("payload.txt", linkPath); err != nil {
 			t.Skipf("os.Symlink() unavailable: %v", err)
 		}
+		packageDir := filepath.Join(dir, "packages", "typescript", "bin")
+		if err := os.MkdirAll(packageDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", packageDir, err)
+		}
+		writeFile(t, filepath.Join(packageDir, "tsc"), "#!/usr/bin/env node\n")
+		nodeModulesDir := filepath.Join(dir, "node_modules", ".bin")
+		if err := os.MkdirAll(nodeModulesDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", nodeModulesDir, err)
+		}
+		if err := os.Symlink(filepath.Join("..", "..", "packages", "typescript"), filepath.Join(dir, "node_modules", "typescript")); err != nil {
+			t.Skipf("os.Symlink(directory) unavailable: %v", err)
+		}
+		if err := os.Symlink(filepath.Join("..", "typescript", "bin", "tsc"), filepath.Join(nodeModulesDir, "tsc")); err != nil {
+			t.Skipf("os.Symlink(file) unavailable: %v", err)
+		}
 
-		if _, err := ComputeDirectoryChecksum(dir); err == nil {
-			t.Fatal("ComputeDirectoryChecksum(dir with symlink) error = nil, want non-nil")
-		} else if !strings.Contains(err.Error(), "symlinks are not allowed") {
-			t.Fatalf("ComputeDirectoryChecksum(dir with symlink) error = %v, want symlink rejection", err)
+		first, err := ComputeDirectoryChecksum(dir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(dir with symlink) error = %v", err)
+		}
+		second, err := ComputeDirectoryChecksum(dir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(dir with repeated symlink hash) error = %v", err)
+		}
+		if first != second {
+			t.Fatalf("ComputeDirectoryChecksum(dir with symlink) = %q on first pass, %q on second pass, want stable checksum", first, second)
+		}
+
+		if err := os.Remove(filepath.Join(nodeModulesDir, "tsc")); err != nil {
+			t.Fatalf("os.Remove(tsc symlink) error = %v", err)
+		}
+		if err := os.Symlink(filepath.Join("..", "..", "payload.txt"), filepath.Join(nodeModulesDir, "tsc")); err != nil {
+			t.Fatalf("os.Symlink(updated file target) error = %v", err)
+		}
+
+		updated, err := ComputeDirectoryChecksum(dir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(dir after symlink target change) error = %v", err)
+		}
+		if updated == first {
+			t.Fatalf("ComputeDirectoryChecksum(dir after symlink target change) = %q, want checksum change from %q", updated, first)
 		}
 	})
 

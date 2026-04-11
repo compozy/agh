@@ -4,11 +4,16 @@ package extension
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func withHostAPIHooks(hooks *hookspkg.Hooks) hostAPITestEnvOption {
@@ -108,6 +113,216 @@ func TestHostAPIIntegrationStoresAndRecallsMemory(t *testing.T) {
 	}
 }
 
+func TestHostAPIIntegrationChannelsMessagesIngestCreatesRouteAndSession(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-integration-ingest",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
+	})
+	ctx := env.channelContext(t, instance)
+
+	result, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", map[string]any{
+		"channel_instance_id": instance.ID,
+		"scope":               instance.Scope,
+		"workspace_id":        instance.WorkspaceID,
+		"peer_id":             "peer-1",
+		"thread_id":           "thread-1",
+		"platform_message_id": "msg-1",
+		"received_at":         env.currentTime().Format(time.RFC3339Nano),
+		"idempotency_key":     "idem-1",
+		"content":             map[string]any{"text": "hello from telegram"},
+	})
+	if err != nil {
+		t.Fatalf("Handle(channels/messages/ingest) error = %v", err)
+	}
+
+	var ingest hostAPIChannelsMessagesIngestResult
+	decodeResult(t, result, &ingest)
+	if ingest.SessionID == "" {
+		t.Fatal("channels/messages/ingest session_id = empty, want non-empty")
+	}
+	if !ingest.RouteCreated {
+		t.Fatal("channels/messages/ingest route_created = false, want true")
+	}
+
+	route, err := env.channels.ResolveRoute(testutil.Context(t), ingest.RoutingKey)
+	if err != nil {
+		t.Fatalf("channels.ResolveRoute() error = %v", err)
+	}
+	if route.SessionID != ingest.SessionID {
+		t.Fatalf("resolved route session_id = %q, want %q", route.SessionID, ingest.SessionID)
+	}
+}
+
+func TestHostAPIIntegrationChannelsMessagesIngestDuplicateRetryIsSuppressed(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-integration-dedup",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.channelContext(t, instance)
+	params := map[string]any{
+		"channel_instance_id": instance.ID,
+		"scope":               instance.Scope,
+		"workspace_id":        instance.WorkspaceID,
+		"peer_id":             "peer-1",
+		"platform_message_id": "msg-1",
+		"received_at":         env.currentTime().Format(time.RFC3339Nano),
+		"idempotency_key":     "idem-1",
+		"content":             map[string]any{"text": "retry me"},
+	}
+
+	first, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params)
+	if err != nil {
+		t.Fatalf("first Handle(channels/messages/ingest) error = %v", err)
+	}
+	var firstResult hostAPIChannelsMessagesIngestResult
+	decodeResult(t, first, &firstResult)
+
+	env.advanceTime(2 * time.Minute)
+
+	second, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params)
+	if err != nil {
+		t.Fatalf("retry Handle(channels/messages/ingest) error = %v", err)
+	}
+	var secondResult hostAPIChannelsMessagesIngestResult
+	decodeResult(t, second, &secondResult)
+
+	routes, err := env.channels.ListRoutes(testutil.Context(t), instance.ID)
+	if err != nil {
+		t.Fatalf("channels.ListRoutes() error = %v", err)
+	}
+	if got := len(routes); got != 1 {
+		t.Fatalf("len(routes) = %d, want 1", got)
+	}
+	if got := env.driver.promptCount(); got != 1 {
+		t.Fatalf("driver.promptCount() = %d, want 1", got)
+	}
+	if secondResult.SessionID != firstResult.SessionID {
+		t.Fatalf("retry session_id = %q, want %q", secondResult.SessionID, firstResult.SessionID)
+	}
+}
+
+func TestHostAPIIntegrationChannelsInstancesReportStatePublishesAuthRequired(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/instances/report_state", "channels/instances/get"}, []string{"channel.write", "channel.read"})
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-integration-state",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.channelContext(t, instance)
+
+	result, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/instances/report_state", map[string]any{
+		"status": "auth_required",
+	})
+	if err != nil {
+		t.Fatalf("Handle(channels/instances/report_state) error = %v", err)
+	}
+
+	var updated hostAPIChannelInstance
+	decodeResult(t, result, &updated)
+	if updated.Status != channelspkg.ChannelStatusAuthRequired {
+		t.Fatalf("channels/instances/report_state status = %q, want %q", updated.Status, channelspkg.ChannelStatusAuthRequired)
+	}
+
+	fetched, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/instances/get", nil)
+	if err != nil {
+		t.Fatalf("Handle(channels/instances/get) error = %v", err)
+	}
+	var loaded hostAPIChannelInstance
+	decodeResult(t, fetched, &loaded)
+	if loaded.Status != channelspkg.ChannelStatusAuthRequired {
+		t.Fatalf("channels/instances/get status = %q, want %q", loaded.Status, channelspkg.ChannelStatusAuthRequired)
+	}
+}
+
+func TestHostAPIIntegrationChannelsMessagesIngestConcurrentSameRoutingKeyUsesOneRouteAndSession(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.useSessionsWithoutObserver(t)
+	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-integration-concurrent",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.channelContext(t, instance)
+
+	type ingestResult struct {
+		result hostAPIChannelsMessagesIngestResult
+		err    error
+	}
+
+	results := make([]ingestResult, 2)
+	done := make(chan struct{}, len(results))
+	for idx := range results {
+		idx := idx
+		go func() {
+			defer func() { done <- struct{}{} }()
+			result, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", map[string]any{
+				"channel_instance_id": instance.ID,
+				"scope":               instance.Scope,
+				"workspace_id":        instance.WorkspaceID,
+				"peer_id":             "peer-1",
+				"platform_message_id": fmt.Sprintf("msg-%d", idx),
+				"received_at":         env.currentTime().Format(time.RFC3339Nano),
+				"idempotency_key":     fmt.Sprintf("idem-%d", idx),
+				"content":             map[string]any{"text": fmt.Sprintf("hello-%d", idx)},
+			})
+			if err != nil {
+				results[idx].err = err
+				return
+			}
+			if err := decodeIntegrationResult(result, &results[idx].result); err != nil {
+				results[idx].err = err
+			}
+		}()
+	}
+	for range results {
+		<-done
+	}
+
+	for idx, result := range results {
+		if result.err != nil {
+			t.Fatalf("ingest[%d] error = %v", idx, result.err)
+		}
+	}
+
+	routes, err := env.channels.ListRoutes(testutil.Context(t), instance.ID)
+	if err != nil {
+		t.Fatalf("channels.ListRoutes() error = %v", err)
+	}
+	if got := len(routes); got != 1 {
+		t.Fatalf("len(routes) = %d, want 1", got)
+	}
+
+	sessions, err := env.sessions.ListAll(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("sessions.ListAll() error = %v", err)
+	}
+	if got := len(sessions); got != 1 {
+		t.Fatalf("len(sessions) = %d, want 1", got)
+	}
+	if results[0].result.SessionID != results[1].result.SessionID {
+		t.Fatalf("session IDs = %q and %q, want same session", results[0].result.SessionID, results[1].result.SessionID)
+	}
+}
+
+func decodeIntegrationResult(result any, target any) error {
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("json.Marshal(result): %w", err)
+	}
+	if err := json.Unmarshal(encoded, target); err != nil {
+		return fmt.Errorf("json.Unmarshal(result): %w", err)
+	}
+	return nil
+}
+
 func TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	env.grant("ext-denied", nil, nil)
@@ -146,6 +361,17 @@ func TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod(t *testin
 			"scope":        "workspace",
 			"workspace_id": env.workspaceID,
 		}},
+		{method: "channels/messages/ingest", params: map[string]any{
+			"channel_instance_id": "chan-1",
+			"scope":               "workspace",
+			"workspace_id":        env.workspaceID,
+			"peer_id":             "peer-1",
+			"platform_message_id": "msg-1",
+			"received_at":         env.currentTime().Format(time.RFC3339Nano),
+			"idempotency_key":     "idem-1",
+		}},
+		{method: "channels/instances/get", params: nil},
+		{method: "channels/instances/report_state", params: map[string]any{"status": "ready"}},
 	}
 
 	for _, tt := range tests {

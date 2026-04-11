@@ -140,6 +140,49 @@ describe("HostAPI", () => {
     pair.host.handle("skills/list", async () => [
       { name: "skill-a", description: "desc", source: "workspace" },
     ]);
+    pair.host.handle("channels/messages/ingest", async params => {
+      expect(params).toEqual({
+        channel_instance_id: "chan-1",
+        scope: "global",
+        platform_message_id: "msg-1",
+        received_at: "2026-04-11T12:00:00.000Z",
+        sender: { id: "user-1" },
+        content: { text: "hello" },
+        idempotency_key: "idem-1",
+      });
+      return {
+        session_id: "sess-1",
+        route_created: true,
+        routing_key: {
+          scope: "global",
+          channel_instance_id: "chan-1",
+          peer_id: "user-1",
+        },
+      };
+    });
+    pair.host.handle("channels/instances/get", async () => ({
+      id: "chan-1",
+      scope: "global",
+      platform: "telegram",
+      extension_name: "telegram-adapter",
+      display_name: "Telegram",
+      enabled: true,
+      status: "ready",
+      routing_policy: { include_peer: true, include_thread: false, include_group: false },
+    }));
+    pair.host.handle("channels/instances/report_state", async params => {
+      expect(params).toEqual({ status: "auth_required" });
+      return {
+        id: "chan-1",
+        scope: "global",
+        platform: "telegram",
+        extension_name: "telegram-adapter",
+        display_name: "Telegram",
+        enabled: true,
+        status: "auth_required",
+        routing_policy: { include_peer: true, include_thread: false, include_group: false },
+      };
+    });
 
     await expect(host.sessions.prompt({ session_id: "sess-1", message: "hello" })).resolves.toEqual(
       {
@@ -159,6 +202,28 @@ describe("HostAPI", () => {
     await expect(host.skills.list()).resolves.toEqual([
       { name: "skill-a", description: "desc", source: "workspace" },
     ]);
+    await expect(
+      host.channels.ingest({
+        channel_instance_id: "chan-1",
+        scope: "global",
+        platform_message_id: "msg-1",
+        received_at: "2026-04-11T12:00:00.000Z",
+        sender: { id: "user-1" },
+        content: { text: "hello" },
+        idempotency_key: "idem-1",
+      })
+    ).resolves.toMatchObject({
+      session_id: "sess-1",
+      route_created: true,
+    });
+    await expect(host.channels.get()).resolves.toMatchObject({
+      id: "chan-1",
+      status: "ready",
+    });
+    await expect(host.channels.reportState({ status: "auth_required" })).resolves.toMatchObject({
+      id: "chan-1",
+      status: "auth_required",
+    });
   });
 
   it("rejects calls before the session is ready", async () => {

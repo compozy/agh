@@ -16,6 +16,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/sse"
 )
@@ -33,6 +34,15 @@ type DaemonClient interface {
 	EnableExtension(ctx context.Context, name string) (ExtensionRecord, error)
 	DisableExtension(ctx context.Context, name string) (ExtensionRecord, error)
 	ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error)
+	ListChannels(ctx context.Context) ([]ChannelRecord, error)
+	CreateChannel(ctx context.Context, request CreateChannelRequest) (ChannelRecord, error)
+	GetChannel(ctx context.Context, id string) (ChannelRecord, error)
+	UpdateChannel(ctx context.Context, id string, request UpdateChannelRequest) (ChannelRecord, error)
+	EnableChannel(ctx context.Context, id string) (ChannelRecord, error)
+	DisableChannel(ctx context.Context, id string) (ChannelRecord, error)
+	RestartChannel(ctx context.Context, id string) (ChannelRecord, error)
+	ChannelRoutes(ctx context.Context, id string) ([]ChannelRouteRecord, error)
+	TestChannelDelivery(ctx context.Context, id string, request ChannelTestDeliveryRequest) (ChannelTestDeliveryRecord, error)
 	ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error)
 	CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error)
 	GetSession(ctx context.Context, id string) (SessionRecord, error)
@@ -221,6 +231,30 @@ type InstallExtensionRequest = contract.InstallExtensionRequest
 // ExtensionRecord is the shared extension response payload.
 type ExtensionRecord = contract.ExtensionPayload
 
+// CreateChannelRequest captures the shared channel-instance creation payload.
+type CreateChannelRequest = contract.CreateChannelRequest
+
+// UpdateChannelRequest captures mutable channel-instance fields.
+type UpdateChannelRequest = contract.UpdateChannelRequest
+
+// ChannelTestDeliveryRequest captures the typed channel delivery-target dry-run request.
+type ChannelTestDeliveryRequest = contract.ChannelTestDeliveryRequest
+
+// ChannelDeliveryTargetInput captures the typed channel delivery-target override input.
+type ChannelDeliveryTargetInput = contract.ChannelDeliveryTargetInput
+
+// ChannelRecord is the shared channel-instance response payload.
+type ChannelRecord = channelspkg.ChannelInstance
+
+// ChannelRouteRecord is one persisted channel route returned by the daemon API.
+type ChannelRouteRecord = channelspkg.ChannelRoute
+
+// DeliveryTargetRecord is the resolved typed outbound target returned by the daemon API.
+type DeliveryTargetRecord = channelspkg.DeliveryTarget
+
+// ChannelTestDeliveryRecord is the shared dry-run channel delivery response payload.
+type ChannelTestDeliveryRecord = contract.ChannelTestDeliveryResponse
+
 // IdentityRecord is the local agent identity exposed by `agh whoami`.
 type IdentityRecord struct {
 	SessionID string `json:"session_id,omitempty"`
@@ -305,6 +339,80 @@ func (c *unixSocketClient) ExtensionStatus(ctx context.Context, name string) (Ex
 		return ExtensionRecord{}, err
 	}
 	return response.Extension, nil
+}
+
+func (c *unixSocketClient) ListChannels(ctx context.Context) ([]ChannelRecord, error) {
+	var response struct {
+		Channels []ChannelRecord `json:"channels"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/channels", nil, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Channels, nil
+}
+
+func (c *unixSocketClient) CreateChannel(ctx context.Context, request CreateChannelRequest) (ChannelRecord, error) {
+	var response struct {
+		Channel ChannelRecord `json:"channel"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/api/channels", nil, request, &response); err != nil {
+		return ChannelRecord{}, err
+	}
+	return response.Channel, nil
+}
+
+func (c *unixSocketClient) GetChannel(ctx context.Context, id string) (ChannelRecord, error) {
+	var response struct {
+		Channel ChannelRecord `json:"channel"`
+	}
+	path := "/api/channels/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return ChannelRecord{}, err
+	}
+	return response.Channel, nil
+}
+
+func (c *unixSocketClient) UpdateChannel(ctx context.Context, id string, request UpdateChannelRequest) (ChannelRecord, error) {
+	var response struct {
+		Channel ChannelRecord `json:"channel"`
+	}
+	path := "/api/channels/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
+		return ChannelRecord{}, err
+	}
+	return response.Channel, nil
+}
+
+func (c *unixSocketClient) EnableChannel(ctx context.Context, id string) (ChannelRecord, error) {
+	return c.channelAction(ctx, strings.TrimSpace(id), "enable")
+}
+
+func (c *unixSocketClient) DisableChannel(ctx context.Context, id string) (ChannelRecord, error) {
+	return c.channelAction(ctx, strings.TrimSpace(id), "disable")
+}
+
+func (c *unixSocketClient) RestartChannel(ctx context.Context, id string) (ChannelRecord, error) {
+	return c.channelAction(ctx, strings.TrimSpace(id), "restart")
+}
+
+func (c *unixSocketClient) ChannelRoutes(ctx context.Context, id string) ([]ChannelRouteRecord, error) {
+	var response struct {
+		Routes []ChannelRouteRecord `json:"routes"`
+	}
+	path := "/api/channels/" + url.PathEscape(strings.TrimSpace(id)) + "/routes"
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Routes, nil
+}
+
+func (c *unixSocketClient) TestChannelDelivery(ctx context.Context, id string, request ChannelTestDeliveryRequest) (ChannelTestDeliveryRecord, error) {
+	var response ChannelTestDeliveryRecord
+	path := "/api/channels/" + url.PathEscape(strings.TrimSpace(id)) + "/test-delivery"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return ChannelTestDeliveryRecord{}, err
+	}
+	return response, nil
 }
 
 func (c *unixSocketClient) ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error) {
@@ -687,6 +795,17 @@ func (c *unixSocketClient) extensionAction(ctx context.Context, name string, act
 		return ExtensionRecord{}, err
 	}
 	return response.Extension, nil
+}
+
+func (c *unixSocketClient) channelAction(ctx context.Context, id string, action string) (ChannelRecord, error) {
+	var response struct {
+		Channel ChannelRecord `json:"channel"`
+	}
+	path := "/api/channels/" + url.PathEscape(id) + "/" + action
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+		return ChannelRecord{}, err
+	}
+	return response.Channel, nil
 }
 
 func (c *unixSocketClient) doJSON(ctx context.Context, method string, path string, query url.Values, requestBody any, responseBody any) error {

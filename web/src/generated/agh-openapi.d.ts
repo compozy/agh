@@ -197,6 +197,127 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/channels": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List persisted channel instances */
+    get: operations["listChannels"];
+    put?: never;
+    /** Create a channel instance */
+    post: operations["createChannel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/channels/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one channel instance */
+    get: operations["getChannel"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update mutable channel instance fields */
+    patch: operations["updateChannel"];
+    trace?: never;
+  };
+  "/api/channels/{id}/disable": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Disable a channel instance */
+    post: operations["disableChannel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/channels/{id}/enable": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Enable a channel instance */
+    post: operations["enableChannel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/channels/{id}/restart": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Restart a channel instance */
+    post: operations["restartChannel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/channels/{id}/routes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List routes owned by a channel instance */
+    get: operations["listChannelRoutes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/channels/{id}/test-delivery": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resolve a typed outbound delivery target for a channel instance */
+    post: operations["testChannelDelivery"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/daemon/status": {
     parameters: {
       query?: never;
@@ -2401,6 +2522,978 @@ export interface operations {
       };
     };
   };
+  listChannels: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channel_health?: {
+              [key: string]: {
+                auth_failures_total: number;
+                channel_instance_id: string;
+                delivery_backlog: number;
+                delivery_dropped_by_reason?: {
+                  [key: string]: number;
+                };
+                delivery_dropped_total: number;
+                delivery_failures_total: number;
+                last_error?: string;
+                /** Format: date-time */
+                last_error_at?: string | null;
+                route_count: number;
+                /** @enum {string} */
+                status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              };
+            };
+            channels: {
+              /** Format: date-time */
+              created_at: string;
+              delivery_defaults?: unknown;
+              display_name: string;
+              enabled: boolean;
+              extension_name: string;
+              id: string;
+              platform: string;
+              routing_policy: {
+                include_group: boolean;
+                include_peer: boolean;
+                include_thread: boolean;
+              };
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          delivery_defaults?: unknown;
+          display_name: string;
+          enabled: boolean;
+          extension_name: string;
+          platform: string;
+          routing_policy: {
+            include_group: boolean;
+            include_peer: boolean;
+            include_thread: boolean;
+          };
+          /** @enum {string} */
+          scope: "global" | "workspace";
+          /** @enum {string} */
+          status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channel: {
+              /** Format: date-time */
+              created_at: string;
+              delivery_defaults?: unknown;
+              display_name: string;
+              enabled: boolean;
+              extension_name: string;
+              id: string;
+              platform: string;
+              routing_policy: {
+                include_group: boolean;
+                include_peer: boolean;
+                include_thread: boolean;
+              };
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+            health: {
+              auth_failures_total: number;
+              channel_instance_id: string;
+              delivery_backlog: number;
+              delivery_dropped_by_reason?: {
+                [key: string]: number;
+              };
+              delivery_dropped_total: number;
+              delivery_failures_total: number;
+              last_error?: string;
+              /** Format: date-time */
+              last_error_at?: string | null;
+              route_count: number;
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+            };
+          };
+        };
+      };
+      /** @description Invalid channel request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Channel instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channel: {
+              /** Format: date-time */
+              created_at: string;
+              delivery_defaults?: unknown;
+              display_name: string;
+              enabled: boolean;
+              extension_name: string;
+              id: string;
+              platform: string;
+              routing_policy: {
+                include_group: boolean;
+                include_peer: boolean;
+                include_thread: boolean;
+              };
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+            health: {
+              auth_failures_total: number;
+              channel_instance_id: string;
+              delivery_backlog: number;
+              delivery_dropped_by_reason?: {
+                [key: string]: number;
+              };
+              delivery_dropped_total: number;
+              delivery_failures_total: number;
+              last_error?: string;
+              /** Format: date-time */
+              last_error_at?: string | null;
+              route_count: number;
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+            };
+          };
+        };
+      };
+      /** @description Channel instance not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Channel instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          delivery_defaults?: unknown;
+          display_name?: string | null;
+          routing_policy?: {
+            include_group: boolean;
+            include_peer: boolean;
+            include_thread: boolean;
+          } | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channel: {
+              /** Format: date-time */
+              created_at: string;
+              delivery_defaults?: unknown;
+              display_name: string;
+              enabled: boolean;
+              extension_name: string;
+              id: string;
+              platform: string;
+              routing_policy: {
+                include_group: boolean;
+                include_peer: boolean;
+                include_thread: boolean;
+              };
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+            health: {
+              auth_failures_total: number;
+              channel_instance_id: string;
+              delivery_backlog: number;
+              delivery_dropped_by_reason?: {
+                [key: string]: number;
+              };
+              delivery_dropped_total: number;
+              delivery_failures_total: number;
+              last_error?: string;
+              /** Format: date-time */
+              last_error_at?: string | null;
+              route_count: number;
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+            };
+          };
+        };
+      };
+      /** @description Invalid channel update */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel instance or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  disableChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Channel instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channel: {
+              /** Format: date-time */
+              created_at: string;
+              delivery_defaults?: unknown;
+              display_name: string;
+              enabled: boolean;
+              extension_name: string;
+              id: string;
+              platform: string;
+              routing_policy: {
+                include_group: boolean;
+                include_peer: boolean;
+                include_thread: boolean;
+              };
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+            health: {
+              auth_failures_total: number;
+              channel_instance_id: string;
+              delivery_backlog: number;
+              delivery_dropped_by_reason?: {
+                [key: string]: number;
+              };
+              delivery_dropped_total: number;
+              delivery_failures_total: number;
+              last_error?: string;
+              /** Format: date-time */
+              last_error_at?: string | null;
+              route_count: number;
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+            };
+          };
+        };
+      };
+      /** @description Channel instance not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid channel state transition */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  enableChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Channel instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channel: {
+              /** Format: date-time */
+              created_at: string;
+              delivery_defaults?: unknown;
+              display_name: string;
+              enabled: boolean;
+              extension_name: string;
+              id: string;
+              platform: string;
+              routing_policy: {
+                include_group: boolean;
+                include_peer: boolean;
+                include_thread: boolean;
+              };
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+            health: {
+              auth_failures_total: number;
+              channel_instance_id: string;
+              delivery_backlog: number;
+              delivery_dropped_by_reason?: {
+                [key: string]: number;
+              };
+              delivery_dropped_total: number;
+              delivery_failures_total: number;
+              last_error?: string;
+              /** Format: date-time */
+              last_error_at?: string | null;
+              route_count: number;
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+            };
+          };
+        };
+      };
+      /** @description Channel instance not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid channel state transition */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  restartChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Channel instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channel: {
+              /** Format: date-time */
+              created_at: string;
+              delivery_defaults?: unknown;
+              display_name: string;
+              enabled: boolean;
+              extension_name: string;
+              id: string;
+              platform: string;
+              routing_policy: {
+                include_group: boolean;
+                include_peer: boolean;
+                include_thread: boolean;
+              };
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+            health: {
+              auth_failures_total: number;
+              channel_instance_id: string;
+              delivery_backlog: number;
+              delivery_dropped_by_reason?: {
+                [key: string]: number;
+              };
+              delivery_dropped_total: number;
+              delivery_failures_total: number;
+              last_error?: string;
+              /** Format: date-time */
+              last_error_at?: string | null;
+              route_count: number;
+              /** @enum {string} */
+              status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+            };
+          };
+        };
+      };
+      /** @description Channel instance not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid channel state transition */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listChannelRoutes: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Channel instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            routes: {
+              agent_name: string;
+              channel_instance_id: string;
+              /** Format: date-time */
+              created_at: string;
+              group_id?: string;
+              /** Format: date-time */
+              last_activity_at: string;
+              peer_id?: string;
+              routing_key_hash: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              session_id: string;
+              thread_id?: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Channel instance not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  testChannelDelivery: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Channel instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          message?: string;
+          target: {
+            channel_instance_id?: string;
+            group_id?: string;
+            /** @enum {string} */
+            mode?: "direct-send" | "reply";
+            peer_id?: string;
+            thread_id?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            delivery_target: {
+              channel_instance_id: string;
+              group_id?: string;
+              /** @enum {string} */
+              mode?: "direct-send" | "reply";
+              peer_id?: string;
+              thread_id?: string;
+            };
+            message?: string;
+            status: string;
+          };
+        };
+      };
+      /** @description Invalid delivery target request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel instance not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel instance is unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Channel service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   getDaemonStatus: {
     parameters: {
       query?: never;
@@ -3626,6 +4719,22 @@ export interface operations {
             health: {
               active_agents: number;
               active_sessions: number;
+              channels: {
+                auth_failures_total: number;
+                delivery_backlog: number;
+                delivery_dropped_total: number;
+                delivery_failures_total: number;
+                route_count: number;
+                status_counts: {
+                  auth_required: number;
+                  degraded: number;
+                  disabled: number;
+                  error: number;
+                  ready: number;
+                  starting: number;
+                };
+                total_instances: number;
+              };
               /** Format: int64 */
               global_db_size_bytes: number;
               /** Format: int64 */

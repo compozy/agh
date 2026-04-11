@@ -689,3 +689,35 @@ func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 	}
 	return string(data), nil
 }
+
+// UnmarshalAgentEvent converts a canonical stored payload back into an ACP event.
+func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
+	trimmed := strings.TrimSpace(payload)
+	if trimmed == "" {
+		return acp.AgentEvent{}, nil
+	}
+
+	var decoded canonicalEventPayload
+	if err := json.Unmarshal([]byte(trimmed), &decoded); err != nil {
+		return acp.AgentEvent{}, fmt.Errorf("transcript: unmarshal agent event: %w", err)
+	}
+
+	event := acp.AgentEvent{
+		Type:       strings.TrimSpace(decoded.Type),
+		SessionID:  strings.TrimSpace(decoded.SessionID),
+		TurnID:     strings.TrimSpace(decoded.TurnID),
+		RequestID:  strings.TrimSpace(decoded.RequestID),
+		Timestamp:  decoded.Timestamp,
+		Text:       decoded.Text,
+		Title:      firstNonEmpty(decoded.Title, decoded.ToolName),
+		ToolCallID: strings.TrimSpace(decoded.ToolCallID),
+		StopReason: strings.TrimSpace(decoded.StopReason),
+		Action:     strings.TrimSpace(decoded.Action),
+		Resource:   strings.TrimSpace(decoded.Resource),
+		Decision:   strings.TrimSpace(decoded.Decision),
+		Error:      strings.TrimSpace(decoded.Error),
+		Usage:      decoded.Usage,
+		Raw:        acp.CloneRawMessage(decoded.Raw),
+	}
+	return event, nil
+}

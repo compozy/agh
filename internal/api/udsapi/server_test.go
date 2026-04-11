@@ -27,6 +27,8 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	}
 	store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
 	dream := &stubDreamTrigger{}
+	channelService := &stubChannelService{}
+	extensionService := &stubExtensionService{}
 	cfg := aghconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = socketPath
 
@@ -40,11 +42,13 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		WithPollInterval(25*time.Millisecond),
 		WithSessionManager(stubSessionManager{}),
 		WithObserver(stubObserver{}),
+		WithChannelService(channelService),
 		WithWorkspaceResolver(stubWorkspaceService{}),
 		WithSkillsRegistry(stubSkillsRegistry{}),
 		WithMemoryStore(store),
 		WithDreamTrigger(dream),
 		WithAgentLoader(customLoader),
+		WithExtensionService(extensionService),
 		WithEngine(engine),
 	)
 	if err != nil {
@@ -73,6 +77,12 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	}
 	if server.handlers.DreamTrigger != dream {
 		t.Fatal("expected dream trigger option to be installed")
+	}
+	if server.handlers.Channels != channelService {
+		t.Fatal("expected channel service option to be installed")
+	}
+	if server.handlers.Extensions != extensionService {
+		t.Fatal("expected extension service option to be installed")
 	}
 }
 

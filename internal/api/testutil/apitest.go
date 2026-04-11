@@ -19,6 +19,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	core "github.com/pedronauck/agh/internal/api/core"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/observe"
@@ -143,11 +144,12 @@ func (s StubSessionManager) ApprovePermission(ctx context.Context, id string, re
 }
 
 type StubObserver struct {
-	QueryEventsFn      func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
-	QueryHookCatalogFn func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
-	QueryHookRunsFn    func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
-	QueryHookEventsFn  func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
-	HealthFn           func(context.Context) (observe.Health, error)
+	QueryEventsFn        func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
+	QueryHookCatalogFn   func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
+	QueryHookRunsFn      func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
+	QueryHookEventsFn    func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
+	QueryChannelHealthFn func(context.Context) ([]observe.ChannelInstanceHealth, error)
+	HealthFn             func(context.Context) (observe.Health, error)
 }
 
 type StubAutomationManager struct {
@@ -336,6 +338,13 @@ func (s StubObserver) Health(ctx context.Context) (observe.Health, error) {
 	return observe.Health{Status: "ok"}, nil
 }
 
+func (s StubObserver) QueryChannelHealth(ctx context.Context) ([]observe.ChannelInstanceHealth, error) {
+	if s.QueryChannelHealthFn != nil {
+		return s.QueryChannelHealthFn(ctx)
+	}
+	return nil, nil
+}
+
 func (s StubObserver) QueryHookCatalog(ctx context.Context, filter hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error) {
 	if s.QueryHookCatalogFn != nil {
 		return s.QueryHookCatalogFn(ctx, filter)
@@ -355,6 +364,123 @@ func (s StubObserver) QueryHookEvents(ctx context.Context, filter hookspkg.Event
 		return s.QueryHookEventsFn(ctx, filter)
 	}
 	return nil, nil
+}
+
+type StubChannelService struct {
+	CreateInstanceFn        func(context.Context, channelspkg.CreateInstanceRequest) (*channelspkg.ChannelInstance, error)
+	GetInstanceFn           func(context.Context, string) (*channelspkg.ChannelInstance, error)
+	ListInstancesFn         func(context.Context) ([]channelspkg.ChannelInstance, error)
+	UpdateInstanceFn        func(context.Context, channelspkg.UpdateInstanceRequest) (*channelspkg.ChannelInstance, error)
+	UpdateInstanceStateFn   func(context.Context, channelspkg.UpdateInstanceStateRequest) (*channelspkg.ChannelInstance, error)
+	BuildRoutingKeyFn       func(context.Context, channelspkg.RoutingKey) (channelspkg.RoutingKey, error)
+	ResolveRouteFn          func(context.Context, channelspkg.RoutingKey) (*channelspkg.ChannelRoute, error)
+	ResolveOrCreateRouteFn  func(context.Context, channelspkg.ChannelRoute) (*channelspkg.ChannelRoute, bool, error)
+	UpsertRouteFn           func(context.Context, channelspkg.ChannelRoute) (*channelspkg.ChannelRoute, error)
+	ListRoutesFn            func(context.Context, string) ([]channelspkg.ChannelRoute, error)
+	ResolveDeliveryTargetFn func(context.Context, channelspkg.ResolveDeliveryTargetRequest) (*channelspkg.DeliveryTarget, error)
+	StartInstanceFn         func(context.Context, string) (*channelspkg.ChannelInstance, error)
+	StopInstanceFn          func(context.Context, string) (*channelspkg.ChannelInstance, error)
+	RestartInstanceFn       func(context.Context, string) (*channelspkg.ChannelInstance, error)
+}
+
+var _ core.ChannelService = (*StubChannelService)(nil)
+
+func (s StubChannelService) CreateInstance(ctx context.Context, req channelspkg.CreateInstanceRequest) (*channelspkg.ChannelInstance, error) {
+	if s.CreateInstanceFn != nil {
+		return s.CreateInstanceFn(ctx, req)
+	}
+	return nil, nil
+}
+
+func (s StubChannelService) GetInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+	if s.GetInstanceFn != nil {
+		return s.GetInstanceFn(ctx, id)
+	}
+	return nil, channelspkg.ErrChannelInstanceNotFound
+}
+
+func (s StubChannelService) ListInstances(ctx context.Context) ([]channelspkg.ChannelInstance, error) {
+	if s.ListInstancesFn != nil {
+		return s.ListInstancesFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s StubChannelService) UpdateInstance(ctx context.Context, req channelspkg.UpdateInstanceRequest) (*channelspkg.ChannelInstance, error) {
+	if s.UpdateInstanceFn != nil {
+		return s.UpdateInstanceFn(ctx, req)
+	}
+	return nil, channelspkg.ErrChannelInstanceNotFound
+}
+
+func (s StubChannelService) UpdateInstanceState(ctx context.Context, req channelspkg.UpdateInstanceStateRequest) (*channelspkg.ChannelInstance, error) {
+	if s.UpdateInstanceStateFn != nil {
+		return s.UpdateInstanceStateFn(ctx, req)
+	}
+	return nil, channelspkg.ErrChannelInstanceNotFound
+}
+
+func (s StubChannelService) BuildRoutingKey(ctx context.Context, key channelspkg.RoutingKey) (channelspkg.RoutingKey, error) {
+	if s.BuildRoutingKeyFn != nil {
+		return s.BuildRoutingKeyFn(ctx, key)
+	}
+	return channelspkg.RoutingKey{}, nil
+}
+
+func (s StubChannelService) ResolveRoute(ctx context.Context, key channelspkg.RoutingKey) (*channelspkg.ChannelRoute, error) {
+	if s.ResolveRouteFn != nil {
+		return s.ResolveRouteFn(ctx, key)
+	}
+	return nil, channelspkg.ErrChannelRouteNotFound
+}
+
+func (s StubChannelService) ResolveOrCreateRoute(ctx context.Context, route channelspkg.ChannelRoute) (*channelspkg.ChannelRoute, bool, error) {
+	if s.ResolveOrCreateRouteFn != nil {
+		return s.ResolveOrCreateRouteFn(ctx, route)
+	}
+	return nil, false, channelspkg.ErrChannelRouteNotFound
+}
+
+func (s StubChannelService) UpsertRoute(ctx context.Context, route channelspkg.ChannelRoute) (*channelspkg.ChannelRoute, error) {
+	if s.UpsertRouteFn != nil {
+		return s.UpsertRouteFn(ctx, route)
+	}
+	return nil, channelspkg.ErrChannelRouteNotFound
+}
+
+func (s StubChannelService) ListRoutes(ctx context.Context, channelInstanceID string) ([]channelspkg.ChannelRoute, error) {
+	if s.ListRoutesFn != nil {
+		return s.ListRoutesFn(ctx, channelInstanceID)
+	}
+	return nil, nil
+}
+
+func (s StubChannelService) ResolveDeliveryTarget(ctx context.Context, req channelspkg.ResolveDeliveryTargetRequest) (*channelspkg.DeliveryTarget, error) {
+	if s.ResolveDeliveryTargetFn != nil {
+		return s.ResolveDeliveryTargetFn(ctx, req)
+	}
+	return nil, channelspkg.ErrChannelInstanceNotFound
+}
+
+func (s StubChannelService) StartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+	if s.StartInstanceFn != nil {
+		return s.StartInstanceFn(ctx, id)
+	}
+	return nil, channelspkg.ErrChannelInstanceNotFound
+}
+
+func (s StubChannelService) StopInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+	if s.StopInstanceFn != nil {
+		return s.StopInstanceFn(ctx, id)
+	}
+	return nil, channelspkg.ErrChannelInstanceNotFound
+}
+
+func (s StubChannelService) RestartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+	if s.RestartInstanceFn != nil {
+		return s.RestartInstanceFn(ctx, id)
+	}
+	return nil, channelspkg.ErrChannelInstanceNotFound
 }
 
 type StubWorkspaceService struct {

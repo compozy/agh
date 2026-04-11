@@ -7,6 +7,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/observe"
@@ -44,7 +45,17 @@ type Observer interface {
 	QueryHookCatalog(ctx context.Context, filter hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
 	QueryHookRuns(ctx context.Context, query store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
 	QueryHookEvents(ctx context.Context, filter hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
+	QueryChannelHealth(ctx context.Context) ([]observe.ChannelInstanceHealth, error)
 	Health(ctx context.Context) (observe.Health, error)
+}
+
+// ChannelService is the daemon-owned channel runtime surface exposed by API transports.
+type ChannelService interface {
+	channelspkg.Registry
+	channelspkg.TargetResolver
+	StartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error)
+	StopInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error)
+	RestartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error)
 }
 
 // DreamTrigger exposes consolidation controls and state to the API layer.

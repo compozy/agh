@@ -160,6 +160,71 @@ describe("Extension", () => {
     });
   });
 
+  it("negotiates channels/deliver for channel adapters and exposes scoped runtime data", async () => {
+    const ready = vi.fn();
+    const harness = new TestHarness();
+    const extension = new Extension({
+      name: "channel-adapter",
+      version: "0.1.0",
+      capabilities: { provides: ["channel.adapter"] },
+      actions: { requires: ["channels/instances/get"] },
+      security: { capabilities: ["channel.read"] },
+    });
+
+    extension.handle("channels/deliver", async () => ({
+      acknowledged: true,
+    }));
+    extension.onReady((_host, session) => {
+      ready(session.initializeRequest.runtime.channel?.instance.id);
+    });
+
+    await harness.loadExtension(extension, {
+      grantedActions: ["channels/instances/get"],
+      grantedSecurity: ["channel.read"],
+      runtime: {
+        channel: {
+          instance: {
+            id: "chan-1",
+            scope: "global",
+            platform: "telegram",
+            extension_name: "channel-adapter",
+            display_name: "Telegram",
+            enabled: true,
+            status: "ready",
+            routing_policy: { include_peer: true, include_thread: false, include_group: false },
+            created_at: "2026-04-11T12:00:00.000Z",
+            updated_at: "2026-04-11T12:00:00.000Z",
+          },
+          bound_secrets: [{ binding_name: "bot_token", kind: "bot_token", value: "secret" }],
+        },
+      },
+    });
+
+    expect(harness.getLastInitializeRequest()).toMatchObject({
+      methods: { extension_services: ["channels/deliver"] },
+    });
+    expect(ready).toHaveBeenCalledWith("chan-1");
+  });
+
+  it("rejects channel.adapter initialize when channels/deliver is not implemented", async () => {
+    const pair = createMockTransportPair();
+    const extension = new Extension(
+      {
+        name: "channel-denied",
+        version: "0.1.0",
+        capabilities: { provides: ["channel.adapter"] },
+      },
+      { transport: pair.extension }
+    );
+
+    void extension.start();
+    await expect(pair.host.call("initialize", initializeFor(extension))).rejects.toMatchObject({
+      data: {
+        error: expect.stringContaining("channel.adapter"),
+      },
+    });
+  });
+
   it("rejects new work after shutdown begins", async () => {
     const harness = new TestHarness();
     const extension = new Extension({

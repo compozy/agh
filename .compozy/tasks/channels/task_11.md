@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement the Telegram reference adapter and adapter conformance harness
 type: backend
 complexity: critical
@@ -32,10 +32,10 @@ Implement a reference Telegram adapter extension and the conformance harness tha
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Add a reference Telegram adapter extension scaffold in the SDK/examples area of the repo
-- [ ] 11.2 Implement the adapter's inbound ingest, outbound delivery, ack, and health-reporting behavior against the new contracts
-- [ ] 11.3 Add a reusable conformance harness for channel adapters using subprocess-backed tests
-- [ ] 11.4 Add integration tests for adapter startup, bound credentials, delivery ordering, and restart recovery
+- [x] 11.1 Add a reference Telegram adapter extension scaffold in the SDK/examples area of the repo
+- [x] 11.2 Implement the adapter's inbound ingest, outbound delivery, ack, and health-reporting behavior against the new contracts
+- [x] 11.3 Add a reusable conformance harness for channel adapters using subprocess-backed tests
+- [x] 11.4 Add integration tests for adapter startup, bound credentials, delivery ordering, and restart recovery
 
 ## Implementation Details
 
@@ -67,15 +67,15 @@ Follow the TechSpec sections "System Architecture", "Outbound", "Recovery", and 
 
 ## Tests
 - Unit tests:
-  - [ ] The Telegram reference adapter maps one inbound platform message into the normalized `InboundMessageEnvelope` shape expected by the Host API
-  - [ ] The adapter's outbound delivery handler preserves ordered `seq` handling and ack metadata for progressive edits
-  - [ ] The adapter reads only the bound launch-time credentials for its channel instance and does not depend on arbitrary runtime secret lookup
-  - [ ] The conformance harness flags missing ack, out-of-order delivery, or missing health reporting as adapter failures
+  - [x] The Telegram reference adapter maps one inbound platform message into the normalized `InboundMessageEnvelope` shape expected by the Host API
+  - [x] The adapter's outbound delivery handler preserves ordered `seq` handling and ack metadata for progressive edits
+  - [x] The adapter reads only the bound launch-time credentials for its channel instance and does not depend on arbitrary runtime secret lookup
+  - [x] The conformance harness flags missing ack, out-of-order delivery, or missing health reporting as adapter failures
 - Integration tests:
-  - [ ] Starting the Telegram reference adapter as a subprocess negotiates `channels/deliver` and receives the expected channel instance metadata
-  - [ ] A fake inbound Telegram update flows through `channels/messages/ingest`, resolves a route, and results in one outbound delivery stream
-  - [ ] Restarting the reference adapter during an active delivery exercises broker snapshot or explicit failure behavior rather than silently losing the delivery
-  - [ ] Per-instance health and status changes emitted by the adapter appear in the daemon observability surface
+  - [x] Starting the Telegram reference adapter as a subprocess negotiates `channels/deliver` and receives the expected channel instance metadata
+  - [x] A fake inbound Telegram update flows through `channels/messages/ingest`, resolves a route, and results in one outbound delivery stream
+  - [x] Restarting the reference adapter during an active delivery exercises broker snapshot or explicit failure behavior rather than silently losing the delivery
+  - [x] Per-instance health and status changes emitted by the adapter appear in the daemon observability surface
 - Test coverage target: >=80%
 - All tests must pass
 

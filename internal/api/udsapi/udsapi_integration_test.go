@@ -18,7 +18,9 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/api/core"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
@@ -444,6 +446,8 @@ type integrationRuntime struct {
 	server    *Server
 	manager   *session.Manager
 	observer  *observe.Observer
+	registry  *globaldb.GlobalDB
+	channels  *integrationChannelService
 	memory    *memory.Store
 	dream     *integrationDreamTrigger
 	socket    string
@@ -456,6 +460,66 @@ type integrationDreamTrigger struct {
 	reason    string
 	last      time.Time
 	calls     int
+}
+
+type integrationChannelService struct {
+	*channelspkg.Service
+}
+
+var _ core.ChannelService = (*integrationChannelService)(nil)
+
+func newIntegrationChannelService(store channelspkg.RegistryStore) *integrationChannelService {
+	return &integrationChannelService{Service: channelspkg.NewRegistry(store)}
+}
+
+func (s *integrationChannelService) StartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+	if _, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+		ID:      id,
+		Enabled: true,
+		Status:  channelspkg.ChannelStatusStarting,
+	}); err != nil {
+		return nil, fmt.Errorf("start channel instance %q: %w", id, err)
+	}
+	instance, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+		ID:      id,
+		Enabled: true,
+		Status:  channelspkg.ChannelStatusReady,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("mark channel instance %q ready: %w", id, err)
+	}
+	return instance, nil
+}
+
+func (s *integrationChannelService) StopInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+	instance, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+		ID:      id,
+		Enabled: false,
+		Status:  channelspkg.ChannelStatusDisabled,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("stop channel instance %q: %w", id, err)
+	}
+	return instance, nil
+}
+
+func (s *integrationChannelService) RestartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+	if _, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+		ID:      id,
+		Enabled: true,
+		Status:  channelspkg.ChannelStatusStarting,
+	}); err != nil {
+		return nil, fmt.Errorf("restart channel instance %q: %w", id, err)
+	}
+	instance, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+		ID:      id,
+		Enabled: true,
+		Status:  channelspkg.ChannelStatusReady,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("mark restarted channel instance %q ready: %w", id, err)
+	}
+	return instance, nil
 }
 
 func (t *integrationDreamTrigger) Trigger(context.Context, string) (bool, string, error) {
@@ -643,6 +707,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err := memoryStore.EnsureDirs(); err != nil {
 		t.Fatalf("memoryStore.EnsureDirs() error = %v", err)
 	}
+	channelService := newIntegrationChannelService(registry)
 	dreamTrigger := &integrationDreamTrigger{
 		enabled:   true,
 		triggered: true,
@@ -680,6 +745,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		WithSessionManager(manager),
 		WithObserver(observer),
 		WithAutomation(automationManager),
+		WithChannelService(channelService),
 		WithWorkspaceResolver(resolver),
 		WithMemoryStore(memoryStore),
 		WithDreamTrigger(dreamTrigger),
@@ -704,6 +770,8 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		server:    server,
 		manager:   manager,
 		observer:  observer,
+		registry:  registry,
+		channels:  channelService,
 		memory:    memoryStore,
 		dream:     dreamTrigger,
 		socket:    socketPath,

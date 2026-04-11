@@ -11,6 +11,32 @@ vi.mock("../adapters/daemon-api", () => ({
 
 import { fetchHealth } from "../adapters/daemon-api";
 
+const healthFixture = {
+  status: "ok",
+  uptime_seconds: 100,
+  active_sessions: 1,
+  active_agents: 1,
+  channels: {
+    total_instances: 0,
+    route_count: 0,
+    delivery_backlog: 0,
+    delivery_dropped_total: 0,
+    delivery_failures_total: 0,
+    auth_failures_total: 0,
+    status_counts: {
+      disabled: 0,
+      starting: 0,
+      ready: 0,
+      degraded: 0,
+      auth_required: 0,
+      error: 0,
+    },
+  },
+  global_db_size_bytes: 0,
+  session_db_size_bytes: 0,
+  version: "0.1.0",
+} as const;
+
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -31,15 +57,7 @@ describe("useDaemonHealth", () => {
   });
 
   it('derives "connected" when query succeeds', async () => {
-    vi.mocked(fetchHealth).mockResolvedValue({
-      status: "ok",
-      uptime_seconds: 100,
-      active_sessions: 1,
-      active_agents: 1,
-      global_db_size_bytes: 0,
-      session_db_size_bytes: 0,
-      version: "0.1.0",
-    });
+    vi.mocked(fetchHealth).mockResolvedValue(healthFixture);
 
     const { result } = renderHook(() => useDaemonHealth(), {
       wrapper: createWrapper(),

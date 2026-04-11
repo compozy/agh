@@ -530,7 +530,15 @@ func writeChecksumEntry(hasher hash.Hash, root string, relPath string) error {
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("extension: symlinks are not allowed in extension payload %q", absPath)
+		target, err := os.Readlink(absPath)
+		if err != nil {
+			return fmt.Errorf("extension: read checksum symlink %q: %w", absPath, err)
+		}
+		normalizedTarget := filepath.ToSlash(filepath.Clean(target))
+		return writeChecksumString(
+			hasher,
+			fmt.Sprintf("symlink:%s\nmode:%#o\ntarget:%s\n", normalizedPath, info.Mode().Perm(), normalizedTarget),
+		)
 	}
 
 	return fmt.Errorf("extension: unsupported file type in extension payload %q", absPath)

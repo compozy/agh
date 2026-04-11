@@ -10,7 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	"github.com/pedronauck/agh/internal/memory"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 // RespondError writes a transport error response, optionally masking internal error details.
@@ -57,6 +59,34 @@ func StatusForMemoryError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, memory.ErrValidation):
 		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// StatusForChannelError maps channel-domain and workspace-domain errors to transport statuses.
+func StatusForChannelError(err error) int {
+	switch {
+	case err == nil:
+		return http.StatusOK
+	case errors.Is(err, contract.ErrChannelInstanceMismatch):
+		return http.StatusBadRequest
+	case errors.Is(err, channelspkg.ErrChannelInstanceNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, channelspkg.ErrChannelRouteNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, channelspkg.ErrChannelInstanceUnavailable):
+		return http.StatusConflict
+	case errors.Is(err, channelspkg.ErrInvalidChannelStateTransition):
+		return http.StatusConflict
+	case errors.Is(err, channelspkg.ErrDeliveryNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, channelspkg.ErrDeliveryQueueSaturated):
+		return http.StatusServiceUnavailable
+	case errors.Is(err, channelspkg.ErrDeliveryTransportUnavailable):
+		return http.StatusServiceUnavailable
+	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
+		return http.StatusNotFound
 	default:
 		return http.StatusInternalServerError
 	}

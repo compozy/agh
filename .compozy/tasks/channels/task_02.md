@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement channel registry and policy-driven routing
 type: backend
 complexity: high
@@ -30,11 +30,11 @@ Implement the daemon-owned channel registry and routing logic that make channel 
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Implement the registry APIs for channel instance lifecycle and route persistence
-- [ ] 2.2 Add routing-key builders and policy-aware route resolution helpers
-- [ ] 2.3 Add state-transition validation for instance status changes and route ownership updates
-- [ ] 2.4 Document per-platform dimension mapping contract for `peer_id`, `thread_id`, and `group_id`
-- [ ] 2.5 Add unit and integration tests for route reuse, scope isolation, and registry behavior
+- [x] 2.1 Implement the registry APIs for channel instance lifecycle and route persistence
+- [x] 2.2 Add routing-key builders and policy-aware route resolution helpers
+- [x] 2.3 Add state-transition validation for instance status changes and route ownership updates
+- [x] 2.4 Document per-platform dimension mapping contract for `peer_id`, `thread_id`, and `group_id`
+- [x] 2.5 Add unit and integration tests for route reuse, scope isolation, and registry behavior
 
 ## Implementation Details
 
@@ -63,14 +63,14 @@ Follow the TechSpec sections "Core Interfaces", "RoutingKey", "ChannelRoute", an
 
 ## Tests
 - Unit tests:
-  - [ ] A routing policy that enables only `peer` includes peer identity in the routing key and omits `thread` and `group`
-  - [ ] A routing policy that enables `peer` and `thread` generates distinct keys for the same peer across different threads
-  - [ ] Instance state transitions reject invalid moves such as reporting `ready` from a disabled instance without an enable path
-  - [ ] Route resolution for the same canonical key reuses the stored session ID instead of creating a second route record
+  - [x] A routing policy that enables only `peer` includes peer identity in the routing key and omits `thread` and `group`
+  - [x] A routing policy that enables `peer` and `thread` generates distinct keys for the same peer across different threads
+  - [x] Instance state transitions reject invalid moves such as reporting `ready` from a disabled instance without an enable path
+  - [x] Route resolution for the same canonical key reuses the stored session ID instead of creating a second route record
 - Integration tests:
-  - [ ] A global channel instance and a workspace-scoped instance with the same peer values resolve to different routing keys and route records
-  - [ ] Updating a route for an existing routing key replaces the stored session ownership without creating duplicate rows
-  - [ ] Listing routes for one channel instance returns only that instance's route set
+  - [x] A global channel instance and a workspace-scoped instance with the same peer values resolve to different routing keys and route records
+  - [x] Updating a route for an existing routing key replaces the stored session ownership without creating duplicate rows
+  - [x] Listing routes for one channel instance returns only that instance's route set
 - Test coverage target: >=80%
 - All tests must pass
 

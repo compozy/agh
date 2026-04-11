@@ -137,13 +137,14 @@ type ObserveEventPayload struct {
 
 // ObserveHealthPayload is the shared observability health response payload.
 type ObserveHealthPayload struct {
-	Status             string `json:"status"`
-	UptimeSeconds      int64  `json:"uptime_seconds"`
-	ActiveSessions     int    `json:"active_sessions"`
-	ActiveAgents       int    `json:"active_agents"`
-	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
-	Version            string `json:"version"`
+	Status             string                        `json:"status"`
+	UptimeSeconds      int64                         `json:"uptime_seconds"`
+	ActiveSessions     int                           `json:"active_sessions"`
+	ActiveAgents       int                           `json:"active_agents"`
+	GlobalDBSizeBytes  int64                         `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64                         `json:"session_db_size_bytes"`
+	Channels           ChannelAggregateHealthPayload `json:"channels"`
+	Version            string                        `json:"version"`
 }
 
 // HookCatalogQuery captures the shared resolved-hook catalog filters.

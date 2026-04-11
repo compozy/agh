@@ -71,7 +71,7 @@ AGH is the **connection initiator** because it launches the subprocess, but afte
 |---|---|---|
 | AGH -> Extension | Base lifecycle methods | `initialize`, `execute_hook`, `health_check`, `shutdown`, `provide_tools` |
 | Extension -> AGH | Host API actions | `sessions/*`, `memory/*`, `observe/*`, `skills/*` |
-| AGH -> Extension | Extension service methods | Capability-specific methods such as `memory/store`, `memory/recall`, `memory/forget` when the extension provides `memory.backend` |
+| AGH -> Extension | Extension service methods | Capability-specific methods such as `memory/store`, `memory/recall`, `memory/forget` for `memory.backend`, and `channels/deliver` for `channel.adapter` |
 
 ### 2.2 Naming conventions
 
@@ -202,6 +202,7 @@ AGH must send `initialize` as the first request.
 | `runtime.health_check_timeout_ms` | integer | yes | Per-probe timeout |
 | `runtime.shutdown_timeout_ms` | integer | yes | Graceful shutdown deadline before signal escalation |
 | `runtime.default_hook_timeout_ms` | integer | yes | Default timeout when a hook declaration omits one |
+| `runtime.channel` | object | no | Instance-scoped channel launch payload for `channel.adapter` sessions, including the bound `channel_instance` metadata and only the bound secrets resolved for that instance |
 
 ### 4.3 Initialize response
 
@@ -350,6 +351,9 @@ The canonical Host API method inventory (Extension -> AGH):
 | `observe/health` | `observe.read` |
 | `observe/events` | `observe.read` |
 | `skills/list` | `skills.read` |
+| `channels/messages/ingest` | `channel.write` |
+| `channels/instances/get` | `channel.read` |
+| `channels/instances/report_state` | `channel.write` |
 
 See `_techspec.md` Host API section for parameter and result schemas.
 
@@ -365,11 +369,18 @@ This protocol file adds the normative rules around:
 ### 5.3 Capability service methods
 
 Capability service methods are AGH -> extension requests enabled by `capabilities.provides`.
-In v1, the only normatively grounded service surface is the memory backend family shown in `_techspec.md` and `_examples.md`:
+In v1, the normatively grounded service surfaces are:
 
 - `memory/store`
 - `memory/recall`
 - `memory/forget`
+- `channels/deliver`
+
+`channels/deliver` is available only when the extension accepts `channel.adapter`
+during `initialize`, and AGH must provide the matching `runtime.channel`
+instance payload in the same handshake. That payload is the only launch-time
+secret surface for channel adapters in v1; arbitrary vault or secret lookup
+methods are intentionally excluded from the Host API.
 
 The wire framing, timeouts, and error rules for those calls are identical to any other operational JSON-RPC request.
 

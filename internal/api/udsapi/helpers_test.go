@@ -25,23 +25,51 @@ var errStubWorkspaceServiceNotImplemented = testutil.ErrStubWorkspaceServiceNotI
 
 type stubSessionManager = testutil.StubSessionManager
 type stubObserver = testutil.StubObserver
+type stubChannelService = testutil.StubChannelService
 type stubWorkspaceService = testutil.StubWorkspaceService
 type stubSkillsRegistry = testutil.StubSkillsRegistry
 type sseRecord = testutil.SSERecord
 
 func newTestHandlers(t *testing.T, manager core.SessionManager, observer core.Observer, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()
-	return newTestHandlersWithAutomationAndWorkspace(t, manager, observer, nil, stubWorkspaceService{}, homePaths)
+	return newTestHandlersWithRuntime(t, manager, observer, nil, nil, stubWorkspaceService{}, nil, homePaths)
+}
+
+func newTestHandlersWithChannels(
+	t *testing.T,
+	manager core.SessionManager,
+	observer core.Observer,
+	channels core.ChannelService,
+	workspaces core.WorkspaceService,
+	homePaths aghconfig.HomePaths,
+) *Handlers {
+	t.Helper()
+	return newTestHandlersWithRuntime(t, manager, observer, nil, channels, workspaces, nil, homePaths)
 }
 
 func newTestHandlersWithExtensions(t *testing.T, manager core.SessionManager, observer core.Observer, extensions ExtensionService, homePaths aghconfig.HomePaths) *Handlers {
+	t.Helper()
+	return newTestHandlersWithRuntime(t, manager, observer, nil, nil, stubWorkspaceService{}, extensions, homePaths)
+}
+
+func newTestHandlersWithRuntime(
+	t *testing.T,
+	manager core.SessionManager,
+	observer core.Observer,
+	automation core.AutomationManager,
+	channels core.ChannelService,
+	workspaces core.WorkspaceService,
+	extensions ExtensionService,
+	homePaths aghconfig.HomePaths,
+) *Handlers {
 	t.Helper()
 
 	return newHandlers(handlerConfig{
 		sessions:     manager,
 		observer:     observer,
-		automation:   nil,
-		workspaces:   stubWorkspaceService{},
+		automation:   automation,
+		channels:     channels,
+		workspaces:   workspaces,
 		homePaths:    homePaths,
 		config:       aghconfig.DefaultWithHome(homePaths),
 		logger:       discardLogger(),
@@ -55,25 +83,8 @@ func newTestHandlersWithExtensions(t *testing.T, manager core.SessionManager, ob
 
 func newTestHandlersWithWorkspace(t *testing.T, manager core.SessionManager, observer core.Observer, workspaces core.WorkspaceService, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()
-	return newTestHandlersWithAutomationAndWorkspace(t, manager, observer, nil, workspaces, homePaths)
-}
 
-func newTestHandlersWithAutomationAndWorkspace(t *testing.T, manager core.SessionManager, observer core.Observer, automation core.AutomationManager, workspaces core.WorkspaceService, homePaths aghconfig.HomePaths) *Handlers {
-	t.Helper()
-
-	return newHandlers(handlerConfig{
-		sessions:     manager,
-		observer:     observer,
-		automation:   automation,
-		workspaces:   workspaces,
-		homePaths:    homePaths,
-		config:       aghconfig.DefaultWithHome(homePaths),
-		logger:       discardLogger(),
-		startedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
-		pollInterval: 5 * time.Millisecond,
-		agentLoader:  aghconfig.LoadAgentDef,
-	})
+	return newTestHandlersWithChannels(t, manager, observer, nil, workspaces, homePaths)
 }
 
 func newTestRouter(t *testing.T, handlers *Handlers) *gin.Engine {

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add CLI channel management commands
 type: backend
 complexity: medium
@@ -29,10 +29,10 @@ Add a first-class `agh channel` command group so operators and agents can manage
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Add a `channel` command group to the root CLI and implement subcommands for the channel lifecycle
-- [ ] 9.2 Extend the CLI client with channel transport methods matching the new API surface
-- [ ] 9.3 Add human, JSON, and toon-style output for channel records and route inspection
-- [ ] 9.4 Add CLI unit and integration tests for the new command group
+- [x] 9.1 Add a `channel` command group to the root CLI and implement subcommands for the channel lifecycle
+- [x] 9.2 Extend the CLI client with channel transport methods matching the new API surface
+- [x] 9.3 Add human, JSON, and toon-style output for channel records and route inspection
+- [x] 9.4 Add CLI unit and integration tests for the new command group
 
 ## Implementation Details
 
@@ -62,14 +62,14 @@ Follow the TechSpec sections "HTTP / UDS API", "Operational visibility", and the
 
 ## Tests
 - Unit tests:
-  - [ ] `agh channel list` renders scope, platform, and status fields in human output
-  - [ ] `agh channel get <id>` returns structured JSON output using the shared channel DTOs
-  - [ ] `agh channel routes <id>` renders route information without flattening peer and thread fields incorrectly
-  - [ ] `agh channel test-delivery` forwards the typed delivery-target payload rather than a free-form string
+  - [x] `agh channel list` renders scope, platform, and status fields in human output
+  - [x] `agh channel get <id>` returns structured JSON output using the shared channel DTOs
+  - [x] `agh channel routes <id>` renders route information without flattening peer and thread fields incorrectly
+  - [x] `agh channel test-delivery` forwards the typed delivery-target payload rather than a free-form string
 - Integration tests:
-  - [ ] CLI create and get commands round-trip a channel instance through the daemon-backed API
-  - [ ] Enable, disable, and restart commands mutate channel instance state through the same transport path as the API
-  - [ ] Route-inspection commands return data for an existing channel instance and fail cleanly for an unknown instance
+  - [x] CLI create and get commands round-trip a channel instance through the daemon-backed API
+  - [x] Enable, disable, and restart commands mutate channel instance state through the same transport path as the API
+  - [x] Route-inspection commands return data for an existing channel instance and fail cleanly for an unknown instance
 - Test coverage target: >=80%
 - All tests must pass
 

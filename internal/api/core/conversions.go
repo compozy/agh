@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"maps"
 	"path/filepath"
 	"strings"
 	"time"
@@ -192,6 +193,7 @@ func ObserveHealthPayloadFromHealth(health observepkg.Health) contract.ObserveHe
 		ActiveAgents:       health.ActiveAgents,
 		GlobalDBSizeBytes:  health.GlobalDBSizeBytes,
 		SessionDBSizeBytes: health.SessionDBSizeBytes,
+		Channels:           ChannelAggregateHealthPayloadFromObserve(health.Channels),
 		Version:            health.Version,
 	}
 }
@@ -311,6 +313,50 @@ func WebhookDeliveryPayloadFromResult(result automationpkg.TriggerResult) contra
 	return contract.WebhookDeliveryPayload{
 		Matched: result.Matched,
 		Runs:    RunPayloadsFromRuns(result.Runs),
+	}
+}
+
+// ChannelAggregateHealthPayloadFromObserve converts the observer channel
+// summary into the shared payload.
+func ChannelAggregateHealthPayloadFromObserve(summary observepkg.ChannelAggregateHealth) contract.ChannelAggregateHealthPayload {
+	return contract.ChannelAggregateHealthPayload{
+		TotalInstances:        summary.TotalInstances,
+		RouteCount:            summary.RouteCount,
+		DeliveryBacklog:       summary.DeliveryBacklog,
+		DeliveryDroppedTotal:  summary.DeliveryDroppedTotal,
+		DeliveryFailuresTotal: summary.DeliveryFailuresTotal,
+		AuthFailuresTotal:     summary.AuthFailuresTotal,
+		StatusCounts: contract.ChannelStatusCountsPayload{
+			Disabled:     summary.StatusCounts.Disabled,
+			Starting:     summary.StatusCounts.Starting,
+			Ready:        summary.StatusCounts.Ready,
+			Degraded:     summary.StatusCounts.Degraded,
+			AuthRequired: summary.StatusCounts.AuthRequired,
+			Error:        summary.StatusCounts.Error,
+		},
+	}
+}
+
+// ChannelHealthPayloadFromObserve converts the observer per-instance channel
+// health snapshot into the shared payload.
+func ChannelHealthPayloadFromObserve(health observepkg.ChannelInstanceHealth) contract.ChannelHealthPayload {
+	var lastErrorAt *time.Time
+	if !health.LastErrorAt.IsZero() {
+		timestamp := health.LastErrorAt
+		lastErrorAt = &timestamp
+	}
+
+	return contract.ChannelHealthPayload{
+		ChannelInstanceID:       health.ChannelInstanceID,
+		Status:                  health.Status,
+		RouteCount:              health.RouteCount,
+		DeliveryBacklog:         health.DeliveryBacklog,
+		DeliveryDroppedTotal:    health.DeliveryDroppedTotal,
+		DeliveryDroppedByReason: maps.Clone(health.DeliveryDroppedByReason),
+		DeliveryFailuresTotal:   health.DeliveryFailuresTotal,
+		AuthFailuresTotal:       health.AuthFailuresTotal,
+		LastError:               health.LastError,
+		LastErrorAt:             lastErrorAt,
 	}
 }
 

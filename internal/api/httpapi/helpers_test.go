@@ -19,20 +19,36 @@ import (
 
 type stubSessionManager = testutil.StubSessionManager
 type stubObserver = testutil.StubObserver
+type stubChannelService = testutil.StubChannelService
 type stubWorkspaceService = testutil.StubWorkspaceService
 type sseRecord = testutil.SSERecord
 
 func newTestHandlers(t *testing.T, manager core.SessionManager, observer core.Observer, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()
-	return newTestHandlersWithAutomationAndWorkspace(t, manager, observer, nil, stubWorkspaceService{}, homePaths)
+	return newTestHandlersWithAutomationChannelsAndWorkspace(t, manager, observer, nil, nil, stubWorkspaceService{}, homePaths)
 }
 
-func newTestHandlersWithWorkspace(t *testing.T, manager core.SessionManager, observer core.Observer, workspaces core.WorkspaceService, homePaths aghconfig.HomePaths) *Handlers {
+func newTestHandlersWithChannels(
+	t *testing.T,
+	manager core.SessionManager,
+	observer core.Observer,
+	channels core.ChannelService,
+	workspaces core.WorkspaceService,
+	homePaths aghconfig.HomePaths,
+) *Handlers {
 	t.Helper()
-	return newTestHandlersWithAutomationAndWorkspace(t, manager, observer, nil, workspaces, homePaths)
+	return newTestHandlersWithAutomationChannelsAndWorkspace(t, manager, observer, nil, channels, workspaces, homePaths)
 }
 
-func newTestHandlersWithAutomationAndWorkspace(t *testing.T, manager core.SessionManager, observer core.Observer, automation core.AutomationManager, workspaces core.WorkspaceService, homePaths aghconfig.HomePaths) *Handlers {
+func newTestHandlersWithAutomationChannelsAndWorkspace(
+	t *testing.T,
+	manager core.SessionManager,
+	observer core.Observer,
+	automation core.AutomationManager,
+	channels core.ChannelService,
+	workspaces core.WorkspaceService,
+	homePaths aghconfig.HomePaths,
+) *Handlers {
 	t.Helper()
 
 	cfg := aghconfig.DefaultWithHome(homePaths)
@@ -43,6 +59,7 @@ func newTestHandlersWithAutomationAndWorkspace(t *testing.T, manager core.Sessio
 		sessions:     manager,
 		observer:     observer,
 		automation:   automation,
+		channels:     channels,
 		workspaces:   workspaces,
 		staticFS:     mustStaticFS(t),
 		homePaths:    homePaths,
@@ -54,6 +71,12 @@ func newTestHandlersWithAutomationAndWorkspace(t *testing.T, manager core.Sessio
 		agentLoader:  aghconfig.LoadAgentDef,
 		httpPort:     cfg.HTTP.Port,
 	})
+}
+
+func newTestHandlersWithWorkspace(t *testing.T, manager core.SessionManager, observer core.Observer, workspaces core.WorkspaceService, homePaths aghconfig.HomePaths) *Handlers {
+	t.Helper()
+
+	return newTestHandlersWithChannels(t, manager, observer, nil, workspaces, homePaths)
 }
 
 func newTestRouter(t *testing.T, handlers *Handlers) *gin.Engine {

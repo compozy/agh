@@ -53,6 +53,7 @@ type Server struct {
 	sessions       core.SessionManager
 	observer       core.Observer
 	automation     core.AutomationManager
+	channels       core.ChannelService
 	workspaces     core.WorkspaceService
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
@@ -74,6 +75,7 @@ type handlerConfig struct {
 	sessions       core.SessionManager
 	observer       core.Observer
 	automation     core.AutomationManager
+	channels       core.ChannelService
 	workspaces     core.WorkspaceService
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
@@ -161,6 +163,13 @@ func WithObserver(observer core.Observer) Option {
 func WithAutomation(manager core.AutomationManager) Option {
 	return func(server *Server) {
 		server.automation = manager
+	}
+}
+
+// WithChannelService injects the daemon-owned channel runtime.
+func WithChannelService(channels core.ChannelService) Option {
+	return func(server *Server) {
+		server.channels = channels
 	}
 }
 
@@ -280,6 +289,7 @@ func New(opts ...Option) (*Server, error) {
 		sessions:       server.sessions,
 		observer:       server.observer,
 		automation:     server.automation,
+		channels:       server.channels,
 		workspaces:     server.workspaces,
 		skillsRegistry: server.skillsRegistry,
 		memoryStore:    server.memoryStore,
@@ -488,6 +498,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			Sessions:                     cfg.sessions,
 			Observer:                     cfg.observer,
 			Automation:                   cfg.automation,
+			Channels:                     cfg.channels,
 			Workspaces:                   cfg.workspaces,
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,
