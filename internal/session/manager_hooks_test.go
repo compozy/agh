@@ -237,41 +237,195 @@ func TestPromptUsesPatchedInputMessage(t *testing.T) {
 func TestPromptNetworkUsesNetworkInputClass(t *testing.T) {
 	t.Parallel()
 
-	dispatcher := &spyHookDispatcher{}
-	var (
-		inputPayload     hookspkg.InputPreSubmitPayload
-		turnStartPayload hookspkg.TurnStartPayload
-	)
-	dispatcher.dispatchInputPreSubmitFn = func(_ context.Context, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
-		inputPayload = payload
-		return payload, nil
-	}
-	dispatcher.dispatchTurnStartFn = func(_ context.Context, payload hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error) {
-		turnStartPayload = payload
-		return payload, nil
-	}
+	t.Run("ShouldUseNetworkInputClass", func(t *testing.T) {
+		dispatcher := &spyHookDispatcher{}
+		var (
+			inputPayload     hookspkg.InputPreSubmitPayload
+			turnStartPayload hookspkg.TurnStartPayload
+		)
+		dispatcher.dispatchInputPreSubmitFn = func(_ context.Context, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
+			inputPayload = payload
+			return payload, nil
+		}
+		dispatcher.dispatchTurnStartFn = func(_ context.Context, payload hookspkg.TurnStartPayload) (hookspkg.TurnStartPayload, error) {
+			turnStartPayload = payload
+			return payload, nil
+		}
 
-	h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
+		})
+
+		eventsCh, err := h.manager.PromptNetwork(testutil.Context(t), session.ID, "network message")
+		if err != nil {
+			t.Fatalf("PromptNetwork() error = %v", err)
+		}
+		_ = collectEvents(t, eventsCh)
+
+		if inputPayload.InputClass != hookInputClassNetworkMessage {
+			t.Fatalf("input.pre_submit input class = %q, want %q", inputPayload.InputClass, hookInputClassNetworkMessage)
+		}
+		if turnStartPayload.InputClass != hookInputClassNetworkMessage {
+			t.Fatalf("turn.start input class = %q, want %q", turnStartPayload.InputClass, hookInputClassNetworkMessage)
+		}
+		if turnStartPayload.UserMessage != "network message" {
+			t.Fatalf("turn.start user message = %q, want %q", turnStartPayload.UserMessage, "network message")
+		}
+	})
+}
+
+func TestSessionNetworkLifecycleHandling(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldFailCreateWhenNetworkJoinFails", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		lifecycle := &recordingNetworkPeerLifecycle{
+			joinErr: errors.New("join failed"),
+		}
+		h.manager.SetNetworkPeerLifecycle(lifecycle)
+
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Name:      "networked",
+			Workspace: h.workspaceID,
+			Space:     "builders",
+		})
+		if err == nil {
+			t.Fatal("Create() error = nil, want join failure")
+		}
+		if !errors.Is(err, lifecycle.joinErr) {
+			t.Fatalf("Create() error = %v, want wrapped join failure", err)
+		}
+		if got := lifecycle.joinCount(); got != 1 {
+			t.Fatalf("join calls after failed Create() = %d, want 1", got)
+		}
+		if got := len(h.manager.List()); got != 0 {
+			t.Fatalf("active sessions after failed Create() = %d, want 0", got)
+		}
+		if got := h.notifier.createdCount(); got != 0 {
+			t.Fatalf("created notifications after failed Create() = %d, want 0", got)
+		}
 	})
 
-	eventsCh, err := h.manager.PromptNetwork(testutil.Context(t), session.ID, "network message")
-	if err != nil {
-		t.Fatalf("PromptNetwork() error = %v", err)
-	}
-	_ = collectEvents(t, eventsCh)
+	t.Run("ShouldRestoreStoppedMetadataWhenResumeJoinFails", func(t *testing.T) {
+		t.Parallel()
 
-	if inputPayload.InputClass != hookInputClassNetworkMessage {
-		t.Fatalf("input.pre_submit input class = %q, want %q", inputPayload.InputClass, hookInputClassNetworkMessage)
+		h := newHarness(t)
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			Space:     "builders",
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		lifecycle := &recordingNetworkPeerLifecycle{
+			joinErr: errors.New("resume join failed"),
+		}
+		h.manager.SetNetworkPeerLifecycle(lifecycle)
+
+		if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
+			t.Fatal("Resume() error = nil, want join failure")
+		} else if !errors.Is(err, lifecycle.joinErr) {
+			t.Fatalf("Resume() error = %v, want wrapped join failure", err)
+		}
+
+		meta := readMeta(t, session.MetaPath())
+		if got, want := meta.State, string(StateStopped); got != want {
+			t.Fatalf("restored meta state = %q, want %q", got, want)
+		}
+		if meta.StopReason == nil || *meta.StopReason != store.StopUserCanceled {
+			t.Fatalf("restored meta stop reason = %v, want %q", meta.StopReason, store.StopUserCanceled)
+		}
+	})
+
+	for _, tc := range []struct {
+		name     string
+		leaveErr error
+	}{
+		{
+			name:     "ShouldIgnoreCanceledLeaveCleanupOnStop",
+			leaveErr: context.Canceled,
+		},
+		{
+			name:     "ShouldIgnoreDeadlineExceededLeaveCleanupOnStop",
+			leaveErr: context.DeadlineExceeded,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			lifecycle := &recordingNetworkPeerLifecycle{leaveErr: tc.leaveErr}
+			h.manager.SetNetworkPeerLifecycle(lifecycle)
+
+			session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName: "coder",
+				Workspace: h.workspaceID,
+				Space:     "builders",
+			})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Fatalf("Stop() error = %v, want leave cancellation to be ignored", err)
+			}
+			if got := lifecycle.leaveCount(); got != 1 {
+				t.Fatalf("leave calls after Stop() = %d, want 1", got)
+			}
+
+			meta := readMeta(t, session.MetaPath())
+			if got, want := meta.State, string(StateStopped); got != want {
+				t.Fatalf("meta state after Stop() = %q, want %q", got, want)
+			}
+		})
 	}
-	if turnStartPayload.InputClass != hookInputClassNetworkMessage {
-		t.Fatalf("turn.start input class = %q, want %q", turnStartPayload.InputClass, hookInputClassNetworkMessage)
-	}
-	if turnStartPayload.UserMessage != "network message" {
-		t.Fatalf("turn.start user message = %q, want %q", turnStartPayload.UserMessage, "network message")
-	}
+}
+
+func TestStopWithCauseLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldReturnImmediatelyWhenDriverStopFailsBeforeProcessExit", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		stopErr := errors.New("driver stop failed")
+		h.driver.stopHook = func(*fakeProcess) error {
+			return stopErr
+		}
+
+		stopCtx, cancel := context.WithTimeout(testutil.Context(t), time.Second)
+		defer cancel()
+
+		stopDone := make(chan error, 1)
+		go func() {
+			stopDone <- h.manager.StopWithCause(stopCtx, session.ID, CauseUserRequested, "")
+		}()
+
+		select {
+		case err := <-stopDone:
+			if !errors.Is(err, stopErr) {
+				t.Fatalf("StopWithCause() error = %v, want wrapped driver stop failure", err)
+			}
+		case <-time.After(150 * time.Millisecond):
+			t.Fatal("StopWithCause() blocked waiting for proc.Done after driver stop failure")
+		}
+
+		h.driver.stopHook = nil
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("cleanup Stop() error = %v", err)
+		}
+	})
 }
 
 func TestCreateUsesPatchedPrompt(t *testing.T) {
@@ -915,6 +1069,41 @@ func (s *spyHookDispatcher) DispatchContextPostCompact(ctx context.Context, payl
 type orderedRecorder struct {
 	onRecord func(store.SessionEvent)
 	events   []store.SessionEvent
+}
+
+type recordingNetworkPeerLifecycle struct {
+	joinErr  error
+	leaveErr error
+	joins    []networkJoinCall
+	leaves   []string
+}
+
+type networkJoinCall struct {
+	sessionID string
+	peerID    string
+	space     string
+}
+
+func (r *recordingNetworkPeerLifecycle) JoinSpace(_ context.Context, sessionID string, peerID string, space string) error {
+	r.joins = append(r.joins, networkJoinCall{
+		sessionID: sessionID,
+		peerID:    peerID,
+		space:     space,
+	})
+	return r.joinErr
+}
+
+func (r *recordingNetworkPeerLifecycle) LeaveSpace(_ context.Context, sessionID string) error {
+	r.leaves = append(r.leaves, sessionID)
+	return r.leaveErr
+}
+
+func (r *recordingNetworkPeerLifecycle) joinCount() int {
+	return len(r.joins)
+}
+
+func (r *recordingNetworkPeerLifecycle) leaveCount() int {
+	return len(r.leaves)
 }
 
 func (r *orderedRecorder) Record(_ context.Context, event store.SessionEvent) error {

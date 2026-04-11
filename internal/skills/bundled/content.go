@@ -1,6 +1,7 @@
 package bundled
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"path"
@@ -11,11 +12,21 @@ import (
 
 const skillFileName = "SKILL.md"
 
+var (
+	// ErrSkillNameRequired reports missing bundled skill identifiers.
+	ErrSkillNameRequired = errors.New("bundled: skill name is required")
+	// ErrInvalidSkillName reports bundled skill identifiers that are not a single clean path component.
+	ErrInvalidSkillName = errors.New("bundled: invalid skill name")
+)
+
 // LoadContent returns the markdown body for one embedded bundled skill.
 func LoadContent(name string) (string, error) {
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
-		return "", fmt.Errorf("bundled: skill name is required")
+		return "", ErrSkillNameRequired
+	}
+	if !validSkillName(trimmed) {
+		return "", fmt.Errorf("%w: %q", ErrInvalidSkillName, name)
 	}
 
 	skillPath := path.Join("skills", trimmed, skillFileName)
@@ -35,4 +46,15 @@ func LoadContent(name string) (string, error) {
 	}
 
 	return body, nil
+}
+
+func validSkillName(name string) bool {
+	switch {
+	case name == ".", name == "..":
+		return false
+	case strings.Contains(name, "/"), strings.Contains(name, `\`):
+		return false
+	default:
+		return path.Clean(name) == name
+	}
 }

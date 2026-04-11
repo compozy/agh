@@ -243,7 +243,11 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 		errs = append(errs, err)
 	}
 	if err := m.leaveNetworkPeer(ctx, session); err != nil {
-		errs = append(errs, fmt.Errorf("session: leave network space for %q: %w", session.ID, err))
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			m.sessionLogger(session).Warn("session: leave network space canceled", "error", err)
+		} else {
+			errs = append(errs, fmt.Errorf("session: leave network space for %q: %w", session.ID, err))
+		}
 	}
 
 	m.remove(session.ID)

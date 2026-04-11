@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/pedronauck/agh/internal/store"
@@ -89,12 +90,15 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 	}
 
 	stopErr := m.driver.Stop(ctx, proc)
-	if !isProcessDone(proc) {
+	if stopErr == nil && !isProcessDone(proc) {
 		select {
 		case <-proc.Done():
 		case <-ctx.Done():
-			return errors.Join(stopErr, ctx.Err())
+			return fmt.Errorf("session: wait for process stop completion for %q: %w", id, ctx.Err())
 		}
+	}
+	if stopErr != nil && !isProcessDone(proc) {
+		return fmt.Errorf("session: stop session process for %q: %w", id, stopErr)
 	}
 
 	return errors.Join(stopErr, m.finalizeStopped(ctx, session, nil))

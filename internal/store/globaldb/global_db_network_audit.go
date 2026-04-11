@@ -124,7 +124,7 @@ func scanNetworkAudit(scanner rowScanner) (store.NetworkAuditEntry, error) {
 
 	timestamp, err := store.ParseTimestamp(timestampRaw)
 	if err != nil {
-		return store.NetworkAuditEntry{}, err
+		return store.NetworkAuditEntry{}, fmt.Errorf("store: parse network audit timestamp: %w", err)
 	}
 	entry.Timestamp = timestamp
 	return entry, nil

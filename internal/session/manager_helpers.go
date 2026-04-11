@@ -86,7 +86,11 @@ func (m *Manager) activateAndWatch(
 		return errors.Join(err, rollbackErr)
 	}
 	if err := m.joinNetworkPeer(ctx, session); err != nil {
-		m.sessionLogger(session).Warn("session: join network space failed", "space", session.Info().Space, "error", err)
+		rollbackErr := m.rollbackActivation(session, proc, now)
+		return errors.Join(
+			fmt.Errorf("session: join network space for %q: %w", session.ID, err),
+			rollbackErr,
+		)
 	}
 
 	m.dispatchAgentSpawned(ctx, session, proc, resolved)

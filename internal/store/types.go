@@ -364,10 +364,14 @@ func (e NetworkAuditEntry) Validate() error {
 	if err := requireField(e.Direction, "network audit direction"); err != nil {
 		return err
 	}
-	switch strings.TrimSpace(e.Direction) {
+	direction := strings.TrimSpace(e.Direction)
+	switch direction {
 	case "sent", "received", "rejected":
 	default:
 		return fmt.Errorf("store: network audit direction must be one of %q, %q, %q: %q", "sent", "received", "rejected", e.Direction)
+	}
+	if direction != e.Direction {
+		return fmt.Errorf("store: network audit direction must not contain surrounding whitespace: %q", e.Direction)
 	}
 	if err := requireField(e.Kind, "network audit kind"); err != nil {
 		return err
@@ -384,7 +388,7 @@ func (e NetworkAuditEntry) Validate() error {
 	if e.Size < 0 {
 		return fmt.Errorf("store: network audit size must be zero or positive: %d", e.Size)
 	}
-	if strings.TrimSpace(e.Direction) == "rejected" && strings.TrimSpace(e.Reason) == "" {
+	if direction == "rejected" && strings.TrimSpace(e.Reason) == "" {
 		return fmt.Errorf("store: network audit reason is required when direction is %q", e.Direction)
 	}
 	return nil

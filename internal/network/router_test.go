@@ -577,9 +577,15 @@ func TestRouterConstructionAndHelperErrors(t *testing.T) {
 
 	future := nowWithUnix(1775822400)
 	expiresAt := future.Unix() + 5
-	deadline := replayDeadline(Envelope{ExpiresAt: &expiresAt}, future, time.Minute)
+	deadline := replayDeadline(Envelope{TS: future.Unix(), ExpiresAt: &expiresAt}, future, time.Minute)
 	if got, want := deadline.Unix(), expiresAt; got != want {
 		t.Fatalf("replayDeadline(expires_at).Unix() = %d, want %d", got, want)
+	}
+
+	farFutureExpiry := future.Add(2 * time.Minute).Unix()
+	deadline = replayDeadline(Envelope{TS: future.Unix(), ExpiresAt: &farFutureExpiry}, future, time.Minute)
+	if got, want := deadline, future.Add(time.Minute).UTC(); !got.Equal(want) {
+		t.Fatalf("replayDeadline(clamped).UTC() = %s, want %s", got, want)
 	}
 }
 

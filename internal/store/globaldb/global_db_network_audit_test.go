@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,5 +119,66 @@ func TestGlobalDBNetworkAuditGuardClauses(t *testing.T) {
 	}
 	if err := globalDB.WriteNetworkAudit(testutil.Context(t), store.NetworkAuditEntry{}); !errors.Is(err, store.ErrClosed) {
 		t.Fatalf("WriteNetworkAudit(after close) error = %v, want ErrClosed", err)
+	}
+}
+
+func TestGlobalDBWriteNetworkAuditRejectsWhitespacePaddedDirection(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	registerSessionForGlobalTests(t, globalDB, "sess-network-direction")
+
+	err := globalDB.WriteNetworkAudit(testutil.Context(t), store.NetworkAuditEntry{
+		SessionID: "sess-network-direction",
+		Direction: " sent ",
+		Kind:      "direct",
+		Space:     "builders",
+		PeerFrom:  "coder.sess-network-direction",
+		MessageID: "msg_direction_01",
+		Size:      12,
+	})
+	if err == nil {
+		t.Fatal("WriteNetworkAudit(whitespace direction) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "must not contain surrounding whitespace") {
+		t.Fatalf("WriteNetworkAudit(whitespace direction) error = %v, want whitespace validation context", err)
+	}
+}
+
+func TestGlobalDBListNetworkAuditWrapsTimestampParseFailures(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	registerSessionForGlobalTests(t, globalDB, "sess-network-bad-timestamp")
+
+	if _, err := globalDB.db.ExecContext(
+		testutil.Context(t),
+		`INSERT INTO network_audit_log (
+			id, session_id, direction, kind, space, peer_from, peer_to, message_id, reason, size, timestamp
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"naud_bad_timestamp",
+		"sess-network-bad-timestamp",
+		"sent",
+		"direct",
+		"builders",
+		"coder.sess-network-bad-timestamp",
+		nil,
+		"msg_bad_timestamp_01",
+		nil,
+		1,
+		"not-a-timestamp",
+	); err != nil {
+		t.Fatalf("ExecContext(insert invalid audit row) error = %v", err)
+	}
+
+	_, err := globalDB.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+		SessionID: "sess-network-bad-timestamp",
+		Limit:     10,
+	})
+	if err == nil {
+		t.Fatal("ListNetworkAudit(invalid timestamp) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "parse network audit timestamp") {
+		t.Fatalf("ListNetworkAudit(invalid timestamp) error = %v, want wrapped timestamp parse context", err)
 	}
 }

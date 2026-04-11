@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )
@@ -19,6 +20,24 @@ import (
 func nilTestContext() context.Context {
 	var ctx context.Context
 	return ctx
+}
+
+func waitForCondition(t *testing.T, ctx context.Context, condition func() bool, description string) {
+	t.Helper()
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if condition() {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for %s: %v", description, ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 func TestNewManagerRequiresEnabledConfigAndPrompter(t *testing.T) {
@@ -181,17 +200,15 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 		t.Fatalf("Send() error = %v", err)
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	var inbox []Envelope
-	for time.Now().Before(deadline) {
-		inbox, err = manager.Inbox(ctx, "sess-busy")
-		if err != nil {
-			t.Fatalf("Inbox() error = %v", err)
-		}
-		if len(inbox) == 1 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	waitCtx, waitCancel := context.WithTimeout(ctx, 2*time.Second)
+	defer waitCancel()
+	waitForCondition(t, waitCtx, func() bool {
+		return manager.deliveries.queueDepth("sess-busy") == 1
+	}, "queued busy delivery")
+
+	inbox, err := manager.Inbox(ctx, "sess-busy")
+	if err != nil {
+		t.Fatalf("Inbox() error = %v", err)
 	}
 	if len(inbox) != 1 {
 		t.Fatalf("Inbox() len = %d, want 1 queued envelope", len(inbox))
@@ -230,6 +247,73 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 	}
 	if err := manager.Shutdown(context.Background()); err != nil {
 		t.Fatalf("Shutdown(repeated) error = %v, want nil", err)
+	}
+}
+
+func TestCleanupSubscriptionHelpers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldIgnoreConnectionClosedUnsubscribeErrors", func(t *testing.T) {
+		t.Parallel()
+
+		if err := cleanupSubscription(
+			func() error { return nats.ErrConnectionClosed },
+			"network: unsubscribe direct subject for %q: %w",
+			"sess-a",
+		); err != nil {
+			t.Fatalf("cleanupSubscription(connection closed) error = %v, want nil", err)
+		}
+	})
+
+	t.Run("ShouldWrapDirectSubscriptionCleanupErrors", func(t *testing.T) {
+		t.Parallel()
+
+		stopErr := errors.New("unsubscribe failed")
+		err := cleanupSubscription(
+			func() error { return stopErr },
+			"network: unsubscribe direct subject for %q: %w",
+			"sess-a",
+		)
+		if !errors.Is(err, stopErr) {
+			t.Fatalf("cleanupSubscription() error = %v, want wrapped unsubscribe failure", err)
+		}
+		if !strings.Contains(err.Error(), `unsubscribe direct subject for "sess-a"`) {
+			t.Fatalf("cleanupSubscription() error = %v, want session context", err)
+		}
+	})
+
+	t.Run("ShouldRollbackDuplicateBroadcastRefCountWhenCleanupFails", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := &managedSpace{space: "builders", refCount: 2}
+		unsubscribeErr := errors.New("duplicate cleanup failed")
+
+		err := cleanupDuplicateBroadcastSubscription("builders", runtime, func() error { return unsubscribeErr })
+		if !errors.Is(err, unsubscribeErr) {
+			t.Fatalf("cleanupDuplicateBroadcastSubscription() error = %v, want wrapped unsubscribe failure", err)
+		}
+		if got, want := runtime.refCount, 1; got != want {
+			t.Fatalf("duplicate cleanup refCount = %d, want %d", got, want)
+		}
+		if !strings.Contains(err.Error(), `unsubscribe duplicate broadcast subject for "builders"`) {
+			t.Fatalf("cleanupDuplicateBroadcastSubscription() error = %v, want space context", err)
+		}
+	})
+}
+
+func TestReplayDeadlineClampsExplicitExpiryToReplayWindow(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(10 * time.Minute).Unix()
+
+	deadline := replayDeadline(Envelope{
+		TS:        now.Unix(),
+		ExpiresAt: &expiresAt,
+	}, now, time.Minute)
+
+	if got, want := deadline, now.Add(time.Minute).UTC(); !got.Equal(want) {
+		t.Fatalf("replayDeadline(clamped) = %s, want %s", got, want)
 	}
 }
 

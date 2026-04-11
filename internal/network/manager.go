@@ -314,7 +314,13 @@ func (m *Manager) JoinSpace(ctx context.Context, sessionID string, peerID string
 
 	heartbeat, err := m.router.StartHeartbeat(m.lifecycleCtx, local.SessionID, "")
 	if err != nil {
-		_ = directSub.Unsubscribe()
+		if unsubscribeErr := cleanupSubscription(
+			directSub.Unsubscribe,
+			"network: unsubscribe direct subject for %q: %w",
+			local.SessionID,
+		); unsubscribeErr != nil {
+			err = errors.Join(err, unsubscribeErr)
+		}
 		if releaseErr := m.releaseBroadcastSubscription(local.Space); releaseErr != nil {
 			err = errors.Join(err, releaseErr)
 		}
@@ -660,7 +666,9 @@ func (m *Manager) acquireBroadcastSubscription(space string) error {
 	defer m.mu.Unlock()
 	if runtime, ok := m.spaces[targetSpace]; ok {
 		runtime.refCount++
-		_ = subscription.Unsubscribe()
+		if err := cleanupDuplicateBroadcastSubscription(targetSpace, runtime, subscription.Unsubscribe); err != nil {
+			return err
+		}
 		return nil
 	}
 	m.spaces[targetSpace] = &managedSpace{
@@ -716,6 +724,31 @@ func (m *Manager) sessionSnapshot(sessionID string) (managedSession, bool) {
 		return managedSession{}, false
 	}
 	return *runtime, true
+}
+
+func cleanupSubscription(unsubscribe func() error, format string, value string) error {
+	if unsubscribe == nil {
+		return nil
+	}
+
+	if err := unsubscribe(); err != nil && !errors.Is(err, nats.ErrConnectionClosed) {
+		return fmt.Errorf(format, value, err)
+	}
+	return nil
+}
+
+func cleanupDuplicateBroadcastSubscription(space string, runtime *managedSpace, unsubscribe func() error) error {
+	if err := cleanupSubscription(
+		unsubscribe,
+		"network: unsubscribe duplicate broadcast subject for %q: %w",
+		space,
+	); err != nil {
+		if runtime != nil {
+			runtime.refCount--
+		}
+		return err
+	}
+	return nil
 }
 
 func (m *Manager) removeSessionRuntime(sessionID string) (managedSession, bool) {
