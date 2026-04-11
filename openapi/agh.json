@@ -8462,6 +8462,9 @@
                           "name": {
                             "type": "string"
                           },
+                          "space": {
+                            "type": "string"
+                          },
                           "state": {
                             "enum": [
                               "starting",
@@ -8583,6 +8586,9 @@
                   "name": {
                     "type": "string"
                   },
+                  "space": {
+                    "type": "string"
+                  },
                   "workspace": {
                     "type": "string"
                   },
@@ -8643,6 +8649,9 @@
                           "type": "string"
                         },
                         "name": {
+                          "type": "string"
+                        },
+                        "space": {
                           "type": "string"
                         },
                         "state": {
@@ -8914,6 +8923,9 @@
                           "type": "string"
                         },
                         "name": {
+                          "type": "string"
+                        },
+                        "space": {
                           "type": "string"
                         },
                         "state": {
@@ -9619,6 +9631,9 @@
                           "type": "string"
                         },
                         "name": {
+                          "type": "string"
+                        },
+                        "space": {
                           "type": "string"
                         },
                         "state": {
@@ -11661,6 +11676,9 @@
                             "type": "string"
                           },
                           "name": {
+                            "type": "string"
+                          },
+                          "space": {
                             "type": "string"
                           },
                           "state": {

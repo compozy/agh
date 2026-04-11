@@ -48,6 +48,7 @@ type SessionInfo struct {
 	AgentName    string
 	WorkspaceID  string
 	Workspace    string
+	Space        string
 	Type         SessionType
 	State        SessionState
 	StopReason   store.StopReason
@@ -67,6 +68,7 @@ type Session struct {
 	AgentName    string
 	WorkspaceID  string
 	Workspace    string
+	Space        string
 	Type         SessionType
 	State        SessionState
 	stopCause    StopCause
@@ -102,6 +104,7 @@ func (s *Session) Info() *SessionInfo {
 		AgentName:    s.AgentName,
 		WorkspaceID:  s.WorkspaceID,
 		Workspace:    s.Workspace,
+		Space:        s.Space,
 		Type:         normalizeSessionType(s.Type),
 		State:        s.State,
 		StopReason:   s.stopReason,
@@ -457,6 +460,7 @@ func (s *Session) Meta() store.SessionMeta {
 		Name:         s.Name,
 		AgentName:    s.AgentName,
 		WorkspaceID:  s.WorkspaceID,
+		Space:        s.Space,
 		SessionType:  string(normalizeSessionType(s.Type)),
 		State:        string(s.State),
 		StopReason:   stopReasonPointer(s.stopReason),

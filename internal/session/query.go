@@ -222,6 +222,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *SessionInfo {
 		Name:         meta.Name,
 		AgentName:    meta.AgentName,
 		WorkspaceID:  meta.WorkspaceID,
+		Space:        meta.Space,
 		Type:         normalizeSessionType(SessionType(meta.SessionType)),
 		State:        SessionState(meta.State),
 		StopReason:   sessionMetaStopReason(meta),

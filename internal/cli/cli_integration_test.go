@@ -158,8 +158,70 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session list toon error = %v", err)
 	}
-	if !strings.Contains(toonOut, "sessions[1]{id,name,agent_name,state,workspace,updated_at}:") {
+	if !strings.Contains(toonOut, "sessions[1]{id,name,agent_name,state,workspace,space,updated_at}:") {
 		t.Fatalf("toon output = %q, want TOON table", toonOut)
+	}
+}
+
+func TestCLISessionSpaceRoundTripIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	newOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "demo", "--space", "builders", "--cwd", h.workspace, "-o", "json")
+	if err != nil {
+		t.Fatalf("session new --space error = %v", err)
+	}
+	var created SessionRecord
+	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
+		t.Fatalf("json.Unmarshal(session new --space) error = %v", err)
+	}
+	if created.Space != "builders" {
+		t.Fatalf("created.Space = %q, want %q", created.Space, "builders")
+	}
+
+	listOut, _, err := executeRootCommand(t, h.deps, "session", "list", "--all", "-o", "json")
+	if err != nil {
+		t.Fatalf("session list error = %v", err)
+	}
+	var listed []SessionRecord
+	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
+		t.Fatalf("json.Unmarshal(session list) error = %v", err)
+	}
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(listed) = %d, want %d", got, want)
+	}
+	if listed[0].Space != "builders" {
+		t.Fatalf("listed[0].Space = %q, want %q", listed[0].Space, "builders")
+	}
+
+	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
+	if err != nil {
+		t.Fatalf("session stop error = %v", err)
+	}
+	var stopped SessionRecord
+	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
+		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
+	}
+	if stopped.Space != "builders" || stopped.State != session.StateStopped {
+		t.Fatalf("stopped = %#v, want stopped builders session", stopped)
+	}
+
+	resumeOut, _, err := executeRootCommand(t, h.deps, "session", "resume", created.ID, "-o", "json")
+	if err != nil {
+		t.Fatalf("session resume error = %v", err)
+	}
+	var resumed SessionRecord
+	if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
+		t.Fatalf("json.Unmarshal(session resume) error = %v", err)
+	}
+	if resumed.Space != "builders" || resumed.State != session.StateActive {
+		t.Fatalf("resumed = %#v, want active builders session", resumed)
 	}
 }
 

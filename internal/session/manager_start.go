@@ -22,6 +22,7 @@ type sessionStartSpec struct {
 	sessionName            string
 	agentName              string
 	workspace              workspacepkg.ResolvedWorkspace
+	space                  string
 	sessionType            SessionType
 	postEvent              hookspkg.HookEvent
 	startAction            string
@@ -59,6 +60,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		sessionName:       strings.TrimSpace(opts.Name),
 		agentName:         strings.TrimSpace(agentName),
 		workspace:         resolvedWorkspace,
+		space:             strings.TrimSpace(opts.Space),
 		sessionType:       normalizeSessionType(opts.Type),
 		postEvent:         hookspkg.HookSessionPostCreate,
 		startAction:       "start",
@@ -82,6 +84,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		sessionName:            meta.Name,
 		agentName:              meta.AgentName,
 		workspace:              resolvedWorkspace,
+		space:                  strings.TrimSpace(meta.Space),
 		sessionType:            normalizeSessionType(SessionType(meta.SessionType)),
 		postEvent:              hookspkg.HookSessionPostResume,
 		startAction:            "resume",
@@ -163,6 +166,7 @@ func (m *Manager) startSession(ctx context.Context, spec sessionStartSpec) (_ *S
 		AgentName:    resolved.Name,
 		WorkspaceID:  spec.workspace.ID,
 		Workspace:    spec.workspace.RootDir,
+		Space:        spec.space,
 		Type:         normalizeSessionType(spec.sessionType),
 		State:        StateStarting,
 		stopReason:   spec.stopReason,

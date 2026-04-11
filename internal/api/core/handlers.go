@@ -195,6 +195,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		Name:          req.Name,
 		Workspace:     strings.TrimSpace(req.Workspace),
 		WorkspacePath: strings.TrimSpace(req.WorkspacePath),
+		Space:         strings.TrimSpace(req.Space),
 		Type:          session.SessionTypeUser,
 	})
 	if err != nil {

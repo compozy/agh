@@ -18,6 +18,7 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 		Name:        "Session Meta",
 		AgentName:   "coder",
 		WorkspaceID: "ws-meta",
+		Space:       "builders",
 		SessionType: "system",
 		State:       "stopped",
 		StopReason:  &stopReason,
@@ -37,6 +38,7 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	if readBack.ID != meta.ID ||
 		readBack.AgentName != meta.AgentName ||
 		readBack.WorkspaceID != meta.WorkspaceID ||
+		readBack.Space != meta.Space ||
 		readBack.State != meta.State ||
 		readBack.SessionType != meta.SessionType ||
 		readBack.StopDetail != meta.StopDetail {

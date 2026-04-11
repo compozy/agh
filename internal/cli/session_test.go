@@ -141,6 +141,41 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 	}
 }
 
+func TestSessionNewPassesSpaceFlag(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, stubClient{
+		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
+			if request.Space != "builders" {
+				t.Fatalf("CreateSession() Space = %q, want %q", request.Space, "builders")
+			}
+			return SessionRecord{
+				ID:            "sess-1",
+				AgentName:     "general",
+				WorkspaceID:   "ws-1",
+				WorkspacePath: request.WorkspacePath,
+				Space:         request.Space,
+				State:         session.StateActive,
+				CreatedAt:     fixedTestNow,
+				UpdatedAt:     fixedTestNow,
+			}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "session", "new", "--space", "builders", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand(session new --space) error = %v", err)
+	}
+
+	var decoded SessionRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(session new --space) error = %v", err)
+	}
+	if decoded.Space != "builders" {
+		t.Fatalf("decoded.Space = %q, want %q", decoded.Space, "builders")
+	}
+}
+
 func TestSessionNewRejectsInvalidWorkspaceFlags(t *testing.T) {
 	t.Parallel()
 
@@ -509,6 +544,7 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		AgentName:     "coder",
 		WorkspaceID:   "ws-1",
 		WorkspacePath: "/workspace/project",
+		Space:         "builders",
 		State:         session.StateActive,
 		UpdatedAt:     fixedTestNow,
 	}}
@@ -521,15 +557,15 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sessionListBundle().human() error = %v", err)
 	}
-	if !strings.Contains(human, "sess-1") || !strings.Contains(human, "/workspace/project") {
-		t.Fatalf("sessionListBundle().human() = %q, want session and workspace output", human)
+	if !strings.Contains(human, "sess-1") || !strings.Contains(human, "/workspace/project") || !strings.Contains(human, "builders") {
+		t.Fatalf("sessionListBundle().human() = %q, want session, workspace, and space output", human)
 	}
 
 	toon, err := bundle.toon()
 	if err != nil {
 		t.Fatalf("sessionListBundle().toon() error = %v", err)
 	}
-	if !strings.Contains(toon, "sessions") || !strings.Contains(toon, "sess-1") {
-		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output", toon)
+	if !strings.Contains(toon, "sessions") || !strings.Contains(toon, "sess-1") || !strings.Contains(toon, "builders") {
+		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output with space", toon)
 	}
 }

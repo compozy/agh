@@ -133,10 +133,10 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 		}
 	}
 
-	return migrateSessionStopColumns(ctx, db)
+	return migrateSessionColumns(ctx, db)
 }
 
-func migrateSessionStopColumns(ctx context.Context, db *sql.DB) error {
+func migrateSessionColumns(ctx context.Context, db *sql.DB) error {
 	columns, err := tableColumns(ctx, db, "sessions")
 	if err != nil {
 		return err
@@ -150,6 +150,11 @@ func migrateSessionStopColumns(ctx context.Context, db *sql.DB) error {
 	if _, ok := columns["stop_detail"]; !ok {
 		if _, err := db.ExecContext(ctx, `ALTER TABLE sessions ADD COLUMN stop_detail TEXT`); err != nil {
 			return fmt.Errorf("store: add sessions.stop_detail column: %w", err)
+		}
+	}
+	if _, ok := columns["space"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE sessions ADD COLUMN space TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("store: add sessions.space column: %w", err)
 		}
 	}
 
@@ -266,6 +271,7 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 			agent_name     TEXT NOT NULL,
 			workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
 			session_type   TEXT NOT NULL DEFAULT 'user',
+			space          TEXT NOT NULL DEFAULT '',
 			state          TEXT NOT NULL,
 			acp_session_id TEXT,
 			stop_reason    TEXT,
@@ -324,13 +330,14 @@ func copyMigratedSessions(ctx context.Context, tx *sql.Tx, sessions []legacySess
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO sessions_new (
-				id, name, agent_name, workspace_id, session_type, state, acp_session_id, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				id, name, agent_name, workspace_id, session_type, space, state, acp_session_id, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			row.ID,
 			nullStringValue(row.Name),
 			row.AgentName,
 			workspaceID,
 			store.NormalizeSessionType(row.SessionType),
+			"",
 			row.State,
 			nullStringValue(row.ACPSessionID),
 			row.CreatedAt,

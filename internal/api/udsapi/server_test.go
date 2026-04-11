@@ -84,6 +84,9 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	if server.handlers.Extensions != extensionService {
 		t.Fatal("expected extension service option to be installed")
 	}
+	if server.extensions == nil || server.handlers.Extensions == nil {
+		t.Fatal("expected extension service option to be installed")
+	}
 }
 
 func TestPathHandlesNilServer(t *testing.T) {

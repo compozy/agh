@@ -67,8 +67,14 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	if got := session.Info().Type; got != SessionTypeUser {
 		t.Fatalf("Create() type = %q, want %q", got, SessionTypeUser)
 	}
+	if got := session.Info().Space; got != "" {
+		t.Fatalf("Create() space = %q, want empty", got)
+	}
 	if meta := readMeta(t, session.MetaPath()); meta.SessionType != string(SessionTypeUser) {
 		t.Fatalf("meta session type = %q, want %q", meta.SessionType, SessionTypeUser)
+	}
+	if meta := readMeta(t, session.MetaPath()); meta.Space != "" {
+		t.Fatalf("meta space = %q, want empty", meta.Space)
 	}
 	if got := len(h.resolver.resolveCalls); got != 1 {
 		t.Fatalf("resolver Resolve() calls = %d, want 1", got)
@@ -223,6 +229,55 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 	}
 	if got := resumed.Info().StopDetail; got != "" {
 		t.Fatalf("resumed stop detail = %q, want empty", got)
+	}
+}
+
+func TestCreateAndResumePreserveSpace(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Space:     "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if got := session.Info().Space; got != "builders" {
+		t.Fatalf("Create() space = %q, want %q", got, "builders")
+	}
+	if meta := readMeta(t, session.MetaPath()); meta.Space != "builders" {
+		t.Fatalf("meta space = %q, want %q", meta.Space, "builders")
+	}
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	stopped, err := h.manager.Status(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Status(stopped) error = %v", err)
+	}
+	if got := stopped.Space; got != "builders" {
+		t.Fatalf("Status(stopped).Space = %q, want %q", got, "builders")
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+	})
+
+	if got := resumed.Info().Space; got != "builders" {
+		t.Fatalf("Resume() space = %q, want %q", got, "builders")
+	}
+	if meta := readMeta(t, resumed.MetaPath()); meta.Space != "builders" {
+		t.Fatalf("resumed meta space = %q, want %q", meta.Space, "builders")
 	}
 }
 

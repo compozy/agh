@@ -142,6 +142,7 @@ type SessionInfo struct {
 	Name         string
 	AgentName    string
 	WorkspaceID  string
+	Space        string
 	SessionType  string
 	State        string
 	ACPSessionID *string
@@ -417,6 +418,7 @@ type SessionMeta struct {
 	Name         string      `json:"name,omitempty"`
 	AgentName    string      `json:"agent_name"`
 	WorkspaceID  string      `json:"workspace_id,omitempty"`
+	Space        string      `json:"space,omitempty"`
 	SessionType  string      `json:"session_type,omitempty"`
 	State        string      `json:"state"`
 	StopReason   *StopReason `json:"stop_reason,omitempty"`

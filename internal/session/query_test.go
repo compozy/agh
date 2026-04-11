@@ -60,7 +60,15 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 		_ = h.manager.Stop(testutil.Context(t), active.ID)
 	})
 
-	stopped := createSession(t, h)
+	stopped, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked-stopped",
+		Workspace: h.workspaceID,
+		Space:     "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create(networked stopped) error = %v", err)
+	}
 	if err := h.manager.Stop(testutil.Context(t), stopped.ID); err != nil {
 		t.Fatalf("Stop(stopped) error = %v", err)
 	}
@@ -98,11 +106,17 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 	if got := infos[0].State; got != StateActive {
 		t.Fatalf("ListAll()[0].State = %q, want %q", got, StateActive)
 	}
+	if got := infos[0].Space; got != "" {
+		t.Fatalf("ListAll()[0].Space = %q, want empty", got)
+	}
 	if got := infos[1].ID; got != stopped.ID {
 		t.Fatalf("ListAll()[1].ID = %q, want %q", got, stopped.ID)
 	}
 	if got := infos[1].State; got != StateStopped {
 		t.Fatalf("ListAll()[1].State = %q, want %q", got, StateStopped)
+	}
+	if got := infos[1].Space; got != "builders" {
+		t.Fatalf("ListAll()[1].Space = %q, want %q", got, "builders")
 	}
 }
 
@@ -119,6 +133,9 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	if got := info.State; got != StateActive {
 		t.Fatalf("Status(active).State = %q, want %q", got, StateActive)
 	}
+	if got := info.Space; got != "" {
+		t.Fatalf("Status(active).Space = %q, want empty", got)
+	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
@@ -130,6 +147,9 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	}
 	if got := info.State; got != StateStopped {
 		t.Fatalf("Status(stopped).State = %q, want %q", got, StateStopped)
+	}
+	if got := info.Space; got != "" {
+		t.Fatalf("Status(stopped).Space = %q, want empty", got)
 	}
 
 	var nilCtx context.Context

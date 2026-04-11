@@ -30,6 +30,7 @@ var globalSchemaStatements = []string{
 		agent_name     TEXT NOT NULL,
 		workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
 		session_type   TEXT NOT NULL DEFAULT 'user',
+		space          TEXT NOT NULL DEFAULT '',
 		state          TEXT NOT NULL,
 		acp_session_id TEXT,
 		stop_reason    TEXT,

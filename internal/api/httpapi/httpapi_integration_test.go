@@ -283,6 +283,82 @@ func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	}
 }
 
+func TestHTTPSessionSpaceRoundTrip(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","space":"builders"}`), nil)
+	if createResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(createResp.Body)
+		_ = createResp.Body.Close()
+		t.Fatalf("create session status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
+	}
+	var created struct {
+		Session sessionPayload `json:"session"`
+	}
+	decodeHTTPJSON(t, createResp, &created)
+	if created.Session.Space != "builders" {
+		t.Fatalf("created.Session.Space = %q, want %q", created.Session.Space, "builders")
+	}
+
+	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions"), nil, nil)
+	if listResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(listResp.Body)
+		_ = listResp.Body.Close()
+		t.Fatalf("list sessions status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
+	}
+	var listed struct {
+		Sessions []sessionPayload `json:"sessions"`
+	}
+	decodeHTTPJSON(t, listResp, &listed)
+	if got, want := len(listed.Sessions), 1; got != want {
+		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
+	}
+	if listed.Sessions[0].Space != "builders" {
+		t.Fatalf("listed.Sessions[0].Space = %q, want %q", listed.Sessions[0].Space, "builders")
+	}
+
+	stopIntegrationSession(t, runtime, created.Session.ID)
+
+	statusResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID), nil, nil)
+	if statusResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(statusResp.Body)
+		_ = statusResp.Body.Close()
+		t.Fatalf("status after stop = %d, want %d; body=%s", statusResp.StatusCode, http.StatusOK, string(body))
+	}
+	var stopped struct {
+		Session sessionPayload `json:"session"`
+	}
+	decodeHTTPJSON(t, statusResp, &stopped)
+	if stopped.Session.Space != "builders" || stopped.Session.State != session.StateStopped {
+		t.Fatalf("stopped session = %#v, want stopped builders session", stopped.Session)
+	}
+
+	indexed, err := runtime.registry.ListSessions(context.Background(), store.SessionListQuery{State: "stopped"})
+	if err != nil {
+		t.Fatalf("runtime.registry.ListSessions() error = %v", err)
+	}
+	if got, want := len(indexed), 1; got != want {
+		t.Fatalf("len(indexed stopped sessions) = %d, want %d", got, want)
+	}
+	if indexed[0].Space != "builders" {
+		t.Fatalf("indexed[0].Space = %q, want %q", indexed[0].Space, "builders")
+	}
+
+	resumeResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/resume"), nil, nil)
+	if resumeResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resumeResp.Body)
+		_ = resumeResp.Body.Close()
+		t.Fatalf("resume session status = %d, want %d; body=%s", resumeResp.StatusCode, http.StatusOK, string(body))
+	}
+	var resumed struct {
+		Session sessionPayload `json:"session"`
+	}
+	decodeHTTPJSON(t, resumeResp, &resumed)
+	if resumed.Session.Space != "builders" || resumed.Session.State != session.StateActive {
+		t.Fatalf("resumed session = %#v, want active builders session", resumed.Session)
+	}
+}
+
 func TestHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)

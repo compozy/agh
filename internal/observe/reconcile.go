@@ -72,6 +72,7 @@ func (o *Observer) loadSessionMetadata() ([]store.SessionInfo, error) {
 			Name:         normalized.Name,
 			AgentName:    normalized.AgentName,
 			WorkspaceID:  normalized.WorkspaceID,
+			Space:        normalized.Space,
 			SessionType:  normalized.SessionType,
 			State:        normalized.State,
 			ACPSessionID: normalized.ACPSessionID,

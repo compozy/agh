@@ -535,6 +535,7 @@ func sessionInfoFromSession(info *session.SessionInfo) store.SessionInfo {
 		Name:         info.Name,
 		AgentName:    info.AgentName,
 		WorkspaceID:  info.WorkspaceID,
+		Space:        info.Space,
 		SessionType:  string(info.Type),
 		State:        string(info.State),
 		ACPSessionID: stringPointer(info.ACPSessionID),

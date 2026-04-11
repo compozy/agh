@@ -129,16 +129,18 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
-			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" || opts.WorkspacePath != "" {
+			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" || opts.WorkspacePath != "" || opts.Space != "builders" {
 				t.Fatalf("Create() opts = %#v", opts)
 			}
-			return newSession("sess-123"), nil
+			sess := newSession("sess-123")
+			sess.Space = "builders"
+			return sess, nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"agent_name":"coder","name":"demo","workspace":"alpha"}`))
+	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"agent_name":"coder","name":"demo","workspace":"alpha","space":"builders"}`))
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
 	}
@@ -152,6 +154,9 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	}
 	if response.Session.WorkspaceID != "ws-workspace" || response.Session.WorkspacePath != "/workspace" {
 		t.Fatalf("session workspace = %#v", response.Session)
+	}
+	if response.Session.Space != "builders" {
+		t.Fatalf("session space = %q, want %q", response.Session.Space, "builders")
 	}
 }
 

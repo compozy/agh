@@ -16,6 +16,7 @@ type CreateSessionRequest struct {
 	Name          string `json:"name,omitempty"`
 	Workspace     string `json:"workspace,omitempty"`
 	WorkspacePath string `json:"workspace_path,omitempty"`
+	Space         string `json:"space,omitempty"`
 }
 
 // ApproveSessionRequest is the interactive permission approval payload.
@@ -32,6 +33,7 @@ type SessionPayload struct {
 	AgentName     string               `json:"agent_name"`
 	WorkspaceID   string               `json:"workspace_id,omitempty"`
 	WorkspacePath string               `json:"workspace_path,omitempty"`
+	Space         string               `json:"space,omitempty"`
 	State         session.SessionState `json:"state"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`

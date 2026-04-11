@@ -4804,6 +4804,7 @@ export interface operations {
               created_at: string;
               id: string;
               name?: string;
+              space?: string;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -4870,6 +4871,7 @@ export interface operations {
         "application/json": {
           agent_name?: string;
           name?: string;
+          space?: string;
           workspace?: string;
           workspace_path?: string;
         };
@@ -4895,6 +4897,7 @@ export interface operations {
               created_at: string;
               id: string;
               name?: string;
+              space?: string;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -5001,6 +5004,7 @@ export interface operations {
               created_at: string;
               id: string;
               name?: string;
+              space?: string;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -5390,6 +5394,7 @@ export interface operations {
               created_at: string;
               id: string;
               name?: string;
+              space?: string;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -6423,6 +6428,7 @@ export interface operations {
               created_at: string;
               id: string;
               name?: string;
+              space?: string;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
