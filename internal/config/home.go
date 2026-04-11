@@ -28,24 +28,27 @@ const (
 	// DaemonInfoName is the daemon metadata filename.
 	DaemonInfoName = "daemon.json"
 	// LogFileName is the structured daemon log filename.
-	LogFileName  = "agh.log"
-	agentDefName = "AGENT.md"
+	LogFileName = "agh.log"
+	// NetworkAuditFileName is the append-only network audit filename.
+	NetworkAuditFileName = "network.audit"
+	agentDefName         = "AGENT.md"
 )
 
 // HomePaths captures the filesystem layout for the AGH home directory.
 type HomePaths struct {
-	HomeDir      string
-	ConfigFile   string
-	AgentsDir    string
-	SkillsDir    string
-	MemoryDir    string
-	SessionsDir  string
-	LogsDir      string
-	LogFile      string
-	DatabaseFile string
-	DaemonSocket string
-	DaemonLock   string
-	DaemonInfo   string
+	HomeDir          string
+	ConfigFile       string
+	AgentsDir        string
+	SkillsDir        string
+	MemoryDir        string
+	SessionsDir      string
+	LogsDir          string
+	LogFile          string
+	NetworkAuditFile string
+	DatabaseFile     string
+	DaemonSocket     string
+	DaemonLock       string
+	DaemonInfo       string
 }
 
 // ResolveHomeDir resolves the global AGH home directory, honoring AGH_HOME when present.
@@ -80,18 +83,19 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 	}
 
 	return HomePaths{
-		HomeDir:      root,
-		ConfigFile:   filepath.Join(root, ConfigName),
-		AgentsDir:    filepath.Join(root, AgentsDirName),
-		SkillsDir:    filepath.Join(root, SkillsDirName),
-		MemoryDir:    filepath.Join(root, MemoryDirName),
-		SessionsDir:  filepath.Join(root, SessionsDirName),
-		LogsDir:      filepath.Join(root, LogsDirName),
-		LogFile:      filepath.Join(root, LogsDirName, LogFileName),
-		DatabaseFile: filepath.Join(root, DatabaseName),
-		DaemonSocket: filepath.Join(root, DaemonSocketName),
-		DaemonLock:   filepath.Join(root, DaemonLockName),
-		DaemonInfo:   filepath.Join(root, DaemonInfoName),
+		HomeDir:          root,
+		ConfigFile:       filepath.Join(root, ConfigName),
+		AgentsDir:        filepath.Join(root, AgentsDirName),
+		SkillsDir:        filepath.Join(root, SkillsDirName),
+		MemoryDir:        filepath.Join(root, MemoryDirName),
+		SessionsDir:      filepath.Join(root, SessionsDirName),
+		LogsDir:          filepath.Join(root, LogsDirName),
+		LogFile:          filepath.Join(root, LogsDirName, LogFileName),
+		NetworkAuditFile: filepath.Join(root, LogsDirName, NetworkAuditFileName),
+		DatabaseFile:     filepath.Join(root, DatabaseName),
+		DaemonSocket:     filepath.Join(root, DaemonSocketName),
+		DaemonLock:       filepath.Join(root, DaemonLockName),
+		DaemonInfo:       filepath.Join(root, DaemonInfoName),
 	}, nil
 }
 

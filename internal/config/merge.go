@@ -27,6 +27,7 @@ type configOverlay struct {
 	Skills        skillsOverlay              `toml:"skills"`
 	Automation    automationOverlay          `toml:"automation"`
 	Hooks         hooksOverlay               `toml:"hooks"`
+	Network       networkOverlay             `toml:"network"`
 }
 
 type daemonOverlay struct {
@@ -107,6 +108,16 @@ type skillsOverlay struct {
 	Marketplace             marketplaceOverlay `toml:"marketplace"`
 }
 
+type networkOverlay struct {
+	Enabled       *bool   `toml:"enabled"`
+	DefaultSpace  *string `toml:"default_space"`
+	Port          *int    `toml:"port"`
+	MaxPayload    *int    `toml:"max_payload"`
+	GreetInterval *int    `toml:"greet_interval"`
+	MaxReplayAge  *int    `toml:"max_replay_age"`
+	MaxQueueDepth *int    `toml:"max_queue_depth"`
+}
+
 type marketplaceOverlay struct {
 	Registry *string `toml:"registry"`
 	BaseURL  *string `toml:"base_url"`
@@ -178,6 +189,7 @@ func (o configOverlay) Apply(dst *Config) error {
 	if err := o.Automation.Apply(&dst.Automation); err != nil {
 		return err
 	}
+	o.Network.Apply(&dst.Network)
 	return o.Hooks.Apply(&dst.Hooks)
 }
 
@@ -321,6 +333,30 @@ func (o skillsOverlay) Apply(dst *SkillsConfig) {
 		dst.AllowedMarketplaceHooks = append([]string(nil), (*o.AllowedMarketplaceHooks)...)
 	}
 	o.Marketplace.Apply(&dst.Marketplace)
+}
+
+func (o networkOverlay) Apply(dst *NetworkConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = *o.Enabled
+	}
+	if o.DefaultSpace != nil {
+		dst.DefaultSpace = *o.DefaultSpace
+	}
+	if o.Port != nil {
+		dst.Port = *o.Port
+	}
+	if o.MaxPayload != nil {
+		dst.MaxPayload = *o.MaxPayload
+	}
+	if o.GreetInterval != nil {
+		dst.GreetInterval = *o.GreetInterval
+	}
+	if o.MaxReplayAge != nil {
+		dst.MaxReplayAge = *o.MaxReplayAge
+	}
+	if o.MaxQueueDepth != nil {
+		dst.MaxQueueDepth = *o.MaxQueueDepth
+	}
 }
 
 func (o marketplaceOverlay) Apply(dst *MarketplaceConfig) {

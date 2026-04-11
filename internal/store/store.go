@@ -66,12 +66,19 @@ type PermissionLogStore interface {
 	ListPermissionLog(ctx context.Context, query PermissionLogQuery) ([]PermissionLogEntry, error)
 }
 
+// NetworkAuditStore manages network message audit entries.
+type NetworkAuditStore interface {
+	WriteNetworkAudit(ctx context.Context, entry NetworkAuditEntry) error
+	ListNetworkAudit(ctx context.Context, query NetworkAuditQuery) ([]NetworkAuditEntry, error)
+}
+
 // SessionRegistry composes the global persistence surfaces used by runtime consumers.
 type SessionRegistry interface {
 	SessionCatalog
 	EventSummaryStore
 	TokenStatsStore
 	PermissionLogStore
+	NetworkAuditStore
 	Close(ctx context.Context) error
 }
 

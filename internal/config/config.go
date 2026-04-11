@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -122,6 +123,17 @@ type SkillsConfig struct {
 	Marketplace             MarketplaceConfig `toml:"marketplace,omitempty"`
 }
 
+// NetworkConfig controls the embedded AGH network runtime.
+type NetworkConfig struct {
+	Enabled       bool   `toml:"enabled"`
+	DefaultSpace  string `toml:"default_space"`
+	Port          int    `toml:"port"`
+	MaxPayload    int    `toml:"max_payload"`
+	GreetInterval int    `toml:"greet_interval"`
+	MaxReplayAge  int    `toml:"max_replay_age"`
+	MaxQueueDepth int    `toml:"max_queue_depth"`
+}
+
 // Config is the fully merged AGH configuration.
 type Config struct {
 	Daemon        DaemonConfig              `toml:"daemon"`
@@ -138,6 +150,7 @@ type Config struct {
 	Skills        SkillsConfig              `toml:"skills"`
 	Automation    AutomationConfig          `toml:"automation"`
 	Hooks         HooksConfig               `toml:"hooks"`
+	Network       NetworkConfig             `toml:"network"`
 }
 
 type loadOptions struct {
@@ -318,6 +331,15 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			MaxConcurrentJobs: automationpkg.DefaultMaxConcurrentJobs,
 			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
 		},
+		Network: NetworkConfig{
+			Enabled:       false,
+			DefaultSpace:  "default",
+			Port:          -1,
+			MaxPayload:    1 << 20,
+			GreetInterval: 30,
+			MaxReplayAge:  300,
+			MaxQueueDepth: 100,
+		},
 	}
 }
 
@@ -363,6 +385,9 @@ func (c Config) Validate() error {
 	}
 	if err := c.Hooks.Validate(); err != nil {
 		return fmt.Errorf("validate hooks config: %w", err)
+	}
+	if err := c.Network.Validate(); err != nil {
+		return err
 	}
 
 	for name := range c.Providers {
@@ -501,6 +526,49 @@ func (c SkillsConfig) Validate() error {
 	}
 
 	return nil
+}
+
+var networkSpacePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+
+// Validate ensures the network configuration is internally consistent.
+func (c NetworkConfig) Validate() error {
+	defaultSpace := strings.TrimSpace(c.DefaultSpace)
+	if defaultSpace == "" {
+		return errors.New("network.default_space is required")
+	}
+	if !networkSpacePattern.MatchString(defaultSpace) {
+		return fmt.Errorf("network.default_space must match %q: %q", networkSpacePattern.String(), c.DefaultSpace)
+	}
+	if c.Port != -1 && (c.Port <= 0 || c.Port > 65535) {
+		return fmt.Errorf("network.port must be -1 or between 1 and 65535: %d", c.Port)
+	}
+	if c.MaxPayload <= 0 {
+		return fmt.Errorf("network.max_payload must be positive: %d", c.MaxPayload)
+	}
+	if c.MaxPayload > (1<<31 - 1) {
+		return fmt.Errorf("network.max_payload must be <= %d: %d", 1<<31-1, c.MaxPayload)
+	}
+	if c.GreetInterval <= 0 {
+		return fmt.Errorf("network.greet_interval must be positive seconds: %d", c.GreetInterval)
+	}
+	if c.MaxReplayAge <= 0 {
+		return fmt.Errorf("network.max_replay_age must be positive seconds: %d", c.MaxReplayAge)
+	}
+	if c.MaxQueueDepth <= 0 {
+		return fmt.Errorf("network.max_queue_depth must be positive: %d", c.MaxQueueDepth)
+	}
+
+	return nil
+}
+
+// GreetIntervalDuration returns the configured heartbeat interval as a duration.
+func (c NetworkConfig) GreetIntervalDuration() time.Duration {
+	return time.Duration(c.GreetInterval) * time.Second
+}
+
+// MaxReplayAgeDuration returns the configured replay age window as a duration.
+func (c NetworkConfig) MaxReplayAgeDuration() time.Duration {
+	return time.Duration(c.MaxReplayAge) * time.Second
 }
 
 // Validate ensures the marketplace configuration is internally consistent when configured.

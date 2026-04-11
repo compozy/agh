@@ -73,6 +73,21 @@ var globalSchemaStatements = []string{
 		timestamp   TEXT NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_perm_session ON permission_log(session_id);`,
+	`CREATE TABLE IF NOT EXISTS network_audit_log (
+		id         TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL REFERENCES sessions(id),
+		direction  TEXT NOT NULL,
+		kind       TEXT NOT NULL,
+		space      TEXT NOT NULL,
+		peer_from  TEXT NOT NULL,
+		peer_to    TEXT,
+		message_id TEXT NOT NULL,
+		reason     TEXT,
+		size       INTEGER NOT NULL,
+		timestamp  TEXT NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_net_audit_ts ON network_audit_log(timestamp);`,
+	`CREATE INDEX IF NOT EXISTS idx_net_audit_session ON network_audit_log(session_id);`,
 	`CREATE TABLE IF NOT EXISTS extensions (
 		name          TEXT PRIMARY KEY,
 		version       TEXT NOT NULL,

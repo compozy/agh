@@ -89,6 +89,15 @@ agent = "claude"
 min_hours = 48
 min_sessions = 5
 check_interval = "45m"
+
+[network]
+enabled = true
+default_space = "builders"
+port = 4333
+max_payload = 65536
+greet_interval = 45
+max_replay_age = 600
+max_queue_depth = 250
 `)
 
 	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -168,6 +177,27 @@ check_interval = "45m"
 	}
 	if got, want := cfg.Memory.Dream.CheckInterval, 45*time.Minute; got != want {
 		t.Fatalf("Load() Memory.Dream.CheckInterval = %s, want %s", got, want)
+	}
+	if !cfg.Network.Enabled {
+		t.Fatal("Load() Network.Enabled = false, want true")
+	}
+	if got, want := cfg.Network.DefaultSpace, "builders"; got != want {
+		t.Fatalf("Load() Network.DefaultSpace = %q, want %q", got, want)
+	}
+	if got, want := cfg.Network.Port, 4333; got != want {
+		t.Fatalf("Load() Network.Port = %d, want %d", got, want)
+	}
+	if got, want := cfg.Network.MaxPayload, 65536; got != want {
+		t.Fatalf("Load() Network.MaxPayload = %d, want %d", got, want)
+	}
+	if got, want := cfg.Network.GreetInterval, 45; got != want {
+		t.Fatalf("Load() Network.GreetInterval = %d, want %d", got, want)
+	}
+	if got, want := cfg.Network.MaxReplayAge, 600; got != want {
+		t.Fatalf("Load() Network.MaxReplayAge = %d, want %d", got, want)
+	}
+	if got, want := cfg.Network.MaxQueueDepth, 250; got != want {
+		t.Fatalf("Load() Network.MaxQueueDepth = %d, want %d", got, want)
 	}
 
 	claude, err := cfg.ResolveProvider("claude")
@@ -946,6 +976,98 @@ func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
 	}
 	if got, want := cfg.Skills.PollInterval, 3*time.Second; got != want {
 		t.Fatalf("defaultConfig() Skills.PollInterval = %s, want %s", got, want)
+	}
+	if got, want := cfg.Network.DefaultSpace, "default"; got != want {
+		t.Fatalf("defaultConfig() Network.DefaultSpace = %q, want %q", got, want)
+	}
+	if got, want := cfg.Network.Port, -1; got != want {
+		t.Fatalf("defaultConfig() Network.Port = %d, want %d", got, want)
+	}
+	if got, want := cfg.Network.MaxPayload, 1<<20; got != want {
+		t.Fatalf("defaultConfig() Network.MaxPayload = %d, want %d", got, want)
+	}
+}
+
+func TestNetworkConfigValidateRejectsInvalidValues(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr string
+	}{
+		{
+			name: "invalid port",
+			mutate: func(cfg *Config) {
+				cfg.Network.Port = 0
+			},
+			wantErr: "network.port",
+		},
+		{
+			name: "invalid payload",
+			mutate: func(cfg *Config) {
+				cfg.Network.MaxPayload = 0
+			},
+			wantErr: "network.max_payload",
+		},
+		{
+			name: "payload over int32",
+			mutate: func(cfg *Config) {
+				cfg.Network.MaxPayload = 1 << 31
+			},
+			wantErr: "network.max_payload",
+		},
+		{
+			name: "invalid greet interval",
+			mutate: func(cfg *Config) {
+				cfg.Network.GreetInterval = 0
+			},
+			wantErr: "network.greet_interval",
+		},
+		{
+			name: "invalid replay age",
+			mutate: func(cfg *Config) {
+				cfg.Network.MaxReplayAge = 0
+			},
+			wantErr: "network.max_replay_age",
+		},
+		{
+			name: "invalid queue depth",
+			mutate: func(cfg *Config) {
+				cfg.Network.MaxQueueDepth = 0
+			},
+			wantErr: "network.max_queue_depth",
+		},
+		{
+			name: "invalid default space",
+			mutate: func(cfg *Config) {
+				cfg.Network.DefaultSpace = "Bad Space"
+			},
+			wantErr: "network.default_space",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := DefaultWithHome(homePaths)
+			tc.mutate(&cfg)
+
+			err := cfg.Validate()
+			if err == nil {
+				t.Fatalf("Validate() error = nil for %s", tc.name)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("Validate() error = %q, want substring %q", err, tc.wantErr)
+			}
+		})
 	}
 }
 

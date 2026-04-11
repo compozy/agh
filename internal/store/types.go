@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -337,6 +338,71 @@ type PermissionLogQuery struct {
 // Validate ensures the query uses sane bounds.
 func (q PermissionLogQuery) Validate() error {
 	return requirePositiveLimit(q.Limit, "permission log limit")
+}
+
+// NetworkAuditEntry is an audit row for one network message event.
+type NetworkAuditEntry struct {
+	ID        string
+	SessionID string
+	Direction string
+	Kind      string
+	Space     string
+	PeerFrom  string
+	PeerTo    string
+	MessageID string
+	Reason    string
+	Size      int
+	Timestamp time.Time
+}
+
+// Validate ensures the network audit entry is complete and internally consistent.
+func (e NetworkAuditEntry) Validate() error {
+	if err := requireField(e.SessionID, "network audit session id"); err != nil {
+		return err
+	}
+	if err := requireField(e.Direction, "network audit direction"); err != nil {
+		return err
+	}
+	switch strings.TrimSpace(e.Direction) {
+	case "sent", "received", "rejected":
+	default:
+		return fmt.Errorf("store: network audit direction must be one of %q, %q, %q: %q", "sent", "received", "rejected", e.Direction)
+	}
+	if err := requireField(e.Kind, "network audit kind"); err != nil {
+		return err
+	}
+	if err := requireField(e.Space, "network audit space"); err != nil {
+		return err
+	}
+	if err := requireField(e.PeerFrom, "network audit peer_from"); err != nil {
+		return err
+	}
+	if err := requireField(e.MessageID, "network audit message id"); err != nil {
+		return err
+	}
+	if e.Size < 0 {
+		return fmt.Errorf("store: network audit size must be zero or positive: %d", e.Size)
+	}
+	if strings.TrimSpace(e.Direction) == "rejected" && strings.TrimSpace(e.Reason) == "" {
+		return fmt.Errorf("store: network audit reason is required when direction is %q", e.Direction)
+	}
+	return nil
+}
+
+// NetworkAuditQuery filters network audit lookups.
+type NetworkAuditQuery struct {
+	SessionID string
+	Direction string
+	Kind      string
+	Space     string
+	MessageID string
+	Since     time.Time
+	Limit     int
+}
+
+// Validate ensures the query uses sane bounds.
+func (q NetworkAuditQuery) Validate() error {
+	return requirePositiveLimit(q.Limit, "network audit limit")
 }
 
 // ReconcileResult reports which sessions were indexed or marked orphaned.

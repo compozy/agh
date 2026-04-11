@@ -88,3 +88,52 @@ enabled = true
 		}
 	})
 }
+
+func TestApplyConfigOverlayFileAppliesNetworkOverlay(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg := DefaultWithHome(homePaths)
+
+	overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+	writeFile(t, overlayPath, `
+[network]
+enabled = true
+default_space = "builders"
+port = 4555
+max_payload = 12345
+greet_interval = 15
+max_replay_age = 90
+max_queue_depth = 12
+`)
+
+	if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+		t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+	}
+
+	if !cfg.Network.Enabled {
+		t.Fatal("ApplyConfigOverlayFile() Network.Enabled = false, want true")
+	}
+	if got, want := cfg.Network.DefaultSpace, "builders"; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() Network.DefaultSpace = %q, want %q", got, want)
+	}
+	if got, want := cfg.Network.Port, 4555; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() Network.Port = %d, want %d", got, want)
+	}
+	if got, want := cfg.Network.MaxPayload, 12345; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() Network.MaxPayload = %d, want %d", got, want)
+	}
+	if got, want := cfg.Network.GreetInterval, 15; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() Network.GreetInterval = %d, want %d", got, want)
+	}
+	if got, want := cfg.Network.MaxReplayAge, 90; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() Network.MaxReplayAge = %d, want %d", got, want)
+	}
+	if got, want := cfg.Network.MaxQueueDepth, 12; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() Network.MaxQueueDepth = %d, want %d", got, want)
+	}
+}
