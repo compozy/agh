@@ -150,6 +150,12 @@ var globalSchemaStatements = []string{
 		updated_at        TEXT NOT NULL,
 		FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE CASCADE
 	);`,
+	`CREATE TABLE IF NOT EXISTS automation_trigger_webhook_secrets (
+		trigger_id  TEXT PRIMARY KEY,
+		secret      TEXT NOT NULL,
+		updated_at  TEXT NOT NULL,
+		FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE CASCADE
+	);`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_global_name ON automation_jobs(name) WHERE scope = 'global';`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_workspace_name ON automation_jobs(workspace_id, name) WHERE scope = 'workspace';`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_global_name ON automation_triggers(name) WHERE scope = 'global';`,

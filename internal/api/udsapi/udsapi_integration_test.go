@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
@@ -143,6 +145,147 @@ func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
 	if !payload.Triggered || runtime.dream.calls != 1 {
 		t.Fatalf("payload = %#v dream.calls=%d, want triggered once", payload, runtime.dream.calls)
 	}
+}
+
+func TestUDSAutomationJobsRoundTrip(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	createResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/automation/jobs", []byte(`{"scope":"global","name":"nightly-review","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"}}`), nil)
+	if createResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(createResp.Body)
+		_ = createResp.Body.Close()
+		t.Fatalf("create job status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
+	}
+	var created contract.JobResponse
+	decodeHTTPJSON(t, createResp, &created)
+	if created.Job.ID == "" {
+		t.Fatal("expected created automation job id")
+	}
+
+	updateResp := mustUnixRequest(t, runtime.client, http.MethodPatch, "http://unix/api/automation/jobs/"+created.Job.ID, []byte(`{"prompt":"review repo now"}`), nil)
+	if updateResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateResp.Body)
+		_ = updateResp.Body.Close()
+		t.Fatalf("update job status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
+	}
+	var updated contract.JobResponse
+	decodeHTTPJSON(t, updateResp, &updated)
+	if updated.Job.Prompt != "review repo now" {
+		t.Fatalf("updated job prompt = %q, want %q", updated.Job.Prompt, "review repo now")
+	}
+
+	triggerResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/automation/jobs/"+created.Job.ID+"/trigger", nil, nil)
+	if triggerResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(triggerResp.Body)
+		_ = triggerResp.Body.Close()
+		t.Fatalf("trigger job status = %d, want %d; body=%s", triggerResp.StatusCode, http.StatusOK, string(body))
+	}
+	var run contract.RunResponse
+	decodeHTTPJSON(t, triggerResp, &run)
+	if run.Run.JobID != created.Job.ID {
+		t.Fatalf("job run = %#v, want job_id %q", run.Run, created.Job.ID)
+	}
+
+	runsResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/jobs/"+created.Job.ID+"/runs", nil, nil)
+	if runsResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(runsResp.Body)
+		_ = runsResp.Body.Close()
+		t.Fatalf("job runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
+	}
+	var runs contract.RunsResponse
+	decodeHTTPJSON(t, runsResp, &runs)
+	if !containsAutomationRun(runs.Runs, run.Run.ID) {
+		t.Fatalf("job runs missing %q: %#v", run.Run.ID, runs.Runs)
+	}
+
+	deleteResp := mustUnixRequest(t, runtime.client, http.MethodDelete, "http://unix/api/automation/jobs/"+created.Job.ID, nil, nil)
+	if deleteResp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(deleteResp.Body)
+		_ = deleteResp.Body.Close()
+		t.Fatalf("delete job status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusNoContent, string(body))
+	}
+	_ = deleteResp.Body.Close()
+}
+
+func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	resolveResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/workspaces/resolve", []byte(`{"path":"`+runtime.workspace+`"}`), nil)
+	if resolveResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resolveResp.Body)
+		_ = resolveResp.Body.Close()
+		t.Fatalf("resolve workspace status = %d, want %d; body=%s", resolveResp.StatusCode, http.StatusOK, string(body))
+	}
+	var resolved contract.WorkspaceResponse
+	decodeHTTPJSON(t, resolveResp, &resolved)
+
+	createResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/automation/triggers", []byte(`{"scope":"workspace","workspace_id":"`+resolved.Workspace.ID+`","name":"session-stop-review","agent_name":"coder","prompt":"review {{ index .Data \"session_id\" }}","event":"session.stopped","filter":{"data.session_type":"user"}}`), nil)
+	if createResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(createResp.Body)
+		_ = createResp.Body.Close()
+		t.Fatalf("create trigger status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
+	}
+	var created contract.TriggerResponse
+	decodeHTTPJSON(t, createResp, &created)
+	if created.Trigger.ID == "" {
+		t.Fatal("expected created automation trigger id")
+	}
+
+	updateResp := mustUnixRequest(t, runtime.client, http.MethodPatch, "http://unix/api/automation/triggers/"+created.Trigger.ID, []byte(`{"prompt":"inspect {{ index .Data \"session_id\" }}"}`), nil)
+	if updateResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateResp.Body)
+		_ = updateResp.Body.Close()
+		t.Fatalf("update trigger status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
+	}
+	var updated contract.TriggerResponse
+	decodeHTTPJSON(t, updateResp, &updated)
+	if updated.Trigger.Prompt != `inspect {{ index .Data "session_id" }}` {
+		t.Fatalf("updated trigger prompt = %q", updated.Trigger.Prompt)
+	}
+
+	sessionID := createIntegrationSession(t, runtime)
+	stopIntegrationSession(t, runtime, sessionID)
+
+	runsResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/triggers/"+created.Trigger.ID+"/runs", nil, nil)
+	if runsResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(runsResp.Body)
+		_ = runsResp.Body.Close()
+		t.Fatalf("trigger runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
+	}
+	var runs contract.RunsResponse
+	decodeHTTPJSON(t, runsResp, &runs)
+	if len(runs.Runs) == 0 {
+		t.Fatalf("expected trigger run history, got %#v", runs.Runs)
+	}
+	runID := runs.Runs[0].ID
+
+	runResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/runs/"+runID, nil, nil)
+	if runResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(runResp.Body)
+		_ = runResp.Body.Close()
+		t.Fatalf("get trigger run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
+	}
+	var run contract.RunResponse
+	decodeHTTPJSON(t, runResp, &run)
+	if run.Run.TriggerID != created.Trigger.ID {
+		t.Fatalf("trigger run = %#v, want trigger_id %q", run.Run, created.Trigger.ID)
+	}
+
+	webhookResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/webhooks/global/deploy-review--wbh_test", []byte(`{"payload":"deploy"}`), nil)
+	if webhookResp.StatusCode != http.StatusNotFound {
+		body, _ := io.ReadAll(webhookResp.Body)
+		_ = webhookResp.Body.Close()
+		t.Fatalf("webhook route status = %d, want %d; body=%s", webhookResp.StatusCode, http.StatusNotFound, string(body))
+	}
+	_ = webhookResp.Body.Close()
+
+	deleteResp := mustUnixRequest(t, runtime.client, http.MethodDelete, "http://unix/api/automation/triggers/"+created.Trigger.ID, nil, nil)
+	if deleteResp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(deleteResp.Body)
+		_ = deleteResp.Body.Close()
+		t.Fatalf("delete trigger status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusNoContent, string(body))
+	}
+	_ = deleteResp.Body.Close()
 }
 
 func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {
@@ -493,6 +636,29 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		last:      time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC),
 	}
 
+	automationManager, err := automationpkg.New(
+		automationpkg.WithStore(registry),
+		automationpkg.WithSessions(manager),
+		automationpkg.WithWorkspaceResolver(resolver),
+		automationpkg.WithConfig(cfg.Automation),
+		automationpkg.WithLogger(discardLogger()),
+		automationpkg.WithGlobalWorkspacePath(homePaths.HomeDir),
+	)
+	if err != nil {
+		t.Fatalf("automation.New() error = %v", err)
+	}
+	if err := automationManager.Start(context.Background()); err != nil {
+		t.Fatalf("automationManager.Start() error = %v", err)
+	}
+	fanout.notifiers = append(fanout.notifiers, automationManager.SessionObserver())
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := automationManager.Shutdown(ctx); err != nil {
+			t.Fatalf("automationManager.Shutdown() error = %v", err)
+		}
+	})
+
 	server, err := New(
 		WithHomePaths(homePaths),
 		WithConfig(cfg),
@@ -500,6 +666,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		WithLogger(discardLogger()),
 		WithSessionManager(manager),
 		WithObserver(observer),
+		WithAutomation(automationManager),
 		WithWorkspaceResolver(resolver),
 		WithMemoryStore(memoryStore),
 		WithDreamTrigger(dreamTrigger),
@@ -608,6 +775,15 @@ func decodeHTTPJSON(t *testing.T, resp *http.Response, dest any) {
 	if err := json.Unmarshal(body, dest); err != nil {
 		t.Fatalf("json.Unmarshal(response) error = %v; body=%s", err, string(body))
 	}
+}
+
+func containsAutomationRun(runs []contract.RunPayload, id string) bool {
+	for _, run := range runs {
+		if run.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func collectLiveSSE(t *testing.T, body io.ReadCloser, want int, timeout time.Duration) []sseRecord {

@@ -23,6 +23,9 @@ var (
 	// ErrManagerNotRunning reports that a runtime-only manager action was called
 	// before Start or after Shutdown.
 	ErrManagerNotRunning = errors.New("automation: manager not running")
+	// ErrDefinitionReadOnly reports that a config-backed definition cannot be
+	// mutated through the runtime CRUD surface.
+	ErrDefinitionReadOnly = errors.New("automation: definition is config-backed and read-only")
 )
 
 // SessionManager is the runtime session surface required by the automation
@@ -37,6 +40,7 @@ type SessionManager interface {
 // automation manager.
 type Store interface {
 	RunStore
+	GetRun(ctx context.Context, id string) (Run, error)
 	CreateJob(ctx context.Context, job Job) (Job, error)
 	UpdateJob(ctx context.Context, job Job) (Job, error)
 	DeleteJob(ctx context.Context, id string) error
@@ -56,12 +60,28 @@ type Store interface {
 	GetTriggerEnabledOverlay(ctx context.Context, triggerID string) (TriggerEnabledOverlay, error)
 	ListTriggerEnabledOverlays(ctx context.Context) ([]TriggerEnabledOverlay, error)
 	DeleteTriggerEnabledOverlay(ctx context.Context, triggerID string) error
+	SetTriggerWebhookSecret(ctx context.Context, triggerID string, secret string) error
+	GetTriggerWebhookSecret(ctx context.Context, triggerID string) (string, error)
+	DeleteTriggerWebhookSecret(ctx context.Context, triggerID string) error
 }
 
 // WebhookSecretResolver resolves the write-only webhook secret needed to
 // register persisted webhook triggers into the runtime engine.
 type WebhookSecretResolver interface {
 	SecretForTrigger(ctx context.Context, trigger Trigger) (string, error)
+}
+
+type storeWebhookSecretResolver struct {
+	store interface {
+		GetTriggerWebhookSecret(ctx context.Context, triggerID string) (string, error)
+	}
+}
+
+func (r storeWebhookSecretResolver) SecretForTrigger(ctx context.Context, trigger Trigger) (string, error) {
+	if r.store == nil {
+		return "", ErrTriggerWebhookSecretNotFound
+	}
+	return r.store.GetTriggerWebhookSecret(ctx, strings.TrimSpace(trigger.ID))
 }
 
 // ResourceStatus reports total and enabled counts for one automation resource
@@ -262,6 +282,9 @@ func New(opts ...Option) (*Manager, error) {
 	if options.config.DefaultFireLimit.Max == 0 || strings.TrimSpace(options.config.DefaultFireLimit.Window) == "" {
 		options.config.DefaultFireLimit = DefaultFireLimitConfig()
 	}
+	if options.webhookSecrets == nil {
+		options.webhookSecrets = storeWebhookSecretResolver{store: options.store}
+	}
 	if strings.TrimSpace(options.globalWorkspacePath) == "" {
 		return nil, errors.New("automation: global workspace path is required")
 	}
@@ -313,11 +336,11 @@ func (m *Manager) Start(ctx context.Context) error {
 		return err
 	}
 
-	jobs, err := m.loadEffectiveJobs(ctx)
+	jobs, err := m.loadEffectiveJobs(ctx, JobListQuery{})
 	if err != nil {
 		return err
 	}
-	triggers, err := m.loadEffectiveTriggers(ctx)
+	triggers, err := m.loadEffectiveTriggers(ctx, TriggerListQuery{})
 	if err != nil {
 		return err
 	}
@@ -418,26 +441,386 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 
 // Jobs returns overlay-aware job definitions from persistence.
 func (m *Manager) Jobs(ctx context.Context) ([]Job, error) {
+	return m.ListJobs(ctx, JobListQuery{})
+}
+
+// ListJobs returns overlay-aware job definitions using the supplied filters.
+func (m *Manager) ListJobs(ctx context.Context, query JobListQuery) ([]Job, error) {
 	if ctx == nil {
-		return nil, errors.New("automation: jobs context is required")
+		return nil, errors.New("automation: list jobs context is required")
 	}
-	return m.loadEffectiveJobs(ctx)
+	return m.loadEffectiveJobs(ctx, query)
+}
+
+// GetJob returns one overlay-aware job definition by id.
+func (m *Manager) GetJob(ctx context.Context, id string) (Job, error) {
+	if ctx == nil {
+		return Job{}, errors.New("automation: get job context is required")
+	}
+	return m.effectiveJob(ctx, strings.TrimSpace(id))
+}
+
+// CreateJob stores a new dynamic automation job and registers it into the
+// runtime when the scheduler is active.
+func (m *Manager) CreateJob(ctx context.Context, job Job) (Job, error) {
+	if ctx == nil {
+		return Job{}, errors.New("automation: create job context is required")
+	}
+
+	next := cloneJob(job)
+	if next.Source == "" {
+		next.Source = JobSourceDynamic
+	}
+	if next.Source != JobSourceDynamic {
+		return Job{}, ErrDefinitionReadOnly
+	}
+
+	created, err := m.store.CreateJob(ctx, next)
+	if err != nil {
+		return Job{}, err
+	}
+
+	current, err := m.effectiveJobFromStored(ctx, created)
+	if err != nil {
+		_ = m.store.DeleteJob(ctx, created.ID)
+		return Job{}, err
+	}
+	if err := m.applyJobToRuntime(current); err != nil {
+		_ = m.store.DeleteJob(ctx, created.ID)
+		scheduler := m.schedulerSnapshot()
+		if scheduler != nil {
+			_ = scheduler.Unregister(created.ID)
+		}
+		return Job{}, err
+	}
+
+	return current, nil
+}
+
+// UpdateJob replaces one existing dynamic automation job definition.
+func (m *Manager) UpdateJob(ctx context.Context, job Job) (Job, error) {
+	if ctx == nil {
+		return Job{}, errors.New("automation: update job context is required")
+	}
+
+	currentStored, err := m.store.GetJob(ctx, strings.TrimSpace(job.ID))
+	if err != nil {
+		return Job{}, err
+	}
+	if currentStored.Source != JobSourceDynamic {
+		return Job{}, ErrDefinitionReadOnly
+	}
+
+	previousEffective, err := m.effectiveJobFromStored(ctx, currentStored)
+	if err != nil {
+		return Job{}, err
+	}
+
+	next := cloneJob(job)
+	next.ID = currentStored.ID
+	next.Source = currentStored.Source
+	next.CreatedAt = currentStored.CreatedAt
+
+	updatedStored, err := m.store.UpdateJob(ctx, next)
+	if err != nil {
+		return Job{}, err
+	}
+
+	currentEffective, err := m.effectiveJobFromStored(ctx, updatedStored)
+	if err != nil {
+		_, _ = m.store.UpdateJob(ctx, currentStored)
+		return Job{}, err
+	}
+	if err := m.applyJobToRuntime(currentEffective); err != nil {
+		if _, rollbackErr := m.store.UpdateJob(ctx, currentStored); rollbackErr != nil {
+			return Job{}, errors.Join(err, rollbackErr)
+		}
+		if restoreErr := m.applyJobToRuntime(previousEffective); restoreErr != nil {
+			return Job{}, errors.Join(err, restoreErr)
+		}
+		return Job{}, err
+	}
+
+	return currentEffective, nil
+}
+
+// DeleteJob removes one dynamic automation job definition and unregisters it
+// from the runtime scheduler when needed.
+func (m *Manager) DeleteJob(ctx context.Context, id string) error {
+	if ctx == nil {
+		return errors.New("automation: delete job context is required")
+	}
+
+	currentStored, err := m.store.GetJob(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return err
+	}
+	if currentStored.Source != JobSourceDynamic {
+		return ErrDefinitionReadOnly
+	}
+
+	previousEffective, err := m.effectiveJobFromStored(ctx, currentStored)
+	if err != nil {
+		return err
+	}
+
+	scheduler := m.schedulerSnapshot()
+	if scheduler != nil {
+		if err := scheduler.Unregister(currentStored.ID); err != nil && !errors.Is(err, ErrScheduledJobNotFound) {
+			return err
+		}
+	}
+
+	if err := m.store.DeleteJob(ctx, currentStored.ID); err != nil {
+		if restoreErr := m.applyJobToRuntime(previousEffective); restoreErr != nil {
+			return errors.Join(err, restoreErr)
+		}
+		return err
+	}
+
+	return nil
+}
+
+// TriggerJob forces one immediate manual execution through the shared
+// dispatcher path.
+func (m *Manager) TriggerJob(ctx context.Context, id string) (Run, error) {
+	if ctx == nil {
+		return Run{}, errors.New("automation: trigger job context is required")
+	}
+
+	job, err := m.effectiveJob(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return Run{}, err
+	}
+
+	run, err := m.dispatcher.Dispatch(ctx, DispatchRequest{
+		Kind: DispatchKindManual,
+		Job:  &job,
+	})
+	if err != nil {
+		if run != nil {
+			return *run, err
+		}
+		return Run{}, err
+	}
+	if run == nil {
+		return Run{}, errors.New("automation: manual job dispatch returned no run")
+	}
+	return *run, nil
 }
 
 // Triggers returns overlay-aware trigger definitions from persistence.
 func (m *Manager) Triggers(ctx context.Context) ([]Trigger, error) {
+	return m.ListTriggers(ctx, TriggerListQuery{})
+}
+
+// ListTriggers returns overlay-aware trigger definitions using the supplied
+// filters.
+func (m *Manager) ListTriggers(ctx context.Context, query TriggerListQuery) ([]Trigger, error) {
 	if ctx == nil {
-		return nil, errors.New("automation: triggers context is required")
+		return nil, errors.New("automation: list triggers context is required")
 	}
-	return m.loadEffectiveTriggers(ctx)
+	return m.loadEffectiveTriggers(ctx, query)
+}
+
+// GetTrigger returns one overlay-aware trigger definition by id.
+func (m *Manager) GetTrigger(ctx context.Context, id string) (Trigger, error) {
+	if ctx == nil {
+		return Trigger{}, errors.New("automation: get trigger context is required")
+	}
+	return m.effectiveTrigger(ctx, strings.TrimSpace(id))
+}
+
+// CreateTrigger stores a new dynamic trigger definition plus its write-only
+// webhook secret when applicable, then registers it into the runtime engine.
+func (m *Manager) CreateTrigger(ctx context.Context, trigger Trigger, webhookSecret string) (Trigger, error) {
+	if ctx == nil {
+		return Trigger{}, errors.New("automation: create trigger context is required")
+	}
+
+	next := cloneTrigger(trigger)
+	if next.Source == "" {
+		next.Source = JobSourceDynamic
+	}
+	if next.Source != JobSourceDynamic {
+		return Trigger{}, ErrDefinitionReadOnly
+	}
+
+	created, err := m.store.CreateTrigger(ctx, next)
+	if err != nil {
+		return Trigger{}, err
+	}
+	created, err = m.ensureTriggerWebhookID(ctx, created)
+	if err != nil {
+		_ = m.store.DeleteTrigger(ctx, created.ID)
+		return Trigger{}, err
+	}
+	if err := m.syncTriggerWebhookSecret(ctx, Trigger{}, created, stringPointer(webhookSecret)); err != nil {
+		_ = m.store.DeleteTrigger(ctx, created.ID)
+		return Trigger{}, err
+	}
+
+	current, err := m.effectiveTriggerFromStored(ctx, created)
+	if err != nil {
+		_ = m.store.DeleteTrigger(ctx, created.ID)
+		_ = m.store.DeleteTriggerWebhookSecret(ctx, created.ID)
+		return Trigger{}, err
+	}
+	if err := m.applyTriggerToRuntime(ctx, current); err != nil {
+		_ = m.store.DeleteTrigger(ctx, created.ID)
+		_ = m.store.DeleteTriggerWebhookSecret(ctx, created.ID)
+		engine := m.triggerEngineSnapshot()
+		if engine != nil {
+			_ = engine.Unregister(created.ID)
+		}
+		return Trigger{}, err
+	}
+
+	return current, nil
+}
+
+// UpdateTrigger replaces one existing dynamic trigger definition.
+func (m *Manager) UpdateTrigger(ctx context.Context, trigger Trigger, webhookSecret *string) (Trigger, error) {
+	if ctx == nil {
+		return Trigger{}, errors.New("automation: update trigger context is required")
+	}
+
+	currentStored, err := m.store.GetTrigger(ctx, strings.TrimSpace(trigger.ID))
+	if err != nil {
+		return Trigger{}, err
+	}
+	if currentStored.Source != JobSourceDynamic {
+		return Trigger{}, ErrDefinitionReadOnly
+	}
+
+	previousEffective, err := m.effectiveTriggerFromStored(ctx, currentStored)
+	if err != nil {
+		return Trigger{}, err
+	}
+	previousSecret, err := m.currentWebhookSecret(ctx, currentStored)
+	if err != nil {
+		return Trigger{}, err
+	}
+
+	next := cloneTrigger(trigger)
+	next.ID = currentStored.ID
+	next.Source = currentStored.Source
+	next.CreatedAt = currentStored.CreatedAt
+
+	updatedStored, err := m.store.UpdateTrigger(ctx, next)
+	if err != nil {
+		return Trigger{}, err
+	}
+	updatedStored, err = m.ensureTriggerWebhookID(ctx, updatedStored)
+	if err != nil {
+		if _, rollbackErr := m.store.UpdateTrigger(ctx, currentStored); rollbackErr != nil {
+			return Trigger{}, errors.Join(err, rollbackErr)
+		}
+		return Trigger{}, err
+	}
+	if err := m.syncTriggerWebhookSecret(ctx, currentStored, updatedStored, webhookSecret); err != nil {
+		if _, rollbackErr := m.store.UpdateTrigger(ctx, currentStored); rollbackErr != nil {
+			return Trigger{}, errors.Join(err, rollbackErr)
+		}
+		if restoreErr := m.restoreWebhookSecret(ctx, currentStored, previousSecret); restoreErr != nil {
+			return Trigger{}, errors.Join(err, restoreErr)
+		}
+		return Trigger{}, err
+	}
+
+	currentEffective, err := m.effectiveTriggerFromStored(ctx, updatedStored)
+	if err != nil {
+		if _, rollbackErr := m.store.UpdateTrigger(ctx, currentStored); rollbackErr != nil {
+			return Trigger{}, errors.Join(err, rollbackErr)
+		}
+		if restoreErr := m.restoreWebhookSecret(ctx, currentStored, previousSecret); restoreErr != nil {
+			return Trigger{}, errors.Join(err, restoreErr)
+		}
+		return Trigger{}, err
+	}
+	if err := m.applyTriggerToRuntime(ctx, currentEffective); err != nil {
+		if _, rollbackErr := m.store.UpdateTrigger(ctx, currentStored); rollbackErr != nil {
+			return Trigger{}, errors.Join(err, rollbackErr)
+		}
+		if restoreErr := m.restoreWebhookSecret(ctx, currentStored, previousSecret); restoreErr != nil {
+			return Trigger{}, errors.Join(err, restoreErr)
+		}
+		if runtimeErr := m.applyTriggerToRuntime(ctx, previousEffective); runtimeErr != nil {
+			return Trigger{}, errors.Join(err, runtimeErr)
+		}
+		return Trigger{}, err
+	}
+
+	return currentEffective, nil
+}
+
+// DeleteTrigger removes one dynamic trigger definition and clears any
+// persisted webhook secret.
+func (m *Manager) DeleteTrigger(ctx context.Context, id string) error {
+	if ctx == nil {
+		return errors.New("automation: delete trigger context is required")
+	}
+
+	currentStored, err := m.store.GetTrigger(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return err
+	}
+	if currentStored.Source != JobSourceDynamic {
+		return ErrDefinitionReadOnly
+	}
+
+	previousEffective, err := m.effectiveTriggerFromStored(ctx, currentStored)
+	if err != nil {
+		return err
+	}
+	previousSecret, err := m.currentWebhookSecret(ctx, currentStored)
+	if err != nil {
+		return err
+	}
+
+	engine := m.triggerEngineSnapshot()
+	if engine != nil {
+		if err := engine.Unregister(currentStored.ID); err != nil && !errors.Is(err, ErrTriggerNotFound) {
+			return err
+		}
+	}
+
+	if err := m.store.DeleteTriggerWebhookSecret(ctx, currentStored.ID); err != nil {
+		return err
+	}
+	if err := m.store.DeleteTrigger(ctx, currentStored.ID); err != nil {
+		if restoreErr := m.restoreWebhookSecret(ctx, currentStored, previousSecret); restoreErr != nil {
+			return errors.Join(err, restoreErr)
+		}
+		if runtimeErr := m.applyTriggerToRuntime(ctx, previousEffective); runtimeErr != nil {
+			return errors.Join(err, runtimeErr)
+		}
+		return err
+	}
+
+	return nil
 }
 
 // Runs returns persisted automation run history.
 func (m *Manager) Runs(ctx context.Context, query RunQuery) ([]Run, error) {
+	return m.ListRuns(ctx, query)
+}
+
+// ListRuns returns persisted automation run history using the supplied
+// filters.
+func (m *Manager) ListRuns(ctx context.Context, query RunQuery) ([]Run, error) {
 	if ctx == nil {
-		return nil, errors.New("automation: runs context is required")
+		return nil, errors.New("automation: list runs context is required")
 	}
 	return m.store.ListRuns(ctx, query)
+}
+
+// GetRun returns one persisted automation run by id.
+func (m *Manager) GetRun(ctx context.Context, id string) (Run, error) {
+	if ctx == nil {
+		return Run{}, errors.New("automation: get run context is required")
+	}
+	return m.store.GetRun(ctx, strings.TrimSpace(id))
 }
 
 // Status returns aggregate automation lifecycle and next-fire metadata.
@@ -446,11 +829,11 @@ func (m *Manager) Status(ctx context.Context) (ManagerStatus, error) {
 		return ManagerStatus{}, errors.New("automation: status context is required")
 	}
 
-	jobs, err := m.loadEffectiveJobs(ctx)
+	jobs, err := m.loadEffectiveJobs(ctx, JobListQuery{})
 	if err != nil {
 		return ManagerStatus{}, err
 	}
-	triggers, err := m.loadEffectiveTriggers(ctx)
+	triggers, err := m.loadEffectiveTriggers(ctx, TriggerListQuery{})
 	if err != nil {
 		return ManagerStatus{}, err
 	}
@@ -593,8 +976,8 @@ func (m *Manager) MemoryObserver() MemoryConsolidationObserver {
 	return managerMemoryObserver{manager: m}
 }
 
-func (m *Manager) loadEffectiveJobs(ctx context.Context) ([]Job, error) {
-	jobs, err := m.store.ListJobs(ctx, JobListQuery{})
+func (m *Manager) loadEffectiveJobs(ctx context.Context, query JobListQuery) ([]Job, error) {
+	jobs, err := m.store.ListJobs(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -622,8 +1005,8 @@ func (m *Manager) loadEffectiveJobs(ctx context.Context) ([]Job, error) {
 	return effective, nil
 }
 
-func (m *Manager) loadEffectiveTriggers(ctx context.Context) ([]Trigger, error) {
-	triggers, err := m.store.ListTriggers(ctx, TriggerListQuery{})
+func (m *Manager) loadEffectiveTriggers(ctx context.Context, query TriggerListQuery) ([]Trigger, error) {
+	triggers, err := m.store.ListTriggers(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -1067,6 +1450,89 @@ func (m *Manager) rollbackTriggerEnabled(ctx context.Context, definition Trigger
 	}
 }
 
+func (m *Manager) syncTriggerWebhookSecret(ctx context.Context, previous Trigger, current Trigger, webhookSecret *string) error {
+	if !strings.EqualFold(strings.TrimSpace(current.Event), "webhook") {
+		return m.store.DeleteTriggerWebhookSecret(ctx, current.ID)
+	}
+
+	secret, err := m.desiredWebhookSecret(ctx, previous, current, webhookSecret)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(secret) == "" {
+		return ErrWebhookSecretRequired
+	}
+	return m.store.SetTriggerWebhookSecret(ctx, current.ID, secret)
+}
+
+func (m *Manager) ensureTriggerWebhookID(ctx context.Context, trigger Trigger) (Trigger, error) {
+	if !strings.EqualFold(strings.TrimSpace(trigger.Event), "webhook") || strings.TrimSpace(trigger.WebhookID) != "" {
+		return trigger, nil
+	}
+
+	next := cloneTrigger(trigger)
+	next.WebhookID = stableConfigID("wbh", next.ID)
+	return m.store.UpdateTrigger(ctx, next)
+}
+
+func (m *Manager) desiredWebhookSecret(ctx context.Context, previous Trigger, current Trigger, webhookSecret *string) (string, error) {
+	if webhookSecret != nil {
+		return strings.TrimSpace(*webhookSecret), nil
+	}
+
+	if strings.EqualFold(strings.TrimSpace(previous.Event), "webhook") && strings.TrimSpace(previous.ID) != "" {
+		secret, err := m.store.GetTriggerWebhookSecret(ctx, previous.ID)
+		switch {
+		case err == nil:
+			return strings.TrimSpace(secret), nil
+		case errors.Is(err, ErrTriggerWebhookSecretNotFound):
+			return "", nil
+		default:
+			return "", err
+		}
+	}
+
+	if strings.TrimSpace(current.ID) != "" {
+		secret, err := m.store.GetTriggerWebhookSecret(ctx, current.ID)
+		switch {
+		case err == nil:
+			return strings.TrimSpace(secret), nil
+		case errors.Is(err, ErrTriggerWebhookSecretNotFound):
+			return "", nil
+		default:
+			return "", err
+		}
+	}
+
+	return "", nil
+}
+
+func (m *Manager) currentWebhookSecret(ctx context.Context, trigger Trigger) (string, error) {
+	if !strings.EqualFold(strings.TrimSpace(trigger.Event), "webhook") || strings.TrimSpace(trigger.ID) == "" {
+		return "", nil
+	}
+
+	secret, err := m.store.GetTriggerWebhookSecret(ctx, trigger.ID)
+	switch {
+	case err == nil:
+		return strings.TrimSpace(secret), nil
+	case errors.Is(err, ErrTriggerWebhookSecretNotFound):
+		return "", nil
+	default:
+		return "", err
+	}
+}
+
+func (m *Manager) restoreWebhookSecret(ctx context.Context, trigger Trigger, secret string) error {
+	if !strings.EqualFold(strings.TrimSpace(trigger.Event), "webhook") {
+		return m.store.DeleteTriggerWebhookSecret(ctx, trigger.ID)
+	}
+	if strings.TrimSpace(secret) == "" {
+		return m.store.DeleteTriggerWebhookSecret(ctx, trigger.ID)
+	}
+	return m.store.SetTriggerWebhookSecret(ctx, trigger.ID, secret)
+}
+
 func (m *Manager) applyJobToRuntime(job Job) error {
 	scheduler := m.schedulerSnapshot()
 	if scheduler == nil {
@@ -1130,6 +1596,9 @@ func (m *Manager) runtimeTriggerRegistration(ctx context.Context, trigger Trigge
 
 	secret, err := m.webhookSecrets.SecretForTrigger(ctx, trigger)
 	if err != nil {
+		if errors.Is(err, ErrTriggerWebhookSecretNotFound) {
+			return TriggerRegistration{}, false, nil
+		}
 		return TriggerRegistration{}, false, err
 	}
 	if strings.TrimSpace(secret) == "" {
@@ -1412,6 +1881,10 @@ func cloneFilter(source map[string]string) map[string]string {
 		cloned[key] = value
 	}
 	return cloned
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 type managerSessionObserver struct {

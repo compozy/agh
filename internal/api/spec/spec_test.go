@@ -1,10 +1,18 @@
 package spec
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
+	"github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/tools"
 )
 
 func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
@@ -82,6 +90,62 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertNotRequired(t, writeMemorySchema, "scope", "workspace")
 			},
 		},
+		{
+			name: "ShouldDescribeAutomationJobSchemasAndEnums",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				createJob := operationFor(t, doc, "/api/automation/jobs", "POST")
+				createJobSchema := jsonRequestSchema(t, createJob)
+				assertRequired(t, createJobSchema, "scope", "name", "agent_name", "prompt", "schedule")
+				assertNotRequired(t, createJobSchema, "workspace_id", "enabled", "retry", "fire_limit")
+				assertEnumValues(t, propertySchema(t, createJobSchema, "scope"), "global", "workspace")
+
+				scheduleSchema := propertySchema(t, createJobSchema, "schedule")
+				assertRequired(t, scheduleSchema, "mode")
+				assertEnumValues(t, propertySchema(t, scheduleSchema, "mode"), "at", "cron", "every")
+
+				retrySchema := propertySchema(t, createJobSchema, "retry")
+				assertRequired(t, retrySchema, "strategy", "max_retries", "base_delay")
+				assertEnumValues(t, propertySchema(t, retrySchema, "strategy"), "backoff", "none")
+			},
+		},
+		{
+			name: "ShouldDescribeAutomationTriggerAndHealthSchemas",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				createTrigger := operationFor(t, doc, "/api/automation/triggers", "POST")
+				createTriggerSchema := jsonRequestSchema(t, createTrigger)
+				assertRequired(t, createTriggerSchema, "scope", "name", "agent_name", "prompt", "event")
+				assertNotRequired(t, createTriggerSchema, "workspace_id", "filter", "enabled", "retry", "fire_limit", "webhook_id", "endpoint_slug", "webhook_secret")
+				assertEnumValues(t, propertySchema(t, createTriggerSchema, "scope"), "global", "workspace")
+
+				healthOperation := operationFor(t, doc, "/api/observe/health", "GET")
+				healthSchema := jsonResponseSchema(t, healthOperation, 200)
+				assertRequired(t, healthSchema, "health", "memory", "automation")
+
+				automationSchema := propertySchema(t, healthSchema, "automation")
+				assertRequired(t, automationSchema, "enabled", "jobs", "triggers", "scheduler_running")
+				assertNotRequired(t, automationSchema, "next_fire")
+			},
+		},
+		{
+			name: "ShouldDescribeWebhookHeadersAndAutomationRunEnums",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				webhookOperation := operationFor(t, doc, "/api/webhooks/global/{endpoint}", "POST")
+				assertParameter(t, webhookOperation, "endpoint", openapi3.ParameterInPath, true)
+				assertParameter(t, webhookOperation, "X-AGH-Webhook-Timestamp", openapi3.ParameterInHeader, true)
+				assertParameter(t, webhookOperation, "X-AGH-Webhook-Signature", openapi3.ParameterInHeader, true)
+
+				runOperation := operationFor(t, doc, "/api/automation/runs/{id}", "GET")
+				runSchema := jsonResponseSchema(t, runOperation, 200)
+				runPayloadSchema := propertySchema(t, runSchema, "run")
+				assertEnumValues(t, propertySchema(t, runPayloadSchema, "status"), "cancelled", "completed", "failed", "running", "scheduled")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -89,6 +153,68 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			tt.check(t, doc)
+		})
+	}
+}
+
+func TestWriteFileAndEnumHelpers(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "openapi", "agh.json")
+	if err := WriteFile(path); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile() error = %v", err)
+	}
+	if !json.Valid(data) {
+		t.Fatalf("WriteFile() output is not valid JSON: %s", string(data))
+	}
+	if !strings.HasSuffix(string(data), "\n") {
+		t.Fatalf("WriteFile() output must end with newline: %q", string(data))
+	}
+
+	if got := hookSkillSourceValues(); len(got) == 0 {
+		t.Fatal("hookSkillSourceValues() returned no values")
+	}
+	if got := hookExecutorKindValues(); len(got) == 0 {
+		t.Fatal("hookExecutorKindValues() returned no values")
+	}
+	if got := toolSourceValues(); len(got) == 0 {
+		t.Fatal("toolSourceValues() returned no values")
+	}
+	if got := hostAPIMethodValues(); len(got) == 0 || !slices.IsSorted(got) {
+		t.Fatalf("hostAPIMethodValues() = %v, want non-empty sorted values", got)
+	}
+}
+
+func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		typ  any
+	}{
+		{name: "HookSkillSource", typ: hooks.HookSkillSource(hooks.HookSkillSourceBundled)},
+		{name: "HookExecutorKind", typ: hooks.HookExecutorKind(hooks.HookExecutorNative)},
+		{name: "ToolSource", typ: tools.ToolSource(0)},
+		{name: "HostAPIMethod", typ: extensionprotocol.HostAPIMethod("memory.read")},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			schema := openapi3.NewStringSchema()
+			if err := schemaCustomizer("", reflect.TypeOf(tt.typ), "", schema); err != nil {
+				t.Fatalf("schemaCustomizer() error = %v", err)
+			}
+			if len(schema.Enum) == 0 {
+				t.Fatalf("schemaCustomizer() enum = %v, want non-empty", schema.Enum)
+			}
 		})
 	}
 }
@@ -142,6 +268,23 @@ func propertySchema(t *testing.T, schema *openapi3.Schema, name string) *openapi
 		t.Fatalf("missing property %q", name)
 	}
 	return propertyRef.Value
+}
+
+func assertParameter(t *testing.T, operation *openapi3.Operation, name string, in string, required bool) {
+	t.Helper()
+
+	for _, ref := range operation.Parameters {
+		if ref == nil || ref.Value == nil {
+			continue
+		}
+		if ref.Value.Name == name && ref.Value.In == in {
+			if ref.Value.Required != required {
+				t.Fatalf("parameter %s in %s required = %v, want %v", name, in, ref.Value.Required, required)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing parameter %q in %s", name, in)
 }
 
 func assertRequired(t *testing.T, schema *openapi3.Schema, names ...string) {

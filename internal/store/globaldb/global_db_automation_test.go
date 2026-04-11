@@ -34,6 +34,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"automation_runs",
 		"automation_job_overlays",
 		"automation_trigger_overlays",
+		"automation_trigger_webhook_secrets",
 	)
 	assertTableColumns(t, globalDB.db, "automation_jobs", []string{
 		"id",
@@ -78,6 +79,11 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"started_at",
 		"ended_at",
 		"error",
+	})
+	assertTableColumns(t, globalDB.db, "automation_trigger_webhook_secrets", []string{
+		"trigger_id",
+		"secret",
+		"updated_at",
 	})
 	assertIndexesPresent(t, globalDB.db, "automation_jobs",
 		"uq_automation_jobs_global_name",
@@ -155,6 +161,48 @@ func TestGlobalDBGetTriggerByWebhookIDUsesStableID(t *testing.T) {
 	}
 	if got, want := lookedUp.WebhookID, "webhook-stable-001"; got != want {
 		t.Fatalf("trigger.WebhookID = %q, want %q", got, want)
+	}
+}
+
+func TestGlobalDBTriggerWebhookSecretRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	trigger := automationWebhookTriggerForTest(automation.AutomationScopeGlobal, "deploy-review", "", automation.JobSourceDynamic)
+
+	created, err := globalDB.CreateTrigger(testutil.Context(t), trigger)
+	if err != nil {
+		t.Fatalf("CreateTrigger() error = %v", err)
+	}
+
+	if err := globalDB.SetTriggerWebhookSecret(testutil.Context(t), created.ID, "secret-v1"); err != nil {
+		t.Fatalf("SetTriggerWebhookSecret() error = %v", err)
+	}
+
+	secret, err := globalDB.GetTriggerWebhookSecret(testutil.Context(t), created.ID)
+	if err != nil {
+		t.Fatalf("GetTriggerWebhookSecret() error = %v", err)
+	}
+	if got, want := secret, "secret-v1"; got != want {
+		t.Fatalf("secret = %q, want %q", got, want)
+	}
+
+	if err := globalDB.SetTriggerWebhookSecret(testutil.Context(t), created.ID, "secret-v2"); err != nil {
+		t.Fatalf("SetTriggerWebhookSecret(update) error = %v", err)
+	}
+	secret, err = globalDB.GetTriggerWebhookSecret(testutil.Context(t), created.ID)
+	if err != nil {
+		t.Fatalf("GetTriggerWebhookSecret(updated) error = %v", err)
+	}
+	if got, want := secret, "secret-v2"; got != want {
+		t.Fatalf("updated secret = %q, want %q", got, want)
+	}
+
+	if err := globalDB.DeleteTriggerWebhookSecret(testutil.Context(t), created.ID); err != nil {
+		t.Fatalf("DeleteTriggerWebhookSecret() error = %v", err)
+	}
+	if _, err := globalDB.GetTriggerWebhookSecret(testutil.Context(t), created.ID); !errors.Is(err, automation.ErrTriggerWebhookSecretNotFound) {
+		t.Fatalf("GetTriggerWebhookSecret(after delete) error = %v, want ErrTriggerWebhookSecretNotFound", err)
 	}
 }
 

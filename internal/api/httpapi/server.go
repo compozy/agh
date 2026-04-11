@@ -42,6 +42,7 @@ type Server struct {
 	pollInterval   time.Duration
 	sessions       core.SessionManager
 	observer       core.Observer
+	automation     core.AutomationManager
 	workspaces     core.WorkspaceService
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
@@ -126,6 +127,13 @@ func WithSessionManager(manager core.SessionManager) Option {
 func WithObserver(observer core.Observer) Option {
 	return func(server *Server) {
 		server.observer = observer
+	}
+}
+
+// WithAutomation injects the daemon-owned automation manager.
+func WithAutomation(manager core.AutomationManager) Option {
+	return func(server *Server) {
+		server.automation = manager
 	}
 }
 
@@ -247,6 +255,7 @@ func New(opts ...Option) (*Server, error) {
 	server.handlers = newHandlers(handlerConfig{
 		sessions:       server.sessions,
 		observer:       server.observer,
+		automation:     server.automation,
 		workspaces:     server.workspaces,
 		skillsRegistry: server.skillsRegistry,
 		memoryStore:    server.memoryStore,

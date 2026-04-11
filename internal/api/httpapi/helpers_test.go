@@ -24,10 +24,15 @@ type sseRecord = testutil.SSERecord
 
 func newTestHandlers(t *testing.T, manager core.SessionManager, observer core.Observer, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()
-	return newTestHandlersWithWorkspace(t, manager, observer, stubWorkspaceService{}, homePaths)
+	return newTestHandlersWithAutomationAndWorkspace(t, manager, observer, nil, stubWorkspaceService{}, homePaths)
 }
 
 func newTestHandlersWithWorkspace(t *testing.T, manager core.SessionManager, observer core.Observer, workspaces core.WorkspaceService, homePaths aghconfig.HomePaths) *Handlers {
+	t.Helper()
+	return newTestHandlersWithAutomationAndWorkspace(t, manager, observer, nil, workspaces, homePaths)
+}
+
+func newTestHandlersWithAutomationAndWorkspace(t *testing.T, manager core.SessionManager, observer core.Observer, automation core.AutomationManager, workspaces core.WorkspaceService, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()
 
 	cfg := aghconfig.DefaultWithHome(homePaths)
@@ -37,6 +42,7 @@ func newTestHandlersWithWorkspace(t *testing.T, manager core.SessionManager, obs
 	return newHandlers(handlerConfig{
 		sessions:     manager,
 		observer:     observer,
+		automation:   automation,
 		workspaces:   workspaces,
 		staticFS:     mustStaticFS(t),
 		homePaths:    homePaths,

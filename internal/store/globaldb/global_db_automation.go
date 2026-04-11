@@ -723,6 +723,92 @@ func (g *GlobalDB) DeleteTriggerEnabledOverlay(ctx context.Context, triggerID st
 	return nil
 }
 
+// SetTriggerWebhookSecret upserts the persisted write-only webhook secret for one trigger.
+func (g *GlobalDB) SetTriggerWebhookSecret(ctx context.Context, triggerID string, secret string) error {
+	if err := g.checkReady(ctx, "set automation trigger webhook secret"); err != nil {
+		return err
+	}
+
+	trimmedID, err := requireAutomationID(triggerID, "automation trigger webhook secret id")
+	if err != nil {
+		return err
+	}
+	trimmedSecret := strings.TrimSpace(secret)
+	if trimmedSecret == "" {
+		return errors.New("store: automation trigger webhook secret is required")
+	}
+
+	trigger, err := g.GetTrigger(ctx, trimmedID)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(strings.TrimSpace(trigger.Event), "webhook") {
+		return errors.New("store: automation trigger webhook secret requires a webhook trigger")
+	}
+
+	if _, err := g.db.ExecContext(
+		ctx,
+		`INSERT INTO automation_trigger_webhook_secrets (trigger_id, secret, updated_at)
+		 VALUES (?, ?, ?)
+		 ON CONFLICT(trigger_id) DO UPDATE SET
+			secret = excluded.secret,
+			updated_at = excluded.updated_at`,
+		trimmedID,
+		trimmedSecret,
+		store.FormatTimestamp(g.now().UTC()),
+	); err != nil {
+		return fmt.Errorf("store: set automation trigger webhook secret %q: %w", trimmedID, err)
+	}
+
+	return nil
+}
+
+// GetTriggerWebhookSecret loads one persisted write-only webhook secret by trigger id.
+func (g *GlobalDB) GetTriggerWebhookSecret(ctx context.Context, triggerID string) (string, error) {
+	if err := g.checkReady(ctx, "get automation trigger webhook secret"); err != nil {
+		return "", err
+	}
+
+	trimmedID, err := requireAutomationID(triggerID, "automation trigger webhook secret id")
+	if err != nil {
+		return "", err
+	}
+
+	var secret string
+	if err := g.db.QueryRowContext(
+		ctx,
+		`SELECT secret
+		 FROM automation_trigger_webhook_secrets
+		 WHERE trigger_id = ?`,
+		trimmedID,
+	).Scan(&secret); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", automation.ErrTriggerWebhookSecretNotFound
+		}
+		return "", fmt.Errorf("store: get automation trigger webhook secret %q: %w", trimmedID, err)
+	}
+
+	return secret, nil
+}
+
+// DeleteTriggerWebhookSecret clears a persisted trigger webhook secret if it exists.
+func (g *GlobalDB) DeleteTriggerWebhookSecret(ctx context.Context, triggerID string) error {
+	if err := g.checkReady(ctx, "delete automation trigger webhook secret"); err != nil {
+		return err
+	}
+
+	trimmedID, err := requireAutomationID(triggerID, "automation trigger webhook secret id")
+	if err != nil {
+		return err
+	}
+
+	if _, err := g.db.ExecContext(ctx, `DELETE FROM automation_trigger_webhook_secrets WHERE trigger_id = ?`, trimmedID); err != nil {
+		return fmt.Errorf("store: delete automation trigger webhook secret %q: %w", trimmedID, err)
+	}
+
+	return nil
+}
+
 func (g *GlobalDB) insertJob(ctx context.Context, exec sqlExecutor, job automation.Job) error {
 	scheduleJSON, retryJSON, fireLimitJSON, err := encodeJobRecord(job)
 	if err != nil {

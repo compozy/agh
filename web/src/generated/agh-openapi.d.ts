@@ -38,6 +38,165 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/automation/jobs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List automation jobs */
+    get: operations["listAutomationJobs"];
+    put?: never;
+    /** Create an automation job */
+    post: operations["createAutomationJob"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/automation/jobs/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one automation job */
+    get: operations["getAutomationJob"];
+    put?: never;
+    post?: never;
+    /** Delete one automation job */
+    delete: operations["deleteAutomationJob"];
+    options?: never;
+    head?: never;
+    /** Update one automation job */
+    patch: operations["updateAutomationJob"];
+    trace?: never;
+  };
+  "/api/automation/jobs/{id}/runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List run history for one automation job */
+    get: operations["listAutomationJobRuns"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/automation/jobs/{id}/trigger": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Trigger one automation job immediately */
+    post: operations["triggerAutomationJob"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/automation/runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List automation runs */
+    get: operations["listAutomationRuns"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/automation/runs/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one automation run */
+    get: operations["getAutomationRun"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/automation/triggers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List automation triggers */
+    get: operations["listAutomationTriggers"];
+    put?: never;
+    /** Create an automation trigger */
+    post: operations["createAutomationTrigger"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/automation/triggers/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one automation trigger */
+    get: operations["getAutomationTrigger"];
+    put?: never;
+    post?: never;
+    /** Delete one automation trigger */
+    delete: operations["deleteAutomationTrigger"];
+    options?: never;
+    head?: never;
+    /** Update one automation trigger */
+    patch: operations["updateAutomationTrigger"];
+    trace?: never;
+  };
+  "/api/automation/triggers/{id}/runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List run history for one automation trigger */
+    get: operations["listAutomationTriggerRuns"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/daemon/status": {
     parameters: {
       query?: never;
@@ -468,6 +627,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/webhooks/global/{endpoint}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Deliver one global automation webhook */
+    post: operations["deliverGlobalWebhook"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/webhooks/workspaces/{workspace_id}/{endpoint}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Deliver one workspace-scoped automation webhook */
+    post: operations["deliverWorkspaceWebhook"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces": {
     parameters: {
       query?: never;
@@ -641,6 +834,1556 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listAutomationJobs: {
+    parameters: {
+      query?: {
+        /** @description Filter by automation scope */
+        scope?: "global" | "workspace";
+        /** @description Filter by workspace id */
+        workspace_id?: string;
+        /** @description Filter by job source */
+        source?: "config" | "dynamic";
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            jobs: {
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              enabled: boolean;
+              fire_limit: {
+                max: number;
+                window: string;
+              };
+              id: string;
+              name: string;
+              /** Format: date-time */
+              next_run?: string | null;
+              prompt: string;
+              retry: {
+                base_delay: string;
+                max_retries: number;
+                /** @enum {string} */
+                strategy: "none" | "backoff";
+              };
+              schedule?: {
+                expr?: string;
+                interval?: string;
+                /** @enum {string} */
+                mode: "cron" | "every" | "at";
+                time?: string;
+              } | null;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              source: "config" | "dynamic";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid automation filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createAutomationJob: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name: string;
+          enabled?: boolean | null;
+          fire_limit?: {
+            max: number;
+            window: string;
+          } | null;
+          name: string;
+          prompt: string;
+          retry?: {
+            base_delay: string;
+            max_retries: number;
+            /** @enum {string} */
+            strategy: "none" | "backoff";
+          } | null;
+          schedule: {
+            expr?: string;
+            interval?: string;
+            /** @enum {string} */
+            mode: "cron" | "every" | "at";
+            time?: string;
+          };
+          /** @enum {string} */
+          scope: "global" | "workspace";
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            job: {
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              enabled: boolean;
+              fire_limit: {
+                max: number;
+                window: string;
+              };
+              id: string;
+              name: string;
+              /** Format: date-time */
+              next_run?: string | null;
+              prompt: string;
+              retry: {
+                base_delay: string;
+                max_retries: number;
+                /** @enum {string} */
+                strategy: "none" | "backoff";
+              };
+              schedule?: {
+                expr?: string;
+                interval?: string;
+                /** @enum {string} */
+                mode: "cron" | "every" | "at";
+                time?: string;
+              } | null;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              source: "config" | "dynamic";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid automation job request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation job conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getAutomationJob: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Automation job id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            job: {
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              enabled: boolean;
+              fire_limit: {
+                max: number;
+                window: string;
+              };
+              id: string;
+              name: string;
+              /** Format: date-time */
+              next_run?: string | null;
+              prompt: string;
+              retry: {
+                base_delay: string;
+                max_retries: number;
+                /** @enum {string} */
+                strategy: "none" | "backoff";
+              };
+              schedule?: {
+                expr?: string;
+                interval?: string;
+                /** @enum {string} */
+                mode: "cron" | "every" | "at";
+                time?: string;
+              } | null;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              source: "config" | "dynamic";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Automation job not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteAutomationJob: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Automation job id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid automation job delete request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation job not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateAutomationJob: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Automation job id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string | null;
+          enabled?: boolean | null;
+          fire_limit?: {
+            max: number;
+            window: string;
+          } | null;
+          name?: string | null;
+          prompt?: string | null;
+          retry?: {
+            base_delay: string;
+            max_retries: number;
+            /** @enum {string} */
+            strategy: "none" | "backoff";
+          } | null;
+          schedule?: {
+            expr?: string;
+            interval?: string;
+            /** @enum {string} */
+            mode: "cron" | "every" | "at";
+            time?: string;
+          } | null;
+          workspace_id?: string | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            job: {
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              enabled: boolean;
+              fire_limit: {
+                max: number;
+                window: string;
+              };
+              id: string;
+              name: string;
+              /** Format: date-time */
+              next_run?: string | null;
+              prompt: string;
+              retry: {
+                base_delay: string;
+                max_retries: number;
+                /** @enum {string} */
+                strategy: "none" | "backoff";
+              };
+              schedule?: {
+                expr?: string;
+                interval?: string;
+                /** @enum {string} */
+                mode: "cron" | "every" | "at";
+                time?: string;
+              } | null;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              source: "config" | "dynamic";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid automation job update */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation job not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation job conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listAutomationJobRuns: {
+    parameters: {
+      query?: {
+        /** @description Filter by run status */
+        status?: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+        /** @description Only runs started since this timestamp */
+        since?: string;
+        /** @description Only runs started before this timestamp */
+        until?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Automation job id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            runs: {
+              attempt: number;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              job_id?: string;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              trigger_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid automation run filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation job not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  triggerAutomationJob: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Automation job id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              job_id?: string;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              trigger_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Automation job not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation run conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listAutomationRuns: {
+    parameters: {
+      query?: {
+        /** @description Filter by automation job id */
+        job_id?: string;
+        /** @description Filter by automation trigger id */
+        trigger_id?: string;
+        /** @description Filter by run status */
+        status?: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+        /** @description Only runs started since this timestamp */
+        since?: string;
+        /** @description Only runs started before this timestamp */
+        until?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            runs: {
+              attempt: number;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              job_id?: string;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              trigger_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid automation run filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getAutomationRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Automation run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              job_id?: string;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              trigger_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Automation run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listAutomationTriggers: {
+    parameters: {
+      query?: {
+        /** @description Filter by automation scope */
+        scope?: "global" | "workspace";
+        /** @description Filter by workspace id */
+        workspace_id?: string;
+        /** @description Filter by trigger source */
+        source?: "config" | "dynamic";
+        /** @description Filter by trigger event */
+        event?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            triggers: {
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              enabled: boolean;
+              endpoint_slug?: string;
+              event: string;
+              filter?: {
+                [key: string]: string;
+              };
+              fire_limit: {
+                max: number;
+                window: string;
+              };
+              id: string;
+              name: string;
+              prompt: string;
+              retry: {
+                base_delay: string;
+                max_retries: number;
+                /** @enum {string} */
+                strategy: "none" | "backoff";
+              };
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              source: "config" | "dynamic";
+              /** Format: date-time */
+              updated_at: string;
+              webhook_id?: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid automation filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createAutomationTrigger: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name: string;
+          enabled?: boolean | null;
+          endpoint_slug?: string;
+          event: string;
+          filter?: {
+            [key: string]: string;
+          };
+          fire_limit?: {
+            max: number;
+            window: string;
+          } | null;
+          name: string;
+          prompt: string;
+          retry?: {
+            base_delay: string;
+            max_retries: number;
+            /** @enum {string} */
+            strategy: "none" | "backoff";
+          } | null;
+          /** @enum {string} */
+          scope: "global" | "workspace";
+          webhook_id?: string;
+          webhook_secret?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            trigger: {
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              enabled: boolean;
+              endpoint_slug?: string;
+              event: string;
+              filter?: {
+                [key: string]: string;
+              };
+              fire_limit: {
+                max: number;
+                window: string;
+              };
+              id: string;
+              name: string;
+              prompt: string;
+              retry: {
+                base_delay: string;
+                max_retries: number;
+                /** @enum {string} */
+                strategy: "none" | "backoff";
+              };
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              source: "config" | "dynamic";
+              /** Format: date-time */
+              updated_at: string;
+              webhook_id?: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid automation trigger request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation trigger conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getAutomationTrigger: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Automation trigger id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            trigger: {
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              enabled: boolean;
+              endpoint_slug?: string;
+              event: string;
+              filter?: {
+                [key: string]: string;
+              };
+              fire_limit: {
+                max: number;
+                window: string;
+              };
+              id: string;
+              name: string;
+              prompt: string;
+              retry: {
+                base_delay: string;
+                max_retries: number;
+                /** @enum {string} */
+                strategy: "none" | "backoff";
+              };
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              source: "config" | "dynamic";
+              /** Format: date-time */
+              updated_at: string;
+              webhook_id?: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Automation trigger not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteAutomationTrigger: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Automation trigger id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid automation trigger delete request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation trigger not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateAutomationTrigger: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Automation trigger id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string | null;
+          enabled?: boolean | null;
+          endpoint_slug?: string | null;
+          event?: string | null;
+          filter?: {
+            [key: string]: string;
+          };
+          fire_limit?: {
+            max: number;
+            window: string;
+          } | null;
+          name?: string | null;
+          prompt?: string | null;
+          retry?: {
+            base_delay: string;
+            max_retries: number;
+            /** @enum {string} */
+            strategy: "none" | "backoff";
+          } | null;
+          webhook_id?: string | null;
+          webhook_secret?: string | null;
+          workspace_id?: string | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            trigger: {
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              enabled: boolean;
+              endpoint_slug?: string;
+              event: string;
+              filter?: {
+                [key: string]: string;
+              };
+              fire_limit: {
+                max: number;
+                window: string;
+              };
+              id: string;
+              name: string;
+              prompt: string;
+              retry: {
+                base_delay: string;
+                max_retries: number;
+                /** @enum {string} */
+                strategy: "none" | "backoff";
+              };
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              source: "config" | "dynamic";
+              /** Format: date-time */
+              updated_at: string;
+              webhook_id?: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid automation trigger update */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation trigger not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation trigger conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listAutomationTriggerRuns: {
+    parameters: {
+      query?: {
+        /** @description Filter by run status */
+        status?: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+        /** @description Only runs started since this timestamp */
+        since?: string;
+        /** @description Only runs started before this timestamp */
+        until?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Automation trigger id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            runs: {
+              attempt: number;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              job_id?: string;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              trigger_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid automation run filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation trigger not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -1854,6 +3597,20 @@ export interface operations {
         };
         content: {
           "application/json": {
+            automation: {
+              enabled: boolean;
+              jobs: {
+                enabled: number;
+                total: number;
+              };
+              /** Format: date-time */
+              next_fire?: string | null;
+              scheduler_running: boolean;
+              triggers: {
+                enabled: number;
+                total: number;
+              };
+            };
             health: {
               active_agents: number;
               active_sessions: number;
@@ -3041,6 +4798,236 @@ export interface operations {
         };
       };
       /** @description Skills registry is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deliverGlobalWebhook: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Signed webhook timestamp */
+        "X-AGH-Webhook-Timestamp": string;
+        /** @description Signed webhook HMAC signature */
+        "X-AGH-Webhook-Signature": string;
+      };
+      path: {
+        /** @description Webhook endpoint slug and id */
+        endpoint: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            result: {
+              matched: number;
+              runs?: {
+                attempt: number;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                id: string;
+                job_id?: string;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+                trigger_id?: string;
+              }[];
+            };
+          };
+        };
+      };
+      /** @description Invalid webhook request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Webhook authentication failed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Webhook trigger not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deliverWorkspaceWebhook: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Signed webhook timestamp */
+        "X-AGH-Webhook-Timestamp": string;
+        /** @description Signed webhook HMAC signature */
+        "X-AGH-Webhook-Signature": string;
+      };
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Webhook endpoint slug and id */
+        endpoint: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            result: {
+              matched: number;
+              runs?: {
+                attempt: number;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                id: string;
+                job_id?: string;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+                trigger_id?: string;
+              }[];
+            };
+          };
+        };
+      };
+      /** @description Invalid webhook request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Webhook authentication failed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Webhook trigger not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
       503: {
         headers: {
           [name: string]: unknown;

@@ -55,9 +55,22 @@ type DreamTrigger interface {
 
 // AutomationManager exposes automation state and control surfaces to the API layer.
 type AutomationManager interface {
+	ListJobs(ctx context.Context, query automationpkg.JobListQuery) ([]automationpkg.Job, error)
 	Jobs(ctx context.Context) ([]automationpkg.Job, error)
+	GetJob(ctx context.Context, id string) (automationpkg.Job, error)
+	CreateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
+	UpdateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
+	DeleteJob(ctx context.Context, id string) error
+	TriggerJob(ctx context.Context, id string) (automationpkg.Run, error)
+	ListTriggers(ctx context.Context, query automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error)
 	Triggers(ctx context.Context) ([]automationpkg.Trigger, error)
+	GetTrigger(ctx context.Context, id string) (automationpkg.Trigger, error)
+	CreateTrigger(ctx context.Context, trigger automationpkg.Trigger, webhookSecret string) (automationpkg.Trigger, error)
+	UpdateTrigger(ctx context.Context, trigger automationpkg.Trigger, webhookSecret *string) (automationpkg.Trigger, error)
+	DeleteTrigger(ctx context.Context, id string) error
+	ListRuns(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
 	Runs(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
+	GetRun(ctx context.Context, id string) (automationpkg.Run, error)
 	Status(ctx context.Context) (automationpkg.ManagerStatus, error)
 	SetJobEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Job, error)
 	SetTriggerEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Trigger, error)

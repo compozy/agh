@@ -2759,12 +2759,149 @@ func (f *fakeAutomationManager) Jobs(context.Context) ([]automationpkg.Job, erro
 	return append([]automationpkg.Job(nil), f.jobs...), nil
 }
 
+func (f *fakeAutomationManager) ListJobs(_ context.Context, query automationpkg.JobListQuery) ([]automationpkg.Job, error) {
+	jobs := make([]automationpkg.Job, 0, len(f.jobs))
+	for _, job := range f.jobs {
+		if query.Scope != "" && job.Scope != query.Scope {
+			continue
+		}
+		if query.WorkspaceID != "" && job.WorkspaceID != query.WorkspaceID {
+			continue
+		}
+		if query.Source != "" && job.Source != query.Source {
+			continue
+		}
+		jobs = append(jobs, job)
+	}
+	return jobs, nil
+}
+
+func (f *fakeAutomationManager) GetJob(_ context.Context, id string) (automationpkg.Job, error) {
+	for _, job := range f.jobs {
+		if job.ID == strings.TrimSpace(id) {
+			return job, nil
+		}
+	}
+	return automationpkg.Job{}, automationpkg.ErrJobNotFound
+}
+
+func (f *fakeAutomationManager) CreateJob(_ context.Context, job automationpkg.Job) (automationpkg.Job, error) {
+	f.jobs = append(f.jobs, job)
+	return job, nil
+}
+
+func (f *fakeAutomationManager) UpdateJob(_ context.Context, job automationpkg.Job) (automationpkg.Job, error) {
+	for i := range f.jobs {
+		if f.jobs[i].ID == strings.TrimSpace(job.ID) {
+			f.jobs[i] = job
+			return job, nil
+		}
+	}
+	return automationpkg.Job{}, automationpkg.ErrJobNotFound
+}
+
+func (f *fakeAutomationManager) DeleteJob(_ context.Context, id string) error {
+	for i := range f.jobs {
+		if f.jobs[i].ID == strings.TrimSpace(id) {
+			f.jobs = append(f.jobs[:i], f.jobs[i+1:]...)
+			return nil
+		}
+	}
+	return automationpkg.ErrJobNotFound
+}
+
+func (f *fakeAutomationManager) TriggerJob(_ context.Context, id string) (automationpkg.Run, error) {
+	run := automationpkg.Run{ID: "run-" + strings.TrimSpace(id), JobID: strings.TrimSpace(id), Status: automationpkg.RunCompleted, Attempt: 1}
+	f.runs = append(f.runs, run)
+	return run, nil
+}
+
 func (f *fakeAutomationManager) Triggers(context.Context) ([]automationpkg.Trigger, error) {
 	return append([]automationpkg.Trigger(nil), f.triggers...), nil
 }
 
+func (f *fakeAutomationManager) ListTriggers(_ context.Context, query automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error) {
+	triggers := make([]automationpkg.Trigger, 0, len(f.triggers))
+	for _, trigger := range f.triggers {
+		if query.Scope != "" && trigger.Scope != query.Scope {
+			continue
+		}
+		if query.WorkspaceID != "" && trigger.WorkspaceID != query.WorkspaceID {
+			continue
+		}
+		if query.Event != "" && trigger.Event != query.Event {
+			continue
+		}
+		if query.Source != "" && trigger.Source != query.Source {
+			continue
+		}
+		triggers = append(triggers, trigger)
+	}
+	return triggers, nil
+}
+
+func (f *fakeAutomationManager) GetTrigger(_ context.Context, id string) (automationpkg.Trigger, error) {
+	for _, trigger := range f.triggers {
+		if trigger.ID == strings.TrimSpace(id) {
+			return trigger, nil
+		}
+	}
+	return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
+}
+
+func (f *fakeAutomationManager) CreateTrigger(_ context.Context, trigger automationpkg.Trigger, _ string) (automationpkg.Trigger, error) {
+	f.triggers = append(f.triggers, trigger)
+	return trigger, nil
+}
+
+func (f *fakeAutomationManager) UpdateTrigger(_ context.Context, trigger automationpkg.Trigger, _ *string) (automationpkg.Trigger, error) {
+	for i := range f.triggers {
+		if f.triggers[i].ID == strings.TrimSpace(trigger.ID) {
+			f.triggers[i] = trigger
+			return trigger, nil
+		}
+	}
+	return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
+}
+
+func (f *fakeAutomationManager) DeleteTrigger(_ context.Context, id string) error {
+	for i := range f.triggers {
+		if f.triggers[i].ID == strings.TrimSpace(id) {
+			f.triggers = append(f.triggers[:i], f.triggers[i+1:]...)
+			return nil
+		}
+	}
+	return automationpkg.ErrTriggerNotFound
+}
+
 func (f *fakeAutomationManager) Runs(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error) {
 	return append([]automationpkg.Run(nil), f.runs...), nil
+}
+
+func (f *fakeAutomationManager) ListRuns(_ context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error) {
+	runs := make([]automationpkg.Run, 0, len(f.runs))
+	for _, run := range f.runs {
+		if query.JobID != "" && run.JobID != query.JobID {
+			continue
+		}
+		if query.TriggerID != "" && run.TriggerID != query.TriggerID {
+			continue
+		}
+		if query.Status != "" && run.Status != query.Status {
+			continue
+		}
+		runs = append(runs, run)
+	}
+	return runs, nil
+}
+
+func (f *fakeAutomationManager) GetRun(_ context.Context, id string) (automationpkg.Run, error) {
+	for _, run := range f.runs {
+		if run.ID == strings.TrimSpace(id) {
+			return run, nil
+		}
+	}
+	return automationpkg.Run{}, automationpkg.ErrRunNotFound
 }
 
 func (f *fakeAutomationManager) Status(context.Context) (automationpkg.ManagerStatus, error) {

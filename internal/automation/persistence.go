@@ -21,6 +21,8 @@ var (
 	ErrJobOverlayNotFound = modelpkg.ErrJobOverlayNotFound
 	// ErrTriggerOverlayNotFound reports that a trigger enabled overlay row does not exist.
 	ErrTriggerOverlayNotFound = modelpkg.ErrTriggerOverlayNotFound
+	// ErrTriggerWebhookSecretNotFound reports that no persisted webhook secret exists for the trigger.
+	ErrTriggerWebhookSecretNotFound = modelpkg.ErrTriggerWebhookSecretNotFound
 )
 
 // JobListQuery filters persisted automation job listings.

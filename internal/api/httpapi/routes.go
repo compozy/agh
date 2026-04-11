@@ -15,9 +15,11 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerAgentRoutes(api, handlers)
 	registerObserveRoutes(api, handlers)
 	registerHookRoutes(api, handlers)
+	registerAutomationRoutes(api, handlers)
 	registerSkillRoutes(api, handlers)
 	registerMemoryRoutes(api, handlers)
 	registerDaemonRoutes(api, handlers)
+	registerWebhookRoutes(api, handlers)
 
 	if engine, ok := router.(*gin.Engine); ok {
 		engine.NoRoute(handlers.serveStaticRoute)
@@ -69,6 +71,31 @@ func registerHookRoutes(api gin.IRouter, handlers *Handlers) {
 	hooksGroup.GET("/events", handlers.HookEvents)
 }
 
+func registerAutomationRoutes(api gin.IRouter, handlers *Handlers) {
+	automationGroup := api.Group("/automation")
+
+	jobs := automationGroup.Group("/jobs")
+	jobs.GET("", handlers.ListAutomationJobs)
+	jobs.POST("", handlers.CreateAutomationJob)
+	jobs.GET("/:id", handlers.GetAutomationJob)
+	jobs.PATCH("/:id", handlers.UpdateAutomationJob)
+	jobs.DELETE("/:id", handlers.DeleteAutomationJob)
+	jobs.POST("/:id/trigger", handlers.TriggerAutomationJob)
+	jobs.GET("/:id/runs", handlers.AutomationJobRuns)
+
+	triggers := automationGroup.Group("/triggers")
+	triggers.GET("", handlers.ListAutomationTriggers)
+	triggers.POST("", handlers.CreateAutomationTrigger)
+	triggers.GET("/:id", handlers.GetAutomationTrigger)
+	triggers.PATCH("/:id", handlers.UpdateAutomationTrigger)
+	triggers.DELETE("/:id", handlers.DeleteAutomationTrigger)
+	triggers.GET("/:id/runs", handlers.AutomationTriggerRuns)
+
+	runs := automationGroup.Group("/runs")
+	runs.GET("", handlers.ListAutomationRuns)
+	runs.GET("/:id", handlers.GetAutomationRun)
+}
+
 func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 	skillsGroup := api.Group("/skills")
 	skillsGroup.GET("", handlers.ListSkills)
@@ -90,4 +117,10 @@ func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 func registerDaemonRoutes(api gin.IRouter, handlers *Handlers) {
 	daemonGroup := api.Group("/daemon")
 	daemonGroup.GET("/status", handlers.DaemonStatus)
+}
+
+func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {
+	webhooks := api.Group("/webhooks")
+	webhooks.POST("/global/:endpoint", handlers.DeliverGlobalWebhook)
+	webhooks.POST("/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
 }

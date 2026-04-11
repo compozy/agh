@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	observepkg "github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -194,6 +196,124 @@ func ObserveHealthPayloadFromHealth(health observepkg.Health) contract.ObserveHe
 	}
 }
 
+// AutomationHealthPayloadFromStatus converts manager status into the shared
+// additive automation health block.
+func AutomationHealthPayloadFromStatus(enabled bool, status automationpkg.ManagerStatus) contract.AutomationHealthPayload {
+	return contract.AutomationHealthPayload{
+		Enabled: enabled,
+		Jobs: contract.AutomationResourceStatusPayload{
+			Total:   status.Jobs.Total,
+			Enabled: status.Jobs.Enabled,
+		},
+		Triggers: contract.AutomationResourceStatusPayload{
+			Total:   status.Triggers.Total,
+			Enabled: status.Triggers.Enabled,
+		},
+		SchedulerRunning: status.SchedulerRunning,
+		NextFire:         status.NextFire,
+	}
+}
+
+// JobPayloadFromJob converts an automation job into the shared response
+// payload, optionally enriching it with scheduler next-run metadata.
+func JobPayloadFromJob(job automationpkg.Job, nextRun *time.Time) contract.JobPayload {
+	payload := contract.JobPayload{
+		ID:          job.ID,
+		Scope:       job.Scope,
+		Name:        job.Name,
+		AgentName:   job.AgentName,
+		WorkspaceID: job.WorkspaceID,
+		Prompt:      job.Prompt,
+		Enabled:     job.Enabled,
+		Retry:       job.Retry,
+		FireLimit:   job.FireLimit,
+		Source:      job.Source,
+		CreatedAt:   job.CreatedAt,
+		UpdatedAt:   job.UpdatedAt,
+		NextRun:     nextRun,
+	}
+	if job.Schedule != nil {
+		schedule := *job.Schedule
+		payload.Schedule = &schedule
+	}
+	return payload
+}
+
+// JobPayloadsFromJobs converts a slice of jobs into response payloads using
+// the supplied next-run map.
+func JobPayloadsFromJobs(jobs []automationpkg.Job, nextRunByID map[string]*time.Time) []contract.JobPayload {
+	payloads := make([]contract.JobPayload, 0, len(jobs))
+	for _, job := range jobs {
+		payloads = append(payloads, JobPayloadFromJob(job, timePointerFromMap(nextRunByID, job.ID)))
+	}
+	return payloads
+}
+
+// TriggerPayloadFromTrigger converts an automation trigger into the shared
+// response payload.
+func TriggerPayloadFromTrigger(trigger automationpkg.Trigger) contract.TriggerPayload {
+	return contract.TriggerPayload{
+		ID:           trigger.ID,
+		Scope:        trigger.Scope,
+		Name:         trigger.Name,
+		AgentName:    trigger.AgentName,
+		WorkspaceID:  trigger.WorkspaceID,
+		Prompt:       trigger.Prompt,
+		Event:        trigger.Event,
+		Filter:       cloneFilter(trigger.Filter),
+		Enabled:      trigger.Enabled,
+		Retry:        trigger.Retry,
+		FireLimit:    trigger.FireLimit,
+		Source:       trigger.Source,
+		WebhookID:    trigger.WebhookID,
+		EndpointSlug: trigger.EndpointSlug,
+		CreatedAt:    trigger.CreatedAt,
+		UpdatedAt:    trigger.UpdatedAt,
+	}
+}
+
+// TriggerPayloadsFromTriggers converts a slice of triggers into response payloads.
+func TriggerPayloadsFromTriggers(triggers []automationpkg.Trigger) []contract.TriggerPayload {
+	payloads := make([]contract.TriggerPayload, 0, len(triggers))
+	for _, trigger := range triggers {
+		payloads = append(payloads, TriggerPayloadFromTrigger(trigger))
+	}
+	return payloads
+}
+
+// RunPayloadFromRun converts an automation run into the shared response payload.
+func RunPayloadFromRun(run automationpkg.Run) contract.RunPayload {
+	return contract.RunPayload{
+		ID:        run.ID,
+		JobID:     run.JobID,
+		TriggerID: run.TriggerID,
+		SessionID: run.SessionID,
+		Status:    run.Status,
+		Attempt:   run.Attempt,
+		StartedAt: run.StartedAt,
+		EndedAt:   run.EndedAt,
+		Error:     run.Error,
+	}
+}
+
+// RunPayloadsFromRuns converts a slice of runs into response payloads.
+func RunPayloadsFromRuns(runs []automationpkg.Run) []contract.RunPayload {
+	payloads := make([]contract.RunPayload, 0, len(runs))
+	for _, run := range runs {
+		payloads = append(payloads, RunPayloadFromRun(run))
+	}
+	return payloads
+}
+
+// WebhookDeliveryPayloadFromResult converts a webhook trigger dispatch result
+// into the shared response payload.
+func WebhookDeliveryPayloadFromResult(result automationpkg.TriggerResult) contract.WebhookDeliveryPayload {
+	return contract.WebhookDeliveryPayload{
+		Matched: result.Matched,
+		Runs:    RunPayloadsFromRuns(result.Runs),
+	}
+}
+
 // WorkspacePayloadFromWorkspace converts a workspace into the shared payload.
 func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) contract.WorkspacePayload {
 	addDirs := make([]string, 0, len(workspace.AdditionalDirs))
@@ -284,4 +404,27 @@ func sessionWorkspaceFromInfo(info *session.SessionInfo) (string, string) {
 		return "", ""
 	}
 	return strings.TrimSpace(info.WorkspaceID), strings.TrimSpace(info.Workspace)
+}
+
+func timePointerFromMap(values map[string]*time.Time, id string) *time.Time {
+	if len(values) == 0 {
+		return nil
+	}
+	value, ok := values[id]
+	if !ok || value == nil {
+		return nil
+	}
+	next := value.UTC()
+	return &next
+}
+
+func cloneFilter(source map[string]string) map[string]string {
+	if len(source) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
 }

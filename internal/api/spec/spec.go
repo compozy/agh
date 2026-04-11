@@ -13,6 +13,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3gen"
 	"github.com/pedronauck/agh/internal/api/contract"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/hooks"
@@ -82,6 +83,7 @@ func Document() (*openapi3.T, error) {
 		Paths: openapi3.NewPaths(),
 		Tags: openapi3.Tags{
 			{Name: "agents"},
+			{Name: "automation"},
 			{Name: "daemon"},
 			{Name: "extensions"},
 			{Name: "hooks"},
@@ -136,6 +138,335 @@ func Operations() []OperationSpec {
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.AgentResponse{}},
 				{Status: 404, Description: "Agent not found", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "GET",
+			Path:        "/api/automation/jobs",
+			OperationID: "listAutomationJobs",
+			Summary:     "List automation jobs",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				enumQueryParam("scope", "Filter by automation scope", false, automationScopeValues()),
+				queryParam("workspace_id", "Filter by workspace id", false),
+				enumQueryParam("source", "Filter by job source", false, automationSourceValues()),
+				intQueryParam("limit", "Maximum number of records to return", false),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.JobsResponse{}},
+				{Status: 400, Description: "Invalid automation filter", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/automation/jobs",
+			OperationID: "createAutomationJob",
+			Summary:     "Create an automation job",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			RequestBody: contract.CreateJobRequest{},
+			Responses: []ResponseSpec{
+				{Status: 201, Description: "Created", Body: contract.JobResponse{}},
+				{Status: 400, Description: "Invalid automation job request", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Automation job conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "GET",
+			Path:        "/api/automation/jobs/{id}",
+			OperationID: "getAutomationJob",
+			Summary:     "Get one automation job",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Automation job id"),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.JobResponse{}},
+				{Status: 404, Description: "Automation job not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "PATCH",
+			Path:        "/api/automation/jobs/{id}",
+			OperationID: "updateAutomationJob",
+			Summary:     "Update one automation job",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Automation job id"),
+			},
+			RequestBody: contract.UpdateJobRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.JobResponse{}},
+				{Status: 400, Description: "Invalid automation job update", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Automation job not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Automation job conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "DELETE",
+			Path:        "/api/automation/jobs/{id}",
+			OperationID: "deleteAutomationJob",
+			Summary:     "Delete one automation job",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Automation job id"),
+			},
+			Responses: []ResponseSpec{
+				{Status: 204, Description: "No Content"},
+				{Status: 400, Description: "Invalid automation job delete request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Automation job not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/automation/jobs/{id}/trigger",
+			OperationID: "triggerAutomationJob",
+			Summary:     "Trigger one automation job immediately",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Automation job id"),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.RunResponse{}},
+				{Status: 404, Description: "Automation job not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Automation run conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "GET",
+			Path:        "/api/automation/jobs/{id}/runs",
+			OperationID: "listAutomationJobRuns",
+			Summary:     "List run history for one automation job",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Automation job id"),
+				enumQueryParam("status", "Filter by run status", false, automationRunStatusValues()),
+				dateTimeQueryParam("since", "Only runs started since this timestamp", false),
+				dateTimeQueryParam("until", "Only runs started before this timestamp", false),
+				intQueryParam("limit", "Maximum number of records to return", false),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.RunsResponse{}},
+				{Status: 400, Description: "Invalid automation run filter", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Automation job not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "GET",
+			Path:        "/api/automation/triggers",
+			OperationID: "listAutomationTriggers",
+			Summary:     "List automation triggers",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				enumQueryParam("scope", "Filter by automation scope", false, automationScopeValues()),
+				queryParam("workspace_id", "Filter by workspace id", false),
+				enumQueryParam("source", "Filter by trigger source", false, automationSourceValues()),
+				queryParam("event", "Filter by trigger event", false),
+				intQueryParam("limit", "Maximum number of records to return", false),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TriggersResponse{}},
+				{Status: 400, Description: "Invalid automation filter", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/automation/triggers",
+			OperationID: "createAutomationTrigger",
+			Summary:     "Create an automation trigger",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			RequestBody: contract.CreateTriggerRequest{},
+			Responses: []ResponseSpec{
+				{Status: 201, Description: "Created", Body: contract.TriggerResponse{}},
+				{Status: 400, Description: "Invalid automation trigger request", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Automation trigger conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "GET",
+			Path:        "/api/automation/triggers/{id}",
+			OperationID: "getAutomationTrigger",
+			Summary:     "Get one automation trigger",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Automation trigger id"),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TriggerResponse{}},
+				{Status: 404, Description: "Automation trigger not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "PATCH",
+			Path:        "/api/automation/triggers/{id}",
+			OperationID: "updateAutomationTrigger",
+			Summary:     "Update one automation trigger",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Automation trigger id"),
+			},
+			RequestBody: contract.UpdateTriggerRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TriggerResponse{}},
+				{Status: 400, Description: "Invalid automation trigger update", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Automation trigger not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Automation trigger conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "DELETE",
+			Path:        "/api/automation/triggers/{id}",
+			OperationID: "deleteAutomationTrigger",
+			Summary:     "Delete one automation trigger",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Automation trigger id"),
+			},
+			Responses: []ResponseSpec{
+				{Status: 204, Description: "No Content"},
+				{Status: 400, Description: "Invalid automation trigger delete request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Automation trigger not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "GET",
+			Path:        "/api/automation/triggers/{id}/runs",
+			OperationID: "listAutomationTriggerRuns",
+			Summary:     "List run history for one automation trigger",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Automation trigger id"),
+				enumQueryParam("status", "Filter by run status", false, automationRunStatusValues()),
+				dateTimeQueryParam("since", "Only runs started since this timestamp", false),
+				dateTimeQueryParam("until", "Only runs started before this timestamp", false),
+				intQueryParam("limit", "Maximum number of records to return", false),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.RunsResponse{}},
+				{Status: 400, Description: "Invalid automation run filter", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Automation trigger not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "GET",
+			Path:        "/api/automation/runs",
+			OperationID: "listAutomationRuns",
+			Summary:     "List automation runs",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				queryParam("job_id", "Filter by automation job id", false),
+				queryParam("trigger_id", "Filter by automation trigger id", false),
+				enumQueryParam("status", "Filter by run status", false, automationRunStatusValues()),
+				dateTimeQueryParam("since", "Only runs started since this timestamp", false),
+				dateTimeQueryParam("until", "Only runs started before this timestamp", false),
+				intQueryParam("limit", "Maximum number of records to return", false),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.RunsResponse{}},
+				{Status: 400, Description: "Invalid automation run filter", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "GET",
+			Path:        "/api/automation/runs/{id}",
+			OperationID: "getAutomationRun",
+			Summary:     "Get one automation run",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Automation run id"),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.RunResponse{}},
+				{Status: 404, Description: "Automation run not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/webhooks/global/{endpoint}",
+			OperationID: "deliverGlobalWebhook",
+			Summary:     "Deliver one global automation webhook",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP},
+			Parameters: []ParameterSpec{
+				pathParam("endpoint", "Webhook endpoint slug and id"),
+				headerParam("X-AGH-Webhook-Timestamp", "Signed webhook timestamp", true),
+				headerParam("X-AGH-Webhook-Signature", "Signed webhook HMAC signature", true),
+			},
+			RequestBody: map[string]any{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.WebhookDeliveryResponse{}},
+				{Status: 400, Description: "Invalid webhook request", Body: contract.ErrorPayload{}},
+				{Status: 401, Description: "Webhook authentication failed", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Webhook trigger not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/webhooks/workspaces/{workspace_id}/{endpoint}",
+			OperationID: "deliverWorkspaceWebhook",
+			Summary:     "Deliver one workspace-scoped automation webhook",
+			Tags:        []string{"automation"},
+			Transports:  []Transport{TransportHTTP},
+			Parameters: []ParameterSpec{
+				pathParam("workspace_id", "Workspace id"),
+				pathParam("endpoint", "Webhook endpoint slug and id"),
+				headerParam("X-AGH-Webhook-Timestamp", "Signed webhook timestamp", true),
+				headerParam("X-AGH-Webhook-Signature", "Signed webhook HMAC signature", true),
+			},
+			RequestBody: map[string]any{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.WebhookDeliveryResponse{}},
+				{Status: 400, Description: "Invalid webhook request", Body: contract.ErrorPayload{}},
+				{Status: 401, Description: "Webhook authentication failed", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Webhook trigger not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Automation manager is not configured", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 			},
 		},
@@ -847,9 +1178,12 @@ func schemaRefForValue(value any, schemas openapi3.Schemas) (*openapi3.SchemaRef
 
 func buildParameter(spec ParameterSpec) *openapi3.Parameter {
 	var param *openapi3.Parameter
-	if spec.In == openapi3.ParameterInPath {
+	switch spec.In {
+	case openapi3.ParameterInPath:
 		param = openapi3.NewPathParameter(spec.Name)
-	} else {
+	case openapi3.ParameterInHeader:
+		param = &openapi3.Parameter{Name: spec.Name, In: openapi3.ParameterInHeader}
+	default:
 		param = openapi3.NewQueryParameter(spec.Name)
 	}
 	param.WithRequired(spec.Required)
@@ -889,6 +1223,21 @@ func schemaCustomizer(_ string, t reflect.Type, _ reflect.StructTag, schema *ope
 	switch t {
 	case rawMessageType:
 		*schema = *openapi3.NewSchema()
+		return nil
+	case reflect.TypeOf(automationpkg.AutomationScope("")):
+		setStringEnum(schema, automationScopeValues())
+		return nil
+	case reflect.TypeOf(automationpkg.JobSource("")):
+		setStringEnum(schema, automationSourceValues())
+		return nil
+	case reflect.TypeOf(automationpkg.ScheduleMode("")):
+		setStringEnum(schema, automationScheduleModeValues())
+		return nil
+	case reflect.TypeOf(automationpkg.RetryStrategy("")):
+		setStringEnum(schema, automationRetryStrategyValues())
+		return nil
+	case reflect.TypeOf(automationpkg.RunStatus("")):
+		setStringEnum(schema, automationRunStatusValues())
 		return nil
 	case reflect.TypeOf(hooks.HookEvent("")):
 		setStringEnum(schema, hookEventValues())
@@ -1053,6 +1402,10 @@ func pathParam(name string, description string) ParameterSpec {
 	return ParameterSpec{Name: name, In: openapi3.ParameterInPath, Description: description, Required: true}
 }
 
+func headerParam(name string, description string, required bool) ParameterSpec {
+	return ParameterSpec{Name: name, In: openapi3.ParameterInHeader, Description: description, Required: required}
+}
+
 func queryParam(name string, description string, required bool) ParameterSpec {
 	return ParameterSpec{Name: name, In: openapi3.ParameterInQuery, Description: description, Required: required}
 }
@@ -1106,6 +1459,45 @@ func dateTimeQueryParam(name string, description string, required bool) Paramete
 		Description: description,
 		Required:    required,
 		Format:      "date-time",
+	}
+}
+
+func automationScopeValues() []string {
+	return []string{
+		string(automationpkg.AutomationScopeGlobal),
+		string(automationpkg.AutomationScopeWorkspace),
+	}
+}
+
+func automationSourceValues() []string {
+	return []string{
+		string(automationpkg.JobSourceConfig),
+		string(automationpkg.JobSourceDynamic),
+	}
+}
+
+func automationScheduleModeValues() []string {
+	return []string{
+		string(automationpkg.ScheduleModeCron),
+		string(automationpkg.ScheduleModeEvery),
+		string(automationpkg.ScheduleModeAt),
+	}
+}
+
+func automationRetryStrategyValues() []string {
+	return []string{
+		string(automationpkg.RetryStrategyNone),
+		string(automationpkg.RetryStrategyBackoff),
+	}
+}
+
+func automationRunStatusValues() []string {
+	return []string{
+		string(automationpkg.RunScheduled),
+		string(automationpkg.RunRunning),
+		string(automationpkg.RunCompleted),
+		string(automationpkg.RunFailed),
+		string(automationpkg.RunCancelled),
 	}
 }
 

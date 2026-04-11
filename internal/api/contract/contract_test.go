@@ -8,6 +8,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -152,6 +153,117 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 	}
 	if string(roundTrip.Raw) != `{"ok":true}` {
 		t.Fatalf("raw payload = %s", string(roundTrip.Raw))
+	}
+}
+
+func TestAutomationJobPayloadJSONShape(t *testing.T) {
+	t.Parallel()
+
+	nextRun := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	payload := contract.JobPayload{
+		ID:          "job-1",
+		Scope:       automationpkg.AutomationScopeWorkspace,
+		Name:        "nightly-review",
+		AgentName:   "coder",
+		WorkspaceID: "ws-alpha",
+		Prompt:      "review repo",
+		Schedule: &automationpkg.ScheduleSpec{
+			Mode:     automationpkg.ScheduleModeEvery,
+			Interval: "1h",
+		},
+		Enabled: true,
+		Retry: automationpkg.RetryConfig{
+			Strategy:   automationpkg.RetryStrategyBackoff,
+			MaxRetries: 2,
+			BaseDelay:  "1m",
+		},
+		FireLimit: automationpkg.FireLimitConfig{
+			Max:    5,
+			Window: "24h",
+		},
+		Source:    automationpkg.JobSourceDynamic,
+		CreatedAt: time.Date(2026, 4, 11, 11, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 11, 11, 30, 0, 0, time.UTC),
+		NextRun:   &nextRun,
+	}
+
+	var got map[string]any
+	marshalJSON(t, payload, &got)
+
+	if got["scope"] != string(automationpkg.AutomationScopeWorkspace) {
+		t.Fatalf("scope = %#v, want %q", got["scope"], automationpkg.AutomationScopeWorkspace)
+	}
+	if got["workspace_id"] != "ws-alpha" {
+		t.Fatalf("workspace_id = %#v, want %q", got["workspace_id"], "ws-alpha")
+	}
+	if got["source"] != string(automationpkg.JobSourceDynamic) {
+		t.Fatalf("source = %#v, want %q", got["source"], automationpkg.JobSourceDynamic)
+	}
+	if _, exists := got["next_run"]; !exists {
+		t.Fatalf("job payload missing next_run: %#v", got)
+	}
+}
+
+func TestAutomationTriggerPayloadJSONShape(t *testing.T) {
+	t.Parallel()
+
+	payload := contract.TriggerPayload{
+		ID:           "trigger-1",
+		Scope:        automationpkg.AutomationScopeWorkspace,
+		Name:         "deploy-review",
+		AgentName:    "coder",
+		WorkspaceID:  "ws-alpha",
+		Prompt:       `review {{ index .Data "payload" }}`,
+		Event:        "webhook",
+		Filter:       map[string]string{"branch": "main"},
+		Enabled:      true,
+		Retry:        automationpkg.DefaultRetryConfig(),
+		FireLimit:    automationpkg.DefaultFireLimitConfig(),
+		Source:       automationpkg.JobSourceDynamic,
+		WebhookID:    "wbh_123",
+		EndpointSlug: "deploy-review",
+		CreatedAt:    time.Date(2026, 4, 11, 11, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2026, 4, 11, 11, 30, 0, 0, time.UTC),
+	}
+
+	var got map[string]any
+	marshalJSON(t, payload, &got)
+
+	if got["scope"] != string(automationpkg.AutomationScopeWorkspace) {
+		t.Fatalf("scope = %#v, want %q", got["scope"], automationpkg.AutomationScopeWorkspace)
+	}
+	if got["workspace_id"] != "ws-alpha" {
+		t.Fatalf("workspace_id = %#v, want %q", got["workspace_id"], "ws-alpha")
+	}
+	if got["source"] != string(automationpkg.JobSourceDynamic) {
+		t.Fatalf("source = %#v, want %q", got["source"], automationpkg.JobSourceDynamic)
+	}
+	if got["endpoint_slug"] != "deploy-review" {
+		t.Fatalf("endpoint_slug = %#v, want %q", got["endpoint_slug"], "deploy-review")
+	}
+	if got["webhook_id"] != "wbh_123" {
+		t.Fatalf("webhook_id = %#v, want %q", got["webhook_id"], "wbh_123")
+	}
+}
+
+func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
+	t.Parallel()
+
+	name := "updated"
+	secret := "secret"
+
+	if (contract.UpdateJobRequest{}).HasChanges() {
+		t.Fatal("UpdateJobRequest{}.HasChanges() = true, want false")
+	}
+	if !(contract.UpdateJobRequest{Name: &name}).HasChanges() {
+		t.Fatal("UpdateJobRequest{Name}.HasChanges() = false, want true")
+	}
+
+	if (contract.UpdateTriggerRequest{}).HasChanges() {
+		t.Fatal("UpdateTriggerRequest{}.HasChanges() = true, want false")
+	}
+	if !(contract.UpdateTriggerRequest{WebhookSecret: &secret}).HasChanges() {
+		t.Fatal("UpdateTriggerRequest{WebhookSecret}.HasChanges() = false, want true")
 	}
 }
 
