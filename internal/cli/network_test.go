@@ -186,41 +186,62 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, stubClient{
-		networkSendFn: func(context.Context, NetworkSendRequest) (NetworkSendRecord, error) {
-			return NetworkSendRecord{}, nil
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name: "ShouldRejectInvalidBodyJSON",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--space", "builders",
+				"--kind", "say",
+				"--body", `not-json`,
+			},
+			wantErr: "--body must be valid JSON",
 		},
-	})
-
-	if _, _, err := executeRootCommand(t, deps,
-		"network", "send",
-		"--session", "sess-a",
-		"--space", "builders",
-		"--kind", "say",
-		"--body", `not-json`,
-	); err == nil || !strings.Contains(err.Error(), "--body must be valid JSON") {
-		t.Fatalf("invalid --body error = %v, want JSON validation", err)
+		{
+			name: "ShouldRejectNonObjectExtJSON",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--space", "builders",
+				"--kind", "say",
+				"--body", `{"text":"ok"}`,
+				"--ext", `[]`,
+			},
+			wantErr: "--ext must be a JSON object",
+		},
+		{
+			name: "ShouldRejectInvalidExpiresAtValues",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--space", "builders",
+				"--kind", "say",
+				"--body", `{"text":"ok"}`,
+				"--expires-at", `tomorrow`,
+			},
+			wantErr: "--expires-at must be unix seconds or RFC3339",
+		},
 	}
 
-	if _, _, err := executeRootCommand(t, deps,
-		"network", "send",
-		"--session", "sess-a",
-		"--space", "builders",
-		"--kind", "say",
-		"--body", `{"text":"ok"}`,
-		"--ext", `[]`,
-	); err == nil || !strings.Contains(err.Error(), "--ext must be a JSON object") {
-		t.Fatalf("invalid --ext error = %v, want object validation", err)
-	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	if _, _, err := executeRootCommand(t, deps,
-		"network", "send",
-		"--session", "sess-a",
-		"--space", "builders",
-		"--kind", "say",
-		"--body", `{"text":"ok"}`,
-		"--expires-at", `tomorrow`,
-	); err == nil || !strings.Contains(err.Error(), "--expires-at must be unix seconds or RFC3339") {
-		t.Fatalf("invalid --expires-at error = %v, want timestamp validation", err)
+			deps := newTestDeps(t, stubClient{
+				networkSendFn: func(context.Context, NetworkSendRequest) (NetworkSendRecord, error) {
+					return NetworkSendRecord{}, nil
+				},
+			})
+
+			if _, _, err := executeRootCommand(t, deps, tc.args...); err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("executeRootCommand(%v) error = %v, want substring %q", tc.args, err, tc.wantErr)
+			}
+		})
 	}
 }

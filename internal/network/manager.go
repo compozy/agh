@@ -188,9 +188,7 @@ func NewManager(
 
 	peers, err := NewPeerRegistry(cfg.GreetIntervalDuration(), WithPeerRegistryClock(manager.now))
 	if err != nil {
-		cancel()
-		_ = transport.Shutdown(context.Background())
-		return nil, err
+		return nil, rollbackManagerInit(ctx, cancel, transport, err)
 	}
 	manager.peers = peers
 
@@ -201,9 +199,7 @@ func NewManager(
 		WithRouterClock(manager.now),
 	)
 	if err != nil {
-		cancel()
-		_ = transport.Shutdown(context.Background())
-		return nil, err
+		return nil, rollbackManagerInit(ctx, cancel, transport, err)
 	}
 	manager.router = router
 
@@ -211,9 +207,7 @@ func NewManager(
 	if auditor == nil {
 		auditor, err = NewAuditWriter(auditPath, auditStore)
 		if err != nil {
-			cancel()
-			_ = transport.Shutdown(context.Background())
-			return nil, err
+			return nil, rollbackManagerInit(ctx, cancel, transport, err)
 		}
 	}
 	manager.auditor = auditor
@@ -227,9 +221,7 @@ func NewManager(
 		withDeliveryDeliveredHook(manager.recordDelivered),
 	)
 	if err != nil {
-		cancel()
-		_ = transport.Shutdown(context.Background())
-		return nil, err
+		return nil, rollbackManagerInit(ctx, cancel, transport, err)
 	}
 	manager.deliveries = deliveries
 	host, port := transportListener(manager.transport)
@@ -241,6 +233,23 @@ func NewManager(
 	)
 
 	return manager, nil
+}
+
+func rollbackManagerInit(ctx context.Context, cancel context.CancelFunc, transport *Transport, initErr error) error {
+	if cancel != nil {
+		cancel()
+	}
+	if initErr == nil {
+		return nil
+	}
+	if transport == nil {
+		return initErr
+	}
+
+	if shutdownErr := transport.Shutdown(ctx); shutdownErr != nil {
+		return errors.Join(initErr, fmt.Errorf("network: shutdown transport during manager setup: %w", shutdownErr))
+	}
+	return initErr
 }
 
 // JoinSpace registers one daemon-local session as a visible network peer.

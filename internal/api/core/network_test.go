@@ -11,6 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
+	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 )
 
@@ -217,68 +218,82 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		},
 	}
 
-	statusResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/status", nil)
-	if statusResp.Code != http.StatusOK {
-		t.Fatalf("status code = %d, want %d", statusResp.Code, http.StatusOK)
-	}
-	var statusPayload contract.NetworkStatusResponse
-	testutil.DecodeJSONResponse(t, statusResp, &statusPayload)
-	if statusPayload.Network.QueuedMessages != 2 || len(statusPayload.Network.KindMetrics) != 1 {
-		t.Fatalf("status payload = %#v", statusPayload.Network)
-	}
+	t.Run("ShouldReturnNetworkStatus", func(t *testing.T) {
+		statusResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/status", nil)
+		if statusResp.Code != http.StatusOK {
+			t.Fatalf("status code = %d, want %d", statusResp.Code, http.StatusOK)
+		}
 
-	peersResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers?space=builders", nil)
-	if peersResp.Code != http.StatusOK {
-		t.Fatalf("peers code = %d, want %d", peersResp.Code, http.StatusOK)
-	}
-	var peersPayload contract.NetworkPeersResponse
-	testutil.DecodeJSONResponse(t, peersResp, &peersPayload)
-	if len(peersPayload.Peers) != 1 || peersPayload.Peers[0].PeerCard.DisplayName == nil || *peersPayload.Peers[0].PeerCard.DisplayName != "Reviewer" {
-		t.Fatalf("peers payload = %#v", peersPayload.Peers)
-	}
+		var statusPayload contract.NetworkStatusResponse
+		testutil.DecodeJSONResponse(t, statusResp, &statusPayload)
+		if statusPayload.Network.QueuedMessages != 2 || len(statusPayload.Network.KindMetrics) != 1 {
+			t.Fatalf("status payload = %#v", statusPayload.Network)
+		}
+		if statusPayload.Network.KindMetrics[0].Sent != 4 || deadline == 0 {
+			t.Fatalf("kind metrics = %#v", statusPayload.Network.KindMetrics)
+		}
+	})
 
-	spacesResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/spaces", nil)
-	if spacesResp.Code != http.StatusOK {
-		t.Fatalf("spaces code = %d, want %d", spacesResp.Code, http.StatusOK)
-	}
-	var spacesPayload contract.NetworkSpacesResponse
-	testutil.DecodeJSONResponse(t, spacesResp, &spacesPayload)
-	if len(spacesPayload.Spaces) != 1 || spacesPayload.Spaces[0].PeerCount != 2 {
-		t.Fatalf("spaces payload = %#v", spacesPayload.Spaces)
-	}
+	t.Run("ShouldListNetworkPeers", func(t *testing.T) {
+		peersResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers?space=builders", nil)
+		if peersResp.Code != http.StatusOK {
+			t.Fatalf("peers code = %d, want %d", peersResp.Code, http.StatusOK)
+		}
 
-	sendResp := performRequest(t, fixture.Engine, http.MethodPost, "/network/send", []byte(`{"session_id":"sess-a","space":"builders","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`))
-	if sendResp.Code != http.StatusOK {
-		t.Fatalf("send code = %d, want %d; body=%s", sendResp.Code, http.StatusOK, sendResp.Body.String())
-	}
-	var sendPayload contract.NetworkSendResponse
-	testutil.DecodeJSONResponse(t, sendResp, &sendPayload)
-	if sendPayload.Message.ID != "msg-1" || string(sendPayload.Message.Ext["agh.workflow_id"]) != `"wf-1"` {
-		t.Fatalf("send payload = %#v", sendPayload.Message)
-	}
+		var peersPayload contract.NetworkPeersResponse
+		testutil.DecodeJSONResponse(t, peersResp, &peersPayload)
+		if len(peersPayload.Peers) != 1 || peersPayload.Peers[0].PeerCard.DisplayName == nil || *peersPayload.Peers[0].PeerCard.DisplayName != "Reviewer" {
+			t.Fatalf("peers payload = %#v", peersPayload.Peers)
+		}
+	})
 
-	inboxResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/inbox?session_id=sess-a", nil)
-	if inboxResp.Code != http.StatusOK {
-		t.Fatalf("inbox code = %d, want %d", inboxResp.Code, http.StatusOK)
-	}
-	var inboxPayload contract.NetworkInboxResponse
-	testutil.DecodeJSONResponse(t, inboxResp, &inboxPayload)
-	if len(inboxPayload.Messages) != 1 {
-		t.Fatalf("inbox payload len = %d, want 1", len(inboxPayload.Messages))
-	}
-	if string(inboxPayload.Messages[0].Proof["sig"]) != `"abc123"` || string(inboxPayload.Messages[0].Ext["agh.handoff_version"]) != `3` {
-		t.Fatalf("inbox payload = %#v", inboxPayload.Messages[0])
-	}
+	t.Run("ShouldListNetworkSpaces", func(t *testing.T) {
+		spacesResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/spaces", nil)
+		if spacesResp.Code != http.StatusOK {
+			t.Fatalf("spaces code = %d, want %d", spacesResp.Code, http.StatusOK)
+		}
 
-	if got := inboxPayload.Messages[0].ExpiresAt; got != nil {
-		t.Fatalf("ExpiresAt = %#v, want nil for non-expiring inbox message", got)
-	}
-	if got := sendPayload.Message.ExpiresAt; got != nil {
-		t.Fatalf("send expires_at = %#v, want nil without flag", got)
-	}
-	if statusPayload.Network.KindMetrics[0].Sent != 4 || deadline == 0 {
-		t.Fatalf("kind metrics = %#v", statusPayload.Network.KindMetrics)
-	}
+		var spacesPayload contract.NetworkSpacesResponse
+		testutil.DecodeJSONResponse(t, spacesResp, &spacesPayload)
+		if len(spacesPayload.Spaces) != 1 || spacesPayload.Spaces[0].PeerCount != 2 {
+			t.Fatalf("spaces payload = %#v", spacesPayload.Spaces)
+		}
+	})
+
+	t.Run("ShouldSendNetworkMessages", func(t *testing.T) {
+		sendResp := performRequest(t, fixture.Engine, http.MethodPost, "/network/send", []byte(`{"session_id":"sess-a","space":"builders","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`))
+		if sendResp.Code != http.StatusOK {
+			t.Fatalf("send code = %d, want %d; body=%s", sendResp.Code, http.StatusOK, sendResp.Body.String())
+		}
+
+		var sendPayload contract.NetworkSendResponse
+		testutil.DecodeJSONResponse(t, sendResp, &sendPayload)
+		if sendPayload.Message.ID != "msg-1" || string(sendPayload.Message.Ext["agh.workflow_id"]) != `"wf-1"` {
+			t.Fatalf("send payload = %#v", sendPayload.Message)
+		}
+		if got := sendPayload.Message.ExpiresAt; got != nil {
+			t.Fatalf("send expires_at = %#v, want nil without flag", got)
+		}
+	})
+
+	t.Run("ShouldReturnNetworkInboxMessages", func(t *testing.T) {
+		inboxResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/inbox?session_id=sess-a", nil)
+		if inboxResp.Code != http.StatusOK {
+			t.Fatalf("inbox code = %d, want %d", inboxResp.Code, http.StatusOK)
+		}
+
+		var inboxPayload contract.NetworkInboxResponse
+		testutil.DecodeJSONResponse(t, inboxResp, &inboxPayload)
+		if len(inboxPayload.Messages) != 1 {
+			t.Fatalf("inbox payload len = %d, want 1", len(inboxPayload.Messages))
+		}
+		if string(inboxPayload.Messages[0].Proof["sig"]) != `"abc123"` || string(inboxPayload.Messages[0].Ext["agh.handoff_version"]) != `3` {
+			t.Fatalf("inbox payload = %#v", inboxPayload.Messages[0])
+		}
+		if got := inboxPayload.Messages[0].ExpiresAt; got != nil {
+			t.Fatalf("ExpiresAt = %#v, want nil for non-expiring inbox message", got)
+		}
+	})
 }
 
 func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
@@ -361,6 +376,36 @@ func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 	if got := core.StatusForNetworkError(network.ErrInvalidField); got != http.StatusBadRequest {
 		t.Fatalf("StatusForNetworkError(invalid field) = %d, want %d", got, http.StatusBadRequest)
 	}
+}
+
+func TestValidationErrorHelpersPreserveInnerErrorChain(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldPreserveMemoryValidationCause", func(t *testing.T) {
+		t.Parallel()
+
+		cause := errors.New("bad memory payload")
+		wrapped := core.NewMemoryValidationError(cause)
+		if !errors.Is(wrapped, memory.ErrValidation) {
+			t.Fatalf("NewMemoryValidationError() = %v, want memory.ErrValidation", wrapped)
+		}
+		if !errors.Is(wrapped, cause) {
+			t.Fatalf("NewMemoryValidationError() = %v, want wrapped cause", wrapped)
+		}
+	})
+
+	t.Run("ShouldPreserveNetworkValidationCause", func(t *testing.T) {
+		t.Parallel()
+
+		cause := errors.New("missing session_id")
+		wrapped := core.NewNetworkValidationError(cause)
+		if !errors.Is(wrapped, core.ErrNetworkValidation) {
+			t.Fatalf("NewNetworkValidationError() = %v, want ErrNetworkValidation", wrapped)
+		}
+		if !errors.Is(wrapped, cause) {
+			t.Fatalf("NewNetworkValidationError() = %v, want wrapped cause", wrapped)
+		}
+	})
 }
 
 func timePtr(value time.Time) *time.Time {

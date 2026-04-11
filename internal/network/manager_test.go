@@ -38,6 +38,24 @@ func TestNewManagerRequiresEnabledConfigAndPrompter(t *testing.T) {
 	}
 }
 
+func TestNewManagerReportsRollbackShutdownFailures(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := NewManager(ctx, testManagerConfig(), newFakeDeliveryPrompter(), "", nil, WithManagerLogger(discardManagerLogger()))
+	if err == nil {
+		t.Fatal("NewManager() error = nil, want rollback failure")
+	}
+	if !strings.Contains(err.Error(), "audit sink is required") {
+		t.Fatalf("NewManager() error = %v, want audit sink failure", err)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("NewManager() error = %v, want wrapped context cancellation from rollback shutdown", err)
+	}
+}
+
 func TestManagerJoinSendStatusAndLeave(t *testing.T) {
 	t.Parallel()
 

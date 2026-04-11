@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -114,6 +115,47 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 	}
 	if string(decodedBody) != string(wantBody) {
 		t.Fatalf("decoded body = %s, want %s", string(decodedBody), string(wantBody))
+	}
+}
+
+func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.T) {
+	t.Parallel()
+
+	envelope := Envelope{
+		Protocol: ProtocolV0,
+		ID:       "msg-direct-raw",
+		Kind:     KindDirect,
+		Space:    "builders",
+		From:     "coder.sess-abc",
+		To:       stringPtr("reviewer.sess-xyz"),
+		TS:       time.Date(2026, 4, 11, 13, 5, 0, 0, time.UTC).Unix(),
+		Body:     json.RawMessage(`["unexpected"]`),
+	}
+
+	rendered, err := formatNetworkMessage(envelope)
+	if err != nil {
+		t.Fatalf("formatNetworkMessage() error = %v", err)
+	}
+	if strings.Contains(rendered, "<network-preview") {
+		t.Fatalf("rendered message unexpectedly included preview:\n%s", rendered)
+	}
+
+	start := strings.Index(rendered, `<network-body encoding="base64-json">`)
+	if start < 0 {
+		t.Fatalf("rendered message missing network-body: %s", rendered)
+	}
+	start += len(`<network-body encoding="base64-json">`)
+	end := strings.Index(rendered[start:], `</network-body>`)
+	if end < 0 {
+		t.Fatalf("rendered message missing closing network-body tag: %s", rendered)
+	}
+
+	decodedBody, err := base64.StdEncoding.DecodeString(rendered[start : start+end])
+	if err != nil {
+		t.Fatalf("DecodeString(network-body) error = %v", err)
+	}
+	if string(decodedBody) != `["unexpected"]` {
+		t.Fatalf("decoded body = %s, want raw compact JSON", string(decodedBody))
 	}
 }
 
@@ -280,6 +322,45 @@ func TestDeliveryCoordinatorCancelsInFlightDeliveryWithoutCountingItAsDelivered(
 	}
 }
 
+func TestDeliveryCoordinatorRetriesPromptFailuresAfterWorkerExit(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	prompter := newFakeDeliveryPrompter()
+	prompter.queuePromptResult(errors.New("temporary prompt failure"))
+
+	coordinator, err := newDeliveryCoordinator(ctx, 4, prompter)
+	if err != nil {
+		t.Fatalf("newDeliveryCoordinator() error = %v", err)
+	}
+
+	if err := coordinator.acceptOne(context.Background(), Delivery{
+		SessionID: "sess-retry",
+		Envelope:  testDeliveryEnvelope(t, "msg-retry", "retry me"),
+	}); err != nil {
+		t.Fatalf("acceptOne() error = %v", err)
+	}
+
+	prompter.waitForCalls(t, 2)
+	if got := coordinator.queueDepth("sess-retry"); got != 0 {
+		t.Fatalf("queueDepth(sess-retry) = %d, want 0 once retry worker is active", got)
+	}
+
+	call := prompter.call(1)
+	if !strings.Contains(call.message, "retry me") {
+		t.Fatalf("retry call message = %q, want retried preview", call.message)
+	}
+
+	prompter.finishCall(1, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+	coordinator.wait()
+
+	if got := coordinator.queueDepth("sess-retry"); got != 0 {
+		t.Fatalf("queueDepth(sess-retry) after completion = %d, want 0", got)
+	}
+}
+
 func TestNewDeliveryCoordinatorOptionsAndBatchAccept(t *testing.T) {
 	t.Parallel()
 
@@ -347,7 +428,7 @@ func TestNewDeliveryCoordinatorOptionsAndBatchAccept(t *testing.T) {
 	coordinator.onTurnEnd("   ")
 }
 
-func TestDeliveryCoordinatorRequeuesMalformedEnvelopeAndPreservesInboxSnapshot(t *testing.T) {
+func TestDeliveryCoordinatorDeliversSemanticallyInvalidBodiesUsingRawFallback(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -377,17 +458,33 @@ func TestDeliveryCoordinatorRequeuesMalformedEnvelopeAndPreservesInboxSnapshot(t
 		t.Fatalf("acceptOne(malformed) error = %v", err)
 	}
 
-	coordinator.wait()
-	if got := prompter.callCount(); got != 0 {
-		t.Fatalf("prompt call count for malformed delivery = %d, want 0", got)
+	prompter.waitForCalls(t, 1)
+
+	call := prompter.call(0)
+	if strings.Contains(call.message, "<network-preview") {
+		t.Fatalf("call.message unexpectedly included preview:\n%s", call.message)
 	}
-	if got := coordinator.queueDepth("sess-malformed"); got != 1 {
-		t.Fatalf("queueDepth(sess-malformed) = %d, want 1", got)
+	start := strings.Index(call.message, `<network-body encoding="base64-json">`)
+	if start < 0 {
+		t.Fatalf("call.message missing network-body:\n%s", call.message)
+	}
+	start += len(`<network-body encoding="base64-json">`)
+	end := strings.Index(call.message[start:], `</network-body>`)
+	if end < 0 {
+		t.Fatalf("call.message missing closing network-body:\n%s", call.message)
+	}
+	decodedBody, err := base64.StdEncoding.DecodeString(call.message[start : start+end])
+	if err != nil {
+		t.Fatalf("DecodeString(network-body) error = %v", err)
+	}
+	if string(decodedBody) != `["bad"]` {
+		t.Fatalf("decoded body = %s, want raw JSON fallback", string(decodedBody))
 	}
 
-	inbox := coordinator.inbox("sess-malformed")
-	if len(inbox) != 1 || inbox[0].ID != malformed.ID {
-		t.Fatalf("inbox(sess-malformed) = %#v, want one malformed envelope", inbox)
+	prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+	coordinator.wait()
+	if got := coordinator.queueDepth("sess-malformed"); got != 0 {
+		t.Fatalf("queueDepth(sess-malformed) = %d, want 0 after fallback delivery", got)
 	}
 }
 
@@ -425,9 +522,11 @@ func TestPreviewForBodyVariants(t *testing.T) {
 }
 
 type fakeDeliveryPrompter struct {
-	mu        sync.Mutex
-	prompting map[string]bool
-	calls     []*fakePromptCall
+	mu         sync.Mutex
+	prompting  map[string]bool
+	calls      []*fakePromptCall
+	callNotify chan struct{}
+	promptErrs []error
 }
 
 type fakePromptCall struct {
@@ -438,7 +537,8 @@ type fakePromptCall struct {
 
 func newFakeDeliveryPrompter() *fakeDeliveryPrompter {
 	return &fakeDeliveryPrompter{
-		prompting: make(map[string]bool),
+		prompting:  make(map[string]bool),
+		callNotify: make(chan struct{}, 1),
 	}
 }
 
@@ -452,8 +552,27 @@ func (p *fakeDeliveryPrompter) PromptNetwork(_ context.Context, sessionID string
 		events:    make(chan acp.AgentEvent, 4),
 	}
 	p.calls = append(p.calls, call)
+
+	var promptErr error
+	if len(p.promptErrs) > 0 {
+		promptErr = p.promptErrs[0]
+		p.promptErrs = p.promptErrs[1:]
+	}
+	select {
+	case p.callNotify <- struct{}{}:
+	default:
+	}
+	if promptErr != nil {
+		return nil, promptErr
+	}
 	p.prompting[sessionID] = true
 	return call.events, nil
+}
+
+func (p *fakeDeliveryPrompter) queuePromptResult(err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.promptErrs = append(p.promptErrs, err)
 }
 
 func (p *fakeDeliveryPrompter) IsPrompting(sessionID string) bool {
@@ -499,14 +618,20 @@ func (p *fakeDeliveryPrompter) call(index int) fakePromptCall {
 func (p *fakeDeliveryPrompter) waitForCalls(t *testing.T, want int) {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+
+	for {
 		if p.callCount() >= want {
 			return
 		}
-		time.Sleep(10 * time.Millisecond)
+
+		select {
+		case <-p.callNotify:
+		case <-timer.C:
+			t.Fatalf("timed out waiting for %d prompt calls; got %d", want, p.callCount())
+		}
 	}
-	t.Fatalf("timed out waiting for %d prompt calls; got %d", want, p.callCount())
 }
 
 func testDeliveryEnvelope(t *testing.T, id string, text string) Envelope {

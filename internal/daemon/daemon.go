@@ -34,6 +34,8 @@ import (
 
 const defaultShutdownTimeout = 10 * time.Second
 
+var errMissingNetworkBindingSurface = errors.New("daemon: session manager does not implement the network binding surface")
+
 // Option customizes daemon construction.
 type Option func(*Daemon)
 
@@ -614,6 +616,16 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	if err := d.stopSessions(ctx, sessions); err != nil {
 		errs = append(errs, err)
 	}
+	if httpServer != nil {
+		if err := httpServer.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("daemon: shutdown http server: %w", err))
+		}
+	}
+	if udsServer != nil {
+		if err := udsServer.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("daemon: shutdown uds server: %w", err))
+		}
+	}
 	if channels != nil {
 		channels.Close()
 	}
@@ -624,16 +636,6 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	}
 	if hooks != nil {
 		hooks.Close()
-	}
-	if httpServer != nil {
-		if err := httpServer.Shutdown(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("daemon: shutdown http server: %w", err))
-		}
-	}
-	if udsServer != nil {
-		if err := udsServer.Shutdown(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("daemon: shutdown uds server: %w", err))
-		}
 	}
 	if err := RemoveInfo(infoPath); err != nil {
 		errs = append(errs, err)

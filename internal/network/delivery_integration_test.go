@@ -76,7 +76,10 @@ func TestDeliveryCoordinatorIntegrationDrainsOneQueuedPromptPerTurn(t *testing.T
 	}
 
 	driver.completePrompt(2, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
-	waitForDeliveryCondition(t, "queue drain", func() bool { return coordinator.queueDepth(networked.ID) == 0 })
+	coordinator.wait()
+	if got := coordinator.queueDepth(networked.ID); got != 0 {
+		t.Fatalf("queueDepth() after drain = %d, want 0", got)
+	}
 
 	cancel()
 	coordinator.wait()
@@ -140,9 +143,13 @@ func TestDeliveryCoordinatorIntegrationMultipleSessionsDoNotBlockEachOther(t *te
 
 	driver.completePrompt(2, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
 	driver.completePrompt(3, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
-	waitForDeliveryCondition(t, "multi-session queue drain", func() bool {
-		return coordinator.queueDepth(sessionA.ID) == 0 && coordinator.queueDepth(sessionB.ID) == 0
-	})
+	coordinator.wait()
+	if got := coordinator.queueDepth(sessionA.ID); got != 0 {
+		t.Fatalf("queueDepth(sessionA) after drain = %d, want 0", got)
+	}
+	if got := coordinator.queueDepth(sessionB.ID); got != 0 {
+		t.Fatalf("queueDepth(sessionB) after drain = %d, want 0", got)
+	}
 
 	cancel()
 	coordinator.wait()
@@ -234,9 +241,10 @@ func (r integrationWorkspaceResolver) ResolveOrRegister(_ context.Context, _ str
 }
 
 type integrationPromptDriver struct {
-	mu        sync.Mutex
-	prompts   []*integrationPrompt
-	processes map[*session.AgentProcess]chan struct{}
+	mu           sync.Mutex
+	prompts      []*integrationPrompt
+	processes    map[*session.AgentProcess]chan struct{}
+	promptNotify chan struct{}
 }
 
 type integrationPrompt struct {
@@ -247,7 +255,8 @@ type integrationPrompt struct {
 
 func newIntegrationPromptDriver() *integrationPromptDriver {
 	return &integrationPromptDriver{
-		processes: make(map[*session.AgentProcess]chan struct{}),
+		processes:    make(map[*session.AgentProcess]chan struct{}),
+		promptNotify: make(chan struct{}, 1),
 	}
 }
 
@@ -283,6 +292,10 @@ func (d *integrationPromptDriver) Prompt(_ context.Context, proc *session.AgentP
 		req:       req,
 		events:    events,
 	})
+	select {
+	case d.promptNotify <- struct{}{}:
+	default:
+	}
 	return events, nil
 }
 
@@ -310,7 +323,21 @@ func (d *integrationPromptDriver) promptCount() int {
 
 func (d *integrationPromptDriver) waitForPromptCount(t *testing.T, want int) {
 	t.Helper()
-	waitForDeliveryCondition(t, "prompt count", func() bool { return d.promptCount() >= want })
+
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+
+	for {
+		if d.promptCount() >= want {
+			return
+		}
+
+		select {
+		case <-d.promptNotify:
+		case <-timer.C:
+			t.Fatalf("timed out waiting for prompt count >= %d; got %d", want, d.promptCount())
+		}
+	}
 }
 
 func (d *integrationPromptDriver) prompt(index int) integrationPrompt {
@@ -337,26 +364,20 @@ func (d *integrationPromptDriver) completePrompt(index int, events ...acp.AgentE
 func assertPromptCountEventually(t *testing.T, driver *integrationPromptDriver, want int) {
 	t.Helper()
 
-	deadline := time.Now().Add(150 * time.Millisecond)
-	for time.Now().Before(deadline) {
+	timer := time.NewTimer(150 * time.Millisecond)
+	defer timer.Stop()
+
+	for {
 		if got := driver.promptCount(); got != want {
 			t.Fatalf("promptCount() changed early: got %d, want %d", got, want)
 		}
-		time.Sleep(10 * time.Millisecond)
-	}
-}
 
-func waitForDeliveryCondition(t *testing.T, label string, fn func() bool) {
-	t.Helper()
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if fn() {
+		select {
+		case <-driver.promptNotify:
+		case <-timer.C:
 			return
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatalf("timed out waiting for %s", label)
 }
 
 func drainAgentEvents(events <-chan acp.AgentEvent) {

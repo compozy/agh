@@ -48,7 +48,7 @@ func NewMemoryValidationError(err error) error {
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("%w: %v", memory.ErrValidation, err)
+	return fmt.Errorf("%w: %w", memory.ErrValidation, err)
 }
 
 // StatusForMemoryError maps memory-domain errors to transport statuses.
@@ -172,7 +172,7 @@ func NewNetworkValidationError(err error) error {
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("%w: %v", ErrNetworkValidation, err)
+	return fmt.Errorf("%w: %w", ErrNetworkValidation, err)
 }
 
 // StatusForNetworkError maps network-domain errors to transport statuses.

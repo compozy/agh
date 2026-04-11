@@ -281,8 +281,8 @@ func TestBootEnabledNetworkRejectsSessionManagersMissingBindingSurface(t *testin
 	}
 
 	err := d.boot(testutil.Context(t))
-	if err == nil || !strings.Contains(err.Error(), "network binding surface") {
-		t.Fatalf("boot() error = %v, want missing network binding surface", err)
+	if !errors.Is(err, errMissingNetworkBindingSurface) {
+		t.Fatalf("boot() error = %v, want errMissingNetworkBindingSurface", err)
 	}
 }
 
@@ -490,7 +490,7 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 
-	want := []string{"extensions", "automation", "session:sess-a", "session:sess-b", "network", "hooks", "http", "uds", "db", "lock", "logger"}
+	want := []string{"extensions", "automation", "session:sess-a", "session:sess-b", "http", "uds", "network", "hooks", "db", "lock", "logger"}
 	if !testutil.EqualStringSlices(events, want) {
 		t.Fatalf("Shutdown() order = %#v, want %#v", events, want)
 	}

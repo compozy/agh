@@ -204,6 +204,16 @@ type Body interface {
 	Kind() Kind
 }
 
+var (
+	_ Body = GreetBody{}
+	_ Body = WhoisBody{}
+	_ Body = SayBody{}
+	_ Body = DirectBody{}
+	_ Body = RecipeBody{}
+	_ Body = ReceiptBody{}
+	_ Body = TraceBody{}
+)
+
 // GreetBody advertises peer presence and capabilities in a space.
 type GreetBody struct {
 	PeerCard PeerCard `json:"peer_card"`

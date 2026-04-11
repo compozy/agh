@@ -387,7 +387,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("validate hooks config: %w", err)
 	}
 	if err := c.Network.Validate(); err != nil {
-		return err
+		return fmt.Errorf("validate network config: %w", err)
 	}
 
 	for name := range c.Providers {
@@ -530,6 +530,8 @@ func (c SkillsConfig) Validate() error {
 
 var networkSpacePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 
+const maxNetworkDurationSeconds = int64(1<<63-1) / int64(time.Second)
+
 // Validate ensures the network configuration is internally consistent.
 func (c NetworkConfig) Validate() error {
 	defaultSpace := strings.TrimSpace(c.DefaultSpace)
@@ -551,8 +553,14 @@ func (c NetworkConfig) Validate() error {
 	if c.GreetInterval <= 0 {
 		return fmt.Errorf("network.greet_interval must be positive seconds: %d", c.GreetInterval)
 	}
+	if int64(c.GreetInterval) > maxNetworkDurationSeconds {
+		return fmt.Errorf("network.greet_interval must be between 1 and %d seconds: %d", maxNetworkDurationSeconds, c.GreetInterval)
+	}
 	if c.MaxReplayAge <= 0 {
 		return fmt.Errorf("network.max_replay_age must be positive seconds: %d", c.MaxReplayAge)
+	}
+	if int64(c.MaxReplayAge) > maxNetworkDurationSeconds {
+		return fmt.Errorf("network.max_replay_age must be between 1 and %d seconds: %d", maxNetworkDurationSeconds, c.MaxReplayAge)
 	}
 	if c.MaxQueueDepth <= 0 {
 		return fmt.Errorf("network.max_queue_depth must be positive: %d", c.MaxQueueDepth)

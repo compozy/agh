@@ -11,9 +11,14 @@ func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 
 	validKinds := []Kind{KindGreet, KindWhois, KindSay, KindDirect, KindRecipe, KindReceipt, KindTrace}
 	for _, kind := range validKinds {
-		if err := kind.Validate(); err != nil {
-			t.Fatalf("Kind(%q).Validate() error = %v", kind, err)
-		}
+		kind := kind
+		t.Run("ShouldValidateKnownKind"+string(kind), func(t *testing.T) {
+			t.Parallel()
+
+			if err := kind.Validate(); err != nil {
+				t.Fatalf("Kind(%q).Validate() error = %v", kind, err)
+			}
+		})
 	}
 	if err := Kind("invalid").Validate(); !errors.Is(err, ErrInvalidKind) {
 		t.Fatalf("Kind(invalid).Validate() error = %v, want ErrInvalidKind", err)
@@ -28,9 +33,14 @@ func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 		ReceiptStatusCanceled,
 	}
 	for _, status := range validReceiptStatuses {
-		if err := status.Validate(); err != nil {
-			t.Fatalf("ReceiptStatus(%q).Validate() error = %v", status, err)
-		}
+		status := status
+		t.Run("ShouldValidateKnownReceiptStatus"+string(status), func(t *testing.T) {
+			t.Parallel()
+
+			if err := status.Validate(); err != nil {
+				t.Fatalf("ReceiptStatus(%q).Validate() error = %v", status, err)
+			}
+		})
 	}
 	if err := ReceiptStatus("unknown").Validate(); !errors.Is(err, ErrInvalidField) {
 		t.Fatalf("ReceiptStatus(unknown).Validate() error = %v, want ErrInvalidField", err)
@@ -199,23 +209,29 @@ func TestInteractionValidationAndTraceMatrix(t *testing.T) {
 	}
 
 	matrix := []struct {
+		name    string
 		current InteractionState
 		next    InteractionState
 		want    bool
 	}{
-		{current: StateSubmitted, next: StateWorking, want: true},
-		{current: StateSubmitted, next: StateSubmitted, want: false},
-		{current: StateWorking, next: StateCompleted, want: true},
-		{current: StateWorking, next: StateSubmitted, want: false},
-		{current: StateNeedsInput, next: StateWorking, want: true},
-		{current: StateNeedsInput, next: StateCanceled, want: true},
-		{current: StateCompleted, next: StateWorking, want: false},
+		{name: "ShouldAllowSubmittedToWorking", current: StateSubmitted, next: StateWorking, want: true},
+		{name: "ShouldRejectSubmittedToSubmitted", current: StateSubmitted, next: StateSubmitted, want: false},
+		{name: "ShouldAllowWorkingToCompleted", current: StateWorking, next: StateCompleted, want: true},
+		{name: "ShouldRejectWorkingToSubmitted", current: StateWorking, next: StateSubmitted, want: false},
+		{name: "ShouldAllowNeedsInputToWorking", current: StateNeedsInput, next: StateWorking, want: true},
+		{name: "ShouldAllowNeedsInputToCanceled", current: StateNeedsInput, next: StateCanceled, want: true},
+		{name: "ShouldRejectCompletedToWorking", current: StateCompleted, next: StateWorking, want: false},
 	}
 
 	for _, tc := range matrix {
-		if got := canApplyTrace(tc.current, tc.next); got != tc.want {
-			t.Fatalf("canApplyTrace(%q, %q) = %v, want %v", tc.current, tc.next, got, tc.want)
-		}
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := canApplyTrace(tc.current, tc.next); got != tc.want {
+				t.Fatalf("canApplyTrace(%q, %q) = %v, want %v", tc.current, tc.next, got, tc.want)
+			}
+		})
 	}
 }
 

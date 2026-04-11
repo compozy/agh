@@ -1,6 +1,7 @@
 package network
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -309,6 +310,9 @@ func (c *deliveryCoordinator) runWorker(sessionID string, state *deliveryState) 
 				"envelope_id", envelope.ID,
 				"error", err,
 			)
+			if json.Valid(envelope.Body) {
+				c.retryAfterWorkerExit(target, state)
+			}
 			return
 		}
 
@@ -322,6 +326,7 @@ func (c *deliveryCoordinator) runWorker(sessionID string, state *deliveryState) 
 				"envelope_id", envelope.ID,
 				"error", err,
 			)
+			c.retryAfterWorkerExit(target, state)
 			return
 		}
 
@@ -393,6 +398,36 @@ func (c *deliveryCoordinator) requeueFront(sessionID string, item queuedEnvelope
 		return
 	}
 	queue.prepend(item)
+}
+
+func (c *deliveryCoordinator) retryAfterWorkerExit(sessionID string, state *deliveryState) {
+	if c == nil || state == nil {
+		return
+	}
+
+	target := strings.TrimSpace(sessionID)
+	if target == "" {
+		return
+	}
+
+	go func() {
+		select {
+		case <-state.done:
+		case <-c.lifecycleCtx.Done():
+			return
+		}
+
+		if err := c.lifecycleCtx.Err(); err != nil {
+			return
+		}
+		if c.prompter.IsPrompting(target) {
+			return
+		}
+		if c.queueDepth(target) == 0 {
+			return
+		}
+		c.trigger(target)
+	}()
 }
 
 func (c *deliveryCoordinator) stats() deliveryCoordinatorStats {
@@ -523,17 +558,26 @@ func (q *inboundQueue) len() int {
 
 func formatNetworkMessage(envelope Envelope) (string, error) {
 	body, err := envelope.DecodeBody()
-	if err != nil {
-		return "", fmt.Errorf("network: decode envelope body for delivery: %w", err)
-	}
+	preview := ""
 
-	canonicalBody, err := json.Marshal(body)
-	if err != nil {
-		return "", fmt.Errorf("network: marshal canonical body for delivery: %w", err)
+	var canonicalBody []byte
+	switch {
+	case err == nil:
+		canonicalBody, err = json.Marshal(body)
+		if err != nil {
+			return "", fmt.Errorf("network: marshal canonical body for delivery: %w", err)
+		}
+		preview = previewForBody(body)
+	case !json.Valid(envelope.Body):
+		return "", fmt.Errorf("network: decode envelope body for delivery: %w", err)
+	default:
+		var compact bytes.Buffer
+		if compactErr := json.Compact(&compact, envelope.Body); compactErr != nil {
+			return "", fmt.Errorf("network: compact raw envelope body for delivery: %w", compactErr)
+		}
+		canonicalBody = compact.Bytes()
 	}
 	encodedBody := base64.StdEncoding.EncodeToString(canonicalBody)
-
-	preview := previewForBody(body)
 
 	var builder strings.Builder
 	builder.WriteString("<network-message")

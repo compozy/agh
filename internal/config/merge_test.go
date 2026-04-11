@@ -3,6 +3,8 @@ package config
 import (
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -92,15 +94,16 @@ enabled = true
 func TestApplyConfigOverlayFileAppliesNetworkOverlay(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
+	t.Run("ShouldApplyNetworkOverlay", func(t *testing.T) {
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
 
-	cfg := DefaultWithHome(homePaths)
+		cfg := DefaultWithHome(homePaths)
 
-	overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
-	writeFile(t, overlayPath, `
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlayPath, `
 [network]
 enabled = true
 default_space = "builders"
@@ -111,29 +114,102 @@ max_replay_age = 90
 max_queue_depth = 12
 `)
 
-	if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
-		t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+
+		if !cfg.Network.Enabled {
+			t.Fatal("ApplyConfigOverlayFile() Network.Enabled = false, want true")
+		}
+		if got, want := cfg.Network.DefaultSpace, "builders"; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Network.DefaultSpace = %q, want %q", got, want)
+		}
+		if got, want := cfg.Network.Port, 4555; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Network.Port = %d, want %d", got, want)
+		}
+		if got, want := cfg.Network.MaxPayload, 12345; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Network.MaxPayload = %d, want %d", got, want)
+		}
+		if got, want := cfg.Network.GreetInterval, 15; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Network.GreetInterval = %d, want %d", got, want)
+		}
+		if got, want := cfg.Network.MaxReplayAge, 90; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Network.MaxReplayAge = %d, want %d", got, want)
+		}
+		if got, want := cfg.Network.MaxQueueDepth, 12; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Network.MaxQueueDepth = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestValidateWrapsNetworkErrorsWithConfigContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldWrapNetworkValidationErrorsWithConfigContext", func(t *testing.T) {
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		cfg := DefaultWithHome(homePaths)
+		cfg.Network.Port = 0
+
+		err = cfg.Validate()
+		if err == nil {
+			t.Fatal("Validate() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "validate network config") || !strings.Contains(err.Error(), "network.port") {
+			t.Fatalf("Validate() error = %q, want config and network context", err)
+		}
+	})
+}
+
+func TestValidateRejectsOverflowingNetworkDurations(t *testing.T) {
+	t.Parallel()
+
+	if strconv.IntSize < 64 {
+		t.Skip("overflow validation requires 64-bit int")
 	}
 
-	if !cfg.Network.Enabled {
-		t.Fatal("ApplyConfigOverlayFile() Network.Enabled = false, want true")
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+		field  string
+	}{
+		{
+			name: "ShouldRejectOverflowingGreetInterval",
+			mutate: func(cfg *Config) {
+				cfg.Network.GreetInterval = int(maxNetworkDurationSeconds + 1)
+			},
+			field: "network.greet_interval",
+		},
+		{
+			name: "ShouldRejectOverflowingReplayAge",
+			mutate: func(cfg *Config) {
+				cfg.Network.MaxReplayAge = int(maxNetworkDurationSeconds + 1)
+			},
+			field: "network.max_replay_age",
+		},
 	}
-	if got, want := cfg.Network.DefaultSpace, "builders"; got != want {
-		t.Fatalf("ApplyConfigOverlayFile() Network.DefaultSpace = %q, want %q", got, want)
-	}
-	if got, want := cfg.Network.Port, 4555; got != want {
-		t.Fatalf("ApplyConfigOverlayFile() Network.Port = %d, want %d", got, want)
-	}
-	if got, want := cfg.Network.MaxPayload, 12345; got != want {
-		t.Fatalf("ApplyConfigOverlayFile() Network.MaxPayload = %d, want %d", got, want)
-	}
-	if got, want := cfg.Network.GreetInterval, 15; got != want {
-		t.Fatalf("ApplyConfigOverlayFile() Network.GreetInterval = %d, want %d", got, want)
-	}
-	if got, want := cfg.Network.MaxReplayAge, 90; got != want {
-		t.Fatalf("ApplyConfigOverlayFile() Network.MaxReplayAge = %d, want %d", got, want)
-	}
-	if got, want := cfg.Network.MaxQueueDepth, 12; got != want {
-		t.Fatalf("ApplyConfigOverlayFile() Network.MaxQueueDepth = %d, want %d", got, want)
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+
+			cfg := DefaultWithHome(homePaths)
+			tc.mutate(&cfg)
+
+			err = cfg.Validate()
+			if err == nil {
+				t.Fatalf("Validate() error = nil, want non-nil for %s", tc.field)
+			}
+			if !strings.Contains(err.Error(), tc.field) {
+				t.Fatalf("Validate() error = %q, want field %q", err, tc.field)
+			}
+		})
 	}
 }

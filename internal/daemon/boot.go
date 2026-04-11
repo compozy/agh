@@ -414,7 +414,7 @@ func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *boo
 
 	bindable, ok := state.sessions.(networkBindableSessionManager)
 	if !ok {
-		return errors.New("daemon: session manager does not implement the network binding surface")
+		return errMissingNetworkBindingSurface
 	}
 
 	manager, err := network.NewManager(

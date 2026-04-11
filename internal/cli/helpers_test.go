@@ -81,6 +81,8 @@ type stubClient struct {
 	getAutomationRunFn        func(context.Context, string) (RunRecord, error)
 }
 
+var _ DaemonClient = stubClient{}
+
 func (s stubClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
 	if s.daemonStatusFn != nil {
 		return s.daemonStatusFn(ctx)
