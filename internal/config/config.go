@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
+	automationpkg "github.com/pedronauck/agh/internal/automation/model"
 )
 
 const (

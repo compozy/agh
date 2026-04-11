@@ -1,68 +1,39 @@
 package automation
 
-import (
-	"errors"
-	"time"
-)
+import modelpkg "github.com/pedronauck/agh/internal/automation/model"
 
 var (
 	// ErrJobNotFound reports that the requested automation job does not exist.
-	ErrJobNotFound = errors.New("automation: job not found")
+	ErrJobNotFound = modelpkg.ErrJobNotFound
 	// ErrTriggerNotFound reports that the requested automation trigger does not exist.
-	ErrTriggerNotFound = errors.New("automation: trigger not found")
+	ErrTriggerNotFound = modelpkg.ErrTriggerNotFound
 	// ErrRunNotFound reports that the requested automation run does not exist.
-	ErrRunNotFound = errors.New("automation: run not found")
+	ErrRunNotFound = modelpkg.ErrRunNotFound
 	// ErrJobNameTaken reports a duplicate job name within the same automation scope.
-	ErrJobNameTaken = errors.New("automation: job name already exists in scope")
+	ErrJobNameTaken = modelpkg.ErrJobNameTaken
 	// ErrTriggerNameTaken reports a duplicate trigger name within the same automation scope.
-	ErrTriggerNameTaken = errors.New("automation: trigger name already exists in scope")
+	ErrTriggerNameTaken = modelpkg.ErrTriggerNameTaken
 	// ErrTriggerWebhookIDTaken reports a duplicate stable webhook identifier.
-	ErrTriggerWebhookIDTaken = errors.New("automation: trigger webhook id already exists")
+	ErrTriggerWebhookIDTaken = modelpkg.ErrTriggerWebhookIDTaken
 	// ErrOverlayRequiresConfigSource reports that enabled overlays only apply to TOML-backed definitions.
-	ErrOverlayRequiresConfigSource = errors.New("automation: enabled overlays require config source")
+	ErrOverlayRequiresConfigSource = modelpkg.ErrOverlayRequiresConfigSource
 	// ErrJobOverlayNotFound reports that a job enabled overlay row does not exist.
-	ErrJobOverlayNotFound = errors.New("automation: job enabled overlay not found")
+	ErrJobOverlayNotFound = modelpkg.ErrJobOverlayNotFound
 	// ErrTriggerOverlayNotFound reports that a trigger enabled overlay row does not exist.
-	ErrTriggerOverlayNotFound = errors.New("automation: trigger enabled overlay not found")
+	ErrTriggerOverlayNotFound = modelpkg.ErrTriggerOverlayNotFound
 )
 
 // JobListQuery filters persisted automation job listings.
-type JobListQuery struct {
-	Scope       AutomationScope `json:"scope,omitempty"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	Source      JobSource       `json:"source,omitempty"`
-	Limit       int             `json:"limit,omitempty"`
-}
+type JobListQuery = modelpkg.JobListQuery
 
 // TriggerListQuery filters persisted automation trigger listings.
-type TriggerListQuery struct {
-	Scope       AutomationScope `json:"scope,omitempty"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	Event       string          `json:"event,omitempty"`
-	Source      JobSource       `json:"source,omitempty"`
-	Limit       int             `json:"limit,omitempty"`
-}
+type TriggerListQuery = modelpkg.TriggerListQuery
 
 // RunQuery filters automation run history and fire-limit window lookups.
-type RunQuery struct {
-	JobID     string    `json:"job_id,omitempty"`
-	TriggerID string    `json:"trigger_id,omitempty"`
-	Status    RunStatus `json:"status,omitempty"`
-	Since     time.Time `json:"since,omitempty"`
-	Until     time.Time `json:"until,omitempty"`
-	Limit     int       `json:"limit,omitempty"`
-}
+type RunQuery = modelpkg.RunQuery
 
 // JobEnabledOverlay stores the runtime enabled override for a config-backed job.
-type JobEnabledOverlay struct {
-	JobID           string    `json:"job_id"`
-	EnabledOverride bool      `json:"enabled_override"`
-	UpdatedAt       time.Time `json:"updated_at"`
-}
+type JobEnabledOverlay = modelpkg.JobEnabledOverlay
 
 // TriggerEnabledOverlay stores the runtime enabled override for a config-backed trigger.
-type TriggerEnabledOverlay struct {
-	TriggerID       string    `json:"trigger_id"`
-	EnabledOverride bool      `json:"enabled_override"`
-	UpdatedAt       time.Time `json:"updated_at"`
-}
+type TriggerEnabledOverlay = modelpkg.TriggerEnabledOverlay

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	automationpkg "github.com/pedronauck/agh/internal/automation"
+	automationpkg "github.com/pedronauck/agh/internal/automation/model"
 )
 
 // AutomationConfig holds TOML-defined automation defaults, jobs, and triggers.

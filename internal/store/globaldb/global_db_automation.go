@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/automation"
+	automation "github.com/pedronauck/agh/internal/automation/model"
 	"github.com/pedronauck/agh/internal/store"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
