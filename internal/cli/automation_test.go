@@ -485,7 +485,18 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 	if err := json.Unmarshal([]byte(updatedTriggerJSON), &updated); err != nil {
 		t.Fatalf("json.Unmarshal(trigger update) error = %v", err)
 	}
-	if updated.ID != "trg-1" || updateTriggerRequest.Retry == nil || updateTriggerRequest.Retry.Strategy != automationpkg.RetryStrategyBackoff || updateTriggerRequest.Filter["data.branch"] != "main" || updateTriggerRequest.WebhookSecret == nil || *updateTriggerRequest.WebhookSecret != "shared-secret" {
+	if updated.ID != "trg-1" ||
+		updateTriggerRequest.Event == nil ||
+		*updateTriggerRequest.Event != "webhook" ||
+		updateTriggerRequest.Retry == nil ||
+		updateTriggerRequest.Retry.Strategy != automationpkg.RetryStrategyBackoff ||
+		updateTriggerRequest.Filter["data.branch"] != "main" ||
+		updateTriggerRequest.WebhookID == nil ||
+		*updateTriggerRequest.WebhookID != "wbh_123" ||
+		updateTriggerRequest.EndpointSlug == nil ||
+		*updateTriggerRequest.EndpointSlug != "branch-review" ||
+		updateTriggerRequest.WebhookSecret == nil ||
+		*updateTriggerRequest.WebhookSecret != "shared-secret" {
 		t.Fatalf("updateTriggerRequest = %#v, want parsed trigger update request", updateTriggerRequest)
 	}
 

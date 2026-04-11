@@ -206,25 +206,17 @@ func (o automationOverlay) Apply(dst *AutomationConfig) error {
 		dst.DefaultFireLimit = *o.DefaultFireLimit
 	}
 
-	for i, raw := range o.Jobs {
-		job, err := raw.toAutomationJob(dst.DefaultFireLimit)
-		if err != nil {
-			return fmt.Errorf("automation.jobs[%d]: %w", i, err)
-		}
-		dst.Jobs = append(dst.Jobs, job)
+	for _, raw := range o.Jobs {
+		dst.Jobs = append(dst.Jobs, raw.toAutomationJob(dst.DefaultFireLimit))
 	}
-	for i, raw := range o.Triggers {
-		trigger, err := raw.toAutomationTrigger(dst.DefaultFireLimit)
-		if err != nil {
-			return fmt.Errorf("automation.triggers[%d]: %w", i, err)
-		}
-		dst.Triggers = append(dst.Triggers, trigger)
+	for _, raw := range o.Triggers {
+		dst.Triggers = append(dst.Triggers, raw.toAutomationTrigger(dst.DefaultFireLimit))
 	}
 
 	return nil
 }
 
-func (j parsedAutomationJob) toAutomationJob(defaultFireLimit automationpkg.FireLimitConfig) (AutomationJob, error) {
+func (j parsedAutomationJob) toAutomationJob(defaultFireLimit automationpkg.FireLimitConfig) AutomationJob {
 	job := AutomationJob{
 		Scope:     j.Scope,
 		Name:      j.Name,
@@ -249,10 +241,10 @@ func (j parsedAutomationJob) toAutomationJob(defaultFireLimit automationpkg.Fire
 		job.FireLimit = *j.FireLimit
 	}
 
-	return job, nil
+	return job
 }
 
-func (t parsedAutomationTrigger) toAutomationTrigger(defaultFireLimit automationpkg.FireLimitConfig) (AutomationTrigger, error) {
+func (t parsedAutomationTrigger) toAutomationTrigger(defaultFireLimit automationpkg.FireLimitConfig) AutomationTrigger {
 	trigger := AutomationTrigger{
 		Scope:        t.Scope,
 		Name:         t.Name,
@@ -277,5 +269,5 @@ func (t parsedAutomationTrigger) toAutomationTrigger(defaultFireLimit automation
 		trigger.FireLimit = *t.FireLimit
 	}
 
-	return trigger, nil
+	return trigger
 }

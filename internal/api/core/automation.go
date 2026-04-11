@@ -23,6 +23,11 @@ const (
 	// WebhookSignatureHeader is the required HTTP header that carries the HMAC
 	// signature for webhook delivery.
 	WebhookSignatureHeader = "X-AGH-Webhook-Signature"
+	// WebhookDeliveryIDHeader identifies one webhook delivery so replayed
+	// requests can be rejected inside the trigger engine.
+	WebhookDeliveryIDHeader = "X-AGH-Webhook-Delivery-ID"
+
+	maxWebhookPayloadSize = 1 << 20
 )
 
 // ListAutomationJobs returns the filtered automation job list.
@@ -614,9 +619,18 @@ func webhookRequestFromHTTP(c *gin.Context, scope automationpkg.AutomationScope)
 	if signature == "" {
 		return automationpkg.WebhookRequest{}, NewAutomationValidationError(errors.New("webhook signature header is required"))
 	}
+	deliveryID := strings.TrimSpace(c.GetHeader(WebhookDeliveryIDHeader))
+	if deliveryID == "" {
+		return automationpkg.WebhookRequest{}, NewAutomationValidationError(errors.New("webhook delivery id header is required"))
+	}
 
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxWebhookPayloadSize)
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return automationpkg.WebhookRequest{}, NewAutomationValidationError(fmt.Errorf("webhook request body exceeds %d bytes: %w", maxWebhookPayloadSize, err))
+		}
 		return automationpkg.WebhookRequest{}, fmt.Errorf("%s: read webhook request body: %w", c.FullPath(), err)
 	}
 
@@ -624,6 +638,7 @@ func webhookRequestFromHTTP(c *gin.Context, scope automationpkg.AutomationScope)
 		Scope:       scope,
 		WorkspaceID: workspaceID,
 		Endpoint:    endpoint,
+		DeliveryID:  deliveryID,
 		Timestamp:   timestamp,
 		Signature:   signature,
 		Payload:     payload,

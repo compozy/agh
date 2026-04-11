@@ -246,16 +246,29 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 	sessionID := createIntegrationSession(t, runtime)
 	stopIntegrationSession(t, runtime, sessionID)
 
-	runsResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/triggers/"+created.Trigger.ID+"/runs", nil, nil)
-	if runsResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(runsResp.Body)
-		_ = runsResp.Body.Close()
-		t.Fatalf("trigger runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
-	}
 	var runs contract.RunsResponse
-	decodeHTTPJSON(t, runsResp, &runs)
-	if len(runs.Runs) == 0 {
-		t.Fatalf("expected trigger run history, got %#v", runs.Runs)
+	deadline := time.After(2 * time.Second)
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		runsResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/triggers/"+created.Trigger.ID+"/runs", nil, nil)
+		if runsResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(runsResp.Body)
+			_ = runsResp.Body.Close()
+			t.Fatalf("trigger runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
+		}
+
+		runs = contract.RunsResponse{}
+		decodeHTTPJSON(t, runsResp, &runs)
+		if len(runs.Runs) > 0 {
+			break
+		}
+
+		select {
+		case <-deadline:
+			t.Fatalf("expected trigger run history, got %#v", runs.Runs)
+		case <-ticker.C:
+		}
 	}
 	runID := runs.Runs[0].ID
 

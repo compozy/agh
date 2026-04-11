@@ -33,6 +33,9 @@ var (
 	ErrWebhookSignatureInvalid = errors.New("automation: webhook signature invalid")
 	// ErrWebhookSecretRequired reports that a webhook registration did not provide auth material.
 	ErrWebhookSecretRequired = errors.New("automation: webhook secret is required")
+	// ErrWebhookReplayDetected reports that the same authenticated delivery id
+	// was already processed within the replay window.
+	ErrWebhookReplayDetected = errors.New("automation: webhook delivery already processed")
 )
 
 const (
@@ -101,6 +104,7 @@ type WebhookRequest struct {
 	Scope       AutomationScope `json:"scope"`
 	WorkspaceID string          `json:"workspace_id,omitempty"`
 	Endpoint    string          `json:"endpoint"`
+	DeliveryID  string          `json:"delivery_id"`
 	Timestamp   time.Time       `json:"timestamp"`
 	Signature   string          `json:"signature"`
 	Payload     []byte          `json:"payload,omitempty"`
@@ -114,6 +118,9 @@ func (r WebhookRequest) Validate(path string) error {
 	}
 	if strings.TrimSpace(r.Endpoint) == "" {
 		return errors.New(nestedPath(path, "endpoint") + " is required")
+	}
+	if strings.TrimSpace(r.DeliveryID) == "" {
+		return errors.New(nestedPath(path, "delivery_id") + " is required")
 	}
 	if r.Timestamp.IsZero() {
 		return errors.New(nestedPath(path, "timestamp") + " is required")
@@ -149,6 +156,7 @@ type TriggerEngine struct {
 	stopped       bool
 	registrations map[string]TriggerRegistration
 	webhookIndex  map[string]string
+	deliveries    map[string]time.Time
 }
 
 // NewTriggerEngine constructs a trigger runtime over the shared dispatcher path.
@@ -164,6 +172,7 @@ func NewTriggerEngine(dispatcher TriggerDispatcher, opts ...TriggerEngineOption)
 		webhookFreshnessWindow: DefaultWebhookFreshnessWindow,
 		registrations:          make(map[string]TriggerRegistration),
 		webhookIndex:           make(map[string]string),
+		deliveries:             make(map[string]time.Time),
 	}
 
 	for _, opt := range opts {
@@ -186,6 +195,9 @@ func NewTriggerEngine(dispatcher TriggerDispatcher, opts ...TriggerEngineOption)
 	}
 	if engine.webhookIndex == nil {
 		engine.webhookIndex = make(map[string]string)
+	}
+	if engine.deliveries == nil {
+		engine.deliveries = make(map[string]time.Time)
 	}
 
 	return engine, nil
@@ -250,6 +262,7 @@ func (e *TriggerEngine) Shutdown(ctx context.Context) error {
 	e.stopped = true
 	e.registrations = make(map[string]TriggerRegistration)
 	e.webhookIndex = make(map[string]string)
+	e.deliveries = make(map[string]time.Time)
 	return nil
 }
 
@@ -397,6 +410,9 @@ func (e *TriggerEngine) HandleWebhook(ctx context.Context, request WebhookReques
 		return TriggerResult{}, err
 	}
 	if err := ValidateWebhookSignature(registration.WebhookSecret, request.Timestamp, request.Payload, request.Signature); err != nil {
+		return TriggerResult{}, err
+	}
+	if err := e.claimWebhookDelivery(registration.Trigger.ID, request.DeliveryID); err != nil {
 		return TriggerResult{}, err
 	}
 
@@ -618,6 +634,39 @@ func (e *TriggerEngine) deleteWebhookIndexLocked(triggerID string) {
 	if webhookID := strings.TrimSpace(registration.Trigger.WebhookID); webhookID != "" {
 		delete(e.webhookIndex, webhookID)
 	}
+}
+
+func (e *TriggerEngine) claimWebhookDelivery(triggerID string, deliveryID string) error {
+	now := e.now()
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.stopped {
+		return ErrTriggerEngineStopped
+	}
+
+	e.purgeDeliveriesLocked(now)
+
+	key := webhookDeliveryKey(triggerID, deliveryID)
+	if expiresAt, exists := e.deliveries[key]; exists && expiresAt.After(now) {
+		return ErrWebhookReplayDetected
+	}
+
+	e.deliveries[key] = now.Add(e.webhookFreshnessWindow)
+	return nil
+}
+
+func (e *TriggerEngine) purgeDeliveriesLocked(now time.Time) {
+	for key, expiresAt := range e.deliveries {
+		if !expiresAt.After(now) {
+			delete(e.deliveries, key)
+		}
+	}
+}
+
+func webhookDeliveryKey(triggerID string, deliveryID string) string {
+	return strings.TrimSpace(triggerID) + "\x00" + strings.TrimSpace(deliveryID)
 }
 
 func (e *TriggerEngine) hookCompletionEnvelope(ctx context.Context, sessionID string, record hookspkg.HookRunRecord) (ActivationEnvelope, error) {

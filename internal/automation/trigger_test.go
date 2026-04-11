@@ -123,11 +123,12 @@ func TestTriggerEngineRejectsInvalidWebhookSignatureBeforeDispatch(t *testing.T)
 	}
 
 	result, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
-		Scope:     AutomationScopeGlobal,
-		Endpoint:  "deploy-review--" + trigger.WebhookID,
-		Timestamp: now,
-		Signature: "sha256=deadbeef",
-		Payload:   []byte(`{"payload":"deploy"}`),
+		Scope:      AutomationScopeGlobal,
+		Endpoint:   "deploy-review--" + trigger.WebhookID,
+		DeliveryID: "delivery-invalid-signature",
+		Timestamp:  now,
+		Signature:  "sha256=deadbeef",
+		Payload:    []byte(`{"payload":"deploy"}`),
 	})
 	if !errors.Is(err, ErrWebhookSignatureInvalid) {
 		t.Fatalf("HandleWebhook() error = %v, want ErrWebhookSignatureInvalid", err)
@@ -169,11 +170,12 @@ func TestTriggerEngineRejectsStaleWebhookTimestampBeforeDispatch(t *testing.T) {
 	}
 
 	result, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
-		Scope:     AutomationScopeGlobal,
-		Endpoint:  "deploy-review--" + trigger.WebhookID,
-		Timestamp: staleTimestamp,
-		Signature: signature,
-		Payload:   []byte(`{"payload":"deploy"}`),
+		Scope:      AutomationScopeGlobal,
+		Endpoint:   "deploy-review--" + trigger.WebhookID,
+		DeliveryID: "delivery-stale",
+		Timestamp:  staleTimestamp,
+		Signature:  signature,
+		Payload:    []byte(`{"payload":"deploy"}`),
 	})
 	if !errors.Is(err, ErrWebhookTimestampInvalid) {
 		t.Fatalf("HandleWebhook() error = %v, want ErrWebhookTimestampInvalid", err)
@@ -303,11 +305,12 @@ func TestTriggerEngineHandleWebhookDispatchesValidRequest(t *testing.T) {
 	}
 
 	result, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
-		Scope:     AutomationScopeGlobal,
-		Endpoint:  "deploy-review--" + trigger.WebhookID,
-		Timestamp: now,
-		Signature: signature,
-		Payload:   payload,
+		Scope:      AutomationScopeGlobal,
+		Endpoint:   "deploy-review--" + trigger.WebhookID,
+		DeliveryID: "delivery-valid",
+		Timestamp:  now,
+		Signature:  signature,
+		Payload:    payload,
 		Data: map[string]any{
 			"payload": "deploy",
 		},
@@ -323,6 +326,88 @@ func TestTriggerEngineHandleWebhookDispatchesValidRequest(t *testing.T) {
 	}
 	if got, want := creator.promptCalls()[0].message, "Review payload deploy"; got != want {
 		t.Fatalf("Prompt().message = %q, want %q", got, want)
+	}
+}
+
+func TestTriggerEngineRejectsReplayedWebhookDeliveriesWithinFreshnessWindow(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	current := time.Date(2026, 4, 11, 5, 0, 0, 0, time.UTC)
+	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherNow(func() time.Time { return current }))
+	engine := newTestTriggerEngine(
+		t,
+		dispatcher,
+		WithTriggerEngineNow(func() time.Time { return current }),
+		WithTriggerEngineWebhookFreshnessWindow(5*time.Minute),
+	)
+
+	trigger := testWebhookTrigger(AutomationScopeGlobal, "webhook-replay", "")
+	if err := engine.Register(TriggerRegistration{
+		Trigger:       trigger,
+		WebhookSecret: "shared-secret",
+	}); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+
+	payload := []byte(`{"payload":"deploy"}`)
+	signature, err := SignWebhookPayload("shared-secret", current, payload)
+	if err != nil {
+		t.Fatalf("SignWebhookPayload() error = %v", err)
+	}
+
+	firstResult, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
+		Scope:      AutomationScopeGlobal,
+		Endpoint:   "deploy-review--" + trigger.WebhookID,
+		DeliveryID: "delivery-replay",
+		Timestamp:  current,
+		Signature:  signature,
+		Payload:    payload,
+	})
+	if err != nil {
+		t.Fatalf("HandleWebhook(first) error = %v", err)
+	}
+	if got, want := firstResult.Matched, 1; got != want {
+		t.Fatalf("firstResult.Matched = %d, want %d", got, want)
+	}
+
+	secondResult, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
+		Scope:      AutomationScopeGlobal,
+		Endpoint:   "deploy-review--" + trigger.WebhookID,
+		DeliveryID: "delivery-replay",
+		Timestamp:  current,
+		Signature:  signature,
+		Payload:    payload,
+	})
+	if !errors.Is(err, ErrWebhookReplayDetected) {
+		t.Fatalf("HandleWebhook(replay) error = %v, want ErrWebhookReplayDetected", err)
+	}
+	if got := secondResult.Matched; got != 0 {
+		t.Fatalf("secondResult.Matched = %d, want 0", got)
+	}
+	if got, want := len(creator.promptCalls()), 1; got != want {
+		t.Fatalf("len(Prompt calls after replay) = %d, want %d", got, want)
+	}
+
+	current = current.Add(6 * time.Minute)
+	signature, err = SignWebhookPayload("shared-secret", current, payload)
+	if err != nil {
+		t.Fatalf("SignWebhookPayload(after expiry) error = %v", err)
+	}
+	thirdResult, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
+		Scope:      AutomationScopeGlobal,
+		Endpoint:   "deploy-review--" + trigger.WebhookID,
+		DeliveryID: "delivery-replay",
+		Timestamp:  current,
+		Signature:  signature,
+		Payload:    payload,
+	})
+	if err != nil {
+		t.Fatalf("HandleWebhook(after expiry) error = %v", err)
+	}
+	if got, want := thirdResult.Matched, 1; got != want {
+		t.Fatalf("thirdResult.Matched = %d, want %d", got, want)
 	}
 }
 
@@ -462,13 +547,18 @@ func TestEnvelopeFilterValueHandlesNestedMapsAndScalarKinds(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		got, ok := envelopeFilterValue(envelope, tc.path)
-		if ok != tc.wantOK {
-			t.Fatalf("envelopeFilterValue(%q) ok = %v, want %v", tc.path, ok, tc.wantOK)
-		}
-		if ok && got != tc.want {
-			t.Fatalf("envelopeFilterValue(%q) = %q, want %q", tc.path, got, tc.want)
-		}
+		tc := tc
+		t.Run("Should resolve "+tc.path, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := envelopeFilterValue(envelope, tc.path)
+			if ok != tc.wantOK {
+				t.Fatalf("envelopeFilterValue(%q) ok = %v, want %v", tc.path, ok, tc.wantOK)
+			}
+			if ok && got != tc.want {
+				t.Fatalf("envelopeFilterValue(%q) = %q, want %q", tc.path, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -500,13 +590,18 @@ func TestStringifyEnvelopeValueHandlesScalarKindsAndFallbacks(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		got, ok := stringifyEnvelopeValue(tc.value)
-		if ok != tc.wantOK {
-			t.Fatalf("stringifyEnvelopeValue(%s) ok = %v, want %v", tc.name, ok, tc.wantOK)
-		}
-		if got != tc.want {
-			t.Fatalf("stringifyEnvelopeValue(%s) = %q, want %q", tc.name, got, tc.want)
-		}
+		tc := tc
+		t.Run("Should stringify "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := stringifyEnvelopeValue(tc.value)
+			if ok != tc.wantOK {
+				t.Fatalf("stringifyEnvelopeValue(%s) ok = %v, want %v", tc.name, ok, tc.wantOK)
+			}
+			if got != tc.want {
+				t.Fatalf("stringifyEnvelopeValue(%s) = %q, want %q", tc.name, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -558,6 +653,7 @@ func TestTriggerEngineRejectsWebhookScopeMismatchAndDuplicateWebhookID(t *testin
 		Scope:       AutomationScopeWorkspace,
 		WorkspaceID: "ws_alpha",
 		Endpoint:    "deploy-review--wbh_duplicate",
+		DeliveryID:  "delivery-scope-mismatch",
 		Timestamp:   now,
 		Signature:   signature,
 		Payload:     []byte(`{"payload":"deploy"}`),

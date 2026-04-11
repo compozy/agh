@@ -153,6 +153,7 @@ func TestWebhookRequestValidationRejectsInvalidScopeAndMalformedEndpointBeforeDi
 	req := httptest.NewRequest(http.MethodPost, "/api/webhooks/global/not-used", nil)
 	req.Header.Set(WebhookTimestampHeader, time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC).Format(time.RFC3339))
 	req.Header.Set(WebhookSignatureHeader, "sha256=deadbeef")
+	req.Header.Set(WebhookDeliveryIDHeader, "delivery-validation")
 	ctx.Request = req
 	ctx.Params = gin.Params{{Key: "endpoint", Value: "deploy-review--wbh_test"}}
 
@@ -169,8 +170,9 @@ func TestWebhookRequestValidationRejectsInvalidScopeAndMalformedEndpointBeforeDi
 	})
 
 	response := performAutomationCoreRequest(t, router, http.MethodPost, "/webhooks/global/not-an-endpoint", []byte(`{"payload":"deploy"}`), map[string]string{
-		WebhookTimestampHeader: time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC).Format(time.RFC3339),
-		WebhookSignatureHeader: "sha256=deadbeef",
+		WebhookTimestampHeader:  time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		WebhookSignatureHeader:  "sha256=deadbeef",
+		WebhookDeliveryIDHeader: "delivery-malformed-endpoint",
 	})
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("malformed endpoint status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
@@ -439,8 +441,9 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 
 	webhookPayload := []byte(`{"payload":"deploy"}`)
 	webhookDelivery := performAutomationCoreRequest(t, router, http.MethodPost, "/webhooks/workspaces/ws-alpha/deploy-review--wbh_123", webhookPayload, map[string]string{
-		WebhookTimestampHeader: strconv.FormatInt(time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC).Unix(), 10),
-		WebhookSignatureHeader: "sha256=deadbeef",
+		WebhookTimestampHeader:  strconv.FormatInt(time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC).Unix(), 10),
+		WebhookSignatureHeader:  "sha256=deadbeef",
+		WebhookDeliveryIDHeader: "delivery-roundtrip",
 	})
 	if webhookDelivery.Code != http.StatusOK {
 		t.Fatalf("workspace webhook status = %d, want %d; body=%s", webhookDelivery.Code, http.StatusOK, webhookDelivery.Body.String())
@@ -448,7 +451,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 	if webhookRequest.Scope != automationpkg.AutomationScopeWorkspace || webhookRequest.WorkspaceID != "ws-alpha" {
 		t.Fatalf("webhook request scope/workspace = %#v", webhookRequest)
 	}
-	if webhookRequest.Endpoint != "deploy-review--wbh_123" || webhookRequest.Signature != "sha256=deadbeef" {
+	if webhookRequest.Endpoint != "deploy-review--wbh_123" || webhookRequest.Signature != "sha256=deadbeef" || webhookRequest.DeliveryID != "delivery-roundtrip" {
 		t.Fatalf("webhook request routing = %#v", webhookRequest)
 	}
 	if payload := webhookRequest.Data["payload"]; payload != "deploy" {
@@ -458,6 +461,15 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 
 func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 	t.Parallel()
+
+	rootCause := errors.New("bad request")
+	validationErr := NewAutomationValidationError(rootCause)
+	if !errors.Is(validationErr, ErrAutomationValidation) {
+		t.Fatalf("NewAutomationValidationError() = %v, want ErrAutomationValidation", validationErr)
+	}
+	if !errors.Is(validationErr, rootCause) {
+		t.Fatalf("NewAutomationValidationError() = %v, want wrapped root cause", validationErr)
+	}
 
 	if _, err := parseWebhookTimestampHeader(""); err == nil {
 		t.Fatal("parseWebhookTimestampHeader(empty) error = nil, want error")
@@ -590,8 +602,11 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		t.Fatalf("cloneAutomationFilter(nil) = %#v, want nil", clone)
 	}
 
-	if status := StatusForAutomationError(NewAutomationValidationError(errors.New("bad request"))); status != http.StatusBadRequest {
+	if status := StatusForAutomationError(validationErr); status != http.StatusBadRequest {
 		t.Fatalf("StatusForAutomationError(validation) = %d, want %d", status, http.StatusBadRequest)
+	}
+	if status := StatusForAutomationError(&http.MaxBytesError{Limit: maxWebhookPayloadSize}); status != http.StatusRequestEntityTooLarge {
+		t.Fatalf("StatusForAutomationError(max bytes) = %d, want %d", status, http.StatusRequestEntityTooLarge)
 	}
 	if status := StatusForAutomationError(automationpkg.ErrWebhookSignatureInvalid); status != http.StatusUnauthorized {
 		t.Fatalf("StatusForAutomationError(signature) = %d, want %d", status, http.StatusUnauthorized)
@@ -599,11 +614,45 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 	if status := StatusForAutomationError(automationpkg.ErrRunNotFound); status != http.StatusNotFound {
 		t.Fatalf("StatusForAutomationError(not found) = %d, want %d", status, http.StatusNotFound)
 	}
+	if status := StatusForAutomationError(automationpkg.ErrJobOverlayNotFound); status != http.StatusNotFound {
+		t.Fatalf("StatusForAutomationError(job overlay not found) = %d, want %d", status, http.StatusNotFound)
+	}
 	if status := StatusForAutomationError(automationpkg.ErrFireLimitReached); status != http.StatusConflict {
 		t.Fatalf("StatusForAutomationError(conflict) = %d, want %d", status, http.StatusConflict)
 	}
+	if status := StatusForAutomationError(automationpkg.ErrOverlayRequiresConfigSource); status != http.StatusConflict {
+		t.Fatalf("StatusForAutomationError(overlay requires config source) = %d, want %d", status, http.StatusConflict)
+	}
+	if status := StatusForAutomationError(automationpkg.ErrWebhookReplayDetected); status != http.StatusConflict {
+		t.Fatalf("StatusForAutomationError(webhook replay) = %d, want %d", status, http.StatusConflict)
+	}
 	if status := StatusForAutomationError(automationpkg.ErrManagerNotRunning); status != http.StatusServiceUnavailable {
 		t.Fatalf("StatusForAutomationError(unavailable) = %d, want %d", status, http.StatusServiceUnavailable)
+	}
+}
+
+func TestWebhookRequestValidationRejectsBodiesThatExceedTheConfiguredLimit(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	router := newAutomationCoreTestRouter(t, stubAutomationManager{
+		HandleWebhookFn: func(context.Context, automationpkg.WebhookRequest) (automationpkg.TriggerResult, error) {
+			called = true
+			return automationpkg.TriggerResult{}, nil
+		},
+	})
+
+	tooLargeBody := bytes.Repeat([]byte("a"), maxWebhookPayloadSize+1)
+	response := performAutomationCoreRequest(t, router, http.MethodPost, "/webhooks/global/deploy-review--wbh_123", tooLargeBody, map[string]string{
+		WebhookTimestampHeader:  time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		WebhookSignatureHeader:  "sha256=deadbeef",
+		WebhookDeliveryIDHeader: "delivery-too-large",
+	})
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized webhook status = %d, want %d; body=%s", response.Code, http.StatusRequestEntityTooLarge, response.Body.String())
+	}
+	if called {
+		t.Fatal("HandleWebhook() called for oversized webhook body")
 	}
 }
 

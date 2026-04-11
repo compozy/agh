@@ -1,6 +1,9 @@
 package automation
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestExtensionTriggerRequestValidateRequiresExtPrefix(t *testing.T) {
 	t.Parallel()
@@ -8,10 +11,10 @@ func TestExtensionTriggerRequestValidateRequiresExtPrefix(t *testing.T) {
 	tests := []struct {
 		name    string
 		request ExtensionTriggerRequest
-		wantErr bool
+		wantErr string
 	}{
 		{
-			name: "accepts workspace scoped ext event",
+			name: "Should accept workspace scoped ext event",
 			request: ExtensionTriggerRequest{
 				Event:       "ext.github.push",
 				Scope:       AutomationScopeWorkspace,
@@ -20,12 +23,20 @@ func TestExtensionTriggerRequestValidateRequiresExtPrefix(t *testing.T) {
 			},
 		},
 		{
-			name: "rejects built in event names",
+			name: "Should reject built in event names",
 			request: ExtensionTriggerRequest{
 				Event: "session.stopped",
 				Scope: AutomationScopeGlobal,
 			},
-			wantErr: true,
+			wantErr: `must start with "ext."`,
+		},
+		{
+			name: "Should reject surrounding whitespace",
+			request: ExtensionTriggerRequest{
+				Event: " ext.github.push ",
+				Scope: AutomationScopeGlobal,
+			},
+			wantErr: "must not contain surrounding whitespace",
 		},
 	}
 
@@ -35,9 +46,12 @@ func TestExtensionTriggerRequestValidateRequiresExtPrefix(t *testing.T) {
 			t.Parallel()
 
 			err := tt.request.Validate("trigger_fire")
-			if tt.wantErr {
+			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatal("Validate() error = nil, want non-nil")
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("Validate() error = %q, want substring %q", err.Error(), tt.wantErr)
 				}
 				return
 			}

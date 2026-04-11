@@ -251,6 +251,7 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 
 	name := "updated"
 	secret := "secret"
+	disabled := false
 
 	if (contract.UpdateJobRequest{}).HasChanges() {
 		t.Fatal("UpdateJobRequest{}.HasChanges() = true, want false")
@@ -258,12 +259,18 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 	if !(contract.UpdateJobRequest{Name: &name}).HasChanges() {
 		t.Fatal("UpdateJobRequest{Name}.HasChanges() = false, want true")
 	}
+	if !(contract.UpdateJobRequest{Enabled: &disabled}).HasChanges() {
+		t.Fatal("UpdateJobRequest{Enabled:false}.HasChanges() = false, want true")
+	}
 
 	if (contract.UpdateTriggerRequest{}).HasChanges() {
 		t.Fatal("UpdateTriggerRequest{}.HasChanges() = true, want false")
 	}
 	if !(contract.UpdateTriggerRequest{WebhookSecret: &secret}).HasChanges() {
 		t.Fatal("UpdateTriggerRequest{WebhookSecret}.HasChanges() = false, want true")
+	}
+	if !(contract.UpdateTriggerRequest{Enabled: &disabled}).HasChanges() {
+		t.Fatal("UpdateTriggerRequest{Enabled:false}.HasChanges() = false, want true")
 	}
 }
 

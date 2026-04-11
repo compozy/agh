@@ -139,6 +139,9 @@ func validateIndexArgs(args []parse.Node) error {
 	if len(args) == 0 {
 		return nil
 	}
+	if expression, ok := variableRootExpression(args[0]); ok {
+		return fmt.Errorf("unsupported index target %q; variable-rooted lookups are not supported", expression)
+	}
 
 	path, ok := templateFieldPath(args[0])
 	if !ok || len(path) == 0 {
@@ -156,7 +159,15 @@ func validateTemplateArg(node parse.Node) error {
 		return nil
 	case *parse.FieldNode:
 		return validateActivationFieldPath(n.Ident)
+	case *parse.VariableNode:
+		if len(n.Ident) > 1 {
+			return fmt.Errorf("unsupported activation lookup %q; variable-rooted lookups are not supported", n.String())
+		}
+		return nil
 	case *parse.ChainNode:
+		if _, ok := variableRootExpression(n.Node); ok {
+			return fmt.Errorf("unsupported activation lookup %q; variable-rooted lookups are not supported", n.String())
+		}
 		path, ok := templateFieldPath(n)
 		if !ok {
 			return nil
@@ -200,6 +211,28 @@ func templateFieldPath(node parse.Node) ([]string, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func variableRootExpression(node parse.Node) (string, bool) {
+	switch n := node.(type) {
+	case *parse.VariableNode:
+		return n.String(), true
+	case *parse.PipeNode:
+		if n == nil || len(n.Cmds) != 1 {
+			return "", false
+		}
+		return variableRootExpression(n.Cmds[0])
+	case *parse.CommandNode:
+		if n == nil || len(n.Args) != 1 {
+			return "", false
+		}
+		return variableRootExpression(n.Args[0])
+	case *parse.ChainNode:
+		if expression, ok := variableRootExpression(n.Node); ok {
+			return expression, true
+		}
+	}
+	return "", false
 }
 
 func validateActivationFieldPath(path []string) error {

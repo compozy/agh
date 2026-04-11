@@ -15,10 +15,14 @@ type ExtensionTriggerRequest struct {
 
 // Validate ensures the extension trigger request matches the ext.* ingress contract.
 func (r ExtensionTriggerRequest) Validate(path string) error {
-	if strings.TrimSpace(r.Event) == "" {
+	event := strings.TrimSpace(r.Event)
+	if event == "" {
 		return errors.New(nestedPath(path, "event") + " is required")
 	}
-	if !strings.HasPrefix(strings.TrimSpace(r.Event), "ext.") {
+	if event != r.Event {
+		return errors.New(nestedPath(path, "event") + " must not contain surrounding whitespace")
+	}
+	if !strings.HasPrefix(event, "ext.") {
 		return errors.New(nestedPath(path, "event") + " must start with \"ext.\"")
 	}
 	if err := ValidateScopeBinding(r.Scope, r.WorkspaceID, path, "workspace_id"); err != nil {

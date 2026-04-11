@@ -461,11 +461,13 @@ func TestJobValidateRejectsMissingRequiredFields(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name string
-		job  Job
+		name    string
+		job     Job
+		wantErr string
 	}{
 		{
-			name: "missing name",
+			name:    "missing name",
+			wantErr: "job.name is required",
 			job: Job{
 				Scope:     AutomationScopeGlobal,
 				AgentName: "researcher",
@@ -477,7 +479,8 @@ func TestJobValidateRejectsMissingRequiredFields(t *testing.T) {
 			},
 		},
 		{
-			name: "missing agent",
+			name:    "missing agent",
+			wantErr: "job.agent_name is required",
 			job: Job{
 				Scope:     AutomationScopeGlobal,
 				Name:      "daily-report",
@@ -489,7 +492,8 @@ func TestJobValidateRejectsMissingRequiredFields(t *testing.T) {
 			},
 		},
 		{
-			name: "missing prompt",
+			name:    "missing prompt",
+			wantErr: "job.prompt is required",
 			job: Job{
 				Scope:     AutomationScopeGlobal,
 				Name:      "daily-report",
@@ -507,8 +511,12 @@ func TestJobValidateRejectsMissingRequiredFields(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if err := tc.job.Validate("job"); err == nil {
+			err := tc.job.Validate("job")
+			if err == nil {
 				t.Fatal("Job.Validate() error = nil, want non-nil")
+			}
+			if got := err.Error(); !strings.Contains(got, tc.wantErr) {
+				t.Fatalf("Job.Validate() error = %q, want substring %q", got, tc.wantErr)
 			}
 		})
 	}
@@ -580,6 +588,34 @@ func TestTriggerValidate(t *testing.T) {
 			wantErr: "prompt",
 		},
 		{
+			name: "variable rooted field invalid",
+			trigger: Trigger{
+				Scope:     AutomationScopeGlobal,
+				Name:      "deploy",
+				AgentName: "reviewer",
+				Prompt:    `{{ $root := . }}{{ $root.Kind }}`,
+				Event:     "session.stopped",
+				Retry:     DefaultRetryConfig(),
+				FireLimit: DefaultFireLimitConfig(),
+				Source:    JobSourceConfig,
+			},
+			wantErr: "variable-rooted lookups are not supported",
+		},
+		{
+			name: "variable rooted index invalid",
+			trigger: Trigger{
+				Scope:     AutomationScopeGlobal,
+				Name:      "deploy",
+				AgentName: "reviewer",
+				Prompt:    `{{ $root := . }}{{ index $root "Kind" }}`,
+				Event:     "session.stopped",
+				Retry:     DefaultRetryConfig(),
+				FireLimit: DefaultFireLimitConfig(),
+				Source:    JobSourceConfig,
+			},
+			wantErr: "variable-rooted lookups are not supported",
+		},
+		{
 			name: "non webhook with webhook id invalid",
 			trigger: Trigger{
 				Scope:     AutomationScopeGlobal,
@@ -624,9 +660,11 @@ func TestTriggerValidateRejectsMissingRequiredFieldsAndPolicies(t *testing.T) {
 	testCases := []struct {
 		name    string
 		trigger Trigger
+		wantErr string
 	}{
 		{
-			name: "missing name",
+			name:    "missing name",
+			wantErr: "trigger.name is required",
 			trigger: Trigger{
 				Scope:     AutomationScopeGlobal,
 				AgentName: "reviewer",
@@ -638,7 +676,8 @@ func TestTriggerValidateRejectsMissingRequiredFieldsAndPolicies(t *testing.T) {
 			},
 		},
 		{
-			name: "missing agent",
+			name:    "missing agent",
+			wantErr: "trigger.agent_name is required",
 			trigger: Trigger{
 				Scope:     AutomationScopeGlobal,
 				Name:      "deploy",
@@ -650,7 +689,8 @@ func TestTriggerValidateRejectsMissingRequiredFieldsAndPolicies(t *testing.T) {
 			},
 		},
 		{
-			name: "missing prompt",
+			name:    "missing prompt",
+			wantErr: "trigger.prompt is required",
 			trigger: Trigger{
 				Scope:     AutomationScopeGlobal,
 				Name:      "deploy",
@@ -662,7 +702,8 @@ func TestTriggerValidateRejectsMissingRequiredFieldsAndPolicies(t *testing.T) {
 			},
 		},
 		{
-			name: "missing event",
+			name:    "missing event",
+			wantErr: "trigger.event is required",
 			trigger: Trigger{
 				Scope:     AutomationScopeGlobal,
 				Name:      "deploy",
@@ -674,7 +715,8 @@ func TestTriggerValidateRejectsMissingRequiredFieldsAndPolicies(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid filter",
+			name:    "invalid filter",
+			wantErr: `unsupported filter path "payload.kind"`,
 			trigger: Trigger{
 				Scope:     AutomationScopeGlobal,
 				Name:      "deploy",
@@ -690,7 +732,8 @@ func TestTriggerValidateRejectsMissingRequiredFieldsAndPolicies(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid retry",
+			name:    "invalid retry",
+			wantErr: "trigger.retry.max_retries must be positive",
 			trigger: Trigger{
 				Scope:     AutomationScopeGlobal,
 				Name:      "deploy",
@@ -705,7 +748,8 @@ func TestTriggerValidateRejectsMissingRequiredFieldsAndPolicies(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid fire limit",
+			name:    "invalid fire limit",
+			wantErr: "trigger.fire_limit.max must be positive",
 			trigger: Trigger{
 				Scope:     AutomationScopeGlobal,
 				Name:      "deploy",
@@ -724,8 +768,12 @@ func TestTriggerValidateRejectsMissingRequiredFieldsAndPolicies(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if err := tc.trigger.Validate("trigger"); err == nil {
+			err := tc.trigger.Validate("trigger")
+			if err == nil {
 				t.Fatal("Trigger.Validate() error = nil, want non-nil")
+			}
+			if got := err.Error(); !strings.Contains(got, tc.wantErr) {
+				t.Fatalf("Trigger.Validate() error = %q, want substring %q", got, tc.wantErr)
 			}
 		})
 	}
@@ -745,12 +793,16 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 	}
 	if err := run.Validate("run"); err == nil {
 		t.Fatal("Run.Validate() error = nil, want non-nil")
+	} else if got := err.Error(); !strings.Contains(got, "run.ended_at must not be before run.started_at") {
+		t.Fatalf("Run.Validate() error = %q, want ended_at ordering failure", got)
 	}
 
 	run.Attempt = -1
 	run.EndedAt = nil
 	if err := run.Validate("run"); err == nil {
 		t.Fatal("Run.Validate() error = nil, want non-nil")
+	} else if got := err.Error(); !strings.Contains(got, "run.attempt must be zero or positive") {
+		t.Fatalf("Run.Validate() error = %q, want attempt failure", got)
 	}
 
 	validRun := Run{
@@ -768,6 +820,8 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 	}
 	if err := envelope.Validate("envelope"); err == nil {
 		t.Fatal("ActivationEnvelope.Validate() error = nil, want non-nil")
+	} else if got := err.Error(); !strings.Contains(got, "envelope.workspace_id") {
+		t.Fatalf("ActivationEnvelope.Validate() error = %q, want workspace binding failure", got)
 	}
 
 	validEnvelope := ActivationEnvelope{
@@ -783,6 +837,8 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 	validEnvelope.Source = ActivationSource("socket")
 	if err := validEnvelope.Validate("envelope"); err == nil {
 		t.Fatal("ActivationEnvelope.Validate() error = nil, want non-nil")
+	} else if got := err.Error(); !strings.Contains(got, "envelope.source") {
+		t.Fatalf("ActivationEnvelope.Validate() error = %q, want source failure", got)
 	}
 }
 

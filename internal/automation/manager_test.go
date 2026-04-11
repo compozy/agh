@@ -125,6 +125,39 @@ func TestManagerStartSyncsConfigDefinitionsAndPreservesDynamicEntries(t *testing
 	}
 }
 
+func TestManagerStartPreservesCallerContextValuesInRuntimeContext(t *testing.T) {
+	t.Parallel()
+
+	type contextKey string
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	})
+
+	const key contextKey = "trace"
+	startCtx := context.WithValue(h.ctx, key, "automation-runtime")
+
+	if err := manager.Start(startCtx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	if got, want := manager.runtimeCtx.Value(key), any("automation-runtime"); got != want {
+		t.Fatalf("manager.runtimeCtx.Value(%q) = %#v, want %#v", key, got, want)
+	}
+	if err := manager.runtimeCtx.Err(); err != nil {
+		t.Fatalf("manager.runtimeCtx.Err() = %v, want nil", err)
+	}
+}
+
 func TestManagerStartUpdatesConfigDefinitionsAndPreservesEnabledOverlays(t *testing.T) {
 	t.Parallel()
 
@@ -607,6 +640,7 @@ func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
 		Scope:       AutomationScopeWorkspace,
 		WorkspaceID: h.workspace.ID,
 		Endpoint:    endpoint,
+		DeliveryID:  "delivery-1",
 		Timestamp:   timestamp,
 		Signature:   signature,
 		Payload:     payload,
@@ -912,6 +946,7 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 		Scope:       AutomationScopeWorkspace,
 		WorkspaceID: h.workspace.ID,
 		Endpoint:    endpoint,
+		DeliveryID:  "delivery-updated",
 		Timestamp:   timestamp,
 		Signature:   signature,
 		Payload:     payload,
@@ -1022,57 +1057,50 @@ func TestManagerCRUDRejectsNilContextAndReadOnlyDefinitions(t *testing.T) {
 	}
 
 	nilCtx := nilContextForTests()
-
-	if _, err := manager.CreateJob(nilCtx, testJob(AutomationScopeWorkspace, "nil-job", h.workspace.ID)); err == nil {
-		t.Fatal("manager.CreateJob(nil) error = nil, want context error")
-	}
-	if _, err := manager.ListJobs(nilCtx, JobListQuery{}); err == nil {
-		t.Fatal("manager.ListJobs(nil) error = nil, want context error")
-	}
-	if _, err := manager.GetJob(nilCtx, configJob.ID); err == nil {
-		t.Fatal("manager.GetJob(nil) error = nil, want context error")
-	}
-	if _, err := manager.UpdateJob(nilCtx, configJob); err == nil {
-		t.Fatal("manager.UpdateJob(nil) error = nil, want context error")
-	}
-	if err := manager.DeleteJob(nilCtx, configJob.ID); err == nil {
-		t.Fatal("manager.DeleteJob(nil) error = nil, want context error")
-	}
-	if _, err := manager.TriggerJob(nilCtx, configJob.ID); err == nil {
-		t.Fatal("manager.TriggerJob(nil) error = nil, want context error")
-	}
-	if _, err := manager.SetJobEnabled(nilCtx, configJob.ID, false); err == nil {
-		t.Fatal("manager.SetJobEnabled(nil) error = nil, want context error")
+	assertContextError := func(name string, err error, want string) {
+		t.Helper()
+		if err == nil {
+			t.Fatalf("%s error = nil, want %q", name, want)
+		}
+		if err.Error() != want {
+			t.Fatalf("%s error = %q, want %q", name, err.Error(), want)
+		}
 	}
 
-	if _, err := manager.CreateTrigger(nilCtx, configTrigger, "secret"); err == nil {
-		t.Fatal("manager.CreateTrigger(nil) error = nil, want context error")
-	}
-	if _, err := manager.ListTriggers(nilCtx, TriggerListQuery{}); err == nil {
-		t.Fatal("manager.ListTriggers(nil) error = nil, want context error")
-	}
-	if _, err := manager.GetTrigger(nilCtx, configTrigger.ID); err == nil {
-		t.Fatal("manager.GetTrigger(nil) error = nil, want context error")
-	}
-	if _, err := manager.UpdateTrigger(nilCtx, configTrigger, nil); err == nil {
-		t.Fatal("manager.UpdateTrigger(nil) error = nil, want context error")
-	}
-	if err := manager.DeleteTrigger(nilCtx, configTrigger.ID); err == nil {
-		t.Fatal("manager.DeleteTrigger(nil) error = nil, want context error")
-	}
-	if _, err := manager.SetTriggerEnabled(nilCtx, configTrigger.ID, false); err == nil {
-		t.Fatal("manager.SetTriggerEnabled(nil) error = nil, want context error")
-	}
+	_, err := manager.CreateJob(nilCtx, testJob(AutomationScopeWorkspace, "nil-job", h.workspace.ID))
+	assertContextError("manager.CreateJob(nil)", err, "automation: create job context is required")
+	_, err = manager.ListJobs(nilCtx, JobListQuery{})
+	assertContextError("manager.ListJobs(nil)", err, "automation: list jobs context is required")
+	_, err = manager.GetJob(nilCtx, configJob.ID)
+	assertContextError("manager.GetJob(nil)", err, "automation: get job context is required")
+	_, err = manager.UpdateJob(nilCtx, configJob)
+	assertContextError("manager.UpdateJob(nil)", err, "automation: update job context is required")
+	err = manager.DeleteJob(nilCtx, configJob.ID)
+	assertContextError("manager.DeleteJob(nil)", err, "automation: delete job context is required")
+	_, err = manager.TriggerJob(nilCtx, configJob.ID)
+	assertContextError("manager.TriggerJob(nil)", err, "automation: trigger job context is required")
+	_, err = manager.SetJobEnabled(nilCtx, configJob.ID, false)
+	assertContextError("manager.SetJobEnabled(nil)", err, "automation: set job enabled context is required")
 
-	if _, err := manager.ListRuns(nilCtx, RunQuery{}); err == nil {
-		t.Fatal("manager.ListRuns(nil) error = nil, want context error")
-	}
-	if _, err := manager.GetRun(nilCtx, "run-id"); err == nil {
-		t.Fatal("manager.GetRun(nil) error = nil, want context error")
-	}
-	if _, err := manager.Status(nilCtx); err == nil {
-		t.Fatal("manager.Status(nil) error = nil, want context error")
-	}
+	_, err = manager.CreateTrigger(nilCtx, configTrigger, "secret")
+	assertContextError("manager.CreateTrigger(nil)", err, "automation: create trigger context is required")
+	_, err = manager.ListTriggers(nilCtx, TriggerListQuery{})
+	assertContextError("manager.ListTriggers(nil)", err, "automation: list triggers context is required")
+	_, err = manager.GetTrigger(nilCtx, configTrigger.ID)
+	assertContextError("manager.GetTrigger(nil)", err, "automation: get trigger context is required")
+	_, err = manager.UpdateTrigger(nilCtx, configTrigger, nil)
+	assertContextError("manager.UpdateTrigger(nil)", err, "automation: update trigger context is required")
+	err = manager.DeleteTrigger(nilCtx, configTrigger.ID)
+	assertContextError("manager.DeleteTrigger(nil)", err, "automation: delete trigger context is required")
+	_, err = manager.SetTriggerEnabled(nilCtx, configTrigger.ID, false)
+	assertContextError("manager.SetTriggerEnabled(nil)", err, "automation: set trigger enabled context is required")
+
+	_, err = manager.ListRuns(nilCtx, RunQuery{})
+	assertContextError("manager.ListRuns(nil)", err, "automation: list runs context is required")
+	_, err = manager.GetRun(nilCtx, "run-id")
+	assertContextError("manager.GetRun(nil)", err, "automation: get run context is required")
+	_, err = manager.Status(nilCtx)
+	assertContextError("manager.Status(nil)", err, "automation: status context is required")
 
 	if _, err := manager.CreateJob(h.ctx, configJob); !errors.Is(err, ErrDefinitionReadOnly) {
 		t.Fatalf("manager.CreateJob(config) error = %v, want ErrDefinitionReadOnly", err)

@@ -1,16 +1,20 @@
 package automation
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
@@ -507,6 +511,92 @@ func TestCollectPromptErrorRejectsNilStream(t *testing.T) {
 	if err := collectPromptError(testutil.Context(t), nil); err == nil {
 		t.Fatal("collectPromptError(nil) error = nil, want non-nil")
 	}
+}
+
+func TestCollectPromptErrorReturnsContextCancellationWhenStreamDoesNotClose(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(testutil.Context(t))
+	events := make(chan acp.AgentEvent)
+	cancel()
+
+	if err := collectPromptError(ctx, events); !errors.Is(err, context.Canceled) {
+		t.Fatalf("collectPromptError(cancelled) error = %v, want context.Canceled", err)
+	}
+}
+
+func TestDispatchLogsHookDispatchFailures(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	dispatcher := &Dispatcher{
+		logger: slog.New(slog.NewTextHandler(&logs, nil)),
+		hooks:  failingAutomationHookDispatcher{err: errors.New("hook failed")},
+	}
+
+	dispatcher.dispatchPostFireHook(testutil.Context(t), DispatchRequest{
+		Job: &Job{
+			ID:          "job-1",
+			Name:        "daily-review",
+			AgentName:   "coder",
+			WorkspaceID: "ws-alpha",
+		},
+	}, Run{ID: "run-1", SessionID: "sess-1"})
+	dispatcher.dispatchPostFireHook(testutil.Context(t), DispatchRequest{
+		Trigger: &Trigger{
+			ID:          "trg-1",
+			Name:        "deploy-review",
+			Event:       "webhook",
+			AgentName:   "coder",
+			WorkspaceID: "ws-alpha",
+		},
+	}, Run{ID: "run-2", SessionID: "sess-2"})
+	dispatcher.emitRunLifecycleHooks(testutil.Context(t), DispatchRequest{
+		Job: &Job{Name: "daily-review", AgentName: "coder"},
+	}, Run{ID: "run-3", Status: RunCompleted}, nil, false)
+	dispatcher.emitRunLifecycleHooks(testutil.Context(t), DispatchRequest{
+		Trigger: &Trigger{Name: "deploy-review", AgentName: "coder"},
+	}, Run{ID: "run-4", Status: RunFailed, Error: "boom"}, errors.New("boom"), false)
+
+	output := logs.String()
+	for _, message := range []string{
+		"automation.dispatch.job_post_fire_hook_failed",
+		"automation.dispatch.trigger_post_fire_hook_failed",
+		"automation.dispatch.run_completed_hook_failed",
+		"automation.dispatch.run_failed_hook_failed",
+	} {
+		if !strings.Contains(output, message) {
+			t.Fatalf("logged output missing %q: %s", message, output)
+		}
+	}
+}
+
+type failingAutomationHookDispatcher struct {
+	err error
+}
+
+func (f failingAutomationHookDispatcher) DispatchAutomationJobPreFire(context.Context, hookspkg.AutomationJobPreFirePayload) (hookspkg.AutomationJobPreFirePayload, error) {
+	return hookspkg.AutomationJobPreFirePayload{}, f.err
+}
+
+func (f failingAutomationHookDispatcher) DispatchAutomationJobPostFire(context.Context, hookspkg.AutomationJobPostFirePayload) (hookspkg.AutomationJobPostFirePayload, error) {
+	return hookspkg.AutomationJobPostFirePayload{}, f.err
+}
+
+func (f failingAutomationHookDispatcher) DispatchAutomationTriggerPreFire(context.Context, hookspkg.AutomationTriggerPreFirePayload) (hookspkg.AutomationTriggerPreFirePayload, error) {
+	return hookspkg.AutomationTriggerPreFirePayload{}, f.err
+}
+
+func (f failingAutomationHookDispatcher) DispatchAutomationTriggerPostFire(context.Context, hookspkg.AutomationTriggerPostFirePayload) (hookspkg.AutomationTriggerPostFirePayload, error) {
+	return hookspkg.AutomationTriggerPostFirePayload{}, f.err
+}
+
+func (f failingAutomationHookDispatcher) DispatchAutomationRunCompleted(context.Context, hookspkg.AutomationRunCompletedPayload) (hookspkg.AutomationRunCompletedPayload, error) {
+	return hookspkg.AutomationRunCompletedPayload{}, f.err
+}
+
+func (f failingAutomationHookDispatcher) DispatchAutomationRunFailed(context.Context, hookspkg.AutomationRunFailedPayload) (hookspkg.AutomationRunFailedPayload, error) {
+	return hookspkg.AutomationRunFailedPayload{}, f.err
 }
 
 type memoryRunStore struct {

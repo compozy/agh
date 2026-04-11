@@ -1015,11 +1015,10 @@ func parseAutomationOptionalTimeFlag(raw string, flagName string, now func() tim
 		return time.Time{}, fmt.Errorf("cli: relative --%s must be positive: %q", flagName, value)
 	}
 
-	current := time.Now().UTC()
 	if now != nil {
-		current = now().UTC()
+		return now().UTC().Add(-duration), nil
 	}
-	return current.Add(-duration), nil
+	return time.Now().UTC().Add(-duration), nil
 }
 
 func validateAutomationLast(last int) error {

@@ -47,7 +47,8 @@ func TestTriggerEngineIntegrationSessionStoppedViaObserverBoundaryDispatchesOneR
 	if got, want := len(creator.promptCalls()), 1; got != want {
 		t.Fatalf("len(Prompt calls) = %d, want %d", got, want)
 	}
-	if got, want := creator.promptCalls()[0].message, "Handle sess-stop-source"; got != want {
+	promptCalls := creator.promptCalls()
+	if got, want := promptCalls[0].message, "Handle sess-stop-source"; got != want {
 		t.Fatalf("Prompt().message = %q, want %q", got, want)
 	}
 
@@ -94,7 +95,11 @@ func TestTriggerEngineIntegrationMemoryConsolidatedDispatchesOneRun(t *testing.T
 	if got, want := len(creator.createCalls()), 1; got != want {
 		t.Fatalf("len(Create calls) = %d, want %d", got, want)
 	}
-	if got, want := creator.promptCalls()[0].message, "Digest fresh context"; got != want {
+	promptCalls := creator.promptCalls()
+	if got, want := len(promptCalls), 1; got != want {
+		t.Fatalf("len(Prompt calls) = %d, want %d", got, want)
+	}
+	if got, want := promptCalls[0].message, "Digest fresh context"; got != want {
 		t.Fatalf("Prompt().message = %q, want %q", got, want)
 	}
 
@@ -139,11 +144,12 @@ func TestTriggerEngineIntegrationWebhookDispatchesExactlyOnce(t *testing.T) {
 	}
 
 	result, err := engine.HandleWebhook(ctx, WebhookRequest{
-		Scope:     AutomationScopeGlobal,
-		Endpoint:  "deploy-review--" + trigger.WebhookID,
-		Timestamp: now,
-		Signature: signature,
-		Payload:   payload,
+		Scope:      AutomationScopeGlobal,
+		Endpoint:   "deploy-review--" + trigger.WebhookID,
+		DeliveryID: "delivery-1",
+		Timestamp:  now,
+		Signature:  signature,
+		Payload:    payload,
 		Data: map[string]any{
 			"payload": "deploy",
 		},
@@ -160,7 +166,11 @@ func TestTriggerEngineIntegrationWebhookDispatchesExactlyOnce(t *testing.T) {
 	if got, want := len(creator.createCalls()), 1; got != want {
 		t.Fatalf("len(Create calls) = %d, want %d", got, want)
 	}
-	if got, want := creator.promptCalls()[0].message, "Review payload deploy"; got != want {
+	promptCalls := creator.promptCalls()
+	if got, want := len(promptCalls), 1; got != want {
+		t.Fatalf("len(Prompt calls) = %d, want %d", got, want)
+	}
+	if got, want := promptCalls[0].message, "Review payload deploy"; got != want {
 		t.Fatalf("Prompt().message = %q, want %q", got, want)
 	}
 

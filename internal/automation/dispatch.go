@@ -530,16 +530,18 @@ func (d *Dispatcher) dispatchPostFireHook(ctx context.Context, req DispatchReque
 
 	switch {
 	case req.Job != nil:
-		_, _ = d.hooks.DispatchAutomationJobPostFire(ctx, hookspkg.AutomationJobPostFirePayload{
+		if _, err := d.hooks.DispatchAutomationJobPostFire(ctx, hookspkg.AutomationJobPostFirePayload{
 			JobID:       strings.TrimSpace(req.Job.ID),
 			JobName:     strings.TrimSpace(req.Job.Name),
 			AgentName:   strings.TrimSpace(req.Job.AgentName),
 			WorkspaceID: strings.TrimSpace(req.Job.WorkspaceID),
 			RunID:       strings.TrimSpace(run.ID),
 			SessionID:   strings.TrimSpace(run.SessionID),
-		})
+		}); err != nil {
+			d.logHookDispatchError("automation.dispatch.job_post_fire_hook_failed", err, "job_id", strings.TrimSpace(req.Job.ID), "run_id", strings.TrimSpace(run.ID))
+		}
 	case req.Trigger != nil:
-		_, _ = d.hooks.DispatchAutomationTriggerPostFire(ctx, hookspkg.AutomationTriggerPostFirePayload{
+		if _, err := d.hooks.DispatchAutomationTriggerPostFire(ctx, hookspkg.AutomationTriggerPostFirePayload{
 			TriggerID:   strings.TrimSpace(req.Trigger.ID),
 			TriggerName: strings.TrimSpace(req.Trigger.Name),
 			Event:       strings.TrimSpace(req.Trigger.Event),
@@ -547,7 +549,9 @@ func (d *Dispatcher) dispatchPostFireHook(ctx context.Context, req DispatchReque
 			WorkspaceID: strings.TrimSpace(req.Trigger.WorkspaceID),
 			RunID:       strings.TrimSpace(run.ID),
 			SessionID:   strings.TrimSpace(run.SessionID),
-		})
+		}); err != nil {
+			d.logHookDispatchError("automation.dispatch.trigger_post_fire_hook_failed", err, "trigger_id", strings.TrimSpace(req.Trigger.ID), "run_id", strings.TrimSpace(run.ID))
+		}
 	}
 }
 
@@ -556,7 +560,7 @@ func (d *Dispatcher) emitRunLifecycleHooks(ctx context.Context, req DispatchRequ
 		return
 	}
 	if run.Status == RunCompleted {
-		_, _ = d.hooks.DispatchAutomationRunCompleted(ctx, hookspkg.AutomationRunCompletedPayload{
+		if _, err := d.hooks.DispatchAutomationRunCompleted(ctx, hookspkg.AutomationRunCompletedPayload{
 			RunID:       strings.TrimSpace(run.ID),
 			JobID:       strings.TrimSpace(run.JobID),
 			TriggerID:   strings.TrimSpace(run.TriggerID),
@@ -565,7 +569,9 @@ func (d *Dispatcher) emitRunLifecycleHooks(ctx context.Context, req DispatchRequ
 			SessionID:   strings.TrimSpace(run.SessionID),
 			Attempt:     run.Attempt,
 			DurationMS:  runDurationMilliseconds(run),
-		})
+		}); err != nil {
+			d.logHookDispatchError("automation.dispatch.run_completed_hook_failed", err, "run_id", strings.TrimSpace(run.ID))
+		}
 		return
 	}
 	if run.Status != RunFailed {
@@ -576,7 +582,7 @@ func (d *Dispatcher) emitRunLifecycleHooks(ctx context.Context, req DispatchRequ
 	if errText == "" && dispatchErr != nil {
 		errText = dispatchErr.Error()
 	}
-	_, _ = d.hooks.DispatchAutomationRunFailed(ctx, hookspkg.AutomationRunFailedPayload{
+	if _, err := d.hooks.DispatchAutomationRunFailed(ctx, hookspkg.AutomationRunFailedPayload{
 		RunID:       strings.TrimSpace(run.ID),
 		JobID:       strings.TrimSpace(run.JobID),
 		TriggerID:   strings.TrimSpace(run.TriggerID),
@@ -586,7 +592,9 @@ func (d *Dispatcher) emitRunLifecycleHooks(ctx context.Context, req DispatchRequ
 		Error:       errText,
 		Attempt:     run.Attempt,
 		WillRetry:   willRetry,
-	})
+	}); err != nil {
+		d.logHookDispatchError("automation.dispatch.run_failed_hook_failed", err, "run_id", strings.TrimSpace(run.ID))
+	}
 }
 
 func (d *Dispatcher) createOpts(req DispatchRequest) session.CreateOpts {
@@ -762,19 +770,38 @@ func collectPromptError(ctx context.Context, events <-chan acp.AgentEvent) error
 	}
 
 	var errs []error
-	for event := range events {
-		if trimmed := strings.TrimSpace(event.Error); trimmed != "" {
-			errs = append(errs, errors.New(trimmed))
+	for {
+		select {
+		case <-ctx.Done():
+			if len(errs) > 0 {
+				errs = append(errs, ctx.Err())
+				return errors.Join(errs...)
+			}
+			return ctx.Err()
+		case event, ok := <-events:
+			if !ok {
+				if len(errs) > 0 {
+					return errors.Join(errs...)
+				}
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				return nil
+			}
+			if trimmed := strings.TrimSpace(event.Error); trimmed != "" {
+				errs = append(errs, errors.New(trimmed))
+			}
 		}
 	}
+}
 
-	if len(errs) > 0 {
-		return errors.Join(errs...)
+func (d *Dispatcher) logHookDispatchError(message string, err error, attrs ...any) {
+	if d == nil || err == nil || d.logger == nil {
+		return
 	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return nil
+	fields := append([]any{}, attrs...)
+	fields = append(fields, "error", err)
+	d.logger.Warn(message, fields...)
 }
 
 func sleepWithContext(ctx context.Context, delay time.Duration) error {

@@ -873,9 +873,14 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("new automation manager: %w", err)
 	}
-	if err := automationManager.Start(context.Background()); err != nil {
+	if err := automationManager.Start(ctx); err != nil {
 		return fmt.Errorf("start automation manager: %w", err)
 	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		defer cancel()
+		_ = automationManager.Shutdown(shutdownCtx)
+	}()
 	fanout.notifiers = append(fanout.notifiers, automationManager.SessionObserver())
 
 	server, err := udsapi.New(
@@ -900,11 +905,6 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	if err := server.Start(context.Background()); err != nil {
 		return fmt.Errorf("start uds server: %w", err)
 	}
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_ = automationManager.Shutdown(shutdownCtx)
-	}()
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()

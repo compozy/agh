@@ -28,6 +28,12 @@ var (
 	ErrDefinitionReadOnly = errors.New("automation: definition is config-backed and read-only")
 )
 
+const managerRuntimeCleanupTimeout = 2 * time.Second
+
+type managerRuntimeComponent interface {
+	Shutdown(ctx context.Context) error
+}
+
 // SessionManager is the runtime session surface required by the automation
 // manager. It extends the dispatcher path with lookup support for hook-derived
 // trigger ingress.
@@ -355,36 +361,24 @@ func (m *Manager) Start(ctx context.Context) error {
 		return err
 	}
 
-	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
-	scheduler, triggerEngine, err := m.buildRuntimes()
+	runtimeCtx, runtimeCancel := context.WithCancel(context.WithoutCancel(ctx))
+	scheduler, triggerEngine, err := m.buildRuntimes(ctx)
 	if err != nil {
 		runtimeCancel()
 		return err
 	}
 
 	if err := m.loadSchedulerRegistrations(jobs, scheduler); err != nil {
-		runtimeCancel()
-		_ = scheduler.Shutdown(context.Background())
-		_ = triggerEngine.Shutdown(context.Background())
-		return err
+		return errors.Join(err, m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine))
 	}
 	if err := m.loadTriggerRegistrations(ctx, triggers, triggerEngine); err != nil {
-		runtimeCancel()
-		_ = scheduler.Shutdown(context.Background())
-		_ = triggerEngine.Shutdown(context.Background())
-		return err
+		return errors.Join(err, m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine))
 	}
 	if err := triggerEngine.Start(ctx); err != nil {
-		runtimeCancel()
-		_ = scheduler.Shutdown(context.Background())
-		_ = triggerEngine.Shutdown(context.Background())
-		return err
+		return errors.Join(err, m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine))
 	}
 	if err := scheduler.Start(ctx); err != nil {
-		runtimeCancel()
-		_ = scheduler.Shutdown(context.Background())
-		_ = triggerEngine.Shutdown(context.Background())
-		return err
+		return errors.Join(err, m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine))
 	}
 
 	m.running = true
@@ -492,16 +486,10 @@ func (m *Manager) CreateJob(ctx context.Context, job Job) (Job, error) {
 
 	current, err := m.effectiveJobFromStored(ctx, created)
 	if err != nil {
-		_ = m.store.DeleteJob(ctx, created.ID)
-		return Job{}, err
+		return Job{}, errors.Join(err, m.cleanupCreatedJob(ctx, created.ID))
 	}
 	if err := m.applyJobToRuntime(current); err != nil {
-		_ = m.store.DeleteJob(ctx, created.ID)
-		scheduler := m.schedulerSnapshot()
-		if scheduler != nil {
-			_ = scheduler.Unregister(created.ID)
-		}
-		return Job{}, err
+		return Job{}, errors.Join(err, m.cleanupCreatedJob(ctx, created.ID))
 	}
 
 	return current, nil
@@ -538,7 +526,9 @@ func (m *Manager) UpdateJob(ctx context.Context, job Job) (Job, error) {
 
 	currentEffective, err := m.effectiveJobFromStored(ctx, updatedStored)
 	if err != nil {
-		_, _ = m.store.UpdateJob(ctx, currentStored)
+		if _, rollbackErr := m.store.UpdateJob(ctx, currentStored); rollbackErr != nil {
+			return Job{}, errors.Join(err, fmt.Errorf("automation: restore job %q after load failure: %w", currentStored.ID, rollbackErr))
+		}
 		return Job{}, err
 	}
 	if err := m.applyJobToRuntime(currentEffective); err != nil {
@@ -662,28 +652,18 @@ func (m *Manager) CreateTrigger(ctx context.Context, trigger Trigger, webhookSec
 	}
 	created, err = m.ensureTriggerWebhookID(ctx, created)
 	if err != nil {
-		_ = m.store.DeleteTrigger(ctx, created.ID)
-		return Trigger{}, err
+		return Trigger{}, errors.Join(err, m.cleanupCreatedTrigger(ctx, created.ID))
 	}
 	if err := m.syncTriggerWebhookSecret(ctx, Trigger{}, created, stringPointer(webhookSecret)); err != nil {
-		_ = m.store.DeleteTrigger(ctx, created.ID)
-		return Trigger{}, err
+		return Trigger{}, errors.Join(err, m.cleanupCreatedTrigger(ctx, created.ID))
 	}
 
 	current, err := m.effectiveTriggerFromStored(ctx, created)
 	if err != nil {
-		_ = m.store.DeleteTrigger(ctx, created.ID)
-		_ = m.store.DeleteTriggerWebhookSecret(ctx, created.ID)
-		return Trigger{}, err
+		return Trigger{}, errors.Join(err, m.cleanupCreatedTrigger(ctx, created.ID))
 	}
 	if err := m.applyTriggerToRuntime(ctx, current); err != nil {
-		_ = m.store.DeleteTrigger(ctx, created.ID)
-		_ = m.store.DeleteTriggerWebhookSecret(ctx, created.ID)
-		engine := m.triggerEngineSnapshot()
-		if engine != nil {
-			_ = engine.Unregister(created.ID)
-		}
-		return Trigger{}, err
+		return Trigger{}, errors.Join(err, m.cleanupCreatedTrigger(ctx, created.ID))
 	}
 
 	return current, nil
@@ -1123,7 +1103,7 @@ func (m *Manager) effectiveTriggerFromStored(ctx context.Context, trigger Trigge
 	return effective, nil
 }
 
-func (m *Manager) buildRuntimes() (*Scheduler, *TriggerEngine, error) {
+func (m *Manager) buildRuntimes(ctx context.Context) (*Scheduler, *TriggerEngine, error) {
 	location, err := time.LoadLocation(strings.TrimSpace(m.config.Timezone))
 	if err != nil {
 		return nil, nil, fmt.Errorf("automation: load manager timezone %q: %w", m.config.Timezone, err)
@@ -1146,8 +1126,7 @@ func (m *Manager) buildRuntimes() (*Scheduler, *TriggerEngine, error) {
 	triggerOpts = append(triggerOpts, m.triggerOptions...)
 	triggerEngine, err := NewTriggerEngine(m.dispatcher, triggerOpts...)
 	if err != nil {
-		_ = scheduler.Shutdown(context.Background())
-		return nil, nil, err
+		return nil, nil, errors.Join(err, m.shutdownRuntimeComponent(ctx, "scheduler", scheduler))
 	}
 
 	return scheduler, triggerEngine, nil
@@ -1689,7 +1668,9 @@ func (m *Manager) fireSessionCreated(ctx context.Context, sess *session.Session)
 	}
 	mergedCtx, cancel := mergedRuntimeContext(ctx, runtimeCtx)
 	defer cancel()
-	_, _ = engine.FireSessionCreated(mergedCtx, sess)
+	if _, err := engine.FireSessionCreated(mergedCtx, sess); err != nil {
+		m.logger.Warn("automation.manager.session_created_trigger_failed", "session_id", strings.TrimSpace(sess.ID), "error", err)
+	}
 }
 
 func (m *Manager) fireSessionStopped(ctx context.Context, sess *session.Session) {
@@ -1702,7 +1683,67 @@ func (m *Manager) fireSessionStopped(ctx context.Context, sess *session.Session)
 	}
 	mergedCtx, cancel := mergedRuntimeContext(ctx, runtimeCtx)
 	defer cancel()
-	_, _ = engine.FireSessionStopped(mergedCtx, sess)
+	if _, err := engine.FireSessionStopped(mergedCtx, sess); err != nil {
+		m.logger.Warn("automation.manager.session_stopped_trigger_failed", "session_id", strings.TrimSpace(sess.ID), "error", err)
+	}
+}
+
+func (m *Manager) cleanupCreatedJob(ctx context.Context, jobID string) error {
+	var errs []error
+	if err := m.store.DeleteJob(ctx, jobID); err != nil {
+		errs = append(errs, fmt.Errorf("automation: delete created job %q: %w", jobID, err))
+	}
+	if scheduler := m.schedulerSnapshot(); scheduler != nil {
+		if err := scheduler.Unregister(jobID); err != nil && !errors.Is(err, ErrScheduledJobNotFound) {
+			errs = append(errs, fmt.Errorf("automation: unregister created job %q: %w", jobID, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (m *Manager) cleanupCreatedTrigger(ctx context.Context, triggerID string) error {
+	var errs []error
+	if err := m.store.DeleteTriggerWebhookSecret(ctx, triggerID); err != nil {
+		errs = append(errs, fmt.Errorf("automation: delete created trigger webhook secret %q: %w", triggerID, err))
+	}
+	if err := m.store.DeleteTrigger(ctx, triggerID); err != nil {
+		errs = append(errs, fmt.Errorf("automation: delete created trigger %q: %w", triggerID, err))
+	}
+	if engine := m.triggerEngineSnapshot(); engine != nil {
+		if err := engine.Unregister(triggerID); err != nil && !errors.Is(err, ErrTriggerNotFound) {
+			errs = append(errs, fmt.Errorf("automation: unregister created trigger %q: %w", triggerID, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (m *Manager) shutdownStartupRuntime(ctx context.Context, runtimeCancel context.CancelFunc, scheduler *Scheduler, triggerEngine *TriggerEngine) error {
+	if runtimeCancel != nil {
+		runtimeCancel()
+	}
+
+	var errs []error
+	if err := m.shutdownRuntimeComponent(ctx, "trigger engine", triggerEngine); err != nil {
+		errs = append(errs, err)
+	}
+	if err := m.shutdownRuntimeComponent(ctx, "scheduler", scheduler); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
+func (m *Manager) shutdownRuntimeComponent(ctx context.Context, name string, component managerRuntimeComponent) error {
+	if component == nil {
+		return nil
+	}
+
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), managerRuntimeCleanupTimeout)
+	defer cancel()
+
+	if err := component.Shutdown(cleanupCtx); err != nil {
+		return fmt.Errorf("automation: shutdown %s: %w", name, err)
+	}
+	return nil
 }
 
 func (m *Manager) fireHookRecord(ctx context.Context, sessionID string, record hookspkg.HookRunRecord) error {

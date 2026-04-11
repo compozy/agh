@@ -604,4 +604,5 @@ func DiscardLogger() *slog.Logger {
 
 var _ core.SessionManager = StubSessionManager{}
 var _ core.Observer = StubObserver{}
+var _ core.AutomationManager = StubAutomationManager{}
 var _ core.WorkspaceService = StubWorkspaceService{}

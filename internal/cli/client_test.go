@@ -549,130 +549,160 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 
 	ctx := context.Background()
 
-	jobs, err := client.ListAutomationJobs(ctx, AutomationJobQuery{
-		Scope:       automationpkg.AutomationScopeWorkspace,
-		WorkspaceID: "ws-alpha",
-		Source:      automationpkg.JobSourceDynamic,
-		Limit:       3,
+	t.Run("Should list automation jobs", func(t *testing.T) {
+		jobs, err := client.ListAutomationJobs(ctx, AutomationJobQuery{
+			Scope:       automationpkg.AutomationScopeWorkspace,
+			WorkspaceID: "ws-alpha",
+			Source:      automationpkg.JobSourceDynamic,
+			Limit:       3,
+		})
+		if err != nil || len(jobs) != 1 || jobs[0].ID != "job-1" {
+			t.Fatalf("ListAutomationJobs() = %#v, %v", jobs, err)
+		}
 	})
-	if err != nil || len(jobs) != 1 || jobs[0].ID != "job-1" {
-		t.Fatalf("ListAutomationJobs() = %#v, %v", jobs, err)
-	}
 
-	createdJob, err := client.CreateAutomationJob(ctx, AutomationJobCreateRequest{
-		Scope:       automationpkg.AutomationScopeWorkspace,
-		WorkspaceID: "ws-alpha",
-		Name:        "nightly",
-		AgentName:   "coder",
-		Prompt:      "review repo",
-		Schedule: automationpkg.ScheduleSpec{
-			Mode:     automationpkg.ScheduleModeEvery,
-			Interval: "1h",
-		},
+	t.Run("Should create automation jobs", func(t *testing.T) {
+		createdJob, err := client.CreateAutomationJob(ctx, AutomationJobCreateRequest{
+			Scope:       automationpkg.AutomationScopeWorkspace,
+			WorkspaceID: "ws-alpha",
+			Name:        "nightly",
+			AgentName:   "coder",
+			Prompt:      "review repo",
+			Schedule: automationpkg.ScheduleSpec{
+				Mode:     automationpkg.ScheduleModeEvery,
+				Interval: "1h",
+			},
+		})
+		if err != nil || createdJob.ID != "job-created" {
+			t.Fatalf("CreateAutomationJob() = %#v, %v", createdJob, err)
+		}
 	})
-	if err != nil || createdJob.ID != "job-created" {
-		t.Fatalf("CreateAutomationJob() = %#v, %v", createdJob, err)
-	}
 
-	job, err := client.GetAutomationJob(ctx, "job-created")
-	if err != nil || job.NextRun == nil {
-		t.Fatalf("GetAutomationJob() = %#v, %v", job, err)
-	}
-
-	updatedJob, err := client.UpdateAutomationJob(ctx, "job-created", AutomationJobUpdateRequest{
-		Prompt:  ptr("review now"),
-		Enabled: ptr(false),
+	t.Run("Should get automation jobs", func(t *testing.T) {
+		job, err := client.GetAutomationJob(ctx, "job-created")
+		if err != nil || job.NextRun == nil {
+			t.Fatalf("GetAutomationJob() = %#v, %v", job, err)
+		}
 	})
-	if err != nil || updatedJob.Enabled {
-		t.Fatalf("UpdateAutomationJob() = %#v, %v", updatedJob, err)
-	}
 
-	triggeredRun, err := client.TriggerAutomationJob(ctx, "job-created")
-	if err != nil || triggeredRun.ID != "run-job" {
-		t.Fatalf("TriggerAutomationJob() = %#v, %v", triggeredRun, err)
-	}
-
-	jobRuns, err := client.AutomationJobRuns(ctx, "job-created", AutomationRunQuery{
-		Status: automationpkg.RunCompleted,
-		Since:  startedAt.Add(-time.Hour),
-		Until:  startedAt.Add(time.Hour),
-		Limit:  2,
+	t.Run("Should update automation jobs", func(t *testing.T) {
+		updatedJob, err := client.UpdateAutomationJob(ctx, "job-created", AutomationJobUpdateRequest{
+			Prompt:  ptr("review now"),
+			Enabled: ptr(false),
+		})
+		if err != nil || updatedJob.Enabled {
+			t.Fatalf("UpdateAutomationJob() = %#v, %v", updatedJob, err)
+		}
 	})
-	if err != nil || len(jobRuns) != 1 || jobRuns[0].JobID != "job-created" {
-		t.Fatalf("AutomationJobRuns() = %#v, %v", jobRuns, err)
-	}
 
-	if err := client.DeleteAutomationJob(ctx, "job-created"); err != nil {
-		t.Fatalf("DeleteAutomationJob() error = %v", err)
-	}
-
-	triggers, err := client.ListAutomationTriggers(ctx, AutomationTriggerQuery{
-		Scope:       automationpkg.AutomationScopeWorkspace,
-		WorkspaceID: "ws-alpha",
-		Event:       "webhook",
-		Source:      automationpkg.JobSourceDynamic,
-		Limit:       2,
+	t.Run("Should trigger automation jobs", func(t *testing.T) {
+		triggeredRun, err := client.TriggerAutomationJob(ctx, "job-created")
+		if err != nil || triggeredRun.ID != "run-job" {
+			t.Fatalf("TriggerAutomationJob() = %#v, %v", triggeredRun, err)
+		}
 	})
-	if err != nil || len(triggers) != 1 || triggers[0].ID != "trg-1" {
-		t.Fatalf("ListAutomationTriggers() = %#v, %v", triggers, err)
-	}
 
-	createdTrigger, err := client.CreateAutomationTrigger(ctx, AutomationTriggerCreateRequest{
-		Scope:         automationpkg.AutomationScopeWorkspace,
-		WorkspaceID:   "ws-alpha",
-		Name:          "deploy-review",
-		AgentName:     "coder",
-		Prompt:        `review {{ index .Data "payload" }}`,
-		Event:         "webhook",
-		Filter:        map[string]string{"data.branch": "main"},
-		EndpointSlug:  "deploy-review",
-		WebhookSecret: "shared-secret",
+	t.Run("Should list automation job runs", func(t *testing.T) {
+		jobRuns, err := client.AutomationJobRuns(ctx, "job-created", AutomationRunQuery{
+			Status: automationpkg.RunCompleted,
+			Since:  startedAt.Add(-time.Hour),
+			Until:  startedAt.Add(time.Hour),
+			Limit:  2,
+		})
+		if err != nil || len(jobRuns) != 1 || jobRuns[0].JobID != "job-created" {
+			t.Fatalf("AutomationJobRuns() = %#v, %v", jobRuns, err)
+		}
 	})
-	if err != nil || createdTrigger.ID != "trg-created" {
-		t.Fatalf("CreateAutomationTrigger() = %#v, %v", createdTrigger, err)
-	}
 
-	trigger, err := client.GetAutomationTrigger(ctx, "trg-created")
-	if err != nil || trigger.WebhookID != "wbh_123" {
-		t.Fatalf("GetAutomationTrigger() = %#v, %v", trigger, err)
-	}
-
-	updatedTrigger, err := client.UpdateAutomationTrigger(ctx, "trg-created", AutomationTriggerUpdateRequest{
-		Prompt:  ptr(`inspect {{ index .Data "payload" }}`),
-		Enabled: ptr(false),
+	t.Run("Should delete automation jobs", func(t *testing.T) {
+		if err := client.DeleteAutomationJob(ctx, "job-created"); err != nil {
+			t.Fatalf("DeleteAutomationJob() error = %v", err)
+		}
 	})
-	if err != nil || updatedTrigger.Enabled {
-		t.Fatalf("UpdateAutomationTrigger() = %#v, %v", updatedTrigger, err)
-	}
 
-	triggerRuns, err := client.AutomationTriggerRuns(ctx, "trg-created", AutomationRunQuery{
-		Status: automationpkg.RunCompleted,
-		Limit:  1,
+	t.Run("Should list automation triggers", func(t *testing.T) {
+		triggers, err := client.ListAutomationTriggers(ctx, AutomationTriggerQuery{
+			Scope:       automationpkg.AutomationScopeWorkspace,
+			WorkspaceID: "ws-alpha",
+			Event:       "webhook",
+			Source:      automationpkg.JobSourceDynamic,
+			Limit:       2,
+		})
+		if err != nil || len(triggers) != 1 || triggers[0].ID != "trg-1" {
+			t.Fatalf("ListAutomationTriggers() = %#v, %v", triggers, err)
+		}
 	})
-	if err != nil || len(triggerRuns) != 1 || triggerRuns[0].TriggerID != "trg-created" {
-		t.Fatalf("AutomationTriggerRuns() = %#v, %v", triggerRuns, err)
-	}
 
-	if err := client.DeleteAutomationTrigger(ctx, "trg-created"); err != nil {
-		t.Fatalf("DeleteAutomationTrigger() error = %v", err)
-	}
-
-	runs, err := client.ListAutomationRuns(ctx, AutomationRunQuery{
-		JobID:     "job-created",
-		TriggerID: "trg-created",
-		Status:    automationpkg.RunCompleted,
-		Since:     startedAt,
-		Until:     startedAt.Add(time.Hour),
-		Limit:     5,
+	t.Run("Should create automation triggers", func(t *testing.T) {
+		createdTrigger, err := client.CreateAutomationTrigger(ctx, AutomationTriggerCreateRequest{
+			Scope:         automationpkg.AutomationScopeWorkspace,
+			WorkspaceID:   "ws-alpha",
+			Name:          "deploy-review",
+			AgentName:     "coder",
+			Prompt:        `review {{ index .Data "payload" }}`,
+			Event:         "webhook",
+			Filter:        map[string]string{"data.branch": "main"},
+			EndpointSlug:  "deploy-review",
+			WebhookSecret: "shared-secret",
+		})
+		if err != nil || createdTrigger.ID != "trg-created" {
+			t.Fatalf("CreateAutomationTrigger() = %#v, %v", createdTrigger, err)
+		}
 	})
-	if err != nil || len(runs) != 1 || runs[0].ID != "run-shared" {
-		t.Fatalf("ListAutomationRuns() = %#v, %v", runs, err)
-	}
 
-	run, err := client.GetAutomationRun(ctx, "run-shared")
-	if err != nil || run.EndedAt == nil || !run.EndedAt.Equal(endedAt) {
-		t.Fatalf("GetAutomationRun() = %#v, %v", run, err)
-	}
+	t.Run("Should get automation triggers", func(t *testing.T) {
+		trigger, err := client.GetAutomationTrigger(ctx, "trg-created")
+		if err != nil || trigger.WebhookID != "wbh_123" {
+			t.Fatalf("GetAutomationTrigger() = %#v, %v", trigger, err)
+		}
+	})
+
+	t.Run("Should update automation triggers", func(t *testing.T) {
+		updatedTrigger, err := client.UpdateAutomationTrigger(ctx, "trg-created", AutomationTriggerUpdateRequest{
+			Prompt:  ptr(`inspect {{ index .Data "payload" }}`),
+			Enabled: ptr(false),
+		})
+		if err != nil || updatedTrigger.Enabled {
+			t.Fatalf("UpdateAutomationTrigger() = %#v, %v", updatedTrigger, err)
+		}
+	})
+
+	t.Run("Should list automation trigger runs", func(t *testing.T) {
+		triggerRuns, err := client.AutomationTriggerRuns(ctx, "trg-created", AutomationRunQuery{
+			Status: automationpkg.RunCompleted,
+			Limit:  1,
+		})
+		if err != nil || len(triggerRuns) != 1 || triggerRuns[0].TriggerID != "trg-created" {
+			t.Fatalf("AutomationTriggerRuns() = %#v, %v", triggerRuns, err)
+		}
+	})
+
+	t.Run("Should delete automation triggers", func(t *testing.T) {
+		if err := client.DeleteAutomationTrigger(ctx, "trg-created"); err != nil {
+			t.Fatalf("DeleteAutomationTrigger() error = %v", err)
+		}
+	})
+
+	t.Run("Should list automation runs", func(t *testing.T) {
+		runs, err := client.ListAutomationRuns(ctx, AutomationRunQuery{
+			JobID:     "job-created",
+			TriggerID: "trg-created",
+			Status:    automationpkg.RunCompleted,
+			Since:     startedAt,
+			Until:     startedAt.Add(time.Hour),
+			Limit:     5,
+		})
+		if err != nil || len(runs) != 1 || runs[0].ID != "run-shared" {
+			t.Fatalf("ListAutomationRuns() = %#v, %v", runs, err)
+		}
+	})
+
+	t.Run("Should get automation runs", func(t *testing.T) {
+		run, err := client.GetAutomationRun(ctx, "run-shared")
+		if err != nil || run.EndedAt == nil || !run.EndedAt.Equal(endedAt) {
+			t.Fatalf("GetAutomationRun() = %#v, %v", run, err)
+		}
+	})
 }
 
 func TestReadAPIErrorAndHelpers(t *testing.T) {

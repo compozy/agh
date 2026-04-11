@@ -674,8 +674,9 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 	payload := []byte(`{"payload":"deploy"}`)
 	timestamp := time.Now().UTC()
 	invalidResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/webhooks/global/"+endpoint), payload, map[string]string{
-		core.WebhookTimestampHeader: timestamp.Format(time.RFC3339),
-		core.WebhookSignatureHeader: "sha256=deadbeef",
+		core.WebhookTimestampHeader:  timestamp.Format(time.RFC3339),
+		core.WebhookSignatureHeader:  "sha256=deadbeef",
+		core.WebhookDeliveryIDHeader: "delivery-invalid",
 	})
 	if invalidResp.StatusCode != http.StatusUnauthorized {
 		body, _ := io.ReadAll(invalidResp.Body)
@@ -689,8 +690,9 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		t.Fatalf("SignWebhookPayload() error = %v", err)
 	}
 	validResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/webhooks/global/"+endpoint), payload, map[string]string{
-		core.WebhookTimestampHeader: timestamp.Format(time.RFC3339),
-		core.WebhookSignatureHeader: signature,
+		core.WebhookTimestampHeader:  timestamp.Format(time.RFC3339),
+		core.WebhookSignatureHeader:  signature,
+		core.WebhookDeliveryIDHeader: "delivery-valid",
 	})
 	if validResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(validResp.Body)

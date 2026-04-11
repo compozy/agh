@@ -90,26 +90,33 @@ func NewAutomationValidationError(err error) error {
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("%w: %v", ErrAutomationValidation, err)
+	return fmt.Errorf("%w: %w", ErrAutomationValidation, err)
 }
 
 // StatusForAutomationError maps automation-domain failures to transport statuses.
 func StatusForAutomationError(err error) int {
+	var maxBytesErr *http.MaxBytesError
 	switch {
 	case err == nil:
 		return http.StatusOK
+	case errors.As(err, &maxBytesErr):
+		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, ErrAutomationValidation):
 		return http.StatusBadRequest
 	case errors.Is(err, automationpkg.ErrJobNotFound),
 		errors.Is(err, automationpkg.ErrTriggerNotFound),
 		errors.Is(err, automationpkg.ErrRunNotFound),
-		errors.Is(err, automationpkg.ErrWebhookTriggerNotRegistered):
+		errors.Is(err, automationpkg.ErrWebhookTriggerNotRegistered),
+		errors.Is(err, automationpkg.ErrJobOverlayNotFound),
+		errors.Is(err, automationpkg.ErrTriggerOverlayNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, automationpkg.ErrJobNameTaken),
 		errors.Is(err, automationpkg.ErrTriggerNameTaken),
 		errors.Is(err, automationpkg.ErrTriggerWebhookIDTaken),
 		errors.Is(err, automationpkg.ErrConcurrencyLimitReached),
-		errors.Is(err, automationpkg.ErrFireLimitReached):
+		errors.Is(err, automationpkg.ErrFireLimitReached),
+		errors.Is(err, automationpkg.ErrOverlayRequiresConfigSource),
+		errors.Is(err, automationpkg.ErrWebhookReplayDetected):
 		return http.StatusConflict
 	case errors.Is(err, automationpkg.ErrWebhookSignatureInvalid),
 		errors.Is(err, automationpkg.ErrWebhookTimestampInvalid):
