@@ -6,6 +6,7 @@ type StopCause int
 const (
 	CauseNone StopCause = iota
 	CauseCompleted
+	CauseFailed
 	CauseUserRequested
 	CauseShutdown
 	CauseHookDenied

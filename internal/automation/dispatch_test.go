@@ -104,6 +104,73 @@ func TestDispatchGlobalAutomationUsesGlobalWorkspacePath(t *testing.T) {
 	}
 }
 
+func TestDispatchStopsCreatedSessionWhenRunCompletes(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	dispatcher := newTestDispatcher(t, creator, store)
+
+	job := testJob(AutomationScopeGlobal, "job-stop-complete", "")
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind: DispatchKindManual,
+		Job:  &job,
+	})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+
+	stopCalls := creator.stopCalls()
+	if got, want := len(stopCalls), 1; got != want {
+		t.Fatalf("len(StopWithCause calls) = %d, want %d", got, want)
+	}
+	if got, want := stopCalls[0].sessionID, run.SessionID; got != want {
+		t.Fatalf("StopWithCause().sessionID = %q, want %q", got, want)
+	}
+	if got, want := stopCalls[0].cause, session.CauseCompleted; got != want {
+		t.Fatalf("StopWithCause().cause = %v, want %v", got, want)
+	}
+	if got := stopCalls[0].detail; got != "" {
+		t.Fatalf("StopWithCause().detail = %q, want empty", got)
+	}
+}
+
+func TestDispatchStopsCreatedSessionWhenRunFails(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator(sessionAttemptPlan{
+		events: []acp.AgentEvent{{Error: "prompt failed"}},
+	})
+	dispatcher := newTestDispatcher(t, creator, store)
+
+	job := testJob(AutomationScopeGlobal, "job-stop-failed", "")
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind: DispatchKindManual,
+		Job:  &job,
+	})
+	if err == nil {
+		t.Fatal("Dispatch() error = nil, want non-nil")
+	}
+	if got, want := run.Status, RunFailed; got != want {
+		t.Fatalf("run.Status = %q, want %q", got, want)
+	}
+
+	stopCalls := creator.stopCalls()
+	if got, want := len(stopCalls), 1; got != want {
+		t.Fatalf("len(StopWithCause calls) = %d, want %d", got, want)
+	}
+	if got, want := stopCalls[0].sessionID, run.SessionID; got != want {
+		t.Fatalf("StopWithCause().sessionID = %q, want %q", got, want)
+	}
+	if got, want := stopCalls[0].cause, session.CauseFailed; got != want {
+		t.Fatalf("StopWithCause().cause = %v, want %v", got, want)
+	}
+	if got, want := stopCalls[0].detail, "prompt failed"; got != want {
+		t.Fatalf("StopWithCause().detail = %q, want %q", got, want)
+	}
+}
+
 func TestDispatchRejectsWhenGlobalConcurrencyLimitIsReached(t *testing.T) {
 	t.Parallel()
 
@@ -713,12 +780,19 @@ type promptCall struct {
 	message   string
 }
 
+type stopCall struct {
+	sessionID string
+	cause     session.StopCause
+	detail    string
+}
+
 type recordingSessionCreator struct {
 	mu          sync.Mutex
 	plans       []sessionAttemptPlan
 	nextSession int
 	createLog   []session.CreateOpts
 	promptLog   []promptCall
+	stopLog     []stopCall
 	bySessionID map[string]sessionAttemptPlan
 }
 
@@ -796,6 +870,22 @@ func (c *recordingSessionCreator) Prompt(ctx context.Context, id string, msg str
 	return out, nil
 }
 
+func (c *recordingSessionCreator) StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.stopLog = append(c.stopLog, stopCall{
+		sessionID: strings.TrimSpace(id),
+		cause:     cause,
+		detail:    strings.TrimSpace(detail),
+	})
+	return nil
+}
+
 func (c *recordingSessionCreator) createCalls() []session.CreateOpts {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -808,6 +898,13 @@ func (c *recordingSessionCreator) promptCalls() []promptCall {
 	defer c.mu.Unlock()
 
 	return append([]promptCall(nil), c.promptLog...)
+}
+
+func (c *recordingSessionCreator) stopCalls() []stopCall {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return append([]stopCall(nil), c.stopLog...)
 }
 
 func waitForRelease(ctx context.Context, release <-chan struct{}) error {

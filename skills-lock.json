@@ -101,6 +101,11 @@
             "sourceType": "github",
             "computedHash": "8aa98ed5bea287bf04295aec57b4fca25cf724069aaf58c8a66ac68bf791360d"
         },
+        "tmux": {
+            "source": "steipete/clawdis",
+            "sourceType": "github",
+            "computedHash": "d9c56ff5d25a0a8217eaedfb64b46c05dd20a2c0e0edae75f059ecb1d8833c08"
+        },
         "typeset": {
             "source": "pbakaus/impeccable",
             "sourceType": "github",

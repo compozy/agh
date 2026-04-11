@@ -32,17 +32,18 @@ import (
 var ErrStubWorkspaceServiceNotImplemented = errors.New("stub workspace service method not implemented")
 
 type StubSessionManager struct {
-	CreateFn     func(context.Context, session.CreateOpts) (*session.Session, error)
-	ListFn       func() []*session.SessionInfo
-	ListAllFn    func(context.Context) ([]*session.SessionInfo, error)
-	StatusFn     func(context.Context, string) (*session.SessionInfo, error)
-	EventsFn     func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
-	HistoryFn    func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	TranscriptFn func(context.Context, string) ([]transcript.Message, error)
-	StopFn       func(context.Context, string) error
-	ResumeFn     func(context.Context, string) (*session.Session, error)
-	PromptFn     func(context.Context, string, string) (<-chan acp.AgentEvent, error)
-	ApproveFn    func(context.Context, string, acp.ApproveRequest) error
+	CreateFn        func(context.Context, session.CreateOpts) (*session.Session, error)
+	ListFn          func() []*session.SessionInfo
+	ListAllFn       func(context.Context) ([]*session.SessionInfo, error)
+	StatusFn        func(context.Context, string) (*session.SessionInfo, error)
+	EventsFn        func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	HistoryFn       func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
+	TranscriptFn    func(context.Context, string) ([]transcript.Message, error)
+	StopFn          func(context.Context, string) error
+	StopWithCauseFn func(context.Context, string, session.StopCause, string) error
+	ResumeFn        func(context.Context, string) (*session.Session, error)
+	PromptFn        func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	ApproveFn       func(context.Context, string, acp.ApproveRequest) error
 }
 
 func (s StubSessionManager) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -102,6 +103,16 @@ func (s StubSessionManager) Transcript(ctx context.Context, id string) ([]transc
 }
 
 func (s StubSessionManager) Stop(ctx context.Context, id string) error {
+	if s.StopFn != nil {
+		return s.StopFn(ctx, id)
+	}
+	return nil
+}
+
+func (s StubSessionManager) StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error {
+	if s.StopWithCauseFn != nil {
+		return s.StopWithCauseFn(ctx, id, cause, detail)
+	}
 	if s.StopFn != nil {
 		return s.StopFn(ctx, id)
 	}

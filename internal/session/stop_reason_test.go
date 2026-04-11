@@ -77,6 +77,13 @@ func TestClassifyStopReason(t *testing.T) {
 			wantReason: store.StopCompleted,
 		},
 		{
+			name:       "Should classify failure",
+			cause:      CauseFailed,
+			detail:     "automation prompt failed",
+			wantReason: store.StopError,
+			wantDetail: "automation prompt failed",
+		},
+		{
 			name:       "Should classify hook denial as hook stopped",
 			cause:      CauseHookDenied,
 			detail:     "reason",

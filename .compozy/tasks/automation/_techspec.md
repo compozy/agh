@@ -358,9 +358,12 @@ scope = "global"
 name = "on-deploy"
 event = "webhook"
 endpoint_slug = "deploy-review"
+webhook_secret_env = "AGH_CONFIG_WEBHOOK_SECRET"
 agent = "deploy-reviewer"
 prompt = "Review deployment payload: {{ index .Data \"payload\" }}"
 ```
+
+Config-backed webhook triggers must provide `webhook_secret_env` so the daemon can resolve a write-only runtime secret without exposing it through readable trigger definitions.
 
 ### API Endpoints
 

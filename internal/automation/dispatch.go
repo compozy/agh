@@ -22,6 +22,8 @@ var (
 	ErrFireLimitReached = errors.New("automation: fire limit reached")
 )
 
+const dispatcherSessionStopTimeout = 2 * time.Second
+
 // DispatchKind identifies which activation path produced a dispatch request.
 type DispatchKind string
 
@@ -116,6 +118,7 @@ func (r DispatchRequest) Validate(path string) error {
 type SessionCreator interface {
 	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
+	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
 
 // RunStore persists automation run state and restart-safe fire-limit inputs.
@@ -337,16 +340,16 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 
 	events, promptErr := d.sessions.Prompt(ctx, createdSession.ID, prompt)
 	if promptErr != nil {
-		return d.finishRun(ctx, runningRun, classifyDispatchError(promptErr), promptErr)
+		return d.finishRunAfterSessionStop(ctx, runningRun, createdSession.ID, classifyDispatchError(promptErr), promptErr)
 	}
 	d.dispatchPostFireHook(ctx, req, *runningRun)
 
 	runErr := collectPromptError(ctx, events)
 	if runErr != nil {
-		return d.finishRun(ctx, runningRun, classifyDispatchError(runErr), runErr)
+		return d.finishRunAfterSessionStop(ctx, runningRun, createdSession.ID, classifyDispatchError(runErr), runErr)
 	}
 
-	return d.finishRun(ctx, runningRun, RunCompleted, nil)
+	return d.finishRunAfterSessionStop(ctx, runningRun, createdSession.ID, RunCompleted, nil)
 }
 
 func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attempt int) (*Run, error) {
@@ -473,6 +476,34 @@ func (d *Dispatcher) finishRun(ctx context.Context, current *Run, status RunStat
 		"error", runErr,
 	)
 	return updatedRun, runErr
+}
+
+func (d *Dispatcher) finishRunAfterSessionStop(ctx context.Context, current *Run, sessionID string, status RunStatus, runErr error) (*Run, error) {
+	stopErr := d.stopAutomationSession(ctx, sessionID, status, runErr)
+	if stopErr != nil {
+		wrappedStopErr := fmt.Errorf("automation: stop session %q: %w", strings.TrimSpace(sessionID), stopErr)
+		if runErr == nil {
+			status = RunFailed
+			runErr = wrappedStopErr
+		} else {
+			runErr = errors.Join(runErr, wrappedStopErr)
+		}
+	}
+
+	return d.finishRun(ctx, current, status, runErr)
+}
+
+func (d *Dispatcher) stopAutomationSession(ctx context.Context, sessionID string, status RunStatus, runErr error) error {
+	trimmedSessionID := strings.TrimSpace(sessionID)
+	if d == nil || trimmedSessionID == "" {
+		return nil
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), dispatcherSessionStopTimeout)
+	defer cancel()
+
+	cause, detail := dispatchStopCause(status, runErr)
+	return d.sessions.StopWithCause(stopCtx, trimmedSessionID, cause, detail)
 }
 
 func (d *Dispatcher) dispatchPreFireHook(ctx context.Context, req DispatchRequest, prompt string, attempt int) (string, bool, error) {
@@ -737,6 +768,24 @@ func classifyDispatchError(err error) RunStatus {
 		return RunCancelled
 	}
 	return RunFailed
+}
+
+func dispatchStopCause(status RunStatus, runErr error) (session.StopCause, string) {
+	switch status {
+	case RunCompleted:
+		return session.CauseCompleted, ""
+	case RunCancelled:
+		return session.CauseUserRequested, strings.TrimSpace(errorText(runErr))
+	default:
+		return session.CauseFailed, strings.TrimSpace(errorText(runErr))
+	}
+}
+
+func errorText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func shouldRetry(cfg RetryConfig, run *Run, attempt int, dispatchErr error) bool {

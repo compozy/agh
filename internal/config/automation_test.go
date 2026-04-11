@@ -137,6 +137,8 @@ prompt = "Summarize {{ .Kind }}"
 }
 
 func TestLoadRejectsAutomationWebhookFieldMismatches(t *testing.T) {
+	t.Setenv("AGH_AUTOMATION_WEBHOOK_SECRET", "super-secret")
+
 	testCases := []struct {
 		name     string
 		contents string
@@ -164,8 +166,49 @@ name = "deploy"
 event = "webhook"
 agent = "summarizer"
 prompt = "Review {{ index .Data \"payload\" }}"
+webhook_secret_env = "AGH_AUTOMATION_WEBHOOK_SECRET"
 `,
 			wantErr: "endpoint_slug",
+		},
+		{
+			name: "webhook trigger without secret env",
+			contents: `
+[[automation.triggers]]
+scope = "global"
+name = "deploy"
+event = "webhook"
+endpoint_slug = "deploy-review"
+agent = "summarizer"
+prompt = "Review {{ index .Data \"payload\" }}"
+`,
+			wantErr: "webhook_secret_env",
+		},
+		{
+			name: "non webhook trigger with secret env",
+			contents: `
+[[automation.triggers]]
+scope = "global"
+name = "post-run"
+event = "session.stopped"
+agent = "summarizer"
+prompt = "Summarize {{ .Kind }}"
+webhook_secret_env = "AGH_AUTOMATION_WEBHOOK_SECRET"
+`,
+			wantErr: "webhook_secret_env",
+		},
+		{
+			name: "webhook trigger with unset secret env",
+			contents: `
+[[automation.triggers]]
+scope = "global"
+name = "deploy"
+event = "webhook"
+endpoint_slug = "deploy-review"
+agent = "summarizer"
+prompt = "Review {{ index .Data \"payload\" }}"
+webhook_secret_env = "AGH_AUTOMATION_WEBHOOK_SECRET_MISSING"
+`,
+			wantErr: "webhook_secret_env",
 		},
 	}
 

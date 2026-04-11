@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -1176,12 +1177,20 @@ func (m *Manager) syncConfigDefinitions(ctx context.Context) (SyncStats, error) 
 	sortJobs(desiredJobs)
 
 	desiredTriggers := make([]Trigger, 0, len(m.config.Triggers))
+	desiredTriggerSecrets := make(map[string]string, len(m.config.Triggers))
 	for idx, raw := range m.config.Triggers {
 		trigger, err := m.resolveConfigTrigger(ctx, raw)
 		if err != nil {
 			return SyncStats{}, fmt.Errorf("automation: resolve config trigger %d: %w", idx, err)
 		}
+		secret, err := m.resolveConfigTriggerWebhookSecret(raw)
+		if err != nil {
+			return SyncStats{}, fmt.Errorf("automation: resolve config trigger %d webhook secret: %w", idx, err)
+		}
 		desiredTriggers = append(desiredTriggers, trigger)
+		if strings.TrimSpace(secret) != "" {
+			desiredTriggerSecrets[trigger.ID] = secret
+		}
 	}
 	sortTriggers(desiredTriggers)
 
@@ -1189,7 +1198,7 @@ func (m *Manager) syncConfigDefinitions(ctx context.Context) (SyncStats, error) 
 	if err != nil {
 		return SyncStats{}, err
 	}
-	triggersSynced, triggersRemoved, err := m.syncTriggers(ctx, desiredTriggers)
+	triggersSynced, triggersRemoved, err := m.syncTriggers(ctx, desiredTriggers, desiredTriggerSecrets)
 	if err != nil {
 		return SyncStats{}, err
 	}
@@ -1257,7 +1266,7 @@ func (m *Manager) syncJobs(ctx context.Context, desired []Job) (int, int, error)
 	return synced, removed, nil
 }
 
-func (m *Manager) syncTriggers(ctx context.Context, desired []Trigger) (int, int, error) {
+func (m *Manager) syncTriggers(ctx context.Context, desired []Trigger, desiredSecrets map[string]string) (int, int, error) {
 	existing, err := m.store.ListTriggers(ctx, TriggerListQuery{Source: JobSourceConfig})
 	if err != nil {
 		return 0, 0, err
@@ -1285,6 +1294,9 @@ func (m *Manager) syncTriggers(ctx context.Context, desired []Trigger) (int, int
 				return 0, 0, err
 			}
 		}
+		if err := m.syncConfigTriggerWebhookSecret(ctx, current, trigger, desiredSecrets[trigger.ID]); err != nil {
+			return 0, 0, err
+		}
 		synced++
 	}
 
@@ -1292,6 +1304,9 @@ func (m *Manager) syncTriggers(ctx context.Context, desired []Trigger) (int, int
 	for id := range existingByID {
 		if _, ok := desiredByID[id]; ok {
 			continue
+		}
+		if err := m.store.DeleteTriggerWebhookSecret(ctx, id); err != nil && !errors.Is(err, ErrTriggerWebhookSecretNotFound) {
+			return 0, 0, err
 		}
 		if err := m.store.DeleteTrigger(ctx, id); err != nil {
 			return 0, 0, err
@@ -1382,6 +1397,23 @@ func (m *Manager) resolveConfigTrigger(ctx context.Context, raw aghconfig.Automa
 		return Trigger{}, err
 	}
 	return trigger, nil
+}
+
+func (m *Manager) resolveConfigTriggerWebhookSecret(raw aghconfig.AutomationTrigger) (string, error) {
+	if !strings.EqualFold(strings.TrimSpace(raw.Event), "webhook") {
+		return "", nil
+	}
+
+	envName := strings.TrimSpace(raw.WebhookSecretEnv)
+	if envName == "" {
+		return "", ErrWebhookSecretRequired
+	}
+
+	secret, ok := os.LookupEnv(envName)
+	if !ok || strings.TrimSpace(secret) == "" {
+		return "", fmt.Errorf("automation: webhook secret env %q is not set or empty", envName)
+	}
+	return strings.TrimSpace(secret), nil
 }
 
 func (m *Manager) resolveConfigWorkspace(ctx context.Context, scope AutomationScope, workspaceRef string) (string, error) {
@@ -1479,6 +1511,16 @@ func (m *Manager) syncTriggerWebhookSecret(ctx context.Context, previous Trigger
 		return ErrWebhookSecretRequired
 	}
 	return m.store.SetTriggerWebhookSecret(ctx, current.ID, secret)
+}
+
+func (m *Manager) syncConfigTriggerWebhookSecret(ctx context.Context, _ Trigger, current Trigger, secret string) error {
+	if !strings.EqualFold(strings.TrimSpace(current.Event), "webhook") {
+		return m.store.DeleteTriggerWebhookSecret(ctx, current.ID)
+	}
+	if strings.TrimSpace(secret) == "" {
+		return ErrWebhookSecretRequired
+	}
+	return m.store.SetTriggerWebhookSecret(ctx, current.ID, strings.TrimSpace(secret))
 }
 
 func (m *Manager) ensureTriggerWebhookID(ctx context.Context, trigger Trigger) (Trigger, error) {

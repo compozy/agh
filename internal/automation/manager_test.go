@@ -16,6 +16,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -587,9 +588,8 @@ func TestManagerObserversAndRunsRouteTriggerEvents(t *testing.T) {
 }
 
 func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
-	t.Parallel()
-
 	h := newManagerHarness(t)
+	t.Setenv("AGH_TEST_WEBHOOK_SECRET", "super-secret")
 	cfg := aghconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
@@ -599,6 +599,7 @@ func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
 			func() aghconfig.AutomationTrigger {
 				trigger := managerConfigTrigger(AutomationScopeWorkspace, "webhook-trigger", h.workspaceRoot, "webhook")
 				trigger.EndpointSlug = "deploy-review"
+				trigger.WebhookSecretEnv = "AGH_TEST_WEBHOOK_SECRET"
 				trigger.Filter = map[string]string{"data.payload": "deploy"}
 				return trigger
 			}(),
@@ -641,6 +642,74 @@ func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
 		WorkspaceID: h.workspace.ID,
 		Endpoint:    endpoint,
 		DeliveryID:  "delivery-1",
+		Timestamp:   timestamp,
+		Signature:   signature,
+		Payload:     payload,
+		Data: map[string]any{
+			"payload": "deploy",
+		},
+	})
+	if err != nil {
+		t.Fatalf("HandleWebhook() error = %v", err)
+	}
+	if got, want := result.Matched, 1; got != want {
+		t.Fatalf("result.Matched = %d, want %d", got, want)
+	}
+	if got, want := h.sessions.promptCount(), 1; got != want {
+		t.Fatalf("Prompt() call count = %d, want %d", got, want)
+	}
+}
+
+func TestManagerHandleWebhookWithConfigSecretEnv(t *testing.T) {
+	h := newManagerHarness(t)
+	t.Setenv("AGH_TEST_CONFIG_WEBHOOK_SECRET", "config-super-secret")
+	cfg := aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+		Triggers: []aghconfig.AutomationTrigger{
+			func() aghconfig.AutomationTrigger {
+				trigger := managerConfigTrigger(AutomationScopeWorkspace, "config-webhook-trigger", h.workspaceRoot, "webhook")
+				trigger.EndpointSlug = "config-deploy-review"
+				trigger.WebhookSecretEnv = "AGH_TEST_CONFIG_WEBHOOK_SECRET"
+				trigger.Filter = map[string]string{"data.payload": "deploy"}
+				return trigger
+			}(),
+		},
+	}
+
+	manager := h.newManager(t, cfg)
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	trigger, err := manager.resolveConfigTrigger(h.ctx, cfg.Triggers[0])
+	if err != nil {
+		t.Fatalf("resolveConfigTrigger() error = %v", err)
+	}
+	endpoint, err := FormatWebhookEndpoint(trigger.EndpointSlug, trigger.WebhookID)
+	if err != nil {
+		t.Fatalf("FormatWebhookEndpoint() error = %v", err)
+	}
+
+	payload := []byte(`{"payload":"deploy"}`)
+	timestamp := time.Now().UTC()
+	signature, err := SignWebhookPayload("config-super-secret", timestamp, payload)
+	if err != nil {
+		t.Fatalf("SignWebhookPayload() error = %v", err)
+	}
+
+	result, err := manager.HandleWebhook(h.ctx, WebhookRequest{
+		Scope:       AutomationScopeWorkspace,
+		WorkspaceID: h.workspace.ID,
+		Endpoint:    endpoint,
+		DeliveryID:  "delivery-config-1",
 		Timestamp:   timestamp,
 		Signature:   signature,
 		Payload:     payload,
@@ -1839,6 +1908,35 @@ func (s *managerSessionStub) Create(ctx context.Context, opts session.CreateOpts
 
 func (s *managerSessionStub) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	return s.creator.Prompt(ctx, id, msg)
+}
+
+func (s *managerSessionStub) StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error {
+	if err := s.creator.StopWithCause(ctx, id, cause, detail); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	info, ok := s.statuses[id]
+	if !ok || info == nil {
+		return nil
+	}
+	next := *info
+	next.State = session.StateStopped
+	switch cause {
+	case session.CauseCompleted:
+		next.StopReason = store.StopCompleted
+	case session.CauseFailed:
+		next.StopReason = store.StopError
+	case session.CauseShutdown:
+		next.StopReason = store.StopShutdown
+	default:
+		next.StopReason = store.StopUserCanceled
+	}
+	next.StopDetail = strings.TrimSpace(detail)
+	s.statuses[id] = &next
+	return nil
 }
 
 func (s *managerSessionStub) Status(_ context.Context, id string) (*session.SessionInfo, error) {
