@@ -234,6 +234,38 @@ func TestTriggerEngineHookTelemetrySinkNormalizesCompletion(t *testing.T) {
 	}
 }
 
+func TestTriggerEngineFireHookCompletionRejectsNilContextBeforeResolvingSession(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	dispatcher := newTestDispatcher(t, creator, store)
+	resolver := &recordingHookSessionResolver{
+		info: &session.SessionInfo{
+			ID:          "sess-hook",
+			Name:        "hook-session",
+			WorkspaceID: "ws_alpha",
+			Type:        session.SessionTypeUser,
+		},
+	}
+	engine := newTestTriggerEngine(
+		t,
+		dispatcher,
+		WithTriggerEngineHookSessionResolver(resolver),
+	)
+
+	_, err := engine.FireHookCompletion(nilContextForTests(), "sess-hook", hookspkg.HookRunRecord{HookName: "review"})
+	if err == nil {
+		t.Fatal("FireHookCompletion(nil) error = nil, want non-nil")
+	}
+	if got, want := err.Error(), "automation: trigger fire context is required"; got != want {
+		t.Fatalf("FireHookCompletion(nil) error = %q, want %q", got, want)
+	}
+	if got, want := resolver.calls, 0; got != want {
+		t.Fatalf("hook session resolver calls = %d, want %d", got, want)
+	}
+}
+
 func TestTriggerEngineSessionAndMemoryObserversDispatchThroughSharedPath(t *testing.T) {
 	t.Parallel()
 
@@ -791,6 +823,23 @@ type stubHookSessionResolver struct {
 }
 
 func (r stubHookSessionResolver) Status(context.Context, string) (*session.SessionInfo, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.info, nil
+}
+
+type recordingHookSessionResolver struct {
+	calls int
+	info  *session.SessionInfo
+	err   error
+}
+
+func (r *recordingHookSessionResolver) Status(ctx context.Context, _ string) (*session.SessionInfo, error) {
+	r.calls++
+	if ctx == nil {
+		return nil, errors.New("nil context reached hook session resolver")
+	}
 	if r.err != nil {
 		return nil, r.err
 	}

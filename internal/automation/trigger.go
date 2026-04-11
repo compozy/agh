@@ -382,6 +382,9 @@ func (e *TriggerEngine) FireMemoryConsolidated(ctx context.Context, event Memory
 
 // FireHookCompletion normalizes one hook-completion telemetry record into the shared matching path.
 func (e *TriggerEngine) FireHookCompletion(ctx context.Context, sessionID string, record hookspkg.HookRunRecord) (TriggerResult, error) {
+	if ctx == nil {
+		return TriggerResult{}, errors.New("automation: trigger fire context is required")
+	}
 	envelope, err := e.hookCompletionEnvelope(ctx, sessionID, record)
 	if err != nil {
 		return TriggerResult{}, err

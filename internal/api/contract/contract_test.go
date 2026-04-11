@@ -258,6 +258,26 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 	t.Parallel()
 
 	name := "updated"
+	agentName := "reviewer"
+	workspaceID := "ws-alpha"
+	prompt := "updated prompt"
+	schedule := automationpkg.ScheduleSpec{
+		Mode:     automationpkg.ScheduleModeEvery,
+		Interval: "1h",
+	}
+	retry := automationpkg.RetryConfig{
+		Strategy:   automationpkg.RetryStrategyBackoff,
+		MaxRetries: 2,
+		BaseDelay:  "1m",
+	}
+	fireLimit := automationpkg.FireLimitConfig{
+		Max:    3,
+		Window: "15m",
+	}
+	event := "session.created"
+	filter := map[string]string{"kind": "session"}
+	webhookID := "wbh_123"
+	endpointSlug := "deploy-review"
 	secret := "secret"
 	disabled := false
 
@@ -280,8 +300,38 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 				want: true,
 			},
 			{
+				name: "Should return true when the job agent name is set",
+				req:  contract.UpdateJobRequest{AgentName: &agentName},
+				want: true,
+			},
+			{
+				name: "Should return true when the job workspace id is set",
+				req:  contract.UpdateJobRequest{WorkspaceID: &workspaceID},
+				want: true,
+			},
+			{
+				name: "Should return true when the job prompt is set",
+				req:  contract.UpdateJobRequest{Prompt: &prompt},
+				want: true,
+			},
+			{
+				name: "Should return true when the job schedule is set",
+				req:  contract.UpdateJobRequest{Schedule: &schedule},
+				want: true,
+			},
+			{
 				name: "Should return true when the job enabled flag is set",
 				req:  contract.UpdateJobRequest{Enabled: &disabled},
+				want: true,
+			},
+			{
+				name: "Should return true when the job retry policy is set",
+				req:  contract.UpdateJobRequest{Retry: &retry},
+				want: true,
+			},
+			{
+				name: "Should return true when the job fire limit is set",
+				req:  contract.UpdateJobRequest{FireLimit: &fireLimit},
 				want: true,
 			},
 		}
@@ -312,6 +362,36 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 				want: false,
 			},
 			{
+				name: "Should return true when the trigger name is set",
+				req:  contract.UpdateTriggerRequest{Name: &name},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger agent name is set",
+				req:  contract.UpdateTriggerRequest{AgentName: &agentName},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger workspace id is set",
+				req:  contract.UpdateTriggerRequest{WorkspaceID: &workspaceID},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger prompt is set",
+				req:  contract.UpdateTriggerRequest{Prompt: &prompt},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger event is set",
+				req:  contract.UpdateTriggerRequest{Event: &event},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger filter is set",
+				req:  contract.UpdateTriggerRequest{Filter: filter},
+				want: true,
+			},
+			{
 				name: "Should return true when the webhook secret is set",
 				req:  contract.UpdateTriggerRequest{WebhookSecret: &secret},
 				want: true,
@@ -319,6 +399,26 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 			{
 				name: "Should return true when the trigger enabled flag is set",
 				req:  contract.UpdateTriggerRequest{Enabled: &disabled},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger retry policy is set",
+				req:  contract.UpdateTriggerRequest{Retry: &retry},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger fire limit is set",
+				req:  contract.UpdateTriggerRequest{FireLimit: &fireLimit},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger webhook id is set",
+				req:  contract.UpdateTriggerRequest{WebhookID: &webhookID},
+				want: true,
+			},
+			{
+				name: "Should return true when the trigger endpoint slug is set",
+				req:  contract.UpdateTriggerRequest{EndpointSlug: &endpointSlug},
 				want: true,
 			},
 		}

@@ -613,7 +613,7 @@ func DiscardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-var _ core.SessionManager = StubSessionManager{}
-var _ core.Observer = StubObserver{}
-var _ core.AutomationManager = StubAutomationManager{}
-var _ core.WorkspaceService = StubWorkspaceService{}
+var _ core.SessionManager = (*StubSessionManager)(nil)
+var _ core.Observer = (*StubObserver)(nil)
+var _ core.AutomationManager = (*StubAutomationManager)(nil)
+var _ core.WorkspaceService = (*StubWorkspaceService)(nil)

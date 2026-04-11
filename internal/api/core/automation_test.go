@@ -741,6 +741,11 @@ func TestStatusForAutomationErrorMapsAdditionalSentinels(t *testing.T) {
 			want: http.StatusBadRequest,
 		},
 		{
+			name: "Should map invalid webhook endpoints to bad request",
+			err:  automationpkg.ErrWebhookEndpointInvalid,
+			want: http.StatusBadRequest,
+		},
+		{
 			name: "Should map read-only definitions to conflict",
 			err:  automationpkg.ErrDefinitionReadOnly,
 			want: http.StatusConflict,

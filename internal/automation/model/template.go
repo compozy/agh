@@ -24,7 +24,7 @@ func ParseTriggerPromptTemplate(prompt string) (*template.Template, error) {
 			continue
 		}
 		if err := validateTemplateNode(subtemplate.Root); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("validate trigger prompt template %q: %w", subtemplate.Name(), err)
 		}
 	}
 
@@ -33,8 +33,10 @@ func ParseTriggerPromptTemplate(prompt string) (*template.Template, error) {
 
 // ValidateTriggerPromptTemplate validates a trigger prompt template against the normalized activation-envelope model.
 func ValidateTriggerPromptTemplate(prompt string) error {
-	_, err := ParseTriggerPromptTemplate(prompt)
-	return err
+	if _, err := ParseTriggerPromptTemplate(prompt); err != nil {
+		return fmt.Errorf("validate trigger prompt template: %w", err)
+	}
+	return nil
 }
 
 func validateTemplateNode(node parse.Node) error {
@@ -167,7 +169,11 @@ func validateTemplateArgWithState(node parse.Node, state templateValidationState
 	case nil:
 		return nil
 	case *parse.FieldNode:
-		return validateActivationFieldPath(n.Ident)
+		path, ok := scopedTemplateFieldPath(n, state)
+		if !ok {
+			return fmt.Errorf("unsupported activation lookup %q; unresolved template scope", n.String())
+		}
+		return validateActivationFieldPath(path)
 	case *parse.VariableNode:
 		if len(n.Ident) > 1 {
 			return fmt.Errorf("unsupported activation lookup %q; variable-rooted lookups are not supported", n.String())
@@ -177,9 +183,9 @@ func validateTemplateArgWithState(node parse.Node, state templateValidationState
 		if _, ok := variableRootExpression(n.Node); ok {
 			return fmt.Errorf("unsupported activation lookup %q; variable-rooted lookups are not supported", n.String())
 		}
-		path, ok := templateFieldPath(n)
+		path, ok := scopedTemplateFieldPath(n, state)
 		if !ok {
-			return nil
+			return fmt.Errorf("unsupported activation lookup %q; unresolved template scope", n.String())
 		}
 		return validateActivationFieldPath(path)
 	case *parse.PipeNode:
@@ -230,37 +236,6 @@ func scopedTemplateFieldPath(node parse.Node, state templateValidationState) ([]
 			return nil, false
 		}
 		return append([]string(nil), state.dotPath...), true
-	default:
-		return nil, false
-	}
-}
-
-func templateFieldPath(node parse.Node) ([]string, bool) {
-	switch n := node.(type) {
-	case *parse.FieldNode:
-		return append([]string(nil), n.Ident...), true
-	case *parse.ChainNode:
-		base, ok := templateFieldPath(n.Node)
-		if !ok {
-			if _, ok := n.Node.(*parse.DotNode); ok {
-				base = nil
-			} else {
-				return nil, false
-			}
-		}
-		return append(base, n.Field...), true
-	case *parse.PipeNode:
-		if n == nil || len(n.Cmds) != 1 {
-			return nil, false
-		}
-		return templateFieldPath(n.Cmds[0])
-	case *parse.CommandNode:
-		if n == nil || len(n.Args) != 1 {
-			return nil, false
-		}
-		return templateFieldPath(n.Args[0])
-	case *parse.DotNode:
-		return nil, true
 	default:
 		return nil, false
 	}

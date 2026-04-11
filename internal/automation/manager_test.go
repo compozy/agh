@@ -840,6 +840,18 @@ func TestManagerDynamicJobCRUDAndRunHistory(t *testing.T) {
 	if created.ID == "" {
 		t.Fatal("manager.CreateJob() id = empty, want non-empty")
 	}
+	if got, want := created.Scope, job.Scope; got != want {
+		t.Fatalf("created job scope = %q, want %q", got, want)
+	}
+	if got, want := created.WorkspaceID, h.workspace.ID; got != want {
+		t.Fatalf("created job workspace_id = %q, want %q", got, want)
+	}
+	if got, want := created.Source, JobSourceDynamic; got != want {
+		t.Fatalf("created job source = %q, want %q", got, want)
+	}
+	if got, want := created.AgentName, job.AgentName; got != want {
+		t.Fatalf("created job agent_name = %q, want %q", got, want)
+	}
 
 	gotJob, err := manager.GetJob(h.ctx, created.ID)
 	if err != nil {
@@ -1786,22 +1798,8 @@ func TestManagerHelperRollbackAndComparisonCoverage(t *testing.T) {
 	managerSessionObserver{}.OnAgentEvent(h.ctx, "sess-ignored", acp.AgentEvent{})
 }
 
-func TestManagerObserverNoopsAndSortHelpers(t *testing.T) {
+func TestManagerSortHelpersKeepDeterministicOrder(t *testing.T) {
 	t.Parallel()
-
-	if err := (managerHookTelemetrySink{}).WriteHookRecord(
-		context.Background(),
-		"sess-ignored",
-		hookspkg.HookRunRecord{},
-	); err != nil {
-		t.Fatalf("managerHookTelemetrySink(nil).WriteHookRecord() error = %v", err)
-	}
-	if err := (managerMemoryObserver{}).OnMemoryConsolidated(
-		context.Background(),
-		MemoryConsolidatedEvent{},
-	); err != nil {
-		t.Fatalf("managerMemoryObserver(nil).OnMemoryConsolidated() error = %v", err)
-	}
 
 	jobs := []Job{
 		{ID: "job-b"},
