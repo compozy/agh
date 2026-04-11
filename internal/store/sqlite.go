@@ -78,6 +78,12 @@ func sqliteDSN(path string) string {
 		Scheme: "file",
 		Path:   filepath.ToSlash(path),
 	}
+	query := u.Query()
+	query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", defaultBusyTimeoutMS))
+	query.Add("_pragma", "foreign_keys(ON)")
+	query.Add("_pragma", "journal_mode(WAL)")
+	query.Add("_pragma", "synchronous(NORMAL)")
+	u.RawQuery = query.Encode()
 	return u.String()
 }
 

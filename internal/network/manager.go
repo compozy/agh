@@ -312,7 +312,7 @@ func (m *Manager) JoinSpace(ctx context.Context, sessionID string, peerID string
 		return err
 	}
 
-	heartbeat, err := m.router.StartHeartbeat(m.lifecycleCtx, local.SessionID, "")
+	heartbeat, err := m.startAuditedHeartbeat(local.SessionID, "")
 	if err != nil {
 		if unsubscribeErr := cleanupSubscription(
 			directSub.Unsubscribe,
@@ -419,6 +419,64 @@ func (m *Manager) Send(ctx context.Context, req SendRequest) (string, error) {
 	}
 	m.recordAuditSent(ctx, req.SessionID, result.Envelope)
 	return result.ID, nil
+}
+
+func (m *Manager) startAuditedHeartbeat(sessionID string, summary string) (*Heartbeat, error) {
+	if m == nil || m.router == nil || m.peers == nil {
+		return nil, errors.New("network: manager heartbeat dependencies are required")
+	}
+
+	interval := m.peers.GreetInterval()
+	if interval <= 0 {
+		return nil, fmt.Errorf("%w: greet interval must be positive", ErrInvalidField)
+	}
+	if err := m.publishGreetWithAudit(m.lifecycleCtx, sessionID, summary); err != nil {
+		return nil, err
+	}
+
+	heartbeatCtx, cancel := context.WithCancel(m.lifecycleCtx)
+	heartbeat := &Heartbeat{
+		cancel: cancel,
+		done:   make(chan struct{}),
+	}
+
+	go func() {
+		defer close(heartbeat.done)
+
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-heartbeatCtx.Done():
+				return
+			case <-ticker.C:
+				if err := m.publishGreetWithAudit(heartbeatCtx, sessionID, summary); err != nil {
+					switch {
+					case errors.Is(err, context.Canceled), errors.Is(err, ErrLocalPeerNotFound):
+						return
+					default:
+						m.logger.Warn("network.peer.heartbeat_failed", "session_id", sessionID, "error", err)
+					}
+				}
+			}
+		}
+	}()
+
+	return heartbeat, nil
+}
+
+func (m *Manager) publishGreetWithAudit(ctx context.Context, sessionID string, summary string) error {
+	if m == nil || m.router == nil {
+		return errors.New("network: manager router is required")
+	}
+
+	result, err := m.router.PublishGreet(ctx, sessionID, summary)
+	if err != nil {
+		return err
+	}
+	m.recordAuditSent(ctx, sessionID, result.Envelope)
+	return nil
 }
 
 // ListPeers returns the current visible local+remote peer snapshot.
@@ -614,6 +672,7 @@ func (m *Manager) recordInboundAudit(result RouteResult) {
 	if m == nil || m.auditor == nil {
 		return
 	}
+	recordedReceivers := make(map[string]struct{})
 	if result.Envelope != nil && result.Rejected {
 		sessionID := ""
 		if result.Envelope.IsDirected() {
@@ -630,6 +689,13 @@ func (m *Manager) recordInboundAudit(result RouteResult) {
 
 	for _, delivery := range result.Deliveries {
 		m.recordAuditReceived(m.lifecycleCtx, delivery.SessionID, delivery.Envelope)
+		recordedReceivers[delivery.SessionID] = struct{}{}
+	}
+	for _, sessionID := range m.controlMessageReceivers(result) {
+		if _, ok := recordedReceivers[sessionID]; ok {
+			continue
+		}
+		m.recordAuditReceived(m.lifecycleCtx, sessionID, *result.Envelope)
 	}
 	for _, envelope := range result.Generated {
 		local, ok := m.peers.LocalByPeer(envelope.Space, envelope.From)
@@ -637,6 +703,55 @@ func (m *Manager) recordInboundAudit(result RouteResult) {
 			continue
 		}
 		m.recordAuditSent(m.lifecycleCtx, local.SessionID, envelope)
+	}
+}
+
+func (m *Manager) controlMessageReceivers(result RouteResult) []string {
+	if m == nil || m.peers == nil || result.Envelope == nil || result.Rejected || result.Ignored {
+		return nil
+	}
+
+	envelope := *result.Envelope
+	switch envelope.Kind {
+	case KindGreet:
+		locals := m.peers.LocalPeers(envelope.Space)
+		receivers := make([]string, 0, len(locals))
+		for _, local := range locals {
+			receivers = append(receivers, local.SessionID)
+		}
+		return receivers
+	case KindWhois:
+		body, err := envelope.DecodeBody()
+		if err != nil {
+			return nil
+		}
+		whois, ok := body.(WhoisBody)
+		if !ok || whois.Type != WhoisTypeRequest {
+			return nil
+		}
+		if envelope.IsDirected() {
+			if target, ok := m.peers.LocalByPeer(envelope.Space, *envelope.To); ok {
+				return []string{target.SessionID}
+			}
+			return nil
+		}
+
+		seen := make(map[string]struct{})
+		receivers := make([]string, 0, len(result.Generated))
+		for _, generated := range result.Generated {
+			local, ok := m.peers.LocalByPeer(generated.Space, generated.From)
+			if !ok {
+				continue
+			}
+			if _, exists := seen[local.SessionID]; exists {
+				continue
+			}
+			seen[local.SessionID] = struct{}{}
+			receivers = append(receivers, local.SessionID)
+		}
+		return receivers
+	default:
+		return nil
 	}
 }
 
@@ -797,7 +912,7 @@ func (m *Manager) handleReconnect() {
 	m.mu.Unlock()
 
 	for _, sessionID := range sessionIDs {
-		if _, err := m.router.PublishGreet(m.lifecycleCtx, sessionID, ""); err != nil {
+		if err := m.publishGreetWithAudit(m.lifecycleCtx, sessionID, ""); err != nil {
 			m.logger.Warn("network.peer.regreet_failed", "session_id", sessionID, "error", err)
 		}
 	}

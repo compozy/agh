@@ -205,7 +205,7 @@ func TestInteractionValidationAndTraceMatrix(t *testing.T) {
 		Body:          mustRawJSON(t, map[string]any{"state": "working"}),
 	}
 	if _, err := OpenInteraction(openErrEnv, time.Time{}); !errors.Is(err, ErrInvalidField) {
-		t.Fatalf("OpenInteraction(non-direct) error = %v, want ErrInvalidField", err)
+		t.Fatalf("OpenInteraction(non-opener) error = %v, want ErrInvalidField", err)
 	}
 
 	matrix := []struct {

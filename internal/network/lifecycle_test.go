@@ -10,27 +10,62 @@ func TestOpenInteraction(t *testing.T) {
 	t.Parallel()
 
 	at := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	env := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg_direct_01",
-		Kind:          KindDirect,
-		Space:         "builders",
-		From:          "coder.sess-abc",
-		To:            stringPtr("reviewer.sess-xyz"),
-		InteractionID: stringPtr("int_patch_42"),
-		TS:            at.Unix(),
-		Body:          mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
-	}
+	for _, tc := range []struct {
+		name string
+		env  Envelope
+	}{
+		{
+			name: "direct opener",
+			env: Envelope{
+				Protocol:      ProtocolV0,
+				ID:            "msg_direct_01",
+				Kind:          KindDirect,
+				Space:         "builders",
+				From:          "coder.sess-abc",
+				To:            stringPtr("reviewer.sess-xyz"),
+				InteractionID: stringPtr("int_patch_42"),
+				TS:            at.Unix(),
+				Body:          mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
+			},
+		},
+		{
+			name: "recipe opener",
+			env: Envelope{
+				Protocol:      ProtocolV0,
+				ID:            "msg_recipe_01",
+				Kind:          KindRecipe,
+				Space:         "builders",
+				From:          "coder.sess-abc",
+				To:            stringPtr("reviewer.sess-xyz"),
+				InteractionID: stringPtr("int_recipe_42"),
+				TS:            at.Unix(),
+				Body: mustRawJSON(t, map[string]any{
+					"recipe": map[string]any{
+						"recipe_id":    "review-fix",
+						"version":      "1.0.0",
+						"content_type": "text/markdown",
+						"digest":       "sha256:abc123",
+						"inline":       "# Review fix flow",
+					},
+				}),
+			},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	interaction, err := OpenInteraction(env, at)
-	if err != nil {
-		t.Fatalf("OpenInteraction() error = %v", err)
-	}
-	if interaction.State != StateSubmitted {
-		t.Fatalf("OpenInteraction().State = %q, want %q", interaction.State, StateSubmitted)
-	}
-	if interaction.Initiator != env.From || interaction.Target != *env.To {
-		t.Fatalf("OpenInteraction() participants = (%q,%q), want (%q,%q)", interaction.Initiator, interaction.Target, env.From, *env.To)
+			interaction, err := OpenInteraction(tc.env, at)
+			if err != nil {
+				t.Fatalf("OpenInteraction() error = %v", err)
+			}
+			if interaction.State != StateSubmitted {
+				t.Fatalf("OpenInteraction().State = %q, want %q", interaction.State, StateSubmitted)
+			}
+			if interaction.Initiator != tc.env.From || interaction.Target != *tc.env.To {
+				t.Fatalf("OpenInteraction() participants = (%q,%q), want (%q,%q)", interaction.Initiator, interaction.Target, tc.env.From, *tc.env.To)
+			}
+		})
 	}
 }
 
@@ -70,6 +105,31 @@ func TestApplyInteractionEnvelope(t *testing.T) {
 				InteractionID: stringPtr("int_patch_42"),
 				TS:            at.Unix(),
 				Body:          mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
+			},
+			wantAction: LifecycleActionOpened,
+			wantState:  StateSubmitted,
+		},
+		{
+			name:    "open recipe from nil interaction",
+			current: nil,
+			env: Envelope{
+				Protocol:      ProtocolV0,
+				ID:            "msg_recipe_01",
+				Kind:          KindRecipe,
+				Space:         "builders",
+				From:          "coder.sess-abc",
+				To:            stringPtr("reviewer.sess-xyz"),
+				InteractionID: stringPtr("int_recipe_42"),
+				TS:            at.Unix(),
+				Body: mustRawJSON(t, map[string]any{
+					"recipe": map[string]any{
+						"recipe_id":    "review-fix",
+						"version":      "1.0.0",
+						"content_type": "text/markdown",
+						"digest":       "sha256:abc123",
+						"inline":       "# Review fix flow",
+					},
+				}),
 			},
 			wantAction: LifecycleActionOpened,
 			wantState:  StateSubmitted,

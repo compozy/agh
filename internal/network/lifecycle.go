@@ -95,14 +95,14 @@ type LifecycleResult struct {
 
 // OpenInteraction opens a new interaction from the first directed message.
 func OpenInteraction(env Envelope, at time.Time) (Interaction, error) {
-	if env.Kind != KindDirect {
+	if env.Kind != KindDirect && env.Kind != KindRecipe {
 		return Interaction{}, fmt.Errorf("%w: opening message kind=%q", ErrInvalidField, env.Kind)
 	}
 	if env.To == nil {
-		return Interaction{}, fmt.Errorf("%w: direct to is required", ErrMissingField)
+		return Interaction{}, fmt.Errorf("%w: opening message to is required", ErrMissingField)
 	}
 	if env.InteractionID == nil {
-		return Interaction{}, fmt.Errorf("%w: direct interaction_id is required", ErrMissingField)
+		return Interaction{}, fmt.Errorf("%w: opening message interaction_id is required", ErrMissingField)
 	}
 
 	if at.IsZero() {
@@ -136,7 +136,7 @@ func ApplyInteractionEnvelope(current *Interaction, env Envelope, at time.Time) 
 	if current == nil {
 		opened, err := OpenInteraction(env, at)
 		if err != nil {
-			if env.Kind != KindDirect {
+			if env.Kind != KindDirect && env.Kind != KindRecipe {
 				return LifecycleResult{}, fmt.Errorf("%w: kind=%q", ErrInteractionNotFound, env.Kind)
 			}
 			return LifecycleResult{}, err
@@ -168,7 +168,7 @@ func ApplyInteractionEnvelope(current *Interaction, env Envelope, at time.Time) 
 				Interaction: interaction,
 				Action:      LifecycleActionIgnored,
 			}, nil
-		case KindDirect:
+		case KindDirect, KindRecipe:
 			reason := ReasonCodeInteractionClosed
 			return LifecycleResult{
 				Interaction: interaction,
@@ -184,7 +184,7 @@ func ApplyInteractionEnvelope(current *Interaction, env Envelope, at time.Time) 
 	}
 
 	switch env.Kind {
-	case KindDirect:
+	case KindDirect, KindRecipe:
 		if interaction.State == StateNeedsInput {
 			interaction.State = StateWorking
 			interaction.UpdatedAt = at

@@ -247,6 +247,9 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 
 	process.SessionID = normalized.ResumeSessionID
 	process.Caps = captureCaps(process.Caps.SupportsLoadSession, loadResponse.Modes, loadResponse.Models)
+	if err := d.applySessionMode(ctx, process, normalized.Permissions); err != nil {
+		return fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err)
+	}
 	return nil
 }
 
@@ -267,7 +270,74 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 
 	process.SessionID = string(newResponse.SessionId)
 	process.Caps = captureCaps(process.Caps.SupportsLoadSession, newResponse.Modes, newResponse.Models)
+	if err := d.applySessionMode(ctx, process, normalized.Permissions); err != nil {
+		return fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err)
+	}
 	return nil
+}
+
+func (d *Driver) applySessionMode(ctx context.Context, process *AgentProcess, permissions aghconfig.PermissionMode) error {
+	if ctx == nil || process == nil || process.conn == nil {
+		return nil
+	}
+
+	modeID := preferredSessionMode(process.Caps.SupportedModes, permissions)
+	if modeID == "" {
+		return nil
+	}
+
+	_, err := acpsdk.SendRequest[acpsdk.SetSessionModeResponse](process.conn, ctx, acpsdk.AgentMethodSessionSetMode, acpsdk.SetSessionModeRequest{
+		SessionId: acpsdk.SessionId(process.SessionID),
+		ModeId:    acpsdk.SessionModeId(modeID),
+	})
+	return err
+}
+
+func preferredSessionMode(supported []string, permissions aghconfig.PermissionMode) string {
+	if len(supported) == 0 {
+		return ""
+	}
+
+	lookup := make(map[string]string, len(supported))
+	for _, mode := range supported {
+		trimmed := strings.TrimSpace(mode)
+		if trimmed == "" {
+			continue
+		}
+		lookup[strings.ToLower(trimmed)] = trimmed
+	}
+
+	candidates := sessionModeCandidates(permissions)
+	for _, candidate := range candidates {
+		if matched, ok := lookup[strings.ToLower(candidate)]; ok {
+			return matched
+		}
+	}
+	return ""
+}
+
+func sessionModeCandidates(permissions aghconfig.PermissionMode) []string {
+	switch permissions {
+	case aghconfig.PermissionModeApproveAll:
+		return []string{
+			"full-access",
+			"full_access",
+			"bypassPermissions",
+			"bypass_permissions",
+			"auto",
+			"acceptEdits",
+		}
+	case aghconfig.PermissionModeApproveReads, aghconfig.PermissionModeDenyAll:
+		return []string{
+			"read-only",
+			"read_only",
+			"readOnly",
+			"plan",
+			"ask",
+		}
+	default:
+		return nil
+	}
 }
 
 func (d *Driver) cleanupFailedStart(process *AgentProcess, startErr error) error {

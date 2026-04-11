@@ -343,6 +343,24 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantErr:   ErrInvalidBody,
 			wantMatch: "uri or inline",
 		},
+		{
+			name: "recipe missing nested recipe object",
+			mutate: func(env Envelope) Envelope {
+				env.Kind = KindRecipe
+				env.InteractionID = nil
+				env.To = nil
+				env.Body = mustRawJSON(t, map[string]any{
+					"recipe_id":    "review-fix",
+					"version":      "1.0.0",
+					"content_type": "text/markdown",
+					"digest":       "sha256:abc123",
+					"inline":       "# Review fix flow",
+				})
+				return env
+			},
+			wantErr:   ErrInvalidBody,
+			wantMatch: `{"recipe":{...}}`,
+		},
 	}
 
 	for _, tc := range cases {

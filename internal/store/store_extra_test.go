@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,8 +76,34 @@ func TestStoreSQLHelpers(t *testing.T) {
 func TestStoreSQLiteHelpers(t *testing.T) {
 	t.Parallel()
 
-	if got, want := sqliteDSN("/tmp/example.db"), "file:///tmp/example.db"; got != want {
-		t.Fatalf("sqliteDSN() = %q, want %q", got, want)
+	dsn := sqliteDSN("/tmp/example.db")
+	parsedDSN, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatalf("url.Parse(sqliteDSN()) error = %v", err)
+	}
+	if got, want := parsedDSN.Scheme, "file"; got != want {
+		t.Fatalf("sqliteDSN() scheme = %q, want %q", got, want)
+	}
+	if got, want := parsedDSN.Path, "/tmp/example.db"; got != want {
+		t.Fatalf("sqliteDSN() path = %q, want %q", got, want)
+	}
+	pragmas := parsedDSN.Query()["_pragma"]
+	for _, want := range []string{
+		"busy_timeout(5000)",
+		"foreign_keys(ON)",
+		"journal_mode(WAL)",
+		"synchronous(NORMAL)",
+	} {
+		var found bool
+		for _, pragma := range pragmas {
+			if pragma == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("sqliteDSN() pragmas = %#v, want %q", pragmas, want)
+		}
 	}
 	if got, want := NullableInt64(nil), any(nil); got != want {
 		t.Fatalf("NullableInt64(nil) = %#v, want nil", got)
@@ -124,6 +151,39 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 	if mode, err := querySingleString(testutil.Context(t), db, "PRAGMA journal_mode"); err != nil || !strings.EqualFold(mode, "wal") {
 		t.Fatalf("querySingleString(journal_mode) = (%q, %v), want wal", mode, err)
 	}
+	verifyConnPragmas := func(t *testing.T, conn *sql.Conn) {
+		t.Helper()
+
+		var busyTimeout int
+		if err := conn.QueryRowContext(testutil.Context(t), "PRAGMA busy_timeout").Scan(&busyTimeout); err != nil {
+			t.Fatalf("QueryRowContext(PRAGMA busy_timeout) error = %v", err)
+		}
+		if got, want := busyTimeout, defaultBusyTimeoutMS; got != want {
+			t.Fatalf("PRAGMA busy_timeout = %d, want %d", got, want)
+		}
+
+		var foreignKeys int
+		if err := conn.QueryRowContext(testutil.Context(t), "PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
+			t.Fatalf("QueryRowContext(PRAGMA foreign_keys) error = %v", err)
+		}
+		if got, want := foreignKeys, 1; got != want {
+			t.Fatalf("PRAGMA foreign_keys = %d, want %d", got, want)
+		}
+	}
+
+	firstConn, err := db.Conn(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("db.Conn(first) error = %v", err)
+	}
+	t.Cleanup(func() { _ = firstConn.Close() })
+	verifyConnPragmas(t, firstConn)
+
+	secondConn, err := db.Conn(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("db.Conn(second) error = %v", err)
+	}
+	t.Cleanup(func() { _ = secondConn.Close() })
+	verifyConnPragmas(t, secondConn)
 
 	var count int
 	if err := db.QueryRowContext(testutil.Context(t), `SELECT COUNT(*) FROM sample`).Scan(&count); err != nil {

@@ -302,7 +302,7 @@ func TestRouterWhoisRequestGeneratesResponse(t *testing.T) {
 	}
 }
 
-func TestRouterWhoisResponseRefreshesRemotePresence(t *testing.T) {
+func TestRouterWhoisResponseRefreshesRemotePresenceAndDeliversToRequester(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 10, 12, 45, 0, 0, time.UTC)
@@ -342,8 +342,14 @@ func TestRouterWhoisResponseRefreshesRemotePresence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Receive(whois response) error = %v", err)
 	}
-	if len(result.Deliveries) != 0 || len(result.Generated) != 0 || result.Rejected {
-		t.Fatalf("whois response result = %#v, want cache refresh only", result)
+	if result.Rejected || len(result.Generated) != 0 {
+		t.Fatalf("whois response result = %#v, want delivery plus cache refresh", result)
+	}
+	if got, want := len(result.Deliveries), 1; got != want {
+		t.Fatalf("len(whois response deliveries) = %d, want %d", got, want)
+	}
+	if got, want := result.Deliveries[0].SessionID, "sess-a"; got != want {
+		t.Fatalf("whois response delivery session = %q, want %q", got, want)
 	}
 	if _, ok := registry.RemoteByPeer("builders", remote.PeerID, now); !ok {
 		t.Fatalf("RemoteByPeer(%q) = missing after whois response", remote.PeerID)
@@ -468,6 +474,72 @@ func TestRouterReceiveRejectsNotTargetAndMapsMalformedErrors(t *testing.T) {
 	}
 	if !unsupported.Rejected || unsupported.ReasonCode == nil || *unsupported.ReasonCode != ReasonCodeUnsupportedKind {
 		t.Fatalf("unsupported result = %#v, want reason %q", unsupported, ReasonCodeUnsupportedKind)
+	}
+}
+
+func TestRouterReceiveExpiredDirectGeneratesExpiredReceipt(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 10, 13, 20, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+	local := mustPeerCard(t, "reviewer.sess-b")
+	if _, err := registry.RegisterLocal("sess-b", "builders", local, now); err != nil {
+		t.Fatalf("RegisterLocal(local) error = %v", err)
+	}
+
+	transport := &spyRouterTransport{}
+	router, err := NewRouter(registry, transport, DefaultMaxReplayAge, WithRouterClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewRouter() error = %v", err)
+	}
+
+	expiredAt := now.Add(-time.Second).Unix()
+	payload, err := json.Marshal(Envelope{
+		Protocol:      ProtocolV0,
+		ID:            "msg_expired_direct",
+		Kind:          KindDirect,
+		Space:         "builders",
+		From:          "coder.sess-a",
+		To:            stringPtr(local.PeerID),
+		InteractionID: stringPtr("int_expired"),
+		TS:            now.Add(-2 * time.Second).Unix(),
+		ExpiresAt:     &expiredAt,
+		Body:          mustRawJSON(t, DirectBody{Text: "too late"}),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(expired direct) error = %v", err)
+	}
+
+	result, err := router.Receive(context.Background(), payload)
+	if err != nil {
+		t.Fatalf("Receive(expired direct) error = %v", err)
+	}
+	if !result.Rejected || result.ReasonCode == nil || *result.ReasonCode != ReasonCodeExpired {
+		t.Fatalf("expired direct result = %#v, want rejected expired", result)
+	}
+	if result.Envelope == nil || result.Envelope.ID != "msg_expired_direct" {
+		t.Fatalf("expired direct envelope = %#v, want partial envelope for auditing", result.Envelope)
+	}
+	if got, want := len(result.Generated), 1; got != want {
+		t.Fatalf("len(expired direct generated) = %d, want %d", got, want)
+	}
+	if got, want := transport.Count(), 1; got != want {
+		t.Fatalf("transport publish count = %d, want %d generated receipt", got, want)
+	}
+
+	body, decodeErr := result.Generated[0].DecodeBody()
+	if decodeErr != nil {
+		t.Fatalf("DecodeBody(expired receipt) error = %v", decodeErr)
+	}
+	receipt := body.(ReceiptBody)
+	if got, want := receipt.Status, ReceiptStatusExpired; got != want {
+		t.Fatalf("expired receipt status = %q, want %q", got, want)
+	}
+	if receipt.ReasonCode == nil || *receipt.ReasonCode != ReasonCodeExpired {
+		t.Fatalf("expired receipt reason = %v, want %q", receipt.ReasonCode, ReasonCodeExpired)
 	}
 }
 
@@ -597,7 +669,129 @@ func TestInteractionValidationErrors(t *testing.T) {
 	}
 
 	if _, err := OpenInteraction(Envelope{Kind: KindSay}, time.Time{}); err == nil {
-		t.Fatal("OpenInteraction(non-direct) error = nil, want non-nil")
+		t.Fatal("OpenInteraction(non-opener) error = nil, want non-nil")
+	}
+}
+
+func TestRouterDirectedRecipeOpensInteractionForReceiptAndTrace(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 10, 13, 37, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+	alpha := mustPeerCard(t, "alpha.sess-a")
+	delta := mustPeerCard(t, "delta.sess-b")
+	if _, err := registry.RegisterLocal("sess-alpha", "builders", alpha, now); err != nil {
+		t.Fatalf("RegisterLocal(alpha) error = %v", err)
+	}
+	if _, err := registry.RegisterLocal("sess-delta", "builders", delta, now); err != nil {
+		t.Fatalf("RegisterLocal(delta) error = %v", err)
+	}
+
+	router, err := NewRouter(registry, &spyRouterTransport{}, DefaultMaxReplayAge, WithRouterClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewRouter() error = %v", err)
+	}
+
+	recipePayload, err := json.Marshal(Envelope{
+		Protocol:      ProtocolV0,
+		ID:            "msg_recipe_open",
+		Kind:          KindRecipe,
+		Space:         "builders",
+		From:          alpha.PeerID,
+		To:            stringPtr(delta.PeerID),
+		InteractionID: stringPtr("int_recipe_open"),
+		TS:            now.Unix(),
+		Body: mustRawJSON(t, map[string]any{
+			"recipe": map[string]any{
+				"recipe_id":    "review-fix",
+				"version":      "1.0.0",
+				"content_type": "text/markdown",
+				"digest":       "sha256:abc123",
+				"inline":       "# Review fix flow",
+			},
+		}),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(recipe) error = %v", err)
+	}
+
+	result, err := router.Receive(context.Background(), recipePayload)
+	if err != nil {
+		t.Fatalf("Receive(recipe) error = %v", err)
+	}
+	if got, want := len(result.Deliveries), 1; got != want {
+		t.Fatalf("len(recipe deliveries) = %d, want %d", got, want)
+	}
+	if got, want := result.Deliveries[0].SessionID, "sess-delta"; got != want {
+		t.Fatalf("recipe delivery session = %q, want %q", got, want)
+	}
+
+	receiptPayload, err := json.Marshal(Envelope{
+		Protocol:      ProtocolV0,
+		ID:            "msg_recipe_receipt",
+		Kind:          KindReceipt,
+		Space:         "builders",
+		From:          delta.PeerID,
+		To:            stringPtr(alpha.PeerID),
+		InteractionID: stringPtr("int_recipe_open"),
+		ReplyTo:       stringPtr("msg_recipe_open"),
+		TS:            now.Unix(),
+		Body: mustRawJSON(t, ReceiptBody{
+			ForID:  "msg_recipe_open",
+			Status: ReceiptStatusAccepted,
+		}),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(receipt) error = %v", err)
+	}
+
+	receiptResult, err := router.Receive(context.Background(), receiptPayload)
+	if err != nil {
+		t.Fatalf("Receive(recipe receipt) error = %v", err)
+	}
+	if receiptResult.Ignored || receiptResult.Rejected {
+		t.Fatalf("recipe receipt result = %#v, want delivered receipt", receiptResult)
+	}
+	if got, want := len(receiptResult.Deliveries), 1; got != want {
+		t.Fatalf("len(recipe receipt deliveries) = %d, want %d", got, want)
+	}
+	if got, want := receiptResult.Deliveries[0].SessionID, "sess-alpha"; got != want {
+		t.Fatalf("recipe receipt delivery session = %q, want %q", got, want)
+	}
+
+	tracePayload, err := json.Marshal(Envelope{
+		Protocol:      ProtocolV0,
+		ID:            "msg_recipe_trace",
+		Kind:          KindTrace,
+		Space:         "builders",
+		From:          delta.PeerID,
+		To:            stringPtr(alpha.PeerID),
+		InteractionID: stringPtr("int_recipe_open"),
+		ReplyTo:       stringPtr("msg_recipe_open"),
+		TS:            now.Unix(),
+		Body: mustRawJSON(t, TraceBody{
+			State: StateWorking,
+		}),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(trace) error = %v", err)
+	}
+
+	traceResult, err := router.Receive(context.Background(), tracePayload)
+	if err != nil {
+		t.Fatalf("Receive(recipe trace) error = %v", err)
+	}
+	if traceResult.Ignored || traceResult.Rejected {
+		t.Fatalf("recipe trace result = %#v, want delivered trace", traceResult)
+	}
+	if got, want := len(traceResult.Deliveries), 1; got != want {
+		t.Fatalf("len(recipe trace deliveries) = %d, want %d", got, want)
+	}
+	if got, want := traceResult.Deliveries[0].SessionID, "sess-alpha"; got != want {
+		t.Fatalf("recipe trace delivery session = %q, want %q", got, want)
 	}
 }
 

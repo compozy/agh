@@ -65,6 +65,9 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 		From:          "coder.sess-abc",
 		To:            stringPtr("reviewer.sess-xyz"),
 		InteractionID: stringPtr("int-patch-42"),
+		ReplyTo:       stringPtr("msg-root-00"),
+		TraceID:       stringPtr("trace-patch-42"),
+		CausationID:   stringPtr("msg-cause-00"),
 		TS:            time.Date(2026, 4, 11, 13, 0, 0, 0, time.UTC).Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"text":   `look at <auth.go> & run "rm -rf" 'now'`,
@@ -83,6 +86,18 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 	if !strings.Contains(rendered, `interaction="int-patch-42"`) {
 		t.Fatalf("rendered message missing interaction attribute: %s", rendered)
 	}
+	if !strings.Contains(rendered, `to="reviewer.sess-xyz"`) {
+		t.Fatalf("rendered message missing target attribute: %s", rendered)
+	}
+	if !strings.Contains(rendered, `reply-to="msg-root-00"`) {
+		t.Fatalf("rendered message missing reply-to attribute: %s", rendered)
+	}
+	if !strings.Contains(rendered, `trace-id="trace-patch-42"`) {
+		t.Fatalf("rendered message missing trace-id attribute: %s", rendered)
+	}
+	if !strings.Contains(rendered, `causation-id="msg-cause-00"`) {
+		t.Fatalf("rendered message missing causation-id attribute: %s", rendered)
+	}
 	escapedPreview := `look at &lt;auth.go&gt; &amp; run &quot;rm -rf&quot; &apos;now&apos;`
 	if !strings.Contains(rendered, escapedPreview) {
 		t.Fatalf("rendered preview missing escaped text:\n%s", rendered)
@@ -90,8 +105,24 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 	if strings.Contains(rendered, `<network-preview encoding="xml-escaped">look at <auth.go>`) {
 		t.Fatalf("rendered preview leaked raw XML-breaking content:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "Use `agh network send` to respond. See `agh network --help` for options.") {
-		t.Fatalf("rendered message missing network guidance footer:\n%s", rendered)
+	for _, snippet := range []string{
+		"Use `agh network send` to respond through the audited CLI path.",
+		`--causation-id "msg-direct-01"`,
+		"--kind direct",
+		"--kind receipt",
+		`"for_id":"msg-direct-01"`,
+		`"status":"accepted"`,
+		"--kind trace",
+		`"state":"working"`,
+		"--kind recipe",
+		`"recipe":{"recipe_id":"reply-recipe"`,
+		"Do not imitate protocol `receipt` or `trace` with `--kind direct`",
+		`--trace-id "trace-patch-42"`,
+		"See `agh network --help` for options.",
+	} {
+		if !strings.Contains(rendered, snippet) {
+			t.Fatalf("rendered message missing reply guidance snippet %q:\n%s", snippet, rendered)
+		}
 	}
 
 	start := strings.Index(rendered, `<network-body encoding="base64-json">`)
@@ -160,8 +191,73 @@ func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.
 	if string(decodedBody) != `["unexpected"]` {
 		t.Fatalf("decoded body = %s, want raw compact JSON", string(decodedBody))
 	}
-	if !strings.Contains(rendered, "Use `agh network send` to respond. See `agh network --help` for options.") {
-		t.Fatalf("rendered fallback message missing network guidance footer:\n%s", rendered)
+	for _, snippet := range []string{
+		"Use `agh network send` to respond through the audited CLI path.",
+		`--causation-id "msg-direct-raw"`,
+		"--kind direct",
+		"Do not imitate protocol `receipt` or `trace` with `--kind direct`",
+	} {
+		if !strings.Contains(rendered, snippet) {
+			t.Fatalf("rendered fallback message missing reply guidance snippet %q:\n%s", snippet, rendered)
+		}
+	}
+	for _, snippet := range []string{
+		"--kind receipt",
+		"--kind trace",
+		"--kind recipe",
+		`"recipe":{"recipe_id":"reply-recipe"`,
+		`"for_id":"msg-direct-raw"`,
+	} {
+		if strings.Contains(rendered, snippet) {
+			t.Fatalf("rendered fallback message unexpectedly contained lifecycle snippet %q:\n%s", snippet, rendered)
+		}
+	}
+}
+
+func TestFormatNetworkMessageSayGuidanceOpensNewDirectInteraction(t *testing.T) {
+	t.Parallel()
+
+	envelope := Envelope{
+		Protocol:      ProtocolV0,
+		ID:            "msg-say-01",
+		Kind:          KindSay,
+		Space:         "builders",
+		From:          "coordinator.sess-abc",
+		InteractionID: stringPtr("int-summary-01"),
+		TraceID:       stringPtr("trace-summary-01"),
+		TS:            time.Date(2026, 4, 11, 13, 10, 0, 0, time.UTC).Unix(),
+		Body: mustRawJSON(t, map[string]any{
+			"text":   "Please acknowledge the summary.",
+			"intent": "summary",
+		}),
+	}
+
+	rendered, err := formatNetworkMessage(envelope)
+	if err != nil {
+		t.Fatalf("formatNetworkMessage() error = %v", err)
+	}
+
+	for _, snippet := range []string{
+		"choose a NEW `--interaction-id` unique to your targeted conversation instead of reusing `int-summary-01`",
+		"Do not send `receipt` or `trace` directly against this broadcast `say`.",
+		`--interaction-id "int-my-peer-reply-msg-say-01"`,
+		`--reply-to "msg-say-01"`,
+		`--trace-id "trace-summary-01"`,
+	} {
+		if !strings.Contains(rendered, snippet) {
+			t.Fatalf("rendered say guidance missing snippet %q:\n%s", snippet, rendered)
+		}
+	}
+
+	for _, snippet := range []string{
+		`keep ` + "`--interaction-id \"int-summary-01\"`",
+		"# Protocol receipt",
+		"# Protocol trace",
+		"# Protocol recipe",
+	} {
+		if strings.Contains(rendered, snippet) {
+			t.Fatalf("rendered say guidance unexpectedly contained snippet %q:\n%s", snippet, rendered)
+		}
 	}
 }
 

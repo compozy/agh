@@ -71,7 +71,7 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 		t.Fatalf("routerB.PublishGreet() error = %v", err)
 	}
 
-	waitForCondition(t, ctx, func() bool {
+	waitForRouterCondition(t, ctx, func() bool {
 		return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC()) &&
 			registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
 	}, "peer discovery")
@@ -167,20 +167,20 @@ func TestHeartbeatExpiryAndFreshGreetRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("routerB.StartHeartbeat() error = %v", err)
 	}
-	waitForCondition(t, ctx, func() bool {
+	waitForRouterCondition(t, ctx, func() bool {
 		return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC())
 	}, "initial heartbeat discoverability")
 
 	heartbeat.Stop()
 
-	waitForCondition(t, ctx, func() bool {
+	waitForRouterCondition(t, ctx, func() bool {
 		return !registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC())
 	}, "heartbeat expiry")
 
 	if _, err := routerB.PublishGreet(ctx, "sess-b", "back"); err != nil {
 		t.Fatalf("routerB.PublishGreet(recover) error = %v", err)
 	}
-	waitForCondition(t, ctx, func() bool {
+	waitForRouterCondition(t, ctx, func() bool {
 		return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC())
 	}, "fresh greet recovery")
 
@@ -236,7 +236,7 @@ func subscribeRouter(
 	return subscriptions
 }
 
-func waitForCondition(t *testing.T, ctx context.Context, condition func() bool, description string) {
+func waitForRouterCondition(t *testing.T, ctx context.Context, condition func() bool, description string) {
 	t.Helper()
 
 	ticker := time.NewTicker(10 * time.Millisecond)

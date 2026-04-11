@@ -585,8 +585,20 @@ func formatNetworkMessage(envelope Envelope) (string, error) {
 	writeXMLAttr(&builder, "from", envelope.From)
 	writeXMLAttr(&builder, "space", envelope.Space)
 	writeXMLAttr(&builder, "kind", string(envelope.Kind))
+	if envelope.To != nil {
+		writeXMLAttr(&builder, "to", *envelope.To)
+	}
 	if envelope.InteractionID != nil {
 		writeXMLAttr(&builder, "interaction", *envelope.InteractionID)
+	}
+	if envelope.ReplyTo != nil {
+		writeXMLAttr(&builder, "reply-to", *envelope.ReplyTo)
+	}
+	if envelope.TraceID != nil {
+		writeXMLAttr(&builder, "trace-id", *envelope.TraceID)
+	}
+	if envelope.CausationID != nil {
+		writeXMLAttr(&builder, "causation-id", *envelope.CausationID)
 	}
 	if envelope.ExpiresAt != nil {
 		writeXMLAttr(&builder, "expires-at", strconv.FormatInt(*envelope.ExpiresAt, 10))
@@ -602,9 +614,186 @@ func formatNetworkMessage(envelope Envelope) (string, error) {
 	builder.WriteString(encodedBody)
 	builder.WriteString("</network-body>\n")
 	builder.WriteString("</network-message>")
-	builder.WriteString("\n\nUse `agh network send` to respond. See `agh network --help` for options.")
+	builder.WriteString(renderReplyGuidance(envelope))
 
 	return builder.String(), nil
+}
+
+func renderReplyGuidance(envelope Envelope) string {
+	var builder strings.Builder
+	builder.WriteString("\n\nUse `agh network send` to respond through the audited CLI path.")
+	builder.WriteString("\nFor replies to this message, keep `--session \"$AGH_SESSION_ID\"`,")
+	builder.WriteString(" `--space \"")
+	builder.WriteString(envelope.Space)
+	builder.WriteString("\"`,")
+	builder.WriteString(" `--to \"")
+	builder.WriteString(envelope.From)
+	builder.WriteString("\"`")
+	if shouldReuseInboundInteraction(envelope) && envelope.InteractionID != nil {
+		builder.WriteString(", `--interaction-id \"")
+		builder.WriteString(*envelope.InteractionID)
+		builder.WriteString("\"`")
+	}
+	builder.WriteString(", and `--reply-to \"")
+	builder.WriteString(envelope.ID)
+	builder.WriteString("\"`.")
+	builder.WriteString("\nIf this inbound message is the direct cause of your reply, set `--causation-id \"")
+	builder.WriteString(envelope.ID)
+	builder.WriteString("\"` on the outbound message.")
+	if envelope.TraceID != nil {
+		builder.WriteString("\nPreserve `--trace-id \"")
+		builder.WriteString(*envelope.TraceID)
+		builder.WriteString("\"` on correlated follow-up messages.")
+	}
+	if envelope.Kind == KindSay && envelope.InteractionID != nil {
+		builder.WriteString("\nIf you reply to this broadcast `say` with `--kind direct`, choose a NEW `--interaction-id` unique to your targeted conversation instead of reusing `")
+		builder.WriteString(*envelope.InteractionID)
+		builder.WriteString("`.")
+	}
+	builder.WriteString("\nIf you send a protocol `receipt`, the body must include `for_id` and a valid `status`.")
+	builder.WriteString(" Use `status:\"accepted\"` for normal admission.")
+	builder.WriteString(" Use `status:\"rejected\"`, `\"duplicate\"`, `\"expired\"`, or `\"unsupported\"` only with a matching `reason_code`.")
+	builder.WriteString("\nIf you send a protocol `trace`, the body must include a valid `state` such as `working`, `needs_input`, `completed`, `failed`, or `canceled`.")
+	builder.WriteString("\nIf you send a protocol `recipe`, the body must be nested as `{\"recipe\":{...}}` and include `recipe.recipe_id`, `recipe.version`, `recipe.content_type`, `recipe.digest`, and either `recipe.inline` or `recipe.uri`.")
+	builder.WriteString("\nDo not imitate protocol `receipt` or `trace` with `--kind direct` plus `intent:\"receipt\"` or `intent:\"trace\"`. Use the real protocol kinds `receipt` and `trace`.")
+	if envelope.Kind == KindSay {
+		builder.WriteString("\nDo not send `receipt` or `trace` directly against this broadcast `say`. Open a new targeted `direct` interaction first if you need lifecycle messages.")
+	}
+	builder.WriteString("\nExamples:")
+	builder.WriteString("\n```bash")
+	builder.WriteString("\n# Direct reply")
+	builder.WriteString("\nagh network send \\")
+	builder.WriteString("\n  --session \"$AGH_SESSION_ID\" \\")
+	builder.WriteString("\n  --space \"")
+	builder.WriteString(envelope.Space)
+	builder.WriteString("\" \\")
+	builder.WriteString("\n  --kind direct \\")
+	builder.WriteString("\n  --to \"")
+	builder.WriteString(envelope.From)
+	builder.WriteString("\" \\")
+	if shouldReuseInboundInteraction(envelope) && envelope.InteractionID != nil {
+		builder.WriteString("\n  --interaction-id \"")
+		builder.WriteString(*envelope.InteractionID)
+		builder.WriteString("\" \\")
+	} else if envelope.Kind == KindSay {
+		builder.WriteString("\n  --interaction-id \"int-my-peer-reply-")
+		builder.WriteString(envelope.ID)
+		builder.WriteString("\" \\")
+	}
+	builder.WriteString("\n  --reply-to \"")
+	builder.WriteString(envelope.ID)
+	builder.WriteString("\" \\")
+	builder.WriteString("\n  --causation-id \"")
+	builder.WriteString(envelope.ID)
+	builder.WriteString("\" \\")
+	if envelope.TraceID != nil {
+		builder.WriteString("\n  --trace-id \"")
+		builder.WriteString(*envelope.TraceID)
+		builder.WriteString("\" \\")
+	}
+	builder.WriteString("\n  --body '{\"text\":\"Reply text\",\"intent\":\"reply\"}' \\")
+	builder.WriteString("\n  -o json")
+	if shouldReuseInboundInteraction(envelope) && envelope.InteractionID != nil {
+		builder.WriteString("\n")
+		builder.WriteString("\n# Protocol receipt")
+		builder.WriteString("\nagh network send \\")
+		builder.WriteString("\n  --session \"$AGH_SESSION_ID\" \\")
+		builder.WriteString("\n  --space \"")
+		builder.WriteString(envelope.Space)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --kind receipt \\")
+		builder.WriteString("\n  --to \"")
+		builder.WriteString(envelope.From)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --interaction-id \"")
+		builder.WriteString(*envelope.InteractionID)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --reply-to \"")
+		builder.WriteString(envelope.ID)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --causation-id \"")
+		builder.WriteString(envelope.ID)
+		builder.WriteString("\" \\")
+		if envelope.TraceID != nil {
+			builder.WriteString("\n  --trace-id \"")
+			builder.WriteString(*envelope.TraceID)
+			builder.WriteString("\" \\")
+		}
+		builder.WriteString("\n  --body '{\"for_id\":\"")
+		builder.WriteString(envelope.ID)
+		builder.WriteString("\",\"status\":\"accepted\",\"detail\":\"Accepted for processing.\"}' \\")
+		builder.WriteString("\n  -o json")
+		builder.WriteString("\n")
+		builder.WriteString("\n# Protocol trace")
+		builder.WriteString("\nagh network send \\")
+		builder.WriteString("\n  --session \"$AGH_SESSION_ID\" \\")
+		builder.WriteString("\n  --space \"")
+		builder.WriteString(envelope.Space)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --kind trace \\")
+		builder.WriteString("\n  --to \"")
+		builder.WriteString(envelope.From)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --interaction-id \"")
+		builder.WriteString(*envelope.InteractionID)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --reply-to \"")
+		builder.WriteString(envelope.ID)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --causation-id \"")
+		builder.WriteString(envelope.ID)
+		builder.WriteString("\" \\")
+		if envelope.TraceID != nil {
+			builder.WriteString("\n  --trace-id \"")
+			builder.WriteString(*envelope.TraceID)
+			builder.WriteString("\" \\")
+		}
+		builder.WriteString("\n  --body '{\"state\":\"working\",\"message\":\"Inspecting the request.\"}' \\")
+		builder.WriteString("\n  -o json")
+		builder.WriteString("\n")
+		builder.WriteString("\n# Protocol recipe")
+		builder.WriteString("\nagh network send \\")
+		builder.WriteString("\n  --session \"$AGH_SESSION_ID\" \\")
+		builder.WriteString("\n  --space \"")
+		builder.WriteString(envelope.Space)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --kind recipe \\")
+		builder.WriteString("\n  --to \"")
+		builder.WriteString(envelope.From)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --interaction-id \"")
+		builder.WriteString(*envelope.InteractionID)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --reply-to \"")
+		builder.WriteString(envelope.ID)
+		builder.WriteString("\" \\")
+		builder.WriteString("\n  --causation-id \"")
+		builder.WriteString(envelope.ID)
+		builder.WriteString("\" \\")
+		if envelope.TraceID != nil {
+			builder.WriteString("\n  --trace-id \"")
+			builder.WriteString(*envelope.TraceID)
+			builder.WriteString("\" \\")
+		}
+		builder.WriteString("\n  --body '{\"recipe\":{\"recipe_id\":\"reply-recipe\",\"version\":\"1.0.0\",\"title\":\"Reply Recipe\",\"summary\":\"Compact inline checklist.\",\"content_type\":\"text/markdown\",\"digest\":\"sha256:replace-me\",\"inline\":\"# Reply Recipe\\n- Step 1\\n- Step 2\"}}' \\")
+		builder.WriteString("\n  -o json")
+	}
+	builder.WriteString("\n```")
+	builder.WriteString("\nSee `agh network --help` for options.")
+	return builder.String()
+}
+
+func shouldReuseInboundInteraction(envelope Envelope) bool {
+	if envelope.InteractionID == nil {
+		return false
+	}
+
+	switch envelope.Kind {
+	case KindDirect, KindReceipt, KindTrace, KindRecipe:
+		return true
+	default:
+		return false
+	}
 }
 
 func previewForBody(body Body) string {

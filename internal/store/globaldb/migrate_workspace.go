@@ -133,7 +133,10 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 		}
 	}
 
-	return migrateSessionColumns(ctx, db)
+	if err := migrateSessionColumns(ctx, db); err != nil {
+		return err
+	}
+	return migrateNetworkAuditTable(ctx, db)
 }
 
 func migrateSessionColumns(ctx context.Context, db *sql.DB) error {
@@ -158,6 +161,84 @@ func migrateSessionColumns(ctx context.Context, db *sql.DB) error {
 		}
 	}
 
+	return nil
+}
+
+func migrateNetworkAuditTable(ctx context.Context, db *sql.DB) error {
+	exists, err := tableExists(ctx, db, "network_audit_log")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	hasSessionFK, err := tableHasForeignKey(ctx, db, "network_audit_log", "sessions")
+	if err != nil {
+		return err
+	}
+	if !hasSessionFK {
+		return nil
+	}
+
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("store: open network audit migration connection: %w", err)
+	}
+	foreignKeysDisabled := false
+	defer func() {
+		if foreignKeysDisabled {
+			_, _ = conn.ExecContext(context.Background(), "PRAGMA foreign_keys = ON")
+		}
+		_ = conn.Close()
+	}()
+
+	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		return fmt.Errorf("store: disable foreign keys for network audit migration: %w", err)
+	}
+	foreignKeysDisabled = true
+
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: begin network audit migration transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	statements := []string{
+		`CREATE TABLE network_audit_log_new (
+			id         TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			direction  TEXT NOT NULL,
+			kind       TEXT NOT NULL,
+			space      TEXT NOT NULL,
+			peer_from  TEXT NOT NULL,
+			peer_to    TEXT,
+			message_id TEXT NOT NULL,
+			reason     TEXT,
+			size       INTEGER NOT NULL,
+			timestamp  TEXT NOT NULL
+		);`,
+		`INSERT INTO network_audit_log_new (
+			id, session_id, direction, kind, space, peer_from, peer_to, message_id, reason, size, timestamp
+		) SELECT
+			id, session_id, direction, kind, space, peer_from, peer_to, message_id, reason, size, timestamp
+		FROM network_audit_log`,
+		`DROP TABLE network_audit_log`,
+		`ALTER TABLE network_audit_log_new RENAME TO network_audit_log`,
+		`CREATE INDEX idx_net_audit_ts ON network_audit_log(timestamp)`,
+		`CREATE INDEX idx_net_audit_session ON network_audit_log(session_id)`,
+	}
+	for _, stmt := range statements {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: migrate network_audit_log table: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: commit network audit migration: %w", err)
+	}
 	return nil
 }
 
@@ -496,6 +577,46 @@ func tableColumns(ctx context.Context, exec sqlQueryExecutor, table string) (map
 	}
 
 	return columns, nil
+}
+
+func tableHasForeignKey(ctx context.Context, exec sqlQueryExecutor, table string, referencedTable string) (bool, error) {
+	name, err := store.NormalizeSQLiteIdentifier(table)
+	if err != nil {
+		return false, err
+	}
+
+	rows, err := exec.QueryContext(ctx, fmt.Sprintf("PRAGMA foreign_key_list(%s)", name))
+	if err != nil {
+		return false, fmt.Errorf("store: query foreign key info for %q: %w", table, err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	target := strings.TrimSpace(referencedTable)
+	for rows.Next() {
+		var (
+			id       int
+			seq      int
+			refTable string
+			from     string
+			to       string
+			onUpdate string
+			onDelete string
+			match    string
+		)
+		if err := rows.Scan(&id, &seq, &refTable, &from, &to, &onUpdate, &onDelete, &match); err != nil {
+			return false, fmt.Errorf("store: scan foreign key info for %q: %w", table, err)
+		}
+		if strings.EqualFold(strings.TrimSpace(refTable), target) {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("store: iterate foreign key info for %q: %w", table, err)
+	}
+
+	return false, nil
 }
 
 func coalesceTimestamp(value string) string {

@@ -1,7 +1,10 @@
 package globaldb
 
 import (
+	"context"
+	"database/sql"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +32,7 @@ func TestOpenGlobalDBCreatesNetworkAuditLogSchema(t *testing.T) {
 		"size",
 		"timestamp",
 	})
+	assertTableHasNoForeignKeys(t, globalDB.db, "network_audit_log")
 }
 
 func TestGlobalDBWriteAndListNetworkAudit(t *testing.T) {
@@ -93,6 +97,38 @@ func TestGlobalDBWriteAndListNetworkAudit(t *testing.T) {
 	}
 	if got, want := entries[1].Reason, "not_found"; got != want {
 		t.Fatalf("entries[1].Reason = %q, want %q", got, want)
+	}
+}
+
+func TestGlobalDBWriteNetworkAuditAllowsUnknownSessionID(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+
+	if err := globalDB.WriteNetworkAudit(testutil.Context(t), store.NetworkAuditEntry{
+		SessionID: "sess-network-unknown",
+		Direction: "sent",
+		Kind:      "greet",
+		Space:     "builders",
+		PeerFrom:  "coder.sess-network-unknown",
+		MessageID: "msg_greet_01",
+		Size:      32,
+	}); err != nil {
+		t.Fatalf("WriteNetworkAudit(unknown session) error = %v", err)
+	}
+
+	entries, err := globalDB.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+		SessionID: "sess-network-unknown",
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("ListNetworkAudit(unknown session) error = %v", err)
+	}
+	if got, want := len(entries), 1; got != want {
+		t.Fatalf("len(entries) = %d, want %d", got, want)
+	}
+	if got, want := entries[0].MessageID, "msg_greet_01"; got != want {
+		t.Fatalf("entries[0].MessageID = %q, want %q", got, want)
 	}
 }
 
@@ -180,5 +216,194 @@ func TestGlobalDBListNetworkAuditWrapsTimestampParseFailures(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "parse network audit timestamp") {
 		t.Fatalf("ListNetworkAudit(invalid timestamp) error = %v, want wrapped timestamp parse context", err)
+	}
+}
+
+func TestOpenGlobalDBMigratesNetworkAuditSchemaWithoutSessionForeignKey(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	seedLegacyNetworkAuditSchema(t, dbPath)
+
+	globalDB, err := OpenGlobalDB(testutil.Context(t), dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(migrate network audit schema) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := globalDB.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	assertTableHasNoForeignKeys(t, globalDB.db, "network_audit_log")
+
+	entries, err := globalDB.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+		SessionID: "sess-network-legacy",
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("ListNetworkAudit(legacy session) error = %v", err)
+	}
+	if got, want := len(entries), 1; got != want {
+		t.Fatalf("len(entries) = %d, want %d", got, want)
+	}
+	if got, want := entries[0].MessageID, "msg_legacy_01"; got != want {
+		t.Fatalf("entries[0].MessageID = %q, want %q", got, want)
+	}
+
+	if err := globalDB.WriteNetworkAudit(testutil.Context(t), store.NetworkAuditEntry{
+		SessionID: "sess-network-after-migration",
+		Direction: "received",
+		Kind:      "greet",
+		Space:     "builders",
+		PeerFrom:  "coder.sess-network-after-migration",
+		MessageID: "msg_after_migration_01",
+		Size:      64,
+	}); err != nil {
+		t.Fatalf("WriteNetworkAudit(after migration unknown session) error = %v", err)
+	}
+}
+
+func seedLegacyNetworkAuditSchema(t *testing.T, path string) {
+	t.Helper()
+
+	db, err := store.OpenSQLiteDatabase(testutil.Context(t), path, func(ctx context.Context, db *sql.DB) error {
+		statements := []string{
+			`CREATE TABLE workspaces (
+				id            TEXT PRIMARY KEY,
+				root_dir      TEXT NOT NULL UNIQUE,
+				add_dirs      TEXT NOT NULL DEFAULT '[]',
+				name          TEXT NOT NULL UNIQUE,
+				default_agent TEXT DEFAULT '',
+				created_at    TEXT NOT NULL,
+				updated_at    TEXT NOT NULL
+			);`,
+			`CREATE TABLE sessions (
+				id             TEXT PRIMARY KEY,
+				name           TEXT,
+				agent_name     TEXT NOT NULL,
+				workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
+				session_type   TEXT NOT NULL DEFAULT 'user',
+				space          TEXT NOT NULL DEFAULT '',
+				state          TEXT NOT NULL,
+				acp_session_id TEXT,
+				stop_reason    TEXT,
+				stop_detail    TEXT,
+				created_at     TEXT NOT NULL,
+				updated_at     TEXT NOT NULL
+			);`,
+			`CREATE TABLE network_audit_log (
+				id         TEXT PRIMARY KEY,
+				session_id TEXT NOT NULL REFERENCES sessions(id),
+				direction  TEXT NOT NULL,
+				kind       TEXT NOT NULL,
+				space      TEXT NOT NULL,
+				peer_from  TEXT NOT NULL,
+				peer_to    TEXT,
+				message_id TEXT NOT NULL,
+				reason     TEXT,
+				size       INTEGER NOT NULL,
+				timestamp  TEXT NOT NULL
+			);`,
+			`CREATE INDEX idx_net_audit_ts ON network_audit_log(timestamp);`,
+			`CREATE INDEX idx_net_audit_session ON network_audit_log(session_id);`,
+		}
+		for _, stmt := range statements {
+			if _, err := db.ExecContext(ctx, stmt); err != nil {
+				return err
+			}
+		}
+
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO workspaces (id, root_dir, add_dirs, name, default_agent, created_at, updated_at)
+			 VALUES (?, ?, '[]', ?, '', ?, ?)`,
+			"ws-network-legacy",
+			filepath.Join(t.TempDir(), "legacy-workspace"),
+			"network-legacy",
+			"2026-04-11T12:00:00.000000000Z",
+			"2026-04-11T12:00:00.000000000Z",
+		); err != nil {
+			return err
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO sessions (
+				id, name, agent_name, workspace_id, session_type, space, state, acp_session_id, stop_reason, stop_detail, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			"sess-network-legacy",
+			nil,
+			"coder",
+			"ws-network-legacy",
+			"user",
+			"builders",
+			"active",
+			nil,
+			nil,
+			nil,
+			"2026-04-11T12:01:00.000000000Z",
+			"2026-04-11T12:01:00.000000000Z",
+		); err != nil {
+			return err
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO network_audit_log (
+				id, session_id, direction, kind, space, peer_from, peer_to, message_id, reason, size, timestamp
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			"naud_legacy_01",
+			"sess-network-legacy",
+			"sent",
+			"greet",
+			"builders",
+			"coder.sess-network-legacy",
+			nil,
+			"msg_legacy_01",
+			nil,
+			44,
+			"2026-04-11T12:02:00.000000000Z",
+		); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("seedLegacyNetworkAuditSchema() error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("seedLegacyNetworkAuditSchema close error = %v", err)
+	}
+}
+
+func assertTableHasNoForeignKeys(t *testing.T, db *sql.DB, table string) {
+	t.Helper()
+
+	rows, err := db.QueryContext(testutil.Context(t), `PRAGMA foreign_key_list(`+table+`)`)
+	if err != nil {
+		t.Fatalf("PRAGMA foreign_key_list(%s) error = %v", table, err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	if rows.Next() {
+		var (
+			id       int
+			seq      int
+			refTable string
+			from     string
+			to       string
+			onUpdate string
+			onDelete string
+			match    string
+		)
+		if err := rows.Scan(&id, &seq, &refTable, &from, &to, &onUpdate, &onDelete, &match); err != nil {
+			t.Fatalf("Scan(foreign_key_list %s) error = %v", table, err)
+		}
+		t.Fatalf("foreign_key_list(%s) unexpectedly references %q via %q -> %q", table, refTable, from, to)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows.Err(foreign_key_list %s) error = %v", table, err)
 	}
 }

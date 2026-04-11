@@ -274,10 +274,32 @@ func (r *Router) Receive(ctx context.Context, payload []byte) (RouteResult, erro
 	envelope, err := ParseEnvelope(payload, ValidateOptions{Now: now, MaxReplayAge: r.maxReplayAge})
 	if err != nil {
 		reason := reasonCodeForReceiveError(err)
-		return RouteResult{
+		result := RouteResult{
 			Rejected:   true,
 			ReasonCode: &reason,
-		}, nil
+		}
+		if partial := parseEnvelopeSummary(payload); partial != nil {
+			result.Envelope = partial
+			if partial.Kind == KindDirect {
+				directedTarget, ok, resolveErr := r.resolveDirectedTarget(*partial)
+				if resolveErr != nil {
+					return RouteResult{}, resolveErr
+				}
+				if status, emit := rejectionReceiptStatus(reason); emit && ok {
+					receipt, built, buildErr := buildDirectReceipt(directedTarget, *partial, now, status, reason, nil)
+					if buildErr != nil {
+						return RouteResult{}, buildErr
+					}
+					if built {
+						result.Generated = append(result.Generated, receipt)
+						if err := r.publishGenerated(ctx, result.Generated); err != nil {
+							return RouteResult{}, err
+						}
+					}
+				}
+			}
+		}
+		return result, nil
 	}
 
 	result := RouteResult{Envelope: &envelope}
@@ -325,8 +347,45 @@ func (r *Router) Receive(ctx context.Context, payload []byte) (RouteResult, erro
 		return result, nil
 	case KindWhois:
 		return r.handleWhois(ctx, envelope, result, directedTarget, ok, now)
-	case KindSay, KindRecipe:
+	case KindSay:
 		result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(envelope.Space), envelope)
+		return result, nil
+	case KindRecipe:
+		deliver := true
+		if envelope.InteractionID != nil && envelope.IsDirected() {
+			lifecycleResult, lifecycleErr := r.applyLifecycle(envelope, now)
+			switch {
+			case lifecycleErr == nil:
+				switch lifecycleResult.Action {
+				case LifecycleActionIgnored:
+					result.Ignored = true
+					deliver = false
+				case LifecycleActionRejectDirect:
+					reason := ReasonCodeInteractionClosed
+					result.Rejected = true
+					result.ReasonCode = &reason
+					deliver = false
+				}
+			case errors.Is(lifecycleErr, ErrInteractionActorNotAllowed), errors.Is(lifecycleErr, ErrInteractionNotFound):
+				result.Ignored = true
+				deliver = false
+			case errors.Is(lifecycleErr, ErrInvalidStateTransition):
+				reason := ReasonCodeInternal
+				result.Rejected = true
+				result.ReasonCode = &reason
+				deliver = false
+			default:
+				return RouteResult{}, lifecycleErr
+			}
+		}
+
+		if deliver {
+			if envelope.IsDirected() {
+				result.Deliveries = []Delivery{deliveryFromLocalPeer(directedTarget, envelope)}
+			} else {
+				result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(envelope.Space), envelope)
+			}
+		}
 		return result, nil
 	case KindDirect, KindReceipt, KindTrace:
 		deliver := true
@@ -399,6 +458,9 @@ func (r *Router) handleWhois(
 			if _, _, refreshErr := r.peers.RefreshRemote(envelope.Space, *whois.PeerCard, now); refreshErr != nil {
 				return RouteResult{}, refreshErr
 			}
+		}
+		if hasDirectedTarget {
+			result.Deliveries = []Delivery{deliveryFromLocalPeer(directedTarget, envelope)}
 		}
 		return result, nil
 	case WhoisTypeRequest:
@@ -663,6 +725,42 @@ func marshalEnvelopeBody(body Body) (json.RawMessage, error) {
 func ptrString(value string) *string {
 	trimmed := strings.TrimSpace(value)
 	return &trimmed
+}
+
+func parseEnvelopeSummary(data []byte) *Envelope {
+	var env Envelope
+	if err := json.Unmarshal(data, &env); err != nil {
+		return nil
+	}
+
+	return &Envelope{
+		Protocol:      strings.TrimSpace(env.Protocol),
+		ID:            strings.TrimSpace(env.ID),
+		Kind:          Kind(strings.TrimSpace(string(env.Kind))),
+		Space:         strings.TrimSpace(env.Space),
+		From:          strings.TrimSpace(env.From),
+		To:            normalizeOptionalIdentifier(env.To),
+		InteractionID: normalizeOptionalIdentifier(env.InteractionID),
+		ReplyTo:       normalizeOptionalIdentifier(env.ReplyTo),
+		TraceID:       normalizeOptionalIdentifier(env.TraceID),
+		CausationID:   normalizeOptionalIdentifier(env.CausationID),
+		TS:            env.TS,
+		ExpiresAt:     cloneInt64Ptr(env.ExpiresAt),
+		Body:          cloneRawMessage(env.Body),
+		Proof:         cloneProof(env.Proof),
+		Ext:           cloneExtensionMap(env.Ext),
+	}
+}
+
+func rejectionReceiptStatus(reason ReasonCode) (ReceiptStatus, bool) {
+	switch reason {
+	case ReasonCodeExpired:
+		return ReceiptStatusExpired, true
+	case ReasonCodeMalformed:
+		return ReceiptStatusRejected, true
+	default:
+		return "", false
+	}
 }
 
 func reasonCodeForReceiveError(err error) ReasonCode {

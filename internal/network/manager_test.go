@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -376,14 +377,21 @@ func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Status() error = %v", err)
 	}
-	if status.MessagesSent != 1 || status.MessagesDelivered != 1 {
-		t.Fatalf("status message counts = %#v, want sent=1 delivered=1", status)
+	if status.MessagesSent != 2 || status.MessagesReceived != 2 || status.MessagesDelivered != 1 {
+		t.Fatalf("status message counts = %#v, want sent=2 received=2 delivered=1", status)
 	}
 	if status.WorkflowTaggedEvents != 3 || status.HandoffTaggedEvents != 3 {
 		t.Fatalf("status tagged counts = %#v, want workflow=3 handoff=3", status)
 	}
-	if len(status.KindMetrics) != 1 || status.KindMetrics[0].Kind != KindSay || status.KindMetrics[0].Sent != 1 || status.KindMetrics[0].Delivered != 1 {
-		t.Fatalf("status kind metrics = %#v, want say sent/delivered", status.KindMetrics)
+	metricsByKind := make(map[Kind]KindMetric)
+	for _, metric := range status.KindMetrics {
+		metricsByKind[metric.Kind] = metric
+	}
+	if greet := metricsByKind[KindGreet]; greet.Sent != 1 || greet.Received != 1 || greet.Delivered != 0 {
+		t.Fatalf("greet kind metrics = %#v, want sent=1 received=1 delivered=0", greet)
+	}
+	if say := metricsByKind[KindSay]; say.Sent != 1 || say.Received != 1 || say.Delivered != 1 {
+		t.Fatalf("say kind metrics = %#v, want sent=1 received=1 delivered=1", say)
 	}
 
 	logOutput := logs.String()
@@ -517,6 +525,7 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		t.Fatalf("json.Marshal(greet envelope) error = %v", err)
 	}
 	manager.handleInboundMessage(greetPayload)
+	auditor.reset()
 
 	peers, err := manager.ListPeers(ctx, "builders")
 	if err != nil {
@@ -566,11 +575,114 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 	prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: fixedNow})
 	manager.deliveries.wait()
 
-	if len(auditor.received) != 1 {
-		t.Fatalf("received audit count = %d, want 1", len(auditor.received))
+	if got, want := auditor.countReceivedMessage("msg-say-remote"), 1; got != want {
+		t.Fatalf("received audit count for remote say = %d, want %d", got, want)
 	}
-	if got, want := auditor.received[0].sessionID, "sess-local"; got != want {
+	received := auditor.receivedForMessage("msg-say-remote")
+	if got, want := received[0].sessionID, "sess-local"; got != want {
 		t.Fatalf("received audit session id = %q, want %q", got, want)
+	}
+}
+
+func TestManagerAuditsGeneratedGreetsAndControlReceivers(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	fixedNow := time.Date(2026, 4, 11, 18, 30, 0, 0, time.UTC)
+	auditor := &recordingAuditWriter{}
+	manager, err := NewManager(
+		ctx,
+		testManagerConfig(),
+		newFakeDeliveryPrompter(),
+		filepath.Join(t.TempDir(), "network.audit"),
+		nil,
+		WithManagerLogger(discardManagerLogger()),
+		WithManagerClock(func() time.Time { return fixedNow }),
+		WithManagerAuditWriter(auditor),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	defer func() {
+		if err := manager.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	}()
+
+	for _, sessionID := range []string{"sess-a", "sess-b", "sess-c"} {
+		if err := manager.JoinSpace(ctx, sessionID, "coder."+sessionID, "builders"); err != nil {
+			t.Fatalf("JoinSpace(%q) error = %v", sessionID, err)
+		}
+	}
+
+	waitCtx, waitCancel := context.WithTimeout(ctx, 2*time.Second)
+	defer waitCancel()
+	waitForCondition(t, waitCtx, func() bool {
+		return auditor.countSent(KindGreet) >= 3
+	}, "initial greet sent audits")
+
+	auditor.reset()
+	manager.handleReconnect()
+	if got, want := auditor.countSent(KindGreet), 3; got != want {
+		t.Fatalf("handleReconnect greet sent audit count = %d, want %d", got, want)
+	}
+	waitForCondition(t, waitCtx, func() bool {
+		return auditor.countReceived(KindGreet) >= 3
+	}, "reconnect greet loopback audits")
+
+	auditor.reset()
+	remoteCard, err := DefaultPeerCard("reviewer.sess-remote")
+	if err != nil {
+		t.Fatalf("DefaultPeerCard() error = %v", err)
+	}
+	greetPayload, err := json.Marshal(Envelope{
+		Protocol: ProtocolV0,
+		ID:       "msg-greet-control-audit",
+		Kind:     KindGreet,
+		Space:    "builders",
+		From:     remoteCard.PeerID,
+		TS:       fixedNow.Unix(),
+		Body:     mustRawJSON(t, GreetBody{PeerCard: remoteCard, Summary: "remote hello"}),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(greet envelope) error = %v", err)
+	}
+	manager.handleInboundMessage(greetPayload)
+	waitForCondition(t, waitCtx, func() bool {
+		return auditor.countReceivedMessage("msg-greet-control-audit") >= 3
+	}, "remote greet received audits")
+	if got, want := auditor.countReceivedMessage("msg-greet-control-audit"), 3; got != want {
+		t.Fatalf("greet received audit count = %d, want %d", got, want)
+	}
+
+	auditor.reset()
+	whoisPayload, err := json.Marshal(Envelope{
+		Protocol: ProtocolV0,
+		ID:       "msg-whois-control-audit",
+		Kind:     KindWhois,
+		Space:    "builders",
+		From:     remoteCard.PeerID,
+		TS:       fixedNow.Unix(),
+		Body: mustRawJSON(t, WhoisBody{
+			Type:  WhoisTypeRequest,
+			Query: "",
+		}),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(whois envelope) error = %v", err)
+	}
+	manager.handleInboundMessage(whoisPayload)
+
+	waitForCondition(t, waitCtx, func() bool {
+		return auditor.countReceivedMessage("msg-whois-control-audit") >= 3
+	}, "whois request received audits")
+	if got, want := auditor.countReceivedMessage("msg-whois-control-audit"), 3; got != want {
+		t.Fatalf("whois request received audit count = %d, want %d", got, want)
+	}
+	if got, want := auditor.countSent(KindWhois), 3; got != want {
+		t.Fatalf("whois response sent audit count = %d, want %d", got, want)
 	}
 }
 
@@ -745,6 +857,7 @@ func discardManagerLogger() *slog.Logger {
 }
 
 type recordingAuditWriter struct {
+	mu       sync.Mutex
 	sent     []auditCall
 	received []auditCall
 	rejected []auditCall
@@ -757,16 +870,82 @@ type auditCall struct {
 }
 
 func (w *recordingAuditWriter) RecordSent(_ context.Context, sessionID string, envelope Envelope) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.sent = append(w.sent, auditCall{sessionID: sessionID, envelope: envelope})
 	return nil
 }
 
 func (w *recordingAuditWriter) RecordReceived(_ context.Context, sessionID string, envelope Envelope) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.received = append(w.received, auditCall{sessionID: sessionID, envelope: envelope})
 	return nil
 }
 
 func (w *recordingAuditWriter) RecordRejected(_ context.Context, sessionID string, envelope Envelope, reason string) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.rejected = append(w.rejected, auditCall{sessionID: sessionID, envelope: envelope, reason: reason})
 	return nil
+}
+
+func (w *recordingAuditWriter) countSent(kind Kind) int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	count := 0
+	for _, call := range w.sent {
+		if call.envelope.Kind == kind {
+			count++
+		}
+	}
+	return count
+}
+
+func (w *recordingAuditWriter) countReceived(kind Kind) int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	count := 0
+	for _, call := range w.received {
+		if call.envelope.Kind == kind {
+			count++
+		}
+	}
+	return count
+}
+
+func (w *recordingAuditWriter) countReceivedMessage(messageID string) int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	count := 0
+	for _, call := range w.received {
+		if call.envelope.ID == messageID {
+			count++
+		}
+	}
+	return count
+}
+
+func (w *recordingAuditWriter) receivedForMessage(messageID string) []auditCall {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	filtered := make([]auditCall, 0)
+	for _, call := range w.received {
+		if call.envelope.ID == messageID {
+			filtered = append(filtered, call)
+		}
+	}
+	return filtered
+}
+
+func (w *recordingAuditWriter) reset() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.sent = nil
+	w.received = nil
+	w.rejected = nil
 }

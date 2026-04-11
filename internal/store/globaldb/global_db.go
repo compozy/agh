@@ -76,7 +76,7 @@ var globalSchemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_perm_session ON permission_log(session_id);`,
 	`CREATE TABLE IF NOT EXISTS network_audit_log (
 		id         TEXT PRIMARY KEY,
-		session_id TEXT NOT NULL REFERENCES sessions(id),
+		session_id TEXT NOT NULL,
 		direction  TEXT NOT NULL,
 		kind       TEXT NOT NULL,
 		space      TEXT NOT NULL,

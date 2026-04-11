@@ -382,6 +382,49 @@ func TestStartResumeUsesLoadSession(t *testing.T) {
 	}
 }
 
+func TestStartApproveAllSetsPermissiveSessionModeWhenSupported(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "session-set-mode-new.jsonl")
+	proc := startHelperProcess(t, driver, "mode_mapping", "", StartOpts{
+		Permissions: aghconfig.PermissionModeApproveAll,
+		Env:         helperEnvWithCapture("mode_mapping", "", captureFile),
+	})
+	defer stopProcess(t, driver, proc)
+
+	params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode)
+	request := decodeCapturedSetSessionModeRequest(t, params)
+	if got, want := request.SessionID, "sess-new"; got != want {
+		t.Fatalf("set-mode session id = %q, want %q", got, want)
+	}
+	if got, want := request.ModeID, "bypassPermissions"; got != want {
+		t.Fatalf("set-mode mode id = %q, want %q", got, want)
+	}
+}
+
+func TestStartResumeApproveReadsSetsReadOnlyLikeSessionModeWhenSupported(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "session-set-mode-load.jsonl")
+	proc := startHelperProcess(t, driver, "load_mode_mapping", "", StartOpts{
+		ResumeSessionID: "sess-existing",
+		Permissions:     aghconfig.PermissionModeApproveReads,
+		Env:             helperEnvWithCapture("load_mode_mapping", "", captureFile),
+	})
+	defer stopProcess(t, driver, proc)
+
+	params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode)
+	request := decodeCapturedSetSessionModeRequest(t, params)
+	if got, want := request.SessionID, "sess-existing"; got != want {
+		t.Fatalf("set-mode session id = %q, want %q", got, want)
+	}
+	if got, want := request.ModeID, "plan"; got != want {
+		t.Fatalf("set-mode mode id = %q, want %q", got, want)
+	}
+}
+
 func TestStartWithEmptyAdditionalDirsKeepsBaselinePayload(t *testing.T) {
 	t.Parallel()
 
@@ -838,6 +881,11 @@ type capturedLoadSessionRequest struct {
 	SessionID      string   `json:"sessionId"`
 }
 
+type capturedSetSessionModeRequest struct {
+	SessionID string `json:"sessionId"`
+	ModeID    string `json:"modeId"`
+}
+
 func captureRequestParams(t *testing.T, path string, method string) map[string]json.RawMessage {
 	t.Helper()
 
@@ -899,6 +947,20 @@ func decodeCapturedLoadSessionRequest(t *testing.T, params map[string]json.RawMe
 	return request
 }
 
+func decodeCapturedSetSessionModeRequest(t *testing.T, params map[string]json.RawMessage) capturedSetSessionModeRequest {
+	t.Helper()
+
+	raw, err := json.Marshal(params)
+	if err != nil {
+		t.Fatalf("json.Marshal(set-session-mode params) error = %v", err)
+	}
+	var request capturedSetSessionModeRequest
+	if err := json.Unmarshal(raw, &request); err != nil {
+		t.Fatalf("json.Unmarshal(set-session-mode request) error = %v", err)
+	}
+	return request
+}
+
 func mustCanonicalDir(t *testing.T, path string) string {
 	t.Helper()
 
@@ -937,7 +999,7 @@ func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (
 	return acpsdk.InitializeResponse{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
-			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error",
+			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" || a.scenario == "load_mode_mapping",
 		},
 		AuthMethods: []acpsdk.AuthMethod{},
 	}, nil
@@ -948,6 +1010,13 @@ func (a *helperACPAgent) Cancel(context.Context, acpsdk.CancelNotification) erro
 }
 
 func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
+	if a.scenario == "mode_mapping" {
+		return acpsdk.NewSessionResponse{
+			SessionId: "sess-new",
+			Modes:     helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
+			Models:    helperModelState("new-model"),
+		}, nil
+	}
 	return acpsdk.NewSessionResponse{
 		SessionId: "sess-new",
 		Modes:     helperModeState("new-mode"),
@@ -958,6 +1027,12 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 func (a *helperACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest) (acpsdk.LoadSessionResponse, error) {
 	if a.scenario == "load_session_error" {
 		return acpsdk.LoadSessionResponse{}, errors.New("load failed")
+	}
+	if a.scenario == "load_mode_mapping" {
+		return acpsdk.LoadSessionResponse{
+			Modes:  helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
+			Models: helperModelState("loaded-model"),
+		}, nil
 	}
 	return acpsdk.LoadSessionResponse{
 		Modes:  helperModeState("loaded-mode"),
@@ -1126,11 +1201,20 @@ func (a *helperACPAgent) SetSessionMode(context.Context, acpsdk.SetSessionModeRe
 }
 
 func helperModeState(id string) *acpsdk.SessionModeState {
+	return helperModeStateWithCurrent(id, id)
+}
+
+func helperModeStateWithCurrent(current string, available ...string) *acpsdk.SessionModeState {
+	modes := make([]acpsdk.SessionMode, 0, len(available))
+	for _, id := range available {
+		modes = append(modes, acpsdk.SessionMode{
+			Id:   acpsdk.SessionModeId(id),
+			Name: id,
+		})
+	}
 	return &acpsdk.SessionModeState{
-		CurrentModeId: acpsdk.SessionModeId(id),
-		AvailableModes: []acpsdk.SessionMode{
-			{Id: acpsdk.SessionModeId(id), Name: id},
-		},
+		CurrentModeId:  acpsdk.SessionModeId(current),
+		AvailableModes: modes,
 	}
 }
 

@@ -213,6 +213,13 @@ func DecodeBody(kind Kind, raw json.RawMessage) (Body, error) {
 		}
 		return body, nil
 	case KindRecipe:
+		object, err := validateJSONObject("body", raw)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := object["recipe"]; !ok {
+			return nil, fmt.Errorf("%w: recipe body must wrap artifact fields inside \"recipe\", e.g. {\"recipe\":{...}}", ErrInvalidBody)
+		}
 		var body RecipeBody
 		if err := decodeJSON(raw, &body); err != nil {
 			return nil, fmt.Errorf("%w: recipe body: %w", ErrInvalidBody, err)
