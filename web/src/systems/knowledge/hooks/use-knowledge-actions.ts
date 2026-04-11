@@ -2,9 +2,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { consolidateMemory, deleteMemory } from "@/systems/knowledge/adapters/knowledge-api";
 import { knowledgeKeys } from "@/systems/knowledge/lib/query-keys";
+import type { MemoryScope } from "@/systems/knowledge/types";
 
 interface DeleteMemoryParams {
-  scope: string;
+  scope: Exclude<MemoryScope, undefined>;
   filename: string;
   workspace?: string;
 }

@@ -1,142 +1,27 @@
-import { z } from "zod";
+import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
-// --- ACPCaps ---
+export type SessionsResponse = OperationResponse<"listSessions", 200>;
+export type SessionPayload = SessionsResponse["sessions"][number];
+export type SessionResponse = OperationResponse<"getSession", 200>;
+export type ACPCaps = NonNullable<SessionPayload["acp_caps"]>;
+export type SessionState = SessionPayload["state"];
 
-export const acpCapsSchema = z.object({
-  supports_load_session: z.boolean(),
-  supported_modes: z.array(z.string()).optional(),
-  supported_models: z.array(z.string()).optional(),
-});
+export type SessionEventsResponse = OperationResponse<"listSessionEvents", 200>;
+export type SessionEventPayload = SessionEventsResponse["events"][number];
+export type FetchSessionEventsParams = OperationQuery<"listSessionEvents">;
 
-export type ACPCaps = z.infer<typeof acpCapsSchema>;
+export type SessionHistoryResponse = OperationResponse<"getSessionHistory", 200>;
+export type TurnHistoryPayload = SessionHistoryResponse["history"][number];
 
-// --- SessionPayload ---
+export type SessionTranscriptResponse = OperationResponse<"getSessionTranscript", 200>;
+export type TranscriptMessage = SessionTranscriptResponse["messages"][number];
+export type TranscriptMessageRole = TranscriptMessage["role"];
+export type TranscriptToolResult = NonNullable<TranscriptMessage["tool_result"]>;
 
-export const sessionStateSchema = z.enum(["starting", "active", "stopping", "stopped"]);
-
-export type SessionState = z.infer<typeof sessionStateSchema>;
-
-export const sessionPayloadSchema = z.object({
-  id: z.string(),
-  name: z.string().optional(),
-  agent_name: z.string(),
-  workspace_id: z.string(),
-  workspace_path: z.string(),
-  state: sessionStateSchema,
-  acp_session_id: z.string().optional(),
-  acp_caps: acpCapsSchema.optional(),
-  created_at: z.string(),
-  updated_at: z.string(),
-});
-
-export type SessionPayload = z.infer<typeof sessionPayloadSchema>;
-
-// --- SessionEventPayload ---
-
-export const sessionEventPayloadSchema = z.object({
-  id: z.string(),
-  session_id: z.string(),
-  sequence: z.number(),
-  turn_id: z.string(),
-  type: z.string(),
-  agent_name: z.string(),
-  content: z.unknown(),
-  timestamp: z.string(),
-});
-
-export type SessionEventPayload = z.infer<typeof sessionEventPayloadSchema>;
-
-// --- TokenUsagePayload ---
-
-export const tokenUsagePayloadSchema = z.object({
-  turn_id: z.string().optional(),
-  input_tokens: z.number().optional(),
-  output_tokens: z.number().optional(),
-  total_tokens: z.number().optional(),
-  thought_tokens: z.number().optional(),
-  cache_read_tokens: z.number().optional(),
-  cache_write_tokens: z.number().optional(),
-  context_used: z.number().optional(),
-  context_size: z.number().optional(),
-  cost_amount: z.number().optional(),
-  cost_currency: z.string().optional(),
-  timestamp: z.string().optional(),
-});
-
-export type TokenUsagePayload = z.infer<typeof tokenUsagePayloadSchema>;
-
-// --- AgentEventPayload ---
-
-export const agentEventPayloadSchema = z.object({
-  type: z.string(),
-  session_id: z.string().optional(),
-  turn_id: z.string().optional(),
-  request_id: z.string().optional(),
-  timestamp: z.string().optional(),
-  text: z.string().optional(),
-  title: z.string().optional(),
-  tool_call_id: z.string().optional(),
-  stop_reason: z.string().optional(),
-  action: z.string().optional(),
-  resource: z.string().optional(),
-  decision: z.string().optional(),
-  error: z.string().optional(),
-  usage: tokenUsagePayloadSchema.optional(),
-  raw: z.unknown().optional(),
-});
-
-export type AgentEventPayload = z.infer<typeof agentEventPayloadSchema>;
-
-// --- TurnHistoryPayload ---
-
-export const turnHistoryPayloadSchema = z.object({
-  turn_id: z.string(),
-  events: z.array(sessionEventPayloadSchema),
-});
-
-export type TurnHistoryPayload = z.infer<typeof turnHistoryPayloadSchema>;
-
-// --- TranscriptPayload ---
-
-export const transcriptToolResultSchema = z
-  .object({
-    stdout: z.string().optional(),
-    stderr: z.string().optional(),
-    file_path: z.string().optional(),
-    content: z.string().optional(),
-    structured_patch: z.unknown().optional(),
-    error: z.string().optional(),
-    raw_output: z.unknown().optional(),
-  })
-  .passthrough();
-
-export type TranscriptToolResult = z.infer<typeof transcriptToolResultSchema>;
-
-export const transcriptMessageRoleSchema = z.enum([
-  "user",
-  "assistant",
-  "tool_call",
-  "tool_result",
-]);
-
-export const transcriptMessageSchema = z
-  .object({
-    id: z.string(),
-    role: transcriptMessageRoleSchema,
-    content: z.string(),
-    thinking: z.string().optional(),
-    thinking_complete: z.boolean(),
-    tool_name: z.string().optional(),
-    tool_input: z.record(z.string(), z.unknown()).optional(),
-    tool_result: transcriptToolResultSchema.optional(),
-    tool_error: z.boolean(),
-    timestamp: z.string(),
-  })
-  .passthrough();
-
-export type TranscriptMessage = z.infer<typeof transcriptMessageSchema>;
-
-// --- ToolUseResult ---
+export type CreateSessionParams = OperationRequestBody<"createSession">;
+export type SessionApprovalResponse = OperationResponse<"approveSession", 200>;
+export type ApproveSessionParams = OperationRequestBody<"approveSession">;
+export type PermissionDecision = ApproveSessionParams["decision"];
 
 export interface ToolUseResult {
   stdout?: string;
@@ -148,17 +33,42 @@ export interface ToolUseResult {
   rawOutput?: unknown;
 }
 
-// --- UIMessage ---
+export interface TokenUsagePayload {
+  turn_id?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  thought_tokens?: number;
+  cache_read_tokens?: number;
+  cache_write_tokens?: number;
+  context_used?: number;
+  context_size?: number;
+  cost_amount?: number;
+  cost_currency?: string;
+  timestamp?: string;
+}
 
-export const uiMessageRoleSchema = z.enum([
-  "user",
-  "assistant",
-  "tool_call",
-  "tool_result",
-  "system",
-]);
+export interface AgentEventPayload {
+  type: string;
+  session_id?: string;
+  turn_id?: string;
+  request_id?: string;
+  timestamp?: string;
+  text?: string;
+  title?: string;
+  tool_call_id?: string;
+  stop_reason?: string;
+  action?: string;
+  resource?: string;
+  decision?: string;
+  error?: string;
+  usage?: TokenUsagePayload;
+  raw?: unknown;
+}
 
-export type UIMessageRole = z.infer<typeof uiMessageRoleSchema>;
+export const uiMessageRoles = ["user", "assistant", "tool_call", "tool_result", "system"] as const;
+
+export type UIMessageRole = (typeof uiMessageRoles)[number];
 
 export interface UIMessage {
   id: string;
@@ -174,8 +84,6 @@ export interface UIMessage {
   timestamp: number;
 }
 
-// --- PermissionRequest ---
-
 export interface PermissionRequest {
   requestId: string;
   toolName: string;
@@ -183,35 +91,3 @@ export interface PermissionRequest {
   action: string;
   resource: string;
 }
-
-// --- API Response Envelopes ---
-
-export const sessionsResponseSchema = z.object({
-  sessions: z.array(sessionPayloadSchema),
-});
-
-export type SessionsResponse = z.infer<typeof sessionsResponseSchema>;
-
-export const sessionResponseSchema = z.object({
-  session: sessionPayloadSchema,
-});
-
-export type SessionResponse = z.infer<typeof sessionResponseSchema>;
-
-export const sessionEventsResponseSchema = z.object({
-  events: z.array(sessionEventPayloadSchema),
-});
-
-export type SessionEventsResponse = z.infer<typeof sessionEventsResponseSchema>;
-
-export const sessionHistoryResponseSchema = z.object({
-  history: z.array(turnHistoryPayloadSchema),
-});
-
-export type SessionHistoryResponse = z.infer<typeof sessionHistoryResponseSchema>;
-
-export const sessionTranscriptResponseSchema = z.object({
-  messages: z.array(transcriptMessageSchema),
-});
-
-export type SessionTranscriptResponse = z.infer<typeof sessionTranscriptResponseSchema>;

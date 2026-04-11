@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Host API handler (bidirectional JSON-RPC)
 type: backend
 complexity: high
@@ -35,13 +35,13 @@ Implement the Host API handler that processes JSON-RPC requests from extensions 
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Create `HostAPIHandler` struct with dependencies on session manager, memory store, observer, skills registry
-- [ ] 7.2 Implement request dispatcher that maps method names to handler functions
-- [ ] 7.3 Implement `sessions/*` method handlers (list, create, prompt, stop, status, events)
-- [ ] 7.4 Implement `memory/*` method handlers (recall, store, forget)
-- [ ] 7.5 Implement `observe/*` and `skills/*` method handlers
-- [ ] 7.6 Implement per-extension rate limiting with typed error responses
-- [ ] 7.7 Write unit and integration tests covering all methods and error paths
+- [x] 7.1 Create `HostAPIHandler` struct with dependencies on session manager, memory store, observer, skills registry
+- [x] 7.2 Implement request dispatcher that maps method names to handler functions
+- [x] 7.3 Implement `sessions/*` method handlers (list, create, prompt, stop, status, events)
+- [x] 7.4 Implement `memory/*` method handlers (recall, store, forget)
+- [x] 7.5 Implement `observe/*` and `skills/*` method handlers
+- [x] 7.6 Implement per-extension rate limiting with typed error responses
+- [x] 7.7 Write unit and integration tests covering all methods and error paths
 
 ## Implementation Details
 
@@ -77,27 +77,27 @@ The handler is transport-agnostic — it receives method + params and returns re
 
 ## Tests
 - Unit tests:
-  - [ ] `sessions/list` returns authorized sessions for extension with `session.read`
-  - [ ] `sessions/list` returns `-32001 capability_denied` without `session.read`
-  - [ ] `sessions/create` returns new session ID with `session.write`
-  - [ ] `sessions/create` returns `-32001` without `session.write`
-  - [ ] `sessions/prompt` delivers message to session with correct turn ID
-  - [ ] `sessions/stop` terminates the session
-  - [ ] `sessions/status` returns session state for authorized extensions
-  - [ ] `sessions/events` returns event stream with optional `since` parameter
-  - [ ] `memory/store` persists content with tags
-  - [ ] `memory/recall` returns ranked matches
-  - [ ] `memory/forget` removes entries
-  - [ ] `observe/health` returns daemon health snapshot
-  - [ ] `observe/events` returns filtered events with `since` parameter
-  - [ ] `skills/list` returns skills for workspace
-  - [ ] Unknown method returns `-32601 method_not_found`
-  - [ ] Rate limit exceeded returns `-32002` with `retry_after_ms` in data
-  - [ ] All methods return typed error data with method name and required capabilities
+  - [x] `sessions/list` returns authorized sessions for extension with `session.read`
+  - [x] `sessions/list` returns `-32001 capability_denied` without `session.read`
+  - [x] `sessions/create` returns new session ID with `session.write`
+  - [x] `sessions/create` returns `-32001` without `session.write`
+  - [x] `sessions/prompt` delivers message to session with correct turn ID
+  - [x] `sessions/stop` terminates the session
+  - [x] `sessions/status` returns session state for authorized extensions
+  - [x] `sessions/events` returns event stream with optional `since` parameter
+  - [x] `memory/store` persists content with tags
+  - [x] `memory/recall` returns ranked matches
+  - [x] `memory/forget` removes entries
+  - [x] `observe/health` returns daemon health snapshot
+  - [x] `observe/events` returns filtered events with `since` parameter
+  - [x] `skills/list` returns skills for workspace
+  - [x] Unknown method returns `-32601 method_not_found`
+  - [x] Rate limit exceeded returns `-32002` with `retry_after_ms` in data
+  - [x] All methods return typed error data with method name and required capabilities
 - Integration tests:
-  - [ ] Extension creates session via Host API → session runs → extension reads events back
-  - [ ] Extension stores memory then recalls it
-  - [ ] Unauthorized extension attempts all methods → all return capability denied
+  - [x] Extension creates session via Host API → session runs → extension reads events back
+  - [x] Extension stores memory then recalls it
+  - [x] Unauthorized extension attempts all methods → all return capability denied
 - Test coverage target: >=80%
 - All tests must pass
 

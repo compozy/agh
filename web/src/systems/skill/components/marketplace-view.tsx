@@ -1,8 +1,7 @@
 import { Download, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { cn } from "@/lib/utils";
-
+import { PillButton } from "@/components/design-system";
 import type { SkillPayload } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -178,20 +177,15 @@ function MarketplaceView({
       {/* Category filter chips */}
       <div className="flex flex-wrap items-center gap-1.5 border-b border-[color:var(--color-divider)] px-4 py-3">
         {CATEGORIES.map(cat => (
-          <button
+          <PillButton
             key={cat}
+            active={activeCategory === cat}
+            size="dense"
             onClick={() => setActiveCategory(cat)}
-            className={cn(
-              "inline-flex h-8 items-center rounded-full px-3.5 text-sm transition-colors",
-              activeCategory === cat
-                ? "bg-[color:var(--color-accent)] text-white"
-                : "border border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-hover)]"
-            )}
             data-testid={`category-chip-${cat}`}
-            type="button"
           >
             {cat}
-          </button>
+          </PillButton>
         ))}
       </div>
 

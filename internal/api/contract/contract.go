@@ -6,14 +6,16 @@ import (
 	"time"
 
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 )
 
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
-	AgentName     string `json:"agent_name"`
-	Name          string `json:"name"`
-	Workspace     string `json:"workspace"`
-	WorkspacePath string `json:"workspace_path"`
+	AgentName     string `json:"agent_name,omitempty"`
+	Name          string `json:"name,omitempty"`
+	Workspace     string `json:"workspace,omitempty"`
+	WorkspacePath string `json:"workspace_path,omitempty"`
 }
 
 // ApproveSessionRequest is the interactive permission approval payload.
@@ -25,14 +27,14 @@ type ApproveSessionRequest struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
-	ID            string `json:"id"`
-	Name          string `json:"name,omitempty"`
-	AgentName     string `json:"agent_name"`
-	WorkspaceID   string `json:"workspace_id,omitempty"`
-	WorkspacePath string `json:"workspace_path,omitempty"`
-	State         string `json:"state"`
+	ID            string               `json:"id"`
+	Name          string               `json:"name,omitempty"`
+	AgentName     string               `json:"agent_name"`
+	WorkspaceID   string               `json:"workspace_id,omitempty"`
+	WorkspacePath string               `json:"workspace_path,omitempty"`
+	State         session.SessionState `json:"state"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
-	StopReason string `json:"stop_reason,omitempty"`
+	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
 	StopDetail   string          `json:"stop_detail,omitempty"`
 	ACPSessionID string          `json:"acp_session_id,omitempty"`
@@ -216,9 +218,34 @@ type DaemonStatusPayload struct {
 	Socket         string    `json:"socket"`
 	HTTPHost       string    `json:"http_host"`
 	HTTPPort       int       `json:"http_port"`
+	UserHomeDir    string    `json:"user_home_dir"`
 	ActiveSessions int       `json:"active_sessions"`
 	TotalSessions  int       `json:"total_sessions"`
 	Version        string    `json:"version,omitempty"`
+}
+
+// InstallExtensionRequest is the shared extension install request payload.
+type InstallExtensionRequest struct {
+	Path     string `json:"path"`
+	Checksum string `json:"checksum"`
+}
+
+// ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
+type ExtensionPayload struct {
+	Name          string   `json:"name"`
+	Version       string   `json:"version"`
+	Type          string   `json:"type"`
+	Source        string   `json:"source"`
+	Enabled       bool     `json:"enabled"`
+	State         string   `json:"state"`
+	Capabilities  []string `json:"capabilities,omitempty"`
+	Actions       []string `json:"actions,omitempty"`
+	PID           int      `json:"pid,omitempty"`
+	UptimeSeconds int64    `json:"uptime_seconds,omitempty"`
+	Health        string   `json:"health,omitempty"`
+	HealthMessage string   `json:"health_message,omitempty"`
+	LastError     string   `json:"last_error,omitempty"`
+	DaemonRunning bool     `json:"daemon_running"`
 }
 
 // ErrorPayload is the shared error response payload.
@@ -265,9 +292,9 @@ type MemoryHealthPayload struct {
 // CreateWorkspaceRequest is the shared workspace creation request payload.
 type CreateWorkspaceRequest struct {
 	RootDir      string   `json:"root_dir"`
-	Name         string   `json:"name"`
-	AddDirs      []string `json:"add_dirs"`
-	DefaultAgent string   `json:"default_agent"`
+	Name         string   `json:"name,omitempty"`
+	AddDirs      []string `json:"add_dirs,omitempty"`
+	DefaultAgent string   `json:"default_agent,omitempty"`
 }
 
 // UpdateWorkspaceRequest is the shared workspace update request payload.

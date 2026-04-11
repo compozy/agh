@@ -57,9 +57,62 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 
 	globalDB := openTestGlobalDB(t)
 
-	assertTablesPresent(t, globalDB.db, "workspaces", "sessions", "event_summaries", "token_stats", "permission_log")
+	assertTablesPresent(t, globalDB.db, "workspaces", "sessions", "event_summaries", "token_stats", "permission_log", "extensions")
 	assertJournalModeWAL(t, globalDB.db)
 	assertSynchronousNormal(t, globalDB.db)
+}
+
+func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+
+	assertTableColumns(t, globalDB.db, "extensions", []string{
+		"name",
+		"version",
+		"source",
+		"enabled",
+		"manifest_path",
+		"installed_at",
+		"capabilities",
+		"actions",
+		"checksum",
+	})
+}
+
+func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	first, err := OpenGlobalDB(testutil.Context(t), dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(first) error = %v", err)
+	}
+	if err := first.Close(testutil.Context(t)); err != nil {
+		t.Fatalf("Close(first) error = %v", err)
+	}
+
+	second, err := OpenGlobalDB(testutil.Context(t), dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(second) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := second.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(second) error = %v", err)
+		}
+	})
+
+	assertTableColumns(t, second.db, "extensions", []string{
+		"name",
+		"version",
+		"source",
+		"enabled",
+		"manifest_path",
+		"installed_at",
+		"capabilities",
+		"actions",
+		"checksum",
+	})
 }
 
 func TestGlobalDBCheckReady(t *testing.T) {

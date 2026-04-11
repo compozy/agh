@@ -371,7 +371,11 @@ func (s *Session) setStopClassification(reason store.StopReason, detail string) 
 }
 
 func (s *Session) activate(now time.Time) error {
-	return s.transition(StateActive, now)
+	if err := s.transition(StateActive, now); err != nil {
+		return err
+	}
+	s.clearStopClassification()
+	return nil
 }
 
 func (s *Session) beginStopping(now time.Time) error {
@@ -380,6 +384,18 @@ func (s *Session) beginStopping(now time.Time) error {
 
 func (s *Session) markStopped(now time.Time) error {
 	return s.transition(StateStopped, now)
+}
+
+func (s *Session) clearStopClassification() {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stopCause = CauseNone
+	s.stopReason = ""
+	s.stopDetail = ""
 }
 
 func (s *Session) transition(next SessionState, now time.Time) error {

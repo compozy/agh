@@ -1,11 +1,11 @@
 import {
-  skillsResponseSchema,
-  skillContentResponseSchema,
-  skillResponseSchema,
-  skillActionResponseSchema,
-  type SkillPayload,
-  type SkillActionResponse,
-} from "../types";
+  apiClient,
+  apiRequestFailed,
+  defaultApiErrorMessage,
+  requireResponseData,
+} from "@/lib/api-client";
+
+import type { SkillActionResponse, SkillPayload } from "../types";
 
 export class SkillApiError extends Error {
   constructor(
@@ -18,13 +18,17 @@ export class SkillApiError extends Error {
 }
 
 export async function listSkills(workspace: string, signal?: AbortSignal): Promise<SkillPayload[]> {
-  const res = await fetch(`/api/skills?workspace=${encodeURIComponent(workspace)}`, { signal });
-  if (!res.ok) {
-    throw new SkillApiError(`Failed to fetch skills: ${res.status}`, res.status);
+  const { data, error, response } = await apiClient.GET("/api/skills", {
+    params: { query: { workspace } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new SkillApiError(
+      defaultApiErrorMessage("Failed to fetch skills", response, error),
+      response.status
+    );
   }
-  const json = await res.json();
-  const parsed = skillsResponseSchema.parse(json);
-  return parsed.skills;
+  return requireResponseData(data, response, "Failed to fetch skills").skills;
 }
 
 export async function getSkill(
@@ -32,19 +36,23 @@ export async function getSkill(
   workspace: string,
   signal?: AbortSignal
 ): Promise<SkillPayload> {
-  const res = await fetch(
-    `/api/skills/${encodeURIComponent(name)}?workspace=${encodeURIComponent(workspace)}`,
-    { signal }
-  );
-  if (!res.ok) {
-    if (res.status === 404) {
+  const { data, error, response } = await apiClient.GET("/api/skills/{name}", {
+    params: {
+      path: { name },
+      query: { workspace },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new SkillApiError(`Skill not found: ${name}`, 404);
     }
-    throw new SkillApiError(`Failed to fetch skill "${name}": ${res.status}`, res.status);
+    throw new SkillApiError(
+      defaultApiErrorMessage(`Failed to fetch skill "${name}"`, response, error),
+      response.status
+    );
   }
-  const json = await res.json();
-  const parsed = skillResponseSchema.parse(json);
-  return parsed.skill;
+  return requireResponseData(data, response, `Failed to fetch skill "${name}"`).skill;
 }
 
 export async function getSkillContent(
@@ -52,19 +60,23 @@ export async function getSkillContent(
   workspace: string,
   signal?: AbortSignal
 ): Promise<string> {
-  const res = await fetch(
-    `/api/skills/${encodeURIComponent(name)}/content?workspace=${encodeURIComponent(workspace)}`,
-    { signal }
-  );
-  if (!res.ok) {
-    if (res.status === 404) {
+  const { data, error, response } = await apiClient.GET("/api/skills/{name}/content", {
+    params: {
+      path: { name },
+      query: { workspace },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new SkillApiError(`Skill not found: ${name}`, 404);
     }
-    throw new SkillApiError(`Failed to fetch skill content "${name}": ${res.status}`, res.status);
+    throw new SkillApiError(
+      defaultApiErrorMessage(`Failed to fetch skill content "${name}"`, response, error),
+      response.status
+    );
   }
-  const json = await res.json();
-  const parsed = skillContentResponseSchema.parse(json);
-  return parsed.content;
+  return requireResponseData(data, response, `Failed to fetch skill content "${name}"`).content;
 }
 
 export async function enableSkill(
@@ -72,18 +84,23 @@ export async function enableSkill(
   workspace: string,
   signal?: AbortSignal
 ): Promise<SkillActionResponse> {
-  const res = await fetch(
-    `/api/skills/${encodeURIComponent(name)}/enable?workspace=${encodeURIComponent(workspace)}`,
-    { method: "POST", signal }
-  );
-  if (!res.ok) {
-    if (res.status === 404) {
+  const { data, error, response } = await apiClient.POST("/api/skills/{name}/enable", {
+    params: {
+      path: { name },
+      query: { workspace },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new SkillApiError(`Skill not found: ${name}`, 404);
     }
-    throw new SkillApiError(`Failed to enable skill "${name}": ${res.status}`, res.status);
+    throw new SkillApiError(
+      defaultApiErrorMessage(`Failed to enable skill "${name}"`, response, error),
+      response.status
+    );
   }
-  const json = await res.json();
-  return skillActionResponseSchema.parse(json);
+  return requireResponseData(data, response, `Failed to enable skill "${name}"`);
 }
 
 export async function disableSkill(
@@ -91,16 +108,21 @@ export async function disableSkill(
   workspace: string,
   signal?: AbortSignal
 ): Promise<SkillActionResponse> {
-  const res = await fetch(
-    `/api/skills/${encodeURIComponent(name)}/disable?workspace=${encodeURIComponent(workspace)}`,
-    { method: "POST", signal }
-  );
-  if (!res.ok) {
-    if (res.status === 404) {
+  const { data, error, response } = await apiClient.POST("/api/skills/{name}/disable", {
+    params: {
+      path: { name },
+      query: { workspace },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new SkillApiError(`Skill not found: ${name}`, 404);
     }
-    throw new SkillApiError(`Failed to disable skill "${name}": ${res.status}`, res.status);
+    throw new SkillApiError(
+      defaultApiErrorMessage(`Failed to disable skill "${name}"`, response, error),
+      response.status
+    );
   }
-  const json = await res.json();
-  return skillActionResponseSchema.parse(json);
+  return requireResponseData(data, response, `Failed to disable skill "${name}"`);
 }

@@ -239,6 +239,33 @@ func TestRegistryWorkspaceSkillOverridesGlobalSkill(t *testing.T) {
 	}
 }
 
+func TestRegistryRegisterExternalNormalizesStoredSkillName(t *testing.T) {
+	t.Parallel()
+
+	registry := newTestRegistry(t, RegistryConfig{})
+	input := &Skill{
+		Meta:     SkillMeta{Name: "  external-review  ", Description: "External override"},
+		Source:   SourceWorkspace,
+		FilePath: "/tmp/external-review/SKILL.md",
+		Enabled:  true,
+	}
+
+	if err := registry.RegisterExternal("extension-owner", []*Skill{input}); err != nil {
+		t.Fatalf("RegisterExternal() error = %v", err)
+	}
+
+	skill, ok := registry.Get("external-review")
+	if !ok {
+		t.Fatal("Get(external-review) ok = false, want registered external skill")
+	}
+	if skill.Meta.Name != "external-review" {
+		t.Fatalf("Get(external-review).Meta.Name = %q, want %q", skill.Meta.Name, "external-review")
+	}
+	if input.Meta.Name != "  external-review  " {
+		t.Fatalf("input.Meta.Name mutated to %q, want original whitespace-preserving value", input.Meta.Name)
+	}
+}
+
 func TestRegistryForWorkspaceReturnsCachedResultWhenUnchanged(t *testing.T) {
 	t.Parallel()
 
@@ -578,6 +605,52 @@ func TestRegistryRefreshGlobalDoesNotIncrementVersionWithoutChange(t *testing.T)
 	registry.mu.RUnlock()
 	if afterSkill != beforeSkill {
 		t.Fatal("RefreshGlobal() replaced unchanged skill entries, want cached snapshot reuse")
+	}
+}
+
+func TestRegistryForWorkspaceReloadsWhenSkillMCPSidecarChanges(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	skillDir := filepath.Join(workspace, ".agh", "skills", "cached-sidecar")
+	writeSkillFile(t, filepath.Join(workspace, ".agh", "skills"), filepath.Join("cached-sidecar", skillFileName), skillWithDescription("cached-sidecar", "Cached sidecar"))
+	writeSkillMCPSidecar(t, skillDir, `{
+  "mcpServers": {
+    "sidecar": {
+      "command": "version-one"
+    }
+  }
+}`)
+
+	registry := newTestRegistry(t, RegistryConfig{})
+	resolvedWorkspace := resolvedWorkspaceForTest("ws_cached_sidecar", workspace,
+		resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "cached-sidecar"), "workspace"),
+	)
+
+	first, err := registry.ForWorkspace(context.Background(), resolvedWorkspace)
+	if err != nil {
+		t.Fatalf("first ForWorkspace() error = %v", err)
+	}
+	firstSkill := findSkill(t, first, "cached-sidecar")
+	if got, want := firstSkill.MCPServers[0].Command, "version-one"; got != want {
+		t.Fatalf("first skill sidecar command = %q, want %q", got, want)
+	}
+
+	writeSkillMCPSidecar(t, skillDir, `{
+  "mcpServers": {
+    "sidecar": {
+      "command": "version-two-with-larger-content"
+    }
+  }
+}`)
+
+	second, err := registry.ForWorkspace(context.Background(), resolvedWorkspace)
+	if err != nil {
+		t.Fatalf("second ForWorkspace() error = %v", err)
+	}
+	secondSkill := findSkill(t, second, "cached-sidecar")
+	if got, want := secondSkill.MCPServers[0].Command, "version-two-with-larger-content"; got != want {
+		t.Fatalf("second skill sidecar command = %q, want %q", got, want)
 	}
 }
 

@@ -48,19 +48,9 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		return session, nil
 	}
 
-	sessionDir := filepath.Join(m.homePaths.SessionsDir, target)
-	metaPath := store.SessionMetaFile(sessionDir)
-	meta, err := store.ReadSessionMeta(metaPath)
+	meta, err := m.readMeta(target)
 	if err != nil {
-		return nil, fmt.Errorf("session: read session meta %q: %w", metaPath, err)
-	}
-
-	meta, classified := classifyPreviousStop(meta)
-	if classified {
-		meta, err = m.persistResumeCrashClassification(metaPath, meta)
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 	if validationErrs := m.validateInfrastructure(ctx, meta); len(validationErrs) > 0 {
 		m.logResumeValidationFailures(meta, validationErrs)
@@ -76,7 +66,36 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		return nil, err
 	}
 
-	return m.startSession(ctx, spec)
+	session, err := m.startSession(ctx, spec)
+	if err == nil {
+		return session, nil
+	}
+
+	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
+	clearACP := acp.IsLoadSessionResourceMissing(err)
+	restoredMeta, restoreErr := m.restoreFailedResumeStart(metaPath, meta, clearACP)
+	if restoreErr != nil {
+		return nil, errors.Join(err, restoreErr)
+	}
+	if !clearACP {
+		return nil, err
+	}
+
+	m.resumeLogger(meta).Warn(
+		"session.resume.load_session_missing_fallback",
+		"error", err,
+	)
+
+	fallbackSpec, fallbackSpecErr := m.prepareResumeStart(ctx, restoredMeta)
+	if fallbackSpecErr != nil {
+		return nil, errors.Join(err, fallbackSpecErr)
+	}
+
+	fallbackSession, fallbackErr := m.startSession(ctx, fallbackSpec)
+	if fallbackErr != nil {
+		return nil, errors.Join(err, fallbackErr)
+	}
+	return fallbackSession, nil
 }
 
 func (m *Manager) watchProcess(ctx context.Context, session *Session) {

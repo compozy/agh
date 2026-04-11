@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -21,6 +22,8 @@ const (
 	binDir              = "bin"
 	cliBinary           = "agh"
 	versionPackage      = "github.com/pedronauck/agh/internal/version"
+	openAPISpecPath     = "openapi/agh.json"
+	webOpenAPITypePath  = "web/src/generated/agh-openapi.d.ts"
 	webDistIndex        = "web/dist/index.html"
 )
 
@@ -74,10 +77,27 @@ func TestIntegration() error {
 }
 
 func Build() error {
+	if err := CodegenCheck(); err != nil {
+		return err
+	}
 	if err := WebBuild(); err != nil {
 		return err
 	}
 	return buildGo()
+}
+
+func Codegen() error {
+	if err := runCommandInDir(".", "go", "run", "./cmd/agh-codegen", "all"); err != nil {
+		return err
+	}
+	return generateWebOpenAPITypes(webOpenAPITypePath)
+}
+
+func CodegenCheck() error {
+	if err := runCommandInDir(".", "go", "run", "./cmd/agh-codegen", "check"); err != nil {
+		return err
+	}
+	return checkWebOpenAPITypes(webOpenAPITypePath)
 }
 
 func WebLint() error {
@@ -85,15 +105,15 @@ func WebLint() error {
 }
 
 func WebTypecheck() error {
-	return runCommandInDir("web", "bun", "run", "typecheck")
+	return runCommandInDir("web", "bun", "run", "typecheck:raw")
 }
 
 func WebTest() error {
-	return runCommandInDir("web", "bun", "run", "test")
+	return runCommandInDir("web", "bun", "run", "test:raw")
 }
 
 func WebBuild() error {
-	return runCommandInDir("web", "bun", "run", "build")
+	return runCommandInDir("web", "bun", "run", "build:raw")
 }
 
 func buildGo() error {
@@ -181,6 +201,7 @@ func Boundaries() error {
 
 func Verify() error {
 	steps := []func() error{
+		CodegenCheck,
 		WebLint,
 		WebTypecheck,
 		WebTest,
@@ -199,6 +220,36 @@ func Verify() error {
 	}
 
 	return nil
+}
+
+func generateWebOpenAPITypes(outputPath string) error {
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return err
+	}
+	if err := runCommandInDir(".", "bunx", "openapi-typescript", openAPISpecPath, "-o", outputPath); err != nil {
+		return err
+	}
+	return runCommandInDir(".", "bunx", "oxfmt", outputPath)
+}
+
+func checkWebOpenAPITypes(path string) error {
+	file, err := os.CreateTemp("", "agh-openapi-types-*.d.ts")
+	if err != nil {
+		return err
+	}
+	_ = file.Close()
+	defer os.Remove(file.Name())
+
+	if err := generateWebOpenAPITypes(file.Name()); err != nil {
+		return err
+	}
+
+	want, err := os.ReadFile(file.Name())
+	if err != nil {
+		return err
+	}
+
+	return checkGeneratedFile(path, want)
 }
 
 func goFiles(root string) ([]string, error) {
@@ -265,6 +316,9 @@ func ensureWebBundle() error {
 		return err
 	}
 
+	if err := CodegenCheck(); err != nil {
+		return err
+	}
 	return WebBuild()
 }
 
@@ -275,4 +329,20 @@ func runCommandInDir(dir string, name string, args ...string) error {
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()
 	return cmd.Run()
+}
+
+func checkGeneratedFile(path string, want []byte) error {
+	got, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("%s is missing; run codegen", path)
+		}
+		return err
+	}
+
+	if !bytes.Equal(got, want) {
+		return fmt.Errorf("%s is stale; run codegen", path)
+	}
+
+	return nil
 }

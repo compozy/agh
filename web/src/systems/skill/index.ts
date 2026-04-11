@@ -8,16 +8,6 @@ export type {
   SkillsResponse,
 } from "./types";
 
-// Schemas
-export {
-  provenancePayloadSchema,
-  skillActionResponseSchema,
-  skillContentResponseSchema,
-  skillPayloadSchema,
-  skillResponseSchema,
-  skillsResponseSchema,
-} from "./types";
-
 // Adapters
 export {
   disableSkill,

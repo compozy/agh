@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Minimal Tool struct and ToolProvider interface
 type: backend
 complexity: low
@@ -29,10 +29,10 @@ Create the foundational `Tool` struct and `ToolProvider` interface in a new `int
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Create `internal/tools/` package with `Tool` struct and `ToolSource` enum
-- [ ] 1.2 Define `ToolProvider` interface
-- [ ] 1.3 Verify JSON serialization compatibility with existing hook `ToolCallRef` payload fields
-- [ ] 1.4 Write unit tests for Tool serialization and ToolSource enum
+- [x] 1.1 Create `internal/tools/` package with `Tool` struct and `ToolSource` enum
+- [x] 1.2 Define `ToolProvider` interface
+- [x] 1.3 Verify JSON serialization compatibility with existing hook `ToolCallRef` payload fields
+- [x] 1.4 Write unit tests for Tool serialization and ToolSource enum
 
 ## Implementation Details
 
@@ -57,11 +57,11 @@ See TechSpec "Core Interfaces" section for the `Tool` struct and `ToolProvider` 
 
 ## Tests
 - Unit tests:
-  - [ ] `Tool` struct JSON marshaling produces expected field names matching hook payloads
-  - [ ] `Tool` struct JSON unmarshaling from hook-compatible JSON succeeds
-  - [ ] `ToolSource` string values are correct (`builtin`, `mcp`, `extension`, `dynamic`)
-  - [ ] `ToolSource` validation rejects unknown values
-  - [ ] Compile-time interface verification for `ToolProvider`
+- [x] `Tool` struct JSON marshaling produces expected field names matching hook payloads
+- [x] `Tool` struct JSON unmarshaling from hook-compatible JSON succeeds
+- [x] `ToolSource` string values are correct (`builtin`, `mcp`, `extension`, `dynamic`)
+- [x] `ToolSource` validation rejects unknown values
+- [x] Compile-time interface verification for `ToolProvider`
 - Test coverage target: >=80%
 - All tests must pass
 

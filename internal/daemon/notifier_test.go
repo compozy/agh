@@ -422,6 +422,30 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 		t.Fatalf("subprocess executor output = %q, want %q", got, "kept|"+resolvedWorkspaceRoot)
 	}
 
+	explicitDir := t.TempDir()
+	subprocessExecutor, err = defaultDaemonExecutorResolver(hookspkg.HookDecl{
+		Name:         "subprocess-working-dir",
+		ExecutorKind: hookspkg.HookExecutorSubprocess,
+		Command:      "/bin/sh",
+		Args:         []string{"-c", "pwd"},
+		WorkingDir:   explicitDir,
+		Matcher:      hookspkg.HookMatcher{WorkspaceRoot: workspaceRoot},
+	})
+	if err != nil {
+		t.Fatalf("defaultDaemonExecutorResolver(subprocess working dir) error = %v, want nil", err)
+	}
+	output, err = subprocessExecutor.Execute(t.Context(), hookspkg.RegisteredHook{Name: "subprocess-working-dir"}, nil)
+	if err != nil {
+		t.Fatalf("subprocess executor.Execute(working dir) error = %v, want nil", err)
+	}
+	resolvedExplicitDir, err := filepath.EvalSymlinks(explicitDir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(explicitDir) error = %v, want nil", err)
+	}
+	if got := strings.TrimSpace(string(output)); got != resolvedExplicitDir {
+		t.Fatalf("subprocess executor working dir output = %q, want %q", got, resolvedExplicitDir)
+	}
+
 	wasmExecutor, err := defaultDaemonExecutorResolver(hookspkg.HookDecl{
 		Name:         "wasm",
 		ExecutorKind: hookspkg.HookExecutorWASM,

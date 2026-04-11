@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>conversa.jsonl — ANP</title>
+    <style>
+      :root {
+        --bg: #0f1218;
+        --surface: #181c26;
+        --border: #2a3142;
+        --text: #e8eaef;
+        --muted: #8b93a5;
+        --a-bg: #1e3a5f;
+        --a-border: #3d6fa8;
+        --b-bg: #1f3d35;
+        --b-border: #3d8f72;
+        --neutral-bg: #2a2638;
+        --neutral-border: #5c5478;
+        --accent: #7eb8ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family:
+          "Segoe UI",
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: radial-gradient(ellipse 120% 80% at 50% -20%, #1a2235 0%, var(--bg) 55%);
+        color: var(--text);
+        line-height: 1.55;
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 1rem 1.25rem;
+        background: color-mix(in srgb, var(--bg) 92%, transparent);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--border);
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      header p {
+        margin: 0.35rem 0 0;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      .toolbar {
+        margin-top: 0.75rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .toolbar label.file-btn {
+        cursor: pointer;
+        font-size: 0.8rem;
+        padding: 0.4rem 0.75rem;
+        border-radius: 8px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+
+      .toolbar label.file-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .toolbar input[type="file"] {
+        display: none;
+      }
+
+      .hint {
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 1.25rem 1rem 3rem;
+      }
+
+      .thread {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        /* stretch (default) makes every bubble full width — breaks left/right chat alignment */
+        align-items: flex-start;
+      }
+
+      .msg {
+        box-sizing: border-box;
+        max-width: min(88%, 26rem);
+        min-width: 0;
+        width: fit-content;
+        padding: 0.85rem 1rem;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        animation: fade 0.35s ease-out both;
+      }
+
+      @keyframes fade {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      .msg--a {
+        align-self: flex-end;
+        margin-left: 0;
+        background: var(--a-bg);
+        border-color: var(--a-border);
+        border-bottom-right-radius: 4px;
+      }
+
+      .msg--b {
+        align-self: flex-start;
+        margin-right: 0;
+        background: var(--b-bg);
+        border-color: var(--b-border);
+        border-bottom-left-radius: 4px;
+      }
+
+      .msg--neutral {
+        align-self: center;
+        max-width: min(94%, 30rem);
+        background: var(--neutral-bg);
+        border-color: var(--neutral-border);
+        border-radius: 12px;
+      }
+
+      .msg--user {
+        align-self: flex-start;
+        background: #3d2e1e;
+        border-color: #b87333;
+        border-bottom-left-radius: 4px;
+      }
+
+      .msg__meta {
+        display: flex;
+        align-items: baseline;
+        justify-content: flex-start;
+        gap: 0.5rem;
+        margin-bottom: 0.45rem;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+
+      .msg--a .msg__meta {
+        justify-content: flex-end;
+      }
+
+      .msg__author {
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      .msg__ts {
+        font-variant-numeric: tabular-nums;
+        font-family: ui-monospace, "Cascadia Code", monospace;
+        text-transform: none;
+        letter-spacing: 0;
+      }
+
+      .msg__body {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.95rem;
+      }
+
+      .error {
+        padding: 1rem;
+        border-radius: 10px;
+        background: #3a1f28;
+        border: 1px solid #8f3d4d;
+        color: #f5c6cf;
+        font-size: 0.9rem;
+      }
+
+      .empty {
+        text-align: center;
+        color: var(--muted);
+        padding: 2rem;
+      }
+
+      footer {
+        text-align: center;
+        padding: 1rem;
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>conversa.jsonl</h1>
+      <p>Visualização estilo chat — Claude-A ↔ Claude-B (ANP / AGH)</p>
+      <div class="toolbar">
+        <label class="file-btn">
+          Abrir arquivo .jsonl ou .json
+          <input
+            id="file"
+            type="file"
+            accept=".jsonl,.json,application/json,application/x-ndjson,text/plain"
+          />
+        </label>
+        <span class="hint"
+          >Fetch automático: sirva esta pasta (ex.: <code>python3 -m http.server</code>) ou use
+          “Abrir arquivo”.</span
+        >
+      </div>
+    </header>
+    <main>
+      <div id="root"></div>
+    </main>
+    <footer>Fonte: <code>conversa.jsonl</code> na mesma pasta</footer>
+
+    <script>
+      (function () {
+        const root = document.getElementById("root");
+        const fileInput = document.getElementById("file");
+
+        function escapeHtml(s) {
+          return String(s ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        function classForRow(row) {
+          if (row.role === "user") return "msg--user";
+          const author = row.author || "";
+          if (!author) return "msg--neutral";
+          const u = author.toUpperCase();
+          if (u.includes("CLAUDE-A") || u.endsWith("-A")) return "msg--a";
+          if (u.includes("CLAUDE-B") || u.endsWith("-B")) return "msg--b";
+          return "msg--neutral";
+        }
+
+        function displayName(row) {
+          if (row.author) return row.author;
+          if (row.role === "user") return "Usuário";
+          return "Assistente";
+        }
+
+        function parseJsonl(text) {
+          const lines = text.split(/\r?\n/);
+          const rows = [];
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim() === "") {
+              continue;
+            }
+            try {
+              rows.push(JSON.parse(lines[i]));
+            } catch (e) {
+              throw new Error("Linha " + (i + 1) + ": " + e.message);
+            }
+          }
+          return rows;
+        }
+
+        function parseRows(text) {
+          const trimmed = text.trim();
+          if (trimmed === "") {
+            return [];
+          }
+
+          let parsed;
+          try {
+            parsed = JSON.parse(trimmed);
+          } catch (jsonError) {
+            return parseJsonl(text);
+          }
+
+          if (Array.isArray(parsed)) {
+            return parsed;
+          }
+          if (parsed && typeof parsed === "object") {
+            return [parsed];
+          }
+          throw new Error("JSON deve conter um objeto ou uma lista de objetos.");
+        }
+
+        function render(rows) {
+          const thread = document.createElement("div");
+          thread.className = "thread";
+          rows.forEach((row, i) => {
+            const ts = row.ts || "";
+            const contentRaw =
+              row && Object.prototype.hasOwnProperty.call(row, "content") ? row.content : "";
+            const content =
+              typeof contentRaw === "string"
+                ? contentRaw
+                : (JSON.stringify(contentRaw, null, 2) ?? "");
+            const cls = classForRow(row);
+            const article = document.createElement("article");
+            article.className = "msg " + cls;
+            article.style.animationDelay = Math.min(i * 0.02, 0.4) + "s";
+            const meta = document.createElement("div");
+            meta.className = "msg__meta";
+            const nameEl = document.createElement("span");
+            nameEl.className = "msg__author";
+            nameEl.textContent = displayName(row);
+            meta.appendChild(nameEl);
+            if (ts) {
+              const t = document.createElement("span");
+              t.className = "msg__ts";
+              t.textContent = ts;
+              meta.appendChild(t);
+            }
+            const body = document.createElement("div");
+            body.className = "msg__body";
+            body.innerHTML = escapeHtml(content).replace(/\n/g, "<br />");
+            article.appendChild(meta);
+            article.appendChild(body);
+            thread.appendChild(article);
+          });
+          root.innerHTML = "";
+          root.appendChild(thread);
+        }
+
+        function showError(msg) {
+          root.innerHTML = '<div class="error" role="alert">' + escapeHtml(msg) + "</div>";
+        }
+
+        function run(text) {
+          try {
+            const rows = parseRows(text);
+            if (rows.length === 0) {
+              root.innerHTML = '<div class="empty">Arquivo vazio.</div>';
+              return;
+            }
+            render(rows);
+          } catch (e) {
+            showError(e.message || String(e));
+          }
+        }
+
+        fileInput.addEventListener("change", function () {
+          const f = fileInput.files && fileInput.files[0];
+          if (!f) return;
+          const r = new FileReader();
+          r.onload = function () {
+            run(String(r.result || ""));
+          };
+          r.readAsText(f, "utf-8");
+        });
+
+        fetch("conversa.jsonl", { cache: "no-store" })
+          .then(function (res) {
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            return res.text();
+          })
+          .then(run)
+          .catch(function () {
+            root.innerHTML =
+              '<div class="empty">Não foi possível carregar <code>conversa.jsonl</code> automaticamente. Use <strong>Abrir arquivo</strong> ou inicie um servidor na pasta deste HTML.</div>';
+          });
+      })();
+    </script>
+  </body>
+</html>

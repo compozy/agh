@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Capability checker and source-trust tiers
 type: backend
 complexity: medium
@@ -35,11 +35,11 @@ Implement the capability-scoped security model that enforces per-extension grant
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Define `ExtensionSource` enum with documented trust tier semantics
-- [ ] 4.2 Implement `CapabilityChecker` struct with register, check, and check Host API methods
-- [ ] 4.3 Implement source-trust tier policy with default grants per tier
-- [ ] 4.4 Implement typed `ErrCapabilityDenied` error with structured data
-- [ ] 4.5 Write table-driven tests for all source-tier combinations
+- [x] 4.1 Define `ExtensionSource` enum with documented trust tier semantics
+- [x] 4.2 Implement `CapabilityChecker` struct with register, check, and check Host API methods
+- [x] 4.3 Implement source-trust tier policy with default grants per tier
+- [x] 4.4 Implement typed `ErrCapabilityDenied` error with structured data
+- [x] 4.5 Write table-driven tests for all source-tier combinations
 
 ## Implementation Details
 
@@ -68,21 +68,21 @@ The `ExtensionSource` enum should mirror the existing `skills.SkillSource` patte
 
 ## Tests
 - Unit tests:
-  - [ ] `Check()` succeeds when extension has granted capability
-  - [ ] `Check()` returns `ErrCapabilityDenied` when extension lacks capability
-  - [ ] `CheckHostAPI()` succeeds when both granted_actions and granted_security are satisfied
-  - [ ] `CheckHostAPI()` fails when granted_actions missing even if granted_security satisfies
-  - [ ] `CheckHostAPI()` fails when granted_security missing even if granted_actions satisfies
-  - [ ] Bundled source grants all capabilities by default
-  - [ ] User source grants all capabilities by default
-  - [ ] Workspace source grants all capabilities by default
-  - [ ] Marketplace source denies `permission.*` without explicit allowlist
-  - [ ] Marketplace source denies `session.write` without explicit allowlist
-  - [ ] Marketplace source denies `memory.write` without explicit allowlist
-  - [ ] Marketplace source allows `session.read`, `memory.read`, `observe.read` by default
-  - [ ] `Register()` applies source-tier ceiling to manifest requests
-  - [ ] `ErrCapabilityDenied` includes method, required, and granted fields in data
-  - [ ] Wildcard grant `["*"]` authorizes all capabilities in that family
+  - [x] `Check()` succeeds when extension has granted capability
+  - [x] `Check()` returns `ErrCapabilityDenied` when extension lacks capability
+  - [x] `CheckHostAPI()` succeeds when both granted_actions and granted_security are satisfied
+  - [x] `CheckHostAPI()` fails when granted_actions missing even if granted_security satisfies
+  - [x] `CheckHostAPI()` fails when granted_security missing even if granted_actions satisfies
+  - [x] Bundled source grants all capabilities by default
+  - [x] User source grants all capabilities by default
+  - [x] Workspace source grants all capabilities by default
+  - [x] Marketplace source denies `permission.*` without explicit allowlist
+  - [x] Marketplace source denies `session.write` without explicit allowlist
+  - [x] Marketplace source denies `memory.write` without explicit allowlist
+  - [x] Marketplace source allows `session.read`, `memory.read`, `observe.read` by default
+  - [x] `Register()` applies source-tier ceiling to manifest requests
+  - [x] `ErrCapabilityDenied` includes method, required, and granted fields in data
+  - [x] Wildcard grant `["*"]` authorizes all capabilities in that family
 - Test coverage target: >=80%
 - All tests must pass
 

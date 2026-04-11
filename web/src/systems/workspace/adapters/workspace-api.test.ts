@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
+
 import { fetchWorkspaces, resolveWorkspace } from "./workspace-api";
 
 const mockWorkspace = {
@@ -21,54 +23,38 @@ afterEach(() => {
 
 describe("fetchWorkspaces", () => {
   it("parses the workspace list response", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ workspaces: [mockWorkspace] }),
-    } as Response);
+    mockJsonResponse({ workspaces: [mockWorkspace] });
 
     const result = await fetchWorkspaces();
 
     expect(result).toEqual([mockWorkspace]);
-    expect(fetch).toHaveBeenCalledWith("/api/workspaces", { signal: undefined });
+    await expectFetchRequest({ path: "/api/workspaces" });
   });
 
   it("passes an abort signal to fetch", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ workspaces: [] }),
-    } as Response);
+    mockJsonResponse({ workspaces: [] });
 
     const controller = new AbortController();
     await fetchWorkspaces(controller.signal);
 
-    expect(fetch).toHaveBeenCalledWith("/api/workspaces", { signal: controller.signal });
-  });
-
-  it("rejects incomplete API responses", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ workspaces: [{ id: "ws_alpha" }] }),
-    } as Response);
-
-    await expect(fetchWorkspaces()).rejects.toThrow();
+    await expectFetchRequest({
+      path: "/api/workspaces",
+      signal: controller.signal,
+    });
   });
 });
 
 describe("resolveWorkspace", () => {
   it("posts a path to the resolve endpoint", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ workspace: mockWorkspace }),
-    } as Response);
+    mockJsonResponse({ workspace: mockWorkspace });
 
     const result = await resolveWorkspace({ path: "/workspace/alpha" });
 
     expect(result).toEqual(mockWorkspace);
-    expect(fetch).toHaveBeenCalledWith("/api/workspaces/resolve", {
+    await expectFetchRequest({
+      body: { path: "/workspace/alpha" },
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: "/workspace/alpha" }),
-      signal: undefined,
+      path: "/api/workspaces/resolve",
     });
   });
 });

@@ -13,6 +13,7 @@
   /* Backgrounds */
   --color-canvas: #121212;
   --color-surface: #1c1c1e;
+  --color-surface-panel: #161618;
   --color-surface-elevated: #2c2c2e;
   --color-divider: #3a3a3c;
   --color-hover: #333336;
@@ -26,6 +27,7 @@
 
   /* Accent & Semantic */
   --color-accent: #e8572a;
+  --color-accent-ink: #17110f;
   --color-accent-hover: #d14e25;
   --color-success: #30d158;
   --color-danger: #ff453a;

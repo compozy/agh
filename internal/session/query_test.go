@@ -144,6 +144,64 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	}
 }
 
+func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	originalACP := session.Info().ACPSessionID
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	meta, err := store.ReadSessionMeta(session.MetaPath())
+	if err != nil {
+		t.Fatalf("ReadSessionMeta() error = %v", err)
+	}
+	meta.State = string(StateStarting)
+	meta.StopReason = nil
+	meta.StopDetail = ""
+	meta.ACPSessionID = stringPointer(originalACP)
+	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+		t.Fatalf("WriteSessionMeta() error = %v", err)
+	}
+
+	info, err := h.manager.Status(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Status(repaired) error = %v", err)
+	}
+	if got := info.State; got != StateStopped {
+		t.Fatalf("Status(repaired).State = %q, want %q", got, StateStopped)
+	}
+	if got := info.StopReason; got != store.StopError {
+		t.Fatalf("Status(repaired).StopReason = %q, want %q", got, store.StopError)
+	}
+	if got := info.StopDetail; got != "start did not complete" {
+		t.Fatalf("Status(repaired).StopDetail = %q, want %q", got, "start did not complete")
+	}
+	if got := info.ACPSessionID; got != "" {
+		t.Fatalf("Status(repaired).ACPSessionID = %q, want empty", got)
+	}
+
+	repairedMeta, err := store.ReadSessionMeta(session.MetaPath())
+	if err != nil {
+		t.Fatalf("ReadSessionMeta(repaired) error = %v", err)
+	}
+	if got := repairedMeta.State; got != string(StateStopped) {
+		t.Fatalf("repaired meta state = %q, want %q", got, StateStopped)
+	}
+	if repairedMeta.StopReason == nil || *repairedMeta.StopReason != store.StopError {
+		t.Fatalf("repaired meta stop reason = %#v, want %q", repairedMeta.StopReason, store.StopError)
+	}
+	if got := repairedMeta.StopDetail; got != "start did not complete" {
+		t.Fatalf("repaired meta stop detail = %q, want %q", got, "start did not complete")
+	}
+	if repairedMeta.ACPSessionID != nil {
+		t.Fatalf("repaired meta ACPSessionID = %#v, want nil", repairedMeta.ACPSessionID)
+	}
+}
+
 func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	t.Parallel()
 

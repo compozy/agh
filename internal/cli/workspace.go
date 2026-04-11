@@ -264,7 +264,7 @@ func workspaceDetailBundle(detail WorkspaceDetailRecord) outputBundle {
 					stringOrDash(item.ID),
 					stringOrDash(item.Name),
 					stringOrDash(item.AgentName),
-					stringOrDash(item.State),
+					stringOrDash(string(item.State)),
 					stringOrDash(displaySessionWorkspace(item)),
 					stringOrDash(formatTime(item.UpdatedAt)),
 				})
@@ -308,7 +308,7 @@ func workspaceDetailBundle(detail WorkspaceDetailRecord) outputBundle {
 					item.ID,
 					item.Name,
 					item.AgentName,
-					item.State,
+					string(item.State),
 					displaySessionWorkspace(item),
 					formatTime(item.UpdatedAt),
 				})

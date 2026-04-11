@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Shared subprocess lifecycle package
 type: backend
 complexity: high
@@ -35,13 +35,13 @@ Extract reusable subprocess lifecycle primitives from `internal/acp/client.go` i
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Create `internal/subprocess/` package with `Process` struct and `LaunchConfig`
-- [ ] 2.2 Implement JSON-RPC 2.0 transport layer (line-delimited, bidirectional, multiplexed)
-- [ ] 2.3 Implement initialize handshake with capability negotiation per protocol spec section 4
-- [ ] 2.4 Implement health check probing with configurable interval, timeout, and unhealthy threshold
-- [ ] 2.5 Implement graceful shutdown with signal escalation per protocol spec section 8
-- [ ] 2.6 Refactor `internal/acp/client.go` to use shared subprocess primitives where possible
-- [ ] 2.7 Write unit and integration tests for the subprocess lifecycle
+- [x] 2.1 Create `internal/subprocess/` package with `Process` struct and `LaunchConfig`
+- [x] 2.2 Implement JSON-RPC 2.0 transport layer (line-delimited, bidirectional, multiplexed)
+- [x] 2.3 Implement initialize handshake with capability negotiation per protocol spec section 4
+- [x] 2.4 Implement health check probing with configurable interval, timeout, and unhealthy threshold
+- [x] 2.5 Implement graceful shutdown with signal escalation per protocol spec section 8
+- [x] 2.6 Refactor `internal/acp/client.go` to use shared subprocess primitives where possible
+- [x] 2.7 Write unit and integration tests for the subprocess lifecycle
 
 ## Implementation Details
 
@@ -75,22 +75,22 @@ The ACP refactor (subtask 2.6) should be incremental — extract what's cleanly 
 
 ## Tests
 - Unit tests:
-  - [ ] `Launch()` spawns process and connects stdin/stdout
-  - [ ] `Call()` sends JSON-RPC request and receives response
-  - [ ] `Call()` with context cancellation returns error before timeout
-  - [ ] `HandleMethod()` routes inbound requests to correct handler
-  - [ ] Initialize handshake succeeds with compatible versions
-  - [ ] Initialize handshake fails with `-32602` for unsupported protocol version
-  - [ ] Health check marks extension unhealthy after 2 consecutive probe failures
-  - [ ] Health check with `healthy: false` response marks unhealthy immediately
-  - [ ] Shutdown sends cooperative request then escalates signals
-  - [ ] Shutdown SIGKILL after timeout if process doesn't exit
-  - [ ] JSON-RPC framing handles one JSON object per line correctly
-  - [ ] Messages exceeding 10 MiB are rejected
+  - [x] `Launch()` spawns process and connects stdin/stdout
+  - [x] `Call()` sends JSON-RPC request and receives response
+  - [x] `Call()` with context cancellation returns error before timeout
+  - [x] `HandleMethod()` routes inbound requests to correct handler
+  - [x] Initialize handshake succeeds with compatible versions
+  - [x] Initialize handshake fails with `-32602` for unsupported protocol version
+  - [x] Health check marks extension unhealthy after 2 consecutive probe failures
+  - [x] Health check with `healthy: false` response marks unhealthy immediately
+  - [x] Shutdown sends cooperative request then escalates signals
+  - [x] Shutdown SIGKILL after timeout if process doesn't exit
+  - [x] JSON-RPC framing handles one JSON object per line correctly
+  - [x] Messages exceeding 10 MiB are rejected
 - Integration tests:
-  - [ ] End-to-end: launch test subprocess → handshake → call → shutdown
-  - [ ] Crash recovery: subprocess exits unexpectedly → Process detects exit
-  - [ ] Concurrent requests: multiple outstanding requests resolve correctly
+  - [x] End-to-end: launch test subprocess → handshake → call → shutdown
+  - [x] Crash recovery: subprocess exits unexpectedly → Process detects exit
+  - [x] Concurrent requests: multiple outstanding requests resolve correctly
 - Test coverage target: >=80%
 - All existing `internal/acp/` tests must continue passing
 

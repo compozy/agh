@@ -10,7 +10,7 @@ import type { MemoryHeader } from "@/systems/knowledge/types";
 interface KnowledgeDetailPanelProps {
   memory: MemoryHeader | undefined;
   content: string | undefined;
-  scope: string;
+  scope?: string;
   isLoading: boolean;
   error: Error | null;
   onDelete: (filename: string) => void;
@@ -168,7 +168,7 @@ function KnowledgeDetailPanel({
 
   const metadataRows: MetadataRow[] = [
     { key: "Type", value: memory.type },
-    { key: "Scope", value: scope },
+    { key: "Scope", value: scope ?? "unknown" },
     ...(memory.agent_name ? [{ key: "Agent", value: memory.agent_name }] : []),
     { key: "Modified", value: formatDateTime(memory.mod_time) },
   ];

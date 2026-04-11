@@ -142,9 +142,9 @@ function KnowledgeListItem({
     <button
       onClick={onSelect}
       className={cn(
-        "relative flex w-full flex-col gap-1 border-b border-[color:var(--color-surface-elevated)] px-3 py-2.5 text-left transition-colors",
-        "hover:bg-[color:var(--color-hover)]",
-        isSelected && "bg-[color:var(--color-surface-elevated)]"
+        "relative flex w-full flex-col gap-1 border-b border-[color:rgba(58,58,60,0.45)] px-3 py-2.5 text-left transition-colors",
+        "hover:bg-[color:var(--color-surface)]",
+        isSelected && "bg-[color:var(--color-surface)]"
       )}
       data-testid={`memory-item-${memory.filename}`}
     >
@@ -204,12 +204,12 @@ function KnowledgeListPanel({
 
   return (
     <div
-      className="flex w-[280px] shrink-0 flex-col border-r border-[color:var(--color-divider)] bg-[color:var(--color-surface)]"
+      className="flex w-[280px] shrink-0 flex-col border-r border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]"
       data-testid="knowledge-list-panel"
     >
       {/* Search input */}
       <div className="border-b border-[color:var(--color-divider)] p-3">
-        <div className="flex items-center gap-2 rounded-lg bg-[color:var(--color-surface-elevated)] px-3 py-2">
+        <div className="flex items-center gap-2 rounded-lg bg-[color:var(--color-surface)] px-3 py-2">
           <Search className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]" />
           <input
             type="text"

@@ -1,0 +1,207 @@
+package daemon
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/api/udsapi"
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
+)
+
+type daemonExtensionService struct {
+	registry *extensionpkg.Registry
+	runtime  extensionRuntime
+	hooks    hookRuntime
+	logger   *slog.Logger
+	now      func() time.Time
+}
+
+var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
+
+func newDaemonExtensionService(
+	registry *extensionpkg.Registry,
+	runtime extensionRuntime,
+	hooks hookRuntime,
+	logger *slog.Logger,
+	now func() time.Time,
+) udsapi.ExtensionService {
+	if registry == nil {
+		return nil
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if now == nil {
+		now = func() time.Time {
+			return time.Now().UTC()
+		}
+	}
+	return &daemonExtensionService{
+		registry: registry,
+		runtime:  runtime,
+		hooks:    hooks,
+		logger:   logger,
+		now:      now,
+	}
+}
+
+func (s *daemonExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
+	if err := s.checkReady(ctx); err != nil {
+		return nil, err
+	}
+
+	infos, err := s.registry.List()
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]contract.ExtensionPayload, 0, len(infos))
+	for _, info := range infos {
+		item, err := s.Status(ctx, info.Name)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (s *daemonExtensionService) Install(ctx context.Context, req contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+	if err := s.checkReady(ctx); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+
+	manifest, err := extensionpkg.LoadManifest(strings.TrimSpace(req.Path))
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.registry.Install(manifest, req.Path, req.Checksum); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.reload(ctx); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	return s.Status(ctx, manifest.Name)
+}
+
+func (s *daemonExtensionService) Enable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+	if err := s.checkReady(ctx); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.registry.Enable(name); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.reload(ctx); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	return s.Status(ctx, name)
+}
+
+func (s *daemonExtensionService) Disable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+	if err := s.checkReady(ctx); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.registry.Disable(name); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := s.reload(ctx); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	return s.Status(ctx, name)
+}
+
+func (s *daemonExtensionService) Status(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+	if err := s.checkReady(ctx); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+
+	ext, err := s.lookup(name)
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	return s.payloadFromExtension(ext), nil
+}
+
+func (s *daemonExtensionService) reload(ctx context.Context) error {
+	if s.runtime == nil {
+		return nil
+	}
+
+	reloadErr := s.runtime.Reload(ctx)
+	if s.hooks == nil {
+		return reloadErr
+	}
+
+	rebuildErr := s.hooks.Rebuild(ctx)
+	return errors.Join(reloadErr, rebuildErr)
+}
+
+func (s *daemonExtensionService) lookup(name string) (*extensionpkg.Extension, error) {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return nil, errors.New("extension: extension name is required")
+	}
+
+	if s.runtime != nil {
+		ext, err := s.runtime.Get(trimmed)
+		if err == nil {
+			s.populateManifest(ext)
+			return ext, nil
+		}
+		if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			return nil, err
+		}
+	}
+
+	info, err := s.registry.Get(trimmed)
+	if err != nil {
+		return nil, err
+	}
+
+	ext := &extensionpkg.Extension{
+		Info: *info,
+		Status: extensionpkg.ExtensionStatus{
+			Name:    info.Name,
+			Version: info.Version,
+			Source:  info.Source,
+			Enabled: info.Enabled,
+		},
+	}
+	s.populateManifest(ext)
+	return ext, nil
+}
+
+func (s *daemonExtensionService) populateManifest(ext *extensionpkg.Extension) {
+	if ext == nil || ext.Manifest != nil || strings.TrimSpace(ext.Info.ManifestPath) == "" {
+		return
+	}
+
+	manifest, err := extensionpkg.LoadManifest(filepath.Dir(ext.Info.ManifestPath))
+	if err != nil {
+		s.logger.Debug("daemon: load extension manifest for status failed", "path", ext.Info.ManifestPath, "error", err)
+		return
+	}
+	ext.Manifest = manifest
+}
+
+func (s *daemonExtensionService) payloadFromExtension(ext *extensionpkg.Extension) contract.ExtensionPayload {
+	return extensionpkg.DescribeExtension(ext, s.runtime != nil, s.now())
+}
+
+func (s *daemonExtensionService) checkReady(ctx context.Context) error {
+	if s == nil {
+		return errors.New("daemon: extension service is required")
+	}
+	if ctx == nil {
+		return errors.New("daemon: extension service context is required")
+	}
+	if s.registry == nil {
+		return errors.New("daemon: extension registry is required")
+	}
+	return nil
+}

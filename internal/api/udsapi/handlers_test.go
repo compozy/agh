@@ -21,6 +21,49 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+type stubExtensionService struct {
+	ListFn    func(context.Context) ([]contract.ExtensionPayload, error)
+	InstallFn func(context.Context, contract.InstallExtensionRequest) (contract.ExtensionPayload, error)
+	EnableFn  func(context.Context, string) (contract.ExtensionPayload, error)
+	DisableFn func(context.Context, string) (contract.ExtensionPayload, error)
+	StatusFn  func(context.Context, string) (contract.ExtensionPayload, error)
+}
+
+func (s stubExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
+	if s.ListFn == nil {
+		return nil, nil
+	}
+	return s.ListFn(ctx)
+}
+
+func (s stubExtensionService) Install(ctx context.Context, req contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+	if s.InstallFn == nil {
+		return contract.ExtensionPayload{}, nil
+	}
+	return s.InstallFn(ctx, req)
+}
+
+func (s stubExtensionService) Enable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+	if s.EnableFn == nil {
+		return contract.ExtensionPayload{}, nil
+	}
+	return s.EnableFn(ctx, name)
+}
+
+func (s stubExtensionService) Disable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+	if s.DisableFn == nil {
+		return contract.ExtensionPayload{}, nil
+	}
+	return s.DisableFn(ctx, name)
+}
+
+func (s stubExtensionService) Status(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+	if s.StatusFn == nil {
+		return contract.ExtensionPayload{}, nil
+	}
+	return s.StatusFn(ctx, name)
+}
+
 func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
@@ -40,6 +83,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/agents",
 		"GET /api/agents/:name",
 		"GET /api/daemon/status",
+		"GET /api/extensions",
+		"GET /api/extensions/:name",
 		"GET /api/hooks/catalog",
 		"GET /api/hooks/events",
 		"GET /api/hooks/runs",
@@ -60,6 +105,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/workspaces",
 		"GET /api/workspaces/:id",
 		"PATCH /api/workspaces/:id",
+		"POST /api/extensions",
+		"POST /api/extensions/:name/disable",
+		"POST /api/extensions/:name/enable",
 		"POST /api/memory/consolidate",
 		"POST /api/sessions",
 		"POST /api/sessions/:id/approve",
@@ -844,6 +892,47 @@ func TestObserveEventsHandlerReturnsEvents(t *testing.T) {
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Events) != 1 || response.Events[0].ID != "sum-1" {
 		t.Fatalf("events = %#v", response.Events)
+	}
+}
+
+func TestExtensionStatusHandlerTrimsName(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	handlers := newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{
+		StatusFn: func(_ context.Context, name string) (contract.ExtensionPayload, error) {
+			if name != "ext-a" {
+				t.Fatalf("Status() name = %q, want %q", name, "ext-a")
+			}
+			return contract.ExtensionPayload{Name: name, Enabled: true, State: "active"}, nil
+		},
+	}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	recorder := performRequest(t, engine, http.MethodGet, "/api/extensions/%20ext-a%20", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response struct {
+		Extension contract.ExtensionPayload `json:"extension"`
+	}
+	decodeJSONResponse(t, recorder, &response)
+	if response.Extension.Name != "ext-a" {
+		t.Fatalf("extension.name = %q, want %q", response.Extension.Name, "ext-a")
+	}
+}
+
+func TestExtensionStatusHandlerRejectsBlankName(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	handlers := newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	recorder := performRequest(t, engine, http.MethodGet, "/api/extensions/%20%20%20", nil)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
 	}
 }
 

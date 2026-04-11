@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/pedronauck/agh/internal/testutil"
 	"io"
 	"os"
 	"os/exec"
@@ -20,6 +19,8 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/subprocess"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 const (
@@ -484,6 +485,51 @@ func TestStartResumeReturnsSentinelErrors(t *testing.T) {
 	}
 }
 
+func TestIsLoadSessionResourceMissing(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		err  error
+		want bool
+	}{
+		"ShouldDetectResourceMissingRequestError": {
+			err: fmt.Errorf(
+				"%w: load session %q for %q: %w",
+				ErrLoadSessionFailed,
+				"sess-existing",
+				"helper",
+				&acpsdk.RequestError{Code: requestErrorResourceNotFoundCode, Message: "Resource not found: sess-existing"},
+			),
+			want: true,
+		},
+		"ShouldRejectDifferentRequestError": {
+			err: fmt.Errorf(
+				"%w: load session %q for %q: %w",
+				ErrLoadSessionFailed,
+				"sess-existing",
+				"helper",
+				&acpsdk.RequestError{Code: -32603, Message: "Internal error"},
+			),
+			want: false,
+		},
+		"ShouldRejectNonLoadSessionError": {
+			err:  errors.New("boom"),
+			want: false,
+		},
+	}
+
+	for name, tc := range tests {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := IsLoadSessionResourceMissing(tc.err); got != tc.want {
+				t.Fatalf("IsLoadSessionResourceMissing() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCleanupFailedStartReturnsJoinedErrorWhenStopFails(t *testing.T) {
 	t.Parallel()
 
@@ -634,6 +680,53 @@ func stopProcess(t *testing.T, driver *Driver, proc *AgentProcess) {
 	if err := driver.Stop(testutil.Context(t), proc); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
+}
+
+func TestStopManagedProcessRespectsContext(t *testing.T) {
+	t.Run("ShouldReturnDeadlineExceededWhenManagedProcessShutdownExceedsStopContext", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New(WithStopTimeout(5 * time.Second))
+		managed, err := subprocess.Launch(context.Background(), subprocess.LaunchConfig{
+			Command:          "sh",
+			Args:             []string{"-c", "sleep 30"},
+			DisableTransport: true,
+			ShutdownTimeout:  time.Second,
+		})
+		if err != nil {
+			t.Fatalf("Launch() error = %v", err)
+		}
+
+		proc := &AgentProcess{
+			managed: managed,
+			done:    make(chan struct{}),
+		}
+		go proc.waitForExit()
+		t.Cleanup(func() {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if shutdownErr := managed.Shutdown(cleanupCtx); shutdownErr != nil {
+				t.Fatalf("managed.Shutdown() error = %v", shutdownErr)
+			}
+			select {
+			case <-proc.Done():
+			case <-cleanupCtx.Done():
+				t.Fatalf("process did not exit during cleanup: %v", cleanupCtx.Err())
+			}
+		})
+
+		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+		defer cancel()
+
+		startedAt := time.Now()
+		err = driver.Stop(stopCtx, proc)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Stop() error = %v, want context deadline exceeded", err)
+		}
+		if elapsed := time.Since(startedAt); elapsed > time.Second {
+			t.Fatalf("Stop() elapsed = %v, want <= 1s", elapsed)
+		}
+	})
 }
 
 func waitForProcess(t *testing.T, proc *AgentProcess) error {

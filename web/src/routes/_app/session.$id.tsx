@@ -35,6 +35,7 @@ function SessionPage() {
     isLoadingTranscript,
     error: transcriptError,
   } = useSessionTranscript(id);
+  const canPrompt = session?.state === "active";
   const { sendMessage, status } = useSessionChat({ sessionId: id });
   const stopMutation = useStopSession();
   const resumeMutation = useResumeSession();
@@ -72,8 +73,8 @@ function SessionPage() {
     useSessionStore.getState().setPendingPermission(null);
   }, []);
 
-  const isDisabled = isStreaming || status === "submitted" || pendingPermission !== null;
-  const isStopped = session?.state === "stopped";
+  const isDisabled =
+    !canPrompt || isStreaming || status === "submitted" || pendingPermission !== null;
   const workspaceName = workspaces?.find(workspace => workspace.id === session?.workspace_id)?.name;
 
   if (isLoading || isLoadingTranscript) {
@@ -113,7 +114,7 @@ function SessionPage() {
           onResolved={handlePermissionResolved}
         />
       )}
-      {!isStopped && <MessageComposer onSend={sendMessage} disabled={isDisabled} />}
+      {canPrompt && <MessageComposer onSend={sendMessage} disabled={isDisabled} />}
     </div>
   );
 }

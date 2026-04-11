@@ -9,16 +9,6 @@ export type {
   MemoryType,
 } from "./types";
 
-// Schemas
-export {
-  memoryConsolidateResponseSchema,
-  memoryHeaderSchema,
-  memoryMutationResponseSchema,
-  memoryReadResponseSchema,
-  memoryScopeSchema,
-  memoryTypeSchema,
-} from "./types";
-
 // Adapters
 export {
   consolidateMemory,

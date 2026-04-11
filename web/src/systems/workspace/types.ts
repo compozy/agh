@@ -1,25 +1,6 @@
-import { z } from "zod";
+import type { OperationResponse } from "@/lib/api-contract";
 
-export const workspacePayloadSchema = z.object({
-  id: z.string(),
-  root_dir: z.string(),
-  add_dirs: z.array(z.string()),
-  name: z.string(),
-  default_agent: z.string().optional(),
-  created_at: z.string(),
-  updated_at: z.string(),
-});
-
-export type WorkspacePayload = z.infer<typeof workspacePayloadSchema>;
-
-export const workspacesResponseSchema = z.object({
-  workspaces: z.array(workspacePayloadSchema),
-});
-
-export type WorkspacesResponse = z.infer<typeof workspacesResponseSchema>;
-
-export const workspaceResponseSchema = z.object({
-  workspace: workspacePayloadSchema,
-});
-
-export type WorkspaceResponse = z.infer<typeof workspaceResponseSchema>;
+export type WorkspacesResponse = OperationResponse<"listWorkspaces", 200>;
+export type WorkspacePayload = WorkspacesResponse["workspaces"][number];
+export type WorkspaceResponse = OperationResponse<"resolveWorkspace", 200>;
+export type WorkspaceDetailPayload = OperationResponse<"getWorkspace", 200>;

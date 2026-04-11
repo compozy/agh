@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extension Manager (lifecycle orchestrator)
 type: backend
 complexity: high
@@ -39,13 +39,13 @@ Create the Extension Manager that orchestrates the 6-phase extension loading pip
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Create `Manager` struct with functional options and dependencies (registry, capability checker, subprocess package)
-- [ ] 6.2 Implement 6-phase loading pipeline with per-phase error isolation
-- [ ] 6.3 Implement resource registration wiring into existing skills, agent def, hook declaration systems
-- [ ] 6.4 Implement subprocess launch with handshake using `internal/subprocess/` primitives
-- [ ] 6.5 Implement crash recovery with exponential backoff and failure threshold
-- [ ] 6.6 Implement `HookDeclarations()` provider for wiring into `hooks.Rebuild()`
-- [ ] 6.7 Write unit and integration tests covering pipeline phases, recovery, and shutdown
+- [x] 6.1 Create `Manager` struct with functional options and dependencies (registry, capability checker, subprocess package)
+- [x] 6.2 Implement 6-phase loading pipeline with per-phase error isolation
+- [x] 6.3 Implement resource registration wiring into existing skills, agent def, hook declaration systems
+- [x] 6.4 Implement subprocess launch with handshake using `internal/subprocess/` primitives
+- [x] 6.5 Implement crash recovery with exponential backoff and failure threshold
+- [x] 6.6 Implement `HookDeclarations()` provider for wiring into `hooks.Rebuild()`
+- [x] 6.7 Write unit and integration tests covering pipeline phases, recovery, and shutdown
 
 ## Implementation Details
 
@@ -82,24 +82,24 @@ Resource registration must NOT duplicate existing registries — the Manager cal
 
 ## Tests
 - Unit tests:
-  - [ ] `Start()` runs all 6 phases for each enabled extension
-  - [ ] `Start()` skips disabled extensions from registry
-  - [ ] DISCOVER phase finds manifests in configured extension directories
-  - [ ] PARSE phase returns error when manifest is invalid, continues other extensions
-  - [ ] VALIDATE phase rejects extensions with incompatible `min_agh_version`
-  - [ ] REGISTER phase adds resources to skills and hooks registries
-  - [ ] INITIALIZE phase launches subprocess and performs handshake
-  - [ ] ACTIVATE phase marks extension live and available for Host API
-  - [ ] Subprocess crash triggers restart with backoff
-  - [ ] 5 consecutive crashes disables extension and logs error
-  - [ ] `Stop()` sends shutdown to all subprocesses then waits with timeout
-  - [ ] `Stop()` escalates to SIGKILL after shutdown timeout
-  - [ ] `HookDeclarations()` returns declarations from all loaded extensions
-  - [ ] Failed extension in one phase does not block other extensions
+  - [x] `Start()` runs all 6 phases for each enabled extension
+  - [x] `Start()` skips disabled extensions from registry
+  - [x] DISCOVER phase finds manifests in configured extension directories
+  - [x] PARSE phase returns error when manifest is invalid, continues other extensions
+  - [x] VALIDATE phase rejects extensions with incompatible `min_agh_version`
+  - [x] REGISTER phase adds resources to skills and hooks registries
+  - [x] INITIALIZE phase launches subprocess and performs handshake
+  - [x] ACTIVATE phase marks extension live and available for Host API
+  - [x] Subprocess crash triggers restart with backoff
+  - [x] 5 consecutive crashes disables extension and logs error
+  - [x] `Stop()` sends shutdown to all subprocesses then waits with timeout
+  - [x] `Stop()` escalates to SIGKILL after shutdown timeout
+  - [x] `HookDeclarations()` returns declarations from all loaded extensions
+  - [x] Failed extension in one phase does not block other extensions
 - Integration tests:
-  - [ ] End-to-end: load test extension → handshake → receive Host API call → shutdown
-  - [ ] Restart recovery: kill subprocess → verify restart with correct backoff timing
-  - [ ] Resource registration: install extension with skills → verify skills appear in registry
+  - [x] End-to-end: load test extension → handshake → receive Host API call → shutdown
+  - [x] Restart recovery: kill subprocess → verify restart with correct backoff timing
+  - [x] Resource registration: install extension with skills → verify skills appear in registry
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fetchHealth } from "./daemon-api";
+import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
+
+import { fetchDaemonStatus, fetchHealth } from "./daemon-api";
 
 describe("fetchHealth", () => {
   const validResponse = {
@@ -24,48 +26,94 @@ describe("fetchHealth", () => {
   });
 
   it("returns parsed HealthPayload on success", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(validResponse),
-    } as Response);
+    mockJsonResponse(validResponse);
 
     const result = await fetchHealth();
+
     expect(result).toEqual(validResponse.health);
-    expect(fetch).toHaveBeenCalledWith("/api/observe/health", { signal: undefined });
+    await expectFetchRequest({ path: "/api/observe/health" });
   });
 
   it("passes abort signal to fetch", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(validResponse),
-    } as Response);
+    mockJsonResponse(validResponse);
 
     const controller = new AbortController();
     await fetchHealth(controller.signal);
-    expect(fetch).toHaveBeenCalledWith("/api/observe/health", { signal: controller.signal });
+
+    await expectFetchRequest({
+      path: "/api/observe/health",
+      signal: controller.signal,
+    });
   });
 
   it("throws on network error (non-ok response)", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 500,
-    } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
     await expect(fetchHealth()).rejects.toThrow("Daemon health check failed: 500");
   });
 
   it("throws on fetch rejection", async () => {
-    vi.mocked(fetch).mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.mocked(globalThis.fetch).mockRejectedValue(new TypeError("Failed to fetch"));
 
     await expect(fetchHealth()).rejects.toThrow("Failed to fetch");
   });
+});
 
-  it("throws on invalid response shape", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ invalid: "shape" }),
-    } as Response);
+describe("fetchDaemonStatus", () => {
+  const validResponse = {
+    daemon: {
+      status: "running",
+      pid: 4242,
+      started_at: "2026-04-10T12:00:00Z",
+      socket: "/tmp/agh.sock",
+      http_host: "127.0.0.1",
+      http_port: 2123,
+      user_home_dir: "/Users/pedro",
+      active_sessions: 2,
+      total_sessions: 7,
+      version: "0.1.0",
+    },
+  };
 
-    await expect(fetchHealth()).rejects.toThrow();
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns parsed DaemonStatusPayload on success", async () => {
+    mockJsonResponse(validResponse);
+
+    const result = await fetchDaemonStatus();
+
+    expect(result).toEqual(validResponse.daemon);
+    expect(result.user_home_dir).toBe("/Users/pedro");
+    await expectFetchRequest({ path: "/api/daemon/status" });
+  });
+
+  it("passes abort signal to fetch", async () => {
+    mockJsonResponse(validResponse);
+
+    const controller = new AbortController();
+    await fetchDaemonStatus(controller.signal);
+
+    await expectFetchRequest({
+      path: "/api/daemon/status",
+      signal: controller.signal,
+    });
+  });
+
+  it("throws on network error (non-ok response)", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
+    await expect(fetchDaemonStatus()).rejects.toThrow("Daemon status check failed: 500");
+  });
+
+  it("throws on fetch rejection", async () => {
+    vi.mocked(globalThis.fetch).mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(fetchDaemonStatus()).rejects.toThrow("Failed to fetch");
   });
 });

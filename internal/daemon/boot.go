@@ -7,10 +7,12 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	aghlogger "github.com/pedronauck/agh/internal/logger"
 	"github.com/pedronauck/agh/internal/memory"
@@ -40,6 +42,8 @@ type bootState struct {
 	sessions          SessionManager
 	observer          Observer
 	hooks             hookRuntime
+	extMu             sync.RWMutex
+	extensions        extensionRuntime
 	httpServer        Server
 	udsServer         Server
 	skillsCancel      context.CancelFunc
@@ -47,6 +51,24 @@ type bootState struct {
 	startedAt         time.Time
 	info              Info
 	deps              RuntimeDeps
+}
+
+func (s *bootState) currentExtensionRuntime() extensionRuntime {
+	if s == nil {
+		return nil
+	}
+	s.extMu.RLock()
+	defer s.extMu.RUnlock()
+	return s.extensions
+}
+
+func (s *bootState) setExtensionRuntime(runtime extensionRuntime) {
+	if s == nil {
+		return
+	}
+	s.extMu.Lock()
+	defer s.extMu.Unlock()
+	s.extensions = runtime
 }
 
 type bootCleanup struct {
@@ -98,6 +120,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return err
 	}
 	if err := d.bootHooks(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootExtensions(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootServers(ctx, state, cleanup); err != nil {
@@ -356,7 +381,10 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 		hookspkg.WithDebugPatchAudit(strings.EqualFold(state.cfg.Log.Level, "debug")),
 		hookspkg.WithExecutorResolver(daemonExecutorResolver(nativeExecutors)),
 		hookspkg.WithNativeDeclarations(nativeDecls),
-		hookspkg.WithConfigDeclarationProvider(configDeclarationProvider(state.registry, state.workspaceResolver, state.logger)),
+		hookspkg.WithConfigDeclarationProvider(chainDeclarationProviders(
+			configDeclarationProvider(state.registry, state.workspaceResolver, state.logger),
+			extensionDeclarationProvider(state.currentExtensionRuntime),
+		)),
 		hookspkg.WithAgentDeclarationProvider(agentDeclarationProvider(state.registry, state.workspaceResolver, state.logger)),
 		hookspkg.WithSkillDeclarationProvider(skillDeclarationProvider(state.skillsRegistry, state.registry, state.workspaceResolver, state.cfg.Skills.AllowedMarketplaceHooks, state.logger)),
 	}
@@ -391,6 +419,50 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	}
 
 	state.hooks = hooks
+	return nil
+}
+
+func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	if state == nil || state.registry == nil {
+		return nil
+	}
+
+	dbSource, ok := state.registry.(extensionDBSource)
+	if !ok || dbSource.DB() == nil {
+		state.logger.Warn("daemon: skipping extensions because global registry does not expose a SQL database handle")
+		return nil
+	}
+
+	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
+	manager := d.newExtensionManager(extensionManagerDeps{
+		Registry:          extRegistry,
+		Sessions:          state.sessions,
+		MemoryStore:       state.memoryStore,
+		Observer:          state.observer,
+		SkillsRegistry:    state.skillsRegistry,
+		WorkspaceResolver: state.workspaceResolver,
+		Logger:            state.logger,
+	})
+	if manager == nil {
+		state.logger.Warn("daemon: extension manager factory returned nil; skipping extensions")
+		return nil
+	}
+
+	state.setExtensionRuntime(manager)
+	state.deps.Extensions = newDaemonExtensionService(extRegistry, manager, state.hooks, state.logger, d.now)
+	cleanup.add(func(ctx context.Context) error {
+		return manager.Stop(ctx)
+	})
+
+	if err := manager.Start(ctx); err != nil {
+		state.logger.Error("daemon: extension manager start failed; continuing without blocking boot", "error", err)
+	}
+	if state.hooks != nil {
+		if err := state.hooks.Rebuild(ctx); err != nil {
+			state.logger.Error("daemon: rebuild hooks after extension boot failed; continuing without extension hooks", "error", err)
+		}
+	}
+
 	return nil
 }
 
@@ -467,6 +539,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.memoryStore = state.memoryStore
 	d.sessions = state.sessions
 	d.hooks = state.hooks
+	d.extensions = state.currentExtensionRuntime()
 	d.observer = state.observer
 	d.httpServer = state.httpServer
 	d.udsServer = state.udsServer

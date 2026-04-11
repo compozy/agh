@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { expectFetchRequest, mockEmptyResponse } from "@/test/fetch-test-utils";
+
 import { approveSession } from "./session-api";
 
 beforeEach(() => {
@@ -11,7 +14,7 @@ afterEach(() => {
 
 describe("approveSession", () => {
   it("sends correct POST body with request_id, turn_id, and decision", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
+    mockEmptyResponse();
 
     await approveSession("sess-001", {
       request_id: "req-123",
@@ -19,20 +22,19 @@ describe("approveSession", () => {
       decision: "allow-once",
     });
 
-    expect(fetch).toHaveBeenCalledWith("/api/sessions/sess-001/approve", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    await expectFetchRequest({
+      body: {
         request_id: "req-123",
         turn_id: "turn-1",
         decision: "allow-once",
-      }),
-      signal: undefined,
+      },
+      method: "POST",
+      path: "/api/sessions/sess-001/approve",
     });
   });
 
   it("sends allow-always decision", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
+    mockEmptyResponse();
 
     await approveSession("sess-001", {
       request_id: "req-123",
@@ -40,12 +42,16 @@ describe("approveSession", () => {
       decision: "allow-always",
     });
 
-    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string);
-    expect(body.decision).toBe("allow-always");
+    const request = await expectFetchRequest({
+      method: "POST",
+      path: "/api/sessions/sess-001/approve",
+    });
+
+    expect((await request.clone().json()).decision).toBe("allow-always");
   });
 
   it("sends reject-once decision", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
+    mockEmptyResponse();
 
     await approveSession("sess-001", {
       request_id: "req-123",
@@ -53,12 +59,16 @@ describe("approveSession", () => {
       decision: "reject-once",
     });
 
-    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string);
-    expect(body.decision).toBe("reject-once");
+    const request = await expectFetchRequest({
+      method: "POST",
+      path: "/api/sessions/sess-001/approve",
+    });
+
+    expect((await request.clone().json()).decision).toBe("reject-once");
   });
 
   it("sends reject-always decision", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
+    mockEmptyResponse();
 
     await approveSession("sess-001", {
       request_id: "req-123",
@@ -66,12 +76,17 @@ describe("approveSession", () => {
       decision: "reject-always",
     });
 
-    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string);
-    expect(body.decision).toBe("reject-always");
+    const request = await expectFetchRequest({
+      method: "POST",
+      path: "/api/sessions/sess-001/approve",
+    });
+
+    expect((await request.clone().json()).decision).toBe("reject-always");
   });
 
   it("throws 404 for unknown session", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
     await expect(
       approveSession("unknown", {
         request_id: "req-1",
@@ -82,7 +97,8 @@ describe("approveSession", () => {
   });
 
   it("throws generic error for other failures", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 500 } as Response);
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
     await expect(
       approveSession("sess-001", {
         request_id: "req-1",
@@ -93,20 +109,28 @@ describe("approveSession", () => {
   });
 
   it("passes abort signal to fetch", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
-    const controller = new AbortController();
+    mockEmptyResponse();
 
+    const controller = new AbortController();
     await approveSession(
       "sess-001",
-      { request_id: "req-1", turn_id: "", decision: "allow-once" },
+      {
+        request_id: "req-1",
+        turn_id: "",
+        decision: "allow-once",
+      },
       controller.signal
     );
 
-    expect(vi.mocked(fetch).mock.calls[0][1]?.signal).toBe(controller.signal);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/sessions/sess-001/approve",
+      signal: controller.signal,
+    });
   });
 
   it("encodes session id in URL", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
+    mockEmptyResponse();
 
     await approveSession("id with spaces", {
       request_id: "req-1",
@@ -114,6 +138,9 @@ describe("approveSession", () => {
       decision: "allow-once",
     });
 
-    expect(vi.mocked(fetch).mock.calls[0][0]).toBe("/api/sessions/id%20with%20spaces/approve");
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/sessions/id%20with%20spaces/approve",
+    });
   });
 });

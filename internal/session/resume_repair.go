@@ -45,20 +45,59 @@ func classifyPreviousStop(meta store.SessionMeta) (store.SessionMeta, bool) {
 
 	switch strings.TrimSpace(meta.State) {
 	case string(StateActive):
+		next.State = string(StateStopped)
 		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
 		next.StopDetail = "daemon crashed while session active"
 		return next, true
 	case string(StateStopping):
+		next.State = string(StateStopped)
 		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
 		next.StopDetail = "stop did not complete"
 		return next, true
 	case string(StateStarting):
+		next.State = string(StateStopped)
 		next.StopReason = resumeStopReasonPointer(store.StopError)
 		next.StopDetail = "start did not complete"
+		next.ACPSessionID = nil
 		return next, true
+	case string(StateStopped):
+		if strings.TrimSpace(meta.StopDetail) == "start did not complete" && meta.ACPSessionID != nil {
+			next.ACPSessionID = nil
+			return next, true
+		}
+		return next, false
 	default:
 		return next, false
 	}
+}
+
+func (m *Manager) repairInactiveMeta(metaPath string, meta store.SessionMeta) (store.SessionMeta, error) {
+	classified, changed := classifyPreviousStop(meta)
+	if !changed {
+		return meta, nil
+	}
+	return m.persistResumeCrashClassification(metaPath, classified)
+}
+
+func (m *Manager) restoreFailedResumeStart(metaPath string, meta store.SessionMeta, clearACP bool) (store.SessionMeta, error) {
+	restored := meta
+	restored.State = string(StateStopped)
+	if clearACP {
+		restored.StopReason = resumeStopReasonPointer(store.StopError)
+		restored.StopDetail = "start did not complete"
+		restored.ACPSessionID = nil
+	}
+	restored.UpdatedAt = m.now()
+
+	if err := store.WriteSessionMeta(metaPath, restored); err != nil {
+		return store.SessionMeta{}, fmt.Errorf(
+			"session: restore stopped metadata after failed resume for %q: %w",
+			strings.TrimSpace(meta.ID),
+			err,
+		)
+	}
+
+	return restored, nil
 }
 
 func (m *Manager) validateInfrastructure(ctx context.Context, meta store.SessionMeta) []error {

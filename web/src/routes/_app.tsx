@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 
 import { AppHeader } from "@/components/app-header";
@@ -7,7 +7,7 @@ import { useSidebarStore } from "@/stores/sidebar-store";
 import { useAgents } from "@/systems/agent";
 import { useDaemonHealth } from "@/systems/daemon";
 import { useCreateSession, useSessions } from "@/systems/session";
-import { useWorkspaces } from "@/systems/workspace";
+import { useActiveWorkspace, WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -18,25 +18,16 @@ function AppLayout() {
   const toggleCollapsed = useSidebarStore(state => state.toggle);
   const { health, connectionStatus } = useDaemonHealth();
   const {
-    data: workspaces,
+    workspaces,
+    hasWorkspaces,
+    activeWorkspace,
+    activeWorkspaceId,
+    setActiveWorkspaceId,
     isLoading: areWorkspacesLoading,
     isError: workspacesError,
-  } = useWorkspaces();
+  } = useActiveWorkspace();
   const { data: agents, isLoading: agentsLoading, isError: agentsError } = useAgents();
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
-
-  const activeWorkspaceId = useMemo(() => {
-    if (!workspaces || workspaces.length === 0) return null;
-    if (selectedWorkspaceId && workspaces.some(workspace => workspace.id === selectedWorkspaceId)) {
-      return selectedWorkspaceId;
-    }
-    return workspaces[0].id;
-  }, [selectedWorkspaceId, workspaces]);
-
-  const activeWorkspace = useMemo(() => {
-    if (!workspaces || !activeWorkspaceId) return undefined;
-    return workspaces.find(workspace => workspace.id === activeWorkspaceId);
-  }, [workspaces, activeWorkspaceId]);
+  const [isWorkspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
 
   const { data: sessions } = useSessions(activeWorkspaceId, {
     enabled: activeWorkspaceId !== null,
@@ -48,15 +39,20 @@ function AppLayout() {
     createSession.mutate({ agent_name: agentName, workspace: activeWorkspaceId });
   };
 
+  if (!areWorkspacesLoading && !workspacesError && !hasWorkspaces) {
+    return <WorkspaceOnboarding onWorkspaceResolved={setActiveWorkspaceId} />;
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <AppSidebar
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
-        workspaces={areWorkspacesLoading || workspacesError ? undefined : (workspaces ?? undefined)}
+        workspaces={areWorkspacesLoading || workspacesError ? undefined : workspaces}
         activeWorkspace={activeWorkspace}
         activeWorkspaceId={activeWorkspaceId}
-        onSelectWorkspace={setSelectedWorkspaceId}
+        onSelectWorkspace={setActiveWorkspaceId}
+        onAddWorkspace={() => setWorkspaceSetupOpen(true)}
         health={health}
         connectionStatus={connectionStatus}
         agents={agents}
@@ -72,6 +68,11 @@ function AppLayout() {
           <Outlet />
         </div>
       </div>
+      <WorkspaceSetupDialog
+        open={isWorkspaceSetupOpen}
+        onOpenChange={setWorkspaceSetupOpen}
+        onWorkspaceResolved={setActiveWorkspaceId}
+      />
     </div>
   );
 }

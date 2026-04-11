@@ -1,122 +1,101 @@
 import {
-  sessionResponseSchema,
-  sessionEventsResponseSchema,
-  sessionTranscriptResponseSchema,
-  sessionHistoryResponseSchema,
-  sessionsResponseSchema,
-  type SessionPayload,
-  type SessionEventPayload,
-  type TranscriptMessage,
-  type TurnHistoryPayload,
+  apiClient,
+  apiRequestFailed,
+  defaultApiErrorMessage,
+  requireResponseData,
+} from "@/lib/api-client";
+
+import type {
+  ApproveSessionParams,
+  CreateSessionParams,
+  FetchSessionEventsParams,
+  SessionEventPayload,
+  SessionPayload,
+  TranscriptMessage,
+  TurnHistoryPayload,
 } from "../types";
 
-// --- List Sessions ---
+export type {
+  ApproveSessionParams,
+  CreateSessionParams,
+  FetchSessionEventsParams,
+  PermissionDecision,
+} from "../types";
 
 export async function fetchSessions(
   workspace?: string,
   signal?: AbortSignal
 ): Promise<SessionPayload[]> {
   const normalizedWorkspace = workspace?.trim();
-  const url =
-    normalizedWorkspace == null || normalizedWorkspace === ""
-      ? "/api/sessions"
-      : `/api/sessions?workspace=${encodeURIComponent(normalizedWorkspace)}`;
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch sessions: ${res.status}`);
+  const { data, error, response } = await apiClient.GET("/api/sessions", {
+    params:
+      normalizedWorkspace == null || normalizedWorkspace === ""
+        ? undefined
+        : { query: { workspace: normalizedWorkspace } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new Error(defaultApiErrorMessage("Failed to fetch sessions", response, error));
   }
-  const json = await res.json();
-  const parsed = sessionsResponseSchema.parse(json);
-  return parsed.sessions;
-}
-
-// --- Create Session ---
-
-export interface CreateSessionParams {
-  agent_name?: string;
-  name?: string;
-  workspace?: string;
-  workspace_path?: string;
+  return requireResponseData(data, response, "Failed to fetch sessions").sessions;
 }
 
 export async function createSession(
   params: CreateSessionParams,
   signal?: AbortSignal
 ): Promise<SessionPayload> {
-  const res = await fetch("/api/sessions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+  const { data, error, response } = await apiClient.POST("/api/sessions", {
+    body: params,
     signal,
   });
-  if (!res.ok) {
-    if (res.status === 409) {
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 409) {
       throw new Error("Max sessions reached");
     }
-    throw new Error(`Failed to create session: ${res.status}`);
+    throw new Error(defaultApiErrorMessage("Failed to create session", response, error));
   }
-  const json = await res.json();
-  const parsed = sessionResponseSchema.parse(json);
-  return parsed.session;
+  return requireResponseData(data, response, "Failed to create session").session;
 }
-
-// --- Get Session ---
 
 export async function fetchSession(id: string, signal?: AbortSignal): Promise<SessionPayload> {
-  const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`, { signal });
-  if (!res.ok) {
-    if (res.status === 404) {
+  const { data, error, response } = await apiClient.GET("/api/sessions/{id}", {
+    params: { path: { id } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new Error(`Session not found: ${id}`);
     }
-    throw new Error(`Failed to fetch session "${id}": ${res.status}`);
+    throw new Error(defaultApiErrorMessage(`Failed to fetch session "${id}"`, response, error));
   }
-  const json = await res.json();
-  const parsed = sessionResponseSchema.parse(json);
-  return parsed.session;
+  return requireResponseData(data, response, `Failed to fetch session "${id}"`).session;
 }
-
-// --- Stop Session ---
 
 export async function stopSession(id: string, signal?: AbortSignal): Promise<void> {
-  const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`, {
-    method: "DELETE",
+  const { error, response } = await apiClient.DELETE("/api/sessions/{id}", {
+    params: { path: { id } },
     signal,
   });
-  if (!res.ok) {
-    if (res.status === 404) {
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new Error(`Session not found: ${id}`);
     }
-    throw new Error(`Failed to stop session "${id}": ${res.status}`);
+    throw new Error(defaultApiErrorMessage(`Failed to stop session "${id}"`, response, error));
   }
 }
-
-// --- Resume Session ---
 
 export async function resumeSession(id: string, signal?: AbortSignal): Promise<SessionPayload> {
-  const res = await fetch(`/api/sessions/${encodeURIComponent(id)}/resume`, {
-    method: "POST",
+  const { data, error, response } = await apiClient.POST("/api/sessions/{id}/resume", {
+    params: { path: { id } },
     signal,
   });
-  if (!res.ok) {
-    if (res.status === 404) {
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new Error(`Session not found: ${id}`);
     }
-    throw new Error(`Failed to resume session "${id}": ${res.status}`);
+    throw new Error(defaultApiErrorMessage(`Failed to resume session "${id}"`, response, error));
   }
-  const json = await res.json();
-  const parsed = sessionResponseSchema.parse(json);
-  return parsed.session;
-}
-
-// --- Session Events ---
-
-export interface FetchSessionEventsParams {
-  since?: string;
-  limit?: number;
-  after_sequence?: number;
-  type?: string;
-  agent_name?: string;
-  turn_id?: string;
+  return requireResponseData(data, response, `Failed to resume session "${id}"`).session;
 }
 
 export async function fetchSessionEvents(
@@ -124,36 +103,22 @@ export async function fetchSessionEvents(
   params?: FetchSessionEventsParams,
   signal?: AbortSignal
 ): Promise<SessionEventPayload[]> {
-  const url = new URL(`/api/sessions/${encodeURIComponent(id)}/events`, window.location.origin);
-  if (params) {
-    if (params.since) url.searchParams.set("since", params.since);
-    if (params.limit != null) url.searchParams.set("limit", String(params.limit));
-    if (params.after_sequence != null)
-      url.searchParams.set("after_sequence", String(params.after_sequence));
-    if (params.type) url.searchParams.set("type", params.type);
-    if (params.agent_name) url.searchParams.set("agent_name", params.agent_name);
-    if (params.turn_id) url.searchParams.set("turn_id", params.turn_id);
-  }
-  const res = await fetch(url.toString(), { signal });
-  if (!res.ok) {
-    if (res.status === 404) {
+  const { data, error, response } = await apiClient.GET("/api/sessions/{id}/events", {
+    params: {
+      path: { id },
+      query: params,
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new Error(`Session not found: ${id}`);
     }
-    throw new Error(`Failed to fetch session events "${id}": ${res.status}`);
+    throw new Error(
+      defaultApiErrorMessage(`Failed to fetch session events "${id}"`, response, error)
+    );
   }
-  const json = await res.json();
-  const parsed = sessionEventsResponseSchema.parse(json);
-  return parsed.events;
-}
-
-// --- Approve Permission ---
-
-export type PermissionDecision = "allow-once" | "allow-always" | "reject-once" | "reject-always";
-
-export interface ApproveSessionParams {
-  request_id: string;
-  turn_id: string;
-  decision: PermissionDecision;
+  return requireResponseData(data, response, `Failed to fetch session events "${id}"`).events;
 }
 
 export async function approveSession(
@@ -161,52 +126,53 @@ export async function approveSession(
   params: ApproveSessionParams,
   signal?: AbortSignal
 ): Promise<void> {
-  const res = await fetch(`/api/sessions/${encodeURIComponent(id)}/approve`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+  const { error, response } = await apiClient.POST("/api/sessions/{id}/approve", {
+    params: { path: { id } },
+    body: params,
     signal,
   });
-  if (!res.ok) {
-    if (res.status === 404) {
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new Error(`Session not found: ${id}`);
     }
-    throw new Error(`Failed to approve permission: ${res.status}`);
+    throw new Error(defaultApiErrorMessage("Failed to approve permission", response, error));
   }
 }
-
-// --- Session History ---
 
 export async function fetchSessionHistory(
   id: string,
   signal?: AbortSignal
 ): Promise<TurnHistoryPayload[]> {
-  const res = await fetch(`/api/sessions/${encodeURIComponent(id)}/history`, { signal });
-  if (!res.ok) {
-    if (res.status === 404) {
+  const { data, error, response } = await apiClient.GET("/api/sessions/{id}/history", {
+    params: { path: { id } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new Error(`Session not found: ${id}`);
     }
-    throw new Error(`Failed to fetch session history "${id}": ${res.status}`);
+    throw new Error(
+      defaultApiErrorMessage(`Failed to fetch session history "${id}"`, response, error)
+    );
   }
-  const json = await res.json();
-  const parsed = sessionHistoryResponseSchema.parse(json);
-  return parsed.history;
+  return requireResponseData(data, response, `Failed to fetch session history "${id}"`).history;
 }
-
-// --- Session Transcript ---
 
 export async function fetchSessionTranscript(
   id: string,
   signal?: AbortSignal
 ): Promise<TranscriptMessage[]> {
-  const res = await fetch(`/api/sessions/${encodeURIComponent(id)}/transcript`, { signal });
-  if (!res.ok) {
-    if (res.status === 404) {
+  const { data, error, response } = await apiClient.GET("/api/sessions/{id}/transcript", {
+    params: { path: { id } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new Error(`Session not found: ${id}`);
     }
-    throw new Error(`Failed to fetch session transcript "${id}": ${res.status}`);
+    throw new Error(
+      defaultApiErrorMessage(`Failed to fetch session transcript "${id}"`, response, error)
+    );
   }
-  const json = await res.json();
-  const parsed = sessionTranscriptResponseSchema.parse(json);
-  return parsed.messages;
+  return requireResponseData(data, response, `Failed to fetch session transcript "${id}"`).messages;
 }

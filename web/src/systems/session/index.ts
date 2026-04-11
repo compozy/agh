@@ -2,8 +2,13 @@
 export type {
   ACPCaps,
   AgentEventPayload,
+  ApproveSessionParams,
+  CreateSessionParams,
+  FetchSessionEventsParams,
+  PermissionDecision,
   PermissionRequest,
   SessionEventPayload,
+  SessionApprovalResponse,
   SessionEventsResponse,
   SessionHistoryResponse,
   SessionPayload,
@@ -14,38 +19,15 @@ export type {
   TokenUsagePayload,
   ToolUseResult,
   TranscriptMessage,
+  TranscriptMessageRole,
   TranscriptToolResult,
   TurnHistoryPayload,
   UIMessage,
   UIMessageRole,
 } from "./types";
-
-// Schemas
-export {
-  acpCapsSchema,
-  agentEventPayloadSchema,
-  sessionEventPayloadSchema,
-  sessionEventsResponseSchema,
-  sessionHistoryResponseSchema,
-  sessionPayloadSchema,
-  sessionResponseSchema,
-  sessionStateSchema,
-  sessionsResponseSchema,
-  sessionTranscriptResponseSchema,
-  tokenUsagePayloadSchema,
-  transcriptMessageSchema,
-  transcriptToolResultSchema,
-  turnHistoryPayloadSchema,
-  uiMessageRoleSchema,
-} from "./types";
+export { uiMessageRoles } from "./types";
 
 // Adapters
-export type {
-  CreateSessionParams,
-  FetchSessionEventsParams,
-  ApproveSessionParams,
-  PermissionDecision,
-} from "./adapters/session-api";
 export {
   approveSession,
   createSession,

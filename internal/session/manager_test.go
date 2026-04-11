@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -216,6 +217,142 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 	}
 	if got := resumed.Info().State; got != StateActive {
 		t.Fatalf("resumed state = %q, want %q", got, StateActive)
+	}
+	if got := resumed.Info().StopReason; got != "" {
+		t.Fatalf("resumed stop reason = %q, want empty", got)
+	}
+	if got := resumed.Info().StopDetail; got != "" {
+		t.Fatalf("resumed stop detail = %q, want empty", got)
+	}
+}
+
+func TestResumeRepairsIncompleteStartAndStartsFreshACPClient(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	originalACP := session.Info().ACPSessionID
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	meta := readMeta(t, session.MetaPath())
+	meta.State = string(StateStarting)
+	meta.StopReason = nil
+	meta.StopDetail = ""
+	meta.ACPSessionID = stringPointer(originalACP)
+	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+		t.Fatalf("WriteSessionMeta() error = %v", err)
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume(incomplete start) error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+	})
+
+	if got := h.driver.startCalls[1].ResumeSessionID; got != "" {
+		t.Fatalf("resume start ResumeSessionID = %q, want empty for repaired start", got)
+	}
+	if got := resumed.Info().ACPSessionID; got == "" || got == originalACP {
+		t.Fatalf("resumed ACPSessionID = %q, want fresh ACP session id distinct from %q", got, originalACP)
+	}
+	if got := resumed.Info().State; got != StateActive {
+		t.Fatalf("resumed state = %q, want %q", got, StateActive)
+	}
+	if got := resumed.Info().StopReason; got != "" {
+		t.Fatalf("resumed stop reason = %q, want empty", got)
+	}
+	if got := resumed.Info().StopDetail; got != "" {
+		t.Fatalf("resumed stop detail = %q, want empty", got)
+	}
+}
+
+func TestResumeFallsBackToFreshStartWhenStoredACPSessionIsMissing(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	originalACP := session.Info().ACPSessionID
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+		if opts.ResumeSessionID != "" {
+			return nil, fmt.Errorf(
+				"%w: load session %q for %q: %w",
+				acp.ErrLoadSessionFailed,
+				opts.ResumeSessionID,
+				opts.AgentName,
+				&acpsdk.RequestError{
+					Code:    -32002,
+					Message: "Resource not found: " + opts.ResumeSessionID,
+				},
+			)
+		}
+		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume(missing ACP session) error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+	})
+
+	if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
+		t.Fatalf("first resume start ResumeSessionID = %q, want %q", got, originalACP)
+	}
+	if got := h.driver.startCalls[2].ResumeSessionID; got != "" {
+		t.Fatalf("fallback resume start ResumeSessionID = %q, want empty", got)
+	}
+	if got := resumed.Info().ACPSessionID; got == "" || got == originalACP {
+		t.Fatalf("resumed ACPSessionID = %q, want fresh ACP session id distinct from %q", got, originalACP)
+	}
+	if got := resumed.Info().State; got != StateActive {
+		t.Fatalf("resumed state = %q, want %q", got, StateActive)
+	}
+	if meta := readMeta(t, session.MetaPath()); meta.State != string(StateActive) {
+		t.Fatalf("meta state after fallback resume = %q, want %q", meta.State, StateActive)
+	}
+}
+
+func TestResumeFailureRestoresStoppedMetadata(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	originalACP := session.Info().ACPSessionID
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	metaBefore := readMeta(t, session.MetaPath())
+	h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+		return nil, errors.New("start failed")
+	}
+
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil {
+		t.Fatal("Resume(generic failure) error = nil, want non-nil")
+	}
+
+	metaAfter := readMeta(t, session.MetaPath())
+	if got := metaAfter.State; got != string(StateStopped) {
+		t.Fatalf("meta state after failed resume = %q, want %q", got, StateStopped)
+	}
+	if got := derefString(metaAfter.ACPSessionID); got != originalACP {
+		t.Fatalf("meta ACPSessionID after failed resume = %q, want %q", got, originalACP)
+	}
+	assertOptionalStopReasonEqual(t, metaAfter.StopReason, metaBefore.StopReason)
+	if got := metaAfter.StopDetail; got != metaBefore.StopDetail {
+		t.Fatalf("meta stop detail after failed resume = %q, want %q", got, metaBefore.StopDetail)
 	}
 }
 
@@ -908,6 +1045,9 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 
 	h := newHarness(t)
 	skillRegistry := newFakeSkillRegistry()
+	h.cfg.MCPServers = []aghconfig.MCPServer{
+		{Name: "global", Command: "global-command"},
+	}
 	h.cfg.Providers["claude"] = aghconfig.ProviderConfig{
 		Command: "provider-command",
 		MCPServers: []aghconfig.MCPServer{
@@ -955,20 +1095,23 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 	})
 
 	got := h.driver.startCalls[0].MCPServers
-	if len(got) != 4 {
-		t.Fatalf("start MCPServers = %#v, want 4 entries", got)
+	if len(got) != 5 {
+		t.Fatalf("start MCPServers = %#v, want 5 entries", got)
 	}
-	if got[0].Name != "base" || got[0].Command != "base-command" {
-		t.Fatalf("base MCP server = %#v", got[0])
+	if got[0].Name != "global" || got[0].Command != "global-command" {
+		t.Fatalf("global MCP server = %#v", got[0])
 	}
-	if got[1].Name != "override" || got[1].Command != "skill-override" {
-		t.Fatalf("override MCP server = %#v", got[1])
+	if got[1].Name != "base" || got[1].Command != "base-command" {
+		t.Fatalf("base MCP server = %#v", got[1])
 	}
-	if got[2].Name != "extra" || got[2].Command != "extra-command" {
-		t.Fatalf("extra MCP server = %#v", got[2])
+	if got[2].Name != "override" || got[2].Command != "skill-override" {
+		t.Fatalf("override MCP server = %#v", got[2])
 	}
-	if got[3].Name != "skill-extra" || got[3].Command != "skill-extra-command" {
-		t.Fatalf("skill-extra MCP server = %#v", got[3])
+	if got[3].Name != "extra" || got[3].Command != "extra-command" {
+		t.Fatalf("extra MCP server = %#v", got[3])
+	}
+	if got[4].Name != "skill-extra" || got[4].Command != "skill-extra-command" {
+		t.Fatalf("skill-extra MCP server = %#v", got[4])
 	}
 	if got := skillRegistry.callCount(); got != 1 {
 		t.Fatalf("skill registry call count = %d, want 1", got)

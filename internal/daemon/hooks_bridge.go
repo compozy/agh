@@ -404,7 +404,9 @@ func defaultDaemonExecutorResolver(decl hookspkg.HookDecl) (hookspkg.Executor, e
 		opts := []hookspkg.SubprocessExecutorOption{
 			hookspkg.WithSubprocessEnv(decl.Env),
 		}
-		if root := strings.TrimSpace(decl.Matcher.WorkspaceRoot); root != "" {
+		if dir := strings.TrimSpace(decl.WorkingDir); dir != "" {
+			opts = append(opts, hookspkg.WithSubprocessDir(dir))
+		} else if root := strings.TrimSpace(decl.Matcher.WorkspaceRoot); root != "" {
 			opts = append(opts, hookspkg.WithSubprocessDir(root))
 		}
 		return hookspkg.NewSubprocessExecutor(
@@ -418,6 +420,42 @@ func defaultDaemonExecutorResolver(decl hookspkg.HookDecl) (hookspkg.Executor, e
 		return nil, fmt.Errorf("daemon: native executor for hook %q requires an explicit binding", decl.Name)
 	default:
 		return nil, fmt.Errorf("daemon: unsupported executor kind %q for hook %q", decl.ExecutorKind, decl.Name)
+	}
+}
+
+func chainDeclarationProviders(providers ...hookspkg.DeclarationProvider) hookspkg.DeclarationProvider {
+	return func(ctx context.Context) ([]hookspkg.HookDecl, error) {
+		chained := make([]hookspkg.HookDecl, 0, len(providers))
+		for idx, provider := range providers {
+			if provider == nil {
+				continue
+			}
+
+			decls, err := provider(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("daemon: load hook declarations from provider %d: %w", idx+1, err)
+			}
+			chained = append(chained, decls...)
+		}
+		return chained, nil
+	}
+}
+
+func extensionDeclarationProvider(getRuntime func() extensionRuntime) hookspkg.DeclarationProvider {
+	return func(ctx context.Context) ([]hookspkg.HookDecl, error) {
+		if getRuntime == nil {
+			return nil, nil
+		}
+
+		runtime := getRuntime()
+		if runtime == nil {
+			return nil, nil
+		}
+		decls, err := runtime.HookDeclarations(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: load hook declarations from extension runtime: %w", err)
+		}
+		return decls, nil
 	}
 }
 

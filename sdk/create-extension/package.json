@@ -1,0 +1,21 @@
+{
+    "name": "@agh/create-extension",
+    "version": "0.1.0",
+    "description": "Scaffold AGH TypeScript extensions",
+    "license": "UNLICENSED",
+    "bin": {
+        "create-extension": "./dist/index.js"
+    },
+    "files": [
+        "dist/**/*",
+        "templates/**/*"
+    ],
+    "scripts": {
+        "build": "rm -rf dist && tsc -p tsconfig.json",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "test": "vitest run --config vitest.config.ts"
+    },
+    "engines": {
+        "node": ">=18"
+    }
+}

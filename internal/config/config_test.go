@@ -285,6 +285,98 @@ base_url = "https://workspace.example.test/api/v1"
 	}
 }
 
+func TestLoadMergesTopLevelMCPServersAcrossConfigAndJSONSidecars(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[[mcp_servers]]
+name = "partial"
+command = "global-command"
+
+[[mcp_servers]]
+name = "sidecar"
+command = "global-inline"
+args = ["--inline"]
+`)
+	writeFile(t, filepath.Join(homePaths.HomeDir, MCPJSONName), `{
+  "mcpServers": {
+    "sidecar": {
+      "command": "global-sidecar"
+    }
+  }
+}`)
+	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[[mcp_servers]]
+name = "partial"
+args = ["--workspace"]
+env = { WORKSPACE = "1" }
+
+[[mcp_servers]]
+name = "workspace-only"
+command = "workspace-command"
+
+[[mcp_servers]]
+name = "replace-me"
+command = "workspace-inline"
+`)
+	writeFile(t, filepath.Join(workspaceRoot, DirName, MCPJSONName), `{
+  "mcp_servers": {
+    "replace-me": {
+      "command": "workspace-sidecar"
+    },
+    "workspace-json": {
+      "command": "workspace-json-command"
+    }
+  }
+}`)
+
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got, want := len(cfg.MCPServers), 5; got != want {
+		t.Fatalf("Load() MCPServers len = %d, want %d (%#v)", got, want, cfg.MCPServers)
+	}
+	if got, want := cfg.MCPServers[0].Name, "partial"; got != want {
+		t.Fatalf("Load() MCPServers[0].Name = %q, want %q", got, want)
+	}
+	if got, want := cfg.MCPServers[0].Command, "global-command"; got != want {
+		t.Fatalf("Load() partial.Command = %q, want %q", got, want)
+	}
+	if got, want := cfg.MCPServers[0].Args[0], "--workspace"; got != want {
+		t.Fatalf("Load() partial.Args = %#v, want workspace field merge", cfg.MCPServers[0].Args)
+	}
+	if got, want := cfg.MCPServers[0].Env["WORKSPACE"], "1"; got != want {
+		t.Fatalf("Load() partial.Env[WORKSPACE] = %q, want %q", got, want)
+	}
+	if got, want := cfg.MCPServers[1].Command, "global-sidecar"; got != want {
+		t.Fatalf("Load() sidecar.Command = %q, want %q", got, want)
+	}
+	if got := len(cfg.MCPServers[1].Args); got != 0 {
+		t.Fatalf("Load() sidecar.Args = %#v, want same-scope sidecar replacement", cfg.MCPServers[1].Args)
+	}
+	if got, want := cfg.MCPServers[2].Command, "workspace-command"; got != want {
+		t.Fatalf("Load() workspace-only.Command = %q, want %q", got, want)
+	}
+	if got, want := cfg.MCPServers[3].Command, "workspace-sidecar"; got != want {
+		t.Fatalf("Load() replace-me.Command = %q, want %q", got, want)
+	}
+	if got, want := cfg.MCPServers[4].Command, "workspace-json-command"; got != want {
+		t.Fatalf("Load() workspace-json.Command = %q, want %q", got, want)
+	}
+}
+
 func TestSessionLimitsConfigValidateRejectsNegativeTimeout(t *testing.T) {
 	t.Run("Should reject negative timeout", func(t *testing.T) {
 		t.Parallel()

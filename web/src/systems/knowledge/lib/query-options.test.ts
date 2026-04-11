@@ -31,8 +31,8 @@ describe("memoryDetailOptions", () => {
     expect(options.queryKey).toEqual(["knowledge", "detail", "global", "user_role.md", "/ws"]);
   });
 
-  it("is disabled when scope is empty", () => {
-    const options = memoryDetailOptions("", "test.md");
+  it("is disabled when scope is omitted", () => {
+    const options = memoryDetailOptions(undefined, "test.md");
     expect(options.enabled).toBe(false);
   });
 

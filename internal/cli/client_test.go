@@ -344,6 +344,69 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	}
 }
 
+func TestUnixSocketClientExtensionMethods(t *testing.T) {
+	t.Parallel()
+
+	client := &unixSocketClient{
+		socketPath: "/tmp/agh.sock",
+		httpClient: &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				switch {
+				case req.Method == http.MethodGet && req.URL.Path == "/api/extensions":
+					return newHTTPResponse(http.StatusOK, `{"extensions":[{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}]}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/extensions":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(extension install body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"path":"/tmp/ext-a"`) || !strings.Contains(string(body), `"checksum":"abc123"`) {
+						t.Fatalf("extension install body = %s, want path and checksum", body)
+					}
+					return newHTTPResponse(http.StatusCreated, `{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/enable":
+					return newHTTPResponse(http.StatusOK, `{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/disable":
+					return newHTTPResponse(http.StatusOK, `{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":false,"state":"disabled","daemon_running":true}}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a":
+					return newHTTPResponse(http.StatusOK, `{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`), nil
+				default:
+					return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
+				}
+			}),
+		},
+	}
+
+	ctx := context.Background()
+
+	listed, err := client.ListExtensions(ctx)
+	if err != nil || len(listed) != 1 || listed[0].Name != "ext-a" {
+		t.Fatalf("ListExtensions() = %#v, %v", listed, err)
+	}
+
+	installed, err := client.InstallExtension(ctx, InstallExtensionRequest{
+		Path:     "/tmp/ext-a",
+		Checksum: "abc123",
+	})
+	if err != nil || installed.Name != "ext-a" {
+		t.Fatalf("InstallExtension() = %#v, %v", installed, err)
+	}
+
+	enabled, err := client.EnableExtension(ctx, " ext-a ")
+	if err != nil || !enabled.Enabled {
+		t.Fatalf("EnableExtension() = %#v, %v", enabled, err)
+	}
+
+	disabled, err := client.DisableExtension(ctx, " ext-a ")
+	if err != nil || disabled.Enabled {
+		t.Fatalf("DisableExtension() = %#v, %v", disabled, err)
+	}
+
+	status, err := client.ExtensionStatus(ctx, "ext-a")
+	if err != nil || status.State != "active" {
+		t.Fatalf("ExtensionStatus() = %#v, %v", status, err)
+	}
+}
+
 func TestReadAPIErrorAndHelpers(t *testing.T) {
 	t.Parallel()
 

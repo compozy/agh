@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extension registry (SQLite)
 type: backend
 complexity: medium
@@ -35,11 +35,11 @@ Create the extension registry backed by SQLite in the existing global database (
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Add `extensions` table to `globalSchemaStatements` in `internal/store/globaldb/global_db.go`
-- [ ] 5.2 Create `internal/extension/registry.go` with `Registry` struct and `ExtensionInfo` type
-- [ ] 5.3 Implement CRUD operations with parameterized SQL queries
-- [ ] 5.4 Implement SHA-256 checksum verification on install
-- [ ] 5.5 Write unit and integration tests using `t.TempDir()` for isolated SQLite instances
+- [x] 5.1 Add `extensions` table to `globalSchemaStatements` in `internal/store/globaldb/global_db.go`
+- [x] 5.2 Create `internal/extension/registry.go` with `Registry` struct and `ExtensionInfo` type
+- [x] 5.3 Implement CRUD operations with parameterized SQL queries
+- [x] 5.4 Implement SHA-256 checksum verification on install
+- [x] 5.5 Write unit and integration tests using `t.TempDir()` for isolated SQLite instances
 
 ## Implementation Details
 
@@ -70,23 +70,23 @@ Follow the existing pattern in `internal/store/globaldb/global_db.go` for schema
 
 ## Tests
 - Unit tests:
-  - [ ] `Install()` persists extension to DB with correct fields
-  - [ ] `Install()` rejects duplicate name with `ErrExtensionExists`
-  - [ ] `Install()` with wrong checksum returns verification error
-  - [ ] `Get()` returns `ExtensionInfo` for existing extension
-  - [ ] `Get()` returns `ErrExtensionNotFound` for missing extension
-  - [ ] `List()` returns all installed extensions
-  - [ ] `List()` returns empty slice when none installed (not nil)
-  - [ ] `Enable()` sets `enabled=true` in DB
-  - [ ] `Disable()` sets `enabled=false` in DB
-  - [ ] `Uninstall()` removes extension from DB
-  - [ ] `Uninstall()` on missing extension returns `ErrExtensionNotFound`
-  - [ ] Capabilities JSON round-trip preserves all fields
-  - [ ] Actions JSON round-trip preserves all fields
-  - [ ] Schema migration runs idempotently (IF NOT EXISTS)
+  - [x] `Install()` persists extension to DB with correct fields
+  - [x] `Install()` rejects duplicate name with `ErrExtensionExists`
+  - [x] `Install()` with wrong checksum returns verification error
+  - [x] `Get()` returns `ExtensionInfo` for existing extension
+  - [x] `Get()` returns `ErrExtensionNotFound` for missing extension
+  - [x] `List()` returns all installed extensions
+  - [x] `List()` returns empty slice when none installed (not nil)
+  - [x] `Enable()` sets `enabled=true` in DB
+  - [x] `Disable()` sets `enabled=false` in DB
+  - [x] `Uninstall()` removes extension from DB
+  - [x] `Uninstall()` on missing extension returns `ErrExtensionNotFound`
+  - [x] Capabilities JSON round-trip preserves all fields
+  - [x] Actions JSON round-trip preserves all fields
+  - [x] Schema migration runs idempotently (IF NOT EXISTS)
 - Integration tests:
-  - [ ] Full lifecycle: install → list → enable → disable → uninstall
-  - [ ] Two extensions with different sources coexist in same DB
+  - [x] Full lifecycle: install → list → enable → disable → uninstall
+  - [x] Two extensions with different sources coexist in same DB
 - Test coverage target: >=80%
 - All tests must pass
 

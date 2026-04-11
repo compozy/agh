@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/filesnap"
 	"github.com/pedronauck/agh/internal/frontmatter"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -322,6 +324,55 @@ func TestParseSkillFileWarnsOnMissingDescription(t *testing.T) {
 	}
 }
 
+func TestParseSkillFileMergesMCPSidecar(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	skillPath := writeSkillFile(t, root, filepath.Join("sidecar", skillFileName), strings.Join([]string{
+		"---",
+		"name: sidecar",
+		"description: Sidecar MCP merge",
+		"metadata:",
+		"  agh:",
+		"    mcp_servers:",
+		"      - name: inline-only",
+		"        command: inline-only-command",
+		"      - name: shared",
+		"        command: inline-shared",
+		"        args: [\"--inline\"]",
+		"---",
+		"body",
+	}, "\n"))
+	writeSkillMCPSidecar(t, filepath.Dir(skillPath), `{
+  "mcpServers": {
+    "shared": {
+      "command": "sidecar-shared"
+    },
+    "sidecar-only": {
+      "command": "sidecar-only-command"
+    }
+  }
+}`)
+
+	skill, err := ParseSkillFile(skillPath)
+	if err != nil {
+		t.Fatalf("ParseSkillFile() error = %v", err)
+	}
+
+	if got, want := len(skill.MCPServers), 3; got != want {
+		t.Fatalf("len(skill.MCPServers) = %d, want %d (%#v)", got, want, skill.MCPServers)
+	}
+	if got, want := skill.MCPServers[1].Command, "sidecar-shared"; got != want {
+		t.Fatalf("skill.MCPServers[1].Command = %q, want %q", got, want)
+	}
+	if got := len(skill.MCPServers[1].Args); got != 0 {
+		t.Fatalf("skill.MCPServers[1].Args = %#v, want sidecar whole-object replacement", skill.MCPServers[1].Args)
+	}
+	if got, want := skill.MCPServers[2].Name, "sidecar-only"; got != want {
+		t.Fatalf("skill.MCPServers[2].Name = %q, want %q", got, want)
+	}
+}
+
 func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
 	t.Parallel()
 
@@ -435,6 +486,33 @@ func TestParseBundledSkillParsesAGHMetadata(t *testing.T) {
 	}
 	if strings.TrimSpace(content) == "" {
 		t.Fatal("readBundledSkillContent() returned empty body")
+	}
+}
+
+func TestParseBundledSkillParsesMCPSidecar(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeSkillFile(t, root, filepath.Join("bundled-sidecar", skillFileName), skillWithDescription("bundled-sidecar", "Bundled sidecar"))
+	writeSkillMCPSidecar(t, filepath.Join(root, "bundled-sidecar"), `{
+  "mcp_servers": {
+    "bundled-json": {
+      "command": "bundled-json-command"
+    }
+  }
+}`)
+
+	fsys := os.DirFS(root)
+	skill, err := parseBundledSkill(fsys, path.Join("bundled-sidecar", skillFileName))
+	if err != nil {
+		t.Fatalf("parseBundledSkill() error = %v", err)
+	}
+
+	if got, want := len(skill.MCPServers), 1; got != want {
+		t.Fatalf("len(skill.MCPServers) = %d, want %d (%#v)", got, want, skill.MCPServers)
+	}
+	if got, want := skill.MCPServers[0].Command, "bundled-json-command"; got != want {
+		t.Fatalf("skill.MCPServers[0].Command = %q, want %q", got, want)
 	}
 }
 
@@ -793,4 +871,18 @@ func defaultSkillContent(name string) string {
 
 func loaderFixturePath(name string) string {
 	return filepath.Join("testdata", "loader", name, skillFileName)
+}
+
+func writeSkillMCPSidecar(t *testing.T, skillDir, content string) string {
+	t.Helper()
+
+	path := filepath.Join(skillDir, aghconfig.MCPJSONName)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, []byte(content), fs.FileMode(0o644)); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	}
+
+	return path
 }

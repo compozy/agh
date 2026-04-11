@@ -83,6 +83,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionCommand(deps))
 	cmd.AddCommand(newWorkspaceCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))
+	cmd.AddCommand(newExtensionCommand(deps))
 	cmd.AddCommand(newHooksCommand(deps))
 	cmd.AddCommand(newSkillCommand(deps))
 	cmd.AddCommand(newMemoryCommand(deps))
@@ -100,7 +101,7 @@ func newVersionCommand() *cobra.Command {
 			return writeCommandOutput(cmd, outputBundle{
 				jsonValue: version.Current(),
 				human: func() (string, error) {
-					return fmt.Sprintf("agh %s", version.Version), nil
+					return fmt.Sprintf("agh %s", version.Current().Version), nil
 				},
 				toon: func() (string, error) {
 					info := version.Current()

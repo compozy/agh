@@ -11,6 +11,10 @@ export default defineConfig({
       reporter: ["text", "json", "html"],
       exclude: ["**/node_modules/**", "**/dist/**", "**/*.d.ts", "**/*.config.*"],
     },
-    projects: ["web/vitest.config.ts"],
+    projects: [
+      "web/vitest.config.ts",
+      "sdk/typescript/vitest.config.ts",
+      "sdk/create-extension/vitest.config.ts",
+    ],
   },
 });

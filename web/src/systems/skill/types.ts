@@ -1,53 +1,8 @@
-import { z } from "zod";
+import type { OperationResponse } from "@/lib/api-contract";
 
-// --- ProvenancePayload ---
-
-export const provenancePayloadSchema = z.object({
-  slug: z.string(),
-  registry: z.string(),
-  version: z.string(),
-  installed_at: z.string(),
-});
-
-export type ProvenancePayload = z.infer<typeof provenancePayloadSchema>;
-
-// --- SkillPayload ---
-
-export const skillPayloadSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  version: z.string().optional(),
-  source: z.string(),
-  enabled: z.boolean(),
-  dir: z.string(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  provenance: provenancePayloadSchema.nullable().optional(),
-});
-
-export type SkillPayload = z.infer<typeof skillPayloadSchema>;
-
-export const skillContentResponseSchema = z.object({
-  content: z.string(),
-});
-
-export type SkillContentResponse = z.infer<typeof skillContentResponseSchema>;
-
-// --- API Response Envelopes ---
-
-export const skillsResponseSchema = z.object({
-  skills: z.array(skillPayloadSchema),
-});
-
-export type SkillsResponse = z.infer<typeof skillsResponseSchema>;
-
-export const skillResponseSchema = z.object({
-  skill: skillPayloadSchema,
-});
-
-export type SkillResponse = z.infer<typeof skillResponseSchema>;
-
-export const skillActionResponseSchema = z.object({
-  ok: z.boolean(),
-});
-
-export type SkillActionResponse = z.infer<typeof skillActionResponseSchema>;
+export type SkillsResponse = OperationResponse<"listSkills", 200>;
+export type SkillPayload = SkillsResponse["skills"][number];
+export type SkillResponse = OperationResponse<"getSkill", 200>;
+export type SkillContentResponse = OperationResponse<"getSkillContent", 200>;
+export type SkillActionResponse = OperationResponse<"enableSkill", 200>;
+export type ProvenancePayload = NonNullable<SkillPayload["provenance"]>;

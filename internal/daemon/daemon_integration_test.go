@@ -3,9 +3,11 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +29,22 @@ import (
 )
 
 const daemonSessionStopHelperEnvKey = "AGH_TEST_DAEMON_SESSION_STOP_HELPER"
+
+func installExtensionForDaemonIntegration(t *testing.T, databasePath string, name string, opts daemonTestExtensionOptions, enabled bool) string {
+	t.Helper()
+
+	db, err := globaldb.OpenGlobalDB(testutil.Context(t), databasePath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(%q) error = %v", databasePath, err)
+	}
+	defer func() {
+		if err := db.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("GlobalDB.Close() error = %v", err)
+		}
+	}()
+
+	return installDaemonTestExtension(t, db, name, opts, enabled)
+}
 
 func (f *fakeSessionManager) promptCall(index int) struct {
 	id  string
@@ -84,6 +102,182 @@ func TestBootSequenceReady(t *testing.T) {
 	}
 	if _, err := AcquireLock(homePaths.DaemonLock, os.Getpid()); !errors.Is(err, ErrAlreadyRunning) {
 		t.Fatalf("AcquireLock(second instance) error = %v, want ErrAlreadyRunning", err)
+	}
+}
+
+func TestBootLoadsExtensionsRebuildsHooksAndStopsOnShutdown(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	hookMarker := filepath.Join(t.TempDir(), "hook.json")
+	shutdownMarker := filepath.Join(t.TempDir(), "shutdown.txt")
+	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, "ext-daemon", daemonTestExtensionOptions{
+		runtimeCommand: daemonExtensionHelperCommand(t),
+		runtimeArgs:    daemonExtensionHelperArgs(),
+		runtimeEnv:     daemonExtensionHelperEnv(shutdownMarker),
+		hookCommand:    "/bin/sh",
+		hookArgs: []string{
+			"-c",
+			`cat > "$1"; printf '{}'`,
+			"agh-extension-hook",
+			hookMarker,
+		},
+		hookEvent: hookspkg.HookSessionPostCreate,
+	}, true)
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	if d.extensions == nil {
+		t.Fatal("boot() did not publish the extension runtime")
+	}
+
+	payload := hookspkg.SessionPostCreatePayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookSessionPostCreate,
+			Timestamp: time.Now().UTC(),
+		},
+		SessionContext: hookspkg.SessionContext{
+			SessionID: "sess-ext",
+			AgentName: "coder",
+			State:     string(session.StateActive),
+		},
+	}
+	if _, err := d.hooks.DispatchSessionPostCreate(testutil.Context(t), payload); err != nil {
+		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
+	}
+
+	waitForCondition(t, "extension hook marker", func() bool {
+		_, err := os.Stat(hookMarker)
+		return err == nil
+	})
+	hookPayload, err := os.ReadFile(hookMarker)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", hookMarker, err)
+	}
+	if !strings.Contains(string(hookPayload), "sess-ext") {
+		t.Fatalf("hook payload = %q, want session id", string(hookPayload))
+	}
+
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if payload, err := os.ReadFile(shutdownMarker); err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", shutdownMarker, err)
+	} else if strings.TrimSpace(string(payload)) != "shutdown" {
+		t.Fatalf("shutdown marker = %q, want shutdown", string(payload))
+	}
+}
+
+func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	hookMarker := filepath.Join(t.TempDir(), "hook.json")
+	shutdownMarker := filepath.Join(t.TempDir(), "shutdown.txt")
+	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, "ext-good", daemonTestExtensionOptions{
+		runtimeCommand: daemonExtensionHelperCommand(t),
+		runtimeArgs:    daemonExtensionHelperArgs(),
+		runtimeEnv:     daemonExtensionHelperEnv(shutdownMarker),
+		hookCommand:    "/bin/sh",
+		hookArgs: []string{
+			"-c",
+			`cat > "$1"; printf '{}'`,
+			"agh-extension-hook",
+			hookMarker,
+		},
+		hookEvent: hookspkg.HookSessionPostCreate,
+	}, true)
+	badDir := installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, "ext-bad", daemonTestExtensionOptions{
+		runtimeCommand: daemonExtensionHelperCommand(t),
+		runtimeArgs:    daemonExtensionHelperArgs(),
+		runtimeEnv:     daemonExtensionHelperEnv(""),
+	}, true)
+	writeDaemonFile(t, filepath.Join(badDir, "extension.toml"), "not = [valid")
+
+	var logBuffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(logger),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v, want boot to continue after corrupt extension", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if !strings.Contains(logBuffer.String(), "extension manager start failed") {
+		t.Fatalf("log output = %q, want extension start failure entry", logBuffer.String())
+	}
+
+	payload := hookspkg.SessionPostCreatePayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookSessionPostCreate,
+			Timestamp: time.Now().UTC(),
+		},
+		SessionContext: hookspkg.SessionContext{
+			SessionID: "sess-good",
+			AgentName: "coder",
+			State:     string(session.StateActive),
+		},
+	}
+	if _, err := d.hooks.DispatchSessionPostCreate(testutil.Context(t), payload); err != nil {
+		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
+	}
+
+	waitForCondition(t, "healthy extension hook marker", func() bool {
+		_, err := os.Stat(hookMarker)
+		return err == nil
+	})
+	hookPayload, err := os.ReadFile(hookMarker)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", hookMarker, err)
+	}
+	if !strings.Contains(string(hookPayload), "sess-good") {
+		t.Fatalf("hook payload = %q, want healthy extension session id", string(hookPayload))
 	}
 }
 

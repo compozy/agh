@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/filesnap"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -91,6 +92,19 @@ func (r *Registry) workspaceLoadFromResolved(ctx context.Context, resolved works
 		}
 
 		load.snapshots[path.filePath] = snapshot
+		for _, sidecarPath := range []string{
+			filepath.Join(filepath.Dir(path.filePath), sidecarFileName),
+			filepath.Join(filepath.Dir(path.filePath), aghconfig.MCPJSONName),
+		} {
+			sidecarSnapshot, err := filesnap.FromPath(sidecarPath)
+			if err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					continue
+				}
+				return workspaceLoad{}, fmt.Errorf("skills: snapshot workspace skill sidecar %q: %w", sidecarPath, err)
+			}
+			load.snapshots[sidecarPath] = sidecarSnapshot
+		}
 		load.paths = append(load.paths, path)
 	}
 

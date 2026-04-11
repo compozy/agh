@@ -9,7 +9,7 @@ function parseTimestamp(raw: string): number {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function mapToolResult(result?: TranscriptToolResult): ToolUseResult | undefined {
+function mapToolResult(result?: TranscriptToolResult | null): ToolUseResult | undefined {
   if (!result) return undefined;
 
   return {
@@ -21,6 +21,18 @@ function mapToolResult(result?: TranscriptToolResult): ToolUseResult | undefined
     error: result.error,
     rawOutput: result.raw_output,
   };
+}
+
+function mapTranscriptRole(role: TranscriptMessage["role"]): UIMessage["role"] {
+  switch (role) {
+    case "assistant":
+    case "user":
+    case "tool_call":
+    case "tool_result":
+      return role;
+    default:
+      return "system";
+  }
 }
 
 function mapTranscriptMessage(message: TranscriptMessage): UIMessage {
@@ -52,7 +64,7 @@ function mapTranscriptMessage(message: TranscriptMessage): UIMessage {
     default:
       return {
         id: message.id,
-        role: message.role,
+        role: mapTranscriptRole(message.role),
         content: message.content,
         thinking: message.thinking || undefined,
         thinkingComplete: message.thinking_complete || undefined,

@@ -168,6 +168,7 @@ type HookDecl struct {
 	ExecutorKind HookExecutorKind  `json:"executor_kind,omitempty" yaml:"executor_kind,omitempty"`
 	Command      string            `json:"command,omitempty" yaml:"command,omitempty"`
 	Args         []string          `json:"args,omitempty" yaml:"args,omitempty"`
+	WorkingDir   string            `json:"-" yaml:"-"`
 	Env          map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	SkillSource  HookSkillSource   `json:"-" yaml:"-"`

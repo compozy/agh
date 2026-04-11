@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -168,7 +169,7 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 		infos = filterSessionInfosByWorkspaceIDInternal(infos, workspaceID)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"sessions": SessionPayloadsFromInfos(infos)})
+	c.JSON(http.StatusOK, contract.SessionsResponse{Sessions: SessionPayloadsFromInfos(infos)})
 }
 
 // CreateSession creates a new runtime session.
@@ -195,7 +196,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"session": SessionPayloadFromInfo(sess.Info())})
+	c.JSON(http.StatusCreated, contract.SessionResponse{Session: SessionPayloadFromInfo(sess.Info())})
 }
 
 // GetSession returns one session snapshot.
@@ -206,7 +207,7 @@ func (h *BaseHandlers) GetSession(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"session": SessionPayloadFromInfo(info)})
+	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
 }
 
 // StopSession stops a running session.
@@ -227,7 +228,7 @@ func (h *BaseHandlers) ResumeSession(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"session": SessionPayloadFromInfo(sess.Info())})
+	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(sess.Info())})
 }
 
 // SessionEvents returns the filtered session event list.
@@ -255,7 +256,7 @@ func (h *BaseHandlers) SessionEvents(c *gin.Context) {
 		payload = append(payload, SessionEventPayloadFromEvent(event, info))
 	}
 
-	c.JSON(http.StatusOK, gin.H{"events": payload})
+	c.JSON(http.StatusOK, contract.SessionEventsResponse{Events: payload})
 }
 
 // SessionHistory returns the grouped turn history for a session.
@@ -290,7 +291,7 @@ func (h *BaseHandlers) SessionHistory(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"history": payload})
+	c.JSON(http.StatusOK, contract.SessionHistoryResponse{History: payload})
 }
 
 // SessionTranscript returns the stored transcript for a session.
@@ -301,7 +302,7 @@ func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"messages": messages})
+	c.JSON(http.StatusOK, contract.SessionTranscriptResponse{Messages: messages})
 }
 
 // StreamSession streams session events over SSE.
@@ -350,7 +351,7 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 	switch {
 	case err == nil:
 	case errors.Is(err, os.ErrNotExist):
-		c.JSON(http.StatusOK, gin.H{"agents": []contract.AgentPayload{}})
+		c.JSON(http.StatusOK, contract.AgentsResponse{Agents: []contract.AgentPayload{}})
 		return
 	default:
 		h.respondError(c, http.StatusInternalServerError, fmt.Errorf("%s: read agents directory %q: %w", h.transportName(), h.HomePaths.AgentsDir, err))
@@ -380,7 +381,7 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 		return agents[i].Name < agents[j].Name
 	})
 
-	c.JSON(http.StatusOK, gin.H{"agents": agents})
+	c.JSON(http.StatusOK, contract.AgentsResponse{Agents: agents})
 }
 
 // GetAgent returns one agent definition by name.
@@ -395,7 +396,7 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"agent": AgentPayloadFromDef(agent)})
+	c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromDef(agent)})
 }
 
 // HookCatalog returns the resolved hook catalog for the supplied workspace and agent view.
@@ -422,7 +423,7 @@ func (h *BaseHandlers) HookCatalog(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"hooks": HookCatalogPayloadsFromEntries(entries)})
+	c.JSON(http.StatusOK, contract.HookCatalogResponse{Hooks: HookCatalogPayloadsFromEntries(entries)})
 }
 
 // HookRuns returns persisted hook execution history for a session.
@@ -448,7 +449,7 @@ func (h *BaseHandlers) HookRuns(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"runs": HookRunPayloadsFromRecords(records)})
+	c.JSON(http.StatusOK, contract.HookRunsResponse{Runs: HookRunPayloadsFromRecords(records)})
 }
 
 // HookEvents returns the supported hook taxonomy metadata.
@@ -465,7 +466,7 @@ func (h *BaseHandlers) HookEvents(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"events": HookEventPayloadsFromDescriptors(events)})
+	c.JSON(http.StatusOK, contract.HookEventsResponse{Events: HookEventPayloadsFromDescriptors(events)})
 }
 
 // ObserveEvents returns the filtered observe event list.
@@ -487,7 +488,7 @@ func (h *BaseHandlers) ObserveEvents(c *gin.Context) {
 		payload = append(payload, ObserveEventPayloadFromEvent(event))
 	}
 
-	c.JSON(http.StatusOK, gin.H{"events": payload})
+	c.JSON(http.StatusOK, contract.ObserveEventsResponse{Events: payload})
 }
 
 // StreamObserveEvents streams observe events over SSE.
@@ -567,9 +568,9 @@ func (h *BaseHandlers) Health(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"health": health,
-		"memory": memoryHealth,
+	c.JSON(http.StatusOK, contract.HealthResponse{
+		Health: ObserveHealthPayloadFromHealth(health),
+		Memory: memoryHealth,
 	})
 }
 
@@ -592,19 +593,87 @@ func (h *BaseHandlers) DaemonStatus(c *gin.Context) {
 		httpPort = h.Config.HTTP.Port
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"daemon": contract.DaemonStatusPayload{
+	c.JSON(http.StatusOK, contract.DaemonStatusResponse{
+		Daemon: contract.DaemonStatusPayload{
 			Status:         "running",
 			PID:            h.PID(),
 			StartedAt:      h.StartedAt,
 			Socket:         h.Config.Daemon.Socket,
 			HTTPHost:       h.Config.HTTP.Host,
 			HTTPPort:       httpPort,
+			UserHomeDir:    h.daemonUserHomeDir(),
 			ActiveSessions: health.ActiveSessions,
 			TotalSessions:  len(sessions),
 			Version:        health.Version,
 		},
 	})
+}
+
+func (h *BaseHandlers) daemonUserHomeDir() string {
+	userHomeDir, err := resolveUserHomeDir(h.HomePaths, os.UserHomeDir)
+	if err == nil {
+		return userHomeDir
+	}
+
+	logger := h.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.Warn("api: daemon status user home directory unavailable", "err", err)
+	return ""
+}
+
+func resolveUserHomeDir(homePaths aghconfig.HomePaths, lookupHomeDir func() (string, error)) (string, error) {
+	return resolveUserHomeDirWithResolver(homePaths, lookupHomeDir, aghconfig.ResolvePath)
+}
+
+func resolveUserHomeDirWithResolver(
+	homePaths aghconfig.HomePaths,
+	lookupHomeDir func() (string, error),
+	resolvePath func(string) (string, error),
+) (string, error) {
+	if resolvePath == nil {
+		resolvePath = aghconfig.ResolvePath
+	}
+
+	if lookupHomeDir != nil {
+		userHomeDir, err := lookupHomeDir()
+		if err == nil {
+			resolvedUserHomeDir, resolveErr := resolvePath(userHomeDir)
+			if resolveErr == nil && strings.TrimSpace(resolvedUserHomeDir) != "" {
+				return resolvedUserHomeDir, nil
+			}
+			if fallback, ok := fallbackUserHomeDir(homePaths); ok {
+				return fallback, nil
+			}
+			if resolveErr != nil {
+				return "", fmt.Errorf("resolve user home directory: %w", resolveErr)
+			}
+			return "", nil
+		}
+		if fallback, ok := fallbackUserHomeDir(homePaths); ok {
+			return fallback, nil
+		}
+		return "", fmt.Errorf("resolve user home directory: %w", err)
+	}
+
+	if fallback, ok := fallbackUserHomeDir(homePaths); ok {
+		return fallback, nil
+	}
+	return "", nil
+}
+
+func fallbackUserHomeDir(homePaths aghconfig.HomePaths) (string, bool) {
+	homeDir := strings.TrimSpace(homePaths.HomeDir)
+	if homeDir == "" || filepath.Base(homeDir) != aghconfig.DirName {
+		return "", false
+	}
+
+	parent := filepath.Dir(homeDir)
+	if parent == "." || parent == homeDir || strings.TrimSpace(parent) == "" {
+		return "", false
+	}
+	return parent, true
 }
 
 // HTTPPortValue returns the configured HTTP port in a concurrency-safe way.

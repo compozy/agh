@@ -1,13 +1,16 @@
 import {
-  memoryHeaderSchema,
-  memoryConsolidateResponseSchema,
-  memoryMutationResponseSchema,
-  memoryReadResponseSchema,
-  type MemoryHeader,
-  type MemoryConsolidateResponse,
-  type MemoryMutationResponse,
+  apiClient,
+  apiRequestFailed,
+  defaultApiErrorMessage,
+  requireResponseData,
+} from "@/lib/api-client";
+
+import type {
+  MemoryConsolidateResponse,
+  MemoryHeader,
+  MemoryMutationResponse,
+  MemoryScope,
 } from "../types";
-import type { ZodType } from "zod";
 
 export class KnowledgeApiError extends Error {
   constructor(
@@ -19,136 +22,119 @@ export class KnowledgeApiError extends Error {
   }
 }
 
-function parseOrThrow<T>(schema: ZodType<T>, input: unknown, message: string, status: number): T {
-  const parsed = schema.safeParse(input);
-  if (!parsed.success) {
-    throw new KnowledgeApiError(message, status);
-  }
-  return parsed.data;
-}
-
 export async function listMemories(
-  scope?: string,
+  scope?: MemoryScope,
   workspace?: string,
   signal?: AbortSignal
 ): Promise<MemoryHeader[]> {
-  const params = new URLSearchParams();
-  if (scope) params.set("scope", scope);
-  if (workspace) params.set("workspace", workspace);
-  const qs = params.toString();
-  const url = `/api/memory${qs ? `?${qs}` : ""}`;
-
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    throw new KnowledgeApiError(`Failed to fetch memories: ${res.status}`, res.status);
+  const { data, error, response } = await apiClient.GET("/api/memory", {
+    params: {
+      query: {
+        scope,
+        workspace,
+      },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new KnowledgeApiError(
+      defaultApiErrorMessage("Failed to fetch memories", response, error),
+      response.status
+    );
   }
-  const json = await res.json();
-  return parseOrThrow(
-    memoryHeaderSchema.array(),
-    json,
-    "Invalid memories list response",
-    res.status
-  );
+  return requireResponseData(data, response, "Failed to fetch memories");
 }
 
 export async function readMemory(
-  scope: string,
+  scope: MemoryScope,
   filename: string,
   workspace?: string,
   signal?: AbortSignal
 ): Promise<string> {
-  const params = new URLSearchParams();
-  params.set("scope", scope);
-  if (workspace) params.set("workspace", workspace);
-  const url = `/api/memory/${encodeURIComponent(filename)}?${params.toString()}`;
-
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    if (res.status === 404) {
+  const { data, error, response } = await apiClient.GET("/api/memory/{filename}", {
+    params: {
+      path: { filename },
+      query: {
+        scope,
+        workspace,
+      },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new KnowledgeApiError(`Memory not found: ${filename}`, 404);
     }
-    throw new KnowledgeApiError(`Failed to read memory "${filename}": ${res.status}`, res.status);
+    throw new KnowledgeApiError(
+      defaultApiErrorMessage(`Failed to read memory "${filename}"`, response, error),
+      response.status
+    );
   }
-  const json = await res.json();
-  const parsed = parseOrThrow(
-    memoryReadResponseSchema,
-    json,
-    `Invalid memory payload for "${filename}"`,
-    res.status
-  );
-  return parsed.content;
+  return requireResponseData(data, response, `Failed to read memory "${filename}"`).content;
 }
 
 export async function writeMemory(
   filename: string,
   content: string,
-  scope?: string,
+  scope?: MemoryScope,
   workspace?: string,
   signal?: AbortSignal
 ): Promise<MemoryMutationResponse> {
-  const res = await fetch(`/api/memory/${encodeURIComponent(filename)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content, scope, workspace }),
+  const { data, error, response } = await apiClient.PUT("/api/memory/{filename}", {
+    params: { path: { filename } },
+    body: { content, scope, workspace },
     signal,
   });
-  if (!res.ok) {
-    throw new KnowledgeApiError(`Failed to write memory "${filename}": ${res.status}`, res.status);
+  if (apiRequestFailed(response, error)) {
+    throw new KnowledgeApiError(
+      defaultApiErrorMessage(`Failed to write memory "${filename}"`, response, error),
+      response.status
+    );
   }
-  const json = await res.json();
-  return parseOrThrow(
-    memoryMutationResponseSchema,
-    json,
-    `Invalid memory mutation response for "${filename}"`,
-    res.status
-  );
+  return requireResponseData(data, response, `Failed to write memory "${filename}"`);
 }
 
 export async function deleteMemory(
-  scope: string,
+  scope: MemoryScope,
   filename: string,
   workspace?: string,
   signal?: AbortSignal
 ): Promise<MemoryMutationResponse> {
-  const params = new URLSearchParams();
-  params.set("scope", scope);
-  if (workspace) params.set("workspace", workspace);
-  const url = `/api/memory/${encodeURIComponent(filename)}?${params.toString()}`;
-
-  const res = await fetch(url, { method: "DELETE", signal });
-  if (!res.ok) {
-    if (res.status === 404) {
+  const { data, error, response } = await apiClient.DELETE("/api/memory/{filename}", {
+    params: {
+      path: { filename },
+      query: {
+        scope,
+        workspace,
+      },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
       throw new KnowledgeApiError(`Memory not found: ${filename}`, 404);
     }
-    throw new KnowledgeApiError(`Failed to delete memory "${filename}": ${res.status}`, res.status);
+    throw new KnowledgeApiError(
+      defaultApiErrorMessage(`Failed to delete memory "${filename}"`, response, error),
+      response.status
+    );
   }
-  const json = await res.json();
-  return parseOrThrow(
-    memoryMutationResponseSchema,
-    json,
-    `Invalid memory deletion response for "${filename}"`,
-    res.status
-  );
+  return requireResponseData(data, response, `Failed to delete memory "${filename}"`);
 }
 
 export async function consolidateMemory(
   workspace?: string,
   signal?: AbortSignal
 ): Promise<MemoryConsolidateResponse> {
-  const res = await fetch("/api/memory/consolidate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ workspace }),
+  const { data, error, response } = await apiClient.POST("/api/memory/consolidate", {
+    body: { workspace },
     signal,
   });
-  if (!res.ok) {
-    throw new KnowledgeApiError(`Failed to consolidate memory: ${res.status}`, res.status);
+  if (apiRequestFailed(response, error)) {
+    throw new KnowledgeApiError(
+      defaultApiErrorMessage("Failed to consolidate memory", response, error),
+      response.status
+    );
   }
-  const json = await res.json();
-  return parseOrThrow(
-    memoryConsolidateResponseSchema,
-    json,
-    "Invalid memory consolidate response",
-    res.status
-  );
+  return requireResponseData(data, response, "Failed to consolidate memory");
 }

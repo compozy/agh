@@ -292,6 +292,49 @@ func TestListWorkspacesHandlerReturnsRegisteredRows(t *testing.T) {
 	}
 }
 
+func TestDaemonStatusHandlerReturnsUserHomeDir(t *testing.T) {
+	t.Run("ShouldReturnResolvedUserHomeDir", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		manager := stubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+				return nil, nil
+			},
+		}
+		observer := stubObserver{
+			HealthFn: func(context.Context) (observe.Health, error) {
+				return observe.Health{Status: "ok", Version: "dev"}, nil
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, observer, homePaths))
+
+		recorder := performRequest(t, engine, http.MethodGet, "/api/daemon/status", nil)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+
+		var response contract.DaemonStatusResponse
+		decodeJSONResponse(t, recorder, &response)
+
+		userHomeDir, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatalf("os.UserHomeDir() error = %v", err)
+		}
+		resolvedUserHomeDir, err := aghconfig.ResolvePath(userHomeDir)
+		if err != nil {
+			t.Fatalf("ResolvePath(user home) error = %v", err)
+		}
+
+		if response.Daemon.UserHomeDir != resolvedUserHomeDir {
+			t.Fatalf("daemon.user_home_dir = %q, want %q", response.Daemon.UserHomeDir, resolvedUserHomeDir)
+		}
+		if response.Daemon.UserHomeDir == homePaths.HomeDir {
+			t.Fatalf("daemon.user_home_dir = %q, should not match agh home %q", response.Daemon.UserHomeDir, homePaths.HomeDir)
+		}
+	})
+}
+
 func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()

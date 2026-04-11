@@ -15,7 +15,7 @@ AGH resolves runtime settings from two places:
 - `~/.agh/config.toml` for global defaults, permissions, and provider configuration
 - `~/.agh/agents/<agent-name>/AGENT.md` for each agent definition
 
-Workspace config can overlay parts of the global config at `.agh/config.toml`, but the agent definition itself is still a markdown file with YAML frontmatter.
+Workspace config can overlay parts of the global config at `.agh/config.toml`, and both the global `.agh/` directory and each agent directory can also contain an optional `mcp.json` sidecar for MCP server declarations.
 
 ## Minimal AGENT.md structure
 
@@ -43,6 +43,7 @@ The prompt body after the frontmatter is required. AGH will reject an agent defi
 - `tools`: optional; AGH defaults to `["*"]` when omitted
 - `permissions`: optional; AGH falls back to the global permissions mode when omitted
 - `mcp_servers`: optional per-agent MCP server list
+- `mcp.json`: optional sidecar file in the same agent directory when you want MCP declarations outside frontmatter
 
 ## Permission modes
 
@@ -68,6 +69,21 @@ mcp_servers:
 ```
 
 AGH merges provider-level and agent-level MCP servers by name. Use the agent definition when the server belongs to one agent, and the provider config when it should apply to every agent for that provider.
+
+You can also attach agent-local MCP servers with `<agent-dir>/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"]
+    }
+  }
+}
+```
+
+If both `AGENT.md` and `mcp.json` declare MCP servers, AGH keeps both and lets `mcp.json` replace same-name entries from the frontmatter.
 
 ## Practical setup workflow
 

@@ -1,10 +1,15 @@
 {
     "private": true,
     "workspaces": [
-        "web"
+        "web",
+        "sdk/typescript",
+        "sdk/create-extension",
+        "sdk/examples/prompt-enhancer"
     ],
     "scripts": {
         "prepare": "husky",
+        "codegen": "make codegen",
+        "codegen-check": "make codegen-check",
         "dev": "turbo run dev --filter=./web",
         "build": "turbo run build",
         "lint": "bun run format && bunx oxlint",
@@ -21,12 +26,14 @@
         "@vitest/coverage-v8": "^4.1.0",
         "husky": "^9.1.7",
         "lint-staged": "^16.4.0",
+        "openapi-typescript": "^7.13.0",
         "oxfmt": "^0.43.0",
         "oxlint": "^1.57.0",
         "shadcn": "^4.1.0",
         "tailwindcss": "^4.2.2",
         "turbo": "^2.8.20",
         "tw-animate-css": "^1.4.0",
+        "typescript": "^6.0.2",
         "vite": "^8.0.3",
         "vitest": "^4.1.0"
     },

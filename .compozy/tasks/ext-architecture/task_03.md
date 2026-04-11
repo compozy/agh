@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extension manifest parser (TOML and JSON)
 type: backend
 complexity: medium
@@ -34,12 +34,12 @@ Create the extension manifest parser in a new `internal/extension/` package. The
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Create `internal/extension/` package with `Manifest` struct and section configs
-- [ ] 3.2 Implement TOML parser using `BurntSushi/toml`
-- [ ] 3.3 Implement JSON parser using `encoding/json`
-- [ ] 3.4 Implement dual-format loader with TOML-first precedence
-- [ ] 3.5 Implement schema validation (required fields, semver, capability names)
-- [ ] 3.6 Write table-driven tests for both formats and all validation paths
+- [x] 3.1 Create `internal/extension/` package with `Manifest` struct and section configs
+- [x] 3.2 Implement TOML parser using `BurntSushi/toml`
+- [x] 3.3 Implement JSON parser using `encoding/json`
+- [x] 3.4 Implement dual-format loader with TOML-first precedence
+- [x] 3.5 Implement schema validation (required fields, semver, capability names)
+- [x] 3.6 Write table-driven tests for both formats and all validation paths
 
 ## Implementation Details
 
@@ -69,19 +69,19 @@ Manifest struct mirrors the existing AGH config pattern (BurntSushi/toml with `t
 
 ## Tests
 - Unit tests:
-  - [ ] Parse valid `extension.toml` produces correct Manifest struct
-  - [ ] Parse valid `extension.json` produces identical Manifest to equivalent TOML
-  - [ ] Missing `name` field returns validation error
-  - [ ] Missing `version` field returns validation error
-  - [ ] Invalid semver `version` returns validation error
-  - [ ] `min_agh_version` newer than current daemon returns compatibility error
-  - [ ] Loader returns TOML manifest when both TOML and JSON exist
-  - [ ] Loader returns JSON manifest when only JSON exists
-  - [ ] Loader returns typed `ErrManifestNotFound` when neither exists
-  - [ ] Parse extension with resources (skills, agents, hooks, mcp_servers) sections
-  - [ ] Parse extension with capabilities.provides and actions.requires
-  - [ ] Parse extension with subprocess env var substitution placeholders
-  - [ ] Unknown top-level sections are accepted for forward compatibility (ignored)
+  - [x] Parse valid `extension.toml` produces correct Manifest struct
+  - [x] Parse valid `extension.json` produces identical Manifest to equivalent TOML
+  - [x] Missing `name` field returns validation error
+  - [x] Missing `version` field returns validation error
+  - [x] Invalid semver `version` returns validation error
+  - [x] `min_agh_version` newer than current daemon returns compatibility error
+  - [x] Loader returns TOML manifest when both TOML and JSON exist
+  - [x] Loader returns JSON manifest when only JSON exists
+  - [x] Loader returns typed `ErrManifestNotFound` when neither exists
+  - [x] Parse extension with resources (skills, agents, hooks, mcp_servers) sections
+  - [x] Parse extension with capabilities.provides and actions.requires
+  - [x] Parse extension with subprocess env var substitution placeholders
+  - [x] Unknown top-level sections are accepted for forward compatibility (ignored)
 - Test coverage target: >=80%
 - All tests must pass
 

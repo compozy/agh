@@ -24,6 +24,7 @@ type Option func(*Registry)
 type Registry struct {
 	mu                sync.RWMutex
 	globalSkills      map[string]*Skill
+	externalSkills    map[string]map[string]*Skill
 	globalLoaded      bool
 	globalSnapshots   map[string]filesnap.Snapshot
 	workspaceDisabled map[string][]string
@@ -54,6 +55,7 @@ func WithNow(now func() time.Time) Option {
 func NewRegistry(cfg RegistryConfig, opts ...Option) *Registry {
 	registry := &Registry{
 		globalSkills:      make(map[string]*Skill),
+		externalSkills:    make(map[string]map[string]*Skill),
 		globalSnapshots:   make(map[string]filesnap.Snapshot),
 		workspaceDisabled: make(map[string][]string),
 		wsCache:           make(map[string]*wsCache),
@@ -96,7 +98,7 @@ func (r *Registry) GlobalVersion() int64 {
 // Get returns a cloned global skill by name when present.
 func (r *Registry) Get(name string) (*Skill, bool) {
 	r.mu.RLock()
-	skill, ok := r.globalSkills[name]
+	skill, ok := r.lookupSkillLocked(name)
 	r.mu.RUnlock()
 	if !ok {
 		return nil, false
@@ -109,9 +111,10 @@ func (r *Registry) Get(name string) (*Skill, bool) {
 func (r *Registry) List() []*Skill {
 	r.mu.RLock()
 	globalSkills := r.globalSkills
+	externalSkills := r.externalSkillSetLocked()
 	r.mu.RUnlock()
 
-	return mergedSkillList(globalSkills, nil)
+	return mergedSkillList(globalSkills, externalSkills)
 }
 
 // LoadContent loads the full markdown body for one resolved skill.
@@ -161,9 +164,10 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved workspacepkg.Resol
 	if cached := r.wsCache[cacheKey]; cached != nil && filesnap.Equal(cached.snapshots, load.snapshots) {
 		cached.lastAccess = now
 		globalSkills := r.globalSkills
+		externalSkills := r.externalSkillSetLocked()
 		workspaceSkills := cached.skills
 		r.mu.Unlock()
-		return mergedSkillList(globalSkills, workspaceSkills), nil
+		return mergedSkillList(mergeSkillMaps(globalSkills, externalSkills), workspaceSkills), nil
 	}
 	r.mu.Unlock()
 
@@ -181,9 +185,10 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved workspacepkg.Resol
 		lastAccess: now,
 	}
 	globalSkills := r.globalSkills
+	externalSkills := r.externalSkillSetLocked()
 	r.mu.Unlock()
 
-	return mergedSkillList(globalSkills, workspaceSkills), nil
+	return mergedSkillList(mergeSkillMaps(globalSkills, externalSkills), workspaceSkills), nil
 }
 
 // SetEnabled updates the runtime enabled state for a named skill and keeps the

@@ -8,6 +8,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	observepkg "github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
@@ -29,8 +30,8 @@ func SessionPayloadFromInfo(info *session.SessionInfo) contract.SessionPayload {
 		AgentName:     info.AgentName,
 		WorkspaceID:   ref.WorkspaceID,
 		WorkspacePath: ref.WorkspacePath,
-		State:         string(info.State),
-		StopReason:    string(info.StopReason),
+		State:         info.State,
+		StopReason:    info.StopReason,
 		StopDetail:    info.StopDetail,
 		ACPSessionID:  info.ACPSessionID,
 		CreatedAt:     info.CreatedAt,
@@ -177,6 +178,19 @@ func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEven
 		AgentName: event.AgentName,
 		Summary:   event.Summary,
 		Timestamp: event.Timestamp,
+	}
+}
+
+// ObserveHealthPayloadFromHealth converts the observer health snapshot into the shared payload.
+func ObserveHealthPayloadFromHealth(health observepkg.Health) contract.ObserveHealthPayload {
+	return contract.ObserveHealthPayload{
+		Status:             health.Status,
+		UptimeSeconds:      health.UptimeSeconds,
+		ActiveSessions:     health.ActiveSessions,
+		ActiveAgents:       health.ActiveAgents,
+		GlobalDBSizeBytes:  health.GlobalDBSizeBytes,
+		SessionDBSizeBytes: health.SessionDBSizeBytes,
+		Version:            health.Version,
 	}
 }
 

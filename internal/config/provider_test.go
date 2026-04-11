@@ -137,6 +137,112 @@ func TestMergeMCPServersSameNameOverlaysFields(t *testing.T) {
 	}
 }
 
+func TestMergeMCPServersTrimmedNamesCollide(t *testing.T) {
+	t.Parallel()
+
+	merged := MergeMCPServers(
+		[]MCPServer{{Name: "  github  ", Command: "npx"}},
+		[]MCPServer{{Name: "github", Args: []string{"-y"}}},
+	)
+
+	if len(merged) != 1 {
+		t.Fatalf("MergeMCPServers() len = %d, want 1", len(merged))
+	}
+	if got, want := merged[0].Command, "npx"; got != want {
+		t.Fatalf("MergeMCPServers() Command = %q, want %q", got, want)
+	}
+	if got, want := merged[0].Args[0], "-y"; got != want {
+		t.Fatalf("MergeMCPServers() Args[0] = %q, want %q", got, want)
+	}
+}
+
+func TestOverrideMCPServersSameNameReplacesObject(t *testing.T) {
+	t.Parallel()
+
+	merged := OverrideMCPServers(
+		[]MCPServer{{Name: "github", Command: "npx", Args: []string{"-y"}, Env: map[string]string{"TOKEN": "base"}}},
+		[]MCPServer{{Name: "github", Command: "node"}},
+	)
+
+	if len(merged) != 1 {
+		t.Fatalf("OverrideMCPServers() len = %d, want 1", len(merged))
+	}
+	if got, want := merged[0].Command, "node"; got != want {
+		t.Fatalf("OverrideMCPServers() Command = %q, want %q", got, want)
+	}
+	if got := len(merged[0].Args); got != 0 {
+		t.Fatalf("OverrideMCPServers() Args = %#v, want replacement semantics", merged[0].Args)
+	}
+	if got := len(merged[0].Env); got != 0 {
+		t.Fatalf("OverrideMCPServers() Env = %#v, want replacement semantics", merged[0].Env)
+	}
+}
+
+func TestOverrideMCPServersTrimmedNamesCollide(t *testing.T) {
+	t.Parallel()
+
+	merged := OverrideMCPServers(
+		[]MCPServer{{Name: "  github  ", Command: "npx", Args: []string{"-y"}}},
+		[]MCPServer{{Name: "github", Command: "node"}},
+	)
+
+	if len(merged) != 1 {
+		t.Fatalf("OverrideMCPServers() len = %d, want 1", len(merged))
+	}
+	if got, want := merged[0].Command, "node"; got != want {
+		t.Fatalf("OverrideMCPServers() Command = %q, want %q", got, want)
+	}
+	if got := len(merged[0].Args); got != 0 {
+		t.Fatalf("OverrideMCPServers() Args = %#v, want replacement semantics", merged[0].Args)
+	}
+}
+
+func TestResolveAgentMergesTopLevelProviderAndAgentMCPServers(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg := DefaultWithHome(homePaths)
+	cfg.MCPServers = []MCPServer{
+		{Name: "global", Command: "global-command"},
+	}
+	cfg.Providers["claude"] = ProviderConfig{
+		MCPServers: []MCPServer{
+			{Name: "provider", Command: "provider-command"},
+		},
+	}
+
+	agent := AgentDef{
+		Name:     "coder",
+		Provider: "claude",
+		Prompt:   "prompt",
+		MCPServers: []MCPServer{
+			{Name: "agent", Command: "agent-command"},
+		},
+	}
+
+	resolved, err := cfg.ResolveAgent(agent)
+	if err != nil {
+		t.Fatalf("ResolveAgent() error = %v", err)
+	}
+
+	if got, want := len(resolved.MCPServers), 3; got != want {
+		t.Fatalf("ResolveAgent() MCPServers len = %d, want %d (%#v)", got, want, resolved.MCPServers)
+	}
+	if got, want := resolved.MCPServers[0].Name, "global"; got != want {
+		t.Fatalf("ResolveAgent() MCPServers[0].Name = %q, want %q", got, want)
+	}
+	if got, want := resolved.MCPServers[1].Name, "provider"; got != want {
+		t.Fatalf("ResolveAgent() MCPServers[1].Name = %q, want %q", got, want)
+	}
+	if got, want := resolved.MCPServers[2].Name, "agent"; got != want {
+		t.Fatalf("ResolveAgent() MCPServers[2].Name = %q, want %q", got, want)
+	}
+}
+
 func TestResolveProviderRejectsUnknownProvider(t *testing.T) {
 	t.Parallel()
 
