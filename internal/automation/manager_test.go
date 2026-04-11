@@ -2,10 +2,12 @@ package automation
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -689,6 +691,851 @@ func TestManagerSetEnabledForDynamicDefinitionsUpdatesStoredStateAndRuntime(t *t
 	}
 }
 
+func TestManagerDynamicJobCRUDAndRunHistory(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	})
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	job := testJob(AutomationScopeWorkspace, "crud-job", h.workspace.ID)
+	created, err := manager.CreateJob(h.ctx, job)
+	if err != nil {
+		t.Fatalf("manager.CreateJob() error = %v", err)
+	}
+	if created.ID == "" {
+		t.Fatal("manager.CreateJob() id = empty, want non-empty")
+	}
+
+	gotJob, err := manager.GetJob(h.ctx, created.ID)
+	if err != nil {
+		t.Fatalf("manager.GetJob() error = %v", err)
+	}
+	if gotJob.Name != created.Name {
+		t.Fatalf("manager.GetJob() name = %q, want %q", gotJob.Name, created.Name)
+	}
+
+	jobs, err := manager.ListJobs(h.ctx, JobListQuery{
+		Scope:       AutomationScopeWorkspace,
+		WorkspaceID: h.workspace.ID,
+	})
+	if err != nil {
+		t.Fatalf("manager.ListJobs() error = %v", err)
+	}
+	if got, want := len(jobs), 1; got != want {
+		t.Fatalf("len(manager.ListJobs()) = %d, want %d", got, want)
+	}
+
+	updatedInput := created
+	updatedInput.Name = "crud-job-updated"
+	updatedInput.Prompt = "Summarize the updated state."
+	updatedInput.Schedule = &ScheduleSpec{
+		Mode:     ScheduleModeEvery,
+		Interval: "45m",
+	}
+	updated, err := manager.UpdateJob(h.ctx, updatedInput)
+	if err != nil {
+		t.Fatalf("manager.UpdateJob() error = %v", err)
+	}
+	if got, want := updated.Name, "crud-job-updated"; got != want {
+		t.Fatalf("updated job name = %q, want %q", got, want)
+	}
+	if updated.Schedule == nil || updated.Schedule.Interval != "45m" {
+		t.Fatalf("updated job schedule = %#v, want interval 45m", updated.Schedule)
+	}
+
+	run, err := manager.TriggerJob(h.ctx, updated.ID)
+	if err != nil {
+		t.Fatalf("manager.TriggerJob() error = %v", err)
+	}
+	if got, want := run.JobID, updated.ID; got != want {
+		t.Fatalf("run.JobID = %q, want %q", got, want)
+	}
+	if got, want := h.sessions.promptCount(), 1; got != want {
+		t.Fatalf("Prompt() call count = %d, want %d", got, want)
+	}
+
+	gotRun, err := manager.GetRun(h.ctx, run.ID)
+	if err != nil {
+		t.Fatalf("manager.GetRun() error = %v", err)
+	}
+	if got, want := gotRun.ID, run.ID; got != want {
+		t.Fatalf("manager.GetRun() id = %q, want %q", got, want)
+	}
+
+	runs, err := manager.ListRuns(h.ctx, RunQuery{JobID: updated.ID})
+	if err != nil {
+		t.Fatalf("manager.ListRuns() error = %v", err)
+	}
+	if got, want := len(runs), 1; got != want {
+		t.Fatalf("len(manager.ListRuns()) = %d, want %d", got, want)
+	}
+
+	if err := manager.DeleteJob(h.ctx, updated.ID); err != nil {
+		t.Fatalf("manager.DeleteJob() error = %v", err)
+	}
+	if _, err := manager.GetJob(h.ctx, updated.ID); !errors.Is(err, ErrJobNotFound) {
+		t.Fatalf("manager.GetJob(deleted) error = %v, want ErrJobNotFound", err)
+	}
+}
+
+func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	})
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	webhookTrigger := Trigger{
+		ID:           "trigger-webhook-crud",
+		Scope:        AutomationScopeWorkspace,
+		Name:         "webhook-crud",
+		AgentName:    "reviewer",
+		WorkspaceID:  h.workspace.ID,
+		Prompt:       `Review payload {{ index .Data "payload" }}`,
+		Event:        "webhook",
+		Filter:       map[string]string{"data.payload": "deploy"},
+		Enabled:      true,
+		Retry:        DefaultRetryConfig(),
+		FireLimit:    DefaultFireLimitConfig(),
+		Source:       JobSourceDynamic,
+		EndpointSlug: "deploy-review",
+	}
+	createdWebhook, err := manager.CreateTrigger(h.ctx, webhookTrigger, "secret-v1")
+	if err != nil {
+		t.Fatalf("manager.CreateTrigger(webhook) error = %v", err)
+	}
+	if createdWebhook.WebhookID == "" {
+		t.Fatal("manager.CreateTrigger(webhook) webhook_id = empty, want non-empty")
+	}
+
+	gotWebhook, err := manager.GetTrigger(h.ctx, createdWebhook.ID)
+	if err != nil {
+		t.Fatalf("manager.GetTrigger(webhook) error = %v", err)
+	}
+	if gotWebhook.EndpointSlug != "deploy-review" {
+		t.Fatalf("manager.GetTrigger(webhook) endpoint_slug = %q, want deploy-review", gotWebhook.EndpointSlug)
+	}
+
+	listedTriggers, err := manager.ListTriggers(h.ctx, TriggerListQuery{
+		Scope:       AutomationScopeWorkspace,
+		WorkspaceID: h.workspace.ID,
+		Event:       "webhook",
+	})
+	if err != nil {
+		t.Fatalf("manager.ListTriggers(webhook) error = %v", err)
+	}
+	if got, want := len(listedTriggers), 1; got != want {
+		t.Fatalf("len(manager.ListTriggers(webhook)) = %d, want %d", got, want)
+	}
+
+	storedSecret, err := h.db.GetTriggerWebhookSecret(h.ctx, createdWebhook.ID)
+	if err != nil {
+		t.Fatalf("GetTriggerWebhookSecret(created) error = %v", err)
+	}
+	if got, want := storedSecret, "secret-v1"; got != want {
+		t.Fatalf("stored webhook secret = %q, want %q", got, want)
+	}
+
+	webhookUpdate := createdWebhook
+	webhookUpdate.Prompt = `Updated payload {{ index .Data "payload" }}`
+	webhookUpdate.EndpointSlug = "deploy-review-updated"
+	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, stringPointer("secret-v2"))
+	if err != nil {
+		t.Fatalf("manager.UpdateTrigger(webhook) error = %v", err)
+	}
+	if got, want := updatedWebhook.EndpointSlug, "deploy-review-updated"; got != want {
+		t.Fatalf("updated webhook endpoint_slug = %q, want %q", got, want)
+	}
+	storedSecret, err = h.db.GetTriggerWebhookSecret(h.ctx, createdWebhook.ID)
+	if err != nil {
+		t.Fatalf("GetTriggerWebhookSecret(updated) error = %v", err)
+	}
+	if got, want := storedSecret, "secret-v2"; got != want {
+		t.Fatalf("updated webhook secret = %q, want %q", got, want)
+	}
+
+	endpoint, err := FormatWebhookEndpoint(updatedWebhook.EndpointSlug, updatedWebhook.WebhookID)
+	if err != nil {
+		t.Fatalf("FormatWebhookEndpoint() error = %v", err)
+	}
+	timestamp := time.Now().UTC()
+	payload := []byte(`{"payload":"deploy"}`)
+	signature, err := SignWebhookPayload("secret-v2", timestamp, payload)
+	if err != nil {
+		t.Fatalf("SignWebhookPayload() error = %v", err)
+	}
+	webhookResult, err := manager.HandleWebhook(h.ctx, WebhookRequest{
+		Scope:       AutomationScopeWorkspace,
+		WorkspaceID: h.workspace.ID,
+		Endpoint:    endpoint,
+		Timestamp:   timestamp,
+		Signature:   signature,
+		Payload:     payload,
+		Data: map[string]any{
+			"payload": "deploy",
+		},
+	})
+	if err != nil {
+		t.Fatalf("manager.HandleWebhook() error = %v", err)
+	}
+	if got, want := webhookResult.Matched, 1; got != want {
+		t.Fatalf("webhook result.Matched = %d, want %d", got, want)
+	}
+
+	if err := manager.DeleteTrigger(h.ctx, updatedWebhook.ID); err != nil {
+		t.Fatalf("manager.DeleteTrigger(webhook) error = %v", err)
+	}
+	if _, err := h.db.GetTriggerWebhookSecret(h.ctx, updatedWebhook.ID); !errors.Is(err, ErrTriggerWebhookSecretNotFound) {
+		t.Fatalf("GetTriggerWebhookSecret(deleted) error = %v, want ErrTriggerWebhookSecretNotFound", err)
+	}
+
+	extensionTrigger := Trigger{
+		ID:          "trigger-extension-crud",
+		Scope:       AutomationScopeWorkspace,
+		Name:        "extension-crud",
+		AgentName:   "reviewer",
+		WorkspaceID: h.workspace.ID,
+		Prompt:      `Review repo {{ index .Data "repo" }}`,
+		Event:       "ext.github.push",
+		Filter:      map[string]string{"data.repo": "acme/api"},
+		Enabled:     true,
+		Retry:       DefaultRetryConfig(),
+		FireLimit:   DefaultFireLimitConfig(),
+		Source:      JobSourceDynamic,
+	}
+	createdExtension, err := manager.CreateTrigger(h.ctx, extensionTrigger, "")
+	if err != nil {
+		t.Fatalf("manager.CreateTrigger(extension) error = %v", err)
+	}
+
+	fireResult, err := manager.FireExtensionTrigger(h.ctx, ExtensionTriggerRequest{
+		Event:       "ext.github.push",
+		Scope:       AutomationScopeWorkspace,
+		WorkspaceID: h.workspace.ID,
+		Payload: map[string]any{
+			"repo": "acme/api",
+		},
+	})
+	if err != nil {
+		t.Fatalf("manager.FireExtensionTrigger() error = %v", err)
+	}
+	if got, want := fireResult.Matched, 1; got != want {
+		t.Fatalf("extension fire result.Matched = %d, want %d", got, want)
+	}
+	if got, want := len(fireResult.Runs), 1; got != want {
+		t.Fatalf("len(extension fire result.Runs) = %d, want %d", got, want)
+	}
+
+	extensionRuns, err := manager.ListRuns(h.ctx, RunQuery{TriggerID: createdExtension.ID})
+	if err != nil {
+		t.Fatalf("manager.ListRuns(extension) error = %v", err)
+	}
+	if got, want := len(extensionRuns), 1; got != want {
+		t.Fatalf("len(manager.ListRuns(extension)) = %d, want %d", got, want)
+	}
+}
+
+func TestManagerCRUDRejectsNilContextAndReadOnlyDefinitions(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	}, WithHooks(hookspkg.NewHooks()))
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	configJob := testJob(AutomationScopeWorkspace, "readonly-job", h.workspace.ID)
+	configJob.Source = JobSourceConfig
+	if _, err := h.db.CreateJob(h.ctx, configJob); err != nil {
+		t.Fatalf("CreateJob(config) error = %v", err)
+	}
+
+	configTrigger := Trigger{
+		ID:          "trigger-readonly",
+		Scope:       AutomationScopeWorkspace,
+		Name:        "readonly-trigger",
+		AgentName:   "reviewer",
+		WorkspaceID: h.workspace.ID,
+		Prompt:      `Review {{ index .Data "payload" }}`,
+		Event:       "ext.github.push",
+		Enabled:     true,
+		Retry:       DefaultRetryConfig(),
+		FireLimit:   DefaultFireLimitConfig(),
+		Source:      JobSourceConfig,
+	}
+	if _, err := h.db.CreateTrigger(h.ctx, configTrigger); err != nil {
+		t.Fatalf("CreateTrigger(config) error = %v", err)
+	}
+
+	nilCtx := nilContextForTests()
+
+	if _, err := manager.CreateJob(nilCtx, testJob(AutomationScopeWorkspace, "nil-job", h.workspace.ID)); err == nil {
+		t.Fatal("manager.CreateJob(nil) error = nil, want context error")
+	}
+	if _, err := manager.ListJobs(nilCtx, JobListQuery{}); err == nil {
+		t.Fatal("manager.ListJobs(nil) error = nil, want context error")
+	}
+	if _, err := manager.GetJob(nilCtx, configJob.ID); err == nil {
+		t.Fatal("manager.GetJob(nil) error = nil, want context error")
+	}
+	if _, err := manager.UpdateJob(nilCtx, configJob); err == nil {
+		t.Fatal("manager.UpdateJob(nil) error = nil, want context error")
+	}
+	if err := manager.DeleteJob(nilCtx, configJob.ID); err == nil {
+		t.Fatal("manager.DeleteJob(nil) error = nil, want context error")
+	}
+	if _, err := manager.TriggerJob(nilCtx, configJob.ID); err == nil {
+		t.Fatal("manager.TriggerJob(nil) error = nil, want context error")
+	}
+	if _, err := manager.SetJobEnabled(nilCtx, configJob.ID, false); err == nil {
+		t.Fatal("manager.SetJobEnabled(nil) error = nil, want context error")
+	}
+
+	if _, err := manager.CreateTrigger(nilCtx, configTrigger, "secret"); err == nil {
+		t.Fatal("manager.CreateTrigger(nil) error = nil, want context error")
+	}
+	if _, err := manager.ListTriggers(nilCtx, TriggerListQuery{}); err == nil {
+		t.Fatal("manager.ListTriggers(nil) error = nil, want context error")
+	}
+	if _, err := manager.GetTrigger(nilCtx, configTrigger.ID); err == nil {
+		t.Fatal("manager.GetTrigger(nil) error = nil, want context error")
+	}
+	if _, err := manager.UpdateTrigger(nilCtx, configTrigger, nil); err == nil {
+		t.Fatal("manager.UpdateTrigger(nil) error = nil, want context error")
+	}
+	if err := manager.DeleteTrigger(nilCtx, configTrigger.ID); err == nil {
+		t.Fatal("manager.DeleteTrigger(nil) error = nil, want context error")
+	}
+	if _, err := manager.SetTriggerEnabled(nilCtx, configTrigger.ID, false); err == nil {
+		t.Fatal("manager.SetTriggerEnabled(nil) error = nil, want context error")
+	}
+
+	if _, err := manager.ListRuns(nilCtx, RunQuery{}); err == nil {
+		t.Fatal("manager.ListRuns(nil) error = nil, want context error")
+	}
+	if _, err := manager.GetRun(nilCtx, "run-id"); err == nil {
+		t.Fatal("manager.GetRun(nil) error = nil, want context error")
+	}
+	if _, err := manager.Status(nilCtx); err == nil {
+		t.Fatal("manager.Status(nil) error = nil, want context error")
+	}
+
+	if _, err := manager.CreateJob(h.ctx, configJob); !errors.Is(err, ErrDefinitionReadOnly) {
+		t.Fatalf("manager.CreateJob(config) error = %v, want ErrDefinitionReadOnly", err)
+	}
+	if _, err := manager.UpdateJob(h.ctx, configJob); !errors.Is(err, ErrDefinitionReadOnly) {
+		t.Fatalf("manager.UpdateJob(config) error = %v, want ErrDefinitionReadOnly", err)
+	}
+	if err := manager.DeleteJob(h.ctx, configJob.ID); !errors.Is(err, ErrDefinitionReadOnly) {
+		t.Fatalf("manager.DeleteJob(config) error = %v, want ErrDefinitionReadOnly", err)
+	}
+
+	if _, err := manager.CreateTrigger(h.ctx, configTrigger, "secret"); !errors.Is(err, ErrDefinitionReadOnly) {
+		t.Fatalf("manager.CreateTrigger(config) error = %v, want ErrDefinitionReadOnly", err)
+	}
+	if _, err := manager.UpdateTrigger(h.ctx, configTrigger, nil); !errors.Is(err, ErrDefinitionReadOnly) {
+		t.Fatalf("manager.UpdateTrigger(config) error = %v, want ErrDefinitionReadOnly", err)
+	}
+	if err := manager.DeleteTrigger(h.ctx, configTrigger.ID); !errors.Is(err, ErrDefinitionReadOnly) {
+		t.Fatalf("manager.DeleteTrigger(config) error = %v, want ErrDefinitionReadOnly", err)
+	}
+
+	webhookTrigger := Trigger{
+		ID:           "trigger-webhook-missing-secret",
+		Scope:        AutomationScopeWorkspace,
+		Name:         "missing-secret",
+		AgentName:    "reviewer",
+		WorkspaceID:  h.workspace.ID,
+		Prompt:       `Review {{ index .Data "payload" }}`,
+		Event:        "webhook",
+		Enabled:      true,
+		Retry:        DefaultRetryConfig(),
+		FireLimit:    DefaultFireLimitConfig(),
+		Source:       JobSourceDynamic,
+		EndpointSlug: "missing-secret",
+	}
+	if _, err := manager.CreateTrigger(h.ctx, webhookTrigger, ""); !errors.Is(err, ErrWebhookSecretRequired) {
+		t.Fatalf("manager.CreateTrigger(webhook missing secret) error = %v, want ErrWebhookSecretRequired", err)
+	}
+}
+
+func TestManagerWebhookSecretHelpers(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	})
+
+	webhookTrigger := Trigger{
+		ID:           "trigger-secret-helpers",
+		Scope:        AutomationScopeWorkspace,
+		Name:         "secret-helpers",
+		AgentName:    "reviewer",
+		WorkspaceID:  h.workspace.ID,
+		Prompt:       `Review {{ index .Data "payload" }}`,
+		Event:        "webhook",
+		Enabled:      true,
+		Retry:        DefaultRetryConfig(),
+		FireLimit:    DefaultFireLimitConfig(),
+		Source:       JobSourceDynamic,
+		EndpointSlug: "secret-helpers",
+		WebhookID:    "wbh-secret-helpers",
+	}
+	if _, err := h.db.CreateTrigger(h.ctx, webhookTrigger); err != nil {
+		t.Fatalf("CreateTrigger(webhook) error = %v", err)
+	}
+	if err := h.db.SetTriggerWebhookSecret(h.ctx, webhookTrigger.ID, "stored-secret"); err != nil {
+		t.Fatalf("SetTriggerWebhookSecret() error = %v", err)
+	}
+
+	currentSecret, err := manager.currentWebhookSecret(h.ctx, webhookTrigger)
+	if err != nil {
+		t.Fatalf("currentWebhookSecret() error = %v", err)
+	}
+	if got, want := currentSecret, "stored-secret"; got != want {
+		t.Fatalf("currentWebhookSecret() = %q, want %q", got, want)
+	}
+
+	desiredSecret, err := manager.desiredWebhookSecret(h.ctx, webhookTrigger, webhookTrigger, nil)
+	if err != nil {
+		t.Fatalf("desiredWebhookSecret(stored) error = %v", err)
+	}
+	if got, want := desiredSecret, "stored-secret"; got != want {
+		t.Fatalf("desiredWebhookSecret(stored) = %q, want %q", got, want)
+	}
+
+	explicitSecret, err := manager.desiredWebhookSecret(h.ctx, webhookTrigger, webhookTrigger, stringPointer("explicit-secret"))
+	if err != nil {
+		t.Fatalf("desiredWebhookSecret(explicit) error = %v", err)
+	}
+	if got, want := explicitSecret, "explicit-secret"; got != want {
+		t.Fatalf("desiredWebhookSecret(explicit) = %q, want %q", got, want)
+	}
+
+	if err := manager.restoreWebhookSecret(h.ctx, webhookTrigger, "restored-secret"); err != nil {
+		t.Fatalf("restoreWebhookSecret(set) error = %v", err)
+	}
+	restored, err := h.db.GetTriggerWebhookSecret(h.ctx, webhookTrigger.ID)
+	if err != nil {
+		t.Fatalf("GetTriggerWebhookSecret(restored) error = %v", err)
+	}
+	if got, want := restored, "restored-secret"; got != want {
+		t.Fatalf("restored webhook secret = %q, want %q", got, want)
+	}
+
+	if err := manager.restoreWebhookSecret(h.ctx, webhookTrigger, ""); err != nil {
+		t.Fatalf("restoreWebhookSecret(delete) error = %v", err)
+	}
+	if _, err := h.db.GetTriggerWebhookSecret(h.ctx, webhookTrigger.ID); !errors.Is(err, ErrTriggerWebhookSecretNotFound) {
+		t.Fatalf("GetTriggerWebhookSecret(deleted) error = %v, want ErrTriggerWebhookSecretNotFound", err)
+	}
+
+	resolver := storeWebhookSecretResolver{store: h.db}
+	resolvedSecret, err := resolver.SecretForTrigger(h.ctx, webhookTrigger)
+	if !errors.Is(err, ErrTriggerWebhookSecretNotFound) && err != nil {
+		t.Fatalf("storeWebhookSecretResolver.SecretForTrigger() error = %v", err)
+	}
+	if resolvedSecret != "" {
+		t.Fatalf("storeWebhookSecretResolver.SecretForTrigger() = %q, want empty after delete", resolvedSecret)
+	}
+
+	(&triggerSessionObserver{}).OnAgentEvent(h.ctx, "sess-ignored", acp.AgentEvent{})
+}
+
+func TestManagerUpdateTriggerTransitionsWebhookSecretLifecycle(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	})
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	trigger := Trigger{
+		ID:          "trigger-transition",
+		Scope:       AutomationScopeWorkspace,
+		Name:        "transition-trigger",
+		AgentName:   "reviewer",
+		WorkspaceID: h.workspace.ID,
+		Prompt:      `Review {{ index .Data "repo" }}`,
+		Event:       "ext.github.push",
+		Filter:      map[string]string{"data.repo": "acme/api"},
+		Enabled:     true,
+		Retry:       DefaultRetryConfig(),
+		FireLimit:   DefaultFireLimitConfig(),
+		Source:      JobSourceDynamic,
+	}
+	created, err := manager.CreateTrigger(h.ctx, trigger, "")
+	if err != nil {
+		t.Fatalf("manager.CreateTrigger() error = %v", err)
+	}
+
+	missingSecretUpdate := created
+	missingSecretUpdate.Event = "webhook"
+	missingSecretUpdate.Filter = map[string]string{"data.payload": "deploy"}
+	missingSecretUpdate.EndpointSlug = "transition-trigger"
+	if _, err := manager.UpdateTrigger(h.ctx, missingSecretUpdate, nil); !errors.Is(err, ErrWebhookSecretRequired) {
+		t.Fatalf("manager.UpdateTrigger(webhook without secret) error = %v, want ErrWebhookSecretRequired", err)
+	}
+
+	stillExtension, err := manager.GetTrigger(h.ctx, created.ID)
+	if err != nil {
+		t.Fatalf("manager.GetTrigger(after failed update) error = %v", err)
+	}
+	if got, want := stillExtension.Event, "ext.github.push"; got != want {
+		t.Fatalf("trigger event after failed update = %q, want %q", got, want)
+	}
+
+	webhookUpdate := created
+	webhookUpdate.Event = "webhook"
+	webhookUpdate.Filter = map[string]string{"data.payload": "deploy"}
+	webhookUpdate.EndpointSlug = "transition-trigger"
+	webhookUpdate.Prompt = `Webhook {{ index .Data "payload" }}`
+	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, stringPointer("transition-secret"))
+	if err != nil {
+		t.Fatalf("manager.UpdateTrigger(webhook) error = %v", err)
+	}
+	if updatedWebhook.WebhookID == "" {
+		t.Fatal("updated webhook trigger webhook_id = empty, want non-empty")
+	}
+
+	secret, err := h.db.GetTriggerWebhookSecret(h.ctx, created.ID)
+	if err != nil {
+		t.Fatalf("GetTriggerWebhookSecret(webhook) error = %v", err)
+	}
+	if got, want := secret, "transition-secret"; got != want {
+		t.Fatalf("stored webhook secret = %q, want %q", got, want)
+	}
+
+	backToExtension := updatedWebhook
+	backToExtension.Event = "ext.github.release"
+	backToExtension.Filter = map[string]string{"data.repo": "acme/api"}
+	backToExtension.EndpointSlug = ""
+	backToExtension.WebhookID = ""
+	updatedExtension, err := manager.UpdateTrigger(h.ctx, backToExtension, nil)
+	if err != nil {
+		t.Fatalf("manager.UpdateTrigger(back to extension) error = %v", err)
+	}
+	if got, want := updatedExtension.Event, "ext.github.release"; got != want {
+		t.Fatalf("updated extension trigger event = %q, want %q", got, want)
+	}
+	if _, err := h.db.GetTriggerWebhookSecret(h.ctx, created.ID); !errors.Is(err, ErrTriggerWebhookSecretNotFound) {
+		t.Fatalf("GetTriggerWebhookSecret(extension) error = %v, want ErrTriggerWebhookSecretNotFound", err)
+	}
+}
+
+func TestManagerDynamicCRUDHandlesBlankSourcesAndDuplicateNames(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	})
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	jobA := testJob(AutomationScopeWorkspace, "duplicate-job-a", h.workspace.ID)
+	jobA.Source = ""
+	jobA.Name = "duplicate-job"
+	createdJobA, err := manager.CreateJob(h.ctx, jobA)
+	if err != nil {
+		t.Fatalf("manager.CreateJob(jobA) error = %v", err)
+	}
+	if got, want := createdJobA.Source, JobSourceDynamic; got != want {
+		t.Fatalf("created job source = %q, want %q", got, want)
+	}
+
+	jobB := testJob(AutomationScopeWorkspace, "duplicate-job-b", h.workspace.ID)
+	jobB.Name = "duplicate-job"
+	if _, err := manager.CreateJob(h.ctx, jobB); !errors.Is(err, ErrJobNameTaken) {
+		t.Fatalf("manager.CreateJob(duplicate) error = %v, want ErrJobNameTaken", err)
+	}
+
+	jobC := testJob(AutomationScopeWorkspace, "duplicate-job-c", h.workspace.ID)
+	createdJobC, err := manager.CreateJob(h.ctx, jobC)
+	if err != nil {
+		t.Fatalf("manager.CreateJob(jobC) error = %v", err)
+	}
+	jobCUpdate := createdJobC
+	jobCUpdate.Name = "duplicate-job"
+	if _, err := manager.UpdateJob(h.ctx, jobCUpdate); !errors.Is(err, ErrJobNameTaken) {
+		t.Fatalf("manager.UpdateJob(duplicate) error = %v, want ErrJobNameTaken", err)
+	}
+
+	triggerA := Trigger{
+		ID:          "trigger-duplicate-a",
+		Scope:       AutomationScopeWorkspace,
+		Name:        "duplicate-trigger",
+		AgentName:   "reviewer",
+		WorkspaceID: h.workspace.ID,
+		Prompt:      `Review {{ index .Data "repo" }}`,
+		Event:       "ext.github.push",
+		Filter:      map[string]string{"data.repo": "acme/api"},
+		Enabled:     true,
+		Retry:       DefaultRetryConfig(),
+		FireLimit:   DefaultFireLimitConfig(),
+	}
+	createdTriggerA, err := manager.CreateTrigger(h.ctx, triggerA, "")
+	if err != nil {
+		t.Fatalf("manager.CreateTrigger(triggerA) error = %v", err)
+	}
+	if got, want := createdTriggerA.Source, JobSourceDynamic; got != want {
+		t.Fatalf("created trigger source = %q, want %q", got, want)
+	}
+
+	triggerB := createdTriggerA
+	triggerB.ID = "trigger-duplicate-b"
+	if _, err := manager.CreateTrigger(h.ctx, triggerB, ""); !errors.Is(err, ErrTriggerNameTaken) {
+		t.Fatalf("manager.CreateTrigger(duplicate) error = %v, want ErrTriggerNameTaken", err)
+	}
+
+	triggerC := createdTriggerA
+	triggerC.ID = "trigger-duplicate-c"
+	triggerC.Name = "unique-trigger"
+	triggerC.Filter = map[string]string{"data.repo": "acme/other"}
+	createdTriggerC, err := manager.CreateTrigger(h.ctx, triggerC, "")
+	if err != nil {
+		t.Fatalf("manager.CreateTrigger(triggerC) error = %v", err)
+	}
+	triggerCUpdate := createdTriggerC
+	triggerCUpdate.Name = "duplicate-trigger"
+	if _, err := manager.UpdateTrigger(h.ctx, triggerCUpdate, nil); !errors.Is(err, ErrTriggerNameTaken) {
+		t.Fatalf("manager.UpdateTrigger(duplicate) error = %v, want ErrTriggerNameTaken", err)
+	}
+}
+
+func TestManagerCRUDBeforeStartUsesPersistenceWithoutRuntime(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	})
+
+	job := testJob(AutomationScopeWorkspace, "prestart-job", h.workspace.ID)
+	job.Source = ""
+	createdJob, err := manager.CreateJob(h.ctx, job)
+	if err != nil {
+		t.Fatalf("manager.CreateJob(pre-start) error = %v", err)
+	}
+	createdJob.Prompt = "Updated before start"
+	updatedJob, err := manager.UpdateJob(h.ctx, createdJob)
+	if err != nil {
+		t.Fatalf("manager.UpdateJob(pre-start) error = %v", err)
+	}
+	if got, want := updatedJob.Prompt, "Updated before start"; got != want {
+		t.Fatalf("updated pre-start job prompt = %q, want %q", got, want)
+	}
+	if err := manager.DeleteJob(h.ctx, updatedJob.ID); err != nil {
+		t.Fatalf("manager.DeleteJob(pre-start) error = %v", err)
+	}
+
+	trigger := Trigger{
+		ID:          "trigger-prestart",
+		Scope:       AutomationScopeWorkspace,
+		Name:        "prestart-trigger",
+		AgentName:   "reviewer",
+		WorkspaceID: h.workspace.ID,
+		Prompt:      `Review {{ index .Data "repo" }}`,
+		Event:       "ext.github.push",
+		Filter:      map[string]string{"data.repo": "acme/api"},
+		Enabled:     true,
+		Retry:       DefaultRetryConfig(),
+		FireLimit:   DefaultFireLimitConfig(),
+	}
+	createdTrigger, err := manager.CreateTrigger(h.ctx, trigger, "")
+	if err != nil {
+		t.Fatalf("manager.CreateTrigger(pre-start) error = %v", err)
+	}
+	createdTrigger.Prompt = `Updated {{ index .Data "repo" }}`
+	updatedTrigger, err := manager.UpdateTrigger(h.ctx, createdTrigger, nil)
+	if err != nil {
+		t.Fatalf("manager.UpdateTrigger(pre-start) error = %v", err)
+	}
+	if got, want := updatedTrigger.Prompt, `Updated {{ index .Data "repo" }}`; got != want {
+		t.Fatalf("updated pre-start trigger prompt = %q, want %q", got, want)
+	}
+	if err := manager.DeleteTrigger(h.ctx, updatedTrigger.ID); err != nil {
+		t.Fatalf("manager.DeleteTrigger(pre-start) error = %v", err)
+	}
+
+	if _, err := manager.HandleWebhook(h.ctx, WebhookRequest{}); !errors.Is(err, ErrManagerNotRunning) {
+		t.Fatalf("manager.HandleWebhook(pre-start) error = %v, want ErrManagerNotRunning", err)
+	}
+	if _, err := manager.FireExtensionTrigger(h.ctx, ExtensionTriggerRequest{
+		Event:       "ext.github.push",
+		Scope:       AutomationScopeWorkspace,
+		WorkspaceID: h.workspace.ID,
+	}); !errors.Is(err, ErrManagerNotRunning) {
+		t.Fatalf("manager.FireExtensionTrigger(pre-start) error = %v, want ErrManagerNotRunning", err)
+	}
+}
+
+func TestManagerTriggerJobReturnsStoredRunOnDispatchFailure(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	h.sessions = newManagerSessionStub(sessionAttemptPlan{promptErr: errors.New("prompt failed")})
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	})
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	job, err := manager.CreateJob(h.ctx, testJob(AutomationScopeWorkspace, "failing-trigger-job", h.workspace.ID))
+	if err != nil {
+		t.Fatalf("manager.CreateJob() error = %v", err)
+	}
+
+	if _, err := manager.TriggerJob(h.ctx, "job-missing"); !errors.Is(err, ErrJobNotFound) {
+		t.Fatalf("manager.TriggerJob(missing) error = %v, want ErrJobNotFound", err)
+	}
+
+	run, err := manager.TriggerJob(h.ctx, job.ID)
+	if err == nil {
+		t.Fatal("manager.TriggerJob(failing) error = nil, want prompt failure")
+	}
+	if !strings.Contains(err.Error(), "prompt failed") {
+		t.Fatalf("manager.TriggerJob(failing) error = %v, want prompt failure", err)
+	}
+	if got, want := run.JobID, job.ID; got != want {
+		t.Fatalf("failed run job_id = %q, want %q", got, want)
+	}
+}
+
+func TestManagerSetEnabledBeforeStartUsesPersistenceOnly(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	})
+
+	job, err := manager.CreateJob(h.ctx, testJob(AutomationScopeWorkspace, "prestart-enable-job", h.workspace.ID))
+	if err != nil {
+		t.Fatalf("manager.CreateJob() error = %v", err)
+	}
+	trigger, err := manager.CreateTrigger(h.ctx, Trigger{
+		ID:          "trigger-prestart-enable",
+		Scope:       AutomationScopeWorkspace,
+		Name:        "prestart-enable-trigger",
+		AgentName:   "reviewer",
+		WorkspaceID: h.workspace.ID,
+		Prompt:      `Review {{ index .Data "repo" }}`,
+		Event:       "ext.github.push",
+		Filter:      map[string]string{"data.repo": "acme/api"},
+		Enabled:     true,
+		Retry:       DefaultRetryConfig(),
+		FireLimit:   DefaultFireLimitConfig(),
+	}, "")
+	if err != nil {
+		t.Fatalf("manager.CreateTrigger() error = %v", err)
+	}
+
+	disabledJob, err := manager.SetJobEnabled(h.ctx, job.ID, false)
+	if err != nil {
+		t.Fatalf("manager.SetJobEnabled(false) error = %v", err)
+	}
+	if disabledJob.Enabled {
+		t.Fatal("disabled job enabled = true, want false")
+	}
+	disabledTrigger, err := manager.SetTriggerEnabled(h.ctx, trigger.ID, false)
+	if err != nil {
+		t.Fatalf("manager.SetTriggerEnabled(false) error = %v", err)
+	}
+	if disabledTrigger.Enabled {
+		t.Fatal("disabled trigger enabled = true, want false")
+	}
+
+	reEnabledJob, err := manager.SetJobEnabled(h.ctx, job.ID, true)
+	if err != nil {
+		t.Fatalf("manager.SetJobEnabled(true) error = %v", err)
+	}
+	if !reEnabledJob.Enabled {
+		t.Fatal("re-enabled job enabled = false, want true")
+	}
+	reEnabledTrigger, err := manager.SetTriggerEnabled(h.ctx, trigger.ID, true)
+	if err != nil {
+		t.Fatalf("manager.SetTriggerEnabled(true) error = %v", err)
+	}
+	if !reEnabledTrigger.Enabled {
+		t.Fatal("re-enabled trigger enabled = false, want true")
+	}
+}
+
 func TestManagerHelperRollbackAndComparisonCoverage(t *testing.T) {
 	t.Parallel()
 
@@ -976,6 +1823,11 @@ func (s *managerSessionStub) promptCount() int {
 
 func discardAutomationLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+func nilContextForTests() context.Context {
+	var ctx context.Context
+	return ctx
 }
 
 func managerConfigJob(scope AutomationScope, name string, workspace string, schedule ScheduleSpec) aghconfig.AutomationJob {

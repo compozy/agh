@@ -109,6 +109,7 @@ type extensionRuntime interface {
 type extensionManagerDeps struct {
 	Registry          *extensionpkg.Registry
 	Sessions          SessionManager
+	Automation        func() extensionpkg.HostAPIAutomationManager
 	MemoryStore       *memory.Store
 	Observer          Observer
 	SkillsRegistry    *skills.Registry
@@ -118,6 +119,7 @@ type extensionManagerDeps struct {
 
 type automationRuntime interface {
 	core.AutomationManager
+	extensionpkg.HostAPIAutomationManager
 	Start(ctx context.Context) error
 	Shutdown(ctx context.Context) error
 	SessionObserver() session.Notifier
@@ -130,6 +132,7 @@ type automationManagerDeps struct {
 	Sessions            SessionManager
 	WorkspaceResolver   workspacepkg.WorkspaceResolver
 	Config              aghconfig.AutomationConfig
+	Hooks               automationpkg.AutomationHookDispatcher
 	Logger              *slog.Logger
 	GlobalWorkspacePath string
 }
@@ -353,6 +356,7 @@ func (d *Daemon) applyDefaults() error {
 				deps.MemoryStore,
 				deps.Observer,
 				deps.SkillsRegistry,
+				extensionpkg.WithHostAPIAutomationGetter(deps.Automation),
 				extensionpkg.WithHostAPICapabilityChecker(capChecker),
 				extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
 			)
@@ -376,6 +380,7 @@ func (d *Daemon) applyDefaults() error {
 				automationpkg.WithSessions(deps.Sessions),
 				automationpkg.WithWorkspaceResolver(deps.WorkspaceResolver),
 				automationpkg.WithConfig(deps.Config),
+				automationpkg.WithHooks(deps.Hooks),
 				automationpkg.WithLogger(deps.Logger),
 				automationpkg.WithGlobalWorkspacePath(deps.GlobalWorkspacePath),
 			)

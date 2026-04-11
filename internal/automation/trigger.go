@@ -540,6 +540,10 @@ func (e *TriggerEngine) dispatchMatches(ctx context.Context, envelope Activation
 		Runs: make([]Run, 0, len(registrations)),
 	}
 	var errs []error
+	dispatchKind := DispatchKindTrigger
+	if envelope.Source == ActivationSourceExtension {
+		dispatchKind = DispatchKindExtension
+	}
 	for _, registration := range registrations {
 		if !registrationMatchesEnvelope(registration.Trigger, envelope) {
 			continue
@@ -547,7 +551,7 @@ func (e *TriggerEngine) dispatchMatches(ctx context.Context, envelope Activation
 
 		result.Matched++
 		run, err := e.dispatcher.Dispatch(ctx, DispatchRequest{
-			Kind:     DispatchKindTrigger,
+			Kind:     dispatchKind,
 			Trigger:  pointerToRegisteredTrigger(registration.Trigger),
 			Envelope: pointerToActivationEnvelope(envelope),
 		})

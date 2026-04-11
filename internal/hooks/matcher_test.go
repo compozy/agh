@@ -223,6 +223,21 @@ func TestHookMatcherMatchesEvent(t *testing.T) {
 	}
 }
 
+func TestHookMatcherMatchesAutomation(t *testing.T) {
+	t.Parallel()
+
+	matcher := HookMatcher{
+		AgentName:   "reviewer",
+		WorkspaceID: "ws-1",
+	}
+	if !matcher.MatchesAutomation("reviewer", "ws-1") {
+		t.Fatal("MatchesAutomation() = false, want true")
+	}
+	if matcher.MatchesAutomation("coder", "ws-1") {
+		t.Fatal("MatchesAutomation() = true, want false for agent mismatch")
+	}
+}
+
 func TestHookMatcherMatchesToolResponses(t *testing.T) {
 	t.Parallel()
 

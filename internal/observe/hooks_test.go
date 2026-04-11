@@ -126,7 +126,7 @@ func TestObserverHookRunQueriesHandleMissingDBAndEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("QueryHookEvents() error = %v", err)
 	}
-	if got, want := len(events), 27; got != want {
+	if got, want := len(events), len(hookspkg.AllEventDescriptors()); got != want {
 		t.Fatalf("len(events) = %d, want %d", got, want)
 	}
 }

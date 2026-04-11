@@ -10,6 +10,7 @@ const (
 	HookEventFamilyInput      HookEventFamily = "input"
 	HookEventFamilyPrompt     HookEventFamily = "prompt"
 	HookEventFamilyEvent      HookEventFamily = "event"
+	HookEventFamilyAutomation HookEventFamily = "automation"
 	HookEventFamilyAgent      HookEventFamily = "agent"
 	HookEventFamilyTurn       HookEventFamily = "turn"
 	HookEventFamilyMessage    HookEventFamily = "message"
@@ -25,6 +26,7 @@ func (f HookEventFamily) Validate() error {
 		HookEventFamilyInput,
 		HookEventFamilyPrompt,
 		HookEventFamilyEvent,
+		HookEventFamilyAutomation,
 		HookEventFamilyAgent,
 		HookEventFamilyTurn,
 		HookEventFamilyMessage,
@@ -54,6 +56,13 @@ const (
 
 	HookEventPreRecord  HookEvent = "event.pre_record"
 	HookEventPostRecord HookEvent = "event.post_record"
+
+	HookAutomationJobPreFire      HookEvent = "automation.job.pre_fire"
+	HookAutomationJobPostFire     HookEvent = "automation.job.post_fire"
+	HookAutomationTriggerPreFire  HookEvent = "automation.trigger.pre_fire"
+	HookAutomationTriggerPostFire HookEvent = "automation.trigger.post_fire"
+	HookAutomationRunCompleted    HookEvent = "automation.run.completed"
+	HookAutomationRunFailed       HookEvent = "automation.run.failed"
 
 	HookAgentPreStart HookEvent = "agent.pre_start"
 	HookAgentSpawned  HookEvent = "agent.spawned"
@@ -98,18 +107,42 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 	},
 	HookEventPreRecord:  {family: HookEventFamilyEvent, syncEligible: false},
 	HookEventPostRecord: {family: HookEventFamilyEvent, syncEligible: false},
-	HookAgentPreStart:   {family: HookEventFamilyAgent, syncEligible: true},
-	HookAgentSpawned:    {family: HookEventFamilyAgent, syncEligible: true},
-	HookAgentCrashed:    {family: HookEventFamilyAgent, syncEligible: true},
-	HookAgentStopped:    {family: HookEventFamilyAgent, syncEligible: true},
-	HookTurnStart:       {family: HookEventFamilyTurn, syncEligible: true},
-	HookTurnEnd:         {family: HookEventFamilyTurn, syncEligible: true},
-	HookMessageStart:    {family: HookEventFamilyMessage, syncEligible: true},
-	HookMessageDelta:    {family: HookEventFamilyMessage, syncEligible: false},
-	HookMessageEnd:      {family: HookEventFamilyMessage, syncEligible: true},
-	HookToolPreCall:     {family: HookEventFamilyTool, syncEligible: true},
-	HookToolPostCall:    {family: HookEventFamilyTool, syncEligible: true},
-	HookToolPostError:   {family: HookEventFamilyTool, syncEligible: true},
+	HookAutomationJobPreFire: {
+		family:       HookEventFamilyAutomation,
+		syncEligible: true,
+	},
+	HookAutomationJobPostFire: {
+		family:       HookEventFamilyAutomation,
+		syncEligible: false,
+	},
+	HookAutomationTriggerPreFire: {
+		family:       HookEventFamilyAutomation,
+		syncEligible: true,
+	},
+	HookAutomationTriggerPostFire: {
+		family:       HookEventFamilyAutomation,
+		syncEligible: false,
+	},
+	HookAutomationRunCompleted: {
+		family:       HookEventFamilyAutomation,
+		syncEligible: false,
+	},
+	HookAutomationRunFailed: {
+		family:       HookEventFamilyAutomation,
+		syncEligible: false,
+	},
+	HookAgentPreStart: {family: HookEventFamilyAgent, syncEligible: true},
+	HookAgentSpawned:  {family: HookEventFamilyAgent, syncEligible: true},
+	HookAgentCrashed:  {family: HookEventFamilyAgent, syncEligible: true},
+	HookAgentStopped:  {family: HookEventFamilyAgent, syncEligible: true},
+	HookTurnStart:     {family: HookEventFamilyTurn, syncEligible: true},
+	HookTurnEnd:       {family: HookEventFamilyTurn, syncEligible: true},
+	HookMessageStart:  {family: HookEventFamilyMessage, syncEligible: true},
+	HookMessageDelta:  {family: HookEventFamilyMessage, syncEligible: false},
+	HookMessageEnd:    {family: HookEventFamilyMessage, syncEligible: true},
+	HookToolPreCall:   {family: HookEventFamilyTool, syncEligible: true},
+	HookToolPostCall:  {family: HookEventFamilyTool, syncEligible: true},
+	HookToolPostError: {family: HookEventFamilyTool, syncEligible: true},
 	HookPermissionRequest: {
 		family:       HookEventFamilyPermission,
 		syncEligible: true,
@@ -137,6 +170,12 @@ var allHookEvents = []HookEvent{
 	HookPromptPostAssemble,
 	HookEventPreRecord,
 	HookEventPostRecord,
+	HookAutomationJobPreFire,
+	HookAutomationJobPostFire,
+	HookAutomationTriggerPreFire,
+	HookAutomationTriggerPostFire,
+	HookAutomationRunCompleted,
+	HookAutomationRunFailed,
 	HookAgentPreStart,
 	HookAgentSpawned,
 	HookAgentCrashed,

@@ -2,7 +2,13 @@ package hooks
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
+)
+
+var (
+	// ErrAutomationFireCancelled reports that a sync automation pre-fire hook cancelled the dispatch.
+	ErrAutomationFireCancelled = errors.New("hooks: automation fire cancelled")
 )
 
 // PayloadBase carries the common identifiers attached to every hook payload.
@@ -187,6 +193,92 @@ type EventPreRecordPatch = EventRecordPatch
 
 // EventPostRecordPatch is the post-record patch surface.
 type EventPostRecordPatch = EventRecordPatch
+
+// AutomationSchedulePayload carries the serializable schedule shape exposed to automation hooks.
+type AutomationSchedulePayload struct {
+	Mode     string `json:"mode,omitempty"`
+	Expr     string `json:"expr,omitempty"`
+	Interval string `json:"interval,omitempty"`
+	Time     string `json:"time,omitempty"`
+}
+
+// AutomationJobPreFirePayload is delivered before a job fire dispatches.
+type AutomationJobPreFirePayload struct {
+	JobID       string                     `json:"job_id"`
+	JobName     string                     `json:"job_name,omitempty"`
+	AgentName   string                     `json:"agent_name,omitempty"`
+	WorkspaceID string                     `json:"workspace_id,omitempty"`
+	Prompt      string                     `json:"prompt,omitempty"`
+	Schedule    *AutomationSchedulePayload `json:"schedule,omitempty"`
+	Attempt     int                        `json:"attempt,omitempty"`
+}
+
+// AutomationJobPostFirePayload is delivered after a job fire hands off to a session.
+type AutomationJobPostFirePayload struct {
+	JobID       string `json:"job_id"`
+	JobName     string `json:"job_name,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	RunID       string `json:"run_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+}
+
+// AutomationTriggerPreFirePayload is delivered before a trigger fire dispatches.
+type AutomationTriggerPreFirePayload struct {
+	TriggerID   string         `json:"trigger_id"`
+	TriggerName string         `json:"trigger_name,omitempty"`
+	Event       string         `json:"event,omitempty"`
+	AgentName   string         `json:"agent_name,omitempty"`
+	WorkspaceID string         `json:"workspace_id,omitempty"`
+	Prompt      string         `json:"prompt,omitempty"`
+	Payload     map[string]any `json:"payload,omitempty"`
+	Attempt     int            `json:"attempt,omitempty"`
+}
+
+// AutomationTriggerPostFirePayload is delivered after a trigger fire hands off to a session.
+type AutomationTriggerPostFirePayload struct {
+	TriggerID   string `json:"trigger_id"`
+	TriggerName string `json:"trigger_name,omitempty"`
+	Event       string `json:"event,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	RunID       string `json:"run_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+}
+
+// AutomationRunCompletedPayload is delivered after an automation run finishes successfully.
+type AutomationRunCompletedPayload struct {
+	RunID       string `json:"run_id"`
+	JobID       string `json:"job_id,omitempty"`
+	TriggerID   string `json:"trigger_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+	Attempt     int    `json:"attempt,omitempty"`
+	DurationMS  int64  `json:"duration_ms,omitempty"`
+}
+
+// AutomationRunFailedPayload is delivered after an automation run fails.
+type AutomationRunFailedPayload struct {
+	RunID       string `json:"run_id"`
+	JobID       string `json:"job_id,omitempty"`
+	TriggerID   string `json:"trigger_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+	Error       string `json:"error,omitempty"`
+	Attempt     int    `json:"attempt,omitempty"`
+	WillRetry   bool   `json:"will_retry,omitempty"`
+}
+
+// AutomationFirePatch mutates or cancels one automation pre-fire dispatch.
+type AutomationFirePatch struct {
+	Prompt *string `json:"prompt,omitempty"`
+	Cancel bool    `json:"cancel,omitempty"`
+}
+
+// AutomationObservationPatch is the no-op patch surface for async automation observation hooks.
+type AutomationObservationPatch struct{}
 
 // AgentPreStartPayload is delivered before an agent process starts.
 type AgentPreStartPayload struct {

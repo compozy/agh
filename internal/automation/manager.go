@@ -206,6 +206,16 @@ func WithWebhookSecretResolver(resolver WebhookSecretResolver) Option {
 	}
 }
 
+// WithHooks injects the automation lifecycle hook dispatcher used by the shared dispatcher path.
+func WithHooks(hooks AutomationHookDispatcher) Option {
+	return func(opts *managerOptions) {
+		if hooks == nil {
+			return
+		}
+		opts.dispatcherOptions = append(opts.dispatcherOptions, WithDispatcherHooks(hooks))
+	}
+}
+
 // WithDispatcherOptions appends dispatcher options used when constructing the
 // shared dispatcher.
 func WithDispatcherOptions(options ...DispatcherOption) Option {
@@ -956,6 +966,33 @@ func (m *Manager) HandleWebhook(ctx context.Context, request WebhookRequest) (Tr
 	mergedCtx, cancel := mergedRuntimeContext(ctx, runtimeCtx)
 	defer cancel()
 	return engine.HandleWebhook(mergedCtx, request)
+}
+
+// FireExtensionTrigger routes one extension-originated ext.* event through the shared trigger engine.
+func (m *Manager) FireExtensionTrigger(ctx context.Context, request ExtensionTriggerRequest) (TriggerResult, error) {
+	if err := request.Validate("extension_trigger"); err != nil {
+		return TriggerResult{}, err
+	}
+
+	engine, runtimeCtx, ok := m.triggerRuntime()
+	if !ok {
+		return TriggerResult{}, ErrManagerNotRunning
+	}
+
+	mergedCtx, cancel := mergedRuntimeContext(ctx, runtimeCtx)
+	defer cancel()
+
+	envelope := ActivationEnvelope{
+		Kind:        strings.TrimSpace(request.Event),
+		Scope:       request.Scope,
+		WorkspaceID: strings.TrimSpace(request.WorkspaceID),
+		Source:      ActivationSourceExtension,
+		Data:        cloneJSONMap(request.Payload),
+	}
+	if envelope.Data == nil {
+		envelope.Data = map[string]any{}
+	}
+	return engine.Fire(mergedCtx, envelope)
 }
 
 // SessionObserver exposes the existing session notifier seam for automation

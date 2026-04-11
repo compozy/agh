@@ -2920,6 +2920,13 @@ func (f *fakeAutomationManager) HandleWebhook(context.Context, automationpkg.Web
 	return automationpkg.TriggerResult{}, nil
 }
 
+func (f *fakeAutomationManager) FireExtensionTrigger(_ context.Context, request automationpkg.ExtensionTriggerRequest) (automationpkg.TriggerResult, error) {
+	return automationpkg.TriggerResult{
+		Matched: 0,
+		Runs:    append([]automationpkg.Run(nil), f.runs...),
+	}, request.Validate("extension_trigger")
+}
+
 func (f *fakeAutomationManager) SessionObserver() session.Notifier {
 	if f.sessionObserver != nil {
 		return f.sessionObserver
@@ -3014,6 +3021,30 @@ func (f *fakeHookRuntime) DispatchEventPreRecord(_ context.Context, payload hook
 }
 
 func (f *fakeHookRuntime) DispatchEventPostRecord(_ context.Context, payload hookspkg.EventPostRecordPayload) (hookspkg.EventPostRecordPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAutomationJobPreFire(_ context.Context, payload hookspkg.AutomationJobPreFirePayload) (hookspkg.AutomationJobPreFirePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAutomationJobPostFire(_ context.Context, payload hookspkg.AutomationJobPostFirePayload) (hookspkg.AutomationJobPostFirePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAutomationTriggerPreFire(_ context.Context, payload hookspkg.AutomationTriggerPreFirePayload) (hookspkg.AutomationTriggerPreFirePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAutomationTriggerPostFire(_ context.Context, payload hookspkg.AutomationTriggerPostFirePayload) (hookspkg.AutomationTriggerPostFirePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAutomationRunCompleted(_ context.Context, payload hookspkg.AutomationRunCompletedPayload) (hookspkg.AutomationRunCompletedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAutomationRunFailed(_ context.Context, payload hookspkg.AutomationRunFailedPayload) (hookspkg.AutomationRunFailedPayload, error) {
 	return payload, nil
 }
 

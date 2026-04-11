@@ -458,6 +458,7 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 		Sessions:            state.sessions,
 		WorkspaceResolver:   state.workspaceResolver,
 		Config:              state.cfg.Automation,
+		Hooks:               state.hooks,
 		Logger:              state.logger.With("component", "automation"),
 		GlobalWorkspacePath: d.homePaths.HomeDir,
 	})
@@ -499,8 +500,11 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
 	manager := d.newExtensionManager(extensionManagerDeps{
-		Registry:          extRegistry,
-		Sessions:          state.sessions,
+		Registry: extRegistry,
+		Sessions: state.sessions,
+		Automation: func() extensionpkg.HostAPIAutomationManager {
+			return state.automation
+		},
 		MemoryStore:       state.memoryStore,
 		Observer:          state.observer,
 		SkillsRegistry:    state.skillsRegistry,

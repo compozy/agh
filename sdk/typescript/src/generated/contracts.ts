@@ -2,6 +2,21 @@
 import type { ISODateTime, JSONValue } from "../base-types.js";
 
 export type HostAPIMethod =
+  | "automation/jobs"
+  | "automation/jobs/create"
+  | "automation/jobs/delete"
+  | "automation/jobs/get"
+  | "automation/jobs/runs"
+  | "automation/jobs/trigger"
+  | "automation/jobs/update"
+  | "automation/runs"
+  | "automation/triggers"
+  | "automation/triggers/create"
+  | "automation/triggers/delete"
+  | "automation/triggers/fire"
+  | "automation/triggers/get"
+  | "automation/triggers/runs"
+  | "automation/triggers/update"
   | "memory/forget"
   | "memory/recall"
   | "memory/store"
@@ -36,6 +51,12 @@ export type HookEvent =
   | "prompt.post_assemble"
   | "event.pre_record"
   | "event.post_record"
+  | "automation.job.pre_fire"
+  | "automation.job.post_fire"
+  | "automation.trigger.pre_fire"
+  | "automation.trigger.post_fire"
+  | "automation.run.completed"
+  | "automation.run.failed"
   | "agent.pre_start"
   | "agent.spawned"
   | "agent.crashed"
@@ -180,6 +201,213 @@ export interface AgentStoppedPayload {
   provider?: string;
   model?: string;
   error?: string;
+}
+
+export interface AutomationFirePatch {
+  prompt?: string;
+  cancel?: boolean;
+}
+
+export type AutomationScope = string;
+
+export type ScheduleMode = string;
+
+export interface ScheduleSpec {
+  mode: ScheduleMode;
+  expr?: string;
+  interval?: string;
+  time?: string;
+}
+
+export type RetryStrategy = string;
+
+export interface RetryConfig {
+  strategy: RetryStrategy;
+  max_retries: number;
+  base_delay: string;
+}
+
+export interface FireLimitConfig {
+  max: number;
+  window: string;
+}
+
+export interface AutomationJobCreateParams {
+  scope: AutomationScope;
+  name: string;
+  agent_name: string;
+  workspace_id?: string;
+  prompt: string;
+  schedule: ScheduleSpec;
+  enabled?: boolean;
+  retry?: RetryConfig;
+  fire_limit?: FireLimitConfig;
+}
+
+export interface AutomationJobPostFirePayload {
+  job_id: string;
+  job_name?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  run_id?: string;
+  session_id?: string;
+}
+
+export interface AutomationSchedulePayload {
+  mode?: string;
+  expr?: string;
+  interval?: string;
+  time?: string;
+}
+
+export interface AutomationJobPreFirePayload {
+  job_id: string;
+  job_name?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  prompt?: string;
+  schedule?: AutomationSchedulePayload;
+  attempt?: number;
+}
+
+export type RunStatus = string;
+
+export interface AutomationJobRunsParams {
+  id: string;
+  status?: RunStatus;
+  limit?: number;
+}
+
+export interface AutomationJobTriggerParams {
+  id: string;
+  payload?: Record<string, JSONValue>;
+}
+
+export interface AutomationJobUpdateParams {
+  id: string;
+  name?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  prompt?: string;
+  schedule?: ScheduleSpec;
+  enabled?: boolean;
+  retry?: RetryConfig;
+  fire_limit?: FireLimitConfig;
+}
+
+export interface AutomationJobsParams {
+  scope?: AutomationScope;
+  workspace_id?: string;
+  enabled?: boolean;
+}
+
+export type AutomationObservationPatch = Record<string, never>;
+
+export interface AutomationRunCompletedPayload {
+  run_id: string;
+  job_id?: string;
+  trigger_id?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  session_id?: string;
+  attempt?: number;
+  duration_ms?: number;
+}
+
+export interface AutomationRunFailedPayload {
+  run_id: string;
+  job_id?: string;
+  trigger_id?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  session_id?: string;
+  error?: string;
+  attempt?: number;
+  will_retry?: boolean;
+}
+
+export interface AutomationRunsParams {
+  job_id?: string;
+  trigger_id?: string;
+  status?: RunStatus;
+  limit?: number;
+}
+
+export interface AutomationTargetParams {
+  id: string;
+}
+
+export interface AutomationTriggerCreateParams {
+  scope: AutomationScope;
+  name: string;
+  agent_name: string;
+  workspace_id?: string;
+  prompt: string;
+  event: string;
+  filter?: Record<string, string>;
+  enabled?: boolean;
+  retry?: RetryConfig;
+  fire_limit?: FireLimitConfig;
+  webhook_id?: string;
+  endpoint_slug?: string;
+  webhook_secret?: string;
+}
+
+export interface AutomationTriggerFireParams {
+  event: string;
+  scope: AutomationScope;
+  workspace_id?: string;
+  payload?: Record<string, JSONValue>;
+}
+
+export interface AutomationTriggerPostFirePayload {
+  trigger_id: string;
+  trigger_name?: string;
+  event?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  run_id?: string;
+  session_id?: string;
+}
+
+export interface AutomationTriggerPreFirePayload {
+  trigger_id: string;
+  trigger_name?: string;
+  event?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  prompt?: string;
+  payload?: Record<string, JSONValue>;
+  attempt?: number;
+}
+
+export interface AutomationTriggerRunsParams {
+  id: string;
+  status?: RunStatus;
+  limit?: number;
+}
+
+export interface AutomationTriggerUpdateParams {
+  id: string;
+  name?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  prompt?: string;
+  event?: string;
+  filter?: Record<string, string>;
+  enabled?: boolean;
+  retry?: RetryConfig;
+  fire_limit?: FireLimitConfig;
+  webhook_id?: string;
+  endpoint_slug?: string;
+  webhook_secret?: string;
+}
+
+export interface AutomationTriggersParams {
+  scope?: AutomationScope;
+  workspace_id?: string;
+  event?: string;
+  enabled?: boolean;
 }
 
 export interface ContextBlock {
@@ -484,6 +712,24 @@ export interface InputPreSubmitPayload {
   input_class?: string;
   message?: string;
   context_blocks?: ContextBlock[];
+}
+
+export type JobSource = string;
+
+export interface Job {
+  id: string;
+  scope: AutomationScope;
+  name: string;
+  agent_name: string;
+  workspace_id?: string;
+  prompt: string;
+  schedule?: ScheduleSpec;
+  enabled: boolean;
+  retry: RetryConfig;
+  fire_limit: FireLimitConfig;
+  source: JobSource;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
 }
 
 export type MemoryScope = "global" | "workspace";
@@ -804,6 +1050,18 @@ export interface PromptPayload {
   input_class?: string;
   prompt?: string;
   context_blocks?: ContextBlock[];
+}
+
+export interface Run {
+  id: string;
+  job_id?: string;
+  trigger_id?: string;
+  session_id?: string;
+  status: RunStatus;
+  attempt: number;
+  started_at?: ISODateTime;
+  ended_at?: ISODateTime;
+  error?: string;
 }
 
 export interface SessionContext {
@@ -1192,6 +1450,30 @@ export interface ToolResultPatch {
   error?: string;
 }
 
+export interface Trigger {
+  id: string;
+  scope: AutomationScope;
+  name: string;
+  agent_name: string;
+  workspace_id?: string;
+  prompt: string;
+  event: string;
+  filter?: Record<string, string>;
+  enabled: boolean;
+  retry: RetryConfig;
+  fire_limit: FireLimitConfig;
+  source: JobSource;
+  webhook_id?: string;
+  endpoint_slug?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+}
+
+export interface TriggerResult {
+  matched: number;
+  runs?: Run[];
+}
+
 export interface TurnContext {
   turn_id?: string;
 }
@@ -1279,6 +1561,12 @@ export interface HookPayloadByEvent {
   "prompt.post_assemble": PromptPayload;
   "event.pre_record": EventPreRecordPayload;
   "event.post_record": EventPostRecordPayload;
+  "automation.job.pre_fire": AutomationJobPreFirePayload;
+  "automation.job.post_fire": AutomationJobPostFirePayload;
+  "automation.trigger.pre_fire": AutomationTriggerPreFirePayload;
+  "automation.trigger.post_fire": AutomationTriggerPostFirePayload;
+  "automation.run.completed": AutomationRunCompletedPayload;
+  "automation.run.failed": AutomationRunFailedPayload;
   "agent.pre_start": AgentPreStartPayload;
   "agent.spawned": AgentSpawnedPayload;
   "agent.crashed": AgentCrashedPayload;
@@ -1309,6 +1597,12 @@ export interface HookPatchByEvent {
   "prompt.post_assemble": PromptPatch;
   "event.pre_record": EventPreRecordPatch;
   "event.post_record": EventPostRecordPatch;
+  "automation.job.pre_fire": AutomationFirePatch;
+  "automation.job.post_fire": AutomationObservationPatch;
+  "automation.trigger.pre_fire": AutomationFirePatch;
+  "automation.trigger.post_fire": AutomationObservationPatch;
+  "automation.run.completed": AutomationObservationPatch;
+  "automation.run.failed": AutomationObservationPatch;
   "agent.pre_start": AgentStartPatch;
   "agent.spawned": AgentSpawnedPatch;
   "agent.crashed": AgentCrashedPatch;
@@ -1376,5 +1670,65 @@ export interface HostAPIMethodMap {
   "skills/list": {
     params: SkillsListParams | undefined;
     result: SkillSummary[];
+  };
+  "automation/jobs": {
+    params: AutomationJobsParams | undefined;
+    result: Job[];
+  };
+  "automation/jobs/get": {
+    params: AutomationTargetParams;
+    result: Job;
+  };
+  "automation/jobs/create": {
+    params: AutomationJobCreateParams;
+    result: Job;
+  };
+  "automation/jobs/update": {
+    params: AutomationJobUpdateParams;
+    result: Job;
+  };
+  "automation/jobs/delete": {
+    params: AutomationTargetParams;
+    result: EmptyResult;
+  };
+  "automation/jobs/trigger": {
+    params: AutomationJobTriggerParams;
+    result: Run;
+  };
+  "automation/jobs/runs": {
+    params: AutomationJobRunsParams;
+    result: Run[];
+  };
+  "automation/triggers": {
+    params: AutomationTriggersParams | undefined;
+    result: Trigger[];
+  };
+  "automation/triggers/get": {
+    params: AutomationTargetParams;
+    result: Trigger;
+  };
+  "automation/triggers/create": {
+    params: AutomationTriggerCreateParams;
+    result: Trigger;
+  };
+  "automation/triggers/update": {
+    params: AutomationTriggerUpdateParams;
+    result: Trigger;
+  };
+  "automation/triggers/delete": {
+    params: AutomationTargetParams;
+    result: EmptyResult;
+  };
+  "automation/triggers/runs": {
+    params: AutomationTriggerRunsParams;
+    result: Run[];
+  };
+  "automation/triggers/fire": {
+    params: AutomationTriggerFireParams;
+    result: TriggerResult;
+  };
+  "automation/runs": {
+    params: AutomationRunsParams | undefined;
+    result: Run[];
   };
 }

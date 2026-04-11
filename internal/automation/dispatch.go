@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
 )
 
@@ -124,6 +125,16 @@ type RunStore interface {
 	CountRuns(ctx context.Context, query RunQuery) (int64, error)
 }
 
+// AutomationHookDispatcher emits automation lifecycle hooks around shared dispatch.
+type AutomationHookDispatcher interface {
+	DispatchAutomationJobPreFire(ctx context.Context, payload hookspkg.AutomationJobPreFirePayload) (hookspkg.AutomationJobPreFirePayload, error)
+	DispatchAutomationJobPostFire(ctx context.Context, payload hookspkg.AutomationJobPostFirePayload) (hookspkg.AutomationJobPostFirePayload, error)
+	DispatchAutomationTriggerPreFire(ctx context.Context, payload hookspkg.AutomationTriggerPreFirePayload) (hookspkg.AutomationTriggerPreFirePayload, error)
+	DispatchAutomationTriggerPostFire(ctx context.Context, payload hookspkg.AutomationTriggerPostFirePayload) (hookspkg.AutomationTriggerPostFirePayload, error)
+	DispatchAutomationRunCompleted(ctx context.Context, payload hookspkg.AutomationRunCompletedPayload) (hookspkg.AutomationRunCompletedPayload, error)
+	DispatchAutomationRunFailed(ctx context.Context, payload hookspkg.AutomationRunFailedPayload) (hookspkg.AutomationRunFailedPayload, error)
+}
+
 // SleepFunc waits for retry backoff with context cancellation support.
 type SleepFunc func(ctx context.Context, delay time.Duration) error
 
@@ -140,6 +151,7 @@ type Dispatcher struct {
 	sleep               SleepFunc
 	globalWorkspacePath string
 	maxConcurrent       int
+	hooks               AutomationHookDispatcher
 
 	fireLimitMu sync.Mutex
 	gate        chan struct{}
@@ -224,6 +236,13 @@ func WithDispatcherMaxConcurrent(limit int) DispatcherOption {
 	}
 }
 
+// WithDispatcherHooks injects the automation lifecycle hook dispatcher.
+func WithDispatcherHooks(hooks AutomationHookDispatcher) DispatcherOption {
+	return func(dispatcher *Dispatcher) {
+		dispatcher.hooks = hooks
+	}
+}
+
 // Dispatch executes one automation request through the shared governance path.
 func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, error) {
 	if ctx == nil {
@@ -239,6 +258,10 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, e
 		run, err := d.dispatchAttempt(ctx, req, attempt)
 		if run != nil {
 			lastRun = cloneRun(run)
+		}
+		if run != nil && d.hooks != nil {
+			willRetry := err != nil && shouldRetry(req.retryConfig(), run, attempt, err)
+			d.emitRunLifecycleHooks(ctx, req, *run, err, willRetry)
 		}
 		if err == nil {
 			return lastRun, nil
@@ -287,6 +310,13 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	if promptErr != nil {
 		return d.finishRun(ctx, scheduledRun, RunFailed, promptErr)
 	}
+	prompt, cancelled, hookErr := d.dispatchPreFireHook(ctx, req, prompt, attempt)
+	if hookErr != nil {
+		return d.finishRun(ctx, scheduledRun, RunFailed, hookErr)
+	}
+	if cancelled {
+		return d.finishRun(ctx, scheduledRun, RunCancelled, nil)
+	}
 
 	createOpts := d.createOpts(req)
 	createdSession, createErr := d.sessions.Create(ctx, createOpts)
@@ -309,6 +339,7 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	if promptErr != nil {
 		return d.finishRun(ctx, runningRun, classifyDispatchError(promptErr), promptErr)
 	}
+	d.dispatchPostFireHook(ctx, req, *runningRun)
 
 	runErr := collectPromptError(ctx, events)
 	if runErr != nil {
@@ -403,7 +434,7 @@ func (d *Dispatcher) finishRun(ctx context.Context, current *Run, status RunStat
 		return updatedRun, errors.Join(runErr, updateErr)
 	}
 
-	if runErr == nil {
+	if runErr == nil && status == RunCompleted {
 		d.logger.Info(
 			"automation.dispatch.completed",
 			"run_id", updatedRun.ID,
@@ -411,6 +442,18 @@ func (d *Dispatcher) finishRun(ctx context.Context, current *Run, status RunStat
 			"trigger_id", strings.TrimSpace(updatedRun.TriggerID),
 			"session_id", strings.TrimSpace(updatedRun.SessionID),
 			"attempt", updatedRun.Attempt,
+		)
+		return updatedRun, nil
+	}
+	if runErr == nil {
+		d.logger.Info(
+			"automation.dispatch.finished",
+			"run_id", updatedRun.ID,
+			"job_id", strings.TrimSpace(updatedRun.JobID),
+			"trigger_id", strings.TrimSpace(updatedRun.TriggerID),
+			"session_id", strings.TrimSpace(updatedRun.SessionID),
+			"attempt", updatedRun.Attempt,
+			"status", updatedRun.Status,
 		)
 		return updatedRun, nil
 	}
@@ -430,6 +473,120 @@ func (d *Dispatcher) finishRun(ctx context.Context, current *Run, status RunStat
 		"error", runErr,
 	)
 	return updatedRun, runErr
+}
+
+func (d *Dispatcher) dispatchPreFireHook(ctx context.Context, req DispatchRequest, prompt string, attempt int) (string, bool, error) {
+	if d == nil || d.hooks == nil {
+		return prompt, false, nil
+	}
+
+	switch {
+	case req.Job != nil:
+		payload := hookspkg.AutomationJobPreFirePayload{
+			JobID:       strings.TrimSpace(req.Job.ID),
+			JobName:     strings.TrimSpace(req.Job.Name),
+			AgentName:   strings.TrimSpace(req.Job.AgentName),
+			WorkspaceID: strings.TrimSpace(req.Job.WorkspaceID),
+			Prompt:      prompt,
+			Schedule:    hookSchedulePayload(req.Job.Schedule),
+			Attempt:     attempt,
+		}
+		next, err := d.hooks.DispatchAutomationJobPreFire(ctx, payload)
+		if err != nil {
+			if errors.Is(err, hookspkg.ErrAutomationFireCancelled) {
+				return prompt, true, nil
+			}
+			return prompt, false, err
+		}
+		return strings.TrimSpace(next.Prompt), false, nil
+	case req.Trigger != nil:
+		payload := hookspkg.AutomationTriggerPreFirePayload{
+			TriggerID:   strings.TrimSpace(req.Trigger.ID),
+			TriggerName: strings.TrimSpace(req.Trigger.Name),
+			Event:       strings.TrimSpace(req.Trigger.Event),
+			AgentName:   strings.TrimSpace(req.Trigger.AgentName),
+			WorkspaceID: strings.TrimSpace(req.Trigger.WorkspaceID),
+			Prompt:      prompt,
+			Payload:     cloneJSONMap(req.envelopeData()),
+			Attempt:     attempt,
+		}
+		next, err := d.hooks.DispatchAutomationTriggerPreFire(ctx, payload)
+		if err != nil {
+			if errors.Is(err, hookspkg.ErrAutomationFireCancelled) {
+				return prompt, true, nil
+			}
+			return prompt, false, err
+		}
+		return strings.TrimSpace(next.Prompt), false, nil
+	default:
+		return prompt, false, nil
+	}
+}
+
+func (d *Dispatcher) dispatchPostFireHook(ctx context.Context, req DispatchRequest, run Run) {
+	if d == nil || d.hooks == nil {
+		return
+	}
+
+	switch {
+	case req.Job != nil:
+		_, _ = d.hooks.DispatchAutomationJobPostFire(ctx, hookspkg.AutomationJobPostFirePayload{
+			JobID:       strings.TrimSpace(req.Job.ID),
+			JobName:     strings.TrimSpace(req.Job.Name),
+			AgentName:   strings.TrimSpace(req.Job.AgentName),
+			WorkspaceID: strings.TrimSpace(req.Job.WorkspaceID),
+			RunID:       strings.TrimSpace(run.ID),
+			SessionID:   strings.TrimSpace(run.SessionID),
+		})
+	case req.Trigger != nil:
+		_, _ = d.hooks.DispatchAutomationTriggerPostFire(ctx, hookspkg.AutomationTriggerPostFirePayload{
+			TriggerID:   strings.TrimSpace(req.Trigger.ID),
+			TriggerName: strings.TrimSpace(req.Trigger.Name),
+			Event:       strings.TrimSpace(req.Trigger.Event),
+			AgentName:   strings.TrimSpace(req.Trigger.AgentName),
+			WorkspaceID: strings.TrimSpace(req.Trigger.WorkspaceID),
+			RunID:       strings.TrimSpace(run.ID),
+			SessionID:   strings.TrimSpace(run.SessionID),
+		})
+	}
+}
+
+func (d *Dispatcher) emitRunLifecycleHooks(ctx context.Context, req DispatchRequest, run Run, dispatchErr error, willRetry bool) {
+	if d == nil || d.hooks == nil {
+		return
+	}
+	if run.Status == RunCompleted {
+		_, _ = d.hooks.DispatchAutomationRunCompleted(ctx, hookspkg.AutomationRunCompletedPayload{
+			RunID:       strings.TrimSpace(run.ID),
+			JobID:       strings.TrimSpace(run.JobID),
+			TriggerID:   strings.TrimSpace(run.TriggerID),
+			AgentName:   req.agentName(),
+			WorkspaceID: req.workspaceID(),
+			SessionID:   strings.TrimSpace(run.SessionID),
+			Attempt:     run.Attempt,
+			DurationMS:  runDurationMilliseconds(run),
+		})
+		return
+	}
+	if run.Status != RunFailed {
+		return
+	}
+
+	errText := strings.TrimSpace(run.Error)
+	if errText == "" && dispatchErr != nil {
+		errText = dispatchErr.Error()
+	}
+	_, _ = d.hooks.DispatchAutomationRunFailed(ctx, hookspkg.AutomationRunFailedPayload{
+		RunID:       strings.TrimSpace(run.ID),
+		JobID:       strings.TrimSpace(run.JobID),
+		TriggerID:   strings.TrimSpace(run.TriggerID),
+		AgentName:   req.agentName(),
+		WorkspaceID: req.workspaceID(),
+		SessionID:   strings.TrimSpace(run.SessionID),
+		Error:       errText,
+		Attempt:     run.Attempt,
+		WillRetry:   willRetry,
+	})
 }
 
 func (d *Dispatcher) createOpts(req DispatchRequest) session.CreateOpts {
@@ -491,6 +648,13 @@ func (r DispatchRequest) workspaceID() string {
 		return strings.TrimSpace(r.Job.WorkspaceID)
 	}
 	return strings.TrimSpace(r.Trigger.WorkspaceID)
+}
+
+func (r DispatchRequest) envelopeData() map[string]any {
+	if r.Envelope == nil {
+		return nil
+	}
+	return r.Envelope.Data
 }
 
 func (r DispatchRequest) retryConfig() RetryConfig {
@@ -659,6 +823,36 @@ func cloneRun(run *Run) *Run {
 		cloned.EndedAt = &endedAt
 	}
 	return &cloned
+}
+
+func hookSchedulePayload(schedule *ScheduleSpec) *hookspkg.AutomationSchedulePayload {
+	if schedule == nil {
+		return nil
+	}
+	return &hookspkg.AutomationSchedulePayload{
+		Mode:     string(schedule.Mode),
+		Expr:     strings.TrimSpace(schedule.Expr),
+		Interval: strings.TrimSpace(schedule.Interval),
+		Time:     strings.TrimSpace(schedule.Time),
+	}
+}
+
+func runDurationMilliseconds(run Run) int64 {
+	if run.StartedAt == nil || run.EndedAt == nil {
+		return 0
+	}
+	return run.EndedAt.UTC().Sub(run.StartedAt.UTC()).Milliseconds()
+}
+
+func cloneJSONMap(source map[string]any) map[string]any {
+	if len(source) == 0 {
+		return nil
+	}
+	cloned := make(map[string]any, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func nestedPath(path string, field string) string {

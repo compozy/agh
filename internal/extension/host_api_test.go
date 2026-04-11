@@ -16,7 +16,10 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/extension/protocol"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	observepkg "github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -542,6 +545,23 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 		{method: "observe/health", params: nil},
 		{method: "observe/events", params: map[string]any{"limit": 1}},
 		{method: "skills/list", params: map[string]any{"workspace": env.workspaceID}},
+		{method: "automation/jobs", params: map[string]any{"scope": "workspace", "workspace_id": env.workspaceID}},
+		{method: "automation/jobs/create", params: map[string]any{
+			"name":         "host-api-job",
+			"scope":        "workspace",
+			"workspace_id": env.workspaceID,
+			"agent_name":   "coder",
+			"prompt":       "do work",
+			"schedule": map[string]any{
+				"mode":     "every",
+				"interval": "5m",
+			},
+		}},
+		{method: "automation/triggers/fire", params: map[string]any{
+			"event":        "ext.github.push",
+			"scope":        "workspace",
+			"workspace_id": env.workspaceID,
+		}},
 	}
 
 	for _, tt := range tests {
@@ -575,12 +595,490 @@ func TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler(t *testing.
 	}
 }
 
+func TestHostAPIHandlerAutomationTriggerFireRejectsNonExtensionEvent(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-automation", []string{"automation/triggers/fire"}, []string{"automation.write"})
+
+	_, err := env.call(t, "ext-automation", "automation/triggers/fire", map[string]any{
+		"event": "session.stopped",
+		"scope": "workspace",
+		"payload": map[string]any{
+			"session_id": "sess-1",
+		},
+		"workspace_id": env.workspaceID,
+	})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	data := decodeRPCData(t, err)
+	if got := data["error"]; got != `trigger_fire.event must start with "ext."` {
+		t.Fatalf("rpc data error = %#v, want ext prefix validation", got)
+	}
+}
+
+func TestHostAPIHandlerAutomationJobCRUDAndRunQueries(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant(
+		"ext-automation",
+		[]string{
+			"automation/jobs",
+			"automation/jobs/get",
+			"automation/jobs/create",
+			"automation/jobs/update",
+			"automation/jobs/delete",
+			"automation/jobs/trigger",
+			"automation/jobs/runs",
+			"automation/runs",
+		},
+		[]string{"automation.read", "automation.write"},
+	)
+
+	createResult, err := env.call(t, "ext-automation", "automation/jobs/create", map[string]any{
+		"name":         "host-api-job",
+		"scope":        "workspace",
+		"workspace_id": env.workspace.RootDir,
+		"agent_name":   "coder",
+		"prompt":       "Original host API job prompt",
+		"schedule": map[string]any{
+			"mode":     "every",
+			"interval": "5m",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Handle(automation/jobs/create) error = %v", err)
+	}
+
+	var created automationpkg.Job
+	decodeResult(t, createResult, &created)
+	if got, want := created.WorkspaceID, env.workspaceID; got != want {
+		t.Fatalf("created workspace_id = %q, want %q", got, want)
+	}
+
+	listResult, err := env.call(t, "ext-automation", "automation/jobs", map[string]any{
+		"scope":        "workspace",
+		"workspace_id": env.workspace.RootDir,
+		"enabled":      true,
+	})
+	if err != nil {
+		t.Fatalf("Handle(automation/jobs) error = %v", err)
+	}
+	var listed []automationpkg.Job
+	decodeResult(t, listResult, &listed)
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(automation/jobs) = %d, want %d", got, want)
+	}
+
+	getResult, err := env.call(t, "ext-automation", "automation/jobs/get", map[string]any{"id": created.ID})
+	if err != nil {
+		t.Fatalf("Handle(automation/jobs/get) error = %v", err)
+	}
+	var fetched automationpkg.Job
+	decodeResult(t, getResult, &fetched)
+	if got, want := fetched.ID, created.ID; got != want {
+		t.Fatalf("automation/jobs/get id = %q, want %q", got, want)
+	}
+
+	updateResult, err := env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
+		"id":           created.ID,
+		"workspace_id": env.workspace.RootDir,
+		"prompt":       "Updated host API job prompt",
+		"schedule": map[string]any{
+			"mode":     "every",
+			"interval": "15m",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Handle(automation/jobs/update) error = %v", err)
+	}
+	var updated automationpkg.Job
+	decodeResult(t, updateResult, &updated)
+	if got, want := updated.Prompt, "Updated host API job prompt"; got != want {
+		t.Fatalf("updated prompt = %q, want %q", got, want)
+	}
+	if updated.Schedule == nil || updated.Schedule.Interval != "15m" {
+		t.Fatalf("updated schedule = %#v, want interval 15m", updated.Schedule)
+	}
+
+	triggerResult, err := env.call(t, "ext-automation", "automation/jobs/trigger", map[string]any{"id": created.ID})
+	if err != nil {
+		t.Fatalf("Handle(automation/jobs/trigger) error = %v", err)
+	}
+	var run automationpkg.Run
+	decodeResult(t, triggerResult, &run)
+	if got, want := run.JobID, created.ID; got != want {
+		t.Fatalf("triggered run job_id = %q, want %q", got, want)
+	}
+
+	runsByJobResult, err := env.call(t, "ext-automation", "automation/jobs/runs", map[string]any{"id": created.ID})
+	if err != nil {
+		t.Fatalf("Handle(automation/jobs/runs) error = %v", err)
+	}
+	var runsByJob []automationpkg.Run
+	decodeResult(t, runsByJobResult, &runsByJob)
+	if got, want := len(runsByJob), 1; got != want {
+		t.Fatalf("len(automation/jobs/runs) = %d, want %d", got, want)
+	}
+
+	allRunsResult, err := env.call(t, "ext-automation", "automation/runs", map[string]any{"job_id": created.ID})
+	if err != nil {
+		t.Fatalf("Handle(automation/runs) error = %v", err)
+	}
+	var allRuns []automationpkg.Run
+	decodeResult(t, allRunsResult, &allRuns)
+	if got, want := len(allRuns), 1; got != want {
+		t.Fatalf("len(automation/runs) = %d, want %d", got, want)
+	}
+
+	if _, err := env.call(t, "ext-automation", "automation/jobs/delete", map[string]any{"id": created.ID}); err != nil {
+		t.Fatalf("Handle(automation/jobs/delete) error = %v", err)
+	}
+}
+
+func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant(
+		"ext-automation",
+		[]string{
+			"automation/triggers",
+			"automation/triggers/get",
+			"automation/triggers/create",
+			"automation/triggers/update",
+			"automation/triggers/delete",
+			"automation/triggers/runs",
+			"automation/triggers/fire",
+			"automation/jobs/delete",
+			"automation/jobs/update",
+		},
+		[]string{"automation.read", "automation.write"},
+	)
+
+	createResult, err := env.call(t, "ext-automation", "automation/triggers/create", map[string]any{
+		"name":         "host-api-trigger",
+		"scope":        "workspace",
+		"workspace_id": env.workspace.RootDir,
+		"agent_name":   "coder",
+		"event":        "ext.github.push",
+		"prompt":       `Review {{ index .Data "repo" }}`,
+		"filter": map[string]string{
+			"data.repo": "acme/api",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Handle(automation/triggers/create) error = %v", err)
+	}
+
+	var created automationpkg.Trigger
+	decodeResult(t, createResult, &created)
+	if got, want := created.WorkspaceID, env.workspaceID; got != want {
+		t.Fatalf("created trigger workspace_id = %q, want %q", got, want)
+	}
+
+	listResult, err := env.call(t, "ext-automation", "automation/triggers", map[string]any{
+		"scope":        "workspace",
+		"workspace_id": env.workspace.RootDir,
+		"event":        "ext.github.push",
+		"enabled":      true,
+	})
+	if err != nil {
+		t.Fatalf("Handle(automation/triggers) error = %v", err)
+	}
+	var listed []automationpkg.Trigger
+	decodeResult(t, listResult, &listed)
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(automation/triggers) = %d, want %d", got, want)
+	}
+
+	getResult, err := env.call(t, "ext-automation", "automation/triggers/get", map[string]any{"id": created.ID})
+	if err != nil {
+		t.Fatalf("Handle(automation/triggers/get) error = %v", err)
+	}
+	var fetched automationpkg.Trigger
+	decodeResult(t, getResult, &fetched)
+	if got, want := fetched.ID, created.ID; got != want {
+		t.Fatalf("automation/triggers/get id = %q, want %q", got, want)
+	}
+
+	updateResult, err := env.call(t, "ext-automation", "automation/triggers/update", map[string]any{
+		"id":           created.ID,
+		"workspace_id": env.workspace.RootDir,
+		"prompt":       `Updated {{ index .Data "repo" }}`,
+		"filter": map[string]string{
+			"data.repo": "acme/api",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Handle(automation/triggers/update) error = %v", err)
+	}
+	var updated automationpkg.Trigger
+	decodeResult(t, updateResult, &updated)
+	if got, want := updated.Prompt, `Updated {{ index .Data "repo" }}`; got != want {
+		t.Fatalf("updated trigger prompt = %q, want %q", got, want)
+	}
+
+	fireResult, err := env.call(t, "ext-automation", "automation/triggers/fire", map[string]any{
+		"event":        "ext.github.push",
+		"scope":        "workspace",
+		"workspace_id": env.workspaceID,
+		"payload": map[string]any{
+			"repo": "acme/api",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Handle(automation/triggers/fire) error = %v", err)
+	}
+	var fire automationpkg.TriggerResult
+	decodeResult(t, fireResult, &fire)
+	if got, want := fire.Matched, 1; got != want {
+		t.Fatalf("automation/triggers/fire matched = %d, want %d", got, want)
+	}
+
+	runsResult, err := env.call(t, "ext-automation", "automation/triggers/runs", map[string]any{"id": created.ID})
+	if err != nil {
+		t.Fatalf("Handle(automation/triggers/runs) error = %v", err)
+	}
+	var triggerRuns []automationpkg.Run
+	decodeResult(t, runsResult, &triggerRuns)
+	if got, want := len(triggerRuns), 1; got != want {
+		t.Fatalf("len(automation/triggers/runs) = %d, want %d", got, want)
+	}
+
+	configJob, err := env.registry.CreateJob(testutil.Context(t), automationpkg.Job{
+		ID:          "job-config-host-api",
+		Scope:       automationpkg.AutomationScopeWorkspace,
+		Name:        "config-host-api-job",
+		AgentName:   "coder",
+		WorkspaceID: env.workspaceID,
+		Prompt:      "Config-backed prompt",
+		Schedule: &automationpkg.ScheduleSpec{
+			Mode:     automationpkg.ScheduleModeEvery,
+			Interval: "1h",
+		},
+		Enabled:   true,
+		Retry:     automationpkg.DefaultRetryConfig(),
+		FireLimit: automationpkg.DefaultFireLimitConfig(),
+		Source:    automationpkg.JobSourceConfig,
+	})
+	if err != nil {
+		t.Fatalf("CreateJob(config) error = %v", err)
+	}
+	if _, err := env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
+		"id":      configJob.ID,
+		"enabled": false,
+	}); err != nil {
+		t.Fatalf("Handle(automation/jobs/update enabled-only) error = %v", err)
+	}
+	_, err = env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
+		"id":     configJob.ID,
+		"prompt": "should fail",
+	})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	_, err = env.call(t, "ext-automation", "automation/jobs/delete", map[string]any{"id": configJob.ID})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+
+	configTrigger, err := env.registry.CreateTrigger(testutil.Context(t), automationpkg.Trigger{
+		ID:          "trigger-config-host-api",
+		Scope:       automationpkg.AutomationScopeWorkspace,
+		Name:        "config-host-api-trigger",
+		AgentName:   "coder",
+		WorkspaceID: env.workspaceID,
+		Prompt:      `Config {{ index .Data "repo" }}`,
+		Event:       "ext.github.push",
+		Enabled:     true,
+		Retry:       automationpkg.DefaultRetryConfig(),
+		FireLimit:   automationpkg.DefaultFireLimitConfig(),
+		Source:      automationpkg.JobSourceConfig,
+	})
+	if err != nil {
+		t.Fatalf("CreateTrigger(config) error = %v", err)
+	}
+	if _, err := env.call(t, "ext-automation", "automation/triggers/update", map[string]any{
+		"id":      configTrigger.ID,
+		"enabled": false,
+	}); err != nil {
+		t.Fatalf("Handle(automation/triggers/update enabled-only) error = %v", err)
+	}
+	_, err = env.call(t, "ext-automation", "automation/triggers/update", map[string]any{
+		"id":     configTrigger.ID,
+		"prompt": "should fail",
+	})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	_, err = env.call(t, "ext-automation", "automation/triggers/delete", map[string]any{"id": configTrigger.ID})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+
+	if _, err := env.call(t, "ext-automation", "automation/triggers/delete", map[string]any{"id": created.ID}); err != nil {
+		t.Fatalf("Handle(automation/triggers/delete) error = %v", err)
+	}
+}
+
+func TestDescribeExtensionProjectsHealthAndState(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 11, 10, 0, 0, 0, time.UTC)
+	payload := DescribeExtension(&Extension{
+		Manifest: &Manifest{
+			Capabilities: CapabilitiesConfig{Provides: []string{"runtime"}},
+			Actions:      ActionsConfig{Requires: []string{"automation/jobs"}},
+			Subprocess:   SubprocessConfig{Command: "ext-runtime"},
+		},
+		Info: ExtensionInfo{
+			Name:    "ext-runtime",
+			Version: "1.0.0",
+			Enabled: true,
+			Source:  SourceUser,
+			Capabilities: CapabilitiesConfig{
+				Provides: []string{"runtime"},
+			},
+			Actions: ActionsConfig{Requires: []string{"automation/jobs"}},
+		},
+		Status: ExtensionStatus{
+			Active:        true,
+			Healthy:       true,
+			Registered:    true,
+			PID:           42,
+			LastStartedAt: now.Add(-5 * time.Minute),
+		},
+	}, true, now)
+
+	if got, want := payload.Type, "subprocess"; got != want {
+		t.Fatalf("DescribeExtension() type = %q, want %q", got, want)
+	}
+	if got, want := payload.State, "active"; got != want {
+		t.Fatalf("DescribeExtension() state = %q, want %q", got, want)
+	}
+	if got, want := payload.Health, "healthy"; got != want {
+		t.Fatalf("DescribeExtension() health = %q, want %q", got, want)
+	}
+	if payload.UptimeSeconds <= 0 {
+		t.Fatalf("DescribeExtension() uptime_seconds = %d, want positive", payload.UptimeSeconds)
+	}
+
+	disabled := DescribeExtension(&Extension{
+		Info: ExtensionInfo{
+			Name:    "ext-disabled",
+			Version: "1.0.0",
+			Enabled: false,
+			Source:  SourceWorkspace,
+		},
+		Status: ExtensionStatus{Registered: true},
+	}, false, now)
+	if got, want := disabled.Type, "resource"; got != want {
+		t.Fatalf("DescribeExtension(disabled) type = %q, want %q", got, want)
+	}
+	if got, want := disabled.State, "disabled"; got != want {
+		t.Fatalf("DescribeExtension(disabled) state = %q, want %q", got, want)
+	}
+	if got, want := disabled.Health, "unknown"; got != want {
+		t.Fatalf("DescribeExtension(disabled) health = %q, want %q", got, want)
+	}
+
+	registered := DescribeExtension(&Extension{
+		Info: ExtensionInfo{
+			Name:    "ext-registered",
+			Version: "1.0.0",
+			Enabled: true,
+			Source:  SourceUser,
+		},
+		Status: ExtensionStatus{
+			Registered: true,
+		},
+	}, true, now)
+	if got, want := registered.State, "registered"; got != want {
+		t.Fatalf("DescribeExtension(registered) state = %q, want %q", got, want)
+	}
+	if got, want := registered.Health, "healthy"; got != want {
+		t.Fatalf("DescribeExtension(registered) health = %q, want %q", got, want)
+	}
+
+	unhealthy := DescribeExtension(&Extension{
+		Manifest: &Manifest{
+			Capabilities: CapabilitiesConfig{Provides: []string{"runtime"}},
+			Subprocess:   SubprocessConfig{Command: "ext-runtime"},
+		},
+		Info: ExtensionInfo{
+			Name:    "ext-unhealthy",
+			Version: "1.0.0",
+			Enabled: true,
+			Source:  SourceUser,
+			Capabilities: CapabilitiesConfig{
+				Provides: []string{"runtime"},
+			},
+		},
+		Status: ExtensionStatus{
+			LastError: "boom",
+		},
+	}, true, now)
+	if got, want := unhealthy.State, "error"; got != want {
+		t.Fatalf("DescribeExtension(unhealthy) state = %q, want %q", got, want)
+	}
+	if got, want := unhealthy.Health, "unhealthy"; got != want {
+		t.Fatalf("DescribeExtension(unhealthy) health = %q, want %q", got, want)
+	}
+
+	enabled := DescribeExtension(&Extension{
+		Info: ExtensionInfo{
+			Name:    "ext-enabled",
+			Version: "1.0.0",
+			Enabled: true,
+			Source:  SourceUser,
+		},
+	}, false, now)
+	if got, want := enabled.State, "enabled"; got != want {
+		t.Fatalf("DescribeExtension(enabled daemon stopped) state = %q, want %q", got, want)
+	}
+}
+
+func TestHostAPIHandlerAutomationGetterAndMethodHandlers(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	handler := NewHostAPIHandler(
+		env.sessions,
+		env.memory,
+		env.observer,
+		env.skills,
+		WithHostAPICapabilityChecker(env.checker),
+		WithHostAPIWorkspaceResolver(env.workspaces),
+		WithHostAPIAutomationGetter(func() HostAPIAutomationManager {
+			return env.automation
+		}),
+	)
+
+	handlers := handler.MethodHandlers()
+	if _, ok := handlers[string(protocol.HostAPIMethodAutomationJobs)]; !ok {
+		t.Fatal("MethodHandlers() missing automation/jobs handler")
+	}
+
+	env.checker.Register("ext-automation", SourceUser, &Manifest{
+		Actions: ActionsConfig{Requires: []string{"automation/jobs"}},
+		Security: SecurityConfig{
+			Capabilities: []string{"automation.read"},
+		},
+	})
+
+	result, err := handler.Handle(testutil.Context(t), "ext-automation", "automation/jobs", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("Handle(automation/jobs via getter) error = %v", err)
+	}
+
+	var jobs []automationpkg.Job
+	decodeResult(t, result, &jobs)
+	if jobs == nil {
+		t.Fatal("automation/jobs result = nil, want empty slice")
+	}
+}
+
 type hostAPITestEnv struct {
 	now         time.Time
 	homePaths   aghconfig.HomePaths
 	workspaceID string
 	workspace   workspacepkg.ResolvedWorkspace
+	registry    *globaldb.GlobalDB
 	sessions    *session.Manager
+	automation  HostAPIAutomationManager
 	observer    *observepkg.Observer
 	memory      *memory.Store
 	skills      *skillspkg.Registry
@@ -590,8 +1088,21 @@ type hostAPITestEnv struct {
 	handler     *HostAPIHandler
 }
 
-func newHostAPITestEnv(t *testing.T) *hostAPITestEnv {
+type hostAPITestEnvConfig struct {
+	hooks *hookspkg.Hooks
+}
+
+type hostAPITestEnvOption func(*hostAPITestEnvConfig)
+
+func newHostAPITestEnv(t *testing.T, opts ...hostAPITestEnvOption) *hostAPITestEnv {
 	t.Helper()
+
+	cfg := hostAPITestEnvConfig{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
 
 	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
@@ -696,11 +1207,40 @@ Review the workspace changes carefully.
 
 	skillsRegistry := skillspkg.NewRegistry(skillspkg.RegistryConfig{}, skillspkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
 	checker := &CapabilityChecker{}
+	automationOpts := []automationpkg.Option{
+		automationpkg.WithStore(registry),
+		automationpkg.WithSessions(sessions),
+		automationpkg.WithWorkspaceResolver(workspaces),
+		automationpkg.WithConfig(aghconfig.AutomationConfig{
+			Timezone:          automationpkg.DefaultTimezone,
+			MaxConcurrentJobs: automationpkg.DefaultMaxConcurrentJobs,
+			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
+		}),
+		automationpkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		automationpkg.WithGlobalWorkspacePath(homePaths.HomeDir),
+	}
+	if cfg.hooks != nil {
+		automationOpts = append(automationOpts, automationpkg.WithHooks(cfg.hooks))
+	}
+	automationManager, err := automationpkg.New(automationOpts...)
+	if err != nil {
+		t.Fatalf("automation.New() error = %v", err)
+	}
+	if err := automationManager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("automation.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := automationManager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("automation.Shutdown() error = %v", err)
+		}
+	})
+
 	handler := NewHostAPIHandler(
 		sessions,
 		memoryStore,
 		observer,
 		skillsRegistry,
+		WithHostAPIAutomationManager(automationManager),
 		WithHostAPICapabilityChecker(checker),
 		WithHostAPIWorkspaceResolver(workspaces),
 		WithHostAPINow(func() time.Time { return now }),
@@ -712,7 +1252,9 @@ Review the workspace changes carefully.
 		homePaths:   homePaths,
 		workspaceID: resolvedWorkspace.ID,
 		workspace:   resolvedWorkspace,
+		registry:    registry,
 		sessions:    sessions,
+		automation:  automationManager,
 		observer:    observer,
 		memory:      memoryStore,
 		skills:      skillsRegistry,
@@ -851,6 +1393,7 @@ type hostAPIFakeDriver struct {
 	mu        sync.Mutex
 	now       time.Time
 	processes map[*session.AgentProcess]*hostAPIFakeProcess
+	promptLog []acp.PromptRequest
 	startSeq  atomic.Int64
 }
 
@@ -890,6 +1433,10 @@ func (d *hostAPIFakeDriver) Start(_ context.Context, opts acp.StartOpts) (*sessi
 }
 
 func (d *hostAPIFakeDriver) Prompt(_ context.Context, _ *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+	d.mu.Lock()
+	d.promptLog = append(d.promptLog, req)
+	d.mu.Unlock()
+
 	events := make(chan acp.AgentEvent, 2)
 	go func() {
 		defer close(events)

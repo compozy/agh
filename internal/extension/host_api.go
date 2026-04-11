@@ -13,6 +13,8 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/pedronauck/agh/internal/acp"
+	apicontract "github.com/pedronauck/agh/internal/api/contract"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	"github.com/pedronauck/agh/internal/frontmatter"
 	"github.com/pedronauck/agh/internal/memory"
@@ -49,16 +51,18 @@ type HostAPIOption func(*HostAPIHandler)
 
 // HostAPIHandler handles extension -> AGH Host API JSON-RPC requests.
 type HostAPIHandler struct {
-	sessions   hostAPISessionManager
-	memory     *memory.Store
-	observer   hostAPIObserver
-	skills     hostAPISkillsRegistry
-	workspaces workspacepkg.WorkspaceResolver
-	capChecker *CapabilityChecker
-	limiter    *hostAPIRateLimiter
-	now        func() time.Time
-	rateLimit  int
-	rateBurst  int
+	sessions         hostAPISessionManager
+	automation       HostAPIAutomationManager
+	memory           *memory.Store
+	observer         hostAPIObserver
+	skills           hostAPISkillsRegistry
+	workspaces       workspacepkg.WorkspaceResolver
+	capChecker       *CapabilityChecker
+	limiter          *hostAPIRateLimiter
+	automationGetter func() HostAPIAutomationManager
+	now              func() time.Time
+	rateLimit        int
+	rateBurst        int
 
 	methods map[string]hostAPIMethodFunc
 }
@@ -79,6 +83,25 @@ type hostAPIObserver interface {
 	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
 }
 
+// HostAPIAutomationManager is the automation surface exposed to the extension Host API.
+type HostAPIAutomationManager interface {
+	ListJobs(ctx context.Context, query automationpkg.JobListQuery) ([]automationpkg.Job, error)
+	GetJob(ctx context.Context, id string) (automationpkg.Job, error)
+	CreateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
+	UpdateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
+	DeleteJob(ctx context.Context, id string) error
+	TriggerJob(ctx context.Context, id string) (automationpkg.Run, error)
+	ListTriggers(ctx context.Context, query automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error)
+	GetTrigger(ctx context.Context, id string) (automationpkg.Trigger, error)
+	CreateTrigger(ctx context.Context, trigger automationpkg.Trigger, webhookSecret string) (automationpkg.Trigger, error)
+	UpdateTrigger(ctx context.Context, trigger automationpkg.Trigger, webhookSecret *string) (automationpkg.Trigger, error)
+	DeleteTrigger(ctx context.Context, id string) error
+	ListRuns(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
+	SetJobEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Job, error)
+	SetTriggerEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Trigger, error)
+	FireExtensionTrigger(ctx context.Context, request automationpkg.ExtensionTriggerRequest) (automationpkg.TriggerResult, error)
+}
+
 type hostAPISkillsRegistry interface {
 	List() []*skillspkg.Skill
 	ForWorkspace(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
@@ -88,6 +111,20 @@ type hostAPISkillsRegistry interface {
 func WithHostAPICapabilityChecker(checker *CapabilityChecker) HostAPIOption {
 	return func(handler *HostAPIHandler) {
 		handler.capChecker = checker
+	}
+}
+
+// WithHostAPIAutomationManager injects the automation manager used for automation Host API methods.
+func WithHostAPIAutomationManager(manager HostAPIAutomationManager) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.automation = manager
+	}
+}
+
+// WithHostAPIAutomationGetter injects a lazy automation lookup used when the runtime boots after extensions.
+func WithHostAPIAutomationGetter(getter func() HostAPIAutomationManager) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.automationGetter = getter
 	}
 }
 
@@ -151,18 +188,33 @@ func NewHostAPIHandler(
 	handler.limiter = newHostAPIRateLimiter(handler.rateLimit, handler.rateBurst, handler.now)
 
 	handler.methods = map[string]hostAPIMethodFunc{
-		"memory/forget":   handler.handleMemoryForget,
-		"memory/recall":   handler.handleMemoryRecall,
-		"memory/store":    handler.handleMemoryStore,
-		"observe/events":  handler.handleObserveEvents,
-		"observe/health":  handler.handleObserveHealth,
-		"sessions/create": handler.handleSessionsCreate,
-		"sessions/events": handler.handleSessionsEvents,
-		"sessions/list":   handler.handleSessionsList,
-		"sessions/prompt": handler.handleSessionsPrompt,
-		"sessions/status": handler.handleSessionsStatus,
-		"sessions/stop":   handler.handleSessionsStop,
-		"skills/list":     handler.handleSkillsList,
+		"memory/forget":              handler.handleMemoryForget,
+		"memory/recall":              handler.handleMemoryRecall,
+		"memory/store":               handler.handleMemoryStore,
+		"observe/events":             handler.handleObserveEvents,
+		"observe/health":             handler.handleObserveHealth,
+		"sessions/create":            handler.handleSessionsCreate,
+		"sessions/events":            handler.handleSessionsEvents,
+		"sessions/list":              handler.handleSessionsList,
+		"sessions/prompt":            handler.handleSessionsPrompt,
+		"sessions/status":            handler.handleSessionsStatus,
+		"sessions/stop":              handler.handleSessionsStop,
+		"skills/list":                handler.handleSkillsList,
+		"automation/jobs":            handler.handleAutomationJobs,
+		"automation/jobs/get":        handler.handleAutomationJobsGet,
+		"automation/jobs/create":     handler.handleAutomationJobsCreate,
+		"automation/jobs/update":     handler.handleAutomationJobsUpdate,
+		"automation/jobs/delete":     handler.handleAutomationJobsDelete,
+		"automation/jobs/trigger":    handler.handleAutomationJobsTrigger,
+		"automation/jobs/runs":       handler.handleAutomationJobsRuns,
+		"automation/triggers":        handler.handleAutomationTriggers,
+		"automation/triggers/get":    handler.handleAutomationTriggersGet,
+		"automation/triggers/create": handler.handleAutomationTriggersCreate,
+		"automation/triggers/update": handler.handleAutomationTriggersUpdate,
+		"automation/triggers/delete": handler.handleAutomationTriggersDelete,
+		"automation/triggers/runs":   handler.handleAutomationTriggersRuns,
+		"automation/triggers/fire":   handler.handleAutomationTriggersFire,
+		"automation/runs":            handler.handleAutomationRuns,
 	}
 
 	return handler
@@ -190,7 +242,7 @@ func (h *HostAPIHandler) Handle(ctx context.Context, extName string, method stri
 		return nil, err
 	}
 
-	return handler(ctx, params)
+	return handler(withHostAPIExtensionName(ctx, extName), params)
 }
 
 // HandleMethod returns a subprocess-compatible handler for one Host API method.
@@ -243,6 +295,30 @@ type hostAPISessionPromptResult = extensioncontract.SessionPromptResult
 type hostAPIMemoryRecallEntry = extensioncontract.MemoryRecallEntry
 
 type hostAPISkillSummary = extensioncontract.SkillSummary
+
+type hostAPIAutomationJobsParams = extensioncontract.AutomationJobsParams
+
+type hostAPIAutomationTriggersParams = extensioncontract.AutomationTriggersParams
+
+type hostAPIAutomationRunsParams = extensioncontract.AutomationRunsParams
+
+type hostAPIAutomationTargetParams = extensioncontract.AutomationTargetParams
+
+type hostAPIAutomationJobCreateParams = extensioncontract.AutomationJobCreateParams
+
+type hostAPIAutomationJobUpdateParams = extensioncontract.AutomationJobUpdateParams
+
+type hostAPIAutomationJobTriggerParams = extensioncontract.AutomationJobTriggerParams
+
+type hostAPIAutomationJobRunsParams = extensioncontract.AutomationJobRunsParams
+
+type hostAPIAutomationTriggerCreateParams = extensioncontract.AutomationTriggerCreateParams
+
+type hostAPIAutomationTriggerUpdateParams = extensioncontract.AutomationTriggerUpdateParams
+
+type hostAPIAutomationTriggerRunsParams = extensioncontract.AutomationTriggerRunsParams
+
+type hostAPIAutomationTriggerFireParams = extensioncontract.AutomationTriggerFireParams
 
 func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMessage) (any, error) {
 	if h.sessions == nil {
@@ -618,6 +694,408 @@ func (h *HostAPIHandler) handleSkillsList(ctx context.Context, raw json.RawMessa
 	return result, nil
 }
 
+func (h *HostAPIHandler) handleAutomationJobs(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationJobsParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, params.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	jobs, err := automation.ListJobs(ctx, automationpkg.JobListQuery{
+		Scope:       params.Scope,
+		WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if params.Enabled == nil {
+		return jobs, nil
+	}
+
+	filtered := make([]automationpkg.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Enabled == *params.Enabled {
+			filtered = append(filtered, job)
+		}
+	}
+	return filtered, nil
+}
+
+func (h *HostAPIHandler) handleAutomationJobsGet(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationTargetParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.ID) == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+
+	return automation.GetJob(ctx, params.ID)
+}
+
+func (h *HostAPIHandler) handleAutomationJobsCreate(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationJobCreateParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	job, err := h.jobFromCreateParams(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	if err := job.Validate("job"); err != nil {
+		return nil, invalidParamsRPCError(err)
+	}
+
+	return automation.CreateJob(ctx, job)
+}
+
+func (h *HostAPIHandler) handleAutomationJobsUpdate(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationJobUpdateParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.ID) == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+	if !params.HasChanges() {
+		return nil, invalidParamsRPCError(errors.New("automation job update must include at least one field"))
+	}
+
+	current, err := automation.GetJob(ctx, params.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if current.Source == automationpkg.JobSourceConfig {
+		if err := validateHostAPIConfigJobUpdate(params.UpdateJobRequest); err != nil {
+			return nil, invalidParamsRPCError(err)
+		}
+		return automation.SetJobEnabled(ctx, current.ID, *params.Enabled)
+	}
+
+	next, err := h.applyJobUpdateParams(ctx, current, params.UpdateJobRequest)
+	if err != nil {
+		return nil, err
+	}
+	if err := next.Validate("job"); err != nil {
+		return nil, invalidParamsRPCError(err)
+	}
+
+	return automation.UpdateJob(ctx, next)
+}
+
+func (h *HostAPIHandler) handleAutomationJobsDelete(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationTargetParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.ID) == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+
+	current, err := automation.GetJob(ctx, params.ID)
+	if err != nil {
+		return nil, err
+	}
+	if current.Source == automationpkg.JobSourceConfig {
+		return nil, invalidParamsRPCError(errors.New("config-backed automation jobs cannot be deleted"))
+	}
+	if err := automation.DeleteJob(ctx, current.ID); err != nil {
+		return nil, err
+	}
+	return struct{}{}, nil
+}
+
+func (h *HostAPIHandler) handleAutomationJobsTrigger(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationJobTriggerParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.ID) == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+
+	return automation.TriggerJob(ctx, params.ID)
+}
+
+func (h *HostAPIHandler) handleAutomationJobsRuns(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationJobRunsParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.ID) == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+
+	job, err := automation.GetJob(ctx, params.ID)
+	if err != nil {
+		return nil, err
+	}
+	return automation.ListRuns(ctx, automationpkg.RunQuery{
+		JobID:  job.ID,
+		Status: params.Status,
+		Limit:  params.Limit,
+	})
+}
+
+func (h *HostAPIHandler) handleAutomationTriggers(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationTriggersParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, params.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	triggers, err := automation.ListTriggers(ctx, automationpkg.TriggerListQuery{
+		Scope:       params.Scope,
+		WorkspaceID: workspaceID,
+		Event:       strings.TrimSpace(params.Event),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if params.Enabled == nil {
+		return triggers, nil
+	}
+
+	filtered := make([]automationpkg.Trigger, 0, len(triggers))
+	for _, trigger := range triggers {
+		if trigger.Enabled == *params.Enabled {
+			filtered = append(filtered, trigger)
+		}
+	}
+	return filtered, nil
+}
+
+func (h *HostAPIHandler) handleAutomationTriggersGet(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationTargetParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.ID) == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+
+	return automation.GetTrigger(ctx, params.ID)
+}
+
+func (h *HostAPIHandler) handleAutomationTriggersCreate(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationTriggerCreateParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	trigger, webhookSecret, err := h.triggerFromCreateParams(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	if err := trigger.Validate("trigger"); err != nil {
+		return nil, invalidParamsRPCError(err)
+	}
+
+	return automation.CreateTrigger(ctx, trigger, webhookSecret)
+}
+
+func (h *HostAPIHandler) handleAutomationTriggersUpdate(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationTriggerUpdateParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.ID) == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+	if !params.HasChanges() {
+		return nil, invalidParamsRPCError(errors.New("automation trigger update must include at least one field"))
+	}
+
+	current, err := automation.GetTrigger(ctx, params.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if current.Source == automationpkg.JobSourceConfig {
+		if err := validateHostAPIConfigTriggerUpdate(params.UpdateTriggerRequest); err != nil {
+			return nil, invalidParamsRPCError(err)
+		}
+		return automation.SetTriggerEnabled(ctx, current.ID, *params.Enabled)
+	}
+
+	next, webhookSecret, err := h.applyTriggerUpdateParams(ctx, current, params.UpdateTriggerRequest)
+	if err != nil {
+		return nil, err
+	}
+	if err := next.Validate("trigger"); err != nil {
+		return nil, invalidParamsRPCError(err)
+	}
+
+	return automation.UpdateTrigger(ctx, next, webhookSecret)
+}
+
+func (h *HostAPIHandler) handleAutomationTriggersDelete(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationTargetParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.ID) == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+
+	current, err := automation.GetTrigger(ctx, params.ID)
+	if err != nil {
+		return nil, err
+	}
+	if current.Source == automationpkg.JobSourceConfig {
+		return nil, invalidParamsRPCError(errors.New("config-backed automation triggers cannot be deleted"))
+	}
+	if err := automation.DeleteTrigger(ctx, current.ID); err != nil {
+		return nil, err
+	}
+	return struct{}{}, nil
+}
+
+func (h *HostAPIHandler) handleAutomationTriggersRuns(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationTriggerRunsParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.ID) == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+
+	trigger, err := automation.GetTrigger(ctx, params.ID)
+	if err != nil {
+		return nil, err
+	}
+	return automation.ListRuns(ctx, automationpkg.RunQuery{
+		TriggerID: trigger.ID,
+		Status:    params.Status,
+		Limit:     params.Limit,
+	})
+}
+
+func (h *HostAPIHandler) handleAutomationTriggersFire(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationTriggerFireParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, params.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	request := automationpkg.ExtensionTriggerRequest{
+		Event:       strings.TrimSpace(params.Event),
+		Scope:       params.Scope,
+		WorkspaceID: workspaceID,
+		Payload:     cloneJSONMap(params.Payload),
+	}
+	if err := request.Validate("trigger_fire"); err != nil {
+		return nil, invalidParamsRPCError(err)
+	}
+
+	return automation.FireExtensionTrigger(ctx, request)
+}
+
+func (h *HostAPIHandler) handleAutomationRuns(ctx context.Context, raw json.RawMessage) (any, error) {
+	automation, err := h.automationManager()
+	if err != nil {
+		return nil, err
+	}
+
+	var params hostAPIAutomationRunsParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	return automation.ListRuns(ctx, automationpkg.RunQuery{
+		JobID:     strings.TrimSpace(params.JobID),
+		TriggerID: strings.TrimSpace(params.TriggerID),
+		Status:    params.Status,
+		Limit:     params.Limit,
+	})
+}
+
 func (h *HostAPIHandler) submitPrompt(ctx context.Context, sessionID string, message string) (string, error) {
 	if h.sessions == nil {
 		return "", errors.New("extension: session manager is not configured")
@@ -745,6 +1223,221 @@ func (h *HostAPIHandler) resolveWorkspaceRoot(ctx context.Context, rawWorkspace 
 		return "", err
 	}
 	return strings.TrimSpace(resolved.RootDir), nil
+}
+
+func (h *HostAPIHandler) automationManager() (HostAPIAutomationManager, error) {
+	if h == nil {
+		return nil, errors.New("extension: host api handler is required")
+	}
+	if h.automation != nil {
+		return h.automation, nil
+	}
+	if h.automationGetter != nil {
+		if automation := h.automationGetter(); automation != nil {
+			return automation, nil
+		}
+	}
+	return nil, errors.New("extension: automation manager is not configured")
+}
+
+func (h *HostAPIHandler) resolveAutomationWorkspaceID(ctx context.Context, rawWorkspace string) (string, error) {
+	trimmed := strings.TrimSpace(rawWorkspace)
+	if trimmed == "" {
+		return "", nil
+	}
+	if h.workspaces == nil {
+		return trimmed, nil
+	}
+	resolved, err := h.workspaces.Resolve(ctx, trimmed)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(resolved.ID), nil
+}
+
+func (h *HostAPIHandler) jobFromCreateParams(ctx context.Context, req hostAPIAutomationJobCreateParams) (automationpkg.Job, error) {
+	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, req.WorkspaceID)
+	if err != nil {
+		return automationpkg.Job{}, err
+	}
+
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
+	retry := automationpkg.DefaultRetryConfig()
+	if req.Retry != nil {
+		retry = *req.Retry
+	}
+
+	fireLimit := automationpkg.DefaultFireLimitConfig()
+	if req.FireLimit != nil {
+		fireLimit = *req.FireLimit
+	}
+
+	schedule := req.Schedule
+	return automationpkg.Job{
+		Scope:       req.Scope,
+		Name:        strings.TrimSpace(req.Name),
+		AgentName:   strings.TrimSpace(req.AgentName),
+		WorkspaceID: workspaceID,
+		Prompt:      strings.TrimSpace(req.Prompt),
+		Schedule:    &schedule,
+		Enabled:     enabled,
+		Retry:       retry,
+		FireLimit:   fireLimit,
+		Source:      automationpkg.JobSourceDynamic,
+	}, nil
+}
+
+func (h *HostAPIHandler) applyJobUpdateParams(ctx context.Context, current automationpkg.Job, req apicontract.UpdateJobRequest) (automationpkg.Job, error) {
+	next := current
+	if req.Name != nil {
+		next.Name = strings.TrimSpace(*req.Name)
+	}
+	if req.AgentName != nil {
+		next.AgentName = strings.TrimSpace(*req.AgentName)
+	}
+	if req.WorkspaceID != nil {
+		workspaceID, err := h.resolveAutomationWorkspaceID(ctx, *req.WorkspaceID)
+		if err != nil {
+			return automationpkg.Job{}, err
+		}
+		next.WorkspaceID = workspaceID
+	}
+	if req.Prompt != nil {
+		next.Prompt = strings.TrimSpace(*req.Prompt)
+	}
+	if req.Schedule != nil {
+		schedule := *req.Schedule
+		next.Schedule = &schedule
+	}
+	if req.Enabled != nil {
+		next.Enabled = *req.Enabled
+	}
+	if req.Retry != nil {
+		next.Retry = *req.Retry
+	}
+	if req.FireLimit != nil {
+		next.FireLimit = *req.FireLimit
+	}
+	return next, nil
+}
+
+func validateHostAPIConfigJobUpdate(req apicontract.UpdateJobRequest) error {
+	switch {
+	case req.Enabled == nil:
+		return errors.New("config-backed automation jobs only accept enabled updates")
+	case req.Name != nil || req.AgentName != nil || req.WorkspaceID != nil || req.Prompt != nil || req.Schedule != nil || req.Retry != nil || req.FireLimit != nil:
+		return errors.New("config-backed automation jobs only accept enabled updates")
+	default:
+		return nil
+	}
+}
+
+func (h *HostAPIHandler) triggerFromCreateParams(ctx context.Context, req hostAPIAutomationTriggerCreateParams) (automationpkg.Trigger, string, error) {
+	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, req.WorkspaceID)
+	if err != nil {
+		return automationpkg.Trigger{}, "", err
+	}
+
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
+	retry := automationpkg.DefaultRetryConfig()
+	if req.Retry != nil {
+		retry = *req.Retry
+	}
+
+	fireLimit := automationpkg.DefaultFireLimitConfig()
+	if req.FireLimit != nil {
+		fireLimit = *req.FireLimit
+	}
+
+	trigger := automationpkg.Trigger{
+		Scope:        req.Scope,
+		Name:         strings.TrimSpace(req.Name),
+		AgentName:    strings.TrimSpace(req.AgentName),
+		WorkspaceID:  workspaceID,
+		Prompt:       strings.TrimSpace(req.Prompt),
+		Event:        strings.TrimSpace(req.Event),
+		Filter:       cloneHostAPIStringMap(req.Filter),
+		Enabled:      enabled,
+		Retry:        retry,
+		FireLimit:    fireLimit,
+		Source:       automationpkg.JobSourceDynamic,
+		WebhookID:    strings.TrimSpace(req.WebhookID),
+		EndpointSlug: strings.TrimSpace(req.EndpointSlug),
+	}
+	return trigger, strings.TrimSpace(req.WebhookSecret), nil
+}
+
+func (h *HostAPIHandler) applyTriggerUpdateParams(ctx context.Context, current automationpkg.Trigger, req apicontract.UpdateTriggerRequest) (automationpkg.Trigger, *string, error) {
+	next := current
+	if req.Name != nil {
+		next.Name = strings.TrimSpace(*req.Name)
+	}
+	if req.AgentName != nil {
+		next.AgentName = strings.TrimSpace(*req.AgentName)
+	}
+	if req.WorkspaceID != nil {
+		workspaceID, err := h.resolveAutomationWorkspaceID(ctx, *req.WorkspaceID)
+		if err != nil {
+			return automationpkg.Trigger{}, nil, err
+		}
+		next.WorkspaceID = workspaceID
+	}
+	if req.Prompt != nil {
+		next.Prompt = strings.TrimSpace(*req.Prompt)
+	}
+	if req.Event != nil {
+		next.Event = strings.TrimSpace(*req.Event)
+	}
+	if req.Filter != nil {
+		next.Filter = cloneHostAPIStringMap(req.Filter)
+	}
+	if req.Enabled != nil {
+		next.Enabled = *req.Enabled
+	}
+	if req.Retry != nil {
+		next.Retry = *req.Retry
+	}
+	if req.FireLimit != nil {
+		next.FireLimit = *req.FireLimit
+	}
+
+	event := strings.TrimSpace(next.Event)
+	if req.WebhookID != nil {
+		next.WebhookID = strings.TrimSpace(*req.WebhookID)
+	} else if !strings.EqualFold(event, "webhook") {
+		next.WebhookID = ""
+	}
+	if req.EndpointSlug != nil {
+		next.EndpointSlug = strings.TrimSpace(*req.EndpointSlug)
+	} else if !strings.EqualFold(event, "webhook") {
+		next.EndpointSlug = ""
+	}
+
+	var webhookSecret *string
+	if req.WebhookSecret != nil {
+		secret := strings.TrimSpace(*req.WebhookSecret)
+		webhookSecret = &secret
+	}
+	return next, webhookSecret, nil
+}
+
+func validateHostAPIConfigTriggerUpdate(req apicontract.UpdateTriggerRequest) error {
+	switch {
+	case req.Enabled == nil:
+		return errors.New("config-backed automation triggers only accept enabled updates")
+	case req.Name != nil || req.AgentName != nil || req.WorkspaceID != nil || req.Prompt != nil || req.Event != nil || req.Filter != nil || req.Retry != nil || req.FireLimit != nil || req.WebhookID != nil || req.EndpointSlug != nil || req.WebhookSecret != nil:
+		return errors.New("config-backed automation triggers only accept enabled updates")
+	default:
+		return nil
+	}
 }
 
 type hostAPIMemoryDocument struct {
@@ -1058,4 +1751,26 @@ func minFloat(left, right float64) float64 {
 		return left
 	}
 	return right
+}
+
+func cloneJSONMap(source map[string]any) map[string]any {
+	if len(source) == 0 {
+		return nil
+	}
+	cloned := make(map[string]any, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func cloneHostAPIStringMap(source map[string]string) map[string]string {
+	if len(source) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
 }

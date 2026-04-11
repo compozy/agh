@@ -152,6 +152,73 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	assertJSONRoundTrip(t, "EventPostRecordPatch", EventPostRecordPatch{
 		Labels: map[string]string{"stage": "post"},
 	})
+	assertJSONRoundTrip(t, "AutomationSchedulePayload", AutomationSchedulePayload{
+		Mode:     "every",
+		Interval: "5m",
+	})
+	assertJSONRoundTrip(t, "AutomationJobPreFirePayload", AutomationJobPreFirePayload{
+		JobID:       "job-1",
+		JobName:     "nightly-report",
+		AgentName:   "researcher",
+		WorkspaceID: "ws-1",
+		Prompt:      "Generate the nightly report",
+		Schedule: &AutomationSchedulePayload{
+			Mode: "cron",
+			Expr: "0 9 * * *",
+		},
+		Attempt: 1,
+	})
+	assertJSONRoundTrip(t, "AutomationJobPostFirePayload", AutomationJobPostFirePayload{
+		JobID:       "job-1",
+		JobName:     "nightly-report",
+		AgentName:   "researcher",
+		WorkspaceID: "ws-1",
+		RunID:       "run-1",
+		SessionID:   "sess-1",
+	})
+	assertJSONRoundTrip(t, "AutomationTriggerPreFirePayload", AutomationTriggerPreFirePayload{
+		TriggerID:   "trigger-1",
+		TriggerName: "push-review",
+		Event:       "ext.github.push",
+		AgentName:   "reviewer",
+		WorkspaceID: "ws-1",
+		Prompt:      "Review push",
+		Payload:     map[string]any{"repo": "acme/api"},
+		Attempt:     2,
+	})
+	assertJSONRoundTrip(t, "AutomationTriggerPostFirePayload", AutomationTriggerPostFirePayload{
+		TriggerID:   "trigger-1",
+		TriggerName: "push-review",
+		Event:       "ext.github.push",
+		AgentName:   "reviewer",
+		WorkspaceID: "ws-1",
+		RunID:       "run-2",
+		SessionID:   "sess-2",
+	})
+	assertJSONRoundTrip(t, "AutomationRunCompletedPayload", AutomationRunCompletedPayload{
+		RunID:       "run-3",
+		JobID:       "job-1",
+		AgentName:   "researcher",
+		WorkspaceID: "ws-1",
+		SessionID:   "sess-3",
+		Attempt:     1,
+		DurationMS:  4500,
+	})
+	assertJSONRoundTrip(t, "AutomationRunFailedPayload", AutomationRunFailedPayload{
+		RunID:       "run-4",
+		TriggerID:   "trigger-1",
+		AgentName:   "reviewer",
+		WorkspaceID: "ws-1",
+		SessionID:   "sess-4",
+		Error:       "boom",
+		Attempt:     2,
+		WillRetry:   true,
+	})
+	assertJSONRoundTrip(t, "AutomationFirePatch", AutomationFirePatch{
+		Prompt: &text,
+		Cancel: true,
+	})
+	assertJSONRoundTrip(t, "AutomationObservationPatch", AutomationObservationPatch{})
 
 	assertJSONRoundTrip(t, "AgentPreStartPayload", AgentPreStartPayload{
 		PayloadBase:    samplePayloadBase(HookAgentPreStart),
