@@ -1,0 +1,587 @@
+package network
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+)
+
+// LocalPeer is one daemon-local peer joined to one runtime space.
+type LocalPeer struct {
+	SessionID string
+	PeerID    string
+	Space     string
+	PeerCard  PeerCard
+	JoinedAt  time.Time
+}
+
+// RemotePeerEntry is one cached remote peer advertisement.
+type RemotePeerEntry struct {
+	PeerID    string
+	PeerCard  PeerCard
+	Space     string
+	LastSeen  time.Time
+	ExpiresAt time.Time
+}
+
+// PeerInfo is the API-facing snapshot for one visible peer.
+type PeerInfo struct {
+	SessionID *string
+	PeerID    string
+	Space     string
+	Local     bool
+	PeerCard  PeerCard
+	JoinedAt  *time.Time
+	LastSeen  *time.Time
+	ExpiresAt *time.Time
+}
+
+// SpaceInfo summarizes one active runtime space.
+type SpaceInfo struct {
+	Space     string
+	PeerCount int
+}
+
+// PeerRegistry tracks local session peers plus the remote peer cache.
+type PeerRegistry struct {
+	mu             sync.RWMutex
+	greetInterval  time.Duration
+	now            func() time.Time
+	localsByID     map[string]LocalPeer
+	localsBySpace  map[string]map[string]string
+	remotesBySpace map[string]map[string]RemotePeerEntry
+}
+
+// PeerRegistryOption customizes the registry runtime.
+type PeerRegistryOption func(*PeerRegistry)
+
+// WithPeerRegistryClock overrides the time source used by the registry.
+func WithPeerRegistryClock(now func() time.Time) PeerRegistryOption {
+	return func(registry *PeerRegistry) {
+		registry.now = now
+	}
+}
+
+// NewPeerRegistry constructs the in-memory presence registry.
+func NewPeerRegistry(greetInterval time.Duration, opts ...PeerRegistryOption) (*PeerRegistry, error) {
+	if greetInterval <= 0 {
+		return nil, fmt.Errorf("%w: greet interval must be positive", ErrInvalidField)
+	}
+
+	registry := &PeerRegistry{
+		greetInterval:  greetInterval,
+		now:            func() time.Time { return time.Now().UTC() },
+		localsByID:     make(map[string]LocalPeer),
+		localsBySpace:  make(map[string]map[string]string),
+		remotesBySpace: make(map[string]map[string]RemotePeerEntry),
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(registry)
+		}
+	}
+	if registry.now == nil {
+		registry.now = func() time.Time { return time.Now().UTC() }
+	}
+
+	return registry, nil
+}
+
+// GreetInterval reports the configured presence heartbeat interval.
+func (r *PeerRegistry) GreetInterval() time.Duration {
+	if r == nil {
+		return 0
+	}
+	return r.greetInterval
+}
+
+// DefaultPeerCard returns the minimal v0 peer card for one peer identifier.
+func DefaultPeerCard(peerID string) (PeerCard, error) {
+	card := PeerCard{
+		PeerID:              strings.TrimSpace(peerID),
+		ProfilesSupported:   []string{ProtocolV0},
+		Capabilities:        []string{},
+		ArtifactsSupported:  []string{},
+		TrustModesSupported: []string{},
+	}
+	normalized, err := normalizePeerCard(card)
+	if err != nil {
+		return PeerCard{}, err
+	}
+	return normalized, nil
+}
+
+// RegisterLocal upserts one local peer membership keyed by session ID.
+func (r *PeerRegistry) RegisterLocal(sessionID string, space string, card PeerCard, joinedAt time.Time) (LocalPeer, error) {
+	if r == nil {
+		return LocalPeer{}, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
+	}
+
+	trimmedSessionID := strings.TrimSpace(sessionID)
+	if trimmedSessionID == "" {
+		return LocalPeer{}, fmt.Errorf("%w: session id is required", ErrMissingField)
+	}
+	trimmedSpace := strings.TrimSpace(space)
+	if err := ValidateSpace(trimmedSpace); err != nil {
+		return LocalPeer{}, err
+	}
+	normalizedCard, err := normalizePeerCard(card)
+	if err != nil {
+		return LocalPeer{}, err
+	}
+	if joinedAt.IsZero() {
+		joinedAt = r.now()
+	}
+	joinedAt = joinedAt.UTC()
+
+	local := LocalPeer{
+		SessionID: trimmedSessionID,
+		PeerID:    normalizedCard.PeerID,
+		Space:     trimmedSpace,
+		PeerCard:  normalizedCard,
+		JoinedAt:  joinedAt,
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, ok := r.localsBySpace[trimmedSpace]; !ok {
+		r.localsBySpace[trimmedSpace] = make(map[string]string)
+	}
+	if owner, ok := r.localsBySpace[trimmedSpace][local.PeerID]; ok && owner != trimmedSessionID {
+		return LocalPeer{}, fmt.Errorf("%w: local peer_id already registered in space: %s", ErrInvalidField, local.PeerID)
+	}
+	if current, ok := r.localsByID[trimmedSessionID]; ok {
+		r.removeLocalIndexesLocked(current)
+	}
+	r.localsByID[trimmedSessionID] = local
+	r.localsBySpace[trimmedSpace][local.PeerID] = trimmedSessionID
+	r.deleteRemoteLocked(trimmedSpace, local.PeerID)
+
+	return cloneLocalPeer(local), nil
+}
+
+// LeaveLocal removes one local session peer from the registry.
+func (r *PeerRegistry) LeaveLocal(sessionID string) (LocalPeer, bool) {
+	if r == nil {
+		return LocalPeer{}, false
+	}
+
+	trimmedSessionID := strings.TrimSpace(sessionID)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	local, ok := r.localsByID[trimmedSessionID]
+	if !ok {
+		return LocalPeer{}, false
+	}
+
+	delete(r.localsByID, trimmedSessionID)
+	r.removeLocalIndexesLocked(local)
+	r.deleteRemoteLocked(local.Space, local.PeerID)
+
+	return cloneLocalPeer(local), true
+}
+
+// LocalBySession resolves one local peer by session ID.
+func (r *PeerRegistry) LocalBySession(sessionID string) (LocalPeer, bool) {
+	if r == nil {
+		return LocalPeer{}, false
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	local, ok := r.localsByID[strings.TrimSpace(sessionID)]
+	if !ok {
+		return LocalPeer{}, false
+	}
+	return cloneLocalPeer(local), true
+}
+
+// LocalByPeer resolves one local peer by space plus peer ID.
+func (r *PeerRegistry) LocalByPeer(space string, peerID string) (LocalPeer, bool) {
+	if r == nil {
+		return LocalPeer{}, false
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	local, ok := r.lookupLocalLocked(strings.TrimSpace(space), strings.TrimSpace(peerID))
+	if !ok {
+		return LocalPeer{}, false
+	}
+	return cloneLocalPeer(local), true
+}
+
+// LocalPeers returns the local peers currently joined to one space.
+func (r *PeerRegistry) LocalPeers(space string) []LocalPeer {
+	if r == nil {
+		return nil
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	trimmedSpace := strings.TrimSpace(space)
+	sessionIDs := r.localsBySpace[trimmedSpace]
+	if len(sessionIDs) == 0 {
+		return nil
+	}
+
+	peers := make([]LocalPeer, 0, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		peers = append(peers, cloneLocalPeer(r.localsByID[sessionID]))
+	}
+	sort.Slice(peers, func(i int, j int) bool {
+		return peers[i].SessionID < peers[j].SessionID
+	})
+	return peers
+}
+
+// MatchLocalPeers returns local peers matching one whois query.
+func (r *PeerRegistry) MatchLocalPeers(space string, query string) []LocalPeer {
+	peers := r.LocalPeers(space)
+	if len(peers) == 0 {
+		return nil
+	}
+
+	matches := make([]LocalPeer, 0, len(peers))
+	for _, peer := range peers {
+		if matchesWhoisQuery(peer.PeerCard, query) {
+			matches = append(matches, peer)
+		}
+	}
+	return matches
+}
+
+// RefreshRemote stores or refreshes one remote peer advertisement.
+func (r *PeerRegistry) RefreshRemote(space string, card PeerCard, seenAt time.Time) (RemotePeerEntry, bool, error) {
+	if r == nil {
+		return RemotePeerEntry{}, false, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
+	}
+
+	trimmedSpace := strings.TrimSpace(space)
+	if err := ValidateSpace(trimmedSpace); err != nil {
+		return RemotePeerEntry{}, false, err
+	}
+	normalizedCard, err := normalizePeerCard(card)
+	if err != nil {
+		return RemotePeerEntry{}, false, err
+	}
+	if seenAt.IsZero() {
+		seenAt = r.now()
+	}
+	seenAt = seenAt.UTC()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.expireRemotesLocked(seenAt)
+	if _, ok := r.lookupLocalLocked(trimmedSpace, normalizedCard.PeerID); ok {
+		r.deleteRemoteLocked(trimmedSpace, normalizedCard.PeerID)
+		return RemotePeerEntry{}, false, nil
+	}
+
+	if _, ok := r.remotesBySpace[trimmedSpace]; !ok {
+		r.remotesBySpace[trimmedSpace] = make(map[string]RemotePeerEntry)
+	}
+
+	entry := RemotePeerEntry{
+		PeerID:    normalizedCard.PeerID,
+		PeerCard:  normalizedCard,
+		Space:     trimmedSpace,
+		LastSeen:  seenAt,
+		ExpiresAt: seenAt.Add(2 * r.greetInterval),
+	}
+	r.remotesBySpace[trimmedSpace][entry.PeerID] = entry
+
+	return cloneRemotePeerEntry(entry), true, nil
+}
+
+// RemoteByPeer resolves one active remote peer entry.
+func (r *PeerRegistry) RemoteByPeer(space string, peerID string, at time.Time) (RemotePeerEntry, bool) {
+	if r == nil {
+		return RemotePeerEntry{}, false
+	}
+
+	if at.IsZero() {
+		at = r.now()
+	}
+	at = at.UTC()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.expireRemotesLocked(at)
+	spaceEntries := r.remotesBySpace[strings.TrimSpace(space)]
+	entry, ok := spaceEntries[strings.TrimSpace(peerID)]
+	if !ok {
+		return RemotePeerEntry{}, false
+	}
+	return cloneRemotePeerEntry(entry), true
+}
+
+// LookupPresence resolves one peer from the local registry first, then the remote cache.
+func (r *PeerRegistry) LookupPresence(space string, peerID string, at time.Time) (PeerInfo, bool) {
+	if r == nil {
+		return PeerInfo{}, false
+	}
+
+	trimmedSpace := strings.TrimSpace(space)
+	trimmedPeerID := strings.TrimSpace(peerID)
+	if at.IsZero() {
+		at = r.now()
+	}
+	at = at.UTC()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if local, ok := r.lookupLocalLocked(trimmedSpace, trimmedPeerID); ok {
+		return peerInfoFromLocal(local), true
+	}
+	r.expireRemotesLocked(at)
+	if entry, ok := r.remotesBySpace[trimmedSpace][trimmedPeerID]; ok {
+		return peerInfoFromRemote(entry), true
+	}
+	return PeerInfo{}, false
+}
+
+// HasPresence reports whether the peer is visible and unexpired in the given space.
+func (r *PeerRegistry) HasPresence(space string, peerID string, at time.Time) bool {
+	_, ok := r.LookupPresence(space, peerID, at)
+	return ok
+}
+
+// ListPeers returns visible peers, optionally filtered to one space.
+func (r *PeerRegistry) ListPeers(space string, at time.Time) []PeerInfo {
+	if r == nil {
+		return nil
+	}
+
+	if at.IsZero() {
+		at = r.now()
+	}
+	at = at.UTC()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.expireRemotesLocked(at)
+	trimmedSpace := strings.TrimSpace(space)
+	peers := make([]PeerInfo, 0, len(r.localsByID))
+	for _, local := range r.localsByID {
+		if trimmedSpace == "" || local.Space == trimmedSpace {
+			peers = append(peers, peerInfoFromLocal(local))
+		}
+	}
+	for currentSpace, entries := range r.remotesBySpace {
+		if trimmedSpace != "" && currentSpace != trimmedSpace {
+			continue
+		}
+		for _, entry := range entries {
+			peers = append(peers, peerInfoFromRemote(entry))
+		}
+	}
+	sort.Slice(peers, func(i int, j int) bool {
+		if peers[i].Space != peers[j].Space {
+			return peers[i].Space < peers[j].Space
+		}
+		if peers[i].Local != peers[j].Local {
+			return peers[i].Local
+		}
+		return peers[i].PeerID < peers[j].PeerID
+	})
+
+	return peers
+}
+
+// ListSpaces returns active runtime spaces plus current peer counts.
+func (r *PeerRegistry) ListSpaces(at time.Time) []SpaceInfo {
+	if r == nil {
+		return nil
+	}
+
+	if at.IsZero() {
+		at = r.now()
+	}
+	at = at.UTC()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.expireRemotesLocked(at)
+	counts := make(map[string]int)
+	for _, local := range r.localsByID {
+		counts[local.Space]++
+	}
+	for space, entries := range r.remotesBySpace {
+		counts[space] += len(entries)
+	}
+
+	spaces := make([]SpaceInfo, 0, len(counts))
+	for space, count := range counts {
+		spaces = append(spaces, SpaceInfo{Space: space, PeerCount: count})
+	}
+	sort.Slice(spaces, func(i int, j int) bool {
+		return spaces[i].Space < spaces[j].Space
+	})
+	return spaces
+}
+
+func (r *PeerRegistry) lookupLocalLocked(space string, peerID string) (LocalPeer, bool) {
+	sessionIDs := r.localsBySpace[space]
+	sessionID, ok := sessionIDs[peerID]
+	if !ok {
+		return LocalPeer{}, false
+	}
+	local, ok := r.localsByID[sessionID]
+	if !ok {
+		return LocalPeer{}, false
+	}
+	return local, true
+}
+
+func (r *PeerRegistry) removeLocalIndexesLocked(local LocalPeer) {
+	spaceEntries := r.localsBySpace[local.Space]
+	if len(spaceEntries) == 0 {
+		return
+	}
+	delete(spaceEntries, local.PeerID)
+	if len(spaceEntries) == 0 {
+		delete(r.localsBySpace, local.Space)
+	}
+}
+
+func (r *PeerRegistry) deleteRemoteLocked(space string, peerID string) {
+	entries := r.remotesBySpace[space]
+	if len(entries) == 0 {
+		return
+	}
+	delete(entries, peerID)
+	if len(entries) == 0 {
+		delete(r.remotesBySpace, space)
+	}
+}
+
+func (r *PeerRegistry) expireRemotesLocked(at time.Time) {
+	for space, entries := range r.remotesBySpace {
+		for peerID, entry := range entries {
+			if !entry.ExpiresAt.After(at) {
+				delete(entries, peerID)
+			}
+		}
+		if len(entries) == 0 {
+			delete(r.remotesBySpace, space)
+		}
+	}
+}
+
+func normalizePeerCard(card PeerCard) (PeerCard, error) {
+	normalized := clonePeerCard(card)
+	if err := normalizeAndValidatePeerCard(&normalized); err != nil {
+		return PeerCard{}, err
+	}
+	return normalized, nil
+}
+
+func clonePeerCard(card PeerCard) PeerCard {
+	cloned := PeerCard{
+		PeerID:              strings.TrimSpace(card.PeerID),
+		ProfilesSupported:   cloneStringList(card.ProfilesSupported),
+		Capabilities:        cloneStringList(card.Capabilities),
+		ArtifactsSupported:  cloneStringList(card.ArtifactsSupported),
+		TrustModesSupported: cloneStringList(card.TrustModesSupported),
+		Ext:                 cloneExtensionMap(card.Ext),
+	}
+	if card.DisplayName != nil {
+		displayName := strings.TrimSpace(*card.DisplayName)
+		cloned.DisplayName = &displayName
+	}
+	return cloned
+}
+
+func cloneStringList(values []string) []string {
+	if values == nil {
+		return nil
+	}
+	cloned := make([]string, len(values))
+	copy(cloned, values)
+	return cloned
+}
+
+func cloneLocalPeer(local LocalPeer) LocalPeer {
+	return LocalPeer{
+		SessionID: strings.TrimSpace(local.SessionID),
+		PeerID:    strings.TrimSpace(local.PeerID),
+		Space:     strings.TrimSpace(local.Space),
+		PeerCard:  clonePeerCard(local.PeerCard),
+		JoinedAt:  local.JoinedAt.UTC(),
+	}
+}
+
+func cloneRemotePeerEntry(entry RemotePeerEntry) RemotePeerEntry {
+	return RemotePeerEntry{
+		PeerID:    strings.TrimSpace(entry.PeerID),
+		PeerCard:  clonePeerCard(entry.PeerCard),
+		Space:     strings.TrimSpace(entry.Space),
+		LastSeen:  entry.LastSeen.UTC(),
+		ExpiresAt: entry.ExpiresAt.UTC(),
+	}
+}
+
+func peerInfoFromLocal(local LocalPeer) PeerInfo {
+	sessionID := strings.TrimSpace(local.SessionID)
+	joinedAt := local.JoinedAt.UTC()
+	return PeerInfo{
+		SessionID: &sessionID,
+		PeerID:    local.PeerID,
+		Space:     local.Space,
+		Local:     true,
+		PeerCard:  clonePeerCard(local.PeerCard),
+		JoinedAt:  &joinedAt,
+	}
+}
+
+func peerInfoFromRemote(entry RemotePeerEntry) PeerInfo {
+	lastSeen := entry.LastSeen.UTC()
+	expiresAt := entry.ExpiresAt.UTC()
+	return PeerInfo{
+		PeerID:    entry.PeerID,
+		Space:     entry.Space,
+		Local:     false,
+		PeerCard:  clonePeerCard(entry.PeerCard),
+		LastSeen:  &lastSeen,
+		ExpiresAt: &expiresAt,
+	}
+}
+
+func matchesWhoisQuery(card PeerCard, query string) bool {
+	trimmedQuery := strings.TrimSpace(query)
+	if trimmedQuery == "" {
+		return true
+	}
+	if card.PeerID == trimmedQuery {
+		return true
+	}
+	if card.DisplayName != nil && strings.TrimSpace(*card.DisplayName) == trimmedQuery {
+		return true
+	}
+	return containsString(card.Capabilities, trimmedQuery) ||
+		containsString(card.ProfilesSupported, trimmedQuery) ||
+		containsString(card.ArtifactsSupported, trimmedQuery) ||
+		containsString(card.TrustModesSupported, trimmedQuery)
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) == target {
+			return true
+		}
+	}
+	return false
+}
