@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -20,13 +23,16 @@ const defaultSDKContractsPath = "sdk/typescript/src/generated/contracts.ts"
 var ErrStaleGeneratedFile = errors.New("generated file is stale")
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	if err := run(ctx, os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(args []string) error {
+func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: agh-codegen <openapi|sdk-contracts|all|check>")
 	}
@@ -35,17 +41,17 @@ func run(args []string) error {
 	case "openapi":
 		return writeOpenAPI(spec.DefaultPath)
 	case "sdk-contracts":
-		return writeSDKContracts(defaultSDKContractsPath)
+		return writeSDKContracts(ctx, defaultSDKContractsPath)
 	case "all":
 		if err := writeOpenAPI(spec.DefaultPath); err != nil {
 			return err
 		}
-		return writeSDKContracts(defaultSDKContractsPath)
+		return writeSDKContracts(ctx, defaultSDKContractsPath)
 	case "check":
 		if err := checkOpenAPI(spec.DefaultPath); err != nil {
 			return err
 		}
-		return checkSDKContracts(defaultSDKContractsPath)
+		return checkSDKContracts(ctx, defaultSDKContractsPath)
 	default:
 		return fmt.Errorf("unknown codegen target %q", args[0])
 	}
@@ -58,8 +64,8 @@ func writeOpenAPI(path string) error {
 	return nil
 }
 
-func writeSDKContracts(path string) error {
-	content, err := generateFormattedSDKContracts(path)
+func writeSDKContracts(ctx context.Context, path string) error {
+	content, err := generateFormattedSDKContracts(ctx, path)
 	if err != nil {
 		return err
 	}
@@ -80,8 +86,8 @@ func checkOpenAPI(path string) error {
 	return checkJSONFile(path, want)
 }
 
-func checkSDKContracts(path string) error {
-	content, err := generateFormattedSDKContracts(path)
+func checkSDKContracts(ctx context.Context, path string) error {
+	content, err := generateFormattedSDKContracts(ctx, path)
 	if err != nil {
 		return err
 	}
@@ -97,7 +103,9 @@ func marshalOpenAPI() ([]byte, error) {
 		return nil, fmt.Errorf("close temporary openapi file %q: %w", file.Name(), err)
 	}
 	defer func() {
-		_ = os.Remove(file.Name())
+		if err := removeTemporaryFile(file.Name()); err != nil {
+			slog.Warn("remove temporary openapi file", "path", file.Name(), "err", err)
+		}
 	}()
 
 	if err := spec.WriteFile(file.Name()); err != nil {
@@ -155,20 +163,20 @@ func canonicalJSON(data []byte) (any, error) {
 	return value, nil
 }
 
-func generateFormattedSDKContracts(path string) ([]byte, error) {
+func generateFormattedSDKContracts(ctx context.Context, path string) ([]byte, error) {
 	content, err := sdkts.Generate()
 	if err != nil {
 		return nil, fmt.Errorf("generate sdk contracts: %w", err)
 	}
-	formatted, err := formatTypeScript(path, []byte(content))
+	formatted, err := formatTypeScript(ctx, path, []byte(content))
 	if err != nil {
 		return nil, err
 	}
 	return formatted, nil
 }
 
-func formatTypeScript(path string, content []byte) ([]byte, error) {
-	cmd := exec.Command("bunx", "oxfmt", "--stdin-filepath", path)
+func formatTypeScript(ctx context.Context, path string, content []byte) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "bunx", "oxfmt", "--stdin-filepath", path)
 	cmd.Stdin = bytes.NewReader(content)
 
 	var stdout bytes.Buffer
@@ -184,4 +192,12 @@ func formatTypeScript(path string, content []byte) ([]byte, error) {
 		return nil, fmt.Errorf("format typescript %q with oxfmt: %w: %s", path, err, detail)
 	}
 	return stdout.Bytes(), nil
+}
+
+func removeTemporaryFile(path string) error {
+	err := os.Remove(path)
+	if err == nil || errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return fmt.Errorf("remove temporary file %q: %w", path, err)
 }

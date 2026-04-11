@@ -15,60 +15,82 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 		t.Fatalf("Document() error = %v", err)
 	}
 
-	t.Run("ShouldDescribeSessionListRequiredFieldsAndEnums", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name  string
+		check func(t *testing.T, doc *openapi3.T)
+	}{
+		{
+			name: "ShouldDescribeSessionListRequiredFieldsAndEnums",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
 
-		listSessions := operationFor(t, doc, "/api/sessions", "GET")
-		listSessionsSchema := jsonResponseSchema(t, listSessions, 200)
-		assertRequired(t, listSessionsSchema, "sessions")
+				listSessions := operationFor(t, doc, "/api/sessions", "GET")
+				listSessionsSchema := jsonResponseSchema(t, listSessions, 200)
+				assertRequired(t, listSessionsSchema, "sessions")
 
-		sessionsSchema := propertySchema(t, listSessionsSchema, "sessions")
-		if sessionsSchema.Items == nil || sessionsSchema.Items.Value == nil {
-			t.Fatal("expected sessions to define an items schema")
-		}
+				sessionsSchema := propertySchema(t, listSessionsSchema, "sessions")
+				if sessionsSchema.Items == nil || sessionsSchema.Items.Value == nil {
+					t.Fatal("expected sessions to define an items schema")
+				}
 
-		sessionSchema := sessionsSchema.Items.Value
-		assertRequired(t, sessionSchema, "id", "agent_name", "state", "created_at", "updated_at")
-		assertNotRequired(t, sessionSchema, "workspace_id", "workspace_path", "stop_reason", "stop_detail")
-		assertEnumValues(t, propertySchema(t, sessionSchema, "state"), "starting", "active", "stopping", "stopped")
-		assertEnumValues(t, propertySchema(t, sessionSchema, "stop_reason"),
-			"completed",
-			"user_canceled",
-			"max_iterations",
-			"loop_detected",
-			"timeout",
-			"budget_exceeded",
-			"error",
-			"agent_crashed",
-			"hook_stopped",
-			"shutdown",
-		)
-	})
+				sessionSchema := sessionsSchema.Items.Value
+				assertRequired(t, sessionSchema, "id", "agent_name", "state", "created_at", "updated_at")
+				assertNotRequired(t, sessionSchema, "workspace_id", "workspace_path", "stop_reason", "stop_detail")
+				assertEnumValues(t, propertySchema(t, sessionSchema, "state"), "starting", "active", "stopping", "stopped")
+				assertEnumValues(t, propertySchema(t, sessionSchema, "stop_reason"),
+					"completed",
+					"user_canceled",
+					"max_iterations",
+					"loop_detected",
+					"timeout",
+					"budget_exceeded",
+					"error",
+					"agent_crashed",
+					"hook_stopped",
+					"shutdown",
+				)
+			},
+		},
+		{
+			name: "ShouldDescribeCreateSessionOptionalFields",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
 
-	t.Run("ShouldDescribeCreateSessionOptionalFields", func(t *testing.T) {
-		t.Parallel()
+				createSession := operationFor(t, doc, "/api/sessions", "POST")
+				createSessionSchema := jsonRequestSchema(t, createSession)
+				assertNotRequired(t, createSessionSchema, "agent_name", "name", "workspace", "workspace_path")
+			},
+		},
+		{
+			name: "ShouldDescribeApproveSessionRequiredFields",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
 
-		createSession := operationFor(t, doc, "/api/sessions", "POST")
-		createSessionSchema := jsonRequestSchema(t, createSession)
-		assertNotRequired(t, createSessionSchema, "agent_name", "name", "workspace", "workspace_path")
-	})
+				approveSession := operationFor(t, doc, "/api/sessions/{id}/approve", "POST")
+				approveSchema := jsonRequestSchema(t, approveSession)
+				assertRequired(t, approveSchema, "request_id", "turn_id", "decision")
+			},
+		},
+		{
+			name: "ShouldDescribeWriteMemoryRequiredAndOptionalFields",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
 
-	t.Run("ShouldDescribeApproveSessionRequiredFields", func(t *testing.T) {
-		t.Parallel()
+				writeMemory := operationFor(t, doc, "/api/memory/{filename}", "PUT")
+				writeMemorySchema := jsonRequestSchema(t, writeMemory)
+				assertRequired(t, writeMemorySchema, "content")
+				assertNotRequired(t, writeMemorySchema, "scope", "workspace")
+			},
+		},
+	}
 
-		approveSession := operationFor(t, doc, "/api/sessions/{id}/approve", "POST")
-		approveSchema := jsonRequestSchema(t, approveSession)
-		assertRequired(t, approveSchema, "request_id", "turn_id", "decision")
-	})
-
-	t.Run("ShouldDescribeWriteMemoryRequiredAndOptionalFields", func(t *testing.T) {
-		t.Parallel()
-
-		writeMemory := operationFor(t, doc, "/api/memory/{filename}", "PUT")
-		writeMemorySchema := jsonRequestSchema(t, writeMemory)
-		assertRequired(t, writeMemorySchema, "content")
-		assertNotRequired(t, writeMemorySchema, "scope", "workspace")
-	})
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.check(t, doc)
+		})
+	}
 }
 
 func operationFor(t *testing.T, doc *openapi3.T, path string, method string) *openapi3.Operation {

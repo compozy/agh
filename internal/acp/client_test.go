@@ -492,7 +492,7 @@ func TestIsLoadSessionResourceMissing(t *testing.T) {
 		err  error
 		want bool
 	}{
-		"resource missing request error": {
+		"ShouldDetectResourceMissingRequestError": {
 			err: fmt.Errorf(
 				"%w: load session %q for %q: %w",
 				ErrLoadSessionFailed,
@@ -502,7 +502,7 @@ func TestIsLoadSessionResourceMissing(t *testing.T) {
 			),
 			want: true,
 		},
-		"different request error": {
+		"ShouldRejectDifferentRequestError": {
 			err: fmt.Errorf(
 				"%w: load session %q for %q: %w",
 				ErrLoadSessionFailed,
@@ -512,7 +512,7 @@ func TestIsLoadSessionResourceMissing(t *testing.T) {
 			),
 			want: false,
 		},
-		"non load session error": {
+		"ShouldRejectNonLoadSessionError": {
 			err:  errors.New("boom"),
 			want: false,
 		},
@@ -705,8 +705,14 @@ func TestStopManagedProcessRespectsContext(t *testing.T) {
 		t.Cleanup(func() {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			_ = managed.Shutdown(cleanupCtx)
-			<-proc.Done()
+			if shutdownErr := managed.Shutdown(cleanupCtx); shutdownErr != nil {
+				t.Fatalf("managed.Shutdown() error = %v", shutdownErr)
+			}
+			select {
+			case <-proc.Done():
+			case <-cleanupCtx.Done():
+				t.Fatalf("process did not exit during cleanup: %v", cleanupCtx.Err())
+			}
 		})
 
 		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)

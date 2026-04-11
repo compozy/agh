@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -592,12 +593,6 @@ func (h *BaseHandlers) DaemonStatus(c *gin.Context) {
 		httpPort = h.Config.HTTP.Port
 	}
 
-	userHomeDir, err := resolveUserHomeDir()
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
 	c.JSON(http.StatusOK, contract.DaemonStatusResponse{
 		Daemon: contract.DaemonStatusPayload{
 			Status:         "running",
@@ -606,7 +601,7 @@ func (h *BaseHandlers) DaemonStatus(c *gin.Context) {
 			Socket:         h.Config.Daemon.Socket,
 			HTTPHost:       h.Config.HTTP.Host,
 			HTTPPort:       httpPort,
-			UserHomeDir:    userHomeDir,
+			UserHomeDir:    h.daemonUserHomeDir(),
 			ActiveSessions: health.ActiveSessions,
 			TotalSessions:  len(sessions),
 			Version:        health.Version,
@@ -614,18 +609,59 @@ func (h *BaseHandlers) DaemonStatus(c *gin.Context) {
 	})
 }
 
-func resolveUserHomeDir() (string, error) {
-	userHomeDir, err := os.UserHomeDir()
-	if err != nil {
+func (h *BaseHandlers) daemonUserHomeDir() string {
+	userHomeDir, err := resolveUserHomeDir(h.HomePaths, os.UserHomeDir)
+	if err == nil {
+		return userHomeDir
+	}
+
+	logger := h.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.Warn("api: daemon status user home directory unavailable", "err", err)
+	return ""
+}
+
+func resolveUserHomeDir(homePaths aghconfig.HomePaths, lookupHomeDir func() (string, error)) (string, error) {
+	if lookupHomeDir != nil {
+		userHomeDir, err := lookupHomeDir()
+		if err == nil {
+			resolvedUserHomeDir, resolveErr := aghconfig.ResolvePath(userHomeDir)
+			if resolveErr == nil && strings.TrimSpace(resolvedUserHomeDir) != "" {
+				return resolvedUserHomeDir, nil
+			}
+			if fallback, ok := fallbackUserHomeDir(homePaths); ok {
+				return fallback, nil
+			}
+			if resolveErr != nil {
+				return "", fmt.Errorf("resolve user home directory %q: %w", userHomeDir, resolveErr)
+			}
+			return "", nil
+		}
+		if fallback, ok := fallbackUserHomeDir(homePaths); ok {
+			return fallback, nil
+		}
 		return "", fmt.Errorf("resolve user home directory: %w", err)
 	}
 
-	resolvedUserHomeDir, err := aghconfig.ResolvePath(userHomeDir)
-	if err != nil {
-		return "", fmt.Errorf("resolve user home directory %q: %w", userHomeDir, err)
+	if fallback, ok := fallbackUserHomeDir(homePaths); ok {
+		return fallback, nil
+	}
+	return "", nil
+}
+
+func fallbackUserHomeDir(homePaths aghconfig.HomePaths) (string, bool) {
+	homeDir := strings.TrimSpace(homePaths.HomeDir)
+	if homeDir == "" || filepath.Base(homeDir) != aghconfig.DirName {
+		return "", false
 	}
 
-	return resolvedUserHomeDir, nil
+	parent := filepath.Dir(homeDir)
+	if parent == "." || parent == homeDir || strings.TrimSpace(parent) == "" {
+		return "", false
+	}
+	return parent, true
 }
 
 // HTTPPortValue returns the configured HTTP port in a concurrency-safe way.

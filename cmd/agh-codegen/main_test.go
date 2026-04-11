@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -52,12 +55,70 @@ func TestFormatTypeScript(t *testing.T) {
 	t.Run("ShouldMatchRepositoryFormatter", func(t *testing.T) {
 		t.Parallel()
 
-		formatted, err := formatTypeScript("sdk/typescript/src/generated/contracts.ts", []byte("export type Value =\n  | \"a\"\n  | \"b\";\n"))
+		formatted, err := formatTypeScript(context.Background(), "sdk/typescript/src/generated/contracts.ts", []byte("export type Value =\n  | \"a\"\n  | \"b\";\n"))
 		if err != nil {
 			t.Fatalf("formatTypeScript() error = %v", err)
 		}
 		if got, want := string(formatted), "export type Value = \"a\" | \"b\";\n"; got != want {
 			t.Fatalf("formatTypeScript() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("ShouldReturnContextErrorWhenCanceled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := formatTypeScript(ctx, "sdk/typescript/src/generated/contracts.ts", []byte("export type Value = \"a\";\n"))
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("formatTypeScript() error = %v, want context.Canceled", err)
+		}
+	})
+}
+
+func TestRemoveTemporaryFile(t *testing.T) {
+	t.Run("ShouldIgnoreMissingFile", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "missing-openapi.json")
+		if err := removeTemporaryFile(path); err != nil {
+			t.Fatalf("removeTemporaryFile() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("ShouldReturnErrorWhenDirectoryDoesNotPermitDeletion", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("directory permission semantics differ on windows")
+		}
+
+		dir := filepath.Join(t.TempDir(), "locked")
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatalf("os.Mkdir() error = %v", err)
+		}
+
+		path := filepath.Join(dir, "openapi.json")
+		if err := os.WriteFile(path, []byte("{}"), 0o644); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+
+		if err := os.Chmod(dir, 0o500); err != nil {
+			t.Fatalf("os.Chmod(%q) error = %v", dir, err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(dir, 0o700); err != nil {
+				t.Fatalf("restore directory permissions: %v", err)
+			}
+		})
+
+		err := removeTemporaryFile(path)
+		if err == nil {
+			t.Fatal("removeTemporaryFile() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), path) {
+			t.Fatalf("removeTemporaryFile() error = %q, want path %q in message", err.Error(), path)
 		}
 	})
 }

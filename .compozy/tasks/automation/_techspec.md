@@ -446,15 +446,270 @@ Record automation events as `EventSummary` entries:
 - `automation.run_completed` — run finished (success)
 - `automation.run_failed` — run finished (failure)
 
-### Extension Integration (Future P1)
+### Extension Integration
 
-When the extension Host API is complete, expose automation methods:
+The automation system integrates with the extension architecture at three levels: **Host API methods** (extensions manage automation), **hook events** (extensions observe automation), and **custom trigger sources** (extensions extend automation).
 
-- `automation/jobs` — CRUD operations on jobs
-- `automation/triggers` — CRUD operations on triggers
-- `automation/runs` — query run history
+#### 1. Host API Methods (JSON-RPC over stdio)
 
-Extensions can observe automation events via hook events already emitted.
+Extensions with the `automation.read` or `automation.write` security capabilities can call these methods on the daemon:
+
+```json
+// Extension → Daemon: List jobs
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "automation/jobs",
+  "params": { "workspace_id": "ws_123", "enabled": true }
+}
+// Response: { "result": [{ "id": "job_1", "name": "daily-report", ... }] }
+
+// Extension → Daemon: Create a job
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "automation/jobs/create",
+  "params": {
+    "name": "ext-health-check",
+    "agent_name": "monitor",
+    "workspace_id": "ws_123",
+    "prompt": "Check extension health",
+    "schedule": { "mode": "every", "interval": "5m" },
+    "retry": { "strategy": "backoff", "max_retries": 2, "base_delay": "1s" }
+  }
+}
+// Response: { "result": { "id": "job_abc", "name": "ext-health-check", ... } }
+
+// Extension → Daemon: Trigger a job immediately
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "automation/jobs/trigger",
+  "params": { "id": "job_abc", "payload": { "reason": "manual" } }
+}
+// Response: { "result": { "run_id": "run_xyz", "session_id": "sess_456" } }
+
+// Extension → Daemon: Create a trigger
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "automation/triggers/create",
+  "params": {
+    "name": "on-memory-consolidated",
+    "agent_name": "knowledge-updater",
+    "workspace_id": "ws_123",
+    "event": "memory.consolidated",
+    "prompt": "Update knowledge base after consolidation"
+  }
+}
+
+// Extension → Daemon: Query runs
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "automation/runs",
+  "params": { "job_id": "job_abc", "status": "failed", "limit": 10 }
+}
+```
+
+**Full Host API method table:**
+
+| Method | Params | Result | Security Capability |
+|--------|--------|--------|---------------------|
+| `automation/jobs` | `{workspace_id?, enabled?}` | `[Job]` | `automation.read` |
+| `automation/jobs/get` | `{id}` | `Job` | `automation.read` |
+| `automation/jobs/create` | `CreateJobRequest` | `Job` | `automation.write` |
+| `automation/jobs/update` | `{id, ...fields}` | `Job` | `automation.write` |
+| `automation/jobs/delete` | `{id}` | `{}` | `automation.write` |
+| `automation/jobs/trigger` | `{id, payload?}` | `Run` | `automation.write` |
+| `automation/jobs/runs` | `{id, limit?, status?}` | `[Run]` | `automation.read` |
+| `automation/triggers` | `{workspace_id?, event?}` | `[Trigger]` | `automation.read` |
+| `automation/triggers/get` | `{id}` | `Trigger` | `automation.read` |
+| `automation/triggers/create` | `CreateTriggerRequest` | `Trigger` | `automation.write` |
+| `automation/triggers/update` | `{id, ...fields}` | `Trigger` | `automation.write` |
+| `automation/triggers/delete` | `{id}` | `{}` | `automation.write` |
+| `automation/triggers/runs` | `{id, limit?, status?}` | `[Run]` | `automation.read` |
+| `automation/runs` | `{job_id?, trigger_id?, status?, limit?}` | `[Run]` | `automation.read` |
+
+**Extension manifest declaring automation capabilities:**
+
+```toml
+# extension.toml
+[extension]
+name = "smart-scheduler"
+version = "1.0.0"
+description = "Intelligent scheduling extension that optimizes job timing"
+
+[actions]
+requires = [
+    "automation/jobs",
+    "automation/jobs/create",
+    "automation/jobs/update",
+    "automation/triggers/create",
+    "automation/runs",
+]
+
+[security]
+capabilities = [
+    "automation.read",
+    "automation.write",
+]
+```
+
+#### 2. Hook Events (Extensions Observe Automation)
+
+The automation system emits hook events at every lifecycle point. Extensions with hook declarations can observe and optionally modify automation behavior.
+
+**Hook events emitted by the automation system:**
+
+| Hook Event | Mode | Payload | Patchable Fields |
+|------------|------|---------|-----------------|
+| `automation.job.pre_fire` | sync | `{job_id, job_name, agent, prompt, schedule, attempt}` | `prompt` (modify prompt before dispatch), `cancel: true` (skip this fire) |
+| `automation.job.post_fire` | async | `{job_id, job_name, run_id, session_id}` | — |
+| `automation.trigger.pre_fire` | sync | `{trigger_id, trigger_name, event, agent, prompt, payload}` | `prompt` (modify), `cancel: true` (skip) |
+| `automation.trigger.post_fire` | async | `{trigger_id, trigger_name, run_id, session_id}` | — |
+| `automation.run.completed` | async | `{run_id, job_id?, trigger_id?, session_id, duration_ms}` | — |
+| `automation.run.failed` | async | `{run_id, job_id?, trigger_id?, error, attempt, will_retry}` | — |
+
+**Example: Extension hook that enriches prompts before dispatch:**
+
+```json
+// Daemon → Extension: execute_hook
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "method": "execute_hook",
+  "params": {
+    "invocation_id": "hook-01ABC",
+    "hook": {
+      "name": "enrich-automation-prompt",
+      "event": "automation.job.pre_fire",
+      "mode": "sync",
+      "timeout_ms": 5000
+    },
+    "payload": {
+      "job_id": "job_abc",
+      "job_name": "daily-report",
+      "agent": "researcher",
+      "prompt": "Generate daily AI news summary",
+      "schedule": { "mode": "cron", "expr": "0 9 * * *" },
+      "attempt": 1
+    }
+  }
+}
+
+// Extension → Daemon: Response with modified prompt
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "result": {
+    "patch": {
+      "prompt": "Generate daily AI news summary. Focus on: transformer architectures, agent frameworks, and reasoning models. Today is Thursday April 10, 2026."
+    }
+  }
+}
+```
+
+**Example: Extension hook that cancels a fire based on conditions:**
+
+```json
+// Extension cancels fire if already ran today
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "result": {
+    "patch": {
+      "cancel": true
+    }
+  }
+}
+```
+
+**Hook declarations in extension.toml:**
+
+```toml
+[[resources.hooks]]
+name = "enrich-automation-prompt"
+event = "automation.job.pre_fire"
+mode = "sync"
+required = false
+timeout_ms = 5000
+```
+
+#### 3. Custom Trigger Sources (Extensions Extend Automation)
+
+Extensions can register custom trigger sources beyond the built-in ones (session, webhook, memory, hook events). This enables integration with external systems without modifying the daemon.
+
+**Architecture:**
+
+```
+Extension subprocess ──JSON-RPC──▶ Daemon
+                                    │
+                      automation/triggers/fire
+                                    │
+                                    ▼
+                            TriggerEngine
+                                    │
+                                    ▼
+                              Dispatcher
+                                    │
+                                    ▼
+                           session.Manager.Create()
+```
+
+An extension that wants to act as a trigger source:
+1. Subscribes to an external event stream (Slack events, GitHub webhooks, Grafana alerts, etc.)
+2. When an event arrives, calls `automation/triggers/fire` Host API method
+3. The daemon's trigger engine matches it against registered triggers and dispatches
+
+```json
+// Extension → Daemon: Fire a trigger from external event
+{
+  "jsonrpc": "2.0",
+  "id": 20,
+  "method": "automation/triggers/fire",
+  "params": {
+    "event": "ext.github.push",
+    "payload": {
+      "repo": "acme/api",
+      "branch": "main",
+      "commit": "abc123",
+      "author": "dev@acme.com",
+      "message": "feat: add new endpoint"
+    }
+  }
+}
+// Daemon matches against triggers with event = "ext.github.push"
+// and dispatches session with prompt template filled from payload
+```
+
+**Host API method for custom trigger firing:**
+
+| Method | Params | Result | Security Capability |
+|--------|--------|--------|---------------------|
+| `automation/triggers/fire` | `{event: string, payload: object}` | `{matched: int, runs: [Run]}` | `automation.write` |
+
+**Trigger configuration referencing extension events:**
+
+```toml
+[[automation.triggers]]
+name = "code-review-on-push"
+event = "ext.github.push"
+filter = { branch = "main" }
+agent = "code-reviewer"
+prompt = "Review push to {{.payload.repo}} by {{.payload.author}}: {{.payload.message}}"
+```
+
+**Convention**: Extension-provided events use the `ext.` prefix (e.g., `ext.github.push`, `ext.slack.message`, `ext.grafana.alert`). Built-in events use bare names (e.g., `session.stopped`, `webhook`, `memory.consolidated`).
+
+#### Extension Integration Summary
+
+| Integration Level | How | When Available |
+|-------------------|-----|----------------|
+| **Observe** (hook events) | Extensions subscribe to `automation.*` hook events via hook declarations | When P0 hooks + P1 extensions are complete |
+| **Manage** (Host API CRUD) | Extensions call `automation/*` JSON-RPC methods to create/update/delete jobs and triggers | When P1 Host API is complete |
+| **Extend** (custom triggers) | Extensions call `automation/triggers/fire` to inject external events as trigger activations | When P1 Host API is complete |
+| **Modify** (pre_fire hooks) | Extensions patch prompts or cancel fires via sync hooks on `automation.job.pre_fire` / `automation.trigger.pre_fire` | When P0 hooks + P1 extensions are complete |
 
 ## Impact Analysis
 
@@ -469,6 +724,8 @@ Extensions can observe automation events via hook events already emitted.
 | `internal/api/httpapi/` | Modified | Add automation + webhook route handlers | Medium risk — new route groups |
 | `internal/api/core/` | Modified | Add `AutomationManager` interface | Low risk — additive |
 | `internal/cli/` | Modified | Add `automation` command group | Low risk — new subcommand |
+| `internal/extension/host_api.go` | Modified | Add `automation/*` Host API method handlers | Low risk — additive, follows existing pattern |
+| `internal/hooks/events.go` | Modified | Add `automation.*` hook event constants | Low risk — additive |
 | `internal/session/` | None | No changes — dispatcher uses existing `Manager.Create` | No action |
 | `internal/observe/` | Minor | Record automation event summaries | Low risk — new event types |
 | `web/` | Modified | New `/automation` page, sidebar entry, components | Medium risk — new feature page |
