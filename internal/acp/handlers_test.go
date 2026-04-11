@@ -154,6 +154,73 @@ func TestHandleInboundWriteDenied(t *testing.T) {
 	}
 }
 
+func TestHandleWriteTextFileBlockedForNetworkTurn(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc.SetTurnSourceProvider(func() string { return "network" })
+
+	active, err := proc.beginPrompt("turn-network-write", 4)
+	if err != nil {
+		t.Fatalf("beginPrompt() error = %v", err)
+	}
+	defer proc.endPrompt(active)
+
+	target := filepath.Join(proc.Cwd, "network.txt")
+	if _, err := proc.handleWriteTextFile(context.Background(), acpsdk.WriteTextFileRequest{
+		SessionId: "sess-direct",
+		Path:      target,
+		Content:   "blocked",
+	}); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
+		t.Fatalf("handleWriteTextFile(network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
+	}
+}
+
+func TestHandleCreateTerminalBlocksNonAllowlistedCommandsForNetworkTurn(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc.SetTurnSourceProvider(func() string { return "network" })
+
+	active, err := proc.beginPrompt("turn-network-create", 4)
+	if err != nil {
+		t.Fatalf("beginPrompt() error = %v", err)
+	}
+	defer proc.endPrompt(active)
+
+	tests := []struct {
+		name    string
+		request acpsdk.CreateTerminalRequest
+	}{
+		{
+			name: "shell wrapper",
+			request: acpsdk.CreateTerminalRequest{
+				SessionId: "sess-direct",
+				Command:   "sh",
+				Args:      []string{"-c", "printf nope"},
+				Cwd:       acpsdk.Ptr(proc.Cwd),
+			},
+		},
+		{
+			name: "non-network agh subcommand",
+			request: acpsdk.CreateTerminalRequest{
+				SessionId: "sess-direct",
+				Command:   "agh",
+				Args:      []string{"version"},
+				Cwd:       acpsdk.Ptr(proc.Cwd),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := proc.handleCreateTerminal(tt.request); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
+				t.Fatalf("handleCreateTerminal(%s) error = %v, want ErrToolBlockedForNetworkTurn", tt.name, err)
+			}
+		})
+	}
+}
+
 func TestHandleInboundPermissionRequest(t *testing.T) {
 	t.Parallel()
 
@@ -553,6 +620,170 @@ func TestTerminalLifecycleHandlers(t *testing.T) {
 	}
 }
 
+func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	turnSource := ""
+	proc.SetTurnSourceProvider(func() string { return turnSource })
+
+	aghDir := t.TempDir()
+	writeFakeAGHBinary(t, aghDir, "printf network-ok")
+	t.Setenv("PATH", aghDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	turnSource = "network"
+	firstTurn, err := proc.beginPrompt("turn-network-1", 4)
+	if err != nil {
+		t.Fatalf("beginPrompt(first network) error = %v", err)
+	}
+
+	networkCreate, err := proc.handleCreateTerminal(acpsdk.CreateTerminalRequest{
+		SessionId: "sess-direct",
+		Command:   "agh",
+		Args:      []string{"network", "status"},
+		Cwd:       acpsdk.Ptr(proc.Cwd),
+	})
+	if err != nil {
+		t.Fatalf("handleCreateTerminal(allowlisted network command) error = %v", err)
+	}
+
+	networkTerm, err := proc.terminals.lookup(networkCreate.TerminalId)
+	if err != nil {
+		t.Fatalf("lookup(network terminal) error = %v", err)
+	}
+	if !networkTerm.networkOwned {
+		t.Fatal("network terminal networkOwned = false, want true")
+	}
+	if networkTerm.ownerTurnID != "turn-network-1" {
+		t.Fatalf("network terminal ownerTurnID = %q, want %q", networkTerm.ownerTurnID, "turn-network-1")
+	}
+
+	if _, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
+		SessionId:  "sess-direct",
+		TerminalId: networkCreate.TerminalId,
+	}); err != nil {
+		t.Fatalf("handleWaitForTerminalExit(same network turn) error = %v", err)
+	}
+
+	networkOutput, err := proc.handleTerminalOutput(acpsdk.TerminalOutputRequest{
+		SessionId:  "sess-direct",
+		TerminalId: networkCreate.TerminalId,
+	})
+	if err != nil {
+		t.Fatalf("handleTerminalOutput(same network turn) error = %v", err)
+	}
+	if networkOutput.Output != "network-ok" {
+		t.Fatalf("network terminal output = %q, want %q", networkOutput.Output, "network-ok")
+	}
+
+	proc.endPrompt(firstTurn)
+
+	turnSource = "user"
+	userTurn, err := proc.beginPrompt("turn-user-1", 4)
+	if err != nil {
+		t.Fatalf("beginPrompt(user) error = %v", err)
+	}
+
+	userCreate, err := proc.handleCreateTerminal(acpsdk.CreateTerminalRequest{
+		SessionId: "sess-direct",
+		Command:   "sh",
+		Args:      []string{"-c", "sleep 5"},
+		Cwd:       acpsdk.Ptr(proc.Cwd),
+	})
+	if err != nil {
+		t.Fatalf("handleCreateTerminal(user shell) error = %v", err)
+	}
+
+	proc.endPrompt(userTurn)
+
+	turnSource = "network"
+	secondTurn, err := proc.beginPrompt("turn-network-2", 4)
+	if err != nil {
+		t.Fatalf("beginPrompt(second network) error = %v", err)
+	}
+	defer proc.endPrompt(secondTurn)
+
+	if _, err := proc.handleTerminalOutput(acpsdk.TerminalOutputRequest{
+		SessionId:  "sess-direct",
+		TerminalId: networkCreate.TerminalId,
+	}); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
+		t.Fatalf("handleTerminalOutput(previous network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
+	}
+
+	if _, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
+		SessionId:  "sess-direct",
+		TerminalId: networkCreate.TerminalId,
+	}); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
+		t.Fatalf("handleWaitForTerminalExit(previous network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
+	}
+
+	if _, err := proc.handleKillTerminal(acpsdk.KillTerminalCommandRequest{
+		SessionId:  "sess-direct",
+		TerminalId: networkCreate.TerminalId,
+	}); err != nil {
+		t.Fatalf("handleKillTerminal(network-owned) error = %v", err)
+	}
+
+	if _, err := proc.handleReleaseTerminal(acpsdk.ReleaseTerminalRequest{
+		SessionId:  "sess-direct",
+		TerminalId: networkCreate.TerminalId,
+	}); err != nil {
+		t.Fatalf("handleReleaseTerminal(network-owned) error = %v", err)
+	}
+
+	checks := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "output user terminal",
+			run: func() error {
+				_, err := proc.handleTerminalOutput(acpsdk.TerminalOutputRequest{
+					SessionId:  "sess-direct",
+					TerminalId: userCreate.TerminalId,
+				})
+				return err
+			},
+		},
+		{
+			name: "wait user terminal",
+			run: func() error {
+				_, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
+					SessionId:  "sess-direct",
+					TerminalId: userCreate.TerminalId,
+				})
+				return err
+			},
+		},
+		{
+			name: "kill user terminal",
+			run: func() error {
+				_, err := proc.handleKillTerminal(acpsdk.KillTerminalCommandRequest{
+					SessionId:  "sess-direct",
+					TerminalId: userCreate.TerminalId,
+				})
+				return err
+			},
+		},
+		{
+			name: "release user terminal",
+			run: func() error {
+				_, err := proc.handleReleaseTerminal(acpsdk.ReleaseTerminalRequest{
+					SessionId:  "sess-direct",
+					TerminalId: userCreate.TerminalId,
+				})
+				return err
+			},
+		},
+	}
+
+	for _, check := range checks {
+		t.Run(check.name, func(t *testing.T) {
+			if err := check.run(); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
+				t.Fatalf("%s error = %v, want ErrToolBlockedForNetworkTurn", check.name, err)
+			}
+		})
+	}
+}
+
 func TestHelperUtilities(t *testing.T) {
 	t.Parallel()
 
@@ -842,6 +1073,16 @@ func newDirectProcess(t *testing.T, mode aghconfig.PermissionMode) *AgentProcess
 	}
 	t.Cleanup(proc.terminals.closeAll)
 	return proc
+}
+
+func writeFakeAGHBinary(t *testing.T, dir string, body string) {
+	t.Helper()
+
+	path := filepath.Join(dir, "agh")
+	script := "#!/bin/sh\n" + body + "\n"
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+	}
 }
 
 func decodePermissionEventRaw(t *testing.T, raw json.RawMessage) struct {

@@ -4,6 +4,7 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
@@ -12,6 +13,31 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
+
+// TurnSource classifies the origin of a prompt turn inside the daemon runtime.
+type TurnSource string
+
+const (
+	TurnSourceUser    TurnSource = "user"
+	TurnSourceNetwork TurnSource = "network"
+)
+
+// PromptOpts carries per-turn metadata through the session prompt pipeline.
+type PromptOpts struct {
+	Message    string
+	TurnSource TurnSource
+}
+
+func normalizeTurnSource(source TurnSource) TurnSource {
+	switch TurnSource(strings.TrimSpace(string(source))) {
+	case "", TurnSourceUser:
+		return TurnSourceUser
+	case TurnSourceNetwork:
+		return TurnSourceNetwork
+	default:
+		return ""
+	}
+}
 
 // AgentProcess is the session-owned handle for a running agent process.
 type AgentProcess struct {
@@ -28,6 +54,7 @@ type AgentProcess struct {
 	waitFn              func() error
 	stderrFn            func() string
 	approvePermissionFn func(context.Context, acp.ApproveRequest) error
+	configureRuntimeFn  func(func() TurnSource)
 	native              any
 }
 
@@ -45,6 +72,7 @@ type AgentProcessOptions struct {
 	Wait              func() error
 	Stderr            func() string
 	ApprovePermission func(context.Context, acp.ApproveRequest) error
+	ConfigureRuntime  func(func() TurnSource)
 }
 
 // NewAgentProcess constructs an AgentProcess for custom AgentDriver implementations.
@@ -82,6 +110,7 @@ func NewAgentProcess(opts AgentProcessOptions) *AgentProcess {
 		waitFn:              waitFn,
 		stderrFn:            stderrFn,
 		approvePermissionFn: opts.ApprovePermission,
+		configureRuntimeFn:  opts.ConfigureRuntime,
 	}
 }
 
@@ -109,6 +138,13 @@ func (p *AgentProcess) ApprovePermission(ctx context.Context, req acp.ApproveReq
 	return p.approvePermissionFn(ctx, req)
 }
 
+func (p *AgentProcess) configureRuntime(currentTurnSource func() TurnSource) {
+	if p == nil || p.configureRuntimeFn == nil {
+		return
+	}
+	p.configureRuntimeFn(currentTurnSource)
+}
+
 func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 	if proc == nil {
 		return nil
@@ -131,6 +167,14 @@ func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 				return err
 			}
 			return proc.ResolvePermission(req)
+		},
+		configureRuntimeFn: func(currentTurnSource func() TurnSource) {
+			proc.SetTurnSourceProvider(func() string {
+				if currentTurnSource == nil {
+					return ""
+				}
+				return string(currentTurnSource())
+			})
 		},
 		native: proc,
 	}

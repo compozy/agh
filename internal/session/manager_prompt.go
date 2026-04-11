@@ -14,6 +14,22 @@ import (
 
 // Prompt sends one prompt turn to an active session and mirrors the runtime stream into storage and observers.
 func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
+	return m.PromptWithOpts(ctx, id, PromptOpts{
+		Message:    msg,
+		TurnSource: TurnSourceUser,
+	})
+}
+
+// PromptNetwork sends one network-originated prompt turn to an active session.
+func (m *Manager) PromptNetwork(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
+	return m.PromptWithOpts(ctx, id, PromptOpts{
+		Message:    msg,
+		TurnSource: TurnSourceNetwork,
+	})
+}
+
+// PromptWithOpts sends one prompt turn with daemon-local provenance metadata.
+func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts) (<-chan acp.AgentEvent, error) {
 	if ctx == nil {
 		return nil, errors.New("session: prompt context is required")
 	}
@@ -23,9 +39,13 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 		return nil, errors.New("session: session id is required")
 	}
 
-	message := strings.TrimSpace(msg)
+	message := strings.TrimSpace(opts.Message)
 	if message == "" {
 		return nil, errors.New("session: prompt message is required")
+	}
+	turnSource := normalizeTurnSource(opts.TurnSource)
+	if turnSource == "" {
+		return nil, fmt.Errorf("session: invalid turn source %q", strings.TrimSpace(string(opts.TurnSource)))
 	}
 
 	session, err := m.lookup(target)
@@ -49,11 +69,11 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 		turnID = newID("turn")
 	}
 
-	message, err = m.dispatchInputPreSubmit(ctx, session, turnID, message)
+	message, err = m.dispatchInputPreSubmit(ctx, session, turnID, turnSource, message)
 	if err != nil {
 		return nil, err
 	}
-	turnState := newPromptTurnDispatchState(session, turnID, hookInputClassUserMessage, message)
+	turnState := newPromptTurnDispatchState(session, turnID, turnSource, message)
 	if err := m.dispatchTurnStart(ctx, turnState); err != nil {
 		return nil, err
 	}
@@ -63,6 +83,13 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 		return nil, err
 	}
 	defer session.finishPromptSetup()
+	session.setCurrentTurnSource(turnState.turnSource)
+	clearTurnSource := true
+	defer func() {
+		if clearTurnSource {
+			session.clearCurrentTurnSource()
+		}
+	}()
 
 	userEvent := m.normalizeEvent(session, turnID, acp.AgentEvent{
 		Type:      acp.EventTypeUserMessage,
@@ -83,6 +110,7 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 	}
 
 	out := make(chan acp.AgentEvent, m.promptBufSize)
+	clearTurnSource = false
 	// pumpPrompt terminates when the driver closes the source channel or the request context ends.
 	go m.pumpPrompt(ctx, session, turnState, source, out)
 	return out, nil
@@ -131,6 +159,9 @@ func (m *Manager) pumpPrompt(ctx context.Context, session *Session, turnState *p
 	defer func() {
 		m.finishPromptMessage(ctx, turnState, time.Time{})
 		m.dispatchTurnEnd(ctx, turnState, time.Time{})
+		if session != nil {
+			session.clearCurrentTurnSource()
+		}
 	}()
 
 	for {

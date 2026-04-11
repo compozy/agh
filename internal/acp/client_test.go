@@ -997,6 +997,78 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 		}); sendErr != nil {
 			return acpsdk.PromptResponse{}, sendErr
 		}
+	case "network_guardrails":
+		targetPath := a.filePath
+		if targetPath == "" {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return acpsdk.PromptResponse{}, err
+			}
+			targetPath = filepath.Join(cwd, "network-blocked.txt")
+		}
+
+		writeResult := "write_unexpected"
+		if _, err := a.conn.WriteTextFile(ctx, acpsdk.WriteTextFileRequest{
+			SessionId: params.SessionId,
+			Path:      targetPath,
+			Content:   "blocked",
+		}); err != nil {
+			writeResult = "write_blocked"
+		}
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText(writeResult),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
+
+		shellResult := "shell_unexpected"
+		if _, err := a.conn.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+			SessionId: params.SessionId,
+			Command:   "sh",
+			Args:      []string{"-c", "printf nope"},
+		}); err != nil {
+			shellResult = "shell_blocked"
+		}
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText(shellResult),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
+
+		cwd, err := os.Getwd()
+		if err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		createResp, err := a.conn.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+			SessionId: params.SessionId,
+			Command:   "agh",
+			Args:      []string{"network", "status"},
+			Cwd:       acpsdk.Ptr(cwd),
+		})
+		if err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		if _, err := a.conn.WaitForTerminalExit(ctx, acpsdk.WaitForTerminalExitRequest{
+			SessionId:  params.SessionId,
+			TerminalId: createResp.TerminalId,
+		}); err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		outputResp, err := a.conn.TerminalOutput(ctx, acpsdk.TerminalOutputRequest{
+			SessionId:  params.SessionId,
+			TerminalId: createResp.TerminalId,
+		})
+		if err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText(outputResp.Output),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
 	default:
 		updates := []acpsdk.SessionUpdate{
 			acpsdk.UpdateAgentMessageText("hello"),

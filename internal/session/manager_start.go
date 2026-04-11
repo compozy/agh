@@ -203,6 +203,7 @@ func (m *Manager) startSession(ctx context.Context, spec sessionStartSpec) (_ *S
 	if err != nil {
 		return nil, fmt.Errorf("session: %s agent for %q: %w", spec.startAction, spec.sessionID, err)
 	}
+	proc.configureRuntime(session.CurrentTurnSource)
 
 	if err := m.activateAndWatch(ctx, session, proc, resolved, spec.postEvent); err != nil {
 		return nil, err

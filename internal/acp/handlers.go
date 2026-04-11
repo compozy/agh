@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/kballard/go-shellquote"
 )
 
 const defaultTerminalOutputLimit = 64 * 1024
@@ -90,11 +91,19 @@ type managedTerminal struct {
 
 	cmd *exec.Cmd
 
+	networkOwned bool
+	ownerTurnID  string
+
 	mu         sync.RWMutex
 	output     []byte
 	truncated  bool
 	exitStatus *acpsdk.TerminalExitStatus
 	done       chan struct{}
+}
+
+type terminalOwnership struct {
+	networkOwned bool
+	ownerTurnID  string
 }
 
 type terminalOutputWriter struct {
@@ -186,6 +195,9 @@ func (p *AgentProcess) handleReadTextFile(_ context.Context, request acpsdk.Read
 func (p *AgentProcess) handleWriteTextFile(_ context.Context, request acpsdk.WriteTextFileRequest) (acpsdk.WriteTextFileResponse, error) {
 	if err := p.permissions.authorize(permissionWriteTextFile); err != nil {
 		return acpsdk.WriteTextFileResponse{}, err
+	}
+	if p.isNetworkTurn() {
+		return acpsdk.WriteTextFileResponse{}, ErrToolBlockedForNetworkTurn
 	}
 	resolvedPath, err := p.permissions.resolvePath(request.Path)
 	if err != nil {
@@ -312,6 +324,20 @@ func (p *AgentProcess) handleCreateTerminal(request acpsdk.CreateTerminalRequest
 	if err := p.permissions.authorize(permissionCreateTerminal); err != nil {
 		return acpsdk.CreateTerminalResponse{}, err
 	}
+	ownership := terminalOwnership{}
+	if p.isNetworkTurn() {
+		argv, err := terminalArgv(request)
+		if err != nil {
+			return acpsdk.CreateTerminalResponse{}, fmt.Errorf("%w: %s", ErrToolBlockedForNetworkTurn, err)
+		}
+		if !isAllowedNetworkTerminalArgv(argv) {
+			return acpsdk.CreateTerminalResponse{}, ErrToolBlockedForNetworkTurn
+		}
+		ownership = terminalOwnership{
+			networkOwned: true,
+			ownerTurnID:  p.activeTurnID(),
+		}
+	}
 
 	cwd := p.Cwd
 	if request.Cwd != nil {
@@ -322,10 +348,13 @@ func (p *AgentProcess) handleCreateTerminal(request acpsdk.CreateTerminalRequest
 		return acpsdk.CreateTerminalResponse{}, err
 	}
 
-	return p.terminals.create(resolvedCwd, request)
+	return p.terminals.create(resolvedCwd, request, ownership)
 }
 
 func (p *AgentProcess) handleKillTerminal(request acpsdk.KillTerminalCommandRequest) (acpsdk.KillTerminalCommandResponse, error) {
+	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
+		return acpsdk.KillTerminalCommandResponse{}, err
+	}
 	if err := p.terminals.kill(request.TerminalId); err != nil {
 		return acpsdk.KillTerminalCommandResponse{}, err
 	}
@@ -333,6 +362,9 @@ func (p *AgentProcess) handleKillTerminal(request acpsdk.KillTerminalCommandRequ
 }
 
 func (p *AgentProcess) handleTerminalOutput(request acpsdk.TerminalOutputRequest) (acpsdk.TerminalOutputResponse, error) {
+	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, true); err != nil {
+		return acpsdk.TerminalOutputResponse{}, err
+	}
 	output, truncated, exitStatus, err := p.terminals.output(request.TerminalId)
 	if err != nil {
 		return acpsdk.TerminalOutputResponse{}, err
@@ -345,6 +377,9 @@ func (p *AgentProcess) handleTerminalOutput(request acpsdk.TerminalOutputRequest
 }
 
 func (p *AgentProcess) handleWaitForTerminalExit(ctx context.Context, request acpsdk.WaitForTerminalExitRequest) (acpsdk.WaitForTerminalExitResponse, error) {
+	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, true); err != nil {
+		return acpsdk.WaitForTerminalExitResponse{}, err
+	}
 	exitStatus, err := p.terminals.wait(ctx, request.TerminalId)
 	if err != nil {
 		return acpsdk.WaitForTerminalExitResponse{}, err
@@ -359,6 +394,9 @@ func (p *AgentProcess) handleWaitForTerminalExit(ctx context.Context, request ac
 }
 
 func (p *AgentProcess) handleReleaseTerminal(request acpsdk.ReleaseTerminalRequest) (acpsdk.ReleaseTerminalResponse, error) {
+	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
+		return acpsdk.ReleaseTerminalResponse{}, err
+	}
 	if err := p.terminals.release(request.TerminalId); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
@@ -373,23 +411,30 @@ func newTerminalManager(ctx context.Context, logger *slog.Logger) *terminalManag
 	}
 }
 
-func (m *terminalManager) create(cwd string, request acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error) {
-	cmd := exec.CommandContext(m.ctx, request.Command, request.Args...)
+func (m *terminalManager) create(cwd string, request acpsdk.CreateTerminalRequest, ownership terminalOwnership) (acpsdk.CreateTerminalResponse, error) {
+	argv, err := terminalArgv(request)
+	if err != nil {
+		return acpsdk.CreateTerminalResponse{}, err
+	}
+
+	cmd := exec.CommandContext(m.ctx, argv[0], argv[1:]...)
 	configureManagedCommand(cmd)
 	cmd.Dir = cwd
 	cmd.Env = mergeCommandEnv(os.Environ(), request.Env)
 
 	term := &managedTerminal{
-		id:   fmt.Sprintf("term-%d", m.nextID.Add(1)),
-		cmd:  cmd,
-		done: make(chan struct{}),
+		id:           fmt.Sprintf("term-%d", m.nextID.Add(1)),
+		cmd:          cmd,
+		networkOwned: ownership.networkOwned,
+		ownerTurnID:  strings.TrimSpace(ownership.ownerTurnID),
+		done:         make(chan struct{}),
 	}
 	writer := &terminalOutputWriter{terminal: term}
 	cmd.Stdout = writer
 	cmd.Stderr = writer
 
 	if err := cmd.Start(); err != nil {
-		return acpsdk.CreateTerminalResponse{}, fmt.Errorf("acp: start terminal command %q: %w", request.Command, err)
+		return acpsdk.CreateTerminalResponse{}, fmt.Errorf("acp: start terminal command %q: %w", argv[0], err)
 	}
 
 	m.mu.Lock()
@@ -608,10 +653,57 @@ func requestError(err error) *acpsdk.RequestError {
 	if errors.As(err, &requestErr) {
 		return requestErr
 	}
-	if errors.Is(err, ErrPermissionDenied) || errors.Is(err, ErrPathOutsideWorkspace) {
+	if errors.Is(err, ErrPermissionDenied) || errors.Is(err, ErrPathOutsideWorkspace) || errors.Is(err, ErrToolBlockedForNetworkTurn) {
 		return acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
 	}
 	return acpsdk.NewInternalError(map[string]any{"error": err.Error()})
+}
+
+func terminalArgv(request acpsdk.CreateTerminalRequest) ([]string, error) {
+	command := strings.TrimSpace(request.Command)
+	if command == "" {
+		return nil, errors.New("acp: terminal command is required")
+	}
+
+	argv, err := shellquote.Split(command)
+	if err != nil {
+		return nil, fmt.Errorf("acp: parse terminal command %q: %w", request.Command, err)
+	}
+	if len(argv) == 0 {
+		return nil, errors.New("acp: terminal command is required")
+	}
+	return append(argv, request.Args...), nil
+}
+
+func isAllowedNetworkTerminalArgv(argv []string) bool {
+	if len(argv) < 3 || argv[0] != "agh" || argv[1] != "network" {
+		return false
+	}
+
+	switch argv[2] {
+	case "send", "peers", "spaces", "status", "inbox":
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *AgentProcess) ensureNetworkTurnTerminalAccess(id string, requireSameTurn bool) error {
+	if !p.isNetworkTurn() {
+		return nil
+	}
+
+	term, err := p.terminals.lookup(id)
+	if err != nil {
+		return err
+	}
+	if !term.networkOwned {
+		return ErrToolBlockedForNetworkTurn
+	}
+	if requireSameTurn && strings.TrimSpace(term.ownerTurnID) != p.activeTurnID() {
+		return ErrToolBlockedForNetworkTurn
+	}
+	return nil
 }
 
 func mergeCommandEnv(base []string, variables []acpsdk.EnvVariable) []string {

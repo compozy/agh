@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -652,7 +653,7 @@ func TestPumpPromptReturnsWhenContextIsCanceledWhileWaitingForSource(t *testing.
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		h.manager.pumpPrompt(ctx, nil, newPromptTurnDispatchState(nil, "turn-1", hookInputClassUserMessage, ""), source, out)
+		h.manager.pumpPrompt(ctx, nil, newPromptTurnDispatchState(nil, "turn-1", TurnSourceUser, ""), source, out)
 	}()
 
 	cancel()
@@ -770,6 +771,46 @@ func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
 	}
 	if !strings.Contains(storedBeforePrompt[0].Content, `"text":"remember me"`) {
 		t.Fatalf("stored user_message content = %s", storedBeforePrompt[0].Content)
+	}
+}
+
+func TestPromptWithOptsTracksTurnSourceAndClearsAfterPrompt(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	seenSources := make([]TurnSource, 0, 2)
+	h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		seenSources = append(seenSources, session.CurrentTurnSource())
+
+		ch := make(chan acp.AgentEvent)
+		close(ch)
+		return ch, nil
+	}
+
+	firstEvents, err := h.manager.PromptWithOpts(testutil.Context(t), session.ID, PromptOpts{
+		Message: "user prompt",
+	})
+	if err != nil {
+		t.Fatalf("PromptWithOpts(user) error = %v", err)
+	}
+	_ = collectEvents(t, firstEvents)
+
+	secondEvents, err := h.manager.PromptNetwork(testutil.Context(t), session.ID, "network prompt")
+	if err != nil {
+		t.Fatalf("PromptNetwork() error = %v", err)
+	}
+	_ = collectEvents(t, secondEvents)
+
+	if !slices.Equal(seenSources, []TurnSource{TurnSourceUser, TurnSourceNetwork}) {
+		t.Fatalf("seen turn sources = %#v, want %#v", seenSources, []TurnSource{TurnSourceUser, TurnSourceNetwork})
+	}
+	if got := session.CurrentTurnSource(); got != "" {
+		t.Fatalf("CurrentTurnSource() after prompts = %q, want empty", got)
 	}
 }
 

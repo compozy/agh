@@ -85,8 +85,9 @@ type Session struct {
 	recorder   EventRecorder
 	process    *AgentProcess
 
-	promptSetupCount int
-	promptSetupDone  chan struct{}
+	promptSetupCount  int
+	promptSetupDone   chan struct{}
+	currentTurnSource TurnSource
 }
 
 // Info returns a consistent snapshot of the current session state.
@@ -190,6 +191,37 @@ func (s *Session) recorderHandle() EventRecorder {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.recorder
+}
+
+// CurrentTurnSource reports the provenance of the currently active prompt turn.
+func (s *Session) CurrentTurnSource() TurnSource {
+	if s == nil {
+		return ""
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentTurnSource
+}
+
+func (s *Session) setCurrentTurnSource(source TurnSource) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentTurnSource = normalizeTurnSource(source)
+}
+
+func (s *Session) clearCurrentTurnSource() {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentTurnSource = ""
 }
 
 func (s *Session) updateFromProcess(proc *AgentProcess, now time.Time) {

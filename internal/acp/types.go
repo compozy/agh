@@ -224,6 +224,9 @@ type AgentProcess struct {
 	systemPromptMu   sync.Mutex
 	systemPrompt     string
 	systemPromptSent bool
+
+	turnSourceProviderMu sync.RWMutex
+	turnSourceProvider   func() string
 }
 
 type activePromptState struct {
@@ -332,6 +335,35 @@ func (p *AgentProcess) currentPrompt() *activePromptState {
 	p.promptMu.RLock()
 	defer p.promptMu.RUnlock()
 	return p.activePrompt
+}
+
+// SetTurnSourceProvider configures a daemon-local callback that reports the current turn provenance.
+func (p *AgentProcess) SetTurnSourceProvider(provider func() string) {
+	if p == nil {
+		return
+	}
+
+	p.turnSourceProviderMu.Lock()
+	defer p.turnSourceProviderMu.Unlock()
+	p.turnSourceProvider = provider
+}
+
+func (p *AgentProcess) currentTurnSource() string {
+	if p == nil {
+		return ""
+	}
+
+	p.turnSourceProviderMu.RLock()
+	provider := p.turnSourceProvider
+	p.turnSourceProviderMu.RUnlock()
+	if provider == nil {
+		return ""
+	}
+	return strings.TrimSpace(provider())
+}
+
+func (p *AgentProcess) isNetworkTurn() bool {
+	return p.currentTurnSource() == "network"
 }
 
 func (p *AgentProcess) nextPromptText(message string) string {

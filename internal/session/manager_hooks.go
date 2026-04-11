@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	hookInputClassUserMessage = acp.EventTypeUserMessage
-	hookInputClassStartup     = "startup_prompt"
+	hookInputClassUserMessage    = acp.EventTypeUserMessage
+	hookInputClassNetworkMessage = "network_message"
+	hookInputClassStartup        = "startup_prompt"
 
 	hookMessageRoleAssistant = "assistant"
 
@@ -30,6 +31,7 @@ const (
 type promptTurnDispatchState struct {
 	session     *Session
 	turnID      string
+	turnSource  TurnSource
 	inputClass  string
 	userMessage string
 	messageSeq  int
@@ -44,13 +46,26 @@ type promptMessageDispatchState struct {
 	lastRaw json.RawMessage
 }
 
-func newPromptTurnDispatchState(session *Session, turnID string, inputClass string, userMessage string) *promptTurnDispatchState {
+func newPromptTurnDispatchState(session *Session, turnID string, turnSource TurnSource, userMessage string) *promptTurnDispatchState {
+	normalizedTurnSource := normalizeTurnSource(turnSource)
+	if normalizedTurnSource == "" {
+		normalizedTurnSource = TurnSourceUser
+	}
+
 	return &promptTurnDispatchState{
 		session:     session,
 		turnID:      strings.TrimSpace(turnID),
-		inputClass:  strings.TrimSpace(inputClass),
+		turnSource:  normalizedTurnSource,
+		inputClass:  inputClassForTurnSource(normalizedTurnSource),
 		userMessage: userMessage,
 	}
+}
+
+func inputClassForTurnSource(source TurnSource) string {
+	if normalizeTurnSource(source) == TurnSourceNetwork {
+		return hookInputClassNetworkMessage
+	}
+	return hookInputClassUserMessage
 }
 
 func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts) (CreateOpts, error) {
@@ -185,7 +200,7 @@ func (m *Manager) dispatchSessionLifecycleObservation(ctx context.Context, sessi
 	}
 }
 
-func (m *Manager) dispatchInputPreSubmit(ctx context.Context, session *Session, turnID string, message string) (string, error) {
+func (m *Manager) dispatchInputPreSubmit(ctx context.Context, session *Session, turnID string, turnSource TurnSource, message string) (string, error) {
 	if m == nil {
 		return message, nil
 	}
@@ -198,7 +213,7 @@ func (m *Manager) dispatchInputPreSubmit(ctx context.Context, session *Session, 
 		},
 		SessionContext: hookSessionContext(session),
 		TurnContext:    hookspkg.TurnContext{TurnID: strings.TrimSpace(turnID)},
-		InputClass:     hookInputClassUserMessage,
+		InputClass:     inputClassForTurnSource(turnSource),
 		Message:        message,
 	})
 	if err != nil {
