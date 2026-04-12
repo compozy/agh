@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -198,7 +200,7 @@ func TestHostAPIHandlerSessionsEventsSupportsSinceFilter(t *testing.T) {
 		t.Fatalf("Handle(sessions/events baseline) error = %v", err)
 	}
 
-	since := env.now.Add(-time.Second).Format(time.RFC3339Nano)
+	since := env.currentTime().Add(-time.Second).Format(time.RFC3339Nano)
 	if _, err := env.submitPrompt(t, "ext-events", sess.ID, "show me the timeline"); err != nil {
 		t.Fatalf("submitPrompt() error = %v", err)
 	}
@@ -414,7 +416,7 @@ func TestHostAPIHandlerObserveEventsReturnsFilteredEventsWithSince(t *testing.T)
 	env.grant("ext-observe", []string{"sessions/prompt", "observe/events"}, []string{"session.write", "observe.read"})
 
 	sess := env.createSession(t)
-	since := env.now.Add(-time.Second).Format(time.RFC3339Nano)
+	since := env.currentTime().Add(-time.Second).Format(time.RFC3339Nano)
 	if _, err := env.submitPrompt(t, "ext-observe", sess.ID, "collect observe event"); err != nil {
 		t.Fatalf("submitPrompt() error = %v", err)
 	}
@@ -456,6 +458,645 @@ func TestHostAPIHandlerSkillsListReturnsWorkspaceSkills(t *testing.T) {
 	}
 }
 
+func TestHostAPIHandlerChannelsMessagesIngestRejectsInvalidPayloads(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-ingest-invalid",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.channelContext(t, instance)
+
+	tests := []struct {
+		name       string
+		params     map[string]any
+		wantText   string
+		wantCode   int
+		promptWant int
+	}{
+		{
+			name: "MissingChannelInstanceID",
+			params: map[string]any{
+				"scope":               instance.Scope,
+				"workspace_id":        instance.WorkspaceID,
+				"peer_id":             "peer-1",
+				"platform_message_id": "msg-1",
+				"received_at":         env.currentTime().Format(time.RFC3339Nano),
+				"idempotency_key":     "idem-1",
+				"content":             map[string]any{"text": "hello"},
+			},
+			wantText:   "channel instance id",
+			wantCode:   HostAPIInvalidParamsCode,
+			promptWant: 0,
+		},
+		{
+			name: "MissingPolicyRequiredPeer",
+			params: map[string]any{
+				"channel_instance_id": instance.ID,
+				"scope":               instance.Scope,
+				"workspace_id":        instance.WorkspaceID,
+				"platform_message_id": "msg-2",
+				"received_at":         env.currentTime().Format(time.RFC3339Nano),
+				"idempotency_key":     "idem-2",
+				"content":             map[string]any{"text": "hello"},
+			},
+			wantText:   "routing policy requires peer id",
+			wantCode:   HostAPIInvalidParamsCode,
+			promptWant: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", tt.params)
+			assertRPCErrorCode(t, err, tt.wantCode)
+			assertErrorContains(t, err, tt.wantText)
+			if got := env.driver.promptCount(); got != tt.promptWant {
+				t.Fatalf("driver.promptCount() = %d, want %d", got, tt.promptWant)
+			}
+		})
+	}
+}
+
+func TestHostAPIHandlerChannelsMessagesIngestRejectsDisabledOrUnknownInstances(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+
+	disabled := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-ingest-disabled",
+		Enabled:       false,
+		Status:        channelspkg.ChannelStatusDisabled,
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	disabledCtx := env.channelContext(t, disabled)
+
+	_, err := env.callWithContext(t, disabledCtx, "telegram-adapter", "channels/messages/ingest", map[string]any{
+		"channel_instance_id": disabled.ID,
+		"scope":               disabled.Scope,
+		"workspace_id":        disabled.WorkspaceID,
+		"peer_id":             "peer-1",
+		"platform_message_id": "msg-disabled",
+		"received_at":         env.currentTime().Format(time.RFC3339Nano),
+		"idempotency_key":     "idem-disabled",
+		"content":             map[string]any{"text": "hello"},
+	})
+	assertRPCErrorCode(t, err, HostAPIUnavailableCode)
+	assertErrorContains(t, err, "disabled")
+	if got := env.driver.promptCount(); got != 0 {
+		t.Fatalf("driver.promptCount() = %d, want 0", got)
+	}
+
+	ready := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-ingest-ready",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	readyCtx := env.channelContext(t, ready)
+
+	_, err = env.callWithContext(t, readyCtx, "telegram-adapter", "channels/messages/ingest", map[string]any{
+		"channel_instance_id": "chan-missing",
+		"scope":               ready.Scope,
+		"workspace_id":        ready.WorkspaceID,
+		"peer_id":             "peer-1",
+		"platform_message_id": "msg-missing",
+		"received_at":         env.currentTime().Format(time.RFC3339Nano),
+		"idempotency_key":     "idem-missing",
+		"content":             map[string]any{"text": "hello"},
+	})
+	assertRPCErrorCode(t, err, HostAPINotFoundCode)
+	if got := env.driver.promptCount(); got != 0 {
+		t.Fatalf("driver.promptCount() after unknown instance = %d, want 0", got)
+	}
+}
+
+func TestHostAPIHandlerChannelsMessagesIngestSuppressesDuplicateWebhookRetries(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-ingest-dedup",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.channelContext(t, instance)
+	params := map[string]any{
+		"channel_instance_id": instance.ID,
+		"scope":               instance.Scope,
+		"workspace_id":        instance.WorkspaceID,
+		"peer_id":             "peer-1",
+		"platform_message_id": "msg-dedup",
+		"received_at":         env.currentTime().Format(time.RFC3339Nano),
+		"idempotency_key":     "idem-dedup",
+		"content":             map[string]any{"text": "hello"},
+	}
+
+	first, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params)
+	if err != nil {
+		t.Fatalf("first ingest error = %v", err)
+	}
+	var firstResult hostAPIChannelsMessagesIngestResult
+	decodeResult(t, first, &firstResult)
+
+	firstRoute, err := env.channels.ResolveRoute(testutil.Context(t), firstResult.RoutingKey)
+	if err != nil {
+		t.Fatalf("channels.ResolveRoute(first) error = %v", err)
+	}
+
+	env.advanceTime(5 * time.Minute)
+
+	second, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params)
+	if err != nil {
+		t.Fatalf("duplicate ingest error = %v", err)
+	}
+	var secondResult hostAPIChannelsMessagesIngestResult
+	decodeResult(t, second, &secondResult)
+
+	secondRoute, err := env.channels.ResolveRoute(testutil.Context(t), secondResult.RoutingKey)
+	if err != nil {
+		t.Fatalf("channels.ResolveRoute(second) error = %v", err)
+	}
+
+	routes, err := env.channels.ListRoutes(testutil.Context(t), instance.ID)
+	if err != nil {
+		t.Fatalf("channels.ListRoutes() error = %v", err)
+	}
+	if got := len(routes); got != 1 {
+		t.Fatalf("len(routes) = %d, want 1", got)
+	}
+	if got := env.driver.promptCount(); got != 1 {
+		t.Fatalf("driver.promptCount() = %d, want 1", got)
+	}
+	if secondResult.SessionID != firstResult.SessionID {
+		t.Fatalf("duplicate session_id = %q, want %q", secondResult.SessionID, firstResult.SessionID)
+	}
+	if !secondRoute.UpdatedAt.Equal(firstRoute.UpdatedAt) {
+		t.Fatalf("duplicate retry updated route from %s to %s", firstRoute.UpdatedAt, secondRoute.UpdatedAt)
+	}
+}
+
+func TestHostAPIHandlerChannelsInstancesReportStateRejectsInvalidUpdates(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/instances/report_state"}, []string{"channel.write"})
+
+	ready := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-report-state-ready",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	readyCtx := env.channelContext(t, ready)
+
+	_, err := env.callWithContext(t, readyCtx, "telegram-adapter", "channels/instances/report_state", map[string]any{
+		"status": "disabled",
+	})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	assertErrorContains(t, err, "operator-controlled")
+
+	_, err = env.callWithContext(t, readyCtx, "telegram-adapter", "channels/instances/report_state", map[string]any{
+		"status": "bogus",
+	})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	assertErrorContains(t, err, "unsupported channel status")
+}
+
+func TestHostAPIHandlerChannelsInstancesGetRejectsMismatchedRuntimeOwnership(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/instances/get"}, []string{"channel.read"})
+
+	other := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-other-owner",
+		ExtensionName: "discord-adapter",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.channelContext(t, other)
+
+	_, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/instances/get", nil)
+	assertRPCErrorCode(t, err, HostAPINotFoundCode)
+}
+
+func TestHostAPIHandlerMethodHandlersExposeChannelRuntimeAwareInstanceLookup(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/instances/get"}, []string{"channel.read"})
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-method-handler",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+
+	handlers := env.handler.MethodHandlers()
+	handler, ok := handlers["channels/instances/get"]
+	if !ok {
+		t.Fatal("MethodHandlers()[channels/instances/get] = missing, want handler")
+	}
+
+	ctx := withHostAPIExtensionName(env.channelContext(t, instance), "telegram-adapter")
+	result, err := handler(ctx, nil)
+	if err != nil {
+		t.Fatalf("MethodHandlers()[channels/instances/get]() error = %v", err)
+	}
+
+	var loaded hostAPIChannelInstance
+	decodeResult(t, result, &loaded)
+	if loaded.ID != instance.ID {
+		t.Fatalf("loaded.ID = %q, want %q", loaded.ID, instance.ID)
+	}
+}
+
+func TestHostAPIHandlerChannelsMessagesIngestConcurrentSameRoutingKeyCreatesOneSessionAndRoute(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.useSessionsWithoutObserver(t)
+	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-ingest-concurrent",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.channelContext(t, instance)
+
+	type ingestResult struct {
+		result hostAPIChannelsMessagesIngestResult
+		err    error
+	}
+
+	results := make([]ingestResult, 2)
+	var wg sync.WaitGroup
+	for idx := range results {
+		idx := idx
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			res, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", map[string]any{
+				"channel_instance_id": instance.ID,
+				"scope":               instance.Scope,
+				"workspace_id":        instance.WorkspaceID,
+				"peer_id":             "peer-1",
+				"platform_message_id": fmt.Sprintf("msg-%d", idx),
+				"received_at":         env.currentTime().Format(time.RFC3339Nano),
+				"idempotency_key":     fmt.Sprintf("idem-%d", idx),
+				"content":             map[string]any{"text": fmt.Sprintf("hello-%d", idx)},
+			})
+			if err != nil {
+				results[idx].err = err
+				return
+			}
+			decodeResult(t, res, &results[idx].result)
+		}()
+	}
+	wg.Wait()
+
+	for idx, result := range results {
+		if result.err != nil {
+			t.Fatalf("ingest[%d] error = %v", idx, result.err)
+		}
+	}
+
+	routes, err := env.channels.ListRoutes(testutil.Context(t), instance.ID)
+	if err != nil {
+		t.Fatalf("channels.ListRoutes() error = %v", err)
+	}
+	if got := len(routes); got != 1 {
+		t.Fatalf("len(routes) = %d, want 1", got)
+	}
+
+	sessions, err := env.sessions.ListAll(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("sessions.ListAll() error = %v", err)
+	}
+	if got := len(sessions); got != 1 {
+		t.Fatalf("len(sessions) = %d, want 1", got)
+	}
+	if results[0].result.SessionID != results[1].result.SessionID {
+		t.Fatalf("session IDs = %q and %q, want same session", results[0].result.SessionID, results[1].result.SessionID)
+	}
+	if got := env.driver.promptCount(); got != 2 {
+		t.Fatalf("driver.promptCount() = %d, want 2", got)
+	}
+}
+
+func TestHostAPIHandlerChannelsMessagesIngestRebindsStaleRouteToReplacementSession(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-ingest-rebind",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.channelContext(t, instance)
+
+	key, err := env.channels.BuildRoutingKey(testutil.Context(t), channelspkg.RoutingKey{
+		ChannelInstanceID: instance.ID,
+		Scope:             instance.Scope,
+		WorkspaceID:       instance.WorkspaceID,
+		PeerID:            "peer-1",
+	})
+	if err != nil {
+		t.Fatalf("channels.BuildRoutingKey() error = %v", err)
+	}
+	if _, err := env.channels.UpsertRoute(testutil.Context(t), channelspkg.ChannelRoute{
+		Scope:             key.Scope,
+		WorkspaceID:       key.WorkspaceID,
+		ChannelInstanceID: key.ChannelInstanceID,
+		PeerID:            key.PeerID,
+		SessionID:         "missing-session",
+		AgentName:         "coder",
+	}); err != nil {
+		t.Fatalf("channels.UpsertRoute() error = %v", err)
+	}
+
+	result, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", map[string]any{
+		"channel_instance_id": instance.ID,
+		"scope":               instance.Scope,
+		"workspace_id":        instance.WorkspaceID,
+		"peer_id":             "peer-1",
+		"platform_message_id": "msg-rebind",
+		"received_at":         env.currentTime().Format(time.RFC3339Nano),
+		"idempotency_key":     "idem-rebind",
+		"content":             map[string]any{"text": "hello"},
+	})
+	if err != nil {
+		t.Fatalf("Handle(channels/messages/ingest) error = %v", err)
+	}
+
+	var ingest hostAPIChannelsMessagesIngestResult
+	decodeResult(t, result, &ingest)
+	if ingest.SessionID == "missing-session" {
+		t.Fatal("ingest session_id = missing-session, want replacement session")
+	}
+
+	route, err := env.channels.ResolveRoute(testutil.Context(t), key)
+	if err != nil {
+		t.Fatalf("channels.ResolveRoute() error = %v", err)
+	}
+	if route.SessionID != ingest.SessionID {
+		t.Fatalf("route.SessionID = %q, want %q", route.SessionID, ingest.SessionID)
+	}
+	if got := env.driver.promptCount(); got != 1 {
+		t.Fatalf("driver.promptCount() = %d, want 1", got)
+	}
+}
+
+func TestHostAPIHandlerChannelsMessagesIngestExpiredDedupAllowsReingest(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-ingest-expiry",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.channelContext(t, instance)
+	params := map[string]any{
+		"channel_instance_id": instance.ID,
+		"scope":               instance.Scope,
+		"workspace_id":        instance.WorkspaceID,
+		"peer_id":             "peer-1",
+		"platform_message_id": "msg-expiry",
+		"received_at":         env.currentTime().Format(time.RFC3339Nano),
+		"idempotency_key":     "idem-expiry",
+		"content":             map[string]any{"text": "hello"},
+	}
+
+	if _, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params); err != nil {
+		t.Fatalf("first ingest error = %v", err)
+	}
+	if got := env.driver.promptCount(); got != 1 {
+		t.Fatalf("driver.promptCount() after first ingest = %d, want 1", got)
+	}
+
+	env.advanceTime(20 * time.Minute)
+	if _, err := env.registry.GetChannelIngestDedup(testutil.Context(t), "idem-expiry", env.currentTime()); !errors.Is(err, channelspkg.ErrIngestDedupRecordNotFound) {
+		t.Fatalf("GetChannelIngestDedup(expired) error = %v, want ErrIngestDedupRecordNotFound", err)
+	}
+
+	if _, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params); err != nil {
+		t.Fatalf("second ingest after expiry error = %v", err)
+	}
+	if got := env.driver.promptCount(); got != 2 {
+		t.Fatalf("driver.promptCount() after reingest = %d, want 2", got)
+	}
+
+	if _, err := env.registry.GetChannelIngestDedup(testutil.Context(t), "idem-expiry", env.currentTime()); err != nil {
+		t.Fatalf("GetChannelIngestDedup(refreshed) error = %v", err)
+	}
+}
+
+func TestHostAPIHandlerChannelsMessagesIngestRegistersPromptDelivery(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+
+	broker := &recordingPromptDeliveryBroker{}
+	env.handler = NewHostAPIHandler(
+		env.sessions,
+		env.memory,
+		env.observer,
+		env.skills,
+		WithHostAPICapabilityChecker(env.checker),
+		WithHostAPIWorkspaceResolver(env.workspaces),
+		WithHostAPIChannelRegistry(env.channels),
+		WithHostAPIChannelDedupStore(env.registry),
+		WithHostAPIDeliveryBroker(broker),
+		WithHostAPINow(func() time.Time { return env.currentTime() }),
+		WithHostAPIChannelIngressConfig(15*time.Minute, time.Minute),
+		WithHostAPIRateLimit(1000, 1000),
+	)
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-ingest-register",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.channelContext(t, instance)
+	params := map[string]any{
+		"channel_instance_id": instance.ID,
+		"scope":               instance.Scope,
+		"workspace_id":        instance.WorkspaceID,
+		"peer_id":             "peer-1",
+		"platform_message_id": "msg-register",
+		"received_at":         env.currentTime().Format(time.RFC3339Nano),
+		"idempotency_key":     "idem-register",
+		"content":             map[string]any{"text": "hello"},
+	}
+
+	if _, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params); err != nil {
+		t.Fatalf("Handle(channels/messages/ingest) error = %v", err)
+	}
+
+	regs := broker.snapshotRegistrations()
+	if len(regs) != 1 {
+		t.Fatalf("len(prompt delivery registrations) = %d, want 1", len(regs))
+	}
+	reg := regs[0]
+	if reg.SessionID == "" {
+		t.Fatal("registration session id = empty, want non-empty")
+	}
+	if reg.TurnID == "" {
+		t.Fatal("registration turn id = empty, want non-empty")
+	}
+	if got, want := reg.ExtensionName, instance.ExtensionName; got != want {
+		t.Fatalf("registration extension = %q, want %q", got, want)
+	}
+	if got, want := reg.RoutingKey.ChannelInstanceID, instance.ID; got != want {
+		t.Fatalf("registration routing key instance = %q, want %q", got, want)
+	}
+	if got, want := reg.RoutingKey.PeerID, "peer-1"; got != want {
+		t.Fatalf("registration routing key peer = %q, want %q", got, want)
+	}
+	if got, want := reg.DeliveryTarget.Mode, channelspkg.DeliveryModeReply; got != want {
+		t.Fatalf("registration delivery mode = %q, want %q", got, want)
+	}
+
+	eventTypes := make([]string, 0, len(reg.SeedEvents))
+	for _, event := range reg.SeedEvents {
+		eventTypes = append(eventTypes, event.Type)
+	}
+	if !slices.Contains(eventTypes, acp.EventTypeUserMessage) {
+		t.Fatalf("registration seed event types = %#v, want user_message from prompt boundary seed", eventTypes)
+	}
+}
+
+func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("delivery-replayer", []string{"sessions/prompt"}, []string{"session.write"})
+
+	broker := &recordingPromptDeliveryBroker{}
+	env.handler = NewHostAPIHandler(
+		env.sessions,
+		env.memory,
+		env.observer,
+		env.skills,
+		WithHostAPICapabilityChecker(env.checker),
+		WithHostAPIWorkspaceResolver(env.workspaces),
+		WithHostAPIChannelRegistry(env.channels),
+		WithHostAPIChannelDedupStore(env.registry),
+		WithHostAPIDeliveryBroker(broker),
+		WithHostAPINow(func() time.Time { return env.currentTime() }),
+		WithHostAPIChannelIngressConfig(15*time.Minute, time.Minute),
+		WithHostAPIRateLimit(1000, 1000),
+	)
+
+	sess := env.createSession(t)
+	prompt, err := env.submitPrompt(t, "delivery-replayer", sess.ID, "replay me")
+	if err != nil {
+		t.Fatalf("submitPrompt() error = %v", err)
+	}
+
+	var promptEvents []store.SessionEvent
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		promptEvents, err = env.sessions.Events(testutil.Context(t), sess.ID, store.EventQuery{TurnID: prompt.TurnID})
+		if err != nil {
+			t.Fatalf("sessions.Events(%q) error = %v", sess.ID, err)
+		}
+		hasDone := false
+		for _, storedEvent := range promptEvents {
+			if strings.TrimSpace(storedEvent.Type) == acp.EventTypeDone {
+				hasDone = true
+				break
+			}
+		}
+		if hasDone {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
+		ID:            "chan-register-replay",
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	routingKey, err := env.channels.BuildRoutingKey(testutil.Context(t), channelspkg.RoutingKey{
+		Scope:             instance.Scope,
+		WorkspaceID:       instance.WorkspaceID,
+		ChannelInstanceID: instance.ID,
+		PeerID:            "peer-1",
+	})
+	if err != nil {
+		t.Fatalf("BuildRoutingKey() error = %v", err)
+	}
+
+	if err := env.handler.registerPromptDelivery(testutil.Context(t), *instance, routingKey, sess.ID, hostAPIPromptSubmission{
+		TurnID: prompt.TurnID,
+		SeedEvents: []channelspkg.DeliveryProjectionEvent{{
+			Type:      acp.EventTypeUserMessage,
+			TurnID:    prompt.TurnID,
+			Timestamp: env.currentTime(),
+			Text:      "replay me",
+		}},
+	}); err != nil {
+		t.Fatalf("registerPromptDelivery() error = %v", err)
+	}
+
+	projected := broker.snapshotProjectedEvents()
+	projectedTypes := make([]string, 0, len(projected))
+	for _, event := range projected {
+		projectedTypes = append(projectedTypes, event.Type)
+	}
+	if !slices.Contains(projectedTypes, acp.EventTypeAgentMessage) {
+		t.Fatalf("projected event types = %#v, want agent_message replay", projectedTypes)
+	}
+	if !slices.Contains(projectedTypes, acp.EventTypeDone) {
+		t.Fatalf("projected event types = %#v, want done replay", projectedTypes)
+	}
+}
+
+func TestChannelHostAPIHelpersMapErrorsAndFormatInboundMetadata(t *testing.T) {
+	t.Parallel()
+
+	attachmentSummary := summarizeInboundAttachment(channelspkg.MessageAttachment{
+		ID:       "att-1",
+		Name:     "report.pdf",
+		MIMEType: "application/pdf",
+		URL:      "https://example.com/report.pdf",
+	})
+	if !strings.Contains(attachmentSummary, "report.pdf") || !strings.Contains(attachmentSummary, "application/pdf") {
+		t.Fatalf("summarizeInboundAttachment() = %q, want attachment name and mime type", attachmentSummary)
+	}
+
+	prompt := renderInboundMessagePrompt(channelspkg.InboundMessageEnvelope{
+		PlatformMessageID: "msg-1",
+		ReceivedAt:        time.Date(2026, 4, 10, 18, 0, 0, 0, time.UTC),
+		PeerID:            "peer-1",
+		Sender:            channelspkg.MessageSender{DisplayName: "Alice", Username: "alice"},
+		Content:           channelspkg.MessageContent{},
+		Attachments: []channelspkg.MessageAttachment{{
+			Name:     "report.pdf",
+			MIMEType: "application/pdf",
+		}},
+	})
+	if !strings.Contains(prompt, "[No text body]") || !strings.Contains(prompt, "Attachments:") {
+		t.Fatalf("renderInboundMessagePrompt() = %q, want attachment block and empty-body marker", prompt)
+	}
+
+	assertRPCErrorCode(t, mapChannelLookupError("chan-1", channelspkg.ErrChannelInstanceNotFound), HostAPINotFoundCode)
+	assertRPCErrorCode(t, mapChannelRouteError("chan-1", channelspkg.ErrChannelInstanceUnavailable), HostAPIUnavailableCode)
+	assertRPCErrorCode(t, mapChannelStateUpdateError("chan-1", channelspkg.ErrInvalidChannelStateTransition), HostAPIInvalidParamsCode)
+
+	env := newHostAPITestEnv(t)
+	if err := env.handler.stopChannelSession(testutil.Context(t), "missing-session"); err != nil {
+		t.Fatalf("stopChannelSession(missing) error = %v, want nil", err)
+	}
+}
+
 func TestHostAPIHandlerUnknownMethodReturnsMethodNotFound(t *testing.T) {
 	t.Parallel()
 
@@ -477,7 +1118,7 @@ func TestHostAPIHandlerRateLimitExceededReturnsRetryAfter(t *testing.T) {
 		env.skills,
 		WithHostAPICapabilityChecker(env.checker),
 		WithHostAPIWorkspaceResolver(env.workspaces),
-		WithHostAPINow(func() time.Time { return env.now }),
+		WithHostAPINow(func() time.Time { return env.currentTime() }),
 		WithHostAPIRateLimit(1, 1),
 	)
 
@@ -510,14 +1151,14 @@ func TestHostAPIHandlerRateLimitUsesConfiguredClockRegardlessOfOptionOrder(t *te
 		WithHostAPICapabilityChecker(env.checker),
 		WithHostAPIWorkspaceResolver(env.workspaces),
 		WithHostAPIRateLimit(1, 1),
-		WithHostAPINow(func() time.Time { return env.now }),
+		WithHostAPINow(func() time.Time { return env.currentTime() }),
 	)
 
 	if _, err := handler.Handle(testutil.Context(t), "ext-rate", "observe/health", nil); err != nil {
 		t.Fatalf("first Handle(observe/health) error = %v, want nil", err)
 	}
 
-	env.now = env.now.Add(2 * time.Second)
+	env.advanceTime(2 * time.Second)
 	if _, err := handler.Handle(testutil.Context(t), "ext-rate", "observe/health", nil); err != nil {
 		t.Fatalf("second Handle(observe/health) error = %v, want nil after refill from injected clock", err)
 	}
@@ -562,6 +1203,17 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 			"scope":        "workspace",
 			"workspace_id": env.workspaceID,
 		}},
+		{method: "channels/messages/ingest", params: map[string]any{
+			"channel_instance_id": "chan-1",
+			"scope":               "workspace",
+			"workspace_id":        env.workspaceID,
+			"peer_id":             "peer-1",
+			"platform_message_id": "msg-1",
+			"received_at":         env.currentTime().Format(time.RFC3339Nano),
+			"idempotency_key":     "idem-1",
+		}},
+		{method: "channels/instances/get", params: nil},
+		{method: "channels/instances/report_state", params: map[string]any{"status": "ready"}},
 	}
 
 	for _, tt := range tests {
@@ -581,7 +1233,7 @@ func TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler(t *testing.
 	env.grant("ext-wrapped", []string{"observe/health"}, []string{"observe.read"})
 
 	manager := NewManager(nil, WithCapabilityChecker(env.checker))
-	wrapped := manager.wrapHostHandler("ext-wrapped", "observe/health", env.handler.HandleMethod("observe/health"))
+	wrapped := manager.wrapHostHandler("ext-wrapped", "observe/health", nil, env.handler.HandleMethod("observe/health"))
 
 	result, err := wrapped(testutil.Context(t), nil)
 	if err != nil {
@@ -1072,11 +1724,13 @@ func TestHostAPIHandlerAutomationGetterAndMethodHandlers(t *testing.T) {
 }
 
 type hostAPITestEnv struct {
+	nowMu       sync.RWMutex
 	now         time.Time
 	homePaths   aghconfig.HomePaths
 	workspaceID string
 	workspace   workspacepkg.ResolvedWorkspace
 	registry    *globaldb.GlobalDB
+	channels    *channelspkg.Service
 	sessions    *session.Manager
 	automation  HostAPIAutomationManager
 	observer    *observepkg.Observer
@@ -1127,7 +1781,8 @@ Review the workspace changes carefully.
 		t.Fatalf("WriteFile(SKILL.md) error = %v", err)
 	}
 
-	now := time.Date(2026, 4, 10, 18, 0, 0, 0, time.UTC)
+	baseNow := time.Date(2026, 4, 10, 18, 0, 0, 0, time.UTC)
+	env := &hostAPITestEnv{now: baseNow, homePaths: homePaths}
 	resolvedWorkspace := workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:      "ws-host-api",
@@ -1135,6 +1790,7 @@ Review the workspace changes carefully.
 			Name:    "host-api-workspace",
 		},
 		Config: aghconfig.Config{
+			Defaults: aghconfig.DefaultsConfig{Agent: "coder"},
 			Providers: map[string]aghconfig.ProviderConfig{
 				"fake": {Command: "fake-agent"},
 			},
@@ -1150,11 +1806,11 @@ Review the workspace changes carefully.
 			Dir:    skillDir,
 			Source: "workspace",
 		}},
-		ResolvedAt: now,
+		ResolvedAt: baseNow,
 	}
 
 	workspaces := newHostAPIFakeWorkspaceResolver(resolvedWorkspace)
-	driver := newHostAPIFakeDriver(now)
+	driver := newHostAPIFakeDriver(baseNow)
 	source := &hostAPISessionSource{}
 	registry, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
@@ -1163,14 +1819,15 @@ Review the workspace changes carefully.
 	if err := registry.InsertWorkspace(testutil.Context(t), resolvedWorkspace.Workspace); err != nil {
 		t.Fatalf("registry.InsertWorkspace() error = %v", err)
 	}
+	channelRegistry := channelspkg.NewRegistry(registry, channelspkg.WithNow(func() time.Time { return env.currentTime() }))
 
 	observer, err := observepkg.New(testutil.Context(t),
 		observepkg.WithRegistry(registry),
 		observepkg.WithHomePaths(homePaths),
 		observepkg.WithSessionSource(source),
 		observepkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-		observepkg.WithNow(func() time.Time { return now.Add(time.Hour) }),
-		observepkg.WithStartTime(now),
+		observepkg.WithNow(func() time.Time { return env.currentTime().Add(time.Hour) }),
+		observepkg.WithStartTime(baseNow),
 	)
 	if err != nil {
 		_ = registry.Close(testutil.Context(t))
@@ -1191,7 +1848,7 @@ Review the workspace changes carefully.
 			return storeSessionDB(ctx, sessionID, path)
 		}),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-		session.WithNow(func() time.Time { return now }),
+		session.WithNow(func() time.Time { return env.currentTime() }),
 		session.WithSessionIDGenerator(sequentialSessionIDGenerator("sess")),
 		session.WithTurnIDGenerator(sequentialSessionIDGenerator("turn")),
 	)
@@ -1243,26 +1900,27 @@ Review the workspace changes carefully.
 		WithHostAPIAutomationManager(automationManager),
 		WithHostAPICapabilityChecker(checker),
 		WithHostAPIWorkspaceResolver(workspaces),
-		WithHostAPINow(func() time.Time { return now }),
+		WithHostAPIChannelRegistry(channelRegistry),
+		WithHostAPIChannelDedupStore(registry),
+		WithHostAPINow(func() time.Time { return env.currentTime() }),
+		WithHostAPIChannelIngressConfig(15*time.Minute, time.Minute),
 		WithHostAPIRateLimit(1000, 1000),
 	)
 
-	return &hostAPITestEnv{
-		now:         now,
-		homePaths:   homePaths,
-		workspaceID: resolvedWorkspace.ID,
-		workspace:   resolvedWorkspace,
-		registry:    registry,
-		sessions:    sessions,
-		automation:  automationManager,
-		observer:    observer,
-		memory:      memoryStore,
-		skills:      skillsRegistry,
-		workspaces:  workspaces,
-		driver:      driver,
-		checker:     checker,
-		handler:     handler,
-	}
+	env.workspaceID = resolvedWorkspace.ID
+	env.workspace = resolvedWorkspace
+	env.registry = registry
+	env.channels = channelRegistry
+	env.sessions = sessions
+	env.automation = automationManager
+	env.observer = observer
+	env.memory = memoryStore
+	env.skills = skillsRegistry
+	env.workspaces = workspaces
+	env.driver = driver
+	env.checker = checker
+	env.handler = handler
+	return env
 }
 
 func (e *hostAPITestEnv) grant(extName string, actions []string, security []string) {
@@ -1270,6 +1928,19 @@ func (e *hostAPITestEnv) grant(extName string, actions []string, security []stri
 		Actions:  ActionsConfig{Requires: append([]string(nil), actions...)},
 		Security: SecurityConfig{Capabilities: append([]string(nil), security...)},
 	})
+}
+
+func (e *hostAPITestEnv) currentTime() time.Time {
+	e.nowMu.RLock()
+	defer e.nowMu.RUnlock()
+	return e.now
+}
+
+func (e *hostAPITestEnv) advanceTime(delta time.Duration) time.Time {
+	e.nowMu.Lock()
+	defer e.nowMu.Unlock()
+	e.now = e.now.Add(delta)
+	return e.now
 }
 
 func (e *hostAPITestEnv) call(t testing.TB, extName string, method string, params any) (any, error) {
@@ -1280,6 +1951,29 @@ func (e *hostAPITestEnv) call(t testing.TB, extName string, method string, param
 		return nil, err
 	}
 	return e.handler.Handle(testutil.Context(t), extName, method, eRaw)
+}
+
+func (e *hostAPITestEnv) callWithContext(t testing.TB, ctx context.Context, extName string, method string, params any) (any, error) {
+	t.Helper()
+
+	eRaw, err := marshalParams(params)
+	if err != nil {
+		return nil, err
+	}
+	return e.handler.Handle(ctx, extName, method, eRaw)
+}
+
+func (e *hostAPITestEnv) channelContext(t testing.TB, instance *channelspkg.ChannelInstance) context.Context {
+	t.Helper()
+
+	if instance == nil {
+		t.Fatal("channel instance = nil, want non-nil")
+		return testutil.Context(t)
+	}
+
+	return withHostAPIChannelRuntime(testutil.Context(t), &subprocess.InitializeChannelRuntime{
+		Instance: *instance,
+	})
 }
 
 func (e *hostAPITestEnv) submitPrompt(t testing.TB, extName string, sessionID string, message string) (hostAPISessionPromptResult, error) {
@@ -1314,6 +2008,73 @@ func (e *hostAPITestEnv) createSession(t *testing.T) *session.Session {
 	return sess
 }
 
+func (e *hostAPITestEnv) createChannelInstance(t *testing.T, req channelspkg.CreateInstanceRequest) *channelspkg.ChannelInstance {
+	t.Helper()
+
+	if req.Scope == "" {
+		req.Scope = channelspkg.ScopeWorkspace
+	}
+	if req.WorkspaceID == "" && req.Scope == channelspkg.ScopeWorkspace {
+		req.WorkspaceID = e.workspaceID
+	}
+	if req.Platform == "" {
+		req.Platform = "telegram"
+	}
+	if req.ExtensionName == "" {
+		req.ExtensionName = "telegram-adapter"
+	}
+	if req.DisplayName == "" {
+		req.DisplayName = "Telegram Test"
+	}
+	if !req.Enabled && req.Status == "" {
+		req.Enabled = true
+	}
+	if req.Status == "" {
+		req.Status = channelspkg.ChannelStatusReady
+	}
+
+	instance, err := e.channels.CreateInstance(testutil.Context(t), req)
+	if err != nil {
+		t.Fatalf("channels.CreateInstance() error = %v", err)
+	}
+	return instance
+}
+
+func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
+	t.Helper()
+
+	sessions, err := session.NewManager(
+		session.WithHomePaths(e.homePaths),
+		session.WithDriver(e.driver),
+		session.WithWorkspaceResolver(e.workspaces),
+		session.WithStore(func(ctx context.Context, sessionID string, path string) (session.EventRecorder, error) {
+			return storeSessionDB(ctx, sessionID, path)
+		}),
+		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		session.WithNow(func() time.Time { return e.currentTime() }),
+		session.WithSessionIDGenerator(sequentialSessionIDGenerator("sess")),
+		session.WithTurnIDGenerator(sequentialSessionIDGenerator("turn")),
+	)
+	if err != nil {
+		t.Fatalf("session.NewManager(without observer) error = %v", err)
+	}
+
+	e.sessions = sessions
+	e.handler = NewHostAPIHandler(
+		e.sessions,
+		e.memory,
+		nil,
+		e.skills,
+		WithHostAPICapabilityChecker(e.checker),
+		WithHostAPIWorkspaceResolver(e.workspaces),
+		WithHostAPIChannelRegistry(e.channels),
+		WithHostAPIChannelDedupStore(e.registry),
+		WithHostAPINow(func() time.Time { return e.currentTime() }),
+		WithHostAPIChannelIngressConfig(15*time.Minute, time.Minute),
+		WithHostAPIRateLimit(1000, 1000),
+	)
+}
+
 type hostAPISessionSource struct {
 	manager *session.Manager
 }
@@ -1328,6 +2089,72 @@ func (s *hostAPISessionSource) List() []*session.SessionInfo {
 type hostAPIFakeWorkspaceResolver struct {
 	mu       sync.Mutex
 	resolved map[string]workspacepkg.ResolvedWorkspace
+}
+
+type recordingPromptDeliveryBroker struct {
+	mu            sync.Mutex
+	registrations []channelspkg.PromptDeliveryRegistration
+	projected     []channelspkg.DeliveryProjectionEvent
+}
+
+func (b *recordingPromptDeliveryBroker) RegisterPromptDelivery(
+	_ context.Context,
+	reg channelspkg.PromptDeliveryRegistration,
+) (*channelspkg.DeliverySnapshot, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	cloned := reg
+	if len(cloned.SeedEvents) > 0 {
+		cloned.SeedEvents = append([]channelspkg.DeliveryProjectionEvent(nil), cloned.SeedEvents...)
+	}
+	b.registrations = append(b.registrations, cloned)
+	return &channelspkg.DeliverySnapshot{
+		DeliveryID:        "del-test",
+		SessionID:         reg.SessionID,
+		TurnID:            reg.TurnID,
+		ChannelInstanceID: reg.RoutingKey.ChannelInstanceID,
+		RoutingKey:        reg.RoutingKey,
+		DeliveryTarget:    reg.DeliveryTarget,
+		LatestEventType:   channelspkg.DeliveryEventTypeStart,
+		UpdatedAt:         time.Now().UTC(),
+	}, nil
+}
+
+func (b *recordingPromptDeliveryBroker) ProjectEvent(
+	_ context.Context,
+	_ string,
+	event channelspkg.DeliveryProjectionEvent,
+) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.projected = append(b.projected, event)
+	return nil
+}
+
+func (b *recordingPromptDeliveryBroker) snapshotRegistrations() []channelspkg.PromptDeliveryRegistration {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	out := make([]channelspkg.PromptDeliveryRegistration, 0, len(b.registrations))
+	for _, reg := range b.registrations {
+		cloned := reg
+		if len(cloned.SeedEvents) > 0 {
+			cloned.SeedEvents = append([]channelspkg.DeliveryProjectionEvent(nil), cloned.SeedEvents...)
+		}
+		out = append(out, cloned)
+	}
+	return out
+}
+
+func (b *recordingPromptDeliveryBroker) snapshotProjectedEvents() []channelspkg.DeliveryProjectionEvent {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	out := make([]channelspkg.DeliveryProjectionEvent, 0, len(b.projected))
+	out = append(out, b.projected...)
+	return out
 }
 
 func newHostAPIFakeWorkspaceResolver(workspace workspacepkg.ResolvedWorkspace) *hostAPIFakeWorkspaceResolver {
@@ -1394,6 +2221,7 @@ type hostAPIFakeDriver struct {
 	now       time.Time
 	processes map[*session.AgentProcess]*hostAPIFakeProcess
 	promptLog []acp.PromptRequest
+	prompts   []acp.PromptRequest
 	startSeq  atomic.Int64
 }
 
@@ -1437,6 +2265,10 @@ func (d *hostAPIFakeDriver) Prompt(_ context.Context, _ *session.AgentProcess, r
 	d.promptLog = append(d.promptLog, req)
 	d.mu.Unlock()
 
+	d.mu.Lock()
+	d.prompts = append(d.prompts, req)
+	d.mu.Unlock()
+
 	events := make(chan acp.AgentEvent, 2)
 	go func() {
 		defer close(events)
@@ -1468,6 +2300,12 @@ func (d *hostAPIFakeDriver) Stop(_ context.Context, proc *session.AgentProcess) 
 	}
 	state.done.Do(func() { close(state.ch) })
 	return nil
+}
+
+func (d *hostAPIFakeDriver) promptCount() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return len(d.prompts)
 }
 
 func storeSessionDB(ctx context.Context, sessionID string, path string) (session.EventRecorder, error) {
@@ -1540,9 +2378,15 @@ func assertErrorContains(t testing.TB, err error, fragment string) {
 	if err == nil {
 		t.Fatalf("error = nil, want containing %q", fragment)
 	}
-	if !strings.Contains(err.Error(), fragment) {
-		t.Fatalf("error = %q, want containing %q", err.Error(), fragment)
+	if strings.Contains(err.Error(), fragment) {
+		return
 	}
+
+	data := decodeRPCData(t, err)
+	if raw, ok := data["error"].(string); ok && strings.Contains(raw, fragment) {
+		return
+	}
+	t.Fatalf("error = %q with data %#v, want containing %q", err.Error(), data, fragment)
 }
 
 func decodeRPCData(t testing.TB, err error) map[string]any {

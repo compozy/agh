@@ -24,6 +24,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
@@ -2559,6 +2560,10 @@ func (f *fakeObserver) QueryHookEvents(context.Context, hookspkg.EventFilter) ([
 	return nil, nil
 }
 
+func (f *fakeObserver) QueryChannelHealth(context.Context) ([]observe.ChannelInstanceHealth, error) {
+	return nil, nil
+}
+
 func (f *fakeObserver) Health(context.Context) (observe.Health, error) {
 	return observe.Health{Status: "ok"}, nil
 }
@@ -3185,8 +3190,9 @@ func (s portReportingServer) Port() int {
 }
 
 const (
-	daemonExtensionHelperEnvKey    = "AGH_TEST_DAEMON_EXTENSION_HELPER"
-	daemonExtensionHelperMarkerKey = "AGH_TEST_DAEMON_EXTENSION_MARKER"
+	daemonExtensionHelperEnvKey      = "AGH_TEST_DAEMON_EXTENSION_HELPER"
+	daemonExtensionHelperScenarioKey = "AGH_TEST_DAEMON_EXTENSION_SCENARIO"
+	daemonExtensionHelperMarkerKey   = "AGH_TEST_DAEMON_EXTENSION_MARKER"
 )
 
 func TestDaemonExtensionHelperProcess(t *testing.T) {
@@ -3194,7 +3200,10 @@ func TestDaemonExtensionHelperProcess(t *testing.T) {
 		return
 	}
 
-	server := newDaemonExtensionHelperServer(strings.TrimSpace(os.Getenv(daemonExtensionHelperMarkerKey)))
+	server := newDaemonExtensionHelperServer(
+		strings.TrimSpace(os.Getenv(daemonExtensionHelperScenarioKey)),
+		strings.TrimSpace(os.Getenv(daemonExtensionHelperMarkerKey)),
+	)
 	os.Exit(server.run())
 }
 
@@ -3270,6 +3279,9 @@ type daemonTestExtensionOptions struct {
 	hookCommand    string
 	hookArgs       []string
 	hookEvent      hookspkg.HookEvent
+	capabilities   []string
+	actions        []string
+	security       []string
 }
 
 func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
@@ -3330,6 +3342,18 @@ func daemonTestExtensionManifest(name string, opts daemonTestExtensionOptions) s
 	if command == "" {
 		command = "fake-extension"
 	}
+	capabilities := append([]string(nil), opts.capabilities...)
+	if opts.capabilities == nil {
+		capabilities = []string{"memory.backend"}
+	}
+	actions := append([]string(nil), opts.actions...)
+	if opts.actions == nil {
+		actions = []string{"sessions/list"}
+	}
+	security := append([]string(nil), opts.security...)
+	if opts.security == nil {
+		security = []string{"session.read"}
+	}
 
 	event := opts.hookEvent
 	if event == "" {
@@ -3362,10 +3386,10 @@ executor.command = %q
 
 	builder.WriteString(`
 [capabilities]
-provides = ["memory.backend"]
+provides = ` + daemonTOMLStringArray(capabilities) + `
 
 [actions]
-requires = ["sessions/list"]
+requires = ` + daemonTOMLStringArray(actions) + `
 
 [subprocess]
 command = ` + fmt.Sprintf("%q", command) + `
@@ -3387,7 +3411,7 @@ command = ` + fmt.Sprintf("%q", command) + `
 
 	builder.WriteString(`
 [security]
-capabilities = ["session.read"]
+capabilities = ` + daemonTOMLStringArray(security) + `
 `)
 
 	return builder.String()
@@ -3399,6 +3423,48 @@ func daemonTOMLStringArray(values []string) string {
 		quoted = append(quoted, fmt.Sprintf("%q", value))
 	}
 	return "[" + strings.Join(quoted, ", ") + "]"
+}
+
+func TestDaemonTestExtensionManifest(t *testing.T) {
+	t.Run("ShouldApplyDefaultListsWhenOptionsAreNil", func(t *testing.T) {
+		t.Parallel()
+
+		manifest := daemonTestExtensionManifest("service-ext", daemonTestExtensionOptions{})
+		for _, expected := range []string{
+			`provides = ["memory.backend"]`,
+			`requires = ["sessions/list"]`,
+			`capabilities = ["session.read"]`,
+		} {
+			if !strings.Contains(manifest, expected) {
+				t.Fatalf("daemonTestExtensionManifest() missing default %q in manifest %q", expected, manifest)
+			}
+		}
+	})
+
+	t.Run("ShouldPreserveExplicitEmptyLists", func(t *testing.T) {
+		t.Parallel()
+
+		manifest := daemonTestExtensionManifest("service-ext", daemonTestExtensionOptions{
+			capabilities: []string{},
+			actions:      []string{},
+			security:     []string{},
+		})
+
+		for _, expected := range []string{
+			"provides = []",
+			"requires = []",
+			"capabilities = []",
+		} {
+			if !strings.Contains(manifest, expected) {
+				t.Fatalf("daemonTestExtensionManifest() missing explicit empty list %q in manifest %q", expected, manifest)
+			}
+		}
+		for _, unexpected := range []string{"memory.backend", "sessions/list", "session.read"} {
+			if strings.Contains(manifest, unexpected) {
+				t.Fatalf("daemonTestExtensionManifest() unexpectedly injected %q into manifest %q", unexpected, manifest)
+			}
+		}
+	})
 }
 
 func TestDaemonExtensionHelperHarness(t *testing.T) {
@@ -3424,6 +3490,11 @@ func TestDaemonExtensionHelperHarness(t *testing.T) {
 	withoutMarker := daemonExtensionHelperEnv("")
 	if _, ok := withoutMarker[daemonExtensionHelperMarkerKey]; ok {
 		t.Fatalf("daemonExtensionHelperEnv(\"\") unexpectedly set %q", daemonExtensionHelperMarkerKey)
+	}
+
+	withScenario := daemonExtensionHelperScenarioEnv("record_initialize", "/tmp/daemon-helper-scenario")
+	if got := withScenario[daemonExtensionHelperScenarioKey]; got != "record_initialize" {
+		t.Fatalf("daemonExtensionHelperScenarioEnv() scenario = %q, want record_initialize", got)
 	}
 }
 
@@ -3451,11 +3522,162 @@ func daemonExtensionHelperEnv(markerPath string) map[string]string {
 	return env
 }
 
+func daemonExtensionHelperScenarioEnv(scenario string, markerPath string) map[string]string {
+	env := daemonExtensionHelperEnv(markerPath)
+	if strings.TrimSpace(scenario) != "" {
+		env[daemonExtensionHelperScenarioKey] = scenario
+	}
+	return env
+}
+
+func TestDaemonExtensionHelperShutdownAppendsMarkerLine(t *testing.T) {
+	t.Parallel()
+
+	marker := filepath.Join(t.TempDir(), "helper-marker.jsonl")
+	if err := appendMarkerLine(marker, `{"event":"initialize"}`); err != nil {
+		t.Fatalf("appendMarkerLine(initialize) error = %v", err)
+	}
+	if err := appendMarkerLine(marker, `{"event":"delivery"}`); err != nil {
+		t.Fatalf("appendMarkerLine(delivery) error = %v", err)
+	}
+
+	server := newDaemonExtensionHelperServer("", marker)
+	server.encoder = json.NewEncoder(io.Discard)
+
+	exit, err := server.handleRequest(daemonExtensionHelperRequest{ID: "1", Method: "shutdown"})
+	if err != nil {
+		t.Fatalf("handleRequest(shutdown) error = %v", err)
+	}
+	if exit {
+		t.Fatal("handleRequest(shutdown) exit = true, want false")
+	}
+
+	payload, readErr := os.ReadFile(marker)
+	if readErr != nil {
+		t.Fatalf("os.ReadFile(marker) error = %v", readErr)
+	}
+	lines := strings.Split(strings.TrimSpace(string(payload)), "\n")
+	if got, want := len(lines), 3; got != want {
+		t.Fatalf("marker line count = %d, want %d; payload=%q", got, want, string(payload))
+	}
+	if got, want := lines[2], "shutdown"; got != want {
+		t.Fatalf("marker final line = %q, want %q", got, want)
+	}
+}
+
+func TestDaemonExtensionHelperHandleRequest(t *testing.T) {
+	t.Run("ShouldRejectInvalidDeliveryRequestsBeforeRecordingOrAcking", func(t *testing.T) {
+		t.Parallel()
+
+		marker := filepath.Join(t.TempDir(), "helper-marker.jsonl")
+		var output bytes.Buffer
+
+		server := newDaemonExtensionHelperServer("", marker)
+		server.encoder = json.NewEncoder(&output)
+
+		params, err := json.Marshal(channelspkg.DeliveryRequest{
+			Event: channelspkg.DeliveryEvent{
+				DeliveryID:        "delivery-1",
+				ChannelInstanceID: "chan-1",
+				RoutingKey: channelspkg.RoutingKey{
+					Scope:             channelspkg.ScopeGlobal,
+					ChannelInstanceID: "chan-1",
+					PeerID:            "peer-1",
+				},
+				DeliveryTarget: channelspkg.DeliveryTarget{
+					ChannelInstanceID: "chan-1",
+					PeerID:            "peer-1",
+					Mode:              channelspkg.DeliveryModeDirectSend,
+				},
+				Seq:       1,
+				EventType: channelspkg.DeliveryEventTypeResume,
+			},
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(delivery request) error = %v", err)
+		}
+
+		exit, err := server.handleRequest(daemonExtensionHelperRequest{
+			ID:     "1",
+			Method: "channels/deliver",
+			Params: params,
+		})
+		if exit {
+			t.Fatal("handleRequest(channels/deliver) exit = true, want false")
+		}
+		if err == nil {
+			t.Fatal("handleRequest(channels/deliver) error = nil, want delivery validation failure")
+		}
+		if !strings.Contains(err.Error(), "validate channels/deliver request") {
+			t.Fatalf("handleRequest(channels/deliver) error = %q, want validation context", err)
+		}
+
+		payload, readErr := os.ReadFile(marker)
+		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+			t.Fatalf("os.ReadFile(marker) error = %v", readErr)
+		}
+		if strings.TrimSpace(string(payload)) != "" {
+			t.Fatalf("marker payload = %q, want no recorded delivery", string(payload))
+		}
+		if strings.TrimSpace(output.String()) != "" {
+			t.Fatalf("helper output = %q, want no ACK payload", output.String())
+		}
+	})
+}
+
+func TestDaemonExtensionHelperMarkerRecording(t *testing.T) {
+	t.Run("ShouldWrapInitializeMarkerFailuresWithOperationContext", func(t *testing.T) {
+		t.Parallel()
+
+		marker := filepath.Join(t.TempDir(), "marker-dir")
+		if err := os.Mkdir(marker, 0o755); err != nil {
+			t.Fatalf("os.Mkdir(marker) error = %v", err)
+		}
+
+		server := newDaemonExtensionHelperServer("", marker)
+		err := server.recordInitialize(subprocess.InitializeRequest{}, subprocess.InitializeResponse{})
+		if err == nil {
+			t.Fatal("recordInitialize() error = nil, want marker append failure")
+		}
+		if !strings.Contains(err.Error(), "record initialize marker") {
+			t.Fatalf("recordInitialize() error = %q, want initialize context", err)
+		}
+		if !strings.Contains(err.Error(), "append marker line") {
+			t.Fatalf("recordInitialize() error = %q, want append context", err)
+		}
+	})
+
+	t.Run("ShouldWrapDeliveryMarkerFailuresWithOperationContext", func(t *testing.T) {
+		t.Parallel()
+
+		marker := filepath.Join(t.TempDir(), "marker-dir")
+		if err := os.Mkdir(marker, 0o755); err != nil {
+			t.Fatalf("os.Mkdir(marker) error = %v", err)
+		}
+
+		server := newDaemonExtensionHelperServer("", marker)
+		err := server.recordDelivery(channelspkg.DeliveryRequest{})
+		if err == nil {
+			t.Fatal("recordDelivery() error = nil, want marker append failure")
+		}
+		if !strings.Contains(err.Error(), "record delivery marker") {
+			t.Fatalf("recordDelivery() error = %q, want delivery context", err)
+		}
+		if !strings.Contains(err.Error(), "append marker line") {
+			t.Fatalf("recordDelivery() error = %q, want append context", err)
+		}
+	})
+}
+
 type daemonExtensionHelperServer struct {
-	marker  string
-	scanner *bufio.Scanner
-	encoder *json.Encoder
-	mu      sync.Mutex
+	scenario                string
+	marker                  string
+	scanner                 *bufio.Scanner
+	encoder                 *json.Encoder
+	slowDeliveryRelease     chan struct{}
+	slowDeliveryReleaseOnce sync.Once
+	slowDeliveryWG          sync.WaitGroup
+	mu                      sync.Mutex
 }
 
 type daemonExtensionHelperRequest struct {
@@ -3464,7 +3686,7 @@ type daemonExtensionHelperRequest struct {
 	Params json.RawMessage `json:"params,omitempty"`
 }
 
-func newDaemonExtensionHelperServer(marker string) *daemonExtensionHelperServer {
+func newDaemonExtensionHelperServer(scenario string, marker string) *daemonExtensionHelperServer {
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 
@@ -3472,9 +3694,11 @@ func newDaemonExtensionHelperServer(marker string) *daemonExtensionHelperServer 
 	encoder.SetEscapeHTML(false)
 
 	return &daemonExtensionHelperServer{
-		marker:  marker,
-		scanner: scanner,
-		encoder: encoder,
+		scenario:            scenario,
+		marker:              marker,
+		scanner:             scanner,
+		encoder:             encoder,
+		slowDeliveryRelease: make(chan struct{}),
 	}
 }
 
@@ -3485,8 +3709,12 @@ func (h *daemonExtensionHelperServer) run() int {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
-		if err := h.handleRequest(req); err != nil {
+		exitProcess, err := h.handleRequest(req)
+		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		if exitProcess {
 			return 1
 		}
 	}
@@ -3497,26 +3725,91 @@ func (h *daemonExtensionHelperServer) run() int {
 	return 0
 }
 
-func (h *daemonExtensionHelperServer) handleRequest(req daemonExtensionHelperRequest) error {
+func (h *daemonExtensionHelperServer) handleRequest(req daemonExtensionHelperRequest) (bool, error) {
 	switch req.Method {
 	case "initialize":
 		var params subprocess.InitializeRequest
 		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return err
+			return false, err
 		}
-		return h.sendResult(req.ID, daemonExtensionInitializeResponse(params))
-	case "health_check":
-		return h.sendResult(req.ID, subprocess.HealthCheckResponse{Healthy: true})
-	case "shutdown":
-		if strings.TrimSpace(h.marker) != "" {
-			if err := os.WriteFile(h.marker, []byte("shutdown"), 0o600); err != nil {
-				return err
+		response := daemonExtensionInitializeResponse(params)
+		if err := h.sendResult(req.ID, response); err != nil {
+			return false, err
+		}
+		if h.scenario == "record_initialize" || h.scenario == "auto_exit_record_initialize" {
+			if err := h.recordInitialize(params, response); err != nil {
+				return false, err
 			}
 		}
-		return h.sendResult(req.ID, subprocess.ShutdownResponse{Acknowledged: true})
+		return h.scenario == "auto_exit_record_initialize", nil
+	case "health_check":
+		return false, h.sendResult(req.ID, subprocess.HealthCheckResponse{Healthy: true})
+	case "channels/deliver":
+		var params channelspkg.DeliveryRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return false, fmt.Errorf("decode channels/deliver request: %w", err)
+		}
+		if err := params.Validate(); err != nil {
+			return false, fmt.Errorf("validate channels/deliver request: %w", err)
+		}
+		if err := h.recordDelivery(params); err != nil {
+			return false, err
+		}
+
+		ack := channelspkg.DeliveryAck{
+			DeliveryID: strings.TrimSpace(params.Event.DeliveryID),
+			Seq:        params.Event.Seq,
+		}
+		if ack.Seq > 0 {
+			ack.RemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq)
+		}
+		if ack.Seq > 1 {
+			ack.ReplaceRemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq-1)
+		}
+		switch h.scenario {
+		case "slow_record_deliveries":
+			h.sendDelayedDeliveryResult(req.ID, ack)
+			return false, nil
+		case "exit_once_record_deliveries":
+			if markerLineCount(h.marker) == 1 {
+				return true, nil
+			}
+		}
+		return false, h.sendResult(req.ID, ack)
+	case "shutdown":
+		h.releaseSlowDeliveries()
+		h.waitSlowDeliveries()
+		if strings.TrimSpace(h.marker) != "" {
+			if err := appendMarkerLine(h.marker, "shutdown"); err != nil {
+				return false, err
+			}
+		}
+		return false, h.sendResult(req.ID, subprocess.ShutdownResponse{Acknowledged: true})
 	default:
-		return h.sendResult(req.ID, map[string]any{})
+		return false, h.sendResult(req.ID, map[string]any{})
 	}
+}
+
+func (h *daemonExtensionHelperServer) sendDelayedDeliveryResult(id any, ack channelspkg.DeliveryAck) {
+	h.slowDeliveryWG.Add(1)
+	go func() {
+		defer h.slowDeliveryWG.Done()
+		<-h.slowDeliveryRelease
+		if err := h.sendResult(id, ack); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}()
+}
+
+func (h *daemonExtensionHelperServer) releaseSlowDeliveries() {
+	h.slowDeliveryReleaseOnce.Do(func() {
+		close(h.slowDeliveryRelease)
+	})
+}
+
+func (h *daemonExtensionHelperServer) waitSlowDeliveries() {
+	h.slowDeliveryWG.Wait()
 }
 
 func (h *daemonExtensionHelperServer) sendResult(id any, result any) error {
@@ -3529,7 +3822,49 @@ func (h *daemonExtensionHelperServer) sendResult(id any, result any) error {
 	})
 }
 
+func (h *daemonExtensionHelperServer) recordInitialize(
+	request subprocess.InitializeRequest,
+	response subprocess.InitializeResponse,
+) error {
+	if strings.TrimSpace(h.marker) == "" {
+		return nil
+	}
+
+	payload, err := json.Marshal(daemonInitializeMarker{
+		Request:  request,
+		Response: response,
+	})
+	if err != nil {
+		return fmt.Errorf("record initialize marker: marshal payload: %w", err)
+	}
+	if err := appendMarkerLine(h.marker, string(payload)); err != nil {
+		return fmt.Errorf("record initialize marker: %w", err)
+	}
+	return nil
+}
+
+func (h *daemonExtensionHelperServer) recordDelivery(request channelspkg.DeliveryRequest) error {
+	if strings.TrimSpace(h.marker) == "" {
+		return nil
+	}
+
+	payload, err := json.Marshal(daemonDeliveryMarker{
+		PID:     os.Getpid(),
+		Request: request,
+	})
+	if err != nil {
+		return fmt.Errorf("record delivery marker: marshal payload: %w", err)
+	}
+	if err := appendMarkerLine(h.marker, string(payload)); err != nil {
+		return fmt.Errorf("record delivery marker: %w", err)
+	}
+	return nil
+}
+
 func daemonExtensionInitializeResponse(req subprocess.InitializeRequest) subprocess.InitializeResponse {
+	implementedMethods := []string{"health_check", "shutdown"}
+	implementedMethods = append(implementedMethods, extensionprotocol.CapabilityServiceMethods(req.Capabilities.Provides)...)
+
 	return subprocess.InitializeResponse{
 		ProtocolVersion: req.ProtocolVersion,
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
@@ -3541,10 +3876,60 @@ func daemonExtensionInitializeResponse(req subprocess.InitializeRequest) subproc
 			Actions:  append([]extensionprotocol.HostAPIMethod(nil), req.Capabilities.GrantedActions...),
 			Security: append([]string(nil), req.Capabilities.GrantedSecurity...),
 		},
-		ImplementedMethods:  []string{"health_check", "shutdown"},
+		ImplementedMethods:  implementedMethods,
 		SupportedHookEvents: []string{string(hookspkg.HookSessionPostCreate)},
 		Supports: subprocess.InitializeSupports{
 			HealthCheck: true,
 		},
 	}
+}
+
+type daemonInitializeMarker struct {
+	Request  subprocess.InitializeRequest  `json:"request"`
+	Response subprocess.InitializeResponse `json:"response"`
+}
+
+type daemonDeliveryMarker struct {
+	PID     int                         `json:"pid"`
+	Request channelspkg.DeliveryRequest `json:"request"`
+}
+
+func appendMarkerLine(path string, line string) (err error) {
+	target := strings.TrimSpace(path)
+	if target == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return fmt.Errorf("append marker line: create marker directory: %w", err)
+	}
+	file, err := os.OpenFile(target, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("append marker line: open marker file: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("append marker line: close marker file: %w", closeErr)
+		}
+	}()
+	_, err = fmt.Fprintf(file, "%s\n", strings.TrimSpace(line))
+	if err != nil {
+		return fmt.Errorf("append marker line: write marker file: %w", err)
+	}
+	return nil
+}
+
+func markerLineCount(path string) int {
+	payload, err := os.ReadFile(strings.TrimSpace(path))
+	if err != nil {
+		// The helper treats missing or unreadable markers as an empty state file.
+		return 0
+	}
+	count := 0
+	for _, line := range strings.Split(string(payload), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		count++
+	}
+	return count
 }

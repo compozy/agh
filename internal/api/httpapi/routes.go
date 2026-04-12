@@ -10,6 +10,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 
 	api := router.Group("/api")
 
+	registerChannelRoutes(api, handlers)
 	registerWorkspaceRoutes(api, handlers)
 	registerSessionRoutes(api, handlers)
 	registerAgentRoutes(api, handlers)
@@ -24,6 +25,19 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	if engine, ok := router.(*gin.Engine); ok {
 		engine.NoRoute(handlers.serveStaticRoute)
 	}
+}
+
+func registerChannelRoutes(api gin.IRouter, handlers *Handlers) {
+	channels := api.Group("/channels")
+	channels.GET("", handlers.ListChannels)
+	channels.POST("", handlers.CreateChannel)
+	channels.GET("/:id", handlers.GetChannel)
+	channels.PATCH("/:id", handlers.UpdateChannel)
+	channels.POST("/:id/enable", handlers.EnableChannel)
+	channels.POST("/:id/disable", handlers.DisableChannel)
+	channels.POST("/:id/restart", handlers.RestartChannel)
+	channels.GET("/:id/routes", handlers.ListChannelRoutes)
+	channels.POST("/:id/test-delivery", handlers.TestChannelDelivery)
 }
 
 func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {

@@ -12,6 +12,7 @@ import (
 
 	core "github.com/pedronauck/agh/internal/api/core"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -48,6 +49,7 @@ type bootState struct {
 	extMu              sync.RWMutex
 	extensions         extensionRuntime
 	automation         automationRuntime
+	channels           *channelRuntime
 	httpServer         Server
 	udsServer          Server
 	skillsCancel       context.CancelFunc
@@ -147,7 +149,13 @@ func (d *Daemon) beginBoot() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.booting || d.lock != nil || d.registry != nil || d.sessions != nil || d.observer != nil || d.automation != nil {
+	if d.booting ||
+		d.lock != nil ||
+		d.registry != nil ||
+		d.sessions != nil ||
+		d.observer != nil ||
+		d.automation != nil ||
+		d.channels != nil {
 		return errors.New("daemon: already booted")
 	}
 	d.booting = true
@@ -286,6 +294,8 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 	if err != nil {
 		return fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}
+	state.registry = registry
+	state.workspaceResolver = workspaceResolver
 
 	if state.cfg.Memory.Enabled && state.cfg.Memory.Dream.Enabled {
 		state.dreamSvc = d.newDreamService(
@@ -300,6 +310,12 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 
 	state.startedAt = d.now().UTC()
 	state.notifier = newHooksNotifier(state.logger, d.now)
+	state.channels = d.composeChannelRuntime(state, cleanup)
+
+	sessionNotifier := session.Notifier(state.notifier)
+	if state.channels != nil {
+		sessionNotifier = extensionpkg.NewChannelDeliveryNotifier(state.channels.Broker(), state.notifier)
+	}
 
 	var skillRegistryDep session.SkillRegistry
 	if state.skillsRegistry != nil {
@@ -313,7 +329,7 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 	sessions, err := d.newSessionManager(ctx, SessionManagerDeps{
 		HomePaths: d.homePaths,
 		Logger:    state.logger,
-		Notifier:  state.notifier,
+		Notifier:  sessionNotifier,
 		Hooks: session.HookSet{
 			Session:      state.notifier,
 			Prompt:       state.notifier,
@@ -358,6 +374,7 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 		HomePaths:         d.homePaths,
 		Logger:            state.logger,
 		Sessions:          sessions,
+		Channels:          state.channels,
 		Registry:          registry,
 		MemoryStore:       state.memoryStore,
 		WorkspaceResolver: workspaceResolver,
@@ -372,8 +389,6 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 		return fmt.Errorf("daemon: create observer: %w", err)
 	}
 
-	state.registry = registry
-	state.workspaceResolver = workspaceResolver
 	state.sessions = sessions
 	state.observer = observer
 	state.deps.Observer = observer
@@ -510,12 +525,19 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		SkillsRegistry:    state.skillsRegistry,
 		WorkspaceResolver: state.workspaceResolver,
 		Logger:            state.logger,
+		ChannelRegistry:   state.channels,
+		ChannelDedupStore: channelRuntimeDedupStore(state.channels),
+		ChannelBroker:     channelRuntimeBroker(state.channels),
+		ChannelRuntime:    state.channels,
 	})
 	if manager == nil {
 		state.logger.Warn("daemon: extension manager factory returned nil; skipping extensions")
 		return nil
 	}
 
+	if state.channels != nil {
+		state.channels.setExtensionRuntime(manager)
+	}
 	state.setExtensionRuntime(manager)
 	state.deps.Extensions = newDaemonExtensionService(extRegistry, manager, state.hooks, state.logger, d.now)
 	cleanup.add(func(ctx context.Context) error {
@@ -608,6 +630,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.sessions = state.sessions
 	d.hooks = state.hooks
 	d.extensions = state.currentExtensionRuntime()
+	d.channels = state.channels
 	d.observer = state.observer
 	d.automation = state.automation
 	d.httpServer = state.httpServer
@@ -673,6 +696,46 @@ func resolveDaemonPort(defaultPort int, server Server) int {
 		return reporter.Port()
 	}
 	return defaultPort
+}
+
+func (d *Daemon) composeChannelRuntime(state *bootState, cleanup *bootCleanup) *channelRuntime {
+	if state == nil || state.registry == nil {
+		return nil
+	}
+
+	store, ok := state.registry.(channelRuntimeStore)
+	if !ok {
+		if state.logger != nil {
+			state.logger.Debug("daemon: skipping channel runtime because registry does not expose channel persistence")
+		}
+		return nil
+	}
+
+	runtime := newChannelRuntime(store, state.logger, d.now, d.channelSecretResolver)
+	if runtime == nil {
+		return nil
+	}
+	if cleanup != nil {
+		cleanup.add(func(context.Context) error {
+			runtime.Close()
+			return nil
+		})
+	}
+	return runtime
+}
+
+func channelRuntimeDedupStore(runtime *channelRuntime) channelDedupStore {
+	if runtime == nil {
+		return nil
+	}
+	return runtime.store
+}
+
+func channelRuntimeBroker(runtime *channelRuntime) *channelspkg.Broker {
+	if runtime == nil {
+		return nil
+	}
+	return runtime.Broker()
 }
 
 func loadConfigFromHome(homePaths aghconfig.HomePaths) (aghconfig.Config, error) {

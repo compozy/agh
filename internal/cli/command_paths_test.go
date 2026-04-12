@@ -71,6 +71,15 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
 			return DaemonStatus{Status: "running", PID: 10, StartedAt: fixedTestNow}, nil
 		},
+		getChannelFn: func(context.Context, string) (ChannelRecord, error) {
+			return ChannelRecord{ID: "chan-1", Scope: "global", Platform: "telegram", ExtensionName: "ext-telegram", DisplayName: "Support", Enabled: true, Status: "ready"}, nil
+		},
+		channelRoutesFn: func(context.Context, string) ([]ChannelRouteRecord, error) {
+			return []ChannelRouteRecord{{RoutingKeyHash: "hash-1", Scope: "global", ChannelInstanceID: "chan-1", PeerID: "peer-1", SessionID: "sess-1", AgentName: "coder", LastActivityAt: fixedTestNow}}, nil
+		},
+		testChannelDeliveryFn: func(context.Context, string, ChannelTestDeliveryRequest) (ChannelTestDeliveryRecord, error) {
+			return ChannelTestDeliveryRecord{Status: "resolved", DeliveryTarget: DeliveryTargetRecord{ChannelInstanceID: "chan-1", PeerID: "peer-1", Mode: "reply"}}, nil
+		},
 	}
 	deps := newTestDeps(t, client)
 	runner := &stubRunner{}
@@ -81,6 +90,9 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		{"observe", "events", "-o", "json"},
 		{"observe", "events", "--follow", "-o", "json"},
 		{"observe", "health", "-o", "json"},
+		{"channel", "get", "chan-1", "-o", "json"},
+		{"channel", "routes", "chan-1", "-o", "json"},
+		{"channel", "test-delivery", "chan-1", "--peer-id", "peer-1", "--mode", "reply", "-o", "json"},
 		{"session", "status", "sess-1", "-o", "json"},
 		{"session", "resume", "sess-1", "-o", "json"},
 		{"session", "wait", "sess-1", "-o", "json"},

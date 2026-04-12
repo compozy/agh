@@ -22,6 +22,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/udsapi"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
@@ -547,6 +548,169 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 	}
 }
 
+func TestChannelCreateAndGetIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	createOut := mustExecuteRoot(
+		t,
+		h.deps,
+		"channel", "create",
+		"--scope", "global",
+		"--platform", "telegram",
+		"--extension", "ext-telegram",
+		"--display-name", "Support",
+		"--include-peer",
+		"--status", "ready",
+		"-o", "json",
+	)
+
+	var created ChannelRecord
+	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
+		t.Fatalf("json.Unmarshal(channel create) error = %v", err)
+	}
+	if created.ID == "" || created.Platform != "telegram" || created.Status != channelspkg.ChannelStatusReady {
+		t.Fatalf("created channel = %#v", created)
+	}
+
+	getOut := mustExecuteRoot(t, h.deps, "channel", "get", created.ID, "-o", "json")
+
+	var fetched ChannelRecord
+	if err := json.Unmarshal([]byte(getOut), &fetched); err != nil {
+		t.Fatalf("json.Unmarshal(channel get) error = %v", err)
+	}
+	if fetched.ID != created.ID || fetched.DisplayName != "Support" || fetched.ExtensionName != "ext-telegram" {
+		t.Fatalf("fetched channel = %#v, want created record", fetched)
+	}
+}
+
+func TestChannelLifecycleCommandsIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	createOut := mustExecuteRoot(
+		t,
+		h.deps,
+		"channel", "create",
+		"--scope", "global",
+		"--platform", "telegram",
+		"--extension", "ext-telegram",
+		"--display-name", "Ops",
+		"--enabled=false",
+		"--include-peer",
+		"-o", "json",
+	)
+
+	var created ChannelRecord
+	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
+		t.Fatalf("json.Unmarshal(channel create) error = %v", err)
+	}
+	if created.Status != channelspkg.ChannelStatusDisabled || created.Enabled {
+		t.Fatalf("created lifecycle = %#v, want disabled false", created)
+	}
+
+	enableOut := mustExecuteRoot(t, h.deps, "channel", "enable", created.ID, "-o", "json")
+	var enabled ChannelRecord
+	if err := json.Unmarshal([]byte(enableOut), &enabled); err != nil {
+		t.Fatalf("json.Unmarshal(channel enable) error = %v", err)
+	}
+	if enabled.Status != channelspkg.ChannelStatusStarting || !enabled.Enabled {
+		t.Fatalf("enabled channel = %#v, want starting true", enabled)
+	}
+
+	disableOut := mustExecuteRoot(t, h.deps, "channel", "disable", created.ID, "-o", "json")
+	var disabled ChannelRecord
+	if err := json.Unmarshal([]byte(disableOut), &disabled); err != nil {
+		t.Fatalf("json.Unmarshal(channel disable) error = %v", err)
+	}
+	if disabled.Status != channelspkg.ChannelStatusDisabled || disabled.Enabled {
+		t.Fatalf("disabled channel = %#v, want disabled false", disabled)
+	}
+
+	restartOut := mustExecuteRoot(t, h.deps, "channel", "restart", created.ID, "-o", "json")
+	var restarted ChannelRecord
+	if err := json.Unmarshal([]byte(restartOut), &restarted); err != nil {
+		t.Fatalf("json.Unmarshal(channel restart) error = %v", err)
+	}
+	if restarted.Status != channelspkg.ChannelStatusStarting || !restarted.Enabled {
+		t.Fatalf("restarted channel = %#v, want starting true", restarted)
+	}
+}
+
+func TestChannelRoutesIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	createOut := mustExecuteRoot(
+		t,
+		h.deps,
+		"channel", "create",
+		"--scope", "global",
+		"--platform", "telegram",
+		"--extension", "ext-telegram",
+		"--display-name", "Support",
+		"--include-peer",
+		"--include-thread",
+		"--status", "ready",
+		"-o", "json",
+	)
+
+	var created ChannelRecord
+	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
+		t.Fatalf("json.Unmarshal(channel create) error = %v", err)
+	}
+
+	channels := h.runner.channelService()
+	if channels == nil {
+		t.Fatal("channel service = nil, want running integration channel service")
+	}
+	if _, err := channels.UpsertRoute(context.Background(), channelspkg.ChannelRoute{
+		ChannelInstanceID: created.ID,
+		Scope:             created.Scope,
+		WorkspaceID:       created.WorkspaceID,
+		PeerID:            "peer-1",
+		ThreadID:          "thread-1",
+		SessionID:         "sess-1",
+		AgentName:         "coder",
+		LastActivityAt:    fixedTestNow,
+	}); err != nil {
+		t.Fatalf("UpsertRoute() error = %v", err)
+	}
+
+	routesOut := mustExecuteRoot(t, h.deps, "channel", "routes", created.ID, "-o", "json")
+
+	var routes []ChannelRouteRecord
+	if err := json.Unmarshal([]byte(routesOut), &routes); err != nil {
+		t.Fatalf("json.Unmarshal(channel routes) error = %v", err)
+	}
+	if len(routes) != 1 || routes[0].PeerID != "peer-1" || routes[0].ThreadID != "thread-1" {
+		t.Fatalf("routes = %#v, want one inserted route", routes)
+	}
+
+	_, _, err := executeRootCommand(t, h.deps, "channel", "routes", "missing-channel", "-o", "json")
+	if err == nil || !strings.Contains(err.Error(), "channel instance not found") {
+		t.Fatalf("channel routes missing error = %v, want channel instance not found", err)
+	}
+}
+
 type integrationHarness struct {
 	deps      commandDeps
 	homePaths aghconfig.HomePaths
@@ -584,6 +748,8 @@ type integrationDaemon struct {
 	running bool
 	cancel  context.CancelFunc
 	done    chan error
+
+	channels *integrationChannelService
 }
 
 type integrationDaemonProcess struct {
@@ -594,6 +760,10 @@ type integrationDaemonProcess struct {
 type integrationExtensionService struct {
 	registry *extensionpkg.Registry
 	manager  *extensionpkg.Manager
+}
+
+type integrationChannelService struct {
+	*channelspkg.Service
 }
 
 type integrationNotifierFanout struct {
@@ -610,6 +780,34 @@ type integrationDriver struct {
 type lockedBuffer struct {
 	mu     sync.Mutex
 	buffer bytes.Buffer
+}
+
+func newIntegrationChannelService(store channelspkg.RegistryStore) *integrationChannelService {
+	return &integrationChannelService{Service: channelspkg.NewRegistry(store)}
+}
+
+func (s *integrationChannelService) StartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+	return s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+		ID:      id,
+		Enabled: true,
+		Status:  channelspkg.ChannelStatusStarting,
+	})
+}
+
+func (s *integrationChannelService) StopInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+	return s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+		ID:      id,
+		Enabled: false,
+		Status:  channelspkg.ChannelStatusDisabled,
+	})
+}
+
+func (s *integrationChannelService) RestartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+	return s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+		ID:      id,
+		Enabled: true,
+		Status:  channelspkg.ChannelStatusStarting,
+	})
 }
 
 func (s *integrationExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
@@ -839,6 +1037,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	if err := memoryStore.EnsureDirs(); err != nil {
 		return fmt.Errorf("ensure memory dirs: %w", err)
 	}
+	channelService := newIntegrationChannelService(registry)
 	dreamTrigger := &integrationDreamTrigger{
 		enabled:   true,
 		triggered: true,
@@ -893,6 +1092,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		udsapi.WithSessionManager(manager),
 		udsapi.WithObserver(observer),
 		udsapi.WithAutomation(automationManager),
+		udsapi.WithChannelService(channelService),
 		udsapi.WithWorkspaceResolver(resolver),
 		udsapi.WithMemoryStore(memoryStore),
 		udsapi.WithDreamTrigger(dreamTrigger),
@@ -905,6 +1105,9 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	if err := server.Start(context.Background()); err != nil {
 		return fmt.Errorf("start uds server: %w", err)
 	}
+	d.mu.Lock()
+	d.channels = channelService
+	d.mu.Unlock()
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -916,6 +1119,9 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		}
 		_ = server.Shutdown(shutdownCtx)
 		_ = aghdaemon.RemoveInfo(d.homePaths.DaemonInfo)
+		d.mu.Lock()
+		d.channels = nil
+		d.mu.Unlock()
 	}()
 
 	if err := aghdaemon.WriteInfo(d.homePaths.DaemonInfo, aghdaemon.Info{
@@ -963,6 +1169,12 @@ func (d *integrationDaemon) waitForExit() error {
 		return nil
 	}
 	return <-done
+}
+
+func (d *integrationDaemon) channelService() *integrationChannelService {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.channels
 }
 
 func (f *integrationNotifierFanout) OnSessionCreated(ctx context.Context, sess *session.Session) {
@@ -1072,9 +1284,9 @@ func discardLogger() *slog.Logger {
 func shortSocketPath(t *testing.T) string {
 	t.Helper()
 
-	root := filepath.Join(os.TempDir(), fmt.Sprintf("agh-cli-%d", time.Now().UnixNano()))
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
+	root, err := os.MkdirTemp(os.TempDir(), "aghc-")
+	if err != nil {
+		t.Fatalf("os.MkdirTemp() error = %v", err)
 	}
 	t.Cleanup(func() {
 		_ = os.RemoveAll(root)

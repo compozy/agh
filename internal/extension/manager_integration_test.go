@@ -11,9 +11,16 @@ import (
 	"testing"
 	"time"
 
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
 )
+
+type managerInitializeMarker struct {
+	Request  subprocess.InitializeRequest  `json:"request"`
+	Response subprocess.InitializeResponse `json:"response"`
+}
 
 func TestManagerIntegrationLifecycleAndHostAPICall(t *testing.T) {
 	withDaemonVersion(t, "0.5.0")
@@ -152,4 +159,249 @@ func TestManagerIntegrationResourceRegistration(t *testing.T) {
 	} else if len(decls) != 1 || decls[0].Name != "ext-resources-hook" {
 		t.Fatalf("HookDeclarations() = %#v, want ext-resources-hook", decls)
 	}
+}
+
+func TestManagerIntegrationChannelAdapterNegotiatesDeliveryRuntime(t *testing.T) {
+	withDaemonVersion(t, "0.5.0")
+
+	env := newRegistryTestEnv(t)
+	markerPath := filepath.Join(t.TempDir(), "channel-init.jsonl")
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-channel-live", managerManifestOptions{
+		command:      helperCommand(t),
+		args:         helperArgs(),
+		withEnv:      helperEnv("record_initialize", markerPath),
+		capabilities: []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+		},
+		security: []string{"channel.read", "channel.write"},
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+	manager := NewManager(
+		env.registry,
+		WithChannelRuntimeResolver(&stubChannelRuntimeResolver{
+			runtimes: map[string]*subprocess.InitializeChannelRuntime{
+				"ext-channel-live": {
+					Instance: testChannelRuntimeInstance("ext-channel-live", "chan-live"),
+					BoundSecrets: []subprocess.InitializeChannelBoundSecret{
+						{BindingName: "bot_token", Kind: "bot_token", Value: "token-live"},
+					},
+				},
+			},
+		}),
+		WithHealthCheckTimeout(20*time.Millisecond),
+		WithSubprocessSignalGrace(15*time.Millisecond),
+	)
+
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	waitForManagerCondition(t, time.Second, func() bool {
+		lines, err := readFileLines(markerPath)
+		return err == nil && len(lines) >= 1
+	})
+
+	markers := readInitializeMarkers(t, markerPath)
+	if len(markers) == 0 {
+		t.Fatal("initialize markers = empty, want negotiated channel handshake")
+	}
+	request := markers[0].Request
+	if !slicesEqualStrings(request.Methods.ExtensionServices, []string{"channels/deliver"}) {
+		t.Fatalf("initialize extension services = %#v, want [channels/deliver]", request.Methods.ExtensionServices)
+	}
+	if request.Runtime.Channel == nil {
+		t.Fatal("initialize runtime channel = nil, want bound channel launch payload")
+	}
+	if got, want := request.Runtime.Channel.Instance.ID, "chan-live"; got != want {
+		t.Fatalf("initialize runtime channel instance id = %q, want %q", got, want)
+	}
+	if got := request.Runtime.Channel.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-live" {
+		t.Fatalf("initialize runtime channel bound secrets = %#v, want one bound secret", got)
+	}
+}
+
+func TestManagerIntegrationNonChannelExtensionStartsWithoutChannelNegotiation(t *testing.T) {
+	withDaemonVersion(t, "0.5.0")
+
+	env := newRegistryTestEnv(t)
+	markerPath := filepath.Join(t.TempDir(), "plain-init.jsonl")
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-plain-live", managerManifestOptions{
+		command:      helperCommand(t),
+		args:         helperArgs(),
+		withEnv:      helperEnv("record_initialize", markerPath),
+		capabilities: []string{"memory.backend"},
+		actions:      []string{"sessions/list"},
+		security:     []string{"session.read"},
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+	manager := NewManager(
+		env.registry,
+		WithHealthCheckTimeout(20*time.Millisecond),
+		WithSubprocessSignalGrace(15*time.Millisecond),
+	)
+
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	waitForManagerCondition(t, time.Second, func() bool {
+		lines, err := readFileLines(markerPath)
+		return err == nil && len(lines) >= 1
+	})
+
+	markers := readInitializeMarkers(t, markerPath)
+	if len(markers) == 0 {
+		t.Fatal("initialize markers = empty, want generic extension handshake")
+	}
+	request := markers[0].Request
+	if slicesContainsString(request.Methods.ExtensionServices, "channels/deliver") {
+		t.Fatalf("initialize extension services = %#v, want no channels/deliver negotiation", request.Methods.ExtensionServices)
+	}
+	if request.Runtime.Channel != nil {
+		t.Fatalf("initialize runtime channel = %#v, want nil for non-channel extension", request.Runtime.Channel)
+	}
+}
+
+func TestManagerIntegrationChannelAdapterRestartPreservesNegotiatedSurface(t *testing.T) {
+	withDaemonVersion(t, "0.5.0")
+
+	env := newRegistryTestEnv(t)
+	markerPath := filepath.Join(t.TempDir(), "channel-restart.jsonl")
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-channel-restart", managerManifestOptions{
+		command:      helperCommand(t),
+		args:         helperArgs(),
+		withEnv:      helperEnv("auto_exit_record_initialize", markerPath),
+		capabilities: []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+		},
+		security: []string{"channel.read", "channel.write"},
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+	manager := NewManager(
+		env.registry,
+		WithChannelRuntimeResolver(&stubChannelRuntimeResolver{
+			runtimes: map[string]*subprocess.InitializeChannelRuntime{
+				"ext-channel-restart": {
+					Instance: testChannelRuntimeInstance("ext-channel-restart", "chan-restart"),
+					BoundSecrets: []subprocess.InitializeChannelBoundSecret{
+						{BindingName: "bot_token", Kind: "bot_token", Value: "token-restart"},
+					},
+				},
+			},
+		}),
+		WithHealthCheckTimeout(20*time.Millisecond),
+		WithSubprocessSignalGrace(15*time.Millisecond),
+		withRestartBackoffMax(10*time.Millisecond),
+		withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
+	)
+
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	waitForManagerCondition(t, 2*time.Second, func() bool {
+		lines, err := readFileLines(markerPath)
+		return err == nil && len(lines) >= 2
+	})
+
+	markers := readInitializeMarkers(t, markerPath)
+	if len(markers) < 2 {
+		t.Fatalf("initialize markers = %d, want at least 2 launches", len(markers))
+	}
+	for index, marker := range markers[:2] {
+		if !slicesEqualStrings(marker.Request.Methods.ExtensionServices, []string{"channels/deliver"}) {
+			t.Fatalf("marker %d extension services = %#v, want [channels/deliver]", index, marker.Request.Methods.ExtensionServices)
+		}
+		if marker.Request.Runtime.Channel == nil {
+			t.Fatalf("marker %d runtime channel = nil, want bound channel launch payload", index)
+		}
+		if got, want := marker.Request.Runtime.Channel.Instance.ID, "chan-restart"; got != want {
+			t.Fatalf("marker %d runtime channel instance id = %q, want %q", index, got, want)
+		}
+	}
+}
+
+func readInitializeMarkers(t *testing.T, path string) []managerInitializeMarker {
+	t.Helper()
+
+	lines, err := readFileLines(path)
+	if err != nil {
+		t.Fatalf("readFileLines(%q) error = %v", path, err)
+	}
+
+	markers := make([]managerInitializeMarker, 0, len(lines))
+	for _, line := range lines {
+		var marker managerInitializeMarker
+		if err := json.Unmarshal([]byte(line), &marker); err != nil {
+			t.Fatalf("json.Unmarshal(initialize marker) error = %v; line=%q", err, line)
+		}
+		markers = append(markers, marker)
+	}
+	return markers
+}
+
+func readFileLines(path string) ([]string, error) {
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	trimmed := strings.TrimSpace(string(payload))
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	lines := strings.Split(trimmed, "\n")
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if candidate := strings.TrimSpace(line); candidate != "" {
+			filtered = append(filtered, candidate)
+		}
+	}
+	return filtered, nil
+}
+
+func slicesEqualStrings(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func slicesContainsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

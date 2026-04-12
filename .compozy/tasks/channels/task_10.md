@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add per-instance channel observability and health reporting
 type: backend
 complexity: high
@@ -31,10 +31,10 @@ Extend the observability surface so channel adapters are visible as operational 
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Extend observe health and telemetry models with channel-instance metrics and status data
-- [ ] 10.2 Add channel backlog, route-count, and failure-signal reporting from the channel runtime
-- [ ] 10.3 Expose per-instance health details through the existing health and channel APIs where appropriate
-- [ ] 10.4 Add unit and integration tests for health aggregation and state propagation
+- [x] 10.1 Extend observe health and telemetry models with channel-instance metrics and status data
+- [x] 10.2 Add channel backlog, route-count, and failure-signal reporting from the channel runtime
+- [x] 10.3 Expose per-instance health details through the existing health and channel APIs where appropriate
+- [x] 10.4 Add unit and integration tests for health aggregation and state propagation
 
 ## Implementation Details
 
@@ -64,14 +64,14 @@ Follow the TechSpec sections "Monitoring and Observability", "Operational visibi
 
 ## Tests
 - Unit tests:
-  - [ ] Channel health aggregation reports the expected status counts across `starting`, `ready`, `degraded`, and `auth_required` instances
-  - [ ] Backlog metrics increase and decrease with queued delivery work without affecting existing active-session counts
-  - [ ] Route-count reporting reflects the number of active routes owned by a channel instance
-  - [ ] Auth failures and terminal delivery failures are surfaced on the owning channel instance instead of only the extension process
+  - [x] Channel health aggregation reports the expected status counts across `starting`, `ready`, `degraded`, and `auth_required` instances
+  - [x] Backlog metrics increase and decrease with queued delivery work without affecting existing active-session counts
+  - [x] Route-count reporting reflects the number of active routes owned by a channel instance
+  - [x] Auth failures and terminal delivery failures are surfaced on the owning channel instance instead of only the extension process
 - Integration tests:
-  - [ ] `/api/observe/health` includes additive channel metrics while preserving existing daemon and session health fields
-  - [ ] Updating a channel instance from `ready` to `auth_required` is visible through the health surface and the channel detail API
-  - [ ] A queued delivery scenario reports backlog for the affected channel instance and clears it once delivery completes
+  - [x] `/api/observe/health` includes additive channel metrics while preserving existing daemon and session health fields
+  - [x] Updating a channel instance from `ready` to `auth_required` is visible through the health surface and the channel detail API
+  - [x] A queued delivery scenario reports backlog for the affected channel instance and clears it once delivery completes
 - Test coverage target: >=80%
 - All tests must pass
 

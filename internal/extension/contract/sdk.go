@@ -3,6 +3,7 @@ package contract
 import (
 	"fmt"
 
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	"github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/subprocess"
@@ -24,12 +25,29 @@ func SDKRootTypes() []NamedType {
 		{Name: "InitializeCapabilities", Value: subprocess.InitializeCapabilities{}},
 		{Name: "InitializeMethods", Value: subprocess.InitializeMethods{}},
 		{Name: "InitializeRuntime", Value: subprocess.InitializeRuntime{}},
+		{Name: "InitializeChannelRuntime", Value: subprocess.InitializeChannelRuntime{}},
+		{Name: "InitializeChannelBoundSecret", Value: subprocess.InitializeChannelBoundSecret{}},
 		{Name: "InitializeResponse", Value: subprocess.InitializeResponse{}},
 		{Name: "InitializeExtensionInfo", Value: subprocess.InitializeExtensionInfo{}},
 		{Name: "AcceptedCapabilities", Value: subprocess.AcceptedCapabilities{}},
 		{Name: "InitializeSupports", Value: subprocess.InitializeSupports{}},
 		{Name: "ShutdownRequest", Value: subprocess.ShutdownRequest{}},
 		{Name: "ShutdownResponse", Value: subprocess.ShutdownResponse{}},
+		{Name: "ChannelInstance", Value: channelspkg.ChannelInstance{}},
+		{Name: "ChannelStatus", Value: channelspkg.ChannelStatus("")},
+		{Name: "ChannelScope", Value: channelspkg.Scope("")},
+		{Name: "RoutingPolicy", Value: channelspkg.RoutingPolicy{}},
+		{Name: "RoutingKey", Value: channelspkg.RoutingKey{}},
+		{Name: "InboundMessageEnvelope", Value: channelspkg.InboundMessageEnvelope{}},
+		{Name: "DeliveryEvent", Value: channelspkg.DeliveryEvent{}},
+		{Name: "DeliveryRequest", Value: channelspkg.DeliveryRequest{}},
+		{Name: "DeliveryAck", Value: channelspkg.DeliveryAck{}},
+		{Name: "DeliverySnapshot", Value: channelspkg.DeliverySnapshot{}},
+		{Name: "DeliveryTarget", Value: channelspkg.DeliveryTarget{}},
+		{Name: "DeliveryMode", Value: channelspkg.DeliveryMode("")},
+		{Name: "MessageSender", Value: channelspkg.MessageSender{}},
+		{Name: "MessageContent", Value: channelspkg.MessageContent{}},
+		{Name: "MessageAttachment", Value: channelspkg.MessageAttachment{}},
 		{Name: "Tool", Value: tools.Tool{}},
 		{Name: "MemoryScope", Value: memory.Scope("")},
 		{Name: "HookEventFamily", Value: hooks.HookEventFamily("")},

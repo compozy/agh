@@ -168,6 +168,54 @@ var globalSchemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_automation_runs_trigger ON automation_runs(trigger_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status);`,
 	`CREATE INDEX IF NOT EXISTS idx_automation_runs_started ON automation_runs(started_at);`,
+	`CREATE TABLE IF NOT EXISTS channel_instances (
+		id                TEXT PRIMARY KEY,
+		scope             TEXT NOT NULL,
+		workspace_id      TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+		platform          TEXT NOT NULL,
+		extension_name    TEXT NOT NULL,
+		display_name      TEXT NOT NULL,
+		enabled           BOOLEAN NOT NULL DEFAULT 1,
+		status            TEXT NOT NULL,
+		routing_policy    TEXT NOT NULL,
+		delivery_defaults TEXT,
+		created_at        TEXT NOT NULL,
+		updated_at        TEXT NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_channel_instances_scope ON channel_instances(scope, workspace_id, id);`,
+	`CREATE TABLE IF NOT EXISTS channel_secret_bindings (
+		channel_instance_id TEXT NOT NULL REFERENCES channel_instances(id) ON DELETE CASCADE,
+		binding_name        TEXT NOT NULL,
+		vault_ref           TEXT NOT NULL,
+		kind                TEXT NOT NULL,
+		created_at          TEXT NOT NULL,
+		updated_at          TEXT NOT NULL,
+		PRIMARY KEY (channel_instance_id, binding_name)
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_channel_secret_bindings_instance ON channel_secret_bindings(channel_instance_id);`,
+	`CREATE TABLE IF NOT EXISTS channel_routes (
+		routing_key_hash    TEXT PRIMARY KEY,
+		scope               TEXT NOT NULL,
+		workspace_id        TEXT,
+		channel_instance_id TEXT NOT NULL REFERENCES channel_instances(id) ON DELETE CASCADE,
+		peer_id             TEXT,
+		thread_id           TEXT,
+		group_id            TEXT,
+		session_id          TEXT NOT NULL,
+		agent_name          TEXT NOT NULL,
+		last_activity_at    TEXT NOT NULL,
+		created_at          TEXT NOT NULL,
+		updated_at          TEXT NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_channel_routes_instance ON channel_routes(channel_instance_id, updated_at DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_channel_routes_session ON channel_routes(session_id);`,
+	`CREATE TABLE IF NOT EXISTS channel_ingest_dedup (
+		idempotency_key    TEXT PRIMARY KEY,
+		channel_instance_id TEXT NOT NULL REFERENCES channel_instances(id) ON DELETE CASCADE,
+		received_at        TEXT NOT NULL,
+		expires_at         TEXT NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_channel_ingest_dedup_expires ON channel_ingest_dedup(expires_at);`,
 }
 
 // GlobalDB owns the global session index and observability database.

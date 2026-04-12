@@ -31,6 +31,7 @@ type BaseHandlerConfig struct {
 	Sessions                     SessionManager
 	Observer                     Observer
 	Automation                   AutomationManager
+	Channels                     ChannelService
 	Workspaces                   WorkspaceService
 	SkillsRegistry               SkillsRegistry
 	MemoryStore                  *memory.Store
@@ -55,6 +56,7 @@ type BaseHandlers struct {
 	Sessions                     SessionManager
 	Observer                     Observer
 	Automation                   AutomationManager
+	Channels                     ChannelService
 	Workspaces                   WorkspaceService
 	SkillsRegistry               SkillsRegistry
 	MemoryStore                  *memory.Store
@@ -114,6 +116,7 @@ func NewBaseHandlers(cfg BaseHandlerConfig) *BaseHandlers {
 		Sessions:                     cfg.Sessions,
 		Observer:                     cfg.Observer,
 		Automation:                   cfg.Automation,
+		Channels:                     cfg.Channels,
 		Workspaces:                   cfg.Workspaces,
 		SkillsRegistry:               cfg.SkillsRegistry,
 		MemoryStore:                  cfg.MemoryStore,

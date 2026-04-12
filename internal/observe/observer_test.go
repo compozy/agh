@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -376,6 +377,7 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 type harness struct {
 	observer    *Observer
 	registry    *globaldb.GlobalDB
+	channels    *observeChannelSource
 	home        aghconfig.HomePaths
 	source      *stubSessionSource
 	now         time.Time
@@ -389,8 +391,20 @@ type stubSessionSource struct {
 	sessions []*session.SessionInfo
 }
 
+type observeChannelSource struct {
+	*channelspkg.Service
+	broker *channelspkg.Broker
+}
+
 func (s *stubSessionSource) List() []*session.SessionInfo {
 	return s.sessions
+}
+
+func (s *observeChannelSource) DeliveryMetrics() map[string]channelspkg.ChannelDeliveryMetrics {
+	if s == nil || s.broker == nil {
+		return nil
+	}
+	return s.broker.DeliveryMetrics()
 }
 
 func newHarness(t *testing.T) *harness {
@@ -416,6 +430,11 @@ func newHarness(t *testing.T) *harness {
 
 	now := time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC)
 	source := &stubSessionSource{}
+	channels := &observeChannelSource{
+		Service: channelspkg.NewRegistry(registry, channelspkg.WithNow(func() time.Time { return now })),
+		broker:  channelspkg.NewBroker(nil, channelspkg.WithDeliveryBrokerNow(func() time.Time { return now })),
+	}
+	t.Cleanup(channels.broker.Close)
 	workspace := filepath.Join(t.TempDir(), "workspace")
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace) error = %v", err)
@@ -434,6 +453,7 @@ func newHarness(t *testing.T) *harness {
 		WithRegistry(registry),
 		WithHomePaths(home),
 		WithSessionSource(source),
+		WithChannelSource(channels),
 		WithPermissionModeResolver(func(_ context.Context, agentName, workspaceID string) (string, error) {
 			if strings.TrimSpace(agentName) == "" || strings.TrimSpace(workspaceID) == "" {
 				return "", context.Canceled
@@ -454,6 +474,7 @@ func newHarness(t *testing.T) *harness {
 	return &harness{
 		observer:    observer,
 		registry:    registry,
+		channels:    channels,
 		home:        home,
 		source:      source,
 		now:         now,

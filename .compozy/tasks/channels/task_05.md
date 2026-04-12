@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement channel Host API ingest and instance state reporting
 type: backend
 complexity: high
@@ -31,10 +31,10 @@ Implement the extension-to-daemon Host API entry points that let channel adapter
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Add channel Host API method identifiers and typed request/response payloads
-- [ ] 5.2 Implement Host API handlers for inbound message ingest, instance lookup, and state reporting
-- [ ] 5.3 Add idempotent ingress handling (backed by dedup table with TTL), serialized per-routing-key route/session resolution, and dedup cleanup
-- [ ] 5.4 Add unit and integration tests for validation, duplicate suppression, and state transitions
+- [x] 5.1 Add channel Host API method identifiers and typed request/response payloads
+- [x] 5.2 Implement Host API handlers for inbound message ingest, instance lookup, and state reporting
+- [x] 5.3 Add idempotent ingress handling (backed by dedup table with TTL), serialized per-routing-key route/session resolution, and dedup cleanup
+- [x] 5.4 Add unit and integration tests for validation, duplicate suppression, and state transitions
 
 ## Implementation Details
 
@@ -65,18 +65,18 @@ Follow the TechSpec sections "Extension Host API", "InboundMessageEnvelope", and
 
 ## Tests
 - Unit tests:
-  - [ ] `channels/messages/ingest` rejects payloads that omit `channel_instance_id` or required routing fields
-  - [ ] `channels/messages/ingest` rejects disabled or unknown channel instances before prompting a session
-  - [ ] Duplicate ingress with the same `idempotency_key` does not create a second prompt or second route mutation
-  - [ ] `channels/instances/report_state` rejects unsupported state transitions and malformed status payloads
-  - [ ] `channels/instances/get` does not expose metadata for a different channel instance than the running extension is authorized to serve
-  - [ ] Concurrent inbound messages for the same new routing key result in exactly one session and one route, not duplicates
-  - [ ] Expired dedup records are cleaned up and no longer suppress re-ingestion of the same idempotency key
+  - [x] `channels/messages/ingest` rejects payloads that omit `channel_instance_id` or required routing fields
+  - [x] `channels/messages/ingest` rejects disabled or unknown channel instances before prompting a session
+  - [x] Duplicate ingress with the same `idempotency_key` does not create a second prompt or second route mutation
+  - [x] `channels/instances/report_state` rejects unsupported state transitions and malformed status payloads
+  - [x] `channels/instances/get` does not expose metadata for a different channel instance than the running extension is authorized to serve
+  - [x] Concurrent inbound messages for the same new routing key result in exactly one session and one route, not duplicates
+  - [x] Expired dedup records are cleaned up and no longer suppress re-ingestion of the same idempotency key
 - Integration tests:
-  - [ ] A fake channel extension can ingest one normalized inbound message and receive a created or reused session association through the registry
-  - [ ] Retrying the same inbound webhook payload results in one prompt path and one stored route update
-  - [ ] An adapter-reported `auth_required` state transition becomes visible through the channel instance state model without crashing the Host API handler
-  - [ ] Two concurrent ingest calls for the same routing key (no prior session) produce one session and one route record
+  - [x] A fake channel extension can ingest one normalized inbound message and receive a created or reused session association through the registry
+  - [x] Retrying the same inbound webhook payload results in one prompt path and one stored route update
+  - [x] An adapter-reported `auth_required` state transition becomes visible through the channel instance state model without crashing the Host API handler
+  - [x] Two concurrent ingest calls for the same routing key (no prior session) produce one session and one route record
 - Test coverage target: >=80%
 - All tests must pass
 

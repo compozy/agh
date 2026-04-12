@@ -483,6 +483,7 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 
 	testCases := []struct {
 		name    string
+		setup   func(*InitializeRequest)
 		mutate  func(*InitializeResponse)
 		wantSub string
 	}{
@@ -516,6 +517,18 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 			},
 			wantSub: "health_check support",
 		},
+		{
+			name: "missing-channel-deliver-service",
+			setup: func(request *InitializeRequest) {
+				request.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideChannelAdapter}
+				request.Methods.ExtensionServices = extensionprotocol.CapabilityServiceMethods(request.Capabilities.Provides)
+			},
+			mutate: func(response *InitializeResponse) {
+				response.AcceptedCapabilities.Provides = []string{extensionprotocol.CapabilityProvideChannelAdapter}
+				response.ImplementedMethods = []string{"health_check", "shutdown"}
+			},
+			wantSub: "channels/deliver",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -523,12 +536,17 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			req := request
+			if tc.setup != nil {
+				tc.setup(&req)
+			}
+
 			response := InitializeResponse{
 				ProtocolVersion: defaultProtocolVersion,
 				AcceptedCapabilities: AcceptedCapabilities{
-					Provides: append([]string(nil), request.Capabilities.Provides...),
-					Actions:  append([]extensionprotocol.HostAPIMethod(nil), request.Capabilities.GrantedActions...),
-					Security: append([]string(nil), request.Capabilities.GrantedSecurity...),
+					Provides: append([]string(nil), req.Capabilities.Provides...),
+					Actions:  append([]extensionprotocol.HostAPIMethod(nil), req.Capabilities.GrantedActions...),
+					Security: append([]string(nil), req.Capabilities.GrantedSecurity...),
 				},
 				ImplementedMethods: []string{"health_check", "shutdown"},
 				Supports: InitializeSupports{
@@ -537,7 +555,7 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 			}
 			tc.mutate(&response)
 
-			err := validateInitializeResponse(request, response)
+			err := validateInitializeResponse(req, response)
 			if err == nil {
 				t.Fatal("validateInitializeResponse() error = nil, want non-nil")
 			}
@@ -677,7 +695,7 @@ func newInitializeRequest(runtimeCfg InitializeRuntime) InitializeRequest {
 			SourceTier: "user",
 		},
 		Capabilities: InitializeCapabilities{
-			Provides:        []string{"memory.backend"},
+			Provides:        nil,
 			GrantedActions:  []extensionprotocol.HostAPIMethod{extensionprotocol.HostAPIMethodSessionsList},
 			GrantedSecurity: []string{"memory.read", "memory.write"},
 		},

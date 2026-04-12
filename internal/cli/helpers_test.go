@@ -23,6 +23,15 @@ type stubClient struct {
 	enableExtensionFn         func(context.Context, string) (ExtensionRecord, error)
 	disableExtensionFn        func(context.Context, string) (ExtensionRecord, error)
 	extensionStatusFn         func(context.Context, string) (ExtensionRecord, error)
+	listChannelsFn            func(context.Context) ([]ChannelRecord, error)
+	createChannelFn           func(context.Context, CreateChannelRequest) (ChannelRecord, error)
+	getChannelFn              func(context.Context, string) (ChannelRecord, error)
+	updateChannelFn           func(context.Context, string, UpdateChannelRequest) (ChannelRecord, error)
+	enableChannelFn           func(context.Context, string) (ChannelRecord, error)
+	disableChannelFn          func(context.Context, string) (ChannelRecord, error)
+	restartChannelFn          func(context.Context, string) (ChannelRecord, error)
+	channelRoutesFn           func(context.Context, string) ([]ChannelRouteRecord, error)
+	testChannelDeliveryFn     func(context.Context, string, ChannelTestDeliveryRequest) (ChannelTestDeliveryRecord, error)
 	listSessionsFn            func(context.Context, SessionListQuery) ([]SessionRecord, error)
 	createSessionFn           func(context.Context, CreateSessionRequest) (SessionRecord, error)
 	getSessionFn              func(context.Context, string) (SessionRecord, error)
@@ -107,6 +116,69 @@ func (s stubClient) ExtensionStatus(ctx context.Context, name string) (Extension
 		return s.extensionStatusFn(ctx, name)
 	}
 	return ExtensionRecord{}, errors.New("unexpected ExtensionStatus call")
+}
+
+func (s stubClient) ListChannels(ctx context.Context) ([]ChannelRecord, error) {
+	if s.listChannelsFn != nil {
+		return s.listChannelsFn(ctx)
+	}
+	return nil, errors.New("unexpected ListChannels call")
+}
+
+func (s stubClient) CreateChannel(ctx context.Context, request CreateChannelRequest) (ChannelRecord, error) {
+	if s.createChannelFn != nil {
+		return s.createChannelFn(ctx, request)
+	}
+	return ChannelRecord{}, errors.New("unexpected CreateChannel call")
+}
+
+func (s stubClient) GetChannel(ctx context.Context, id string) (ChannelRecord, error) {
+	if s.getChannelFn != nil {
+		return s.getChannelFn(ctx, id)
+	}
+	return ChannelRecord{}, errors.New("unexpected GetChannel call")
+}
+
+func (s stubClient) UpdateChannel(ctx context.Context, id string, request UpdateChannelRequest) (ChannelRecord, error) {
+	if s.updateChannelFn != nil {
+		return s.updateChannelFn(ctx, id, request)
+	}
+	return ChannelRecord{}, errors.New("unexpected UpdateChannel call")
+}
+
+func (s stubClient) EnableChannel(ctx context.Context, id string) (ChannelRecord, error) {
+	if s.enableChannelFn != nil {
+		return s.enableChannelFn(ctx, id)
+	}
+	return ChannelRecord{}, errors.New("unexpected EnableChannel call")
+}
+
+func (s stubClient) DisableChannel(ctx context.Context, id string) (ChannelRecord, error) {
+	if s.disableChannelFn != nil {
+		return s.disableChannelFn(ctx, id)
+	}
+	return ChannelRecord{}, errors.New("unexpected DisableChannel call")
+}
+
+func (s stubClient) RestartChannel(ctx context.Context, id string) (ChannelRecord, error) {
+	if s.restartChannelFn != nil {
+		return s.restartChannelFn(ctx, id)
+	}
+	return ChannelRecord{}, errors.New("unexpected RestartChannel call")
+}
+
+func (s stubClient) ChannelRoutes(ctx context.Context, id string) ([]ChannelRouteRecord, error) {
+	if s.channelRoutesFn != nil {
+		return s.channelRoutesFn(ctx, id)
+	}
+	return nil, errors.New("unexpected ChannelRoutes call")
+}
+
+func (s stubClient) TestChannelDelivery(ctx context.Context, id string, request ChannelTestDeliveryRequest) (ChannelTestDeliveryRecord, error) {
+	if s.testChannelDeliveryFn != nil {
+		return s.testChannelDeliveryFn(ctx, id, request)
+	}
+	return ChannelTestDeliveryRecord{}, errors.New("unexpected TestChannelDelivery call")
 }
 
 func (s stubClient) ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error) {

@@ -41,12 +41,14 @@ const (
 type referenceHandshakeMarker struct {
 	Request  subprocess.InitializeRequest  `json:"request"`
 	Response subprocess.InitializeResponse `json:"response"`
+	PID      int                           `json:"pid"`
 }
 
 type referenceHostCallMarker struct {
 	SessionCount int               `json:"session_count"`
 	Sessions     []json.RawMessage `json:"sessions"`
 	Error        string            `json:"error,omitempty"`
+	PID          int               `json:"pid"`
 }
 
 type referenceCapabilityMarker struct {
@@ -122,9 +124,13 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 		t.Fatalf("prompt install status = %#v, want active/healthy", promptEnhancer)
 	}
 
-	secretHandshake := waitForJSONFile[referenceHandshakeMarker](t, harness.secretHandshakePath, 10*time.Second)
+	secretPID := waitForStartedPID(t, harness.secretStartsPath, 2, 10*time.Second)
+	secretHandshake := waitForHandshakeMarker(t, harness.secretHandshakePath, secretPID, 10*time.Second)
 	if secretHandshake.Request.ProtocolVersion != "1" {
 		t.Fatalf("secret handshake protocol = %q, want 1", secretHandshake.Request.ProtocolVersion)
+	}
+	if secretHandshake.PID <= 0 {
+		t.Fatalf("secret handshake pid = %d, want > 0", secretHandshake.PID)
 	}
 	if got := secretHandshake.Request.Capabilities.GrantedActions; len(got) != 1 || got[0] != "sessions/list" {
 		t.Fatalf("secret granted actions = %#v, want sessions/list", got)
@@ -140,6 +146,9 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 	if promptHandshake.Request.ProtocolVersion != "1" {
 		t.Fatalf("prompt handshake protocol = %q, want 1", promptHandshake.Request.ProtocolVersion)
 	}
+	if promptHandshake.PID <= 0 {
+		t.Fatalf("prompt handshake pid = %d, want > 0", promptHandshake.PID)
+	}
 	if got := promptHandshake.Request.Capabilities.GrantedActions; len(got) != 1 || got[0] != "sessions/list" {
 		t.Fatalf("prompt granted actions = %#v, want sessions/list", got)
 	}
@@ -150,12 +159,12 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 		t.Fatalf("prompt supported hook events = %#v, want prompt.post_assemble", got)
 	}
 
-	secretHostCall := waitForJSONFile[referenceHostCallMarker](t, harness.secretHostCallPath, 10*time.Second)
+	secretHostCall := waitForHostCallMarker(t, harness.secretHostCallPath, secretPID, 10*time.Second)
 	if secretHostCall.Error != "" {
 		t.Fatalf("secret host call error = %q, want empty", secretHostCall.Error)
 	}
 
-	promptHostCall := waitForJSONFile[referenceHostCallMarker](t, harness.promptHostCallPath, 10*time.Second)
+	promptHostCall := waitForHostCallMarker(t, harness.promptHostCallPath, promptHandshake.PID, 10*time.Second)
 	if promptHostCall.Error != "" {
 		t.Fatalf("prompt host call error = %q, want empty", promptHostCall.Error)
 	}
@@ -768,6 +777,67 @@ func waitForJSONFile[T any](t *testing.T, path string, timeout time.Duration) T 
 		return true
 	})
 	return decoded
+}
+
+func waitForHandshakeMarker(t *testing.T, path string, pid int, timeout time.Duration) referenceHandshakeMarker {
+	t.Helper()
+
+	var marker referenceHandshakeMarker
+	waitForCondition(t, timeout, fmt.Sprintf("handshake marker %s for pid=%d", path, pid), func() bool {
+		payload, err := os.ReadFile(path)
+		if err != nil {
+			return false
+		}
+		if err := json.Unmarshal(payload, &marker); err != nil {
+			return false
+		}
+		return marker.PID == pid
+	})
+	return marker
+}
+
+func waitForHostCallMarker(t *testing.T, path string, pid int, timeout time.Duration) referenceHostCallMarker {
+	t.Helper()
+
+	var marker referenceHostCallMarker
+	waitForCondition(t, timeout, fmt.Sprintf("host call marker %s for pid=%d", path, pid), func() bool {
+		payload, err := os.ReadFile(path)
+		if err != nil {
+			return false
+		}
+		if err := json.Unmarshal(payload, &marker); err != nil {
+			return false
+		}
+		return marker.PID == pid
+	})
+	return marker
+}
+
+func waitForStartedPID(t *testing.T, path string, wantCount int, timeout time.Duration) int {
+	t.Helper()
+
+	var latest int
+	waitForCondition(t, timeout, fmt.Sprintf("started pid %s count>=%d", path, wantCount), func() bool {
+		lines, err := readFileLines(path)
+		if err != nil || len(lines) < wantCount {
+			return false
+		}
+		pid, ok := parsePIDLine(lines[len(lines)-1])
+		if !ok {
+			return false
+		}
+		latest = pid
+		return latest > 0
+	})
+	return latest
+}
+
+func parsePIDLine(line string) (int, bool) {
+	var pid int
+	if _, err := fmt.Sscanf(strings.TrimSpace(line), "pid=%d", &pid); err != nil {
+		return 0, false
+	}
+	return pid, pid > 0
 }
 
 func waitForNonEmptyFileLines(t *testing.T, path string, timeout time.Duration) []string {

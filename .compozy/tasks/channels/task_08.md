@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Expose channel management over shared API contract, HTTP/UDS routes, and OpenAPI
 type: backend
 complexity: high
@@ -29,10 +29,10 @@ Expose the daemon-owned channel subsystem through the shared API contract and bo
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add shared contract DTOs for channel instances, routes, and test-delivery requests
-- [ ] 8.2 Add HTTP handlers and route registration for `/api/channels`
-- [ ] 8.3 Add matching UDS handlers and route registration for `/api/channels`
-- [ ] 8.4 Update OpenAPI generation and transport tests for the new channel surface
+- [x] 8.1 Add shared contract DTOs for channel instances, routes, and test-delivery requests
+- [x] 8.2 Add HTTP handlers and route registration for `/api/channels`
+- [x] 8.3 Add matching UDS handlers and route registration for `/api/channels`
+- [x] 8.4 Update OpenAPI generation and transport tests for the new channel surface
 
 ## Implementation Details
 
@@ -63,15 +63,15 @@ Follow the TechSpec sections "HTTP / UDS API", "Impact Analysis", and "Monitorin
 
 ## Tests
 - Unit tests:
-  - [ ] Channel request DTO validation rejects malformed scope, workspace, and routing-policy payloads
-  - [ ] Channel route response payloads serialize peer, thread, and group fields consistently
-  - [ ] Test-delivery request mapping preserves the typed `DeliveryTarget` shape rather than flattening it into platform strings
+  - [x] Channel request DTO validation rejects malformed scope, workspace, and routing-policy payloads
+  - [x] Channel route response payloads serialize peer, thread, and group fields consistently
+  - [x] Test-delivery request mapping preserves the typed `DeliveryTarget` shape rather than flattening it into platform strings
 - Integration tests:
-  - [ ] `POST /api/channels` creates a channel instance and returns the persisted instance payload
-  - [ ] `GET /api/channels/:id/routes` returns only the route set owned by the requested channel instance
-  - [ ] `POST /api/channels/:id/test-delivery` exercises outbound target resolution without requiring a live platform adapter
-  - [ ] The UDS transport mirrors the same create, get, and route-inspection behavior as the HTTP surface
-  - [ ] OpenAPI generation includes the new `/api/channels` endpoints and schemas
+  - [x] `POST /api/channels` creates a channel instance and returns the persisted instance payload
+  - [x] `GET /api/channels/:id/routes` returns only the route set owned by the requested channel instance
+  - [x] `POST /api/channels/:id/test-delivery` exercises outbound target resolution without requiring a live platform adapter
+  - [x] The UDS transport mirrors the same create, get, and route-inspection behavior as the HTTP surface
+  - [x] OpenAPI generation includes the new `/api/channels` endpoints and schemas
 - Test coverage target: >=80%
 - All tests must pass
 

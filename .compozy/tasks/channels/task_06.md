@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Build delivery broker and session-to-channel projection
 type: backend
 complexity: critical
@@ -31,10 +31,10 @@ Build the daemon-side delivery broker that converts session output into a delive
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Implement the core delivery broker, queueing model, and delivery-event lifecycle
-- [ ] 6.2 Project session output into delivery events using the existing session notifier/prompt boundaries
-- [ ] 6.3 Add ack, replacement ID, and resumable snapshot handling for active deliveries
-- [ ] 6.4 Add concurrency, ordering, and recovery tests for the broker
+- [x] 6.1 Implement the core delivery broker, queueing model, and delivery-event lifecycle
+- [x] 6.2 Project session output into delivery events using the existing session notifier/prompt boundaries
+- [x] 6.3 Add ack, replacement ID, and resumable snapshot handling for active deliveries
+- [x] 6.4 Add concurrency, ordering, and recovery tests for the broker
 
 ## Implementation Details
 
@@ -63,14 +63,14 @@ Follow the TechSpec sections "Outbound", "Semantics of the stream", "Session Man
 
 ## Tests
 - Unit tests:
-  - [ ] Delivery events for the same routing key are emitted in order even when a second routing key is active concurrently
-  - [ ] Backpressure coalesces intermediate delta events while preserving `start`, `final`, and `error`
-  - [ ] Ack handling records `remote_message_id` and replacement IDs without losing the original delivery association
-  - [ ] Snapshot generation for an active delivery captures enough state to resume after an extension restart
+  - [x] Delivery events for the same routing key are emitted in order even when a second routing key is active concurrently
+  - [x] Backpressure coalesces intermediate delta events while preserving `start`, `final`, and `error`
+  - [x] Ack handling records `remote_message_id` and replacement IDs without losing the original delivery association
+  - [x] Snapshot generation for an active delivery captures enough state to resume after an extension restart
 - Integration tests:
-  - [ ] One prompted session produces an ordered delivery stream consumed by a fake channel extension over the negotiated channel service
-  - [ ] A slow fake adapter triggers bounded-queue behavior without dropping terminal delivery events
-  - [ ] Restarting the fake adapter causes the broker to resume or fail the active delivery explicitly rather than silently losing it
+  - [x] One prompted session produces an ordered delivery stream consumed by a fake channel extension over the negotiated channel service
+  - [x] A slow fake adapter triggers bounded-queue behavior without dropping terminal delivery events
+  - [x] Restarting the fake adapter causes the broker to resume or fail the active delivery explicitly rather than silently losing it
 - Test coverage target: >=80%
 - All tests must pass
 

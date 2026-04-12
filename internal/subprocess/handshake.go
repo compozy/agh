@@ -2,11 +2,13 @@ package subprocess
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/pedronauck/agh/internal/channels"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 )
 
@@ -43,10 +45,25 @@ type InitializeMethods struct {
 
 // InitializeRuntime carries runtime intervals and deadlines negotiated during initialize.
 type InitializeRuntime struct {
-	HealthCheckIntervalMS int64 `json:"health_check_interval_ms"`
-	HealthCheckTimeoutMS  int64 `json:"health_check_timeout_ms"`
-	ShutdownTimeoutMS     int64 `json:"shutdown_timeout_ms"`
-	DefaultHookTimeoutMS  int64 `json:"default_hook_timeout_ms"`
+	HealthCheckIntervalMS int64                     `json:"health_check_interval_ms"`
+	HealthCheckTimeoutMS  int64                     `json:"health_check_timeout_ms"`
+	ShutdownTimeoutMS     int64                     `json:"shutdown_timeout_ms"`
+	DefaultHookTimeoutMS  int64                     `json:"default_hook_timeout_ms"`
+	Channel               *InitializeChannelRuntime `json:"channel,omitempty"`
+}
+
+// InitializeChannelRuntime carries the instance-scoped channel launch material
+// granted to one channel-capable extension session.
+type InitializeChannelRuntime struct {
+	Instance     channels.ChannelInstance       `json:"instance"`
+	BoundSecrets []InitializeChannelBoundSecret `json:"bound_secrets,omitempty"`
+}
+
+// InitializeChannelBoundSecret is one launch-time channel secret resolved by AGH.
+type InitializeChannelBoundSecret struct {
+	BindingName string `json:"binding_name"`
+	Kind        string `json:"kind"`
+	Value       string `json:"value"`
 }
 
 // InitializeResponse is the extension -> AGH initialize acknowledgment.
@@ -144,6 +161,11 @@ func (r InitializeRequest) Validate() error {
 	if r.Runtime.DefaultHookTimeoutMS <= 0 {
 		return errors.New("subprocess: initialize default_hook_timeout_ms must be > 0")
 	}
+	if r.Runtime.Channel != nil {
+		if err := r.Runtime.Channel.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -167,8 +189,96 @@ func validateInitializeResponse(request InitializeRequest, response InitializeRe
 	if !response.Supports.HealthCheck || !slices.Contains(response.ImplementedMethods, "health_check") {
 		return errors.New("subprocess: initialize response missing required health_check support")
 	}
+	for _, method := range extensionprotocol.CapabilityServiceMethods(response.AcceptedCapabilities.Provides) {
+		if !slices.Contains(response.ImplementedMethods, method) {
+			return fmt.Errorf("subprocess: initialize response missing required capability service method %q", method)
+		}
+	}
 
 	return nil
+}
+
+// Validate checks that the granted channel launch payload is internally consistent.
+func (r InitializeChannelRuntime) Validate() error {
+	instance := r.Instance
+	if err := instance.Validate(); err != nil {
+		return fmt.Errorf("subprocess: initialize channel instance: %w", err)
+	}
+
+	seen := make(map[string]struct{}, len(r.BoundSecrets))
+	for _, secret := range r.BoundSecrets {
+		normalized := secret.normalize()
+		if err := normalized.Validate(); err != nil {
+			return fmt.Errorf("subprocess: initialize channel bound secret: %w", err)
+		}
+		if _, ok := seen[normalized.BindingName]; ok {
+			return fmt.Errorf("subprocess: initialize channel bound secret %q is duplicated", normalized.BindingName)
+		}
+		seen[normalized.BindingName] = struct{}{}
+	}
+
+	return nil
+}
+
+// Validate checks that the bound secret payload is complete.
+func (s InitializeChannelBoundSecret) Validate() error {
+	normalized := s.normalize()
+	if strings.TrimSpace(normalized.BindingName) == "" {
+		return errors.New("subprocess: initialize channel bound secret binding_name is required")
+	}
+	if strings.TrimSpace(normalized.Kind) == "" {
+		return errors.New("subprocess: initialize channel bound secret kind is required")
+	}
+	if strings.TrimSpace(normalized.Value) == "" {
+		return errors.New("subprocess: initialize channel bound secret value is required")
+	}
+	return nil
+}
+
+func (r InitializeChannelRuntime) normalize() InitializeChannelRuntime {
+	normalized := r
+	if len(normalized.BoundSecrets) == 0 {
+		normalized.BoundSecrets = nil
+		return normalized
+	}
+
+	boundSecrets := make([]InitializeChannelBoundSecret, 0, len(normalized.BoundSecrets))
+	for _, secret := range normalized.BoundSecrets {
+		boundSecrets = append(boundSecrets, secret.normalize())
+	}
+	slices.SortFunc(boundSecrets, func(left InitializeChannelBoundSecret, right InitializeChannelBoundSecret) int {
+		return strings.Compare(left.BindingName, right.BindingName)
+	})
+	normalized.BoundSecrets = boundSecrets
+	return normalized
+}
+
+func (s InitializeChannelBoundSecret) normalize() InitializeChannelBoundSecret {
+	normalized := s
+	normalized.BindingName = strings.TrimSpace(normalized.BindingName)
+	normalized.Kind = strings.TrimSpace(normalized.Kind)
+	normalized.Value = strings.TrimSpace(normalized.Value)
+	return normalized
+}
+
+// CloneInitializeChannelRuntime returns a deep copy safe to retain in manager state.
+func CloneInitializeChannelRuntime(src *InitializeChannelRuntime) *InitializeChannelRuntime {
+	if src == nil {
+		return nil
+	}
+
+	cloned := src.normalize()
+	cloned.Instance = cloneChannelInstance(cloned.Instance)
+	cloned.BoundSecrets = append([]InitializeChannelBoundSecret(nil), cloned.BoundSecrets...)
+	return &cloned
+}
+
+func cloneChannelInstance(instance channels.ChannelInstance) channels.ChannelInstance {
+	cloned := instance
+	if len(cloned.DeliveryDefaults) > 0 {
+		cloned.DeliveryDefaults = append(json.RawMessage(nil), cloned.DeliveryDefaults...)
+	}
+	return cloned
 }
 
 func validateSubset[T ~string](label string, accepted []T, granted []T) error {

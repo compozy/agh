@@ -1,0 +1,33 @@
+[extension]
+name = "telegram-reference"
+version = "0.1.0"
+description = "Reference Telegram channel adapter for the negotiated channel runtime"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["channel.adapter"]
+
+[actions]
+requires = [
+  "channels/messages/ingest",
+  "channels/instances/get",
+  "channels/instances/report_state",
+]
+
+[subprocess]
+command = "./bin/telegram-reference"
+args = ["serve"]
+
+[subprocess.env]
+AGH_CHANNEL_ADAPTER_HANDSHAKE_PATH = "{{env:AGH_CHANNEL_ADAPTER_HANDSHAKE_PATH}}"
+AGH_CHANNEL_ADAPTER_INSTANCE_PATH = "{{env:AGH_CHANNEL_ADAPTER_INSTANCE_PATH}}"
+AGH_CHANNEL_ADAPTER_STATE_PATH = "{{env:AGH_CHANNEL_ADAPTER_STATE_PATH}}"
+AGH_CHANNEL_ADAPTER_DELIVERY_PATH = "{{env:AGH_CHANNEL_ADAPTER_DELIVERY_PATH}}"
+AGH_CHANNEL_ADAPTER_INGEST_PATH = "{{env:AGH_CHANNEL_ADAPTER_INGEST_PATH}}"
+AGH_CHANNEL_ADAPTER_UPDATES_PATH = "{{env:AGH_CHANNEL_ADAPTER_UPDATES_PATH}}"
+AGH_CHANNEL_ADAPTER_STARTS_PATH = "{{env:AGH_CHANNEL_ADAPTER_STARTS_PATH}}"
+AGH_CHANNEL_ADAPTER_SHUTDOWN_PATH = "{{env:AGH_CHANNEL_ADAPTER_SHUTDOWN_PATH}}"
+AGH_CHANNEL_ADAPTER_CRASH_ONCE_PATH = "{{env:AGH_CHANNEL_ADAPTER_CRASH_ONCE_PATH}}"
+
+[security]
+capabilities = ["channel.read", "channel.write"]

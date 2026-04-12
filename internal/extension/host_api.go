@@ -15,6 +15,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	"github.com/pedronauck/agh/internal/frontmatter"
 	"github.com/pedronauck/agh/internal/memory"
@@ -23,28 +24,36 @@ import (
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/subprocess"
+	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
 	// HostAPIRateLimitedCode is the protocol code for per-extension backpressure.
 	HostAPIRateLimitedCode = -32002
+	// HostAPIUnavailableCode reports a temporarily unavailable Host API resource.
+	HostAPIUnavailableCode = -32005
+	// HostAPINotFoundCode reports a missing Host API resource.
+	HostAPINotFoundCode = -32006
 	// HostAPIInvalidParamsCode is the JSON-RPC invalid params code used for bad request payloads.
 	HostAPIInvalidParamsCode = -32602
 	// HostAPIMethodNotFoundCode is the JSON-RPC method-not-found code for unknown Host API methods.
 	HostAPIMethodNotFoundCode = -32601
 
-	defaultHostAPIRateLimit    = 10
-	defaultHostAPIBurst        = 20
-	defaultHostAPIDefaultLimit = 100
-	defaultHostAPIRecallLimit  = 10
-	maxMemoryDescriptionLength = 160
-	tagCommentPrefix           = "<!-- agh-tags:"
+	defaultHostAPIRateLimit              = 10
+	defaultHostAPIBurst                  = 20
+	defaultHostAPIDefaultLimit           = 100
+	defaultHostAPIRecallLimit            = 10
+	defaultHostAPIChannelIngestDedupTTL  = 24 * time.Hour
+	defaultHostAPIChannelCleanupInterval = time.Hour
+	maxMemoryDescriptionLength           = 160
+	tagCommentPrefix                     = "<!-- agh-tags:"
 )
 
 type hostAPIContextKey string
 
 const hostAPIExtensionNameContextKey hostAPIContextKey = "extension.host_api.extension_name"
+const hostAPIChannelRuntimeContextKey hostAPIContextKey = "extension.host_api.channel_runtime"
 
 // HostAPIOption customizes a HostAPIHandler.
 type HostAPIOption func(*HostAPIHandler)
@@ -57,12 +66,21 @@ type HostAPIHandler struct {
 	observer         hostAPIObserver
 	skills           hostAPISkillsRegistry
 	workspaces       workspacepkg.WorkspaceResolver
+	channels         hostAPIChannelRegistry
+	dedupStore       hostAPIChannelDedupStore
+	deliveryBroker   hostAPIDeliveryBroker
 	capChecker       *CapabilityChecker
 	limiter          *hostAPIRateLimiter
 	automationGetter func() HostAPIAutomationManager
 	now              func() time.Time
 	rateLimit        int
 	rateBurst        int
+
+	channelIngestDedupTTL  time.Duration
+	channelCleanupInterval time.Duration
+	channelLocks           *hostAPIKeyLocker
+	channelCleanupMu       sync.Mutex
+	channelLastCleanup     time.Time
 
 	methods map[string]hostAPIMethodFunc
 }
@@ -102,6 +120,11 @@ type HostAPIAutomationManager interface {
 	FireExtensionTrigger(ctx context.Context, request automationpkg.ExtensionTriggerRequest) (automationpkg.TriggerResult, error)
 }
 
+type hostAPIDeliveryBroker interface {
+	RegisterPromptDelivery(ctx context.Context, reg channelspkg.PromptDeliveryRegistration) (*channelspkg.DeliverySnapshot, error)
+	ProjectEvent(ctx context.Context, sessionID string, event channelspkg.DeliveryProjectionEvent) error
+}
+
 type hostAPISkillsRegistry interface {
 	List() []*skillspkg.Skill
 	ForWorkspace(ctx context.Context, resolved workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
@@ -135,6 +158,35 @@ func WithHostAPIWorkspaceResolver(resolver workspacepkg.WorkspaceResolver) HostA
 	}
 }
 
+// WithHostAPIChannelRegistry injects the channel registry used by channel Host API methods.
+func WithHostAPIChannelRegistry(registry hostAPIChannelRegistry) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.channels = registry
+	}
+}
+
+// WithHostAPIChannelDedupStore injects the dedup persistence used by inbound channel ingest.
+func WithHostAPIChannelDedupStore(store hostAPIChannelDedupStore) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.dedupStore = store
+	}
+}
+
+// WithHostAPIDeliveryBroker injects the session-to-channel delivery projection broker.
+func WithHostAPIDeliveryBroker(broker hostAPIDeliveryBroker) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.deliveryBroker = broker
+	}
+}
+
+// WithHostAPIChannelIngressConfig overrides dedup TTL and cleanup cadence for channel ingest.
+func WithHostAPIChannelIngressConfig(dedupTTL time.Duration, cleanupInterval time.Duration) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.channelIngestDedupTTL = dedupTTL
+		handler.channelCleanupInterval = cleanupInterval
+	}
+}
+
 // WithHostAPIRateLimit overrides the per-extension Host API token bucket settings.
 func WithHostAPIRateLimit(limit int, burst int) HostAPIOption {
 	return func(handler *HostAPIHandler) {
@@ -159,13 +211,16 @@ func NewHostAPIHandler(
 	opts ...HostAPIOption,
 ) *HostAPIHandler {
 	handler := &HostAPIHandler{
-		sessions:   sessions,
-		memory:     memoryStore,
-		observer:   observer,
-		skills:     skillsRegistry,
-		capChecker: &CapabilityChecker{},
-		rateLimit:  defaultHostAPIRateLimit,
-		rateBurst:  defaultHostAPIBurst,
+		sessions:               sessions,
+		memory:                 memoryStore,
+		observer:               observer,
+		skills:                 skillsRegistry,
+		capChecker:             &CapabilityChecker{},
+		rateLimit:              defaultHostAPIRateLimit,
+		rateBurst:              defaultHostAPIBurst,
+		channelIngestDedupTTL:  defaultHostAPIChannelIngestDedupTTL,
+		channelCleanupInterval: defaultHostAPIChannelCleanupInterval,
+		channelLocks:           newHostAPIKeyLocker(),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -185,36 +240,48 @@ func NewHostAPIHandler(
 	if handler.capChecker == nil {
 		handler.capChecker = &CapabilityChecker{}
 	}
+	if handler.channelIngestDedupTTL <= 0 {
+		handler.channelIngestDedupTTL = defaultHostAPIChannelIngestDedupTTL
+	}
+	if handler.channelCleanupInterval <= 0 {
+		handler.channelCleanupInterval = defaultHostAPIChannelCleanupInterval
+	}
+	if handler.channelLocks == nil {
+		handler.channelLocks = newHostAPIKeyLocker()
+	}
 	handler.limiter = newHostAPIRateLimiter(handler.rateLimit, handler.rateBurst, handler.now)
 
 	handler.methods = map[string]hostAPIMethodFunc{
-		"memory/forget":              handler.handleMemoryForget,
-		"memory/recall":              handler.handleMemoryRecall,
-		"memory/store":               handler.handleMemoryStore,
-		"observe/events":             handler.handleObserveEvents,
-		"observe/health":             handler.handleObserveHealth,
-		"sessions/create":            handler.handleSessionsCreate,
-		"sessions/events":            handler.handleSessionsEvents,
-		"sessions/list":              handler.handleSessionsList,
-		"sessions/prompt":            handler.handleSessionsPrompt,
-		"sessions/status":            handler.handleSessionsStatus,
-		"sessions/stop":              handler.handleSessionsStop,
-		"skills/list":                handler.handleSkillsList,
-		"automation/jobs":            handler.handleAutomationJobs,
-		"automation/jobs/get":        handler.handleAutomationJobsGet,
-		"automation/jobs/create":     handler.handleAutomationJobsCreate,
-		"automation/jobs/update":     handler.handleAutomationJobsUpdate,
-		"automation/jobs/delete":     handler.handleAutomationJobsDelete,
-		"automation/jobs/trigger":    handler.handleAutomationJobsTrigger,
-		"automation/jobs/runs":       handler.handleAutomationJobsRuns,
-		"automation/triggers":        handler.handleAutomationTriggers,
-		"automation/triggers/get":    handler.handleAutomationTriggersGet,
-		"automation/triggers/create": handler.handleAutomationTriggersCreate,
-		"automation/triggers/update": handler.handleAutomationTriggersUpdate,
-		"automation/triggers/delete": handler.handleAutomationTriggersDelete,
-		"automation/triggers/runs":   handler.handleAutomationTriggersRuns,
-		"automation/triggers/fire":   handler.handleAutomationTriggersFire,
-		"automation/runs":            handler.handleAutomationRuns,
+		"automation/jobs":                 handler.handleAutomationJobs,
+		"automation/jobs/get":             handler.handleAutomationJobsGet,
+		"automation/jobs/create":          handler.handleAutomationJobsCreate,
+		"automation/jobs/update":          handler.handleAutomationJobsUpdate,
+		"automation/jobs/delete":          handler.handleAutomationJobsDelete,
+		"automation/jobs/trigger":         handler.handleAutomationJobsTrigger,
+		"automation/jobs/runs":            handler.handleAutomationJobsRuns,
+		"automation/triggers":             handler.handleAutomationTriggers,
+		"automation/triggers/get":         handler.handleAutomationTriggersGet,
+		"automation/triggers/create":      handler.handleAutomationTriggersCreate,
+		"automation/triggers/update":      handler.handleAutomationTriggersUpdate,
+		"automation/triggers/delete":      handler.handleAutomationTriggersDelete,
+		"automation/triggers/runs":        handler.handleAutomationTriggersRuns,
+		"automation/triggers/fire":        handler.handleAutomationTriggersFire,
+		"automation/runs":                 handler.handleAutomationRuns,
+		"channels/instances/get":          handler.handleChannelsInstancesGet,
+		"channels/instances/report_state": handler.handleChannelsInstancesReportState,
+		"channels/messages/ingest":        handler.handleChannelsMessagesIngest,
+		"memory/forget":                   handler.handleMemoryForget,
+		"memory/recall":                   handler.handleMemoryRecall,
+		"memory/store":                    handler.handleMemoryStore,
+		"observe/events":                  handler.handleObserveEvents,
+		"observe/health":                  handler.handleObserveHealth,
+		"sessions/create":                 handler.handleSessionsCreate,
+		"sessions/events":                 handler.handleSessionsEvents,
+		"sessions/list":                   handler.handleSessionsList,
+		"sessions/prompt":                 handler.handleSessionsPrompt,
+		"sessions/status":                 handler.handleSessionsStatus,
+		"sessions/stop":                   handler.handleSessionsStop,
+		"skills/list":                     handler.handleSkillsList,
 	}
 
 	return handler
@@ -260,6 +327,13 @@ func (h *HostAPIHandler) MethodHandlers() map[string]subprocess.HandlerFunc {
 		out[method] = h.HandleMethod(method)
 	}
 	return out
+}
+
+func withHostAPIChannelRuntime(ctx context.Context, channelRuntime *subprocess.InitializeChannelRuntime) context.Context {
+	if ctx == nil || channelRuntime == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, hostAPIChannelRuntimeContextKey, subprocess.CloneInitializeChannelRuntime(channelRuntime))
 }
 
 type hostAPISessionsListParams = extensioncontract.SessionsListParams
@@ -319,6 +393,14 @@ type hostAPIAutomationTriggerUpdateParams = extensioncontract.AutomationTriggerU
 type hostAPIAutomationTriggerRunsParams = extensioncontract.AutomationTriggerRunsParams
 
 type hostAPIAutomationTriggerFireParams = extensioncontract.AutomationTriggerFireParams
+
+type hostAPIChannelsMessagesIngestParams = extensioncontract.ChannelsMessagesIngestParams
+
+type hostAPIChannelsMessagesIngestResult = extensioncontract.ChannelsMessagesIngestResult
+
+type hostAPIChannelsInstancesReportStateParams = extensioncontract.ChannelsInstancesReportStateParams
+
+type hostAPIChannelInstance = channelspkg.ChannelInstance
 
 func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMessage) (any, error) {
 	if h.sessions == nil {
@@ -417,12 +499,12 @@ func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawM
 		return nil, invalidParamsRPCError(errors.New("message is required"))
 	}
 
-	turnID, err := h.submitPrompt(ctx, params.SessionID, params.Message)
+	submission, err := h.submitPrompt(ctx, params.SessionID, params.Message)
 	if err != nil {
 		return nil, err
 	}
 
-	return hostAPISessionPromptResult{TurnID: turnID}, nil
+	return hostAPISessionPromptResult{TurnID: submission.TurnID}, nil
 }
 
 func (h *HostAPIHandler) handleSessionsStop(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -1096,35 +1178,108 @@ func (h *HostAPIHandler) handleAutomationRuns(ctx context.Context, raw json.RawM
 	})
 }
 
-func (h *HostAPIHandler) submitPrompt(ctx context.Context, sessionID string, message string) (string, error) {
+type hostAPIPromptSubmission struct {
+	TurnID     string
+	SeedEvents []channelspkg.DeliveryProjectionEvent
+}
+
+func (h *HostAPIHandler) submitPrompt(ctx context.Context, sessionID string, message string) (hostAPIPromptSubmission, error) {
 	if h.sessions == nil {
-		return "", errors.New("extension: session manager is not configured")
+		return hostAPIPromptSubmission{}, errors.New("extension: session manager is not configured")
 	}
 
 	lastSequence, err := h.latestSessionSequence(ctx, sessionID)
 	if err != nil {
-		return "", err
+		return hostAPIPromptSubmission{}, err
 	}
 
 	promptCtx := context.WithoutCancel(ctx)
 	eventsCh, err := h.sessions.Prompt(promptCtx, sessionID, message)
 	if err != nil {
-		return "", err
+		return hostAPIPromptSubmission{}, err
 	}
 	go drainAgentEvents(eventsCh)
 
 	events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{
-		Type:          acp.EventTypeUserMessage,
-		Limit:         1,
 		AfterSequence: lastSequence,
 	})
 	if err != nil {
-		return "", err
+		return hostAPIPromptSubmission{}, err
 	}
-	if len(events) == 0 || strings.TrimSpace(events[0].TurnID) == "" {
-		return "", errors.New("extension: prompt turn id not found after prompt submission")
+
+	turnID := ""
+	for _, event := range events {
+		if strings.TrimSpace(event.Type) != acp.EventTypeUserMessage {
+			continue
+		}
+		if strings.TrimSpace(event.TurnID) == "" {
+			continue
+		}
+		turnID = strings.TrimSpace(event.TurnID)
+		break
 	}
-	return strings.TrimSpace(events[0].TurnID), nil
+	if turnID == "" {
+		return hostAPIPromptSubmission{}, errors.New("extension: prompt turn id not found after prompt submission")
+	}
+
+	seedEvents, err := promptSeedEventsFromStoredEvents(events, turnID)
+	if err != nil {
+		return hostAPIPromptSubmission{}, err
+	}
+
+	return hostAPIPromptSubmission{
+		TurnID:     turnID,
+		SeedEvents: seedEvents,
+	}, nil
+}
+
+func promptSeedEventsFromStoredEvents(
+	events []store.SessionEvent,
+	turnID string,
+) ([]channelspkg.DeliveryProjectionEvent, error) {
+	turnID = strings.TrimSpace(turnID)
+	if turnID == "" || len(events) == 0 {
+		return nil, nil
+	}
+
+	seedEvents := make([]channelspkg.DeliveryProjectionEvent, 0, len(events))
+	for _, storedEvent := range events {
+		if strings.TrimSpace(storedEvent.TurnID) != turnID {
+			continue
+		}
+
+		projected, err := promptProjectionEventFromStoredEvent(storedEvent)
+		if err != nil {
+			return nil, err
+		}
+		seedEvents = append(seedEvents, projected)
+	}
+	return seedEvents, nil
+}
+
+func promptProjectionEventFromStoredEvent(storedEvent store.SessionEvent) (channelspkg.DeliveryProjectionEvent, error) {
+	decoded, err := transcript.UnmarshalAgentEvent(storedEvent.Content)
+	if err != nil {
+		return channelspkg.DeliveryProjectionEvent{}, fmt.Errorf("extension: decode prompt seed event: %w", err)
+	}
+	if strings.TrimSpace(decoded.Type) == "" {
+		decoded.Type = strings.TrimSpace(storedEvent.Type)
+	}
+	if strings.TrimSpace(decoded.TurnID) == "" {
+		decoded.TurnID = strings.TrimSpace(storedEvent.TurnID)
+	}
+	if decoded.Timestamp.IsZero() {
+		decoded.Timestamp = storedEvent.Timestamp
+	}
+
+	return channelspkg.DeliveryProjectionEvent{
+		Type:        decoded.Type,
+		TurnID:      decoded.TurnID,
+		Timestamp:   decoded.Timestamp,
+		Text:        decoded.Text,
+		Error:       decoded.Error,
+		Fingerprint: strings.TrimSpace(storedEvent.Content),
+	}, nil
 }
 
 func (h *HostAPIHandler) latestSessionSequence(ctx context.Context, sessionID string) (int64, error) {
@@ -1640,6 +1795,24 @@ func invalidParamsRPCError(err error) error {
 		return subprocess.NewRPCError(HostAPIInvalidParamsCode, "Invalid params", nil)
 	}
 	return subprocess.NewRPCError(HostAPIInvalidParamsCode, "Invalid params", map[string]string{"error": err.Error()})
+}
+
+func unavailableRPCError(err error) error {
+	if err == nil {
+		return subprocess.NewRPCError(HostAPIUnavailableCode, "Unavailable", nil)
+	}
+	return subprocess.NewRPCError(HostAPIUnavailableCode, "Unavailable", map[string]string{"error": err.Error()})
+}
+
+func notFoundRPCError(resource string, id string, err error) error {
+	data := map[string]string{
+		"resource": strings.TrimSpace(resource),
+		"id":       strings.TrimSpace(id),
+	}
+	if err != nil {
+		data["error"] = err.Error()
+	}
+	return subprocess.NewRPCError(HostAPINotFoundCode, "Not found", data)
 }
 
 func methodNotFoundRPCError(method string) error {

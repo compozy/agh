@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Introduce channel core domain types and globaldb schema
 type: backend
 complexity: high
@@ -28,10 +28,10 @@ Create the foundational domain and persistence layer for channel adapters so eve
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Create the foundational `internal/channels/` package and core structs/enums
-- [ ] 1.2 Add additive globaldb schema and persistence helpers for instances, bindings, routes, and ingest dedup records
-- [ ] 1.3 Add validation and stable key/hash helpers for scope and routing identity
-- [ ] 1.4 Add table-driven unit and persistence tests for the new models
+- [x] 1.1 Create the foundational `internal/channels/` package and core structs/enums
+- [x] 1.2 Add additive globaldb schema and persistence helpers for instances, bindings, routes, and ingest dedup records
+- [x] 1.3 Add validation and stable key/hash helpers for scope and routing identity
+- [x] 1.4 Add table-driven unit and persistence tests for the new models
 
 ## Implementation Details
 

@@ -355,6 +355,48 @@ func TestMarshalAgentEventPreservesRawToolResultShape(t *testing.T) {
 	}
 }
 
+func TestUnmarshalAgentEventRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	payload, err := MarshalAgentEvent(acp.AgentEvent{
+		Type:      acp.EventTypeAgentMessage,
+		SessionID: "acp-1",
+		TurnID:    "turn-1",
+		RequestID: "req-1",
+		Timestamp: time.Date(2026, 4, 11, 2, 0, 0, 0, time.UTC),
+		Text:      "hello",
+		Title:     "assistant",
+		Error:     "",
+		Raw:       json.RawMessage(`{"chunk":1}`),
+	})
+	if err != nil {
+		t.Fatalf("MarshalAgentEvent() error = %v", err)
+	}
+
+	event, err := UnmarshalAgentEvent(payload)
+	if err != nil {
+		t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+	}
+	if got, want := event.Type, acp.EventTypeAgentMessage; got != want {
+		t.Fatalf("Type = %q, want %q", got, want)
+	}
+	if got, want := event.SessionID, "acp-1"; got != want {
+		t.Fatalf("SessionID = %q, want %q", got, want)
+	}
+	if got, want := event.TurnID, "turn-1"; got != want {
+		t.Fatalf("TurnID = %q, want %q", got, want)
+	}
+	if got, want := event.RequestID, "req-1"; got != want {
+		t.Fatalf("RequestID = %q, want %q", got, want)
+	}
+	if got, want := event.Text, "hello"; got != want {
+		t.Fatalf("Text = %q, want %q", got, want)
+	}
+	if got, want := string(event.Raw), `{"chunk":1}`; got != want {
+		t.Fatalf("Raw = %s, want %s", got, want)
+	}
+}
+
 func mustMarshalCanonical(t *testing.T, eventType string, turnID string, timestamp time.Time, text string, toolName string, toolCallID string, toolInput json.RawMessage, toolResult *ToolResult, toolError bool) string {
 	t.Helper()
 

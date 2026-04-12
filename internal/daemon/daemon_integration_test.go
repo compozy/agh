@@ -18,7 +18,9 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/kballard/go-shellquote"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
@@ -1170,6 +1172,446 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	}
 }
 
+func TestBootStartsChannelExtensionWithBoundRuntime(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	markerPath := filepath.Join(t.TempDir(), "channel-init.jsonl")
+	extensionName := "ext-channel-daemon"
+	instanceID := "chan-daemon-init"
+	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		runtimeCommand: daemonExtensionHelperCommand(t),
+		runtimeArgs:    daemonExtensionHelperArgs(),
+		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
+		capabilities:   []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+		},
+		security: []string{"channel.read", "channel.write"},
+	}, true)
+
+	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
+	channelRegistry := channelspkg.NewRegistry(registry)
+	instance, err := channelRegistry.CreateInstance(testutil.Context(t), channelspkg.CreateInstanceRequest{
+		ID:            instanceID,
+		Scope:         channelspkg.ScopeGlobal,
+		Platform:      "slack",
+		ExtensionName: extensionName,
+		DisplayName:   "Daemon Channel",
+		Enabled:       true,
+		Status:        channelspkg.ChannelStatusReady,
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	if err != nil {
+		t.Fatalf("CreateInstance() error = %v", err)
+	}
+	if err := registry.PutChannelSecretBinding(testutil.Context(t), channelspkg.ChannelSecretBinding{
+		ChannelInstanceID: instance.ID,
+		BindingName:       "bot_token",
+		VaultRef:          "vault://channels/ext-channel-daemon/bot-token",
+		Kind:              "bot_token",
+		CreatedAt:         time.Date(2026, 4, 11, 13, 30, 0, 0, time.UTC),
+		UpdatedAt:         time.Date(2026, 4, 11, 13, 30, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("PutChannelSecretBinding() error = %v", err)
+	}
+
+	resolver := &recordingChannelSecretResolver{
+		values: map[string]string{
+			"bot_token": "token-daemon",
+		},
+	}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+		WithChannelSecretResolver(resolver),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if d.channels == nil {
+		t.Fatal("boot() did not publish the channel runtime")
+	}
+
+	waitForCondition(t, "channel initialize marker", func() bool {
+		return markerLineCount(markerPath) >= 1
+	})
+
+	markers := readDaemonInitializeMarkers(t, markerPath)
+	if len(markers) == 0 {
+		t.Fatal("initialize markers = empty, want channel launch handshake")
+	}
+	request := markers[0].Request
+	if len(request.Methods.ExtensionServices) != 1 || request.Methods.ExtensionServices[0] != "channels/deliver" {
+		t.Fatalf("initialize extension services = %#v, want [channels/deliver]", request.Methods.ExtensionServices)
+	}
+	if request.Runtime.Channel == nil {
+		t.Fatal("initialize runtime channel = nil, want bound launch payload")
+	}
+	if got, want := request.Runtime.Channel.Instance.ID, instanceID; got != want {
+		t.Fatalf("initialize runtime channel instance id = %q, want %q", got, want)
+	}
+	if got := request.Runtime.Channel.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-daemon" {
+		t.Fatalf("initialize runtime channel bound secrets = %#v, want resolved bot_token binding", got)
+	}
+	if len(resolver.calls) != 1 || resolver.calls[0].ChannelInstanceID != instanceID {
+		t.Fatalf("ResolveChannelSecret() calls = %#v, want one call for %q", resolver.calls, instanceID)
+	}
+}
+
+func TestCreateEnabledChannelAfterBootReloadsErroredExtension(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	markerPath := filepath.Join(t.TempDir(), "channel-create.jsonl")
+	extensionName := "ext-channel-create"
+	instanceID := "chan-daemon-create"
+	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		runtimeCommand: daemonExtensionHelperCommand(t),
+		runtimeArgs:    daemonExtensionHelperArgs(),
+		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
+		capabilities:   []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+		},
+		security: []string{"channel.read", "channel.write"},
+	}, true)
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if d.channels == nil {
+		t.Fatal("boot() did not publish the channel runtime")
+	}
+
+	waitForCondition(t, "channel extension stays registered until an instance exists", func() bool {
+		ext, err := d.extensions.Get(extensionName)
+		return err == nil && ext != nil && ext.Status.Registered && !ext.Status.Active && ext.Status.LastError == ""
+	})
+	if got := markerLineCount(markerPath); got != 0 {
+		t.Fatalf("initialize marker count before create = %d, want 0", got)
+	}
+
+	created, err := d.channels.CreateInstance(testutil.Context(t), channelspkg.CreateInstanceRequest{
+		ID:            instanceID,
+		Scope:         channelspkg.ScopeGlobal,
+		Platform:      "slack",
+		ExtensionName: extensionName,
+		DisplayName:   "Create Channel",
+		Enabled:       true,
+		Status:        channelspkg.ChannelStatusStarting,
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	})
+	if err != nil {
+		t.Fatalf("CreateInstance() error = %v", err)
+	}
+	if created == nil {
+		t.Fatal("CreateInstance() = nil, want non-nil")
+	}
+
+	waitForCondition(t, "channel initialize marker after create", func() bool {
+		return markerLineCount(markerPath) >= 1
+	})
+	markers := readDaemonInitializeMarkers(t, markerPath)
+	if len(markers) == 0 {
+		t.Fatal("initialize markers after create = empty, want launch handshake")
+	}
+	if got, want := markers[len(markers)-1].Request.Runtime.Channel.Instance.ID, instanceID; got != want {
+		t.Fatalf("initialize runtime channel instance id after create = %q, want %q", got, want)
+	}
+
+	waitForCondition(t, "channel extension recovers after create", func() bool {
+		ext, err := d.extensions.Get(extensionName)
+		return err == nil && ext != nil && ext.Status.Active
+	})
+}
+
+func TestChannelRuntimeRestartPreservesRouteContinuity(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	markerPath := filepath.Join(t.TempDir(), "channel-restart.jsonl")
+	extensionName := "ext-channel-restart"
+	instanceID := "chan-daemon-restart"
+	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		runtimeCommand: daemonExtensionHelperCommand(t),
+		runtimeArgs:    daemonExtensionHelperArgs(),
+		runtimeEnv:     daemonExtensionHelperScenarioEnv("exit_once_record_deliveries", markerPath),
+		capabilities:   []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+		},
+		security: []string{"channel.read", "channel.write"},
+	}, true)
+
+	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
+	channelRegistry := channelspkg.NewRegistry(registry)
+	if _, err := channelRegistry.CreateInstance(testutil.Context(t), channelspkg.CreateInstanceRequest{
+		ID:            instanceID,
+		Scope:         channelspkg.ScopeGlobal,
+		Platform:      "slack",
+		ExtensionName: extensionName,
+		DisplayName:   "Restart Channel",
+		Enabled:       true,
+		Status:        channelspkg.ChannelStatusReady,
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	}); err != nil {
+		t.Fatalf("CreateInstance() error = %v", err)
+	}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	if d.channels == nil {
+		t.Fatal("boot() did not publish the channel runtime")
+	}
+
+	route, err := d.channels.UpsertRoute(testutil.Context(t), channelspkg.ChannelRoute{
+		Scope:             channelspkg.ScopeGlobal,
+		ChannelInstanceID: instanceID,
+		PeerID:            "peer-restart",
+		SessionID:         "sess-restart",
+		AgentName:         "coder",
+		LastActivityAt:    time.Date(2026, 4, 11, 13, 45, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("UpsertRoute() error = %v", err)
+	}
+
+	target := channelspkg.DeliveryTarget{
+		ChannelInstanceID: instanceID,
+		PeerID:            "peer-restart",
+		Mode:              channelspkg.DeliveryModeDirectSend,
+	}
+	if _, err := d.channels.Broker().RegisterPromptDelivery(testutil.Context(t), channelspkg.PromptDeliveryRegistration{
+		SessionID:      "sess-restart",
+		TurnID:         "turn-restart",
+		ExtensionName:  extensionName,
+		DeliveryID:     "del-restart",
+		RoutingKey:     route.RoutingKey(),
+		DeliveryTarget: target,
+	}); err != nil {
+		t.Fatalf("RegisterPromptDelivery() error = %v", err)
+	}
+	if err := d.channels.Broker().Deliver(testutil.Context(t), channelspkg.DeliveryEvent{
+		DeliveryID:        "del-restart",
+		ChannelInstanceID: instanceID,
+		RoutingKey:        route.RoutingKey(),
+		DeliveryTarget:    target,
+		Seq:               1,
+		EventType:         channelspkg.DeliveryEventTypeStart,
+		Content:           channelspkg.MessageContent{Text: "hello"},
+	}); err != nil {
+		t.Fatalf("Deliver(start) error = %v", err)
+	}
+	if err := d.channels.Broker().Deliver(testutil.Context(t), channelspkg.DeliveryEvent{
+		DeliveryID:        "del-restart",
+		ChannelInstanceID: instanceID,
+		RoutingKey:        route.RoutingKey(),
+		DeliveryTarget:    target,
+		Seq:               2,
+		EventType:         channelspkg.DeliveryEventTypeFinal,
+		Content:           channelspkg.MessageContent{Text: "hello"},
+		Final:             true,
+	}); err != nil {
+		t.Fatalf("Deliver(final) error = %v", err)
+	}
+
+	waitForCondition(t, "channel delivery resume marker", func() bool {
+		payload, err := os.ReadFile(markerPath)
+		return err == nil && strings.Contains(string(payload), `"event_type":"resume"`)
+	})
+
+	markers := readDaemonDeliveryMarkers(t, markerPath)
+	if len(markers) < 2 {
+		t.Fatalf("delivery markers = %d, want at least start + resume", len(markers))
+	}
+	if got := markers[0].Request.Event.EventType; got != channelspkg.DeliveryEventTypeStart {
+		t.Fatalf("first delivery event = %q, want start", got)
+	}
+
+	resumeIndex := -1
+	for idx, marker := range markers {
+		if marker.Request.Event.EventType == channelspkg.DeliveryEventTypeResume {
+			resumeIndex = idx
+			break
+		}
+	}
+	if resumeIndex < 0 {
+		t.Fatalf("delivery markers = %#v, want resume event", markers)
+	}
+	if markers[resumeIndex].PID == markers[0].PID {
+		t.Fatalf("resume marker pid = %d, want restart to use a different process than %d", markers[resumeIndex].PID, markers[0].PID)
+	}
+	if markers[resumeIndex].Request.Snapshot == nil {
+		t.Fatal("resume marker snapshot = nil, want resumable state")
+	}
+	if got, want := markers[resumeIndex].Request.Snapshot.DeliveryID, "del-restart"; got != want {
+		t.Fatalf("resume snapshot delivery id = %q, want %q", got, want)
+	}
+
+	resolved, err := d.channels.ResolveRoute(testutil.Context(t), route.RoutingKey())
+	if err != nil {
+		t.Fatalf("ResolveRoute(after restart) error = %v", err)
+	}
+	if got, want := resolved.RoutingKeyHash, route.RoutingKeyHash; got != want {
+		t.Fatalf("ResolveRoute(after restart).RoutingKeyHash = %q, want %q", got, want)
+	}
+}
+
+func TestDaemonShutdownClosesChannelRuntimeCleanly(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	markerPath := filepath.Join(t.TempDir(), "channel-shutdown.txt")
+	extensionName := "ext-channel-shutdown"
+	instanceID := "chan-daemon-shutdown"
+	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		runtimeCommand: daemonExtensionHelperCommand(t),
+		runtimeArgs:    daemonExtensionHelperArgs(),
+		runtimeEnv:     daemonExtensionHelperScenarioEnv("slow_record_deliveries", markerPath),
+		capabilities:   []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+		},
+		security: []string{"channel.read", "channel.write"},
+	}, true)
+
+	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
+	channelRegistry := channelspkg.NewRegistry(registry)
+	if _, err := channelRegistry.CreateInstance(testutil.Context(t), channelspkg.CreateInstanceRequest{
+		ID:            instanceID,
+		Scope:         channelspkg.ScopeGlobal,
+		Platform:      "slack",
+		ExtensionName: extensionName,
+		DisplayName:   "Shutdown Channel",
+		Enabled:       true,
+		Status:        channelspkg.ChannelStatusReady,
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	}); err != nil {
+		t.Fatalf("CreateInstance() error = %v", err)
+	}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	if d.channels == nil {
+		t.Fatal("boot() did not publish the channel runtime")
+	}
+
+	route, err := d.channels.UpsertRoute(testutil.Context(t), channelspkg.ChannelRoute{
+		Scope:             channelspkg.ScopeGlobal,
+		ChannelInstanceID: instanceID,
+		PeerID:            "peer-shutdown",
+		SessionID:         "sess-shutdown",
+		AgentName:         "coder",
+		LastActivityAt:    time.Date(2026, 4, 11, 14, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("UpsertRoute() error = %v", err)
+	}
+
+	target := channelspkg.DeliveryTarget{
+		ChannelInstanceID: instanceID,
+		PeerID:            "peer-shutdown",
+		Mode:              channelspkg.DeliveryModeDirectSend,
+	}
+	if _, err := d.channels.Broker().RegisterPromptDelivery(testutil.Context(t), channelspkg.PromptDeliveryRegistration{
+		SessionID:      "sess-shutdown",
+		TurnID:         "turn-shutdown",
+		ExtensionName:  extensionName,
+		DeliveryID:     "del-shutdown",
+		RoutingKey:     route.RoutingKey(),
+		DeliveryTarget: target,
+	}); err != nil {
+		t.Fatalf("RegisterPromptDelivery() error = %v", err)
+	}
+	if err := d.channels.Broker().Deliver(testutil.Context(t), channelspkg.DeliveryEvent{
+		DeliveryID:        "del-shutdown",
+		ChannelInstanceID: instanceID,
+		RoutingKey:        route.RoutingKey(),
+		DeliveryTarget:    target,
+		Seq:               1,
+		EventType:         channelspkg.DeliveryEventTypeStart,
+		Content:           channelspkg.MessageContent{Text: "hello"},
+	}); err != nil {
+		t.Fatalf("Deliver(start) error = %v", err)
+	}
+
+	waitForCondition(t, "channel delivery started before shutdown", func() bool {
+		return markerLineCount(markerPath) >= 1
+	})
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := d.Shutdown(shutdownCtx); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+
+	payload, err := os.ReadFile(markerPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", markerPath, err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(payload)), "\n")
+	if got, want := lines[len(lines)-1], "shutdown"; got != want {
+		t.Fatalf("shutdown marker final line = %q, want %q", got, want)
+	}
+}
+
 func integrationHomePaths(t *testing.T) aghconfig.HomePaths {
 	t.Helper()
 
@@ -1298,6 +1740,77 @@ func writeDaemonIntegrationAgentDef(t *testing.T, homePaths aghconfig.HomePaths,
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
 	}
+}
+
+func openDaemonIntegrationGlobalDB(t *testing.T, databasePath string) *globaldb.GlobalDB {
+	t.Helper()
+
+	db, err := globaldb.OpenGlobalDB(testutil.Context(t), databasePath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(%q) error = %v", databasePath, err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("GlobalDB.Close() error = %v", err)
+		}
+	})
+	return db
+}
+
+func readDaemonInitializeMarkers(t *testing.T, path string) []daemonInitializeMarker {
+	t.Helper()
+
+	lines, err := readDaemonMarkerLines(path)
+	if err != nil {
+		t.Fatalf("readDaemonMarkerLines(%q) error = %v", path, err)
+	}
+
+	markers := make([]daemonInitializeMarker, 0, len(lines))
+	for _, line := range lines {
+		var marker daemonInitializeMarker
+		if err := json.Unmarshal([]byte(line), &marker); err != nil {
+			t.Fatalf("json.Unmarshal(initialize marker) error = %v; line=%q", err, line)
+		}
+		markers = append(markers, marker)
+	}
+	return markers
+}
+
+func readDaemonDeliveryMarkers(t *testing.T, path string) []daemonDeliveryMarker {
+	t.Helper()
+
+	lines, err := readDaemonMarkerLines(path)
+	if err != nil {
+		t.Fatalf("readDaemonMarkerLines(%q) error = %v", path, err)
+	}
+
+	markers := make([]daemonDeliveryMarker, 0, len(lines))
+	for _, line := range lines {
+		var marker daemonDeliveryMarker
+		if err := json.Unmarshal([]byte(line), &marker); err != nil {
+			t.Fatalf("json.Unmarshal(delivery marker) error = %v; line=%q", err, line)
+		}
+		markers = append(markers, marker)
+	}
+	return markers
+}
+
+func readDaemonMarkerLines(path string) ([]string, error) {
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(payload)), "\n")
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+	return filtered, nil
 }
 
 type daemonSessionStopACPAgent struct{}

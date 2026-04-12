@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add typed delivery targets and outbound target resolution seam
 type: backend
 complexity: medium
@@ -29,10 +29,10 @@ Add the typed `DeliveryTarget` model and the core-side resolver that turns chann
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Add the typed `DeliveryTarget` model and validation helpers to `internal/channels/`
-- [ ] 3.2 Implement target resolution from channel instance defaults plus explicit outbound fields
-- [ ] 3.3 Add mode validation and normalization for direct-send, reply, and future target variants used by channels
-- [ ] 3.4 Add unit and integration tests for target resolution and validation
+- [x] 3.1 Add the typed `DeliveryTarget` model and validation helpers to `internal/channels/`
+- [x] 3.2 Implement target resolution from channel instance defaults plus explicit outbound fields
+- [x] 3.3 Add mode validation and normalization for direct-send, reply, and future target variants used by channels
+- [x] 3.4 Add unit and integration tests for target resolution and validation
 
 ## Implementation Details
 
@@ -61,13 +61,13 @@ Follow the TechSpec sections "DeliveryTarget", "Automation", and "Technical Cons
 
 ## Tests
 - Unit tests:
-  - [ ] Resolving a target with only `channel_instance_id` and explicit `peer_id` produces a valid direct target
-  - [ ] Validation rejects a target that omits a required destination field for the chosen mode
-  - [ ] Validation rejects incompatible combinations such as a thread-only target without a peer or group anchor when the mode requires one
-  - [ ] Target resolution preserves explicit overrides instead of silently replacing them with instance defaults
+  - [x] Resolving a target with only `channel_instance_id` and explicit `peer_id` produces a valid direct target
+  - [x] Validation rejects a target that omits a required destination field for the chosen mode
+  - [x] Validation rejects incompatible combinations such as a thread-only target without a peer or group anchor when the mode requires one
+  - [x] Target resolution preserves explicit overrides instead of silently replacing them with instance defaults
 - Integration tests:
-  - [ ] A channel instance with delivery defaults resolves one canonical outbound target without importing any automation package
-  - [ ] Workspace-scoped target resolution does not leak defaults or identifiers from a different channel instance or scope
+  - [x] A channel instance with delivery defaults resolves one canonical outbound target without importing any automation package
+  - [x] Workspace-scoped target resolution does not leak defaults or identifiers from a different channel instance or scope
 - Test coverage target: >=80%
 - All tests must pass
 

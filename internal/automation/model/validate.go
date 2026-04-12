@@ -14,6 +14,7 @@ const (
 	defaultRetryBaseDelay  = "2s"
 	defaultFireLimitMax    = 12
 	defaultFireLimitWindow = "1h"
+	webhookIDPrefix        = "wbh_"
 )
 
 var standardCronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
@@ -298,6 +299,9 @@ func (t Trigger) Validate(path string) error {
 	if strings.TrimSpace(t.Event) == "webhook" {
 		if strings.TrimSpace(t.EndpointSlug) == "" && strings.TrimSpace(t.WebhookID) == "" {
 			return errors.New(nestedPath(path, "endpoint_slug") + " or " + nestedPath(path, "webhook_id") + " is required when event is \"webhook\"")
+		}
+		if webhookID := strings.TrimSpace(t.WebhookID); webhookID != "" && !strings.HasPrefix(webhookID, webhookIDPrefix) {
+			return fmt.Errorf("%s must start with %q: %q", nestedPath(path, "webhook_id"), webhookIDPrefix, webhookID)
 		}
 		return nil
 	}

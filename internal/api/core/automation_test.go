@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,6 +143,32 @@ func TestUpdateAutomationTriggerConfigBackedRejectsDefinitionEditsButAllowsEnabl
 	}
 	if !setCalled {
 		t.Fatal("SetTriggerEnabled() not called for enabled-only config-backed update")
+	}
+}
+
+func TestCreateAutomationTriggerRejectsInvalidWebhookID(t *testing.T) {
+	t.Parallel()
+
+	router := newAutomationCoreTestRouter(t, stubAutomationManager{
+		CreateTriggerFn: func(context.Context, automationpkg.Trigger, string) (automationpkg.Trigger, error) {
+			t.Fatal("CreateTrigger() should not be called for invalid webhook id")
+			return automationpkg.Trigger{}, nil
+		},
+	})
+
+	response := performAutomationCoreRequest(
+		t,
+		router,
+		http.MethodPost,
+		"/automation/triggers",
+		[]byte(`{"scope":"global","name":"deploy-review","agent_name":"coder","prompt":"review {{ .Kind }}","event":"webhook","endpoint_slug":"deploy-review","webhook_id":"qa-webhook-id","webhook_secret":"shared-secret"}`),
+		nil,
+	)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+	}
+	if body := response.Body.String(); !strings.Contains(body, "webhook_id") {
+		t.Fatalf("body = %q, want webhook_id validation detail", body)
 	}
 }
 

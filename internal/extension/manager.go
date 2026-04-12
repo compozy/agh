@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -36,9 +37,12 @@ const (
 	extensionHookSource            = hookspkg.HookSourceConfig
 )
 
-var capabilityServiceMethods = map[string][]string{
-	"memory.backend": {"memory/store", "memory/recall", "memory/forget"},
-}
+var (
+	// ErrChannelRuntimeDeferred reports that a channel-capable extension is
+	// installed and registered, but no enabled channel instance exists yet for
+	// the runtime launch handshake.
+	ErrChannelRuntimeDeferred = errors.New("extension: channel runtime deferred")
+)
 
 var safeSubprocessEnvKeys = []string{
 	"PATH",
@@ -62,6 +66,7 @@ type Option func(*Manager)
 
 type processHandle interface {
 	HandleMethod(string, subprocess.HandlerFunc) error
+	Call(context.Context, string, any, any) error
 	Initialize(context.Context, subprocess.InitializeRequest) (subprocess.InitializeResponse, error)
 	Shutdown(context.Context) error
 	Done() <-chan struct{}
@@ -75,6 +80,20 @@ type processLauncher func(context.Context, subprocess.LaunchConfig) (processHand
 type skillRegistry interface {
 	RegisterExternal(owner string, skills []*skillspkg.Skill) error
 	RemoveExternal(owner string)
+}
+
+// ChannelRuntimeResolver resolves one instance-scoped channel launch payload
+// for a channel-capable extension session.
+type ChannelRuntimeResolver interface {
+	ResolveChannelRuntime(ctx context.Context, extensionName string) (*subprocess.InitializeChannelRuntime, error)
+}
+
+// ChannelTelemetrySink records live channel runtime/auth telemetry for
+// per-instance observability surfaces.
+type ChannelTelemetrySink interface {
+	RecordChannelAuthFailure(channelInstanceID string)
+	RecordChannelRuntimeIssue(channelInstanceID string, status channelspkg.ChannelStatus, message string)
+	ClearChannelRuntimeIssue(channelInstanceID string)
 }
 
 // ExtensionPhase names one lifecycle phase or supervisor state for an extension.
@@ -153,17 +172,21 @@ type managedExtension struct {
 	lastExitedAt        time.Time
 }
 
+var _ channelspkg.DeliveryTransport = (*Manager)(nil)
+
 // Manager orchestrates extension loading, subprocess lifecycle, and resource registration.
 type Manager struct {
 	mu sync.RWMutex
 
-	registry       *Registry
-	capChecker     *CapabilityChecker
-	skillsRegistry skillRegistry
-	logger         *slog.Logger
-	now            func() time.Time
-	getenv         func(string) string
-	launch         processLauncher
+	registry               *Registry
+	capChecker             *CapabilityChecker
+	channelRuntimeResolver ChannelRuntimeResolver
+	channelTelemetrySink   ChannelTelemetrySink
+	skillsRegistry         skillRegistry
+	logger                 *slog.Logger
+	now                    func() time.Time
+	getenv                 func(string) string
+	launch                 processLauncher
 
 	hostMethods map[string]subprocess.HandlerFunc
 
@@ -192,6 +215,22 @@ type Manager struct {
 func WithCapabilityChecker(checker *CapabilityChecker) Option {
 	return func(manager *Manager) {
 		manager.capChecker = checker
+	}
+}
+
+// WithChannelRuntimeResolver injects the channel launch material resolver used
+// for channel-capable extension sessions.
+func WithChannelRuntimeResolver(resolver ChannelRuntimeResolver) Option {
+	return func(manager *Manager) {
+		manager.channelRuntimeResolver = resolver
+	}
+}
+
+// WithChannelTelemetrySink injects the sink used to publish per-instance
+// runtime degradation/error signals into observability surfaces.
+func WithChannelTelemetrySink(sink ChannelTelemetrySink) Option {
+	return func(manager *Manager) {
+		manager.channelTelemetrySink = sink
 	}
 }
 
@@ -588,6 +627,57 @@ func (m *Manager) Statuses() []ExtensionStatus {
 	return statuses
 }
 
+// DeliverChannel calls the negotiated `channels/deliver` service on the named
+// channel-capable extension runtime.
+func (m *Manager) DeliverChannel(
+	ctx context.Context,
+	extensionName string,
+	req channelspkg.DeliveryRequest,
+) (channelspkg.DeliveryAck, error) {
+	if ctx == nil {
+		return channelspkg.DeliveryAck{}, errors.New("extension: delivery context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return channelspkg.DeliveryAck{}, err
+	}
+	if m == nil {
+		return channelspkg.DeliveryAck{}, errors.New("extension: manager is required")
+	}
+	if err := req.Validate(); err != nil {
+		return channelspkg.DeliveryAck{}, err
+	}
+
+	name := strings.TrimSpace(extensionName)
+	if name == "" {
+		return channelspkg.DeliveryAck{}, errors.New("extension: delivery extension name is required")
+	}
+
+	m.mu.RLock()
+	ext := m.extensions[name]
+	if ext == nil || ext.process == nil || !ext.active {
+		m.mu.RUnlock()
+		return channelspkg.DeliveryAck{}, channelspkg.ErrDeliveryTransportUnavailable
+	}
+	process := ext.process
+	initialize := cloneInitializeResponse(ext.initialize)
+	m.mu.RUnlock()
+
+	if initialize == nil || !slices.Contains(initialize.ImplementedMethods, string(extensionprotocol.ExtensionServiceMethodChannelsDeliver)) {
+		return channelspkg.DeliveryAck{}, fmt.Errorf(
+			"extension: extension %q does not implement %q: %w",
+			name,
+			extensionprotocol.ExtensionServiceMethodChannelsDeliver,
+			channelspkg.ErrDeliveryTransportUnavailable,
+		)
+	}
+
+	var ack channelspkg.DeliveryAck
+	if err := process.Call(ctx, string(extensionprotocol.ExtensionServiceMethodChannelsDeliver), req, &ack); err != nil {
+		return channelspkg.DeliveryAck{}, fmt.Errorf("extension: deliver channel via %q: %w", name, err)
+	}
+	return ack, nil
+}
+
 // HookDeclarations returns the manifest-declared hook resources from loaded extensions.
 func (m *Manager) HookDeclarations(ctx context.Context) ([]hookspkg.HookDecl, error) {
 	if ctx == nil {
@@ -819,6 +909,19 @@ func (m *Manager) initializeExtension(ctx context.Context, ext *managedExtension
 
 	process, response, runtime, healthInterval, err := m.launchRuntime(ctx, ext)
 	if err != nil {
+		if errors.Is(err, ErrChannelRuntimeDeferred) {
+			m.mu.Lock()
+			ext.process = nil
+			ext.initialize = nil
+			ext.runtime = subprocess.InitializeRuntime{}
+			ext.healthInterval = 0
+			ext.awaitingStability = false
+			ext.lastStartedAt = time.Time{}
+			ext.phase = ExtensionPhaseInitialize
+			ext.lastError = ""
+			m.mu.Unlock()
+			return nil
+		}
 		m.setFailure(ext, ExtensionPhaseInitialize, err)
 		return phaseError(ext.info.Name, ExtensionPhaseInitialize, err)
 	}
@@ -994,7 +1097,7 @@ func (m *Manager) recoverExtension(name string, reason error) (int64, bool) {
 }
 
 func (m *Manager) launchRuntime(ctx context.Context, ext *managedExtension) (processHandle, subprocess.InitializeResponse, subprocess.InitializeRuntime, time.Duration, error) {
-	launchCfg, runtime, healthInterval, err := m.launchConfigFor(ext)
+	launchCfg, runtime, healthInterval, err := m.launchConfigFor(ctx, ext)
 	if err != nil {
 		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, err
 	}
@@ -1005,7 +1108,7 @@ func (m *Manager) launchRuntime(ctx context.Context, ext *managedExtension) (pro
 	}
 
 	for method, handler := range m.hostMethods {
-		if err := process.HandleMethod(method, m.wrapHostHandler(ext.info.Name, method, handler)); err != nil {
+		if err := process.HandleMethod(method, m.wrapHostHandler(ext.info.Name, method, runtime.Channel, handler)); err != nil {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), m.defaultShutdownTimeout)
 			_ = process.Shutdown(shutdownCtx)
 			cancel()
@@ -1054,7 +1157,7 @@ func (m *Manager) launchRuntime(ctx context.Context, ext *managedExtension) (pro
 	return process, response, runtime, healthInterval, nil
 }
 
-func (m *Manager) launchConfigFor(ext *managedExtension) (subprocess.LaunchConfig, subprocess.InitializeRuntime, time.Duration, error) {
+func (m *Manager) launchConfigFor(ctx context.Context, ext *managedExtension) (subprocess.LaunchConfig, subprocess.InitializeRuntime, time.Duration, error) {
 	if ext.manifest == nil {
 		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, errors.New("manifest is required")
 	}
@@ -1074,11 +1177,16 @@ func (m *Manager) launchConfigFor(ext *managedExtension) (subprocess.LaunchConfi
 
 	healthInterval := durationOr(ext.manifest.Subprocess.HealthCheckInterval, defaultHealthCheckInterval)
 	shutdownTimeout := durationOr(ext.manifest.Subprocess.ShutdownTimeout, m.defaultShutdownTimeout)
+	channelRuntime, err := m.resolveChannelRuntime(ctx, ext)
+	if err != nil {
+		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, err
+	}
 	runtime := subprocess.InitializeRuntime{
 		HealthCheckIntervalMS: healthInterval.Milliseconds(),
 		HealthCheckTimeoutMS:  m.healthCheckTimeout.Milliseconds(),
 		ShutdownTimeoutMS:     shutdownTimeout.Milliseconds(),
 		DefaultHookTimeoutMS:  m.defaultHookTimeout.Milliseconds(),
+		Channel:               channelRuntime,
 	}
 
 	launchCfg := subprocess.LaunchConfig{
@@ -1093,12 +1201,22 @@ func (m *Manager) launchConfigFor(ext *managedExtension) (subprocess.LaunchConfi
 	return launchCfg, runtime, healthInterval, nil
 }
 
-func (m *Manager) wrapHostHandler(extName string, method string, handler subprocess.HandlerFunc) subprocess.HandlerFunc {
+func (m *Manager) wrapHostHandler(
+	extName string,
+	method string,
+	channelRuntime *subprocess.InitializeChannelRuntime,
+	handler subprocess.HandlerFunc,
+) subprocess.HandlerFunc {
 	return func(ctx context.Context, params json.RawMessage) (any, error) {
 		if err := m.capChecker.CheckHostAPI(extName, method); err != nil {
 			return nil, rpcCapabilityDenied(err)
 		}
-		return handler(withHostAPIExtensionName(ctx, extName), params)
+
+		hostCtx := withHostAPIExtensionName(ctx, extName)
+		if channelRuntime != nil {
+			hostCtx = withHostAPIChannelRuntime(hostCtx, channelRuntime)
+		}
+		return handler(hostCtx, params)
 	}
 }
 
@@ -1468,9 +1586,11 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.lastExitedAt = m.now()
 	ext.lastError = reason.Error()
 	ext.consecutiveFailures++
+	instanceID := managedChannelInstanceID(ext)
 	failures := ext.consecutiveFailures
 	if ext.consecutiveFailures >= m.restartFailureThreshold {
 		m.mu.Unlock()
+		m.reportChannelRuntimeIssue(instanceID, channelspkg.ChannelStatusError, reason)
 		m.logger.Error("extension.lifecycle.failed", "extension", name, "phase", ExtensionPhaseRecover, "error", reason, "consecutive_failures", failures)
 		return 0, true, true
 	}
@@ -1478,6 +1598,7 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.restartBackoff = restartBackoff(ext.consecutiveFailures, m.restartBackoffMax)
 	backoff := ext.restartBackoff
 	m.mu.Unlock()
+	m.reportChannelRuntimeIssue(instanceID, channelspkg.ChannelStatusDegraded, reason)
 
 	m.logger.Warn(
 		"extension.lifecycle.failed",
@@ -1495,6 +1616,7 @@ func (m *Manager) disableExtension(name string, reason error) {
 	if !ok {
 		return
 	}
+	instanceID := managedChannelInstanceID(ext)
 
 	if err := m.registry.Disable(name); err != nil {
 		reason = errors.Join(reason, err)
@@ -1509,6 +1631,7 @@ func (m *Manager) disableExtension(name string, reason error) {
 	ext.active = false
 	ext.process = nil
 	ext.awaitingStability = false
+	m.reportChannelRuntimeIssue(instanceID, channelspkg.ChannelStatusError, reason)
 }
 
 func (m *Manager) unregisterResources(ext *managedExtension) {
@@ -1527,15 +1650,17 @@ func (m *Manager) unregisterResources(ext *managedExtension) {
 
 func (m *Manager) markStable(name string, generation int64) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	ext := m.extensions[name]
 	if ext == nil || ext.generation != generation || !ext.awaitingStability {
+		m.mu.Unlock()
 		return
 	}
+	instanceID := managedChannelInstanceID(ext)
 	ext.awaitingStability = false
 	ext.consecutiveFailures = 0
 	ext.restartBackoff = 0
+	m.mu.Unlock()
+	m.clearChannelRuntimeIssue(instanceID)
 }
 
 func (m *Manager) statusLocked(ext *managedExtension) ExtensionStatus {
@@ -1602,6 +1727,35 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 		clone.InitializeResult = cloneInitializeResponse(ext.initialize)
 	}
 	return clone
+}
+
+func (m *Manager) reportChannelRuntimeIssue(channelInstanceID string, status channelspkg.ChannelStatus, reason error) {
+	if m == nil || m.channelTelemetrySink == nil {
+		return
+	}
+	trimmedID := strings.TrimSpace(channelInstanceID)
+	if trimmedID == "" || reason == nil {
+		return
+	}
+	m.channelTelemetrySink.RecordChannelRuntimeIssue(trimmedID, status, reason.Error())
+}
+
+func (m *Manager) clearChannelRuntimeIssue(channelInstanceID string) {
+	if m == nil || m.channelTelemetrySink == nil {
+		return
+	}
+	trimmedID := strings.TrimSpace(channelInstanceID)
+	if trimmedID == "" {
+		return
+	}
+	m.channelTelemetrySink.ClearChannelRuntimeIssue(trimmedID)
+}
+
+func managedChannelInstanceID(ext *managedExtension) string {
+	if ext == nil || ext.runtime.Channel == nil {
+		return ""
+	}
+	return strings.TrimSpace(ext.runtime.Channel.Instance.ID)
 }
 
 func (m *Manager) waitBackoff(delay time.Duration) bool {
@@ -1718,16 +1872,50 @@ func validateSupportedHookEvents(values []string) error {
 	return nil
 }
 
+func (m *Manager) resolveChannelRuntime(ctx context.Context, ext *managedExtension) (*subprocess.InitializeChannelRuntime, error) {
+	if ext == nil || ext.manifest == nil {
+		return nil, nil
+	}
+	if !slices.Contains(ext.manifest.Capabilities.Provides, extensionprotocol.CapabilityProvideChannelAdapter) {
+		return nil, nil
+	}
+	if m.channelRuntimeResolver == nil {
+		return nil, fmt.Errorf("extension: channel runtime resolver is required for %q", ext.info.Name)
+	}
+
+	channelRuntime, err := m.channelRuntimeResolver.ResolveChannelRuntime(ctx, ext.info.Name)
+	if err != nil {
+		return nil, fmt.Errorf("extension: resolve channel runtime for %q: %w", ext.info.Name, err)
+	}
+	if channelRuntime == nil {
+		return nil, fmt.Errorf("extension: channel runtime is required for %q", ext.info.Name)
+	}
+	if err := channelRuntime.Validate(); err != nil {
+		return nil, fmt.Errorf("extension: resolve channel runtime for %q: %w", ext.info.Name, err)
+	}
+
+	resolved := subprocess.CloneInitializeChannelRuntime(channelRuntime)
+	if resolved == nil {
+		return nil, fmt.Errorf("extension: channel runtime is required for %q", ext.info.Name)
+	}
+	if strings.TrimSpace(resolved.Instance.ExtensionName) != ext.info.Name {
+		return nil, fmt.Errorf(
+			"extension: channel runtime instance %q belongs to extension %q, want %q",
+			resolved.Instance.ID,
+			resolved.Instance.ExtensionName,
+			ext.info.Name,
+		)
+	}
+
+	return resolved, nil
+}
+
 func daemonRequestMethods() []string {
 	return []string{"execute_hook", "health_check", "shutdown"}
 }
 
 func capabilityMethods(provides []string) []string {
-	methods := make([]string, 0)
-	for _, capability := range normalizeUniqueStrings(provides) {
-		methods = append(methods, capabilityServiceMethods[capability]...)
-	}
-	return normalizeUniqueStrings(methods)
+	return extensionprotocol.CapabilityServiceMethods(provides)
 }
 
 func hostAPIMethodsFromStrings(values []string) []extensionprotocol.HostAPIMethod {

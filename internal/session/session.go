@@ -394,6 +394,9 @@ func (s *Session) clearStopClassification() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.stopCause = CauseNone
+	if s.stopReason == store.StopAgentCrashed {
+		return
+	}
 	s.stopReason = ""
 	s.stopDetail = ""
 }

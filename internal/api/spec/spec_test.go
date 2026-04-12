@@ -146,6 +146,37 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertEnumValues(t, propertySchema(t, runPayloadSchema, "status"), "cancelled", "completed", "failed", "running", "scheduled")
 			},
 		},
+		{
+			name: "ShouldDescribeChannelCreateRequiredFieldsAndEnums",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				createChannel := operationFor(t, doc, "/api/channels", "POST")
+				createChannelSchema := jsonRequestSchema(t, createChannel)
+				assertRequired(t, createChannelSchema, "scope", "platform", "extension_name", "display_name", "enabled", "status", "routing_policy")
+				assertNotRequired(t, createChannelSchema, "workspace_id", "delivery_defaults")
+				assertEnumValues(t, propertySchema(t, createChannelSchema, "scope"), "global", "workspace")
+				assertEnumValues(t, propertySchema(t, createChannelSchema, "status"), "auth_required", "degraded", "disabled", "error", "ready", "starting")
+			},
+		},
+		{
+			name: "ShouldDescribeChannelTestDeliveryTypedTargetShape",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				testDelivery := operationFor(t, doc, "/api/channels/{id}/test-delivery", "POST")
+				testDeliverySchema := jsonRequestSchema(t, testDelivery)
+				assertRequired(t, testDeliverySchema, "target")
+				assertNotRequired(t, testDeliverySchema, "message")
+
+				targetSchema := propertySchema(t, testDeliverySchema, "target")
+				assertNotRequired(t, targetSchema, "channel_instance_id", "peer_id", "thread_id", "group_id", "mode")
+				assertEnumValues(t, propertySchema(t, targetSchema, "mode"), "direct-send", "reply")
+
+				responseSchema := jsonResponseSchema(t, testDelivery, 200)
+				assertRequired(t, responseSchema, "status", "delivery_target")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -217,6 +248,56 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnumHelpersReturnStableValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		got  []string
+		want []string
+	}{
+		{
+			name: "hook skill source values",
+			got:  hookSkillSourceValues(),
+			want: []string{"bundled", "marketplace", "user", "additional", "workspace"},
+		},
+		{
+			name: "hook executor kind values",
+			got:  hookExecutorKindValues(),
+			want: []string{"native", "subprocess", "wasm"},
+		},
+		{
+			name: "tool source values",
+			got:  toolSourceValues(),
+			want: []string{"builtin", "mcp", "extension", "dynamic"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if !slices.Equal(tt.got, tt.want) {
+				t.Fatalf("values = %v, want %v", tt.got, tt.want)
+			}
+		})
+	}
+
+	t.Run("host api method values", func(t *testing.T) {
+		t.Parallel()
+
+		got := hostAPIMethodValues()
+		if !slices.IsSorted(got) {
+			t.Fatalf("values are not sorted: %v", got)
+		}
+		for _, want := range []string{"channels/messages/ingest", "channels/instances/get", "channels/instances/report_state"} {
+			if !contains(got, want) {
+				t.Fatalf("expected %q in host api method values %v", want, got)
+			}
+		}
+	})
 }
 
 func operationFor(t *testing.T, doc *openapi3.T, path string, method string) *openapi3.Operation {

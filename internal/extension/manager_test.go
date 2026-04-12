@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	channelspkg "github.com/pedronauck/agh/internal/channels"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
@@ -145,6 +146,173 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	}
 	if got, want := loaded.Status.Phase, ExtensionPhaseActivate; got != want {
 		t.Fatalf("Get(ext-runtime).Status.Phase = %q, want %q", got, want)
+	}
+}
+
+func TestManagerStartChannelAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
+	t.Parallel()
+
+	withDaemonVersion(t, "0.5.0")
+	env := newRegistryTestEnv(t)
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-channel", managerManifestOptions{
+		command:      "fake-extension",
+		capabilities: []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+		},
+		security: []string{"channel.read", "channel.write"},
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+	fakeProc := newFakeProcess(303)
+	launcher := &fakeLauncher{queue: []*fakeProcess{fakeProc}}
+	manager := NewManager(
+		env.registry,
+		WithChannelRuntimeResolver(&stubChannelRuntimeResolver{
+			runtimes: map[string]*subprocess.InitializeChannelRuntime{
+				"ext-channel": {
+					Instance: testChannelRuntimeInstance("ext-channel", "chan-1"),
+					BoundSecrets: []subprocess.InitializeChannelBoundSecret{
+						{BindingName: "bot_token", Kind: "bot_token", Value: "token-1"},
+					},
+				},
+			},
+		}),
+		withProcessLauncher(launcher.launch),
+		WithHealthCheckTimeout(20*time.Millisecond),
+		withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
+	)
+
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	requests := fakeProc.initRequests()
+	if len(requests) != 1 {
+		t.Fatalf("len(initialize requests) = %d, want 1", len(requests))
+	}
+
+	request := requests[0]
+	if !slices.Equal(request.Methods.ExtensionServices, []string{"channels/deliver"}) {
+		t.Fatalf("initialize extension services = %#v, want [channels/deliver]", request.Methods.ExtensionServices)
+	}
+	if !slices.Equal(request.Capabilities.GrantedActions, []extensionprotocol.HostAPIMethod{
+		extensionprotocol.HostAPIMethodChannelsInstancesGet,
+		extensionprotocol.HostAPIMethodChannelsInstancesReportState,
+		extensionprotocol.HostAPIMethodChannelsMessagesIngest,
+	}) {
+		t.Fatalf("initialize granted actions = %#v, want channel actions", request.Capabilities.GrantedActions)
+	}
+	if !slices.Equal(request.Capabilities.GrantedSecurity, []string{"channel.read", "channel.write"}) {
+		t.Fatalf("initialize granted security = %#v, want channel grants", request.Capabilities.GrantedSecurity)
+	}
+	if request.Runtime.Channel == nil {
+		t.Fatal("initialize runtime channel = nil, want scoped channel launch payload")
+	}
+	if got, want := request.Runtime.Channel.Instance.ID, "chan-1"; got != want {
+		t.Fatalf("initialize runtime channel instance id = %q, want %q", got, want)
+	}
+	if got, want := request.Runtime.Channel.Instance.ExtensionName, "ext-channel"; got != want {
+		t.Fatalf("initialize runtime channel instance extension = %q, want %q", got, want)
+	}
+	if got := request.Runtime.Channel.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-1" {
+		t.Fatalf("initialize runtime channel bound secrets = %#v, want only bot_token", got)
+	}
+
+	for _, method := range request.Capabilities.GrantedActions {
+		if strings.Contains(string(method), "vault/") || strings.Contains(string(method), "secret/") {
+			t.Fatalf("initialize granted actions leaked secret lookup method %q", method)
+		}
+	}
+	for _, method := range request.Methods.ExtensionServices {
+		if strings.Contains(method, "vault/") || strings.Contains(method, "secret/") {
+			t.Fatalf("initialize extension services leaked secret lookup method %q", method)
+		}
+	}
+}
+
+func TestManagerStartChannelAdapterRequiresScopedLaunchRuntime(t *testing.T) {
+	t.Parallel()
+
+	withDaemonVersion(t, "0.5.0")
+	env := newRegistryTestEnv(t)
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-channel-missing", managerManifestOptions{
+		command:      "fake-extension",
+		capabilities: []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		actions:      []string{string(extensionprotocol.HostAPIMethodChannelsInstancesGet)},
+		security:     []string{"channel.read"},
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+	manager := NewManager(
+		env.registry,
+		withProcessLauncher((&fakeLauncher{queue: []*fakeProcess{newFakeProcess(404)}}).launch),
+	)
+
+	err := manager.Start(testutil.Context(t))
+	if err == nil {
+		t.Fatal("Start() error = nil, want missing channel runtime resolver failure")
+	}
+	if !strings.Contains(err.Error(), "channel runtime resolver is required") {
+		t.Fatalf("Start() error = %v, want channel runtime resolver failure", err)
+	}
+}
+
+func TestManagerStartChannelAdapterDefersUntilRuntimeExists(t *testing.T) {
+	t.Parallel()
+
+	withDaemonVersion(t, "0.5.0")
+	env := newRegistryTestEnv(t)
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-channel-deferred", managerManifestOptions{
+		command:      "fake-extension",
+		capabilities: []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
+			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
+		},
+		security: []string{"channel.read"},
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+	launcher := &fakeLauncher{}
+	manager := NewManager(
+		env.registry,
+		WithChannelRuntimeResolver(&stubChannelRuntimeResolver{err: ErrChannelRuntimeDeferred}),
+		withProcessLauncher(launcher.launch),
+	)
+
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	if got := launcher.launchCount(); got != 0 {
+		t.Fatalf("launch count = %d, want 0 while runtime is deferred", got)
+	}
+
+	loaded, err := manager.Get("ext-channel-deferred")
+	if err != nil {
+		t.Fatalf("Get(ext-channel-deferred) error = %v", err)
+	}
+	if loaded.Status.Active {
+		t.Fatal("Get(ext-channel-deferred).Status.Active = true, want false")
+	}
+	if !loaded.Status.Registered {
+		t.Fatal("Get(ext-channel-deferred).Status.Registered = false, want true")
+	}
+	if loaded.Status.LastError != "" {
+		t.Fatalf("Get(ext-channel-deferred).Status.LastError = %q, want empty", loaded.Status.LastError)
 	}
 }
 
@@ -1028,14 +1196,14 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 		Actions:  ActionsConfig{Requires: []string{"sessions/list"}},
 		Security: SecurityConfig{Capabilities: []string{"session.read"}},
 	})
-	allowed := manager.wrapHostHandler("ext-host", "sessions/list", func(_ context.Context, _ json.RawMessage) (any, error) {
+	allowed := manager.wrapHostHandler("ext-host", "sessions/list", nil, func(_ context.Context, _ json.RawMessage) (any, error) {
 		return "ok", nil
 	})
 	result, err := allowed(context.Background(), json.RawMessage(`{}`))
 	if err != nil || result != "ok" {
 		t.Fatalf("wrapHostHandler allowed call = (%v, %v), want (ok, nil)", result, err)
 	}
-	denied := manager.wrapHostHandler("ext-denied", "sessions/list", func(_ context.Context, _ json.RawMessage) (any, error) {
+	denied := manager.wrapHostHandler("ext-denied", "sessions/list", nil, func(_ context.Context, _ json.RawMessage) (any, error) {
 		return "never", nil
 	})
 	if _, err := denied(context.Background(), nil); err == nil {
@@ -1132,6 +1300,7 @@ type fakeProcess struct {
 	initHook    func()
 	health      subprocess.HealthState
 	handlers    map[string]subprocess.HandlerFunc
+	callFn      func(context.Context, string, any, any) error
 	shutdownFn  func(context.Context) error
 	shutdownCnt int
 }
@@ -1172,6 +1341,16 @@ func (p *fakeProcess) Initialize(_ context.Context, req subprocess.InitializeReq
 		hook()
 	}
 	return resp, nil
+}
+
+func (p *fakeProcess) Call(ctx context.Context, method string, params, result any) error {
+	p.mu.Lock()
+	callFn := p.callFn
+	p.mu.Unlock()
+	if callFn != nil {
+		return callFn(ctx, method, params, result)
+	}
+	return nil
 }
 
 func (p *fakeProcess) Shutdown(ctx context.Context) error {
@@ -1318,6 +1497,11 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		if err := h.sendResult(req.ID, response); err != nil {
 			return err
 		}
+		if h.scenario == "record_initialize" || h.scenario == "auto_exit_record_initialize" {
+			if err := h.recordInitialize(params, response); err != nil {
+				return err
+			}
+		}
 
 		switch h.scenario {
 		case "host_call":
@@ -1341,10 +1525,43 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 				time.Sleep(15 * time.Millisecond)
 				os.Exit(1)
 			}()
+		case "auto_exit_record_initialize":
+			go func() {
+				time.Sleep(15 * time.Millisecond)
+				os.Exit(1)
+			}()
 		}
 		return nil
 	case "health_check":
 		return h.sendResult(req.ID, subprocess.HealthCheckResponse{Healthy: true})
+	case "channels/deliver":
+		var params channelspkg.DeliveryRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		if err := h.recordDelivery(params); err != nil {
+			return err
+		}
+		switch h.scenario {
+		case "slow_record_deliveries":
+			time.Sleep(40 * time.Millisecond)
+		case "exit_once_record_deliveries":
+			if markerLineCount(h.marker) == 1 {
+				os.Exit(1)
+			}
+		}
+
+		ack := channelspkg.DeliveryAck{
+			DeliveryID: strings.TrimSpace(params.Event.DeliveryID),
+			Seq:        params.Event.Seq,
+		}
+		if ack.Seq > 0 {
+			ack.RemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq)
+		}
+		if ack.Seq > 1 {
+			ack.ReplaceRemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq-1)
+		}
+		return h.sendResult(req.ID, ack)
 	case "shutdown":
 		if h.scenario == "shutdown_hang" {
 			select {}
@@ -1406,6 +1623,42 @@ func (h *extensionHelperServer) write(payload any) error {
 	return h.writer.Flush()
 }
 
+func (h *extensionHelperServer) recordInitialize(
+	request subprocess.InitializeRequest,
+	response subprocess.InitializeResponse,
+) error {
+	if strings.TrimSpace(h.marker) == "" {
+		return nil
+	}
+
+	payload, err := json.Marshal(struct {
+		Request  subprocess.InitializeRequest  `json:"request"`
+		Response subprocess.InitializeResponse `json:"response"`
+	}{
+		Request:  request,
+		Response: response,
+	})
+	if err != nil {
+		return err
+	}
+	return appendMarkerLine(h.marker, string(payload))
+}
+
+func (h *extensionHelperServer) recordDelivery(request channelspkg.DeliveryRequest) error {
+	if strings.TrimSpace(h.marker) == "" {
+		return nil
+	}
+
+	payload, err := json.Marshal(managerDeliveryMarker{
+		PID:     os.Getpid(),
+		Request: request,
+	})
+	if err != nil {
+		return err
+	}
+	return appendMarkerLine(h.marker, string(payload))
+}
+
 type helperRequest struct {
 	ID     any             `json:"id"`
 	Method string          `json:"method"`
@@ -1415,6 +1668,29 @@ type helperRequest struct {
 type helperResponse struct {
 	ID     any             `json:"id"`
 	Result json.RawMessage `json:"result"`
+}
+
+type managerDeliveryMarker struct {
+	PID     int                         `json:"pid"`
+	Request channelspkg.DeliveryRequest `json:"request"`
+}
+
+type stubChannelRuntimeResolver struct {
+	runtimes map[string]*subprocess.InitializeChannelRuntime
+	err      error
+}
+
+func (r *stubChannelRuntimeResolver) ResolveChannelRuntime(_ context.Context, extensionName string) (*subprocess.InitializeChannelRuntime, error) {
+	if r == nil {
+		return nil, nil
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.runtimes == nil {
+		return nil, nil
+	}
+	return subprocess.CloneInitializeChannelRuntime(r.runtimes[strings.TrimSpace(extensionName)]), nil
 }
 
 func createManagerTestExtension(t *testing.T, manifestContent string, files map[string]string) managerFixture {
@@ -1608,6 +1884,40 @@ func helperEnv(scenario string, markerPath string) map[string]string {
 	return env
 }
 
+func appendMarkerLine(path string, line string) error {
+	target := strings.TrimSpace(path)
+	if target == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	file, err := os.OpenFile(target, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+	_, err = fmt.Fprintf(file, "%s\n", strings.TrimSpace(line))
+	return err
+}
+
+func markerLineCount(path string) int {
+	payload, err := os.ReadFile(strings.TrimSpace(path))
+	if err != nil {
+		return 0
+	}
+	count := 0
+	for _, line := range strings.Split(string(payload), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
 func envListToMap(t testing.TB, env []string) map[string]string {
 	t.Helper()
 
@@ -1633,4 +1943,17 @@ func waitForManagerCondition(t *testing.T, timeout time.Duration, fn func() bool
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatal("timed out waiting for manager condition")
+}
+
+func testChannelRuntimeInstance(extensionName string, instanceID string) channelspkg.ChannelInstance {
+	return channelspkg.ChannelInstance{
+		ID:            instanceID,
+		Scope:         channelspkg.ScopeGlobal,
+		Platform:      "telegram",
+		ExtensionName: extensionName,
+		DisplayName:   "Channel Runtime",
+		Enabled:       true,
+		Status:        channelspkg.ChannelStatusReady,
+		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	}
 }
