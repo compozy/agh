@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,103 +20,122 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 	t.Parallel()
 
 	deadline := int64(1775823000)
-	status := &network.NetworkStatus{
-		Enabled:              true,
-		Status:               network.StatusRunning,
-		ListenerHost:         "127.0.0.1",
-		ListenerPort:         4222,
-		LocalPeers:           1,
-		RemotePeers:          2,
-		Spaces:               1,
-		QueuedMessages:       3,
-		QueuedSessions:       1,
-		DeliveryWorkers:      1,
-		MessagesSent:         4,
-		MessagesReceived:     5,
-		MessagesRejected:     1,
-		MessagesDelivered:    3,
-		WorkflowTaggedEvents: 2,
-		HandoffTaggedEvents:  1,
-		LastDisconnect:       "transport lost",
-		KindMetrics: []network.KindMetric{{
-			Kind:      network.KindSay,
-			Sent:      4,
-			Received:  5,
-			Rejected:  1,
-			Delivered: 3,
-		}},
-	}
 
-	payload := core.NetworkStatusPayloadFromStatus(status)
-	if payload == nil || payload.MessagesDelivered != 3 || len(payload.KindMetrics) != 1 || payload.KindMetrics[0].Kind != string(network.KindSay) {
-		t.Fatalf("NetworkStatusPayloadFromStatus() = %#v", payload)
-	}
+	t.Run("Should map status metadata", func(t *testing.T) {
+		t.Parallel()
 
-	req := contract.NetworkSendRequest{
-		SessionID:     " sess-a ",
-		Space:         " builders ",
-		Kind:          "say",
-		To:            " reviewer.sess-b ",
-		Body:          json.RawMessage(`{"text":"hello"}`),
-		InteractionID: " int-1 ",
-		ReplyTo:       " msg-root ",
-		TraceID:       " trace-1 ",
-		CausationID:   " cause-1 ",
-		ExpiresAt:     &deadline,
-		ID:            " msg-1 ",
-		Ext: map[string]json.RawMessage{
-			"agh.workflow_id":     json.RawMessage(`"wf-1"`),
-			"agh.handoff_version": json.RawMessage(`3`),
-		},
-	}
+		status := &network.NetworkStatus{
+			Enabled:              true,
+			Status:               network.StatusRunning,
+			ListenerHost:         "127.0.0.1",
+			ListenerPort:         4222,
+			LocalPeers:           1,
+			RemotePeers:          2,
+			Spaces:               1,
+			QueuedMessages:       3,
+			QueuedSessions:       1,
+			DeliveryWorkers:      1,
+			MessagesSent:         4,
+			MessagesReceived:     5,
+			MessagesRejected:     1,
+			MessagesDelivered:    3,
+			WorkflowTaggedEvents: 2,
+			HandoffTaggedEvents:  1,
+			LastDisconnect:       "transport lost",
+			KindMetrics: []network.KindMetric{{
+				Kind:      network.KindSay,
+				Sent:      4,
+				Received:  5,
+				Rejected:  1,
+				Delivered: 3,
+			}},
+		}
 
-	converted, err := core.NetworkSendRequestFromPayload(req)
-	if err != nil {
-		t.Fatalf("NetworkSendRequestFromPayload() error = %v", err)
-	}
-	if converted.SessionID != "sess-a" || converted.Space != "builders" || converted.Kind != network.KindSay {
-		t.Fatalf("converted request = %#v", converted)
-	}
-	if converted.To == nil || *converted.To != "reviewer.sess-b" {
-		t.Fatalf("converted.To = %#v, want reviewer.sess-b", converted.To)
-	}
-	if string(converted.Body) != `{"text":"hello"}` {
-		t.Fatalf("converted.Body = %s, want preserved JSON", string(converted.Body))
-	}
-	if string(converted.Ext["agh.workflow_id"]) != `"wf-1"` || string(converted.Ext["agh.handoff_version"]) != `3` {
-		t.Fatalf("converted.Ext = %#v, want preserved ext metadata", converted.Ext)
-	}
+		payload := core.NetworkStatusPayloadFromStatus(status)
+		if payload == nil || payload.MessagesDelivered != 3 || len(payload.KindMetrics) != 1 || payload.KindMetrics[0].Kind != string(network.KindSay) {
+			t.Fatalf("NetworkStatusPayloadFromStatus() = %#v", payload)
+		}
+	})
 
-	proof := network.Proof{"sig": json.RawMessage(`"abc123"`)}
-	traceID := "trace-1"
-	causationID := "cause-1"
-	replyTo := "msg-root"
-	envelope := network.Envelope{
-		Protocol:    network.ProtocolV0,
-		ID:          "msg-1",
-		Kind:        network.KindDirect,
-		Space:       "builders",
-		From:        "reviewer.sess-b",
-		ReplyTo:     &replyTo,
-		TraceID:     &traceID,
-		CausationID: &causationID,
-		TS:          deadline,
-		ExpiresAt:   &deadline,
-		Body:        json.RawMessage(`{"text":"hello","intent":"review"}`),
-		Proof:       &proof,
-		Ext:         network.ExtensionMap{"agh.workflow_id": json.RawMessage(`"wf-1"`), "agh.handoff_version": json.RawMessage(`3`)},
-	}
+	t.Run("Should convert NetworkSendRequest preserving metadata", func(t *testing.T) {
+		t.Parallel()
 
-	envelopePayload := core.NetworkEnvelopePayloadFromEnvelope(envelope)
-	if envelopePayload.TraceID == nil || *envelopePayload.TraceID != "trace-1" {
-		t.Fatalf("TraceID = %#v, want trace-1", envelopePayload.TraceID)
-	}
-	if string(envelopePayload.Proof["sig"]) != `"abc123"` {
-		t.Fatalf("Proof = %#v, want cloned proof payload", envelopePayload.Proof)
-	}
-	if string(envelopePayload.Ext["agh.handoff_version"]) != `3` {
-		t.Fatalf("Ext = %#v, want cloned ext payload", envelopePayload.Ext)
-	}
+		req := contract.NetworkSendRequest{
+			SessionID:     " sess-a ",
+			Space:         " builders ",
+			Kind:          "say",
+			To:            " reviewer.sess-b ",
+			Body:          json.RawMessage(`{"text":"hello"}`),
+			InteractionID: " int-1 ",
+			ReplyTo:       " msg-root ",
+			TraceID:       " trace-1 ",
+			CausationID:   " cause-1 ",
+			ExpiresAt:     &deadline,
+			ID:            " msg-1 ",
+			Ext: map[string]json.RawMessage{
+				"agh.workflow_id":     json.RawMessage(`"wf-1"`),
+				"agh.handoff_version": json.RawMessage(`3`),
+			},
+		}
+
+		converted, err := core.NetworkSendRequestFromPayload(req)
+		if err != nil {
+			t.Fatalf("NetworkSendRequestFromPayload() error = %v", err)
+		}
+		if converted.SessionID != "sess-a" || converted.Space != "builders" || converted.Kind != network.KindSay {
+			t.Fatalf("converted request = %#v", converted)
+		}
+		if converted.To == nil || *converted.To != "reviewer.sess-b" {
+			t.Fatalf("converted.To = %#v, want reviewer.sess-b", converted.To)
+		}
+		if converted.ExpiresAt == nil || *converted.ExpiresAt != deadline {
+			t.Fatalf("converted.ExpiresAt = %#v, want %d", converted.ExpiresAt, deadline)
+		}
+		if string(converted.Body) != `{"text":"hello"}` {
+			t.Fatalf("converted.Body = %s, want preserved JSON", string(converted.Body))
+		}
+		if string(converted.Ext["agh.workflow_id"]) != `"wf-1"` || string(converted.Ext["agh.handoff_version"]) != `3` {
+			t.Fatalf("converted.Ext = %#v, want preserved ext metadata", converted.Ext)
+		}
+	})
+
+	t.Run("Should convert Envelope preserving metadata", func(t *testing.T) {
+		t.Parallel()
+
+		proof := network.Proof{"sig": json.RawMessage(`"abc123"`)}
+		traceID := "trace-1"
+		causationID := "cause-1"
+		replyTo := "msg-root"
+		envelope := network.Envelope{
+			Protocol:    network.ProtocolV0,
+			ID:          "msg-1",
+			Kind:        network.KindDirect,
+			Space:       "builders",
+			From:        "reviewer.sess-b",
+			ReplyTo:     &replyTo,
+			TraceID:     &traceID,
+			CausationID: &causationID,
+			TS:          deadline,
+			ExpiresAt:   &deadline,
+			Body:        json.RawMessage(`{"text":"hello","intent":"review"}`),
+			Proof:       &proof,
+			Ext:         network.ExtensionMap{"agh.workflow_id": json.RawMessage(`"wf-1"`), "agh.handoff_version": json.RawMessage(`3`)},
+		}
+
+		envelopePayload := core.NetworkEnvelopePayloadFromEnvelope(envelope)
+		if envelopePayload.TraceID == nil || *envelopePayload.TraceID != "trace-1" {
+			t.Fatalf("TraceID = %#v, want trace-1", envelopePayload.TraceID)
+		}
+		if envelopePayload.ExpiresAt == nil || *envelopePayload.ExpiresAt != deadline {
+			t.Fatalf("ExpiresAt = %#v, want %d", envelopePayload.ExpiresAt, deadline)
+		}
+		if string(envelopePayload.Proof["sig"]) != `"abc123"` {
+			t.Fatalf("Proof = %#v, want cloned proof payload", envelopePayload.Proof)
+		}
+		if string(envelopePayload.Ext["agh.handoff_version"]) != `3` {
+			t.Fatalf("Ext = %#v, want cloned ext payload", envelopePayload.Ext)
+		}
+	})
 }
 
 func TestBaseHandlersNetworkEndpoints(t *testing.T) {
@@ -125,7 +145,6 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 	fixture.Handlers.Config.Network.Enabled = true
 
 	fixedNow := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC)
-	deadline := int64(1775823000)
 	fixture.Handlers.Network = testutil.StubNetworkService{
 		StatusFn: func(context.Context) (*network.NetworkStatus, error) {
 			return &network.NetworkStatus{
@@ -229,7 +248,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		if statusPayload.Network.QueuedMessages != 2 || len(statusPayload.Network.KindMetrics) != 1 {
 			t.Fatalf("status payload = %#v", statusPayload.Network)
 		}
-		if statusPayload.Network.KindMetrics[0].Sent != 4 || deadline == 0 {
+		if statusPayload.Network.KindMetrics[0].Sent != 4 || statusPayload.Network.KindMetrics[0].Kind != string(network.KindSay) {
 			t.Fatalf("kind metrics = %#v", statusPayload.Network.KindMetrics)
 		}
 	})
@@ -299,83 +318,180 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 	t.Parallel()
 
-	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+	t.Run("ShouldReturnDisabledStatus", func(t *testing.T) {
+		t.Parallel()
 
-	disabledResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/status", nil)
-	if disabledResp.Code != http.StatusOK {
-		t.Fatalf("disabled status code = %d, want %d", disabledResp.Code, http.StatusOK)
-	}
-	var disabledPayload contract.NetworkStatusResponse
-	testutil.DecodeJSONResponse(t, disabledResp, &disabledPayload)
-	if disabledPayload.Network.Enabled || disabledPayload.Network.Status != "disabled" {
-		t.Fatalf("disabled payload = %#v, want disabled status", disabledPayload.Network)
-	}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 
-	fixture.Handlers.Config.Network.Enabled = true
+		disabledResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/status", nil)
+		if disabledResp.Code != http.StatusOK {
+			t.Fatalf("disabled status code = %d, want %d", disabledResp.Code, http.StatusOK)
+		}
+		var disabledPayload contract.NetworkStatusResponse
+		testutil.DecodeJSONResponse(t, disabledResp, &disabledPayload)
+		if disabledPayload.Network.Enabled || disabledPayload.Network.Status != "disabled" {
+			t.Fatalf("disabled payload = %#v, want disabled status", disabledPayload.Network)
+		}
+	})
 
-	peersUnavailable := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers", nil)
-	if peersUnavailable.Code != http.StatusServiceUnavailable {
-		t.Fatalf("peers unavailable code = %d, want %d", peersUnavailable.Code, http.StatusServiceUnavailable)
-	}
+	t.Run("ShouldReturnServiceUnavailableWhenNetworkServiceMissing", func(t *testing.T) {
+		t.Parallel()
 
-	fixture.Handlers.Network = testutil.StubNetworkService{
-		StatusFn: func(context.Context) (*network.NetworkStatus, error) {
-			return nil, errors.New("boom")
-		},
-		ListSpacesFn: func(context.Context) ([]network.SpaceInfo, error) {
-			return nil, network.ErrInvalidField
-		},
-		SendFn: func(context.Context, network.SendRequest) (string, error) {
-			return "", network.ErrTargetPeerNotFound
-		},
-		InboxFn: func(context.Context, string) ([]network.Envelope, error) {
-			return nil, network.ErrInvalidField
-		},
-	}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
 
-	statusResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/status", nil)
-	if statusResp.Code != http.StatusInternalServerError {
-		t.Fatalf("status error code = %d, want %d", statusResp.Code, http.StatusInternalServerError)
-	}
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers", nil)
+		if resp.Code != http.StatusServiceUnavailable {
+			t.Fatalf("peers unavailable code = %d, want %d", resp.Code, http.StatusServiceUnavailable)
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if !strings.Contains(payload.Error, "network service is required") {
+			t.Fatalf("peers unavailable payload = %#v, want network service error", payload)
+		}
+	})
 
-	spacesResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/spaces", nil)
-	if spacesResp.Code != http.StatusBadRequest {
-		t.Fatalf("spaces error code = %d, want %d", spacesResp.Code, http.StatusBadRequest)
-	}
+	t.Run("ShouldMapNetworkStatusErrorTo500", func(t *testing.T) {
+		t.Parallel()
 
-	sendDecodeResp := performRequest(t, fixture.Engine, http.MethodPost, "/network/send", []byte(`{`))
-	if sendDecodeResp.Code != http.StatusBadRequest {
-		t.Fatalf("send decode code = %d, want %d", sendDecodeResp.Code, http.StatusBadRequest)
-	}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			StatusFn: func(context.Context) (*network.NetworkStatus, error) {
+				return nil, errors.New("boom")
+			},
+		}
 
-	sendResp := performRequest(t, fixture.Engine, http.MethodPost, "/network/send", []byte(`{"session_id":"sess-a","space":"builders","kind":"say","body":{"text":"hello"}}`))
-	if sendResp.Code != http.StatusNotFound {
-		t.Fatalf("send error code = %d, want %d", sendResp.Code, http.StatusNotFound)
-	}
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/status", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("status error code = %d, want %d", resp.Code, http.StatusInternalServerError)
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if !strings.Contains(payload.Error, "boom") {
+			t.Fatalf("status error payload = %#v, want boom", payload)
+		}
+	})
 
-	inboxMissingResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/inbox", nil)
-	if inboxMissingResp.Code != http.StatusBadRequest {
-		t.Fatalf("inbox missing code = %d, want %d", inboxMissingResp.Code, http.StatusBadRequest)
-	}
+	t.Run("ShouldMapListSpacesErrorTo400", func(t *testing.T) {
+		t.Parallel()
 
-	inboxResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/inbox?session_id=sess-a", nil)
-	if inboxResp.Code != http.StatusBadRequest {
-		t.Fatalf("inbox error code = %d, want %d", inboxResp.Code, http.StatusBadRequest)
-	}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListSpacesFn: func(context.Context) ([]network.SpaceInfo, error) {
+				return nil, network.ErrInvalidField
+			},
+		}
 
-	validationErr := core.NewNetworkValidationError(errors.New("missing session_id"))
-	if !errors.Is(validationErr, core.ErrNetworkValidation) {
-		t.Fatalf("validationErr = %v, want ErrNetworkValidation", validationErr)
-	}
-	if got := core.StatusForNetworkError(validationErr); got != http.StatusBadRequest {
-		t.Fatalf("StatusForNetworkError(validation) = %d, want %d", got, http.StatusBadRequest)
-	}
-	if got := core.StatusForNetworkError(network.ErrTargetPeerNotFound); got != http.StatusNotFound {
-		t.Fatalf("StatusForNetworkError(not found) = %d, want %d", got, http.StatusNotFound)
-	}
-	if got := core.StatusForNetworkError(network.ErrInvalidField); got != http.StatusBadRequest {
-		t.Fatalf("StatusForNetworkError(invalid field) = %d, want %d", got, http.StatusBadRequest)
-	}
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/spaces", nil)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("spaces error code = %d, want %d", resp.Code, http.StatusBadRequest)
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if !strings.Contains(payload.Error, network.ErrInvalidField.Error()) {
+			t.Fatalf("spaces error payload = %#v, want invalid field", payload)
+		}
+	})
+
+	t.Run("ShouldReturnBadRequestOnSendDecode", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{}
+
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/network/send", []byte(`{`))
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("send decode code = %d, want %d", resp.Code, http.StatusBadRequest)
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if !strings.Contains(payload.Error, "decode network send request") {
+			t.Fatalf("send decode payload = %#v, want decode error", payload)
+		}
+	})
+
+	t.Run("ShouldMapSendTargetNotFoundTo404", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			SendFn: func(context.Context, network.SendRequest) (string, error) {
+				return "", network.ErrTargetPeerNotFound
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/network/send", []byte(`{"session_id":"sess-a","space":"builders","kind":"say","body":{"text":"hello"}}`))
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("send error code = %d, want %d", resp.Code, http.StatusNotFound)
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if !strings.Contains(payload.Error, network.ErrTargetPeerNotFound.Error()) {
+			t.Fatalf("send error payload = %#v, want target not found", payload)
+		}
+	})
+
+	t.Run("ShouldReturnBadRequestWhenInboxMissing", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/inbox", nil)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("inbox missing code = %d, want %d", resp.Code, http.StatusBadRequest)
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if !strings.Contains(payload.Error, "session_id query is required") {
+			t.Fatalf("inbox missing payload = %#v, want session_id validation error", payload)
+		}
+	})
+
+	t.Run("ShouldMapInboxInvalidFieldTo400", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			InboxFn: func(context.Context, string) ([]network.Envelope, error) {
+				return nil, network.ErrInvalidField
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/inbox?session_id=sess-a", nil)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("inbox error code = %d, want %d", resp.Code, http.StatusBadRequest)
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if !strings.Contains(payload.Error, network.ErrInvalidField.Error()) {
+			t.Fatalf("inbox error payload = %#v, want invalid field", payload)
+		}
+	})
+
+	t.Run("ShouldPreserveNetworkErrorStatusMappings", func(t *testing.T) {
+		t.Parallel()
+
+		validationErr := core.NewNetworkValidationError(errors.New("missing session_id"))
+		if !errors.Is(validationErr, core.ErrNetworkValidation) {
+			t.Fatalf("validationErr = %v, want ErrNetworkValidation", validationErr)
+		}
+		if got := core.StatusForNetworkError(validationErr); got != http.StatusBadRequest {
+			t.Fatalf("StatusForNetworkError(validation) = %d, want %d", got, http.StatusBadRequest)
+		}
+		if got := core.StatusForNetworkError(network.ErrTargetPeerNotFound); got != http.StatusNotFound {
+			t.Fatalf("StatusForNetworkError(not found) = %d, want %d", got, http.StatusNotFound)
+		}
+		if got := core.StatusForNetworkError(network.ErrInvalidField); got != http.StatusBadRequest {
+			t.Fatalf("StatusForNetworkError(invalid field) = %d, want %d", got, http.StatusBadRequest)
+		}
+	})
 }
 
 func TestValidationErrorHelpersPreserveInnerErrorChain(t *testing.T) {

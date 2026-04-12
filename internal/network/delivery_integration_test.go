@@ -22,6 +22,8 @@ import (
 )
 
 func TestDeliveryCoordinatorIntegrationDrainsOneQueuedPromptPerTurn(t *testing.T) {
+	t.Parallel()
+
 	manager, driver := newDeliveryIntegrationHarness(t)
 	networked := createIntegrationSession(t, manager, "coder")
 
@@ -86,6 +88,8 @@ func TestDeliveryCoordinatorIntegrationDrainsOneQueuedPromptPerTurn(t *testing.T
 }
 
 func TestDeliveryCoordinatorIntegrationMultipleSessionsDoNotBlockEachOther(t *testing.T) {
+	t.Parallel()
+
 	manager, driver := newDeliveryIntegrationHarness(t)
 	sessionA := createIntegrationSession(t, manager, "coder")
 	sessionB := createIntegrationSession(t, manager, "coder")

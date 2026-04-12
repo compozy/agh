@@ -92,15 +92,40 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 func TestWaitForDaemonStopClearsStaleNetworkSnapshot(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, stubClient{
-		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-			return DaemonStatus{}, errors.New("daemon unavailable")
-		},
-	})
-	deps.pollInterval = time.Millisecond
-	deps.stopTimeout = 100 * time.Millisecond
-	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-		return aghdaemon.Info{
+	t.Run("Should clear stale network snapshot when daemon stops", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, stubClient{
+			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+				return DaemonStatus{}, errors.New("daemon unavailable")
+			},
+		})
+		deps.pollInterval = time.Millisecond
+		deps.stopTimeout = 100 * time.Millisecond
+		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
+			return aghdaemon.Info{
+				PID:       42,
+				StartedAt: fixedTestNow,
+				Network: &aghdaemon.NetworkInfo{
+					Enabled:      true,
+					Status:       "running",
+					ListenerHost: "127.0.0.1",
+					ListenerPort: 4522,
+				},
+			}, nil
+		}
+
+		aliveChecks := 0
+		deps.processAlive = func(int) bool {
+			aliveChecks++
+			return aliveChecks < 2
+		}
+
+		runtime, err := loadRuntimeContext(deps)
+		if err != nil {
+			t.Fatalf("loadRuntimeContext() error = %v", err)
+		}
+		info := aghdaemon.Info{
 			PID:       42,
 			StartedAt: fixedTestNow,
 			Network: &aghdaemon.NetworkInfo{
@@ -109,37 +134,19 @@ func TestWaitForDaemonStopClearsStaleNetworkSnapshot(t *testing.T) {
 				ListenerHost: "127.0.0.1",
 				ListenerPort: 4522,
 			},
-		}, nil
-	}
+		}
 
-	aliveChecks := 0
-	deps.processAlive = func(int) bool {
-		aliveChecks++
-		return aliveChecks < 2
-	}
-
-	runtime, err := loadRuntimeContext(deps)
-	if err != nil {
-		t.Fatalf("loadRuntimeContext() error = %v", err)
-	}
-	info := aghdaemon.Info{
-		PID:       42,
-		StartedAt: fixedTestNow,
-		Network: &aghdaemon.NetworkInfo{
-			Enabled:      true,
-			Status:       "running",
-			ListenerHost: "127.0.0.1",
-			ListenerPort: 4522,
-		},
-	}
-
-	status, err := waitForDaemonStop(testutil.Context(t), deps, runtime, info)
-	if err != nil {
-		t.Fatalf("waitForDaemonStop() error = %v", err)
-	}
-	if status.Network != nil {
-		t.Fatalf("waitForDaemonStop() network = %#v, want nil after stop", status.Network)
-	}
+		status, err := waitForDaemonStop(testutil.Context(t), deps, runtime, info)
+		if err != nil {
+			t.Fatalf("waitForDaemonStop() error = %v", err)
+		}
+		if status.Status != "stopped" || status.PID != 42 {
+			t.Fatalf("waitForDaemonStop() status = %#v, want stopped pid 42", status)
+		}
+		if status.Network != nil {
+			t.Fatalf("waitForDaemonStop() network = %#v, want nil after stop", status.Network)
+		}
+	})
 }
 
 func TestDaemonStopCommandSignalsAndWaitsForShutdown(t *testing.T) {

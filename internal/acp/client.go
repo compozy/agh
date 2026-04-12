@@ -639,7 +639,8 @@ func prependPathEntry(pathValue string, entry string) string {
 
 func envValue(env []string, key string) (string, bool) {
 	prefix := key + "="
-	for _, variable := range env {
+	for i := len(env) - 1; i >= 0; i-- {
+		variable := env[i]
 		if strings.HasPrefix(variable, prefix) {
 			return variable[len(prefix):], true
 		}
@@ -650,13 +651,14 @@ func envValue(env []string, key string) (string, bool) {
 func setEnvValue(env []string, key string, value string) []string {
 	prefix := key + "="
 	entry := prefix + value
-	for idx, variable := range env {
+	filtered := env[:0]
+	for _, variable := range env {
 		if strings.HasPrefix(variable, prefix) {
-			env[idx] = entry
-			return env
+			continue
 		}
+		filtered = append(filtered, variable)
 	}
-	return append(env, entry)
+	return append(filtered, entry)
 }
 
 func normalizeWorkspaceDir(path string, field string) (string, error) {

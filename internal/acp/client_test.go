@@ -293,8 +293,11 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	binDir := filepath.Dir(executable)
 
 	env := daemonMatchedEnv([]string{
-		"PATH=/usr/local/bin" + string(os.PathListSeparator) + binDir + string(os.PathListSeparator) + "/usr/bin",
+		"PATH=/should-be-ignored",
 		"FOO=bar",
+		"AGH_BIN=/should-be-replaced",
+		"PATH=/usr/local/bin" + string(os.PathListSeparator) + binDir + string(os.PathListSeparator) + "/usr/bin",
+		"AGH_BIN=/should-also-be-replaced",
 	})
 
 	gotAGHBin, ok := envValue(env, "AGH_BIN")
@@ -309,6 +312,20 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	wantPath := binDir + string(os.PathListSeparator) + "/usr/local/bin" + string(os.PathListSeparator) + "/usr/bin"
 	if gotPath != wantPath {
 		t.Fatalf("daemonMatchedEnv() PATH = %q, want %q", gotPath, wantPath)
+	}
+
+	pathCount := 0
+	aghBinCount := 0
+	for _, variable := range env {
+		switch {
+		case strings.HasPrefix(variable, "PATH="):
+			pathCount++
+		case strings.HasPrefix(variable, "AGH_BIN="):
+			aghBinCount++
+		}
+	}
+	if pathCount != 1 || aghBinCount != 1 {
+		t.Fatalf("daemonMatchedEnv() duplicate entries remain: PATH=%d AGH_BIN=%d env=%#v", pathCount, aghBinCount, env)
 	}
 }
 

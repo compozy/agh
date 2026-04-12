@@ -177,6 +177,45 @@ func TestApplyInteractionEnvelope(t *testing.T) {
 			wantState:  StateWorking,
 		},
 		{
+			name:    "direct without target is rejected",
+			current: &interaction,
+			env: Envelope{
+				Protocol:      ProtocolV0,
+				ID:            "msg_direct_missing_to",
+				Kind:          KindDirect,
+				Space:         "builders",
+				From:          "coder.sess-abc",
+				InteractionID: stringPtr("int_patch_42"),
+				TS:            at.Unix(),
+				Body:          mustRawJSON(t, map[string]any{"text": "missing target"}),
+			},
+			wantErr: ErrMissingField,
+		},
+		{
+			name:    "recipe outside participant pair is rejected",
+			current: &interaction,
+			env: Envelope{
+				Protocol:      ProtocolV0,
+				ID:            "msg_recipe_bad_target",
+				Kind:          KindRecipe,
+				Space:         "builders",
+				From:          "coder.sess-abc",
+				To:            stringPtr("outsider.sess-123"),
+				InteractionID: stringPtr("int_patch_42"),
+				TS:            at.Unix(),
+				Body: mustRawJSON(t, map[string]any{
+					"recipe": map[string]any{
+						"recipe_id":    "review-fix",
+						"version":      "1.0.0",
+						"content_type": "text/markdown",
+						"digest":       "sha256:abc123",
+						"inline":       "# Review fix flow",
+					},
+				}),
+			},
+			wantErr: ErrInteractionActorNotAllowed,
+		},
+		{
 			name:    "receipt rejected fails interaction",
 			current: &interaction,
 			env: Envelope{

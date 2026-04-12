@@ -44,211 +44,304 @@ func waitForCondition(t *testing.T, ctx context.Context, condition func() bool, 
 func TestNewManagerRequiresEnabledConfigAndPrompter(t *testing.T) {
 	t.Parallel()
 
-	cfg := testManagerConfig()
-	cfg.Enabled = false
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		cfg      aghconfig.NetworkConfig
+		prompter deliveryPrompter
+		wantErr  string
+	}{
+		{
+			name: "Should reject disabled config",
+			ctx:  context.Background(),
+			cfg: func() aghconfig.NetworkConfig {
+				cfg := testManagerConfig()
+				cfg.Enabled = false
+				return cfg
+			}(),
+			prompter: newFakeDeliveryPrompter(),
+			wantErr:  "enabled network config is required",
+		},
+		{
+			name:     "Should reject nil prompter",
+			ctx:      context.Background(),
+			cfg:      testManagerConfig(),
+			prompter: nil,
+			wantErr:  "session prompter is required",
+		},
+		{
+			name:     "Should reject nil context",
+			ctx:      nilTestContext(),
+			cfg:      testManagerConfig(),
+			prompter: newFakeDeliveryPrompter(),
+			wantErr:  "manager context is required",
+		},
+	}
 
-	if _, err := NewManager(context.Background(), cfg, newFakeDeliveryPrompter(), filepath.Join(t.TempDir(), "audit.jsonl"), nil); err == nil {
-		t.Fatal("NewManager(disabled config) error = nil, want non-nil")
-	}
-	if _, err := NewManager(context.Background(), testManagerConfig(), nil, filepath.Join(t.TempDir(), "audit.jsonl"), nil); err == nil {
-		t.Fatal("NewManager(nil prompter) error = nil, want non-nil")
-	}
-	if _, err := NewManager(nilTestContext(), testManagerConfig(), newFakeDeliveryPrompter(), filepath.Join(t.TempDir(), "audit.jsonl"), nil); err == nil {
-		t.Fatal("NewManager(nil context) error = nil, want non-nil")
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := NewManager(tc.ctx, tc.cfg, tc.prompter, filepath.Join(t.TempDir(), "audit.jsonl"), nil)
+			if err == nil {
+				t.Fatalf("NewManager() error = nil, want %q", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("NewManager() error = %v, want substring %q", err, tc.wantErr)
+			}
+		})
 	}
 }
 
 func TestNewManagerReportsRollbackShutdownFailures(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	t.Run("Should report rollback shutdown failures", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := NewManager(ctx, testManagerConfig(), newFakeDeliveryPrompter(), "", nil, WithManagerLogger(discardManagerLogger()))
-	if err == nil {
-		t.Fatal("NewManager() error = nil, want rollback failure")
-	}
-	if !strings.Contains(err.Error(), "audit sink is required") {
-		t.Fatalf("NewManager() error = %v, want audit sink failure", err)
-	}
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("NewManager() error = %v, want wrapped context cancellation from rollback shutdown", err)
-	}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := NewManager(ctx, testManagerConfig(), newFakeDeliveryPrompter(), "", nil, WithManagerLogger(discardManagerLogger()))
+		if err == nil {
+			t.Fatal("NewManager() error = nil, want rollback failure")
+		}
+		if !strings.Contains(err.Error(), "audit sink is required") {
+			t.Fatalf("NewManager() error = %v, want audit sink failure", err)
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("NewManager() error = %v, want wrapped context cancellation from rollback shutdown", err)
+		}
+	})
 }
 
 func TestManagerJoinSendStatusAndLeave(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	newManagerHarness := func(t *testing.T) (context.Context, *Manager, *fakeDeliveryPrompter) {
+		t.Helper()
 
-	prompter := newFakeDeliveryPrompter()
-	manager, err := NewManager(
-		ctx,
-		testManagerConfig(),
-		prompter,
-		filepath.Join(t.TempDir(), "network.audit"),
-		nil,
-		WithManagerLogger(discardManagerLogger()),
-	)
-	if err != nil {
-		t.Fatalf("NewManager() error = %v", err)
-	}
-	defer func() {
-		if err := manager.Shutdown(context.Background()); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		prompter := newFakeDeliveryPrompter()
+		manager, err := NewManager(
+			ctx,
+			testManagerConfig(),
+			prompter,
+			filepath.Join(t.TempDir(), "network.audit"),
+			nil,
+			WithManagerLogger(discardManagerLogger()),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
 		}
-	}()
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
 
-	status, err := manager.Status(ctx)
-	if err != nil {
-		t.Fatalf("Status(initial) error = %v", err)
-	}
-	if !status.Enabled || status.Status != StatusRunning || status.ListenerPort <= 0 {
-		t.Fatalf("Status(initial) = %#v, want enabled running listener", status)
-	}
-
-	if err := manager.JoinSpace(ctx, "sess-a", "coder.sess-a", "builders"); err != nil {
-		t.Fatalf("JoinSpace() error = %v", err)
+		return ctx, manager, prompter
 	}
 
-	status, err = manager.Status(ctx)
-	if err != nil {
-		t.Fatalf("Status(joined) error = %v", err)
-	}
-	if status.LocalPeers != 1 || status.Spaces != 1 {
-		t.Fatalf("Status(joined) = %#v, want 1 local peer and 1 space", status)
-	}
+	t.Run("Should report initial running status", func(t *testing.T) {
+		t.Parallel()
 
-	id, err := manager.Send(ctx, SendRequest{
-		SessionID: "sess-a",
-		Space:     "builders",
-		Kind:      KindSay,
-		Body:      mustRawJSON(t, map[string]any{"text": "hello builders"}),
+		ctx, manager, _ := newManagerHarness(t)
+
+		status, err := manager.Status(ctx)
+		if err != nil {
+			t.Fatalf("Status(initial) error = %v", err)
+		}
+		if !status.Enabled || status.Status != StatusRunning || status.ListenerPort <= 0 {
+			t.Fatalf("Status(initial) = %#v, want enabled running listener", status)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Send() error = %v", err)
-	}
-	if strings.TrimSpace(id) == "" {
-		t.Fatal("Send() id = empty, want generated message id")
-	}
 
-	prompter.waitForCalls(t, 1)
-	call := prompter.call(0)
-	if got, want := call.sessionID, "sess-a"; got != want {
-		t.Fatalf("prompt session id = %q, want %q", got, want)
-	}
-	if !strings.Contains(call.message, "hello builders") {
-		t.Fatalf("prompt message = %q, want rendered network preview", call.message)
-	}
-	prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
-	manager.deliveries.wait()
+	t.Run("Should join send and drain deliveries", func(t *testing.T) {
+		t.Parallel()
 
-	inbox, err := manager.Inbox(ctx, "sess-a")
-	if err != nil {
-		t.Fatalf("Inbox() error = %v", err)
-	}
-	if len(inbox) != 0 {
-		t.Fatalf("Inbox() = %#v, want empty after immediate delivery", inbox)
-	}
+		ctx, manager, prompter := newManagerHarness(t)
+		if err := manager.JoinSpace(ctx, "sess-a", "coder.sess-a", "builders"); err != nil {
+			t.Fatalf("JoinSpace() error = %v", err)
+		}
 
-	if err := manager.LeaveSpace(ctx, "sess-a"); err != nil {
-		t.Fatalf("LeaveSpace() error = %v", err)
-	}
-	if err := manager.LeaveSpace(ctx, "sess-a"); err != nil {
-		t.Fatalf("LeaveSpace(repeated) error = %v, want nil", err)
-	}
+		status, err := manager.Status(ctx)
+		if err != nil {
+			t.Fatalf("Status(joined) error = %v", err)
+		}
+		if status.LocalPeers != 1 || status.Spaces != 1 {
+			t.Fatalf("Status(joined) = %#v, want 1 local peer and 1 space", status)
+		}
 
-	status, err = manager.Status(ctx)
-	if err != nil {
-		t.Fatalf("Status(left) error = %v", err)
-	}
-	if status.LocalPeers != 0 || status.Spaces != 0 {
-		t.Fatalf("Status(left) = %#v, want zero local peers and spaces", status)
-	}
+		id, err := manager.Send(ctx, SendRequest{
+			SessionID: "sess-a",
+			Space:     "builders",
+			Kind:      KindSay,
+			Body:      mustRawJSON(t, map[string]any{"text": "hello builders"}),
+		})
+		if err != nil {
+			t.Fatalf("Send() error = %v", err)
+		}
+		if strings.TrimSpace(id) == "" {
+			t.Fatal("Send() id = empty, want generated message id")
+		}
+
+		prompter.waitForCalls(t, 1)
+		call := prompter.call(0)
+		if got, want := call.sessionID, "sess-a"; got != want {
+			t.Fatalf("prompt session id = %q, want %q", got, want)
+		}
+		if !strings.Contains(call.message, "hello builders") {
+			t.Fatalf("prompt message = %q, want rendered network preview", call.message)
+		}
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		manager.deliveries.wait()
+
+		inbox, err := manager.Inbox(ctx, "sess-a")
+		if err != nil {
+			t.Fatalf("Inbox() error = %v", err)
+		}
+		if len(inbox) != 0 {
+			t.Fatalf("Inbox() = %#v, want empty after immediate delivery", inbox)
+		}
+	})
+
+	t.Run("Should leave space idempotently and clear status", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, manager, _ := newManagerHarness(t)
+		if err := manager.JoinSpace(ctx, "sess-a", "coder.sess-a", "builders"); err != nil {
+			t.Fatalf("JoinSpace() error = %v", err)
+		}
+		if err := manager.LeaveSpace(ctx, "sess-a"); err != nil {
+			t.Fatalf("LeaveSpace() error = %v", err)
+		}
+		if err := manager.LeaveSpace(ctx, "sess-a"); err != nil {
+			t.Fatalf("LeaveSpace(repeated) error = %v, want nil", err)
+		}
+
+		status, err := manager.Status(ctx)
+		if err != nil {
+			t.Fatalf("Status(left) error = %v", err)
+		}
+		if status.LocalPeers != 0 || status.Spaces != 0 {
+			t.Fatalf("Status(left) = %#v, want zero local peers and spaces", status)
+		}
+	})
 }
 
 func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	newBusyManagerHarness := func(t *testing.T) (context.Context, *Manager, *fakeDeliveryPrompter) {
+		t.Helper()
 
-	prompter := newFakeDeliveryPrompter()
-	manager, err := NewManager(
-		ctx,
-		testManagerConfig(),
-		prompter,
-		filepath.Join(t.TempDir(), "network.audit"),
-		nil,
-		WithManagerLogger(discardManagerLogger()),
-	)
-	if err != nil {
-		t.Fatalf("NewManager() error = %v", err)
-	}
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
 
-	if err := manager.JoinSpace(ctx, "sess-busy", "reviewer.sess-busy", "builders"); err != nil {
-		t.Fatalf("JoinSpace() error = %v", err)
-	}
+		prompter := newFakeDeliveryPrompter()
+		manager, err := NewManager(
+			ctx,
+			testManagerConfig(),
+			prompter,
+			filepath.Join(t.TempDir(), "network.audit"),
+			nil,
+			WithManagerLogger(discardManagerLogger()),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
 
-	prompter.setPrompting("sess-busy", true)
-	if _, err := manager.Send(ctx, SendRequest{
-		SessionID: "sess-busy",
-		Space:     "builders",
-		Kind:      KindSay,
-		Body:      mustRawJSON(t, map[string]any{"text": "queued while busy"}),
-	}); err != nil {
-		t.Fatalf("Send() error = %v", err)
-	}
+		if err := manager.JoinSpace(ctx, "sess-busy", "reviewer.sess-busy", "builders"); err != nil {
+			t.Fatalf("JoinSpace() error = %v", err)
+		}
 
-	waitCtx, waitCancel := context.WithTimeout(ctx, 2*time.Second)
-	defer waitCancel()
-	waitForCondition(t, waitCtx, func() bool {
-		return manager.deliveries.queueDepth("sess-busy") == 1
-	}, "queued busy delivery")
-
-	inbox, err := manager.Inbox(ctx, "sess-busy")
-	if err != nil {
-		t.Fatalf("Inbox() error = %v", err)
-	}
-	if len(inbox) != 1 {
-		t.Fatalf("Inbox() len = %d, want 1 queued envelope", len(inbox))
+		return ctx, manager, prompter
 	}
 
-	manager.handleDisconnect(errors.New("transport lost"))
-	status, err := manager.Status(ctx)
-	if err != nil {
-		t.Fatalf("Status(disconnected) error = %v", err)
-	}
-	if status.Status != StatusDisconnected {
-		t.Fatalf("Status(disconnected) = %#v, want disconnected", status)
-	}
+	t.Run("Should queue busy deliveries until turn end", func(t *testing.T) {
+		t.Parallel()
 
-	prompter.setPrompting("sess-busy", false)
-	manager.OnTurnEnd("sess-busy")
-	prompter.waitForCalls(t, 1)
-	call := prompter.call(0)
-	if !strings.Contains(call.message, "queued while busy") {
-		t.Fatalf("prompt message after turn end = %q, want queued delivery preview", call.message)
-	}
-	prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
-	manager.deliveries.wait()
+		ctx, manager, prompter := newBusyManagerHarness(t)
+		prompter.setPrompting("sess-busy", true)
+		if _, err := manager.Send(ctx, SendRequest{
+			SessionID: "sess-busy",
+			Space:     "builders",
+			Kind:      KindSay,
+			Body:      mustRawJSON(t, map[string]any{"text": "queued while busy"}),
+		}); err != nil {
+			t.Fatalf("Send() error = %v", err)
+		}
 
-	manager.handleReconnect()
-	status, err = manager.Status(ctx)
-	if err != nil {
-		t.Fatalf("Status(reconnected) error = %v", err)
-	}
-	if status.Status != StatusRunning {
-		t.Fatalf("Status(reconnected) = %#v, want running", status)
-	}
+		waitCtx, waitCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer waitCancel()
+		waitForCondition(t, waitCtx, func() bool {
+			return manager.deliveries.queueDepth("sess-busy") == 1
+		}, "queued busy delivery")
 
-	if err := manager.Shutdown(context.Background()); err != nil {
-		t.Fatalf("Shutdown() error = %v", err)
-	}
-	if err := manager.Shutdown(context.Background()); err != nil {
-		t.Fatalf("Shutdown(repeated) error = %v, want nil", err)
-	}
+		inbox, err := manager.Inbox(ctx, "sess-busy")
+		if err != nil {
+			t.Fatalf("Inbox() error = %v", err)
+		}
+		if len(inbox) != 1 {
+			t.Fatalf("Inbox() len = %d, want 1 queued envelope", len(inbox))
+		}
+
+		prompter.setPrompting("sess-busy", false)
+		manager.OnTurnEnd("sess-busy")
+		prompter.waitForCalls(t, 1)
+		call := prompter.call(0)
+		if !strings.Contains(call.message, "queued while busy") {
+			t.Fatalf("prompt message after turn end = %q, want queued delivery preview", call.message)
+		}
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		manager.deliveries.wait()
+	})
+
+	t.Run("Should track disconnect and reconnect status", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, manager, _ := newBusyManagerHarness(t)
+
+		manager.handleDisconnect(errors.New("transport lost"))
+		status, err := manager.Status(ctx)
+		if err != nil {
+			t.Fatalf("Status(disconnected) error = %v", err)
+		}
+		if status.Status != StatusDisconnected {
+			t.Fatalf("Status(disconnected) = %#v, want disconnected", status)
+		}
+
+		manager.handleReconnect()
+		status, err = manager.Status(ctx)
+		if err != nil {
+			t.Fatalf("Status(reconnected) error = %v", err)
+		}
+		if status.Status != StatusRunning {
+			t.Fatalf("Status(reconnected) = %#v, want running", status)
+		}
+	})
+
+	t.Run("Should shut down idempotently", func(t *testing.T) {
+		t.Parallel()
+
+		_, manager, _ := newBusyManagerHarness(t)
+
+		if err := manager.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		if err := manager.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Shutdown(repeated) error = %v, want nil", err)
+		}
+	})
 }
 
 func TestCleanupSubscriptionHelpers(t *testing.T) {
@@ -862,6 +955,8 @@ type recordingAuditWriter struct {
 	received []auditCall
 	rejected []auditCall
 }
+
+var _ AuditWriter = (*recordingAuditWriter)(nil)
 
 type auditCall struct {
 	sessionID string

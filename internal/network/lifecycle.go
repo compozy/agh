@@ -40,7 +40,7 @@ func (i Interaction) Validate() error {
 		return fmt.Errorf("%w: interaction space is required", ErrMissingField)
 	}
 	if err := ValidateSpace(i.Space); err != nil {
-		return err
+		return fmt.Errorf("validate interaction space: %w", err)
 	}
 	if i.Initiator == "" {
 		return fmt.Errorf("%w: interaction initiator is required", ErrMissingField)
@@ -55,7 +55,7 @@ func (i Interaction) Validate() error {
 		return fmt.Errorf("%w: interaction target", err)
 	}
 	if err := i.State.Validate(); err != nil {
-		return err
+		return fmt.Errorf("validate interaction state: %w", err)
 	}
 	return nil
 }
@@ -73,6 +73,17 @@ func IsTerminalState(state InteractionState) bool {
 // IsParticipant reports whether the peer owns the interaction lifecycle.
 func (i Interaction) IsParticipant(peerID string) bool {
 	return peerID == i.Initiator || peerID == i.Target
+}
+
+func (i Interaction) counterparty(peerID string) (string, bool) {
+	switch peerID {
+	case i.Initiator:
+		return i.Target, true
+	case i.Target:
+		return i.Initiator, true
+	default:
+		return "", false
+	}
 }
 
 // LifecycleAction explains how a lifecycle helper handled one message.
@@ -120,7 +131,7 @@ func OpenInteraction(env Envelope, at time.Time) (Interaction, error) {
 	}
 
 	if err := interaction.Validate(); err != nil {
-		return Interaction{}, err
+		return Interaction{}, fmt.Errorf("validate opened interaction: %w", err)
 	}
 
 	return interaction, nil
@@ -149,7 +160,7 @@ func ApplyInteractionEnvelope(current *Interaction, env Envelope, at time.Time) 
 
 	interaction := *current
 	if err := interaction.Validate(); err != nil {
-		return LifecycleResult{}, err
+		return LifecycleResult{}, fmt.Errorf("validate current interaction: %w", err)
 	}
 	if env.InteractionID == nil || *env.InteractionID != interaction.ID {
 		return LifecycleResult{}, fmt.Errorf("%w: interaction_id=%v current=%q", ErrInvalidField, env.InteractionID, interaction.ID)
@@ -159,6 +170,21 @@ func ApplyInteractionEnvelope(current *Interaction, env Envelope, at time.Time) 
 	}
 	if !interaction.IsParticipant(env.From) {
 		return LifecycleResult{}, fmt.Errorf("%w: from=%q", ErrInteractionActorNotAllowed, env.From)
+	}
+	if env.Kind == KindDirect || env.Kind == KindRecipe {
+		if env.To == nil {
+			return LifecycleResult{}, fmt.Errorf("%w: %s to is required", ErrMissingField, env.Kind)
+		}
+		expectedTarget, ok := interaction.counterparty(env.From)
+		if !ok || *env.To != expectedTarget {
+			return LifecycleResult{}, fmt.Errorf(
+				"%w: from=%q to=%q expected_to=%q",
+				ErrInteractionActorNotAllowed,
+				env.From,
+				*env.To,
+				expectedTarget,
+			)
+		}
 	}
 
 	if IsTerminalState(interaction.State) {
@@ -194,7 +220,7 @@ func ApplyInteractionEnvelope(current *Interaction, env Envelope, at time.Time) 
 	case KindReceipt:
 		body, err := env.DecodeBody()
 		if err != nil {
-			return LifecycleResult{}, err
+			return LifecycleResult{}, fmt.Errorf("decode receipt body: %w", err)
 		}
 		receipt, ok := body.(ReceiptBody)
 		if !ok {
@@ -204,7 +230,7 @@ func ApplyInteractionEnvelope(current *Interaction, env Envelope, at time.Time) 
 	case KindTrace:
 		body, err := env.DecodeBody()
 		if err != nil {
-			return LifecycleResult{}, err
+			return LifecycleResult{}, fmt.Errorf("decode trace body: %w", err)
 		}
 		trace, ok := body.(TraceBody)
 		if !ok {

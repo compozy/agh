@@ -933,7 +933,9 @@ func (m *Manager) recordAuditSent(ctx context.Context, sessionID string, envelop
 		m.logger.Warn("network.audit.record_sent_failed", "session_id", sessionID, "envelope_id", envelope.ID, "error", err)
 		return
 	}
-	m.stats.recordSent(envelope)
+	if m.stats != nil {
+		m.stats.recordSent(envelope)
+	}
 	m.logger.Info("network.message.sent", networkLogFields(envelope, "session_id", sessionID)...)
 }
 
@@ -945,7 +947,9 @@ func (m *Manager) recordAuditReceived(ctx context.Context, sessionID string, env
 		m.logger.Warn("network.audit.record_received_failed", "session_id", sessionID, "envelope_id", envelope.ID, "error", err)
 		return
 	}
-	m.stats.recordReceived(envelope)
+	if m.stats != nil {
+		m.stats.recordReceived(envelope)
+	}
 	m.logger.Info("network.message.received", networkLogFields(envelope, "session_id", sessionID)...)
 }
 
@@ -957,7 +961,9 @@ func (m *Manager) recordAuditRejected(ctx context.Context, sessionID string, env
 		m.logger.Warn("network.audit.record_rejected_failed", "session_id", sessionID, "envelope_id", envelope.ID, "error", err)
 		return
 	}
-	m.stats.recordRejected(envelope)
+	if m.stats != nil {
+		m.stats.recordRejected(envelope)
+	}
 	fields := networkLogFields(envelope, "session_id", sessionID)
 	fields = append(fields, "reason", strings.TrimSpace(reason))
 	m.logger.Info("network.message.rejected", fields...)
@@ -1046,7 +1052,8 @@ func extensionLogValue(ext ExtensionMap, key string) (string, bool) {
 			return text, true
 		}
 	}
-	return compactJSON(raw), strings.TrimSpace(compactJSON(raw)) != ""
+	compacted := compactJSON(raw)
+	return compacted, compacted != ""
 }
 
 func hasWorkflowID(ext ExtensionMap) bool {
