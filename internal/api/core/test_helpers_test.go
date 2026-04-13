@@ -134,7 +134,7 @@ func newHandlerFixtureWithAutomation(
 	engine.GET("/daemon/status", handlers.DaemonStatus)
 	engine.GET("/network/status", handlers.NetworkStatus)
 	engine.GET("/network/peers", handlers.NetworkPeers)
-	engine.GET("/network/spaces", handlers.NetworkSpaces)
+	engine.GET("/network/channels", handlers.NetworkChannels)
 	engine.POST("/network/send", handlers.NetworkSend)
 	engine.GET("/network/inbox", handlers.NetworkInbox)
 	engine.GET("/memory", handlers.ListMemory)

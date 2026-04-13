@@ -34,7 +34,7 @@ func (h *BaseHandlers) NetworkStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.NetworkStatusResponse{Network: *payload})
 }
 
-// NetworkPeers returns the current visible peers, optionally filtered by space.
+// NetworkPeers returns the current visible peers, optionally filtered by channel.
 func (h *BaseHandlers) NetworkPeers(c *gin.Context) {
 	service, err := h.networkServiceRequired()
 	if err != nil {
@@ -42,7 +42,7 @@ func (h *BaseHandlers) NetworkPeers(c *gin.Context) {
 		return
 	}
 
-	peers, err := service.ListPeers(c.Request.Context(), strings.TrimSpace(c.Query("space")))
+	peers, err := service.ListPeers(c.Request.Context(), strings.TrimSpace(c.Query("channel")))
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -50,20 +50,20 @@ func (h *BaseHandlers) NetworkPeers(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.NetworkPeersResponse{Peers: NetworkPeerPayloadsFromInfos(peers)})
 }
 
-// NetworkSpaces returns the active runtime spaces.
-func (h *BaseHandlers) NetworkSpaces(c *gin.Context) {
+// NetworkChannels returns the active runtime channels.
+func (h *BaseHandlers) NetworkChannels(c *gin.Context) {
 	service, err := h.networkServiceRequired()
 	if err != nil {
 		h.respondError(c, http.StatusServiceUnavailable, err)
 		return
 	}
 
-	spaces, err := service.ListSpaces(c.Request.Context())
+	channels, err := service.ListChannels(c.Request.Context())
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.NetworkSpacesResponse{Spaces: NetworkSpacePayloadsFromInfos(spaces)})
+	c.JSON(http.StatusOK, contract.NetworkChannelsResponse{Channels: NetworkChannelPayloadsFromInfos(channels)})
 }
 
 // NetworkSend validates and forwards one outbound network send request.
@@ -143,7 +143,7 @@ func NetworkStatusPayloadFromStatus(status *network.NetworkStatus) *contract.Net
 		ListenerPort:         status.ListenerPort,
 		LocalPeers:           status.LocalPeers,
 		RemotePeers:          status.RemotePeers,
-		Spaces:               status.Spaces,
+		Channels:             status.Channels,
 		QueuedMessages:       status.QueuedMessages,
 		QueuedSessions:       status.QueuedSessions,
 		DeliveryWorkers:      status.DeliveryWorkers,
@@ -163,8 +163,8 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 	if strings.TrimSpace(req.SessionID) == "" {
 		return network.SendRequest{}, NewNetworkValidationError(errors.New("session_id is required"))
 	}
-	if strings.TrimSpace(req.Space) == "" {
-		return network.SendRequest{}, NewNetworkValidationError(errors.New("space is required"))
+	if strings.TrimSpace(req.Channel) == "" {
+		return network.SendRequest{}, NewNetworkValidationError(errors.New("channel is required"))
 	}
 	if strings.TrimSpace(req.Kind) == "" {
 		return network.SendRequest{}, NewNetworkValidationError(errors.New("kind is required"))
@@ -178,7 +178,7 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 
 	sendReq := network.SendRequest{
 		SessionID: strings.TrimSpace(req.SessionID),
-		Space:     strings.TrimSpace(req.Space),
+		Channel:   strings.TrimSpace(req.Channel),
 		Kind:      network.Kind(strings.TrimSpace(req.Kind)),
 		Body:      cloneRawMessage(req.Body),
 		ExpiresAt: cloneInt64Ptr(req.ExpiresAt),
@@ -211,7 +211,7 @@ func NetworkSendPayloadFromRequest(id string, req contract.NetworkSendRequest) c
 	return contract.NetworkSendPayload{
 		ID:            strings.TrimSpace(id),
 		SessionID:     strings.TrimSpace(req.SessionID),
-		Space:         strings.TrimSpace(req.Space),
+		Channel:       strings.TrimSpace(req.Channel),
 		Kind:          strings.TrimSpace(req.Kind),
 		To:            strings.TrimSpace(req.To),
 		InteractionID: strings.TrimSpace(req.InteractionID),
@@ -237,7 +237,7 @@ func NetworkPeerPayloadFromInfo(peer network.PeerInfo) contract.NetworkPeerPaylo
 	return contract.NetworkPeerPayload{
 		SessionID: peer.SessionID,
 		PeerID:    peer.PeerID,
-		Space:     peer.Space,
+		Channel:   peer.Channel,
 		Local:     peer.Local,
 		PeerCard: contract.NetworkPeerCardPayload{
 			PeerID:              peer.PeerCard.PeerID,
@@ -254,13 +254,13 @@ func NetworkPeerPayloadFromInfo(peer network.PeerInfo) contract.NetworkPeerPaylo
 	}
 }
 
-// NetworkSpacePayloadsFromInfos converts active space summaries into shared payloads.
-func NetworkSpacePayloadsFromInfos(spaces []network.SpaceInfo) []contract.NetworkSpacePayload {
-	payload := make([]contract.NetworkSpacePayload, 0, len(spaces))
-	for _, space := range spaces {
-		payload = append(payload, contract.NetworkSpacePayload{
-			Space:     space.Space,
-			PeerCount: space.PeerCount,
+// NetworkChannelPayloadsFromInfos converts active channel summaries into shared payloads.
+func NetworkChannelPayloadsFromInfos(channels []network.ChannelInfo) []contract.NetworkChannelPayload {
+	payload := make([]contract.NetworkChannelPayload, 0, len(channels))
+	for _, channel := range channels {
+		payload = append(payload, contract.NetworkChannelPayload{
+			Channel:   channel.Channel,
+			PeerCount: channel.PeerCount,
 		})
 	}
 	return payload
@@ -281,7 +281,7 @@ func NetworkEnvelopePayloadFromEnvelope(envelope network.Envelope) contract.Netw
 		Protocol:      envelope.Protocol,
 		ID:            envelope.ID,
 		Kind:          string(envelope.Kind),
-		Space:         envelope.Space,
+		Channel:       envelope.Channel,
 		From:          envelope.From,
 		To:            cloneStringPtr(envelope.To),
 		InteractionID: cloneStringPtr(envelope.InteractionID),

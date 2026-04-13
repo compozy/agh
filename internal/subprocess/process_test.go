@@ -518,16 +518,16 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 			wantSub: "health_check support",
 		},
 		{
-			name: "missing-channel-deliver-service",
+			name: "missing-bridge-deliver-service",
 			setup: func(request *InitializeRequest) {
-				request.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideChannelAdapter}
+				request.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
 				request.Methods.ExtensionServices = extensionprotocol.CapabilityServiceMethods(request.Capabilities.Provides)
 			},
 			mutate: func(response *InitializeResponse) {
-				response.AcceptedCapabilities.Provides = []string{extensionprotocol.CapabilityProvideChannelAdapter}
+				response.AcceptedCapabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
 				response.ImplementedMethods = []string{"health_check", "shutdown"}
 			},
-			wantSub: "channels/deliver",
+			wantSub: "bridges/deliver",
 		},
 	}
 

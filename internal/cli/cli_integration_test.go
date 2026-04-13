@@ -20,9 +20,10 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
+	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/udsapi"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
@@ -159,12 +160,12 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session list toon error = %v", err)
 	}
-	if !strings.Contains(toonOut, "sessions[1]{id,name,agent_name,state,workspace,space,updated_at}:") {
+	if !strings.Contains(toonOut, "sessions[1]{id,name,agent_name,state,workspace,channel,updated_at}:") {
 		t.Fatalf("toon output = %q, want TOON table", toonOut)
 	}
 }
 
-func TestCLISessionSpaceRoundTripIntegration(t *testing.T) {
+func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 	t.Parallel()
 
 	h := newIntegrationHarness(t)
@@ -174,16 +175,16 @@ func TestCLISessionSpaceRoundTripIntegration(t *testing.T) {
 		_ = h.runner.waitForExit()
 	}()
 
-	newOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "demo", "--space", "builders", "--cwd", h.workspace, "-o", "json")
+	newOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "demo", "--channel", "builders", "--cwd", h.workspace, "-o", "json")
 	if err != nil {
-		t.Fatalf("session new --space error = %v", err)
+		t.Fatalf("session new --channel error = %v", err)
 	}
 	var created SessionRecord
 	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(session new --space) error = %v", err)
+		t.Fatalf("json.Unmarshal(session new --channel) error = %v", err)
 	}
-	if created.Space != "builders" {
-		t.Fatalf("created.Space = %q, want %q", created.Space, "builders")
+	if created.Channel != "builders" {
+		t.Fatalf("created.Channel = %q, want %q", created.Channel, "builders")
 	}
 
 	listOut, _, err := executeRootCommand(t, h.deps, "session", "list", "--all", "-o", "json")
@@ -197,8 +198,8 @@ func TestCLISessionSpaceRoundTripIntegration(t *testing.T) {
 	if got, want := len(listed), 1; got != want {
 		t.Fatalf("len(listed) = %d, want %d", got, want)
 	}
-	if listed[0].Space != "builders" {
-		t.Fatalf("listed[0].Space = %q, want %q", listed[0].Space, "builders")
+	if listed[0].Channel != "builders" {
+		t.Fatalf("listed[0].Channel = %q, want %q", listed[0].Channel, "builders")
 	}
 
 	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
@@ -209,7 +210,7 @@ func TestCLISessionSpaceRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
 	}
-	if stopped.Space != "builders" || stopped.State != session.StateStopped {
+	if stopped.Channel != "builders" || stopped.State != session.StateStopped {
 		t.Fatalf("stopped = %#v, want stopped builders session", stopped)
 	}
 
@@ -221,7 +222,7 @@ func TestCLISessionSpaceRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
 		t.Fatalf("json.Unmarshal(session resume) error = %v", err)
 	}
-	if resumed.Space != "builders" || resumed.State != session.StateActive {
+	if resumed.Channel != "builders" || resumed.State != session.StateActive {
 		t.Fatalf("resumed = %#v, want active builders session", resumed)
 	}
 }
@@ -236,13 +237,13 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		_ = h.runner.waitForExit()
 	}()
 
-	newOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "net-demo", "--space", "builders", "--cwd", h.workspace, "-o", "json")
+	newOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "net-demo", "--channel", "builders", "--cwd", h.workspace, "-o", "json")
 	if err != nil {
-		t.Fatalf("session new --space error = %v", err)
+		t.Fatalf("session new --channel error = %v", err)
 	}
 	var created SessionRecord
 	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(session new --space) error = %v", err)
+		t.Fatalf("json.Unmarshal(session new --channel) error = %v", err)
 	}
 
 	statusOut, _, err := executeRootCommand(t, h.deps, "network", "status", "-o", "json")
@@ -269,16 +270,16 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		t.Fatalf("network peers = %#v, want created session peer", peers)
 	}
 
-	spacesOut, _, err := executeRootCommand(t, h.deps, "network", "spaces", "-o", "json")
+	channelsOut, _, err := executeRootCommand(t, h.deps, "network", "channels", "-o", "json")
 	if err != nil {
-		t.Fatalf("network spaces error = %v", err)
+		t.Fatalf("network channels error = %v", err)
 	}
-	var spaces []NetworkSpaceRecord
-	if err := json.Unmarshal([]byte(spacesOut), &spaces); err != nil {
-		t.Fatalf("json.Unmarshal(network spaces) error = %v", err)
+	var channels []NetworkChannelRecord
+	if err := json.Unmarshal([]byte(channelsOut), &channels); err != nil {
+		t.Fatalf("json.Unmarshal(network channels) error = %v", err)
 	}
-	if len(spaces) != 1 || spaces[0].Space != "builders" || spaces[0].PeerCount != 1 {
-		t.Fatalf("network spaces = %#v, want builders peer_count=1", spaces)
+	if len(channels) != 1 || channels[0].Channel != "builders" || channels[0].PeerCount != 1 {
+		t.Fatalf("network channels = %#v, want builders peer_count=1", channels)
 	}
 
 	events, err := h.runner.blockSession(created.ID)
@@ -295,7 +296,7 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	sendOut, _, err := executeRootCommand(t, h.deps,
 		"network", "send",
 		"--session", created.ID,
-		"--space", "builders",
+		"--channel", "builders",
 		"--kind", "say",
 		"--body", `{"text":"queued hello"}`,
 		"--ext", `{"agh.workflow_id":"wf-1","agh.handoff_version":3}`,
@@ -350,7 +351,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	newSession := func(name string) SessionRecord {
 		t.Helper()
 
-		out, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", name, "--space", "builders", "--cwd", h.workspace, "-o", "json")
+		out, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", name, "--channel", "builders", "--cwd", h.workspace, "-o", "json")
 		if err != nil {
 			t.Fatalf("session new %s error = %v", name, err)
 		}
@@ -382,7 +383,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 		out, _, err := executeRootCommand(t, h.deps,
 			"network", "send",
 			"--session", sender.ID,
-			"--space", "builders",
+			"--channel", "builders",
 			"--kind", "direct",
 			"--to", receiverPeerID,
 			"--interaction-id", "int-review-1",
@@ -467,7 +468,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
 		t.Fatalf("json.Unmarshal(session resume receiver) error = %v", err)
 	}
-	if resumed.State != session.StateActive || resumed.Space != "builders" {
+	if resumed.State != session.StateActive || resumed.Channel != "builders" {
 		t.Fatalf("resumed receiver = %#v, want active builders session", resumed)
 	}
 
@@ -899,7 +900,7 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 	}
 }
 
-func TestChannelCreateAndGetIntegration(t *testing.T) {
+func TestBridgeCreateAndGetIntegration(t *testing.T) {
 	t.Parallel()
 
 	h := newIntegrationHarness(t)
@@ -912,7 +913,7 @@ func TestChannelCreateAndGetIntegration(t *testing.T) {
 	createOut := mustExecuteRoot(
 		t,
 		h.deps,
-		"channel", "create",
+		"bridge", "create",
 		"--scope", "global",
 		"--platform", "telegram",
 		"--extension", "ext-telegram",
@@ -922,26 +923,26 @@ func TestChannelCreateAndGetIntegration(t *testing.T) {
 		"-o", "json",
 	)
 
-	var created ChannelRecord
+	var created BridgeRecord
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(channel create) error = %v", err)
+		t.Fatalf("json.Unmarshal(bridge create) error = %v", err)
 	}
-	if created.ID == "" || created.Platform != "telegram" || created.Status != channelspkg.ChannelStatusReady {
-		t.Fatalf("created channel = %#v", created)
+	if created.ID == "" || created.Platform != "telegram" || created.Status != bridgepkg.BridgeStatusReady {
+		t.Fatalf("created bridge = %#v", created)
 	}
 
-	getOut := mustExecuteRoot(t, h.deps, "channel", "get", created.ID, "-o", "json")
+	getOut := mustExecuteRoot(t, h.deps, "bridge", "get", created.ID, "-o", "json")
 
-	var fetched ChannelRecord
+	var fetched BridgeRecord
 	if err := json.Unmarshal([]byte(getOut), &fetched); err != nil {
-		t.Fatalf("json.Unmarshal(channel get) error = %v", err)
+		t.Fatalf("json.Unmarshal(bridge get) error = %v", err)
 	}
 	if fetched.ID != created.ID || fetched.DisplayName != "Support" || fetched.ExtensionName != "ext-telegram" {
-		t.Fatalf("fetched channel = %#v, want created record", fetched)
+		t.Fatalf("fetched bridge = %#v, want created record", fetched)
 	}
 }
 
-func TestChannelLifecycleCommandsIntegration(t *testing.T) {
+func TestBridgeLifecycleCommandsIntegration(t *testing.T) {
 	t.Parallel()
 
 	h := newIntegrationHarness(t)
@@ -954,7 +955,7 @@ func TestChannelLifecycleCommandsIntegration(t *testing.T) {
 	createOut := mustExecuteRoot(
 		t,
 		h.deps,
-		"channel", "create",
+		"bridge", "create",
 		"--scope", "global",
 		"--platform", "telegram",
 		"--extension", "ext-telegram",
@@ -964,43 +965,43 @@ func TestChannelLifecycleCommandsIntegration(t *testing.T) {
 		"-o", "json",
 	)
 
-	var created ChannelRecord
+	var created BridgeRecord
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(channel create) error = %v", err)
+		t.Fatalf("json.Unmarshal(bridge create) error = %v", err)
 	}
-	if created.Status != channelspkg.ChannelStatusDisabled || created.Enabled {
+	if created.Status != bridgepkg.BridgeStatusDisabled || created.Enabled {
 		t.Fatalf("created lifecycle = %#v, want disabled false", created)
 	}
 
-	enableOut := mustExecuteRoot(t, h.deps, "channel", "enable", created.ID, "-o", "json")
-	var enabled ChannelRecord
+	enableOut := mustExecuteRoot(t, h.deps, "bridge", "enable", created.ID, "-o", "json")
+	var enabled BridgeRecord
 	if err := json.Unmarshal([]byte(enableOut), &enabled); err != nil {
-		t.Fatalf("json.Unmarshal(channel enable) error = %v", err)
+		t.Fatalf("json.Unmarshal(bridge enable) error = %v", err)
 	}
-	if enabled.Status != channelspkg.ChannelStatusStarting || !enabled.Enabled {
-		t.Fatalf("enabled channel = %#v, want starting true", enabled)
+	if enabled.Status != bridgepkg.BridgeStatusStarting || !enabled.Enabled {
+		t.Fatalf("enabled bridge = %#v, want starting true", enabled)
 	}
 
-	disableOut := mustExecuteRoot(t, h.deps, "channel", "disable", created.ID, "-o", "json")
-	var disabled ChannelRecord
+	disableOut := mustExecuteRoot(t, h.deps, "bridge", "disable", created.ID, "-o", "json")
+	var disabled BridgeRecord
 	if err := json.Unmarshal([]byte(disableOut), &disabled); err != nil {
-		t.Fatalf("json.Unmarshal(channel disable) error = %v", err)
+		t.Fatalf("json.Unmarshal(bridge disable) error = %v", err)
 	}
-	if disabled.Status != channelspkg.ChannelStatusDisabled || disabled.Enabled {
-		t.Fatalf("disabled channel = %#v, want disabled false", disabled)
+	if disabled.Status != bridgepkg.BridgeStatusDisabled || disabled.Enabled {
+		t.Fatalf("disabled bridge = %#v, want disabled false", disabled)
 	}
 
-	restartOut := mustExecuteRoot(t, h.deps, "channel", "restart", created.ID, "-o", "json")
-	var restarted ChannelRecord
+	restartOut := mustExecuteRoot(t, h.deps, "bridge", "restart", created.ID, "-o", "json")
+	var restarted BridgeRecord
 	if err := json.Unmarshal([]byte(restartOut), &restarted); err != nil {
-		t.Fatalf("json.Unmarshal(channel restart) error = %v", err)
+		t.Fatalf("json.Unmarshal(bridge restart) error = %v", err)
 	}
-	if restarted.Status != channelspkg.ChannelStatusStarting || !restarted.Enabled {
-		t.Fatalf("restarted channel = %#v, want starting true", restarted)
+	if restarted.Status != bridgepkg.BridgeStatusStarting || !restarted.Enabled {
+		t.Fatalf("restarted bridge = %#v, want starting true", restarted)
 	}
 }
 
-func TestChannelRoutesIntegration(t *testing.T) {
+func TestBridgeRoutesIntegration(t *testing.T) {
 	t.Parallel()
 
 	h := newIntegrationHarness(t)
@@ -1013,7 +1014,7 @@ func TestChannelRoutesIntegration(t *testing.T) {
 	createOut := mustExecuteRoot(
 		t,
 		h.deps,
-		"channel", "create",
+		"bridge", "create",
 		"--scope", "global",
 		"--platform", "telegram",
 		"--extension", "ext-telegram",
@@ -1024,41 +1025,41 @@ func TestChannelRoutesIntegration(t *testing.T) {
 		"-o", "json",
 	)
 
-	var created ChannelRecord
+	var created BridgeRecord
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
-		t.Fatalf("json.Unmarshal(channel create) error = %v", err)
+		t.Fatalf("json.Unmarshal(bridge create) error = %v", err)
 	}
 
-	channels := h.runner.channelService()
-	if channels == nil {
-		t.Fatal("channel service = nil, want running integration channel service")
+	bridges := h.runner.bridgeService()
+	if bridges == nil {
+		t.Fatal("bridge service = nil, want running integration bridge service")
 	}
-	if _, err := channels.UpsertRoute(context.Background(), channelspkg.ChannelRoute{
-		ChannelInstanceID: created.ID,
-		Scope:             created.Scope,
-		WorkspaceID:       created.WorkspaceID,
-		PeerID:            "peer-1",
-		ThreadID:          "thread-1",
-		SessionID:         "sess-1",
-		AgentName:         "coder",
-		LastActivityAt:    fixedTestNow,
+	if _, err := bridges.UpsertRoute(context.Background(), bridgepkg.BridgeRoute{
+		BridgeInstanceID: created.ID,
+		Scope:            created.Scope,
+		WorkspaceID:      created.WorkspaceID,
+		PeerID:           "peer-1",
+		ThreadID:         "thread-1",
+		SessionID:        "sess-1",
+		AgentName:        "coder",
+		LastActivityAt:   fixedTestNow,
 	}); err != nil {
 		t.Fatalf("UpsertRoute() error = %v", err)
 	}
 
-	routesOut := mustExecuteRoot(t, h.deps, "channel", "routes", created.ID, "-o", "json")
+	routesOut := mustExecuteRoot(t, h.deps, "bridge", "routes", created.ID, "-o", "json")
 
-	var routes []ChannelRouteRecord
+	var routes []BridgeRouteRecord
 	if err := json.Unmarshal([]byte(routesOut), &routes); err != nil {
-		t.Fatalf("json.Unmarshal(channel routes) error = %v", err)
+		t.Fatalf("json.Unmarshal(bridge routes) error = %v", err)
 	}
 	if len(routes) != 1 || routes[0].PeerID != "peer-1" || routes[0].ThreadID != "thread-1" {
 		t.Fatalf("routes = %#v, want one inserted route", routes)
 	}
 
-	_, _, err := executeRootCommand(t, h.deps, "channel", "routes", "missing-channel", "-o", "json")
-	if err == nil || !strings.Contains(err.Error(), "channel instance not found") {
-		t.Fatalf("channel routes missing error = %v, want channel instance not found", err)
+	_, _, err := executeRootCommand(t, h.deps, "bridge", "routes", "missing-bridge", "-o", "json")
+	if err == nil || !strings.Contains(err.Error(), "bridge instance not found") {
+		t.Fatalf("bridge routes missing error = %v, want bridge instance not found", err)
 	}
 }
 
@@ -1100,9 +1101,9 @@ type integrationDaemon struct {
 	cancel  context.CancelFunc
 	done    chan error
 
-	channels *integrationChannelService
-	driver   *integrationDriver
-	manager  *session.Manager
+	bridges *integrationBridgeService
+	driver  *integrationDriver
+	manager *session.Manager
 }
 
 type integrationDaemonProcess struct {
@@ -1115,9 +1116,11 @@ type integrationExtensionService struct {
 	manager  *extensionpkg.Manager
 }
 
-type integrationChannelService struct {
-	*channelspkg.Service
+type integrationBridgeService struct {
+	*bridgepkg.Service
 }
+
+var _ core.BridgeService = (*integrationBridgeService)(nil)
 
 type integrationNotifierFanout struct {
 	notifiers []session.Notifier
@@ -1136,31 +1139,31 @@ type lockedBuffer struct {
 	buffer bytes.Buffer
 }
 
-func newIntegrationChannelService(store channelspkg.RegistryStore) *integrationChannelService {
-	return &integrationChannelService{Service: channelspkg.NewRegistry(store)}
+func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
+	return &integrationBridgeService{Service: bridgepkg.NewRegistry(store)}
 }
 
-func (s *integrationChannelService) StartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
-	return s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+func (s *integrationBridgeService) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+	return s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: true,
-		Status:  channelspkg.ChannelStatusStarting,
+		Status:  bridgepkg.BridgeStatusStarting,
 	})
 }
 
-func (s *integrationChannelService) StopInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
-	return s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+func (s *integrationBridgeService) StopInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+	return s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: false,
-		Status:  channelspkg.ChannelStatusDisabled,
+		Status:  bridgepkg.BridgeStatusDisabled,
 	})
 }
 
-func (s *integrationChannelService) RestartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
-	return s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+func (s *integrationBridgeService) RestartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+	return s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: true,
-		Status:  channelspkg.ChannelStatusStarting,
+		Status:  bridgepkg.BridgeStatusStarting,
 	})
 }
 
@@ -1383,11 +1386,13 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	d.manager = manager
 	d.mu.Unlock()
 
+	bridgeService := newIntegrationBridgeService(registry)
 	observer, err := observe.New(
 		context.Background(),
 		observe.WithHomePaths(d.homePaths),
 		observe.WithRegistry(registry),
 		observe.WithSessionSource(manager),
+		observe.WithBridgeSource(bridgeService),
 		observe.WithLogger(discardLogger()),
 		observe.WithStartTime(d.startedAt),
 	)
@@ -1403,7 +1408,6 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	if err := memoryStore.EnsureDirs(); err != nil {
 		return fmt.Errorf("ensure memory dirs: %w", err)
 	}
-	channelService := newIntegrationChannelService(registry)
 	dreamTrigger := &integrationDreamTrigger{
 		enabled:   true,
 		triggered: true,
@@ -1471,7 +1475,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		udsapi.WithNetworkService(networkManager),
 		udsapi.WithObserver(observer),
 		udsapi.WithAutomation(automationManager),
-		udsapi.WithChannelService(channelService),
+		udsapi.WithBridgeService(bridgeService),
 		udsapi.WithWorkspaceResolver(resolver),
 		udsapi.WithMemoryStore(memoryStore),
 		udsapi.WithDreamTrigger(dreamTrigger),
@@ -1485,7 +1489,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		return fmt.Errorf("start uds server: %w", err)
 	}
 	d.mu.Lock()
-	d.channels = channelService
+	d.bridges = bridgeService
 	d.mu.Unlock()
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -1500,7 +1504,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		_ = server.Shutdown(shutdownCtx)
 		_ = aghdaemon.RemoveInfo(d.homePaths.DaemonInfo)
 		d.mu.Lock()
-		d.channels = nil
+		d.bridges = nil
 		d.manager = nil
 		d.driver = nil
 		d.mu.Unlock()
@@ -1553,10 +1557,10 @@ func (d *integrationDaemon) waitForExit() error {
 	return <-done
 }
 
-func (d *integrationDaemon) channelService() *integrationChannelService {
+func (d *integrationDaemon) bridgeService() *integrationBridgeService {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.channels
+	return d.bridges
 }
 
 func (f *integrationNotifierFanout) OnSessionCreated(ctx context.Context, sess *session.Session) {

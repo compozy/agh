@@ -164,21 +164,21 @@ func TestManagerJoinSendStatusAndLeave(t *testing.T) {
 		t.Parallel()
 
 		ctx, manager, prompter := newManagerHarness(t)
-		if err := manager.JoinSpace(ctx, "sess-a", "coder.sess-a", "builders"); err != nil {
-			t.Fatalf("JoinSpace() error = %v", err)
+		if err := manager.JoinChannel(ctx, "sess-a", "coder.sess-a", "builders"); err != nil {
+			t.Fatalf("JoinChannel() error = %v", err)
 		}
 
 		status, err := manager.Status(ctx)
 		if err != nil {
 			t.Fatalf("Status(joined) error = %v", err)
 		}
-		if status.LocalPeers != 1 || status.Spaces != 1 {
-			t.Fatalf("Status(joined) = %#v, want 1 local peer and 1 space", status)
+		if status.LocalPeers != 1 || status.Channels != 1 {
+			t.Fatalf("Status(joined) = %#v, want 1 local peer and 1 channel", status)
 		}
 
 		id, err := manager.Send(ctx, SendRequest{
 			SessionID: "sess-a",
-			Space:     "builders",
+			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "hello builders"}),
 		})
@@ -209,26 +209,26 @@ func TestManagerJoinSendStatusAndLeave(t *testing.T) {
 		}
 	})
 
-	t.Run("Should leave space idempotently and clear status", func(t *testing.T) {
+	t.Run("Should leave channel idempotently and clear status", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, manager, _ := newManagerHarness(t)
-		if err := manager.JoinSpace(ctx, "sess-a", "coder.sess-a", "builders"); err != nil {
-			t.Fatalf("JoinSpace() error = %v", err)
+		if err := manager.JoinChannel(ctx, "sess-a", "coder.sess-a", "builders"); err != nil {
+			t.Fatalf("JoinChannel() error = %v", err)
 		}
-		if err := manager.LeaveSpace(ctx, "sess-a"); err != nil {
-			t.Fatalf("LeaveSpace() error = %v", err)
+		if err := manager.LeaveChannel(ctx, "sess-a"); err != nil {
+			t.Fatalf("LeaveChannel() error = %v", err)
 		}
-		if err := manager.LeaveSpace(ctx, "sess-a"); err != nil {
-			t.Fatalf("LeaveSpace(repeated) error = %v, want nil", err)
+		if err := manager.LeaveChannel(ctx, "sess-a"); err != nil {
+			t.Fatalf("LeaveChannel(repeated) error = %v, want nil", err)
 		}
 
 		status, err := manager.Status(ctx)
 		if err != nil {
 			t.Fatalf("Status(left) error = %v", err)
 		}
-		if status.LocalPeers != 0 || status.Spaces != 0 {
-			t.Fatalf("Status(left) = %#v, want zero local peers and spaces", status)
+		if status.LocalPeers != 0 || status.Channels != 0 {
+			t.Fatalf("Status(left) = %#v, want zero local peers and channels", status)
 		}
 	})
 }
@@ -260,8 +260,8 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 			}
 		})
 
-		if err := manager.JoinSpace(ctx, "sess-busy", "reviewer.sess-busy", "builders"); err != nil {
-			t.Fatalf("JoinSpace() error = %v", err)
+		if err := manager.JoinChannel(ctx, "sess-busy", "reviewer.sess-busy", "builders"); err != nil {
+			t.Fatalf("JoinChannel() error = %v", err)
 		}
 
 		return ctx, manager, prompter
@@ -274,7 +274,7 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 		prompter.setPrompting("sess-busy", true)
 		if _, err := manager.Send(ctx, SendRequest{
 			SessionID: "sess-busy",
-			Space:     "builders",
+			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "queued while busy"}),
 		}); err != nil {
@@ -379,7 +379,7 @@ func TestCleanupSubscriptionHelpers(t *testing.T) {
 	t.Run("ShouldRollbackDuplicateBroadcastRefCountWhenCleanupFails", func(t *testing.T) {
 		t.Parallel()
 
-		runtime := &managedSpace{space: "builders", refCount: 2}
+		runtime := &managedChannel{channel: "builders", refCount: 2}
 		unsubscribeErr := errors.New("duplicate cleanup failed")
 
 		err := cleanupDuplicateBroadcastSubscription("builders", runtime, func() error { return unsubscribeErr })
@@ -390,7 +390,7 @@ func TestCleanupSubscriptionHelpers(t *testing.T) {
 			t.Fatalf("duplicate cleanup refCount = %d, want %d", got, want)
 		}
 		if !strings.Contains(err.Error(), `unsubscribe duplicate broadcast subject for "builders"`) {
-			t.Fatalf("cleanupDuplicateBroadcastSubscription() error = %v, want space context", err)
+			t.Fatalf("cleanupDuplicateBroadcastSubscription() error = %v, want channel context", err)
 		}
 	})
 }
@@ -440,13 +440,13 @@ func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 		}
 	}()
 
-	if err := manager.JoinSpace(ctx, "sess-a", "reviewer.sess-a", "builders"); err != nil {
-		t.Fatalf("JoinSpace() error = %v", err)
+	if err := manager.JoinChannel(ctx, "sess-a", "reviewer.sess-a", "builders"); err != nil {
+		t.Fatalf("JoinChannel() error = %v", err)
 	}
 
 	_, err = manager.Send(ctx, SendRequest{
 		SessionID:     "sess-a",
-		Space:         "builders",
+		Channel:       "builders",
 		Kind:          KindSay,
 		Body:          mustRawJSON(t, map[string]any{"text": "hello builders"}),
 		ReplyTo:       ptrString("msg-root"),
@@ -526,13 +526,13 @@ func TestManagerShutdownTracksInterruptedInFlightMessages(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	if err := manager.JoinSpace(ctx, "sess-stop", "reviewer.sess-stop", "builders"); err != nil {
-		t.Fatalf("JoinSpace() error = %v", err)
+	if err := manager.JoinChannel(ctx, "sess-stop", "reviewer.sess-stop", "builders"); err != nil {
+		t.Fatalf("JoinChannel() error = %v", err)
 	}
 
 	if _, err := manager.Send(ctx, SendRequest{
 		SessionID: "sess-stop",
-		Space:     "builders",
+		Channel:   "builders",
 		Kind:      KindSay,
 		Body:      mustRawJSON(t, map[string]any{"text": "hello before shutdown"}),
 	}); err != nil {
@@ -597,8 +597,8 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		}
 	}()
 
-	if err := manager.JoinSpace(ctx, "sess-local", "reviewer.sess-local", "builders"); err != nil {
-		t.Fatalf("JoinSpace() error = %v", err)
+	if err := manager.JoinChannel(ctx, "sess-local", "reviewer.sess-local", "builders"); err != nil {
+		t.Fatalf("JoinChannel() error = %v", err)
 	}
 
 	remoteCard, err := DefaultPeerCard("coder.sess-remote")
@@ -609,7 +609,7 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		Protocol: ProtocolV0,
 		ID:       "msg-greet-remote",
 		Kind:     KindGreet,
-		Space:    "builders",
+		Channel:  "builders",
 		From:     remoteCard.PeerID,
 		TS:       fixedNow.Unix(),
 		Body:     mustRawJSON(t, GreetBody{PeerCard: remoteCard, Summary: "remote hello"}),
@@ -638,19 +638,19 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		t.Fatalf("remote peer last_seen = %v, want %s", remoteSeen, fixedNow)
 	}
 
-	spaces, err := manager.ListSpaces(ctx)
+	channels, err := manager.ListChannels(ctx)
 	if err != nil {
-		t.Fatalf("ListSpaces() error = %v", err)
+		t.Fatalf("ListChannels() error = %v", err)
 	}
-	if len(spaces) != 1 || spaces[0].PeerCount != 2 {
-		t.Fatalf("ListSpaces() = %#v, want one space with two peers", spaces)
+	if len(channels) != 1 || channels[0].PeerCount != 2 {
+		t.Fatalf("ListChannels() = %#v, want one channel with two peers", channels)
 	}
 
 	sayPayload, err := json.Marshal(Envelope{
 		Protocol: ProtocolV0,
 		ID:       "msg-say-remote",
 		Kind:     KindSay,
-		Space:    "builders",
+		Channel:  "builders",
 		From:     remoteCard.PeerID,
 		TS:       fixedNow.Unix(),
 		Body:     mustRawJSON(t, map[string]any{"text": "remote delivery"}),
@@ -705,8 +705,8 @@ func TestManagerAuditsGeneratedGreetsAndControlReceivers(t *testing.T) {
 	}()
 
 	for _, sessionID := range []string{"sess-a", "sess-b", "sess-c"} {
-		if err := manager.JoinSpace(ctx, sessionID, "coder."+sessionID, "builders"); err != nil {
-			t.Fatalf("JoinSpace(%q) error = %v", sessionID, err)
+		if err := manager.JoinChannel(ctx, sessionID, "coder."+sessionID, "builders"); err != nil {
+			t.Fatalf("JoinChannel(%q) error = %v", sessionID, err)
 		}
 	}
 
@@ -734,7 +734,7 @@ func TestManagerAuditsGeneratedGreetsAndControlReceivers(t *testing.T) {
 		Protocol: ProtocolV0,
 		ID:       "msg-greet-control-audit",
 		Kind:     KindGreet,
-		Space:    "builders",
+		Channel:  "builders",
 		From:     remoteCard.PeerID,
 		TS:       fixedNow.Unix(),
 		Body:     mustRawJSON(t, GreetBody{PeerCard: remoteCard, Summary: "remote hello"}),
@@ -755,7 +755,7 @@ func TestManagerAuditsGeneratedGreetsAndControlReceivers(t *testing.T) {
 		Protocol: ProtocolV0,
 		ID:       "msg-whois-control-audit",
 		Kind:     KindWhois,
-		Space:    "builders",
+		Channel:  "builders",
 		From:     remoteCard.PeerID,
 		TS:       fixedNow.Unix(),
 		Body: mustRawJSON(t, WhoisBody{
@@ -792,17 +792,17 @@ func TestManagerValidationAndNilGuards(t *testing.T) {
 	if _, err := nilManager.ListPeers(context.Background(), "builders"); err == nil {
 		t.Fatal("nil manager ListPeers() error = nil, want non-nil")
 	}
-	if _, err := nilManager.ListSpaces(context.Background()); err == nil {
-		t.Fatal("nil manager ListSpaces() error = nil, want non-nil")
+	if _, err := nilManager.ListChannels(context.Background()); err == nil {
+		t.Fatal("nil manager ListChannels() error = nil, want non-nil")
 	}
 	if _, err := nilManager.Inbox(context.Background(), "sess"); err == nil {
 		t.Fatal("nil manager Inbox() error = nil, want non-nil")
 	}
-	if err := nilManager.JoinSpace(context.Background(), "sess", "peer", "builders"); err == nil {
-		t.Fatal("nil manager JoinSpace() error = nil, want non-nil")
+	if err := nilManager.JoinChannel(context.Background(), "sess", "peer", "builders"); err == nil {
+		t.Fatal("nil manager JoinChannel() error = nil, want non-nil")
 	}
-	if err := nilManager.LeaveSpace(context.Background(), "sess"); err == nil {
-		t.Fatal("nil manager LeaveSpace() error = nil, want non-nil")
+	if err := nilManager.LeaveChannel(context.Background(), "sess"); err == nil {
+		t.Fatal("nil manager LeaveChannel() error = nil, want non-nil")
 	}
 	if _, err := nilManager.Send(context.Background(), SendRequest{}); err == nil {
 		t.Fatal("nil manager Send() error = nil, want non-nil")
@@ -828,11 +828,11 @@ func TestManagerValidationAndNilGuards(t *testing.T) {
 		}
 	}()
 
-	if err := manager.JoinSpace(nilTestContext(), "sess", "peer", "builders"); err == nil {
-		t.Fatal("JoinSpace(nil ctx) error = nil, want non-nil")
+	if err := manager.JoinChannel(nilTestContext(), "sess", "peer", "builders"); err == nil {
+		t.Fatal("JoinChannel(nil ctx) error = nil, want non-nil")
 	}
-	if err := manager.LeaveSpace(nilTestContext(), "sess"); err == nil {
-		t.Fatal("LeaveSpace(nil ctx) error = nil, want non-nil")
+	if err := manager.LeaveChannel(nilTestContext(), "sess"); err == nil {
+		t.Fatal("LeaveChannel(nil ctx) error = nil, want non-nil")
 	}
 	if _, err := manager.Send(nilTestContext(), SendRequest{}); err == nil {
 		t.Fatal("Send(nil ctx) error = nil, want non-nil")
@@ -843,17 +843,17 @@ func TestManagerValidationAndNilGuards(t *testing.T) {
 	if _, err := manager.ListPeers(nilTestContext(), "builders"); err == nil {
 		t.Fatal("ListPeers(nil ctx) error = nil, want non-nil")
 	}
-	if _, err := manager.ListSpaces(nilTestContext()); err == nil {
-		t.Fatal("ListSpaces(nil ctx) error = nil, want non-nil")
+	if _, err := manager.ListChannels(nilTestContext()); err == nil {
+		t.Fatal("ListChannels(nil ctx) error = nil, want non-nil")
 	}
 	if _, err := manager.Inbox(nilTestContext(), "sess"); err == nil {
 		t.Fatal("Inbox(nil ctx) error = nil, want non-nil")
 	}
-	if err := manager.JoinSpace(context.Background(), "", "peer", "builders"); err == nil {
-		t.Fatal("JoinSpace(missing session) error = nil, want non-nil")
+	if err := manager.JoinChannel(context.Background(), "", "peer", "builders"); err == nil {
+		t.Fatal("JoinChannel(missing session) error = nil, want non-nil")
 	}
-	if err := manager.LeaveSpace(context.Background(), ""); err == nil {
-		t.Fatal("LeaveSpace(missing session) error = nil, want non-nil")
+	if err := manager.LeaveChannel(context.Background(), ""); err == nil {
+		t.Fatal("LeaveChannel(missing session) error = nil, want non-nil")
 	}
 
 	cancelledCtx, cancelled := context.WithCancel(context.Background())
@@ -910,18 +910,18 @@ func TestManagerRecordInboundAuditCapturesRejectedAndGeneratedEntries(t *testing
 	reason := ReasonCodeBusy
 	manager.recordInboundAudit(RouteResult{
 		Envelope: &Envelope{
-			ID:    "msg-rejected",
-			Kind:  KindSay,
-			Space: "builders",
-			From:  "coder.sess-remote",
+			ID:      "msg-rejected",
+			Kind:    KindSay,
+			Channel: "builders",
+			From:    "coder.sess-remote",
 		},
 		Rejected:   true,
 		ReasonCode: &reason,
 		Generated: []Envelope{{
-			ID:    "msg-receipt",
-			Kind:  KindReceipt,
-			Space: "builders",
-			From:  "reviewer.sess-local",
+			ID:      "msg-receipt",
+			Kind:    KindReceipt,
+			Channel: "builders",
+			From:    "reviewer.sess-local",
 		}},
 	})
 
@@ -935,13 +935,13 @@ func TestManagerRecordInboundAuditCapturesRejectedAndGeneratedEntries(t *testing
 
 func testManagerConfig() aghconfig.NetworkConfig {
 	return aghconfig.NetworkConfig{
-		Enabled:       true,
-		DefaultSpace:  "builders",
-		Port:          -1,
-		MaxPayload:    1 << 20,
-		GreetInterval: 1,
-		MaxReplayAge:  300,
-		MaxQueueDepth: 8,
+		Enabled:        true,
+		DefaultChannel: "builders",
+		Port:           -1,
+		MaxPayload:     1 << 20,
+		GreetInterval:  1,
+		MaxReplayAge:   300,
+		MaxQueueDepth:  8,
 	}
 }
 

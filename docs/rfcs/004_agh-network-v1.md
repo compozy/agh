@@ -19,7 +19,7 @@ This RFC defines:
 3. Verified sender identity format — self-certified `nickname@fingerprint` handles
 4. Proof-stripping defense — verified-format identity without proof is `rejected`
 5. Formal conformance levels — for third-party interoperability
-6. Extension model processing — namespaced `ext` validation
+6. Extension model processing — namechanneld `ext` validation
 7. NATS request/reply correlation
 
 Everything defined in v0 (envelope, message kinds, lifecycle, delivery model) remains normative. v1 extends the NATS transport with a verified-peer routing rule and a new subject prefix (`agh.network.v1`).
@@ -64,7 +64,7 @@ A `Core Receiver` MUST:
 - honor expiration semantics
 - tolerate duplicate delivery semantics at the application level
 - surface trust state as `verified`, `unverified`, or `rejected`
-- ignore unknown extension namespaces rather than failing the whole message
+- ignore unknown extension namechannels rather than failing the whole message
 
 ### 2.3 Core Peer
 
@@ -103,7 +103,7 @@ When a receiver processes a core envelope it MUST, in this order:
 2. Reject malformed messages
 3. Evaluate expiration if `expires_at` is present
 4. **Evaluate trust state: check `proof` if present, or check `from` format if `proof` is absent (see Section 3.3)**
-5. Route based on `kind`, `space`, and `to`
+5. Route based on `kind`, `channel`, and `to`
 6. Apply lifecycle semantics if `interaction_id` is present
 7. **Apply extension-specific handling only after successful core validation**
 
@@ -130,7 +130,7 @@ flowchart TD
     TrustOk -->|Yes| Verified[Trust state = verified]
     TrustOk -->|No| Rejected
 
-    Verified --> Route[Route by kind + space + to]
+    Verified --> Route[Route by kind + channel + to]
     Unverified --> Route
     Rejected --> Stop([Reject / stop processing])
 
@@ -262,11 +262,11 @@ A `Verified Peer` MUST:
 
 ## 5. Extension Model Processing
 
-In v0, the `ext` field is active with RECOMMENDED conventions: peers MAY read and act on known keys, MUST ignore unknown keys, and the `agh.` prefix is RECOMMENDED but not enforced. In v1, extension processing is normative and namespaced keys become a MUST requirement.
+In v0, the `ext` field is active with RECOMMENDED conventions: peers MAY read and act on known keys, MUST ignore unknown keys, and the `agh.` prefix is RECOMMENDED but not enforced. In v1, extension processing is normative and namechanneld keys become a MUST requirement.
 
 ### 5.1 Extension keys
 
-`ext` keys MUST be namespaced strings. Reverse-DNS style names are RECOMMENDED, for example:
+`ext` keys MUST be namechanneld strings. Reverse-DNS style names are RECOMMENDED, for example:
 
 - `io.agh.runtime`
 - `dev.example.sandbox`
@@ -287,7 +287,7 @@ When a peer is operating in baseline verified mode and its identity is a self-ce
 
 This means a verified peer's direct subject is:
 
-`agh.network.v1.<space>.peer.<fingerprint>`
+`agh.network.v1.<channel>.peer.<fingerprint>`
 
 Where `<fingerprint>` is the first 32 hex characters from the `from` field.
 
@@ -340,7 +340,7 @@ This envelope shows verified-mode shape: `from` uses `nickname@fingerprint`, and
   "protocol": "agh-network/v1",
   "id": "msg_verified_say_01",
   "kind": "say",
-  "space": "builders",
+  "channel": "builders",
   "from": "patch-worker@39f713d0a644253f04529421b9f51b9b",
   "to": null,
   "interaction_id": null,

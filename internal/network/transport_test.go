@@ -47,8 +47,8 @@ func TestTransportSubjectHelpers(t *testing.T) {
 		t.Fatalf("DirectSubject() = %q, want peer subject", direct)
 	}
 
-	if _, err := BroadcastSubject("Bad Space"); err == nil {
-		t.Fatal("BroadcastSubject(invalid space) error = nil, want non-nil")
+	if _, err := BroadcastSubject("Bad Channel"); err == nil {
+		t.Fatal("BroadcastSubject(invalid channel) error = nil, want non-nil")
 	}
 	if _, err := DirectSubject("builders", "BadPeer"); err == nil {
 		t.Fatal("DirectSubject(invalid peer) error = nil, want non-nil")
@@ -146,13 +146,13 @@ func TestTransportLifecycleAndMethodGuards(t *testing.T) {
 
 func testNetworkConfig() aghconfig.NetworkConfig {
 	return aghconfig.NetworkConfig{
-		Enabled:       true,
-		DefaultSpace:  "default",
-		Port:          -1,
-		MaxPayload:    1 << 20,
-		GreetInterval: 30,
-		MaxReplayAge:  300,
-		MaxQueueDepth: 100,
+		Enabled:        true,
+		DefaultChannel: "default",
+		Port:           -1,
+		MaxPayload:     1 << 20,
+		GreetInterval:  30,
+		MaxReplayAge:   300,
+		MaxQueueDepth:  100,
 	}
 }
 

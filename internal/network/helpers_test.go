@@ -107,7 +107,7 @@ func TestValidateEnvelopeAndDecodeBodyErrors(t *testing.T) {
 		Protocol:      ProtocolV0,
 		ID:            "msg_direct_01",
 		Kind:          KindDirect,
-		Space:         "builders",
+		Channel:       "builders",
 		From:          "coder.sess-abc",
 		To:            stringPtr("reviewer.sess-xyz"),
 		InteractionID: stringPtr("int_patch_42"),
@@ -178,7 +178,7 @@ func TestInteractionValidationAndTraceMatrix(t *testing.T) {
 
 	valid := Interaction{
 		ID:        "int_patch_42",
-		Space:     "builders",
+		Channel:   "builders",
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
 		State:     StateWorking,
@@ -197,7 +197,7 @@ func TestInteractionValidationAndTraceMatrix(t *testing.T) {
 		Protocol:      ProtocolV0,
 		ID:            "msg_trace_01",
 		Kind:          KindTrace,
-		Space:         "builders",
+		Channel:       "builders",
 		From:          "reviewer.sess-xyz",
 		To:            stringPtr("coder.sess-abc"),
 		InteractionID: stringPtr("int_patch_42"),
@@ -244,7 +244,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		Protocol: ProtocolV0,
 		ID:       "msg_greet_01",
 		Kind:     KindGreet,
-		Space:    "builders",
+		Channel:  "builders",
 		From:     "coder.sess-abc",
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
@@ -265,7 +265,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		Protocol: ProtocolV0,
 		ID:       "msg_receipt_01",
 		Kind:     KindReceipt,
-		Space:    "builders",
+		Channel:  "builders",
 		From:     "reviewer.sess-xyz",
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
@@ -298,7 +298,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		Protocol:      ProtocolV0,
 		ID:            "msg_trace_01",
 		Kind:          KindTrace,
-		Space:         "builders",
+		Channel:       "builders",
 		From:          "reviewer.sess-xyz",
 		To:            stringPtr("coder.sess-abc"),
 		InteractionID: stringPtr("int_patch_42"),
@@ -311,7 +311,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 
 	terminal := &Interaction{
 		ID:        "int_patch_42",
-		Space:     "builders",
+		Channel:   "builders",
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
 		State:     StateCanceled,
@@ -322,7 +322,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		Protocol:      ProtocolV0,
 		ID:            "msg_receipt_02",
 		Kind:          KindReceipt,
-		Space:         "builders",
+		Channel:       "builders",
 		From:          "coder.sess-abc",
 		To:            stringPtr("reviewer.sess-xyz"),
 		InteractionID: stringPtr("int_patch_42"),

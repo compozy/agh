@@ -32,7 +32,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				Protocol: " agh-network/v0 ",
 				ID:       " msg_greet_01 ",
 				Kind:     " greet ",
-				Space:    " builders ",
+				Channel:  " builders ",
 				From:     " coder.sess-abc ",
 				To:       nil,
 				TS:       now.Unix(),
@@ -56,7 +56,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				Protocol: "agh-network/v0",
 				ID:       "msg_whois_01",
 				Kind:     KindWhois,
-				Space:    "builders",
+				Channel:  "builders",
 				From:     "coder.sess-abc",
 				To:       &target,
 				ReplyTo:  &replyTo,
@@ -81,7 +81,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				Protocol: "agh-network/v0",
 				ID:       "msg_say_01",
 				Kind:     KindSay,
-				Space:    "builders",
+				Channel:  "builders",
 				From:     "coder.sess-abc",
 				TS:       now.Unix(),
 				Body: mustRawJSON(t, map[string]any{
@@ -98,7 +98,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				Protocol:      "agh-network/v0",
 				ID:            "msg_direct_01",
 				Kind:          KindDirect,
-				Space:         "builders",
+				Channel:       "builders",
 				From:          "coder.sess-abc",
 				To:            &target,
 				InteractionID: &interactionID,
@@ -118,7 +118,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				Protocol: "agh-network/v0",
 				ID:       "msg_recipe_01",
 				Kind:     KindRecipe,
-				Space:    "builders",
+				Channel:  "builders",
 				From:     "coder.sess-abc",
 				TS:       now.Unix(),
 				Body: mustRawJSON(t, map[string]any{
@@ -141,7 +141,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				Protocol:      "agh-network/v0",
 				ID:            "msg_receipt_01",
 				Kind:          KindReceipt,
-				Space:         "builders",
+				Channel:       "builders",
 				From:          "reviewer.sess-xyz",
 				To:            stringPtr(target),
 				InteractionID: stringPtr(interactionID),
@@ -161,7 +161,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				Protocol:      "agh-network/v0",
 				ID:            "msg_trace_01",
 				Kind:          KindTrace,
-				Space:         "builders",
+				Channel:       "builders",
 				From:          "reviewer.sess-xyz",
 				To:            stringPtr("coder.sess-abc"),
 				InteractionID: stringPtr(interactionID),
@@ -189,8 +189,8 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 			if normalized.Kind != tc.wantKind {
 				t.Fatalf("NormalizeEnvelope().Kind = %q, want %q", normalized.Kind, tc.wantKind)
 			}
-			if normalized.Space != "builders" {
-				t.Fatalf("NormalizeEnvelope().Space = %q, want builders", normalized.Space)
+			if normalized.Channel != "builders" {
+				t.Fatalf("NormalizeEnvelope().Channel = %q, want builders", normalized.Channel)
 			}
 			if normalized.From == "" || strings.Contains(normalized.From, " ") {
 				t.Fatalf("NormalizeEnvelope().From = %q, want trimmed peer id", normalized.From)
@@ -217,7 +217,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 		Protocol:      ProtocolV0,
 		ID:            "msg_direct_01",
 		Kind:          KindDirect,
-		Space:         "builders",
+		Channel:       "builders",
 		From:          "coder.sess-abc",
 		To:            stringPtr("reviewer.sess-xyz"),
 		InteractionID: stringPtr("int_patch_42"),
@@ -234,13 +234,13 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 		wantMatch string
 	}{
 		{
-			name: "invalid space",
+			name: "invalid channel",
 			mutate: func(env Envelope) Envelope {
-				env.Space = "bad.space"
+				env.Channel = "bad.channel"
 				return env
 			},
 			wantErr:   ErrInvalidField,
-			wantMatch: "space",
+			wantMatch: "channel",
 		},
 		{
 			name: "invalid from",
@@ -254,7 +254,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 		{
 			name: "invalid to",
 			mutate: func(env Envelope) Envelope {
-				env.To = stringPtr("missing space")
+				env.To = stringPtr("missing channel")
 				return env
 			},
 			wantErr:   ErrInvalidField,
@@ -414,7 +414,7 @@ func TestExtRoundTripPreservesOpaqueKeys(t *testing.T) {
 	  "protocol": "agh-network/v0",
 	  "id": "msg_direct_ext_01",
 	  "kind": "direct",
-	  "space": "builders",
+	  "channel": "builders",
 	  "from": "coder.sess-abc",
 	  "to": "reviewer.sess-xyz",
 	  "interaction_id": "int_patch_42",

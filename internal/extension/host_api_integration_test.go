@@ -11,7 +11,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -113,18 +113,18 @@ func TestHostAPIIntegrationStoresAndRecallsMemory(t *testing.T) {
 	}
 }
 
-func TestHostAPIIntegrationChannelsMessagesIngestCreatesRouteAndSession(t *testing.T) {
+func TestHostAPIIntegrationBridgesMessagesIngestCreatesRouteAndSession(t *testing.T) {
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-integration-ingest",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-integration-ingest",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
 	})
-	ctx := env.channelContext(t, instance)
+	ctx := env.bridgeContext(t, instance)
 
-	result, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", map[string]any{
-		"channel_instance_id": instance.ID,
+	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+		"bridge_instance_id":  instance.ID,
 		"scope":               instance.Scope,
 		"workspace_id":        instance.WorkspaceID,
 		"peer_id":             "peer-1",
@@ -135,38 +135,38 @@ func TestHostAPIIntegrationChannelsMessagesIngestCreatesRouteAndSession(t *testi
 		"content":             map[string]any{"text": "hello from telegram"},
 	})
 	if err != nil {
-		t.Fatalf("Handle(channels/messages/ingest) error = %v", err)
+		t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
 	}
 
-	var ingest hostAPIChannelsMessagesIngestResult
+	var ingest hostAPIBridgesMessagesIngestResult
 	decodeResult(t, result, &ingest)
 	if ingest.SessionID == "" {
-		t.Fatal("channels/messages/ingest session_id = empty, want non-empty")
+		t.Fatal("bridges/messages/ingest session_id = empty, want non-empty")
 	}
 	if !ingest.RouteCreated {
-		t.Fatal("channels/messages/ingest route_created = false, want true")
+		t.Fatal("bridges/messages/ingest route_created = false, want true")
 	}
 
-	route, err := env.channels.ResolveRoute(testutil.Context(t), ingest.RoutingKey)
+	route, err := env.bridges.ResolveRoute(testutil.Context(t), ingest.RoutingKey)
 	if err != nil {
-		t.Fatalf("channels.ResolveRoute() error = %v", err)
+		t.Fatalf("bridges.ResolveRoute() error = %v", err)
 	}
 	if route.SessionID != ingest.SessionID {
 		t.Fatalf("resolved route session_id = %q, want %q", route.SessionID, ingest.SessionID)
 	}
 }
 
-func TestHostAPIIntegrationChannelsMessagesIngestDuplicateRetryIsSuppressed(t *testing.T) {
+func TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed(t *testing.T) {
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-integration-dedup",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-integration-dedup",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	ctx := env.channelContext(t, instance)
+	ctx := env.bridgeContext(t, instance)
 	params := map[string]any{
-		"channel_instance_id": instance.ID,
+		"bridge_instance_id":  instance.ID,
 		"scope":               instance.Scope,
 		"workspace_id":        instance.WorkspaceID,
 		"peer_id":             "peer-1",
@@ -176,25 +176,25 @@ func TestHostAPIIntegrationChannelsMessagesIngestDuplicateRetryIsSuppressed(t *t
 		"content":             map[string]any{"text": "retry me"},
 	}
 
-	first, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params)
+	first, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", params)
 	if err != nil {
-		t.Fatalf("first Handle(channels/messages/ingest) error = %v", err)
+		t.Fatalf("first Handle(bridges/messages/ingest) error = %v", err)
 	}
-	var firstResult hostAPIChannelsMessagesIngestResult
+	var firstResult hostAPIBridgesMessagesIngestResult
 	decodeResult(t, first, &firstResult)
 
 	env.advanceTime(2 * time.Minute)
 
-	second, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params)
+	second, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", params)
 	if err != nil {
-		t.Fatalf("retry Handle(channels/messages/ingest) error = %v", err)
+		t.Fatalf("retry Handle(bridges/messages/ingest) error = %v", err)
 	}
-	var secondResult hostAPIChannelsMessagesIngestResult
+	var secondResult hostAPIBridgesMessagesIngestResult
 	decodeResult(t, second, &secondResult)
 
-	routes, err := env.channels.ListRoutes(testutil.Context(t), instance.ID)
+	routes, err := env.bridges.ListRoutes(testutil.Context(t), instance.ID)
 	if err != nil {
-		t.Fatalf("channels.ListRoutes() error = %v", err)
+		t.Fatalf("bridges.ListRoutes() error = %v", err)
 	}
 	if got := len(routes); got != 1 {
 		t.Fatalf("len(routes) = %d, want 1", got)
@@ -207,53 +207,53 @@ func TestHostAPIIntegrationChannelsMessagesIngestDuplicateRetryIsSuppressed(t *t
 	}
 }
 
-func TestHostAPIIntegrationChannelsInstancesReportStatePublishesAuthRequired(t *testing.T) {
+func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *testing.T) {
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/instances/report_state", "channels/instances/get"}, []string{"channel.write", "channel.read"})
+	env.grant("telegram-adapter", []string{"bridges/instances/report_state", "bridges/instances/get"}, []string{"bridge.write", "bridge.read"})
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-integration-state",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-integration-state",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	ctx := env.channelContext(t, instance)
+	ctx := env.bridgeContext(t, instance)
 
-	result, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/instances/report_state", map[string]any{
+	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/report_state", map[string]any{
 		"status": "auth_required",
 	})
 	if err != nil {
-		t.Fatalf("Handle(channels/instances/report_state) error = %v", err)
+		t.Fatalf("Handle(bridges/instances/report_state) error = %v", err)
 	}
 
-	var updated hostAPIChannelInstance
+	var updated hostAPIBridgeInstance
 	decodeResult(t, result, &updated)
-	if updated.Status != channelspkg.ChannelStatusAuthRequired {
-		t.Fatalf("channels/instances/report_state status = %q, want %q", updated.Status, channelspkg.ChannelStatusAuthRequired)
+	if updated.Status != bridgepkg.BridgeStatusAuthRequired {
+		t.Fatalf("bridges/instances/report_state status = %q, want %q", updated.Status, bridgepkg.BridgeStatusAuthRequired)
 	}
 
-	fetched, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/instances/get", nil)
+	fetched, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", nil)
 	if err != nil {
-		t.Fatalf("Handle(channels/instances/get) error = %v", err)
+		t.Fatalf("Handle(bridges/instances/get) error = %v", err)
 	}
-	var loaded hostAPIChannelInstance
+	var loaded hostAPIBridgeInstance
 	decodeResult(t, fetched, &loaded)
-	if loaded.Status != channelspkg.ChannelStatusAuthRequired {
-		t.Fatalf("channels/instances/get status = %q, want %q", loaded.Status, channelspkg.ChannelStatusAuthRequired)
+	if loaded.Status != bridgepkg.BridgeStatusAuthRequired {
+		t.Fatalf("bridges/instances/get status = %q, want %q", loaded.Status, bridgepkg.BridgeStatusAuthRequired)
 	}
 }
 
-func TestHostAPIIntegrationChannelsMessagesIngestConcurrentSameRoutingKeyUsesOneRouteAndSession(t *testing.T) {
+func TestHostAPIIntegrationBridgesMessagesIngestConcurrentSameRoutingKeyUsesOneRouteAndSession(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	env.useSessionsWithoutObserver(t)
-	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-integration-concurrent",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-integration-concurrent",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	ctx := env.channelContext(t, instance)
+	ctx := env.bridgeContext(t, instance)
 
 	type ingestResult struct {
-		result hostAPIChannelsMessagesIngestResult
+		result hostAPIBridgesMessagesIngestResult
 		err    error
 	}
 
@@ -263,8 +263,8 @@ func TestHostAPIIntegrationChannelsMessagesIngestConcurrentSameRoutingKeyUsesOne
 		idx := idx
 		go func() {
 			defer func() { done <- struct{}{} }()
-			result, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", map[string]any{
-				"channel_instance_id": instance.ID,
+			result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+				"bridge_instance_id":  instance.ID,
 				"scope":               instance.Scope,
 				"workspace_id":        instance.WorkspaceID,
 				"peer_id":             "peer-1",
@@ -292,9 +292,9 @@ func TestHostAPIIntegrationChannelsMessagesIngestConcurrentSameRoutingKeyUsesOne
 		}
 	}
 
-	routes, err := env.channels.ListRoutes(testutil.Context(t), instance.ID)
+	routes, err := env.bridges.ListRoutes(testutil.Context(t), instance.ID)
 	if err != nil {
-		t.Fatalf("channels.ListRoutes() error = %v", err)
+		t.Fatalf("bridges.ListRoutes() error = %v", err)
 	}
 	if got := len(routes); got != 1 {
 		t.Fatalf("len(routes) = %d, want 1", got)
@@ -361,8 +361,8 @@ func TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod(t *testin
 			"scope":        "workspace",
 			"workspace_id": env.workspaceID,
 		}},
-		{method: "channels/messages/ingest", params: map[string]any{
-			"channel_instance_id": "chan-1",
+		{method: "bridges/messages/ingest", params: map[string]any{
+			"bridge_instance_id":  "brg-1",
 			"scope":               "workspace",
 			"workspace_id":        env.workspaceID,
 			"peer_id":             "peer-1",
@@ -370,8 +370,8 @@ func TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod(t *testin
 			"received_at":         env.currentTime().Format(time.RFC3339Nano),
 			"idempotency_key":     "idem-1",
 		}},
-		{method: "channels/instances/get", params: nil},
-		{method: "channels/instances/report_state", params: map[string]any{"status": "ready"}},
+		{method: "bridges/instances/get", params: nil},
+		{method: "bridges/instances/report_state", params: map[string]any{"status": "ready"}},
 	}
 
 	for _, tt := range tests {

@@ -84,7 +84,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, name, agent_name, workspace_id, space, session_type, state, acp_session_id, stop_reason, stop_detail, created_at, updated_at FROM sessions`
+	sqlQuery := `SELECT id, name, agent_name, workspace_id, channel, session_type, state, acp_session_id, stop_reason, stop_detail, created_at, updated_at FROM sessions`
 	where, args := store.BuildClauses(
 		store.StringClause("state", query.State),
 		store.StringClause("agent_name", query.AgentName),
@@ -193,14 +193,14 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 	_, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO sessions (
-			id, name, agent_name, workspace_id, session_type, space, state, acp_session_id, stop_reason, stop_detail, created_at, updated_at
+			id, name, agent_name, workspace_id, session_type, channel, state, acp_session_id, stop_reason, stop_detail, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			agent_name = excluded.agent_name,
 			workspace_id = excluded.workspace_id,
 			session_type = excluded.session_type,
-			space = excluded.space,
+			channel = excluded.channel,
 			state = excluded.state,
 			acp_session_id = excluded.acp_session_id,
 			stop_reason = excluded.stop_reason,
@@ -211,7 +211,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		session.AgentName,
 		session.WorkspaceID,
 		store.NormalizeSessionType(session.SessionType),
-		strings.TrimSpace(session.Space),
+		strings.TrimSpace(session.Channel),
 		session.State,
 		store.NullableStringPointer(session.ACPSessionID),
 		store.NullableString(string(session.StopReason)),
@@ -254,7 +254,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	var (
 		session      store.SessionInfo
 		name         sql.NullString
-		space        string
+		channel      string
 		sessionType  string
 		acpSessionID sql.NullString
 		stopReason   sql.NullString
@@ -267,7 +267,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		&name,
 		&session.AgentName,
 		&session.WorkspaceID,
-		&space,
+		&channel,
 		&sessionType,
 		&session.State,
 		&acpSessionID,
@@ -282,7 +282,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	if name.Valid {
 		session.Name = name.String
 	}
-	session.Space = strings.TrimSpace(space)
+	session.Channel = strings.TrimSpace(channel)
 	session.SessionType = store.NormalizeSessionType(sessionType)
 	session.ACPSessionID = store.NullString(acpSessionID)
 	if reason := store.NullString(stopReason); reason != nil {

@@ -28,10 +28,10 @@ func TestDescribeExtension(t *testing.T) {
 					Source:  SourceUser,
 					Enabled: true,
 					Capabilities: CapabilitiesConfig{
-						Provides: []string{"channel.adapter"},
+						Provides: []string{"bridge.adapter"},
 					},
 					Actions: ActionsConfig{
-						Requires: []string{"channels/messages/ingest"},
+						Requires: []string{"bridges/messages/ingest"},
 					},
 				},
 				Status: ExtensionStatus{

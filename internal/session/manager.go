@@ -40,7 +40,7 @@ type CreateOpts struct {
 	Name          string
 	Workspace     string
 	WorkspacePath string
-	Space         string
+	Channel       string
 	Type          SessionType
 }
 

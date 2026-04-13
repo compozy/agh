@@ -1,0 +1,826 @@
+package extension
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/pedronauck/agh/internal/acp"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/subprocess"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
+)
+
+type hostAPIBridgeRegistry interface {
+	GetInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
+	UpdateInstanceState(ctx context.Context, req bridgepkg.UpdateInstanceStateRequest) (*bridgepkg.BridgeInstance, error)
+	BuildRoutingKey(ctx context.Context, key bridgepkg.RoutingKey) (bridgepkg.RoutingKey, error)
+	ResolveRoute(ctx context.Context, key bridgepkg.RoutingKey) (*bridgepkg.BridgeRoute, error)
+	ResolveOrCreateRoute(ctx context.Context, route bridgepkg.BridgeRoute) (*bridgepkg.BridgeRoute, bool, error)
+	UpsertRoute(ctx context.Context, route bridgepkg.BridgeRoute) (*bridgepkg.BridgeRoute, error)
+}
+
+type hostAPIBridgeDedupStore interface {
+	PutBridgeIngestDedup(ctx context.Context, record bridgepkg.IngestDedupRecord) error
+	GetBridgeIngestDedup(ctx context.Context, idempotencyKey string, lookupAt time.Time) (bridgepkg.IngestDedupRecord, error)
+	DeleteExpiredBridgeIngestDedup(ctx context.Context, now time.Time) (int64, error)
+}
+
+const hostAPIBusyRetryAttempts = 3
+
+func (h *HostAPIHandler) handleBridgesInstancesGet(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params struct{}
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	_, instance, err := h.authorizedBridgeInstance(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return *instance, nil
+}
+
+func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, raw json.RawMessage) (any, error) {
+	if h.bridges == nil {
+		return nil, unavailableRPCError(errors.New("bridge registry is not configured"))
+	}
+
+	var params hostAPIBridgesInstancesReportStateParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if err := params.Status.Validate(); err != nil {
+		return nil, invalidParamsRPCError(err)
+	}
+	if params.Status.Normalize() == bridgepkg.BridgeStatusDisabled {
+		return nil, invalidParamsRPCError(errors.New("bridge status disabled is operator-controlled"))
+	}
+
+	_, instance, err := h.authorizedBridgeInstance(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	updated, err := h.bridges.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
+		ID:        instance.ID,
+		Enabled:   instance.Enabled,
+		Status:    params.Status,
+		UpdatedAt: h.now(),
+	})
+	if err != nil {
+		return nil, mapBridgeStateUpdateError(instance.ID, err)
+	}
+
+	if h.observer != nil {
+		if sink, ok := h.observer.(BridgeTelemetrySink); ok {
+			switch updated.Status.Normalize() {
+			case bridgepkg.BridgeStatusAuthRequired:
+				sink.RecordBridgeAuthFailure(updated.ID)
+			case bridgepkg.BridgeStatusReady:
+				sink.ClearBridgeRuntimeIssue(updated.ID)
+			}
+		}
+	}
+	return *updated, nil
+}
+
+func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw json.RawMessage) (any, error) {
+	if h.bridges == nil {
+		return nil, unavailableRPCError(errors.New("bridge registry is not configured"))
+	}
+	if h.dedupStore == nil {
+		return nil, unavailableRPCError(errors.New("bridge ingest dedup store is not configured"))
+	}
+
+	var params hostAPIBridgesMessagesIngestParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if err := params.Validate(); err != nil {
+		return nil, invalidParamsRPCError(err)
+	}
+
+	_, instance, err := h.authorizedBridgeInstance(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(params.BridgeInstanceID) != instance.ID {
+		return nil, notFoundRPCError(
+			"bridge_instance",
+			strings.TrimSpace(params.BridgeInstanceID),
+			fmt.Errorf("bridge instance %q is not assigned to this extension", strings.TrimSpace(params.BridgeInstanceID)),
+		)
+	}
+	if err := validateBridgeIngressInstance(*instance); err != nil {
+		return nil, err
+	}
+
+	routingKey, err := h.bridges.BuildRoutingKey(ctx, bridgepkg.RoutingKey{
+		Scope:            params.Scope,
+		WorkspaceID:      params.WorkspaceID,
+		BridgeInstanceID: params.BridgeInstanceID,
+		PeerID:           params.PeerID,
+		ThreadID:         params.ThreadID,
+		GroupID:          params.GroupID,
+	})
+	if err != nil {
+		return nil, mapBridgeRoutingError(instance.ID, err)
+	}
+
+	lockKey, err := routingKey.Hash()
+	if err != nil {
+		return nil, fmt.Errorf("extension: hash bridge routing key: %w", err)
+	}
+	unlock := h.bridgeLocks.lock(lockKey)
+	defer unlock()
+
+	if err := h.maybeCleanupBridgeIngestDedup(ctx); err != nil {
+		return nil, err
+	}
+
+	suppressedRoute, suppressed, err := h.suppressedBridgeIngressRoute(ctx, routingKey, *instance, strings.TrimSpace(params.IdempotencyKey))
+	if err != nil {
+		return nil, err
+	}
+	if suppressed {
+		return hostAPIBridgesMessagesIngestResult{
+			SessionID:    suppressedRoute.SessionID,
+			RouteCreated: false,
+			RoutingKey:   routingKey,
+		}, nil
+	}
+
+	route, routeCreated, err := h.resolveBridgeIngressRoute(ctx, *instance, routingKey)
+	if err != nil {
+		return nil, err
+	}
+
+	promptBody := renderInboundMessagePrompt(params)
+	route, err = h.promptBridgeRoute(ctx, *instance, routingKey, route, promptBody)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.recordBridgeIngressDedup(ctx, params, *instance); err != nil {
+		return nil, err
+	}
+
+	return hostAPIBridgesMessagesIngestResult{
+		SessionID:    route.SessionID,
+		RouteCreated: routeCreated,
+		RoutingKey:   routingKey,
+	}, nil
+}
+
+func (h *HostAPIHandler) authorizedBridgeInstance(ctx context.Context) (*subprocess.InitializeBridgeRuntime, *bridgepkg.BridgeInstance, error) {
+	if h.bridges == nil {
+		return nil, nil, unavailableRPCError(errors.New("bridge registry is not configured"))
+	}
+
+	runtime := hostAPIBridgeRuntimeFromContext(ctx)
+	if runtime == nil {
+		return nil, nil, unavailableRPCError(errors.New("bridge runtime is not configured"))
+	}
+
+	extName := hostAPIExtensionNameFromContext(ctx)
+	if extName == "" {
+		return nil, nil, unavailableRPCError(errors.New("bridge extension name is not available"))
+	}
+
+	instanceID := strings.TrimSpace(runtime.Instance.ID)
+	if instanceID == "" {
+		return nil, nil, unavailableRPCError(errors.New("bridge runtime instance id is required"))
+	}
+	if strings.TrimSpace(runtime.Instance.ExtensionName) != extName {
+		return nil, nil, notFoundRPCError(
+			"bridge_instance",
+			instanceID,
+			fmt.Errorf("bridge runtime instance belongs to extension %q", strings.TrimSpace(runtime.Instance.ExtensionName)),
+		)
+	}
+
+	instance, err := h.bridges.GetInstance(ctx, instanceID)
+	if err != nil {
+		return nil, nil, mapBridgeLookupError(instanceID, err)
+	}
+	if strings.TrimSpace(instance.ExtensionName) != extName {
+		return nil, nil, notFoundRPCError(
+			"bridge_instance",
+			instance.ID,
+			fmt.Errorf("bridge instance %q is not owned by extension %q", instance.ID, extName),
+		)
+	}
+
+	return runtime, instance, nil
+}
+
+func (h *HostAPIHandler) maybeCleanupBridgeIngestDedup(ctx context.Context) error {
+	if h.dedupStore == nil {
+		return unavailableRPCError(errors.New("bridge ingest dedup store is not configured"))
+	}
+
+	now := h.now()
+
+	h.bridgeCleanupMu.Lock()
+	shouldRun := h.bridgeLastCleanup.IsZero() || now.Sub(h.bridgeLastCleanup) >= h.bridgeCleanupInterval
+	if shouldRun {
+		h.bridgeLastCleanup = now
+	}
+	h.bridgeCleanupMu.Unlock()
+
+	if !shouldRun {
+		return nil
+	}
+
+	if err := retrySQLiteBusy(ctx, hostAPIBusyRetryAttempts, func() error {
+		_, err := h.dedupStore.DeleteExpiredBridgeIngestDedup(ctx, now)
+		return err
+	}); err != nil {
+		return fmt.Errorf("extension: cleanup expired bridge ingest dedup: %w", err)
+	}
+	return nil
+}
+
+func (h *HostAPIHandler) suppressedBridgeIngressRoute(
+	ctx context.Context,
+	routingKey bridgepkg.RoutingKey,
+	instance bridgepkg.BridgeInstance,
+	idempotencyKey string,
+) (*bridgepkg.BridgeRoute, bool, error) {
+	record, err := h.dedupStore.GetBridgeIngestDedup(ctx, idempotencyKey, h.now())
+	switch {
+	case err == nil:
+		if strings.TrimSpace(record.BridgeInstanceID) != instance.ID {
+			return nil, false, invalidParamsRPCError(
+				fmt.Errorf(
+					"idempotency key %q is already assigned to bridge instance %q",
+					idempotencyKey,
+					record.BridgeInstanceID,
+				),
+			)
+		}
+
+		route, routeErr := h.bridges.ResolveRoute(ctx, routingKey)
+		if routeErr == nil {
+			return route, true, nil
+		}
+		if errors.Is(routeErr, bridgepkg.ErrBridgeRouteNotFound) {
+			return nil, false, nil
+		}
+		return nil, false, mapBridgeRouteError(instance.ID, routeErr)
+	case errors.Is(err, bridgepkg.ErrIngestDedupRecordNotFound):
+		return nil, false, nil
+	default:
+		return nil, false, fmt.Errorf("extension: get bridge ingest dedup %q: %w", idempotencyKey, err)
+	}
+}
+
+func (h *HostAPIHandler) resolveBridgeIngressRoute(
+	ctx context.Context,
+	instance bridgepkg.BridgeInstance,
+	routingKey bridgepkg.RoutingKey,
+) (*bridgepkg.BridgeRoute, bool, error) {
+	existing, err := h.bridges.ResolveRoute(ctx, routingKey)
+	switch {
+	case err == nil:
+		refreshed, _, resolveErr := h.resolveOrCreateBridgeRoute(ctx, bridgeRouteForRoutingKey(routingKey, existing.SessionID, existing.AgentName, h.now()))
+		if resolveErr != nil {
+			return nil, false, mapBridgeRouteError(instance.ID, resolveErr)
+		}
+		return refreshed, false, nil
+	case !errors.Is(err, bridgepkg.ErrBridgeRouteNotFound):
+		return nil, false, mapBridgeRouteError(instance.ID, err)
+	}
+
+	createdSession, err := h.createBridgeSession(ctx, instance)
+	if err != nil {
+		return nil, false, err
+	}
+	createdInfo := createdSession.Info()
+
+	route, created, routeErr := h.resolveOrCreateBridgeRoute(ctx, bridgeRouteForRoutingKey(routingKey, createdInfo.ID, createdInfo.AgentName, h.now()))
+	if routeErr != nil {
+		cleanupErr := h.stopBridgeSession(ctx, createdInfo.ID)
+		mapped := mapBridgeRouteError(instance.ID, routeErr)
+		if cleanupErr != nil {
+			return nil, false, errors.Join(mapped, cleanupErr)
+		}
+		return nil, false, mapped
+	}
+
+	if !created && route.SessionID != createdInfo.ID {
+		if cleanupErr := h.stopBridgeSession(ctx, createdInfo.ID); cleanupErr != nil {
+			return nil, false, cleanupErr
+		}
+	}
+
+	return route, created, nil
+}
+
+func (h *HostAPIHandler) promptBridgeRoute(
+	ctx context.Context,
+	instance bridgepkg.BridgeInstance,
+	routingKey bridgepkg.RoutingKey,
+	route *bridgepkg.BridgeRoute,
+	message string,
+) (*bridgepkg.BridgeRoute, error) {
+	if route == nil {
+		return nil, unavailableRPCError(errors.New("bridge route is required"))
+	}
+
+	submission, err := h.submitPrompt(ctx, route.SessionID, message)
+	if err == nil {
+		if registerErr := h.registerPromptDelivery(ctx, instance, routingKey, route.SessionID, submission); registerErr != nil {
+			return nil, registerErr
+		}
+		return route, nil
+	} else if !errors.Is(err, session.ErrSessionNotFound) && !errors.Is(err, session.ErrSessionNotActive) {
+		return nil, err
+	}
+
+	replacement, err := h.createBridgeSession(ctx, instance)
+	if err != nil {
+		return nil, err
+	}
+	replacementInfo := replacement.Info()
+
+	rebound, err := h.upsertBridgeRoute(ctx, bridgeRouteForRoutingKey(routingKey, replacementInfo.ID, replacementInfo.AgentName, h.now()))
+	if err != nil {
+		cleanupErr := h.stopBridgeSession(ctx, replacementInfo.ID)
+		mapped := mapBridgeRouteError(instance.ID, err)
+		if cleanupErr != nil {
+			return nil, errors.Join(mapped, cleanupErr)
+		}
+		return nil, mapped
+	}
+
+	submission, err = h.submitPrompt(ctx, rebound.SessionID, message)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.registerPromptDelivery(ctx, instance, routingKey, rebound.SessionID, submission); err != nil {
+		return nil, err
+	}
+	return rebound, nil
+}
+
+func (h *HostAPIHandler) registerPromptDelivery(
+	ctx context.Context,
+	instance bridgepkg.BridgeInstance,
+	routingKey bridgepkg.RoutingKey,
+	sessionID string,
+	submission hostAPIPromptSubmission,
+) error {
+	if h.deliveryBroker == nil {
+		return nil
+	}
+
+	target, err := bridgepkg.BuildDeliveryTarget(instance, bridgepkg.ResolveDeliveryTargetRequest{
+		BridgeInstanceID: routingKey.BridgeInstanceID,
+		PeerID:           routingKey.PeerID,
+		ThreadID:         routingKey.ThreadID,
+		GroupID:          routingKey.GroupID,
+		Mode:             bridgepkg.DeliveryModeReply,
+	})
+	if err != nil {
+		return fmt.Errorf("extension: resolve prompt delivery target: %w", err)
+	}
+
+	if _, err := h.deliveryBroker.RegisterPromptDelivery(ctx, bridgepkg.PromptDeliveryRegistration{
+		SessionID:      strings.TrimSpace(sessionID),
+		TurnID:         strings.TrimSpace(submission.TurnID),
+		ExtensionName:  strings.TrimSpace(instance.ExtensionName),
+		RoutingKey:     routingKey,
+		DeliveryTarget: target,
+		SeedEvents:     submission.SeedEvents,
+	}); err != nil {
+		return fmt.Errorf("extension: register prompt delivery: %w", err)
+	}
+	if err := h.replayPromptDeliveryEvents(ctx, sessionID, submission.TurnID); err != nil {
+		return fmt.Errorf("extension: replay prompt delivery events: %w", err)
+	}
+	return nil
+}
+
+func (h *HostAPIHandler) replayPromptDeliveryEvents(ctx context.Context, sessionID string, turnID string) error {
+	if h == nil || h.deliveryBroker == nil || h.sessions == nil {
+		return nil
+	}
+
+	sessionID = strings.TrimSpace(sessionID)
+	turnID = strings.TrimSpace(turnID)
+	if sessionID == "" || turnID == "" {
+		return nil
+	}
+
+	const (
+		replayPollInterval = 5 * time.Millisecond
+		replayPollWindow   = 30 * time.Millisecond
+	)
+
+	deadline := h.now().Add(replayPollWindow)
+	for {
+		events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{TurnID: turnID})
+		if err != nil {
+			return err
+		}
+
+		hasTerminal := false
+		for _, storedEvent := range events {
+			projected, err := promptProjectionEventFromStoredEvent(storedEvent)
+			if err != nil {
+				return err
+			}
+			switch projected.Type {
+			case acp.EventTypeAgentMessage, acp.EventTypeDone, acp.EventTypeError:
+			default:
+				continue
+			}
+			if err := h.deliveryBroker.ProjectEvent(ctx, sessionID, projected); err != nil {
+				return err
+			}
+			if projected.Type == acp.EventTypeDone || projected.Type == acp.EventTypeError {
+				hasTerminal = true
+			}
+		}
+
+		if hasTerminal || !h.now().Before(deadline) {
+			return nil
+		}
+
+		timer := time.NewTimer(replayPollInterval)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return ctx.Err()
+		}
+	}
+}
+
+func (h *HostAPIHandler) createBridgeSession(ctx context.Context, instance bridgepkg.BridgeInstance) (*session.Session, error) {
+	if h.sessions == nil {
+		return nil, unavailableRPCError(errors.New("session manager is not configured"))
+	}
+	if h.workspaces == nil {
+		return nil, unavailableRPCError(errors.New("workspace resolver is not configured"))
+	}
+	if strings.TrimSpace(instance.WorkspaceID) == "" {
+		return nil, unavailableRPCError(errors.New("bridge instance workspace is required to create a session"))
+	}
+
+	resolved, err := h.workspaces.Resolve(ctx, instance.WorkspaceID)
+	if err != nil {
+		return nil, unavailableRPCError(fmt.Errorf("resolve workspace %q: %w", instance.WorkspaceID, err))
+	}
+
+	agentName, err := aghconfig.ResolveAgentName("", resolved.Config)
+	if err != nil {
+		return nil, unavailableRPCError(fmt.Errorf("resolve default agent for workspace %q: %w", resolved.ID, err))
+	}
+
+	created, err := h.sessions.Create(ctx, session.CreateOpts{
+		AgentName: agentName,
+		Workspace: resolved.ID,
+		Type:      session.SessionTypeUser,
+	})
+	if err != nil {
+		return nil, unavailableRPCError(fmt.Errorf("create bridge session: %w", err))
+	}
+	return created, nil
+}
+
+func (h *HostAPIHandler) stopBridgeSession(ctx context.Context, sessionID string) error {
+	if h.sessions == nil || strings.TrimSpace(sessionID) == "" {
+		return nil
+	}
+	if err := h.sessions.Stop(ctx, sessionID); err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+		return fmt.Errorf("extension: stop orphaned bridge session %q: %w", sessionID, err)
+	}
+	return nil
+}
+
+func (h *HostAPIHandler) resolveOrCreateBridgeRoute(
+	ctx context.Context,
+	route bridgepkg.BridgeRoute,
+) (*bridgepkg.BridgeRoute, bool, error) {
+	var (
+		resolved *bridgepkg.BridgeRoute
+		created  bool
+	)
+
+	err := retrySQLiteBusy(ctx, hostAPIBusyRetryAttempts, func() error {
+		var callErr error
+		resolved, created, callErr = h.bridges.ResolveOrCreateRoute(ctx, route)
+		return callErr
+	})
+	return resolved, created, err
+}
+
+func (h *HostAPIHandler) upsertBridgeRoute(
+	ctx context.Context,
+	route bridgepkg.BridgeRoute,
+) (*bridgepkg.BridgeRoute, error) {
+	var updated *bridgepkg.BridgeRoute
+	err := retrySQLiteBusy(ctx, hostAPIBusyRetryAttempts, func() error {
+		var callErr error
+		updated, callErr = h.bridges.UpsertRoute(ctx, route)
+		return callErr
+	})
+	return updated, err
+}
+
+func (h *HostAPIHandler) recordBridgeIngressDedup(
+	ctx context.Context,
+	envelope bridgepkg.InboundMessageEnvelope,
+	instance bridgepkg.BridgeInstance,
+) error {
+	dedupBaseTime := h.now()
+	if dedupBaseTime.Before(envelope.ReceivedAt) {
+		dedupBaseTime = envelope.ReceivedAt
+	}
+
+	record := bridgepkg.IngestDedupRecord{
+		IdempotencyKey:   strings.TrimSpace(envelope.IdempotencyKey),
+		BridgeInstanceID: instance.ID,
+		ReceivedAt:       envelope.ReceivedAt,
+		ExpiresAt:        dedupBaseTime.Add(h.bridgeIngestDedupTTL),
+	}
+	if err := retrySQLiteBusy(ctx, hostAPIBusyRetryAttempts, func() error {
+		return h.dedupStore.PutBridgeIngestDedup(ctx, record)
+	}); err != nil {
+		return fmt.Errorf("extension: put bridge ingest dedup %q: %w", record.IdempotencyKey, err)
+	}
+	return nil
+}
+
+func validateBridgeIngressInstance(instance bridgepkg.BridgeInstance) error {
+	if !instance.Enabled || instance.Status.Normalize() == bridgepkg.BridgeStatusDisabled {
+		return unavailableRPCError(fmt.Errorf("bridge instance %q is disabled", instance.ID))
+	}
+
+	switch instance.Status.Normalize() {
+	case bridgepkg.BridgeStatusReady, bridgepkg.BridgeStatusDegraded:
+		return nil
+	case bridgepkg.BridgeStatusStarting,
+		bridgepkg.BridgeStatusAuthRequired,
+		bridgepkg.BridgeStatusError:
+		return unavailableRPCError(
+			fmt.Errorf("bridge instance %q status %q cannot ingest messages", instance.ID, instance.Status.Normalize()),
+		)
+	default:
+		return unavailableRPCError(fmt.Errorf("bridge instance %q status %q is unavailable", instance.ID, instance.Status.Normalize()))
+	}
+}
+
+func bridgeRouteForRoutingKey(
+	routingKey bridgepkg.RoutingKey,
+	sessionID string,
+	agentName string,
+	activityAt time.Time,
+) bridgepkg.BridgeRoute {
+	return bridgepkg.BridgeRoute{
+		Scope:            routingKey.Scope,
+		WorkspaceID:      routingKey.WorkspaceID,
+		BridgeInstanceID: routingKey.BridgeInstanceID,
+		PeerID:           routingKey.PeerID,
+		ThreadID:         routingKey.ThreadID,
+		GroupID:          routingKey.GroupID,
+		SessionID:        strings.TrimSpace(sessionID),
+		AgentName:        strings.TrimSpace(agentName),
+		LastActivityAt:   activityAt,
+		UpdatedAt:        activityAt,
+	}
+}
+
+func renderInboundMessagePrompt(envelope bridgepkg.InboundMessageEnvelope) string {
+	var lines []string
+
+	lines = append(lines, "Inbound bridge message")
+	lines = append(lines, "Platform message ID: "+strings.TrimSpace(envelope.PlatformMessageID))
+	if !envelope.ReceivedAt.IsZero() {
+		lines = append(lines, "Received at: "+envelope.ReceivedAt.UTC().Format(time.RFC3339Nano))
+	}
+	if sender := summarizeInboundSender(envelope.Sender); sender != "" {
+		lines = append(lines, "Sender: "+sender)
+	}
+	if peerID := strings.TrimSpace(envelope.PeerID); peerID != "" {
+		lines = append(lines, "Peer ID: "+peerID)
+	}
+	if threadID := strings.TrimSpace(envelope.ThreadID); threadID != "" {
+		lines = append(lines, "Thread ID: "+threadID)
+	}
+	if groupID := strings.TrimSpace(envelope.GroupID); groupID != "" {
+		lines = append(lines, "Group ID: "+groupID)
+	}
+
+	body := strings.TrimSpace(envelope.Content.Text)
+	if body == "" {
+		body = "[No text body]"
+	}
+	lines = append(lines, "", body)
+
+	if len(envelope.Attachments) > 0 {
+		lines = append(lines, "", "Attachments:")
+		for _, attachment := range envelope.Attachments {
+			lines = append(lines, "- "+summarizeInboundAttachment(attachment))
+		}
+	}
+
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+func summarizeInboundSender(sender bridgepkg.MessageSender) string {
+	parts := make([]string, 0, 3)
+	if displayName := strings.TrimSpace(sender.DisplayName); displayName != "" {
+		parts = append(parts, displayName)
+	}
+	if username := strings.TrimSpace(sender.Username); username != "" {
+		parts = append(parts, "@"+username)
+	}
+	if id := strings.TrimSpace(sender.ID); id != "" {
+		parts = append(parts, "id="+id)
+	}
+	return strings.TrimSpace(strings.Join(parts, " "))
+}
+
+func summarizeInboundAttachment(attachment bridgepkg.MessageAttachment) string {
+	parts := make([]string, 0, 4)
+	if name := strings.TrimSpace(attachment.Name); name != "" {
+		parts = append(parts, name)
+	}
+	if mimeType := strings.TrimSpace(attachment.MIMEType); mimeType != "" {
+		parts = append(parts, "type="+mimeType)
+	}
+	if id := strings.TrimSpace(attachment.ID); id != "" {
+		parts = append(parts, "id="+id)
+	}
+	if url := strings.TrimSpace(attachment.URL); url != "" {
+		parts = append(parts, "url="+url)
+	}
+	if len(parts) == 0 {
+		return "attachment"
+	}
+	return strings.Join(parts, " ")
+}
+
+func mapBridgeLookupError(instanceID string, err error) error {
+	switch {
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound):
+		return notFoundRPCError("bridge_instance", strings.TrimSpace(instanceID), err)
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable):
+		return unavailableRPCError(err)
+	default:
+		return err
+	}
+}
+
+func mapBridgeRoutingError(instanceID string, err error) error {
+	switch {
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound):
+		return notFoundRPCError("bridge_instance", strings.TrimSpace(instanceID), err)
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable):
+		return unavailableRPCError(err)
+	default:
+		return invalidParamsRPCError(err)
+	}
+}
+
+func mapBridgeRouteError(instanceID string, err error) error {
+	switch {
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound):
+		return notFoundRPCError("bridge_instance", strings.TrimSpace(instanceID), err)
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable):
+		return unavailableRPCError(err)
+	default:
+		return err
+	}
+}
+
+func mapBridgeStateUpdateError(instanceID string, err error) error {
+	switch {
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound):
+		return notFoundRPCError("bridge_instance", strings.TrimSpace(instanceID), err)
+	case errors.Is(err, bridgepkg.ErrInvalidBridgeStateTransition):
+		return invalidParamsRPCError(err)
+	default:
+		return invalidParamsRPCError(err)
+	}
+}
+
+func hostAPIBridgeRuntimeFromContext(ctx context.Context) *subprocess.InitializeBridgeRuntime {
+	if ctx == nil {
+		return nil
+	}
+	runtime, _ := ctx.Value(hostAPIBridgeRuntimeContextKey).(*subprocess.InitializeBridgeRuntime)
+	return subprocess.CloneInitializeBridgeRuntime(runtime)
+}
+
+type hostAPIKeyLocker struct {
+	mu    sync.Mutex
+	locks map[string]*hostAPIKeyLock
+}
+
+type hostAPIKeyLock struct {
+	refs int
+	mu   sync.Mutex
+}
+
+func newHostAPIKeyLocker() *hostAPIKeyLocker {
+	return &hostAPIKeyLocker{locks: make(map[string]*hostAPIKeyLock)}
+}
+
+func (l *hostAPIKeyLocker) lock(key string) func() {
+	normalized := strings.TrimSpace(key)
+	if normalized == "" {
+		normalized = "default"
+	}
+
+	l.mu.Lock()
+	entry := l.locks[normalized]
+	if entry == nil {
+		entry = &hostAPIKeyLock{}
+		l.locks[normalized] = entry
+	}
+	entry.refs++
+	l.mu.Unlock()
+
+	entry.mu.Lock()
+	return func() {
+		entry.mu.Unlock()
+
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		entry.refs--
+		if entry.refs == 0 {
+			delete(l.locks, normalized)
+		}
+	}
+}
+
+func retrySQLiteBusy(ctx context.Context, attempts int, fn func() error) error {
+	if attempts <= 0 {
+		attempts = 1
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < attempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		lastErr = fn()
+		if !isSQLiteBusy(lastErr) {
+			return lastErr
+		}
+		if attempt == attempts-1 {
+			break
+		}
+
+		delay := time.Duration(attempt+1) * 5 * time.Millisecond
+		timer := time.NewTimer(delay)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return ctx.Err()
+		}
+	}
+	return lastErr
+}
+
+func isSQLiteBusy(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var sqliteErr *sqlite.Error
+	if !errors.As(err, &sqliteErr) {
+		return false
+	}
+
+	switch sqliteErr.Code() & 0xff {
+	case sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED:
+		return true
+	default:
+		return false
+	}
+}

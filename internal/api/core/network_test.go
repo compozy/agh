@@ -31,7 +31,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			ListenerPort:         4222,
 			LocalPeers:           1,
 			RemotePeers:          2,
-			Spaces:               1,
+			Channels:             1,
 			QueuedMessages:       3,
 			QueuedSessions:       1,
 			DeliveryWorkers:      1,
@@ -52,7 +52,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		}
 
 		payload := core.NetworkStatusPayloadFromStatus(status)
-		if payload == nil || payload.MessagesDelivered != 3 || len(payload.KindMetrics) != 1 || payload.KindMetrics[0].Kind != string(network.KindSay) {
+		if payload == nil || payload.Channels != 1 || payload.MessagesDelivered != 3 || len(payload.KindMetrics) != 1 || payload.KindMetrics[0].Kind != string(network.KindSay) {
 			t.Fatalf("NetworkStatusPayloadFromStatus() = %#v", payload)
 		}
 	})
@@ -62,7 +62,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 
 		req := contract.NetworkSendRequest{
 			SessionID:     " sess-a ",
-			Space:         " builders ",
+			Channel:       " builders ",
 			Kind:          "say",
 			To:            " reviewer.sess-b ",
 			Body:          json.RawMessage(`{"text":"hello"}`),
@@ -82,7 +82,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NetworkSendRequestFromPayload() error = %v", err)
 		}
-		if converted.SessionID != "sess-a" || converted.Space != "builders" || converted.Kind != network.KindSay {
+		if converted.SessionID != "sess-a" || converted.Channel != "builders" || converted.Kind != network.KindSay {
 			t.Fatalf("converted request = %#v", converted)
 		}
 		if converted.To == nil || *converted.To != "reviewer.sess-b" {
@@ -110,7 +110,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			Protocol:    network.ProtocolV0,
 			ID:          "msg-1",
 			Kind:        network.KindDirect,
-			Space:       "builders",
+			Channel:     "builders",
 			From:        "reviewer.sess-b",
 			ReplyTo:     &replyTo,
 			TraceID:     &traceID,
@@ -154,7 +154,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				ListenerPort:         4222,
 				LocalPeers:           1,
 				RemotePeers:          1,
-				Spaces:               1,
+				Channels:             1,
 				QueuedMessages:       2,
 				QueuedSessions:       1,
 				DeliveryWorkers:      1,
@@ -174,16 +174,16 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				}},
 			}, nil
 		},
-		ListPeersFn: func(_ context.Context, space string) ([]network.PeerInfo, error) {
-			if space != "builders" {
-				t.Fatalf("ListPeers() space = %q, want builders", space)
+		ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+			if channel != "builders" {
+				t.Fatalf("ListPeers() channel = %q, want builders", channel)
 			}
 			displayName := "Reviewer"
 			sessionID := "sess-a"
 			return []network.PeerInfo{{
 				SessionID: &sessionID,
 				PeerID:    "reviewer.sess-a",
-				Space:     "builders",
+				Channel:   "builders",
 				Local:     true,
 				PeerCard: network.PeerCard{
 					PeerID:              "reviewer.sess-a",
@@ -199,11 +199,11 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				ExpiresAt: timePtr(fixedNow.Add(time.Minute)),
 			}}, nil
 		},
-		ListSpacesFn: func(context.Context) ([]network.SpaceInfo, error) {
-			return []network.SpaceInfo{{Space: "builders", PeerCount: 2}}, nil
+		ListChannelsFn: func(context.Context) ([]network.ChannelInfo, error) {
+			return []network.ChannelInfo{{Channel: "builders", PeerCount: 2}}, nil
 		},
 		SendFn: func(_ context.Context, req network.SendRequest) (string, error) {
-			if req.SessionID != "sess-a" || req.Space != "builders" || req.Kind != network.KindSay {
+			if req.SessionID != "sess-a" || req.Channel != "builders" || req.Kind != network.KindSay {
 				t.Fatalf("Send() req = %#v", req)
 			}
 			if string(req.Ext["agh.workflow_id"]) != `"wf-1"` || string(req.Ext["agh.handoff_version"]) != `3` {
@@ -222,7 +222,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				Protocol: network.ProtocolV0,
 				ID:       "msg-inbox",
 				Kind:     network.KindDirect,
-				Space:    "builders",
+				Channel:  "builders",
 				From:     "reviewer.sess-a",
 				ReplyTo:  &replyTo,
 				TraceID:  &traceID,
@@ -245,7 +245,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 
 		var statusPayload contract.NetworkStatusResponse
 		testutil.DecodeJSONResponse(t, statusResp, &statusPayload)
-		if statusPayload.Network.QueuedMessages != 2 || len(statusPayload.Network.KindMetrics) != 1 {
+		if statusPayload.Network.Channels != 1 || statusPayload.Network.QueuedMessages != 2 || len(statusPayload.Network.KindMetrics) != 1 {
 			t.Fatalf("status payload = %#v", statusPayload.Network)
 		}
 		if statusPayload.Network.KindMetrics[0].Sent != 4 || statusPayload.Network.KindMetrics[0].Kind != string(network.KindSay) {
@@ -254,7 +254,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 	})
 
 	t.Run("ShouldListNetworkPeers", func(t *testing.T) {
-		peersResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers?space=builders", nil)
+		peersResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers?channel=builders", nil)
 		if peersResp.Code != http.StatusOK {
 			t.Fatalf("peers code = %d, want %d", peersResp.Code, http.StatusOK)
 		}
@@ -266,21 +266,21 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldListNetworkSpaces", func(t *testing.T) {
-		spacesResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/spaces", nil)
-		if spacesResp.Code != http.StatusOK {
-			t.Fatalf("spaces code = %d, want %d", spacesResp.Code, http.StatusOK)
+	t.Run("ShouldListNetworkChannels", func(t *testing.T) {
+		channelsResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels", nil)
+		if channelsResp.Code != http.StatusOK {
+			t.Fatalf("channels code = %d, want %d", channelsResp.Code, http.StatusOK)
 		}
 
-		var spacesPayload contract.NetworkSpacesResponse
-		testutil.DecodeJSONResponse(t, spacesResp, &spacesPayload)
-		if len(spacesPayload.Spaces) != 1 || spacesPayload.Spaces[0].PeerCount != 2 {
-			t.Fatalf("spaces payload = %#v", spacesPayload.Spaces)
+		var channelsPayload contract.NetworkChannelsResponse
+		testutil.DecodeJSONResponse(t, channelsResp, &channelsPayload)
+		if len(channelsPayload.Channels) != 1 || channelsPayload.Channels[0].Channel != "builders" || channelsPayload.Channels[0].PeerCount != 2 {
+			t.Fatalf("channels payload = %#v", channelsPayload.Channels)
 		}
 	})
 
 	t.Run("ShouldSendNetworkMessages", func(t *testing.T) {
-		sendResp := performRequest(t, fixture.Engine, http.MethodPost, "/network/send", []byte(`{"session_id":"sess-a","space":"builders","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`))
+		sendResp := performRequest(t, fixture.Engine, http.MethodPost, "/network/send", []byte(`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`))
 		if sendResp.Code != http.StatusOK {
 			t.Fatalf("send code = %d, want %d; body=%s", sendResp.Code, http.StatusOK, sendResp.Body.String())
 		}
@@ -373,25 +373,25 @@ func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldMapListSpacesErrorTo400", func(t *testing.T) {
+	t.Run("ShouldMapListChannelsErrorTo400", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 		fixture.Handlers.Config.Network.Enabled = true
 		fixture.Handlers.Network = testutil.StubNetworkService{
-			ListSpacesFn: func(context.Context) ([]network.SpaceInfo, error) {
+			ListChannelsFn: func(context.Context) ([]network.ChannelInfo, error) {
 				return nil, network.ErrInvalidField
 			},
 		}
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/spaces", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels", nil)
 		if resp.Code != http.StatusBadRequest {
-			t.Fatalf("spaces error code = %d, want %d", resp.Code, http.StatusBadRequest)
+			t.Fatalf("channels error code = %d, want %d", resp.Code, http.StatusBadRequest)
 		}
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if !strings.Contains(payload.Error, network.ErrInvalidField.Error()) {
-			t.Fatalf("spaces error payload = %#v, want invalid field", payload)
+			t.Fatalf("channels error payload = %#v, want invalid field", payload)
 		}
 	})
 
@@ -424,7 +424,7 @@ func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 			},
 		}
 
-		resp := performRequest(t, fixture.Engine, http.MethodPost, "/network/send", []byte(`{"session_id":"sess-a","space":"builders","kind":"say","body":{"text":"hello"}}`))
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/network/send", []byte(`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"text":"hello"}}`))
 		if resp.Code != http.StatusNotFound {
 			t.Fatalf("send error code = %d, want %d", resp.Code, http.StatusNotFound)
 		}

@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -65,26 +65,26 @@ func StatusForMemoryError(err error) int {
 	}
 }
 
-// StatusForChannelError maps channel-domain and workspace-domain errors to transport statuses.
-func StatusForChannelError(err error) int {
+// StatusForBridgeError maps bridge-domain and workspace-domain errors to transport statuses.
+func StatusForBridgeError(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
-	case errors.Is(err, contract.ErrChannelInstanceMismatch):
+	case errors.Is(err, contract.ErrBridgeInstanceMismatch):
 		return http.StatusBadRequest
-	case errors.Is(err, channelspkg.ErrChannelInstanceNotFound):
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, channelspkg.ErrChannelRouteNotFound):
+	case errors.Is(err, bridgepkg.ErrBridgeRouteNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, channelspkg.ErrChannelInstanceUnavailable):
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable):
 		return http.StatusConflict
-	case errors.Is(err, channelspkg.ErrInvalidChannelStateTransition):
+	case errors.Is(err, bridgepkg.ErrInvalidBridgeStateTransition):
 		return http.StatusConflict
-	case errors.Is(err, channelspkg.ErrDeliveryNotFound):
+	case errors.Is(err, bridgepkg.ErrDeliveryNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, channelspkg.ErrDeliveryQueueSaturated):
+	case errors.Is(err, bridgepkg.ErrDeliveryQueueSaturated):
 		return http.StatusServiceUnavailable
-	case errors.Is(err, channelspkg.ErrDeliveryTransportUnavailable):
+	case errors.Is(err, bridgepkg.ErrDeliveryTransportUnavailable):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound

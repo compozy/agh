@@ -16,7 +16,7 @@ const healthFixture = {
   uptime_seconds: 100,
   active_sessions: 1,
   active_agents: 1,
-  channels: {
+  bridges: {
     total_instances: 0,
     route_count: 0,
     delivery_backlog: 0,

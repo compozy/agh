@@ -154,7 +154,7 @@ func TestBundledAghNetworkSkillContent(t *testing.T) {
 	}{
 		{name: "ShouldDocumentStatusCommand", command: "status"},
 		{name: "ShouldDocumentPeersCommand", command: "peers"},
-		{name: "ShouldDocumentSpacesCommand", command: "spaces"},
+		{name: "ShouldDocumentChannelsCommand", command: "channels"},
 		{name: "ShouldDocumentSendCommand", command: "send"},
 		{name: "ShouldDocumentInboxCommand", command: "inbox"},
 	} {
@@ -174,7 +174,7 @@ func TestBundledAghNetworkSkillContent(t *testing.T) {
 		flag string
 	}{
 		{name: "ShouldDocumentSessionFlag", flag: "session"},
-		{name: "ShouldDocumentSpaceFlag", flag: "space"},
+		{name: "ShouldDocumentChannelFlag", flag: "channel"},
 		{name: "ShouldDocumentKindFlag", flag: "kind"},
 		{name: "ShouldDocumentBodyFlag", flag: "body"},
 		{name: "ShouldDocumentTargetFlag", flag: "to"},

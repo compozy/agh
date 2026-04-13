@@ -292,7 +292,7 @@ func TestSessionNetworkLifecycleHandling(t *testing.T) {
 			AgentName: "coder",
 			Name:      "networked",
 			Workspace: h.workspaceID,
-			Space:     "builders",
+			Channel:   "builders",
 		})
 		if err == nil {
 			t.Fatal("Create() error = nil, want join failure")
@@ -318,7 +318,7 @@ func TestSessionNetworkLifecycleHandling(t *testing.T) {
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-			Space:     "builders",
+			Channel:   "builders",
 		})
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
@@ -371,7 +371,7 @@ func TestSessionNetworkLifecycleHandling(t *testing.T) {
 			session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 				AgentName: "coder",
 				Workspace: h.workspaceID,
-				Space:     "builders",
+				Channel:   "builders",
 			})
 			if err != nil {
 				t.Fatalf("Create() error = %v", err)
@@ -1081,19 +1081,19 @@ type recordingNetworkPeerLifecycle struct {
 type networkJoinCall struct {
 	sessionID string
 	peerID    string
-	space     string
+	channel   string
 }
 
-func (r *recordingNetworkPeerLifecycle) JoinSpace(_ context.Context, sessionID string, peerID string, space string) error {
+func (r *recordingNetworkPeerLifecycle) JoinChannel(_ context.Context, sessionID string, peerID string, channel string) error {
 	r.joins = append(r.joins, networkJoinCall{
 		sessionID: sessionID,
 		peerID:    peerID,
-		space:     space,
+		channel:   channel,
 	})
 	return r.joinErr
 }
 
-func (r *recordingNetworkPeerLifecycle) LeaveSpace(_ context.Context, sessionID string) error {
+func (r *recordingNetworkPeerLifecycle) LeaveChannel(_ context.Context, sessionID string) error {
 	r.leaves = append(r.leaves, sessionID)
 	return r.leaveErr
 }

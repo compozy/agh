@@ -12,7 +12,7 @@ import (
 
 	core "github.com/pedronauck/agh/internal/api/core"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -51,7 +51,7 @@ type bootState struct {
 	extMu              sync.RWMutex
 	extensions         extensionRuntime
 	automation         automationRuntime
-	channels           *channelRuntime
+	bridges            *bridgeRuntime
 	httpServer         Server
 	udsServer          Server
 	skillsCancel       context.CancelFunc
@@ -161,7 +161,7 @@ func (d *Daemon) beginBoot() error {
 		d.network != nil ||
 		d.observer != nil ||
 		d.automation != nil ||
-		d.channels != nil {
+		d.bridges != nil {
 		return errors.New("daemon: already booted")
 	}
 	d.booting = true
@@ -316,11 +316,11 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 
 	state.startedAt = d.now().UTC()
 	state.notifier = newHooksNotifier(state.logger, d.now)
-	state.channels = d.composeChannelRuntime(state, cleanup)
+	state.bridges = d.composeBridgeRuntime(state, cleanup)
 
 	sessionNotifier := session.Notifier(state.notifier)
-	if state.channels != nil {
-		sessionNotifier = extensionpkg.NewChannelDeliveryNotifier(state.channels.Broker(), state.notifier)
+	if state.bridges != nil {
+		sessionNotifier = extensionpkg.NewBridgeDeliveryNotifier(state.bridges.Broker(), state.notifier)
 	}
 
 	var skillRegistryDep session.SkillRegistry
@@ -380,7 +380,7 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 		HomePaths:         d.homePaths,
 		Logger:            state.logger,
 		Sessions:          sessions,
-		Channels:          state.channels,
+		Bridges:           state.bridges,
 		Registry:          registry,
 		MemoryStore:       state.memoryStore,
 		WorkspaceResolver: workspaceResolver,
@@ -570,28 +570,32 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		SkillsRegistry:    state.skillsRegistry,
 		WorkspaceResolver: state.workspaceResolver,
 		Logger:            state.logger,
-		ChannelRegistry:   state.channels,
-		ChannelDedupStore: channelRuntimeDedupStore(state.channels),
-		ChannelBroker:     channelRuntimeBroker(state.channels),
-		ChannelRuntime:    state.channels,
+		BridgeRegistry:    state.bridges,
+		BridgeDedupStore:  bridgeRuntimeDedupStore(state.bridges),
+		BridgeBroker:      bridgeRuntimeBroker(state.bridges),
+		BridgeRuntime:     state.bridges,
 	})
 	if manager == nil {
 		state.logger.Warn("daemon: extension manager factory returned nil; skipping extensions")
 		return nil
 	}
 
-	if state.channels != nil {
-		state.channels.setExtensionRuntime(manager)
-	}
-	state.setExtensionRuntime(manager)
-	state.deps.Extensions = newDaemonExtensionService(extRegistry, manager, state.hooks, state.logger, d.now)
 	cleanup.add(func(ctx context.Context) error {
 		return manager.Stop(ctx)
 	})
 
 	if err := manager.Start(ctx); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
 		state.logger.Error("daemon: extension manager start failed; continuing without blocking boot", "error", err)
+		return nil
 	}
+	if state.bridges != nil {
+		state.bridges.setExtensionRuntime(manager)
+	}
+	state.setExtensionRuntime(manager)
+	state.deps.Extensions = newDaemonExtensionService(extRegistry, manager, state.hooks, state.logger, d.now)
 	if state.hooks != nil {
 		if err := state.hooks.Rebuild(ctx); err != nil {
 			state.logger.Error("daemon: rebuild hooks after extension boot failed; continuing without extension hooks", "error", err)
@@ -708,7 +712,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.network = state.network
 	d.hooks = state.hooks
 	d.extensions = state.currentExtensionRuntime()
-	d.channels = state.channels
+	d.bridges = state.bridges
 	d.observer = state.observer
 	d.automation = state.automation
 	d.httpServer = state.httpServer
@@ -776,20 +780,20 @@ func resolveDaemonPort(defaultPort int, server Server) int {
 	return defaultPort
 }
 
-func (d *Daemon) composeChannelRuntime(state *bootState, cleanup *bootCleanup) *channelRuntime {
+func (d *Daemon) composeBridgeRuntime(state *bootState, cleanup *bootCleanup) *bridgeRuntime {
 	if state == nil || state.registry == nil {
 		return nil
 	}
 
-	store, ok := state.registry.(channelRuntimeStore)
+	store, ok := state.registry.(bridgeRuntimeStore)
 	if !ok {
 		if state.logger != nil {
-			state.logger.Debug("daemon: skipping channel runtime because registry does not expose channel persistence")
+			state.logger.Debug("daemon: skipping bridge runtime because registry does not expose bridge persistence")
 		}
 		return nil
 	}
 
-	runtime := newChannelRuntime(store, state.logger, d.now, d.channelSecretResolver)
+	runtime := newBridgeRuntime(store, state.logger, d.now, d.bridgeSecretResolver)
 	if runtime == nil {
 		return nil
 	}
@@ -802,14 +806,14 @@ func (d *Daemon) composeChannelRuntime(state *bootState, cleanup *bootCleanup) *
 	return runtime
 }
 
-func channelRuntimeDedupStore(runtime *channelRuntime) channelDedupStore {
+func bridgeRuntimeDedupStore(runtime *bridgeRuntime) bridgeDedupStore {
 	if runtime == nil {
 		return nil
 	}
 	return runtime.store
 }
 
-func channelRuntimeBroker(runtime *channelRuntime) *channelspkg.Broker {
+func bridgeRuntimeBroker(runtime *bridgeRuntime) *bridgepkg.Broker {
 	if runtime == nil {
 		return nil
 	}

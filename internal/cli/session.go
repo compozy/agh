@@ -37,7 +37,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		agentName    string
 		cwd          string
 		name         string
-		space        string
+		channel      string
 		workspaceRef string
 	)
 
@@ -60,7 +60,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 				Name:          name,
 				Workspace:     workspace,
 				WorkspacePath: workspacePath,
-				Space:         strings.TrimSpace(space),
+				Channel:       strings.TrimSpace(channel),
 			})
 			if err != nil {
 				return err
@@ -73,7 +73,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Registered workspace name or ID")
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Absolute workspace directory to auto-register")
 	cmd.Flags().StringVar(&name, "name", "", "Optional session label")
-	cmd.Flags().StringVar(&space, "space", "", "Optional network space opt-in for the session")
+	cmd.Flags().StringVar(&channel, "channel", "", "Optional network channel opt-in for the session")
 	return cmd
 }
 
@@ -370,7 +370,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				{Label: "Name", Value: stringOrDash(info.Name)},
 				{Label: "Agent", Value: stringOrDash(info.AgentName)},
 				{Label: "Workspace", Value: stringOrDash(displaySessionWorkspace(info))},
-				{Label: "Space", Value: stringOrDash(info.Space)},
+				{Label: "Channel", Value: stringOrDash(info.Channel)},
 				{Label: "State", Value: stringOrDash(string(info.State))},
 				{Label: "ACP Session", Value: stringOrDash(info.ACPSessionID)},
 				{Label: "Created", Value: stringOrDash(formatTime(info.CreatedAt))},
@@ -390,13 +390,13 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("session", []string{
-				"id", "name", "agent_name", "workspace", "space", "state", "acp_session_id", "created_at", "updated_at",
+				"id", "name", "agent_name", "workspace", "channel", "state", "acp_session_id", "created_at", "updated_at",
 			}, []string{
 				info.ID,
 				info.Name,
 				info.AgentName,
 				displaySessionWorkspace(info),
-				info.Space,
+				info.Channel,
 				string(info.State),
 				info.ACPSessionID,
 				formatTime(info.CreatedAt),
@@ -411,9 +411,9 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 		items,
 		items,
 		"Sessions",
-		[]string{"ID", "Name", "Agent", "State", "Workspace", "Space", "Updated"},
+		[]string{"ID", "Name", "Agent", "State", "Workspace", "Channel", "Updated"},
 		"sessions",
-		[]string{"id", "name", "agent_name", "state", "workspace", "space", "updated_at"},
+		[]string{"id", "name", "agent_name", "state", "workspace", "channel", "updated_at"},
 		func(item SessionRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
@@ -421,7 +421,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 				stringOrDash(item.AgentName),
 				stringOrDash(string(item.State)),
 				stringOrDash(displaySessionWorkspace(item)),
-				stringOrDash(item.Space),
+				stringOrDash(item.Channel),
 				stringOrDash(formatAge(now, item.UpdatedAt)),
 			}
 		},
@@ -432,7 +432,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 				item.AgentName,
 				string(item.State),
 				displaySessionWorkspace(item),
-				item.Space,
+				item.Channel,
 				formatTime(item.UpdatedAt),
 			}
 		},

@@ -27,13 +27,13 @@ func (g *GlobalDB) WriteNetworkAudit(ctx context.Context, entry store.NetworkAud
 	if _, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO network_audit_log (
-			id, session_id, direction, kind, space, peer_from, peer_to, message_id, reason, size, timestamp
+			id, session_id, direction, kind, channel, peer_from, peer_to, message_id, reason, size, timestamp
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entry.ID,
 		entry.SessionID,
 		entry.Direction,
 		entry.Kind,
-		entry.Space,
+		entry.Channel,
 		entry.PeerFrom,
 		store.NullableString(entry.PeerTo),
 		entry.MessageID,
@@ -56,12 +56,12 @@ func (g *GlobalDB) ListNetworkAudit(ctx context.Context, query store.NetworkAudi
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, session_id, direction, kind, space, peer_from, peer_to, message_id, reason, size, timestamp FROM network_audit_log`
+	sqlQuery := `SELECT id, session_id, direction, kind, channel, peer_from, peer_to, message_id, reason, size, timestamp FROM network_audit_log`
 	where, args := store.BuildClauses(
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("direction", query.Direction),
 		store.StringClause("kind", query.Kind),
-		store.StringClause("space", query.Space),
+		store.StringClause("channel", query.Channel),
 		store.StringClause("message_id", query.MessageID),
 		store.TimeClause("timestamp", ">=", query.Since),
 	)
@@ -104,7 +104,7 @@ func scanNetworkAudit(scanner rowScanner) (store.NetworkAuditEntry, error) {
 		&entry.SessionID,
 		&entry.Direction,
 		&entry.Kind,
-		&entry.Space,
+		&entry.Channel,
 		&entry.PeerFrom,
 		&peerTo,
 		&entry.MessageID,

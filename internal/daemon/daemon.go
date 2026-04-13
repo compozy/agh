@@ -17,7 +17,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/httpapi"
 	"github.com/pedronauck/agh/internal/api/udsapi"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -74,7 +74,7 @@ type RuntimeDeps struct {
 	Network           core.NetworkService
 	Observer          Observer
 	Automation        core.AutomationManager
-	Channels          core.ChannelService
+	Bridges           core.BridgeService
 	Registry          Registry
 	MemoryStore       *memory.Store
 	WorkspaceResolver workspacepkg.WorkspaceResolver
@@ -127,11 +127,11 @@ type extensionRuntime interface {
 	HookDeclarations(context.Context) ([]hookspkg.HookDecl, error)
 }
 
-func channelObserveSource(service core.ChannelService) observe.ChannelSource {
+func bridgeObserveSource(service core.BridgeService) observe.BridgeSource {
 	if service == nil {
 		return nil
 	}
-	source, _ := service.(observe.ChannelSource)
+	source, _ := service.(observe.BridgeSource)
 	return source
 }
 
@@ -144,10 +144,10 @@ type extensionManagerDeps struct {
 	SkillsRegistry    *skills.Registry
 	WorkspaceResolver workspacepkg.WorkspaceResolver
 	Logger            *slog.Logger
-	ChannelRegistry   channelspkg.Registry
-	ChannelDedupStore channelDedupStore
-	ChannelBroker     *channelspkg.Broker
-	ChannelRuntime    extensionpkg.ChannelRuntimeResolver
+	BridgeRegistry    bridgepkg.Registry
+	BridgeDedupStore  bridgeDedupStore
+	BridgeBroker      *bridgepkg.Broker
+	BridgeRuntime     extensionpkg.BridgeRuntimeResolver
 }
 
 type automationRuntime interface {
@@ -186,54 +186,54 @@ type SessionManagerDeps struct {
 type Daemon struct {
 	mu sync.Mutex
 
-	homePaths             aghconfig.HomePaths
-	loadConfig            ConfigLoader
-	logger                *slog.Logger
-	closeLogger           func() error
-	now                   func() time.Time
-	pid                   func() int
-	acquireLock           func(path string, pid int) (*Lock, error)
-	openRegistry          registryOpener
-	newSessionManager     sessionManagerFactory
-	newDreamService       consolidation.ServiceFactory
-	newObserver           observerFactory
-	newExtensionManager   extensionManagerFactory
-	newAutomationManager  automationManagerFactory
-	httpFactory           ServerFactory
-	udsFactory            ServerFactory
-	listProcesses         func(context.Context) ([]processInfo, error)
-	signalProcess         func(int, syscall.Signal) error
-	processAlive          func(int) bool
-	signalCh              <-chan os.Signal
-	verifyBoundaries      bool
-	boundaryRoot          string
-	getenv                func(string) string
-	channelSecretResolver ChannelSecretResolver
-	readyCh               chan struct{}
-	readyClosed           bool
-	booting               bool
-	orphanGraceWait       time.Duration
-	orphanPollWait        time.Duration
-	config                aghconfig.Config
-	startedAt             time.Time
-	info                  Info
-	lock                  *Lock
-	registry              Registry
-	memoryStore           *memory.Store
-	sessions              SessionManager
-	network               networkRuntime
-	hooks                 hookRuntime
-	extensions            extensionRuntime
-	observer              Observer
-	automation            automationRuntime
-	channels              *channelRuntime
-	httpServer            Server
-	udsServer             Server
-	dreamRuntime          *consolidation.Runtime
-	workspaceResolver     workspacepkg.WorkspaceResolver
-	skillsRegistry        *skills.Registry
-	skillsCancel          context.CancelFunc
-	skillsDone            chan struct{}
+	homePaths            aghconfig.HomePaths
+	loadConfig           ConfigLoader
+	logger               *slog.Logger
+	closeLogger          func() error
+	now                  func() time.Time
+	pid                  func() int
+	acquireLock          func(path string, pid int) (*Lock, error)
+	openRegistry         registryOpener
+	newSessionManager    sessionManagerFactory
+	newDreamService      consolidation.ServiceFactory
+	newObserver          observerFactory
+	newExtensionManager  extensionManagerFactory
+	newAutomationManager automationManagerFactory
+	httpFactory          ServerFactory
+	udsFactory           ServerFactory
+	listProcesses        func(context.Context) ([]processInfo, error)
+	signalProcess        func(int, syscall.Signal) error
+	processAlive         func(int) bool
+	signalCh             <-chan os.Signal
+	verifyBoundaries     bool
+	boundaryRoot         string
+	getenv               func(string) string
+	bridgeSecretResolver BridgeSecretResolver
+	readyCh              chan struct{}
+	readyClosed          bool
+	booting              bool
+	orphanGraceWait      time.Duration
+	orphanPollWait       time.Duration
+	config               aghconfig.Config
+	startedAt            time.Time
+	info                 Info
+	lock                 *Lock
+	registry             Registry
+	memoryStore          *memory.Store
+	sessions             SessionManager
+	network              networkRuntime
+	hooks                hookRuntime
+	extensions           extensionRuntime
+	observer             Observer
+	automation           automationRuntime
+	bridges              *bridgeRuntime
+	httpServer           Server
+	udsServer            Server
+	dreamRuntime         *consolidation.Runtime
+	workspaceResolver    workspacepkg.WorkspaceResolver
+	skillsRegistry       *skills.Registry
+	skillsCancel         context.CancelFunc
+	skillsDone           chan struct{}
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -267,11 +267,11 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
-// WithChannelSecretResolver injects the daemon-owned resolver used to convert
-// channel secret bindings into launch-time bound secret material.
-func WithChannelSecretResolver(resolver ChannelSecretResolver) Option {
+// WithBridgeSecretResolver injects the daemon-owned resolver used to convert
+// bridge secret bindings into launch-time bound secret material.
+func WithBridgeSecretResolver(resolver BridgeSecretResolver) Option {
 	return func(d *Daemon) {
-		d.channelSecretResolver = resolver
+		d.bridgeSecretResolver = resolver
 	}
 }
 
@@ -296,8 +296,8 @@ func WithUDSServerFactory(factory ServerFactory) Option {
 	}
 }
 
-// WithSignalChannel overrides OS signal delivery, mainly for tests.
-func WithSignalChannel(ch <-chan os.Signal) Option {
+// WithSignalBridge overrides OS signal delivery, mainly for tests.
+func WithSignalBridge(ch <-chan os.Signal) Option {
 	return func(d *Daemon) {
 		d.signalCh = ch
 	}
@@ -385,7 +385,7 @@ func (d *Daemon) applyDefaults() error {
 				observe.WithWorkspaceResolver(deps.WorkspaceResolver),
 				observe.WithLogger(deps.Logger),
 				observe.WithStartTime(deps.StartedAt),
-				observe.WithChannelSource(channelObserveSource(deps.Channels)),
+				observe.WithBridgeSource(bridgeObserveSource(deps.Bridges)),
 			)
 		}
 	}
@@ -401,14 +401,14 @@ func (d *Daemon) applyDefaults() error {
 				extensionpkg.WithHostAPICapabilityChecker(capChecker),
 				extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
 			}
-			if deps.ChannelRegistry != nil {
-				hostAPIOpts = append(hostAPIOpts, extensionpkg.WithHostAPIChannelRegistry(deps.ChannelRegistry))
+			if deps.BridgeRegistry != nil {
+				hostAPIOpts = append(hostAPIOpts, extensionpkg.WithHostAPIBridgeRegistry(deps.BridgeRegistry))
 			}
-			if deps.ChannelDedupStore != nil {
-				hostAPIOpts = append(hostAPIOpts, extensionpkg.WithHostAPIChannelDedupStore(deps.ChannelDedupStore))
+			if deps.BridgeDedupStore != nil {
+				hostAPIOpts = append(hostAPIOpts, extensionpkg.WithHostAPIBridgeDedupStore(deps.BridgeDedupStore))
 			}
-			if deps.ChannelBroker != nil {
-				hostAPIOpts = append(hostAPIOpts, extensionpkg.WithHostAPIDeliveryBroker(deps.ChannelBroker))
+			if deps.BridgeBroker != nil {
+				hostAPIOpts = append(hostAPIOpts, extensionpkg.WithHostAPIDeliveryBroker(deps.BridgeBroker))
 			}
 
 			hostAPI := extensionpkg.NewHostAPIHandler(
@@ -424,11 +424,11 @@ func (d *Daemon) applyDefaults() error {
 				extensionpkg.WithSkillsRegistry(deps.SkillsRegistry),
 				extensionpkg.WithLogger(deps.Logger),
 			}
-			if sink, ok := deps.Observer.(extensionpkg.ChannelTelemetrySink); ok {
-				opts = append(opts, extensionpkg.WithChannelTelemetrySink(sink))
+			if sink, ok := deps.Observer.(extensionpkg.BridgeTelemetrySink); ok {
+				opts = append(opts, extensionpkg.WithBridgeTelemetrySink(sink))
 			}
-			if deps.ChannelRuntime != nil {
-				opts = append(opts, extensionpkg.WithChannelRuntimeResolver(deps.ChannelRuntime))
+			if deps.BridgeRuntime != nil {
+				opts = append(opts, extensionpkg.WithBridgeRuntimeResolver(deps.BridgeRuntime))
 			}
 			for method, handler := range hostAPI.MethodHandlers() {
 				opts = append(opts, extensionpkg.WithHostMethodHandler(method, handler))
@@ -465,7 +465,7 @@ func (d *Daemon) applyDefaults() error {
 				httpapi.WithNetworkService(deps.Network),
 				httpapi.WithObserver(deps.Observer),
 				httpapi.WithAutomation(deps.Automation),
-				httpapi.WithChannelService(deps.Channels),
+				httpapi.WithBridgeService(deps.Bridges),
 				httpapi.WithWorkspaceResolver(deps.WorkspaceService),
 				httpapi.WithSkillsRegistry(deps.SkillsRegistry),
 				httpapi.WithMemoryStore(deps.MemoryStore),
@@ -484,7 +484,7 @@ func (d *Daemon) applyDefaults() error {
 				udsapi.WithNetworkService(deps.Network),
 				udsapi.WithObserver(deps.Observer),
 				udsapi.WithAutomation(deps.Automation),
-				udsapi.WithChannelService(deps.Channels),
+				udsapi.WithBridgeService(deps.Bridges),
 				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
 				udsapi.WithSkillsRegistry(deps.SkillsRegistry),
 				udsapi.WithMemoryStore(deps.MemoryStore),
@@ -564,7 +564,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	hooks := d.hooks
 	extensions := d.extensions
 	automation := d.automation
-	channels := d.channels
+	bridges := d.bridges
 	httpServer := d.httpServer
 	udsServer := d.udsServer
 	registry := d.registry
@@ -594,7 +594,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	d.workspaceResolver = nil
 	d.skillsCancel = nil
 	d.skillsDone = nil
-	d.channels = nil
+	d.bridges = nil
 	d.network = nil
 	d.mu.Unlock()
 
@@ -626,8 +626,8 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 			errs = append(errs, fmt.Errorf("daemon: shutdown uds server: %w", err))
 		}
 	}
-	if channels != nil {
-		channels.Close()
+	if bridges != nil {
+		bridges.Close()
 	}
 	if network != nil {
 		if err := network.Shutdown(ctx); err != nil {

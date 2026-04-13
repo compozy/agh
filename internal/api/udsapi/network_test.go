@@ -58,7 +58,7 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 				Protocol: network.ProtocolV0,
 				ID:       "msg-inbox",
 				Kind:     network.KindDirect,
-				Space:    "builders",
+				Channel:  "builders",
 				From:     "reviewer.sess-a",
 				TS:       1775823000,
 				Body:     json.RawMessage(`{"text":"review this","intent":"review"}`),
@@ -71,19 +71,24 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 	}
 	engine := newTestRouter(t, handlers)
 
-	sendResp := performRequest(t, engine, http.MethodPost, "/api/network/send", []byte(`{"session_id":"sess-a","space":"builders","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`))
+	sendResp := performRequest(t, engine, http.MethodPost, "/api/network/send", []byte(`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`))
 	if sendResp.Code != http.StatusOK {
 		t.Fatalf("send status = %d, want %d; body=%s", sendResp.Code, http.StatusOK, sendResp.Body.String())
 	}
 	if string(seenRequest.Ext["agh.workflow_id"]) != `"wf-1"` || string(seenRequest.Ext["agh.handoff_version"]) != `3` {
 		t.Fatalf("seenRequest.Ext = %#v, want preserved workflow metadata", seenRequest.Ext)
 	}
+	if seenRequest.Channel != "builders" {
+		t.Fatalf("seenRequest.Channel = %q, want builders", seenRequest.Channel)
+	}
 
 	inboxResp := performRequest(t, engine, http.MethodGet, "/api/network/inbox?session_id=sess-a", nil)
 	if inboxResp.Code != http.StatusOK {
 		t.Fatalf("inbox status = %d, want %d", inboxResp.Code, http.StatusOK)
 	}
-	if !strings.Contains(inboxResp.Body.String(), `"agh.workflow_id":"wf-1"`) || !strings.Contains(inboxResp.Body.String(), `"agh.handoff_version":3`) {
+	if !strings.Contains(inboxResp.Body.String(), `"channel":"builders"`) ||
+		!strings.Contains(inboxResp.Body.String(), `"agh.workflow_id":"wf-1"`) ||
+		!strings.Contains(inboxResp.Body.String(), `"agh.handoff_version":3`) {
 		t.Fatalf("inbox body = %s, want workflow metadata", inboxResp.Body.String())
 	}
 }

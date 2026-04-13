@@ -11,7 +11,7 @@ describe("fetchHealth", () => {
       uptime_seconds: 3600,
       active_sessions: 2,
       active_agents: 3,
-      channels: {
+      bridges: {
         total_instances: 1,
         route_count: 2,
         delivery_backlog: 0,

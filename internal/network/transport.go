@@ -319,26 +319,26 @@ func (t *Transport) Shutdown(ctx context.Context) error {
 	}
 }
 
-// BroadcastSubject builds the RFC broadcast subject for one space.
-func BroadcastSubject(space string) (string, error) {
-	trimmedSpace := strings.TrimSpace(space)
-	if err := ValidateSpace(trimmedSpace); err != nil {
+// BroadcastSubject builds the RFC broadcast subject for one channel.
+func BroadcastSubject(channel string) (string, error) {
+	trimmedChannel := strings.TrimSpace(channel)
+	if err := ValidateChannel(trimmedChannel); err != nil {
 		return "", err
 	}
-	return subjectPrefix + "." + trimmedSpace + ".broadcast", nil
+	return subjectPrefix + "." + trimmedChannel + ".broadcast", nil
 }
 
 // DirectSubject builds the RFC direct subject for one target peer.
-func DirectSubject(space string, peerID string) (string, error) {
-	trimmedSpace := strings.TrimSpace(space)
-	if err := ValidateSpace(trimmedSpace); err != nil {
+func DirectSubject(channel string, peerID string) (string, error) {
+	trimmedChannel := strings.TrimSpace(channel)
+	if err := ValidateChannel(trimmedChannel); err != nil {
 		return "", err
 	}
 	routeToken, err := RouteToken(peerID)
 	if err != nil {
 		return "", err
 	}
-	return subjectPrefix + "." + trimmedSpace + ".peer." + routeToken, nil
+	return subjectPrefix + "." + trimmedChannel + ".peer." + routeToken, nil
 }
 
 func resolvedTransportPort(natsServer *server.Server) int {

@@ -686,7 +686,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 		ID:          "sess-workspace-id",
 		AgentName:   "coder",
 		WorkspaceID: workspaceID,
-		Space:       "builders",
+		Channel:     "builders",
 		State:       "active",
 		CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 		UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
@@ -705,11 +705,11 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	if got, want := sessions[0].WorkspaceID, workspaceID; got != want {
 		t.Fatalf("sessions[0].WorkspaceID = %q, want %q", got, want)
 	}
-	if got, want := sessions[0].Space, "builders"; got != want {
-		t.Fatalf("sessions[0].Space = %q, want %q", got, want)
+	if got, want := sessions[0].Channel, "builders"; got != want {
+		t.Fatalf("sessions[0].Channel = %q, want %q", got, want)
 	}
 
-	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "space", "state", "acp_session_id", "stop_reason", "stop_detail", "created_at", "updated_at"})
+	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "channel", "state", "acp_session_id", "stop_reason", "stop_detail", "created_at", "updated_at"})
 }
 
 func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
@@ -808,7 +808,7 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 		}
 	})
 
-	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "space", "state", "acp_session_id", "stop_reason", "stop_detail", "created_at", "updated_at"})
+	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "channel", "state", "acp_session_id", "stop_reason", "stop_detail", "created_at", "updated_at"})
 	assertTableColumns(t, globalDB.db, "workspaces", []string{"id", "root_dir", "add_dirs", "name", "default_agent", "created_at", "updated_at"})
 
 	workspaces, err := globalDB.ListWorkspaces(ctx)
@@ -833,8 +833,8 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 		if strings.HasPrefix(session.WorkspaceID, "/") {
 			t.Fatalf("session.WorkspaceID = %q, want migrated ws_ id", session.WorkspaceID)
 		}
-		if session.Space != "" {
-			t.Fatalf("session.Space = %q, want empty for migrated legacy rows", session.Space)
+		if session.Channel != "" {
+			t.Fatalf("session.Channel = %q, want empty for migrated legacy rows", session.Channel)
 		}
 	}
 
@@ -1353,7 +1353,7 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 		}
 	})
 
-	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "state", "acp_session_id", "created_at", "updated_at", "stop_reason", "stop_detail", "space"})
+	assertTableColumns(t, globalDB.db, "sessions", []string{"id", "name", "agent_name", "workspace_id", "session_type", "state", "acp_session_id", "created_at", "updated_at", "stop_reason", "stop_detail", "channel"})
 
 	sessions, err := globalDB.ListSessions(ctx, SessionListQuery{})
 	if err != nil {
@@ -1365,8 +1365,8 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 	if sessions[0].StopReason != "" || sessions[0].StopDetail != "" {
 		t.Fatalf("sessions[0] stop fields = %#v, want empty after migration", sessions[0])
 	}
-	if sessions[0].Space != "" {
-		t.Fatalf("sessions[0].Space = %q, want empty after migration", sessions[0].Space)
+	if sessions[0].Channel != "" {
+		t.Fatalf("sessions[0].Channel = %q, want empty after migration", sessions[0].Channel)
 	}
 }
 

@@ -83,17 +83,17 @@ No wire format changes are required.
 
 A `Peer` is any implementation that can emit, receive, or both emit and receive `AGH Network` envelopes.
 
-### 3.2 Space
+### 3.2 Channel
 
-A `Space` is a logical communication namespace. Spaces are protocol-visible but transport-neutral. A transport profile decides how spaces map to transport primitives.
+A `Channel` is a logical communication namechannel. Channels are protocol-visible but transport-neutral. A transport profile decides how channels map to transport primitives.
 
-A `space` value MUST match `[a-z0-9][a-z0-9_-]{0,63}`. Characters outside this set — including dots, whitespace, and NATS wildcard tokens (`>`, `*`) — are forbidden because space values are interpolated directly into transport subjects.
+A `channel` value MUST match `[a-z0-9][a-z0-9_-]{0,63}`. Characters outside this set — including dots, whitespace, and NATS wildcard tokens (`>`, `*`) — are forbidden because channel values are interpolated directly into transport subjects.
 
 ### 3.3 Interaction
 
 An `Interaction` is the lightweight logical container for work or conversation progression. It is identified by `interaction_id` and may move through a small lifecycle.
 
-An interaction is scoped to the tuple `(space, interaction_id)`. The same `interaction_id` string in different spaces denotes different interactions. Only the two original peers — the initiator who sent the first `direct` and the target identified in `to` — MAY emit lifecycle messages (`receipt`, `trace`, `direct`) for that interaction. Messages from other peers referencing an `interaction_id` they did not initiate or were not targeted by SHOULD be ignored.
+An interaction is scoped to the tuple `(channel, interaction_id)`. The same `interaction_id` string in different channels denotes different interactions. Only the two original peers — the initiator who sent the first `direct` and the target identified in `to` — MAY emit lifecycle messages (`receipt`, `trace`, `direct`) for that interaction. Messages from other peers referencing an `interaction_id` they did not initiate or were not targeted by SHOULD be ignored.
 
 ### 3.4 Recipe
 
@@ -187,7 +187,7 @@ Every message is a single envelope carrying protocol semantics independent of tr
 | `protocol`       | string          | yes      | MUST be `agh-network/v0`                       |
 | `id`             | string          | yes      | collision-resistant message identifier         |
 | `kind`           | string          | yes      | one of the normative kinds defined by this RFC |
-| `space`          | string          | yes      | logical namespace                              |
+| `channel`        | string          | yes      | logical namechannel                            |
 | `from`           | string          | yes      | claimed sender identity                        |
 | `to`             | string or null  | no       | target peer for directed communication         |
 | `interaction_id` | string or null  | no       | logical interaction identifier                 |
@@ -215,7 +215,7 @@ When a receiver processes a core envelope it MUST, in this order:
 1. Validate required fields
 2. Reject malformed messages
 3. Evaluate expiration if `expires_at` is present
-4. Route based on `kind`, `space`, and `to`
+4. Route based on `kind`, `channel`, and `to`
 5. Apply lifecycle semantics if `interaction_id` is present
 
 ```mermaid
@@ -229,7 +229,7 @@ flowchart TD
     Exp -->|Yes| ExpCheck{Expired?}
     ExpCheck -->|Yes| Reject
     ExpCheck -->|No| Route
-    Exp -->|No| Route[Route by kind + space + to]
+    Exp -->|No| Route[Route by kind + channel + to]
 
     Route --> LC{interaction_id present?}
     LC -->|Yes| ApplyLC[Apply lifecycle semantics]
@@ -252,7 +252,7 @@ In v0, short-prefix namespacing is RECOMMENDED but not enforced. The `agh.` pref
 }
 ```
 
-In v1, namespaced keys become a normative requirement (MUST).
+In v1, namechanneld keys become a normative requirement (MUST).
 
 ### 5.4 Trust state in v0
 
@@ -300,7 +300,7 @@ The core does not define:
 
 ### 6.4 Capability semantics
 
-Capabilities are opaque strings defined by implementations or future profiles. Namespaced strings are RECOMMENDED, for example:
+Capabilities are opaque strings defined by implementations or future profiles. Namechanneld strings are RECOMMENDED, for example:
 
 - `chat.translate`
 - `artifact.recipe.consume`
@@ -435,7 +435,7 @@ The normative core kinds are:
 ```mermaid
 sequenceDiagram
     participant A as Peer A
-    participant S as Space
+    participant S as Channel
     participant B as Peer B
 
     A->>S: greet
@@ -453,7 +453,7 @@ sequenceDiagram
 
 ### 8.2 `greet`
 
-`greet` advertises peer presence and capabilities to a space.
+`greet` advertises peer presence and capabilities to a channel.
 
 #### Body
 
@@ -497,11 +497,11 @@ sequenceDiagram
 - `type` is REQUIRED and MUST be either `request` or `response`
 - a response `whois` MUST set `reply_to`
 - targeted lookup SHOULD set `to`
-- untargeted lookup MAY be broadcast within a space
+- untargeted lookup MAY be broadcast within a channel
 
 ### 8.4 `say`
 
-`say` is chat-first, space-scoped communication.
+`say` is chat-first, channel-scoped communication.
 
 #### Body
 
@@ -515,7 +515,7 @@ sequenceDiagram
 
 #### Rules
 
-- `say` SHOULD be used for space-visible communication
+- `say` SHOULD be used for channel-visible communication
 - `to` SHOULD be null
 - `interaction_id` MAY be absent
 
@@ -546,7 +546,7 @@ sequenceDiagram
   "protocol": "agh-network/v0",
   "id": "msg_direct_01",
   "kind": "direct",
-  "space": "builders",
+  "channel": "builders",
   "from": "patch-worker",
   "to": "ops-coordinator",
   "interaction_id": "int_patch_42",
@@ -704,7 +704,7 @@ The core defines this initial reason-code registry:
 - `internal`
 - `interaction_closed`
 
-Implementations MAY define namespaced reason codes under `ext`.
+Implementations MAY define namechanneld reason codes under `ext`.
 
 ---
 
@@ -734,10 +734,10 @@ Implementations MUST support envelopes up to 1 MB (1,048,576 bytes) after JSON s
 
 ### 10.4 Subject mapping
 
-| Core intent          | NATS subject                                |
-| -------------------- | ------------------------------------------- |
-| Broadcast to a space | `agh.network.v0.<space>.broadcast`          |
-| Direct to a peer     | `agh.network.v0.<space>.peer.<route_token>` |
+| Core intent            | NATS subject                                  |
+| ---------------------- | --------------------------------------------- |
+| Broadcast to a channel | `agh.network.v0.<channel>.broadcast`          |
+| Direct to a peer       | `agh.network.v0.<channel>.peer.<route_token>` |
 
 ```mermaid
 sequenceDiagram
@@ -746,7 +746,7 @@ sequenceDiagram
     participant B as Peer B
     participant C as Peer C
 
-    Note over A,NATS: example space = builders
+    Note over A,NATS: example channel = builders
     A->>NATS: PUB agh.network.v0.builders.broadcast
     NATS-->>B: deliver greet
     NATS-->>C: deliver greet
@@ -758,15 +758,15 @@ sequenceDiagram
     NATS-->>A: deliver trace
 ```
 
-### 10.5 Joining a space
+### 10.5 Joining a channel
 
-A peer joins a space by subscribing to the required NATS subjects and announcing its presence:
+A peer joins a channel by subscribing to the required NATS subjects and announcing its presence:
 
-1. Subscribe to `agh.network.v0.<space>.broadcast`
-2. Subscribe to its own direct subject `agh.network.v0.<space>.peer.<own_route_token>`
+1. Subscribe to `agh.network.v0.<channel>.broadcast`
+2. Subscribe to its own direct subject `agh.network.v0.<channel>.peer.<own_route_token>`
 3. SHOULD send a `greet` message to the broadcast subject
 
-A peer SHOULD send `greet` upon joining a space. A peer SHOULD re-send `greet` after reconnecting to NATS following a connection loss.
+A peer SHOULD send `greet` upon joining a channel. A peer SHOULD re-send `greet` after reconnecting to NATS following a connection loss.
 
 #### Presence through periodic greet
 
@@ -863,30 +863,30 @@ The wire format is identical. The `protocol` field changes from `agh-network/v0`
 
 This appendix is informative and non-normative.
 
-### 13.1 Space request followed by direct handoff
+### 13.1 Channel request followed by direct handoff
 
 ```mermaid
 sequenceDiagram
     participant Ops as ops-coordinator
-    participant Space as builders
+    participant Channel as builders
     participant Patch as patch-worker
 
-    Ops->>Space: say("Who can take the failing migration tests?")
-    Space-->>Patch: say
+    Ops->>Channel: say("Who can take the failing migration tests?")
+    Channel-->>Patch: say
     Patch->>Ops: direct("I can take this")
     Ops-->>Patch: receipt(accepted)
     Patch-->>Ops: trace(working)
     Patch-->>Ops: trace(completed)
 ```
 
-1. Initial space-visible request:
+1. Initial channel-visible request:
 
 ```json
 {
   "protocol": "agh-network/v0",
   "id": "msg_say_01",
   "kind": "say",
-  "space": "builders",
+  "channel": "builders",
   "from": "ops-coordinator",
   "to": null,
   "interaction_id": null,
@@ -912,7 +912,7 @@ sequenceDiagram
   "protocol": "agh-network/v0",
   "id": "msg_direct_01",
   "kind": "direct",
-  "space": "builders",
+  "channel": "builders",
   "from": "patch-worker",
   "to": "ops-coordinator",
   "interaction_id": "int_patch_42",
@@ -938,7 +938,7 @@ sequenceDiagram
   "protocol": "agh-network/v0",
   "id": "msg_receipt_01",
   "kind": "receipt",
-  "space": "builders",
+  "channel": "builders",
   "from": "ops-coordinator",
   "to": "patch-worker",
   "interaction_id": "int_patch_42",
@@ -965,7 +965,7 @@ sequenceDiagram
   "protocol": "agh-network/v0",
   "id": "msg_trace_02",
   "kind": "trace",
-  "space": "builders",
+  "channel": "builders",
   "from": "patch-worker",
   "to": "ops-coordinator",
   "interaction_id": "int_patch_42",
@@ -992,25 +992,25 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Curator as recipe-curator
-    participant Space as builders
+    participant Channel as builders
     participant Release as release-bot
 
-    Curator->>Space: recipe("fix-go-migration-tests")
-    Space-->>Release: recipe
+    Curator->>Channel: recipe("fix-go-migration-tests")
+    Channel-->>Release: recipe
     Release->>Curator: direct("Can you adapt this recipe to my repo?")
     Curator-->>Release: receipt(accepted)
     Curator-->>Release: trace(needs_input)
     Release->>Curator: direct("Here is the failing package path")
 ```
 
-1. Space-visible recipe advertisement:
+1. Channel-visible recipe advertisement:
 
 ```json
 {
   "protocol": "agh-network/v0",
   "id": "msg_recipe_01",
   "kind": "recipe",
-  "space": "builders",
+  "channel": "builders",
   "from": "recipe-curator",
   "to": null,
   "interaction_id": null,
@@ -1045,7 +1045,7 @@ sequenceDiagram
   "protocol": "agh-network/v0",
   "id": "msg_direct_20",
   "kind": "direct",
-  "space": "builders",
+  "channel": "builders",
   "from": "release-bot",
   "to": "recipe-curator",
   "interaction_id": "int_recipe_apply_7",
@@ -1071,7 +1071,7 @@ sequenceDiagram
   "protocol": "agh-network/v0",
   "id": "msg_trace_21",
   "kind": "trace",
-  "space": "builders",
+  "channel": "builders",
   "from": "recipe-curator",
   "to": "release-bot",
   "interaction_id": "int_recipe_apply_7",

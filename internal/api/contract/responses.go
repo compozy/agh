@@ -121,9 +121,9 @@ type NetworkPeersResponse struct {
 	Peers []NetworkPeerPayload `json:"peers"`
 }
 
-// NetworkSpacesResponse wraps the active space list payload.
-type NetworkSpacesResponse struct {
-	Spaces []NetworkSpacePayload `json:"spaces"`
+// NetworkChannelsResponse wraps the active channel list payload.
+type NetworkChannelsResponse struct {
+	Channels []NetworkChannelPayload `json:"channels"`
 }
 
 // NetworkSendResponse wraps the outbound send result payload.

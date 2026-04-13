@@ -140,9 +140,9 @@ describe("HostAPI", () => {
     pair.host.handle("skills/list", async () => [
       { name: "skill-a", description: "desc", source: "workspace" },
     ]);
-    pair.host.handle("channels/messages/ingest", async params => {
+    pair.host.handle("bridges/messages/ingest", async params => {
       expect(params).toEqual({
-        channel_instance_id: "chan-1",
+        bridge_instance_id: "chan-1",
         scope: "global",
         platform_message_id: "msg-1",
         received_at: "2026-04-11T12:00:00.000Z",
@@ -155,12 +155,12 @@ describe("HostAPI", () => {
         route_created: true,
         routing_key: {
           scope: "global",
-          channel_instance_id: "chan-1",
+          bridge_instance_id: "chan-1",
           peer_id: "user-1",
         },
       };
     });
-    pair.host.handle("channels/instances/get", async () => ({
+    pair.host.handle("bridges/instances/get", async () => ({
       id: "chan-1",
       scope: "global",
       platform: "telegram",
@@ -170,7 +170,7 @@ describe("HostAPI", () => {
       status: "ready",
       routing_policy: { include_peer: true, include_thread: false, include_group: false },
     }));
-    pair.host.handle("channels/instances/report_state", async params => {
+    pair.host.handle("bridges/instances/report_state", async params => {
       expect(params).toEqual({ status: "auth_required" });
       return {
         id: "chan-1",
@@ -203,8 +203,8 @@ describe("HostAPI", () => {
       { name: "skill-a", description: "desc", source: "workspace" },
     ]);
     await expect(
-      host.channels.ingest({
-        channel_instance_id: "chan-1",
+      host.bridges.ingest({
+        bridge_instance_id: "chan-1",
         scope: "global",
         platform_message_id: "msg-1",
         received_at: "2026-04-11T12:00:00.000Z",
@@ -216,11 +216,11 @@ describe("HostAPI", () => {
       session_id: "sess-1",
       route_created: true,
     });
-    await expect(host.channels.get()).resolves.toMatchObject({
+    await expect(host.bridges.get()).resolves.toMatchObject({
       id: "chan-1",
       status: "ready",
     });
-    await expect(host.channels.reportState({ status: "auth_required" })).resolves.toMatchObject({
+    await expect(host.bridges.reportState({ status: "auth_required" })).resolves.toMatchObject({
       id: "chan-1",
       status: "auth_required",
     });

@@ -18,7 +18,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -458,17 +458,17 @@ func TestHostAPIHandlerSkillsListReturnsWorkspaceSkills(t *testing.T) {
 	}
 }
 
-func TestHostAPIHandlerChannelsMessagesIngestRejectsInvalidPayloads(t *testing.T) {
+func TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-ingest-invalid",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-ingest-invalid",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	ctx := env.channelContext(t, instance)
+	ctx := env.bridgeContext(t, instance)
 
 	tests := []struct {
 		name       string
@@ -478,7 +478,7 @@ func TestHostAPIHandlerChannelsMessagesIngestRejectsInvalidPayloads(t *testing.T
 		promptWant int
 	}{
 		{
-			name: "MissingChannelInstanceID",
+			name: "MissingBridgeInstanceID",
 			params: map[string]any{
 				"scope":               instance.Scope,
 				"workspace_id":        instance.WorkspaceID,
@@ -488,14 +488,14 @@ func TestHostAPIHandlerChannelsMessagesIngestRejectsInvalidPayloads(t *testing.T
 				"idempotency_key":     "idem-1",
 				"content":             map[string]any{"text": "hello"},
 			},
-			wantText:   "channel instance id",
+			wantText:   "bridge instance id",
 			wantCode:   HostAPIInvalidParamsCode,
 			promptWant: 0,
 		},
 		{
 			name: "MissingPolicyRequiredPeer",
 			params: map[string]any{
-				"channel_instance_id": instance.ID,
+				"bridge_instance_id":  instance.ID,
 				"scope":               instance.Scope,
 				"workspace_id":        instance.WorkspaceID,
 				"platform_message_id": "msg-2",
@@ -514,7 +514,7 @@ func TestHostAPIHandlerChannelsMessagesIngestRejectsInvalidPayloads(t *testing.T
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", tt.params)
+			_, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", tt.params)
 			assertRPCErrorCode(t, err, tt.wantCode)
 			assertErrorContains(t, err, tt.wantText)
 			if got := env.driver.promptCount(); got != tt.promptWant {
@@ -524,22 +524,22 @@ func TestHostAPIHandlerChannelsMessagesIngestRejectsInvalidPayloads(t *testing.T
 	}
 }
 
-func TestHostAPIHandlerChannelsMessagesIngestRejectsDisabledOrUnknownInstances(t *testing.T) {
+func TestHostAPIHandlerBridgesMessagesIngestRejectsDisabledOrUnknownInstances(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
-	disabled := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-ingest-disabled",
+	disabled := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-ingest-disabled",
 		Enabled:       false,
-		Status:        channelspkg.ChannelStatusDisabled,
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+		Status:        bridgepkg.BridgeStatusDisabled,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	disabledCtx := env.channelContext(t, disabled)
+	disabledCtx := env.bridgeContext(t, disabled)
 
-	_, err := env.callWithContext(t, disabledCtx, "telegram-adapter", "channels/messages/ingest", map[string]any{
-		"channel_instance_id": disabled.ID,
+	_, err := env.callWithContext(t, disabledCtx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+		"bridge_instance_id":  disabled.ID,
 		"scope":               disabled.Scope,
 		"workspace_id":        disabled.WorkspaceID,
 		"peer_id":             "peer-1",
@@ -554,14 +554,14 @@ func TestHostAPIHandlerChannelsMessagesIngestRejectsDisabledOrUnknownInstances(t
 		t.Fatalf("driver.promptCount() = %d, want 0", got)
 	}
 
-	ready := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-ingest-ready",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	ready := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-ingest-ready",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	readyCtx := env.channelContext(t, ready)
+	readyCtx := env.bridgeContext(t, ready)
 
-	_, err = env.callWithContext(t, readyCtx, "telegram-adapter", "channels/messages/ingest", map[string]any{
-		"channel_instance_id": "chan-missing",
+	_, err = env.callWithContext(t, readyCtx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+		"bridge_instance_id":  "brg-missing",
 		"scope":               ready.Scope,
 		"workspace_id":        ready.WorkspaceID,
 		"peer_id":             "peer-1",
@@ -576,19 +576,19 @@ func TestHostAPIHandlerChannelsMessagesIngestRejectsDisabledOrUnknownInstances(t
 	}
 }
 
-func TestHostAPIHandlerChannelsMessagesIngestSuppressesDuplicateWebhookRetries(t *testing.T) {
+func TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-ingest-dedup",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-ingest-dedup",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	ctx := env.channelContext(t, instance)
+	ctx := env.bridgeContext(t, instance)
 	params := map[string]any{
-		"channel_instance_id": instance.ID,
+		"bridge_instance_id":  instance.ID,
 		"scope":               instance.Scope,
 		"workspace_id":        instance.WorkspaceID,
 		"peer_id":             "peer-1",
@@ -598,35 +598,35 @@ func TestHostAPIHandlerChannelsMessagesIngestSuppressesDuplicateWebhookRetries(t
 		"content":             map[string]any{"text": "hello"},
 	}
 
-	first, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params)
+	first, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", params)
 	if err != nil {
 		t.Fatalf("first ingest error = %v", err)
 	}
-	var firstResult hostAPIChannelsMessagesIngestResult
+	var firstResult hostAPIBridgesMessagesIngestResult
 	decodeResult(t, first, &firstResult)
 
-	firstRoute, err := env.channels.ResolveRoute(testutil.Context(t), firstResult.RoutingKey)
+	firstRoute, err := env.bridges.ResolveRoute(testutil.Context(t), firstResult.RoutingKey)
 	if err != nil {
-		t.Fatalf("channels.ResolveRoute(first) error = %v", err)
+		t.Fatalf("bridges.ResolveRoute(first) error = %v", err)
 	}
 
 	env.advanceTime(5 * time.Minute)
 
-	second, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params)
+	second, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", params)
 	if err != nil {
 		t.Fatalf("duplicate ingest error = %v", err)
 	}
-	var secondResult hostAPIChannelsMessagesIngestResult
+	var secondResult hostAPIBridgesMessagesIngestResult
 	decodeResult(t, second, &secondResult)
 
-	secondRoute, err := env.channels.ResolveRoute(testutil.Context(t), secondResult.RoutingKey)
+	secondRoute, err := env.bridges.ResolveRoute(testutil.Context(t), secondResult.RoutingKey)
 	if err != nil {
-		t.Fatalf("channels.ResolveRoute(second) error = %v", err)
+		t.Fatalf("bridges.ResolveRoute(second) error = %v", err)
 	}
 
-	routes, err := env.channels.ListRoutes(testutil.Context(t), instance.ID)
+	routes, err := env.bridges.ListRoutes(testutil.Context(t), instance.ID)
 	if err != nil {
-		t.Fatalf("channels.ListRoutes() error = %v", err)
+		t.Fatalf("bridges.ListRoutes() error = %v", err)
 	}
 	if got := len(routes); got != 1 {
 		t.Fatalf("len(routes) = %d, want 1", got)
@@ -642,93 +642,93 @@ func TestHostAPIHandlerChannelsMessagesIngestSuppressesDuplicateWebhookRetries(t
 	}
 }
 
-func TestHostAPIHandlerChannelsInstancesReportStateRejectsInvalidUpdates(t *testing.T) {
+func TestHostAPIHandlerBridgesInstancesReportStateRejectsInvalidUpdates(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/instances/report_state"}, []string{"channel.write"})
+	env.grant("telegram-adapter", []string{"bridges/instances/report_state"}, []string{"bridge.write"})
 
-	ready := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-report-state-ready",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	ready := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-report-state-ready",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	readyCtx := env.channelContext(t, ready)
+	readyCtx := env.bridgeContext(t, ready)
 
-	_, err := env.callWithContext(t, readyCtx, "telegram-adapter", "channels/instances/report_state", map[string]any{
+	_, err := env.callWithContext(t, readyCtx, "telegram-adapter", "bridges/instances/report_state", map[string]any{
 		"status": "disabled",
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 	assertErrorContains(t, err, "operator-controlled")
 
-	_, err = env.callWithContext(t, readyCtx, "telegram-adapter", "channels/instances/report_state", map[string]any{
+	_, err = env.callWithContext(t, readyCtx, "telegram-adapter", "bridges/instances/report_state", map[string]any{
 		"status": "bogus",
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "unsupported channel status")
+	assertErrorContains(t, err, "unsupported bridge status")
 }
 
-func TestHostAPIHandlerChannelsInstancesGetRejectsMismatchedRuntimeOwnership(t *testing.T) {
+func TestHostAPIHandlerBridgesInstancesGetRejectsMismatchedRuntimeOwnership(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/instances/get"}, []string{"channel.read"})
+	env.grant("telegram-adapter", []string{"bridges/instances/get"}, []string{"bridge.read"})
 
-	other := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-other-owner",
+	other := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-other-owner",
 		ExtensionName: "discord-adapter",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	ctx := env.channelContext(t, other)
+	ctx := env.bridgeContext(t, other)
 
-	_, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/instances/get", nil)
+	_, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", nil)
 	assertRPCErrorCode(t, err, HostAPINotFoundCode)
 }
 
-func TestHostAPIHandlerMethodHandlersExposeChannelRuntimeAwareInstanceLookup(t *testing.T) {
+func TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/instances/get"}, []string{"channel.read"})
+	env.grant("telegram-adapter", []string{"bridges/instances/get"}, []string{"bridge.read"})
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-method-handler",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-method-handler",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 
 	handlers := env.handler.MethodHandlers()
-	handler, ok := handlers["channels/instances/get"]
+	handler, ok := handlers["bridges/instances/get"]
 	if !ok {
-		t.Fatal("MethodHandlers()[channels/instances/get] = missing, want handler")
+		t.Fatal("MethodHandlers()[bridges/instances/get] = missing, want handler")
 	}
 
-	ctx := withHostAPIExtensionName(env.channelContext(t, instance), "telegram-adapter")
+	ctx := withHostAPIExtensionName(env.bridgeContext(t, instance), "telegram-adapter")
 	result, err := handler(ctx, nil)
 	if err != nil {
-		t.Fatalf("MethodHandlers()[channels/instances/get]() error = %v", err)
+		t.Fatalf("MethodHandlers()[bridges/instances/get]() error = %v", err)
 	}
 
-	var loaded hostAPIChannelInstance
+	var loaded hostAPIBridgeInstance
 	decodeResult(t, result, &loaded)
 	if loaded.ID != instance.ID {
 		t.Fatalf("loaded.ID = %q, want %q", loaded.ID, instance.ID)
 	}
 }
 
-func TestHostAPIHandlerChannelsMessagesIngestConcurrentSameRoutingKeyCreatesOneSessionAndRoute(t *testing.T) {
+func TestHostAPIHandlerBridgesMessagesIngestConcurrentSameRoutingKeyCreatesOneSessionAndRoute(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
 	env.useSessionsWithoutObserver(t)
-	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-ingest-concurrent",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-ingest-concurrent",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	ctx := env.channelContext(t, instance)
+	ctx := env.bridgeContext(t, instance)
 
 	type ingestResult struct {
-		result hostAPIChannelsMessagesIngestResult
+		result hostAPIBridgesMessagesIngestResult
 		err    error
 	}
 
@@ -739,8 +739,8 @@ func TestHostAPIHandlerChannelsMessagesIngestConcurrentSameRoutingKeyCreatesOneS
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			res, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", map[string]any{
-				"channel_instance_id": instance.ID,
+			res, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+				"bridge_instance_id":  instance.ID,
 				"scope":               instance.Scope,
 				"workspace_id":        instance.WorkspaceID,
 				"peer_id":             "peer-1",
@@ -764,9 +764,9 @@ func TestHostAPIHandlerChannelsMessagesIngestConcurrentSameRoutingKeyCreatesOneS
 		}
 	}
 
-	routes, err := env.channels.ListRoutes(testutil.Context(t), instance.ID)
+	routes, err := env.bridges.ListRoutes(testutil.Context(t), instance.ID)
 	if err != nil {
-		t.Fatalf("channels.ListRoutes() error = %v", err)
+		t.Fatalf("bridges.ListRoutes() error = %v", err)
 	}
 	if got := len(routes); got != 1 {
 		t.Fatalf("len(routes) = %d, want 1", got)
@@ -787,40 +787,40 @@ func TestHostAPIHandlerChannelsMessagesIngestConcurrentSameRoutingKeyCreatesOneS
 	}
 }
 
-func TestHostAPIHandlerChannelsMessagesIngestRebindsStaleRouteToReplacementSession(t *testing.T) {
+func TestHostAPIHandlerBridgesMessagesIngestRebindsStaleRouteToReplacementSession(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-ingest-rebind",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-ingest-rebind",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	ctx := env.channelContext(t, instance)
+	ctx := env.bridgeContext(t, instance)
 
-	key, err := env.channels.BuildRoutingKey(testutil.Context(t), channelspkg.RoutingKey{
-		ChannelInstanceID: instance.ID,
-		Scope:             instance.Scope,
-		WorkspaceID:       instance.WorkspaceID,
-		PeerID:            "peer-1",
+	key, err := env.bridges.BuildRoutingKey(testutil.Context(t), bridgepkg.RoutingKey{
+		BridgeInstanceID: instance.ID,
+		Scope:            instance.Scope,
+		WorkspaceID:      instance.WorkspaceID,
+		PeerID:           "peer-1",
 	})
 	if err != nil {
-		t.Fatalf("channels.BuildRoutingKey() error = %v", err)
+		t.Fatalf("bridges.BuildRoutingKey() error = %v", err)
 	}
-	if _, err := env.channels.UpsertRoute(testutil.Context(t), channelspkg.ChannelRoute{
-		Scope:             key.Scope,
-		WorkspaceID:       key.WorkspaceID,
-		ChannelInstanceID: key.ChannelInstanceID,
-		PeerID:            key.PeerID,
-		SessionID:         "missing-session",
-		AgentName:         "coder",
+	if _, err := env.bridges.UpsertRoute(testutil.Context(t), bridgepkg.BridgeRoute{
+		Scope:            key.Scope,
+		WorkspaceID:      key.WorkspaceID,
+		BridgeInstanceID: key.BridgeInstanceID,
+		PeerID:           key.PeerID,
+		SessionID:        "missing-session",
+		AgentName:        "coder",
 	}); err != nil {
-		t.Fatalf("channels.UpsertRoute() error = %v", err)
+		t.Fatalf("bridges.UpsertRoute() error = %v", err)
 	}
 
-	result, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", map[string]any{
-		"channel_instance_id": instance.ID,
+	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+		"bridge_instance_id":  instance.ID,
 		"scope":               instance.Scope,
 		"workspace_id":        instance.WorkspaceID,
 		"peer_id":             "peer-1",
@@ -830,18 +830,18 @@ func TestHostAPIHandlerChannelsMessagesIngestRebindsStaleRouteToReplacementSessi
 		"content":             map[string]any{"text": "hello"},
 	})
 	if err != nil {
-		t.Fatalf("Handle(channels/messages/ingest) error = %v", err)
+		t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
 	}
 
-	var ingest hostAPIChannelsMessagesIngestResult
+	var ingest hostAPIBridgesMessagesIngestResult
 	decodeResult(t, result, &ingest)
 	if ingest.SessionID == "missing-session" {
 		t.Fatal("ingest session_id = missing-session, want replacement session")
 	}
 
-	route, err := env.channels.ResolveRoute(testutil.Context(t), key)
+	route, err := env.bridges.ResolveRoute(testutil.Context(t), key)
 	if err != nil {
-		t.Fatalf("channels.ResolveRoute() error = %v", err)
+		t.Fatalf("bridges.ResolveRoute() error = %v", err)
 	}
 	if route.SessionID != ingest.SessionID {
 		t.Fatalf("route.SessionID = %q, want %q", route.SessionID, ingest.SessionID)
@@ -851,19 +851,19 @@ func TestHostAPIHandlerChannelsMessagesIngestRebindsStaleRouteToReplacementSessi
 	}
 }
 
-func TestHostAPIHandlerChannelsMessagesIngestExpiredDedupAllowsReingest(t *testing.T) {
+func TestHostAPIHandlerBridgesMessagesIngestExpiredDedupAllowsReingest(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-ingest-expiry",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-ingest-expiry",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	ctx := env.channelContext(t, instance)
+	ctx := env.bridgeContext(t, instance)
 	params := map[string]any{
-		"channel_instance_id": instance.ID,
+		"bridge_instance_id":  instance.ID,
 		"scope":               instance.Scope,
 		"workspace_id":        instance.WorkspaceID,
 		"peer_id":             "peer-1",
@@ -873,7 +873,7 @@ func TestHostAPIHandlerChannelsMessagesIngestExpiredDedupAllowsReingest(t *testi
 		"content":             map[string]any{"text": "hello"},
 	}
 
-	if _, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params); err != nil {
+	if _, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", params); err != nil {
 		t.Fatalf("first ingest error = %v", err)
 	}
 	if got := env.driver.promptCount(); got != 1 {
@@ -881,27 +881,27 @@ func TestHostAPIHandlerChannelsMessagesIngestExpiredDedupAllowsReingest(t *testi
 	}
 
 	env.advanceTime(20 * time.Minute)
-	if _, err := env.registry.GetChannelIngestDedup(testutil.Context(t), "idem-expiry", env.currentTime()); !errors.Is(err, channelspkg.ErrIngestDedupRecordNotFound) {
-		t.Fatalf("GetChannelIngestDedup(expired) error = %v, want ErrIngestDedupRecordNotFound", err)
+	if _, err := env.registry.GetBridgeIngestDedup(testutil.Context(t), "idem-expiry", env.currentTime()); !errors.Is(err, bridgepkg.ErrIngestDedupRecordNotFound) {
+		t.Fatalf("GetBridgeIngestDedup(expired) error = %v, want ErrIngestDedupRecordNotFound", err)
 	}
 
-	if _, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params); err != nil {
+	if _, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", params); err != nil {
 		t.Fatalf("second ingest after expiry error = %v", err)
 	}
 	if got := env.driver.promptCount(); got != 2 {
 		t.Fatalf("driver.promptCount() after reingest = %d, want 2", got)
 	}
 
-	if _, err := env.registry.GetChannelIngestDedup(testutil.Context(t), "idem-expiry", env.currentTime()); err != nil {
-		t.Fatalf("GetChannelIngestDedup(refreshed) error = %v", err)
+	if _, err := env.registry.GetBridgeIngestDedup(testutil.Context(t), "idem-expiry", env.currentTime()); err != nil {
+		t.Fatalf("GetBridgeIngestDedup(refreshed) error = %v", err)
 	}
 }
 
-func TestHostAPIHandlerChannelsMessagesIngestRegistersPromptDelivery(t *testing.T) {
+func TestHostAPIHandlerBridgesMessagesIngestRegistersPromptDelivery(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"channels/messages/ingest"}, []string{"channel.write"})
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	broker := &recordingPromptDeliveryBroker{}
 	env.handler = NewHostAPIHandler(
@@ -911,21 +911,21 @@ func TestHostAPIHandlerChannelsMessagesIngestRegistersPromptDelivery(t *testing.
 		env.skills,
 		WithHostAPICapabilityChecker(env.checker),
 		WithHostAPIWorkspaceResolver(env.workspaces),
-		WithHostAPIChannelRegistry(env.channels),
-		WithHostAPIChannelDedupStore(env.registry),
+		WithHostAPIBridgeRegistry(env.bridges),
+		WithHostAPIBridgeDedupStore(env.registry),
 		WithHostAPIDeliveryBroker(broker),
 		WithHostAPINow(func() time.Time { return env.currentTime() }),
-		WithHostAPIChannelIngressConfig(15*time.Minute, time.Minute),
+		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
 		WithHostAPIRateLimit(1000, 1000),
 	)
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-ingest-register",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-ingest-register",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	ctx := env.channelContext(t, instance)
+	ctx := env.bridgeContext(t, instance)
 	params := map[string]any{
-		"channel_instance_id": instance.ID,
+		"bridge_instance_id":  instance.ID,
 		"scope":               instance.Scope,
 		"workspace_id":        instance.WorkspaceID,
 		"peer_id":             "peer-1",
@@ -935,8 +935,8 @@ func TestHostAPIHandlerChannelsMessagesIngestRegistersPromptDelivery(t *testing.
 		"content":             map[string]any{"text": "hello"},
 	}
 
-	if _, err := env.callWithContext(t, ctx, "telegram-adapter", "channels/messages/ingest", params); err != nil {
-		t.Fatalf("Handle(channels/messages/ingest) error = %v", err)
+	if _, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", params); err != nil {
+		t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
 	}
 
 	regs := broker.snapshotRegistrations()
@@ -953,13 +953,13 @@ func TestHostAPIHandlerChannelsMessagesIngestRegistersPromptDelivery(t *testing.
 	if got, want := reg.ExtensionName, instance.ExtensionName; got != want {
 		t.Fatalf("registration extension = %q, want %q", got, want)
 	}
-	if got, want := reg.RoutingKey.ChannelInstanceID, instance.ID; got != want {
+	if got, want := reg.RoutingKey.BridgeInstanceID, instance.ID; got != want {
 		t.Fatalf("registration routing key instance = %q, want %q", got, want)
 	}
 	if got, want := reg.RoutingKey.PeerID, "peer-1"; got != want {
 		t.Fatalf("registration routing key peer = %q, want %q", got, want)
 	}
-	if got, want := reg.DeliveryTarget.Mode, channelspkg.DeliveryModeReply; got != want {
+	if got, want := reg.DeliveryTarget.Mode, bridgepkg.DeliveryModeReply; got != want {
 		t.Fatalf("registration delivery mode = %q, want %q", got, want)
 	}
 
@@ -986,11 +986,11 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 		env.skills,
 		WithHostAPICapabilityChecker(env.checker),
 		WithHostAPIWorkspaceResolver(env.workspaces),
-		WithHostAPIChannelRegistry(env.channels),
-		WithHostAPIChannelDedupStore(env.registry),
+		WithHostAPIBridgeRegistry(env.bridges),
+		WithHostAPIBridgeDedupStore(env.registry),
 		WithHostAPIDeliveryBroker(broker),
 		WithHostAPINow(func() time.Time { return env.currentTime() }),
-		WithHostAPIChannelIngressConfig(15*time.Minute, time.Minute),
+		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
 		WithHostAPIRateLimit(1000, 1000),
 	)
 
@@ -1020,15 +1020,15 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	instance := env.createChannelInstance(t, channelspkg.CreateInstanceRequest{
-		ID:            "chan-register-replay",
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-register-replay",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	routingKey, err := env.channels.BuildRoutingKey(testutil.Context(t), channelspkg.RoutingKey{
-		Scope:             instance.Scope,
-		WorkspaceID:       instance.WorkspaceID,
-		ChannelInstanceID: instance.ID,
-		PeerID:            "peer-1",
+	routingKey, err := env.bridges.BuildRoutingKey(testutil.Context(t), bridgepkg.RoutingKey{
+		Scope:            instance.Scope,
+		WorkspaceID:      instance.WorkspaceID,
+		BridgeInstanceID: instance.ID,
+		PeerID:           "peer-1",
 	})
 	if err != nil {
 		t.Fatalf("BuildRoutingKey() error = %v", err)
@@ -1036,7 +1036,7 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 
 	if err := env.handler.registerPromptDelivery(testutil.Context(t), *instance, routingKey, sess.ID, hostAPIPromptSubmission{
 		TurnID: prompt.TurnID,
-		SeedEvents: []channelspkg.DeliveryProjectionEvent{{
+		SeedEvents: []bridgepkg.DeliveryProjectionEvent{{
 			Type:      acp.EventTypeUserMessage,
 			TurnID:    prompt.TurnID,
 			Timestamp: env.currentTime(),
@@ -1059,10 +1059,10 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 	}
 }
 
-func TestChannelHostAPIHelpersMapErrorsAndFormatInboundMetadata(t *testing.T) {
+func TestBridgeHostAPIHelpersMapErrorsAndFormatInboundMetadata(t *testing.T) {
 	t.Parallel()
 
-	attachmentSummary := summarizeInboundAttachment(channelspkg.MessageAttachment{
+	attachmentSummary := summarizeInboundAttachment(bridgepkg.MessageAttachment{
 		ID:       "att-1",
 		Name:     "report.pdf",
 		MIMEType: "application/pdf",
@@ -1072,13 +1072,13 @@ func TestChannelHostAPIHelpersMapErrorsAndFormatInboundMetadata(t *testing.T) {
 		t.Fatalf("summarizeInboundAttachment() = %q, want attachment name and mime type", attachmentSummary)
 	}
 
-	prompt := renderInboundMessagePrompt(channelspkg.InboundMessageEnvelope{
+	prompt := renderInboundMessagePrompt(bridgepkg.InboundMessageEnvelope{
 		PlatformMessageID: "msg-1",
 		ReceivedAt:        time.Date(2026, 4, 10, 18, 0, 0, 0, time.UTC),
 		PeerID:            "peer-1",
-		Sender:            channelspkg.MessageSender{DisplayName: "Alice", Username: "alice"},
-		Content:           channelspkg.MessageContent{},
-		Attachments: []channelspkg.MessageAttachment{{
+		Sender:            bridgepkg.MessageSender{DisplayName: "Alice", Username: "alice"},
+		Content:           bridgepkg.MessageContent{},
+		Attachments: []bridgepkg.MessageAttachment{{
 			Name:     "report.pdf",
 			MIMEType: "application/pdf",
 		}},
@@ -1087,13 +1087,13 @@ func TestChannelHostAPIHelpersMapErrorsAndFormatInboundMetadata(t *testing.T) {
 		t.Fatalf("renderInboundMessagePrompt() = %q, want attachment block and empty-body marker", prompt)
 	}
 
-	assertRPCErrorCode(t, mapChannelLookupError("chan-1", channelspkg.ErrChannelInstanceNotFound), HostAPINotFoundCode)
-	assertRPCErrorCode(t, mapChannelRouteError("chan-1", channelspkg.ErrChannelInstanceUnavailable), HostAPIUnavailableCode)
-	assertRPCErrorCode(t, mapChannelStateUpdateError("chan-1", channelspkg.ErrInvalidChannelStateTransition), HostAPIInvalidParamsCode)
+	assertRPCErrorCode(t, mapBridgeLookupError("brg-1", bridgepkg.ErrBridgeInstanceNotFound), HostAPINotFoundCode)
+	assertRPCErrorCode(t, mapBridgeRouteError("brg-1", bridgepkg.ErrBridgeInstanceUnavailable), HostAPIUnavailableCode)
+	assertRPCErrorCode(t, mapBridgeStateUpdateError("brg-1", bridgepkg.ErrInvalidBridgeStateTransition), HostAPIInvalidParamsCode)
 
 	env := newHostAPITestEnv(t)
-	if err := env.handler.stopChannelSession(testutil.Context(t), "missing-session"); err != nil {
-		t.Fatalf("stopChannelSession(missing) error = %v, want nil", err)
+	if err := env.handler.stopBridgeSession(testutil.Context(t), "missing-session"); err != nil {
+		t.Fatalf("stopBridgeSession(missing) error = %v, want nil", err)
 	}
 }
 
@@ -1203,8 +1203,8 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 			"scope":        "workspace",
 			"workspace_id": env.workspaceID,
 		}},
-		{method: "channels/messages/ingest", params: map[string]any{
-			"channel_instance_id": "chan-1",
+		{method: "bridges/messages/ingest", params: map[string]any{
+			"bridge_instance_id":  "brg-1",
 			"scope":               "workspace",
 			"workspace_id":        env.workspaceID,
 			"peer_id":             "peer-1",
@@ -1212,8 +1212,8 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 			"received_at":         env.currentTime().Format(time.RFC3339Nano),
 			"idempotency_key":     "idem-1",
 		}},
-		{method: "channels/instances/get", params: nil},
-		{method: "channels/instances/report_state", params: map[string]any{"status": "ready"}},
+		{method: "bridges/instances/get", params: nil},
+		{method: "bridges/instances/report_state", params: map[string]any{"status": "ready"}},
 	}
 
 	for _, tt := range tests {
@@ -1730,7 +1730,7 @@ type hostAPITestEnv struct {
 	workspaceID string
 	workspace   workspacepkg.ResolvedWorkspace
 	registry    *globaldb.GlobalDB
-	channels    *channelspkg.Service
+	bridges     *bridgepkg.Service
 	sessions    *session.Manager
 	automation  HostAPIAutomationManager
 	observer    *observepkg.Observer
@@ -1819,7 +1819,7 @@ Review the workspace changes carefully.
 	if err := registry.InsertWorkspace(testutil.Context(t), resolvedWorkspace.Workspace); err != nil {
 		t.Fatalf("registry.InsertWorkspace() error = %v", err)
 	}
-	channelRegistry := channelspkg.NewRegistry(registry, channelspkg.WithNow(func() time.Time { return env.currentTime() }))
+	bridgeRegistry := bridgepkg.NewRegistry(registry, bridgepkg.WithNow(func() time.Time { return env.currentTime() }))
 
 	observer, err := observepkg.New(testutil.Context(t),
 		observepkg.WithRegistry(registry),
@@ -1900,17 +1900,17 @@ Review the workspace changes carefully.
 		WithHostAPIAutomationManager(automationManager),
 		WithHostAPICapabilityChecker(checker),
 		WithHostAPIWorkspaceResolver(workspaces),
-		WithHostAPIChannelRegistry(channelRegistry),
-		WithHostAPIChannelDedupStore(registry),
+		WithHostAPIBridgeRegistry(bridgeRegistry),
+		WithHostAPIBridgeDedupStore(registry),
 		WithHostAPINow(func() time.Time { return env.currentTime() }),
-		WithHostAPIChannelIngressConfig(15*time.Minute, time.Minute),
+		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
 		WithHostAPIRateLimit(1000, 1000),
 	)
 
 	env.workspaceID = resolvedWorkspace.ID
 	env.workspace = resolvedWorkspace
 	env.registry = registry
-	env.channels = channelRegistry
+	env.bridges = bridgeRegistry
 	env.sessions = sessions
 	env.automation = automationManager
 	env.observer = observer
@@ -1963,15 +1963,15 @@ func (e *hostAPITestEnv) callWithContext(t testing.TB, ctx context.Context, extN
 	return e.handler.Handle(ctx, extName, method, eRaw)
 }
 
-func (e *hostAPITestEnv) channelContext(t testing.TB, instance *channelspkg.ChannelInstance) context.Context {
+func (e *hostAPITestEnv) bridgeContext(t testing.TB, instance *bridgepkg.BridgeInstance) context.Context {
 	t.Helper()
 
 	if instance == nil {
-		t.Fatal("channel instance = nil, want non-nil")
+		t.Fatal("bridge instance = nil, want non-nil")
 		return testutil.Context(t)
 	}
 
-	return withHostAPIChannelRuntime(testutil.Context(t), &subprocess.InitializeChannelRuntime{
+	return withHostAPIBridgeRuntime(testutil.Context(t), &subprocess.InitializeBridgeRuntime{
 		Instance: *instance,
 	})
 }
@@ -2008,13 +2008,13 @@ func (e *hostAPITestEnv) createSession(t *testing.T) *session.Session {
 	return sess
 }
 
-func (e *hostAPITestEnv) createChannelInstance(t *testing.T, req channelspkg.CreateInstanceRequest) *channelspkg.ChannelInstance {
+func (e *hostAPITestEnv) createBridgeInstance(t *testing.T, req bridgepkg.CreateInstanceRequest) *bridgepkg.BridgeInstance {
 	t.Helper()
 
 	if req.Scope == "" {
-		req.Scope = channelspkg.ScopeWorkspace
+		req.Scope = bridgepkg.ScopeWorkspace
 	}
-	if req.WorkspaceID == "" && req.Scope == channelspkg.ScopeWorkspace {
+	if req.WorkspaceID == "" && req.Scope == bridgepkg.ScopeWorkspace {
 		req.WorkspaceID = e.workspaceID
 	}
 	if req.Platform == "" {
@@ -2030,12 +2030,12 @@ func (e *hostAPITestEnv) createChannelInstance(t *testing.T, req channelspkg.Cre
 		req.Enabled = true
 	}
 	if req.Status == "" {
-		req.Status = channelspkg.ChannelStatusReady
+		req.Status = bridgepkg.BridgeStatusReady
 	}
 
-	instance, err := e.channels.CreateInstance(testutil.Context(t), req)
+	instance, err := e.bridges.CreateInstance(testutil.Context(t), req)
 	if err != nil {
-		t.Fatalf("channels.CreateInstance() error = %v", err)
+		t.Fatalf("bridges.CreateInstance() error = %v", err)
 	}
 	return instance
 }
@@ -2067,10 +2067,10 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 		e.skills,
 		WithHostAPICapabilityChecker(e.checker),
 		WithHostAPIWorkspaceResolver(e.workspaces),
-		WithHostAPIChannelRegistry(e.channels),
-		WithHostAPIChannelDedupStore(e.registry),
+		WithHostAPIBridgeRegistry(e.bridges),
+		WithHostAPIBridgeDedupStore(e.registry),
 		WithHostAPINow(func() time.Time { return e.currentTime() }),
-		WithHostAPIChannelIngressConfig(15*time.Minute, time.Minute),
+		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
 		WithHostAPIRateLimit(1000, 1000),
 	)
 }
@@ -2093,38 +2093,38 @@ type hostAPIFakeWorkspaceResolver struct {
 
 type recordingPromptDeliveryBroker struct {
 	mu            sync.Mutex
-	registrations []channelspkg.PromptDeliveryRegistration
-	projected     []channelspkg.DeliveryProjectionEvent
+	registrations []bridgepkg.PromptDeliveryRegistration
+	projected     []bridgepkg.DeliveryProjectionEvent
 }
 
 func (b *recordingPromptDeliveryBroker) RegisterPromptDelivery(
 	_ context.Context,
-	reg channelspkg.PromptDeliveryRegistration,
-) (*channelspkg.DeliverySnapshot, error) {
+	reg bridgepkg.PromptDeliveryRegistration,
+) (*bridgepkg.DeliverySnapshot, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	cloned := reg
 	if len(cloned.SeedEvents) > 0 {
-		cloned.SeedEvents = append([]channelspkg.DeliveryProjectionEvent(nil), cloned.SeedEvents...)
+		cloned.SeedEvents = append([]bridgepkg.DeliveryProjectionEvent(nil), cloned.SeedEvents...)
 	}
 	b.registrations = append(b.registrations, cloned)
-	return &channelspkg.DeliverySnapshot{
-		DeliveryID:        "del-test",
-		SessionID:         reg.SessionID,
-		TurnID:            reg.TurnID,
-		ChannelInstanceID: reg.RoutingKey.ChannelInstanceID,
-		RoutingKey:        reg.RoutingKey,
-		DeliveryTarget:    reg.DeliveryTarget,
-		LatestEventType:   channelspkg.DeliveryEventTypeStart,
-		UpdatedAt:         time.Now().UTC(),
+	return &bridgepkg.DeliverySnapshot{
+		DeliveryID:       "del-test",
+		SessionID:        reg.SessionID,
+		TurnID:           reg.TurnID,
+		BridgeInstanceID: reg.RoutingKey.BridgeInstanceID,
+		RoutingKey:       reg.RoutingKey,
+		DeliveryTarget:   reg.DeliveryTarget,
+		LatestEventType:  bridgepkg.DeliveryEventTypeStart,
+		UpdatedAt:        time.Now().UTC(),
 	}, nil
 }
 
 func (b *recordingPromptDeliveryBroker) ProjectEvent(
 	_ context.Context,
 	_ string,
-	event channelspkg.DeliveryProjectionEvent,
+	event bridgepkg.DeliveryProjectionEvent,
 ) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -2133,26 +2133,26 @@ func (b *recordingPromptDeliveryBroker) ProjectEvent(
 	return nil
 }
 
-func (b *recordingPromptDeliveryBroker) snapshotRegistrations() []channelspkg.PromptDeliveryRegistration {
+func (b *recordingPromptDeliveryBroker) snapshotRegistrations() []bridgepkg.PromptDeliveryRegistration {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	out := make([]channelspkg.PromptDeliveryRegistration, 0, len(b.registrations))
+	out := make([]bridgepkg.PromptDeliveryRegistration, 0, len(b.registrations))
 	for _, reg := range b.registrations {
 		cloned := reg
 		if len(cloned.SeedEvents) > 0 {
-			cloned.SeedEvents = append([]channelspkg.DeliveryProjectionEvent(nil), cloned.SeedEvents...)
+			cloned.SeedEvents = append([]bridgepkg.DeliveryProjectionEvent(nil), cloned.SeedEvents...)
 		}
 		out = append(out, cloned)
 	}
 	return out
 }
 
-func (b *recordingPromptDeliveryBroker) snapshotProjectedEvents() []channelspkg.DeliveryProjectionEvent {
+func (b *recordingPromptDeliveryBroker) snapshotProjectedEvents() []bridgepkg.DeliveryProjectionEvent {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	out := make([]channelspkg.DeliveryProjectionEvent, 0, len(b.projected))
+	out := make([]bridgepkg.DeliveryProjectionEvent, 0, len(b.projected))
 	out = append(out, b.projected...)
 	return out
 }

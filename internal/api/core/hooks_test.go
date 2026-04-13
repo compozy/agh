@@ -75,7 +75,7 @@ func TestHookParsersAndPayloadConverters(t *testing.T) {
 
 	catalogPayloads := core.HookCatalogPayloadsFromEntries([]hookspkg.CatalogEntry{{
 		Order:        1,
-		Name:         "space-opt-in",
+		Name:         "channel-opt-in",
 		Event:        hookspkg.HookToolPreCall,
 		Source:       hookspkg.HookSourceSkill,
 		SkillSource:  hookspkg.HookSkillSourceWorkspace,
@@ -99,7 +99,7 @@ func TestHookParsersAndPayloadConverters(t *testing.T) {
 	}
 
 	runPayloads := core.HookRunPayloadsFromRecords([]hookspkg.HookRunRecord{{
-		HookName:      "space-opt-in",
+		HookName:      "channel-opt-in",
 		Event:         hookspkg.HookToolPreCall,
 		Source:        hookspkg.HookSourceSkill,
 		Mode:          hookspkg.HookModeSync,
@@ -155,7 +155,7 @@ func TestHookHandlers(t *testing.T) {
 			}
 			return []hookspkg.CatalogEntry{{
 				Order:        1,
-				Name:         "space-opt-in",
+				Name:         "channel-opt-in",
 				Event:        hookspkg.HookToolPreCall,
 				Source:       hookspkg.HookSourceSkill,
 				SkillSource:  hookspkg.HookSkillSourceWorkspace,
@@ -172,7 +172,7 @@ func TestHookHandlers(t *testing.T) {
 				t.Fatalf("QueryHookRuns() query = %#v", query)
 			}
 			return []hookspkg.HookRunRecord{{
-				HookName:      "space-opt-in",
+				HookName:      "channel-opt-in",
 				Event:         hookspkg.HookToolPreCall,
 				Source:        hookspkg.HookSourceSkill,
 				Mode:          hookspkg.HookModeSync,

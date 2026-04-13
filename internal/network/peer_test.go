@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestPeerRegistryIsolatesSpacesExpiresRemotesAndLeavesLocal(t *testing.T) {
+func TestPeerRegistryIsolatesChannelsExpiresRemotesAndLeavesLocal(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
@@ -36,7 +36,7 @@ func TestPeerRegistryIsolatesSpacesExpiresRemotesAndLeavesLocal(t *testing.T) {
 		t.Fatalf("LookupPresence(builders, %q) = missing, want present", remoteBuilders.PeerID)
 	}
 	if _, ok := registry.LookupPresence("builders", remoteOps.PeerID, now); ok {
-		t.Fatalf("LookupPresence(builders, %q) = present, want isolated by space", remoteOps.PeerID)
+		t.Fatalf("LookupPresence(builders, %q) = present, want isolated by channel", remoteOps.PeerID)
 	}
 
 	peers := registry.ListPeers("builders", now)
@@ -63,7 +63,7 @@ func TestPeerRegistryIsolatesSpacesExpiresRemotesAndLeavesLocal(t *testing.T) {
 	}
 }
 
-func TestPeerRegistryAccessorsAndSpaceSummaries(t *testing.T) {
+func TestPeerRegistryAccessorsAndChannelSummaries(t *testing.T) {
 	t.Parallel()
 
 	if _, err := NewPeerRegistry(0); err == nil {
@@ -110,12 +110,12 @@ func TestPeerRegistryAccessorsAndSpaceSummaries(t *testing.T) {
 		t.Fatalf("RemoteByPeer().PeerID = %q, want %q", got, want)
 	}
 
-	spaces := registry.ListSpaces(now)
-	if got, want := len(spaces), 1; got != want {
-		t.Fatalf("len(ListSpaces()) = %d, want %d", got, want)
+	channels := registry.ListChannels(now)
+	if got, want := len(channels), 1; got != want {
+		t.Fatalf("len(ListChannels()) = %d, want %d", got, want)
 	}
-	if got, want := spaces[0].PeerCount, 2; got != want {
-		t.Fatalf("ListSpaces()[0].PeerCount = %d, want %d", got, want)
+	if got, want := channels[0].PeerCount, 2; got != want {
+		t.Fatalf("ListChannels()[0].PeerCount = %d, want %d", got, want)
 	}
 
 	if _, err := DefaultPeerCard("Bad Peer"); err == nil {
@@ -153,8 +153,8 @@ func TestPeerRegistryMoveLocalPeerAndIgnoreMatchingRemoteAdvertisement(t *testin
 	}
 	if moved, ok := registry.LocalByPeer("ops", local.PeerID); !ok {
 		t.Fatalf("LocalByPeer(ops, %q) = missing after move", local.PeerID)
-	} else if got, want := moved.Space, "ops"; got != want {
-		t.Fatalf("moved.Space = %q, want %q", got, want)
+	} else if got, want := moved.Channel, "ops"; got != want {
+		t.Fatalf("moved.Channel = %q, want %q", got, want)
 	}
 }
 

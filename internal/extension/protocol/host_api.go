@@ -11,51 +11,51 @@ type HostAPIMethod string
 const (
 	// CapabilityProvideMemoryBackend is the provide surface for daemon-managed memory backends.
 	CapabilityProvideMemoryBackend = "memory.backend"
-	// CapabilityProvideChannelAdapter is the provide surface for channel-capable adapter extensions.
-	CapabilityProvideChannelAdapter = "channel.adapter"
+	// CapabilityProvideBridgeAdapter is the provide surface for bridge-capable adapter extensions.
+	CapabilityProvideBridgeAdapter = "bridge.adapter"
 )
 
 // ExtensionServiceMethod identifies one AGH -> extension capability service request.
 type ExtensionServiceMethod string
 
 const (
-	ExtensionServiceMethodMemoryStore     ExtensionServiceMethod = "memory/store"
-	ExtensionServiceMethodMemoryRecall    ExtensionServiceMethod = "memory/recall"
-	ExtensionServiceMethodMemoryForget    ExtensionServiceMethod = "memory/forget"
-	ExtensionServiceMethodChannelsDeliver ExtensionServiceMethod = "channels/deliver"
+	ExtensionServiceMethodMemoryStore    ExtensionServiceMethod = "memory/store"
+	ExtensionServiceMethodMemoryRecall   ExtensionServiceMethod = "memory/recall"
+	ExtensionServiceMethodMemoryForget   ExtensionServiceMethod = "memory/forget"
+	ExtensionServiceMethodBridgesDeliver ExtensionServiceMethod = "bridges/deliver"
 )
 
 const (
-	HostAPIMethodSessionsList                 HostAPIMethod = "sessions/list"
-	HostAPIMethodSessionsCreate               HostAPIMethod = "sessions/create"
-	HostAPIMethodSessionsPrompt               HostAPIMethod = "sessions/prompt"
-	HostAPIMethodSessionsStop                 HostAPIMethod = "sessions/stop"
-	HostAPIMethodSessionsStatus               HostAPIMethod = "sessions/status"
-	HostAPIMethodSessionsEvents               HostAPIMethod = "sessions/events"
-	HostAPIMethodMemoryRecall                 HostAPIMethod = "memory/recall"
-	HostAPIMethodMemoryStore                  HostAPIMethod = "memory/store"
-	HostAPIMethodMemoryForget                 HostAPIMethod = "memory/forget"
-	HostAPIMethodObserveHealth                HostAPIMethod = "observe/health"
-	HostAPIMethodObserveEvents                HostAPIMethod = "observe/events"
-	HostAPIMethodSkillsList                   HostAPIMethod = "skills/list"
-	HostAPIMethodAutomationJobs               HostAPIMethod = "automation/jobs"
-	HostAPIMethodAutomationJobsGet            HostAPIMethod = "automation/jobs/get"
-	HostAPIMethodAutomationJobsCreate         HostAPIMethod = "automation/jobs/create"
-	HostAPIMethodAutomationJobsUpdate         HostAPIMethod = "automation/jobs/update"
-	HostAPIMethodAutomationJobsDelete         HostAPIMethod = "automation/jobs/delete"
-	HostAPIMethodAutomationJobsTrigger        HostAPIMethod = "automation/jobs/trigger"
-	HostAPIMethodAutomationJobsRuns           HostAPIMethod = "automation/jobs/runs"
-	HostAPIMethodAutomationTriggers           HostAPIMethod = "automation/triggers"
-	HostAPIMethodAutomationTriggersGet        HostAPIMethod = "automation/triggers/get"
-	HostAPIMethodAutomationTriggersCreate     HostAPIMethod = "automation/triggers/create"
-	HostAPIMethodAutomationTriggersUpdate     HostAPIMethod = "automation/triggers/update"
-	HostAPIMethodAutomationTriggersDelete     HostAPIMethod = "automation/triggers/delete"
-	HostAPIMethodAutomationTriggersRuns       HostAPIMethod = "automation/triggers/runs"
-	HostAPIMethodAutomationTriggersFire       HostAPIMethod = "automation/triggers/fire"
-	HostAPIMethodAutomationRuns               HostAPIMethod = "automation/runs"
-	HostAPIMethodChannelsMessagesIngest       HostAPIMethod = "channels/messages/ingest"
-	HostAPIMethodChannelsInstancesGet         HostAPIMethod = "channels/instances/get"
-	HostAPIMethodChannelsInstancesReportState HostAPIMethod = "channels/instances/report_state"
+	HostAPIMethodSessionsList                HostAPIMethod = "sessions/list"
+	HostAPIMethodSessionsCreate              HostAPIMethod = "sessions/create"
+	HostAPIMethodSessionsPrompt              HostAPIMethod = "sessions/prompt"
+	HostAPIMethodSessionsStop                HostAPIMethod = "sessions/stop"
+	HostAPIMethodSessionsStatus              HostAPIMethod = "sessions/status"
+	HostAPIMethodSessionsEvents              HostAPIMethod = "sessions/events"
+	HostAPIMethodMemoryRecall                HostAPIMethod = "memory/recall"
+	HostAPIMethodMemoryStore                 HostAPIMethod = "memory/store"
+	HostAPIMethodMemoryForget                HostAPIMethod = "memory/forget"
+	HostAPIMethodObserveHealth               HostAPIMethod = "observe/health"
+	HostAPIMethodObserveEvents               HostAPIMethod = "observe/events"
+	HostAPIMethodSkillsList                  HostAPIMethod = "skills/list"
+	HostAPIMethodAutomationJobs              HostAPIMethod = "automation/jobs"
+	HostAPIMethodAutomationJobsGet           HostAPIMethod = "automation/jobs/get"
+	HostAPIMethodAutomationJobsCreate        HostAPIMethod = "automation/jobs/create"
+	HostAPIMethodAutomationJobsUpdate        HostAPIMethod = "automation/jobs/update"
+	HostAPIMethodAutomationJobsDelete        HostAPIMethod = "automation/jobs/delete"
+	HostAPIMethodAutomationJobsTrigger       HostAPIMethod = "automation/jobs/trigger"
+	HostAPIMethodAutomationJobsRuns          HostAPIMethod = "automation/jobs/runs"
+	HostAPIMethodAutomationTriggers          HostAPIMethod = "automation/triggers"
+	HostAPIMethodAutomationTriggersGet       HostAPIMethod = "automation/triggers/get"
+	HostAPIMethodAutomationTriggersCreate    HostAPIMethod = "automation/triggers/create"
+	HostAPIMethodAutomationTriggersUpdate    HostAPIMethod = "automation/triggers/update"
+	HostAPIMethodAutomationTriggersDelete    HostAPIMethod = "automation/triggers/delete"
+	HostAPIMethodAutomationTriggersRuns      HostAPIMethod = "automation/triggers/runs"
+	HostAPIMethodAutomationTriggersFire      HostAPIMethod = "automation/triggers/fire"
+	HostAPIMethodAutomationRuns              HostAPIMethod = "automation/runs"
+	HostAPIMethodBridgesMessagesIngest       HostAPIMethod = "bridges/messages/ingest"
+	HostAPIMethodBridgesInstancesGet         HostAPIMethod = "bridges/instances/get"
+	HostAPIMethodBridgesInstancesReportState HostAPIMethod = "bridges/instances/report_state"
 )
 
 // AllHostAPIMethods returns the canonical Host API method registry in wire order.
@@ -88,9 +88,9 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodAutomationTriggersRuns,
 		HostAPIMethodAutomationTriggersFire,
 		HostAPIMethodAutomationRuns,
-		HostAPIMethodChannelsMessagesIngest,
-		HostAPIMethodChannelsInstancesGet,
-		HostAPIMethodChannelsInstancesReportState,
+		HostAPIMethodBridgesMessagesIngest,
+		HostAPIMethodBridgesInstancesGet,
+		HostAPIMethodBridgesInstancesReportState,
 	}
 }
 
@@ -100,8 +100,8 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 		ExtensionServiceMethodMemoryRecall,
 		ExtensionServiceMethodMemoryForget,
 	},
-	CapabilityProvideChannelAdapter: {
-		ExtensionServiceMethodChannelsDeliver,
+	CapabilityProvideBridgeAdapter: {
+		ExtensionServiceMethodBridgesDeliver,
 	},
 }
 

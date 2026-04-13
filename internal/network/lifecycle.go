@@ -20,10 +20,10 @@ var (
 	ErrInteractionClosed = errors.New("network: interaction closed")
 )
 
-// Interaction tracks one directed interaction inside one space.
+// Interaction tracks one directed interaction inside one channel.
 type Interaction struct {
 	ID        string
-	Space     string
+	Channel   string
 	Initiator string
 	Target    string
 	State     InteractionState
@@ -36,11 +36,11 @@ func (i Interaction) Validate() error {
 	if i.ID == "" {
 		return fmt.Errorf("%w: interaction id is required", ErrMissingField)
 	}
-	if i.Space == "" {
-		return fmt.Errorf("%w: interaction space is required", ErrMissingField)
+	if i.Channel == "" {
+		return fmt.Errorf("%w: interaction channel is required", ErrMissingField)
 	}
-	if err := ValidateSpace(i.Space); err != nil {
-		return fmt.Errorf("validate interaction space: %w", err)
+	if err := ValidateChannel(i.Channel); err != nil {
+		return fmt.Errorf("validate interaction channel: %w", err)
 	}
 	if i.Initiator == "" {
 		return fmt.Errorf("%w: interaction initiator is required", ErrMissingField)
@@ -122,7 +122,7 @@ func OpenInteraction(env Envelope, at time.Time) (Interaction, error) {
 
 	interaction := Interaction{
 		ID:        *env.InteractionID,
-		Space:     env.Space,
+		Channel:   env.Channel,
 		Initiator: env.From,
 		Target:    *env.To,
 		State:     StateSubmitted,
@@ -165,8 +165,8 @@ func ApplyInteractionEnvelope(current *Interaction, env Envelope, at time.Time) 
 	if env.InteractionID == nil || *env.InteractionID != interaction.ID {
 		return LifecycleResult{}, fmt.Errorf("%w: interaction_id=%v current=%q", ErrInvalidField, env.InteractionID, interaction.ID)
 	}
-	if env.Space != interaction.Space {
-		return LifecycleResult{}, fmt.Errorf("%w: interaction space=%q envelope space=%q", ErrInvalidField, interaction.Space, env.Space)
+	if env.Channel != interaction.Channel {
+		return LifecycleResult{}, fmt.Errorf("%w: interaction channel=%q envelope channel=%q", ErrInvalidField, interaction.Channel, env.Channel)
 	}
 	if !interaction.IsParticipant(env.From) {
 		return LifecycleResult{}, fmt.Errorf("%w: from=%q", ErrInteractionActorNotAllowed, env.From)

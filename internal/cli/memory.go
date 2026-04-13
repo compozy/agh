@@ -189,8 +189,8 @@ func newMemoryWriteCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&typeRaw, "type", "", "Memory type: user, feedback, project, or reference")
 	cmd.Flags().StringVar(&description, "description", "", "One-line durable memory description")
 	cmd.Flags().StringVar(&contentFlag, "content", "", "Memory body content (alternative to stdin)")
-	_ = cmd.MarkFlagRequired("type")
-	_ = cmd.MarkFlagRequired("description")
+	mustMarkFlagRequired(cmd, "type")
+	mustMarkFlagRequired(cmd, "description")
 	return cmd
 }
 

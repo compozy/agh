@@ -24,7 +24,7 @@ func TestOpenGlobalDBCreatesNetworkAuditLogSchema(t *testing.T) {
 		"session_id",
 		"direction",
 		"kind",
-		"space",
+		"channel",
 		"peer_from",
 		"peer_to",
 		"message_id",
@@ -48,7 +48,7 @@ func TestGlobalDBWriteAndListNetworkAudit(t *testing.T) {
 		SessionID: "sess-network-audit",
 		Direction: "sent",
 		Kind:      "direct",
-		Space:     "builders",
+		Channel:   "builders",
 		PeerFrom:  "coder.sess-network-audit",
 		PeerTo:    "reviewer.sess-xyz",
 		MessageID: "msg_direct_01",
@@ -61,7 +61,7 @@ func TestGlobalDBWriteAndListNetworkAudit(t *testing.T) {
 		SessionID: "sess-network-audit",
 		Direction: "rejected",
 		Kind:      "receipt",
-		Space:     "builders",
+		Channel:   "builders",
 		PeerFrom:  "reviewer.sess-xyz",
 		MessageID: "msg_receipt_01",
 		Reason:    "not_found",
@@ -109,7 +109,7 @@ func TestGlobalDBWriteNetworkAuditAllowsUnknownSessionID(t *testing.T) {
 		SessionID: "sess-network-unknown",
 		Direction: "sent",
 		Kind:      "greet",
-		Space:     "builders",
+		Channel:   "builders",
 		PeerFrom:  "coder.sess-network-unknown",
 		MessageID: "msg_greet_01",
 		Size:      32,
@@ -158,7 +158,7 @@ func TestGlobalDBNetworkAuditGuardClauses(t *testing.T) {
 	}
 }
 
-func TestGlobalDBWriteNetworkAuditRejectsWhitespacePaddedDirection(t *testing.T) {
+func TestGlobalDBWriteNetworkAuditRejectsWhitechannelPaddedDirection(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
@@ -168,7 +168,7 @@ func TestGlobalDBWriteNetworkAuditRejectsWhitespacePaddedDirection(t *testing.T)
 		SessionID: "sess-network-direction",
 		Direction: " sent ",
 		Kind:      "direct",
-		Space:     "builders",
+		Channel:   "builders",
 		PeerFrom:  "coder.sess-network-direction",
 		MessageID: "msg_direction_01",
 		Size:      12,
@@ -190,7 +190,7 @@ func TestGlobalDBListNetworkAuditWrapsTimestampParseFailures(t *testing.T) {
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_audit_log (
-			id, session_id, direction, kind, space, peer_from, peer_to, message_id, reason, size, timestamp
+			id, session_id, direction, kind, channel, peer_from, peer_to, message_id, reason, size, timestamp
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"naud_bad_timestamp",
 		"sess-network-bad-timestamp",
@@ -255,7 +255,7 @@ func TestOpenGlobalDBMigratesNetworkAuditSchemaWithoutSessionForeignKey(t *testi
 		SessionID: "sess-network-after-migration",
 		Direction: "received",
 		Kind:      "greet",
-		Space:     "builders",
+		Channel:   "builders",
 		PeerFrom:  "coder.sess-network-after-migration",
 		MessageID: "msg_after_migration_01",
 		Size:      64,
@@ -284,7 +284,7 @@ func seedLegacyNetworkAuditSchema(t *testing.T, path string) {
 				agent_name     TEXT NOT NULL,
 				workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
 				session_type   TEXT NOT NULL DEFAULT 'user',
-				space          TEXT NOT NULL DEFAULT '',
+				channel          TEXT NOT NULL DEFAULT '',
 				state          TEXT NOT NULL,
 				acp_session_id TEXT,
 				stop_reason    TEXT,
@@ -297,7 +297,7 @@ func seedLegacyNetworkAuditSchema(t *testing.T, path string) {
 				session_id TEXT NOT NULL REFERENCES sessions(id),
 				direction  TEXT NOT NULL,
 				kind       TEXT NOT NULL,
-				space      TEXT NOT NULL,
+				channel      TEXT NOT NULL,
 				peer_from  TEXT NOT NULL,
 				peer_to    TEXT,
 				message_id TEXT NOT NULL,
@@ -329,7 +329,7 @@ func seedLegacyNetworkAuditSchema(t *testing.T, path string) {
 		if _, err := db.ExecContext(
 			ctx,
 			`INSERT INTO sessions (
-				id, name, agent_name, workspace_id, session_type, space, state, acp_session_id, stop_reason, stop_detail, created_at, updated_at
+				id, name, agent_name, workspace_id, session_type, channel, state, acp_session_id, stop_reason, stop_detail, created_at, updated_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			"sess-network-legacy",
 			nil,
@@ -349,7 +349,7 @@ func seedLegacyNetworkAuditSchema(t *testing.T, path string) {
 		if _, err := db.ExecContext(
 			ctx,
 			`INSERT INTO network_audit_log (
-				id, session_id, direction, kind, space, peer_from, peer_to, message_id, reason, size, timestamp
+				id, session_id, direction, kind, channel, peer_from, peer_to, message_id, reason, size, timestamp
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			"naud_legacy_01",
 			"sess-network-legacy",

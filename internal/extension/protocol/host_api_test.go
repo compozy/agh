@@ -33,9 +33,9 @@ func TestAllHostAPIMethodsReturnsCanonicalWireOrder(t *testing.T) {
 		HostAPIMethodAutomationTriggersRuns,
 		HostAPIMethodAutomationTriggersFire,
 		HostAPIMethodAutomationRuns,
-		HostAPIMethodChannelsMessagesIngest,
-		HostAPIMethodChannelsInstancesGet,
-		HostAPIMethodChannelsInstancesReportState,
+		HostAPIMethodBridgesMessagesIngest,
+		HostAPIMethodBridgesInstancesGet,
+		HostAPIMethodBridgesInstancesReportState,
 	}
 
 	got := AllHostAPIMethods()

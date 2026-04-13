@@ -116,7 +116,7 @@ func TestAuditWriterPersistsToDatabaseAndFileWithoutLeakingBrokerToken(t *testin
 			entry.SessionID,
 			entry.Direction,
 			entry.Kind,
-			entry.Space,
+			entry.Channel,
 			entry.PeerFrom,
 			entry.PeerTo,
 			entry.MessageID,

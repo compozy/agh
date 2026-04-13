@@ -20,7 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
@@ -441,10 +441,10 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 	}
 }
 
-func TestUDSSessionSpaceRoundTrip(t *testing.T) {
+func TestUDSSessionChannelRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
-	createResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/sessions", []byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","space":"builders"}`), nil)
+	createResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/sessions", []byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","channel":"builders"}`), nil)
 	if createResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(createResp.Body)
 		_ = createResp.Body.Close()
@@ -454,8 +454,8 @@ func TestUDSSessionSpaceRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, createResp, &created)
-	if created.Session.Space != "builders" {
-		t.Fatalf("created.Session.Space = %q, want %q", created.Session.Space, "builders")
+	if created.Session.Channel != "builders" {
+		t.Fatalf("created.Session.Channel = %q, want %q", created.Session.Channel, "builders")
 	}
 
 	listResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/sessions", nil, nil)
@@ -471,8 +471,8 @@ func TestUDSSessionSpaceRoundTrip(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
 	}
-	if listed.Sessions[0].Space != "builders" {
-		t.Fatalf("listed.Sessions[0].Space = %q, want %q", listed.Sessions[0].Space, "builders")
+	if listed.Sessions[0].Channel != "builders" {
+		t.Fatalf("listed.Sessions[0].Channel = %q, want %q", listed.Sessions[0].Channel, "builders")
 	}
 
 	stopIntegrationSession(t, runtime, created.Session.ID)
@@ -487,7 +487,7 @@ func TestUDSSessionSpaceRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, statusResp, &stopped)
-	if stopped.Session.Space != "builders" || stopped.Session.State != session.StateStopped {
+	if stopped.Session.Channel != "builders" || stopped.Session.State != session.StateStopped {
 		t.Fatalf("stopped session = %#v, want stopped builders session", stopped.Session)
 	}
 
@@ -501,7 +501,7 @@ func TestUDSSessionSpaceRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, resumeResp, &resumed)
-	if resumed.Session.Space != "builders" || resumed.Session.State != session.StateActive {
+	if resumed.Session.Channel != "builders" || resumed.Session.State != session.StateActive {
 		t.Fatalf("resumed session = %#v, want active builders session", resumed.Session)
 	}
 }
@@ -512,7 +512,7 @@ type integrationRuntime struct {
 	manager   *session.Manager
 	observer  *observe.Observer
 	registry  *globaldb.GlobalDB
-	channels  *integrationChannelService
+	bridges   *integrationBridgeService
 	memory    *memory.Store
 	dream     *integrationDreamTrigger
 	socket    string
@@ -527,62 +527,62 @@ type integrationDreamTrigger struct {
 	calls     int
 }
 
-type integrationChannelService struct {
-	*channelspkg.Service
+type integrationBridgeService struct {
+	*bridgepkg.Service
 }
 
-var _ core.ChannelService = (*integrationChannelService)(nil)
+var _ core.BridgeService = (*integrationBridgeService)(nil)
 
-func newIntegrationChannelService(store channelspkg.RegistryStore) *integrationChannelService {
-	return &integrationChannelService{Service: channelspkg.NewRegistry(store)}
+func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
+	return &integrationBridgeService{Service: bridgepkg.NewRegistry(store)}
 }
 
-func (s *integrationChannelService) StartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
-	if _, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+func (s *integrationBridgeService) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+	if _, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: true,
-		Status:  channelspkg.ChannelStatusStarting,
+		Status:  bridgepkg.BridgeStatusStarting,
 	}); err != nil {
-		return nil, fmt.Errorf("start channel instance %q: %w", id, err)
+		return nil, fmt.Errorf("start bridge instance %q: %w", id, err)
 	}
-	instance, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: true,
-		Status:  channelspkg.ChannelStatusReady,
+		Status:  bridgepkg.BridgeStatusReady,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("mark channel instance %q ready: %w", id, err)
+		return nil, fmt.Errorf("mark bridge instance %q ready: %w", id, err)
 	}
 	return instance, nil
 }
 
-func (s *integrationChannelService) StopInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
-	instance, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+func (s *integrationBridgeService) StopInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: false,
-		Status:  channelspkg.ChannelStatusDisabled,
+		Status:  bridgepkg.BridgeStatusDisabled,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("stop channel instance %q: %w", id, err)
+		return nil, fmt.Errorf("stop bridge instance %q: %w", id, err)
 	}
 	return instance, nil
 }
 
-func (s *integrationChannelService) RestartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
-	if _, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+func (s *integrationBridgeService) RestartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+	if _, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: true,
-		Status:  channelspkg.ChannelStatusStarting,
+		Status:  bridgepkg.BridgeStatusStarting,
 	}); err != nil {
-		return nil, fmt.Errorf("restart channel instance %q: %w", id, err)
+		return nil, fmt.Errorf("restart bridge instance %q: %w", id, err)
 	}
-	instance, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: true,
-		Status:  channelspkg.ChannelStatusReady,
+		Status:  bridgepkg.BridgeStatusReady,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("mark restarted channel instance %q ready: %w", id, err)
+		return nil, fmt.Errorf("mark restarted bridge instance %q ready: %w", id, err)
 	}
 	return instance, nil
 }
@@ -772,7 +772,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err := memoryStore.EnsureDirs(); err != nil {
 		t.Fatalf("memoryStore.EnsureDirs() error = %v", err)
 	}
-	channelService := newIntegrationChannelService(registry)
+	bridgeService := newIntegrationBridgeService(registry)
 	dreamTrigger := &integrationDreamTrigger{
 		enabled:   true,
 		triggered: true,
@@ -810,7 +810,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		WithSessionManager(manager),
 		WithObserver(observer),
 		WithAutomation(automationManager),
-		WithChannelService(channelService),
+		WithBridgeService(bridgeService),
 		WithWorkspaceResolver(resolver),
 		WithMemoryStore(memoryStore),
 		WithDreamTrigger(dreamTrigger),
@@ -836,7 +836,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		manager:   manager,
 		observer:  observer,
 		registry:  registry,
-		channels:  channelService,
+		bridges:   bridgeService,
 		memory:    memoryStore,
 		dream:     dreamTrigger,
 		socket:    socketPath,

@@ -20,7 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
@@ -283,10 +283,10 @@ func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	}
 }
 
-func TestHTTPSessionSpaceRoundTrip(t *testing.T) {
+func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
-	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","space":"builders"}`), nil)
+	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","channel":"builders"}`), nil)
 	if createResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(createResp.Body)
 		_ = createResp.Body.Close()
@@ -296,8 +296,8 @@ func TestHTTPSessionSpaceRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, createResp, &created)
-	if created.Session.Space != "builders" {
-		t.Fatalf("created.Session.Space = %q, want %q", created.Session.Space, "builders")
+	if created.Session.Channel != "builders" {
+		t.Fatalf("created.Session.Channel = %q, want %q", created.Session.Channel, "builders")
 	}
 
 	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions"), nil, nil)
@@ -313,8 +313,8 @@ func TestHTTPSessionSpaceRoundTrip(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
 	}
-	if listed.Sessions[0].Space != "builders" {
-		t.Fatalf("listed.Sessions[0].Space = %q, want %q", listed.Sessions[0].Space, "builders")
+	if listed.Sessions[0].Channel != "builders" {
+		t.Fatalf("listed.Sessions[0].Channel = %q, want %q", listed.Sessions[0].Channel, "builders")
 	}
 
 	stopIntegrationSession(t, runtime, created.Session.ID)
@@ -329,7 +329,7 @@ func TestHTTPSessionSpaceRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, statusResp, &stopped)
-	if stopped.Session.Space != "builders" || stopped.Session.State != session.StateStopped {
+	if stopped.Session.Channel != "builders" || stopped.Session.State != session.StateStopped {
 		t.Fatalf("stopped session = %#v, want stopped builders session", stopped.Session)
 	}
 
@@ -340,8 +340,8 @@ func TestHTTPSessionSpaceRoundTrip(t *testing.T) {
 	if got, want := len(indexed), 1; got != want {
 		t.Fatalf("len(indexed stopped sessions) = %d, want %d", got, want)
 	}
-	if indexed[0].Space != "builders" {
-		t.Fatalf("indexed[0].Space = %q, want %q", indexed[0].Space, "builders")
+	if indexed[0].Channel != "builders" {
+		t.Fatalf("indexed[0].Channel = %q, want %q", indexed[0].Channel, "builders")
 	}
 
 	resumeResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/resume"), nil, nil)
@@ -354,7 +354,7 @@ func TestHTTPSessionSpaceRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, resumeResp, &resumed)
-	if resumed.Session.Space != "builders" || resumed.Session.State != session.StateActive {
+	if resumed.Session.Channel != "builders" || resumed.Session.State != session.StateActive {
 		t.Fatalf("resumed session = %#v, want active builders session", resumed.Session)
 	}
 }
@@ -936,7 +936,7 @@ type integrationRuntime struct {
 	driver    *integrationDriver
 	observer  *observe.Observer
 	registry  *globaldb.GlobalDB
-	channels  *integrationChannelService
+	bridges   *integrationBridgeService
 	memory    *memory.Store
 	dream     *integrationDreamTrigger
 	host      string
@@ -952,112 +952,112 @@ type integrationDreamTrigger struct {
 	calls     int
 }
 
-type integrationChannelService struct {
-	*channelspkg.Service
-	broker *channelspkg.Broker
+type integrationBridgeService struct {
+	*bridgepkg.Service
+	broker *bridgepkg.Broker
 }
 
-func newIntegrationChannelService(store channelspkg.RegistryStore) *integrationChannelService {
-	return &integrationChannelService{
-		Service: channelspkg.NewRegistry(store),
-		broker:  channelspkg.NewBroker(nil),
+func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
+	return &integrationBridgeService{
+		Service: bridgepkg.NewRegistry(store),
+		broker:  bridgepkg.NewBroker(nil),
 	}
 }
 
-func (s *integrationChannelService) StartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
-	if _, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+func (s *integrationBridgeService) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+	if _, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: true,
-		Status:  channelspkg.ChannelStatusStarting,
+		Status:  bridgepkg.BridgeStatusStarting,
 	}); err != nil {
-		return nil, fmt.Errorf("start channel instance %q: %w", id, err)
+		return nil, fmt.Errorf("start bridge instance %q: %w", id, err)
 	}
-	instance, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: true,
-		Status:  channelspkg.ChannelStatusReady,
+		Status:  bridgepkg.BridgeStatusReady,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("mark channel instance %q ready: %w", id, err)
+		return nil, fmt.Errorf("mark bridge instance %q ready: %w", id, err)
 	}
 	return instance, nil
 }
 
-func (s *integrationChannelService) StopInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
-	instance, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+func (s *integrationBridgeService) StopInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: false,
-		Status:  channelspkg.ChannelStatusDisabled,
+		Status:  bridgepkg.BridgeStatusDisabled,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("stop channel instance %q: %w", id, err)
+		return nil, fmt.Errorf("stop bridge instance %q: %w", id, err)
 	}
 	return instance, nil
 }
 
-func (s *integrationChannelService) RestartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
-	if _, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+func (s *integrationBridgeService) RestartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+	if _, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: true,
-		Status:  channelspkg.ChannelStatusStarting,
+		Status:  bridgepkg.BridgeStatusStarting,
 	}); err != nil {
-		return nil, fmt.Errorf("restart channel instance %q: %w", id, err)
+		return nil, fmt.Errorf("restart bridge instance %q: %w", id, err)
 	}
-	instance, err := s.UpdateInstanceState(ctx, channelspkg.UpdateInstanceStateRequest{
+	instance, err := s.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:      id,
 		Enabled: true,
-		Status:  channelspkg.ChannelStatusReady,
+		Status:  bridgepkg.BridgeStatusReady,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("mark restarted channel instance %q ready: %w", id, err)
+		return nil, fmt.Errorf("mark restarted bridge instance %q ready: %w", id, err)
 	}
 	return instance, nil
 }
 
-func (s *integrationChannelService) DeliveryMetrics() map[string]channelspkg.ChannelDeliveryMetrics {
+func (s *integrationBridgeService) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
 	if s == nil || s.broker == nil {
 		return nil
 	}
 	return s.broker.DeliveryMetrics()
 }
 
-func (s *integrationChannelService) Broker() *channelspkg.Broker {
+func (s *integrationBridgeService) Broker() *bridgepkg.Broker {
 	if s == nil {
 		return nil
 	}
 	return s.broker
 }
 
-func TestIntegrationChannelServiceLifecycleTransitionsReachReady(t *testing.T) {
+func TestIntegrationBridgeServiceLifecycleTransitionsReachReady(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
-	created, err := runtime.channels.CreateInstance(context.Background(), channelspkg.CreateInstanceRequest{
-		ID:            "chan-lifecycle-ready",
-		Scope:         channelspkg.ScopeGlobal,
+	created, err := runtime.bridges.CreateInstance(context.Background(), bridgepkg.CreateInstanceRequest{
+		ID:            "brg-lifecycle-ready",
+		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "ext-telegram",
 		DisplayName:   "Lifecycle Ready",
 		Enabled:       false,
-		Status:        channelspkg.ChannelStatusDisabled,
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+		Status:        bridgepkg.BridgeStatusDisabled,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	if err != nil {
 		t.Fatalf("CreateInstance() error = %v", err)
 	}
 
-	started, err := runtime.channels.StartInstance(context.Background(), created.ID)
+	started, err := runtime.bridges.StartInstance(context.Background(), created.ID)
 	if err != nil {
 		t.Fatalf("StartInstance() error = %v", err)
 	}
-	if !started.Enabled || started.Status != channelspkg.ChannelStatusReady {
+	if !started.Enabled || started.Status != bridgepkg.BridgeStatusReady {
 		t.Fatalf("StartInstance() = %#v, want enabled ready instance", started)
 	}
 
-	restarted, err := runtime.channels.RestartInstance(context.Background(), created.ID)
+	restarted, err := runtime.bridges.RestartInstance(context.Background(), created.ID)
 	if err != nil {
 		t.Fatalf("RestartInstance() error = %v", err)
 	}
-	if !restarted.Enabled || restarted.Status != channelspkg.ChannelStatusReady {
+	if !restarted.Enabled || restarted.Status != bridgepkg.BridgeStatusReady {
 		t.Fatalf("RestartInstance() = %#v, want enabled ready instance", restarted)
 	}
 }
@@ -1380,9 +1380,9 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
-	channelService := newIntegrationChannelService(registry)
+	bridgeService := newIntegrationBridgeService(registry)
 	t.Cleanup(func() {
-		if broker := channelService.Broker(); broker != nil {
+		if broker := bridgeService.Broker(); broker != nil {
 			broker.Close()
 		}
 	})
@@ -1392,7 +1392,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		observe.WithHomePaths(homePaths),
 		observe.WithRegistry(registry),
 		observe.WithSessionSource(manager),
-		observe.WithChannelSource(channelService),
+		observe.WithBridgeSource(bridgeService),
 		observe.WithLogger(discardLogger()),
 	)
 	if err != nil {
@@ -1442,7 +1442,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		WithSessionManager(manager),
 		WithObserver(observer),
 		WithAutomation(automationManager),
-		WithChannelService(channelService),
+		WithBridgeService(bridgeService),
 		WithWorkspaceResolver(resolver),
 		WithMemoryStore(memoryStore),
 		WithDreamTrigger(dreamTrigger),
@@ -1469,7 +1469,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		driver:    driver,
 		observer:  observer,
 		registry:  registry,
-		channels:  channelService,
+		bridges:   bridgeService,
 		memory:    memoryStore,
 		dream:     dreamTrigger,
 		host:      cfg.HTTP.Host,

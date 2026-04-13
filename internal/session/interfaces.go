@@ -31,8 +31,8 @@ type PromptOpts struct {
 // NetworkPeerLifecycle is the late-bound network join/leave surface consumed by
 // the session manager without importing the network package.
 type NetworkPeerLifecycle interface {
-	JoinSpace(ctx context.Context, sessionID string, peerID string, space string) error
-	LeaveSpace(ctx context.Context, sessionID string) error
+	JoinChannel(ctx context.Context, sessionID string, peerID string, channel string) error
+	LeaveChannel(ctx context.Context, sessionID string) error
 }
 
 // TurnEndNotifier is invoked once after a prompt turn finishes dispatching.

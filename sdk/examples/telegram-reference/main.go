@@ -15,22 +15,22 @@ import (
 	"sync/atomic"
 	"time"
 
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
 const (
-	adapterHandshakeEnv = "AGH_CHANNEL_ADAPTER_HANDSHAKE_PATH"
-	adapterInstanceEnv  = "AGH_CHANNEL_ADAPTER_INSTANCE_PATH"
-	adapterStateEnv     = "AGH_CHANNEL_ADAPTER_STATE_PATH"
-	adapterDeliveryEnv  = "AGH_CHANNEL_ADAPTER_DELIVERY_PATH"
-	adapterIngestEnv    = "AGH_CHANNEL_ADAPTER_INGEST_PATH"
-	adapterUpdatesEnv   = "AGH_CHANNEL_ADAPTER_UPDATES_PATH"
-	adapterStartsEnv    = "AGH_CHANNEL_ADAPTER_STARTS_PATH"
-	adapterShutdownEnv  = "AGH_CHANNEL_ADAPTER_SHUTDOWN_PATH"
-	adapterCrashOnceEnv = "AGH_CHANNEL_ADAPTER_CRASH_ONCE_PATH"
+	adapterHandshakeEnv = "AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH"
+	adapterInstanceEnv  = "AGH_BRIDGE_ADAPTER_INSTANCE_PATH"
+	adapterStateEnv     = "AGH_BRIDGE_ADAPTER_STATE_PATH"
+	adapterDeliveryEnv  = "AGH_BRIDGE_ADAPTER_DELIVERY_PATH"
+	adapterIngestEnv    = "AGH_BRIDGE_ADAPTER_INGEST_PATH"
+	adapterUpdatesEnv   = "AGH_BRIDGE_ADAPTER_UPDATES_PATH"
+	adapterStartsEnv    = "AGH_BRIDGE_ADAPTER_STARTS_PATH"
+	adapterShutdownEnv  = "AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH"
+	adapterCrashOnceEnv = "AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH"
 
 	rpcCodeNotInitialized = -32003
 )
@@ -56,7 +56,7 @@ func runServe(stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	runtime := newTelegramReferenceRuntime(stderr, peer)
 
 	peer.handle("initialize", runtime.handleInitialize)
-	peer.handle("channels/deliver", runtime.handleChannelsDeliver)
+	peer.handle("bridges/deliver", runtime.handleBridgesDeliver)
 	peer.handle("health_check", runtime.handleHealthCheck)
 	peer.handle("shutdown", runtime.handleShutdown)
 
@@ -108,8 +108,8 @@ type telegramReferenceRuntime struct {
 type runtimeSession struct {
 	request     subprocess.InitializeRequest
 	response    subprocess.InitializeResponse
-	channel     subprocess.InitializeChannelRuntime
-	boundSecret map[string]subprocess.InitializeChannelBoundSecret
+	bridge      subprocess.InitializeBridgeRuntime
+	boundSecret map[string]subprocess.InitializeBridgeBoundSecret
 }
 
 type deliveryState struct {
@@ -123,22 +123,22 @@ type initializeMarker struct {
 }
 
 type deliveryMarker struct {
-	PID     int                         `json:"pid"`
-	Request channelspkg.DeliveryRequest `json:"request"`
-	Ack     *channelspkg.DeliveryAck    `json:"ack,omitempty"`
-	Error   string                      `json:"error,omitempty"`
+	PID     int                       `json:"pid"`
+	Request bridgepkg.DeliveryRequest `json:"request"`
+	Ack     *bridgepkg.DeliveryAck    `json:"ack,omitempty"`
+	Error   string                    `json:"error,omitempty"`
 }
 
 type stateMarker struct {
-	Status   channelspkg.ChannelStatus   `json:"status"`
-	Instance channelspkg.ChannelInstance `json:"instance,omitempty"`
-	Error    string                      `json:"error,omitempty"`
+	Status   bridgepkg.BridgeStatus   `json:"status"`
+	Instance bridgepkg.BridgeInstance `json:"instance,omitempty"`
+	Error    string                   `json:"error,omitempty"`
 }
 
 type ingestMarker struct {
-	Envelope channelspkg.InboundMessageEnvelope             `json:"envelope"`
-	Result   extensioncontract.ChannelsMessagesIngestResult `json:"result,omitempty"`
-	Error    string                                         `json:"error,omitempty"`
+	Envelope bridgepkg.InboundMessageEnvelope              `json:"envelope"`
+	Result   extensioncontract.BridgesMessagesIngestResult `json:"result,omitempty"`
+	Error    string                                        `json:"error,omitempty"`
 }
 
 type telegramUpdate struct {
@@ -365,8 +365,8 @@ func (r *telegramReferenceRuntime) handleInitialize(params json.RawMessage) (any
 	if err := json.Unmarshal(params, &request); err != nil {
 		return nil, fmt.Errorf("telegram-reference: decode initialize request: %w", err)
 	}
-	if request.Runtime.Channel == nil {
-		return nil, errors.New("telegram-reference: initialize runtime channel is required")
+	if request.Runtime.Bridge == nil {
+		return nil, errors.New("telegram-reference: initialize runtime bridge is required")
 	}
 
 	response := subprocess.InitializeResponse{
@@ -381,7 +381,7 @@ func (r *telegramReferenceRuntime) handleInitialize(params json.RawMessage) (any
 			Security: append([]string(nil), request.Capabilities.GrantedSecurity...),
 		},
 		ImplementedMethods: []string{
-			"channels/deliver",
+			"bridges/deliver",
 			"health_check",
 			"shutdown",
 		},
@@ -395,8 +395,8 @@ func (r *telegramReferenceRuntime) handleInitialize(params json.RawMessage) (any
 	r.session = runtimeSession{
 		request:     request,
 		response:    response,
-		channel:     *subprocess.CloneInitializeChannelRuntime(request.Runtime.Channel),
-		boundSecret: indexBoundSecrets(request.Runtime.Channel.BoundSecrets),
+		bridge:      *subprocess.CloneInitializeBridgeRuntime(request.Runtime.Bridge),
+		boundSecret: indexBoundSecrets(request.Runtime.Bridge.BoundSecrets),
 	}
 	r.lastError = ""
 	r.mu.Unlock()
@@ -427,16 +427,16 @@ func (r *telegramReferenceRuntime) afterInitialize() {
 	if err != nil {
 		r.setLastError(err)
 		r.reportSideEffectError("write error state marker", appendJSONLine(r.env.statePath, stateMarker{
-			Status: channelspkg.ChannelStatusError,
+			Status: bridgepkg.BridgeStatusError,
 			Error:  err.Error(),
 		}))
 		return
 	}
 	r.reportSideEffectError("write instance marker", writeJSONFile(r.env.instancePath, instance))
 
-	status := channelspkg.ChannelStatusReady
-	if _, ok := boundSecretValue(r.sessionSnapshot().channel, "bot_token"); !ok {
-		status = channelspkg.ChannelStatusAuthRequired
+	status := bridgepkg.BridgeStatusReady
+	if _, ok := boundSecretValue(r.sessionSnapshot().bridge, "bot_token"); !ok {
+		status = bridgepkg.BridgeStatusAuthRequired
 	}
 
 	if _, err := r.reportState(ctx, status); err != nil {
@@ -450,8 +450,8 @@ func (r *telegramReferenceRuntime) afterInitialize() {
 	r.clearLastError()
 }
 
-func (r *telegramReferenceRuntime) handleChannelsDeliver(params json.RawMessage) (any, error) {
-	var request channelspkg.DeliveryRequest
+func (r *telegramReferenceRuntime) handleBridgesDeliver(params json.RawMessage) (any, error) {
+	var request bridgepkg.DeliveryRequest
 	if err := json.Unmarshal(params, &request); err != nil {
 		return nil, fmt.Errorf("telegram-reference: decode delivery request: %w", err)
 	}
@@ -573,7 +573,7 @@ func (r *telegramReferenceRuntime) pollInboundUpdates() {
 
 func (r *telegramReferenceRuntime) ingestTelegramUpdate(update telegramUpdate) error {
 	session := r.sessionSnapshot()
-	envelope, err := mapTelegramUpdate(update, session.channel, r.now)
+	envelope, err := mapTelegramUpdate(update, session.bridge, r.now)
 	if err != nil {
 		r.reportSideEffectError("write failed ingest marker", appendJSONLine(r.env.ingestPath, ingestMarker{
 			Envelope: envelope,
@@ -582,10 +582,10 @@ func (r *telegramReferenceRuntime) ingestTelegramUpdate(update telegramUpdate) e
 		return err
 	}
 
-	var result extensioncontract.ChannelsMessagesIngestResult
+	var result extensioncontract.BridgesMessagesIngestResult
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err = r.callHost(ctx, string(extensionprotocol.HostAPIMethodChannelsMessagesIngest), envelope, &result)
+	err = r.callHost(ctx, string(extensionprotocol.HostAPIMethodBridgesMessagesIngest), envelope, &result)
 	if err != nil {
 		r.reportSideEffectError("write failed ingest marker", appendJSONLine(r.env.ingestPath, ingestMarker{
 			Envelope: envelope,
@@ -601,21 +601,21 @@ func (r *telegramReferenceRuntime) ingestTelegramUpdate(update telegramUpdate) e
 	return nil
 }
 
-func (r *telegramReferenceRuntime) hostInstance(ctx context.Context) (channelspkg.ChannelInstance, error) {
-	var instance channelspkg.ChannelInstance
-	err := r.callHost(ctx, string(extensionprotocol.HostAPIMethodChannelsInstancesGet), map[string]any{}, &instance)
+func (r *telegramReferenceRuntime) hostInstance(ctx context.Context) (bridgepkg.BridgeInstance, error) {
+	var instance bridgepkg.BridgeInstance
+	err := r.callHost(ctx, string(extensionprotocol.HostAPIMethodBridgesInstancesGet), map[string]any{}, &instance)
 	return instance, err
 }
 
 func (r *telegramReferenceRuntime) reportState(
 	ctx context.Context,
-	status channelspkg.ChannelStatus,
-) (*channelspkg.ChannelInstance, error) {
-	var instance channelspkg.ChannelInstance
+	status bridgepkg.BridgeStatus,
+) (*bridgepkg.BridgeInstance, error) {
+	var instance bridgepkg.BridgeInstance
 	err := r.callHost(
 		ctx,
-		string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
-		extensioncontract.ChannelsInstancesReportStateParams{Status: status},
+		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
+		extensioncontract.BridgesInstancesReportStateParams{Status: status},
 		&instance,
 	)
 	if err != nil {
@@ -664,9 +664,9 @@ func (r *telegramReferenceRuntime) callHost(ctx context.Context, method string, 
 	return nil
 }
 
-func (r *telegramReferenceRuntime) ackDelivery(request channelspkg.DeliveryRequest) (channelspkg.DeliveryAck, error) {
+func (r *telegramReferenceRuntime) ackDelivery(request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
 	if err := request.Validate(); err != nil {
-		return channelspkg.DeliveryAck{}, err
+		return bridgepkg.DeliveryAck{}, err
 	}
 
 	event := request.Event
@@ -676,13 +676,13 @@ func (r *telegramReferenceRuntime) ackDelivery(request channelspkg.DeliveryReque
 	defer r.mu.Unlock()
 
 	state := r.deliveries[deliveryID]
-	if normalizeDeliveryEventType(event.EventType) == channelspkg.DeliveryEventTypeResume && request.Snapshot != nil {
+	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeResume && request.Snapshot != nil {
 		state.LastSeq = request.Snapshot.LastAckedSeq
 		state.RemoteMessageID = strings.TrimSpace(request.Snapshot.RemoteMessageID)
 	}
 
-	if normalizeDeliveryEventType(event.EventType) != channelspkg.DeliveryEventTypeResume && event.Seq <= state.LastSeq {
-		return channelspkg.DeliveryAck{}, fmt.Errorf(
+	if normalizeDeliveryEventType(event.EventType) != bridgepkg.DeliveryEventTypeResume && event.Seq <= state.LastSeq {
+		return bridgepkg.DeliveryAck{}, fmt.Errorf(
 			"telegram-reference: out-of-order delivery seq %d after %d",
 			event.Seq,
 			state.LastSeq,
@@ -690,11 +690,11 @@ func (r *telegramReferenceRuntime) ackDelivery(request channelspkg.DeliveryReque
 	}
 
 	remoteID := state.RemoteMessageID
-	if normalizeDeliveryEventType(event.EventType) != channelspkg.DeliveryEventTypeResume || remoteID == "" {
+	if normalizeDeliveryEventType(event.EventType) != bridgepkg.DeliveryEventTypeResume || remoteID == "" {
 		remoteID = remoteMessageID(deliveryID, event.Seq)
 	}
 
-	ack := channelspkg.DeliveryAck{
+	ack := bridgepkg.DeliveryAck{
 		DeliveryID:      deliveryID,
 		Seq:             event.Seq,
 		RemoteMessageID: remoteID,
@@ -702,7 +702,7 @@ func (r *telegramReferenceRuntime) ackDelivery(request channelspkg.DeliveryReque
 	if state.RemoteMessageID != "" && state.RemoteMessageID != remoteID {
 		ack.ReplaceRemoteMessageID = state.RemoteMessageID
 	}
-	if normalizeDeliveryEventType(event.EventType) == channelspkg.DeliveryEventTypeResume && request.Snapshot != nil {
+	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeResume && request.Snapshot != nil {
 		if ack.RemoteMessageID == "" {
 			ack.RemoteMessageID = strings.TrimSpace(request.Snapshot.RemoteMessageID)
 		}
@@ -747,11 +747,11 @@ func (r *telegramReferenceRuntime) reportSideEffectError(action string, err erro
 
 func mapTelegramUpdate(
 	update telegramUpdate,
-	channelRuntime subprocess.InitializeChannelRuntime,
+	bridgeRuntime subprocess.InitializeBridgeRuntime,
 	now func() time.Time,
-) (channelspkg.InboundMessageEnvelope, error) {
+) (bridgepkg.InboundMessageEnvelope, error) {
 	if update.Message == nil {
-		return channelspkg.InboundMessageEnvelope{}, errors.New("telegram-reference: message update is required")
+		return bridgepkg.InboundMessageEnvelope{}, errors.New("telegram-reference: message update is required")
 	}
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
@@ -769,32 +769,32 @@ func mapTelegramUpdate(
 	}
 
 	senderName := strings.TrimSpace(strings.Join([]string{message.From.FirstName, message.From.LastName}, " "))
-	return channelspkg.InboundMessageEnvelope{
-		ChannelInstanceID: channelRuntime.Instance.ID,
-		Scope:             channelRuntime.Instance.Scope,
-		WorkspaceID:       channelRuntime.Instance.WorkspaceID,
+	return bridgepkg.InboundMessageEnvelope{
+		BridgeInstanceID:  bridgeRuntime.Instance.ID,
+		Scope:             bridgeRuntime.Instance.Scope,
+		WorkspaceID:       bridgeRuntime.Instance.WorkspaceID,
 		PeerID:            strconv.FormatInt(message.Chat.ID, 10),
 		ThreadID:          optionalTelegramID(message.MessageThreadID),
 		PlatformMessageID: strconv.FormatInt(message.MessageID, 10),
 		ReceivedAt:        receivedAt,
-		Sender: channelspkg.MessageSender{
+		Sender: bridgepkg.MessageSender{
 			ID:          optionalTelegramID(message.From.ID),
 			Username:    strings.TrimSpace(message.From.Username),
 			DisplayName: senderName,
 		},
-		Content: channelspkg.MessageContent{
+		Content: bridgepkg.MessageContent{
 			Text: text,
 		},
-		IdempotencyKey: fmt.Sprintf("telegram:%s:%d", channelRuntime.Instance.ID, update.UpdateID),
+		IdempotencyKey: fmt.Sprintf("telegram:%s:%d", bridgeRuntime.Instance.ID, update.UpdateID),
 	}, nil
 }
 
-func boundSecretValue(channelRuntime subprocess.InitializeChannelRuntime, bindingName string) (string, bool) {
+func boundSecretValue(bridgeRuntime subprocess.InitializeBridgeRuntime, bindingName string) (string, bool) {
 	trimmed := strings.TrimSpace(bindingName)
 	if trimmed == "" {
 		return "", false
 	}
-	for _, secret := range channelRuntime.BoundSecrets {
+	for _, secret := range bridgeRuntime.BoundSecrets {
 		if strings.TrimSpace(secret.BindingName) == trimmed {
 			return strings.TrimSpace(secret.Value), strings.TrimSpace(secret.Value) != ""
 		}
@@ -802,11 +802,11 @@ func boundSecretValue(channelRuntime subprocess.InitializeChannelRuntime, bindin
 	return "", false
 }
 
-func indexBoundSecrets(secrets []subprocess.InitializeChannelBoundSecret) map[string]subprocess.InitializeChannelBoundSecret {
+func indexBoundSecrets(secrets []subprocess.InitializeBridgeBoundSecret) map[string]subprocess.InitializeBridgeBoundSecret {
 	if len(secrets) == 0 {
 		return nil
 	}
-	indexed := make(map[string]subprocess.InitializeChannelBoundSecret, len(secrets))
+	indexed := make(map[string]subprocess.InitializeBridgeBoundSecret, len(secrets))
 	for _, secret := range secrets {
 		indexed[strings.TrimSpace(secret.BindingName)] = secret
 	}

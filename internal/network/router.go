@@ -31,7 +31,7 @@ type RouterTransport interface {
 // SendRequest carries one caller-supplied outbound envelope request.
 type SendRequest struct {
 	SessionID     string
-	Space         string
+	Channel       string
 	Kind          Kind
 	To            *string
 	Body          json.RawMessage
@@ -157,7 +157,7 @@ func (r *Router) Leave(sessionID string) (LocalPeer, bool) {
 	return r.peers.LeaveLocal(sessionID)
 }
 
-// PublishGreet advertises one local peer card to its joined space.
+// PublishGreet advertises one local peer card to its joined channel.
 func (r *Router) PublishGreet(ctx context.Context, sessionID string, summary string) (SendResult, error) {
 	if r == nil || r.peers == nil {
 		return SendResult{}, fmt.Errorf("%w: router peer registry is required", ErrInvalidField)
@@ -178,7 +178,7 @@ func (r *Router) PublishGreet(ctx context.Context, sessionID string, summary str
 
 	return r.Send(ctx, SendRequest{
 		SessionID: local.SessionID,
-		Space:     local.Space,
+		Channel:   local.Channel,
 		Kind:      KindGreet,
 		Body:      body,
 	})
@@ -242,8 +242,8 @@ func (r *Router) Send(ctx context.Context, req SendRequest) (SendResult, error) 
 	if err != nil {
 		return SendResult{}, err
 	}
-	if envelope.IsDirected() && !r.peers.HasPresence(envelope.Space, *envelope.To, now) {
-		return SendResult{}, fmt.Errorf("%w: peer_id=%q space=%q", ErrTargetPeerNotFound, *envelope.To, envelope.Space)
+	if envelope.IsDirected() && !r.peers.HasPresence(envelope.Channel, *envelope.To, now) {
+		return SendResult{}, fmt.Errorf("%w: peer_id=%q channel=%q", ErrTargetPeerNotFound, *envelope.To, envelope.Channel)
 	}
 
 	subject, err := subjectForEnvelope(envelope)
@@ -341,14 +341,14 @@ func (r *Router) Receive(ctx context.Context, payload []byte) (RouteResult, erro
 			return RouteResult{}, decodeErr
 		}
 		greet := body.(GreetBody)
-		if _, _, refreshErr := r.peers.RefreshRemote(envelope.Space, greet.PeerCard, now); refreshErr != nil {
+		if _, _, refreshErr := r.peers.RefreshRemote(envelope.Channel, greet.PeerCard, now); refreshErr != nil {
 			return RouteResult{}, refreshErr
 		}
 		return result, nil
 	case KindWhois:
 		return r.handleWhois(ctx, envelope, result, directedTarget, ok, now)
 	case KindSay:
-		result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(envelope.Space), envelope)
+		result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(envelope.Channel), envelope)
 		return result, nil
 	case KindRecipe:
 		deliver := true
@@ -383,7 +383,7 @@ func (r *Router) Receive(ctx context.Context, payload []byte) (RouteResult, erro
 			if envelope.IsDirected() {
 				result.Deliveries = []Delivery{deliveryFromLocalPeer(directedTarget, envelope)}
 			} else {
-				result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(envelope.Space), envelope)
+				result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(envelope.Channel), envelope)
 			}
 		}
 		return result, nil
@@ -455,7 +455,7 @@ func (r *Router) handleWhois(
 	switch whois.Type {
 	case WhoisTypeResponse:
 		if whois.PeerCard != nil {
-			if _, _, refreshErr := r.peers.RefreshRemote(envelope.Space, *whois.PeerCard, now); refreshErr != nil {
+			if _, _, refreshErr := r.peers.RefreshRemote(envelope.Channel, *whois.PeerCard, now); refreshErr != nil {
 				return RouteResult{}, refreshErr
 			}
 		}
@@ -470,7 +470,7 @@ func (r *Router) handleWhois(
 				responders = append(responders, directedTarget)
 			}
 		} else {
-			responders = r.peers.MatchLocalPeers(envelope.Space, whois.Query)
+			responders = r.peers.MatchLocalPeers(envelope.Channel, whois.Query)
 		}
 
 		for _, responder := range responders {
@@ -482,7 +482,7 @@ func (r *Router) handleWhois(
 				Protocol: ProtocolV0,
 				ID:       store.NewID("msg"),
 				Kind:     KindWhois,
-				Space:    envelope.Space,
+				Channel:  envelope.Channel,
 				From:     responder.PeerID,
 				To:       ptrString(envelope.From),
 				ReplyTo:  ptrString(envelope.ID),
@@ -524,12 +524,12 @@ func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error)
 		return Envelope{}, fmt.Errorf("%w: session=%q", ErrLocalPeerNotFound, sessionID)
 	}
 
-	space := strings.TrimSpace(req.Space)
-	if space == "" {
-		return Envelope{}, fmt.Errorf("%w: space is required", ErrMissingField)
+	channel := strings.TrimSpace(req.Channel)
+	if channel == "" {
+		return Envelope{}, fmt.Errorf("%w: channel is required", ErrMissingField)
 	}
-	if local.Space != space {
-		return Envelope{}, fmt.Errorf("%w: session=%q space=%q", ErrLocalPeerNotFound, sessionID, space)
+	if local.Channel != channel {
+		return Envelope{}, fmt.Errorf("%w: session=%q channel=%q", ErrLocalPeerNotFound, sessionID, channel)
 	}
 
 	id := normalizeOptionalIdentifier(req.ID)
@@ -540,7 +540,7 @@ func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error)
 		Protocol:      ProtocolV0,
 		ID:            *id,
 		Kind:          Kind(strings.TrimSpace(string(req.Kind))),
-		Space:         space,
+		Channel:       channel,
 		From:          local.PeerID,
 		To:            normalizeOptionalIdentifier(req.To),
 		InteractionID: normalizeOptionalIdentifier(req.InteractionID),
@@ -567,7 +567,7 @@ func (r *Router) resolveDirectedTarget(envelope Envelope) (LocalPeer, bool, erro
 		return LocalPeer{}, false, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
 	}
 
-	local, ok := r.peers.LocalByPeer(envelope.Space, *envelope.To)
+	local, ok := r.peers.LocalByPeer(envelope.Channel, *envelope.To)
 	if !ok {
 		return LocalPeer{}, false, nil
 	}
@@ -591,7 +591,7 @@ func (r *Router) markSeen(envelope Envelope, now time.Time) bool {
 }
 
 func (r *Router) applyLifecycle(envelope Envelope, now time.Time) (LifecycleResult, error) {
-	key := interactionKey(envelope.Space, *envelope.InteractionID)
+	key := interactionKey(envelope.Channel, *envelope.InteractionID)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -641,9 +641,9 @@ func (r *Router) publishGenerated(ctx context.Context, envelopes []Envelope) err
 
 func subjectForEnvelope(envelope Envelope) (string, error) {
 	if envelope.IsDirected() {
-		return DirectSubject(envelope.Space, *envelope.To)
+		return DirectSubject(envelope.Channel, *envelope.To)
 	}
-	return BroadcastSubject(envelope.Space)
+	return BroadcastSubject(envelope.Channel)
 }
 
 func replayDeadline(envelope Envelope, now time.Time, maxReplayAge time.Duration) time.Time {
@@ -660,8 +660,8 @@ func replayDeadline(envelope Envelope, now time.Time, maxReplayAge time.Duration
 	return deadline
 }
 
-func interactionKey(space string, interactionID string) string {
-	return strings.TrimSpace(space) + "\x00" + strings.TrimSpace(interactionID)
+func interactionKey(channel string, interactionID string) string {
+	return strings.TrimSpace(channel) + "\x00" + strings.TrimSpace(interactionID)
 }
 
 func deliveriesFromLocalPeers(peers []LocalPeer, envelope Envelope) []Delivery {
@@ -703,7 +703,7 @@ func buildDirectReceipt(local LocalPeer, envelope Envelope, now time.Time, statu
 		Protocol:      ProtocolV0,
 		ID:            store.NewID("msg"),
 		Kind:          KindReceipt,
-		Space:         envelope.Space,
+		Channel:       envelope.Channel,
 		From:          local.PeerID,
 		To:            ptrString(envelope.From),
 		InteractionID: ptrString(*envelope.InteractionID),
@@ -737,7 +737,7 @@ func parseEnvelopeSummary(data []byte) *Envelope {
 		Protocol:      strings.TrimSpace(env.Protocol),
 		ID:            strings.TrimSpace(env.ID),
 		Kind:          Kind(strings.TrimSpace(string(env.Kind))),
-		Space:         strings.TrimSpace(env.Space),
+		Channel:       strings.TrimSpace(env.Channel),
 		From:          strings.TrimSpace(env.From),
 		To:            normalizeOptionalIdentifier(env.To),
 		InteractionID: normalizeOptionalIdentifier(env.InteractionID),

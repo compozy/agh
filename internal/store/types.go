@@ -142,7 +142,7 @@ type SessionInfo struct {
 	Name         string
 	AgentName    string
 	WorkspaceID  string
-	Space        string
+	Channel      string
 	SessionType  string
 	State        string
 	ACPSessionID *string
@@ -347,7 +347,7 @@ type NetworkAuditEntry struct {
 	SessionID string
 	Direction string
 	Kind      string
-	Space     string
+	Channel   string
 	PeerFrom  string
 	PeerTo    string
 	MessageID string
@@ -376,7 +376,7 @@ func (e NetworkAuditEntry) Validate() error {
 	if err := requireField(e.Kind, "network audit kind"); err != nil {
 		return err
 	}
-	if err := requireField(e.Space, "network audit space"); err != nil {
+	if err := requireField(e.Channel, "network audit channel"); err != nil {
 		return err
 	}
 	if err := requireField(e.PeerFrom, "network audit peer_from"); err != nil {
@@ -399,7 +399,7 @@ type NetworkAuditQuery struct {
 	SessionID string
 	Direction string
 	Kind      string
-	Space     string
+	Channel   string
 	MessageID string
 	Since     time.Time
 	Limit     int
@@ -422,7 +422,7 @@ type SessionMeta struct {
 	Name         string      `json:"name,omitempty"`
 	AgentName    string      `json:"agent_name"`
 	WorkspaceID  string      `json:"workspace_id,omitempty"`
-	Space        string      `json:"space,omitempty"`
+	Channel      string      `json:"channel,omitempty"`
 	SessionType  string      `json:"session_type,omitempty"`
 	State        string      `json:"state"`
 	StopReason   *StopReason `json:"stop_reason,omitempty"`

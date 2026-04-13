@@ -12,7 +12,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/memory"
 )
 
@@ -706,7 +706,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 	})
 }
 
-func TestUnixSocketClientChannelMethods(t *testing.T) {
+func TestUnixSocketClientBridgeMethods(t *testing.T) {
 	t.Parallel()
 
 	client := &unixSocketClient{
@@ -714,45 +714,57 @@ func TestUnixSocketClientChannelMethods(t *testing.T) {
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
-				case req.Method == http.MethodGet && req.URL.Path == "/api/channels":
-					return newHTTPResponse(http.StatusOK, `{"channels":[{"id":"chan-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}]}`), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/channels":
-					var payload contract.CreateChannelRequest
+				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges":
+					return newHTTPResponse(http.StatusOK, `{"bridges":[{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}]}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges":
+					var payload contract.CreateBridgeRequest
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(create channel body) error = %v", err)
+						t.Fatalf("json.Decode(create bridge body) error = %v", err)
 					}
-					if payload.Platform != "telegram" || payload.ExtensionName != "ext-telegram" || payload.DisplayName != "Support" {
-						t.Fatalf("create channel payload = %#v", payload)
+					if payload.Scope != bridgepkg.ScopeGlobal ||
+						payload.WorkspaceID != "" ||
+						payload.Platform != "telegram" ||
+						payload.ExtensionName != "ext-telegram" ||
+						payload.DisplayName != "Support" ||
+						!payload.Enabled ||
+						payload.Status != bridgepkg.BridgeStatusStarting ||
+						!reflect.DeepEqual(payload.RoutingPolicy, bridgepkg.RoutingPolicy{IncludePeer: true}) ||
+						len(payload.DeliveryDefaults) != 0 {
+						t.Fatalf("create bridge payload = %#v", payload)
 					}
-					return newHTTPResponse(http.StatusCreated, `{"channel":{"id":"chan-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/channels/chan-a":
-					return newHTTPResponse(http.StatusOK, `{"channel":{"id":"chan-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`), nil
-				case req.Method == http.MethodPatch && req.URL.Path == "/api/channels/chan-a":
-					var payload contract.UpdateChannelRequest
+					return newHTTPResponse(http.StatusCreated, `{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges/brg-a":
+					return newHTTPResponse(http.StatusOK, `{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`), nil
+				case req.Method == http.MethodPatch && req.URL.Path == "/api/bridges/brg-a":
+					var payload contract.UpdateBridgeRequest
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(update channel body) error = %v", err)
+						t.Fatalf("json.Decode(update bridge body) error = %v", err)
 					}
-					if payload.DisplayName == nil || *payload.DisplayName != "Support Ops" {
-						t.Fatalf("update channel payload = %#v, want updated display name", payload)
+					if payload.DisplayName == nil ||
+						*payload.DisplayName != "Support Ops" ||
+						payload.RoutingPolicy == nil ||
+						!reflect.DeepEqual(*payload.RoutingPolicy, bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true}) ||
+						payload.DeliveryDefaults != nil {
+						t.Fatalf("update bridge payload = %#v, want updated display name", payload)
 					}
-					return newHTTPResponse(http.StatusOK, `{"channel":{"id":"chan-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support Ops","enabled":true,"status":"ready","routing_policy":{"include_peer":true,"include_thread":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:05:00Z"}}`), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/channels/chan-a/enable":
-					return newHTTPResponse(http.StatusOK, `{"channel":{"id":"chan-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:06:00Z"}}`), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/channels/chan-a/disable":
-					return newHTTPResponse(http.StatusOK, `{"channel":{"id":"chan-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":false,"status":"disabled","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:07:00Z"}}`), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/channels/chan-a/restart":
-					return newHTTPResponse(http.StatusOK, `{"channel":{"id":"chan-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:08:00Z"}}`), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/channels/chan-a/routes":
-					return newHTTPResponse(http.StatusOK, `{"routes":[{"routing_key_hash":"hash-a","scope":"global","channel_instance_id":"chan-a","peer_id":"peer-1","thread_id":"thread-1","session_id":"sess-1","agent_name":"coder","last_activity_at":"2026-04-11T12:09:00Z","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:09:00Z"}]}`), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/channels/chan-a/test-delivery":
-					var payload contract.ChannelTestDeliveryRequest
+					return newHTTPResponse(http.StatusOK, `{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support Ops","enabled":true,"status":"ready","routing_policy":{"include_peer":true,"include_thread":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:05:00Z"}}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/enable":
+					return newHTTPResponse(http.StatusOK, `{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:06:00Z"}}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/disable":
+					return newHTTPResponse(http.StatusOK, `{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":false,"status":"disabled","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:07:00Z"}}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/restart":
+					return newHTTPResponse(http.StatusOK, `{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:08:00Z"}}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges/brg-a/routes":
+					return newHTTPResponse(http.StatusOK, `{"routes":[{"routing_key_hash":"hash-a","scope":"global","bridge_instance_id":"brg-a","peer_id":"peer-1","thread_id":"thread-1","session_id":"sess-1","agent_name":"coder","last_activity_at":"2026-04-11T12:09:00Z","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:09:00Z"}]}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/test-delivery":
+					var payload contract.BridgeTestDeliveryRequest
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(test delivery body) error = %v", err)
 					}
-					if payload.Message != "hello" || payload.Target.PeerID != "peer-1" || payload.Target.ThreadID != "thread-1" || payload.Target.Mode != channelspkg.DeliveryModeReply {
+					if payload.Message != "hello" || payload.Target.PeerID != "peer-1" || payload.Target.ThreadID != "thread-1" || payload.Target.Mode != bridgepkg.DeliveryModeReply {
 						t.Fatalf("test delivery payload = %#v", payload)
 					}
-					return newHTTPResponse(http.StatusOK, `{"status":"resolved","message":"hello","delivery_target":{"channel_instance_id":"chan-a","peer_id":"peer-1","thread_id":"thread-1","mode":"reply"}}`), nil
+					return newHTTPResponse(http.StatusOK, `{"status":"resolved","message":"hello","delivery_target":{"bridge_instance_id":"brg-a","peer_id":"peer-1","thread_id":"thread-1","mode":"reply"}}`), nil
 				default:
 					return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
 				}
@@ -762,70 +774,70 @@ func TestUnixSocketClientChannelMethods(t *testing.T) {
 
 	ctx := context.Background()
 
-	listed, err := client.ListChannels(ctx)
-	if err != nil || len(listed) != 1 || listed[0].ID != "chan-a" {
-		t.Fatalf("ListChannels() = %#v, %v", listed, err)
+	listed, err := client.ListBridges(ctx)
+	if err != nil || len(listed) != 1 || listed[0].ID != "brg-a" {
+		t.Fatalf("ListBridges() = %#v, %v", listed, err)
 	}
 
-	created, err := client.CreateChannel(ctx, CreateChannelRequest{
-		Scope:         channelspkg.ScopeGlobal,
+	created, err := client.CreateBridge(ctx, CreateBridgeRequest{
+		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "ext-telegram",
 		DisplayName:   "Support",
 		Enabled:       true,
-		Status:        channelspkg.ChannelStatusStarting,
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+		Status:        bridgepkg.BridgeStatusStarting,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	if err != nil || created.ID != "chan-a" {
-		t.Fatalf("CreateChannel() = %#v, %v", created, err)
+	if err != nil || created.ID != "brg-a" {
+		t.Fatalf("CreateBridge() = %#v, %v", created, err)
 	}
 
-	status, err := client.GetChannel(ctx, "chan-a")
-	if err != nil || status.Status != channelspkg.ChannelStatusReady {
-		t.Fatalf("GetChannel() = %#v, %v", status, err)
+	status, err := client.GetBridge(ctx, "brg-a")
+	if err != nil || status.Status != bridgepkg.BridgeStatusReady {
+		t.Fatalf("GetBridge() = %#v, %v", status, err)
 	}
 
-	updated, err := client.UpdateChannel(ctx, "chan-a", UpdateChannelRequest{
+	updated, err := client.UpdateBridge(ctx, "brg-a", UpdateBridgeRequest{
 		DisplayName: ptr("Support Ops"),
-		RoutingPolicy: &channelspkg.RoutingPolicy{
+		RoutingPolicy: &bridgepkg.RoutingPolicy{
 			IncludePeer:   true,
 			IncludeThread: true,
 		},
 	})
 	if err != nil || updated.DisplayName != "Support Ops" || !updated.RoutingPolicy.IncludeThread {
-		t.Fatalf("UpdateChannel() = %#v, %v", updated, err)
+		t.Fatalf("UpdateBridge() = %#v, %v", updated, err)
 	}
 
-	enabled, err := client.EnableChannel(ctx, " chan-a ")
-	if err != nil || enabled.Status != channelspkg.ChannelStatusStarting || !enabled.Enabled {
-		t.Fatalf("EnableChannel() = %#v, %v", enabled, err)
+	enabled, err := client.EnableBridge(ctx, " brg-a ")
+	if err != nil || enabled.Status != bridgepkg.BridgeStatusStarting || !enabled.Enabled {
+		t.Fatalf("EnableBridge() = %#v, %v", enabled, err)
 	}
 
-	disabled, err := client.DisableChannel(ctx, " chan-a ")
-	if err != nil || disabled.Status != channelspkg.ChannelStatusDisabled || disabled.Enabled {
-		t.Fatalf("DisableChannel() = %#v, %v", disabled, err)
+	disabled, err := client.DisableBridge(ctx, " brg-a ")
+	if err != nil || disabled.Status != bridgepkg.BridgeStatusDisabled || disabled.Enabled {
+		t.Fatalf("DisableBridge() = %#v, %v", disabled, err)
 	}
 
-	restarted, err := client.RestartChannel(ctx, " chan-a ")
-	if err != nil || restarted.Status != channelspkg.ChannelStatusStarting || !restarted.Enabled {
-		t.Fatalf("RestartChannel() = %#v, %v", restarted, err)
+	restarted, err := client.RestartBridge(ctx, " brg-a ")
+	if err != nil || restarted.Status != bridgepkg.BridgeStatusStarting || !restarted.Enabled {
+		t.Fatalf("RestartBridge() = %#v, %v", restarted, err)
 	}
 
-	routes, err := client.ChannelRoutes(ctx, "chan-a")
+	routes, err := client.BridgeRoutes(ctx, "brg-a")
 	if err != nil || len(routes) != 1 || routes[0].ThreadID != "thread-1" {
-		t.Fatalf("ChannelRoutes() = %#v, %v", routes, err)
+		t.Fatalf("BridgeRoutes() = %#v, %v", routes, err)
 	}
 
-	delivery, err := client.TestChannelDelivery(ctx, "chan-a", ChannelTestDeliveryRequest{
+	delivery, err := client.TestBridgeDelivery(ctx, "brg-a", BridgeTestDeliveryRequest{
 		Message: "hello",
-		Target: ChannelDeliveryTargetInput{
+		Target: BridgeDeliveryTargetInput{
 			PeerID:   "peer-1",
 			ThreadID: "thread-1",
-			Mode:     channelspkg.DeliveryModeReply,
+			Mode:     bridgepkg.DeliveryModeReply,
 		},
 	})
-	if err != nil || delivery.DeliveryTarget.Mode != channelspkg.DeliveryModeReply || delivery.DeliveryTarget.ThreadID != "thread-1" {
-		t.Fatalf("TestChannelDelivery() = %#v, %v", delivery, err)
+	if err != nil || delivery.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply || delivery.DeliveryTarget.ThreadID != "thread-1" {
+		t.Fatalf("TestBridgeDelivery() = %#v, %v", delivery, err)
 	}
 }
 
@@ -1069,14 +1081,14 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 		{name: "Should alias TriggerRecord to the shared contract", cliType: TriggerRecord{}, want: contract.TriggerPayload{}},
 		{name: "Should alias RunRecord to the shared contract", cliType: RunRecord{}, want: contract.RunPayload{}},
 		{name: "Should alias DaemonStatus to the shared contract", cliType: DaemonStatus{}, want: contract.DaemonStatusPayload{}},
-		{name: "Should alias CreateChannelRequest to the shared contract", cliType: CreateChannelRequest{}, want: contract.CreateChannelRequest{}},
-		{name: "Should alias UpdateChannelRequest to the shared contract", cliType: UpdateChannelRequest{}, want: contract.UpdateChannelRequest{}},
-		{name: "Should alias ChannelTestDeliveryRequest to the shared contract", cliType: ChannelTestDeliveryRequest{}, want: contract.ChannelTestDeliveryRequest{}},
-		{name: "Should alias ChannelDeliveryTargetInput to the shared contract", cliType: ChannelDeliveryTargetInput{}, want: contract.ChannelDeliveryTargetInput{}},
-		{name: "Should alias ChannelRecord to the channel domain type", cliType: ChannelRecord{}, want: channelspkg.ChannelInstance{}},
-		{name: "Should alias ChannelRouteRecord to the channel domain type", cliType: ChannelRouteRecord{}, want: channelspkg.ChannelRoute{}},
-		{name: "Should alias DeliveryTargetRecord to the channel domain type", cliType: DeliveryTargetRecord{}, want: channelspkg.DeliveryTarget{}},
-		{name: "Should alias ChannelTestDeliveryRecord to the shared contract", cliType: ChannelTestDeliveryRecord{}, want: contract.ChannelTestDeliveryResponse{}},
+		{name: "Should alias CreateBridgeRequest to the shared contract", cliType: CreateBridgeRequest{}, want: contract.CreateBridgeRequest{}},
+		{name: "Should alias UpdateBridgeRequest to the shared contract", cliType: UpdateBridgeRequest{}, want: contract.UpdateBridgeRequest{}},
+		{name: "Should alias BridgeTestDeliveryRequest to the shared contract", cliType: BridgeTestDeliveryRequest{}, want: contract.BridgeTestDeliveryRequest{}},
+		{name: "Should alias BridgeDeliveryTargetInput to the shared contract", cliType: BridgeDeliveryTargetInput{}, want: contract.BridgeDeliveryTargetInput{}},
+		{name: "Should alias BridgeRecord to the bridge domain type", cliType: BridgeRecord{}, want: bridgepkg.BridgeInstance{}},
+		{name: "Should alias BridgeRouteRecord to the bridge domain type", cliType: BridgeRouteRecord{}, want: bridgepkg.BridgeRoute{}},
+		{name: "Should alias DeliveryTargetRecord to the bridge domain type", cliType: DeliveryTargetRecord{}, want: bridgepkg.DeliveryTarget{}},
+		{name: "Should alias BridgeTestDeliveryRecord to the shared contract", cliType: BridgeTestDeliveryRecord{}, want: contract.BridgeTestDeliveryResponse{}},
 	}
 
 	for _, tt := range tests {
@@ -1119,25 +1131,25 @@ func TestSharedContractJSONParity(t *testing.T) {
 		t.Fatalf("memory request json = %s, want %s", cliMemoryJSON, sharedMemoryJSON)
 	}
 
-	channelRequest := CreateChannelRequest{
-		Scope:         channelspkg.ScopeGlobal,
+	bridgeRequest := CreateBridgeRequest{
+		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "ext-telegram",
 		DisplayName:   "Support",
 		Enabled:       true,
-		Status:        channelspkg.ChannelStatusReady,
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+		Status:        bridgepkg.BridgeStatusReady,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	}
-	cliChannelJSON, err := json.Marshal(channelRequest)
+	cliBridgeJSON, err := json.Marshal(bridgeRequest)
 	if err != nil {
-		t.Fatalf("json.Marshal(cli channel request) error = %v", err)
+		t.Fatalf("json.Marshal(cli bridge request) error = %v", err)
 	}
-	sharedChannelJSON, err := json.Marshal(contract.CreateChannelRequest(channelRequest))
+	sharedBridgeJSON, err := json.Marshal(contract.CreateBridgeRequest(bridgeRequest))
 	if err != nil {
-		t.Fatalf("json.Marshal(shared channel request) error = %v", err)
+		t.Fatalf("json.Marshal(shared bridge request) error = %v", err)
 	}
-	if string(cliChannelJSON) != string(sharedChannelJSON) {
-		t.Fatalf("channel request json = %s, want %s", cliChannelJSON, sharedChannelJSON)
+	if string(cliBridgeJSON) != string(sharedBridgeJSON) {
+		t.Fatalf("bridge request json = %s, want %s", cliBridgeJSON, sharedBridgeJSON)
 	}
 
 	readResponse := `{"content":"stored memory body"}`
@@ -1238,20 +1250,20 @@ func TestSharedContractJSONParity(t *testing.T) {
 		t.Fatalf("daemon decode = %#v, want %#v", cliDaemon, sharedDaemon)
 	}
 
-	channelResponse := `{"channel":{"id":"chan-1","scope":"workspace","workspace_id":"ws-alpha","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true,"include_thread":true},"delivery_defaults":{"mode":"reply"},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`
-	var cliChannel struct {
-		Channel ChannelRecord `json:"channel"`
+	bridgeResponse := `{"bridge":{"id":"brg-1","scope":"workspace","workspace_id":"ws-alpha","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true,"include_thread":true},"delivery_defaults":{"mode":"reply"},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`
+	var cliBridge struct {
+		Bridge BridgeRecord `json:"bridge"`
 	}
-	if err := json.Unmarshal([]byte(channelResponse), &cliChannel); err != nil {
-		t.Fatalf("json.Unmarshal(cli channel response) error = %v", err)
+	if err := json.Unmarshal([]byte(bridgeResponse), &cliBridge); err != nil {
+		t.Fatalf("json.Unmarshal(cli bridge response) error = %v", err)
 	}
-	var sharedChannel struct {
-		Channel channelspkg.ChannelInstance `json:"channel"`
+	var sharedBridge struct {
+		Bridge bridgepkg.BridgeInstance `json:"bridge"`
 	}
-	if err := json.Unmarshal([]byte(channelResponse), &sharedChannel); err != nil {
-		t.Fatalf("json.Unmarshal(shared channel response) error = %v", err)
+	if err := json.Unmarshal([]byte(bridgeResponse), &sharedBridge); err != nil {
+		t.Fatalf("json.Unmarshal(shared bridge response) error = %v", err)
 	}
-	if !reflect.DeepEqual(cliChannel, sharedChannel) {
-		t.Fatalf("channel decode = %#v, want %#v", cliChannel, sharedChannel)
+	if !reflect.DeepEqual(cliBridge, sharedBridge) {
+		t.Fatalf("bridge decode = %#v, want %#v", cliBridge, sharedBridge)
 	}
 }

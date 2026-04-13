@@ -30,7 +30,7 @@ const SDK_NAME = "@agh/extension-sdk";
 const SDK_VERSION = "0.1.0";
 const SUPPORTED_PROTOCOL_VERSIONS = ["1"];
 const REQUIRED_PROVIDES_METHODS: Record<string, string[]> = {
-  "channel.adapter": ["channels/deliver"],
+  "bridge.adapter": ["bridges/deliver"],
   "memory.backend": ["memory/store", "memory/recall", "memory/forget"],
 };
 

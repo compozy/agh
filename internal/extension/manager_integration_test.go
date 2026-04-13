@@ -161,32 +161,32 @@ func TestManagerIntegrationResourceRegistration(t *testing.T) {
 	}
 }
 
-func TestManagerIntegrationChannelAdapterNegotiatesDeliveryRuntime(t *testing.T) {
+func TestManagerIntegrationBridgeAdapterNegotiatesDeliveryRuntime(t *testing.T) {
 	withDaemonVersion(t, "0.5.0")
 
 	env := newRegistryTestEnv(t)
-	markerPath := filepath.Join(t.TempDir(), "channel-init.jsonl")
-	fixture := createManagerTestExtension(t, managerTestManifest("ext-channel-live", managerManifestOptions{
+	markerPath := filepath.Join(t.TempDir(), "bridge-init.jsonl")
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge-live", managerManifestOptions{
 		command:      helperCommand(t),
 		args:         helperArgs(),
 		withEnv:      helperEnv("record_initialize", markerPath),
-		capabilities: []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		actions: []string{
-			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"channel.read", "channel.write"},
+		security: []string{"bridge.read", "bridge.write"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
 	manager := NewManager(
 		env.registry,
-		WithChannelRuntimeResolver(&stubChannelRuntimeResolver{
-			runtimes: map[string]*subprocess.InitializeChannelRuntime{
-				"ext-channel-live": {
-					Instance: testChannelRuntimeInstance("ext-channel-live", "chan-live"),
-					BoundSecrets: []subprocess.InitializeChannelBoundSecret{
+		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
+			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
+				"ext-bridge-live": {
+					Instance: testBridgeRuntimeInstance("ext-bridge-live", "brg-live"),
+					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 						{BindingName: "bot_token", Kind: "bot_token", Value: "token-live"},
 					},
 				},
@@ -212,24 +212,24 @@ func TestManagerIntegrationChannelAdapterNegotiatesDeliveryRuntime(t *testing.T)
 
 	markers := readInitializeMarkers(t, markerPath)
 	if len(markers) == 0 {
-		t.Fatal("initialize markers = empty, want negotiated channel handshake")
+		t.Fatal("initialize markers = empty, want negotiated bridge handshake")
 	}
 	request := markers[0].Request
-	if !slicesEqualStrings(request.Methods.ExtensionServices, []string{"channels/deliver"}) {
-		t.Fatalf("initialize extension services = %#v, want [channels/deliver]", request.Methods.ExtensionServices)
+	if !slicesEqualStrings(request.Methods.ExtensionServices, []string{"bridges/deliver"}) {
+		t.Fatalf("initialize extension services = %#v, want [bridges/deliver]", request.Methods.ExtensionServices)
 	}
-	if request.Runtime.Channel == nil {
-		t.Fatal("initialize runtime channel = nil, want bound channel launch payload")
+	if request.Runtime.Bridge == nil {
+		t.Fatal("initialize runtime bridge = nil, want bound bridge launch payload")
 	}
-	if got, want := request.Runtime.Channel.Instance.ID, "chan-live"; got != want {
-		t.Fatalf("initialize runtime channel instance id = %q, want %q", got, want)
+	if got, want := request.Runtime.Bridge.Instance.ID, "brg-live"; got != want {
+		t.Fatalf("initialize runtime bridge instance id = %q, want %q", got, want)
 	}
-	if got := request.Runtime.Channel.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-live" {
-		t.Fatalf("initialize runtime channel bound secrets = %#v, want one bound secret", got)
+	if got := request.Runtime.Bridge.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-live" {
+		t.Fatalf("initialize runtime bridge bound secrets = %#v, want one bound secret", got)
 	}
 }
 
-func TestManagerIntegrationNonChannelExtensionStartsWithoutChannelNegotiation(t *testing.T) {
+func TestManagerIntegrationNonBridgeExtensionStartsWithoutBridgeNegotiation(t *testing.T) {
 	withDaemonVersion(t, "0.5.0")
 
 	env := newRegistryTestEnv(t)
@@ -269,40 +269,40 @@ func TestManagerIntegrationNonChannelExtensionStartsWithoutChannelNegotiation(t 
 		t.Fatal("initialize markers = empty, want generic extension handshake")
 	}
 	request := markers[0].Request
-	if slicesContainsString(request.Methods.ExtensionServices, "channels/deliver") {
-		t.Fatalf("initialize extension services = %#v, want no channels/deliver negotiation", request.Methods.ExtensionServices)
+	if slicesContainsString(request.Methods.ExtensionServices, "bridges/deliver") {
+		t.Fatalf("initialize extension services = %#v, want no bridges/deliver negotiation", request.Methods.ExtensionServices)
 	}
-	if request.Runtime.Channel != nil {
-		t.Fatalf("initialize runtime channel = %#v, want nil for non-channel extension", request.Runtime.Channel)
+	if request.Runtime.Bridge != nil {
+		t.Fatalf("initialize runtime bridge = %#v, want nil for non-bridge extension", request.Runtime.Bridge)
 	}
 }
 
-func TestManagerIntegrationChannelAdapterRestartPreservesNegotiatedSurface(t *testing.T) {
+func TestManagerIntegrationBridgeAdapterRestartPreservesNegotiatedSurface(t *testing.T) {
 	withDaemonVersion(t, "0.5.0")
 
 	env := newRegistryTestEnv(t)
-	markerPath := filepath.Join(t.TempDir(), "channel-restart.jsonl")
-	fixture := createManagerTestExtension(t, managerTestManifest("ext-channel-restart", managerManifestOptions{
+	markerPath := filepath.Join(t.TempDir(), "bridge-restart.jsonl")
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge-restart", managerManifestOptions{
 		command:      helperCommand(t),
 		args:         helperArgs(),
 		withEnv:      helperEnv("auto_exit_record_initialize", markerPath),
-		capabilities: []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		actions: []string{
-			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"channel.read", "channel.write"},
+		security: []string{"bridge.read", "bridge.write"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
 	manager := NewManager(
 		env.registry,
-		WithChannelRuntimeResolver(&stubChannelRuntimeResolver{
-			runtimes: map[string]*subprocess.InitializeChannelRuntime{
-				"ext-channel-restart": {
-					Instance: testChannelRuntimeInstance("ext-channel-restart", "chan-restart"),
-					BoundSecrets: []subprocess.InitializeChannelBoundSecret{
+		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
+			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
+				"ext-bridge-restart": {
+					Instance: testBridgeRuntimeInstance("ext-bridge-restart", "brg-restart"),
+					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 						{BindingName: "bot_token", Kind: "bot_token", Value: "token-restart"},
 					},
 				},
@@ -333,14 +333,14 @@ func TestManagerIntegrationChannelAdapterRestartPreservesNegotiatedSurface(t *te
 		t.Fatalf("initialize markers = %d, want at least 2 launches", len(markers))
 	}
 	for index, marker := range markers[:2] {
-		if !slicesEqualStrings(marker.Request.Methods.ExtensionServices, []string{"channels/deliver"}) {
-			t.Fatalf("marker %d extension services = %#v, want [channels/deliver]", index, marker.Request.Methods.ExtensionServices)
+		if !slicesEqualStrings(marker.Request.Methods.ExtensionServices, []string{"bridges/deliver"}) {
+			t.Fatalf("marker %d extension services = %#v, want [bridges/deliver]", index, marker.Request.Methods.ExtensionServices)
 		}
-		if marker.Request.Runtime.Channel == nil {
-			t.Fatalf("marker %d runtime channel = nil, want bound channel launch payload", index)
+		if marker.Request.Runtime.Bridge == nil {
+			t.Fatalf("marker %d runtime bridge = nil, want bound bridge launch payload", index)
 		}
-		if got, want := marker.Request.Runtime.Channel.Instance.ID, "chan-restart"; got != want {
-			t.Fatalf("marker %d runtime channel instance id = %q, want %q", index, got, want)
+		if got, want := marker.Request.Runtime.Bridge.Instance.ID, "brg-restart"; got != want {
+			t.Fatalf("marker %d runtime bridge instance id = %q, want %q", index, got, want)
 		}
 	}
 }

@@ -41,8 +41,8 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 	if got, want := info.StopDetail, "deadline exceeded"; got != want {
 		t.Fatalf("info.StopDetail = %q, want %q", got, want)
 	}
-	if got, want := info.Space, "builders"; got != want {
-		t.Fatalf("info.Space = %q, want %q", got, want)
+	if got, want := info.Channel, "builders"; got != want {
+		t.Fatalf("info.Channel = %q, want %q", got, want)
 	}
 	if info.ACPSessionID == nil || *info.ACPSessionID != "acp-123" {
 		t.Fatalf("info.ACPSessionID = %#v, want acp-123", info.ACPSessionID)
@@ -81,8 +81,8 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 	if info.StopDetail != "" {
 		t.Fatalf("info.StopDetail = %q, want empty", info.StopDetail)
 	}
-	if info.Space != "" {
-		t.Fatalf("info.Space = %q, want empty", info.Space)
+	if info.Channel != "" {
+		t.Fatalf("info.Channel = %q, want empty", info.Channel)
 	}
 	if info.ACPSessionID != nil {
 		t.Fatalf("info.ACPSessionID = %#v, want nil", info.ACPSessionID)

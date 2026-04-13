@@ -19,7 +19,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	core "github.com/pedronauck/agh/internal/api/core"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/network"
@@ -145,12 +145,12 @@ func (s StubSessionManager) ApprovePermission(ctx context.Context, id string, re
 }
 
 type StubObserver struct {
-	QueryEventsFn        func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
-	QueryHookCatalogFn   func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
-	QueryHookRunsFn      func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
-	QueryHookEventsFn    func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
-	QueryChannelHealthFn func(context.Context) ([]observe.ChannelInstanceHealth, error)
-	HealthFn             func(context.Context) (observe.Health, error)
+	QueryEventsFn       func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
+	QueryHookCatalogFn  func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
+	QueryHookRunsFn     func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
+	QueryHookEventsFn   func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
+	QueryBridgeHealthFn func(context.Context) ([]observe.BridgeInstanceHealth, error)
+	HealthFn            func(context.Context) (observe.Health, error)
 }
 
 type StubAutomationManager struct {
@@ -333,11 +333,11 @@ func (s StubObserver) QueryEvents(ctx context.Context, query store.EventSummaryQ
 }
 
 type StubNetworkService struct {
-	SendFn       func(context.Context, network.SendRequest) (string, error)
-	ListPeersFn  func(context.Context, string) ([]network.PeerInfo, error)
-	ListSpacesFn func(context.Context) ([]network.SpaceInfo, error)
-	StatusFn     func(context.Context) (*network.NetworkStatus, error)
-	InboxFn      func(context.Context, string) ([]network.Envelope, error)
+	SendFn         func(context.Context, network.SendRequest) (string, error)
+	ListPeersFn    func(context.Context, string) ([]network.PeerInfo, error)
+	ListChannelsFn func(context.Context) ([]network.ChannelInfo, error)
+	StatusFn       func(context.Context) (*network.NetworkStatus, error)
+	InboxFn        func(context.Context, string) ([]network.Envelope, error)
 }
 
 func (s StubNetworkService) Send(ctx context.Context, req network.SendRequest) (string, error) {
@@ -347,16 +347,16 @@ func (s StubNetworkService) Send(ctx context.Context, req network.SendRequest) (
 	return "", nil
 }
 
-func (s StubNetworkService) ListPeers(ctx context.Context, space string) ([]network.PeerInfo, error) {
+func (s StubNetworkService) ListPeers(ctx context.Context, channel string) ([]network.PeerInfo, error) {
 	if s.ListPeersFn != nil {
-		return s.ListPeersFn(ctx, space)
+		return s.ListPeersFn(ctx, channel)
 	}
 	return nil, nil
 }
 
-func (s StubNetworkService) ListSpaces(ctx context.Context) ([]network.SpaceInfo, error) {
-	if s.ListSpacesFn != nil {
-		return s.ListSpacesFn(ctx)
+func (s StubNetworkService) ListChannels(ctx context.Context) ([]network.ChannelInfo, error) {
+	if s.ListChannelsFn != nil {
+		return s.ListChannelsFn(ctx)
 	}
 	return nil, nil
 }
@@ -382,9 +382,9 @@ func (s StubObserver) Health(ctx context.Context) (observe.Health, error) {
 	return observe.Health{Status: "ok"}, nil
 }
 
-func (s StubObserver) QueryChannelHealth(ctx context.Context) ([]observe.ChannelInstanceHealth, error) {
-	if s.QueryChannelHealthFn != nil {
-		return s.QueryChannelHealthFn(ctx)
+func (s StubObserver) QueryBridgeHealth(ctx context.Context) ([]observe.BridgeInstanceHealth, error) {
+	if s.QueryBridgeHealthFn != nil {
+		return s.QueryBridgeHealthFn(ctx)
 	}
 	return nil, nil
 }
@@ -410,121 +410,121 @@ func (s StubObserver) QueryHookEvents(ctx context.Context, filter hookspkg.Event
 	return nil, nil
 }
 
-type StubChannelService struct {
-	CreateInstanceFn        func(context.Context, channelspkg.CreateInstanceRequest) (*channelspkg.ChannelInstance, error)
-	GetInstanceFn           func(context.Context, string) (*channelspkg.ChannelInstance, error)
-	ListInstancesFn         func(context.Context) ([]channelspkg.ChannelInstance, error)
-	UpdateInstanceFn        func(context.Context, channelspkg.UpdateInstanceRequest) (*channelspkg.ChannelInstance, error)
-	UpdateInstanceStateFn   func(context.Context, channelspkg.UpdateInstanceStateRequest) (*channelspkg.ChannelInstance, error)
-	BuildRoutingKeyFn       func(context.Context, channelspkg.RoutingKey) (channelspkg.RoutingKey, error)
-	ResolveRouteFn          func(context.Context, channelspkg.RoutingKey) (*channelspkg.ChannelRoute, error)
-	ResolveOrCreateRouteFn  func(context.Context, channelspkg.ChannelRoute) (*channelspkg.ChannelRoute, bool, error)
-	UpsertRouteFn           func(context.Context, channelspkg.ChannelRoute) (*channelspkg.ChannelRoute, error)
-	ListRoutesFn            func(context.Context, string) ([]channelspkg.ChannelRoute, error)
-	ResolveDeliveryTargetFn func(context.Context, channelspkg.ResolveDeliveryTargetRequest) (*channelspkg.DeliveryTarget, error)
-	StartInstanceFn         func(context.Context, string) (*channelspkg.ChannelInstance, error)
-	StopInstanceFn          func(context.Context, string) (*channelspkg.ChannelInstance, error)
-	RestartInstanceFn       func(context.Context, string) (*channelspkg.ChannelInstance, error)
+type StubBridgeService struct {
+	CreateInstanceFn        func(context.Context, bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error)
+	GetInstanceFn           func(context.Context, string) (*bridgepkg.BridgeInstance, error)
+	ListInstancesFn         func(context.Context) ([]bridgepkg.BridgeInstance, error)
+	UpdateInstanceFn        func(context.Context, bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error)
+	UpdateInstanceStateFn   func(context.Context, bridgepkg.UpdateInstanceStateRequest) (*bridgepkg.BridgeInstance, error)
+	BuildRoutingKeyFn       func(context.Context, bridgepkg.RoutingKey) (bridgepkg.RoutingKey, error)
+	ResolveRouteFn          func(context.Context, bridgepkg.RoutingKey) (*bridgepkg.BridgeRoute, error)
+	ResolveOrCreateRouteFn  func(context.Context, bridgepkg.BridgeRoute) (*bridgepkg.BridgeRoute, bool, error)
+	UpsertRouteFn           func(context.Context, bridgepkg.BridgeRoute) (*bridgepkg.BridgeRoute, error)
+	ListRoutesFn            func(context.Context, string) ([]bridgepkg.BridgeRoute, error)
+	ResolveDeliveryTargetFn func(context.Context, bridgepkg.ResolveDeliveryTargetRequest) (*bridgepkg.DeliveryTarget, error)
+	StartInstanceFn         func(context.Context, string) (*bridgepkg.BridgeInstance, error)
+	StopInstanceFn          func(context.Context, string) (*bridgepkg.BridgeInstance, error)
+	RestartInstanceFn       func(context.Context, string) (*bridgepkg.BridgeInstance, error)
 }
 
-var _ core.ChannelService = (*StubChannelService)(nil)
+var _ core.BridgeService = (*StubBridgeService)(nil)
 
-func (s StubChannelService) CreateInstance(ctx context.Context, req channelspkg.CreateInstanceRequest) (*channelspkg.ChannelInstance, error) {
+func (s StubBridgeService) CreateInstance(ctx context.Context, req bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
 	if s.CreateInstanceFn != nil {
 		return s.CreateInstanceFn(ctx, req)
 	}
 	return nil, nil
 }
 
-func (s StubChannelService) GetInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+func (s StubBridgeService) GetInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
 	if s.GetInstanceFn != nil {
 		return s.GetInstanceFn(ctx, id)
 	}
-	return nil, channelspkg.ErrChannelInstanceNotFound
+	return nil, bridgepkg.ErrBridgeInstanceNotFound
 }
 
-func (s StubChannelService) ListInstances(ctx context.Context) ([]channelspkg.ChannelInstance, error) {
+func (s StubBridgeService) ListInstances(ctx context.Context) ([]bridgepkg.BridgeInstance, error) {
 	if s.ListInstancesFn != nil {
 		return s.ListInstancesFn(ctx)
 	}
 	return nil, nil
 }
 
-func (s StubChannelService) UpdateInstance(ctx context.Context, req channelspkg.UpdateInstanceRequest) (*channelspkg.ChannelInstance, error) {
+func (s StubBridgeService) UpdateInstance(ctx context.Context, req bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
 	if s.UpdateInstanceFn != nil {
 		return s.UpdateInstanceFn(ctx, req)
 	}
-	return nil, channelspkg.ErrChannelInstanceNotFound
+	return nil, bridgepkg.ErrBridgeInstanceNotFound
 }
 
-func (s StubChannelService) UpdateInstanceState(ctx context.Context, req channelspkg.UpdateInstanceStateRequest) (*channelspkg.ChannelInstance, error) {
+func (s StubBridgeService) UpdateInstanceState(ctx context.Context, req bridgepkg.UpdateInstanceStateRequest) (*bridgepkg.BridgeInstance, error) {
 	if s.UpdateInstanceStateFn != nil {
 		return s.UpdateInstanceStateFn(ctx, req)
 	}
-	return nil, channelspkg.ErrChannelInstanceNotFound
+	return nil, bridgepkg.ErrBridgeInstanceNotFound
 }
 
-func (s StubChannelService) BuildRoutingKey(ctx context.Context, key channelspkg.RoutingKey) (channelspkg.RoutingKey, error) {
+func (s StubBridgeService) BuildRoutingKey(ctx context.Context, key bridgepkg.RoutingKey) (bridgepkg.RoutingKey, error) {
 	if s.BuildRoutingKeyFn != nil {
 		return s.BuildRoutingKeyFn(ctx, key)
 	}
-	return channelspkg.RoutingKey{}, nil
+	return bridgepkg.RoutingKey{}, nil
 }
 
-func (s StubChannelService) ResolveRoute(ctx context.Context, key channelspkg.RoutingKey) (*channelspkg.ChannelRoute, error) {
+func (s StubBridgeService) ResolveRoute(ctx context.Context, key bridgepkg.RoutingKey) (*bridgepkg.BridgeRoute, error) {
 	if s.ResolveRouteFn != nil {
 		return s.ResolveRouteFn(ctx, key)
 	}
-	return nil, channelspkg.ErrChannelRouteNotFound
+	return nil, bridgepkg.ErrBridgeRouteNotFound
 }
 
-func (s StubChannelService) ResolveOrCreateRoute(ctx context.Context, route channelspkg.ChannelRoute) (*channelspkg.ChannelRoute, bool, error) {
+func (s StubBridgeService) ResolveOrCreateRoute(ctx context.Context, route bridgepkg.BridgeRoute) (*bridgepkg.BridgeRoute, bool, error) {
 	if s.ResolveOrCreateRouteFn != nil {
 		return s.ResolveOrCreateRouteFn(ctx, route)
 	}
-	return nil, false, channelspkg.ErrChannelRouteNotFound
+	return nil, false, bridgepkg.ErrBridgeRouteNotFound
 }
 
-func (s StubChannelService) UpsertRoute(ctx context.Context, route channelspkg.ChannelRoute) (*channelspkg.ChannelRoute, error) {
+func (s StubBridgeService) UpsertRoute(ctx context.Context, route bridgepkg.BridgeRoute) (*bridgepkg.BridgeRoute, error) {
 	if s.UpsertRouteFn != nil {
 		return s.UpsertRouteFn(ctx, route)
 	}
-	return nil, channelspkg.ErrChannelRouteNotFound
+	return nil, bridgepkg.ErrBridgeRouteNotFound
 }
 
-func (s StubChannelService) ListRoutes(ctx context.Context, channelInstanceID string) ([]channelspkg.ChannelRoute, error) {
+func (s StubBridgeService) ListRoutes(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeRoute, error) {
 	if s.ListRoutesFn != nil {
-		return s.ListRoutesFn(ctx, channelInstanceID)
+		return s.ListRoutesFn(ctx, bridgeInstanceID)
 	}
 	return nil, nil
 }
 
-func (s StubChannelService) ResolveDeliveryTarget(ctx context.Context, req channelspkg.ResolveDeliveryTargetRequest) (*channelspkg.DeliveryTarget, error) {
+func (s StubBridgeService) ResolveDeliveryTarget(ctx context.Context, req bridgepkg.ResolveDeliveryTargetRequest) (*bridgepkg.DeliveryTarget, error) {
 	if s.ResolveDeliveryTargetFn != nil {
 		return s.ResolveDeliveryTargetFn(ctx, req)
 	}
-	return nil, channelspkg.ErrChannelInstanceNotFound
+	return nil, bridgepkg.ErrBridgeInstanceNotFound
 }
 
-func (s StubChannelService) StartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+func (s StubBridgeService) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
 	if s.StartInstanceFn != nil {
 		return s.StartInstanceFn(ctx, id)
 	}
-	return nil, channelspkg.ErrChannelInstanceNotFound
+	return nil, bridgepkg.ErrBridgeInstanceNotFound
 }
 
-func (s StubChannelService) StopInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+func (s StubBridgeService) StopInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
 	if s.StopInstanceFn != nil {
 		return s.StopInstanceFn(ctx, id)
 	}
-	return nil, channelspkg.ErrChannelInstanceNotFound
+	return nil, bridgepkg.ErrBridgeInstanceNotFound
 }
 
-func (s StubChannelService) RestartInstance(ctx context.Context, id string) (*channelspkg.ChannelInstance, error) {
+func (s StubBridgeService) RestartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
 	if s.RestartInstanceFn != nil {
 		return s.RestartInstanceFn(ctx, id)
 	}
-	return nil, channelspkg.ErrChannelInstanceNotFound
+	return nil, bridgepkg.ErrBridgeInstanceNotFound
 }
 
 type StubWorkspaceService struct {

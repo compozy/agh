@@ -30,7 +30,7 @@ var globalSchemaStatements = []string{
 		agent_name     TEXT NOT NULL,
 		workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
 		session_type   TEXT NOT NULL DEFAULT 'user',
-		space          TEXT NOT NULL DEFAULT '',
+		channel          TEXT NOT NULL DEFAULT '',
 		state          TEXT NOT NULL,
 		acp_session_id TEXT,
 		stop_reason    TEXT,
@@ -79,7 +79,7 @@ var globalSchemaStatements = []string{
 		session_id TEXT NOT NULL,
 		direction  TEXT NOT NULL,
 		kind       TEXT NOT NULL,
-		space      TEXT NOT NULL,
+		channel      TEXT NOT NULL,
 		peer_from  TEXT NOT NULL,
 		peer_to    TEXT,
 		message_id TEXT NOT NULL,
@@ -184,7 +184,7 @@ var globalSchemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_automation_runs_trigger ON automation_runs(trigger_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status);`,
 	`CREATE INDEX IF NOT EXISTS idx_automation_runs_started ON automation_runs(started_at);`,
-	`CREATE TABLE IF NOT EXISTS channel_instances (
+	`CREATE TABLE IF NOT EXISTS bridge_instances (
 		id                TEXT PRIMARY KEY,
 		scope             TEXT NOT NULL,
 		workspace_id      TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -198,22 +198,22 @@ var globalSchemaStatements = []string{
 		created_at        TEXT NOT NULL,
 		updated_at        TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_channel_instances_scope ON channel_instances(scope, workspace_id, id);`,
-	`CREATE TABLE IF NOT EXISTS channel_secret_bindings (
-		channel_instance_id TEXT NOT NULL REFERENCES channel_instances(id) ON DELETE CASCADE,
+	`CREATE INDEX IF NOT EXISTS idx_bridge_instances_scope ON bridge_instances(scope, workspace_id, id);`,
+	`CREATE TABLE IF NOT EXISTS bridge_secret_bindings (
+		bridge_instance_id TEXT NOT NULL REFERENCES bridge_instances(id) ON DELETE CASCADE,
 		binding_name        TEXT NOT NULL,
 		vault_ref           TEXT NOT NULL,
 		kind                TEXT NOT NULL,
 		created_at          TEXT NOT NULL,
 		updated_at          TEXT NOT NULL,
-		PRIMARY KEY (channel_instance_id, binding_name)
+		PRIMARY KEY (bridge_instance_id, binding_name)
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_channel_secret_bindings_instance ON channel_secret_bindings(channel_instance_id);`,
-	`CREATE TABLE IF NOT EXISTS channel_routes (
+	`CREATE INDEX IF NOT EXISTS idx_bridge_secret_bindings_instance ON bridge_secret_bindings(bridge_instance_id);`,
+	`CREATE TABLE IF NOT EXISTS bridge_routes (
 		routing_key_hash    TEXT PRIMARY KEY,
 		scope               TEXT NOT NULL,
 		workspace_id        TEXT,
-		channel_instance_id TEXT NOT NULL REFERENCES channel_instances(id) ON DELETE CASCADE,
+		bridge_instance_id TEXT NOT NULL REFERENCES bridge_instances(id) ON DELETE CASCADE,
 		peer_id             TEXT,
 		thread_id           TEXT,
 		group_id            TEXT,
@@ -223,15 +223,15 @@ var globalSchemaStatements = []string{
 		created_at          TEXT NOT NULL,
 		updated_at          TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_channel_routes_instance ON channel_routes(channel_instance_id, updated_at DESC);`,
-	`CREATE INDEX IF NOT EXISTS idx_channel_routes_session ON channel_routes(session_id);`,
-	`CREATE TABLE IF NOT EXISTS channel_ingest_dedup (
+	`CREATE INDEX IF NOT EXISTS idx_bridge_routes_instance ON bridge_routes(bridge_instance_id, updated_at DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_bridge_routes_session ON bridge_routes(session_id);`,
+	`CREATE TABLE IF NOT EXISTS bridge_ingest_dedup (
 		idempotency_key    TEXT PRIMARY KEY,
-		channel_instance_id TEXT NOT NULL REFERENCES channel_instances(id) ON DELETE CASCADE,
+		bridge_instance_id TEXT NOT NULL REFERENCES bridge_instances(id) ON DELETE CASCADE,
 		received_at        TEXT NOT NULL,
 		expires_at         TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_channel_ingest_dedup_expires ON channel_ingest_dedup(expires_at);`,
+	`CREATE INDEX IF NOT EXISTS idx_bridge_ingest_dedup_expires ON bridge_ingest_dedup(expires_at);`,
 }
 
 // GlobalDB owns the global session index and observability database.

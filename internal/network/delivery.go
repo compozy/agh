@@ -176,7 +176,7 @@ func (c *deliveryCoordinator) acceptOne(ctx context.Context, delivery Delivery) 
 			"session_id", sessionID,
 			"message_id", delivery.Envelope.ID,
 			"kind", string(delivery.Envelope.Kind),
-			"space", delivery.Envelope.Space,
+			"channel", delivery.Envelope.Channel,
 			"queue_depth", result.Depth,
 		)
 	}
@@ -337,7 +337,7 @@ func (c *deliveryCoordinator) runWorker(sessionID string, state *deliveryState) 
 				"session_id", target,
 				"message_id", envelope.ID,
 				"kind", string(envelope.Kind),
-				"space", envelope.Space,
+				"channel", envelope.Channel,
 				"delivery_mode", item.DeliveryMode,
 				"error", c.lifecycleCtx.Err(),
 			)
@@ -353,7 +353,7 @@ func (c *deliveryCoordinator) runWorker(sessionID string, state *deliveryState) 
 			"session_id", target,
 			"message_id", envelope.ID,
 			"kind", string(envelope.Kind),
-			"space", envelope.Space,
+			"channel", envelope.Channel,
 			"delivery_mode", item.DeliveryMode,
 			"latency_ms", latency.Milliseconds(),
 		)
@@ -583,7 +583,7 @@ func formatNetworkMessage(envelope Envelope) (string, error) {
 	builder.WriteString("<network-message")
 	writeXMLAttr(&builder, "id", envelope.ID)
 	writeXMLAttr(&builder, "from", envelope.From)
-	writeXMLAttr(&builder, "space", envelope.Space)
+	writeXMLAttr(&builder, "channel", envelope.Channel)
 	writeXMLAttr(&builder, "kind", string(envelope.Kind))
 	if envelope.To != nil {
 		writeXMLAttr(&builder, "to", *envelope.To)
@@ -623,8 +623,8 @@ func renderReplyGuidance(envelope Envelope) string {
 	var builder strings.Builder
 	builder.WriteString("\n\nUse `agh network send` to respond through the audited CLI path.")
 	builder.WriteString("\nFor replies to this message, keep `--session \"$AGH_SESSION_ID\"`,")
-	builder.WriteString(" `--space \"")
-	builder.WriteString(envelope.Space)
+	builder.WriteString(" `--channel \"")
+	builder.WriteString(envelope.Channel)
 	builder.WriteString("\"`,")
 	builder.WriteString(" `--to \"")
 	builder.WriteString(envelope.From)
@@ -664,8 +664,8 @@ func renderReplyGuidance(envelope Envelope) string {
 	builder.WriteString("\n# Direct reply")
 	builder.WriteString("\nagh network send \\")
 	builder.WriteString("\n  --session \"$AGH_SESSION_ID\" \\")
-	builder.WriteString("\n  --space \"")
-	builder.WriteString(envelope.Space)
+	builder.WriteString("\n  --channel \"")
+	builder.WriteString(envelope.Channel)
 	builder.WriteString("\" \\")
 	builder.WriteString("\n  --kind direct \\")
 	builder.WriteString("\n  --to \"")
@@ -698,8 +698,8 @@ func renderReplyGuidance(envelope Envelope) string {
 		builder.WriteString("\n# Protocol receipt")
 		builder.WriteString("\nagh network send \\")
 		builder.WriteString("\n  --session \"$AGH_SESSION_ID\" \\")
-		builder.WriteString("\n  --space \"")
-		builder.WriteString(envelope.Space)
+		builder.WriteString("\n  --channel \"")
+		builder.WriteString(envelope.Channel)
 		builder.WriteString("\" \\")
 		builder.WriteString("\n  --kind receipt \\")
 		builder.WriteString("\n  --to \"")
@@ -727,8 +727,8 @@ func renderReplyGuidance(envelope Envelope) string {
 		builder.WriteString("\n# Protocol trace")
 		builder.WriteString("\nagh network send \\")
 		builder.WriteString("\n  --session \"$AGH_SESSION_ID\" \\")
-		builder.WriteString("\n  --space \"")
-		builder.WriteString(envelope.Space)
+		builder.WriteString("\n  --channel \"")
+		builder.WriteString(envelope.Channel)
 		builder.WriteString("\" \\")
 		builder.WriteString("\n  --kind trace \\")
 		builder.WriteString("\n  --to \"")
@@ -754,8 +754,8 @@ func renderReplyGuidance(envelope Envelope) string {
 		builder.WriteString("\n# Protocol recipe")
 		builder.WriteString("\nagh network send \\")
 		builder.WriteString("\n  --session \"$AGH_SESSION_ID\" \\")
-		builder.WriteString("\n  --space \"")
-		builder.WriteString(envelope.Space)
+		builder.WriteString("\n  --channel \"")
+		builder.WriteString(envelope.Channel)
 		builder.WriteString("\" \\")
 		builder.WriteString("\n  --kind recipe \\")
 		builder.WriteString("\n  --to \"")
@@ -850,7 +850,7 @@ func cloneEnvelope(envelope Envelope) Envelope {
 		Protocol:      envelope.Protocol,
 		ID:            envelope.ID,
 		Kind:          envelope.Kind,
-		Space:         envelope.Space,
+		Channel:       envelope.Channel,
 		From:          envelope.From,
 		To:            normalizeOptionalIdentifier(envelope.To),
 		InteractionID: normalizeOptionalIdentifier(envelope.InteractionID),

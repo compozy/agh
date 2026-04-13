@@ -109,13 +109,13 @@ type skillsOverlay struct {
 }
 
 type networkOverlay struct {
-	Enabled       *bool   `toml:"enabled"`
-	DefaultSpace  *string `toml:"default_space"`
-	Port          *int    `toml:"port"`
-	MaxPayload    *int    `toml:"max_payload"`
-	GreetInterval *int    `toml:"greet_interval"`
-	MaxReplayAge  *int    `toml:"max_replay_age"`
-	MaxQueueDepth *int    `toml:"max_queue_depth"`
+	Enabled        *bool   `toml:"enabled"`
+	DefaultChannel *string `toml:"default_channel"`
+	Port           *int    `toml:"port"`
+	MaxPayload     *int    `toml:"max_payload"`
+	GreetInterval  *int    `toml:"greet_interval"`
+	MaxReplayAge   *int    `toml:"max_replay_age"`
+	MaxQueueDepth  *int    `toml:"max_queue_depth"`
 }
 
 type marketplaceOverlay struct {
@@ -339,8 +339,8 @@ func (o networkOverlay) Apply(dst *NetworkConfig) {
 	if o.Enabled != nil {
 		dst.Enabled = *o.Enabled
 	}
-	if o.DefaultSpace != nil {
-		dst.DefaultSpace = *o.DefaultSpace
+	if o.DefaultChannel != nil {
+		dst.DefaultChannel = *o.DefaultChannel
 	}
 	if o.Port != nil {
 		dst.Port = *o.Port

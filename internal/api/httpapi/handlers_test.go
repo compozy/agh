@@ -52,9 +52,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/automation/triggers",
 		"GET /api/automation/triggers/:id",
 		"GET /api/automation/triggers/:id/runs",
-		"GET /api/channels",
-		"GET /api/channels/:id",
-		"GET /api/channels/:id/routes",
+		"GET /api/bridges",
+		"GET /api/bridges/:id",
+		"GET /api/bridges/:id/routes",
 		"GET /api/daemon/status",
 		"GET /api/hooks/catalog",
 		"GET /api/hooks/events",
@@ -63,7 +63,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/memory/:filename",
 		"GET /api/network/inbox",
 		"GET /api/network/peers",
-		"GET /api/network/spaces",
+		"GET /api/network/channels",
 		"GET /api/network/status",
 		"GET /api/observe/events",
 		"GET /api/observe/events/stream",
@@ -81,17 +81,17 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/workspaces/:id",
 		"PATCH /api/automation/jobs/:id",
 		"PATCH /api/automation/triggers/:id",
-		"PATCH /api/channels/:id",
+		"PATCH /api/bridges/:id",
 		"PATCH /api/workspaces/:id",
 		"POST /api/automation/jobs",
 		"POST /api/automation/jobs/:id/trigger",
 		"POST /api/automation/triggers",
 		"POST /api/memory/consolidate",
-		"POST /api/channels",
-		"POST /api/channels/:id/disable",
-		"POST /api/channels/:id/enable",
-		"POST /api/channels/:id/restart",
-		"POST /api/channels/:id/test-delivery",
+		"POST /api/bridges",
+		"POST /api/bridges/:id/disable",
+		"POST /api/bridges/:id/enable",
+		"POST /api/bridges/:id/restart",
+		"POST /api/bridges/:id/test-delivery",
 		"POST /api/network/send",
 		"POST /api/sessions",
 		"POST /api/sessions/:id/approve",
@@ -134,18 +134,18 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
-			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" || opts.WorkspacePath != "" || opts.Space != "builders" {
+			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" || opts.WorkspacePath != "" || opts.Channel != "builders" {
 				t.Fatalf("Create() opts = %#v", opts)
 			}
 			sess := newSession("sess-123")
-			sess.Space = "builders"
+			sess.Channel = "builders"
 			return sess, nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"agent_name":"coder","name":"demo","workspace":"alpha","space":"builders"}`))
+	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions", []byte(`{"agent_name":"coder","name":"demo","workspace":"alpha","channel":"builders"}`))
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
 	}
@@ -160,8 +160,8 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	if response.Session.WorkspaceID != "ws-workspace" || response.Session.WorkspacePath != "/workspace" {
 		t.Fatalf("session workspace = %#v", response.Session)
 	}
-	if response.Session.Space != "builders" {
-		t.Fatalf("session space = %q, want %q", response.Session.Space, "builders")
+	if response.Session.Channel != "builders" {
+		t.Fatalf("session channel = %q, want %q", response.Session.Channel, "builders")
 	}
 }
 

@@ -14,14 +14,14 @@ import (
 
 // Health is the daemon-local observability health snapshot.
 type Health struct {
-	Status             string                 `json:"status"`
-	UptimeSeconds      int64                  `json:"uptime_seconds"`
-	ActiveSessions     int                    `json:"active_sessions"`
-	ActiveAgents       int                    `json:"active_agents"`
-	GlobalDBSizeBytes  int64                  `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64                  `json:"session_db_size_bytes"`
-	Channels           ChannelAggregateHealth `json:"channels"`
-	Version            string                 `json:"version"`
+	Status             string                `json:"status"`
+	UptimeSeconds      int64                 `json:"uptime_seconds"`
+	ActiveSessions     int                   `json:"active_sessions"`
+	ActiveAgents       int                   `json:"active_agents"`
+	GlobalDBSizeBytes  int64                 `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64                 `json:"session_db_size_bytes"`
+	Bridges            BridgeAggregateHealth `json:"bridges"`
+	Version            string                `json:"version"`
 }
 
 // Health returns the current daemon-local observability health snapshot.
@@ -41,7 +41,7 @@ func (o *Observer) Health(ctx context.Context) (Health, error) {
 		return Health{}, fmt.Errorf("observe: measure session database size: %w", err)
 	}
 
-	_, channelHealth, err := o.collectChannelHealth(ctx)
+	_, bridgeHealth, err := o.collectBridgeHealth(ctx)
 	if err != nil {
 		return Health{}, err
 	}
@@ -58,7 +58,7 @@ func (o *Observer) Health(ctx context.Context) (Health, error) {
 		ActiveAgents:       activeAgents,
 		GlobalDBSizeBytes:  globalDBSize,
 		SessionDBSizeBytes: sessionDBSize,
-		Channels:           channelHealth,
+		Bridges:            bridgeHealth,
 		Version:            o.versionSource().Version,
 	}, nil
 }

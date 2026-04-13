@@ -17,9 +17,9 @@ export type HostAPIMethod =
   | "automation/triggers/get"
   | "automation/triggers/runs"
   | "automation/triggers/update"
-  | "channels/instances/get"
-  | "channels/instances/report_state"
-  | "channels/messages/ingest"
+  | "bridges/instances/get"
+  | "bridges/instances/report_state"
+  | "bridges/messages/ingest"
   | "memory/forget"
   | "memory/recall"
   | "memory/store"
@@ -413,9 +413,9 @@ export interface AutomationTriggersParams {
   enabled?: boolean;
 }
 
-export type ChannelScope = string;
+export type BridgeScope = string;
 
-export type ChannelStatus = string;
+export type BridgeStatus = string;
 
 export interface RoutingPolicy {
   include_peer: boolean;
@@ -423,35 +423,35 @@ export interface RoutingPolicy {
   include_group: boolean;
 }
 
-export interface ChannelInstance {
+export interface BridgeInstance {
   id: string;
-  scope: ChannelScope;
+  scope: BridgeScope;
   workspace_id?: string;
   platform: string;
   extension_name: string;
   display_name: string;
   enabled: boolean;
-  status: ChannelStatus;
+  status: BridgeStatus;
   routing_policy: RoutingPolicy;
   delivery_defaults?: JSONValue;
   created_at: ISODateTime;
   updated_at: ISODateTime;
 }
 
-export interface ChannelsInstancesReportStateParams {
-  status: ChannelStatus;
+export interface BridgesInstancesReportStateParams {
+  status: BridgeStatus;
 }
 
 export interface RoutingKey {
-  scope: ChannelScope;
+  scope: BridgeScope;
   workspace_id?: string;
-  channel_instance_id: string;
+  bridge_instance_id: string;
   peer_id?: string;
   thread_id?: string;
   group_id?: string;
 }
 
-export interface ChannelsMessagesIngestResult {
+export interface BridgesMessagesIngestResult {
   session_id: string;
   route_created: boolean;
   routing_key: RoutingKey;
@@ -562,7 +562,7 @@ export interface DeliveryAck {
 export type DeliveryMode = string;
 
 export interface DeliveryTarget {
-  channel_instance_id: string;
+  bridge_instance_id: string;
   peer_id?: string;
   thread_id?: string;
   group_id?: string;
@@ -575,7 +575,7 @@ export interface MessageContent {
 
 export interface DeliveryEvent {
   delivery_id: string;
-  channel_instance_id: string;
+  bridge_instance_id: string;
   routing_key: RoutingKey;
   delivery_target: DeliveryTarget;
   seq: number;
@@ -589,7 +589,7 @@ export interface DeliverySnapshot {
   delivery_id: string;
   session_id: string;
   turn_id: string;
-  channel_instance_id: string;
+  bridge_instance_id: string;
   routing_key: RoutingKey;
   delivery_target: DeliveryTarget;
   latest_seq: number;
@@ -751,8 +751,8 @@ export interface MessageAttachment {
 }
 
 export interface InboundMessageEnvelope {
-  channel_instance_id: string;
-  scope: ChannelScope;
+  bridge_instance_id: string;
+  scope: BridgeScope;
   workspace_id?: string;
   peer_id?: string;
   thread_id?: string;
@@ -765,21 +765,21 @@ export interface InboundMessageEnvelope {
   idempotency_key: string;
 }
 
-export interface InitializeCapabilities {
-  provides: string[];
-  granted_actions: HostAPIMethod[];
-  granted_security: string[];
-}
-
-export interface InitializeChannelBoundSecret {
+export interface InitializeBridgeBoundSecret {
   binding_name: string;
   kind: string;
   value: string;
 }
 
-export interface InitializeChannelRuntime {
-  instance: ChannelInstance;
-  bound_secrets?: InitializeChannelBoundSecret[];
+export interface InitializeBridgeRuntime {
+  instance: BridgeInstance;
+  bound_secrets?: InitializeBridgeBoundSecret[];
+}
+
+export interface InitializeCapabilities {
+  provides: string[];
+  granted_actions: HostAPIMethod[];
+  granted_security: string[];
 }
 
 export interface InitializeExtension {
@@ -805,7 +805,7 @@ export interface InitializeRuntime {
   health_check_timeout_ms: number;
   shutdown_timeout_ms: number;
   default_hook_timeout_ms: number;
-  channel?: InitializeChannelRuntime;
+  bridge?: InitializeBridgeRuntime;
 }
 
 export interface InitializeRequest {
@@ -1029,7 +1029,7 @@ export interface ObserveEventsParams {
   limit?: number;
 }
 
-export interface ChannelStatusCounts {
+export interface BridgeStatusCounts {
   disabled: number;
   starting: number;
   ready: number;
@@ -1038,14 +1038,14 @@ export interface ChannelStatusCounts {
   error: number;
 }
 
-export interface ChannelAggregateHealth {
+export interface BridgeAggregateHealth {
   total_instances: number;
   route_count: number;
   delivery_backlog: number;
   delivery_dropped_total: number;
   delivery_failures_total: number;
   auth_failures_total: number;
-  status_counts: ChannelStatusCounts;
+  status_counts: BridgeStatusCounts;
 }
 
 export interface ObserveHealth {
@@ -1055,7 +1055,7 @@ export interface ObserveHealth {
   active_agents: number;
   global_db_size_bytes: number;
   session_db_size_bytes: number;
-  channels: ChannelAggregateHealth;
+  bridges: BridgeAggregateHealth;
   version: string;
 }
 
@@ -1895,16 +1895,16 @@ export interface HostAPIMethodMap {
     params: AutomationRunsParams | undefined;
     result: Run[];
   };
-  "channels/messages/ingest": {
+  "bridges/messages/ingest": {
     params: InboundMessageEnvelope;
-    result: ChannelsMessagesIngestResult;
+    result: BridgesMessagesIngestResult;
   };
-  "channels/instances/get": {
+  "bridges/instances/get": {
     params: undefined;
-    result: ChannelInstance;
+    result: BridgeInstance;
   };
-  "channels/instances/report_state": {
-    params: ChannelsInstancesReportStateParams;
-    result: ChannelInstance;
+  "bridges/instances/report_state": {
+    params: BridgesInstancesReportStateParams;
+    result: BridgeInstance;
   };
 }

@@ -14,7 +14,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3gen"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/hooks"
@@ -85,7 +85,7 @@ func Document() (*openapi3.T, error) {
 		Tags: openapi3.Tags{
 			{Name: "agents"},
 			{Name: "automation"},
-			{Name: "channels"},
+			{Name: "bridges"},
 			{Name: "daemon"},
 			{Name: "extensions"},
 			{Name: "hooks"},
@@ -474,157 +474,157 @@ func Operations() []OperationSpec {
 		},
 		{
 			Method:      "GET",
-			Path:        "/api/channels",
-			OperationID: "listChannels",
-			Summary:     "List persisted channel instances",
-			Tags:        []string{"channels"},
+			Path:        "/api/bridges",
+			OperationID: "listBridges",
+			Summary:     "List persisted bridge instances",
+			Tags:        []string{"bridges"},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
 			Responses: []ResponseSpec{
-				{Status: 200, Description: "OK", Body: contract.ChannelsResponse{}},
-				{Status: 503, Description: "Channel service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 200, Description: "OK", Body: contract.BridgesResponse{}},
+				{Status: 503, Description: "Bridge service is not configured", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 			},
 		},
 		{
 			Method:      "POST",
-			Path:        "/api/channels",
-			OperationID: "createChannel",
-			Summary:     "Create a channel instance",
-			Tags:        []string{"channels"},
+			Path:        "/api/bridges",
+			OperationID: "createBridge",
+			Summary:     "Create a bridge instance",
+			Tags:        []string{"bridges"},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			RequestBody: contract.CreateChannelRequest{},
+			RequestBody: contract.CreateBridgeRequest{},
 			Responses: []ResponseSpec{
-				{Status: 201, Description: "Created", Body: contract.ChannelResponse{}},
-				{Status: 400, Description: "Invalid channel request", Body: contract.ErrorPayload{}},
+				{Status: 201, Description: "Created", Body: contract.BridgeResponse{}},
+				{Status: 400, Description: "Invalid bridge request", Body: contract.ErrorPayload{}},
 				{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
-				{Status: 503, Description: "Channel service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Bridge service is not configured", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 			},
 		},
 		{
 			Method:      "GET",
-			Path:        "/api/channels/{id}",
-			OperationID: "getChannel",
-			Summary:     "Get one channel instance",
-			Tags:        []string{"channels"},
+			Path:        "/api/bridges/{id}",
+			OperationID: "getBridge",
+			Summary:     "Get one bridge instance",
+			Tags:        []string{"bridges"},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
 			Parameters: []ParameterSpec{
-				pathParam("id", "Channel instance id"),
+				pathParam("id", "Bridge instance id"),
 			},
 			Responses: []ResponseSpec{
-				{Status: 200, Description: "OK", Body: contract.ChannelResponse{}},
-				{Status: 404, Description: "Channel instance not found", Body: contract.ErrorPayload{}},
-				{Status: 503, Description: "Channel service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 200, Description: "OK", Body: contract.BridgeResponse{}},
+				{Status: 404, Description: "Bridge instance not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Bridge service is not configured", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 			},
 		},
 		{
 			Method:      "PATCH",
-			Path:        "/api/channels/{id}",
-			OperationID: "updateChannel",
-			Summary:     "Update mutable channel instance fields",
-			Tags:        []string{"channels"},
+			Path:        "/api/bridges/{id}",
+			OperationID: "updateBridge",
+			Summary:     "Update mutable bridge instance fields",
+			Tags:        []string{"bridges"},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
 			Parameters: []ParameterSpec{
-				pathParam("id", "Channel instance id"),
+				pathParam("id", "Bridge instance id"),
 			},
-			RequestBody: contract.UpdateChannelRequest{},
+			RequestBody: contract.UpdateBridgeRequest{},
 			Responses: []ResponseSpec{
-				{Status: 200, Description: "OK", Body: contract.ChannelResponse{}},
-				{Status: 400, Description: "Invalid channel update", Body: contract.ErrorPayload{}},
-				{Status: 404, Description: "Channel instance or workspace not found", Body: contract.ErrorPayload{}},
-				{Status: 503, Description: "Channel service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 200, Description: "OK", Body: contract.BridgeResponse{}},
+				{Status: 400, Description: "Invalid bridge update", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Bridge instance or workspace not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Bridge service is not configured", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 			},
 		},
 		{
 			Method:      "POST",
-			Path:        "/api/channels/{id}/enable",
-			OperationID: "enableChannel",
-			Summary:     "Enable a channel instance",
-			Tags:        []string{"channels"},
+			Path:        "/api/bridges/{id}/enable",
+			OperationID: "enableBridge",
+			Summary:     "Enable a bridge instance",
+			Tags:        []string{"bridges"},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
 			Parameters: []ParameterSpec{
-				pathParam("id", "Channel instance id"),
+				pathParam("id", "Bridge instance id"),
 			},
 			Responses: []ResponseSpec{
-				{Status: 200, Description: "OK", Body: contract.ChannelResponse{}},
-				{Status: 404, Description: "Channel instance not found", Body: contract.ErrorPayload{}},
-				{Status: 409, Description: "Invalid channel state transition", Body: contract.ErrorPayload{}},
-				{Status: 503, Description: "Channel service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 200, Description: "OK", Body: contract.BridgeResponse{}},
+				{Status: 404, Description: "Bridge instance not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Invalid bridge state transition", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Bridge service is not configured", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 			},
 		},
 		{
 			Method:      "POST",
-			Path:        "/api/channels/{id}/disable",
-			OperationID: "disableChannel",
-			Summary:     "Disable a channel instance",
-			Tags:        []string{"channels"},
+			Path:        "/api/bridges/{id}/disable",
+			OperationID: "disableBridge",
+			Summary:     "Disable a bridge instance",
+			Tags:        []string{"bridges"},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
 			Parameters: []ParameterSpec{
-				pathParam("id", "Channel instance id"),
+				pathParam("id", "Bridge instance id"),
 			},
 			Responses: []ResponseSpec{
-				{Status: 200, Description: "OK", Body: contract.ChannelResponse{}},
-				{Status: 404, Description: "Channel instance not found", Body: contract.ErrorPayload{}},
-				{Status: 409, Description: "Invalid channel state transition", Body: contract.ErrorPayload{}},
-				{Status: 503, Description: "Channel service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 200, Description: "OK", Body: contract.BridgeResponse{}},
+				{Status: 404, Description: "Bridge instance not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Invalid bridge state transition", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Bridge service is not configured", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 			},
 		},
 		{
 			Method:      "POST",
-			Path:        "/api/channels/{id}/restart",
-			OperationID: "restartChannel",
-			Summary:     "Restart a channel instance",
-			Tags:        []string{"channels"},
+			Path:        "/api/bridges/{id}/restart",
+			OperationID: "restartBridge",
+			Summary:     "Restart a bridge instance",
+			Tags:        []string{"bridges"},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
 			Parameters: []ParameterSpec{
-				pathParam("id", "Channel instance id"),
+				pathParam("id", "Bridge instance id"),
 			},
 			Responses: []ResponseSpec{
-				{Status: 200, Description: "OK", Body: contract.ChannelResponse{}},
-				{Status: 404, Description: "Channel instance not found", Body: contract.ErrorPayload{}},
-				{Status: 409, Description: "Invalid channel state transition", Body: contract.ErrorPayload{}},
-				{Status: 503, Description: "Channel service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 200, Description: "OK", Body: contract.BridgeResponse{}},
+				{Status: 404, Description: "Bridge instance not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Invalid bridge state transition", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Bridge service is not configured", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 			},
 		},
 		{
 			Method:      "GET",
-			Path:        "/api/channels/{id}/routes",
-			OperationID: "listChannelRoutes",
-			Summary:     "List routes owned by a channel instance",
-			Tags:        []string{"channels"},
+			Path:        "/api/bridges/{id}/routes",
+			OperationID: "listBridgeRoutes",
+			Summary:     "List routes owned by a bridge instance",
+			Tags:        []string{"bridges"},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
 			Parameters: []ParameterSpec{
-				pathParam("id", "Channel instance id"),
+				pathParam("id", "Bridge instance id"),
 			},
 			Responses: []ResponseSpec{
-				{Status: 200, Description: "OK", Body: contract.ChannelRoutesResponse{}},
-				{Status: 404, Description: "Channel instance not found", Body: contract.ErrorPayload{}},
-				{Status: 503, Description: "Channel service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 200, Description: "OK", Body: contract.BridgeRoutesResponse{}},
+				{Status: 404, Description: "Bridge instance not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Bridge service is not configured", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 			},
 		},
 		{
 			Method:      "POST",
-			Path:        "/api/channels/{id}/test-delivery",
-			OperationID: "testChannelDelivery",
-			Summary:     "Resolve a typed outbound delivery target for a channel instance",
-			Tags:        []string{"channels"},
+			Path:        "/api/bridges/{id}/test-delivery",
+			OperationID: "testBridgeDelivery",
+			Summary:     "Resolve a typed outbound delivery target for a bridge instance",
+			Tags:        []string{"bridges"},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
 			Parameters: []ParameterSpec{
-				pathParam("id", "Channel instance id"),
+				pathParam("id", "Bridge instance id"),
 			},
-			RequestBody: contract.ChannelTestDeliveryRequest{},
+			RequestBody: contract.BridgeTestDeliveryRequest{},
 			Responses: []ResponseSpec{
-				{Status: 200, Description: "OK", Body: contract.ChannelTestDeliveryResponse{}},
+				{Status: 200, Description: "OK", Body: contract.BridgeTestDeliveryResponse{}},
 				{Status: 400, Description: "Invalid delivery target request", Body: contract.ErrorPayload{}},
-				{Status: 404, Description: "Channel instance not found", Body: contract.ErrorPayload{}},
-				{Status: 409, Description: "Channel instance is unavailable", Body: contract.ErrorPayload{}},
-				{Status: 503, Description: "Channel service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Bridge instance not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Bridge instance is unavailable", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Bridge service is not configured", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 			},
 		},
@@ -1424,13 +1424,13 @@ func schemaCustomizer(_ string, t reflect.Type, _ reflect.StructTag, schema *ope
 	case reflect.TypeOf(memory.Scope("")):
 		setStringEnum(schema, memoryScopeValues())
 		return nil
-	case reflect.TypeOf(channelspkg.Scope("")):
-		setStringEnum(schema, channelScopeValues())
+	case reflect.TypeOf(bridgepkg.Scope("")):
+		setStringEnum(schema, bridgeScopeValues())
 		return nil
-	case reflect.TypeOf(channelspkg.ChannelStatus("")):
-		setStringEnum(schema, channelStatusValues())
+	case reflect.TypeOf(bridgepkg.BridgeStatus("")):
+		setStringEnum(schema, bridgeStatusValues())
 		return nil
-	case reflect.TypeOf(channelspkg.DeliveryMode("")):
+	case reflect.TypeOf(bridgepkg.DeliveryMode("")):
 		setStringEnum(schema, deliveryModeValues())
 		return nil
 	case reflect.TypeOf(session.SessionState("")):
@@ -1742,25 +1742,25 @@ func memoryScopeValues() []string {
 	return []string{string(memory.ScopeGlobal), string(memory.ScopeWorkspace)}
 }
 
-func channelScopeValues() []string {
-	return []string{string(channelspkg.ScopeGlobal), string(channelspkg.ScopeWorkspace)}
+func bridgeScopeValues() []string {
+	return []string{string(bridgepkg.ScopeGlobal), string(bridgepkg.ScopeWorkspace)}
 }
 
-func channelStatusValues() []string {
+func bridgeStatusValues() []string {
 	return []string{
-		string(channelspkg.ChannelStatusAuthRequired),
-		string(channelspkg.ChannelStatusDegraded),
-		string(channelspkg.ChannelStatusDisabled),
-		string(channelspkg.ChannelStatusError),
-		string(channelspkg.ChannelStatusReady),
-		string(channelspkg.ChannelStatusStarting),
+		string(bridgepkg.BridgeStatusAuthRequired),
+		string(bridgepkg.BridgeStatusDegraded),
+		string(bridgepkg.BridgeStatusDisabled),
+		string(bridgepkg.BridgeStatusError),
+		string(bridgepkg.BridgeStatusReady),
+		string(bridgepkg.BridgeStatusStarting),
 	}
 }
 
 func deliveryModeValues() []string {
 	return []string{
-		string(channelspkg.DeliveryModeDirectSend),
-		string(channelspkg.DeliveryModeReply),
+		string(bridgepkg.DeliveryModeDirectSend),
+		string(bridgepkg.DeliveryModeReply),
 	}
 }
 
