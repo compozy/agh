@@ -682,6 +682,69 @@ func TestBootExtensionsLogsStartFailureAndContinues(t *testing.T) {
 	}
 }
 
+func TestBootExtensionsPropagatesContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		startErr error
+	}{
+		{name: "canceled", startErr: context.Canceled},
+		{name: "deadline exceeded", startErr: context.DeadlineExceeded},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := openDaemonTestGlobalDB(t)
+			installDaemonTestExtension(t, db, "ext-canceled", daemonTestExtensionOptions{}, true)
+
+			runtime := &fakeExtensionRuntime{startErr: tc.startErr}
+			homePaths := testHomePaths(t)
+			d := newTestDaemon(t, homePaths, testConfig(t, homePaths))
+			d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+				return runtime
+			}
+
+			state := &bootState{
+				logger:   discardLogger(),
+				registry: db,
+				sessions: &fakeSessionManager{},
+				observer: &fakeObserver{},
+				bridges:  &bridgeRuntime{broker: bridgepkg.NewBroker(nil)},
+				hooks: &fakeHookRuntime{
+					onRebuild: func(context.Context) error {
+						t.Fatal("hooks should not rebuild when extension start is canceled")
+						return nil
+					},
+				},
+			}
+			cleanup := &bootCleanup{}
+
+			err := d.bootExtensions(testutil.Context(t), state, cleanup)
+			if !errors.Is(err, tc.startErr) {
+				t.Fatalf("bootExtensions() error = %v, want %v", err, tc.startErr)
+			}
+			if runtime.startCount != 1 {
+				t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
+			}
+			if len(cleanup.fns) != 1 {
+				t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
+			}
+			if state.currentExtensionRuntime() != nil {
+				t.Fatalf("state.extensions = %#v, want nil after canceled start", state.currentExtensionRuntime())
+			}
+			if state.deps.Extensions != nil {
+				t.Fatalf("state.deps.Extensions = %#v, want nil after canceled start", state.deps.Extensions)
+			}
+			if state.bridges.extensions != nil {
+				t.Fatalf("state.bridges.extensions = %#v, want nil after canceled start", state.bridges.extensions)
+			}
+		})
+	}
+}
+
 func TestBootAutomationBuildsManagerDepsAndAttachesHookBoundary(t *testing.T) {
 	t.Parallel()
 

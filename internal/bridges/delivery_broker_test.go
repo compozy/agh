@@ -25,6 +25,8 @@ type fakeDeliveryTransport struct {
 	handler func(context.Context, string, DeliveryRequest) (DeliveryAck, error)
 }
 
+var _ DeliveryTransport = (*fakeDeliveryTransport)(nil)
+
 func (f *fakeDeliveryTransport) DeliverBridge(
 	ctx context.Context,
 	extensionName string,

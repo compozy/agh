@@ -585,6 +585,9 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	})
 
 	if err := manager.Start(ctx); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
 		state.logger.Error("daemon: extension manager start failed; continuing without blocking boot", "error", err)
 		return nil
 	}

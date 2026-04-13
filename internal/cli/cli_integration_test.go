@@ -20,6 +20,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
+	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/udsapi"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
@@ -1118,6 +1119,8 @@ type integrationExtensionService struct {
 type integrationBridgeService struct {
 	*bridgepkg.Service
 }
+
+var _ core.BridgeService = (*integrationBridgeService)(nil)
 
 type integrationNotifierFanout struct {
 	notifiers []session.Notifier

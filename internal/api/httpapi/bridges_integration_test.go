@@ -33,6 +33,8 @@ func (t *blockingHTTPDeliveryTransport) DeliverBridge(ctx context.Context, _ str
 }
 
 func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
+	t.Parallel()
+
 	runtime := newIntegrationRuntime(t)
 
 	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/bridges"), []byte(`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true}}`), nil)
@@ -57,6 +59,8 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 }
 
 func TestHTTPBridgeRoutesEndpointReturnsOnlyRequestedInstanceRoutes(t *testing.T) {
+	t.Parallel()
+
 	runtime := newIntegrationRuntime(t)
 
 	first := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{
@@ -114,6 +118,8 @@ func TestHTTPBridgeRoutesEndpointReturnsOnlyRequestedInstanceRoutes(t *testing.T
 }
 
 func TestHTTPBridgeTestDeliveryResolvesTargetWithoutLiveAdapter(t *testing.T) {
+	t.Parallel()
+
 	runtime := newIntegrationRuntime(t)
 
 	instance := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{
@@ -145,6 +151,8 @@ func TestHTTPBridgeTestDeliveryResolvesTargetWithoutLiveAdapter(t *testing.T) {
 }
 
 func TestHTTPObserveHealthIncludesBridgeMetricsAndPreservesSessionFields(t *testing.T) {
+	t.Parallel()
+
 	runtime := newIntegrationRuntime(t)
 
 	createSessionResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`"}`), nil)
@@ -202,6 +210,8 @@ func TestHTTPObserveHealthIncludesBridgeMetricsAndPreservesSessionFields(t *test
 }
 
 func TestHTTPBridgeDetailShowsAuthRequiredStatusAndHealth(t *testing.T) {
+	t.Parallel()
+
 	runtime := newIntegrationRuntime(t)
 
 	instance := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{
@@ -243,6 +253,8 @@ func TestHTTPBridgeDetailShowsAuthRequiredStatusAndHealth(t *testing.T) {
 }
 
 func TestHTTPBridgeDetailReportsBacklogAndClearsAfterDeliveryCompletes(t *testing.T) {
+	t.Parallel()
+
 	runtime := newIntegrationRuntime(t)
 
 	instance := createIntegrationBridge(t, runtime, bridgepkg.CreateInstanceRequest{

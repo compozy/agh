@@ -126,6 +126,9 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 			} else if raw != nil {
 				payload.DeliveryDefaults = *raw
 			}
+			if err := validateBridgeCreatePayload(payload); err != nil {
+				return err
+			}
 
 			item, err := client.CreateBridge(cmd.Context(), payload)
 			if err != nil {
@@ -528,6 +531,13 @@ func resolveBridgeStatus(enabled bool, raw string) (bridgepkg.BridgeStatus, erro
 		return "", err
 	}
 	return status, nil
+}
+
+func validateBridgeCreatePayload(payload CreateBridgeRequest) error {
+	if _, err := payload.ToCreateInstanceRequest(); err != nil {
+		return fmt.Errorf("cli: invalid bridge create payload: %w", err)
+	}
+	return nil
 }
 
 func bridgeRoutingFlagsChanged(cmd *cobra.Command) bool {

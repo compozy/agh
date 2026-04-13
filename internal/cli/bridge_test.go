@@ -144,6 +144,32 @@ func TestBridgeCreateRejectsWorkspaceScopeWithoutWorkspaceID(t *testing.T) {
 	}
 }
 
+func TestBridgeCreateRejectsInvalidLifecycleCombination(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, stubClient{
+		createBridgeFn: func(context.Context, CreateBridgeRequest) (BridgeRecord, error) {
+			t.Fatal("CreateBridge() should not be called when lifecycle flags are invalid")
+			return BridgeRecord{}, nil
+		},
+	})
+
+	_, _, err := executeRootCommand(
+		t,
+		deps,
+		"bridge", "create",
+		"--scope", "global",
+		"--platform", "telegram",
+		"--extension", "ext-telegram",
+		"--display-name", "Support",
+		"--enabled=false",
+		"--status", "ready",
+	)
+	if err == nil || !strings.Contains(err.Error(), `cli: invalid bridge create payload: bridges: disabled bridge instance must report status "disabled"`) {
+		t.Fatalf("bridge create error = %v, want lifecycle validation failure", err)
+	}
+}
+
 func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing.T) {
 	t.Parallel()
 
