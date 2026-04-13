@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -38,10 +38,10 @@ const (
 )
 
 var (
-	// ErrChannelRuntimeDeferred reports that a channel-capable extension is
-	// installed and registered, but no enabled channel instance exists yet for
+	// ErrBridgeRuntimeDeferred reports that a bridge-capable extension is
+	// installed and registered, but no enabled bridge instance exists yet for
 	// the runtime launch handshake.
-	ErrChannelRuntimeDeferred = errors.New("extension: channel runtime deferred")
+	ErrBridgeRuntimeDeferred = errors.New("extension: bridge runtime deferred")
 )
 
 var safeSubprocessEnvKeys = []string{
@@ -82,18 +82,18 @@ type skillRegistry interface {
 	RemoveExternal(owner string)
 }
 
-// ChannelRuntimeResolver resolves one instance-scoped channel launch payload
-// for a channel-capable extension session.
-type ChannelRuntimeResolver interface {
-	ResolveChannelRuntime(ctx context.Context, extensionName string) (*subprocess.InitializeChannelRuntime, error)
+// BridgeRuntimeResolver resolves one instance-scoped bridge launch payload
+// for a bridge-capable extension session.
+type BridgeRuntimeResolver interface {
+	ResolveBridgeRuntime(ctx context.Context, extensionName string) (*subprocess.InitializeBridgeRuntime, error)
 }
 
-// ChannelTelemetrySink records live channel runtime/auth telemetry for
+// BridgeTelemetrySink records live bridge runtime/auth telemetry for
 // per-instance observability surfaces.
-type ChannelTelemetrySink interface {
-	RecordChannelAuthFailure(channelInstanceID string)
-	RecordChannelRuntimeIssue(channelInstanceID string, status channelspkg.ChannelStatus, message string)
-	ClearChannelRuntimeIssue(channelInstanceID string)
+type BridgeTelemetrySink interface {
+	RecordBridgeAuthFailure(bridgeInstanceID string)
+	RecordBridgeRuntimeIssue(bridgeInstanceID string, status bridgepkg.BridgeStatus, message string)
+	ClearBridgeRuntimeIssue(bridgeInstanceID string)
 }
 
 // ExtensionPhase names one lifecycle phase or supervisor state for an extension.
@@ -172,21 +172,21 @@ type managedExtension struct {
 	lastExitedAt        time.Time
 }
 
-var _ channelspkg.DeliveryTransport = (*Manager)(nil)
+var _ bridgepkg.DeliveryTransport = (*Manager)(nil)
 
 // Manager orchestrates extension loading, subprocess lifecycle, and resource registration.
 type Manager struct {
 	mu sync.RWMutex
 
-	registry               *Registry
-	capChecker             *CapabilityChecker
-	channelRuntimeResolver ChannelRuntimeResolver
-	channelTelemetrySink   ChannelTelemetrySink
-	skillsRegistry         skillRegistry
-	logger                 *slog.Logger
-	now                    func() time.Time
-	getenv                 func(string) string
-	launch                 processLauncher
+	registry              *Registry
+	capChecker            *CapabilityChecker
+	bridgeRuntimeResolver BridgeRuntimeResolver
+	bridgeTelemetrySink   BridgeTelemetrySink
+	skillsRegistry        skillRegistry
+	logger                *slog.Logger
+	now                   func() time.Time
+	getenv                func(string) string
+	launch                processLauncher
 
 	hostMethods map[string]subprocess.HandlerFunc
 
@@ -218,19 +218,19 @@ func WithCapabilityChecker(checker *CapabilityChecker) Option {
 	}
 }
 
-// WithChannelRuntimeResolver injects the channel launch material resolver used
-// for channel-capable extension sessions.
-func WithChannelRuntimeResolver(resolver ChannelRuntimeResolver) Option {
+// WithBridgeRuntimeResolver injects the bridge launch material resolver used
+// for bridge-capable extension sessions.
+func WithBridgeRuntimeResolver(resolver BridgeRuntimeResolver) Option {
 	return func(manager *Manager) {
-		manager.channelRuntimeResolver = resolver
+		manager.bridgeRuntimeResolver = resolver
 	}
 }
 
-// WithChannelTelemetrySink injects the sink used to publish per-instance
+// WithBridgeTelemetrySink injects the sink used to publish per-instance
 // runtime degradation/error signals into observability surfaces.
-func WithChannelTelemetrySink(sink ChannelTelemetrySink) Option {
+func WithBridgeTelemetrySink(sink BridgeTelemetrySink) Option {
 	return func(manager *Manager) {
-		manager.channelTelemetrySink = sink
+		manager.bridgeTelemetrySink = sink
 	}
 }
 
@@ -627,53 +627,53 @@ func (m *Manager) Statuses() []ExtensionStatus {
 	return statuses
 }
 
-// DeliverChannel calls the negotiated `channels/deliver` service on the named
-// channel-capable extension runtime.
-func (m *Manager) DeliverChannel(
+// DeliverBridge calls the negotiated `bridges/deliver` service on the named
+// bridge-capable extension runtime.
+func (m *Manager) DeliverBridge(
 	ctx context.Context,
 	extensionName string,
-	req channelspkg.DeliveryRequest,
-) (channelspkg.DeliveryAck, error) {
+	req bridgepkg.DeliveryRequest,
+) (bridgepkg.DeliveryAck, error) {
 	if ctx == nil {
-		return channelspkg.DeliveryAck{}, errors.New("extension: delivery context is required")
+		return bridgepkg.DeliveryAck{}, errors.New("extension: delivery context is required")
 	}
 	if err := ctx.Err(); err != nil {
-		return channelspkg.DeliveryAck{}, err
+		return bridgepkg.DeliveryAck{}, err
 	}
 	if m == nil {
-		return channelspkg.DeliveryAck{}, errors.New("extension: manager is required")
+		return bridgepkg.DeliveryAck{}, errors.New("extension: manager is required")
 	}
 	if err := req.Validate(); err != nil {
-		return channelspkg.DeliveryAck{}, err
+		return bridgepkg.DeliveryAck{}, err
 	}
 
 	name := strings.TrimSpace(extensionName)
 	if name == "" {
-		return channelspkg.DeliveryAck{}, errors.New("extension: delivery extension name is required")
+		return bridgepkg.DeliveryAck{}, errors.New("extension: delivery extension name is required")
 	}
 
 	m.mu.RLock()
 	ext := m.extensions[name]
 	if ext == nil || ext.process == nil || !ext.active {
 		m.mu.RUnlock()
-		return channelspkg.DeliveryAck{}, channelspkg.ErrDeliveryTransportUnavailable
+		return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
 	}
 	process := ext.process
 	initialize := cloneInitializeResponse(ext.initialize)
 	m.mu.RUnlock()
 
-	if initialize == nil || !slices.Contains(initialize.ImplementedMethods, string(extensionprotocol.ExtensionServiceMethodChannelsDeliver)) {
-		return channelspkg.DeliveryAck{}, fmt.Errorf(
+	if initialize == nil || !slices.Contains(initialize.ImplementedMethods, string(extensionprotocol.ExtensionServiceMethodBridgesDeliver)) {
+		return bridgepkg.DeliveryAck{}, fmt.Errorf(
 			"extension: extension %q does not implement %q: %w",
 			name,
-			extensionprotocol.ExtensionServiceMethodChannelsDeliver,
-			channelspkg.ErrDeliveryTransportUnavailable,
+			extensionprotocol.ExtensionServiceMethodBridgesDeliver,
+			bridgepkg.ErrDeliveryTransportUnavailable,
 		)
 	}
 
-	var ack channelspkg.DeliveryAck
-	if err := process.Call(ctx, string(extensionprotocol.ExtensionServiceMethodChannelsDeliver), req, &ack); err != nil {
-		return channelspkg.DeliveryAck{}, fmt.Errorf("extension: deliver channel via %q: %w", name, err)
+	var ack bridgepkg.DeliveryAck
+	if err := process.Call(ctx, string(extensionprotocol.ExtensionServiceMethodBridgesDeliver), req, &ack); err != nil {
+		return bridgepkg.DeliveryAck{}, fmt.Errorf("extension: deliver bridge via %q: %w", name, err)
 	}
 	return ack, nil
 }
@@ -909,7 +909,7 @@ func (m *Manager) initializeExtension(ctx context.Context, ext *managedExtension
 
 	process, response, runtime, healthInterval, err := m.launchRuntime(ctx, ext)
 	if err != nil {
-		if errors.Is(err, ErrChannelRuntimeDeferred) {
+		if errors.Is(err, ErrBridgeRuntimeDeferred) {
 			m.mu.Lock()
 			ext.process = nil
 			ext.initialize = nil
@@ -1108,7 +1108,7 @@ func (m *Manager) launchRuntime(ctx context.Context, ext *managedExtension) (pro
 	}
 
 	for method, handler := range m.hostMethods {
-		if err := process.HandleMethod(method, m.wrapHostHandler(ext.info.Name, method, runtime.Channel, handler)); err != nil {
+		if err := process.HandleMethod(method, m.wrapHostHandler(ext.info.Name, method, runtime.Bridge, handler)); err != nil {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), m.defaultShutdownTimeout)
 			_ = process.Shutdown(shutdownCtx)
 			cancel()
@@ -1177,7 +1177,7 @@ func (m *Manager) launchConfigFor(ctx context.Context, ext *managedExtension) (s
 
 	healthInterval := durationOr(ext.manifest.Subprocess.HealthCheckInterval, defaultHealthCheckInterval)
 	shutdownTimeout := durationOr(ext.manifest.Subprocess.ShutdownTimeout, m.defaultShutdownTimeout)
-	channelRuntime, err := m.resolveChannelRuntime(ctx, ext)
+	bridgeRuntime, err := m.resolveBridgeRuntime(ctx, ext)
 	if err != nil {
 		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, err
 	}
@@ -1186,7 +1186,7 @@ func (m *Manager) launchConfigFor(ctx context.Context, ext *managedExtension) (s
 		HealthCheckTimeoutMS:  m.healthCheckTimeout.Milliseconds(),
 		ShutdownTimeoutMS:     shutdownTimeout.Milliseconds(),
 		DefaultHookTimeoutMS:  m.defaultHookTimeout.Milliseconds(),
-		Channel:               channelRuntime,
+		Bridge:                bridgeRuntime,
 	}
 
 	launchCfg := subprocess.LaunchConfig{
@@ -1204,7 +1204,7 @@ func (m *Manager) launchConfigFor(ctx context.Context, ext *managedExtension) (s
 func (m *Manager) wrapHostHandler(
 	extName string,
 	method string,
-	channelRuntime *subprocess.InitializeChannelRuntime,
+	bridgeRuntime *subprocess.InitializeBridgeRuntime,
 	handler subprocess.HandlerFunc,
 ) subprocess.HandlerFunc {
 	return func(ctx context.Context, params json.RawMessage) (any, error) {
@@ -1213,8 +1213,8 @@ func (m *Manager) wrapHostHandler(
 		}
 
 		hostCtx := withHostAPIExtensionName(ctx, extName)
-		if channelRuntime != nil {
-			hostCtx = withHostAPIChannelRuntime(hostCtx, channelRuntime)
+		if bridgeRuntime != nil {
+			hostCtx = withHostAPIBridgeRuntime(hostCtx, bridgeRuntime)
 		}
 		return handler(hostCtx, params)
 	}
@@ -1586,11 +1586,11 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.lastExitedAt = m.now()
 	ext.lastError = reason.Error()
 	ext.consecutiveFailures++
-	instanceID := managedChannelInstanceID(ext)
+	instanceID := managedBridgeInstanceID(ext)
 	failures := ext.consecutiveFailures
 	if ext.consecutiveFailures >= m.restartFailureThreshold {
 		m.mu.Unlock()
-		m.reportChannelRuntimeIssue(instanceID, channelspkg.ChannelStatusError, reason)
+		m.reportBridgeRuntimeIssue(instanceID, bridgepkg.BridgeStatusError, reason)
 		m.logger.Error("extension.lifecycle.failed", "extension", name, "phase", ExtensionPhaseRecover, "error", reason, "consecutive_failures", failures)
 		return 0, true, true
 	}
@@ -1598,7 +1598,7 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.restartBackoff = restartBackoff(ext.consecutiveFailures, m.restartBackoffMax)
 	backoff := ext.restartBackoff
 	m.mu.Unlock()
-	m.reportChannelRuntimeIssue(instanceID, channelspkg.ChannelStatusDegraded, reason)
+	m.reportBridgeRuntimeIssue(instanceID, bridgepkg.BridgeStatusDegraded, reason)
 
 	m.logger.Warn(
 		"extension.lifecycle.failed",
@@ -1616,7 +1616,7 @@ func (m *Manager) disableExtension(name string, reason error) {
 	if !ok {
 		return
 	}
-	instanceID := managedChannelInstanceID(ext)
+	instanceID := managedBridgeInstanceID(ext)
 
 	if err := m.registry.Disable(name); err != nil {
 		reason = errors.Join(reason, err)
@@ -1631,7 +1631,7 @@ func (m *Manager) disableExtension(name string, reason error) {
 	ext.active = false
 	ext.process = nil
 	ext.awaitingStability = false
-	m.reportChannelRuntimeIssue(instanceID, channelspkg.ChannelStatusError, reason)
+	m.reportBridgeRuntimeIssue(instanceID, bridgepkg.BridgeStatusError, reason)
 }
 
 func (m *Manager) unregisterResources(ext *managedExtension) {
@@ -1655,12 +1655,12 @@ func (m *Manager) markStable(name string, generation int64) {
 		m.mu.Unlock()
 		return
 	}
-	instanceID := managedChannelInstanceID(ext)
+	instanceID := managedBridgeInstanceID(ext)
 	ext.awaitingStability = false
 	ext.consecutiveFailures = 0
 	ext.restartBackoff = 0
 	m.mu.Unlock()
-	m.clearChannelRuntimeIssue(instanceID)
+	m.clearBridgeRuntimeIssue(instanceID)
 }
 
 func (m *Manager) statusLocked(ext *managedExtension) ExtensionStatus {
@@ -1729,33 +1729,33 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 	return clone
 }
 
-func (m *Manager) reportChannelRuntimeIssue(channelInstanceID string, status channelspkg.ChannelStatus, reason error) {
-	if m == nil || m.channelTelemetrySink == nil {
+func (m *Manager) reportBridgeRuntimeIssue(bridgeInstanceID string, status bridgepkg.BridgeStatus, reason error) {
+	if m == nil || m.bridgeTelemetrySink == nil {
 		return
 	}
-	trimmedID := strings.TrimSpace(channelInstanceID)
+	trimmedID := strings.TrimSpace(bridgeInstanceID)
 	if trimmedID == "" || reason == nil {
 		return
 	}
-	m.channelTelemetrySink.RecordChannelRuntimeIssue(trimmedID, status, reason.Error())
+	m.bridgeTelemetrySink.RecordBridgeRuntimeIssue(trimmedID, status, reason.Error())
 }
 
-func (m *Manager) clearChannelRuntimeIssue(channelInstanceID string) {
-	if m == nil || m.channelTelemetrySink == nil {
+func (m *Manager) clearBridgeRuntimeIssue(bridgeInstanceID string) {
+	if m == nil || m.bridgeTelemetrySink == nil {
 		return
 	}
-	trimmedID := strings.TrimSpace(channelInstanceID)
+	trimmedID := strings.TrimSpace(bridgeInstanceID)
 	if trimmedID == "" {
 		return
 	}
-	m.channelTelemetrySink.ClearChannelRuntimeIssue(trimmedID)
+	m.bridgeTelemetrySink.ClearBridgeRuntimeIssue(trimmedID)
 }
 
-func managedChannelInstanceID(ext *managedExtension) string {
-	if ext == nil || ext.runtime.Channel == nil {
+func managedBridgeInstanceID(ext *managedExtension) string {
+	if ext == nil || ext.runtime.Bridge == nil {
 		return ""
 	}
-	return strings.TrimSpace(ext.runtime.Channel.Instance.ID)
+	return strings.TrimSpace(ext.runtime.Bridge.Instance.ID)
 }
 
 func (m *Manager) waitBackoff(delay time.Duration) bool {
@@ -1872,35 +1872,35 @@ func validateSupportedHookEvents(values []string) error {
 	return nil
 }
 
-func (m *Manager) resolveChannelRuntime(ctx context.Context, ext *managedExtension) (*subprocess.InitializeChannelRuntime, error) {
+func (m *Manager) resolveBridgeRuntime(ctx context.Context, ext *managedExtension) (*subprocess.InitializeBridgeRuntime, error) {
 	if ext == nil || ext.manifest == nil {
 		return nil, nil
 	}
-	if !slices.Contains(ext.manifest.Capabilities.Provides, extensionprotocol.CapabilityProvideChannelAdapter) {
+	if !slices.Contains(ext.manifest.Capabilities.Provides, extensionprotocol.CapabilityProvideBridgeAdapter) {
 		return nil, nil
 	}
-	if m.channelRuntimeResolver == nil {
-		return nil, fmt.Errorf("extension: channel runtime resolver is required for %q", ext.info.Name)
+	if m.bridgeRuntimeResolver == nil {
+		return nil, fmt.Errorf("extension: bridge runtime resolver is required for %q", ext.info.Name)
 	}
 
-	channelRuntime, err := m.channelRuntimeResolver.ResolveChannelRuntime(ctx, ext.info.Name)
+	bridgeRuntime, err := m.bridgeRuntimeResolver.ResolveBridgeRuntime(ctx, ext.info.Name)
 	if err != nil {
-		return nil, fmt.Errorf("extension: resolve channel runtime for %q: %w", ext.info.Name, err)
+		return nil, fmt.Errorf("extension: resolve bridge runtime for %q: %w", ext.info.Name, err)
 	}
-	if channelRuntime == nil {
-		return nil, fmt.Errorf("extension: channel runtime is required for %q", ext.info.Name)
+	if bridgeRuntime == nil {
+		return nil, fmt.Errorf("extension: bridge runtime is required for %q", ext.info.Name)
 	}
-	if err := channelRuntime.Validate(); err != nil {
-		return nil, fmt.Errorf("extension: resolve channel runtime for %q: %w", ext.info.Name, err)
+	if err := bridgeRuntime.Validate(); err != nil {
+		return nil, fmt.Errorf("extension: resolve bridge runtime for %q: %w", ext.info.Name, err)
 	}
 
-	resolved := subprocess.CloneInitializeChannelRuntime(channelRuntime)
+	resolved := subprocess.CloneInitializeBridgeRuntime(bridgeRuntime)
 	if resolved == nil {
-		return nil, fmt.Errorf("extension: channel runtime is required for %q", ext.info.Name)
+		return nil, fmt.Errorf("extension: bridge runtime is required for %q", ext.info.Name)
 	}
 	if strings.TrimSpace(resolved.Instance.ExtensionName) != ext.info.Name {
 		return nil, fmt.Errorf(
-			"extension: channel runtime instance %q belongs to extension %q, want %q",
+			"extension: bridge runtime instance %q belongs to extension %q, want %q",
 			resolved.Instance.ID,
 			resolved.Instance.ExtensionName,
 			ext.info.Name,

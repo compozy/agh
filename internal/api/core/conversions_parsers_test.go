@@ -27,7 +27,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		AgentName:    "coder",
 		WorkspaceID:  "ws_alpha",
 		Workspace:    "/workspace",
-		Space:        "builders",
+		Channel:      "builders",
 		State:        session.StateActive,
 		StopReason:   store.StopTimeout,
 		StopDetail:   "deadline exceeded",
@@ -41,7 +41,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		},
 	})
 
-	if payload.ID != "sess-1" || payload.WorkspaceID != "ws_alpha" || payload.WorkspacePath != "/workspace" || payload.Space != "builders" {
+	if payload.ID != "sess-1" || payload.WorkspaceID != "ws_alpha" || payload.WorkspacePath != "/workspace" || payload.Channel != "builders" {
 		t.Fatalf("payload = %#v", payload)
 	}
 	if payload.StopReason != store.StopTimeout || payload.StopDetail != "deadline exceeded" {

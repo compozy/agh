@@ -16,7 +16,7 @@ type CreateSessionRequest struct {
 	Name          string `json:"name,omitempty"`
 	Workspace     string `json:"workspace,omitempty"`
 	WorkspacePath string `json:"workspace_path,omitempty"`
-	Space         string `json:"space,omitempty"`
+	Channel       string `json:"channel,omitempty"`
 }
 
 // ApproveSessionRequest is the interactive permission approval payload.
@@ -33,7 +33,7 @@ type SessionPayload struct {
 	AgentName     string               `json:"agent_name"`
 	WorkspaceID   string               `json:"workspace_id,omitempty"`
 	WorkspacePath string               `json:"workspace_path,omitempty"`
-	Space         string               `json:"space,omitempty"`
+	Channel       string               `json:"channel,omitempty"`
 	State         session.SessionState `json:"state"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
@@ -139,14 +139,14 @@ type ObserveEventPayload struct {
 
 // ObserveHealthPayload is the shared observability health response payload.
 type ObserveHealthPayload struct {
-	Status             string                        `json:"status"`
-	UptimeSeconds      int64                         `json:"uptime_seconds"`
-	ActiveSessions     int                           `json:"active_sessions"`
-	ActiveAgents       int                           `json:"active_agents"`
-	GlobalDBSizeBytes  int64                         `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64                         `json:"session_db_size_bytes"`
-	Channels           ChannelAggregateHealthPayload `json:"channels"`
-	Version            string                        `json:"version"`
+	Status             string                       `json:"status"`
+	UptimeSeconds      int64                        `json:"uptime_seconds"`
+	ActiveSessions     int                          `json:"active_sessions"`
+	ActiveAgents       int                          `json:"active_agents"`
+	GlobalDBSizeBytes  int64                        `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64                        `json:"session_db_size_bytes"`
+	Bridges            BridgeAggregateHealthPayload `json:"bridges"`
+	Version            string                       `json:"version"`
 }
 
 // HookCatalogQuery captures the shared resolved-hook catalog filters.
@@ -236,7 +236,7 @@ type NetworkStatusPayload struct {
 	ListenerPort         int                        `json:"listener_port,omitempty"`
 	LocalPeers           int                        `json:"local_peers,omitempty"`
 	RemotePeers          int                        `json:"remote_peers,omitempty"`
-	Spaces               int                        `json:"spaces,omitempty"`
+	Channels             int                        `json:"channels,omitempty"`
 	QueuedMessages       int                        `json:"queued_messages,omitempty"`
 	QueuedSessions       int                        `json:"queued_sessions,omitempty"`
 	DeliveryWorkers      int                        `json:"delivery_workers,omitempty"`
@@ -262,7 +262,7 @@ type NetworkKindMetricPayload struct {
 // NetworkSendRequest is the shared daemon network send request payload.
 type NetworkSendRequest struct {
 	SessionID     string                     `json:"session_id"`
-	Space         string                     `json:"space"`
+	Channel       string                     `json:"channel"`
 	Kind          string                     `json:"kind"`
 	To            string                     `json:"to,omitempty"`
 	Body          json.RawMessage            `json:"body"`
@@ -279,7 +279,7 @@ type NetworkSendRequest struct {
 type NetworkSendPayload struct {
 	ID            string                     `json:"id"`
 	SessionID     string                     `json:"session_id"`
-	Space         string                     `json:"space"`
+	Channel       string                     `json:"channel"`
 	Kind          string                     `json:"kind"`
 	To            string                     `json:"to,omitempty"`
 	InteractionID string                     `json:"interaction_id,omitempty"`
@@ -305,7 +305,7 @@ type NetworkPeerCardPayload struct {
 type NetworkPeerPayload struct {
 	SessionID *string                `json:"session_id,omitempty"`
 	PeerID    string                 `json:"peer_id"`
-	Space     string                 `json:"space"`
+	Channel   string                 `json:"channel"`
 	Local     bool                   `json:"local"`
 	PeerCard  NetworkPeerCardPayload `json:"peer_card"`
 	JoinedAt  *time.Time             `json:"joined_at,omitempty"`
@@ -313,9 +313,9 @@ type NetworkPeerPayload struct {
 	ExpiresAt *time.Time             `json:"expires_at,omitempty"`
 }
 
-// NetworkSpacePayload is the shared JSON representation of one active space.
-type NetworkSpacePayload struct {
-	Space     string `json:"space"`
+// NetworkChannelPayload is the shared JSON representation of one active channel.
+type NetworkChannelPayload struct {
+	Channel   string `json:"channel"`
 	PeerCount int    `json:"peer_count"`
 }
 
@@ -325,7 +325,7 @@ type NetworkEnvelopePayload struct {
 	Protocol      string                     `json:"protocol"`
 	ID            string                     `json:"id"`
 	Kind          string                     `json:"kind"`
-	Space         string                     `json:"space"`
+	Channel       string                     `json:"channel"`
 	From          string                     `json:"from"`
 	To            *string                    `json:"to,omitempty"`
 	InteractionID *string                    `json:"interaction_id,omitempty"`

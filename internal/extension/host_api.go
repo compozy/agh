@@ -15,7 +15,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	"github.com/pedronauck/agh/internal/frontmatter"
 	"github.com/pedronauck/agh/internal/memory"
@@ -40,20 +40,20 @@ const (
 	// HostAPIMethodNotFoundCode is the JSON-RPC method-not-found code for unknown Host API methods.
 	HostAPIMethodNotFoundCode = -32601
 
-	defaultHostAPIRateLimit              = 10
-	defaultHostAPIBurst                  = 20
-	defaultHostAPIDefaultLimit           = 100
-	defaultHostAPIRecallLimit            = 10
-	defaultHostAPIChannelIngestDedupTTL  = 24 * time.Hour
-	defaultHostAPIChannelCleanupInterval = time.Hour
-	maxMemoryDescriptionLength           = 160
-	tagCommentPrefix                     = "<!-- agh-tags:"
+	defaultHostAPIRateLimit             = 10
+	defaultHostAPIBurst                 = 20
+	defaultHostAPIDefaultLimit          = 100
+	defaultHostAPIRecallLimit           = 10
+	defaultHostAPIBridgeIngestDedupTTL  = 24 * time.Hour
+	defaultHostAPIBridgeCleanupInterval = time.Hour
+	maxMemoryDescriptionLength          = 160
+	tagCommentPrefix                    = "<!-- agh-tags:"
 )
 
 type hostAPIContextKey string
 
 const hostAPIExtensionNameContextKey hostAPIContextKey = "extension.host_api.extension_name"
-const hostAPIChannelRuntimeContextKey hostAPIContextKey = "extension.host_api.channel_runtime"
+const hostAPIBridgeRuntimeContextKey hostAPIContextKey = "extension.host_api.bridge_runtime"
 
 // HostAPIOption customizes a HostAPIHandler.
 type HostAPIOption func(*HostAPIHandler)
@@ -66,8 +66,8 @@ type HostAPIHandler struct {
 	observer         hostAPIObserver
 	skills           hostAPISkillsRegistry
 	workspaces       workspacepkg.WorkspaceResolver
-	channels         hostAPIChannelRegistry
-	dedupStore       hostAPIChannelDedupStore
+	bridges          hostAPIBridgeRegistry
+	dedupStore       hostAPIBridgeDedupStore
 	deliveryBroker   hostAPIDeliveryBroker
 	capChecker       *CapabilityChecker
 	limiter          *hostAPIRateLimiter
@@ -76,11 +76,11 @@ type HostAPIHandler struct {
 	rateLimit        int
 	rateBurst        int
 
-	channelIngestDedupTTL  time.Duration
-	channelCleanupInterval time.Duration
-	channelLocks           *hostAPIKeyLocker
-	channelCleanupMu       sync.Mutex
-	channelLastCleanup     time.Time
+	bridgeIngestDedupTTL  time.Duration
+	bridgeCleanupInterval time.Duration
+	bridgeLocks           *hostAPIKeyLocker
+	bridgeCleanupMu       sync.Mutex
+	bridgeLastCleanup     time.Time
 
 	methods map[string]hostAPIMethodFunc
 }
@@ -121,8 +121,8 @@ type HostAPIAutomationManager interface {
 }
 
 type hostAPIDeliveryBroker interface {
-	RegisterPromptDelivery(ctx context.Context, reg channelspkg.PromptDeliveryRegistration) (*channelspkg.DeliverySnapshot, error)
-	ProjectEvent(ctx context.Context, sessionID string, event channelspkg.DeliveryProjectionEvent) error
+	RegisterPromptDelivery(ctx context.Context, reg bridgepkg.PromptDeliveryRegistration) (*bridgepkg.DeliverySnapshot, error)
+	ProjectEvent(ctx context.Context, sessionID string, event bridgepkg.DeliveryProjectionEvent) error
 }
 
 type hostAPISkillsRegistry interface {
@@ -158,32 +158,32 @@ func WithHostAPIWorkspaceResolver(resolver workspacepkg.WorkspaceResolver) HostA
 	}
 }
 
-// WithHostAPIChannelRegistry injects the channel registry used by channel Host API methods.
-func WithHostAPIChannelRegistry(registry hostAPIChannelRegistry) HostAPIOption {
+// WithHostAPIBridgeRegistry injects the bridge registry used by bridge Host API methods.
+func WithHostAPIBridgeRegistry(registry hostAPIBridgeRegistry) HostAPIOption {
 	return func(handler *HostAPIHandler) {
-		handler.channels = registry
+		handler.bridges = registry
 	}
 }
 
-// WithHostAPIChannelDedupStore injects the dedup persistence used by inbound channel ingest.
-func WithHostAPIChannelDedupStore(store hostAPIChannelDedupStore) HostAPIOption {
+// WithHostAPIBridgeDedupStore injects the dedup persistence used by inbound bridge ingest.
+func WithHostAPIBridgeDedupStore(store hostAPIBridgeDedupStore) HostAPIOption {
 	return func(handler *HostAPIHandler) {
 		handler.dedupStore = store
 	}
 }
 
-// WithHostAPIDeliveryBroker injects the session-to-channel delivery projection broker.
+// WithHostAPIDeliveryBroker injects the session-to-bridge delivery projection broker.
 func WithHostAPIDeliveryBroker(broker hostAPIDeliveryBroker) HostAPIOption {
 	return func(handler *HostAPIHandler) {
 		handler.deliveryBroker = broker
 	}
 }
 
-// WithHostAPIChannelIngressConfig overrides dedup TTL and cleanup cadence for channel ingest.
-func WithHostAPIChannelIngressConfig(dedupTTL time.Duration, cleanupInterval time.Duration) HostAPIOption {
+// WithHostAPIBridgeIngressConfig overrides dedup TTL and cleanup cadence for bridge ingest.
+func WithHostAPIBridgeIngressConfig(dedupTTL time.Duration, cleanupInterval time.Duration) HostAPIOption {
 	return func(handler *HostAPIHandler) {
-		handler.channelIngestDedupTTL = dedupTTL
-		handler.channelCleanupInterval = cleanupInterval
+		handler.bridgeIngestDedupTTL = dedupTTL
+		handler.bridgeCleanupInterval = cleanupInterval
 	}
 }
 
@@ -211,16 +211,16 @@ func NewHostAPIHandler(
 	opts ...HostAPIOption,
 ) *HostAPIHandler {
 	handler := &HostAPIHandler{
-		sessions:               sessions,
-		memory:                 memoryStore,
-		observer:               observer,
-		skills:                 skillsRegistry,
-		capChecker:             &CapabilityChecker{},
-		rateLimit:              defaultHostAPIRateLimit,
-		rateBurst:              defaultHostAPIBurst,
-		channelIngestDedupTTL:  defaultHostAPIChannelIngestDedupTTL,
-		channelCleanupInterval: defaultHostAPIChannelCleanupInterval,
-		channelLocks:           newHostAPIKeyLocker(),
+		sessions:              sessions,
+		memory:                memoryStore,
+		observer:              observer,
+		skills:                skillsRegistry,
+		capChecker:            &CapabilityChecker{},
+		rateLimit:             defaultHostAPIRateLimit,
+		rateBurst:             defaultHostAPIBurst,
+		bridgeIngestDedupTTL:  defaultHostAPIBridgeIngestDedupTTL,
+		bridgeCleanupInterval: defaultHostAPIBridgeCleanupInterval,
+		bridgeLocks:           newHostAPIKeyLocker(),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -240,48 +240,48 @@ func NewHostAPIHandler(
 	if handler.capChecker == nil {
 		handler.capChecker = &CapabilityChecker{}
 	}
-	if handler.channelIngestDedupTTL <= 0 {
-		handler.channelIngestDedupTTL = defaultHostAPIChannelIngestDedupTTL
+	if handler.bridgeIngestDedupTTL <= 0 {
+		handler.bridgeIngestDedupTTL = defaultHostAPIBridgeIngestDedupTTL
 	}
-	if handler.channelCleanupInterval <= 0 {
-		handler.channelCleanupInterval = defaultHostAPIChannelCleanupInterval
+	if handler.bridgeCleanupInterval <= 0 {
+		handler.bridgeCleanupInterval = defaultHostAPIBridgeCleanupInterval
 	}
-	if handler.channelLocks == nil {
-		handler.channelLocks = newHostAPIKeyLocker()
+	if handler.bridgeLocks == nil {
+		handler.bridgeLocks = newHostAPIKeyLocker()
 	}
 	handler.limiter = newHostAPIRateLimiter(handler.rateLimit, handler.rateBurst, handler.now)
 
 	handler.methods = map[string]hostAPIMethodFunc{
-		"automation/jobs":                 handler.handleAutomationJobs,
-		"automation/jobs/get":             handler.handleAutomationJobsGet,
-		"automation/jobs/create":          handler.handleAutomationJobsCreate,
-		"automation/jobs/update":          handler.handleAutomationJobsUpdate,
-		"automation/jobs/delete":          handler.handleAutomationJobsDelete,
-		"automation/jobs/trigger":         handler.handleAutomationJobsTrigger,
-		"automation/jobs/runs":            handler.handleAutomationJobsRuns,
-		"automation/triggers":             handler.handleAutomationTriggers,
-		"automation/triggers/get":         handler.handleAutomationTriggersGet,
-		"automation/triggers/create":      handler.handleAutomationTriggersCreate,
-		"automation/triggers/update":      handler.handleAutomationTriggersUpdate,
-		"automation/triggers/delete":      handler.handleAutomationTriggersDelete,
-		"automation/triggers/runs":        handler.handleAutomationTriggersRuns,
-		"automation/triggers/fire":        handler.handleAutomationTriggersFire,
-		"automation/runs":                 handler.handleAutomationRuns,
-		"channels/instances/get":          handler.handleChannelsInstancesGet,
-		"channels/instances/report_state": handler.handleChannelsInstancesReportState,
-		"channels/messages/ingest":        handler.handleChannelsMessagesIngest,
-		"memory/forget":                   handler.handleMemoryForget,
-		"memory/recall":                   handler.handleMemoryRecall,
-		"memory/store":                    handler.handleMemoryStore,
-		"observe/events":                  handler.handleObserveEvents,
-		"observe/health":                  handler.handleObserveHealth,
-		"sessions/create":                 handler.handleSessionsCreate,
-		"sessions/events":                 handler.handleSessionsEvents,
-		"sessions/list":                   handler.handleSessionsList,
-		"sessions/prompt":                 handler.handleSessionsPrompt,
-		"sessions/status":                 handler.handleSessionsStatus,
-		"sessions/stop":                   handler.handleSessionsStop,
-		"skills/list":                     handler.handleSkillsList,
+		"automation/jobs":                handler.handleAutomationJobs,
+		"automation/jobs/get":            handler.handleAutomationJobsGet,
+		"automation/jobs/create":         handler.handleAutomationJobsCreate,
+		"automation/jobs/update":         handler.handleAutomationJobsUpdate,
+		"automation/jobs/delete":         handler.handleAutomationJobsDelete,
+		"automation/jobs/trigger":        handler.handleAutomationJobsTrigger,
+		"automation/jobs/runs":           handler.handleAutomationJobsRuns,
+		"automation/triggers":            handler.handleAutomationTriggers,
+		"automation/triggers/get":        handler.handleAutomationTriggersGet,
+		"automation/triggers/create":     handler.handleAutomationTriggersCreate,
+		"automation/triggers/update":     handler.handleAutomationTriggersUpdate,
+		"automation/triggers/delete":     handler.handleAutomationTriggersDelete,
+		"automation/triggers/runs":       handler.handleAutomationTriggersRuns,
+		"automation/triggers/fire":       handler.handleAutomationTriggersFire,
+		"automation/runs":                handler.handleAutomationRuns,
+		"bridges/instances/get":          handler.handleBridgesInstancesGet,
+		"bridges/instances/report_state": handler.handleBridgesInstancesReportState,
+		"bridges/messages/ingest":        handler.handleBridgesMessagesIngest,
+		"memory/forget":                  handler.handleMemoryForget,
+		"memory/recall":                  handler.handleMemoryRecall,
+		"memory/store":                   handler.handleMemoryStore,
+		"observe/events":                 handler.handleObserveEvents,
+		"observe/health":                 handler.handleObserveHealth,
+		"sessions/create":                handler.handleSessionsCreate,
+		"sessions/events":                handler.handleSessionsEvents,
+		"sessions/list":                  handler.handleSessionsList,
+		"sessions/prompt":                handler.handleSessionsPrompt,
+		"sessions/status":                handler.handleSessionsStatus,
+		"sessions/stop":                  handler.handleSessionsStop,
+		"skills/list":                    handler.handleSkillsList,
 	}
 
 	return handler
@@ -329,11 +329,11 @@ func (h *HostAPIHandler) MethodHandlers() map[string]subprocess.HandlerFunc {
 	return out
 }
 
-func withHostAPIChannelRuntime(ctx context.Context, channelRuntime *subprocess.InitializeChannelRuntime) context.Context {
-	if ctx == nil || channelRuntime == nil {
+func withHostAPIBridgeRuntime(ctx context.Context, bridgeRuntime *subprocess.InitializeBridgeRuntime) context.Context {
+	if ctx == nil || bridgeRuntime == nil {
 		return ctx
 	}
-	return context.WithValue(ctx, hostAPIChannelRuntimeContextKey, subprocess.CloneInitializeChannelRuntime(channelRuntime))
+	return context.WithValue(ctx, hostAPIBridgeRuntimeContextKey, subprocess.CloneInitializeBridgeRuntime(bridgeRuntime))
 }
 
 type hostAPISessionsListParams = extensioncontract.SessionsListParams
@@ -394,13 +394,13 @@ type hostAPIAutomationTriggerRunsParams = extensioncontract.AutomationTriggerRun
 
 type hostAPIAutomationTriggerFireParams = extensioncontract.AutomationTriggerFireParams
 
-type hostAPIChannelsMessagesIngestParams = extensioncontract.ChannelsMessagesIngestParams
+type hostAPIBridgesMessagesIngestParams = extensioncontract.BridgesMessagesIngestParams
 
-type hostAPIChannelsMessagesIngestResult = extensioncontract.ChannelsMessagesIngestResult
+type hostAPIBridgesMessagesIngestResult = extensioncontract.BridgesMessagesIngestResult
 
-type hostAPIChannelsInstancesReportStateParams = extensioncontract.ChannelsInstancesReportStateParams
+type hostAPIBridgesInstancesReportStateParams = extensioncontract.BridgesInstancesReportStateParams
 
-type hostAPIChannelInstance = channelspkg.ChannelInstance
+type hostAPIBridgeInstance = bridgepkg.BridgeInstance
 
 func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMessage) (any, error) {
 	if h.sessions == nil {
@@ -1180,7 +1180,7 @@ func (h *HostAPIHandler) handleAutomationRuns(ctx context.Context, raw json.RawM
 
 type hostAPIPromptSubmission struct {
 	TurnID     string
-	SeedEvents []channelspkg.DeliveryProjectionEvent
+	SeedEvents []bridgepkg.DeliveryProjectionEvent
 }
 
 func (h *HostAPIHandler) submitPrompt(ctx context.Context, sessionID string, message string) (hostAPIPromptSubmission, error) {
@@ -1236,13 +1236,13 @@ func (h *HostAPIHandler) submitPrompt(ctx context.Context, sessionID string, mes
 func promptSeedEventsFromStoredEvents(
 	events []store.SessionEvent,
 	turnID string,
-) ([]channelspkg.DeliveryProjectionEvent, error) {
+) ([]bridgepkg.DeliveryProjectionEvent, error) {
 	turnID = strings.TrimSpace(turnID)
 	if turnID == "" || len(events) == 0 {
 		return nil, nil
 	}
 
-	seedEvents := make([]channelspkg.DeliveryProjectionEvent, 0, len(events))
+	seedEvents := make([]bridgepkg.DeliveryProjectionEvent, 0, len(events))
 	for _, storedEvent := range events {
 		if strings.TrimSpace(storedEvent.TurnID) != turnID {
 			continue
@@ -1257,10 +1257,10 @@ func promptSeedEventsFromStoredEvents(
 	return seedEvents, nil
 }
 
-func promptProjectionEventFromStoredEvent(storedEvent store.SessionEvent) (channelspkg.DeliveryProjectionEvent, error) {
+func promptProjectionEventFromStoredEvent(storedEvent store.SessionEvent) (bridgepkg.DeliveryProjectionEvent, error) {
 	decoded, err := transcript.UnmarshalAgentEvent(storedEvent.Content)
 	if err != nil {
-		return channelspkg.DeliveryProjectionEvent{}, fmt.Errorf("extension: decode prompt seed event: %w", err)
+		return bridgepkg.DeliveryProjectionEvent{}, fmt.Errorf("extension: decode prompt seed event: %w", err)
 	}
 	if strings.TrimSpace(decoded.Type) == "" {
 		decoded.Type = strings.TrimSpace(storedEvent.Type)
@@ -1272,7 +1272,7 @@ func promptProjectionEventFromStoredEvent(storedEvent store.SessionEvent) (chann
 		decoded.Timestamp = storedEvent.Timestamp
 	}
 
-	return channelspkg.DeliveryProjectionEvent{
+	return bridgepkg.DeliveryProjectionEvent{
 		Type:        decoded.Type,
 		TurnID:      decoded.TurnID,
 		Timestamp:   decoded.Timestamp,

@@ -73,10 +73,10 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates(t *testing.T) {
 			method:   "sessions/list",
 		},
 		{
-			name:     "allows channel read method with matching grant",
-			actions:  []string{"channels/instances/get"},
-			security: []string{"channel.read"},
-			method:   "channels/instances/get",
+			name:     "allows bridge read method with matching grant",
+			actions:  []string{"bridges/instances/get"},
+			security: []string{"bridge.read"},
+			method:   "bridges/instances/get",
 		},
 		{
 			name:         "fails when action grant is missing",
@@ -109,12 +109,12 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates(t *testing.T) {
 			method:   "automation/jobs/create",
 		},
 		{
-			name:         "fails for channel write method without channel security grant",
-			actions:      []string{"channels/messages/ingest"},
-			security:     []string{"channel.read"},
-			method:       "channels/messages/ingest",
-			wantRequired: []string{"channel.write"},
-			wantGranted:  []string{"channel.read"},
+			name:         "fails for bridge write method without bridge security grant",
+			actions:      []string{"bridges/messages/ingest"},
+			security:     []string{"bridge.read"},
+			method:       "bridges/messages/ingest",
+			wantRequired: []string{"bridge.write"},
+			wantGranted:  []string{"bridge.read"},
 			wantErr:      true,
 		},
 	}

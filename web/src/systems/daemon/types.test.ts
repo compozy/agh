@@ -9,7 +9,7 @@ describe("daemon contract types", () => {
       uptime_seconds: number;
       active_sessions: number;
       active_agents: number;
-      channels: {
+      bridges: {
         total_instances: number;
         route_count: number;
         delivery_backlog: number;

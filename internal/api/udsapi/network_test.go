@@ -58,7 +58,7 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 				Protocol: network.ProtocolV0,
 				ID:       "msg-inbox",
 				Kind:     network.KindDirect,
-				Space:    "builders",
+				Channel:  "builders",
 				From:     "reviewer.sess-a",
 				TS:       1775823000,
 				Body:     json.RawMessage(`{"text":"review this","intent":"review"}`),
@@ -71,7 +71,7 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 	}
 	engine := newTestRouter(t, handlers)
 
-	sendResp := performRequest(t, engine, http.MethodPost, "/api/network/send", []byte(`{"session_id":"sess-a","space":"builders","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`))
+	sendResp := performRequest(t, engine, http.MethodPost, "/api/network/send", []byte(`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`))
 	if sendResp.Code != http.StatusOK {
 		t.Fatalf("send status = %d, want %d; body=%s", sendResp.Code, http.StatusOK, sendResp.Body.String())
 	}

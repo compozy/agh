@@ -89,8 +89,8 @@ type Observer struct {
 	logger                *slog.Logger
 	versionSource         VersionSource
 	sessions              map[string]observedSession
-	channelSource         ChannelSource
-	channelState          map[string]observedChannelState
+	bridgeSource          BridgeSource
+	bridgeState           map[string]observedBridgeState
 	hookCatalogSource     HookCatalogSource
 	openHookStore         HookStoreOpener
 }
@@ -194,7 +194,7 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 		logger:        slog.Default(),
 		versionSource: version.Current,
 		sessions:      make(map[string]observedSession),
-		channelState:  make(map[string]observedChannelState),
+		bridgeState:   make(map[string]observedBridgeState),
 	}
 
 	for _, opt := range opts {
@@ -220,8 +220,8 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	if observer.sessions == nil {
 		observer.sessions = make(map[string]observedSession)
 	}
-	if observer.channelState == nil {
-		observer.channelState = make(map[string]observedChannelState)
+	if observer.bridgeState == nil {
+		observer.bridgeState = make(map[string]observedBridgeState)
 	}
 	if observer.resolvePermissionMode == nil {
 		observer.resolvePermissionMode = defaultPermissionModeResolver(observer.homePaths, observer.workspaceResolver)
@@ -535,7 +535,7 @@ func sessionInfoFromSession(info *session.SessionInfo) store.SessionInfo {
 		Name:         info.Name,
 		AgentName:    info.AgentName,
 		WorkspaceID:  info.WorkspaceID,
-		Space:        info.Space,
+		Channel:      info.Channel,
 		SessionType:  string(info.Type),
 		State:        string(info.State),
 		ACPSessionID: stringPointer(info.ACPSessionID),

@@ -197,43 +197,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/channels": {
+  "/api/bridges": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** List persisted channel instances */
-    get: operations["listChannels"];
+    /** List persisted bridge instances */
+    get: operations["listBridges"];
     put?: never;
-    /** Create a channel instance */
-    post: operations["createChannel"];
+    /** Create a bridge instance */
+    post: operations["createBridge"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/channels/{id}": {
+  "/api/bridges/{id}": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** Get one channel instance */
-    get: operations["getChannel"];
+    /** Get one bridge instance */
+    get: operations["getBridge"];
     put?: never;
     post?: never;
     delete?: never;
     options?: never;
     head?: never;
-    /** Update mutable channel instance fields */
-    patch: operations["updateChannel"];
+    /** Update mutable bridge instance fields */
+    patch: operations["updateBridge"];
     trace?: never;
   };
-  "/api/channels/{id}/disable": {
+  "/api/bridges/{id}/disable": {
     parameters: {
       query?: never;
       header?: never;
@@ -242,15 +242,15 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Disable a channel instance */
-    post: operations["disableChannel"];
+    /** Disable a bridge instance */
+    post: operations["disableBridge"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/channels/{id}/enable": {
+  "/api/bridges/{id}/enable": {
     parameters: {
       query?: never;
       header?: never;
@@ -259,15 +259,15 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Enable a channel instance */
-    post: operations["enableChannel"];
+    /** Enable a bridge instance */
+    post: operations["enableBridge"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/channels/{id}/restart": {
+  "/api/bridges/{id}/restart": {
     parameters: {
       query?: never;
       header?: never;
@@ -276,23 +276,23 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Restart a channel instance */
-    post: operations["restartChannel"];
+    /** Restart a bridge instance */
+    post: operations["restartBridge"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/channels/{id}/routes": {
+  "/api/bridges/{id}/routes": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** List routes owned by a channel instance */
-    get: operations["listChannelRoutes"];
+    /** List routes owned by a bridge instance */
+    get: operations["listBridgeRoutes"];
     put?: never;
     post?: never;
     delete?: never;
@@ -301,7 +301,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/channels/{id}/test-delivery": {
+  "/api/bridges/{id}/test-delivery": {
     parameters: {
       query?: never;
       header?: never;
@@ -310,8 +310,8 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Resolve a typed outbound delivery target for a channel instance */
-    post: operations["testChannelDelivery"];
+    /** Resolve a typed outbound delivery target for a bridge instance */
+    post: operations["testBridgeDelivery"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2522,7 +2522,7 @@ export interface operations {
       };
     };
   };
-  listChannels: {
+  listBridges: {
     parameters: {
       query?: never;
       header?: never;
@@ -2538,10 +2538,10 @@ export interface operations {
         };
         content: {
           "application/json": {
-            channel_health?: {
+            bridge_health?: {
               [key: string]: {
                 auth_failures_total: number;
-                channel_instance_id: string;
+                bridge_instance_id: string;
                 delivery_backlog: number;
                 delivery_dropped_by_reason?: {
                   [key: string]: number;
@@ -2556,7 +2556,7 @@ export interface operations {
                 status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               };
             };
-            channels: {
+            bridges: {
               /** Format: date-time */
               created_at: string;
               delivery_defaults?: unknown;
@@ -2592,7 +2592,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel service is not configured */
+      /** @description Bridge service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -2611,7 +2611,7 @@ export interface operations {
       };
     };
   };
-  createChannel: {
+  createBridge: {
     parameters: {
       query?: never;
       header?: never;
@@ -2648,7 +2648,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            channel: {
+            bridge: {
               /** Format: date-time */
               created_at: string;
               delivery_defaults?: unknown;
@@ -2672,7 +2672,7 @@ export interface operations {
             };
             health: {
               auth_failures_total: number;
-              channel_instance_id: string;
+              bridge_instance_id: string;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;
@@ -2689,7 +2689,7 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid channel request */
+      /** @description Invalid bridge request */
       400: {
         headers: {
           [name: string]: unknown;
@@ -2722,7 +2722,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel service is not configured */
+      /** @description Bridge service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -2741,12 +2741,12 @@ export interface operations {
       };
     };
   };
-  getChannel: {
+  getBridge: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        /** @description Channel instance id */
+        /** @description Bridge instance id */
         id: string;
       };
       cookie?: never;
@@ -2760,7 +2760,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            channel: {
+            bridge: {
               /** Format: date-time */
               created_at: string;
               delivery_defaults?: unknown;
@@ -2784,7 +2784,7 @@ export interface operations {
             };
             health: {
               auth_failures_total: number;
-              channel_instance_id: string;
+              bridge_instance_id: string;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;
@@ -2801,7 +2801,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel instance not found */
+      /** @description Bridge instance not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -2823,7 +2823,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel service is not configured */
+      /** @description Bridge service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -2842,12 +2842,12 @@ export interface operations {
       };
     };
   };
-  updateChannel: {
+  updateBridge: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        /** @description Channel instance id */
+        /** @description Bridge instance id */
         id: string;
       };
       cookie?: never;
@@ -2874,7 +2874,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            channel: {
+            bridge: {
               /** Format: date-time */
               created_at: string;
               delivery_defaults?: unknown;
@@ -2898,7 +2898,7 @@ export interface operations {
             };
             health: {
               auth_failures_total: number;
-              channel_instance_id: string;
+              bridge_instance_id: string;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;
@@ -2915,7 +2915,7 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid channel update */
+      /** @description Invalid bridge update */
       400: {
         headers: {
           [name: string]: unknown;
@@ -2926,7 +2926,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel instance or workspace not found */
+      /** @description Bridge instance or workspace not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -2948,7 +2948,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel service is not configured */
+      /** @description Bridge service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -2967,12 +2967,12 @@ export interface operations {
       };
     };
   };
-  disableChannel: {
+  disableBridge: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        /** @description Channel instance id */
+        /** @description Bridge instance id */
         id: string;
       };
       cookie?: never;
@@ -2986,7 +2986,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            channel: {
+            bridge: {
               /** Format: date-time */
               created_at: string;
               delivery_defaults?: unknown;
@@ -3010,7 +3010,7 @@ export interface operations {
             };
             health: {
               auth_failures_total: number;
-              channel_instance_id: string;
+              bridge_instance_id: string;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;
@@ -3027,7 +3027,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel instance not found */
+      /** @description Bridge instance not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -3038,7 +3038,7 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid channel state transition */
+      /** @description Invalid bridge state transition */
       409: {
         headers: {
           [name: string]: unknown;
@@ -3060,7 +3060,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel service is not configured */
+      /** @description Bridge service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -3079,12 +3079,12 @@ export interface operations {
       };
     };
   };
-  enableChannel: {
+  enableBridge: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        /** @description Channel instance id */
+        /** @description Bridge instance id */
         id: string;
       };
       cookie?: never;
@@ -3098,7 +3098,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            channel: {
+            bridge: {
               /** Format: date-time */
               created_at: string;
               delivery_defaults?: unknown;
@@ -3122,7 +3122,7 @@ export interface operations {
             };
             health: {
               auth_failures_total: number;
-              channel_instance_id: string;
+              bridge_instance_id: string;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;
@@ -3139,7 +3139,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel instance not found */
+      /** @description Bridge instance not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -3150,7 +3150,7 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid channel state transition */
+      /** @description Invalid bridge state transition */
       409: {
         headers: {
           [name: string]: unknown;
@@ -3172,7 +3172,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel service is not configured */
+      /** @description Bridge service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -3191,12 +3191,12 @@ export interface operations {
       };
     };
   };
-  restartChannel: {
+  restartBridge: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        /** @description Channel instance id */
+        /** @description Bridge instance id */
         id: string;
       };
       cookie?: never;
@@ -3210,7 +3210,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            channel: {
+            bridge: {
               /** Format: date-time */
               created_at: string;
               delivery_defaults?: unknown;
@@ -3234,7 +3234,7 @@ export interface operations {
             };
             health: {
               auth_failures_total: number;
-              channel_instance_id: string;
+              bridge_instance_id: string;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;
@@ -3251,7 +3251,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel instance not found */
+      /** @description Bridge instance not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -3262,7 +3262,7 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid channel state transition */
+      /** @description Invalid bridge state transition */
       409: {
         headers: {
           [name: string]: unknown;
@@ -3284,7 +3284,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel service is not configured */
+      /** @description Bridge service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -3303,12 +3303,12 @@ export interface operations {
       };
     };
   };
-  listChannelRoutes: {
+  listBridgeRoutes: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        /** @description Channel instance id */
+        /** @description Bridge instance id */
         id: string;
       };
       cookie?: never;
@@ -3324,7 +3324,7 @@ export interface operations {
           "application/json": {
             routes: {
               agent_name: string;
-              channel_instance_id: string;
+              bridge_instance_id: string;
               /** Format: date-time */
               created_at: string;
               group_id?: string;
@@ -3343,7 +3343,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel instance not found */
+      /** @description Bridge instance not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -3365,7 +3365,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel service is not configured */
+      /** @description Bridge service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -3384,12 +3384,12 @@ export interface operations {
       };
     };
   };
-  testChannelDelivery: {
+  testBridgeDelivery: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        /** @description Channel instance id */
+        /** @description Bridge instance id */
         id: string;
       };
       cookie?: never;
@@ -3400,7 +3400,7 @@ export interface operations {
         "application/json": {
           message?: string;
           target: {
-            channel_instance_id?: string;
+            bridge_instance_id?: string;
             group_id?: string;
             /** @enum {string} */
             mode?: "direct-send" | "reply";
@@ -3419,7 +3419,7 @@ export interface operations {
         content: {
           "application/json": {
             delivery_target: {
-              channel_instance_id: string;
+              bridge_instance_id: string;
               group_id?: string;
               /** @enum {string} */
               mode?: "direct-send" | "reply";
@@ -3442,7 +3442,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel instance not found */
+      /** @description Bridge instance not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -3453,7 +3453,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel instance is unavailable */
+      /** @description Bridge instance is unavailable */
       409: {
         headers: {
           [name: string]: unknown;
@@ -3475,7 +3475,7 @@ export interface operations {
           };
         };
       };
-      /** @description Channel service is not configured */
+      /** @description Bridge service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -3515,6 +3515,7 @@ export interface operations {
               http_host: string;
               http_port: number;
               network?: {
+                channels?: number;
                 delivery_workers?: number;
                 enabled: boolean;
                 /** Format: int64 */
@@ -3545,7 +3546,6 @@ export interface operations {
                 queued_messages?: number;
                 queued_sessions?: number;
                 remote_peers?: number;
-                spaces?: number;
                 status: string;
                 /** Format: int64 */
                 workflow_tagged_events?: number;
@@ -4755,7 +4755,7 @@ export interface operations {
             health: {
               active_agents: number;
               active_sessions: number;
-              channels: {
+              bridges: {
                 auth_failures_total: number;
                 delivery_backlog: number;
                 delivery_dropped_total: number;
@@ -4836,11 +4836,11 @@ export interface operations {
               } | null;
               acp_session_id?: string;
               agent_name: string;
+              channel?: string;
               /** Format: date-time */
               created_at: string;
               id: string;
               name?: string;
-              space?: string;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -4906,8 +4906,8 @@ export interface operations {
       content: {
         "application/json": {
           agent_name?: string;
+          channel?: string;
           name?: string;
-          space?: string;
           workspace?: string;
           workspace_path?: string;
         };
@@ -4929,11 +4929,11 @@ export interface operations {
               } | null;
               acp_session_id?: string;
               agent_name: string;
+              channel?: string;
               /** Format: date-time */
               created_at: string;
               id: string;
               name?: string;
-              space?: string;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -5036,11 +5036,11 @@ export interface operations {
               } | null;
               acp_session_id?: string;
               agent_name: string;
+              channel?: string;
               /** Format: date-time */
               created_at: string;
               id: string;
               name?: string;
-              space?: string;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -5426,11 +5426,11 @@ export interface operations {
               } | null;
               acp_session_id?: string;
               agent_name: string;
+              channel?: string;
               /** Format: date-time */
               created_at: string;
               id: string;
               name?: string;
-              space?: string;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -6460,11 +6460,11 @@ export interface operations {
               } | null;
               acp_session_id?: string;
               agent_name: string;
+              channel?: string;
               /** Format: date-time */
               created_at: string;
               id: string;
               name?: string;
-              space?: string;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;

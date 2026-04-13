@@ -16,7 +16,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/sse"
 )
@@ -31,7 +31,7 @@ type DaemonClient interface {
 	DaemonStatus(ctx context.Context) (DaemonStatus, error)
 	NetworkStatus(ctx context.Context) (NetworkStatusRecord, error)
 	NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error)
-	NetworkSpaces(ctx context.Context) ([]NetworkSpaceRecord, error)
+	NetworkChannels(ctx context.Context) ([]NetworkChannelRecord, error)
 	NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error)
 	NetworkInbox(ctx context.Context, sessionID string) ([]NetworkEnvelopeRecord, error)
 	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
@@ -39,15 +39,15 @@ type DaemonClient interface {
 	EnableExtension(ctx context.Context, name string) (ExtensionRecord, error)
 	DisableExtension(ctx context.Context, name string) (ExtensionRecord, error)
 	ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error)
-	ListChannels(ctx context.Context) ([]ChannelRecord, error)
-	CreateChannel(ctx context.Context, request CreateChannelRequest) (ChannelRecord, error)
-	GetChannel(ctx context.Context, id string) (ChannelRecord, error)
-	UpdateChannel(ctx context.Context, id string, request UpdateChannelRequest) (ChannelRecord, error)
-	EnableChannel(ctx context.Context, id string) (ChannelRecord, error)
-	DisableChannel(ctx context.Context, id string) (ChannelRecord, error)
-	RestartChannel(ctx context.Context, id string) (ChannelRecord, error)
-	ChannelRoutes(ctx context.Context, id string) ([]ChannelRouteRecord, error)
-	TestChannelDelivery(ctx context.Context, id string, request ChannelTestDeliveryRequest) (ChannelTestDeliveryRecord, error)
+	ListBridges(ctx context.Context) ([]BridgeRecord, error)
+	CreateBridge(ctx context.Context, request CreateBridgeRequest) (BridgeRecord, error)
+	GetBridge(ctx context.Context, id string) (BridgeRecord, error)
+	UpdateBridge(ctx context.Context, id string, request UpdateBridgeRequest) (BridgeRecord, error)
+	EnableBridge(ctx context.Context, id string) (BridgeRecord, error)
+	DisableBridge(ctx context.Context, id string) (BridgeRecord, error)
+	RestartBridge(ctx context.Context, id string) (BridgeRecord, error)
+	BridgeRoutes(ctx context.Context, id string) ([]BridgeRouteRecord, error)
+	TestBridgeDelivery(ctx context.Context, id string, request BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error)
 	ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error)
 	CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error)
 	GetSession(ctx context.Context, id string) (SessionRecord, error)
@@ -248,15 +248,15 @@ type NetworkPeerRecord = contract.NetworkPeerPayload
 // NetworkPeerCardRecord is the shared peer-card payload nested under peers.
 type NetworkPeerCardRecord = contract.NetworkPeerCardPayload
 
-// NetworkSpaceRecord is the shared active-space payload.
-type NetworkSpaceRecord = contract.NetworkSpacePayload
+// NetworkChannelRecord is the shared active-channel payload.
+type NetworkChannelRecord = contract.NetworkChannelPayload
 
 // NetworkEnvelopeRecord is the shared surfaced envelope payload.
 type NetworkEnvelopeRecord = contract.NetworkEnvelopePayload
 
 // NetworkPeersQuery captures CLI filters for peer listing.
 type NetworkPeersQuery struct {
-	Space string
+	Channel string
 }
 
 // InstallExtensionRequest captures the shared extension install payload.
@@ -265,29 +265,29 @@ type InstallExtensionRequest = contract.InstallExtensionRequest
 // ExtensionRecord is the shared extension response payload.
 type ExtensionRecord = contract.ExtensionPayload
 
-// CreateChannelRequest captures the shared channel-instance creation payload.
-type CreateChannelRequest = contract.CreateChannelRequest
+// CreateBridgeRequest captures the shared bridge-instance creation payload.
+type CreateBridgeRequest = contract.CreateBridgeRequest
 
-// UpdateChannelRequest captures mutable channel-instance fields.
-type UpdateChannelRequest = contract.UpdateChannelRequest
+// UpdateBridgeRequest captures mutable bridge-instance fields.
+type UpdateBridgeRequest = contract.UpdateBridgeRequest
 
-// ChannelTestDeliveryRequest captures the typed channel delivery-target dry-run request.
-type ChannelTestDeliveryRequest = contract.ChannelTestDeliveryRequest
+// BridgeTestDeliveryRequest captures the typed bridge delivery-target dry-run request.
+type BridgeTestDeliveryRequest = contract.BridgeTestDeliveryRequest
 
-// ChannelDeliveryTargetInput captures the typed channel delivery-target override input.
-type ChannelDeliveryTargetInput = contract.ChannelDeliveryTargetInput
+// BridgeDeliveryTargetInput captures the typed bridge delivery-target override input.
+type BridgeDeliveryTargetInput = contract.BridgeDeliveryTargetInput
 
-// ChannelRecord is the shared channel-instance response payload.
-type ChannelRecord = channelspkg.ChannelInstance
+// BridgeRecord is the shared bridge-instance response payload.
+type BridgeRecord = bridgepkg.BridgeInstance
 
-// ChannelRouteRecord is one persisted channel route returned by the daemon API.
-type ChannelRouteRecord = channelspkg.ChannelRoute
+// BridgeRouteRecord is one persisted bridge route returned by the daemon API.
+type BridgeRouteRecord = bridgepkg.BridgeRoute
 
 // DeliveryTargetRecord is the resolved typed outbound target returned by the daemon API.
-type DeliveryTargetRecord = channelspkg.DeliveryTarget
+type DeliveryTargetRecord = bridgepkg.DeliveryTarget
 
-// ChannelTestDeliveryRecord is the shared dry-run channel delivery response payload.
-type ChannelTestDeliveryRecord = contract.ChannelTestDeliveryResponse
+// BridgeTestDeliveryRecord is the shared dry-run bridge delivery response payload.
+type BridgeTestDeliveryRecord = contract.BridgeTestDeliveryResponse
 
 // IdentityRecord is the local agent identity exposed by `agh whoami`.
 type IdentityRecord struct {
@@ -357,14 +357,14 @@ func (c *unixSocketClient) NetworkPeers(ctx context.Context, query NetworkPeersQ
 	return response.Peers, nil
 }
 
-func (c *unixSocketClient) NetworkSpaces(ctx context.Context) ([]NetworkSpaceRecord, error) {
+func (c *unixSocketClient) NetworkChannels(ctx context.Context) ([]NetworkChannelRecord, error) {
 	var response struct {
-		Spaces []NetworkSpaceRecord `json:"spaces"`
+		Channels []NetworkChannelRecord `json:"channels"`
 	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/network/spaces", nil, nil, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, "/api/network/channels", nil, nil, &response); err != nil {
 		return nil, err
 	}
-	return response.Spaces, nil
+	return response.Channels, nil
 }
 
 func (c *unixSocketClient) NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
@@ -425,76 +425,76 @@ func (c *unixSocketClient) ExtensionStatus(ctx context.Context, name string) (Ex
 	return response.Extension, nil
 }
 
-func (c *unixSocketClient) ListChannels(ctx context.Context) ([]ChannelRecord, error) {
+func (c *unixSocketClient) ListBridges(ctx context.Context) ([]BridgeRecord, error) {
 	var response struct {
-		Channels []ChannelRecord `json:"channels"`
+		Bridges []BridgeRecord `json:"bridges"`
 	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/channels", nil, nil, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, "/api/bridges", nil, nil, &response); err != nil {
 		return nil, err
 	}
-	return response.Channels, nil
+	return response.Bridges, nil
 }
 
-func (c *unixSocketClient) CreateChannel(ctx context.Context, request CreateChannelRequest) (ChannelRecord, error) {
+func (c *unixSocketClient) CreateBridge(ctx context.Context, request CreateBridgeRequest) (BridgeRecord, error) {
 	var response struct {
-		Channel ChannelRecord `json:"channel"`
+		Bridge BridgeRecord `json:"bridge"`
 	}
-	if err := c.doJSON(ctx, http.MethodPost, "/api/channels", nil, request, &response); err != nil {
-		return ChannelRecord{}, err
+	if err := c.doJSON(ctx, http.MethodPost, "/api/bridges", nil, request, &response); err != nil {
+		return BridgeRecord{}, err
 	}
-	return response.Channel, nil
+	return response.Bridge, nil
 }
 
-func (c *unixSocketClient) GetChannel(ctx context.Context, id string) (ChannelRecord, error) {
+func (c *unixSocketClient) GetBridge(ctx context.Context, id string) (BridgeRecord, error) {
 	var response struct {
-		Channel ChannelRecord `json:"channel"`
+		Bridge BridgeRecord `json:"bridge"`
 	}
-	path := "/api/channels/" + url.PathEscape(strings.TrimSpace(id))
+	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
-		return ChannelRecord{}, err
+		return BridgeRecord{}, err
 	}
-	return response.Channel, nil
+	return response.Bridge, nil
 }
 
-func (c *unixSocketClient) UpdateChannel(ctx context.Context, id string, request UpdateChannelRequest) (ChannelRecord, error) {
+func (c *unixSocketClient) UpdateBridge(ctx context.Context, id string, request UpdateBridgeRequest) (BridgeRecord, error) {
 	var response struct {
-		Channel ChannelRecord `json:"channel"`
+		Bridge BridgeRecord `json:"bridge"`
 	}
-	path := "/api/channels/" + url.PathEscape(strings.TrimSpace(id))
+	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
-		return ChannelRecord{}, err
+		return BridgeRecord{}, err
 	}
-	return response.Channel, nil
+	return response.Bridge, nil
 }
 
-func (c *unixSocketClient) EnableChannel(ctx context.Context, id string) (ChannelRecord, error) {
-	return c.channelAction(ctx, strings.TrimSpace(id), "enable")
+func (c *unixSocketClient) EnableBridge(ctx context.Context, id string) (BridgeRecord, error) {
+	return c.bridgeAction(ctx, strings.TrimSpace(id), "enable")
 }
 
-func (c *unixSocketClient) DisableChannel(ctx context.Context, id string) (ChannelRecord, error) {
-	return c.channelAction(ctx, strings.TrimSpace(id), "disable")
+func (c *unixSocketClient) DisableBridge(ctx context.Context, id string) (BridgeRecord, error) {
+	return c.bridgeAction(ctx, strings.TrimSpace(id), "disable")
 }
 
-func (c *unixSocketClient) RestartChannel(ctx context.Context, id string) (ChannelRecord, error) {
-	return c.channelAction(ctx, strings.TrimSpace(id), "restart")
+func (c *unixSocketClient) RestartBridge(ctx context.Context, id string) (BridgeRecord, error) {
+	return c.bridgeAction(ctx, strings.TrimSpace(id), "restart")
 }
 
-func (c *unixSocketClient) ChannelRoutes(ctx context.Context, id string) ([]ChannelRouteRecord, error) {
+func (c *unixSocketClient) BridgeRoutes(ctx context.Context, id string) ([]BridgeRouteRecord, error) {
 	var response struct {
-		Routes []ChannelRouteRecord `json:"routes"`
+		Routes []BridgeRouteRecord `json:"routes"`
 	}
-	path := "/api/channels/" + url.PathEscape(strings.TrimSpace(id)) + "/routes"
+	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id)) + "/routes"
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Routes, nil
 }
 
-func (c *unixSocketClient) TestChannelDelivery(ctx context.Context, id string, request ChannelTestDeliveryRequest) (ChannelTestDeliveryRecord, error) {
-	var response ChannelTestDeliveryRecord
-	path := "/api/channels/" + url.PathEscape(strings.TrimSpace(id)) + "/test-delivery"
+func (c *unixSocketClient) TestBridgeDelivery(ctx context.Context, id string, request BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error) {
+	var response BridgeTestDeliveryRecord
+	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id)) + "/test-delivery"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
-		return ChannelTestDeliveryRecord{}, err
+		return BridgeTestDeliveryRecord{}, err
 	}
 	return response, nil
 }
@@ -881,15 +881,15 @@ func (c *unixSocketClient) extensionAction(ctx context.Context, name string, act
 	return response.Extension, nil
 }
 
-func (c *unixSocketClient) channelAction(ctx context.Context, id string, action string) (ChannelRecord, error) {
+func (c *unixSocketClient) bridgeAction(ctx context.Context, id string, action string) (BridgeRecord, error) {
 	var response struct {
-		Channel ChannelRecord `json:"channel"`
+		Bridge BridgeRecord `json:"bridge"`
 	}
-	path := "/api/channels/" + url.PathEscape(id) + "/" + action
+	path := "/api/bridges/" + url.PathEscape(id) + "/" + action
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
-		return ChannelRecord{}, err
+		return BridgeRecord{}, err
 	}
-	return response.Channel, nil
+	return response.Bridge, nil
 }
 
 func (c *unixSocketClient) doJSON(ctx context.Context, method string, path string, query url.Values, requestBody any, responseBody any) error {
@@ -986,8 +986,8 @@ func sessionListValues(query SessionListQuery) url.Values {
 
 func networkPeersValues(query NetworkPeersQuery) url.Values {
 	values := url.Values{}
-	if trimmed := strings.TrimSpace(query.Space); trimmed != "" {
-		values.Set("space", trimmed)
+	if trimmed := strings.TrimSpace(query.Channel); trimmed != "" {
+		values.Set("channel", trimmed)
 	}
 	return values
 }

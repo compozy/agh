@@ -19,7 +19,7 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/pedronauck/agh/internal/acp"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -480,8 +480,8 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 	if lifecycle == nil {
 		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
 	}
-	if err := lifecycle.JoinSpace(testutil.Context(t), "sess-net", "coder.sess-net", "builders"); err != nil {
-		t.Fatalf("JoinSpace() error = %v", err)
+	if err := lifecycle.JoinChannel(testutil.Context(t), "sess-net", "coder.sess-net", "builders"); err != nil {
+		t.Fatalf("JoinChannel() error = %v", err)
 	}
 
 	body, err := json.Marshal(map[string]any{"text": "hello from network"})
@@ -490,7 +490,7 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 	}
 	if _, err := d.network.Send(testutil.Context(t), network.SendRequest{
 		SessionID: "sess-net",
-		Space:     "builders",
+		Channel:   "builders",
 		Kind:      network.KindSay,
 		Body:      body,
 	}); err != nil {
@@ -510,8 +510,8 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("network.Status() error = %v", err)
 	}
-	if status.LocalPeers != 1 || status.Spaces != 1 {
-		t.Fatalf("network.Status() = %#v, want 1 local peer and 1 space", status)
+	if status.LocalPeers != 1 || status.Channels != 1 {
+		t.Fatalf("network.Status() = %#v, want 1 local peer and 1 channel", status)
 	}
 
 	if err := d.Shutdown(testutil.Context(t)); err != nil {
@@ -576,8 +576,8 @@ func TestBootNetworkShutdownTracksInterruptedInFlightDelivery(t *testing.T) {
 	if lifecycle == nil {
 		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
 	}
-	if err := lifecycle.JoinSpace(testutil.Context(t), "sess-net", "coder.sess-net", "builders"); err != nil {
-		t.Fatalf("JoinSpace() error = %v", err)
+	if err := lifecycle.JoinChannel(testutil.Context(t), "sess-net", "coder.sess-net", "builders"); err != nil {
+		t.Fatalf("JoinChannel() error = %v", err)
 	}
 
 	body, err := json.Marshal(map[string]any{"text": "shutdown during delivery"})
@@ -586,7 +586,7 @@ func TestBootNetworkShutdownTracksInterruptedInFlightDelivery(t *testing.T) {
 	}
 	if _, err := d.network.Send(testutil.Context(t), network.SendRequest{
 		SessionID: "sess-net",
-		Space:     "builders",
+		Channel:   "builders",
 		Kind:      network.KindSay,
 		Body:      body,
 	}); err != nil {
@@ -851,7 +851,7 @@ func TestRunGracefulShutdownViaSignal(t *testing.T) {
 		WithHomePaths(homePaths),
 		WithConfig(cfg),
 		WithLogger(discardLogger()),
-		WithSignalChannel(signalCh),
+		WithSignalBridge(signalCh),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -1383,53 +1383,53 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	}
 }
 
-func TestBootStartsChannelExtensionWithBoundRuntime(t *testing.T) {
+func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 
-	markerPath := filepath.Join(t.TempDir(), "channel-init.jsonl")
-	extensionName := "ext-channel-daemon"
-	instanceID := "chan-daemon-init"
+	markerPath := filepath.Join(t.TempDir(), "bridge-init.jsonl")
+	extensionName := "ext-bridge-daemon"
+	instanceID := "brg-daemon-init"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
 		runtimeCommand: daemonExtensionHelperCommand(t),
 		runtimeArgs:    daemonExtensionHelperArgs(),
 		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
-		capabilities:   []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		actions: []string{
-			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"channel.read", "channel.write"},
+		security: []string{"bridge.read", "bridge.write"},
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
-	channelRegistry := channelspkg.NewRegistry(registry)
-	instance, err := channelRegistry.CreateInstance(testutil.Context(t), channelspkg.CreateInstanceRequest{
+	bridgeRegistry := bridgepkg.NewRegistry(registry)
+	instance, err := bridgeRegistry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
 		ID:            instanceID,
-		Scope:         channelspkg.ScopeGlobal,
+		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
 		ExtensionName: extensionName,
-		DisplayName:   "Daemon Channel",
+		DisplayName:   "Daemon Bridge",
 		Enabled:       true,
-		Status:        channelspkg.ChannelStatusReady,
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+		Status:        bridgepkg.BridgeStatusReady,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	if err != nil {
 		t.Fatalf("CreateInstance() error = %v", err)
 	}
-	if err := registry.PutChannelSecretBinding(testutil.Context(t), channelspkg.ChannelSecretBinding{
-		ChannelInstanceID: instance.ID,
-		BindingName:       "bot_token",
-		VaultRef:          "vault://channels/ext-channel-daemon/bot-token",
-		Kind:              "bot_token",
-		CreatedAt:         time.Date(2026, 4, 11, 13, 30, 0, 0, time.UTC),
-		UpdatedAt:         time.Date(2026, 4, 11, 13, 30, 0, 0, time.UTC),
+	if err := registry.PutBridgeSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
+		BridgeInstanceID: instance.ID,
+		BindingName:      "bot_token",
+		VaultRef:         "vault://bridges/ext-bridge-daemon/bot-token",
+		Kind:             "bot_token",
+		CreatedAt:        time.Date(2026, 4, 11, 13, 30, 0, 0, time.UTC),
+		UpdatedAt:        time.Date(2026, 4, 11, 13, 30, 0, 0, time.UTC),
 	}); err != nil {
-		t.Fatalf("PutChannelSecretBinding() error = %v", err)
+		t.Fatalf("PutBridgeSecretBinding() error = %v", err)
 	}
 
-	resolver := &recordingChannelSecretResolver{
+	resolver := &recordingBridgeSecretResolver{
 		values: map[string]string{
 			"bot_token": "token-daemon",
 		},
@@ -1439,7 +1439,7 @@ func TestBootStartsChannelExtensionWithBoundRuntime(t *testing.T) {
 		WithHomePaths(homePaths),
 		WithConfig(cfg),
 		WithLogger(discardLogger()),
-		WithChannelSecretResolver(resolver),
+		WithBridgeSecretResolver(resolver),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -1453,54 +1453,54 @@ func TestBootStartsChannelExtensionWithBoundRuntime(t *testing.T) {
 		}
 	})
 
-	if d.channels == nil {
-		t.Fatal("boot() did not publish the channel runtime")
+	if d.bridges == nil {
+		t.Fatal("boot() did not publish the bridge runtime")
 	}
 
-	waitForCondition(t, "channel initialize marker", func() bool {
+	waitForCondition(t, "bridge initialize marker", func() bool {
 		return markerLineCount(markerPath) >= 1
 	})
 
 	markers := readDaemonInitializeMarkers(t, markerPath)
 	if len(markers) == 0 {
-		t.Fatal("initialize markers = empty, want channel launch handshake")
+		t.Fatal("initialize markers = empty, want bridge launch handshake")
 	}
 	request := markers[0].Request
-	if len(request.Methods.ExtensionServices) != 1 || request.Methods.ExtensionServices[0] != "channels/deliver" {
-		t.Fatalf("initialize extension services = %#v, want [channels/deliver]", request.Methods.ExtensionServices)
+	if len(request.Methods.ExtensionServices) != 1 || request.Methods.ExtensionServices[0] != "bridges/deliver" {
+		t.Fatalf("initialize extension services = %#v, want [bridges/deliver]", request.Methods.ExtensionServices)
 	}
-	if request.Runtime.Channel == nil {
-		t.Fatal("initialize runtime channel = nil, want bound launch payload")
+	if request.Runtime.Bridge == nil {
+		t.Fatal("initialize runtime bridge = nil, want bound launch payload")
 	}
-	if got, want := request.Runtime.Channel.Instance.ID, instanceID; got != want {
-		t.Fatalf("initialize runtime channel instance id = %q, want %q", got, want)
+	if got, want := request.Runtime.Bridge.Instance.ID, instanceID; got != want {
+		t.Fatalf("initialize runtime bridge instance id = %q, want %q", got, want)
 	}
-	if got := request.Runtime.Channel.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-daemon" {
-		t.Fatalf("initialize runtime channel bound secrets = %#v, want resolved bot_token binding", got)
+	if got := request.Runtime.Bridge.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-daemon" {
+		t.Fatalf("initialize runtime bridge bound secrets = %#v, want resolved bot_token binding", got)
 	}
-	if len(resolver.calls) != 1 || resolver.calls[0].ChannelInstanceID != instanceID {
-		t.Fatalf("ResolveChannelSecret() calls = %#v, want one call for %q", resolver.calls, instanceID)
+	if len(resolver.calls) != 1 || resolver.calls[0].BridgeInstanceID != instanceID {
+		t.Fatalf("ResolveBridgeSecret() calls = %#v, want one call for %q", resolver.calls, instanceID)
 	}
 }
 
-func TestCreateEnabledChannelAfterBootReloadsErroredExtension(t *testing.T) {
+func TestCreateEnabledBridgeAfterBootReloadsErroredExtension(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 
-	markerPath := filepath.Join(t.TempDir(), "channel-create.jsonl")
-	extensionName := "ext-channel-create"
-	instanceID := "chan-daemon-create"
+	markerPath := filepath.Join(t.TempDir(), "bridge-create.jsonl")
+	extensionName := "ext-bridge-create"
+	instanceID := "brg-daemon-create"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
 		runtimeCommand: daemonExtensionHelperCommand(t),
 		runtimeArgs:    daemonExtensionHelperArgs(),
 		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
-		capabilities:   []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		actions: []string{
-			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"channel.read", "channel.write"},
+		security: []string{"bridge.read", "bridge.write"},
 	}, true)
 
 	d, err := New(
@@ -1520,11 +1520,11 @@ func TestCreateEnabledChannelAfterBootReloadsErroredExtension(t *testing.T) {
 		}
 	})
 
-	if d.channels == nil {
-		t.Fatal("boot() did not publish the channel runtime")
+	if d.bridges == nil {
+		t.Fatal("boot() did not publish the bridge runtime")
 	}
 
-	waitForCondition(t, "channel extension stays registered until an instance exists", func() bool {
+	waitForCondition(t, "bridge extension stays registered until an instance exists", func() bool {
 		ext, err := d.extensions.Get(extensionName)
 		return err == nil && ext != nil && ext.Status.Registered && !ext.Status.Active && ext.Status.LastError == ""
 	})
@@ -1532,15 +1532,15 @@ func TestCreateEnabledChannelAfterBootReloadsErroredExtension(t *testing.T) {
 		t.Fatalf("initialize marker count before create = %d, want 0", got)
 	}
 
-	created, err := d.channels.CreateInstance(testutil.Context(t), channelspkg.CreateInstanceRequest{
+	created, err := d.bridges.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
 		ID:            instanceID,
-		Scope:         channelspkg.ScopeGlobal,
+		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
 		ExtensionName: extensionName,
-		DisplayName:   "Create Channel",
+		DisplayName:   "Create Bridge",
 		Enabled:       true,
-		Status:        channelspkg.ChannelStatusStarting,
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+		Status:        bridgepkg.BridgeStatusStarting,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	if err != nil {
 		t.Fatalf("CreateInstance() error = %v", err)
@@ -1549,54 +1549,54 @@ func TestCreateEnabledChannelAfterBootReloadsErroredExtension(t *testing.T) {
 		t.Fatal("CreateInstance() = nil, want non-nil")
 	}
 
-	waitForCondition(t, "channel initialize marker after create", func() bool {
+	waitForCondition(t, "bridge initialize marker after create", func() bool {
 		return markerLineCount(markerPath) >= 1
 	})
 	markers := readDaemonInitializeMarkers(t, markerPath)
 	if len(markers) == 0 {
 		t.Fatal("initialize markers after create = empty, want launch handshake")
 	}
-	if got, want := markers[len(markers)-1].Request.Runtime.Channel.Instance.ID, instanceID; got != want {
-		t.Fatalf("initialize runtime channel instance id after create = %q, want %q", got, want)
+	if got, want := markers[len(markers)-1].Request.Runtime.Bridge.Instance.ID, instanceID; got != want {
+		t.Fatalf("initialize runtime bridge instance id after create = %q, want %q", got, want)
 	}
 
-	waitForCondition(t, "channel extension recovers after create", func() bool {
+	waitForCondition(t, "bridge extension recovers after create", func() bool {
 		ext, err := d.extensions.Get(extensionName)
 		return err == nil && ext != nil && ext.Status.Active
 	})
 }
 
-func TestChannelRuntimeRestartPreservesRouteContinuity(t *testing.T) {
+func TestBridgeRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 
-	markerPath := filepath.Join(t.TempDir(), "channel-restart.jsonl")
-	extensionName := "ext-channel-restart"
-	instanceID := "chan-daemon-restart"
+	markerPath := filepath.Join(t.TempDir(), "bridge-restart.jsonl")
+	extensionName := "ext-bridge-restart"
+	instanceID := "brg-daemon-restart"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
 		runtimeCommand: daemonExtensionHelperCommand(t),
 		runtimeArgs:    daemonExtensionHelperArgs(),
 		runtimeEnv:     daemonExtensionHelperScenarioEnv("exit_once_record_deliveries", markerPath),
-		capabilities:   []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		actions: []string{
-			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"channel.read", "channel.write"},
+		security: []string{"bridge.read", "bridge.write"},
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
-	channelRegistry := channelspkg.NewRegistry(registry)
-	if _, err := channelRegistry.CreateInstance(testutil.Context(t), channelspkg.CreateInstanceRequest{
+	bridgeRegistry := bridgepkg.NewRegistry(registry)
+	if _, err := bridgeRegistry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
 		ID:            instanceID,
-		Scope:         channelspkg.ScopeGlobal,
+		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
 		ExtensionName: extensionName,
-		DisplayName:   "Restart Channel",
+		DisplayName:   "Restart Bridge",
 		Enabled:       true,
-		Status:        channelspkg.ChannelStatusReady,
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+		Status:        bridgepkg.BridgeStatusReady,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	}); err != nil {
 		t.Fatalf("CreateInstance() error = %v", err)
 	}
@@ -1617,28 +1617,28 @@ func TestChannelRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
-	if d.channels == nil {
-		t.Fatal("boot() did not publish the channel runtime")
+	if d.bridges == nil {
+		t.Fatal("boot() did not publish the bridge runtime")
 	}
 
-	route, err := d.channels.UpsertRoute(testutil.Context(t), channelspkg.ChannelRoute{
-		Scope:             channelspkg.ScopeGlobal,
-		ChannelInstanceID: instanceID,
-		PeerID:            "peer-restart",
-		SessionID:         "sess-restart",
-		AgentName:         "coder",
-		LastActivityAt:    time.Date(2026, 4, 11, 13, 45, 0, 0, time.UTC),
+	route, err := d.bridges.UpsertRoute(testutil.Context(t), bridgepkg.BridgeRoute{
+		Scope:            bridgepkg.ScopeGlobal,
+		BridgeInstanceID: instanceID,
+		PeerID:           "peer-restart",
+		SessionID:        "sess-restart",
+		AgentName:        "coder",
+		LastActivityAt:   time.Date(2026, 4, 11, 13, 45, 0, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("UpsertRoute() error = %v", err)
 	}
 
-	target := channelspkg.DeliveryTarget{
-		ChannelInstanceID: instanceID,
-		PeerID:            "peer-restart",
-		Mode:              channelspkg.DeliveryModeDirectSend,
+	target := bridgepkg.DeliveryTarget{
+		BridgeInstanceID: instanceID,
+		PeerID:           "peer-restart",
+		Mode:             bridgepkg.DeliveryModeDirectSend,
 	}
-	if _, err := d.channels.Broker().RegisterPromptDelivery(testutil.Context(t), channelspkg.PromptDeliveryRegistration{
+	if _, err := d.bridges.Broker().RegisterPromptDelivery(testutil.Context(t), bridgepkg.PromptDeliveryRegistration{
 		SessionID:      "sess-restart",
 		TurnID:         "turn-restart",
 		ExtensionName:  extensionName,
@@ -1648,31 +1648,31 @@ func TestChannelRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("RegisterPromptDelivery() error = %v", err)
 	}
-	if err := d.channels.Broker().Deliver(testutil.Context(t), channelspkg.DeliveryEvent{
-		DeliveryID:        "del-restart",
-		ChannelInstanceID: instanceID,
-		RoutingKey:        route.RoutingKey(),
-		DeliveryTarget:    target,
-		Seq:               1,
-		EventType:         channelspkg.DeliveryEventTypeStart,
-		Content:           channelspkg.MessageContent{Text: "hello"},
+	if err := d.bridges.Broker().Deliver(testutil.Context(t), bridgepkg.DeliveryEvent{
+		DeliveryID:       "del-restart",
+		BridgeInstanceID: instanceID,
+		RoutingKey:       route.RoutingKey(),
+		DeliveryTarget:   target,
+		Seq:              1,
+		EventType:        bridgepkg.DeliveryEventTypeStart,
+		Content:          bridgepkg.MessageContent{Text: "hello"},
 	}); err != nil {
 		t.Fatalf("Deliver(start) error = %v", err)
 	}
-	if err := d.channels.Broker().Deliver(testutil.Context(t), channelspkg.DeliveryEvent{
-		DeliveryID:        "del-restart",
-		ChannelInstanceID: instanceID,
-		RoutingKey:        route.RoutingKey(),
-		DeliveryTarget:    target,
-		Seq:               2,
-		EventType:         channelspkg.DeliveryEventTypeFinal,
-		Content:           channelspkg.MessageContent{Text: "hello"},
-		Final:             true,
+	if err := d.bridges.Broker().Deliver(testutil.Context(t), bridgepkg.DeliveryEvent{
+		DeliveryID:       "del-restart",
+		BridgeInstanceID: instanceID,
+		RoutingKey:       route.RoutingKey(),
+		DeliveryTarget:   target,
+		Seq:              2,
+		EventType:        bridgepkg.DeliveryEventTypeFinal,
+		Content:          bridgepkg.MessageContent{Text: "hello"},
+		Final:            true,
 	}); err != nil {
 		t.Fatalf("Deliver(final) error = %v", err)
 	}
 
-	waitForCondition(t, "channel delivery resume marker", func() bool {
+	waitForCondition(t, "bridge delivery resume marker", func() bool {
 		payload, err := os.ReadFile(markerPath)
 		return err == nil && strings.Contains(string(payload), `"event_type":"resume"`)
 	})
@@ -1681,13 +1681,13 @@ func TestChannelRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 	if len(markers) < 2 {
 		t.Fatalf("delivery markers = %d, want at least start + resume", len(markers))
 	}
-	if got := markers[0].Request.Event.EventType; got != channelspkg.DeliveryEventTypeStart {
+	if got := markers[0].Request.Event.EventType; got != bridgepkg.DeliveryEventTypeStart {
 		t.Fatalf("first delivery event = %q, want start", got)
 	}
 
 	resumeIndex := -1
 	for idx, marker := range markers {
-		if marker.Request.Event.EventType == channelspkg.DeliveryEventTypeResume {
+		if marker.Request.Event.EventType == bridgepkg.DeliveryEventTypeResume {
 			resumeIndex = idx
 			break
 		}
@@ -1705,7 +1705,7 @@ func TestChannelRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 		t.Fatalf("resume snapshot delivery id = %q, want %q", got, want)
 	}
 
-	resolved, err := d.channels.ResolveRoute(testutil.Context(t), route.RoutingKey())
+	resolved, err := d.bridges.ResolveRoute(testutil.Context(t), route.RoutingKey())
 	if err != nil {
 		t.Fatalf("ResolveRoute(after restart) error = %v", err)
 	}
@@ -1714,37 +1714,37 @@ func TestChannelRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 	}
 }
 
-func TestDaemonShutdownClosesChannelRuntimeCleanly(t *testing.T) {
+func TestDaemonShutdownClosesBridgeRuntimeCleanly(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 
-	markerPath := filepath.Join(t.TempDir(), "channel-shutdown.txt")
-	extensionName := "ext-channel-shutdown"
-	instanceID := "chan-daemon-shutdown"
+	markerPath := filepath.Join(t.TempDir(), "bridge-shutdown.txt")
+	extensionName := "ext-bridge-shutdown"
+	instanceID := "brg-daemon-shutdown"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
 		runtimeCommand: daemonExtensionHelperCommand(t),
 		runtimeArgs:    daemonExtensionHelperArgs(),
 		runtimeEnv:     daemonExtensionHelperScenarioEnv("slow_record_deliveries", markerPath),
-		capabilities:   []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		actions: []string{
-			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"channel.read", "channel.write"},
+		security: []string{"bridge.read", "bridge.write"},
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
-	channelRegistry := channelspkg.NewRegistry(registry)
-	if _, err := channelRegistry.CreateInstance(testutil.Context(t), channelspkg.CreateInstanceRequest{
+	bridgeRegistry := bridgepkg.NewRegistry(registry)
+	if _, err := bridgeRegistry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
 		ID:            instanceID,
-		Scope:         channelspkg.ScopeGlobal,
+		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
 		ExtensionName: extensionName,
-		DisplayName:   "Shutdown Channel",
+		DisplayName:   "Shutdown Bridge",
 		Enabled:       true,
-		Status:        channelspkg.ChannelStatusReady,
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+		Status:        bridgepkg.BridgeStatusReady,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	}); err != nil {
 		t.Fatalf("CreateInstance() error = %v", err)
 	}
@@ -1760,28 +1760,28 @@ func TestDaemonShutdownClosesChannelRuntimeCleanly(t *testing.T) {
 	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
 	}
-	if d.channels == nil {
-		t.Fatal("boot() did not publish the channel runtime")
+	if d.bridges == nil {
+		t.Fatal("boot() did not publish the bridge runtime")
 	}
 
-	route, err := d.channels.UpsertRoute(testutil.Context(t), channelspkg.ChannelRoute{
-		Scope:             channelspkg.ScopeGlobal,
-		ChannelInstanceID: instanceID,
-		PeerID:            "peer-shutdown",
-		SessionID:         "sess-shutdown",
-		AgentName:         "coder",
-		LastActivityAt:    time.Date(2026, 4, 11, 14, 0, 0, 0, time.UTC),
+	route, err := d.bridges.UpsertRoute(testutil.Context(t), bridgepkg.BridgeRoute{
+		Scope:            bridgepkg.ScopeGlobal,
+		BridgeInstanceID: instanceID,
+		PeerID:           "peer-shutdown",
+		SessionID:        "sess-shutdown",
+		AgentName:        "coder",
+		LastActivityAt:   time.Date(2026, 4, 11, 14, 0, 0, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("UpsertRoute() error = %v", err)
 	}
 
-	target := channelspkg.DeliveryTarget{
-		ChannelInstanceID: instanceID,
-		PeerID:            "peer-shutdown",
-		Mode:              channelspkg.DeliveryModeDirectSend,
+	target := bridgepkg.DeliveryTarget{
+		BridgeInstanceID: instanceID,
+		PeerID:           "peer-shutdown",
+		Mode:             bridgepkg.DeliveryModeDirectSend,
 	}
-	if _, err := d.channels.Broker().RegisterPromptDelivery(testutil.Context(t), channelspkg.PromptDeliveryRegistration{
+	if _, err := d.bridges.Broker().RegisterPromptDelivery(testutil.Context(t), bridgepkg.PromptDeliveryRegistration{
 		SessionID:      "sess-shutdown",
 		TurnID:         "turn-shutdown",
 		ExtensionName:  extensionName,
@@ -1791,19 +1791,19 @@ func TestDaemonShutdownClosesChannelRuntimeCleanly(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("RegisterPromptDelivery() error = %v", err)
 	}
-	if err := d.channels.Broker().Deliver(testutil.Context(t), channelspkg.DeliveryEvent{
-		DeliveryID:        "del-shutdown",
-		ChannelInstanceID: instanceID,
-		RoutingKey:        route.RoutingKey(),
-		DeliveryTarget:    target,
-		Seq:               1,
-		EventType:         channelspkg.DeliveryEventTypeStart,
-		Content:           channelspkg.MessageContent{Text: "hello"},
+	if err := d.bridges.Broker().Deliver(testutil.Context(t), bridgepkg.DeliveryEvent{
+		DeliveryID:       "del-shutdown",
+		BridgeInstanceID: instanceID,
+		RoutingKey:       route.RoutingKey(),
+		DeliveryTarget:   target,
+		Seq:              1,
+		EventType:        bridgepkg.DeliveryEventTypeStart,
+		Content:          bridgepkg.MessageContent{Text: "hello"},
 	}); err != nil {
 		t.Fatalf("Deliver(start) error = %v", err)
 	}
 
-	waitForCondition(t, "channel delivery started before shutdown", func() bool {
+	waitForCondition(t, "bridge delivery started before shutdown", func() bool {
 		return markerLineCount(markerPath) >= 1
 	})
 

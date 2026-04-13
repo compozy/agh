@@ -92,7 +92,7 @@ check_interval = "45m"
 
 [network]
 enabled = true
-default_space = "builders"
+default_channel = "builders"
 port = 4333
 max_payload = 65536
 greet_interval = 45
@@ -181,8 +181,8 @@ max_queue_depth = 250
 	if !cfg.Network.Enabled {
 		t.Fatal("Load() Network.Enabled = false, want true")
 	}
-	if got, want := cfg.Network.DefaultSpace, "builders"; got != want {
-		t.Fatalf("Load() Network.DefaultSpace = %q, want %q", got, want)
+	if got, want := cfg.Network.DefaultChannel, "builders"; got != want {
+		t.Fatalf("Load() Network.DefaultChannel = %q, want %q", got, want)
 	}
 	if got, want := cfg.Network.Port, 4333; got != want {
 		t.Fatalf("Load() Network.Port = %d, want %d", got, want)
@@ -977,8 +977,8 @@ func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
 	if got, want := cfg.Skills.PollInterval, 3*time.Second; got != want {
 		t.Fatalf("defaultConfig() Skills.PollInterval = %s, want %s", got, want)
 	}
-	if got, want := cfg.Network.DefaultSpace, "default"; got != want {
-		t.Fatalf("defaultConfig() Network.DefaultSpace = %q, want %q", got, want)
+	if got, want := cfg.Network.DefaultChannel, "default"; got != want {
+		t.Fatalf("defaultConfig() Network.DefaultChannel = %q, want %q", got, want)
 	}
 	if got, want := cfg.Network.Port, -1; got != want {
 		t.Fatalf("defaultConfig() Network.Port = %d, want %d", got, want)
@@ -1044,11 +1044,11 @@ func TestNetworkConfigValidateRejectsInvalidValues(t *testing.T) {
 			wantErr: "network.max_queue_depth",
 		},
 		{
-			name: "invalid default space",
+			name: "invalid default channel",
 			mutate: func(cfg *Config) {
-				cfg.Network.DefaultSpace = "Bad Space"
+				cfg.Network.DefaultChannel = "Bad Channel"
 			},
-			wantErr: "network.default_space",
+			wantErr: "network.default_channel",
 		},
 	}
 

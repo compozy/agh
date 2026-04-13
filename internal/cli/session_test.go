@@ -141,20 +141,20 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 	}
 }
 
-func TestSessionNewPassesSpaceFlag(t *testing.T) {
+func TestSessionNewPassesChannelFlag(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, stubClient{
 		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
-			if request.Space != "builders" {
-				t.Fatalf("CreateSession() Space = %q, want %q", request.Space, "builders")
+			if request.Channel != "builders" {
+				t.Fatalf("CreateSession() Channel = %q, want %q", request.Channel, "builders")
 			}
 			return SessionRecord{
 				ID:            "sess-1",
 				AgentName:     "general",
 				WorkspaceID:   "ws-1",
 				WorkspacePath: request.WorkspacePath,
-				Space:         request.Space,
+				Channel:       request.Channel,
 				State:         session.StateActive,
 				CreatedAt:     fixedTestNow,
 				UpdatedAt:     fixedTestNow,
@@ -162,17 +162,17 @@ func TestSessionNewPassesSpaceFlag(t *testing.T) {
 		},
 	})
 
-	stdout, _, err := executeRootCommand(t, deps, "session", "new", "--space", "builders", "-o", "json")
+	stdout, _, err := executeRootCommand(t, deps, "session", "new", "--channel", "builders", "-o", "json")
 	if err != nil {
-		t.Fatalf("executeRootCommand(session new --space) error = %v", err)
+		t.Fatalf("executeRootCommand(session new --channel) error = %v", err)
 	}
 
 	var decoded SessionRecord
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(session new --space) error = %v", err)
+		t.Fatalf("json.Unmarshal(session new --channel) error = %v", err)
 	}
-	if decoded.Space != "builders" {
-		t.Fatalf("decoded.Space = %q, want %q", decoded.Space, "builders")
+	if decoded.Channel != "builders" {
+		t.Fatalf("decoded.Channel = %q, want %q", decoded.Channel, "builders")
 	}
 }
 
@@ -544,7 +544,7 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		AgentName:     "coder",
 		WorkspaceID:   "ws-1",
 		WorkspacePath: "/workspace/project",
-		Space:         "builders",
+		Channel:       "builders",
 		State:         session.StateActive,
 		UpdatedAt:     fixedTestNow,
 	}}
@@ -558,7 +558,7 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		t.Fatalf("sessionListBundle().human() error = %v", err)
 	}
 	if !strings.Contains(human, "sess-1") || !strings.Contains(human, "/workspace/project") || !strings.Contains(human, "builders") {
-		t.Fatalf("sessionListBundle().human() = %q, want session, workspace, and space output", human)
+		t.Fatalf("sessionListBundle().human() = %q, want session, workspace, and channel output", human)
 	}
 
 	toon, err := bundle.toon()
@@ -566,6 +566,6 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		t.Fatalf("sessionListBundle().toon() error = %v", err)
 	}
 	if !strings.Contains(toon, "sessions") || !strings.Contains(toon, "sess-1") || !strings.Contains(toon, "builders") {
-		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output with space", toon)
+		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output with channel", toon)
 	}
 }

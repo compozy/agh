@@ -78,7 +78,7 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 
 	if _, err := routerA.Send(ctx, SendRequest{
 		SessionID:     "sess-a",
-		Space:         "builders",
+		Channel:       "builders",
 		Kind:          KindDirect,
 		To:            stringPtr(peerB.PeerID),
 		InteractionID: stringPtr("int_direct_integration"),
@@ -94,7 +94,7 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 
 	if _, err := routerB.Send(ctx, SendRequest{
 		SessionID: "sess-b",
-		Space:     "builders",
+		Channel:   "builders",
 		Kind:      KindSay,
 		Body:      mustRawJSON(t, SayBody{Text: "broadcast update"}),
 	}); err != nil {
@@ -196,19 +196,19 @@ func subscribeRouter(
 	transport *Transport,
 	router *Router,
 	peerID string,
-	space string,
+	channel string,
 	results chan<- RouteResult,
 	errCh chan<- error,
 ) []*nats.Subscription {
 	t.Helper()
 
-	broadcastSubject, err := BroadcastSubject(space)
+	broadcastSubject, err := BroadcastSubject(channel)
 	if err != nil {
-		t.Fatalf("BroadcastSubject(%q) error = %v", space, err)
+		t.Fatalf("BroadcastSubject(%q) error = %v", channel, err)
 	}
-	directSubject, err := DirectSubject(space, peerID)
+	directSubject, err := DirectSubject(channel, peerID)
 	if err != nil {
-		t.Fatalf("DirectSubject(%q, %q) error = %v", space, peerID, err)
+		t.Fatalf("DirectSubject(%q, %q) error = %v", channel, peerID, err)
 	}
 
 	subjects := []string{broadcastSubject, directSubject}

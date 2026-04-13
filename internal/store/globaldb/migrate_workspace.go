@@ -155,9 +155,9 @@ func migrateSessionColumns(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("store: add sessions.stop_detail column: %w", err)
 		}
 	}
-	if _, ok := columns["space"]; !ok {
-		if _, err := db.ExecContext(ctx, `ALTER TABLE sessions ADD COLUMN space TEXT NOT NULL DEFAULT ''`); err != nil {
-			return fmt.Errorf("store: add sessions.space column: %w", err)
+	if _, ok := columns["channel"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE sessions ADD COLUMN channel TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("store: add sessions.channel column: %w", err)
 		}
 	}
 
@@ -212,7 +212,7 @@ func migrateNetworkAuditTable(ctx context.Context, db *sql.DB) error {
 			session_id TEXT NOT NULL,
 			direction  TEXT NOT NULL,
 			kind       TEXT NOT NULL,
-			space      TEXT NOT NULL,
+			channel      TEXT NOT NULL,
 			peer_from  TEXT NOT NULL,
 			peer_to    TEXT,
 			message_id TEXT NOT NULL,
@@ -221,9 +221,9 @@ func migrateNetworkAuditTable(ctx context.Context, db *sql.DB) error {
 			timestamp  TEXT NOT NULL
 		);`,
 		`INSERT INTO network_audit_log_new (
-			id, session_id, direction, kind, space, peer_from, peer_to, message_id, reason, size, timestamp
+			id, session_id, direction, kind, channel, peer_from, peer_to, message_id, reason, size, timestamp
 		) SELECT
-			id, session_id, direction, kind, space, peer_from, peer_to, message_id, reason, size, timestamp
+			id, session_id, direction, kind, channel, peer_from, peer_to, message_id, reason, size, timestamp
 		FROM network_audit_log`,
 		`DROP TABLE network_audit_log`,
 		`ALTER TABLE network_audit_log_new RENAME TO network_audit_log`,
@@ -352,7 +352,7 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 			agent_name     TEXT NOT NULL,
 			workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
 			session_type   TEXT NOT NULL DEFAULT 'user',
-			space          TEXT NOT NULL DEFAULT '',
+			channel          TEXT NOT NULL DEFAULT '',
 			state          TEXT NOT NULL,
 			acp_session_id TEXT,
 			stop_reason    TEXT,
@@ -411,7 +411,7 @@ func copyMigratedSessions(ctx context.Context, tx *sql.Tx, sessions []legacySess
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO sessions_new (
-				id, name, agent_name, workspace_id, session_type, space, state, acp_session_id, created_at, updated_at
+				id, name, agent_name, workspace_id, session_type, channel, state, acp_session_id, created_at, updated_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			row.ID,
 			nullStringValue(row.Name),

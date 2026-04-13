@@ -1,8 +1,8 @@
 import { NotInitializedError } from "./errors.js";
 import type {
-  ChannelInstance,
-  ChannelsInstancesReportStateParams,
-  ChannelsMessagesIngestResult,
+  BridgeInstance,
+  BridgesInstancesReportStateParams,
+  BridgesMessagesIngestResult,
   HostAPIMethod,
   HostAPIMethodMap,
   InboundMessageEnvelope,
@@ -76,10 +76,10 @@ export class HostAPI {
     list: (params?: SkillsListParams) => Promise<SkillSummary[]>;
   };
 
-  public readonly channels: {
-    ingest: (params: InboundMessageEnvelope) => Promise<ChannelsMessagesIngestResult>;
-    get: () => Promise<ChannelInstance>;
-    reportState: (params: ChannelsInstancesReportStateParams) => Promise<ChannelInstance>;
+  public readonly bridges: {
+    ingest: (params: InboundMessageEnvelope) => Promise<BridgesMessagesIngestResult>;
+    get: () => Promise<BridgeInstance>;
+    reportState: (params: BridgesInstancesReportStateParams) => Promise<BridgeInstance>;
   };
 
   public constructor(
@@ -112,10 +112,10 @@ export class HostAPI {
       list: async params => await this.request("skills/list", params),
     };
 
-    this.channels = {
-      ingest: async params => await this.request("channels/messages/ingest", params),
-      get: async () => await this.request("channels/instances/get", undefined),
-      reportState: async params => await this.request("channels/instances/report_state", params),
+    this.bridges = {
+      ingest: async params => await this.request("bridges/messages/ingest", params),
+      get: async () => await this.request("bridges/instances/get", undefined),
+      reportState: async params => await this.request("bridges/instances/report_state", params),
     };
   }
 

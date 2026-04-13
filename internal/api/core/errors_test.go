@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/pedronauck/agh/internal/api/contract"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
-func TestStatusForChannelError(t *testing.T) {
+func TestStatusForBridgeError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -20,17 +20,17 @@ func TestStatusForChannelError(t *testing.T) {
 	}{
 		{
 			name: "Should return bad request for body path mismatch",
-			err:  contract.ErrChannelInstanceMismatch,
+			err:  contract.ErrBridgeInstanceMismatch,
 			want: http.StatusBadRequest,
 		},
 		{
-			name: "Should return not found for missing channel",
-			err:  channelspkg.ErrChannelInstanceNotFound,
+			name: "Should return not found for missing bridge",
+			err:  bridgepkg.ErrBridgeInstanceNotFound,
 			want: http.StatusNotFound,
 		},
 		{
 			name: "Should return not found for missing route",
-			err:  channelspkg.ErrChannelRouteNotFound,
+			err:  bridgepkg.ErrBridgeRouteNotFound,
 			want: http.StatusNotFound,
 		},
 		{
@@ -40,27 +40,27 @@ func TestStatusForChannelError(t *testing.T) {
 		},
 		{
 			name: "Should return conflict for unavailable instance",
-			err:  channelspkg.ErrChannelInstanceUnavailable,
+			err:  bridgepkg.ErrBridgeInstanceUnavailable,
 			want: http.StatusConflict,
 		},
 		{
 			name: "Should return conflict for invalid state transition",
-			err:  channelspkg.ErrInvalidChannelStateTransition,
+			err:  bridgepkg.ErrInvalidBridgeStateTransition,
 			want: http.StatusConflict,
 		},
 		{
 			name: "Should return not found for missing delivery",
-			err:  channelspkg.ErrDeliveryNotFound,
+			err:  bridgepkg.ErrDeliveryNotFound,
 			want: http.StatusNotFound,
 		},
 		{
 			name: "Should return service unavailable for saturated delivery queue",
-			err:  channelspkg.ErrDeliveryQueueSaturated,
+			err:  bridgepkg.ErrDeliveryQueueSaturated,
 			want: http.StatusServiceUnavailable,
 		},
 		{
 			name: "Should return service unavailable for transport outage",
-			err:  channelspkg.ErrDeliveryTransportUnavailable,
+			err:  bridgepkg.ErrDeliveryTransportUnavailable,
 			want: http.StatusServiceUnavailable,
 		},
 		{
@@ -74,8 +74,8 @@ func TestStatusForChannelError(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := StatusForChannelError(tt.err); got != tt.want {
-				t.Fatalf("StatusForChannelError(%v) = %d, want %d", tt.err, got, tt.want)
+			if got := StatusForBridgeError(tt.err); got != tt.want {
+				t.Fatalf("StatusForBridgeError(%v) = %d, want %d", tt.err, got, tt.want)
 			}
 		})
 	}

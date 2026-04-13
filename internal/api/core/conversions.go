@@ -33,7 +33,7 @@ func SessionPayloadFromInfo(info *session.SessionInfo) contract.SessionPayload {
 		AgentName:     info.AgentName,
 		WorkspaceID:   ref.WorkspaceID,
 		WorkspacePath: ref.WorkspacePath,
-		Space:         info.Space,
+		Channel:       info.Channel,
 		State:         info.State,
 		StopReason:    info.StopReason,
 		StopDetail:    info.StopDetail,
@@ -194,7 +194,7 @@ func ObserveHealthPayloadFromHealth(health observepkg.Health) contract.ObserveHe
 		ActiveAgents:       health.ActiveAgents,
 		GlobalDBSizeBytes:  health.GlobalDBSizeBytes,
 		SessionDBSizeBytes: health.SessionDBSizeBytes,
-		Channels:           ChannelAggregateHealthPayloadFromObserve(health.Channels),
+		Bridges:            BridgeAggregateHealthPayloadFromObserve(health.Bridges),
 		Version:            health.Version,
 	}
 }
@@ -317,17 +317,17 @@ func WebhookDeliveryPayloadFromResult(result automationpkg.TriggerResult) contra
 	}
 }
 
-// ChannelAggregateHealthPayloadFromObserve converts the observer channel
+// BridgeAggregateHealthPayloadFromObserve converts the observer bridge
 // summary into the shared payload.
-func ChannelAggregateHealthPayloadFromObserve(summary observepkg.ChannelAggregateHealth) contract.ChannelAggregateHealthPayload {
-	return contract.ChannelAggregateHealthPayload{
+func BridgeAggregateHealthPayloadFromObserve(summary observepkg.BridgeAggregateHealth) contract.BridgeAggregateHealthPayload {
+	return contract.BridgeAggregateHealthPayload{
 		TotalInstances:        summary.TotalInstances,
 		RouteCount:            summary.RouteCount,
 		DeliveryBacklog:       summary.DeliveryBacklog,
 		DeliveryDroppedTotal:  summary.DeliveryDroppedTotal,
 		DeliveryFailuresTotal: summary.DeliveryFailuresTotal,
 		AuthFailuresTotal:     summary.AuthFailuresTotal,
-		StatusCounts: contract.ChannelStatusCountsPayload{
+		StatusCounts: contract.BridgeStatusCountsPayload{
 			Disabled:     summary.StatusCounts.Disabled,
 			Starting:     summary.StatusCounts.Starting,
 			Ready:        summary.StatusCounts.Ready,
@@ -338,17 +338,17 @@ func ChannelAggregateHealthPayloadFromObserve(summary observepkg.ChannelAggregat
 	}
 }
 
-// ChannelHealthPayloadFromObserve converts the observer per-instance channel
+// BridgeHealthPayloadFromObserve converts the observer per-instance bridge
 // health snapshot into the shared payload.
-func ChannelHealthPayloadFromObserve(health observepkg.ChannelInstanceHealth) contract.ChannelHealthPayload {
+func BridgeHealthPayloadFromObserve(health observepkg.BridgeInstanceHealth) contract.BridgeHealthPayload {
 	var lastErrorAt *time.Time
 	if !health.LastErrorAt.IsZero() {
 		timestamp := health.LastErrorAt
 		lastErrorAt = &timestamp
 	}
 
-	return contract.ChannelHealthPayload{
-		ChannelInstanceID:       health.ChannelInstanceID,
+	return contract.BridgeHealthPayload{
+		BridgeInstanceID:        health.BridgeInstanceID,
 		Status:                  health.Status,
 		RouteCount:              health.RouteCount,
 		DeliveryBacklog:         health.DeliveryBacklog,

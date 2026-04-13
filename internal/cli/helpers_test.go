@@ -20,7 +20,7 @@ type stubClient struct {
 	daemonStatusFn            func(context.Context) (DaemonStatus, error)
 	networkStatusFn           func(context.Context) (NetworkStatusRecord, error)
 	networkPeersFn            func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
-	networkSpacesFn           func(context.Context) ([]NetworkSpaceRecord, error)
+	networkChannelsFn         func(context.Context) ([]NetworkChannelRecord, error)
 	networkSendFn             func(context.Context, NetworkSendRequest) (NetworkSendRecord, error)
 	networkInboxFn            func(context.Context, string) ([]NetworkEnvelopeRecord, error)
 	listExtensionsFn          func(context.Context) ([]ExtensionRecord, error)
@@ -28,15 +28,15 @@ type stubClient struct {
 	enableExtensionFn         func(context.Context, string) (ExtensionRecord, error)
 	disableExtensionFn        func(context.Context, string) (ExtensionRecord, error)
 	extensionStatusFn         func(context.Context, string) (ExtensionRecord, error)
-	listChannelsFn            func(context.Context) ([]ChannelRecord, error)
-	createChannelFn           func(context.Context, CreateChannelRequest) (ChannelRecord, error)
-	getChannelFn              func(context.Context, string) (ChannelRecord, error)
-	updateChannelFn           func(context.Context, string, UpdateChannelRequest) (ChannelRecord, error)
-	enableChannelFn           func(context.Context, string) (ChannelRecord, error)
-	disableChannelFn          func(context.Context, string) (ChannelRecord, error)
-	restartChannelFn          func(context.Context, string) (ChannelRecord, error)
-	channelRoutesFn           func(context.Context, string) ([]ChannelRouteRecord, error)
-	testChannelDeliveryFn     func(context.Context, string, ChannelTestDeliveryRequest) (ChannelTestDeliveryRecord, error)
+	listBridgesFn             func(context.Context) ([]BridgeRecord, error)
+	createBridgeFn            func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
+	getBridgeFn               func(context.Context, string) (BridgeRecord, error)
+	updateBridgeFn            func(context.Context, string, UpdateBridgeRequest) (BridgeRecord, error)
+	enableBridgeFn            func(context.Context, string) (BridgeRecord, error)
+	disableBridgeFn           func(context.Context, string) (BridgeRecord, error)
+	restartBridgeFn           func(context.Context, string) (BridgeRecord, error)
+	bridgeRoutesFn            func(context.Context, string) ([]BridgeRouteRecord, error)
+	testBridgeDeliveryFn      func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error)
 	listSessionsFn            func(context.Context, SessionListQuery) ([]SessionRecord, error)
 	createSessionFn           func(context.Context, CreateSessionRequest) (SessionRecord, error)
 	getSessionFn              func(context.Context, string) (SessionRecord, error)
@@ -104,11 +104,11 @@ func (s stubClient) NetworkPeers(ctx context.Context, query NetworkPeersQuery) (
 	return nil, errors.New("unexpected NetworkPeers call")
 }
 
-func (s stubClient) NetworkSpaces(ctx context.Context) ([]NetworkSpaceRecord, error) {
-	if s.networkSpacesFn != nil {
-		return s.networkSpacesFn(ctx)
+func (s stubClient) NetworkChannels(ctx context.Context) ([]NetworkChannelRecord, error) {
+	if s.networkChannelsFn != nil {
+		return s.networkChannelsFn(ctx)
 	}
-	return nil, errors.New("unexpected NetworkSpaces call")
+	return nil, errors.New("unexpected NetworkChannels call")
 }
 
 func (s stubClient) NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
@@ -160,67 +160,67 @@ func (s stubClient) ExtensionStatus(ctx context.Context, name string) (Extension
 	return ExtensionRecord{}, errors.New("unexpected ExtensionStatus call")
 }
 
-func (s stubClient) ListChannels(ctx context.Context) ([]ChannelRecord, error) {
-	if s.listChannelsFn != nil {
-		return s.listChannelsFn(ctx)
+func (s stubClient) ListBridges(ctx context.Context) ([]BridgeRecord, error) {
+	if s.listBridgesFn != nil {
+		return s.listBridgesFn(ctx)
 	}
-	return nil, errors.New("unexpected ListChannels call")
+	return nil, errors.New("unexpected ListBridges call")
 }
 
-func (s stubClient) CreateChannel(ctx context.Context, request CreateChannelRequest) (ChannelRecord, error) {
-	if s.createChannelFn != nil {
-		return s.createChannelFn(ctx, request)
+func (s stubClient) CreateBridge(ctx context.Context, request CreateBridgeRequest) (BridgeRecord, error) {
+	if s.createBridgeFn != nil {
+		return s.createBridgeFn(ctx, request)
 	}
-	return ChannelRecord{}, errors.New("unexpected CreateChannel call")
+	return BridgeRecord{}, errors.New("unexpected CreateBridge call")
 }
 
-func (s stubClient) GetChannel(ctx context.Context, id string) (ChannelRecord, error) {
-	if s.getChannelFn != nil {
-		return s.getChannelFn(ctx, id)
+func (s stubClient) GetBridge(ctx context.Context, id string) (BridgeRecord, error) {
+	if s.getBridgeFn != nil {
+		return s.getBridgeFn(ctx, id)
 	}
-	return ChannelRecord{}, errors.New("unexpected GetChannel call")
+	return BridgeRecord{}, errors.New("unexpected GetBridge call")
 }
 
-func (s stubClient) UpdateChannel(ctx context.Context, id string, request UpdateChannelRequest) (ChannelRecord, error) {
-	if s.updateChannelFn != nil {
-		return s.updateChannelFn(ctx, id, request)
+func (s stubClient) UpdateBridge(ctx context.Context, id string, request UpdateBridgeRequest) (BridgeRecord, error) {
+	if s.updateBridgeFn != nil {
+		return s.updateBridgeFn(ctx, id, request)
 	}
-	return ChannelRecord{}, errors.New("unexpected UpdateChannel call")
+	return BridgeRecord{}, errors.New("unexpected UpdateBridge call")
 }
 
-func (s stubClient) EnableChannel(ctx context.Context, id string) (ChannelRecord, error) {
-	if s.enableChannelFn != nil {
-		return s.enableChannelFn(ctx, id)
+func (s stubClient) EnableBridge(ctx context.Context, id string) (BridgeRecord, error) {
+	if s.enableBridgeFn != nil {
+		return s.enableBridgeFn(ctx, id)
 	}
-	return ChannelRecord{}, errors.New("unexpected EnableChannel call")
+	return BridgeRecord{}, errors.New("unexpected EnableBridge call")
 }
 
-func (s stubClient) DisableChannel(ctx context.Context, id string) (ChannelRecord, error) {
-	if s.disableChannelFn != nil {
-		return s.disableChannelFn(ctx, id)
+func (s stubClient) DisableBridge(ctx context.Context, id string) (BridgeRecord, error) {
+	if s.disableBridgeFn != nil {
+		return s.disableBridgeFn(ctx, id)
 	}
-	return ChannelRecord{}, errors.New("unexpected DisableChannel call")
+	return BridgeRecord{}, errors.New("unexpected DisableBridge call")
 }
 
-func (s stubClient) RestartChannel(ctx context.Context, id string) (ChannelRecord, error) {
-	if s.restartChannelFn != nil {
-		return s.restartChannelFn(ctx, id)
+func (s stubClient) RestartBridge(ctx context.Context, id string) (BridgeRecord, error) {
+	if s.restartBridgeFn != nil {
+		return s.restartBridgeFn(ctx, id)
 	}
-	return ChannelRecord{}, errors.New("unexpected RestartChannel call")
+	return BridgeRecord{}, errors.New("unexpected RestartBridge call")
 }
 
-func (s stubClient) ChannelRoutes(ctx context.Context, id string) ([]ChannelRouteRecord, error) {
-	if s.channelRoutesFn != nil {
-		return s.channelRoutesFn(ctx, id)
+func (s stubClient) BridgeRoutes(ctx context.Context, id string) ([]BridgeRouteRecord, error) {
+	if s.bridgeRoutesFn != nil {
+		return s.bridgeRoutesFn(ctx, id)
 	}
-	return nil, errors.New("unexpected ChannelRoutes call")
+	return nil, errors.New("unexpected BridgeRoutes call")
 }
 
-func (s stubClient) TestChannelDelivery(ctx context.Context, id string, request ChannelTestDeliveryRequest) (ChannelTestDeliveryRecord, error) {
-	if s.testChannelDeliveryFn != nil {
-		return s.testChannelDeliveryFn(ctx, id, request)
+func (s stubClient) TestBridgeDelivery(ctx context.Context, id string, request BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error) {
+	if s.testBridgeDeliveryFn != nil {
+		return s.testBridgeDeliveryFn(ctx, id, request)
 	}
-	return ChannelTestDeliveryRecord{}, errors.New("unexpected TestChannelDelivery call")
+	return BridgeTestDeliveryRecord{}, errors.New("unexpected TestBridgeDelivery call")
 }
 
 func (s stubClient) ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error) {

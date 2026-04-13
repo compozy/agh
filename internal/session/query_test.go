@@ -64,7 +64,7 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 		AgentName: "coder",
 		Name:      "networked-stopped",
 		Workspace: h.workspaceID,
-		Space:     "builders",
+		Channel:   "builders",
 	})
 	if err != nil {
 		t.Fatalf("Create(networked stopped) error = %v", err)
@@ -106,8 +106,8 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 	if got := infos[0].State; got != StateActive {
 		t.Fatalf("ListAll()[0].State = %q, want %q", got, StateActive)
 	}
-	if got := infos[0].Space; got != "" {
-		t.Fatalf("ListAll()[0].Space = %q, want empty", got)
+	if got := infos[0].Channel; got != "" {
+		t.Fatalf("ListAll()[0].Channel = %q, want empty", got)
 	}
 	if got := infos[1].ID; got != stopped.ID {
 		t.Fatalf("ListAll()[1].ID = %q, want %q", got, stopped.ID)
@@ -115,8 +115,8 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 	if got := infos[1].State; got != StateStopped {
 		t.Fatalf("ListAll()[1].State = %q, want %q", got, StateStopped)
 	}
-	if got := infos[1].Space; got != "builders" {
-		t.Fatalf("ListAll()[1].Space = %q, want %q", got, "builders")
+	if got := infos[1].Channel; got != "builders" {
+		t.Fatalf("ListAll()[1].Channel = %q, want %q", got, "builders")
 	}
 }
 
@@ -133,8 +133,8 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	if got := info.State; got != StateActive {
 		t.Fatalf("Status(active).State = %q, want %q", got, StateActive)
 	}
-	if got := info.Space; got != "" {
-		t.Fatalf("Status(active).Space = %q, want empty", got)
+	if got := info.Channel; got != "" {
+		t.Fatalf("Status(active).Channel = %q, want empty", got)
 	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
@@ -148,8 +148,8 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	if got := info.State; got != StateStopped {
 		t.Fatalf("Status(stopped).State = %q, want %q", got, StateStopped)
 	}
-	if got := info.Space; got != "" {
-		t.Fatalf("Status(stopped).Space = %q, want empty", got)
+	if got := info.Channel; got != "" {
+		t.Fatalf("Status(stopped).Channel = %q, want empty", got)
 	}
 
 	var nilCtx context.Context
@@ -465,7 +465,7 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 		t.Fatalf("stringValue(nil) = %q, want empty", got)
 	}
 	if got := stringValue(&acpID); got != "acp-123" {
-		t.Fatalf("stringValue(spaced) = %q, want %q", got, "acp-123")
+		t.Fatalf("stringValue(channeld) = %q, want %q", got, "acp-123")
 	}
 }
 

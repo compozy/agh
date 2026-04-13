@@ -30,8 +30,8 @@ var (
 )
 
 var (
-	spacePattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
-	peerIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+	channelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+	peerIDPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
 )
 
 // DefaultMaxReplayAge is the RFC-recommended maximum receiver replay age when
@@ -62,7 +62,7 @@ func NormalizeEnvelope(env Envelope, opts ValidateOptions) (Envelope, error) {
 		Protocol:      strings.TrimSpace(env.Protocol),
 		ID:            strings.TrimSpace(env.ID),
 		Kind:          Kind(strings.TrimSpace(string(env.Kind))),
-		Space:         strings.TrimSpace(env.Space),
+		Channel:       strings.TrimSpace(env.Channel),
 		From:          strings.TrimSpace(env.From),
 		TS:            env.TS,
 		Body:          cloneRawMessage(env.Body),
@@ -88,10 +88,10 @@ func NormalizeEnvelope(env Envelope, opts ValidateOptions) (Envelope, error) {
 	if err := normalized.Kind.Validate(); err != nil {
 		return Envelope{}, err
 	}
-	if normalized.Space == "" {
-		return Envelope{}, fmt.Errorf("%w: space is required", ErrMissingField)
+	if normalized.Channel == "" {
+		return Envelope{}, fmt.Errorf("%w: channel is required", ErrMissingField)
 	}
-	if err := ValidateSpace(normalized.Space); err != nil {
+	if err := ValidateChannel(normalized.Channel); err != nil {
 		return Envelope{}, err
 	}
 	if normalized.From == "" {
@@ -142,10 +142,10 @@ func ValidateEnvelope(env Envelope, opts ValidateOptions) error {
 	return err
 }
 
-// ValidateSpace reports whether the space matches the RFC grammar.
-func ValidateSpace(space string) error {
-	if !spacePattern.MatchString(space) {
-		return fmt.Errorf("%w: space=%q", ErrInvalidField, space)
+// ValidateChannel reports whether the channel matches the RFC grammar.
+func ValidateChannel(channel string) error {
+	if !channelPattern.MatchString(channel) {
+		return fmt.Errorf("%w: channel=%q", ErrInvalidField, channel)
 	}
 	return nil
 }

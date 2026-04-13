@@ -681,7 +681,7 @@ func isAllowedNetworkTerminalArgv(argv []string) bool {
 	}
 
 	switch argv[2] {
-	case "send", "peers", "spaces", "status", "inbox":
+	case "send", "peers", "channels", "status", "inbox":
 		return true
 	default:
 		return false

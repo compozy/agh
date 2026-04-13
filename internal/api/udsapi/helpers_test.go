@@ -25,7 +25,7 @@ var errStubWorkspaceServiceNotImplemented = testutil.ErrStubWorkspaceServiceNotI
 
 type stubSessionManager = testutil.StubSessionManager
 type stubObserver = testutil.StubObserver
-type stubChannelService = testutil.StubChannelService
+type stubBridgeService = testutil.StubBridgeService
 type stubNetworkService = testutil.StubNetworkService
 type stubWorkspaceService = testutil.StubWorkspaceService
 type stubSkillsRegistry = testutil.StubSkillsRegistry
@@ -36,16 +36,16 @@ func newTestHandlers(t *testing.T, manager core.SessionManager, observer core.Ob
 	return newTestHandlersWithRuntime(t, manager, observer, nil, nil, stubWorkspaceService{}, nil, homePaths)
 }
 
-func newTestHandlersWithChannels(
+func newTestHandlersWithBridges(
 	t *testing.T,
 	manager core.SessionManager,
 	observer core.Observer,
-	channels core.ChannelService,
+	bridges core.BridgeService,
 	workspaces core.WorkspaceService,
 	homePaths aghconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
-	return newTestHandlersWithRuntime(t, manager, observer, nil, channels, workspaces, nil, homePaths)
+	return newTestHandlersWithRuntime(t, manager, observer, nil, bridges, workspaces, nil, homePaths)
 }
 
 func newTestHandlersWithExtensions(t *testing.T, manager core.SessionManager, observer core.Observer, extensions ExtensionService, homePaths aghconfig.HomePaths) *Handlers {
@@ -58,7 +58,7 @@ func newTestHandlersWithRuntime(
 	manager core.SessionManager,
 	observer core.Observer,
 	automation core.AutomationManager,
-	channels core.ChannelService,
+	bridges core.BridgeService,
 	workspaces core.WorkspaceService,
 	extensions ExtensionService,
 	homePaths aghconfig.HomePaths,
@@ -69,7 +69,7 @@ func newTestHandlersWithRuntime(
 		sessions:     manager,
 		observer:     observer,
 		automation:   automation,
-		channels:     channels,
+		bridges:      bridges,
 		workspaces:   workspaces,
 		homePaths:    homePaths,
 		config:       aghconfig.DefaultWithHome(homePaths),
@@ -85,7 +85,7 @@ func newTestHandlersWithRuntime(
 func newTestHandlersWithWorkspace(t *testing.T, manager core.SessionManager, observer core.Observer, workspaces core.WorkspaceService, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()
 
-	return newTestHandlersWithChannels(t, manager, observer, nil, workspaces, homePaths)
+	return newTestHandlersWithBridges(t, manager, observer, nil, workspaces, homePaths)
 }
 
 func newTestRouter(t *testing.T, handlers *Handlers) *gin.Engine {

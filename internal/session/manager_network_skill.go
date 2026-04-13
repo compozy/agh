@@ -9,8 +9,8 @@ import (
 
 const networkSkillName = "agh-network"
 
-func appendBundledNetworkSkill(prompt string, space string) (string, error) {
-	if strings.TrimSpace(space) == "" {
+func appendBundledNetworkSkill(prompt string, channel string) (string, error) {
+	if strings.TrimSpace(channel) == "" {
 		return strings.TrimSpace(prompt), nil
 	}
 

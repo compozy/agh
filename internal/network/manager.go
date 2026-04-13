@@ -35,7 +35,7 @@ type NetworkStatus struct {
 	ListenerPort         int
 	LocalPeers           int
 	RemotePeers          int
-	Spaces               int
+	Channels             int
 	QueuedMessages       int
 	QueuedSessions       int
 	DeliveryWorkers      int
@@ -61,13 +61,13 @@ type managerOptions struct {
 type managedSession struct {
 	sessionID string
 	peerID    string
-	space     string
+	channel   string
 	directSub *nats.Subscription
 	heartbeat *Heartbeat
 }
 
-type managedSpace struct {
-	space        string
+type managedChannel struct {
+	channel      string
 	broadcastSub *nats.Subscription
 	refCount     int
 }
@@ -90,7 +90,7 @@ type Manager struct {
 
 	mu             sync.Mutex
 	sessions       map[string]*managedSession
-	spaces         map[string]*managedSpace
+	channels       map[string]*managedChannel
 	connected      bool
 	lastDisconnect string
 	closed         bool
@@ -168,7 +168,7 @@ func NewManager(
 		lifecycleCtx: lifecycleCtx,
 		cancel:       cancel,
 		sessions:     make(map[string]*managedSession),
-		spaces:       make(map[string]*managedSpace),
+		channels:     make(map[string]*managedChannel),
 		connected:    true,
 		stats:        newRuntimeStats(),
 	}
@@ -252,8 +252,8 @@ func rollbackManagerInit(ctx context.Context, cancel context.CancelFunc, transpo
 	return initErr
 }
 
-// JoinSpace registers one daemon-local session as a visible network peer.
-func (m *Manager) JoinSpace(ctx context.Context, sessionID string, peerID string, space string) error {
+// JoinChannel registers one daemon-local session as a visible network peer.
+func (m *Manager) JoinChannel(ctx context.Context, sessionID string, peerID string, channel string) error {
 	if ctx == nil {
 		return errors.New("network: join context is required")
 	}
@@ -269,22 +269,22 @@ func (m *Manager) JoinSpace(ctx context.Context, sessionID string, peerID string
 
 	targetSession := strings.TrimSpace(sessionID)
 	targetPeer := strings.TrimSpace(peerID)
-	targetSpace := strings.TrimSpace(space)
+	targetChannel := strings.TrimSpace(channel)
 	if targetSession == "" {
 		return fmt.Errorf("%w: session id is required", ErrMissingField)
 	}
 	if targetPeer == "" {
 		return fmt.Errorf("%w: peer id is required", ErrMissingField)
 	}
-	if err := ValidateSpace(targetSpace); err != nil {
+	if err := ValidateChannel(targetChannel); err != nil {
 		return err
 	}
 
 	if current, ok := m.sessionSnapshot(targetSession); ok {
-		if current.peerID == targetPeer && current.space == targetSpace {
+		if current.peerID == targetPeer && current.channel == targetChannel {
 			return nil
 		}
-		if err := m.LeaveSpace(ctx, targetSession); err != nil {
+		if err := m.LeaveChannel(ctx, targetSession); err != nil {
 			return err
 		}
 	}
@@ -293,19 +293,19 @@ func (m *Manager) JoinSpace(ctx context.Context, sessionID string, peerID string
 	if err != nil {
 		return err
 	}
-	local, err := m.peers.RegisterLocal(targetSession, targetSpace, card, m.now())
+	local, err := m.peers.RegisterLocal(targetSession, targetChannel, card, m.now())
 	if err != nil {
 		return err
 	}
 
-	if err := m.acquireBroadcastSubscription(local.Space); err != nil {
+	if err := m.acquireBroadcastSubscription(local.Channel); err != nil {
 		m.router.Leave(local.SessionID)
 		return err
 	}
 
-	directSub, err := m.subscribeDirect(local.Space, local.PeerID)
+	directSub, err := m.subscribeDirect(local.Channel, local.PeerID)
 	if err != nil {
-		if releaseErr := m.releaseBroadcastSubscription(local.Space); releaseErr != nil {
+		if releaseErr := m.releaseBroadcastSubscription(local.Channel); releaseErr != nil {
 			err = errors.Join(err, releaseErr)
 		}
 		m.router.Leave(local.SessionID)
@@ -321,7 +321,7 @@ func (m *Manager) JoinSpace(ctx context.Context, sessionID string, peerID string
 		); unsubscribeErr != nil {
 			err = errors.Join(err, unsubscribeErr)
 		}
-		if releaseErr := m.releaseBroadcastSubscription(local.Space); releaseErr != nil {
+		if releaseErr := m.releaseBroadcastSubscription(local.Channel); releaseErr != nil {
 			err = errors.Join(err, releaseErr)
 		}
 		m.router.Leave(local.SessionID)
@@ -332,7 +332,7 @@ func (m *Manager) JoinSpace(ctx context.Context, sessionID string, peerID string
 	m.sessions[local.SessionID] = &managedSession{
 		sessionID: local.SessionID,
 		peerID:    local.PeerID,
-		space:     local.Space,
+		channel:   local.Channel,
 		directSub: directSub,
 		heartbeat: heartbeat,
 	}
@@ -342,13 +342,13 @@ func (m *Manager) JoinSpace(ctx context.Context, sessionID string, peerID string
 		"network.peer.joined",
 		"session_id", local.SessionID,
 		"peer_id", local.PeerID,
-		"space", local.Space,
+		"channel", local.Channel,
 	)
 	return nil
 }
 
-// LeaveSpace removes one daemon-local session from the active network runtime.
-func (m *Manager) LeaveSpace(ctx context.Context, sessionID string) error {
+// LeaveChannel removes one daemon-local session from the active network runtime.
+func (m *Manager) LeaveChannel(ctx context.Context, sessionID string) error {
 	if ctx == nil {
 		return errors.New("network: leave context is required")
 	}
@@ -382,7 +382,7 @@ func (m *Manager) LeaveSpace(ctx context.Context, sessionID string) error {
 			errs = append(errs, fmt.Errorf("network: unsubscribe direct subject for %q: %w", targetSession, err))
 		}
 	}
-	if err := m.releaseBroadcastSubscription(runtime.space); err != nil {
+	if err := m.releaseBroadcastSubscription(runtime.channel); err != nil {
 		errs = append(errs, err)
 	}
 	m.router.Leave(targetSession)
@@ -391,7 +391,7 @@ func (m *Manager) LeaveSpace(ctx context.Context, sessionID string) error {
 		"network.peer.left",
 		"session_id", runtime.sessionID,
 		"peer_id", runtime.peerID,
-		"space", runtime.space,
+		"channel", runtime.channel,
 	)
 	return errors.Join(errs...)
 }
@@ -480,7 +480,7 @@ func (m *Manager) publishGreetWithAudit(ctx context.Context, sessionID string, s
 }
 
 // ListPeers returns the current visible local+remote peer snapshot.
-func (m *Manager) ListPeers(ctx context.Context, space string) ([]PeerInfo, error) {
+func (m *Manager) ListPeers(ctx context.Context, channel string) ([]PeerInfo, error) {
 	if ctx == nil {
 		return nil, errors.New("network: list peers context is required")
 	}
@@ -490,13 +490,13 @@ func (m *Manager) ListPeers(ctx context.Context, space string) ([]PeerInfo, erro
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return m.peers.ListPeers(strings.TrimSpace(space), m.now()), nil
+	return m.peers.ListPeers(strings.TrimSpace(channel), m.now()), nil
 }
 
-// ListSpaces returns the currently active runtime spaces.
-func (m *Manager) ListSpaces(ctx context.Context) ([]SpaceInfo, error) {
+// ListChannels returns the currently active runtime channels.
+func (m *Manager) ListChannels(ctx context.Context) ([]ChannelInfo, error) {
 	if ctx == nil {
-		return nil, errors.New("network: list spaces context is required")
+		return nil, errors.New("network: list channels context is required")
 	}
 	if m == nil || m.peers == nil {
 		return nil, errors.New("network: peer registry is required")
@@ -504,7 +504,7 @@ func (m *Manager) ListSpaces(ctx context.Context) ([]SpaceInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return m.peers.ListSpaces(m.now()), nil
+	return m.peers.ListChannels(m.now()), nil
 }
 
 // Status returns a safe diagnostics snapshot without exposing transport credentials.
@@ -520,7 +520,7 @@ func (m *Manager) Status(ctx context.Context) (*NetworkStatus, error) {
 	}
 
 	peers := m.peers.ListPeers("", m.now())
-	spaces := m.peers.ListSpaces(m.now())
+	channels := m.peers.ListChannels(m.now())
 	localPeers := 0
 	for _, peer := range peers {
 		if peer.Local {
@@ -543,7 +543,7 @@ func (m *Manager) Status(ctx context.Context) (*NetworkStatus, error) {
 		ListenerPort:         port,
 		LocalPeers:           localPeers,
 		RemotePeers:          len(peers) - localPeers,
-		Spaces:               len(spaces),
+		Channels:             len(channels),
 		QueuedMessages:       deliveryStats.QueuedMessages,
 		QueuedSessions:       deliveryStats.QueuedSessions,
 		DeliveryWorkers:      deliveryStats.DeliveryWorkers,
@@ -592,12 +592,12 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	for _, runtime := range m.sessions {
 		sessions = append(sessions, runtime)
 	}
-	spaces := make([]*managedSpace, 0, len(m.spaces))
-	for _, runtime := range m.spaces {
-		spaces = append(spaces, runtime)
+	channels := make([]*managedChannel, 0, len(m.channels))
+	for _, runtime := range m.channels {
+		channels = append(channels, runtime)
 	}
 	m.sessions = make(map[string]*managedSession)
-	m.spaces = make(map[string]*managedSpace)
+	m.channels = make(map[string]*managedChannel)
 	m.mu.Unlock()
 
 	deliveryStats := m.deliveries.stats()
@@ -619,12 +619,12 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		}
 		m.router.Leave(runtime.sessionID)
 	}
-	for _, runtime := range spaces {
+	for _, runtime := range channels {
 		if runtime == nil || runtime.broadcastSub == nil {
 			continue
 		}
 		if err := runtime.broadcastSub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrConnectionClosed) {
-			errs = append(errs, fmt.Errorf("network: unsubscribe broadcast subject for %q: %w", runtime.space, err))
+			errs = append(errs, fmt.Errorf("network: unsubscribe broadcast subject for %q: %w", runtime.channel, err))
 		}
 	}
 
@@ -676,7 +676,7 @@ func (m *Manager) recordInboundAudit(result RouteResult) {
 	if result.Envelope != nil && result.Rejected {
 		sessionID := ""
 		if result.Envelope.IsDirected() {
-			if target, ok := m.peers.LocalByPeer(result.Envelope.Space, *result.Envelope.To); ok {
+			if target, ok := m.peers.LocalByPeer(result.Envelope.Channel, *result.Envelope.To); ok {
 				sessionID = target.SessionID
 			}
 		}
@@ -698,7 +698,7 @@ func (m *Manager) recordInboundAudit(result RouteResult) {
 		m.recordAuditReceived(m.lifecycleCtx, sessionID, *result.Envelope)
 	}
 	for _, envelope := range result.Generated {
-		local, ok := m.peers.LocalByPeer(envelope.Space, envelope.From)
+		local, ok := m.peers.LocalByPeer(envelope.Channel, envelope.From)
 		if !ok {
 			continue
 		}
@@ -714,7 +714,7 @@ func (m *Manager) controlMessageReceivers(result RouteResult) []string {
 	envelope := *result.Envelope
 	switch envelope.Kind {
 	case KindGreet:
-		locals := m.peers.LocalPeers(envelope.Space)
+		locals := m.peers.LocalPeers(envelope.Channel)
 		receivers := make([]string, 0, len(locals))
 		for _, local := range locals {
 			receivers = append(receivers, local.SessionID)
@@ -730,7 +730,7 @@ func (m *Manager) controlMessageReceivers(result RouteResult) []string {
 			return nil
 		}
 		if envelope.IsDirected() {
-			if target, ok := m.peers.LocalByPeer(envelope.Space, *envelope.To); ok {
+			if target, ok := m.peers.LocalByPeer(envelope.Channel, *envelope.To); ok {
 				return []string{target.SessionID}
 			}
 			return nil
@@ -739,7 +739,7 @@ func (m *Manager) controlMessageReceivers(result RouteResult) []string {
 		seen := make(map[string]struct{})
 		receivers := make([]string, 0, len(result.Generated))
 		for _, generated := range result.Generated {
-			local, ok := m.peers.LocalByPeer(generated.Space, generated.From)
+			local, ok := m.peers.LocalByPeer(generated.Channel, generated.From)
 			if !ok {
 				continue
 			}
@@ -755,18 +755,18 @@ func (m *Manager) controlMessageReceivers(result RouteResult) []string {
 	}
 }
 
-func (m *Manager) acquireBroadcastSubscription(space string) error {
-	targetSpace := strings.TrimSpace(space)
+func (m *Manager) acquireBroadcastSubscription(channel string) error {
+	targetChannel := strings.TrimSpace(channel)
 
 	m.mu.Lock()
-	if runtime, ok := m.spaces[targetSpace]; ok {
+	if runtime, ok := m.channels[targetChannel]; ok {
 		runtime.refCount++
 		m.mu.Unlock()
 		return nil
 	}
 	m.mu.Unlock()
 
-	subject, err := BroadcastSubject(targetSpace)
+	subject, err := BroadcastSubject(targetChannel)
 	if err != nil {
 		return err
 	}
@@ -779,26 +779,26 @@ func (m *Manager) acquireBroadcastSubscription(space string) error {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if runtime, ok := m.spaces[targetSpace]; ok {
+	if runtime, ok := m.channels[targetChannel]; ok {
 		runtime.refCount++
-		if err := cleanupDuplicateBroadcastSubscription(targetSpace, runtime, subscription.Unsubscribe); err != nil {
+		if err := cleanupDuplicateBroadcastSubscription(targetChannel, runtime, subscription.Unsubscribe); err != nil {
 			return err
 		}
 		return nil
 	}
-	m.spaces[targetSpace] = &managedSpace{
-		space:        targetSpace,
+	m.channels[targetChannel] = &managedChannel{
+		channel:      targetChannel,
 		broadcastSub: subscription,
 		refCount:     1,
 	}
 	return nil
 }
 
-func (m *Manager) releaseBroadcastSubscription(space string) error {
-	targetSpace := strings.TrimSpace(space)
+func (m *Manager) releaseBroadcastSubscription(channel string) error {
+	targetChannel := strings.TrimSpace(channel)
 
 	m.mu.Lock()
-	runtime, ok := m.spaces[targetSpace]
+	runtime, ok := m.channels[targetChannel]
 	if !ok {
 		m.mu.Unlock()
 		return nil
@@ -808,20 +808,20 @@ func (m *Manager) releaseBroadcastSubscription(space string) error {
 		m.mu.Unlock()
 		return nil
 	}
-	delete(m.spaces, targetSpace)
+	delete(m.channels, targetChannel)
 	m.mu.Unlock()
 
 	if runtime.broadcastSub == nil {
 		return nil
 	}
 	if err := runtime.broadcastSub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrConnectionClosed) {
-		return fmt.Errorf("network: unsubscribe broadcast subject for %q: %w", targetSpace, err)
+		return fmt.Errorf("network: unsubscribe broadcast subject for %q: %w", targetChannel, err)
 	}
 	return nil
 }
 
-func (m *Manager) subscribeDirect(space string, peerID string) (*nats.Subscription, error) {
-	subject, err := DirectSubject(space, peerID)
+func (m *Manager) subscribeDirect(channel string, peerID string) (*nats.Subscription, error) {
+	subject, err := DirectSubject(channel, peerID)
 	if err != nil {
 		return nil, err
 	}
@@ -852,11 +852,11 @@ func cleanupSubscription(unsubscribe func() error, format string, value string) 
 	return nil
 }
 
-func cleanupDuplicateBroadcastSubscription(space string, runtime *managedSpace, unsubscribe func() error) error {
+func cleanupDuplicateBroadcastSubscription(channel string, runtime *managedChannel, unsubscribe func() error) error {
 	if err := cleanupSubscription(
 		unsubscribe,
 		"network: unsubscribe duplicate broadcast subject for %q: %w",
-		space,
+		channel,
 	); err != nil {
 		if runtime != nil {
 			runtime.refCount--
@@ -1007,7 +1007,7 @@ func networkLogFields(envelope Envelope, extra ...any) []any {
 	fields := []any{
 		"message_id", strings.TrimSpace(envelope.ID),
 		"kind", string(envelope.Kind),
-		"space", strings.TrimSpace(envelope.Space),
+		"channel", strings.TrimSpace(envelope.Channel),
 		"from", strings.TrimSpace(envelope.From),
 	}
 	if envelope.To != nil {

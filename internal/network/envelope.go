@@ -170,7 +170,7 @@ type Envelope struct {
 	Protocol      string          `json:"protocol"`
 	ID            string          `json:"id"`
 	Kind          Kind            `json:"kind"`
-	Space         string          `json:"space"`
+	Channel       string          `json:"channel"`
 	From          string          `json:"from"`
 	To            *string         `json:"to"`
 	InteractionID *string         `json:"interaction_id,omitempty"`
@@ -189,7 +189,7 @@ func (e Envelope) IsDirected() bool {
 	return e.To != nil
 }
 
-// IsBroadcast reports whether the envelope is space-broadcast.
+// IsBroadcast reports whether the envelope is channel-broadcast.
 func (e Envelope) IsBroadcast() bool {
 	return e.To == nil
 }
@@ -214,7 +214,7 @@ var (
 	_ Body = TraceBody{}
 )
 
-// GreetBody advertises peer presence and capabilities in a space.
+// GreetBody advertises peer presence and capabilities in a channel.
 type GreetBody struct {
 	PeerCard PeerCard `json:"peer_card"`
 	Summary  string   `json:"summary,omitempty"`

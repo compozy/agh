@@ -24,7 +24,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
@@ -1394,7 +1394,7 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 		WithNow(func() time.Time { return now }),
 		WithHTTPServerFactory(httpFactory),
 		WithUDSServerFactory(udsFactory),
-		WithSignalChannel(signalCh),
+		WithSignalBridge(signalCh),
 		WithBoundaryVerification(true),
 	)
 	if err != nil {
@@ -1410,7 +1410,7 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 		t.Fatalf("now() = %v, want %v", got, now)
 	}
 	if d.signalCh != signalCh {
-		t.Fatal("WithSignalChannel() did not apply")
+		t.Fatal("WithSignalBridge() did not apply")
 	}
 	if !d.verifyBoundaries {
 		t.Fatal("WithBoundaryVerification(true) did not apply")
@@ -1596,7 +1596,7 @@ func TestSignalSourceDefaultsToOSSignalRegistration(t *testing.T) {
 
 	ch, stop := d.signalSource()
 	if ch == nil {
-		t.Fatal("signalSource() channel = nil")
+		t.Fatal("signalSource() bridge = nil")
 	}
 	stop()
 }
@@ -2808,7 +2808,7 @@ type fakeNetworkRuntime struct {
 type fakeNetworkJoinCall struct {
 	sessionID string
 	peerID    string
-	space     string
+	channel   string
 }
 
 func (f *fakeNetworkRuntime) Send(_ context.Context, req network.SendRequest) (string, error) {
@@ -2828,7 +2828,7 @@ func (f *fakeNetworkRuntime) ListPeers(context.Context, string) ([]network.PeerI
 	return nil, nil
 }
 
-func (f *fakeNetworkRuntime) ListSpaces(context.Context) ([]network.SpaceInfo, error) {
+func (f *fakeNetworkRuntime) ListChannels(context.Context) ([]network.ChannelInfo, error) {
 	return nil, nil
 }
 
@@ -2854,18 +2854,18 @@ func (f *fakeNetworkRuntime) Inbox(_ context.Context, sessionID string) ([]netwo
 	return append([]network.Envelope(nil), f.inboxes[sessionID]...), nil
 }
 
-func (f *fakeNetworkRuntime) JoinSpace(_ context.Context, sessionID string, peerID string, space string) error {
+func (f *fakeNetworkRuntime) JoinChannel(_ context.Context, sessionID string, peerID string, channel string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.joinCalls = append(f.joinCalls, fakeNetworkJoinCall{
 		sessionID: sessionID,
 		peerID:    peerID,
-		space:     space,
+		channel:   channel,
 	})
 	return nil
 }
 
-func (f *fakeNetworkRuntime) LeaveSpace(_ context.Context, sessionID string) error {
+func (f *fakeNetworkRuntime) LeaveChannel(_ context.Context, sessionID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.leaveCalls = append(f.leaveCalls, sessionID)
@@ -2909,7 +2909,7 @@ func (f *fakeObserver) QueryHookEvents(context.Context, hookspkg.EventFilter) ([
 	return nil, nil
 }
 
-func (f *fakeObserver) QueryChannelHealth(context.Context) ([]observe.ChannelInstanceHealth, error) {
+func (f *fakeObserver) QueryBridgeHealth(context.Context) ([]observe.BridgeInstanceHealth, error) {
 	return nil, nil
 }
 
@@ -3932,22 +3932,22 @@ func TestDaemonExtensionHelperHandleRequest(t *testing.T) {
 		server := newDaemonExtensionHelperServer("", marker)
 		server.encoder = json.NewEncoder(&output)
 
-		params, err := json.Marshal(channelspkg.DeliveryRequest{
-			Event: channelspkg.DeliveryEvent{
-				DeliveryID:        "delivery-1",
-				ChannelInstanceID: "chan-1",
-				RoutingKey: channelspkg.RoutingKey{
-					Scope:             channelspkg.ScopeGlobal,
-					ChannelInstanceID: "chan-1",
-					PeerID:            "peer-1",
+		params, err := json.Marshal(bridgepkg.DeliveryRequest{
+			Event: bridgepkg.DeliveryEvent{
+				DeliveryID:       "delivery-1",
+				BridgeInstanceID: "brg-1",
+				RoutingKey: bridgepkg.RoutingKey{
+					Scope:            bridgepkg.ScopeGlobal,
+					BridgeInstanceID: "brg-1",
+					PeerID:           "peer-1",
 				},
-				DeliveryTarget: channelspkg.DeliveryTarget{
-					ChannelInstanceID: "chan-1",
-					PeerID:            "peer-1",
-					Mode:              channelspkg.DeliveryModeDirectSend,
+				DeliveryTarget: bridgepkg.DeliveryTarget{
+					BridgeInstanceID: "brg-1",
+					PeerID:           "peer-1",
+					Mode:             bridgepkg.DeliveryModeDirectSend,
 				},
 				Seq:       1,
-				EventType: channelspkg.DeliveryEventTypeResume,
+				EventType: bridgepkg.DeliveryEventTypeResume,
 			},
 		})
 		if err != nil {
@@ -3956,17 +3956,17 @@ func TestDaemonExtensionHelperHandleRequest(t *testing.T) {
 
 		exit, err := server.handleRequest(daemonExtensionHelperRequest{
 			ID:     "1",
-			Method: "channels/deliver",
+			Method: "bridges/deliver",
 			Params: params,
 		})
 		if exit {
-			t.Fatal("handleRequest(channels/deliver) exit = true, want false")
+			t.Fatal("handleRequest(bridges/deliver) exit = true, want false")
 		}
 		if err == nil {
-			t.Fatal("handleRequest(channels/deliver) error = nil, want delivery validation failure")
+			t.Fatal("handleRequest(bridges/deliver) error = nil, want delivery validation failure")
 		}
-		if !strings.Contains(err.Error(), "validate channels/deliver request") {
-			t.Fatalf("handleRequest(channels/deliver) error = %q, want validation context", err)
+		if !strings.Contains(err.Error(), "validate bridges/deliver request") {
+			t.Fatalf("handleRequest(bridges/deliver) error = %q, want validation context", err)
 		}
 
 		payload, readErr := os.ReadFile(marker)
@@ -4013,7 +4013,7 @@ func TestDaemonExtensionHelperMarkerRecording(t *testing.T) {
 		}
 
 		server := newDaemonExtensionHelperServer("", marker)
-		err := server.recordDelivery(channelspkg.DeliveryRequest{})
+		err := server.recordDelivery(bridgepkg.DeliveryRequest{})
 		if err == nil {
 			t.Fatal("recordDelivery() error = nil, want marker append failure")
 		}
@@ -4101,19 +4101,19 @@ func (h *daemonExtensionHelperServer) handleRequest(req daemonExtensionHelperReq
 		return h.scenario == "auto_exit_record_initialize", nil
 	case "health_check":
 		return false, h.sendResult(req.ID, subprocess.HealthCheckResponse{Healthy: true})
-	case "channels/deliver":
-		var params channelspkg.DeliveryRequest
+	case "bridges/deliver":
+		var params bridgepkg.DeliveryRequest
 		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return false, fmt.Errorf("decode channels/deliver request: %w", err)
+			return false, fmt.Errorf("decode bridges/deliver request: %w", err)
 		}
 		if err := params.Validate(); err != nil {
-			return false, fmt.Errorf("validate channels/deliver request: %w", err)
+			return false, fmt.Errorf("validate bridges/deliver request: %w", err)
 		}
 		if err := h.recordDelivery(params); err != nil {
 			return false, err
 		}
 
-		ack := channelspkg.DeliveryAck{
+		ack := bridgepkg.DeliveryAck{
 			DeliveryID: strings.TrimSpace(params.Event.DeliveryID),
 			Seq:        params.Event.Seq,
 		}
@@ -4147,7 +4147,7 @@ func (h *daemonExtensionHelperServer) handleRequest(req daemonExtensionHelperReq
 	}
 }
 
-func (h *daemonExtensionHelperServer) sendDelayedDeliveryResult(id any, ack channelspkg.DeliveryAck) {
+func (h *daemonExtensionHelperServer) sendDelayedDeliveryResult(id any, ack bridgepkg.DeliveryAck) {
 	h.slowDeliveryWG.Add(1)
 	go func() {
 		defer h.slowDeliveryWG.Done()
@@ -4200,7 +4200,7 @@ func (h *daemonExtensionHelperServer) recordInitialize(
 	return nil
 }
 
-func (h *daemonExtensionHelperServer) recordDelivery(request channelspkg.DeliveryRequest) error {
+func (h *daemonExtensionHelperServer) recordDelivery(request bridgepkg.DeliveryRequest) error {
 	if strings.TrimSpace(h.marker) == "" {
 		return nil
 	}
@@ -4247,8 +4247,8 @@ type daemonInitializeMarker struct {
 }
 
 type daemonDeliveryMarker struct {
-	PID     int                         `json:"pid"`
-	Request channelspkg.DeliveryRequest `json:"request"`
+	PID     int                       `json:"pid"`
+	Request bridgepkg.DeliveryRequest `json:"request"`
 }
 
 func appendMarkerLine(path string, line string) (err error) {

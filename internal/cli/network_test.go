@@ -24,7 +24,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				ListenerPort:         4222,
 				LocalPeers:           1,
 				RemotePeers:          2,
-				Spaces:               1,
+				Channels:             1,
 				QueuedMessages:       3,
 				QueuedSessions:       1,
 				DeliveryWorkers:      1,
@@ -53,7 +53,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			return []NetworkPeerRecord{{
 				PeerID:    "reviewer.sess-a",
 				SessionID: &sessionID,
-				Space:     "builders",
+				Channel:   "builders",
 				Local:     true,
 				PeerCard: NetworkPeerCardRecord{
 					PeerID:              "reviewer.sess-a",
@@ -67,15 +67,15 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				ExpiresAt: &expires,
 			}}, nil
 		},
-		networkSpacesFn: func(context.Context) ([]NetworkSpaceRecord, error) {
-			return []NetworkSpaceRecord{{Space: "builders", PeerCount: 2}}, nil
+		networkChannelsFn: func(context.Context) ([]NetworkChannelRecord, error) {
+			return []NetworkChannelRecord{{Channel: "builders", PeerCount: 2}}, nil
 		},
 		networkSendFn: func(_ context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
 			seenSendRequest = request
 			return NetworkSendRecord{
 				ID:            "msg-1",
 				SessionID:     request.SessionID,
-				Space:         request.Space,
+				Channel:       request.Channel,
 				Kind:          request.Kind,
 				TraceID:       request.TraceID,
 				CausationID:   request.CausationID,
@@ -93,7 +93,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				Protocol:    "agh-network/v0",
 				ID:          "msg-inbox",
 				Kind:        "direct",
-				Space:       "builders",
+				Channel:     "builders",
 				From:        "reviewer.sess-a",
 				ReplyTo:     &replyTo,
 				TraceID:     &traceID,
@@ -121,8 +121,8 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("network peers error = %v", err)
 	}
-	if seenPeersQuery.Space != "builders" {
-		t.Fatalf("seenPeersQuery.Space = %q, want builders", seenPeersQuery.Space)
+	if seenPeersQuery.Channel != "builders" {
+		t.Fatalf("seenPeersQuery.Channel = %q, want builders", seenPeersQuery.Channel)
 	}
 	var peers []NetworkPeerRecord
 	if err := json.Unmarshal([]byte(peersOut), &peers); err != nil {
@@ -132,18 +132,18 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		t.Fatalf("peers = %#v, want one reviewer peer", peers)
 	}
 
-	spacesOut, _, err := executeRootCommand(t, deps, "network", "spaces", "-o", "toon")
+	channelsOut, _, err := executeRootCommand(t, deps, "network", "channels", "-o", "toon")
 	if err != nil {
-		t.Fatalf("network spaces error = %v", err)
+		t.Fatalf("network channels error = %v", err)
 	}
-	if !strings.Contains(spacesOut, "network_spaces[1]{space,peer_count}:") {
-		t.Fatalf("network spaces toon = %q, want TOON list", spacesOut)
+	if !strings.Contains(channelsOut, "network_channels[1]{channel,peer_count}:") {
+		t.Fatalf("network channels toon = %q, want TOON list", channelsOut)
 	}
 
 	sendOut, _, err := executeRootCommand(t, deps,
 		"network", "send",
 		"--session", "sess-a",
-		"--space", "builders",
+		"--channel", "builders",
 		"--kind", "say",
 		"--body", `{"text":"hello"}`,
 		"--interaction-id", "int-1",
@@ -196,7 +196,7 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 			args: []string{
 				"network", "send",
 				"--session", "sess-a",
-				"--space", "builders",
+				"--channel", "builders",
 				"--kind", "say",
 				"--body", `not-json`,
 			},
@@ -207,7 +207,7 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 			args: []string{
 				"network", "send",
 				"--session", "sess-a",
-				"--space", "builders",
+				"--channel", "builders",
 				"--kind", "say",
 				"--body", `{"text":"ok"}`,
 				"--ext", `[]`,
@@ -219,7 +219,7 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 			args: []string{
 				"network", "send",
 				"--session", "sess-a",
-				"--space", "builders",
+				"--channel", "builders",
 				"--kind", "say",
 				"--body", `{"text":"ok"}`,
 				"--expires-at", `tomorrow`,

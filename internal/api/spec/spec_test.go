@@ -147,30 +147,30 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
-			name: "ShouldDescribeChannelCreateRequiredFieldsAndEnums",
+			name: "ShouldDescribeBridgeCreateRequiredFieldsAndEnums",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
-				createChannel := operationFor(t, doc, "/api/channels", "POST")
-				createChannelSchema := jsonRequestSchema(t, createChannel)
-				assertRequired(t, createChannelSchema, "scope", "platform", "extension_name", "display_name", "enabled", "status", "routing_policy")
-				assertNotRequired(t, createChannelSchema, "workspace_id", "delivery_defaults")
-				assertEnumValues(t, propertySchema(t, createChannelSchema, "scope"), "global", "workspace")
-				assertEnumValues(t, propertySchema(t, createChannelSchema, "status"), "auth_required", "degraded", "disabled", "error", "ready", "starting")
+				createBridge := operationFor(t, doc, "/api/bridges", "POST")
+				createBridgeSchema := jsonRequestSchema(t, createBridge)
+				assertRequired(t, createBridgeSchema, "scope", "platform", "extension_name", "display_name", "enabled", "status", "routing_policy")
+				assertNotRequired(t, createBridgeSchema, "workspace_id", "delivery_defaults")
+				assertEnumValues(t, propertySchema(t, createBridgeSchema, "scope"), "global", "workspace")
+				assertEnumValues(t, propertySchema(t, createBridgeSchema, "status"), "auth_required", "degraded", "disabled", "error", "ready", "starting")
 			},
 		},
 		{
-			name: "ShouldDescribeChannelTestDeliveryTypedTargetShape",
+			name: "ShouldDescribeBridgeTestDeliveryTypedTargetShape",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
-				testDelivery := operationFor(t, doc, "/api/channels/{id}/test-delivery", "POST")
+				testDelivery := operationFor(t, doc, "/api/bridges/{id}/test-delivery", "POST")
 				testDeliverySchema := jsonRequestSchema(t, testDelivery)
 				assertRequired(t, testDeliverySchema, "target")
 				assertNotRequired(t, testDeliverySchema, "message")
 
 				targetSchema := propertySchema(t, testDeliverySchema, "target")
-				assertNotRequired(t, targetSchema, "channel_instance_id", "peer_id", "thread_id", "group_id", "mode")
+				assertNotRequired(t, targetSchema, "bridge_instance_id", "peer_id", "thread_id", "group_id", "mode")
 				assertEnumValues(t, propertySchema(t, targetSchema, "mode"), "direct-send", "reply")
 
 				responseSchema := jsonResponseSchema(t, testDelivery, 200)
@@ -292,7 +292,7 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 		if !slices.IsSorted(got) {
 			t.Fatalf("values are not sorted: %v", got)
 		}
-		for _, want := range []string{"channels/messages/ingest", "channels/instances/get", "channels/instances/report_state"} {
+		for _, want := range []string{"bridges/messages/ingest", "bridges/instances/get", "bridges/instances/report_state"} {
 			if !contains(got, want) {
 				t.Fatalf("expected %q in host api method values %v", want, got)
 			}

@@ -106,7 +106,7 @@ func TestApplyConfigOverlayFileAppliesNetworkOverlay(t *testing.T) {
 		writeFile(t, overlayPath, `
 [network]
 enabled = true
-default_space = "builders"
+default_channel = "builders"
 port = 4555
 max_payload = 12345
 greet_interval = 15
@@ -121,8 +121,8 @@ max_queue_depth = 12
 		if !cfg.Network.Enabled {
 			t.Fatal("ApplyConfigOverlayFile() Network.Enabled = false, want true")
 		}
-		if got, want := cfg.Network.DefaultSpace, "builders"; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Network.DefaultSpace = %q, want %q", got, want)
+		if got, want := cfg.Network.DefaultChannel, "builders"; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Network.DefaultChannel = %q, want %q", got, want)
 		}
 		if got, want := cfg.Network.Port, 4555; got != want {
 			t.Fatalf("ApplyConfigOverlayFile() Network.Port = %d, want %d", got, want)

@@ -69,14 +69,14 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	if got := session.Info().Type; got != SessionTypeUser {
 		t.Fatalf("Create() type = %q, want %q", got, SessionTypeUser)
 	}
-	if got := session.Info().Space; got != "" {
-		t.Fatalf("Create() space = %q, want empty", got)
+	if got := session.Info().Channel; got != "" {
+		t.Fatalf("Create() channel = %q, want empty", got)
 	}
 	if meta := readMeta(t, session.MetaPath()); meta.SessionType != string(SessionTypeUser) {
 		t.Fatalf("meta session type = %q, want %q", meta.SessionType, SessionTypeUser)
 	}
-	if meta := readMeta(t, session.MetaPath()); meta.Space != "" {
-		t.Fatalf("meta space = %q, want empty", meta.Space)
+	if meta := readMeta(t, session.MetaPath()); meta.Channel != "" {
+		t.Fatalf("meta channel = %q, want empty", meta.Channel)
 	}
 	if got := len(h.resolver.resolveCalls); got != 1 {
 		t.Fatalf("resolver Resolve() calls = %d, want 1", got)
@@ -234,7 +234,7 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 	}
 }
 
-func TestCreateAndResumePreserveSpace(t *testing.T) {
+func TestCreateAndResumePreserveChannel(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -242,17 +242,17 @@ func TestCreateAndResumePreserveSpace(t *testing.T) {
 		AgentName: "coder",
 		Name:      "networked",
 		Workspace: h.workspaceID,
-		Space:     "builders",
+		Channel:   "builders",
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	if got := session.Info().Space; got != "builders" {
-		t.Fatalf("Create() space = %q, want %q", got, "builders")
+	if got := session.Info().Channel; got != "builders" {
+		t.Fatalf("Create() channel = %q, want %q", got, "builders")
 	}
-	if meta := readMeta(t, session.MetaPath()); meta.Space != "builders" {
-		t.Fatalf("meta space = %q, want %q", meta.Space, "builders")
+	if meta := readMeta(t, session.MetaPath()); meta.Channel != "builders" {
+		t.Fatalf("meta channel = %q, want %q", meta.Channel, "builders")
 	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
@@ -263,8 +263,8 @@ func TestCreateAndResumePreserveSpace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Status(stopped) error = %v", err)
 	}
-	if got := stopped.Space; got != "builders" {
-		t.Fatalf("Status(stopped).Space = %q, want %q", got, "builders")
+	if got := stopped.Channel; got != "builders" {
+		t.Fatalf("Status(stopped).Channel = %q, want %q", got, "builders")
 	}
 
 	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
@@ -275,11 +275,11 @@ func TestCreateAndResumePreserveSpace(t *testing.T) {
 		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
 	})
 
-	if got := resumed.Info().Space; got != "builders" {
-		t.Fatalf("Resume() space = %q, want %q", got, "builders")
+	if got := resumed.Info().Channel; got != "builders" {
+		t.Fatalf("Resume() channel = %q, want %q", got, "builders")
 	}
-	if meta := readMeta(t, resumed.MetaPath()); meta.Space != "builders" {
-		t.Fatalf("resumed meta space = %q, want %q", meta.Space, "builders")
+	if meta := readMeta(t, resumed.MetaPath()); meta.Channel != "builders" {
+		t.Fatalf("resumed meta channel = %q, want %q", meta.Channel, "builders")
 	}
 }
 
@@ -294,7 +294,7 @@ func TestCreateResumeAndStopInvokeLateBoundNetworkPeerLifecycle(t *testing.T) {
 		AgentName: "coder",
 		Name:      "networked",
 		Workspace: h.workspaceID,
-		Space:     "builders",
+		Channel:   "builders",
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -310,8 +310,8 @@ func TestCreateResumeAndStopInvokeLateBoundNetworkPeerLifecycle(t *testing.T) {
 	if got, want := firstJoin.peerID, "coder."+session.ID; got != want {
 		t.Fatalf("first join peer_id = %q, want %q", got, want)
 	}
-	if got, want := firstJoin.space, "builders"; got != want {
-		t.Fatalf("first join space = %q, want %q", got, want)
+	if got, want := firstJoin.channel, "builders"; got != want {
+		t.Fatalf("first join channel = %q, want %q", got, want)
 	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
@@ -338,8 +338,8 @@ func TestCreateResumeAndStopInvokeLateBoundNetworkPeerLifecycle(t *testing.T) {
 	if got, want := secondJoin.peerID, "coder."+resumed.ID; got != want {
 		t.Fatalf("second join peer_id = %q, want %q", got, want)
 	}
-	if got, want := secondJoin.space, "builders"; got != want {
-		t.Fatalf("second join space = %q, want %q", got, want)
+	if got, want := secondJoin.channel, "builders"; got != want {
+		t.Fatalf("second join channel = %q, want %q", got, want)
 	}
 
 	if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
@@ -1495,7 +1495,7 @@ func TestCreateInvokesPromptAssemblerWhenConfigured(t *testing.T) {
 	}
 }
 
-func TestCreateWithSpaceAppendsBundledNetworkSkillAfterPromptAssembly(t *testing.T) {
+func TestCreateWithChannelAppendsBundledNetworkSkillAfterPromptAssembly(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -1515,7 +1515,7 @@ func TestCreateWithSpaceAppendsBundledNetworkSkillAfterPromptAssembly(t *testing
 		AgentName: "coder",
 		Name:      "networked",
 		Workspace: h.workspaceID,
-		Space:     "builders",
+		Channel:   "builders",
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -1554,7 +1554,7 @@ func TestCreateUsesRawPromptWhenAssemblerIsNil(t *testing.T) {
 	}
 }
 
-func TestCreateWithoutSpaceDoesNotAppendBundledNetworkSkill(t *testing.T) {
+func TestCreateWithoutChannelDoesNotAppendBundledNetworkSkill(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t, WithPromptAssembler(nil))
@@ -1582,7 +1582,7 @@ func TestCreateWithoutSpaceDoesNotAppendBundledNetworkSkill(t *testing.T) {
 	}
 }
 
-func TestResumeWithSpaceReinjectsBundledNetworkSkillOnce(t *testing.T) {
+func TestResumeWithChannelReinjectsBundledNetworkSkillOnce(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t, WithPromptAssembler(nil))
@@ -1595,7 +1595,7 @@ func TestResumeWithSpaceReinjectsBundledNetworkSkillOnce(t *testing.T) {
 		AgentName: "coder",
 		Name:      "networked",
 		Workspace: h.workspaceID,
-		Space:     "builders",
+		Channel:   "builders",
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -1625,7 +1625,7 @@ func TestResumeWithSpaceReinjectsBundledNetworkSkillOnce(t *testing.T) {
 	}
 }
 
-func TestCreateWithSpaceInjectsNetworkSessionEnv(t *testing.T) {
+func TestCreateWithChannelInjectsNetworkSessionEnv(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t, WithPromptAssembler(nil))
@@ -1634,7 +1634,7 @@ func TestCreateWithSpaceInjectsNetworkSessionEnv(t *testing.T) {
 		AgentName: "coder",
 		Name:      "networked",
 		Workspace: h.workspaceID,
-		Space:     "builders",
+		Channel:   "builders",
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -1647,15 +1647,15 @@ func TestCreateWithSpaceInjectsNetworkSessionEnv(t *testing.T) {
 	if got, ok := lookupEnvValue(env, "AGH_SESSION_ID"); !ok || got != session.ID {
 		t.Fatalf("AGH_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
 	}
-	if got, ok := lookupEnvValue(env, "AGH_SESSION_SPACE"); !ok || got != "builders" {
-		t.Fatalf("AGH_SESSION_SPACE = %q, %v, want %q", got, ok, "builders")
+	if got, ok := lookupEnvValue(env, "AGH_SESSION_CHANNEL"); !ok || got != "builders" {
+		t.Fatalf("AGH_SESSION_CHANNEL = %q, %v, want %q", got, ok, "builders")
 	}
 	if got, ok := lookupEnvValue(env, "AGH_PEER_ID"); !ok || got != "coder."+session.ID {
 		t.Fatalf("AGH_PEER_ID = %q, %v, want %q", got, ok, "coder."+session.ID)
 	}
 }
 
-func TestCreateWithoutSpaceOmitsNetworkSpaceEnv(t *testing.T) {
+func TestCreateWithoutChannelOmitsNetworkChannelEnv(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t, WithPromptAssembler(nil))
@@ -1675,15 +1675,15 @@ func TestCreateWithoutSpaceOmitsNetworkSpaceEnv(t *testing.T) {
 	if got, ok := lookupEnvValue(env, "AGH_SESSION_ID"); !ok || got != session.ID {
 		t.Fatalf("AGH_SESSION_ID = %q, %v, want %q", got, ok, session.ID)
 	}
-	if got, ok := lookupEnvValue(env, "AGH_SESSION_SPACE"); ok {
-		t.Fatalf("AGH_SESSION_SPACE = %q, want unset", got)
+	if got, ok := lookupEnvValue(env, "AGH_SESSION_CHANNEL"); ok {
+		t.Fatalf("AGH_SESSION_CHANNEL = %q, want unset", got)
 	}
 	if got, ok := lookupEnvValue(env, "AGH_PEER_ID"); ok {
 		t.Fatalf("AGH_PEER_ID = %q, want unset", got)
 	}
 }
 
-func TestResumeWithSpaceReinjectsNetworkSessionEnv(t *testing.T) {
+func TestResumeWithChannelReinjectsNetworkSessionEnv(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t, WithPromptAssembler(nil))
@@ -1692,7 +1692,7 @@ func TestResumeWithSpaceReinjectsNetworkSessionEnv(t *testing.T) {
 		AgentName: "coder",
 		Name:      "networked",
 		Workspace: h.workspaceID,
-		Space:     "builders",
+		Channel:   "builders",
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -1713,8 +1713,8 @@ func TestResumeWithSpaceReinjectsNetworkSessionEnv(t *testing.T) {
 	if got, ok := lookupEnvValue(env, "AGH_SESSION_ID"); !ok || got != resumed.ID {
 		t.Fatalf("AGH_SESSION_ID = %q, %v, want %q", got, ok, resumed.ID)
 	}
-	if got, ok := lookupEnvValue(env, "AGH_SESSION_SPACE"); !ok || got != "builders" {
-		t.Fatalf("AGH_SESSION_SPACE = %q, %v, want %q", got, ok, "builders")
+	if got, ok := lookupEnvValue(env, "AGH_SESSION_CHANNEL"); !ok || got != "builders" {
+		t.Fatalf("AGH_SESSION_CHANNEL = %q, %v, want %q", got, ok, "builders")
 	}
 	if got, ok := lookupEnvValue(env, "AGH_PEER_ID"); !ok || got != "coder."+resumed.ID {
 		t.Fatalf("AGH_PEER_ID = %q, %v, want %q", got, ok, "coder."+resumed.ID)
@@ -2099,25 +2099,25 @@ type fakeNetworkPeerLifecycle struct {
 type fakeNetworkJoinCall struct {
 	sessionID string
 	peerID    string
-	space     string
+	channel   string
 }
 
 func newFakeNetworkPeerLifecycle() *fakeNetworkPeerLifecycle {
 	return &fakeNetworkPeerLifecycle{}
 }
 
-func (f *fakeNetworkPeerLifecycle) JoinSpace(_ context.Context, sessionID string, peerID string, space string) error {
+func (f *fakeNetworkPeerLifecycle) JoinChannel(_ context.Context, sessionID string, peerID string, channel string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.joins = append(f.joins, fakeNetworkJoinCall{
 		sessionID: sessionID,
 		peerID:    peerID,
-		space:     space,
+		channel:   channel,
 	})
 	return nil
 }
 
-func (f *fakeNetworkPeerLifecycle) LeaveSpace(_ context.Context, sessionID string) error {
+func (f *fakeNetworkPeerLifecycle) LeaveChannel(_ context.Context, sessionID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.left = append(f.left, sessionID)

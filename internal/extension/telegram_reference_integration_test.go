@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensiontest "github.com/pedronauck/agh/internal/extensiontest"
 	observepkg "github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/subprocess"
@@ -25,13 +25,13 @@ var (
 	buildTelegramReferenceErr  error
 )
 
-func TestTelegramReferenceAdapterLaunchNegotiatesChannelRuntime(t *testing.T) {
+func TestTelegramReferenceAdapterLaunchNegotiatesBridgeRuntime(t *testing.T) {
 	repoRoot := telegramReferenceRepoRoot(t)
 	buildTelegramReferenceAdapter(t, repoRoot)
 
 	harness := extensiontest.NewHarness(t, extensiontest.HarnessConfig{
 		ExtensionDir: telegramReferenceExtensionDir(repoRoot),
-		BoundSecrets: []subprocess.InitializeChannelBoundSecret{
+		BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 			{BindingName: "bot_token", Kind: "token", Value: "telegram-bot-token"},
 		},
 		StartTime: time.Date(2026, 4, 11, 6, 0, 0, 0, time.UTC),
@@ -41,7 +41,7 @@ func TestTelegramReferenceAdapterLaunchNegotiatesChannelRuntime(t *testing.T) {
 	states := harness.WaitForStates(t, 10*time.Second, func(states []extensiontest.StateRecord) bool {
 		return len(states) > 0
 	})
-	if got, want := states[len(states)-1].Status.Normalize(), channelspkg.ChannelStatusReady; got != want {
+	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("last adapter state = %q (error=%q), want %q", got, states[len(states)-1].Error, want)
 	}
 	report := harness.Report(t)
@@ -51,40 +51,40 @@ func TestTelegramReferenceAdapterLaunchNegotiatesChannelRuntime(t *testing.T) {
 		ExtensionName:       "telegram-reference",
 		BoundSecretNames:    []string{"bot_token"},
 		RequireStateReport:  true,
-		ExpectedFinalStatus: channelspkg.ChannelStatusReady,
+		ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
 	}); err != nil {
 		t.Fatalf("ValidateConformance() error = %v", err)
 	}
 
-	if handshake.Request.Runtime.Channel == nil {
-		t.Fatal("initialize runtime.channel = nil, want bound channel launch metadata")
+	if handshake.Request.Runtime.Bridge == nil {
+		t.Fatal("initialize runtime.bridge = nil, want bound bridge launch metadata")
 	}
-	if got, want := handshake.Request.Runtime.Channel.Instance.ID, harness.Instance.ID; got != want {
-		t.Fatalf("initialize runtime channel instance = %q, want %q", got, want)
+	if got, want := handshake.Request.Runtime.Bridge.Instance.ID, harness.Instance.ID; got != want {
+		t.Fatalf("initialize runtime bridge instance = %q, want %q", got, want)
 	}
-	if got, want := handshake.Request.Runtime.Channel.Instance.ExtensionName, "telegram-reference"; got != want {
-		t.Fatalf("initialize runtime channel extension = %q, want %q", got, want)
+	if got, want := handshake.Request.Runtime.Bridge.Instance.ExtensionName, "telegram-reference"; got != want {
+		t.Fatalf("initialize runtime bridge extension = %q, want %q", got, want)
 	}
-	if got, want := strings.TrimSpace(handshake.Request.Runtime.Channel.BoundSecrets[0].Value), "telegram-bot-token"; got != want {
+	if got, want := strings.TrimSpace(handshake.Request.Runtime.Bridge.BoundSecrets[0].Value), "telegram-bot-token"; got != want {
 		t.Fatalf("initialize bound bot token = %q, want %q", got, want)
 	}
 	if report.Instance == nil {
-		t.Fatal("instance marker = nil, want channel instance metadata")
+		t.Fatal("instance marker = nil, want bridge instance metadata")
 	}
 	if got, want := report.Instance.ID, harness.Instance.ID; got != want {
 		t.Fatalf("instance marker id = %q, want %q", got, want)
 	}
 
-	row := waitForChannelHealth(t, 10*time.Second, harness, func(health observepkg.ChannelInstanceHealth) bool {
-		return health.Status.Normalize() == channelspkg.ChannelStatusReady
+	row := waitForBridgeHealth(t, 10*time.Second, harness, func(health observepkg.BridgeInstanceHealth) bool {
+		return health.Status.Normalize() == bridgepkg.BridgeStatusReady
 	})
 	if got, want := row.RouteCount, 0; got != want {
-		t.Fatalf("channel health route_count = %d, want %d before ingress", got, want)
+		t.Fatalf("bridge health route_count = %d, want %d before ingress", got, want)
 	}
 
 	health := harness.ObserveHealth(t)
-	if got, want := health.Channels.StatusCounts.Ready, 1; got != want {
-		t.Fatalf("observe.Health().Channels.StatusCounts.Ready = %d, want %d", got, want)
+	if got, want := health.Bridges.StatusCounts.Ready, 1; got != want {
+		t.Fatalf("observe.Health().Bridges.StatusCounts.Ready = %d, want %d", got, want)
 	}
 }
 
@@ -95,7 +95,7 @@ func TestTelegramReferenceAdapterIngressAndDeliveryConformance(t *testing.T) {
 	startTime := time.Date(2026, 4, 11, 6, 5, 0, 0, time.UTC)
 	harness := extensiontest.NewHarness(t, extensiontest.HarnessConfig{
 		ExtensionDir: telegramReferenceExtensionDir(repoRoot),
-		BoundSecrets: []subprocess.InitializeChannelBoundSecret{
+		BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 			{BindingName: "bot_token", Kind: "token", Value: "telegram-bot-token"},
 		},
 		Driver: extensiontest.NewScriptedPromptDriver(startTime, []extensiontest.ScriptedPromptEvent{
@@ -110,7 +110,7 @@ func TestTelegramReferenceAdapterIngressAndDeliveryConformance(t *testing.T) {
 	states := harness.WaitForStates(t, 10*time.Second, func(states []extensiontest.StateRecord) bool {
 		return len(states) > 0
 	})
-	if got, want := states[len(states)-1].Status.Normalize(), channelspkg.ChannelStatusReady; got != want {
+	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("last adapter state = %q (error=%q), want %q", got, states[len(states)-1].Error, want)
 	}
 	harness.AppendInboundUpdate(t, telegramInboundUpdate(startTime))
@@ -119,7 +119,7 @@ func TestTelegramReferenceAdapterIngressAndDeliveryConformance(t *testing.T) {
 		return len(records) > 0 && strings.TrimSpace(records[len(records)-1].Result.SessionID) != ""
 	})
 	deliveries := harness.WaitForDeliveries(t, 10*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return len(records) > 0 && normalizeDeliveryEventType(records[len(records)-1].Request.Event.EventType) == channelspkg.DeliveryEventTypeFinal
+		return len(records) > 0 && normalizeDeliveryEventType(records[len(records)-1].Request.Event.EventType) == bridgepkg.DeliveryEventTypeFinal
 	})
 	report := harness.Report(t)
 
@@ -129,7 +129,7 @@ func TestTelegramReferenceAdapterIngressAndDeliveryConformance(t *testing.T) {
 		BoundSecretNames:    []string{"bot_token"},
 		RequireStateReport:  true,
 		RequireDelivery:     true,
-		ExpectedFinalStatus: channelspkg.ChannelStatusReady,
+		ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
 	}); err != nil {
 		t.Fatalf("ValidateConformance() error = %v", err)
 	}
@@ -143,18 +143,18 @@ func TestTelegramReferenceAdapterIngressAndDeliveryConformance(t *testing.T) {
 	if len(deliveries) < 2 {
 		t.Fatalf("len(deliveries) = %d, want at least 2", len(deliveries))
 	}
-	if got, want := normalizeDeliveryEventType(deliveries[0].Request.Event.EventType), channelspkg.DeliveryEventTypeStart; got != want {
+	if got, want := normalizeDeliveryEventType(deliveries[0].Request.Event.EventType), bridgepkg.DeliveryEventTypeStart; got != want {
 		t.Fatalf("first delivery event type = %q, want %q", got, want)
 	}
-	if got, want := normalizeDeliveryEventType(deliveries[len(deliveries)-1].Request.Event.EventType), channelspkg.DeliveryEventTypeFinal; got != want {
+	if got, want := normalizeDeliveryEventType(deliveries[len(deliveries)-1].Request.Event.EventType), bridgepkg.DeliveryEventTypeFinal; got != want {
 		t.Fatalf("last delivery event type = %q, want %q", got, want)
 	}
 
-	row := waitForChannelHealth(t, 10*time.Second, harness, func(health observepkg.ChannelInstanceHealth) bool {
-		return health.Status.Normalize() == channelspkg.ChannelStatusReady && health.RouteCount == 1
+	row := waitForBridgeHealth(t, 10*time.Second, harness, func(health observepkg.BridgeInstanceHealth) bool {
+		return health.Status.Normalize() == bridgepkg.BridgeStatusReady && health.RouteCount == 1
 	})
 	if got, want := row.RouteCount, 1; got != want {
-		t.Fatalf("channel health route_count = %d, want %d", got, want)
+		t.Fatalf("bridge health route_count = %d, want %d", got, want)
 	}
 }
 
@@ -165,7 +165,7 @@ func TestTelegramReferenceAdapterRestartResumesActiveDelivery(t *testing.T) {
 	startTime := time.Date(2026, 4, 11, 6, 10, 0, 0, time.UTC)
 	harness := extensiontest.NewHarness(t, extensiontest.HarnessConfig{
 		ExtensionDir: telegramReferenceExtensionDir(repoRoot),
-		BoundSecrets: []subprocess.InitializeChannelBoundSecret{
+		BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 			{BindingName: "bot_token", Kind: "token", Value: "telegram-bot-token"},
 		},
 		Driver: extensiontest.NewScriptedPromptDriver(startTime, []extensiontest.ScriptedPromptEvent{
@@ -174,8 +174,8 @@ func TestTelegramReferenceAdapterRestartResumesActiveDelivery(t *testing.T) {
 		}),
 		StartTime:                startTime,
 		CrashOnceOnFirstDelivery: true,
-		BrokerOptions: []channelspkg.DeliveryBrokerOption{
-			channelspkg.WithDeliveryBrokerRetryDelay(20 * time.Millisecond),
+		BrokerOptions: []bridgepkg.DeliveryBrokerOption{
+			bridgepkg.WithDeliveryBrokerRetryDelay(20 * time.Millisecond),
 		},
 	})
 
@@ -183,14 +183,14 @@ func TestTelegramReferenceAdapterRestartResumesActiveDelivery(t *testing.T) {
 	states := harness.WaitForStates(t, 10*time.Second, func(states []extensiontest.StateRecord) bool {
 		return len(states) > 0
 	})
-	if got, want := states[len(states)-1].Status.Normalize(), channelspkg.ChannelStatusReady; got != want {
+	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("last adapter state = %q (error=%q), want %q", got, states[len(states)-1].Error, want)
 	}
 	harness.AppendInboundUpdate(t, telegramInboundUpdate(startTime))
 
 	deliveries := harness.WaitForDeliveries(t, 10*time.Second, func(records []extensiontest.DeliveryRecord) bool {
 		for _, record := range records {
-			if normalizeDeliveryEventType(record.Request.Event.EventType) == channelspkg.DeliveryEventTypeResume {
+			if normalizeDeliveryEventType(record.Request.Event.EventType) == bridgepkg.DeliveryEventTypeResume {
 				return true
 			}
 		}
@@ -205,7 +205,7 @@ func TestTelegramReferenceAdapterRestartResumesActiveDelivery(t *testing.T) {
 		RequireStateReport:  true,
 		RequireDelivery:     true,
 		RequireResume:       true,
-		ExpectedFinalStatus: channelspkg.ChannelStatusReady,
+		ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
 	}); err != nil {
 		t.Fatalf("ValidateConformance() error = %v", err)
 	}
@@ -213,7 +213,7 @@ func TestTelegramReferenceAdapterRestartResumesActiveDelivery(t *testing.T) {
 	if len(deliveries) < 2 {
 		t.Fatalf("len(deliveries) = %d, want at least 2", len(deliveries))
 	}
-	resume := findDeliveryRecord(t, deliveries, channelspkg.DeliveryEventTypeResume)
+	resume := findDeliveryRecord(t, deliveries, bridgepkg.DeliveryEventTypeResume)
 	if resume.Request.Snapshot == nil {
 		t.Fatal("resume delivery snapshot = nil, want resumable state")
 	}
@@ -236,7 +236,7 @@ func TestTelegramReferenceAdapterAuthRequiredHealthSurface(t *testing.T) {
 	states := harness.WaitForStates(t, 10*time.Second, func(states []extensiontest.StateRecord) bool {
 		return len(states) > 0
 	})
-	if got, want := states[len(states)-1].Status.Normalize(), channelspkg.ChannelStatusAuthRequired; got != want {
+	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusAuthRequired; got != want {
 		t.Fatalf("last adapter state = %q (error=%q), want %q", got, states[len(states)-1].Error, want)
 	}
 	report := harness.Report(t)
@@ -245,24 +245,24 @@ func TestTelegramReferenceAdapterAuthRequiredHealthSurface(t *testing.T) {
 		InstanceID:          harness.Instance.ID,
 		ExtensionName:       "telegram-reference",
 		RequireStateReport:  true,
-		ExpectedFinalStatus: channelspkg.ChannelStatusAuthRequired,
+		ExpectedFinalStatus: bridgepkg.BridgeStatusAuthRequired,
 	}); err != nil {
 		t.Fatalf("ValidateConformance() error = %v", err)
 	}
 
-	row := waitForChannelHealth(t, 10*time.Second, harness, func(health observepkg.ChannelInstanceHealth) bool {
-		return health.Status.Normalize() == channelspkg.ChannelStatusAuthRequired && health.AuthFailuresTotal > 0
+	row := waitForBridgeHealth(t, 10*time.Second, harness, func(health observepkg.BridgeInstanceHealth) bool {
+		return health.Status.Normalize() == bridgepkg.BridgeStatusAuthRequired && health.AuthFailuresTotal > 0
 	})
 	if row.AuthFailuresTotal <= 0 {
-		t.Fatalf("channel auth_failures_total = %d, want > 0", row.AuthFailuresTotal)
+		t.Fatalf("bridge auth_failures_total = %d, want > 0", row.AuthFailuresTotal)
 	}
 
 	health := harness.ObserveHealth(t)
-	if got, want := health.Channels.StatusCounts.AuthRequired, 1; got != want {
-		t.Fatalf("observe.Health().Channels.StatusCounts.AuthRequired = %d, want %d", got, want)
+	if got, want := health.Bridges.StatusCounts.AuthRequired, 1; got != want {
+		t.Fatalf("observe.Health().Bridges.StatusCounts.AuthRequired = %d, want %d", got, want)
 	}
-	if health.Channels.AuthFailuresTotal <= 0 {
-		t.Fatalf("observe.Health().Channels.AuthFailuresTotal = %d, want > 0", health.Channels.AuthFailuresTotal)
+	if health.Bridges.AuthFailuresTotal <= 0 {
+		t.Fatalf("observe.Health().Bridges.AuthFailuresTotal = %d, want > 0", health.Bridges.AuthFailuresTotal)
 	}
 }
 
@@ -329,26 +329,26 @@ func telegramInboundUpdate(now time.Time) map[string]any {
 	}
 }
 
-func waitForChannelHealth(
+func waitForBridgeHealth(
 	t *testing.T,
 	timeout time.Duration,
 	harness *extensiontest.Harness,
-	predicate func(observepkg.ChannelInstanceHealth) bool,
-) observepkg.ChannelInstanceHealth {
+	predicate func(observepkg.BridgeInstanceHealth) bool,
+) observepkg.BridgeInstanceHealth {
 	t.Helper()
 
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		rows := harness.QueryChannelHealth(t)
+		rows := harness.QueryBridgeHealth(t)
 		for _, row := range rows {
-			if row.ChannelInstanceID == harness.Instance.ID && predicate(row) {
+			if row.BridgeInstanceID == harness.Instance.ID && predicate(row) {
 				return row
 			}
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatalf("channel health for %q did not satisfy predicate before timeout", harness.Instance.ID)
-	return observepkg.ChannelInstanceHealth{}
+	t.Fatalf("bridge health for %q did not satisfy predicate before timeout", harness.Instance.ID)
+	return observepkg.BridgeInstanceHealth{}
 }
 
 func findDeliveryRecord(

@@ -124,7 +124,7 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 	}
 }
 
-func TestManagerIntegrationResumeWithSpaceReinjectsBundledNetworkSkillBeforeACPStart(t *testing.T) {
+func TestManagerIntegrationResumeWithChannelReinjectsBundledNetworkSkillBeforeACPStart(t *testing.T) {
 	h := newHarness(t)
 	networkSkill, err := bundled.LoadContent(networkSkillName)
 	if err != nil {
@@ -135,7 +135,7 @@ func TestManagerIntegrationResumeWithSpaceReinjectsBundledNetworkSkillBeforeACPS
 		AgentName: "coder",
 		Name:      "networked",
 		Workspace: h.workspaceID,
-		Space:     "builders",
+		Channel:   "builders",
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)

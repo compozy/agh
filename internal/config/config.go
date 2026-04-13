@@ -125,13 +125,13 @@ type SkillsConfig struct {
 
 // NetworkConfig controls the embedded AGH network runtime.
 type NetworkConfig struct {
-	Enabled       bool   `toml:"enabled"`
-	DefaultSpace  string `toml:"default_space"`
-	Port          int    `toml:"port"`
-	MaxPayload    int    `toml:"max_payload"`
-	GreetInterval int    `toml:"greet_interval"`
-	MaxReplayAge  int    `toml:"max_replay_age"`
-	MaxQueueDepth int    `toml:"max_queue_depth"`
+	Enabled        bool   `toml:"enabled"`
+	DefaultChannel string `toml:"default_channel"`
+	Port           int    `toml:"port"`
+	MaxPayload     int    `toml:"max_payload"`
+	GreetInterval  int    `toml:"greet_interval"`
+	MaxReplayAge   int    `toml:"max_replay_age"`
+	MaxQueueDepth  int    `toml:"max_queue_depth"`
 }
 
 // Config is the fully merged AGH configuration.
@@ -332,13 +332,13 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
 		},
 		Network: NetworkConfig{
-			Enabled:       false,
-			DefaultSpace:  "default",
-			Port:          -1,
-			MaxPayload:    1 << 20,
-			GreetInterval: 30,
-			MaxReplayAge:  300,
-			MaxQueueDepth: 100,
+			Enabled:        false,
+			DefaultChannel: "default",
+			Port:           -1,
+			MaxPayload:     1 << 20,
+			GreetInterval:  30,
+			MaxReplayAge:   300,
+			MaxQueueDepth:  100,
 		},
 	}
 }
@@ -528,18 +528,18 @@ func (c SkillsConfig) Validate() error {
 	return nil
 }
 
-var networkSpacePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+var networkChannelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 
 const maxNetworkDurationSeconds = int64(1<<63-1) / int64(time.Second)
 
 // Validate ensures the network configuration is internally consistent.
 func (c NetworkConfig) Validate() error {
-	defaultSpace := strings.TrimSpace(c.DefaultSpace)
-	if defaultSpace == "" {
-		return errors.New("network.default_space is required")
+	defaultChannel := strings.TrimSpace(c.DefaultChannel)
+	if defaultChannel == "" {
+		return errors.New("network.default_channel is required")
 	}
-	if !networkSpacePattern.MatchString(defaultSpace) {
-		return fmt.Errorf("network.default_space must match %q: %q", networkSpacePattern.String(), c.DefaultSpace)
+	if !networkChannelPattern.MatchString(defaultChannel) {
+		return fmt.Errorf("network.default_channel must match %q: %q", networkChannelPattern.String(), c.DefaultChannel)
 	}
 	if c.Port != -1 && (c.Port <= 0 || c.Port > 65535) {
 		return fmt.Errorf("network.port must be -1 or between 1 and 65535: %d", c.Port)

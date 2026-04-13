@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
@@ -149,20 +149,20 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	}
 }
 
-func TestManagerStartChannelAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
+func TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
 	t.Parallel()
 
 	withDaemonVersion(t, "0.5.0")
 	env := newRegistryTestEnv(t)
-	fixture := createManagerTestExtension(t, managerTestManifest("ext-channel", managerManifestOptions{
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge", managerManifestOptions{
 		command:      "fake-extension",
-		capabilities: []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		actions: []string{
-			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesReportState),
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"channel.read", "channel.write"},
+		security: []string{"bridge.read", "bridge.write"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -170,11 +170,11 @@ func TestManagerStartChannelAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
 	launcher := &fakeLauncher{queue: []*fakeProcess{fakeProc}}
 	manager := NewManager(
 		env.registry,
-		WithChannelRuntimeResolver(&stubChannelRuntimeResolver{
-			runtimes: map[string]*subprocess.InitializeChannelRuntime{
-				"ext-channel": {
-					Instance: testChannelRuntimeInstance("ext-channel", "chan-1"),
-					BoundSecrets: []subprocess.InitializeChannelBoundSecret{
+		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
+			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
+				"ext-bridge": {
+					Instance: testBridgeRuntimeInstance("ext-bridge", "brg-1"),
+					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 						{BindingName: "bot_token", Kind: "bot_token", Value: "token-1"},
 					},
 				},
@@ -200,30 +200,30 @@ func TestManagerStartChannelAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
 	}
 
 	request := requests[0]
-	if !slices.Equal(request.Methods.ExtensionServices, []string{"channels/deliver"}) {
-		t.Fatalf("initialize extension services = %#v, want [channels/deliver]", request.Methods.ExtensionServices)
+	if !slices.Equal(request.Methods.ExtensionServices, []string{"bridges/deliver"}) {
+		t.Fatalf("initialize extension services = %#v, want [bridges/deliver]", request.Methods.ExtensionServices)
 	}
 	if !slices.Equal(request.Capabilities.GrantedActions, []extensionprotocol.HostAPIMethod{
-		extensionprotocol.HostAPIMethodChannelsInstancesGet,
-		extensionprotocol.HostAPIMethodChannelsInstancesReportState,
-		extensionprotocol.HostAPIMethodChannelsMessagesIngest,
+		extensionprotocol.HostAPIMethodBridgesInstancesGet,
+		extensionprotocol.HostAPIMethodBridgesInstancesReportState,
+		extensionprotocol.HostAPIMethodBridgesMessagesIngest,
 	}) {
-		t.Fatalf("initialize granted actions = %#v, want channel actions", request.Capabilities.GrantedActions)
+		t.Fatalf("initialize granted actions = %#v, want bridge actions", request.Capabilities.GrantedActions)
 	}
-	if !slices.Equal(request.Capabilities.GrantedSecurity, []string{"channel.read", "channel.write"}) {
-		t.Fatalf("initialize granted security = %#v, want channel grants", request.Capabilities.GrantedSecurity)
+	if !slices.Equal(request.Capabilities.GrantedSecurity, []string{"bridge.read", "bridge.write"}) {
+		t.Fatalf("initialize granted security = %#v, want bridge grants", request.Capabilities.GrantedSecurity)
 	}
-	if request.Runtime.Channel == nil {
-		t.Fatal("initialize runtime channel = nil, want scoped channel launch payload")
+	if request.Runtime.Bridge == nil {
+		t.Fatal("initialize runtime bridge = nil, want scoped bridge launch payload")
 	}
-	if got, want := request.Runtime.Channel.Instance.ID, "chan-1"; got != want {
-		t.Fatalf("initialize runtime channel instance id = %q, want %q", got, want)
+	if got, want := request.Runtime.Bridge.Instance.ID, "brg-1"; got != want {
+		t.Fatalf("initialize runtime bridge instance id = %q, want %q", got, want)
 	}
-	if got, want := request.Runtime.Channel.Instance.ExtensionName, "ext-channel"; got != want {
-		t.Fatalf("initialize runtime channel instance extension = %q, want %q", got, want)
+	if got, want := request.Runtime.Bridge.Instance.ExtensionName, "ext-bridge"; got != want {
+		t.Fatalf("initialize runtime bridge instance extension = %q, want %q", got, want)
 	}
-	if got := request.Runtime.Channel.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-1" {
-		t.Fatalf("initialize runtime channel bound secrets = %#v, want only bot_token", got)
+	if got := request.Runtime.Bridge.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-1" {
+		t.Fatalf("initialize runtime bridge bound secrets = %#v, want only bot_token", got)
 	}
 
 	for _, method := range request.Capabilities.GrantedActions {
@@ -238,16 +238,16 @@ func TestManagerStartChannelAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
 	}
 }
 
-func TestManagerStartChannelAdapterRequiresScopedLaunchRuntime(t *testing.T) {
+func TestManagerStartBridgeAdapterRequiresScopedLaunchRuntime(t *testing.T) {
 	t.Parallel()
 
 	withDaemonVersion(t, "0.5.0")
 	env := newRegistryTestEnv(t)
-	fixture := createManagerTestExtension(t, managerTestManifest("ext-channel-missing", managerManifestOptions{
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge-missing", managerManifestOptions{
 		command:      "fake-extension",
-		capabilities: []string{extensionprotocol.CapabilityProvideChannelAdapter},
-		actions:      []string{string(extensionprotocol.HostAPIMethodChannelsInstancesGet)},
-		security:     []string{"channel.read"},
+		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		actions:      []string{string(extensionprotocol.HostAPIMethodBridgesInstancesGet)},
+		security:     []string{"bridge.read"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -258,33 +258,33 @@ func TestManagerStartChannelAdapterRequiresScopedLaunchRuntime(t *testing.T) {
 
 	err := manager.Start(testutil.Context(t))
 	if err == nil {
-		t.Fatal("Start() error = nil, want missing channel runtime resolver failure")
+		t.Fatal("Start() error = nil, want missing bridge runtime resolver failure")
 	}
-	if !strings.Contains(err.Error(), "channel runtime resolver is required") {
-		t.Fatalf("Start() error = %v, want channel runtime resolver failure", err)
+	if !strings.Contains(err.Error(), "bridge runtime resolver is required") {
+		t.Fatalf("Start() error = %v, want bridge runtime resolver failure", err)
 	}
 }
 
-func TestManagerStartChannelAdapterDefersUntilRuntimeExists(t *testing.T) {
+func TestManagerStartBridgeAdapterDefersUntilRuntimeExists(t *testing.T) {
 	t.Parallel()
 
 	withDaemonVersion(t, "0.5.0")
 	env := newRegistryTestEnv(t)
-	fixture := createManagerTestExtension(t, managerTestManifest("ext-channel-deferred", managerManifestOptions{
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge-deferred", managerManifestOptions{
 		command:      "fake-extension",
-		capabilities: []string{extensionprotocol.CapabilityProvideChannelAdapter},
+		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		actions: []string{
-			string(extensionprotocol.HostAPIMethodChannelsMessagesIngest),
-			string(extensionprotocol.HostAPIMethodChannelsInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 		},
-		security: []string{"channel.read"},
+		security: []string{"bridge.read"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
 	launcher := &fakeLauncher{}
 	manager := NewManager(
 		env.registry,
-		WithChannelRuntimeResolver(&stubChannelRuntimeResolver{err: ErrChannelRuntimeDeferred}),
+		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{err: ErrBridgeRuntimeDeferred}),
 		withProcessLauncher(launcher.launch),
 	)
 
@@ -301,18 +301,18 @@ func TestManagerStartChannelAdapterDefersUntilRuntimeExists(t *testing.T) {
 		t.Fatalf("launch count = %d, want 0 while runtime is deferred", got)
 	}
 
-	loaded, err := manager.Get("ext-channel-deferred")
+	loaded, err := manager.Get("ext-bridge-deferred")
 	if err != nil {
-		t.Fatalf("Get(ext-channel-deferred) error = %v", err)
+		t.Fatalf("Get(ext-bridge-deferred) error = %v", err)
 	}
 	if loaded.Status.Active {
-		t.Fatal("Get(ext-channel-deferred).Status.Active = true, want false")
+		t.Fatal("Get(ext-bridge-deferred).Status.Active = true, want false")
 	}
 	if !loaded.Status.Registered {
-		t.Fatal("Get(ext-channel-deferred).Status.Registered = false, want true")
+		t.Fatal("Get(ext-bridge-deferred).Status.Registered = false, want true")
 	}
 	if loaded.Status.LastError != "" {
-		t.Fatalf("Get(ext-channel-deferred).Status.LastError = %q, want empty", loaded.Status.LastError)
+		t.Fatalf("Get(ext-bridge-deferred).Status.LastError = %q, want empty", loaded.Status.LastError)
 	}
 }
 
@@ -839,7 +839,7 @@ func TestManagerHelperPathsAndAccessors(t *testing.T) {
 	select {
 	case <-manager.lifecycleDone():
 	default:
-		t.Fatal("lifecycleDone() returned open channel, want closed channel when lifecycle is nil")
+		t.Fatal("lifecycleDone() returned open bridge, want closed bridge when lifecycle is nil")
 	}
 	if manager.lifecycleContext().Done() != nil {
 		t.Fatal("lifecycleContext() returned cancellable context, want background context")
@@ -1534,8 +1534,8 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		return nil
 	case "health_check":
 		return h.sendResult(req.ID, subprocess.HealthCheckResponse{Healthy: true})
-	case "channels/deliver":
-		var params channelspkg.DeliveryRequest
+	case "bridges/deliver":
+		var params bridgepkg.DeliveryRequest
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return err
 		}
@@ -1551,7 +1551,7 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 			}
 		}
 
-		ack := channelspkg.DeliveryAck{
+		ack := bridgepkg.DeliveryAck{
 			DeliveryID: strings.TrimSpace(params.Event.DeliveryID),
 			Seq:        params.Event.Seq,
 		}
@@ -1644,7 +1644,7 @@ func (h *extensionHelperServer) recordInitialize(
 	return appendMarkerLine(h.marker, string(payload))
 }
 
-func (h *extensionHelperServer) recordDelivery(request channelspkg.DeliveryRequest) error {
+func (h *extensionHelperServer) recordDelivery(request bridgepkg.DeliveryRequest) error {
 	if strings.TrimSpace(h.marker) == "" {
 		return nil
 	}
@@ -1671,16 +1671,16 @@ type helperResponse struct {
 }
 
 type managerDeliveryMarker struct {
-	PID     int                         `json:"pid"`
-	Request channelspkg.DeliveryRequest `json:"request"`
+	PID     int                       `json:"pid"`
+	Request bridgepkg.DeliveryRequest `json:"request"`
 }
 
-type stubChannelRuntimeResolver struct {
-	runtimes map[string]*subprocess.InitializeChannelRuntime
+type stubBridgeRuntimeResolver struct {
+	runtimes map[string]*subprocess.InitializeBridgeRuntime
 	err      error
 }
 
-func (r *stubChannelRuntimeResolver) ResolveChannelRuntime(_ context.Context, extensionName string) (*subprocess.InitializeChannelRuntime, error) {
+func (r *stubBridgeRuntimeResolver) ResolveBridgeRuntime(_ context.Context, extensionName string) (*subprocess.InitializeBridgeRuntime, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -1690,7 +1690,7 @@ func (r *stubChannelRuntimeResolver) ResolveChannelRuntime(_ context.Context, ex
 	if r.runtimes == nil {
 		return nil, nil
 	}
-	return subprocess.CloneInitializeChannelRuntime(r.runtimes[strings.TrimSpace(extensionName)]), nil
+	return subprocess.CloneInitializeBridgeRuntime(r.runtimes[strings.TrimSpace(extensionName)]), nil
 }
 
 func createManagerTestExtension(t *testing.T, manifestContent string, files map[string]string) managerFixture {
@@ -1945,15 +1945,15 @@ func waitForManagerCondition(t *testing.T, timeout time.Duration, fn func() bool
 	t.Fatal("timed out waiting for manager condition")
 }
 
-func testChannelRuntimeInstance(extensionName string, instanceID string) channelspkg.ChannelInstance {
-	return channelspkg.ChannelInstance{
+func testBridgeRuntimeInstance(extensionName string, instanceID string) bridgepkg.BridgeInstance {
+	return bridgepkg.BridgeInstance{
 		ID:            instanceID,
-		Scope:         channelspkg.ScopeGlobal,
+		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: extensionName,
-		DisplayName:   "Channel Runtime",
+		DisplayName:   "Bridge Runtime",
 		Enabled:       true,
-		Status:        channelspkg.ChannelStatusReady,
-		RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true},
+		Status:        bridgepkg.BridgeStatusReady,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	}
 }

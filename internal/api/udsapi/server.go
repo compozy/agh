@@ -54,7 +54,7 @@ type Server struct {
 	network        core.NetworkService
 	observer       core.Observer
 	automation     core.AutomationManager
-	channels       core.ChannelService
+	bridges        core.BridgeService
 	workspaces     core.WorkspaceService
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
@@ -77,7 +77,7 @@ type handlerConfig struct {
 	network        core.NetworkService
 	observer       core.Observer
 	automation     core.AutomationManager
-	channels       core.ChannelService
+	bridges        core.BridgeService
 	workspaces     core.WorkspaceService
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
@@ -175,10 +175,10 @@ func WithAutomation(manager core.AutomationManager) Option {
 	}
 }
 
-// WithChannelService injects the daemon-owned channel runtime.
-func WithChannelService(channels core.ChannelService) Option {
+// WithBridgeService injects the daemon-owned bridge runtime.
+func WithBridgeService(bridges core.BridgeService) Option {
 	return func(server *Server) {
-		server.channels = channels
+		server.bridges = bridges
 	}
 }
 
@@ -299,7 +299,7 @@ func New(opts ...Option) (*Server, error) {
 		network:        server.network,
 		observer:       server.observer,
 		automation:     server.automation,
-		channels:       server.channels,
+		bridges:        server.bridges,
 		workspaces:     server.workspaces,
 		skillsRegistry: server.skillsRegistry,
 		memoryStore:    server.memoryStore,
@@ -509,7 +509,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			Network:                      cfg.network,
 			Observer:                     cfg.observer,
 			Automation:                   cfg.automation,
-			Channels:                     cfg.channels,
+			Bridges:                      cfg.bridges,
 			Workspaces:                   cfg.workspaces,
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,

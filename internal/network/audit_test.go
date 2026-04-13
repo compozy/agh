@@ -118,7 +118,7 @@ func testAuditEnvelope(t *testing.T) Envelope {
 		Protocol:      ProtocolV0,
 		ID:            "msg_direct_01",
 		Kind:          KindDirect,
-		Space:         "builders",
+		Channel:       "builders",
 		From:          "coder.sess-audit",
 		To:            stringPtr("reviewer.sess-xyz"),
 		InteractionID: stringPtr("int_patch_42"),

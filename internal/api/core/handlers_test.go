@@ -303,7 +303,7 @@ func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) 
 				ListenerPort: 4222,
 				LocalPeers:   1,
 				RemotePeers:  2,
-				Spaces:       3,
+				Channels:     3,
 			}, nil
 		},
 	}

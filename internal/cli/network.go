@@ -19,7 +19,7 @@ func newNetworkCommand(deps commandDeps) *cobra.Command {
 
 	cmd.AddCommand(newNetworkStatusCommand(deps))
 	cmd.AddCommand(newNetworkPeersCommand(deps))
-	cmd.AddCommand(newNetworkSpacesCommand(deps))
+	cmd.AddCommand(newNetworkChannelsCommand(deps))
 	cmd.AddCommand(newNetworkSendCommand(deps))
 	cmd.AddCommand(newNetworkInboxCommand(deps))
 	return cmd
@@ -46,7 +46,7 @@ func newNetworkStatusCommand(deps commandDeps) *cobra.Command {
 
 func newNetworkPeersCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "peers [space]",
+		Use:   "peers [channel]",
 		Short: "List visible local and remote peers",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -57,7 +57,7 @@ func newNetworkPeersCommand(deps commandDeps) *cobra.Command {
 
 			query := NetworkPeersQuery{}
 			if len(args) == 1 {
-				query.Space = strings.TrimSpace(args[0])
+				query.Channel = strings.TrimSpace(args[0])
 			}
 
 			peers, err := client.NetworkPeers(cmd.Context(), query)
@@ -69,21 +69,21 @@ func newNetworkPeersCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
-func newNetworkSpacesCommand(deps commandDeps) *cobra.Command {
+func newNetworkChannelsCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "spaces",
-		Short: "List active runtime spaces",
+		Use:   "channels",
+		Short: "List active runtime channels",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, _, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
 
-			spaces, err := client.NetworkSpaces(cmd.Context())
+			channels, err := client.NetworkChannels(cmd.Context())
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, networkSpacesBundle(spaces))
+			return writeCommandOutput(cmd, networkChannelsBundle(channels))
 		},
 	}
 }
@@ -91,7 +91,7 @@ func newNetworkSpacesCommand(deps commandDeps) *cobra.Command {
 func newNetworkSendCommand(deps commandDeps) *cobra.Command {
 	var (
 		sessionID     string
-		space         string
+		channel       string
 		kind          string
 		to            string
 		bodyRaw       string
@@ -128,7 +128,7 @@ func newNetworkSendCommand(deps commandDeps) *cobra.Command {
 
 			message, err := client.NetworkSend(cmd.Context(), NetworkSendRequest{
 				SessionID:     strings.TrimSpace(sessionID),
-				Space:         strings.TrimSpace(space),
+				Channel:       strings.TrimSpace(channel),
 				Kind:          strings.TrimSpace(kind),
 				To:            strings.TrimSpace(to),
 				Body:          body,
@@ -148,7 +148,7 @@ func newNetworkSendCommand(deps commandDeps) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&sessionID, "session", "", "Local source session id")
-	cmd.Flags().StringVar(&space, "space", "", "Target space")
+	cmd.Flags().StringVar(&channel, "channel", "", "Target channel")
 	cmd.Flags().StringVar(&kind, "kind", "", "Envelope kind")
 	cmd.Flags().StringVar(&to, "to", "", "Directed target peer id")
 	cmd.Flags().StringVar(&bodyRaw, "body", "", "Raw JSON object for the envelope body")
@@ -160,7 +160,7 @@ func newNetworkSendCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&id, "id", "", "Optional explicit message id")
 	cmd.Flags().StringVar(&extRaw, "ext", "", "Optional JSON object of extension metadata")
 	_ = cmd.MarkFlagRequired("session")
-	_ = cmd.MarkFlagRequired("space")
+	_ = cmd.MarkFlagRequired("channel")
 	_ = cmd.MarkFlagRequired("kind")
 	_ = cmd.MarkFlagRequired("body")
 	return cmd
@@ -198,7 +198,7 @@ func networkStatusBundle(status NetworkStatusRecord) outputBundle {
 		{Label: "Listener", Value: stringOrDash(networkListener(&status))},
 		{Label: "Local Peers", Value: strconv.Itoa(status.LocalPeers)},
 		{Label: "Remote Peers", Value: strconv.Itoa(status.RemotePeers)},
-		{Label: "Spaces", Value: strconv.Itoa(status.Spaces)},
+		{Label: "Channels", Value: strconv.Itoa(status.Channels)},
 		{Label: "Queued Messages", Value: strconv.Itoa(status.QueuedMessages)},
 		{Label: "Queued Sessions", Value: strconv.Itoa(status.QueuedSessions)},
 		{Label: "Delivery Workers", Value: strconv.Itoa(status.DeliveryWorkers)},
@@ -211,7 +211,7 @@ func networkStatusBundle(status NetworkStatusRecord) outputBundle {
 		{Label: "Last Disconnect", Value: stringOrDash(status.LastDisconnect)},
 	}
 	fields := []string{
-		"enabled", "status", "listener", "local_peers", "remote_peers", "spaces",
+		"enabled", "status", "listener", "local_peers", "remote_peers", "channels",
 		"queued_messages", "queued_sessions", "delivery_workers", "messages_sent",
 		"messages_received", "messages_rejected", "messages_delivered",
 		"workflow_tagged_events", "handoff_tagged_events", "last_disconnect",
@@ -222,7 +222,7 @@ func networkStatusBundle(status NetworkStatusRecord) outputBundle {
 		networkListener(&status),
 		strconv.Itoa(status.LocalPeers),
 		strconv.Itoa(status.RemotePeers),
-		strconv.Itoa(status.Spaces),
+		strconv.Itoa(status.Channels),
 		strconv.Itoa(status.QueuedMessages),
 		strconv.Itoa(status.QueuedSessions),
 		strconv.Itoa(status.DeliveryWorkers),
@@ -257,15 +257,15 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 		peers,
 		peers,
 		"Network Peers",
-		[]string{"Peer", "Display", "Session", "Space", "Local", "Last Seen", "Expires"},
+		[]string{"Peer", "Display", "Session", "Channel", "Local", "Last Seen", "Expires"},
 		"network_peers",
-		[]string{"peer_id", "display_name", "session_id", "space", "local", "joined_at", "last_seen", "expires_at"},
+		[]string{"peer_id", "display_name", "session_id", "channel", "local", "joined_at", "last_seen", "expires_at"},
 		func(peer NetworkPeerRecord) []string {
 			return []string{
 				stringOrDash(peer.PeerID),
 				stringOrDash(optionalString(peer.PeerCard.DisplayName)),
 				stringOrDash(optionalString(peer.SessionID)),
-				stringOrDash(peer.Space),
+				stringOrDash(peer.Channel),
 				strconv.FormatBool(peer.Local),
 				stringOrDash(formatTimePtr(peer.LastSeen)),
 				stringOrDash(formatTimePtr(peer.ExpiresAt)),
@@ -276,7 +276,7 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 				peer.PeerID,
 				optionalString(peer.PeerCard.DisplayName),
 				optionalString(peer.SessionID),
-				peer.Space,
+				peer.Channel,
 				strconv.FormatBool(peer.Local),
 				formatTimePtr(peer.JoinedAt),
 				formatTimePtr(peer.LastSeen),
@@ -286,24 +286,24 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 	)
 }
 
-func networkSpacesBundle(spaces []NetworkSpaceRecord) outputBundle {
+func networkChannelsBundle(channels []NetworkChannelRecord) outputBundle {
 	return listBundle(
-		spaces,
-		spaces,
-		"Network Spaces",
-		[]string{"Space", "Peers"},
-		"network_spaces",
-		[]string{"space", "peer_count"},
-		func(space NetworkSpaceRecord) []string {
+		channels,
+		channels,
+		"Network Channels",
+		[]string{"Channel", "Peers"},
+		"network_channels",
+		[]string{"channel", "peer_count"},
+		func(channel NetworkChannelRecord) []string {
 			return []string{
-				stringOrDash(space.Space),
-				strconv.Itoa(space.PeerCount),
+				stringOrDash(channel.Channel),
+				strconv.Itoa(channel.PeerCount),
 			}
 		},
-		func(space NetworkSpaceRecord) []string {
+		func(channel NetworkChannelRecord) []string {
 			return []string{
-				space.Space,
-				strconv.Itoa(space.PeerCount),
+				channel.Channel,
+				strconv.Itoa(channel.PeerCount),
 			}
 		},
 	)
@@ -316,7 +316,7 @@ func networkSendBundle(message NetworkSendRecord) outputBundle {
 			return renderHumanSection("Network Message", []keyValue{
 				{Label: "ID", Value: stringOrDash(message.ID)},
 				{Label: "Session", Value: stringOrDash(message.SessionID)},
-				{Label: "Space", Value: stringOrDash(message.Space)},
+				{Label: "Channel", Value: stringOrDash(message.Channel)},
 				{Label: "Kind", Value: stringOrDash(message.Kind)},
 				{Label: "To", Value: stringOrDash(message.To)},
 				{Label: "Interaction", Value: stringOrDash(message.InteractionID)},
@@ -329,11 +329,11 @@ func networkSendBundle(message NetworkSendRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("network_message", []string{
-				"id", "session_id", "space", "kind", "to", "interaction_id", "reply_to", "trace_id", "causation_id", "expires_at", "ext",
+				"id", "session_id", "channel", "kind", "to", "interaction_id", "reply_to", "trace_id", "causation_id", "expires_at", "ext",
 			}, []string{
 				message.ID,
 				message.SessionID,
-				message.Space,
+				message.Channel,
 				message.Kind,
 				message.To,
 				message.InteractionID,
@@ -354,7 +354,7 @@ func networkInboxBundle(messages []NetworkEnvelopeRecord) outputBundle {
 		"Network Inbox",
 		[]string{"ID", "Kind", "From", "To", "Reply To", "Trace", "Workflow", "Handoff"},
 		"network_inbox",
-		[]string{"id", "kind", "space", "from", "to", "reply_to", "trace_id", "causation_id", "workflow_id", "handoff_version", "expires_at"},
+		[]string{"id", "kind", "channel", "from", "to", "reply_to", "trace_id", "causation_id", "workflow_id", "handoff_version", "expires_at"},
 		func(message NetworkEnvelopeRecord) []string {
 			return []string{
 				stringOrDash(message.ID),
@@ -371,7 +371,7 @@ func networkInboxBundle(messages []NetworkEnvelopeRecord) outputBundle {
 			return []string{
 				message.ID,
 				message.Kind,
-				message.Space,
+				message.Channel,
 				message.From,
 				optionalString(message.To),
 				optionalString(message.ReplyTo),

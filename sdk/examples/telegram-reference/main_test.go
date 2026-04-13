@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/subprocess"
@@ -21,7 +21,7 @@ import (
 
 func TestMapTelegramUpdateToInboundEnvelope(t *testing.T) {
 	timestamp := time.Date(2026, 4, 11, 4, 30, 0, 0, time.UTC)
-	channelRuntime := testChannelRuntime(timestamp)
+	bridgeRuntime := testBridgeRuntime(timestamp)
 
 	envelope, err := mapTelegramUpdate(telegramUpdate{
 		UpdateID: 9001,
@@ -42,20 +42,20 @@ func TestMapTelegramUpdateToInboundEnvelope(t *testing.T) {
 			},
 			Text: "  Need a summary  ",
 		},
-	}, channelRuntime, func() time.Time {
+	}, bridgeRuntime, func() time.Time {
 		return timestamp.Add(2 * time.Hour)
 	})
 	if err != nil {
 		t.Fatalf("mapTelegramUpdate() error = %v", err)
 	}
 
-	if got, want := envelope.ChannelInstanceID, channelRuntime.Instance.ID; got != want {
-		t.Fatalf("envelope.ChannelInstanceID = %q, want %q", got, want)
+	if got, want := envelope.BridgeInstanceID, bridgeRuntime.Instance.ID; got != want {
+		t.Fatalf("envelope.BridgeInstanceID = %q, want %q", got, want)
 	}
-	if got, want := envelope.Scope, channelRuntime.Instance.Scope; got != want {
+	if got, want := envelope.Scope, bridgeRuntime.Instance.Scope; got != want {
 		t.Fatalf("envelope.Scope = %q, want %q", got, want)
 	}
-	if got, want := envelope.WorkspaceID, channelRuntime.Instance.WorkspaceID; got != want {
+	if got, want := envelope.WorkspaceID, bridgeRuntime.Instance.WorkspaceID; got != want {
 		t.Fatalf("envelope.WorkspaceID = %q, want %q", got, want)
 	}
 	if got, want := envelope.PeerID, "777"; got != want {
@@ -82,19 +82,19 @@ func TestMapTelegramUpdateToInboundEnvelope(t *testing.T) {
 	if got, want := envelope.Content.Text, "Need a summary"; got != want {
 		t.Fatalf("envelope.Content.Text = %q, want %q", got, want)
 	}
-	if got, want := envelope.IdempotencyKey, "telegram:chan-telegram-reference:9001"; got != want {
+	if got, want := envelope.IdempotencyKey, "telegram:brg-telegram-reference:9001"; got != want {
 		t.Fatalf("envelope.IdempotencyKey = %q, want %q", got, want)
 	}
 }
 
 func TestBoundSecretValueReadsOnlyBoundLaunchCredentials(t *testing.T) {
-	channelRuntime := testChannelRuntime(time.Date(2026, 4, 11, 4, 45, 0, 0, time.UTC))
-	channelRuntime.BoundSecrets = []subprocess.InitializeChannelBoundSecret{
+	bridgeRuntime := testBridgeRuntime(time.Date(2026, 4, 11, 4, 45, 0, 0, time.UTC))
+	bridgeRuntime.BoundSecrets = []subprocess.InitializeBridgeBoundSecret{
 		{BindingName: "bot_token", Kind: "token", Value: "  telegram-token  "},
 		{BindingName: "webhook_secret", Kind: "token", Value: "webhook-secret"},
 	}
 
-	value, ok := boundSecretValue(channelRuntime, " bot_token ")
+	value, ok := boundSecretValue(bridgeRuntime, " bot_token ")
 	if !ok {
 		t.Fatal("boundSecretValue(bot_token) ok = false, want true")
 	}
@@ -102,10 +102,10 @@ func TestBoundSecretValueReadsOnlyBoundLaunchCredentials(t *testing.T) {
 		t.Fatalf("boundSecretValue(bot_token) = %q, want %q", got, want)
 	}
 
-	if got, ok := boundSecretValue(channelRuntime, "runtime/vault/read"); ok || got != "" {
+	if got, ok := boundSecretValue(bridgeRuntime, "runtime/vault/read"); ok || got != "" {
 		t.Fatalf("boundSecretValue(runtime/vault/read) = (%q, %t), want empty/false", got, ok)
 	}
-	if got, ok := boundSecretValue(channelRuntime, "missing"); ok || got != "" {
+	if got, ok := boundSecretValue(bridgeRuntime, "missing"); ok || got != "" {
 		t.Fatalf("boundSecretValue(missing) = (%q, %t), want empty/false", got, ok)
 	}
 }
@@ -113,7 +113,7 @@ func TestBoundSecretValueReadsOnlyBoundLaunchCredentials(t *testing.T) {
 func TestAckDeliveryPreservesOrderedRemoteAndReplacementIDs(t *testing.T) {
 	runtime := newTelegramReferenceRuntime(io.Discard, nil)
 
-	startAck, err := runtime.ackDelivery(testDeliveryRequest("delivery-1", 1, channelspkg.DeliveryEventTypeStart, false))
+	startAck, err := runtime.ackDelivery(testDeliveryRequest("delivery-1", 1, bridgepkg.DeliveryEventTypeStart, false))
 	if err != nil {
 		t.Fatalf("ackDelivery(start) error = %v", err)
 	}
@@ -124,7 +124,7 @@ func TestAckDeliveryPreservesOrderedRemoteAndReplacementIDs(t *testing.T) {
 		t.Fatalf("start ack replace_remote_message_id = %q, want empty", got)
 	}
 
-	deltaAck, err := runtime.ackDelivery(testDeliveryRequest("delivery-1", 2, channelspkg.DeliveryEventTypeDelta, false))
+	deltaAck, err := runtime.ackDelivery(testDeliveryRequest("delivery-1", 2, bridgepkg.DeliveryEventTypeDelta, false))
 	if err != nil {
 		t.Fatalf("ackDelivery(delta) error = %v", err)
 	}
@@ -135,7 +135,7 @@ func TestAckDeliveryPreservesOrderedRemoteAndReplacementIDs(t *testing.T) {
 		t.Fatalf("delta ack replace_remote_message_id = %q, want %q", got, want)
 	}
 
-	finalAck, err := runtime.ackDelivery(testDeliveryRequest("delivery-1", 3, channelspkg.DeliveryEventTypeFinal, true))
+	finalAck, err := runtime.ackDelivery(testDeliveryRequest("delivery-1", 3, bridgepkg.DeliveryEventTypeFinal, true))
 	if err != nil {
 		t.Fatalf("ackDelivery(final) error = %v", err)
 	}
@@ -150,10 +150,10 @@ func TestAckDeliveryPreservesOrderedRemoteAndReplacementIDs(t *testing.T) {
 func TestAckDeliveryRejectsOutOfOrderSequence(t *testing.T) {
 	runtime := newTelegramReferenceRuntime(io.Discard, nil)
 
-	if _, err := runtime.ackDelivery(testDeliveryRequest("delivery-2", 1, channelspkg.DeliveryEventTypeStart, false)); err != nil {
+	if _, err := runtime.ackDelivery(testDeliveryRequest("delivery-2", 1, bridgepkg.DeliveryEventTypeStart, false)); err != nil {
 		t.Fatalf("ackDelivery(start) error = %v", err)
 	}
-	if _, err := runtime.ackDelivery(testDeliveryRequest("delivery-2", 1, channelspkg.DeliveryEventTypeDelta, false)); err == nil {
+	if _, err := runtime.ackDelivery(testDeliveryRequest("delivery-2", 1, bridgepkg.DeliveryEventTypeDelta, false)); err == nil {
 		t.Fatal("ackDelivery(out-of-order) error = nil, want failure")
 	}
 }
@@ -236,13 +236,13 @@ func TestHandleInitializeReportsReadyAndShutdown(t *testing.T) {
 	defer cleanup()
 
 	now := time.Date(2026, 4, 11, 7, 0, 0, 0, time.UTC)
-	instance := testChannelRuntime(now).Instance
-	var reportedStatuses []channelspkg.ChannelStatus
-	server.handle(string(extensionprotocol.HostAPIMethodChannelsInstancesGet), func(json.RawMessage) (any, error) {
+	instance := testBridgeRuntime(now).Instance
+	var reportedStatuses []bridgepkg.BridgeStatus
+	server.handle(string(extensionprotocol.HostAPIMethodBridgesInstancesGet), func(json.RawMessage) (any, error) {
 		return instance, nil
 	})
-	server.handle(string(extensionprotocol.HostAPIMethodChannelsInstancesReportState), func(params json.RawMessage) (any, error) {
-		var payload extensioncontract.ChannelsInstancesReportStateParams
+	server.handle(string(extensionprotocol.HostAPIMethodBridgesInstancesReportState), func(params json.RawMessage) (any, error) {
+		var payload extensioncontract.BridgesInstancesReportStateParams
 		if err := json.Unmarshal(params, &payload); err != nil {
 			return nil, err
 		}
@@ -268,21 +268,21 @@ func TestHandleInitializeReportsReadyAndShutdown(t *testing.T) {
 	states := waitForJSONLinesFile[stateMarker](t, env.statePath, func(items []stateMarker) bool {
 		return len(items) > 0
 	})
-	if got, want := states[len(states)-1].Status.Normalize(), channelspkg.ChannelStatusReady; got != want {
+	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("last state status = %q, want %q", got, want)
 	}
 	if got, want := len(reportedStatuses), 1; got != want {
 		t.Fatalf("reported status count = %d, want %d", got, want)
 	}
-	if got, want := reportedStatuses[0].Normalize(), channelspkg.ChannelStatusReady; got != want {
+	if got, want := reportedStatuses[0].Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("reported status = %q, want %q", got, want)
 	}
 
 	handshake := waitForJSONFile[initializeMarker](t, env.handshakePath)
-	if got, want := handshake.Request.Runtime.Channel.Instance.ID, instance.ID; got != want {
+	if got, want := handshake.Request.Runtime.Bridge.Instance.ID, instance.ID; got != want {
 		t.Fatalf("handshake runtime instance id = %q, want %q", got, want)
 	}
-	instanceMarker := waitForJSONFile[channelspkg.ChannelInstance](t, env.instancePath)
+	instanceMarker := waitForJSONFile[bridgepkg.BridgeInstance](t, env.instancePath)
 	if got, want := instanceMarker.ID, instance.ID; got != want {
 		t.Fatalf("instance marker id = %q, want %q", got, want)
 	}
@@ -319,36 +319,36 @@ func TestHandleInitializeAuthRequiredAndPollInboundUpdates(t *testing.T) {
 	defer cleanup()
 
 	now := time.Date(2026, 4, 11, 7, 5, 0, 0, time.UTC)
-	instance := testChannelRuntime(now).Instance
+	instance := testBridgeRuntime(now).Instance
 	var ingestCalls atomic.Int64
-	server.handle(string(extensionprotocol.HostAPIMethodChannelsInstancesGet), func(json.RawMessage) (any, error) {
+	server.handle(string(extensionprotocol.HostAPIMethodBridgesInstancesGet), func(json.RawMessage) (any, error) {
 		return instance, nil
 	})
-	server.handle(string(extensionprotocol.HostAPIMethodChannelsInstancesReportState), func(params json.RawMessage) (any, error) {
-		var payload extensioncontract.ChannelsInstancesReportStateParams
+	server.handle(string(extensionprotocol.HostAPIMethodBridgesInstancesReportState), func(params json.RawMessage) (any, error) {
+		var payload extensioncontract.BridgesInstancesReportStateParams
 		if err := json.Unmarshal(params, &payload); err != nil {
 			return nil, err
 		}
 		instance.Status = payload.Status
 		return instance, nil
 	})
-	server.handle(string(extensionprotocol.HostAPIMethodChannelsMessagesIngest), func(params json.RawMessage) (any, error) {
+	server.handle(string(extensionprotocol.HostAPIMethodBridgesMessagesIngest), func(params json.RawMessage) (any, error) {
 		if ingestCalls.Add(1) == 1 {
 			return nil, &runtimeRPCError{Code: rpcCodeNotInitialized, Message: "Not initialized"}
 		}
-		var envelope channelspkg.InboundMessageEnvelope
+		var envelope bridgepkg.InboundMessageEnvelope
 		if err := json.Unmarshal(params, &envelope); err != nil {
 			return nil, err
 		}
-		return extensioncontract.ChannelsMessagesIngestResult{
+		return extensioncontract.BridgesMessagesIngestResult{
 			SessionID:    "sess-1",
 			RouteCreated: true,
-			RoutingKey: channelspkg.RoutingKey{
-				Scope:             envelope.Scope,
-				WorkspaceID:       envelope.WorkspaceID,
-				ChannelInstanceID: envelope.ChannelInstanceID,
-				PeerID:            envelope.PeerID,
-				ThreadID:          envelope.ThreadID,
+			RoutingKey: bridgepkg.RoutingKey{
+				Scope:            envelope.Scope,
+				WorkspaceID:      envelope.WorkspaceID,
+				BridgeInstanceID: envelope.BridgeInstanceID,
+				PeerID:           envelope.PeerID,
+				ThreadID:         envelope.ThreadID,
 			},
 		}, nil
 	})
@@ -361,7 +361,7 @@ func TestHandleInitializeAuthRequiredAndPollInboundUpdates(t *testing.T) {
 	states := waitForJSONLinesFile[stateMarker](t, env.statePath, func(items []stateMarker) bool {
 		return len(items) > 0
 	})
-	if got, want := states[len(states)-1].Status.Normalize(), channelspkg.ChannelStatusAuthRequired; got != want {
+	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusAuthRequired; got != want {
 		t.Fatalf("last state status = %q, want %q", got, want)
 	}
 
@@ -395,22 +395,22 @@ func TestHandleInitializeAuthRequiredAndPollInboundUpdates(t *testing.T) {
 	}
 }
 
-func TestHandleChannelsDeliverRecordsAckAndErrors(t *testing.T) {
+func TestHandleBridgesDeliverRecordsAckAndErrors(t *testing.T) {
 	env := setAdapterTestEnv(t)
 	runtime := newTelegramReferenceRuntime(io.Discard, nil)
 	runtime.initialized = true
 
-	result, err := runtime.handleChannelsDeliver(mustRawJSON(testDeliveryRequest("delivery-3", 1, channelspkg.DeliveryEventTypeStart, false)))
+	result, err := runtime.handleBridgesDeliver(mustRawJSON(testDeliveryRequest("delivery-3", 1, bridgepkg.DeliveryEventTypeStart, false)))
 	if err != nil {
-		t.Fatalf("handleChannelsDeliver(start) error = %v", err)
+		t.Fatalf("handleBridgesDeliver(start) error = %v", err)
 	}
-	ack := result.(channelspkg.DeliveryAck)
+	ack := result.(bridgepkg.DeliveryAck)
 	if got, want := ack.RemoteMessageID, "telegram:delivery-3:1"; got != want {
 		t.Fatalf("delivery ack remote_message_id = %q, want %q", got, want)
 	}
 
-	if _, err := runtime.handleChannelsDeliver(mustRawJSON(testDeliveryRequest("delivery-3", 1, channelspkg.DeliveryEventTypeDelta, false))); err == nil {
-		t.Fatal("handleChannelsDeliver(out-of-order) error = nil, want failure")
+	if _, err := runtime.handleBridgesDeliver(mustRawJSON(testDeliveryRequest("delivery-3", 1, bridgepkg.DeliveryEventTypeDelta, false))); err == nil {
+		t.Fatal("handleBridgesDeliver(out-of-order) error = nil, want failure")
 	}
 
 	records := waitForJSONLinesFile[deliveryMarker](t, env.deliveryPath, func(items []deliveryMarker) bool {
@@ -442,7 +442,7 @@ func TestHandleChannelsDeliverRecordsAckAndErrors(t *testing.T) {
 }
 
 func TestUtilityHelpers(t *testing.T) {
-	if _, err := mapTelegramUpdate(telegramUpdate{}, testChannelRuntime(time.Now().UTC()), nil); err == nil {
+	if _, err := mapTelegramUpdate(telegramUpdate{}, testBridgeRuntime(time.Now().UTC()), nil); err == nil {
 		t.Fatal("mapTelegramUpdate(nil message) error = nil, want failure")
 	}
 	if got := indexBoundSecrets(nil); got != nil {
@@ -505,18 +505,18 @@ func TestUtilityHelpers(t *testing.T) {
 	}
 }
 
-func testChannelRuntime(now time.Time) subprocess.InitializeChannelRuntime {
-	return subprocess.InitializeChannelRuntime{
-		Instance: channelspkg.ChannelInstance{
-			ID:            "chan-telegram-reference",
-			Scope:         channelspkg.ScopeWorkspace,
+func testBridgeRuntime(now time.Time) subprocess.InitializeBridgeRuntime {
+	return subprocess.InitializeBridgeRuntime{
+		Instance: bridgepkg.BridgeInstance{
+			ID:            "brg-telegram-reference",
+			Scope:         bridgepkg.ScopeWorkspace,
 			WorkspaceID:   "ws-telegram",
 			Platform:      "telegram",
 			ExtensionName: "telegram-reference",
 			DisplayName:   "Telegram Reference",
 			Enabled:       true,
-			Status:        channelspkg.ChannelStatusReady,
-			RoutingPolicy: channelspkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		},
@@ -524,9 +524,9 @@ func testChannelRuntime(now time.Time) subprocess.InitializeChannelRuntime {
 }
 
 func testInitializeRequest(now time.Time, includeBotToken bool) subprocess.InitializeRequest {
-	channelRuntime := testChannelRuntime(now)
+	bridgeRuntime := testBridgeRuntime(now)
 	if includeBotToken {
-		channelRuntime.BoundSecrets = []subprocess.InitializeChannelBoundSecret{
+		bridgeRuntime.BoundSecrets = []subprocess.InitializeBridgeBoundSecret{
 			{BindingName: "bot_token", Kind: "token", Value: "telegram-bot-token"},
 		}
 	}
@@ -540,45 +540,45 @@ func testInitializeRequest(now time.Time, includeBotToken bool) subprocess.Initi
 			SourceTier: "user",
 		},
 		Capabilities: subprocess.InitializeCapabilities{
-			Provides: []string{"channel.adapter"},
+			Provides: []string{"bridge.adapter"},
 			GrantedActions: []extensionprotocol.HostAPIMethod{
-				extensionprotocol.HostAPIMethodChannelsInstancesGet,
-				extensionprotocol.HostAPIMethodChannelsInstancesReportState,
-				extensionprotocol.HostAPIMethodChannelsMessagesIngest,
+				extensionprotocol.HostAPIMethodBridgesInstancesGet,
+				extensionprotocol.HostAPIMethodBridgesInstancesReportState,
+				extensionprotocol.HostAPIMethodBridgesMessagesIngest,
 			},
-			GrantedSecurity: []string{"channel.read", "channel.write"},
+			GrantedSecurity: []string{"bridge.read", "bridge.write"},
 		},
 		Runtime: subprocess.InitializeRuntime{
 			HealthCheckIntervalMS: 30_000,
 			HealthCheckTimeoutMS:  5_000,
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
-			Channel:               &channelRuntime,
+			Bridge:                &bridgeRuntime,
 		},
 	}
 }
 
-func testDeliveryRequest(deliveryID string, seq int64, eventType string, final bool) channelspkg.DeliveryRequest {
-	return channelspkg.DeliveryRequest{
-		Event: channelspkg.DeliveryEvent{
-			DeliveryID:        deliveryID,
-			ChannelInstanceID: "chan-telegram-reference",
-			RoutingKey: channelspkg.RoutingKey{
-				Scope:             channelspkg.ScopeWorkspace,
-				WorkspaceID:       "ws-telegram",
-				ChannelInstanceID: "chan-telegram-reference",
-				PeerID:            "peer-1",
-				ThreadID:          "thread-1",
+func testDeliveryRequest(deliveryID string, seq int64, eventType string, final bool) bridgepkg.DeliveryRequest {
+	return bridgepkg.DeliveryRequest{
+		Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       deliveryID,
+			BridgeInstanceID: "brg-telegram-reference",
+			RoutingKey: bridgepkg.RoutingKey{
+				Scope:            bridgepkg.ScopeWorkspace,
+				WorkspaceID:      "ws-telegram",
+				BridgeInstanceID: "brg-telegram-reference",
+				PeerID:           "peer-1",
+				ThreadID:         "thread-1",
 			},
-			DeliveryTarget: channelspkg.DeliveryTarget{
-				ChannelInstanceID: "chan-telegram-reference",
-				PeerID:            "peer-1",
-				ThreadID:          "thread-1",
-				Mode:              channelspkg.DeliveryModeReply,
+			DeliveryTarget: bridgepkg.DeliveryTarget{
+				BridgeInstanceID: "brg-telegram-reference",
+				PeerID:           "peer-1",
+				ThreadID:         "thread-1",
+				Mode:             bridgepkg.DeliveryModeReply,
 			},
 			Seq:       seq,
 			EventType: eventType,
-			Content:   channelspkg.MessageContent{Text: "hello"},
+			Content:   bridgepkg.MessageContent{Text: "hello"},
 			Final:     final,
 		},
 	}

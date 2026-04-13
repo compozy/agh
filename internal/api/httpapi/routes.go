@@ -10,7 +10,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 
 	api := router.Group("/api")
 
-	registerChannelRoutes(api, handlers)
+	registerBridgeRoutes(api, handlers)
 	registerWorkspaceRoutes(api, handlers)
 	registerSessionRoutes(api, handlers)
 	registerAgentRoutes(api, handlers)
@@ -28,17 +28,17 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	}
 }
 
-func registerChannelRoutes(api gin.IRouter, handlers *Handlers) {
-	channels := api.Group("/channels")
-	channels.GET("", handlers.ListChannels)
-	channels.POST("", handlers.CreateChannel)
-	channels.GET("/:id", handlers.GetChannel)
-	channels.PATCH("/:id", handlers.UpdateChannel)
-	channels.POST("/:id/enable", handlers.EnableChannel)
-	channels.POST("/:id/disable", handlers.DisableChannel)
-	channels.POST("/:id/restart", handlers.RestartChannel)
-	channels.GET("/:id/routes", handlers.ListChannelRoutes)
-	channels.POST("/:id/test-delivery", handlers.TestChannelDelivery)
+func registerBridgeRoutes(api gin.IRouter, handlers *Handlers) {
+	bridges := api.Group("/bridges")
+	bridges.GET("", handlers.ListBridges)
+	bridges.POST("", handlers.CreateBridge)
+	bridges.GET("/:id", handlers.GetBridge)
+	bridges.PATCH("/:id", handlers.UpdateBridge)
+	bridges.POST("/:id/enable", handlers.EnableBridge)
+	bridges.POST("/:id/disable", handlers.DisableBridge)
+	bridges.POST("/:id/restart", handlers.RestartBridge)
+	bridges.GET("/:id/routes", handlers.ListBridgeRoutes)
+	bridges.POST("/:id/test-delivery", handlers.TestBridgeDelivery)
 }
 
 func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
@@ -138,7 +138,7 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 	networkGroup := api.Group("/network")
 	networkGroup.GET("/status", handlers.NetworkStatus)
 	networkGroup.GET("/peers", handlers.NetworkPeers)
-	networkGroup.GET("/spaces", handlers.NetworkSpaces)
+	networkGroup.GET("/channels", handlers.NetworkChannels)
 	networkGroup.POST("/send", handlers.NetworkSend)
 	networkGroup.GET("/inbox", handlers.NetworkInbox)
 }

@@ -160,34 +160,34 @@ describe("Extension", () => {
     });
   });
 
-  it("negotiates channels/deliver for channel adapters and exposes scoped runtime data", async () => {
+  it("negotiates bridges/deliver for bridge adapters and exposes scoped runtime data", async () => {
     const ready = vi.fn();
     const harness = new TestHarness();
     const extension = new Extension({
-      name: "channel-adapter",
+      name: "bridge-adapter",
       version: "0.1.0",
-      capabilities: { provides: ["channel.adapter"] },
-      actions: { requires: ["channels/instances/get"] },
-      security: { capabilities: ["channel.read"] },
+      capabilities: { provides: ["bridge.adapter"] },
+      actions: { requires: ["bridges/instances/get"] },
+      security: { capabilities: ["bridge.read"] },
     });
 
-    extension.handle("channels/deliver", async () => ({
+    extension.handle("bridges/deliver", async () => ({
       acknowledged: true,
     }));
     extension.onReady((_host, session) => {
-      ready(session.initializeRequest.runtime.channel?.instance.id);
+      ready(session.initializeRequest.runtime.bridge?.instance.id);
     });
 
     await harness.loadExtension(extension, {
-      grantedActions: ["channels/instances/get"],
-      grantedSecurity: ["channel.read"],
+      grantedActions: ["bridges/instances/get"],
+      grantedSecurity: ["bridge.read"],
       runtime: {
-        channel: {
+        bridge: {
           instance: {
             id: "chan-1",
             scope: "global",
             platform: "telegram",
-            extension_name: "channel-adapter",
+            extension_name: "bridge-adapter",
             display_name: "Telegram",
             enabled: true,
             status: "ready",
@@ -201,18 +201,18 @@ describe("Extension", () => {
     });
 
     expect(harness.getLastInitializeRequest()).toMatchObject({
-      methods: { extension_services: ["channels/deliver"] },
+      methods: { extension_services: ["bridges/deliver"] },
     });
     expect(ready).toHaveBeenCalledWith("chan-1");
   });
 
-  it("rejects channel.adapter initialize when channels/deliver is not implemented", async () => {
+  it("rejects bridge.adapter initialize when bridges/deliver is not implemented", async () => {
     const pair = createMockTransportPair();
     const extension = new Extension(
       {
-        name: "channel-denied",
+        name: "bridge-denied",
         version: "0.1.0",
-        capabilities: { provides: ["channel.adapter"] },
+        capabilities: { provides: ["bridge.adapter"] },
       },
       { transport: pair.extension }
     );
@@ -220,7 +220,7 @@ describe("Extension", () => {
     void extension.start();
     await expect(pair.host.call("initialize", initializeFor(extension))).rejects.toMatchObject({
       data: {
-        error: expect.stringContaining("channel.adapter"),
+        error: expect.stringContaining("bridge.adapter"),
       },
     });
   });

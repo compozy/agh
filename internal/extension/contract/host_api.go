@@ -5,7 +5,7 @@ import (
 
 	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/memory"
 	observepkg "github.com/pedronauck/agh/internal/observe"
@@ -17,36 +17,36 @@ import (
 type HostAPIMethod = extensionprotocol.HostAPIMethod
 
 const (
-	HostAPIMethodSessionsList                 = extensionprotocol.HostAPIMethodSessionsList
-	HostAPIMethodSessionsCreate               = extensionprotocol.HostAPIMethodSessionsCreate
-	HostAPIMethodSessionsPrompt               = extensionprotocol.HostAPIMethodSessionsPrompt
-	HostAPIMethodSessionsStop                 = extensionprotocol.HostAPIMethodSessionsStop
-	HostAPIMethodSessionsStatus               = extensionprotocol.HostAPIMethodSessionsStatus
-	HostAPIMethodSessionsEvents               = extensionprotocol.HostAPIMethodSessionsEvents
-	HostAPIMethodMemoryRecall                 = extensionprotocol.HostAPIMethodMemoryRecall
-	HostAPIMethodMemoryStore                  = extensionprotocol.HostAPIMethodMemoryStore
-	HostAPIMethodMemoryForget                 = extensionprotocol.HostAPIMethodMemoryForget
-	HostAPIMethodObserveHealth                = extensionprotocol.HostAPIMethodObserveHealth
-	HostAPIMethodObserveEvents                = extensionprotocol.HostAPIMethodObserveEvents
-	HostAPIMethodSkillsList                   = extensionprotocol.HostAPIMethodSkillsList
-	HostAPIMethodAutomationJobs               = extensionprotocol.HostAPIMethodAutomationJobs
-	HostAPIMethodAutomationJobsGet            = extensionprotocol.HostAPIMethodAutomationJobsGet
-	HostAPIMethodAutomationJobsCreate         = extensionprotocol.HostAPIMethodAutomationJobsCreate
-	HostAPIMethodAutomationJobsUpdate         = extensionprotocol.HostAPIMethodAutomationJobsUpdate
-	HostAPIMethodAutomationJobsDelete         = extensionprotocol.HostAPIMethodAutomationJobsDelete
-	HostAPIMethodAutomationJobsTrigger        = extensionprotocol.HostAPIMethodAutomationJobsTrigger
-	HostAPIMethodAutomationJobsRuns           = extensionprotocol.HostAPIMethodAutomationJobsRuns
-	HostAPIMethodAutomationTriggers           = extensionprotocol.HostAPIMethodAutomationTriggers
-	HostAPIMethodAutomationTriggersGet        = extensionprotocol.HostAPIMethodAutomationTriggersGet
-	HostAPIMethodAutomationTriggersCreate     = extensionprotocol.HostAPIMethodAutomationTriggersCreate
-	HostAPIMethodAutomationTriggersUpdate     = extensionprotocol.HostAPIMethodAutomationTriggersUpdate
-	HostAPIMethodAutomationTriggersDelete     = extensionprotocol.HostAPIMethodAutomationTriggersDelete
-	HostAPIMethodAutomationTriggersRuns       = extensionprotocol.HostAPIMethodAutomationTriggersRuns
-	HostAPIMethodAutomationTriggersFire       = extensionprotocol.HostAPIMethodAutomationTriggersFire
-	HostAPIMethodAutomationRuns               = extensionprotocol.HostAPIMethodAutomationRuns
-	HostAPIMethodChannelsMessagesIngest       = extensionprotocol.HostAPIMethodChannelsMessagesIngest
-	HostAPIMethodChannelsInstancesGet         = extensionprotocol.HostAPIMethodChannelsInstancesGet
-	HostAPIMethodChannelsInstancesReportState = extensionprotocol.HostAPIMethodChannelsInstancesReportState
+	HostAPIMethodSessionsList                = extensionprotocol.HostAPIMethodSessionsList
+	HostAPIMethodSessionsCreate              = extensionprotocol.HostAPIMethodSessionsCreate
+	HostAPIMethodSessionsPrompt              = extensionprotocol.HostAPIMethodSessionsPrompt
+	HostAPIMethodSessionsStop                = extensionprotocol.HostAPIMethodSessionsStop
+	HostAPIMethodSessionsStatus              = extensionprotocol.HostAPIMethodSessionsStatus
+	HostAPIMethodSessionsEvents              = extensionprotocol.HostAPIMethodSessionsEvents
+	HostAPIMethodMemoryRecall                = extensionprotocol.HostAPIMethodMemoryRecall
+	HostAPIMethodMemoryStore                 = extensionprotocol.HostAPIMethodMemoryStore
+	HostAPIMethodMemoryForget                = extensionprotocol.HostAPIMethodMemoryForget
+	HostAPIMethodObserveHealth               = extensionprotocol.HostAPIMethodObserveHealth
+	HostAPIMethodObserveEvents               = extensionprotocol.HostAPIMethodObserveEvents
+	HostAPIMethodSkillsList                  = extensionprotocol.HostAPIMethodSkillsList
+	HostAPIMethodAutomationJobs              = extensionprotocol.HostAPIMethodAutomationJobs
+	HostAPIMethodAutomationJobsGet           = extensionprotocol.HostAPIMethodAutomationJobsGet
+	HostAPIMethodAutomationJobsCreate        = extensionprotocol.HostAPIMethodAutomationJobsCreate
+	HostAPIMethodAutomationJobsUpdate        = extensionprotocol.HostAPIMethodAutomationJobsUpdate
+	HostAPIMethodAutomationJobsDelete        = extensionprotocol.HostAPIMethodAutomationJobsDelete
+	HostAPIMethodAutomationJobsTrigger       = extensionprotocol.HostAPIMethodAutomationJobsTrigger
+	HostAPIMethodAutomationJobsRuns          = extensionprotocol.HostAPIMethodAutomationJobsRuns
+	HostAPIMethodAutomationTriggers          = extensionprotocol.HostAPIMethodAutomationTriggers
+	HostAPIMethodAutomationTriggersGet       = extensionprotocol.HostAPIMethodAutomationTriggersGet
+	HostAPIMethodAutomationTriggersCreate    = extensionprotocol.HostAPIMethodAutomationTriggersCreate
+	HostAPIMethodAutomationTriggersUpdate    = extensionprotocol.HostAPIMethodAutomationTriggersUpdate
+	HostAPIMethodAutomationTriggersDelete    = extensionprotocol.HostAPIMethodAutomationTriggersDelete
+	HostAPIMethodAutomationTriggersRuns      = extensionprotocol.HostAPIMethodAutomationTriggersRuns
+	HostAPIMethodAutomationTriggersFire      = extensionprotocol.HostAPIMethodAutomationTriggersFire
+	HostAPIMethodAutomationRuns              = extensionprotocol.HostAPIMethodAutomationRuns
+	HostAPIMethodBridgesMessagesIngest       = extensionprotocol.HostAPIMethodBridgesMessagesIngest
+	HostAPIMethodBridgesInstancesGet         = extensionprotocol.HostAPIMethodBridgesInstancesGet
+	HostAPIMethodBridgesInstancesReportState = extensionprotocol.HostAPIMethodBridgesInstancesReportState
 )
 
 // NamedType links a generated TypeScript export name to a Go type.
@@ -212,12 +212,12 @@ type AutomationTriggerFireParams struct {
 	Payload     map[string]any                `json:"payload,omitempty"`
 }
 
-// ChannelsMessagesIngestParams carries one normalized inbound channel message.
-type ChannelsMessagesIngestParams = channelspkg.InboundMessageEnvelope
+// BridgesMessagesIngestParams carries one normalized inbound bridge message.
+type BridgesMessagesIngestParams = bridgepkg.InboundMessageEnvelope
 
-// ChannelsInstancesReportStateParams reports one adapter-observed instance status update.
-type ChannelsInstancesReportStateParams struct {
-	Status channelspkg.ChannelStatus `json:"status"`
+// BridgesInstancesReportStateParams reports one adapter-observed instance status update.
+type BridgesInstancesReportStateParams struct {
+	Status bridgepkg.BridgeStatus `json:"status"`
 }
 
 // SessionSummary is the lightweight host-visible session listing shape.
@@ -279,11 +279,11 @@ type SkillSummary struct {
 // ObserveHealth is the host-visible daemon health payload.
 type ObserveHealth = observepkg.Health
 
-// ChannelsMessagesIngestResult reports the resolved session association for one inbound message.
-type ChannelsMessagesIngestResult struct {
-	SessionID    string                 `json:"session_id"`
-	RouteCreated bool                   `json:"route_created"`
-	RoutingKey   channelspkg.RoutingKey `json:"routing_key"`
+// BridgesMessagesIngestResult reports the resolved session association for one inbound message.
+type BridgesMessagesIngestResult struct {
+	SessionID    string               `json:"session_id"`
+	RouteCreated bool                 `json:"route_created"`
+	RoutingKey   bridgepkg.RoutingKey `json:"routing_key"`
 }
 
 // HostAPIMethodSpecs returns the canonical Host API method registry in wire order.
@@ -432,20 +432,20 @@ func HostAPIMethodSpecs() []HostAPIMethodSpec {
 			OptionalParams: true,
 		},
 		{
-			Method: HostAPIMethodChannelsMessagesIngest,
-			Params: NamedType{Name: "InboundMessageEnvelope", Value: channelspkg.InboundMessageEnvelope{}},
-			Result: NamedType{Name: "ChannelsMessagesIngestResult", Value: ChannelsMessagesIngestResult{}},
+			Method: HostAPIMethodBridgesMessagesIngest,
+			Params: NamedType{Name: "InboundMessageEnvelope", Value: bridgepkg.InboundMessageEnvelope{}},
+			Result: NamedType{Name: "BridgesMessagesIngestResult", Value: BridgesMessagesIngestResult{}},
 		},
 		{
-			Method:         HostAPIMethodChannelsInstancesGet,
+			Method:         HostAPIMethodBridgesInstancesGet,
 			Params:         NamedType{Name: "EmptyResult", Value: EmptyResult{}},
-			Result:         NamedType{Name: "ChannelInstance", Value: channelspkg.ChannelInstance{}},
+			Result:         NamedType{Name: "BridgeInstance", Value: bridgepkg.BridgeInstance{}},
 			OptionalParams: true,
 		},
 		{
-			Method: HostAPIMethodChannelsInstancesReportState,
-			Params: NamedType{Name: "ChannelsInstancesReportStateParams", Value: ChannelsInstancesReportStateParams{}},
-			Result: NamedType{Name: "ChannelInstance", Value: channelspkg.ChannelInstance{}},
+			Method: HostAPIMethodBridgesInstancesReportState,
+			Params: NamedType{Name: "BridgesInstancesReportStateParams", Value: BridgesInstancesReportStateParams{}},
+			Result: NamedType{Name: "BridgeInstance", Value: bridgepkg.BridgeInstance{}},
 		},
 	}
 }

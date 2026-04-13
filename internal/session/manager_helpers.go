@@ -88,7 +88,7 @@ func (m *Manager) activateAndWatch(
 	if err := m.joinNetworkPeer(ctx, session); err != nil {
 		rollbackErr := m.rollbackActivation(session, proc, now)
 		return errors.Join(
-			fmt.Errorf("session: join network space for %q: %w", session.ID, err),
+			fmt.Errorf("session: join network channel for %q: %w", session.ID, err),
 			rollbackErr,
 		)
 	}
@@ -116,7 +116,7 @@ func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session) error {
 	}
 
 	info := session.Info()
-	if info == nil || strings.TrimSpace(info.Space) == "" {
+	if info == nil || strings.TrimSpace(info.Channel) == "" {
 		return nil
 	}
 
@@ -125,7 +125,7 @@ func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session) error {
 		return nil
 	}
 
-	return lifecycle.JoinSpace(ctx, info.ID, networkPeerID(info.AgentName, info.ID), info.Space)
+	return lifecycle.JoinChannel(ctx, info.ID, networkPeerID(info.AgentName, info.ID), info.Channel)
 }
 
 func (m *Manager) leaveNetworkPeer(ctx context.Context, session *Session) error {
@@ -137,7 +137,7 @@ func (m *Manager) leaveNetworkPeer(ctx context.Context, session *Session) error 
 	}
 
 	info := session.Info()
-	if info == nil || strings.TrimSpace(info.Space) == "" {
+	if info == nil || strings.TrimSpace(info.Channel) == "" {
 		return nil
 	}
 
@@ -146,7 +146,7 @@ func (m *Manager) leaveNetworkPeer(ctx context.Context, session *Session) error 
 		return nil
 	}
 
-	return lifecycle.LeaveSpace(ctx, info.ID)
+	return lifecycle.LeaveChannel(ctx, info.ID)
 }
 
 func (m *Manager) rollbackActivation(session *Session, proc *AgentProcess, now time.Time) error {

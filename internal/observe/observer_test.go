@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
-	channelspkg "github.com/pedronauck/agh/internal/channels"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -377,7 +377,7 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 type harness struct {
 	observer    *Observer
 	registry    *globaldb.GlobalDB
-	channels    *observeChannelSource
+	bridges     *observeBridgeSource
 	home        aghconfig.HomePaths
 	source      *stubSessionSource
 	now         time.Time
@@ -391,16 +391,16 @@ type stubSessionSource struct {
 	sessions []*session.SessionInfo
 }
 
-type observeChannelSource struct {
-	*channelspkg.Service
-	broker *channelspkg.Broker
+type observeBridgeSource struct {
+	*bridgepkg.Service
+	broker *bridgepkg.Broker
 }
 
 func (s *stubSessionSource) List() []*session.SessionInfo {
 	return s.sessions
 }
 
-func (s *observeChannelSource) DeliveryMetrics() map[string]channelspkg.ChannelDeliveryMetrics {
+func (s *observeBridgeSource) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
 	if s == nil || s.broker == nil {
 		return nil
 	}
@@ -430,11 +430,11 @@ func newHarness(t *testing.T) *harness {
 
 	now := time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC)
 	source := &stubSessionSource{}
-	channels := &observeChannelSource{
-		Service: channelspkg.NewRegistry(registry, channelspkg.WithNow(func() time.Time { return now })),
-		broker:  channelspkg.NewBroker(nil, channelspkg.WithDeliveryBrokerNow(func() time.Time { return now })),
+	bridges := &observeBridgeSource{
+		Service: bridgepkg.NewRegistry(registry, bridgepkg.WithNow(func() time.Time { return now })),
+		broker:  bridgepkg.NewBroker(nil, bridgepkg.WithDeliveryBrokerNow(func() time.Time { return now })),
 	}
-	t.Cleanup(channels.broker.Close)
+	t.Cleanup(bridges.broker.Close)
 	workspace := filepath.Join(t.TempDir(), "workspace")
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace) error = %v", err)
@@ -453,7 +453,7 @@ func newHarness(t *testing.T) *harness {
 		WithRegistry(registry),
 		WithHomePaths(home),
 		WithSessionSource(source),
-		WithChannelSource(channels),
+		WithBridgeSource(bridges),
 		WithPermissionModeResolver(func(_ context.Context, agentName, workspaceID string) (string, error) {
 			if strings.TrimSpace(agentName) == "" || strings.TrimSpace(workspaceID) == "" {
 				return "", context.Canceled
@@ -474,7 +474,7 @@ func newHarness(t *testing.T) *harness {
 	return &harness{
 		observer:    observer,
 		registry:    registry,
-		channels:    channels,
+		bridges:     bridges,
 		home:        home,
 		source:      source,
 		now:         now,

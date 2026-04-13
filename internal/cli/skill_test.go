@@ -498,7 +498,7 @@ func TestSkillCreateCommandSupportsDefaultNameAndRejectsUnsafeNames(t *testing.T
 			"../escape",
 			filepath.Join(string(filepath.Separator), "tmp", "skill"),
 			"nested/skill",
-			"needs space",
+			"needs channel",
 			"yaml: value",
 			"anchor*name",
 			"line\nbreak",
