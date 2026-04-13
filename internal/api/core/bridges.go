@@ -234,7 +234,21 @@ func (h *BaseHandlers) bridgeService() (BridgeService, bool) {
 func (h *BaseHandlers) respondBridge(c *gin.Context, status int, instance bridgepkg.BridgeInstance) {
 	resp, err := h.bridgeResponse(c.Request.Context(), instance)
 	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
+		if h != nil && h.Logger != nil {
+			h.Logger.Warn(
+				"api: bridge health unavailable after successful bridge mutation; returning best-effort response",
+				"bridge_id",
+				strings.TrimSpace(instance.ID),
+				"status",
+				status,
+				"error",
+				err,
+			)
+		}
+		c.JSON(status, contract.BridgeResponse{
+			Bridge: instance,
+			Health: contract.BridgeHealthPayload{},
+		})
 		return
 	}
 	c.JSON(status, *resp)

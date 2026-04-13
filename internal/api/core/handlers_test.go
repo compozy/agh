@@ -326,6 +326,9 @@ func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) 
 	if got, want := payload.Daemon.Network.RemotePeers, 2; got != want {
 		t.Fatalf("daemon network remote peers = %d, want %d", got, want)
 	}
+	if got, want := payload.Daemon.Network.Channels, 3; got != want {
+		t.Fatalf("daemon network channels = %d, want %d", got, want)
+	}
 	if strings.Contains(strings.ToLower(resp.Body.String()), "token") {
 		t.Fatalf("daemon status leaked credentials: %s", resp.Body.String())
 	}

@@ -105,9 +105,10 @@ func TestBrokerDeliversInOrderPerRoutingKeyWhileOtherRoutesStayActive(t *testing
 	t.Parallel()
 
 	releaseA := make(chan struct{})
+	var blockedDeliveryID string
 	transport := &fakeDeliveryTransport{
 		handler: func(ctx context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
-			if req.Event.DeliveryID == "del-a" && req.Event.EventType == DeliveryEventTypeStart {
+			if req.Event.DeliveryID == blockedDeliveryID && req.Event.EventType == DeliveryEventTypeStart {
 				select {
 				case <-releaseA:
 				case <-ctx.Done():
@@ -131,6 +132,7 @@ func TestBrokerDeliversInOrderPerRoutingKeyWhileOtherRoutesStayActive(t *testing
 			Mode:             DeliveryModeReply,
 		},
 	})
+	blockedDeliveryID = regA.DeliveryID
 	regB := mustRegisterTestDelivery(t, broker, PromptDeliveryRegistration{
 		SessionID:     "sess-b",
 		TurnID:        "turn-b",
@@ -157,9 +159,9 @@ func TestBrokerDeliversInOrderPerRoutingKeyWhileOtherRoutesStayActive(t *testing
 		}
 	}
 
-	waitForCalls(t, transport, 2)
+	waitForAcks(t, transport, 2)
 	close(releaseA)
-	waitForCalls(t, transport, 4)
+	waitForAcks(t, transport, 4)
 
 	calls := transport.snapshotCalls()
 	assertDeliveryOrder(t, calls, regB.DeliveryID, []string{DeliveryEventTypeStart, DeliveryEventTypeFinal}, []int64{1, 2})

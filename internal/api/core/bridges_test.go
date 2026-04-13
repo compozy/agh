@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -272,6 +273,70 @@ func TestBridgeHandlersIncludeObservedHealthPayloads(t *testing.T) {
 	}
 	if got, want := getPayload.Health.RouteCount, 2; got != want {
 		t.Fatalf("get health route_count = %d, want %d", got, want)
+	}
+}
+
+func TestBridgeHandlersMutationReturnsBestEffortPayloadWhenHealthLookupFails(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	homePaths := testutil.NewTestHomePaths(t)
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.HTTP.Host = "127.0.0.1"
+	cfg.HTTP.Port = 2123
+
+	bridge := bridgepkg.BridgeInstance{
+		ID:            "brg-core",
+		Scope:         bridgepkg.ScopeGlobal,
+		Platform:      "telegram",
+		ExtensionName: "ext-telegram",
+		DisplayName:   "Support",
+		Enabled:       true,
+		Status:        bridgepkg.BridgeStatusStarting,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	}
+
+	handlers := core.NewBaseHandlers(core.BaseHandlerConfig{
+		TransportName:                "api-core-test",
+		MaskInternalErrors:           false,
+		IncludeSessionWorkspaceInSSE: true,
+		Sessions:                     testutil.StubSessionManager{},
+		Observer: testutil.StubObserver{
+			QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
+				return nil, errors.New("observer unavailable")
+			},
+		},
+		Bridges: testutil.StubBridgeService{
+			CreateInstanceFn: func(context.Context, bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
+				return &bridge, nil
+			},
+		},
+		Workspaces: testutil.StubWorkspaceService{},
+		HomePaths:  homePaths,
+		Config:     cfg,
+		Logger:     testutil.DiscardLogger(),
+		StartedAt:  time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		Now: func() time.Time {
+			return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
+		},
+		HTTPPort: cfg.HTTP.Port,
+	})
+
+	engine := gin.New()
+	engine.POST("/bridges", handlers.CreateBridge)
+
+	resp := performRequest(t, engine, http.MethodPost, "/bridges", []byte(`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true}}`))
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+	}
+
+	var payload contract.BridgeResponse
+	testutil.DecodeJSONResponse(t, resp, &payload)
+	if payload.Bridge.ID != bridge.ID || payload.Bridge.Status != bridgepkg.BridgeStatusStarting {
+		t.Fatalf("payload.Bridge = %#v, want created bridge payload", payload.Bridge)
+	}
+	if payload.Health.BridgeInstanceID != "" || payload.Health.Status != "" || payload.Health.RouteCount != 0 {
+		t.Fatalf("payload.Health = %#v, want zero-value best-effort health payload", payload.Health)
 	}
 }
 

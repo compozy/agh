@@ -436,6 +436,16 @@ func TestDeliveryValidationAndMetadataHelpers(t *testing.T) {
 			}
 		})
 
+		t.Run("ShouldRejectSnapshotsForNonResumeEvents", func(t *testing.T) {
+			snapshot := newSnapshot()
+			req := newResumeRequest(snapshot)
+			req.Event.EventType = DeliveryEventTypeStart
+			err := req.Validate()
+			if err == nil || !strings.Contains(err.Error(), "only resume delivery requests may include a snapshot") {
+				t.Fatalf("req.Validate() error = %v, want non-resume snapshot validation", err)
+			}
+		})
+
 		t.Run("ShouldRejectMismatchedSnapshotDeliveryID", func(t *testing.T) {
 			snapshot := newSnapshot()
 			req := newResumeRequest(snapshot)

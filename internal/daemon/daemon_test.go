@@ -645,6 +645,7 @@ func TestBootExtensionsLogsStartFailureAndContinues(t *testing.T) {
 		registry: db,
 		sessions: &fakeSessionManager{},
 		observer: &fakeObserver{},
+		bridges:  &bridgeRuntime{broker: bridgepkg.NewBroker(nil)},
 		hooks: &fakeHookRuntime{
 			onRebuild: func(context.Context) error {
 				rebuilds++
@@ -661,11 +662,20 @@ func TestBootExtensionsLogsStartFailureAndContinues(t *testing.T) {
 	if runtime.startCount != 1 {
 		t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
 	}
-	if rebuilds != 1 {
-		t.Fatalf("hook rebuild count = %d, want 1 after failed start", rebuilds)
+	if rebuilds != 0 {
+		t.Fatalf("hook rebuild count = %d, want 0 after failed start", rebuilds)
 	}
 	if len(cleanup.fns) != 1 {
 		t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
+	}
+	if state.currentExtensionRuntime() != nil {
+		t.Fatalf("state.extensions = %#v, want nil after failed start", state.currentExtensionRuntime())
+	}
+	if state.deps.Extensions != nil {
+		t.Fatalf("state.deps.Extensions = %#v, want nil after failed start", state.deps.Extensions)
+	}
+	if state.bridges.extensions != nil {
+		t.Fatalf("state.bridges.extensions = %#v, want nil after failed start", state.bridges.extensions)
 	}
 	if !strings.Contains(logBuffer.String(), "extension manager start failed") {
 		t.Fatalf("log output = %q, want extension start failure message", logBuffer.String())

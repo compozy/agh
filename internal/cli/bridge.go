@@ -98,6 +98,9 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if scope == bridgepkg.ScopeWorkspace && strings.TrimSpace(workspaceID) == "" {
+				return errors.New("cli: --workspace-id is required when --scope=workspace")
+			}
 			status, err := resolveBridgeStatus(enabled, statusRaw)
 			if err != nil {
 				return err
@@ -142,9 +145,9 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&includeThread, "include-thread", false, "Include thread identity in routing")
 	cmd.Flags().BoolVar(&includeGroup, "include-group", false, "Include group identity in routing")
 	cmd.Flags().StringVar(&deliveryDefaults, bridgeDeliveryDefaultsFlag, "", "JSON object or null for delivery target defaults")
-	_ = cmd.MarkFlagRequired("platform")
-	_ = cmd.MarkFlagRequired("extension")
-	_ = cmd.MarkFlagRequired("display-name")
+	mustMarkFlagRequired(cmd, "platform")
+	mustMarkFlagRequired(cmd, "extension")
+	mustMarkFlagRequired(cmd, "display-name")
 	return cmd
 }
 
@@ -549,8 +552,14 @@ func parseRequiredBridgeJSON(raw string) (*json.RawMessage, error) {
 	if trimmed == "" {
 		return nil, errors.New("cli: delivery defaults must be valid JSON; use null to clear")
 	}
-	if !json.Valid([]byte(trimmed)) {
+	var decoded any
+	if err := json.Unmarshal([]byte(trimmed), &decoded); err != nil {
 		return nil, errors.New("cli: delivery defaults must be valid JSON")
+	}
+	switch decoded.(type) {
+	case nil, map[string]any:
+	default:
+		return nil, errors.New("cli: delivery defaults must be a JSON object or null")
 	}
 	value := json.RawMessage(trimmed)
 	return &value, nil

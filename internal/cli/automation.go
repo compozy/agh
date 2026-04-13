@@ -137,11 +137,11 @@ func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&prompt, "prompt", "", "Prompt body to dispatch")
 	cmd.Flags().StringVar(&retryRaw, "retry", "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
 	cmd.Flags().BoolVar(&enabled, "enabled", false, "Create the job enabled or disabled")
-	_ = cmd.MarkFlagRequired("name")
-	_ = cmd.MarkFlagRequired("scope")
-	_ = cmd.MarkFlagRequired("schedule")
-	_ = cmd.MarkFlagRequired("agent")
-	_ = cmd.MarkFlagRequired("prompt")
+	mustMarkFlagRequired(cmd, "name")
+	mustMarkFlagRequired(cmd, "scope")
+	mustMarkFlagRequired(cmd, "schedule")
+	mustMarkFlagRequired(cmd, "agent")
+	mustMarkFlagRequired(cmd, "prompt")
 	return cmd
 }
 
@@ -446,11 +446,11 @@ func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&webhookID, "webhook-id", "", "Stable webhook identifier override for webhook events")
 	cmd.Flags().StringVar(&endpointSlug, "endpoint-slug", "", "Public endpoint slug for webhook events")
 	cmd.Flags().StringVar(&webhookSecret, "webhook-secret", "", "Webhook secret for webhook events")
-	_ = cmd.MarkFlagRequired("name")
-	_ = cmd.MarkFlagRequired("scope")
-	_ = cmd.MarkFlagRequired("event")
-	_ = cmd.MarkFlagRequired("agent")
-	_ = cmd.MarkFlagRequired("prompt")
+	mustMarkFlagRequired(cmd, "name")
+	mustMarkFlagRequired(cmd, "scope")
+	mustMarkFlagRequired(cmd, "event")
+	mustMarkFlagRequired(cmd, "agent")
+	mustMarkFlagRequired(cmd, "prompt")
 	return cmd
 }
 

@@ -1044,7 +1044,7 @@ func TestNetworkConfigValidateRejectsInvalidValues(t *testing.T) {
 			wantErr: "network.max_queue_depth",
 		},
 		{
-			name: "invalid default channel",
+			name: "ShouldRejectInvalidDefaultChannel",
 			mutate: func(cfg *Config) {
 				cfg.Network.DefaultChannel = "Bad Channel"
 			},

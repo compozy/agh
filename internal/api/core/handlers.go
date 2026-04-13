@@ -144,7 +144,9 @@ func (h *BaseHandlers) SetStreamDone(done <-chan struct{}) {
 		return
 	}
 	if done == nil {
-		h.Logger.Warn("api: stream shutdown bridge cleared; streaming handlers will rely on caller context until a transport installs one")
+		if h.Logger != nil {
+			h.Logger.Warn("api: stream shutdown bridge cleared; streaming handlers will rely on caller context until a transport installs one")
+		}
 		done = make(chan struct{})
 	}
 	h.settingsMu.Lock()

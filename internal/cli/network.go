@@ -159,10 +159,10 @@ func newNetworkSendCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&expiresAtRaw, "expires-at", "", "Optional expiry as unix seconds or RFC3339")
 	cmd.Flags().StringVar(&id, "id", "", "Optional explicit message id")
 	cmd.Flags().StringVar(&extRaw, "ext", "", "Optional JSON object of extension metadata")
-	_ = cmd.MarkFlagRequired("session")
-	_ = cmd.MarkFlagRequired("channel")
-	_ = cmd.MarkFlagRequired("kind")
-	_ = cmd.MarkFlagRequired("body")
+	mustMarkFlagRequired(cmd, "session")
+	mustMarkFlagRequired(cmd, "channel")
+	mustMarkFlagRequired(cmd, "kind")
+	mustMarkFlagRequired(cmd, "body")
 	return cmd
 }
 
@@ -187,7 +187,7 @@ func newNetworkInboxCommand(deps commandDeps) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&sessionID, "session", "", "Target session id")
-	_ = cmd.MarkFlagRequired("session")
+	mustMarkFlagRequired(cmd, "session")
 	return cmd
 }
 
@@ -352,13 +352,14 @@ func networkInboxBundle(messages []NetworkEnvelopeRecord) outputBundle {
 		messages,
 		messages,
 		"Network Inbox",
-		[]string{"ID", "Kind", "From", "To", "Reply To", "Trace", "Workflow", "Handoff"},
+		[]string{"ID", "Kind", "Channel", "From", "To", "Reply To", "Trace", "Workflow", "Handoff"},
 		"network_inbox",
 		[]string{"id", "kind", "channel", "from", "to", "reply_to", "trace_id", "causation_id", "workflow_id", "handoff_version", "expires_at"},
 		func(message NetworkEnvelopeRecord) []string {
 			return []string{
 				stringOrDash(message.ID),
 				stringOrDash(message.Kind),
+				stringOrDash(message.Channel),
 				stringOrDash(message.From),
 				stringOrDash(optionalString(message.To)),
 				stringOrDash(optionalString(message.ReplyTo)),

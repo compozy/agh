@@ -376,25 +376,33 @@ func getHTTPHealth(t *testing.T, runtime integrationRuntime) contract.HealthResp
 func waitForHTTPCondition(t *testing.T, fn func() bool) {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+	defer cancel()
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
 		if fn() {
 			return
 		}
-		time.Sleep(10 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			t.Fatal("condition did not become true before timeout")
+		case <-ticker.C:
+		}
 	}
-	t.Fatal("condition did not become true before timeout")
 }
 
 func mustReadAll(t *testing.T, body io.ReadCloser) string {
 	t.Helper()
-	defer func() {
-		_ = body.Close()
-	}()
 
 	data, err := io.ReadAll(body)
 	if err != nil {
 		t.Fatalf("io.ReadAll() error = %v", err)
+	}
+	if err := body.Close(); err != nil {
+		t.Fatalf("body.Close() error = %v", err)
 	}
 	return string(data)
 }

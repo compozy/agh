@@ -120,6 +120,30 @@ func TestBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 	}
 }
 
+func TestBridgeCreateRejectsWorkspaceScopeWithoutWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, stubClient{
+		createBridgeFn: func(context.Context, CreateBridgeRequest) (BridgeRecord, error) {
+			t.Fatal("CreateBridge() should not be called when workspace scope is invalid")
+			return BridgeRecord{}, nil
+		},
+	})
+
+	_, _, err := executeRootCommand(
+		t,
+		deps,
+		"bridge", "create",
+		"--scope", "workspace",
+		"--platform", "telegram",
+		"--extension", "ext-telegram",
+		"--display-name", "Support",
+	)
+	if err == nil || !strings.Contains(err.Error(), "--workspace-id is required when --scope=workspace") {
+		t.Fatalf("bridge create error = %v, want missing workspace-id validation", err)
+	}
+}
+
 func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -388,6 +412,32 @@ func TestBridgeBundleAndHelpers(t *testing.T) {
 	}
 	if _, err := parseBridgeScope("bogus"); err == nil {
 		t.Fatal("parseBridgeScope(bogus) error = nil, want non-nil")
+	}
+}
+
+func TestParseRequiredBridgeJSONEnforcesObjectOrNull(t *testing.T) {
+	t.Parallel()
+
+	validObject, err := parseRequiredBridgeJSON(`{"mode":"reply"}`)
+	if err != nil {
+		t.Fatalf("parseRequiredBridgeJSON(object) error = %v", err)
+	}
+	if string(*validObject) != `{"mode":"reply"}` {
+		t.Fatalf("parseRequiredBridgeJSON(object) = %s, want preserved object", string(*validObject))
+	}
+
+	validNull, err := parseRequiredBridgeJSON(`null`)
+	if err != nil {
+		t.Fatalf("parseRequiredBridgeJSON(null) error = %v", err)
+	}
+	if string(*validNull) != "null" {
+		t.Fatalf("parseRequiredBridgeJSON(null) = %s, want null", string(*validNull))
+	}
+
+	for _, raw := range []string{`[]`, `"text"`, `123`} {
+		if _, err := parseRequiredBridgeJSON(raw); err == nil || !strings.Contains(err.Error(), "must be a JSON object or null") {
+			t.Fatalf("parseRequiredBridgeJSON(%s) error = %v, want object-or-null validation", raw, err)
+		}
 	}
 }
 

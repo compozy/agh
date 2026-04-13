@@ -37,6 +37,7 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 	}
 
 	getCalls := 0
+	networkChannelsCalled := false
 	client := stubClient{
 		getAgentFn: func(context.Context, string) (AgentRecord, error) {
 			return AgentRecord{Name: "coder", Provider: "fake", Prompt: "hi"}, nil
@@ -44,16 +45,26 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		networkStatusFn: func(context.Context) (NetworkStatusRecord, error) {
 			return NetworkStatusRecord{Enabled: true, Status: "running"}, nil
 		},
-		networkPeersFn: func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error) {
+		networkPeersFn: func(_ context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error) {
+			if query.Channel != "builders" {
+				t.Fatalf("NetworkPeers() query = %#v, want builders channel", query)
+			}
 			return []NetworkPeerRecord{{PeerID: "reviewer.sess-1", Channel: "builders"}}, nil
 		},
 		networkChannelsFn: func(context.Context) ([]NetworkChannelRecord, error) {
+			networkChannelsCalled = true
 			return []NetworkChannelRecord{{Channel: "builders", PeerCount: 1}}, nil
 		},
-		networkSendFn: func(context.Context, NetworkSendRequest) (NetworkSendRecord, error) {
+		networkSendFn: func(_ context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
+			if request.SessionID != "sess-1" || request.Channel != "builders" || request.Kind != "say" || string(request.Body) != `{"text":"hello"}` {
+				t.Fatalf("NetworkSend() request = %#v, want session/channel/kind/body", request)
+			}
 			return NetworkSendRecord{ID: "msg-1", SessionID: "sess-1", Channel: "builders", Kind: "say"}, nil
 		},
-		networkInboxFn: func(context.Context, string) ([]NetworkEnvelopeRecord, error) {
+		networkInboxFn: func(_ context.Context, sessionID string) ([]NetworkEnvelopeRecord, error) {
+			if sessionID != "sess-1" {
+				t.Fatalf("NetworkInbox() sessionID = %q, want sess-1", sessionID)
+			}
 			return []NetworkEnvelopeRecord{{ID: "msg-1", Kind: "say", Channel: "builders", From: "reviewer.sess-1"}}, nil
 		},
 		observeEventsFn: func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error) {
@@ -128,6 +139,9 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 
 	if _, _, err := executeRootCommand(t, deps, "daemon", "start", "--foreground"); err != nil {
 		t.Fatalf("daemon start --foreground error = %v", err)
+	}
+	if !networkChannelsCalled {
+		t.Fatal("NetworkChannels() was not called")
 	}
 	if !runner.ran {
 		t.Fatal("daemon runner did not execute")

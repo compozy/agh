@@ -34,7 +34,9 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 					if err != nil {
 						t.Fatalf("io.ReadAll(network send body) error = %v", err)
 					}
-					if !strings.Contains(string(body), `"agh.workflow_id":"wf-1"`) || !strings.Contains(string(body), `"agh.handoff_version":3`) {
+					if !strings.Contains(string(body), `"channel":"builders"`) ||
+						!strings.Contains(string(body), `"agh.workflow_id":"wf-1"`) ||
+						!strings.Contains(string(body), `"agh.handoff_version":3`) {
 						t.Fatalf("network send body = %s, want ext metadata", body)
 					}
 					return newHTTPResponse(http.StatusOK, `{"message":{"id":"msg-1","session_id":"sess-a","channel":"builders","kind":"say","ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}}`), nil

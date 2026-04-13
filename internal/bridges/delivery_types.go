@@ -74,14 +74,18 @@ type DeliveryRequest struct {
 
 // Validate reports whether the negotiated request is internally consistent.
 func (r DeliveryRequest) Validate() error {
+	eventType := normalizeDeliveryEventType(r.Event.EventType)
 	if err := r.Event.Validate(); err != nil {
 		return err
 	}
 	if r.Snapshot == nil {
-		if normalizeDeliveryEventType(r.Event.EventType) == DeliveryEventTypeResume {
+		if eventType == DeliveryEventTypeResume {
 			return errors.New("bridges: resume delivery request requires a snapshot")
 		}
 		return nil
+	}
+	if eventType != DeliveryEventTypeResume {
+		return errors.New("bridges: only resume delivery requests may include a snapshot")
 	}
 
 	if err := r.Snapshot.Validate(); err != nil {

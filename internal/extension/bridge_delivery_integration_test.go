@@ -63,180 +63,160 @@ type deliveryIntegrationEnv struct {
 	extensionName string
 }
 
-func TestBridgeDeliveryIntegrationPromptProducesOrderedDeliveryStream(t *testing.T) {
-	withDaemonVersion(t, "0.5.0")
+func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
+	t.Parallel()
 
-	driver := newScriptedPromptDriver(time.Date(2026, 4, 11, 3, 0, 0, 0, time.UTC), []scriptedPromptEvent{
-		{Type: acp.EventTypeAgentMessage, Text: "hello"},
-		{Type: acp.EventTypeAgentMessage, Text: " world"},
-		{Type: acp.EventTypeDone},
-	})
-	markerPath := filepath.Join(t.TempDir(), "deliveries.jsonl")
-	env := newDeliveryIntegrationEnv(t, driver, "ext-bridge-order", "record_deliveries", markerPath)
+	tests := []struct {
+		name          string
+		now           time.Time
+		script        []scriptedPromptEvent
+		extensionName string
+		scenario      string
+		instanceID    string
+		markerFile    string
+		brokerOpts    []bridgepkg.DeliveryBrokerOption
+		waitFor       func([]managerDeliveryMarker) bool
+		assert        func(t *testing.T, markers []managerDeliveryMarker)
+	}{
+		{
+			name:          "ShouldProduceOrderedDeliveryStream",
+			now:           time.Date(2026, 4, 11, 3, 0, 0, 0, time.UTC),
+			script:        []scriptedPromptEvent{{Type: acp.EventTypeAgentMessage, Text: "hello"}, {Type: acp.EventTypeAgentMessage, Text: " world"}, {Type: acp.EventTypeDone}},
+			extensionName: "ext-bridge-order",
+			scenario:      "record_deliveries",
+			instanceID:    "brg-order",
+			markerFile:    "deliveries.jsonl",
+			waitFor: func(markers []managerDeliveryMarker) bool {
+				return len(markers) >= 2 && markers[len(markers)-1].Request.Event.EventType == bridgepkg.DeliveryEventTypeFinal
+			},
+			assert: assertMarkerDeliveryProgress,
+		},
+		{
+			name:          "ShouldCoalesceIntermediateDeltasForSlowAdapters",
+			now:           time.Date(2026, 4, 11, 3, 5, 0, 0, time.UTC),
+			script:        []scriptedPromptEvent{{Type: acp.EventTypeAgentMessage, Text: "h"}, {Type: acp.EventTypeAgentMessage, Text: "el"}, {Type: acp.EventTypeAgentMessage, Text: "lo"}, {Type: acp.EventTypeAgentMessage, Text: "!"}, {Type: acp.EventTypeDone}},
+			extensionName: "ext-bridge-slow",
+			scenario:      "slow_record_deliveries",
+			instanceID:    "brg-slow",
+			markerFile:    "slow-deliveries.jsonl",
+			brokerOpts:    []bridgepkg.DeliveryBrokerOption{bridgepkg.WithDeliveryBrokerQueueCapacity(2)},
+			waitFor: func(markers []managerDeliveryMarker) bool {
+				return len(markers) >= 2 && markers[len(markers)-1].Request.Event.EventType == bridgepkg.DeliveryEventTypeFinal
+			},
+			assert: func(t *testing.T, markers []managerDeliveryMarker) {
+				t.Helper()
 
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ID:            "brg-order",
-		ExtensionName: env.extensionName,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	params := map[string]any{
-		"bridge_instance_id":  instance.ID,
-		"scope":               instance.Scope,
-		"workspace_id":        instance.WorkspaceID,
-		"peer_id":             "peer-1",
-		"platform_message_id": "msg-order",
-		"received_at":         env.now.Format(time.RFC3339Nano),
-		"idempotency_key":     "idem-order",
-		"content":             map[string]any{"text": "hello"},
+				if len(markers) >= 5 {
+					t.Fatalf("len(delivery markers) = %d, want coalesced stream smaller than 5 projected events", len(markers))
+				}
+				if got := markers[0].Request.Event.EventType; got != bridgepkg.DeliveryEventTypeStart {
+					t.Fatalf("first delivery event = %q, want start", got)
+				}
+				last := markers[len(markers)-1].Request.Event
+				if got := last.EventType; got != bridgepkg.DeliveryEventTypeFinal {
+					t.Fatalf("last delivery event = %q, want final", got)
+				}
+				if got, want := last.Seq, int64(5); got != want {
+					t.Fatalf("last delivery seq = %d, want %d", got, want)
+				}
+			},
+		},
+		{
+			name:          "ShouldResumeActiveDeliveryAfterRestart",
+			now:           time.Date(2026, 4, 11, 3, 10, 0, 0, time.UTC),
+			script:        []scriptedPromptEvent{{Type: acp.EventTypeAgentMessage, Text: "hello"}, {Type: acp.EventTypeDone}},
+			extensionName: "ext-bridge-resume",
+			scenario:      "exit_once_record_deliveries",
+			instanceID:    "brg-resume",
+			markerFile:    "resume-deliveries.jsonl",
+			brokerOpts:    []bridgepkg.DeliveryBrokerOption{bridgepkg.WithDeliveryBrokerRetryDelay(20 * time.Millisecond)},
+			waitFor: func(markers []managerDeliveryMarker) bool {
+				for _, marker := range markers {
+					if marker.Request.Event.EventType == bridgepkg.DeliveryEventTypeResume {
+						return true
+					}
+				}
+				return false
+			},
+			assert: func(t *testing.T, markers []managerDeliveryMarker) {
+				t.Helper()
+
+				if len(markers) < 2 {
+					t.Fatalf("len(delivery markers) = %d, want at least start + resume", len(markers))
+				}
+				if got := markers[0].Request.Event.EventType; got != bridgepkg.DeliveryEventTypeStart {
+					t.Fatalf("first delivery event = %q, want start", got)
+				}
+
+				resumeIndex := -1
+				for idx, marker := range markers {
+					if marker.Request.Event.EventType == bridgepkg.DeliveryEventTypeResume {
+						resumeIndex = idx
+						break
+					}
+				}
+				if resumeIndex < 0 {
+					t.Fatalf("delivery markers = %#v, want resume event", markers)
+				}
+				if markers[resumeIndex].PID == markers[0].PID {
+					t.Fatalf("resume marker pid = %d, want restart to use a different process than %d", markers[resumeIndex].PID, markers[0].PID)
+				}
+				if markers[resumeIndex].Request.Snapshot == nil {
+					t.Fatal("resume request snapshot = nil, want resumable state")
+				}
+				if got, want := markers[resumeIndex].Request.Snapshot.DeliveryID, markers[0].Request.Event.DeliveryID; got != want {
+					t.Fatalf("resume snapshot delivery id = %q, want %q", got, want)
+				}
+				if got, want := markers[resumeIndex].Request.Snapshot.LatestEventType, bridgepkg.DeliveryEventTypeFinal; got != want {
+					t.Fatalf("resume snapshot latest event type = %q, want %q", got, want)
+				}
+			},
+		},
 	}
 
-	if _, err := env.callWithContext(t, env.bridgeContext(instance), env.extensionName, "bridges/messages/ingest", params); err != nil {
-		t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
-	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	waitForDeliveryMarkers(t, markerPath, func(markers []managerDeliveryMarker) bool {
-		return len(markers) >= 2 && markers[len(markers)-1].Request.Event.EventType == bridgepkg.DeliveryEventTypeFinal
-	})
+			withDaemonVersion(t, "0.5.0")
 
-	markers := readDeliveryMarkers(t, markerPath)
-	assertMarkerDeliveryProgress(t, markers)
-}
+			driver := newScriptedPromptDriver(tc.now, tc.script)
+			markerPath := filepath.Join(t.TempDir(), tc.markerFile)
+			env := newDeliveryIntegrationEnv(
+				t,
+				driver,
+				tc.extensionName,
+				tc.scenario,
+				markerPath,
+				tc.brokerOpts...,
+			)
 
-func TestBridgeDeliveryIntegrationSlowAdapterCoalescesIntermediateDeltas(t *testing.T) {
-	withDaemonVersion(t, "0.5.0")
-
-	driver := newScriptedPromptDriver(time.Date(2026, 4, 11, 3, 5, 0, 0, time.UTC), []scriptedPromptEvent{
-		{Type: acp.EventTypeAgentMessage, Text: "h"},
-		{Type: acp.EventTypeAgentMessage, Text: "el"},
-		{Type: acp.EventTypeAgentMessage, Text: "lo"},
-		{Type: acp.EventTypeAgentMessage, Text: "!"},
-		{Type: acp.EventTypeDone},
-	})
-	markerPath := filepath.Join(t.TempDir(), "slow-deliveries.jsonl")
-	env := newDeliveryIntegrationEnv(
-		t,
-		driver,
-		"ext-bridge-slow",
-		"slow_record_deliveries",
-		markerPath,
-		bridgepkg.WithDeliveryBrokerQueueCapacity(2),
-	)
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ID:            "brg-slow",
-		ExtensionName: env.extensionName,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	params := map[string]any{
-		"bridge_instance_id":  instance.ID,
-		"scope":               instance.Scope,
-		"workspace_id":        instance.WorkspaceID,
-		"peer_id":             "peer-1",
-		"platform_message_id": "msg-slow",
-		"received_at":         env.now.Format(time.RFC3339Nano),
-		"idempotency_key":     "idem-slow",
-		"content":             map[string]any{"text": "hello"},
-	}
-
-	if _, err := env.callWithContext(t, env.bridgeContext(instance), env.extensionName, "bridges/messages/ingest", params); err != nil {
-		t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
-	}
-
-	waitForDeliveryMarkers(t, markerPath, func(markers []managerDeliveryMarker) bool {
-		return len(markers) >= 2 && markers[len(markers)-1].Request.Event.EventType == bridgepkg.DeliveryEventTypeFinal
-	})
-
-	markers := readDeliveryMarkers(t, markerPath)
-	if len(markers) >= 5 {
-		t.Fatalf("len(delivery markers) = %d, want coalesced stream smaller than 5 projected events", len(markers))
-	}
-	if got := markers[0].Request.Event.EventType; got != bridgepkg.DeliveryEventTypeStart {
-		t.Fatalf("first delivery event = %q, want start", got)
-	}
-	last := markers[len(markers)-1].Request.Event
-	if got := last.EventType; got != bridgepkg.DeliveryEventTypeFinal {
-		t.Fatalf("last delivery event = %q, want final", got)
-	}
-	if got, want := last.Seq, int64(5); got != want {
-		t.Fatalf("last delivery seq = %d, want %d", got, want)
-	}
-}
-
-func TestBridgeDeliveryIntegrationRestartResumesActiveDelivery(t *testing.T) {
-	withDaemonVersion(t, "0.5.0")
-
-	driver := newScriptedPromptDriver(time.Date(2026, 4, 11, 3, 10, 0, 0, time.UTC), []scriptedPromptEvent{
-		{Type: acp.EventTypeAgentMessage, Text: "hello"},
-		{Type: acp.EventTypeDone},
-	})
-	markerPath := filepath.Join(t.TempDir(), "resume-deliveries.jsonl")
-	env := newDeliveryIntegrationEnv(
-		t,
-		driver,
-		"ext-bridge-resume",
-		"exit_once_record_deliveries",
-		markerPath,
-		bridgepkg.WithDeliveryBrokerRetryDelay(20*time.Millisecond),
-	)
-
-	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ID:            "brg-resume",
-		ExtensionName: env.extensionName,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	})
-	params := map[string]any{
-		"bridge_instance_id":  instance.ID,
-		"scope":               instance.Scope,
-		"workspace_id":        instance.WorkspaceID,
-		"peer_id":             "peer-1",
-		"platform_message_id": "msg-resume",
-		"received_at":         env.now.Format(time.RFC3339Nano),
-		"idempotency_key":     "idem-resume",
-		"content":             map[string]any{"text": "hello"},
-	}
-
-	if _, err := env.callWithContext(t, env.bridgeContext(instance), env.extensionName, "bridges/messages/ingest", params); err != nil {
-		t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
-	}
-
-	waitForDeliveryMarkers(t, markerPath, func(markers []managerDeliveryMarker) bool {
-		for _, marker := range markers {
-			if marker.Request.Event.EventType == bridgepkg.DeliveryEventTypeResume {
-				return true
+			instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+				ID:            tc.instanceID,
+				ExtensionName: env.extensionName,
+				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+			})
+			params := map[string]any{
+				"bridge_instance_id":  instance.ID,
+				"scope":               instance.Scope,
+				"workspace_id":        instance.WorkspaceID,
+				"peer_id":             "peer-1",
+				"platform_message_id": "msg-" + tc.instanceID,
+				"received_at":         env.now.Format(time.RFC3339Nano),
+				"idempotency_key":     "idem-" + tc.instanceID,
+				"content":             map[string]any{"text": "hello"},
 			}
-		}
-		return false
-	})
 
-	markers := readDeliveryMarkers(t, markerPath)
-	if len(markers) < 2 {
-		t.Fatalf("len(delivery markers) = %d, want at least start + resume", len(markers))
-	}
-	if got := markers[0].Request.Event.EventType; got != bridgepkg.DeliveryEventTypeStart {
-		t.Fatalf("first delivery event = %q, want start", got)
-	}
+			if _, err := env.callWithContext(t, env.bridgeContext(instance), env.extensionName, "bridges/messages/ingest", params); err != nil {
+				t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
+			}
 
-	resumeIndex := -1
-	for idx, marker := range markers {
-		if marker.Request.Event.EventType == bridgepkg.DeliveryEventTypeResume {
-			resumeIndex = idx
-			break
-		}
-	}
-	if resumeIndex < 0 {
-		t.Fatalf("delivery markers = %#v, want resume event", markers)
-	}
-	if markers[resumeIndex].PID == markers[0].PID {
-		t.Fatalf("resume marker pid = %d, want restart to use a different process than %d", markers[resumeIndex].PID, markers[0].PID)
-	}
-	if markers[resumeIndex].Request.Snapshot == nil {
-		t.Fatal("resume request snapshot = nil, want resumable state")
-	}
-	if got, want := markers[resumeIndex].Request.Snapshot.DeliveryID, markers[0].Request.Event.DeliveryID; got != want {
-		t.Fatalf("resume snapshot delivery id = %q, want %q", got, want)
-	}
-	if got, want := markers[resumeIndex].Request.Snapshot.LatestEventType, bridgepkg.DeliveryEventTypeFinal; got != want {
-		t.Fatalf("resume snapshot latest event type = %q, want %q", got, want)
+			waitForDeliveryMarkers(t, markerPath, tc.waitFor)
+
+			markers := readDeliveryMarkers(t, markerPath)
+			tc.assert(t, markers)
+		})
 	}
 }
 

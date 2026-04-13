@@ -557,7 +557,10 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sessionListBundle().human() error = %v", err)
 	}
-	if !strings.Contains(human, "sess-1") || !strings.Contains(human, "/workspace/project") || !strings.Contains(human, "builders") {
+	if !strings.Contains(human, "sess-1") ||
+		!strings.Contains(human, "/workspace/project") ||
+		!strings.Contains(strings.ToLower(human), "channel") ||
+		!strings.Contains(human, "builders") {
 		t.Fatalf("sessionListBundle().human() = %q, want session, workspace, and channel output", human)
 	}
 
@@ -565,7 +568,10 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sessionListBundle().toon() error = %v", err)
 	}
-	if !strings.Contains(toon, "sessions") || !strings.Contains(toon, "sess-1") || !strings.Contains(toon, "builders") {
+	if !strings.Contains(toon, "sessions") ||
+		!strings.Contains(toon, "sess-1") ||
+		!strings.Contains(strings.ToLower(toon), "channel") ||
+		!strings.Contains(toon, "builders") {
 		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output with channel", toon)
 	}
 }

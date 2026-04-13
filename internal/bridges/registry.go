@@ -483,7 +483,7 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 		UpdatedAt:        r.UpdatedAt,
 	}
 	if instance.ID == "" {
-		instance.ID = store.NewID("chan")
+		instance.ID = store.NewID("brg")
 	}
 	if instance.CreatedAt.IsZero() {
 		instance.CreatedAt = clock()

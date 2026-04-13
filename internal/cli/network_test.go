@@ -178,8 +178,8 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("network inbox error = %v", err)
 	}
-	if !strings.Contains(inboxOut, "wf-1") || !strings.Contains(inboxOut, "3") {
-		t.Fatalf("network inbox output = %q, want workflow and handoff metadata", inboxOut)
+	if !strings.Contains(inboxOut, "Channel") || !strings.Contains(inboxOut, "builders") || !strings.Contains(inboxOut, "wf-1") || !strings.Contains(inboxOut, "3") {
+		t.Fatalf("network inbox output = %q, want channel and workflow/handoff metadata", inboxOut)
 	}
 }
 

@@ -78,12 +78,17 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 	if string(seenRequest.Ext["agh.workflow_id"]) != `"wf-1"` || string(seenRequest.Ext["agh.handoff_version"]) != `3` {
 		t.Fatalf("seenRequest.Ext = %#v, want preserved workflow metadata", seenRequest.Ext)
 	}
+	if seenRequest.Channel != "builders" {
+		t.Fatalf("seenRequest.Channel = %q, want builders", seenRequest.Channel)
+	}
 
 	inboxResp := performRequest(t, engine, http.MethodGet, "/api/network/inbox?session_id=sess-a", nil)
 	if inboxResp.Code != http.StatusOK {
 		t.Fatalf("inbox status = %d, want %d", inboxResp.Code, http.StatusOK)
 	}
-	if !strings.Contains(inboxResp.Body.String(), `"agh.workflow_id":"wf-1"`) || !strings.Contains(inboxResp.Body.String(), `"agh.handoff_version":3`) {
+	if !strings.Contains(inboxResp.Body.String(), `"channel":"builders"`) ||
+		!strings.Contains(inboxResp.Body.String(), `"agh.workflow_id":"wf-1"`) ||
+		!strings.Contains(inboxResp.Body.String(), `"agh.handoff_version":3`) {
 		t.Fatalf("inbox body = %s, want workflow metadata", inboxResp.Body.String())
 	}
 }

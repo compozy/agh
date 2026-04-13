@@ -721,7 +721,15 @@ func TestUnixSocketClientBridgeMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(create bridge body) error = %v", err)
 					}
-					if payload.Platform != "telegram" || payload.ExtensionName != "ext-telegram" || payload.DisplayName != "Support" {
+					if payload.Scope != bridgepkg.ScopeGlobal ||
+						payload.WorkspaceID != "" ||
+						payload.Platform != "telegram" ||
+						payload.ExtensionName != "ext-telegram" ||
+						payload.DisplayName != "Support" ||
+						!payload.Enabled ||
+						payload.Status != bridgepkg.BridgeStatusStarting ||
+						!reflect.DeepEqual(payload.RoutingPolicy, bridgepkg.RoutingPolicy{IncludePeer: true}) ||
+						len(payload.DeliveryDefaults) != 0 {
 						t.Fatalf("create bridge payload = %#v", payload)
 					}
 					return newHTTPResponse(http.StatusCreated, `{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}}`), nil
@@ -732,7 +740,11 @@ func TestUnixSocketClientBridgeMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(update bridge body) error = %v", err)
 					}
-					if payload.DisplayName == nil || *payload.DisplayName != "Support Ops" {
+					if payload.DisplayName == nil ||
+						*payload.DisplayName != "Support Ops" ||
+						payload.RoutingPolicy == nil ||
+						!reflect.DeepEqual(*payload.RoutingPolicy, bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true}) ||
+						payload.DeliveryDefaults != nil {
 						t.Fatalf("update bridge payload = %#v, want updated display name", payload)
 					}
 					return newHTTPResponse(http.StatusOK, `{"bridge":{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support Ops","enabled":true,"status":"ready","routing_policy":{"include_peer":true,"include_thread":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:05:00Z"}}`), nil

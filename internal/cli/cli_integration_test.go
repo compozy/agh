@@ -1383,11 +1383,13 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	d.manager = manager
 	d.mu.Unlock()
 
+	bridgeService := newIntegrationBridgeService(registry)
 	observer, err := observe.New(
 		context.Background(),
 		observe.WithHomePaths(d.homePaths),
 		observe.WithRegistry(registry),
 		observe.WithSessionSource(manager),
+		observe.WithBridgeSource(bridgeService),
 		observe.WithLogger(discardLogger()),
 		observe.WithStartTime(d.startedAt),
 	)
@@ -1403,7 +1405,6 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	if err := memoryStore.EnsureDirs(); err != nil {
 		return fmt.Errorf("ensure memory dirs: %w", err)
 	}
-	bridgeService := newIntegrationBridgeService(registry)
 	dreamTrigger := &integrationDreamTrigger{
 		enabled:   true,
 		triggered: true,

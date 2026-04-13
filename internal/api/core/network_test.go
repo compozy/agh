@@ -52,7 +52,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		}
 
 		payload := core.NetworkStatusPayloadFromStatus(status)
-		if payload == nil || payload.MessagesDelivered != 3 || len(payload.KindMetrics) != 1 || payload.KindMetrics[0].Kind != string(network.KindSay) {
+		if payload == nil || payload.Channels != 1 || payload.MessagesDelivered != 3 || len(payload.KindMetrics) != 1 || payload.KindMetrics[0].Kind != string(network.KindSay) {
 			t.Fatalf("NetworkStatusPayloadFromStatus() = %#v", payload)
 		}
 	})
@@ -245,7 +245,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 
 		var statusPayload contract.NetworkStatusResponse
 		testutil.DecodeJSONResponse(t, statusResp, &statusPayload)
-		if statusPayload.Network.QueuedMessages != 2 || len(statusPayload.Network.KindMetrics) != 1 {
+		if statusPayload.Network.Channels != 1 || statusPayload.Network.QueuedMessages != 2 || len(statusPayload.Network.KindMetrics) != 1 {
 			t.Fatalf("status payload = %#v", statusPayload.Network)
 		}
 		if statusPayload.Network.KindMetrics[0].Sent != 4 || statusPayload.Network.KindMetrics[0].Kind != string(network.KindSay) {
@@ -274,7 +274,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 
 		var channelsPayload contract.NetworkChannelsResponse
 		testutil.DecodeJSONResponse(t, channelsResp, &channelsPayload)
-		if len(channelsPayload.Channels) != 1 || channelsPayload.Channels[0].PeerCount != 2 {
+		if len(channelsPayload.Channels) != 1 || channelsPayload.Channels[0].Channel != "builders" || channelsPayload.Channels[0].PeerCount != 2 {
 			t.Fatalf("channels payload = %#v", channelsPayload.Channels)
 		}
 	})
