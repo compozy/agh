@@ -222,8 +222,17 @@ type TaskEvent struct {
 	RunID     string          `json:"run_id,omitempty"`
 	EventType string          `json:"event_type"`
 	Actor     ActorIdentity   `json:"actor"`
+	Origin    Origin          `json:"origin"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
 	Timestamp time.Time       `json:"timestamp"`
+}
+
+// TaskRunIdempotency is the durable deduplication record for non-human run ingress.
+type TaskRunIdempotency struct {
+	IdempotencyKey string    `json:"idempotency_key"`
+	RunID          string    `json:"run_id"`
+	Origin         Origin    `json:"origin"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 // TaskSummary is the lightweight read model returned from list-oriented task queries.

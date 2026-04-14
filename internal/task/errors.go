@@ -7,6 +7,8 @@ var (
 	ErrTaskNotFound = errors.New("task: task not found")
 	// ErrTaskRunNotFound reports that no persisted task run matched the lookup.
 	ErrTaskRunNotFound = errors.New("task: task run not found")
+	// ErrTaskRunIdempotencyNotFound reports that no persisted task-run idempotency record matched the lookup.
+	ErrTaskRunIdempotencyNotFound = errors.New("task: task run idempotency not found")
 	// ErrTaskDependencyNotFound reports that no persisted dependency edge matched the lookup.
 	ErrTaskDependencyNotFound = errors.New("task: task dependency not found")
 	// ErrTaskEventNotFound reports that no persisted task event matched the lookup.

@@ -352,7 +352,24 @@ func (e TaskEvent) Validate() error {
 	if err := e.Actor.Validate("task_event.actor"); err != nil {
 		return err
 	}
+	if err := e.Origin.Validate("task_event.origin"); err != nil {
+		return err
+	}
 	if err := ValidatePayloadSize(e.Payload, "task_event.payload"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Validate reports whether the persisted idempotency record contains the canonical shape.
+func (r TaskRunIdempotency) Validate() error {
+	if strings.TrimSpace(r.IdempotencyKey) == "" {
+		return fmt.Errorf("%w: task_run_idempotency.idempotency_key is required", ErrValidation)
+	}
+	if strings.TrimSpace(r.RunID) == "" {
+		return fmt.Errorf("%w: task_run_idempotency.run_id is required", ErrValidation)
+	}
+	if err := r.Origin.Validate("task_run_idempotency.origin"); err != nil {
 		return err
 	}
 	return nil

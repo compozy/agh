@@ -5,7 +5,6 @@ package task_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
@@ -60,11 +59,13 @@ func (fakeStore) ListTaskEvents(context.Context, taskpkg.TaskEventQuery) ([]task
 	return []taskpkg.TaskEvent{{ID: "evt-1", TaskID: "task-1", EventType: "task.created"}}, nil
 }
 
-func (fakeStore) GetTaskRunByIdempotencyKey(context.Context, string) (taskpkg.TaskRun, error) {
+func (fakeStore) GetTaskRunByIdempotencyKey(context.Context, string, taskpkg.Origin) (taskpkg.TaskRun, error) {
 	return taskpkg.TaskRun{}, nil
 }
 
-func (fakeStore) SaveTaskRunIdempotency(context.Context, string, string, time.Time) error { return nil }
+func (fakeStore) SaveTaskRunIdempotency(context.Context, taskpkg.TaskRunIdempotency) error {
+	return nil
+}
 
 type fakeSessionExecutor struct{}
 

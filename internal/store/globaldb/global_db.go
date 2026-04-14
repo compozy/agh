@@ -264,6 +264,40 @@ var globalSchemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_task_runs_status ON task_runs(status);`,
 	`CREATE INDEX IF NOT EXISTS idx_task_runs_session ON task_runs(session_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_task_runs_channel ON task_runs(network_channel);`,
+	`CREATE TABLE IF NOT EXISTS task_dependencies (
+		task_id             TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+		depends_on_task_id  TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+		kind                TEXT NOT NULL CHECK (kind IN ('blocks')),
+		created_at          TEXT NOT NULL,
+		PRIMARY KEY (task_id, depends_on_task_id, kind),
+		CHECK (task_id <> depends_on_task_id)
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_dependencies_task ON task_dependencies(task_id, created_at ASC, depends_on_task_id ASC);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on ON task_dependencies(depends_on_task_id, task_id ASC);`,
+	`CREATE TABLE IF NOT EXISTS task_events (
+		id          TEXT PRIMARY KEY,
+		task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+		run_id      TEXT REFERENCES task_runs(id) ON DELETE SET NULL,
+		event_type  TEXT NOT NULL,
+		actor_kind  TEXT NOT NULL CHECK (actor_kind IN ('human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon')),
+		actor_ref   TEXT NOT NULL,
+		origin_kind TEXT NOT NULL CHECK (origin_kind IN ('cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon')),
+		origin_ref  TEXT NOT NULL,
+		payload_json TEXT,
+		timestamp   TEXT NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, timestamp DESC, id DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_events_run ON task_events(run_id, timestamp DESC, id DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_events_type ON task_events(event_type, timestamp DESC, id DESC);`,
+	`CREATE TABLE IF NOT EXISTS task_run_idempotency (
+		idempotency_key TEXT NOT NULL,
+		origin_kind     TEXT NOT NULL CHECK (origin_kind IN ('cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon')),
+		origin_ref      TEXT NOT NULL,
+		run_id          TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
+		created_at      TEXT NOT NULL,
+		PRIMARY KEY (idempotency_key, origin_kind, origin_ref)
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_run_idempotency_run ON task_run_idempotency(run_id);`,
 	`CREATE TABLE IF NOT EXISTS bridge_instances (
 		id                TEXT PRIMARY KEY,
 		scope             TEXT NOT NULL,

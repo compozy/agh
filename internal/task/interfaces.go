@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"time"
 )
 
 // Manager is the task-domain authority for task and run lifecycle operations.
@@ -62,8 +61,8 @@ type EventStore interface {
 
 // IdempotencyStore is the persistence surface for non-human run idempotency tracking.
 type IdempotencyStore interface {
-	GetTaskRunByIdempotencyKey(ctx context.Context, key string) (TaskRun, error)
-	SaveTaskRunIdempotency(ctx context.Context, key string, runID string, createdAt time.Time) error
+	GetTaskRunByIdempotencyKey(ctx context.Context, key string, origin Origin) (TaskRun, error)
+	SaveTaskRunIdempotency(ctx context.Context, record TaskRunIdempotency) error
 }
 
 // Store composes the task-domain persistence surfaces consumed by the manager.

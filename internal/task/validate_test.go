@@ -438,8 +438,19 @@ func validEvent() TaskEvent {
 		TaskID:    "task-1",
 		EventType: "task.created",
 		Actor:     ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
+		Origin:    Origin{Kind: OriginKindCLI, Ref: "agh task create"},
 		Payload:   json.RawMessage(`{"source":"cli"}`),
 		Timestamp: now,
+	}
+}
+
+func validTaskRunIdempotency() TaskRunIdempotency {
+	now := time.Date(2026, 4, 14, 13, 30, 0, 0, time.UTC)
+	return TaskRunIdempotency{
+		IdempotencyKey: "idem-1",
+		RunID:          "run-1",
+		Origin:         Origin{Kind: OriginKindAutomation, Ref: "rule:nightly"},
+		CreatedAt:      now,
 	}
 }
 
@@ -684,6 +695,21 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			wantErr: ErrValidation,
 		},
 		{
+			name: "task run idempotency valid",
+			run: func() error {
+				return validTaskRunIdempotency().Validate()
+			},
+		},
+		{
+			name: "task run idempotency invalid",
+			run: func() error {
+				record := validTaskRunIdempotency()
+				record.Origin.Ref = ""
+				return record.Validate()
+			},
+			wantErr: ErrValidation,
+		},
+		{
 			name: "session ref valid",
 			run: func() error {
 				return SessionRef{SessionID: "sess-1"}.Validate()
@@ -789,6 +815,16 @@ func TestAdditionalBranchCoverage(t *testing.T) {
 		t.Parallel()
 		event := validEvent()
 		event.EventType = ""
+		err := event.Validate()
+		if err == nil || !errors.Is(err, ErrValidation) {
+			t.Fatalf("TaskEvent.Validate() error = %v, want ErrValidation", err)
+		}
+	})
+
+	t.Run("task event missing origin", func(t *testing.T) {
+		t.Parallel()
+		event := validEvent()
+		event.Origin.Ref = ""
 		err := event.Validate()
 		if err == nil || !errors.Is(err, ErrValidation) {
 			t.Fatalf("TaskEvent.Validate() error = %v, want ErrValidation", err)

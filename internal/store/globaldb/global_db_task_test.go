@@ -19,7 +19,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 
 	globalDB := openTestGlobalDB(t)
 
-	assertTablesPresent(t, globalDB.db, "tasks", "task_runs")
+	assertTablesPresent(t, globalDB.db, "tasks", "task_runs", "task_dependencies", "task_events", "task_run_idempotency")
 	assertTableColumns(t, globalDB.db, "tasks", []string{
 		"id",
 		"identifier",
@@ -60,6 +60,31 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"error",
 		"result_json",
 	})
+	assertTableColumns(t, globalDB.db, "task_dependencies", []string{
+		"task_id",
+		"depends_on_task_id",
+		"kind",
+		"created_at",
+	})
+	assertTableColumns(t, globalDB.db, "task_events", []string{
+		"id",
+		"task_id",
+		"run_id",
+		"event_type",
+		"actor_kind",
+		"actor_ref",
+		"origin_kind",
+		"origin_ref",
+		"payload_json",
+		"timestamp",
+	})
+	assertTableColumns(t, globalDB.db, "task_run_idempotency", []string{
+		"idempotency_key",
+		"origin_kind",
+		"origin_ref",
+		"run_id",
+		"created_at",
+	})
 	assertIndexesPresent(t, globalDB.db, "tasks",
 		"idx_tasks_scope",
 		"idx_tasks_workspace",
@@ -74,6 +99,18 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_task_runs_status",
 		"idx_task_runs_session",
 		"idx_task_runs_channel",
+	)
+	assertIndexesPresent(t, globalDB.db, "task_dependencies",
+		"idx_task_dependencies_task",
+		"idx_task_dependencies_depends_on",
+	)
+	assertIndexesPresent(t, globalDB.db, "task_events",
+		"idx_task_events_task",
+		"idx_task_events_run",
+		"idx_task_events_type",
+	)
+	assertIndexesPresent(t, globalDB.db, "task_run_idempotency",
+		"idx_task_run_idempotency_run",
 	)
 }
 
