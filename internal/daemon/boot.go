@@ -24,6 +24,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -43,6 +44,7 @@ type bootState struct {
 	registry           Registry
 	workspaceResolver  workspacepkg.WorkspaceResolver
 	sessions           SessionManager
+	tasks              *taskRuntime
 	network            networkRuntime
 	observer           Observer
 	lifecycleObservers *sessionLifecycleFanout
@@ -125,6 +127,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return err
 	}
 	if err := d.bootRuntime(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootTasks(ctx, state); err != nil {
 		return err
 	}
 	if err := d.bootNetwork(ctx, state, cleanup); err != nil {
@@ -424,6 +429,7 @@ func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *boo
 		d.homePaths.NetworkAuditFile,
 		state.registry,
 		network.WithManagerLogger(state.logger),
+		network.WithManagerTaskService(state.deps.Tasks),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create network manager: %w", err)
@@ -513,9 +519,15 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 		return errors.New("daemon: automation manager factory is required")
 	}
 
+	var tasks taskpkg.Manager
+	if state.tasks != nil {
+		tasks = state.tasks.manager
+	}
+
 	manager, err := d.newAutomationManager(automationManagerDeps{
 		Store:               store,
 		Sessions:            state.sessions,
+		Tasks:               tasks,
 		WorkspaceResolver:   state.workspaceResolver,
 		Config:              state.cfg.Automation,
 		Hooks:               state.hooks,
@@ -565,6 +577,7 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		Automation: func() extensionpkg.HostAPIAutomationManager {
 			return state.automation
 		},
+		Tasks:             state.deps.Tasks,
 		MemoryStore:       state.memoryStore,
 		Observer:          state.observer,
 		SkillsRegistry:    state.skillsRegistry,
@@ -584,9 +597,16 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		return manager.Stop(ctx)
 	})
 
-	startErr := manager.Start(ctx)
-	if errors.Is(startErr, context.Canceled) || errors.Is(startErr, context.DeadlineExceeded) {
-		return startErr
+	if err := manager.Start(ctx); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+
+		if extensionRuntimeHasRegisteredEntries(ctx, extRegistry, manager) {
+			state.logger.Error("daemon: extension manager start failed; continuing with healthy extensions only", "error", err)
+		} else {
+			state.logger.Error("daemon: extension manager start failed; continuing without blocking boot", "error", err)
+		}
 	}
 	if state.bridges != nil {
 		state.bridges.setExtensionRuntime(manager)
@@ -598,11 +618,38 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 			state.logger.Error("daemon: rebuild hooks after extension boot failed; continuing without extension hooks", "error", err)
 		}
 	}
-	if startErr != nil {
-		state.logger.Error("daemon: extension manager start failed; continuing without blocking boot", "error", startErr)
-	}
 
 	return nil
+}
+
+func extensionRuntimeHasRegisteredEntries(ctx context.Context, registry *extensionpkg.Registry, runtime extensionRuntime) bool {
+	if ctx == nil || registry == nil || runtime == nil {
+		return false
+	}
+	if err := ctx.Err(); err != nil {
+		return false
+	}
+
+	infos, err := registry.List()
+	if err != nil {
+		return false
+	}
+
+	for _, info := range infos {
+		if !info.Enabled {
+			continue
+		}
+
+		ext, err := runtime.Get(info.Name)
+		if err != nil || ext == nil {
+			continue
+		}
+		if ext.Status.Registered {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -709,6 +756,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.registry = state.registry
 	d.memoryStore = state.memoryStore
 	d.sessions = state.sessions
+	d.tasks = state.tasks
 	d.network = state.network
 	d.hooks = state.hooks
 	d.extensions = state.currentExtensionRuntime()

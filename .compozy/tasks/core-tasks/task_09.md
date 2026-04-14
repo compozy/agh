@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Add the `agh task` CLI command group"
 type: backend
 complexity: medium
@@ -27,11 +27,11 @@ Add the user-facing CLI surface for creating, inspecting, and controlling tasks 
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Add the top-level `agh task` command group and its subcommands.
-- [ ] 9.2 Add create/list/get/update task commands with filters and mutation flags.
-- [ ] 9.3 Add child-task and dependency-management subcommands.
-- [ ] 9.4 Add run enqueue, claim, start, complete, fail, and cancel subcommands.
-- [ ] 9.5 Add CLI output formatting aligned with existing daemon-backed command patterns.
+- [x] 9.1 Add the top-level `agh task` command group and its subcommands.
+- [x] 9.2 Add create/list/get/update task commands with filters and mutation flags.
+- [x] 9.3 Add child-task and dependency-management subcommands.
+- [x] 9.4 Add run enqueue, claim, start, complete, fail, and cancel subcommands.
+- [x] 9.5 Add CLI output formatting aligned with existing daemon-backed command patterns.
 
 ## Implementation Details
 Use the TechSpec "API Surface" section and follow the command organization used by `internal/cli/automation.go`. The CLI should stay transport-backed, using the same contract and UDS flows the daemon exposes.
@@ -59,12 +59,12 @@ Use the TechSpec "API Surface" section and follow the command organization used 
 
 ## Tests
 - Unit tests:
-  - [ ] Verify create and update commands reject invalid flag combinations before issuing daemon calls.
-  - [ ] Verify list filters serialize scope, workspace, owner, status, parent, and channel arguments correctly.
-  - [ ] Verify run lifecycle subcommands map CLI inputs onto the expected daemon request payloads.
+  - [x] Verify create and update commands reject invalid flag combinations before issuing daemon calls.
+  - [x] Verify list filters serialize scope, workspace, owner, status, parent, and channel arguments correctly.
+  - [x] Verify run lifecycle subcommands map CLI inputs onto the expected daemon request payloads.
 - Integration tests:
-  - [ ] Verify `agh task create`, `agh task list`, and `agh task get` work end-to-end against a live UDS daemon.
-  - [ ] Verify run lifecycle commands can enqueue and complete a run through the daemon-backed UDS flow.
+  - [x] Verify `agh task create`, `agh task list`, and `agh task get` work end-to-end against a live UDS daemon.
+  - [x] Verify run lifecycle commands can enqueue and complete a run through the daemon-backed UDS flow.
 - Test coverage target: >=80%
 - All tests must pass
 

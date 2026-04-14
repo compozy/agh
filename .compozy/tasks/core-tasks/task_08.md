@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Expose task and run routes through HTTP and UDS"
 type: backend
 complexity: medium
@@ -27,10 +27,10 @@ Expose the new task domain consistently through both daemon transports. This tas
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add task and run route groups to the HTTP API router.
-- [ ] 8.2 Add matching task and run route groups to the UDS API router.
-- [ ] 8.3 Extend HTTP and UDS server configuration to accept the task handler dependency.
-- [ ] 8.4 Ensure response envelopes, status codes, and path parameters match across both transports.
+- [x] 8.1 Add task and run route groups to the HTTP API router.
+- [x] 8.2 Add matching task and run route groups to the UDS API router.
+- [x] 8.3 Extend HTTP and UDS server configuration to accept the task handler dependency.
+- [x] 8.4 Ensure response envelopes, status codes, and path parameters match across both transports.
 
 ## Implementation Details
 Use the TechSpec "API Surface" section as the route inventory. Follow the route-group organization already used for automation and network surfaces in both `httpapi` and `udsapi`.
@@ -60,11 +60,11 @@ Use the TechSpec "API Surface" section as the route inventory. Follow the route-
 
 ## Tests
 - Unit tests:
-  - [ ] Verify route registration covers the expected task and run paths in both HTTP and UDS routers.
-  - [ ] Verify server construction fails fast when task handlers are missing from required transport configuration.
+  - [x] Verify route registration covers the expected task and run paths in both HTTP and UDS routers.
+  - [x] Verify server construction fails fast when task handlers are missing from required transport configuration.
 - Integration tests:
-  - [ ] Verify the same create/list/get/update task flows succeed through both HTTP and UDS surfaces.
-  - [ ] Verify run lifecycle endpoints behave identically through both transports for the same manager behavior.
+  - [x] Verify the same create/list/get/update task flows succeed through both HTTP and UDS surfaces.
+  - [x] Verify run lifecycle endpoints behave identically through both transports for the same manager behavior.
 - Test coverage target: >=80%
 - All tests must pass
 

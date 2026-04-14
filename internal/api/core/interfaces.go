@@ -15,6 +15,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -104,6 +105,29 @@ type AutomationManager interface {
 	SetJobEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Job, error)
 	SetTriggerEnabled(ctx context.Context, id string, enabled bool) (automationpkg.Trigger, error)
 	HandleWebhook(ctx context.Context, request automationpkg.WebhookRequest) (automationpkg.TriggerResult, error)
+}
+
+// TaskService exposes task-domain state and lifecycle surfaces to the API layer.
+type TaskService interface {
+	CreateTask(ctx context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error)
+	CreateChildTask(ctx context.Context, parentTaskID string, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error)
+	UpdateTask(ctx context.Context, id string, patch taskpkg.TaskPatch, actor taskpkg.ActorContext) (*taskpkg.Task, error)
+	CancelTask(ctx context.Context, id string, req taskpkg.CancelTask, actor taskpkg.ActorContext) (*taskpkg.Task, error)
+
+	AddDependency(ctx context.Context, spec taskpkg.AddDependency, actor taskpkg.ActorContext) error
+	RemoveDependency(ctx context.Context, taskID string, dependsOnID string, actor taskpkg.ActorContext) error
+
+	EnqueueRun(ctx context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	ClaimRun(ctx context.Context, runID string, claim taskpkg.ClaimRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	StartRun(ctx context.Context, runID string, req taskpkg.StartRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	AttachRunSession(ctx context.Context, runID string, sessionID string, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	CompleteRun(ctx context.Context, runID string, result taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	FailRun(ctx context.Context, runID string, failure taskpkg.RunFailure, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	CancelRun(ctx context.Context, runID string, req taskpkg.CancelRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+
+	GetTask(ctx context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.TaskView, error)
+	ListTaskRuns(ctx context.Context, taskID string, query taskpkg.TaskRunQuery, actor taskpkg.ActorContext) ([]taskpkg.TaskRun, error)
+	ListTasks(ctx context.Context, query taskpkg.TaskQuery, actor taskpkg.ActorContext) ([]taskpkg.TaskSummary, error)
 }
 
 // SkillsRegistry exposes the skill catalog to the API layer.

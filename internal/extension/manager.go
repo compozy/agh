@@ -38,6 +38,18 @@ const (
 )
 
 var (
+	// ErrContextRequired reports that a manager operation requires a non-nil context.
+	ErrContextRequired = errors.New("extension: context is required")
+	// ErrManagerRequired reports that a manager-backed operation was invoked on a nil manager.
+	ErrManagerRequired = errors.New("extension: manager is required")
+	// ErrRegistryRequired reports that a manager operation requires a configured registry.
+	ErrRegistryRequired = errors.New("extension: registry is required")
+	// ErrBridgeRuntimeResolverRequired reports that a bridge-capable extension cannot start
+	// without a bridge runtime resolver.
+	ErrBridgeRuntimeResolverRequired = errors.New("extension: bridge runtime resolver is required")
+	// ErrPathEscapesExtensionRoot reports that a requested resource path resolves outside the
+	// extension root.
+	ErrPathEscapesExtensionRoot = errors.New("extension: path escapes extension root")
 	// ErrBridgeRuntimeDeferred reports that a bridge-capable extension is
 	// installed and registered, but no enabled bridge instance exists yet for
 	// the runtime launch handshake.
@@ -414,16 +426,16 @@ func NewManager(registry *Registry, opts ...Option) *Manager {
 // Start loads every enabled extension through the six-phase pipeline.
 func (m *Manager) Start(ctx context.Context) error {
 	if ctx == nil {
-		return errors.New("extension: context is required")
+		return ErrContextRequired
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if m == nil {
-		return errors.New("extension: manager is required")
+		return ErrManagerRequired
 	}
 	if m.registry == nil {
-		return errors.New("extension: registry is required")
+		return ErrRegistryRequired
 	}
 
 	m.mu.Lock()
@@ -468,10 +480,10 @@ func (m *Manager) Start(ctx context.Context) error {
 // Stop gracefully drains all active extension subprocesses.
 func (m *Manager) Stop(ctx context.Context) error {
 	if ctx == nil {
-		return errors.New("extension: context is required")
+		return ErrContextRequired
 	}
 	if m == nil {
-		return errors.New("extension: manager is required")
+		return ErrManagerRequired
 	}
 
 	m.mu.Lock()
@@ -547,10 +559,10 @@ func (m *Manager) Stop(ctx context.Context) error {
 // Reload restarts the manager from the current registry state.
 func (m *Manager) Reload(ctx context.Context) error {
 	if ctx == nil {
-		return errors.New("extension: context is required")
+		return ErrContextRequired
 	}
 	if m == nil {
-		return errors.New("extension: manager is required")
+		return ErrManagerRequired
 	}
 
 	stopErr := m.Stop(ctx)
@@ -561,7 +573,7 @@ func (m *Manager) Reload(ctx context.Context) error {
 // Get returns the current snapshot for one installed extension.
 func (m *Manager) Get(name string) (*Extension, error) {
 	if m == nil {
-		return nil, errors.New("extension: manager is required")
+		return nil, ErrManagerRequired
 	}
 
 	trimmed := strings.TrimSpace(name)
@@ -641,7 +653,7 @@ func (m *Manager) DeliverBridge(
 		return bridgepkg.DeliveryAck{}, err
 	}
 	if m == nil {
-		return bridgepkg.DeliveryAck{}, errors.New("extension: manager is required")
+		return bridgepkg.DeliveryAck{}, ErrManagerRequired
 	}
 	if err := req.Validate(); err != nil {
 		return bridgepkg.DeliveryAck{}, err
@@ -681,13 +693,13 @@ func (m *Manager) DeliverBridge(
 // HookDeclarations returns the manifest-declared hook resources from loaded extensions.
 func (m *Manager) HookDeclarations(ctx context.Context) ([]hookspkg.HookDecl, error) {
 	if ctx == nil {
-		return nil, errors.New("extension: context is required")
+		return nil, ErrContextRequired
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if m == nil {
-		return nil, errors.New("extension: manager is required")
+		return nil, ErrManagerRequired
 	}
 
 	m.mu.RLock()
@@ -1880,7 +1892,7 @@ func (m *Manager) resolveBridgeRuntime(ctx context.Context, ext *managedExtensio
 		return nil, nil
 	}
 	if m.bridgeRuntimeResolver == nil {
-		return nil, fmt.Errorf("extension: bridge runtime resolver is required for %q", ext.info.Name)
+		return nil, fmt.Errorf("%w for %q", ErrBridgeRuntimeResolverRequired, ext.info.Name)
 	}
 
 	bridgeRuntime, err := m.bridgeRuntimeResolver.ResolveBridgeRuntime(ctx, ext.info.Name)
@@ -1967,7 +1979,7 @@ func resolvePathWithinRoot(rootDir string, value string) (string, error) {
 		return "", fmt.Errorf("extension: resolve path %q: %w", resolved, err)
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("extension: path %q escapes extension root %q", resolved, trimmedRoot)
+		return "", fmt.Errorf("%w: path %q escapes extension root %q", ErrPathEscapesExtensionRoot, resolved, trimmedRoot)
 	}
 
 	return candidate, nil

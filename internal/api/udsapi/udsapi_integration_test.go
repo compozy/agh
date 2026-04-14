@@ -26,6 +26,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store/globaldb"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -364,6 +365,7 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 				return []*session.SessionInfo{newSessionInfo("sess-1")}, nil
 			},
 		}),
+		WithTaskService(stubTaskManager{}),
 		WithObserver(stubObserver{
 			HealthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
 		}),
@@ -506,10 +508,232 @@ func TestUDSSessionChannelRoundTrip(t *testing.T) {
 	}
 }
 
+func TestUDSTaskRoutesRoundTrip(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	created := createIntegrationTask(t, runtime, []byte(`{
+		"scope":"global",
+		"title":"Ship task routes",
+		"description":"Expose the transport routes",
+		"network_channel":"builders",
+		"owner":{"kind":"pool","ref":"ops"},
+		"metadata":{"priority":"high"}
+	}`))
+	if created.ID == "" {
+		t.Fatal("expected created task id")
+	}
+	if created.Scope != taskpkg.ScopeGlobal {
+		t.Fatalf("created scope = %q, want %q", created.Scope, taskpkg.ScopeGlobal)
+	}
+	if created.NetworkChannel != "builders" {
+		t.Fatalf("created network_channel = %q, want %q", created.NetworkChannel, "builders")
+	}
+	if created.Owner == nil || created.Owner.Kind != taskpkg.OwnerKindPool || created.Owner.Ref != "ops" {
+		t.Fatalf("created owner = %#v, want pool/ops", created.Owner)
+	}
+	if created.Origin.Kind != taskpkg.OriginKindUDS {
+		t.Fatalf("created origin.kind = %q, want %q", created.Origin.Kind, taskpkg.OriginKindUDS)
+	}
+	if created.CreatedBy.Ref != "local-user" {
+		t.Fatalf("created created_by.ref = %q, want %q", created.CreatedBy.Ref, "local-user")
+	}
+	if got := strings.TrimSpace(string(created.Metadata)); got != `{"priority":"high"}` {
+		t.Fatalf("created metadata = %s, want %s", got, `{"priority":"high"}`)
+	}
+
+	listResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks?scope=global&status=ready&owner_kind=pool&owner_ref=ops&network_channel=builders", nil, nil)
+	if listResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(listResp.Body)
+		_ = listResp.Body.Close()
+		t.Fatalf("list tasks status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
+	}
+	var listed contract.TasksResponse
+	decodeHTTPJSON(t, listResp, &listed)
+	if len(listed.Tasks) != 1 || listed.Tasks[0].ID != created.ID {
+		t.Fatalf("listed tasks = %#v, want created task", listed.Tasks)
+	}
+
+	getResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks/"+created.ID, nil, nil)
+	if getResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(getResp.Body)
+		_ = getResp.Body.Close()
+		t.Fatalf("get task status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
+	}
+	var detail contract.TaskDetailResponse
+	decodeHTTPJSON(t, getResp, &detail)
+	if detail.Task.Task.ID != created.ID {
+		t.Fatalf("detail task id = %q, want %q", detail.Task.Task.ID, created.ID)
+	}
+	if len(detail.Task.Children) != 0 || len(detail.Task.Runs) != 0 {
+		t.Fatalf("detail task children/runs = %#v, want empty", detail.Task)
+	}
+
+	updateResp := mustUnixRequest(t, runtime.client, http.MethodPatch, "http://unix/api/tasks/"+created.ID, []byte(`{
+		"title":"Ship task routes now",
+		"description":"Expose the task and run transports everywhere",
+		"network_channel":"ops",
+		"clear_owner":true
+	}`), nil)
+	if updateResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateResp.Body)
+		_ = updateResp.Body.Close()
+		t.Fatalf("update task status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
+	}
+	var updated contract.TaskResponse
+	decodeHTTPJSON(t, updateResp, &updated)
+	if updated.Task.Title != "Ship task routes now" {
+		t.Fatalf("updated title = %q, want %q", updated.Task.Title, "Ship task routes now")
+	}
+	if updated.Task.Description != "Expose the task and run transports everywhere" {
+		t.Fatalf("updated description = %q", updated.Task.Description)
+	}
+	if updated.Task.NetworkChannel != "ops" {
+		t.Fatalf("updated network_channel = %q, want %q", updated.Task.NetworkChannel, "ops")
+	}
+	if updated.Task.Owner != nil {
+		t.Fatalf("updated owner = %#v, want nil", updated.Task.Owner)
+	}
+
+	updatedListResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks?scope=global&status=ready&network_channel=ops", nil, nil)
+	if updatedListResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updatedListResp.Body)
+		_ = updatedListResp.Body.Close()
+		t.Fatalf("updated list tasks status = %d, want %d; body=%s", updatedListResp.StatusCode, http.StatusOK, string(body))
+	}
+	var updatedList contract.TasksResponse
+	decodeHTTPJSON(t, updatedListResp, &updatedList)
+	if len(updatedList.Tasks) != 1 || updatedList.Tasks[0].ID != created.ID {
+		t.Fatalf("updated list tasks = %#v, want created task", updatedList.Tasks)
+	}
+}
+
+func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
+
+	queued := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-1","network_channel":"builders"}`)
+	if queued.Status != taskpkg.TaskRunStatusQueued {
+		t.Fatalf("queued status = %q, want %q", queued.Status, taskpkg.TaskRunStatusQueued)
+	}
+	if queued.NetworkChannel != "builders" {
+		t.Fatalf("queued network_channel = %q, want %q", queued.NetworkChannel, "builders")
+	}
+
+	listQueuedResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks/"+created.ID+"/runs?status=queued&limit=1", nil, nil)
+	if listQueuedResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(listQueuedResp.Body)
+		_ = listQueuedResp.Body.Close()
+		t.Fatalf("list queued runs status = %d, want %d; body=%s", listQueuedResp.StatusCode, http.StatusOK, string(body))
+	}
+	var queuedList contract.TaskRunsResponse
+	decodeHTTPJSON(t, listQueuedResp, &queuedList)
+	if len(queuedList.Runs) != 1 || queuedList.Runs[0].ID != queued.ID {
+		t.Fatalf("queued runs = %#v, want queued run", queuedList.Runs)
+	}
+
+	claimed := claimIntegrationTaskRun(t, runtime, queued.ID, `{"idempotency_key":"claim-1"}`)
+	if claimed.Status != taskpkg.TaskRunStatusClaimed {
+		t.Fatalf("claimed status = %q, want %q", claimed.Status, taskpkg.TaskRunStatusClaimed)
+	}
+	if claimed.ClaimedBy == nil || claimed.ClaimedBy.Ref != "local-user" {
+		t.Fatalf("claimed claimed_by = %#v, want local-user", claimed.ClaimedBy)
+	}
+
+	startResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/task-runs/"+queued.ID+"/start", []byte(`{"idempotency_key":"start-1"}`), nil)
+	if startResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(startResp.Body)
+		_ = startResp.Body.Close()
+		t.Fatalf("start run status = %d, want %d; body=%s", startResp.StatusCode, http.StatusOK, string(body))
+	}
+	var started contract.TaskRunResponse
+	decodeHTTPJSON(t, startResp, &started)
+	if started.Run.Status != taskpkg.TaskRunStatusRunning {
+		t.Fatalf("started status = %q, want %q", started.Run.Status, taskpkg.TaskRunStatusRunning)
+	}
+	if started.Run.SessionID == "" {
+		t.Fatal("expected started run session id")
+	}
+
+	completeResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/task-runs/"+queued.ID+"/complete", []byte(`{"result":{"ok":true}}`), nil)
+	if completeResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(completeResp.Body)
+		_ = completeResp.Body.Close()
+		t.Fatalf("complete run status = %d, want %d; body=%s", completeResp.StatusCode, http.StatusOK, string(body))
+	}
+	var completed contract.TaskRunResponse
+	decodeHTTPJSON(t, completeResp, &completed)
+	if completed.Run.Status != taskpkg.TaskRunStatusCompleted {
+		t.Fatalf("completed status = %q, want %q", completed.Run.Status, taskpkg.TaskRunStatusCompleted)
+	}
+
+	secondRun := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-2"}`)
+	claimIntegrationTaskRun(t, runtime, secondRun.ID, `{"idempotency_key":"claim-2"}`)
+	attachResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/task-runs/"+secondRun.ID+"/attach-session", []byte(`{"session_id":"sess-resume-1"}`), nil)
+	if attachResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(attachResp.Body)
+		_ = attachResp.Body.Close()
+		t.Fatalf("attach run session status = %d, want %d; body=%s", attachResp.StatusCode, http.StatusOK, string(body))
+	}
+	var attached contract.TaskRunResponse
+	decodeHTTPJSON(t, attachResp, &attached)
+	if attached.Run.Status != taskpkg.TaskRunStatusStarting {
+		t.Fatalf("attached status = %q, want %q", attached.Run.Status, taskpkg.TaskRunStatusStarting)
+	}
+	if attached.Run.SessionID != "sess-resume-1" {
+		t.Fatalf("attached session_id = %q, want %q", attached.Run.SessionID, "sess-resume-1")
+	}
+
+	failResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/task-runs/"+secondRun.ID+"/fail", []byte(`{"error":"boom","metadata":{"step":"attach"}}`), nil)
+	if failResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(failResp.Body)
+		_ = failResp.Body.Close()
+		t.Fatalf("fail run status = %d, want %d; body=%s", failResp.StatusCode, http.StatusOK, string(body))
+	}
+	var failed contract.TaskRunResponse
+	decodeHTTPJSON(t, failResp, &failed)
+	if failed.Run.Status != taskpkg.TaskRunStatusFailed {
+		t.Fatalf("failed status = %q, want %q", failed.Run.Status, taskpkg.TaskRunStatusFailed)
+	}
+
+	thirdRun := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-3"}`)
+	cancelResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/task-runs/"+thirdRun.ID+"/cancel", []byte(`{"reason":"operator cancelled"}`), nil)
+	if cancelResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(cancelResp.Body)
+		_ = cancelResp.Body.Close()
+		t.Fatalf("cancel run status = %d, want %d; body=%s", cancelResp.StatusCode, http.StatusOK, string(body))
+	}
+	var cancelled contract.TaskRunResponse
+	decodeHTTPJSON(t, cancelResp, &cancelled)
+	if cancelled.Run.Status != taskpkg.TaskRunStatusCancelled {
+		t.Fatalf("cancelled status = %q, want %q", cancelled.Run.Status, taskpkg.TaskRunStatusCancelled)
+	}
+
+	finalRunsResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks/"+created.ID+"/runs", nil, nil)
+	if finalRunsResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(finalRunsResp.Body)
+		_ = finalRunsResp.Body.Close()
+		t.Fatalf("final list runs status = %d, want %d; body=%s", finalRunsResp.StatusCode, http.StatusOK, string(body))
+	}
+	var finalRuns contract.TaskRunsResponse
+	decodeHTTPJSON(t, finalRunsResp, &finalRuns)
+	if len(finalRuns.Runs) != 3 {
+		t.Fatalf("len(final runs) = %d, want 3", len(finalRuns.Runs))
+	}
+
+	seenStatuses := map[taskpkg.TaskRunStatus]int{}
+	for _, run := range finalRuns.Runs {
+		seenStatuses[run.Status]++
+	}
+	if seenStatuses[taskpkg.TaskRunStatusCompleted] != 1 || seenStatuses[taskpkg.TaskRunStatusFailed] != 1 || seenStatuses[taskpkg.TaskRunStatusCancelled] != 1 {
+		t.Fatalf("final run statuses = %#v, want one completed, failed, cancelled", seenStatuses)
+	}
+}
+
 type integrationRuntime struct {
 	client    *http.Client
 	server    *Server
 	manager   *session.Manager
+	tasks     *taskpkg.TaskManager
 	observer  *observe.Observer
 	registry  *globaldb.GlobalDB
 	bridges   *integrationBridgeService
@@ -517,6 +741,27 @@ type integrationRuntime struct {
 	dream     *integrationDreamTrigger
 	socket    string
 	workspace string
+}
+
+type integrationTaskSessionExecutor struct {
+	started int
+}
+
+func (e *integrationTaskSessionExecutor) StartTaskSession(_ context.Context, _ taskpkg.StartTaskSession) (*taskpkg.SessionRef, error) {
+	e.started++
+	return &taskpkg.SessionRef{SessionID: fmt.Sprintf("task-sess-%d", e.started)}, nil
+}
+
+func (*integrationTaskSessionExecutor) AttachTaskSession(_ context.Context, _ string, sessionID string) (*taskpkg.SessionRef, error) {
+	return &taskpkg.SessionRef{SessionID: sessionID}, nil
+}
+
+func (*integrationTaskSessionExecutor) RequestTaskStop(context.Context, string, taskpkg.StopReason) error {
+	return nil
+}
+
+func (*integrationTaskSessionExecutor) ForceTaskStop(context.Context, string, taskpkg.StopReason) error {
+	return nil
 }
 
 type integrationDreamTrigger struct {
@@ -806,12 +1051,22 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		}
 	})
 
+	taskExecutor := &integrationTaskSessionExecutor{}
+	taskManager, err := taskpkg.NewManager(
+		taskpkg.WithStore(registry),
+		taskpkg.WithSessionExecutor(taskExecutor),
+	)
+	if err != nil {
+		t.Fatalf("task.NewManager() error = %v", err)
+	}
+
 	server, err := New(
 		WithHomePaths(homePaths),
 		WithConfig(cfg),
 		WithSocketPath(socketPath),
 		WithLogger(discardLogger()),
 		WithSessionManager(manager),
+		WithTaskService(taskManager),
 		WithObserver(observer),
 		WithAutomation(automationManager),
 		WithBridgeService(bridgeService),
@@ -838,6 +1093,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		client:    newUnixClient(t, socketPath),
 		server:    server,
 		manager:   manager,
+		tasks:     taskManager,
 		observer:  observer,
 		registry:  registry,
 		bridges:   bridgeService,
@@ -862,6 +1118,48 @@ func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 	}
 	decodeHTTPJSON(t, resp, &created)
 	return created.Session.ID
+}
+
+func createIntegrationTask(t *testing.T, runtime integrationRuntime, body []byte) contract.TaskPayload {
+	t.Helper()
+
+	resp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks", body, nil)
+	if resp.StatusCode != http.StatusCreated {
+		payload, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		t.Fatalf("create task status = %d, want %d; body=%s", resp.StatusCode, http.StatusCreated, string(payload))
+	}
+	var created contract.TaskResponse
+	decodeHTTPJSON(t, resp, &created)
+	return created.Task
+}
+
+func enqueueIntegrationTaskRun(t *testing.T, runtime integrationRuntime, taskID string, body string) contract.TaskRunPayload {
+	t.Helper()
+
+	resp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+taskID+"/runs", []byte(body), nil)
+	if resp.StatusCode != http.StatusCreated {
+		payload, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		t.Fatalf("enqueue run status = %d, want %d; body=%s", resp.StatusCode, http.StatusCreated, string(payload))
+	}
+	var created contract.TaskRunResponse
+	decodeHTTPJSON(t, resp, &created)
+	return created.Run
+}
+
+func claimIntegrationTaskRun(t *testing.T, runtime integrationRuntime, runID string, body string) contract.TaskRunPayload {
+	t.Helper()
+
+	resp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/task-runs/"+runID+"/claim", []byte(body), nil)
+	if resp.StatusCode != http.StatusOK {
+		payload, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		t.Fatalf("claim run status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(payload))
+	}
+	var claimed contract.TaskRunResponse
+	decodeHTTPJSON(t, resp, &claimed)
+	return claimed.Run
 }
 
 func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, message string) {

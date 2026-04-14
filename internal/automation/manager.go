@@ -17,6 +17,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -27,6 +28,9 @@ var (
 	// ErrDefinitionReadOnly reports that a config-backed definition cannot be
 	// mutated through the runtime CRUD surface.
 	ErrDefinitionReadOnly = errors.New("automation: definition is config-backed and read-only")
+	// ErrSessionTaskActorNotFound reports that no automation-linked task actor
+	// context is recorded for the supplied session.
+	ErrSessionTaskActorNotFound = errors.New("automation: session task actor context not found")
 )
 
 const managerRuntimeCleanupTimeout = 2 * time.Second
@@ -125,6 +129,7 @@ type Option func(*managerOptions)
 type managerOptions struct {
 	store               Store
 	sessions            SessionManager
+	tasks               TaskService
 	workspaceResolver   workspacepkg.WorkspaceResolver
 	config              aghconfig.AutomationConfig
 	logger              *slog.Logger
@@ -141,6 +146,7 @@ type managerOptions struct {
 type Manager struct {
 	store               Store
 	sessions            SessionManager
+	tasks               TaskService
 	workspaceResolver   workspacepkg.WorkspaceResolver
 	config              aghconfig.AutomationConfig
 	logger              *slog.Logger
@@ -158,6 +164,9 @@ type Manager struct {
 	scheduler     *Scheduler
 	triggers      *TriggerEngine
 	lastSync      SyncStats
+
+	taskActorMu       sync.RWMutex
+	sessionTaskActors map[string]taskpkg.ActorContext
 }
 
 // WithStore injects the automation persistence store.
@@ -172,6 +181,14 @@ func WithStore(store Store) Option {
 func WithSessions(sessions SessionManager) Option {
 	return func(opts *managerOptions) {
 		opts.sessions = sessions
+	}
+}
+
+// WithTasks injects the task-domain service used for task-backed automation
+// jobs.
+func WithTasks(tasks TaskService) Option {
+	return func(opts *managerOptions) {
+		opts.tasks = tasks
 	}
 }
 
@@ -311,6 +328,9 @@ func New(opts ...Option) (*Manager, error) {
 		WithDispatcherGlobalWorkspacePath(options.globalWorkspacePath),
 		WithDispatcherMaxConcurrent(options.config.MaxConcurrentJobs),
 	}
+	if options.tasks != nil {
+		dispatcherOpts = append(dispatcherOpts, WithDispatcherTasks(options.tasks))
+	}
 	dispatcherOpts = append(dispatcherOpts, options.dispatcherOptions...)
 	dispatcher, err := NewDispatcher(options.sessions, options.store, dispatcherOpts...)
 	if err != nil {
@@ -320,6 +340,7 @@ func New(opts ...Option) (*Manager, error) {
 	manager := &Manager{
 		store:               options.store,
 		sessions:            options.sessions,
+		tasks:               options.tasks,
 		workspaceResolver:   options.workspaceResolver,
 		config:              options.config,
 		logger:              options.logger,
@@ -329,6 +350,10 @@ func New(opts ...Option) (*Manager, error) {
 		schedulerOptions:    append([]SchedulerOption(nil), options.schedulerOptions...),
 		triggerOptions:      append([]TriggerEngineOption(nil), options.triggerOptions...),
 		now:                 options.now,
+		sessionTaskActors:   make(map[string]taskpkg.ActorContext),
+	}
+	if manager.tasks != nil {
+		manager.dispatcher.taskActors = manager
 	}
 
 	return manager, nil
@@ -1006,6 +1031,62 @@ func (m *Manager) MemoryObserver() MemoryConsolidationObserver {
 	return managerMemoryObserver{manager: m}
 }
 
+// RecordAutomationSessionTaskActor stores the trusted task-domain actor
+// context for one automation-launched session.
+func (m *Manager) RecordAutomationSessionTaskActor(sessionID string, actor taskpkg.ActorContext) error {
+	if m == nil {
+		return nil
+	}
+	trimmedSessionID := strings.TrimSpace(sessionID)
+	if trimmedSessionID == "" {
+		return errors.New("automation: session id is required")
+	}
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+
+	m.taskActorMu.Lock()
+	defer m.taskActorMu.Unlock()
+	m.sessionTaskActors[trimmedSessionID] = actor
+	return nil
+}
+
+// TaskActorContextForSession returns the automation-linked task actor context
+// previously recorded for one automation-launched session.
+func (m *Manager) TaskActorContextForSession(sessionID string) (taskpkg.ActorContext, error) {
+	if m == nil {
+		return taskpkg.ActorContext{}, ErrSessionTaskActorNotFound
+	}
+	trimmedSessionID := strings.TrimSpace(sessionID)
+	if trimmedSessionID == "" {
+		return taskpkg.ActorContext{}, errors.New("automation: session id is required")
+	}
+
+	m.taskActorMu.RLock()
+	actor, ok := m.sessionTaskActors[trimmedSessionID]
+	m.taskActorMu.RUnlock()
+	if !ok {
+		return taskpkg.ActorContext{}, ErrSessionTaskActorNotFound
+	}
+	return actor, nil
+}
+
+// DeleteAutomationSessionTaskActor removes any recorded task actor context for
+// the supplied automation-launched session.
+func (m *Manager) DeleteAutomationSessionTaskActor(sessionID string) {
+	if m == nil {
+		return
+	}
+	trimmedSessionID := strings.TrimSpace(sessionID)
+	if trimmedSessionID == "" {
+		return
+	}
+
+	m.taskActorMu.Lock()
+	defer m.taskActorMu.Unlock()
+	delete(m.sessionTaskActors, trimmedSessionID)
+}
+
 func (m *Manager) loadEffectiveJobs(ctx context.Context, query JobListQuery) ([]Job, error) {
 	jobs, err := m.store.ListJobs(ctx, query)
 	if err != nil {
@@ -1360,6 +1441,7 @@ func (m *Manager) resolveConfigJob(ctx context.Context, raw aghconfig.Automation
 		WorkspaceID: workspaceID,
 		Prompt:      strings.TrimSpace(raw.Prompt),
 		Schedule:    &schedule,
+		Task:        cloneJobTaskConfig(raw.Task),
 		Enabled:     raw.Enabled,
 		Retry:       retry,
 		FireLimit:   fireLimit,
@@ -1928,6 +2010,7 @@ func sameJobDefinition(left Job, right Job) bool {
 		left.WorkspaceID == right.WorkspaceID &&
 		left.Prompt == right.Prompt &&
 		sameSchedule(left.Schedule, right.Schedule) &&
+		sameJobTaskConfig(left.Task, right.Task) &&
 		left.Enabled == right.Enabled &&
 		left.Retry == right.Retry &&
 		left.FireLimit == right.FireLimit &&
@@ -1998,7 +2081,45 @@ func cloneJob(job Job) Job {
 		schedule := *job.Schedule
 		cloned.Schedule = &schedule
 	}
+	cloned.Task = cloneJobTaskConfig(job.Task)
 	return cloned
+}
+
+func cloneJobTaskConfig(config *JobTaskConfig) *JobTaskConfig {
+	if config == nil {
+		return nil
+	}
+	cloned := *config
+	if config.Owner != nil {
+		owner := *config.Owner
+		cloned.Owner = &owner
+	}
+	return &cloned
+}
+
+func sameJobTaskConfig(left *JobTaskConfig, right *JobTaskConfig) bool {
+	switch {
+	case left == nil && right == nil:
+		return true
+	case left == nil || right == nil:
+		return false
+	default:
+		return left.Title == right.Title &&
+			left.Description == right.Description &&
+			left.NetworkChannel == right.NetworkChannel &&
+			sameTaskOwnership(left.Owner, right.Owner)
+	}
+}
+
+func sameTaskOwnership(left *taskpkg.Ownership, right *taskpkg.Ownership) bool {
+	switch {
+	case left == nil && right == nil:
+		return true
+	case left == nil || right == nil:
+		return false
+	default:
+		return left.Kind == right.Kind && left.Ref == right.Ref
+	}
 }
 
 func cloneTrigger(trigger Trigger) Trigger {
@@ -2034,6 +2155,9 @@ func (o managerSessionObserver) OnSessionCreated(ctx context.Context, sess *sess
 
 func (o managerSessionObserver) OnSessionStopped(ctx context.Context, sess *session.Session) {
 	if o.manager != nil {
+		if sess != nil {
+			o.manager.DeleteAutomationSessionTaskActor(sess.ID)
+		}
 		o.manager.fireSessionStopped(ctx, sess)
 	}
 }

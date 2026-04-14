@@ -32,6 +32,7 @@ type JobPayload struct {
 	WorkspaceID string                        `json:"workspace_id,omitempty"`
 	Prompt      string                        `json:"prompt"`
 	Schedule    *automationpkg.ScheduleSpec   `json:"schedule,omitempty"`
+	Task        *automationpkg.JobTaskConfig  `json:"task,omitempty"`
 	Enabled     bool                          `json:"enabled"`
 	Retry       automationpkg.RetryConfig     `json:"retry"`
 	FireLimit   automationpkg.FireLimitConfig `json:"fire_limit"`
@@ -67,6 +68,8 @@ type RunPayload struct {
 	JobID     string                  `json:"job_id,omitempty"`
 	TriggerID string                  `json:"trigger_id,omitempty"`
 	SessionID string                  `json:"session_id,omitempty"`
+	TaskID    string                  `json:"task_id,omitempty"`
+	TaskRunID string                  `json:"task_run_id,omitempty"`
 	Status    automationpkg.RunStatus `json:"status"`
 	Attempt   int                     `json:"attempt"`
 	StartedAt *time.Time              `json:"started_at,omitempty"`
@@ -88,6 +91,7 @@ type CreateJobRequest struct {
 	WorkspaceID string                         `json:"workspace_id,omitempty"`
 	Prompt      string                         `json:"prompt"`
 	Schedule    automationpkg.ScheduleSpec     `json:"schedule"`
+	Task        *automationpkg.JobTaskConfig   `json:"task,omitempty"`
 	Enabled     *bool                          `json:"enabled,omitempty"`
 	Retry       *automationpkg.RetryConfig     `json:"retry,omitempty"`
 	FireLimit   *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
@@ -100,6 +104,7 @@ type UpdateJobRequest struct {
 	WorkspaceID *string                        `json:"workspace_id,omitempty"`
 	Prompt      *string                        `json:"prompt,omitempty"`
 	Schedule    *automationpkg.ScheduleSpec    `json:"schedule,omitempty"`
+	Task        *automationpkg.JobTaskConfig   `json:"task,omitempty"`
 	Enabled     *bool                          `json:"enabled,omitempty"`
 	Retry       *automationpkg.RetryConfig     `json:"retry,omitempty"`
 	FireLimit   *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
@@ -112,6 +117,7 @@ func (r UpdateJobRequest) HasChanges() bool {
 		r.WorkspaceID != nil ||
 		r.Prompt != nil ||
 		r.Schedule != nil ||
+		r.Task != nil ||
 		r.Enabled != nil ||
 		r.Retry != nil ||
 		r.FireLimit != nil

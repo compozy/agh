@@ -79,6 +79,22 @@ type stubClient struct {
 	automationTriggerRunsFn   func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
 	listAutomationRunsFn      func(context.Context, AutomationRunQuery) ([]RunRecord, error)
 	getAutomationRunFn        func(context.Context, string) (RunRecord, error)
+	listTasksFn               func(context.Context, TaskListQuery) ([]TaskSummaryRecord, error)
+	createTaskFn              func(context.Context, CreateTaskRequest) (TaskRecord, error)
+	getTaskFn                 func(context.Context, string) (TaskDetailRecord, error)
+	updateTaskFn              func(context.Context, string, UpdateTaskRequest) (TaskRecord, error)
+	cancelTaskFn              func(context.Context, string, CancelTaskRequest) (TaskRecord, error)
+	createChildTaskFn         func(context.Context, string, CreateTaskChildRequest) (TaskRecord, error)
+	addTaskDependencyFn       func(context.Context, string, AddTaskDependencyRequest) (TaskDetailRecord, error)
+	removeTaskDependencyFn    func(context.Context, string, string) (TaskDetailRecord, error)
+	enqueueTaskRunFn          func(context.Context, string, EnqueueTaskRunRequest) (TaskRunRecord, error)
+	listTaskRunsFn            func(context.Context, string, TaskRunListQuery) ([]TaskRunRecord, error)
+	claimTaskRunFn            func(context.Context, string, ClaimTaskRunRequest) (TaskRunRecord, error)
+	startTaskRunFn            func(context.Context, string, StartTaskRunRequest) (TaskRunRecord, error)
+	attachTaskRunSessionFn    func(context.Context, string, AttachTaskRunSessionRequest) (TaskRunRecord, error)
+	completeTaskRunFn         func(context.Context, string, CompleteTaskRunRequest) (TaskRunRecord, error)
+	failTaskRunFn             func(context.Context, string, FailTaskRunRequest) (TaskRunRecord, error)
+	cancelTaskRunFn           func(context.Context, string, CancelTaskRunRequest) (TaskRunRecord, error)
 }
 
 var _ DaemonClient = stubClient{}
@@ -515,6 +531,118 @@ func (s stubClient) GetAutomationRun(ctx context.Context, id string) (RunRecord,
 		return s.getAutomationRunFn(ctx, id)
 	}
 	return RunRecord{}, errors.New("unexpected GetAutomationRun call")
+}
+
+func (s stubClient) ListTasks(ctx context.Context, query TaskListQuery) ([]TaskSummaryRecord, error) {
+	if s.listTasksFn != nil {
+		return s.listTasksFn(ctx, query)
+	}
+	return nil, errors.New("unexpected ListTasks call")
+}
+
+func (s stubClient) CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error) {
+	if s.createTaskFn != nil {
+		return s.createTaskFn(ctx, request)
+	}
+	return TaskRecord{}, errors.New("unexpected CreateTask call")
+}
+
+func (s stubClient) GetTask(ctx context.Context, id string) (TaskDetailRecord, error) {
+	if s.getTaskFn != nil {
+		return s.getTaskFn(ctx, id)
+	}
+	return TaskDetailRecord{}, errors.New("unexpected GetTask call")
+}
+
+func (s stubClient) UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error) {
+	if s.updateTaskFn != nil {
+		return s.updateTaskFn(ctx, id, request)
+	}
+	return TaskRecord{}, errors.New("unexpected UpdateTask call")
+}
+
+func (s stubClient) CancelTask(ctx context.Context, id string, request CancelTaskRequest) (TaskRecord, error) {
+	if s.cancelTaskFn != nil {
+		return s.cancelTaskFn(ctx, id, request)
+	}
+	return TaskRecord{}, errors.New("unexpected CancelTask call")
+}
+
+func (s stubClient) CreateChildTask(ctx context.Context, id string, request CreateTaskChildRequest) (TaskRecord, error) {
+	if s.createChildTaskFn != nil {
+		return s.createChildTaskFn(ctx, id, request)
+	}
+	return TaskRecord{}, errors.New("unexpected CreateChildTask call")
+}
+
+func (s stubClient) AddTaskDependency(ctx context.Context, id string, request AddTaskDependencyRequest) (TaskDetailRecord, error) {
+	if s.addTaskDependencyFn != nil {
+		return s.addTaskDependencyFn(ctx, id, request)
+	}
+	return TaskDetailRecord{}, errors.New("unexpected AddTaskDependency call")
+}
+
+func (s stubClient) RemoveTaskDependency(ctx context.Context, id string, dependsOnID string) (TaskDetailRecord, error) {
+	if s.removeTaskDependencyFn != nil {
+		return s.removeTaskDependencyFn(ctx, id, dependsOnID)
+	}
+	return TaskDetailRecord{}, errors.New("unexpected RemoveTaskDependency call")
+}
+
+func (s stubClient) EnqueueTaskRun(ctx context.Context, id string, request EnqueueTaskRunRequest) (TaskRunRecord, error) {
+	if s.enqueueTaskRunFn != nil {
+		return s.enqueueTaskRunFn(ctx, id, request)
+	}
+	return TaskRunRecord{}, errors.New("unexpected EnqueueTaskRun call")
+}
+
+func (s stubClient) ListTaskRuns(ctx context.Context, id string, query TaskRunListQuery) ([]TaskRunRecord, error) {
+	if s.listTaskRunsFn != nil {
+		return s.listTaskRunsFn(ctx, id, query)
+	}
+	return nil, errors.New("unexpected ListTaskRuns call")
+}
+
+func (s stubClient) ClaimTaskRun(ctx context.Context, id string, request ClaimTaskRunRequest) (TaskRunRecord, error) {
+	if s.claimTaskRunFn != nil {
+		return s.claimTaskRunFn(ctx, id, request)
+	}
+	return TaskRunRecord{}, errors.New("unexpected ClaimTaskRun call")
+}
+
+func (s stubClient) StartTaskRun(ctx context.Context, id string, request StartTaskRunRequest) (TaskRunRecord, error) {
+	if s.startTaskRunFn != nil {
+		return s.startTaskRunFn(ctx, id, request)
+	}
+	return TaskRunRecord{}, errors.New("unexpected StartTaskRun call")
+}
+
+func (s stubClient) AttachTaskRunSession(ctx context.Context, id string, request AttachTaskRunSessionRequest) (TaskRunRecord, error) {
+	if s.attachTaskRunSessionFn != nil {
+		return s.attachTaskRunSessionFn(ctx, id, request)
+	}
+	return TaskRunRecord{}, errors.New("unexpected AttachTaskRunSession call")
+}
+
+func (s stubClient) CompleteTaskRun(ctx context.Context, id string, request CompleteTaskRunRequest) (TaskRunRecord, error) {
+	if s.completeTaskRunFn != nil {
+		return s.completeTaskRunFn(ctx, id, request)
+	}
+	return TaskRunRecord{}, errors.New("unexpected CompleteTaskRun call")
+}
+
+func (s stubClient) FailTaskRun(ctx context.Context, id string, request FailTaskRunRequest) (TaskRunRecord, error) {
+	if s.failTaskRunFn != nil {
+		return s.failTaskRunFn(ctx, id, request)
+	}
+	return TaskRunRecord{}, errors.New("unexpected FailTaskRun call")
+}
+
+func (s stubClient) CancelTaskRun(ctx context.Context, id string, request CancelTaskRunRequest) (TaskRunRecord, error) {
+	if s.cancelTaskRunFn != nil {
+		return s.cancelTaskRunFn(ctx, id, request)
+	}
+	return TaskRunRecord{}, errors.New("unexpected CancelTaskRun call")
 }
 
 func newTestDeps(t *testing.T, client DaemonClient) commandDeps {

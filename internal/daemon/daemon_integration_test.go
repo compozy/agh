@@ -29,6 +29,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -117,6 +118,252 @@ func TestBootSequenceReady(t *testing.T) {
 	}
 	if _, err := AcquireLock(homePaths.DaemonLock, os.Getpid()); !errors.Is(err, ErrAlreadyRunning) {
 		t.Fatalf("AcquireLock(second instance) error = %v, want ErrAlreadyRunning", err)
+	}
+}
+
+func TestBootWiresTaskRuntimeWithDedicatedSessionBridge(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	sessions := &fakeSessionManager{}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return sessions, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if d.tasks == nil || d.tasks.manager == nil {
+		t.Fatal("boot() did not publish the task runtime")
+	}
+
+	workspaceRoot := filepath.Join(t.TempDir(), "task-runtime-workspace")
+	resolved := resolveDaemonWorkspace(t, d.workspaceResolver, workspaceRoot)
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task run")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+
+	taskRecord, err := d.tasks.manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    resolved.ID,
+		Title:          "Bridge task",
+		NetworkChannel: "builders",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	run, err := d.tasks.manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	run, err = d.tasks.manager.ClaimRun(testutil.Context(t), run.ID, taskpkg.ClaimRun{}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun() error = %v", err)
+	}
+	run, err = d.tasks.manager.StartRun(testutil.Context(t), run.ID, taskpkg.StartRun{}, actor)
+	if err != nil {
+		t.Fatalf("StartRun() error = %v", err)
+	}
+
+	if got, want := sessions.createCount(), 1; got != want {
+		t.Fatalf("createCount() = %d, want %d", got, want)
+	}
+	createCall := sessions.createCall(0)
+	if got, want := createCall.Type, session.SessionTypeSystem; got != want {
+		t.Fatalf("createCall.Type = %q, want %q", got, want)
+	}
+	if got, want := createCall.Workspace, resolved.ID; got != want {
+		t.Fatalf("createCall.Workspace = %q, want %q", got, want)
+	}
+	if got, want := createCall.Channel, "builders"; got != want {
+		t.Fatalf("createCall.Channel = %q, want %q", got, want)
+	}
+
+	storedRun, err := d.tasks.store.GetTaskRun(testutil.Context(t), run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun() error = %v", err)
+	}
+	if got, want := storedRun.Status, taskpkg.TaskRunStatusRunning; got != want {
+		t.Fatalf("storedRun.Status = %q, want %q", got, want)
+	}
+	if strings.TrimSpace(storedRun.SessionID) == "" {
+		t.Fatal("storedRun.SessionID = empty, want dedicated session id")
+	}
+}
+
+func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	seedDB, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(seed) error = %v", err)
+	}
+
+	seedManager, err := taskpkg.NewManager(taskpkg.WithStore(seedDB))
+	if err != nil {
+		t.Fatalf("task.NewManager(seed) error = %v", err)
+	}
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task seed")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+
+	createTask := func(title string) taskpkg.Task {
+		taskRecord, err := seedManager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: title,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(%q) error = %v", title, err)
+		}
+		return *taskRecord
+	}
+
+	claimedTask := createTask("Claimed run")
+	startingTask := createTask("Starting run")
+	runningTask := createTask("Running run")
+
+	now := time.Date(2026, 4, 14, 19, 0, 0, 0, time.UTC)
+	for _, run := range []taskpkg.TaskRun{
+		{
+			ID:        "run-claimed",
+			TaskID:    claimedTask.ID,
+			Status:    taskpkg.TaskRunStatusClaimed,
+			Attempt:   1,
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
+			QueuedAt:  now,
+			ClaimedAt: now.Add(30 * time.Second),
+		},
+		{
+			ID:        "run-starting",
+			TaskID:    startingTask.ID,
+			Status:    taskpkg.TaskRunStatusStarting,
+			Attempt:   1,
+			SessionID: "sess-stopped",
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
+			QueuedAt:  now,
+			StartedAt: now.Add(time.Minute),
+		},
+		{
+			ID:        "run-running",
+			TaskID:    runningTask.ID,
+			Status:    taskpkg.TaskRunStatusRunning,
+			Attempt:   1,
+			SessionID: "sess-missing",
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
+			QueuedAt:  now,
+			StartedAt: now.Add(2 * time.Minute),
+		},
+	} {
+		if err := seedDB.CreateTaskRun(testutil.Context(t), run); err != nil {
+			t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
+		}
+	}
+
+	if err := seedDB.Close(testutil.Context(t)); err != nil {
+		t.Fatalf("seedDB.Close() error = %v", err)
+	}
+
+	sessions := &fakeSessionManager{
+		infos: []*session.SessionInfo{
+			{ID: "sess-stopped", State: session.StateStopped},
+		},
+	}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return sessions, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	claimedRun, err := d.tasks.store.GetTaskRun(testutil.Context(t), "run-claimed")
+	if err != nil {
+		t.Fatalf("GetTaskRun(run-claimed) error = %v", err)
+	}
+	if got, want := claimedRun.Status, taskpkg.TaskRunStatusQueued; got != want {
+		t.Fatalf("claimedRun.Status = %q, want %q", got, want)
+	}
+
+	startingRun, err := d.tasks.store.GetTaskRun(testutil.Context(t), "run-starting")
+	if err != nil {
+		t.Fatalf("GetTaskRun(run-starting) error = %v", err)
+	}
+	if got, want := startingRun.Status, taskpkg.TaskRunStatusFailed; got != want {
+		t.Fatalf("startingRun.Status = %q, want %q", got, want)
+	}
+
+	runningRun, err := d.tasks.store.GetTaskRun(testutil.Context(t), "run-running")
+	if err != nil {
+		t.Fatalf("GetTaskRun(run-running) error = %v", err)
+	}
+	if got, want := runningRun.Status, taskpkg.TaskRunStatusFailed; got != want {
+		t.Fatalf("runningRun.Status = %q, want %q", got, want)
+	}
+
+	claimedEvents, err := d.tasks.store.ListTaskEvents(testutil.Context(t), taskpkg.TaskEventQuery{TaskID: claimedTask.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents(claimed) error = %v", err)
+	}
+	if !containsTaskEventType(claimedEvents, "task.run_recovered") {
+		t.Fatalf("claimed task events = %#v, want task.run_recovered", taskEventTypes(claimedEvents))
+	}
+
+	startingEvents, err := d.tasks.store.ListTaskEvents(testutil.Context(t), taskpkg.TaskEventQuery{TaskID: startingTask.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents(starting) error = %v", err)
+	}
+	if !containsTaskEventType(startingEvents, "task.run_failed") || !containsTaskEventType(startingEvents, "task.run_recovered") {
+		t.Fatalf("starting task events = %#v, want task.run_failed + task.run_recovered", taskEventTypes(startingEvents))
 	}
 }
 
@@ -2115,4 +2362,21 @@ func assertLifecycleHookPayload(t *testing.T, path string, wantEvent hookspkg.Ho
 			t.Fatalf("payload.Workspace = %q, want %q", payload.Workspace, wantWorkspace.RootDir)
 		}
 	})
+}
+
+func containsTaskEventType(events []taskpkg.TaskEvent, want string) bool {
+	for _, event := range events {
+		if event.EventType == want {
+			return true
+		}
+	}
+	return false
+}
+
+func taskEventTypes(events []taskpkg.TaskEvent) []string {
+	types := make([]string, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.EventType)
+	}
+	return types
 }

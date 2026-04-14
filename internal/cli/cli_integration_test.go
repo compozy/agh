@@ -32,6 +32,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store/globaldb"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -1063,6 +1064,149 @@ func TestBridgeRoutesIntegration(t *testing.T) {
 	}
 }
 
+func TestCLITaskCreateListGetIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	if _, _, err := executeRootCommand(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json"); err != nil {
+		t.Fatalf("workspace add error = %v", err)
+	}
+
+	createOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"task", "create",
+		"--scope", "workspace",
+		"--workspace", "alpha",
+		"--channel", "builders",
+		"--title", "Investigate flaky task runs",
+		"--description", "Capture root cause",
+		"--owner-kind", "pool",
+		"--owner-ref", "triage",
+		"--metadata", `{"priority":"high"}`,
+		"-o", "json",
+	)
+	if err != nil {
+		t.Fatalf("task create error = %v", err)
+	}
+
+	var created TaskRecord
+	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
+		t.Fatalf("json.Unmarshal(task create) error = %v", err)
+	}
+	if created.ID == "" || created.Scope != taskpkg.ScopeWorkspace || created.WorkspaceID == "" || created.NetworkChannel != "builders" {
+		t.Fatalf("created task = %#v, want workspace task with id/channel", created)
+	}
+
+	listOut, _, err := executeRootCommand(t, h.deps, "task", "list", "--scope", "workspace", "--workspace", "alpha", "--status", "ready", "-o", "json")
+	if err != nil {
+		t.Fatalf("task list error = %v", err)
+	}
+	var listed []TaskSummaryRecord
+	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
+		t.Fatalf("json.Unmarshal(task list) error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != created.ID {
+		t.Fatalf("listed tasks = %#v, want created task", listed)
+	}
+
+	getOut, _, err := executeRootCommand(t, h.deps, "task", "get", created.ID, "-o", "json")
+	if err != nil {
+		t.Fatalf("task get error = %v", err)
+	}
+	var detail TaskDetailRecord
+	if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
+		t.Fatalf("json.Unmarshal(task get) error = %v", err)
+	}
+	if detail.Task.ID != created.ID || detail.Task.Owner == nil || detail.Task.Owner.Kind != taskpkg.OwnerKindPool {
+		t.Fatalf("task detail = %#v, want created task detail with owner", detail)
+	}
+}
+
+func TestCLITaskRunLifecycleIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	createOut := mustExecuteRoot(t, h.deps, "task", "create", "--scope", "global", "--title", "Review task lifecycle", "-o", "json")
+	var created TaskRecord
+	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
+		t.Fatalf("json.Unmarshal(task create) error = %v", err)
+	}
+	if created.ID == "" {
+		t.Fatal("expected created task id")
+	}
+
+	enqueueOut := mustExecuteRoot(t, h.deps, "task", "run", "enqueue", created.ID, "--idempotency-key", "idem-1", "--channel", "builders", "-o", "json")
+	var enqueued TaskRunRecord
+	if err := json.Unmarshal([]byte(enqueueOut), &enqueued); err != nil {
+		t.Fatalf("json.Unmarshal(task run enqueue) error = %v", err)
+	}
+	if enqueued.Status != taskpkg.TaskRunStatusQueued {
+		t.Fatalf("enqueued run = %#v, want queued", enqueued)
+	}
+
+	claimOut := mustExecuteRoot(t, h.deps, "task", "run", "claim", enqueued.ID, "-o", "json")
+	var claimed TaskRunRecord
+	if err := json.Unmarshal([]byte(claimOut), &claimed); err != nil {
+		t.Fatalf("json.Unmarshal(task run claim) error = %v", err)
+	}
+	if claimed.Status != taskpkg.TaskRunStatusClaimed {
+		t.Fatalf("claimed run = %#v, want claimed", claimed)
+	}
+
+	startOut := mustExecuteRoot(t, h.deps, "task", "run", "start", enqueued.ID, "-o", "json")
+	var started TaskRunRecord
+	if err := json.Unmarshal([]byte(startOut), &started); err != nil {
+		t.Fatalf("json.Unmarshal(task run start) error = %v", err)
+	}
+	if started.Status != taskpkg.TaskRunStatusRunning || started.SessionID == "" {
+		t.Fatalf("started run = %#v, want running run with session", started)
+	}
+
+	completeOut := mustExecuteRoot(t, h.deps, "task", "run", "complete", enqueued.ID, "--result", `{"ok":true}`, "-o", "json")
+	var completed TaskRunRecord
+	if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
+		t.Fatalf("json.Unmarshal(task run complete) error = %v", err)
+	}
+	var resultPayload map[string]bool
+	if err := json.Unmarshal(completed.Result, &resultPayload); err != nil {
+		t.Fatalf("json.Unmarshal(completed result) error = %v", err)
+	}
+	if completed.Status != taskpkg.TaskRunStatusCompleted || !resultPayload["ok"] {
+		t.Fatalf("completed run = %#v, want completed with JSON result", completed)
+	}
+
+	runsOut := mustExecuteRoot(t, h.deps, "task", "run", "list", created.ID, "-o", "json")
+	var runs []TaskRunRecord
+	if err := json.Unmarshal([]byte(runsOut), &runs); err != nil {
+		t.Fatalf("json.Unmarshal(task run list) error = %v", err)
+	}
+	if len(runs) != 1 || runs[0].Status != taskpkg.TaskRunStatusCompleted {
+		t.Fatalf("runs = %#v, want completed run history", runs)
+	}
+
+	getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")
+	var detail TaskDetailRecord
+	if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
+		t.Fatalf("json.Unmarshal(task get) error = %v", err)
+	}
+	if detail.Task.Status != taskpkg.TaskStatusCompleted || len(detail.Runs) != 1 || detail.Runs[0].SessionID == "" {
+		t.Fatalf("task detail = %#v, want completed task with persisted run", detail)
+	}
+}
+
 type integrationHarness struct {
 	deps      commandDeps
 	homePaths aghconfig.HomePaths
@@ -1134,6 +1278,11 @@ type integrationDriver struct {
 	blocked  map[string]chan struct{}
 }
 
+type integrationTaskExecutor struct {
+	mu   sync.Mutex
+	next int
+}
+
 type lockedBuffer struct {
 	mu     sync.Mutex
 	buffer bytes.Buffer
@@ -1141,6 +1290,13 @@ type lockedBuffer struct {
 
 func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
 	return &integrationBridgeService{Service: bridgepkg.NewRegistry(store)}
+}
+
+func (s *integrationBridgeService) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
+	if s == nil {
+		return nil
+	}
+	return nil
 }
 
 func (s *integrationBridgeService) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
@@ -1394,6 +1550,15 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	d.manager = manager
 	d.mu.Unlock()
 
+	taskManager, err := taskpkg.NewManager(
+		taskpkg.WithStore(registry),
+		taskpkg.WithSessionExecutor(&integrationTaskExecutor{}),
+		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
+	)
+	if err != nil {
+		return fmt.Errorf("new task manager: %w", err)
+	}
+
 	bridgeService := newIntegrationBridgeService(registry)
 	observer, err := observe.New(
 		context.Background(),
@@ -1480,6 +1645,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		udsapi.WithStartedAt(d.startedAt),
 		udsapi.WithPollInterval(10*time.Millisecond),
 		udsapi.WithSessionManager(manager),
+		udsapi.WithTaskService(taskManager),
 		udsapi.WithNetworkService(networkManager),
 		udsapi.WithObserver(observer),
 		udsapi.WithAutomation(automationManager),
@@ -1596,6 +1762,25 @@ func newIntegrationDriver() *integrationDriver {
 		states:   make(map[*session.AgentProcess]chan struct{}),
 		blocked:  make(map[string]chan struct{}),
 	}
+}
+
+func (e *integrationTaskExecutor) StartTaskSession(_ context.Context, _ taskpkg.StartTaskSession) (*taskpkg.SessionRef, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.next++
+	return &taskpkg.SessionRef{SessionID: fmt.Sprintf("task-sess-%d", e.next)}, nil
+}
+
+func (e *integrationTaskExecutor) AttachTaskSession(_ context.Context, _ string, sessionID string) (*taskpkg.SessionRef, error) {
+	return &taskpkg.SessionRef{SessionID: strings.TrimSpace(sessionID)}, nil
+}
+
+func (e *integrationTaskExecutor) RequestTaskStop(context.Context, string, taskpkg.StopReason) error {
+	return nil
+}
+
+func (e *integrationTaskExecutor) ForceTaskStop(context.Context, string, taskpkg.StopReason) error {
+	return nil
 }
 
 func (d *integrationDriver) Start(_ context.Context, opts acp.StartOpts) (*session.AgentProcess, error) {

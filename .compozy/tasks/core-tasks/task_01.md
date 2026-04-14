@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Bootstrap the `internal/task` domain"
 type: backend
 complexity: high
@@ -26,11 +26,11 @@ Create the new `internal/task` package as the canonical home for task coordinati
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Create the `internal/task` package and its initial file layout for types, interfaces, validation, and errors.
-- [ ] 1.2 Define the core domain structs and enums used throughout the TechSpec and ADRs.
-- [ ] 1.3 Define actor, origin, and ownership models with server-derived semantics and optional ownership.
-- [ ] 1.4 Define shared limit constants and validation helpers for sizes, tree depth, dependency count, and direct child count.
-- [ ] 1.5 Define the store and session bridge interfaces that downstream implementations must satisfy.
+- [x] 1.1 Create the `internal/task` package and its initial file layout for types, interfaces, validation, and errors.
+- [x] 1.2 Define the core domain structs and enums used throughout the TechSpec and ADRs.
+- [x] 1.3 Define actor, origin, and ownership models with server-derived semantics and optional ownership.
+- [x] 1.4 Define shared limit constants and validation helpers for sizes, tree depth, dependency count, and direct child count.
+- [x] 1.5 Define the store and session bridge interfaces that downstream implementations must satisfy.
 
 ## Implementation Details
 Use the TechSpec sections "Core Interfaces", "Actor and Identity Model", "Authorization Contract", "Data Models", and "Guardrails and Limits" as the source of truth. Keep the package boundary strict: `internal/task` defines its own interfaces and errors, while concrete implementations remain in `globaldb`, `daemon`, and transport packages.
@@ -60,12 +60,12 @@ Use the TechSpec sections "Core Interfaces", "Actor and Identity Model", "Author
 
 ## Tests
 - Unit tests:
-  - [ ] Validate `global` vs `workspace` scope rules reject invalid `workspace_id` combinations.
-  - [ ] Validate immutable field helpers reject updates to `created_by`, `origin`, `scope`, `workspace_id`, and `parent_task_id`.
-  - [ ] Validate payload-size guardrails reject metadata over 16 KB and payload/result values over 64 KB.
-  - [ ] Validate graph-limit helpers reject depth over 8, dependencies over 32, and direct children over 64.
+  - [x] Validate `global` vs `workspace` scope rules reject invalid `workspace_id` combinations.
+  - [x] Validate immutable field helpers reject updates to `created_by`, `origin`, `scope`, `workspace_id`, and `parent_task_id`.
+  - [x] Validate payload-size guardrails reject metadata over 16 KB and payload/result values over 64 KB.
+  - [x] Validate graph-limit helpers reject depth over 8, dependencies over 32, and direct children over 64.
 - Integration tests:
-  - [ ] Verify the package composes against a fake store and fake session bridge without importing `internal/session`.
+  - [x] Verify the package composes against a fake store and fake session bridge without importing `internal/session`.
 - Test coverage target: >=80%
 - All tests must pass
 

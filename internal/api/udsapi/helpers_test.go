@@ -25,6 +25,7 @@ var errStubWorkspaceServiceNotImplemented = testutil.ErrStubWorkspaceServiceNotI
 
 type stubSessionManager = testutil.StubSessionManager
 type stubObserver = testutil.StubObserver
+type stubTaskManager = testutil.StubTaskManager
 type stubBridgeService = testutil.StubBridgeService
 type stubNetworkService = testutil.StubNetworkService
 type stubWorkspaceService = testutil.StubWorkspaceService
@@ -33,7 +34,7 @@ type sseRecord = testutil.SSERecord
 
 func newTestHandlers(t *testing.T, manager core.SessionManager, observer core.Observer, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()
-	return newTestHandlersWithRuntime(t, manager, observer, nil, nil, stubWorkspaceService{}, nil, homePaths)
+	return newTestHandlersWithRuntime(t, manager, observer, nil, stubTaskManager{}, nil, stubWorkspaceService{}, nil, homePaths)
 }
 
 func newTestHandlersWithBridges(
@@ -45,12 +46,12 @@ func newTestHandlersWithBridges(
 	homePaths aghconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
-	return newTestHandlersWithRuntime(t, manager, observer, nil, bridges, workspaces, nil, homePaths)
+	return newTestHandlersWithRuntime(t, manager, observer, nil, stubTaskManager{}, bridges, workspaces, nil, homePaths)
 }
 
 func newTestHandlersWithExtensions(t *testing.T, manager core.SessionManager, observer core.Observer, extensions ExtensionService, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()
-	return newTestHandlersWithRuntime(t, manager, observer, nil, nil, stubWorkspaceService{}, extensions, homePaths)
+	return newTestHandlersWithRuntime(t, manager, observer, nil, stubTaskManager{}, nil, stubWorkspaceService{}, extensions, homePaths)
 }
 
 func newTestHandlersWithRuntime(
@@ -58,6 +59,7 @@ func newTestHandlersWithRuntime(
 	manager core.SessionManager,
 	observer core.Observer,
 	automation core.AutomationManager,
+	tasks core.TaskService,
 	bridges core.BridgeService,
 	workspaces core.WorkspaceService,
 	extensions ExtensionService,
@@ -67,6 +69,7 @@ func newTestHandlersWithRuntime(
 
 	return newHandlers(handlerConfig{
 		sessions:     manager,
+		tasks:        tasks,
 		observer:     observer,
 		automation:   automation,
 		bridges:      bridges,

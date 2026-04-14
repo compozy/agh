@@ -902,6 +902,230 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/task-runs/{id}/attach-session": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Attach an existing session to one task run */
+    post: operations["attachTaskRunSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/task-runs/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel one task run */
+    post: operations["cancelTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/task-runs/{id}/claim": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Claim one queued task run */
+    post: operations["claimTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/task-runs/{id}/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Complete one running task run */
+    post: operations["completeTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/task-runs/{id}/fail": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Fail one task run */
+    post: operations["failTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/task-runs/{id}/start": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start one claimed task run */
+    post: operations["startTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List tasks */
+    get: operations["listTasks"];
+    put?: never;
+    /** Create a task */
+    post: operations["createTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one task with detail */
+    get: operations["getTask"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update one task */
+    patch: operations["updateTask"];
+    trace?: never;
+  };
+  "/api/tasks/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel one task tree */
+    post: operations["cancelTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/children": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create one child task */
+    post: operations["createChildTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/dependencies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Add one task dependency */
+    post: operations["addTaskDependency"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/dependencies/{depends_on_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove one task dependency */
+    delete: operations["removeTaskDependency"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List runs for one task */
+    get: operations["listTaskRuns"];
+    put?: never;
+    /** Enqueue one task run */
+    post: operations["enqueueTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/webhooks/global/{endpoint}": {
     parameters: {
       query?: never;
@@ -1182,6 +1406,22 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              task?: {
+                description?: string;
+                network_channel?: string;
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                title?: string;
+              } | null;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -1264,6 +1504,22 @@ export interface operations {
           };
           /** @enum {string} */
           scope: "global" | "workspace";
+          task?: {
+            description?: string;
+            network_channel?: string;
+            owner?: {
+              /** @enum {string} */
+              kind:
+                | "human"
+                | "agent_session"
+                | "automation"
+                | "extension"
+                | "network_peer"
+                | "pool";
+              ref: string;
+            } | null;
+            title?: string;
+          } | null;
           workspace_id?: string;
         };
       };
@@ -1307,6 +1563,22 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              task?: {
+                description?: string;
+                network_channel?: string;
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                title?: string;
+              } | null;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -1416,6 +1688,22 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              task?: {
+                description?: string;
+                network_channel?: string;
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                title?: string;
+              } | null;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -1570,6 +1858,22 @@ export interface operations {
             mode: "cron" | "every" | "at";
             time?: string;
           } | null;
+          task?: {
+            description?: string;
+            network_channel?: string;
+            owner?: {
+              /** @enum {string} */
+              kind:
+                | "human"
+                | "agent_session"
+                | "automation"
+                | "extension"
+                | "network_peer"
+                | "pool";
+              ref: string;
+            } | null;
+            title?: string;
+          } | null;
           workspace_id?: string | null;
         };
       };
@@ -1613,6 +1917,22 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              task?: {
+                description?: string;
+                network_channel?: string;
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                title?: string;
+              } | null;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -1687,7 +2007,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Filter by run status */
-        status?: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+        status?: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
         /** @description Only runs started since this timestamp */
         since?: string;
         /** @description Only runs started before this timestamp */
@@ -1722,7 +2042,9 @@ export interface operations {
               /** Format: date-time */
               started_at?: string | null;
               /** @enum {string} */
-              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
+              task_id?: string;
+              task_run_id?: string;
               trigger_id?: string;
             }[];
           };
@@ -1810,7 +2132,9 @@ export interface operations {
               /** Format: date-time */
               started_at?: string | null;
               /** @enum {string} */
-              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
+              task_id?: string;
+              task_run_id?: string;
               trigger_id?: string;
             };
           };
@@ -1876,7 +2200,7 @@ export interface operations {
         /** @description Filter by automation trigger id */
         trigger_id?: string;
         /** @description Filter by run status */
-        status?: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+        status?: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
         /** @description Only runs started since this timestamp */
         since?: string;
         /** @description Only runs started before this timestamp */
@@ -1908,7 +2232,9 @@ export interface operations {
               /** Format: date-time */
               started_at?: string | null;
               /** @enum {string} */
-              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
+              task_id?: string;
+              task_run_id?: string;
               trigger_id?: string;
             }[];
           };
@@ -1985,7 +2311,9 @@ export interface operations {
               /** Format: date-time */
               started_at?: string | null;
               /** @enum {string} */
-              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
+              task_id?: string;
+              task_run_id?: string;
               trigger_id?: string;
             };
           };
@@ -2583,7 +2911,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Filter by run status */
-        status?: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+        status?: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
         /** @description Only runs started since this timestamp */
         since?: string;
         /** @description Only runs started before this timestamp */
@@ -2618,7 +2946,9 @@ export interface operations {
               /** Format: date-time */
               started_at?: string | null;
               /** @enum {string} */
-              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
+              task_id?: string;
+              task_run_id?: string;
               trigger_id?: string;
             }[];
           };
@@ -7104,6 +7434,2876 @@ export interface operations {
       };
     };
   };
+  attachTaskRunSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          session_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              idempotency_key?: string;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid attach-session request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run or session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Attach-session conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  cancelTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          metadata?: unknown;
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              idempotency_key?: string;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid task-run cancel request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run cancel conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  claimTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          idempotency_key?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              idempotency_key?: string;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid task-run claim request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run claim conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  completeTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          result?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              idempotency_key?: string;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid task-run completion request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run completion conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  failTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          error: string;
+          metadata?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              idempotency_key?: string;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid task-run failure request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run failure conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  startTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          idempotency_key?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              idempotency_key?: string;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid task-run start request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run start conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listTasks: {
+    parameters: {
+      query?: {
+        /** @description Filter by task scope */
+        scope?: "global" | "workspace";
+        /** @description Filter by workspace path, name, or ID */
+        workspace?: string;
+        /** @description Filter by task status */
+        status?:
+          | "pending"
+          | "blocked"
+          | "ready"
+          | "in_progress"
+          | "completed"
+          | "failed"
+          | "cancelled";
+        /** @description Filter by owner kind */
+        owner_kind?:
+          | "human"
+          | "agent_session"
+          | "automation"
+          | "extension"
+          | "network_peer"
+          | "pool";
+        /** @description Filter by owner reference */
+        owner_ref?: string;
+        /** @description Filter by parent task ID */
+        parent_task_id?: string;
+        /** @description Filter by network channel */
+        network_channel?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            tasks: {
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              id: string;
+              identifier?: string;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid task filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          description?: string;
+          id?: string;
+          identifier?: string;
+          metadata?: unknown;
+          network_channel?: string;
+          owner?: {
+            /** @enum {string} */
+            kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
+            ref: string;
+          } | null;
+          /** @enum {string} */
+          scope: "global" | "workspace";
+          title: string;
+          workspace?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              description?: string;
+              id: string;
+              identifier?: string;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid task request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              children?: {
+                /** Format: date-time */
+                closed_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                created_by: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                id: string;
+                identifier?: string;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                parent_task_id?: string;
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              }[];
+              dependencies?: {
+                /** Format: date-time */
+                created_at: string;
+                depends_on_task_id: string;
+                /** @enum {string} */
+                kind: "blocks";
+                task_id: string;
+              }[];
+              events?: {
+                actor: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                event_type: string;
+                id: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                payload?: unknown;
+                run_id?: string;
+                task_id: string;
+                /** Format: date-time */
+                timestamp: string;
+              }[];
+              runs?: {
+                attempt: number;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                id: string;
+                idempotency_key?: string;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                /** Format: date-time */
+                queued_at: string;
+                result?: unknown;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                task_id: string;
+              }[];
+              task: {
+                /** Format: date-time */
+                closed_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                created_by: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                description?: string;
+                id: string;
+                identifier?: string;
+                metadata?: unknown;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                parent_task_id?: string;
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description Invalid task id */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          clear_owner?: boolean;
+          description?: string | null;
+          metadata?: unknown;
+          network_channel?: string | null;
+          owner?: {
+            /** @enum {string} */
+            kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
+            ref: string;
+          } | null;
+          title?: string | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              description?: string;
+              id: string;
+              identifier?: string;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid task update */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task update conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  cancelTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          metadata?: unknown;
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              description?: string;
+              id: string;
+              identifier?: string;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid task cancel request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task cancel conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createChildTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Parent task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          description?: string;
+          id?: string;
+          identifier?: string;
+          metadata?: unknown;
+          network_channel?: string;
+          owner?: {
+            /** @enum {string} */
+            kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
+            ref: string;
+          } | null;
+          /** @enum {string} */
+          scope: "global" | "workspace";
+          title: string;
+          workspace?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              description?: string;
+              id: string;
+              identifier?: string;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid child task request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  addTaskDependency: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          depends_on_task_id: string;
+          /** @enum {string} */
+          kind?: "blocks";
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              children?: {
+                /** Format: date-time */
+                closed_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                created_by: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                id: string;
+                identifier?: string;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                parent_task_id?: string;
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              }[];
+              dependencies?: {
+                /** Format: date-time */
+                created_at: string;
+                depends_on_task_id: string;
+                /** @enum {string} */
+                kind: "blocks";
+                task_id: string;
+              }[];
+              events?: {
+                actor: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                event_type: string;
+                id: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                payload?: unknown;
+                run_id?: string;
+                task_id: string;
+                /** Format: date-time */
+                timestamp: string;
+              }[];
+              runs?: {
+                attempt: number;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                id: string;
+                idempotency_key?: string;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                /** Format: date-time */
+                queued_at: string;
+                result?: unknown;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                task_id: string;
+              }[];
+              task: {
+                /** Format: date-time */
+                closed_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                created_by: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                description?: string;
+                id: string;
+                identifier?: string;
+                metadata?: unknown;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                parent_task_id?: string;
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description Invalid dependency request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Dependency conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  removeTaskDependency: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+        /** @description Dependency task id */
+        depends_on_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              children?: {
+                /** Format: date-time */
+                closed_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                created_by: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                id: string;
+                identifier?: string;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                parent_task_id?: string;
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              }[];
+              dependencies?: {
+                /** Format: date-time */
+                created_at: string;
+                depends_on_task_id: string;
+                /** @enum {string} */
+                kind: "blocks";
+                task_id: string;
+              }[];
+              events?: {
+                actor: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                event_type: string;
+                id: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                payload?: unknown;
+                run_id?: string;
+                task_id: string;
+                /** Format: date-time */
+                timestamp: string;
+              }[];
+              runs?: {
+                attempt: number;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                id: string;
+                idempotency_key?: string;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                /** Format: date-time */
+                queued_at: string;
+                result?: unknown;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                task_id: string;
+              }[];
+              task: {
+                /** Format: date-time */
+                closed_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                created_by: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                description?: string;
+                id: string;
+                identifier?: string;
+                metadata?: unknown;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                parent_task_id?: string;
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description Invalid dependency request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task or dependency not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listTaskRuns: {
+    parameters: {
+      query?: {
+        /** @description Filter by run status */
+        status?:
+          | "queued"
+          | "claimed"
+          | "starting"
+          | "running"
+          | "completed"
+          | "failed"
+          | "cancelled";
+        /** @description Filter by attached session id */
+        session_id?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            runs: {
+              attempt: number;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              idempotency_key?: string;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              task_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid task-run filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  enqueueTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          idempotency_key?: string;
+          network_channel?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              id: string;
+              idempotency_key?: string;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "cancelled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid task-run enqueue request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run enqueue conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   deliverGlobalWebhook: {
     parameters: {
       query?: never;
@@ -7148,7 +10348,15 @@ export interface operations {
                 /** Format: date-time */
                 started_at?: string | null;
                 /** @enum {string} */
-                status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+                status:
+                  | "scheduled"
+                  | "running"
+                  | "delegated"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                task_id?: string;
+                task_run_id?: string;
                 trigger_id?: string;
               }[];
             };
@@ -7264,7 +10472,15 @@ export interface operations {
                 /** Format: date-time */
                 started_at?: string | null;
                 /** @enum {string} */
-                status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+                status:
+                  | "scheduled"
+                  | "running"
+                  | "delegated"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                task_id?: string;
+                task_run_id?: string;
                 trigger_id?: string;
               }[];
             };

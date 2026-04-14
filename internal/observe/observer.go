@@ -19,6 +19,7 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/version"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -35,6 +36,10 @@ type Registry interface {
 	ListTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error)
 	WritePermissionLog(ctx context.Context, entry store.PermissionLogEntry) error
 	ListPermissionLog(ctx context.Context, query store.PermissionLogQuery) ([]store.PermissionLogEntry, error)
+	ListNetworkAudit(ctx context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
+	ListTasks(ctx context.Context, query taskpkg.TaskQuery) ([]taskpkg.TaskSummary, error)
+	ListTaskRuns(ctx context.Context, query taskpkg.TaskRunQuery) ([]taskpkg.TaskRun, error)
+	ListTaskEvents(ctx context.Context, query taskpkg.TaskEventQuery) ([]taskpkg.TaskEvent, error)
 	Path() string
 	Close(ctx context.Context) error
 }
@@ -75,6 +80,13 @@ type observedSession struct {
 	permissionMode string
 }
 
+// TaskHealthConfig controls task-run stuck detection in the read-side health view.
+type TaskHealthConfig struct {
+	ClaimedStuckAfter  time.Duration
+	StartingStuckAfter time.Duration
+	RunningStuckAfter  time.Duration
+}
+
 // Observer implements session.Notifier and exposes query/health helpers for global observability.
 type Observer struct {
 	mu sync.RWMutex
@@ -93,6 +105,7 @@ type Observer struct {
 	bridgeState           map[string]observedBridgeState
 	hookCatalogSource     HookCatalogSource
 	openHookStore         HookStoreOpener
+	taskHealthConfig      TaskHealthConfig
 }
 
 var _ session.Notifier = (*Observer)(nil)
@@ -175,6 +188,14 @@ func WithHookStoreOpener(opener HookStoreOpener) Option {
 	}
 }
 
+// WithTaskHealthConfig overrides the task-run stuck thresholds used by the
+// observer health view.
+func WithTaskHealthConfig(cfg TaskHealthConfig) Option {
+	return func(observer *Observer) {
+		observer.taskHealthConfig = cfg
+	}
+}
+
 // New constructs an Observer and opens the global AGH database when needed.
 func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	if ctx == nil {
@@ -195,6 +216,11 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 		versionSource: version.Current,
 		sessions:      make(map[string]observedSession),
 		bridgeState:   make(map[string]observedBridgeState),
+		taskHealthConfig: TaskHealthConfig{
+			ClaimedStuckAfter:  5 * time.Minute,
+			StartingStuckAfter: 5 * time.Minute,
+			RunningStuckAfter:  30 * time.Minute,
+		},
 	}
 
 	for _, opt := range opts {

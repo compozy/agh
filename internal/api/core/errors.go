@@ -13,6 +13,8 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/session"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -60,6 +62,50 @@ func StatusForMemoryError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, memory.ErrValidation):
 		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// NewTaskValidationError wraps a task validation failure with the shared sentinel.
+func NewTaskValidationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", taskpkg.ErrValidation, err)
+}
+
+// StatusForTaskError maps task-domain, workspace, and session failures to transport statuses.
+func StatusForTaskError(err error) int {
+	switch {
+	case err == nil:
+		return http.StatusOK
+	case errors.Is(err, taskpkg.ErrValidation),
+		errors.Is(err, taskpkg.ErrInvalidScopeBinding),
+		errors.Is(err, taskpkg.ErrImmutableField):
+		return http.StatusBadRequest
+	case errors.Is(err, taskpkg.ErrPayloadTooLarge):
+		return http.StatusRequestEntityTooLarge
+	case errors.Is(err, taskpkg.ErrPermissionDenied):
+		return http.StatusForbidden
+	case errors.Is(err, taskpkg.ErrTaskNotFound),
+		errors.Is(err, taskpkg.ErrTaskRunNotFound),
+		errors.Is(err, taskpkg.ErrTaskDependencyNotFound),
+		errors.Is(err, taskpkg.ErrTaskEventNotFound),
+		errors.Is(err, taskpkg.ErrTaskRunIdempotencyNotFound),
+		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
+		errors.Is(err, session.ErrSessionNotFound),
+		errors.Is(err, os.ErrNotExist):
+		return http.StatusNotFound
+	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
+		return http.StatusGone
+	case errors.Is(err, taskpkg.ErrInvalidStatusTransition),
+		errors.Is(err, taskpkg.ErrGraphLimitExceeded),
+		errors.Is(err, taskpkg.ErrCycleDetected),
+		errors.Is(err, taskpkg.ErrSessionAlreadyBound),
+		errors.Is(err, taskpkg.ErrSessionAttachNotAllowed),
+		errors.Is(err, taskpkg.ErrStaleNetworkChannel):
+		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}

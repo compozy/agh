@@ -27,6 +27,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -176,6 +177,27 @@ type StubAutomationManager struct {
 	HandleWebhookFn     func(context.Context, automationpkg.WebhookRequest) (automationpkg.TriggerResult, error)
 }
 
+type StubTaskManager struct {
+	CreateTaskFn       func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error)
+	CreateChildTaskFn  func(context.Context, string, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error)
+	UpdateTaskFn       func(context.Context, string, taskpkg.TaskPatch, taskpkg.ActorContext) (*taskpkg.Task, error)
+	CancelTaskFn       func(context.Context, string, taskpkg.CancelTask, taskpkg.ActorContext) (*taskpkg.Task, error)
+	AddDependencyFn    func(context.Context, taskpkg.AddDependency, taskpkg.ActorContext) error
+	RemoveDependencyFn func(context.Context, string, string, taskpkg.ActorContext) error
+	EnqueueRunFn       func(context.Context, taskpkg.EnqueueRun, taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	ClaimRunFn         func(context.Context, string, taskpkg.ClaimRun, taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	StartRunFn         func(context.Context, string, taskpkg.StartRun, taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	AttachRunSessionFn func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	CompleteRunFn      func(context.Context, string, taskpkg.RunResult, taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	FailRunFn          func(context.Context, string, taskpkg.RunFailure, taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	CancelRunFn        func(context.Context, string, taskpkg.CancelRun, taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	GetTaskFn          func(context.Context, string, taskpkg.ActorContext) (*taskpkg.TaskView, error)
+	ListTaskRunsFn     func(context.Context, string, taskpkg.TaskRunQuery, taskpkg.ActorContext) ([]taskpkg.TaskRun, error)
+	ListTasksFn        func(context.Context, taskpkg.TaskQuery, taskpkg.ActorContext) ([]taskpkg.TaskSummary, error)
+}
+
+var _ core.TaskService = (*StubTaskManager)(nil)
+
 func (s StubAutomationManager) ListJobs(ctx context.Context, query automationpkg.JobListQuery) ([]automationpkg.Job, error) {
 	if s.ListJobsFn != nil {
 		return s.ListJobsFn(ctx, query)
@@ -323,6 +345,118 @@ func (s StubAutomationManager) HandleWebhook(ctx context.Context, request automa
 		return s.HandleWebhookFn(ctx, request)
 	}
 	return automationpkg.TriggerResult{}, nil
+}
+
+func (s StubTaskManager) CreateTask(ctx context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+	if s.CreateTaskFn != nil {
+		return s.CreateTaskFn(ctx, spec, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) CreateChildTask(ctx context.Context, parentTaskID string, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+	if s.CreateChildTaskFn != nil {
+		return s.CreateChildTaskFn(ctx, parentTaskID, spec, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) UpdateTask(ctx context.Context, id string, patch taskpkg.TaskPatch, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+	if s.UpdateTaskFn != nil {
+		return s.UpdateTaskFn(ctx, id, patch, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) CancelTask(ctx context.Context, id string, req taskpkg.CancelTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+	if s.CancelTaskFn != nil {
+		return s.CancelTaskFn(ctx, id, req, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) AddDependency(ctx context.Context, spec taskpkg.AddDependency, actor taskpkg.ActorContext) error {
+	if s.AddDependencyFn != nil {
+		return s.AddDependencyFn(ctx, spec, actor)
+	}
+	return taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) RemoveDependency(ctx context.Context, taskID string, dependsOnID string, actor taskpkg.ActorContext) error {
+	if s.RemoveDependencyFn != nil {
+		return s.RemoveDependencyFn(ctx, taskID, dependsOnID, actor)
+	}
+	return taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) EnqueueRun(ctx context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error) {
+	if s.EnqueueRunFn != nil {
+		return s.EnqueueRunFn(ctx, spec, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) ClaimRun(ctx context.Context, runID string, claim taskpkg.ClaimRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error) {
+	if s.ClaimRunFn != nil {
+		return s.ClaimRunFn(ctx, runID, claim, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) StartRun(ctx context.Context, runID string, req taskpkg.StartRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error) {
+	if s.StartRunFn != nil {
+		return s.StartRunFn(ctx, runID, req, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) AttachRunSession(ctx context.Context, runID string, sessionID string, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error) {
+	if s.AttachRunSessionFn != nil {
+		return s.AttachRunSessionFn(ctx, runID, sessionID, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) CompleteRun(ctx context.Context, runID string, result taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error) {
+	if s.CompleteRunFn != nil {
+		return s.CompleteRunFn(ctx, runID, result, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) FailRun(ctx context.Context, runID string, failure taskpkg.RunFailure, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error) {
+	if s.FailRunFn != nil {
+		return s.FailRunFn(ctx, runID, failure, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) CancelRun(ctx context.Context, runID string, req taskpkg.CancelRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error) {
+	if s.CancelRunFn != nil {
+		return s.CancelRunFn(ctx, runID, req, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) GetTask(ctx context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.TaskView, error) {
+	if s.GetTaskFn != nil {
+		return s.GetTaskFn(ctx, id, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) ListTaskRuns(ctx context.Context, taskID string, query taskpkg.TaskRunQuery, actor taskpkg.ActorContext) ([]taskpkg.TaskRun, error) {
+	if s.ListTaskRunsFn != nil {
+		return s.ListTaskRunsFn(ctx, taskID, query, actor)
+	}
+	return nil, nil
+}
+
+func (s StubTaskManager) ListTasks(ctx context.Context, query taskpkg.TaskQuery, actor taskpkg.ActorContext) ([]taskpkg.TaskSummary, error) {
+	if s.ListTasksFn != nil {
+		return s.ListTasksFn(ctx, query, actor)
+	}
+	return nil, nil
 }
 
 func (s StubObserver) QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {

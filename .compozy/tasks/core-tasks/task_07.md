@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Add task and run API contracts plus core handlers"
 type: backend
 complexity: high
@@ -28,11 +28,11 @@ Add the shared contract and handler layer that lets daemon transports expose the
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Add shared request and response payloads for task and run operations under `internal/api/contract`.
-- [ ] 7.2 Add core service interfaces and handler methods for task and run operations.
-- [ ] 7.3 Add request parsing and validation for scope, workspace, owner, channel, and lifecycle operations.
-- [ ] 7.4 Add error mapping for task-domain validation, authorization, not-found, and invalid-transition failures.
-- [ ] 7.5 Add payload conversion helpers for task summaries, task details, runs, dependencies, and audit-facing fields.
+- [x] 7.1 Add shared request and response payloads for task and run operations under `internal/api/contract`.
+- [x] 7.2 Add core service interfaces and handler methods for task and run operations.
+- [x] 7.3 Add request parsing and validation for scope, workspace, owner, channel, and lifecycle operations.
+- [x] 7.4 Add error mapping for task-domain validation, authorization, not-found, and invalid-transition failures.
+- [x] 7.5 Add payload conversion helpers for task summaries, task details, runs, dependencies, and audit-facing fields.
 
 ## Implementation Details
 Use the TechSpec sections "API Surface", "Actor and Identity Model", and "Authorization Contract". Follow the patterns already present in `automation.go`, `network.go`, `payloads.go`, and `errors.go` so new task handlers fit the existing API/core organization.
@@ -65,12 +65,12 @@ Use the TechSpec sections "API Surface", "Actor and Identity Model", and "Author
 
 ## Tests
 - Unit tests:
-  - [ ] Verify invalid scope, workspace, owner, and channel inputs are rejected with stable validation errors.
-  - [ ] Verify task-domain not-found, invalid-transition, and authorization errors map to the correct transport statuses.
-  - [ ] Verify payload builders preserve immutable `created_by`, immutable `origin`, optional `owner`, and run/session attachment fields.
+  - [x] Verify invalid scope, workspace, owner, and channel inputs are rejected with stable validation errors.
+  - [x] Verify task-domain not-found, invalid-transition, and authorization errors map to the correct transport statuses.
+  - [x] Verify payload builders preserve immutable `created_by`, immutable `origin`, optional `owner`, and run/session attachment fields.
 - Integration tests:
-  - [ ] Verify a create-task request reaches the manager with the expected parsed filters and actor context envelope.
-  - [ ] Verify run lifecycle handler calls sequence correctly against a fake manager implementation with no duplicate business logic in the handler layer.
+  - [x] Verify a create-task request reaches the manager with the expected parsed filters and actor context envelope.
+  - [x] Verify run lifecycle handler calls sequence correctly against a fake manager implementation with no duplicate business logic in the handler layer.
 - Test coverage target: >=80%
 - All tests must pass
 

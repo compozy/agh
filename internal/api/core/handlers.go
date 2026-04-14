@@ -19,9 +19,13 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 const defaultPollInterval = 100 * time.Millisecond
+
+// TaskActorContextResolver derives the trusted task-domain actor envelope for one API request.
+type TaskActorContextResolver func(c *gin.Context, action string) (taskpkg.ActorContext, error)
 
 // BaseHandlerConfig configures a shared handler set for one transport.
 type BaseHandlerConfig struct {
@@ -33,9 +37,11 @@ type BaseHandlerConfig struct {
 	NetworkStore                 NetworkStore
 	Observer                     Observer
 	Automation                   AutomationManager
+	Tasks                        TaskService
 	Bridges                      BridgeService
 	Workspaces                   WorkspaceService
 	SkillsRegistry               SkillsRegistry
+	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
 	DreamTrigger                 DreamTrigger
 	HomePaths                    aghconfig.HomePaths
@@ -60,9 +66,11 @@ type BaseHandlers struct {
 	NetworkStore                 NetworkStore
 	Observer                     Observer
 	Automation                   AutomationManager
+	Tasks                        TaskService
 	Bridges                      BridgeService
 	Workspaces                   WorkspaceService
 	SkillsRegistry               SkillsRegistry
+	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
 	DreamTrigger                 DreamTrigger
 	HomePaths                    aghconfig.HomePaths
@@ -122,9 +130,11 @@ func NewBaseHandlers(cfg BaseHandlerConfig) *BaseHandlers {
 		NetworkStore:                 cfg.NetworkStore,
 		Observer:                     cfg.Observer,
 		Automation:                   cfg.Automation,
+		Tasks:                        cfg.Tasks,
 		Bridges:                      cfg.Bridges,
 		Workspaces:                   cfg.Workspaces,
 		SkillsRegistry:               cfg.SkillsRegistry,
+		TaskActorContextResolver:     cfg.TaskActorContextResolver,
 		MemoryStore:                  cfg.MemoryStore,
 		DreamTrigger:                 cfg.DreamTrigger,
 		HomePaths:                    cfg.HomePaths,

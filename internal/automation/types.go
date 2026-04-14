@@ -58,6 +58,8 @@ const (
 	RunScheduled = modelpkg.RunScheduled
 	// RunRunning reports a run that is actively dispatching or executing.
 	RunRunning = modelpkg.RunRunning
+	// RunDelegated reports a run that delegated execution into the task domain.
+	RunDelegated = modelpkg.RunDelegated
 	// RunCompleted reports a run that finished successfully.
 	RunCompleted = modelpkg.RunCompleted
 	// RunFailed reports a run that finished with an error.
@@ -79,6 +81,9 @@ const (
 	// ActivationSourceExtension identifies extension-provided ingress.
 	ActivationSourceExtension = modelpkg.ActivationSourceExtension
 )
+
+// JobTaskConfig configures direct automation-to-task materialization for one job.
+type JobTaskConfig = modelpkg.JobTaskConfig
 
 // Job is the canonical scheduled automation definition used by runtime and storage layers.
 type Job = modelpkg.Job

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Persist core task and run records in `globaldb`"
 type: backend
 complexity: high
@@ -27,11 +27,11 @@ Add durable storage for `Task` and `TaskRun` so the new domain can persist coord
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Add migrations and schema definitions for task and task-run tables.
-- [ ] 2.2 Implement create, get, update, and list operations for tasks in `globaldb`.
-- [ ] 2.3 Implement enqueue, get, list, and state-write operations for task runs in `globaldb`.
-- [ ] 2.4 Add indexes and filtering paths for scope, workspace, parent, status, owner, and channel queries.
-- [ ] 2.5 Align storage validation and marshalling with the domain types introduced in `internal/task`.
+- [x] 2.1 Add migrations and schema definitions for task and task-run tables.
+- [x] 2.2 Implement create, get, update, and list operations for tasks in `globaldb`.
+- [x] 2.3 Implement enqueue, get, list, and state-write operations for task runs in `globaldb`.
+- [x] 2.4 Add indexes and filtering paths for scope, workspace, parent, status, owner, and channel queries.
+- [x] 2.5 Align storage validation and marshalling with the domain types introduced in `internal/task`.
 
 ## Implementation Details
 Use the TechSpec "Data Models" and "API Surface" sections for the canonical field set. Follow the patterns already used by `global_db_session.go`, `global_db_automation.go`, and `global_db_network_audit.go` for schema evolution, row mapping, and integration tests.
@@ -63,12 +63,12 @@ Use the TechSpec "Data Models" and "API Surface" sections for the canonical fiel
 
 ## Tests
 - Unit tests:
-  - [ ] Verify row encoding and decoding preserve nullable `workspace_id`, `parent_task_id`, `owner`, and `network_channel` fields.
-  - [ ] Verify create and update paths reject invalid scope combinations passed from callers.
-  - [ ] Verify list queries filter correctly by scope, workspace, status, parent, owner, and channel.
+  - [x] Verify row encoding and decoding preserve nullable `workspace_id`, `parent_task_id`, `owner`, and `network_channel` fields.
+  - [x] Verify create and update paths reject invalid scope combinations passed from callers.
+  - [x] Verify list queries filter correctly by scope, workspace, status, parent, owner, and channel.
 - Integration tests:
-  - [ ] Verify migrated databases can create and query a `global` task and a `workspace` task in the same store.
-  - [ ] Verify task runs persist queued records without `session_id` and later persist attached `session_id` values correctly.
+  - [x] Verify migrated databases can create and query a `global` task and a `workspace` task in the same store.
+  - [x] Verify task runs persist queued records without `session_id` and later persist attached `session_id` values correctly.
 - Test coverage target: >=80%
 - All tests must pass
 

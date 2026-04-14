@@ -29,6 +29,7 @@ import (
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -72,6 +73,7 @@ type RuntimeDeps struct {
 	HomePaths         aghconfig.HomePaths
 	Logger            *slog.Logger
 	Sessions          SessionManager
+	Tasks             taskpkg.Manager
 	Network           core.NetworkService
 	Observer          Observer
 	Automation        core.AutomationManager
@@ -116,6 +118,10 @@ type shutdownStopper interface {
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
 
+type finalizationWaiter interface {
+	WaitForFinalizations(ctx context.Context) error
+}
+
 type extensionDBSource interface {
 	DB() *sql.DB
 }
@@ -140,6 +146,7 @@ type extensionManagerDeps struct {
 	Registry          *extensionpkg.Registry
 	Sessions          SessionManager
 	Automation        func() extensionpkg.HostAPIAutomationManager
+	Tasks             taskpkg.Manager
 	MemoryStore       *memory.Store
 	Observer          Observer
 	SkillsRegistry    *skills.Registry
@@ -164,6 +171,7 @@ type automationRuntime interface {
 type automationManagerDeps struct {
 	Store               automationpkg.Store
 	Sessions            SessionManager
+	Tasks               taskpkg.Manager
 	WorkspaceResolver   workspacepkg.WorkspaceResolver
 	Config              aghconfig.AutomationConfig
 	Hooks               automationpkg.AutomationHookDispatcher
@@ -222,6 +230,7 @@ type Daemon struct {
 	registry             Registry
 	memoryStore          *memory.Store
 	sessions             SessionManager
+	tasks                *taskRuntime
 	network              networkRuntime
 	hooks                hookRuntime
 	extensions           extensionRuntime
@@ -399,6 +408,7 @@ func (d *Daemon) applyDefaults() error {
 			capChecker := &extensionpkg.CapabilityChecker{}
 			hostAPIOpts := []extensionpkg.HostAPIOption{
 				extensionpkg.WithHostAPIAutomationGetter(deps.Automation),
+				extensionpkg.WithHostAPITaskManager(deps.Tasks),
 				extensionpkg.WithHostAPICapabilityChecker(capChecker),
 				extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
 			}
@@ -443,6 +453,7 @@ func (d *Daemon) applyDefaults() error {
 			manager, err := automationpkg.New(
 				automationpkg.WithStore(deps.Store),
 				automationpkg.WithSessions(deps.Sessions),
+				automationpkg.WithTasks(deps.Tasks),
 				automationpkg.WithWorkspaceResolver(deps.WorkspaceResolver),
 				automationpkg.WithConfig(deps.Config),
 				automationpkg.WithHooks(deps.Hooks),
@@ -463,6 +474,7 @@ func (d *Daemon) applyDefaults() error {
 				httpapi.WithLogger(deps.Logger),
 				httpapi.WithStartedAt(deps.StartedAt),
 				httpapi.WithSessionManager(deps.Sessions),
+				httpapi.WithTaskService(deps.Tasks),
 				httpapi.WithNetworkService(deps.Network),
 				httpapi.WithNetworkStore(deps.Registry),
 				httpapi.WithObserver(deps.Observer),
@@ -483,6 +495,7 @@ func (d *Daemon) applyDefaults() error {
 				udsapi.WithLogger(deps.Logger),
 				udsapi.WithStartedAt(deps.StartedAt),
 				udsapi.WithSessionManager(deps.Sessions),
+				udsapi.WithTaskService(deps.Tasks),
 				udsapi.WithNetworkService(deps.Network),
 				udsapi.WithNetworkStore(deps.Registry),
 				udsapi.WithObserver(deps.Observer),
@@ -579,6 +592,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	skillsDone := d.skillsDone
 
 	d.sessions = nil
+	d.tasks = nil
 	d.hooks = nil
 	d.extensions = nil
 	d.automation = nil
@@ -702,6 +716,11 @@ func (d *Daemon) stopSessions(ctx context.Context, sessions SessionManager) erro
 		}
 		if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
 			errs = append(errs, fmt.Errorf("daemon: stop session %q: %w", info.ID, err))
+		}
+	}
+	if waiter, ok := sessions.(finalizationWaiter); ok {
+		if err := waiter.WaitForFinalizations(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("daemon: wait for session finalizations: %w", err))
 		}
 	}
 

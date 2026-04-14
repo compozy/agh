@@ -41,6 +41,7 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		WithNow(now),
 		WithPollInterval(25*time.Millisecond),
 		WithSessionManager(stubSessionManager{}),
+		WithTaskService(stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithBridgeService(bridgeService),
 		WithWorkspaceResolver(stubWorkspaceService{}),
@@ -96,26 +97,81 @@ func TestPathHandlesNilServer(t *testing.T) {
 	}
 }
 
-func TestNewRequiresSessionManagerObserverAndWorkspaceResolver(t *testing.T) {
-	homePaths := newTestHomePaths(t)
+func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *testing.T) {
+	t.Parallel()
 
-	if _, err := New(WithHomePaths(homePaths), WithObserver(stubObserver{})); err == nil {
-		t.Fatal("New() without session manager error = nil, want non-nil")
+	homePaths := newTestHomePaths(t)
+	testCases := []struct {
+		name    string
+		opts    []Option
+		wantErr error
+	}{
+		{
+			name: "Should require a session manager",
+			opts: []Option{
+				WithHomePaths(homePaths),
+				WithTaskService(stubTaskManager{}),
+				WithObserver(stubObserver{}),
+				WithWorkspaceResolver(stubWorkspaceService{}),
+			},
+			wantErr: ErrSessionManagerRequired,
+		},
+		{
+			name: "Should require a task service",
+			opts: []Option{
+				WithHomePaths(homePaths),
+				WithSessionManager(stubSessionManager{}),
+				WithObserver(stubObserver{}),
+				WithWorkspaceResolver(stubWorkspaceService{}),
+			},
+			wantErr: ErrTaskServiceRequired,
+		},
+		{
+			name: "Should require an observer",
+			opts: []Option{
+				WithHomePaths(homePaths),
+				WithSessionManager(stubSessionManager{}),
+				WithTaskService(stubTaskManager{}),
+				WithWorkspaceResolver(stubWorkspaceService{}),
+			},
+			wantErr: ErrObserverRequired,
+		},
+		{
+			name: "Should require a workspace resolver",
+			opts: []Option{
+				WithHomePaths(homePaths),
+				WithSessionManager(stubSessionManager{}),
+				WithTaskService(stubTaskManager{}),
+				WithObserver(stubObserver{}),
+			},
+			wantErr: ErrWorkspaceResolverRequired,
+		},
 	}
-	if _, err := New(WithHomePaths(homePaths), WithSessionManager(stubSessionManager{})); err == nil {
-		t.Fatal("New() without observer error = nil, want non-nil")
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if _, err := New(tc.opts...); err == nil || !errors.Is(err, tc.wantErr) {
+				t.Fatalf("New() error = %v, want %v", err, tc.wantErr)
+			}
+		})
 	}
-	if _, err := New(WithHomePaths(homePaths), WithSessionManager(stubSessionManager{}), WithObserver(stubObserver{})); err == nil {
-		t.Fatal("New() without workspace resolver error = nil, want non-nil")
-	}
-	if _, err := New(
-		WithHomePaths(homePaths),
-		WithSessionManager(stubSessionManager{}),
-		WithObserver(stubObserver{}),
-		WithWorkspaceResolver(stubWorkspaceService{}),
-	); err != nil {
-		t.Fatalf("New() without skills registry error = %v, want nil", err)
-	}
+
+	t.Run("Should allow missing skills registry", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := New(
+			WithHomePaths(homePaths),
+			WithSessionManager(stubSessionManager{}),
+			WithTaskService(stubTaskManager{}),
+			WithObserver(stubObserver{}),
+			WithWorkspaceResolver(stubWorkspaceService{}),
+		); err != nil {
+			t.Fatalf("New() without skills registry error = %v, want nil", err)
+		}
+	})
 }
 
 func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
@@ -132,6 +188,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 		WithSessionManager(stubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.SessionInfo, error) { return nil, nil },
 		}),
+		WithTaskService(stubTaskManager{}),
 		WithObserver(stubObserver{
 			HealthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
 		}),
@@ -190,6 +247,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 		WithSocketPath(socketPath),
 		WithLogger(discardLogger()),
 		WithSessionManager(stubSessionManager{}),
+		WithTaskService(stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
 		WithSkillsRegistry(stubSkillsRegistry{}),
@@ -223,6 +281,7 @@ func TestServerStartRejectsRegularFileAtSocketPath(t *testing.T) {
 		WithSocketPath(socketPath),
 		WithLogger(discardLogger()),
 		WithSessionManager(stubSessionManager{}),
+		WithTaskService(stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
 		WithSkillsRegistry(stubSkillsRegistry{}),

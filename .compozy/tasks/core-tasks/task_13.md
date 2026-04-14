@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Add observe projections, health queries, and task metrics"
 type: backend
 complexity: high
@@ -29,11 +29,11 @@ Add the read-side observability needed to operate the new task domain confidentl
 </requirements>
 
 ## Subtasks
-- [ ] 13.1 Extend observe-side projections to consume task, run, and audit events.
-- [ ] 13.2 Add query and health surfaces for queue depth, stuck runs, task totals, and ownership/channel filters.
-- [ ] 13.3 Add metrics emission for task counts, run counts, queue latency, duplicate ingress, and channel mismatch events.
-- [ ] 13.4 Integrate recovery and cancellation signals so health views reflect orphan recovery and forced-stop outcomes.
-- [ ] 13.5 Add tests covering channel-aware and origin-aware observability outputs.
+- [x] 13.1 Extend observe-side projections to consume task, run, and audit events.
+- [x] 13.2 Add query and health surfaces for queue depth, stuck runs, task totals, and ownership/channel filters.
+- [x] 13.3 Add metrics emission for task counts, run counts, queue latency, duplicate ingress, and channel mismatch events.
+- [x] 13.4 Integrate recovery and cancellation signals so health views reflect orphan recovery and forced-stop outcomes.
+- [x] 13.5 Add tests covering channel-aware and origin-aware observability outputs.
 
 ## Implementation Details
 Use the TechSpec sections "Monitoring and Observability", "Cold-Start Recovery", and "Cancellation Model". Follow the existing patterns in `internal/observe/observer.go`, `query.go`, `health.go`, and `reconcile.go`, plus the `global_db_observe.go` read-side storage helpers.
@@ -65,12 +65,12 @@ Use the TechSpec sections "Monitoring and Observability", "Cold-Start Recovery",
 
 ## Tests
 - Unit tests:
-  - [ ] Verify task and run projections aggregate counts by status, scope, origin, and channel correctly.
-  - [ ] Verify health logic flags stuck `claimed`, `starting`, or `running` task runs according to the configured rules.
-  - [ ] Verify duplicate-ingress and channel-mismatch counters increment from the expected audit inputs.
+  - [x] Verify task and run projections aggregate counts by status, scope, origin, and channel correctly.
+  - [x] Verify health logic flags stuck `claimed`, `starting`, or `running` task runs according to the configured rules.
+  - [x] Verify duplicate-ingress and channel-mismatch counters increment from the expected audit inputs.
 - Integration tests:
-  - [ ] Verify a full task lifecycle from queue to completion appears in observe queries and metrics with the expected channel and origin metadata.
-  - [ ] Verify orphan-run recovery and forced-stop cancellation outcomes are reflected in task health views after daemon restart or shutdown scenarios.
+  - [x] Verify a full task lifecycle from queue to completion appears in observe queries and metrics with the expected channel and origin metadata.
+  - [x] Verify orphan-run recovery and forced-stop cancellation outcomes are reflected in task health views after daemon restart or shutdown scenarios.
 - Test coverage target: >=80%
 - All tests must pass
 

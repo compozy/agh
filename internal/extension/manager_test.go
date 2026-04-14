@@ -28,6 +28,16 @@ const (
 	extensionHelperMarkerKey   = "AGH_TEST_EXTENSION_MARKER"
 )
 
+type noopBridgeTelemetrySink struct{}
+
+var _ BridgeTelemetrySink = (*noopBridgeTelemetrySink)(nil)
+
+func (noopBridgeTelemetrySink) RecordBridgeAuthFailure(string) {}
+
+func (noopBridgeTelemetrySink) RecordBridgeRuntimeIssue(string, bridgepkg.BridgeStatus, string) {}
+
+func (noopBridgeTelemetrySink) ClearBridgeRuntimeIssue(string) {}
+
 func TestExtensionManagerHelperProcess(t *testing.T) {
 	if os.Getenv(extensionHelperEnvKey) != "1" {
 		return
@@ -260,8 +270,8 @@ func TestManagerStartBridgeAdapterRequiresScopedLaunchRuntime(t *testing.T) {
 	if err == nil {
 		t.Fatal("Start() error = nil, want missing bridge runtime resolver failure")
 	}
-	if !strings.Contains(err.Error(), "bridge runtime resolver is required") {
-		t.Fatalf("Start() error = %v, want bridge runtime resolver failure", err)
+	if !errors.Is(err, ErrBridgeRuntimeResolverRequired) {
+		t.Fatalf("Start() error = %v, want %v", err, ErrBridgeRuntimeResolverRequired)
 	}
 }
 
@@ -674,9 +684,11 @@ func TestManagerStopKillsHungSubprocessAfterTimeout(t *testing.T) {
 func TestNewManagerAppliesOptionsAndRestoresDefaults(t *testing.T) {
 	t.Parallel()
 
+	telemetrySink := &noopBridgeTelemetrySink{}
 	manager := NewManager(
 		nil,
 		WithCapabilityChecker(nil),
+		WithBridgeTelemetrySink(telemetrySink),
 		WithLogger(nil),
 		WithNow(nil),
 		WithGetenv(nil),
@@ -704,6 +716,9 @@ func TestNewManagerAppliesOptionsAndRestoresDefaults(t *testing.T) {
 	}
 	if manager.getenv == nil {
 		t.Fatal("getenv = nil, want default env resolver")
+	}
+	if manager.bridgeTelemetrySink != telemetrySink {
+		t.Fatalf("bridgeTelemetrySink = %#v, want injected sink %#v", manager.bridgeTelemetrySink, telemetrySink)
 	}
 	if manager.launch == nil {
 		t.Fatal("launch = nil, want default launcher")
@@ -735,6 +750,96 @@ func TestNewManagerAppliesOptionsAndRestoresDefaults(t *testing.T) {
 	if _, ok := manager.hostMethods["sessions/list"]; !ok {
 		t.Fatalf("hostMethods = %#v, want trimmed sessions/list key", manager.hostMethods)
 	}
+}
+
+func TestManagerReloadValidatesAndRestarts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject nil manager", func(t *testing.T) {
+		t.Parallel()
+
+		var nilManager *Manager
+		if err := nilManager.Reload(testutil.Context(t)); !errors.Is(err, ErrManagerRequired) {
+			t.Fatalf("nil manager Reload() error = %v, want %v", err, ErrManagerRequired)
+		}
+	})
+
+	t.Run("Should reject canceled context", func(t *testing.T) {
+		t.Parallel()
+
+		manager := NewManager(nil)
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		cancel()
+		if err := manager.Reload(ctx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Reload(canceled context) error = %v, want %v", err, context.Canceled)
+		}
+	})
+
+	t.Run("Should reject missing registry", func(t *testing.T) {
+		t.Parallel()
+
+		manager := NewManager(nil)
+		err := manager.Reload(testutil.Context(t))
+		if !errors.Is(err, ErrRegistryRequired) {
+			t.Fatalf("Reload() error = %v, want %v", err, ErrRegistryRequired)
+		}
+	})
+
+	t.Run("Should restart loaded extensions", func(t *testing.T) {
+		t.Parallel()
+
+		withDaemonVersion(t, "0.5.0")
+		env := newRegistryTestEnv(t)
+		fixture := createManagerTestExtension(t, managerTestManifest("ext-reload", managerManifestOptions{
+			command:      "fake-extension",
+			capabilities: []string{"memory.backend"},
+			actions:      []string{"sessions/list"},
+			security:     []string{"session.read"},
+		}), nil)
+		installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+		firstProc := newFakeProcess(101)
+		secondProc := newFakeProcess(202)
+		launcher := &fakeLauncher{queue: []*fakeProcess{firstProc, secondProc}}
+		startedManager := NewManager(
+			env.registry,
+			withProcessLauncher(launcher.launch),
+			withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
+		)
+		if err := startedManager.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := startedManager.Stop(testutil.Context(t)); err != nil {
+				t.Fatalf("Stop() cleanup error = %v", err)
+			}
+		})
+
+		if got, want := launcher.launchCount(), 1; got != want {
+			t.Fatalf("launch count after Start() = %d, want %d", got, want)
+		}
+
+		if err := startedManager.Reload(testutil.Context(t)); err != nil {
+			t.Fatalf("Reload(started manager) error = %v", err)
+		}
+
+		if got, want := launcher.launchCount(), 2; got != want {
+			t.Fatalf("launch count after Reload() = %d, want %d", got, want)
+		}
+		if got, want := firstProc.shutdownCnt, 1; got != want {
+			t.Fatalf("first process shutdown count = %d, want %d", got, want)
+		}
+		if got, want := len(secondProc.initRequests()), 1; got != want {
+			t.Fatalf("len(second process initialize requests) = %d, want %d", got, want)
+		}
+		statuses := startedManager.Statuses()
+		if got, want := len(statuses), 1; got != want {
+			t.Fatalf("len(Statuses()) = %d, want %d", got, want)
+		}
+		if got, want := statuses[0].PID, 202; got != want {
+			t.Fatalf("Statuses()[0].PID = %d, want %d after reload restart", got, want)
+		}
+	})
 }
 
 func TestManagerHelperPathsAndAccessors(t *testing.T) {
@@ -909,12 +1014,12 @@ func TestManagerResolveCommandKeepsPathLikeValuesInsideExtensionRoot(t *testing.
 		t.Fatalf("resolveCommand(bare) = %q, want %q", got, "node")
 	}
 
-	if _, err := manager.resolveCommand(root, "../outside/tool"); err == nil || !strings.Contains(err.Error(), "escapes extension root") {
-		t.Fatalf("resolveCommand(escape) error = %v, want extension-root escape failure", err)
+	if _, err := manager.resolveCommand(root, "../outside/tool"); !errors.Is(err, ErrPathEscapesExtensionRoot) {
+		t.Fatalf("resolveCommand(escape) error = %v, want %v", err, ErrPathEscapesExtensionRoot)
 	}
 
-	if _, err := resolveResourcePath(root, "../skills"); err == nil || !strings.Contains(err.Error(), "escapes extension root") {
-		t.Fatalf("resolveResourcePath(escape) error = %v, want extension-root escape failure", err)
+	if _, err := resolveResourcePath(root, "../skills"); !errors.Is(err, ErrPathEscapesExtensionRoot) {
+		t.Fatalf("resolveResourcePath(escape) error = %v, want %v", err, ErrPathEscapesExtensionRoot)
 	}
 
 	resourceRoot, err := resolveResourcePath(root, "skills")

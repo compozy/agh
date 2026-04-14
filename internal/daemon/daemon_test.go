@@ -39,6 +39,7 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/subprocess"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -456,6 +457,7 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 			events = append(events, "session:"+id)
 		},
 	}
+	d.tasks = &taskRuntime{}
 	d.network = &fakeNetworkRuntime{
 		onShutdown: func() {
 			events = append(events, "network")
@@ -488,6 +490,9 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 
 	if err := d.Shutdown(testutil.Context(t)); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if d.tasks != nil {
+		t.Fatalf("Shutdown() left task runtime = %#v, want nil", d.tasks)
 	}
 
 	want := []string{"extensions", "automation", "session:sess-a", "session:sess-b", "http", "uds", "network", "hooks", "db", "lock", "logger"}
@@ -680,6 +685,105 @@ func TestBootExtensionsLogsStartFailureAndKeepsPartialRuntime(t *testing.T) {
 	if !strings.Contains(logBuffer.String(), "extension manager start failed") {
 		t.Fatalf("log output = %q, want extension start failure message", logBuffer.String())
 	}
+}
+
+func TestBootExtensionsKeepsHealthyRegisteredExtensionsAfterPartialStartFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldKeepHealthyRegisteredExtensionsAfterPartialStartFailure", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		installDaemonTestExtension(t, db, "ext-healthy", daemonTestExtensionOptions{}, true)
+		installDaemonTestExtension(t, db, "ext-bad", daemonTestExtensionOptions{}, true)
+
+		var logBuffer bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
+		runtime := &fakeExtensionRuntime{
+			startErr: errors.New("boom"),
+			getFn: func(name string) (*extensionpkg.Extension, error) {
+				switch name {
+				case "ext-healthy":
+					return &extensionpkg.Extension{
+						Info: extensionpkg.ExtensionInfo{
+							Name:    "ext-healthy",
+							Enabled: true,
+						},
+						Status: extensionpkg.ExtensionStatus{
+							Name:       "ext-healthy",
+							Enabled:    true,
+							Registered: true,
+						},
+					}, nil
+				case "ext-bad":
+					return nil, extensionpkg.ErrExtensionNotFound
+				default:
+					return nil, extensionpkg.ErrExtensionNotFound
+				}
+			},
+		}
+		homePaths := testHomePaths(t)
+		d := newTestDaemon(t, homePaths, testConfig(t, homePaths))
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+			return runtime
+		}
+
+		rebuilds := 0
+		state := &bootState{
+			logger:   logger,
+			registry: db,
+			sessions: &fakeSessionManager{},
+			observer: &fakeObserver{},
+			bridges:  &bridgeRuntime{broker: bridgepkg.NewBroker(nil)},
+			hooks: &fakeHookRuntime{
+				onRebuild: func(context.Context) error {
+					rebuilds++
+					return nil
+				},
+			},
+		}
+		cleanup := &bootCleanup{}
+
+		if err := d.bootExtensions(testutil.Context(t), state, cleanup); err != nil {
+			t.Fatalf("bootExtensions() error = %v, want nil", err)
+		}
+
+		if runtime.startCount != 1 {
+			t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
+		}
+		if rebuilds != 1 {
+			t.Fatalf("hook rebuild count = %d, want 1 after partial start", rebuilds)
+		}
+		if len(cleanup.fns) != 1 {
+			t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
+		}
+		if state.currentExtensionRuntime() != runtime {
+			t.Fatalf("state.extensions = %#v, want runtime", state.currentExtensionRuntime())
+		}
+		if state.deps.Extensions == nil {
+			t.Fatal("state.deps.Extensions = nil, want extension service")
+		}
+		if state.bridges.extensions != runtime {
+			t.Fatalf("state.bridges.extensions = %#v, want runtime", state.bridges.extensions)
+		}
+		healthy, err := state.deps.Extensions.Status(testutil.Context(t), "ext-healthy")
+		if err != nil {
+			t.Fatalf("Extensions.Status(ext-healthy) error = %v", err)
+		}
+		if got, want := healthy.State, "registered"; got != want {
+			t.Fatalf("ext-healthy state = %q, want %q", got, want)
+		}
+		bad, err := state.deps.Extensions.Status(testutil.Context(t), "ext-bad")
+		if err != nil {
+			t.Fatalf("Extensions.Status(ext-bad) error = %v", err)
+		}
+		if got, want := bad.State, "enabled"; got != want {
+			t.Fatalf("ext-bad state = %q, want %q", got, want)
+		}
+		if !strings.Contains(logBuffer.String(), "healthy extensions only") {
+			t.Fatalf("log output = %q, want partial start continuation message", logBuffer.String())
+		}
+	})
 }
 
 func TestBootExtensionsPropagatesContextCancellation(t *testing.T) {
@@ -1436,6 +1540,39 @@ func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 	}
 	if got := len(manager.stopCalls); got != 0 {
 		t.Fatalf("Stop() calls = %d, want 0 when StopWithCause is available", got)
+	}
+}
+
+func TestStopSessionsWaitsForInFlightFinalizations(t *testing.T) {
+	d, err := New(WithLogger(discardLogger()))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	release := make(chan struct{})
+	manager := &fakeSessionManager{
+		infos:                    []*session.SessionInfo{{ID: "sess-a"}},
+		waitFinalizationsRelease: release,
+	}
+
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- d.stopSessions(testutil.Context(t), manager)
+	}()
+
+	select {
+	case err := <-stopDone:
+		t.Fatalf("stopSessions() returned before finalizations completed: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+
+	if err := <-stopDone; err != nil {
+		t.Fatalf("stopSessions() error = %v", err)
+	}
+	if got := manager.waitFinalizationsCalls; got != 1 {
+		t.Fatalf("WaitForFinalizations() calls = %d, want 1", got)
 	}
 }
 
@@ -2645,16 +2782,20 @@ type fakeSessionManager struct {
 	onStop           func(string)
 	stopErr          func(string) error
 	stopWithCauseErr func(string, session.StopCause, string) error
+	requestStopErr   func(string, session.StopCause, string) error
 	createCalls      []session.CreateOpts
 	promptCalls      []struct {
 		id  string
 		msg string
 	}
-	promptStarted      chan struct{}
-	promptRelease      <-chan struct{}
-	promptCtxCancelled chan struct{}
-	stopCalls          []string
-	stopWithCauseCalls []fakeStopWithCauseCall
+	promptStarted            chan struct{}
+	promptRelease            <-chan struct{}
+	promptCtxCancelled       chan struct{}
+	stopCalls                []string
+	stopWithCauseCalls       []fakeStopWithCauseCall
+	requestStopCalls         []fakeStopWithCauseCall
+	waitFinalizationsRelease <-chan struct{}
+	waitFinalizationsCalls   int
 }
 
 type fakeStopWithCauseCall struct {
@@ -2749,6 +2890,38 @@ func (f *fakeSessionManager) StopWithCause(_ context.Context, id string, cause s
 		return f.stopErr(id)
 	}
 	return nil
+}
+
+func (f *fakeSessionManager) RequestStopWithCause(_ context.Context, id string, cause session.StopCause, detail string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.requestStopCalls = append(f.requestStopCalls, fakeStopWithCauseCall{
+		id:     id,
+		cause:  cause,
+		detail: detail,
+	})
+	if f.requestStopErr != nil {
+		return f.requestStopErr(id, cause, detail)
+	}
+	return nil
+}
+
+func (f *fakeSessionManager) WaitForFinalizations(ctx context.Context) error {
+	f.mu.Lock()
+	f.waitFinalizationsCalls++
+	release := f.waitFinalizationsRelease
+	f.mu.Unlock()
+
+	if release == nil {
+		return nil
+	}
+
+	select {
+	case <-release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (f *fakeSessionManager) Resume(context.Context, string) (*session.Session, error) {
@@ -3124,6 +3297,88 @@ func (r *recordingRegistry) ListNetworkMessages(context.Context, store.NetworkMe
 	return nil, nil
 }
 
+func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
+	return nil
+}
+
+func (r *recordingRegistry) UpdateTask(context.Context, taskpkg.Task) error {
+	return nil
+}
+
+func (r *recordingRegistry) GetTask(context.Context, string) (taskpkg.Task, error) {
+	return taskpkg.Task{}, taskpkg.ErrTaskNotFound
+}
+func (r *recordingRegistry) ListTasks(context.Context, taskpkg.TaskQuery) ([]taskpkg.TaskSummary, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) CountDirectChildren(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (r *recordingRegistry) CreateDependency(context.Context, taskpkg.TaskDependency) error {
+	return nil
+}
+
+func (r *recordingRegistry) DeleteDependency(context.Context, string, string) error {
+	return nil
+}
+
+func (r *recordingRegistry) ListDependencies(context.Context, string) ([]taskpkg.TaskDependency, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) ListDependents(context.Context, string) ([]taskpkg.TaskDependency, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) CountDependencies(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (r *recordingRegistry) HasDependencyPath(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
+func (r *recordingRegistry) CreateTaskRun(context.Context, taskpkg.TaskRun) error {
+	return nil
+}
+
+func (r *recordingRegistry) UpdateTaskRun(context.Context, taskpkg.TaskRun) error {
+	return nil
+}
+
+func (r *recordingRegistry) GetTaskRun(context.Context, string) (taskpkg.TaskRun, error) {
+	return taskpkg.TaskRun{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) ListTaskRuns(context.Context, taskpkg.TaskRunQuery) ([]taskpkg.TaskRun, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) ListTaskRunsByStatus(context.Context, []taskpkg.TaskRunStatus) ([]taskpkg.TaskRun, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) CountActiveSessionBindings(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (r *recordingRegistry) CreateTaskEvent(context.Context, taskpkg.TaskEvent) error {
+	return nil
+}
+
+func (r *recordingRegistry) ListTaskEvents(context.Context, taskpkg.TaskEventQuery) ([]taskpkg.TaskEvent, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) GetTaskRunByIdempotencyKey(context.Context, string, taskpkg.Origin) (taskpkg.TaskRun, error) {
+	return taskpkg.TaskRun{}, taskpkg.ErrTaskRunIdempotencyNotFound
+}
+
+func (r *recordingRegistry) SaveTaskRunIdempotency(context.Context, taskpkg.TaskRunIdempotency) error {
+	return nil
+}
 func (r *recordingRegistry) Close(context.Context) error {
 	if r.onClose != nil {
 		r.onClose()
@@ -3670,6 +3925,7 @@ type fakeExtensionRuntime struct {
 	hookErr     error
 	getExt      *extensionpkg.Extension
 	getErr      error
+	getFn       func(string) (*extensionpkg.Extension, error)
 	onStart     func()
 	onStop      func()
 }
@@ -3695,11 +3951,17 @@ func (f *fakeExtensionRuntime) Reload(context.Context) error {
 	return f.reloadErr
 }
 
-func (f *fakeExtensionRuntime) Get(string) (*extensionpkg.Extension, error) {
+func (f *fakeExtensionRuntime) Get(name string) (*extensionpkg.Extension, error) {
+	if f.getFn != nil {
+		return f.getFn(name)
+	}
 	if f.getErr != nil {
 		return nil, f.getErr
 	}
-	return f.getExt, nil
+	if f.getExt != nil {
+		return f.getExt, nil
+	}
+	return nil, extensionpkg.ErrExtensionNotFound
 }
 
 func (f *fakeExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
@@ -3725,17 +3987,17 @@ func (f *fakeExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.Hoo
 }
 
 type daemonTestExtensionOptions struct {
-	runtimeCommand string
-	runtimeArgs    []string
-	runtimeEnv     map[string]string
-	hookCommand    string
-	hookArgs       []string
-	hookEvent      hookspkg.HookEvent
-	capabilities   []string
-	actions        []string
-	security       []string
-	bridgePlatform string
-	bridgeName     string
+	runtimeCommand    string
+	runtimeArgs       []string
+	runtimeEnv        map[string]string
+	hookCommand       string
+	hookArgs          []string
+	hookEvent         hookspkg.HookEvent
+	capabilities      []string
+	actions           []string
+	security          []string
+	bridgePlatform    string
+	bridgeDisplayName string
 }
 
 func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
@@ -3809,13 +4071,13 @@ func daemonTestExtensionManifest(name string, opts daemonTestExtensionOptions) s
 		security = []string{"session.read"}
 	}
 	bridgePlatform := strings.TrimSpace(opts.bridgePlatform)
-	bridgeName := strings.TrimSpace(opts.bridgeName)
+	bridgeDisplayName := strings.TrimSpace(opts.bridgeDisplayName)
 	if slices.Contains(capabilities, extensionprotocol.CapabilityProvideBridgeAdapter) {
 		if bridgePlatform == "" {
 			bridgePlatform = "telegram"
 		}
-		if bridgeName == "" {
-			bridgeName = "Telegram"
+		if bridgeDisplayName == "" {
+			bridgeDisplayName = "Telegram"
 		}
 	}
 
@@ -3853,13 +4115,6 @@ executor.command = %q
 provides = ` + daemonTOMLStringArray(capabilities) + `
 
 `)
-	if bridgePlatform != "" || bridgeName != "" {
-		fmt.Fprintf(&builder, `[bridge]
-platform = %q
-display_name = %q
-
-`, bridgePlatform, bridgeName)
-	}
 	builder.WriteString(`
 [actions]
 requires = ` + daemonTOMLStringArray(actions) + `
@@ -3886,6 +4141,13 @@ command = ` + fmt.Sprintf("%q", command) + `
 [security]
 capabilities = ` + daemonTOMLStringArray(security) + `
 `)
+	if bridgePlatform != "" || bridgeDisplayName != "" {
+		fmt.Fprintf(&builder, `
+[bridge]
+platform = %q
+display_name = %q
+`, bridgePlatform, bridgeDisplayName)
+	}
 
 	return builder.String()
 }
@@ -3939,14 +4201,14 @@ func TestDaemonTestExtensionManifest(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldInjectBridgeMetadataWhenBridgeCapabilityIsRequested", func(t *testing.T) {
+	t.Run("ShouldEmitBridgeMetadataForBridgeAdapters", func(t *testing.T) {
 		t.Parallel()
 
 		manifest := daemonTestExtensionManifest("bridge-ext", daemonTestExtensionOptions{
 			capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		})
-
 		for _, expected := range []string{
+			`provides = ["bridge.adapter"]`,
 			`[bridge]`,
 			`platform = "telegram"`,
 			`display_name = "Telegram"`,

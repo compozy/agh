@@ -56,6 +56,7 @@ type managerOptions struct {
 	logger  *slog.Logger
 	now     func() time.Time
 	auditor AuditWriter
+	tasks   TaskService
 }
 
 type managedSession struct {
@@ -85,6 +86,7 @@ type Manager struct {
 	peers      *PeerRegistry
 	router     *Router
 	auditor    AuditWriter
+	tasks      TaskService
 	deliveries *deliveryCoordinator
 	stats      *runtimeStats
 
@@ -171,6 +173,7 @@ func NewManager(
 		channels:     make(map[string]*managedChannel),
 		connected:    true,
 		stats:        newRuntimeStats(),
+		tasks:        options.tasks,
 	}
 
 	transport, err := NewTransport(

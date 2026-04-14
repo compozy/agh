@@ -49,8 +49,45 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 	}
 }
 
+// RequestStopWithCause marks a session as stopping and sends the cooperative ACP
+// cancel signal without forcing process termination.
+func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
+	if m == nil {
+		return errors.New("session: manager is required")
+	}
+	if ctx == nil {
+		return errors.New("session: request stop context is required")
+	}
+	if cause == CauseNone {
+		cause = CauseUserRequested
+	}
+
+	session, proc, alreadyStopped, err := m.prepareStopWithCause(ctx, id, cause, detail)
+	if err != nil {
+		return err
+	}
+	if alreadyStopped {
+		return nil
+	}
+	if proc == nil {
+		return m.finalizeStopped(ctx, session, nil)
+	}
+
+	cancelErr := m.driver.Cancel(ctx, proc)
+	if cancelErr != nil && !isProcessDone(proc) {
+		return fmt.Errorf("session: request cooperative stop for %q: %w", id, cancelErr)
+	}
+	if isProcessDone(proc) {
+		return errors.Join(cancelErr, m.finalizeStopped(ctx, session, nil))
+	}
+	return cancelErr
+}
+
 // StopWithCause stops a session while preserving the explicit stop initiator.
 func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
+	if m == nil {
+		return errors.New("session: manager is required")
+	}
 	if ctx == nil {
 		return errors.New("session: stop context is required")
 	}
@@ -58,33 +95,13 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 		cause = CauseUserRequested
 	}
 
-	session, err := m.lookup(id)
+	session, proc, alreadyStopped, err := m.prepareStopWithCause(ctx, id, cause, detail)
 	if err != nil {
 		return err
 	}
-	if err := m.dispatchSessionPreStop(ctx, session); err != nil {
-		return err
-	}
-
-	writeMeta, promptSetupDone, err := session.prepareStop(m.now(), cause, detail)
-	if err != nil {
-		return err
-	}
-	if writeMeta {
-		if err := m.writeMeta(session); err != nil {
-			return err
-		}
-	}
-	if err := waitForPromptSetup(ctx, session, promptSetupDone); err != nil {
-		return err
-	}
-
-	state := session.Info().State
-	if state == StateStopped {
+	if alreadyStopped {
 		return nil
 	}
-
-	proc := session.processHandle()
 	if proc == nil {
 		return m.finalizeStopped(ctx, session, nil)
 	}
@@ -102,4 +119,34 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 	}
 
 	return errors.Join(stopErr, m.finalizeStopped(ctx, session, nil))
+}
+
+func (m *Manager) prepareStopWithCause(ctx context.Context, id string, cause StopCause, detail string) (*Session, *AgentProcess, bool, error) {
+	session, err := m.lookup(id)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if session.Info().State == StateActive {
+		if err := m.dispatchSessionPreStop(ctx, session); err != nil {
+			return nil, nil, false, err
+		}
+	}
+
+	writeMeta, promptSetupDone, err := session.prepareStop(m.now(), cause, detail)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if writeMeta {
+		if err := m.writeMeta(session); err != nil {
+			return nil, nil, false, err
+		}
+	}
+	if err := waitForPromptSetup(ctx, session, promptSetupDone); err != nil {
+		return nil, nil, false, err
+	}
+
+	if session.Info().State == StateStopped {
+		return session, nil, true, nil
+	}
+	return session, session.processHandle(), false, nil
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
@@ -101,6 +102,274 @@ func TestDispatchGlobalAutomationUsesGlobalWorkspacePath(t *testing.T) {
 	}
 	if got, want := run.JobID, job.ID; got != want {
 		t.Fatalf("run.JobID = %q, want %q", got, want)
+	}
+}
+
+func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	tasks := newRecordingTaskService()
+	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherTasks(tasks))
+
+	job := testJob(AutomationScopeWorkspace, "job-task-backed", "ws_alpha")
+	job.Task = &JobTaskConfig{
+		Title:          "Review automation findings",
+		Description:    "Create a durable review task.",
+		NetworkChannel: "ops-automation",
+		Owner: &taskpkg.Ownership{
+			Kind: taskpkg.OwnerKindAutomation,
+			Ref:  "job-task-backed",
+		},
+	}
+
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind: DispatchKindSchedule,
+		Job:  &job,
+	})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+
+	if got := len(creator.createCalls()); got != 0 {
+		t.Fatalf("len(Create calls) = %d, want 0", got)
+	}
+	if got := len(creator.promptCalls()); got != 0 {
+		t.Fatalf("len(Prompt calls) = %d, want 0", got)
+	}
+	if got := len(creator.stopCalls()); got != 0 {
+		t.Fatalf("len(StopWithCause calls) = %d, want 0", got)
+	}
+	if got, want := run.Status, RunDelegated; got != want {
+		t.Fatalf("run.Status = %q, want %q", got, want)
+	}
+	if got := run.SessionID; got != "" {
+		t.Fatalf("run.SessionID = %q, want empty", got)
+	}
+	if got, want := run.TaskID, "task-1"; got != want {
+		t.Fatalf("run.TaskID = %q, want %q", got, want)
+	}
+	if got, want := run.TaskRunID, "task-run-1"; got != want {
+		t.Fatalf("run.TaskRunID = %q, want %q", got, want)
+	}
+
+	if got, want := len(tasks.createCalls), 1; got != want {
+		t.Fatalf("len(CreateTask calls) = %d, want %d", got, want)
+	}
+	createCall := tasks.createCalls[0]
+	if got, want := createCall.actor.Actor.Kind, taskpkg.ActorKindAutomation; got != want {
+		t.Fatalf("CreateTask().actor.kind = %q, want %q", got, want)
+	}
+	if got, want := createCall.actor.Actor.Ref, job.ID; got != want {
+		t.Fatalf("CreateTask().actor.ref = %q, want %q", got, want)
+	}
+	if got, want := createCall.actor.Origin.Kind, taskpkg.OriginKindAutomation; got != want {
+		t.Fatalf("CreateTask().origin.kind = %q, want %q", got, want)
+	}
+	if got, want := createCall.actor.Origin.Ref, "run:"+run.ID; got != want {
+		t.Fatalf("CreateTask().origin.ref = %q, want %q", got, want)
+	}
+	if got, want := createCall.spec.Scope, taskpkg.ScopeWorkspace; got != want {
+		t.Fatalf("CreateTask().scope = %q, want %q", got, want)
+	}
+	if got, want := createCall.spec.WorkspaceID, "ws_alpha"; got != want {
+		t.Fatalf("CreateTask().workspace_id = %q, want %q", got, want)
+	}
+	if got, want := createCall.spec.NetworkChannel, "ops-automation"; got != want {
+		t.Fatalf("CreateTask().network_channel = %q, want %q", got, want)
+	}
+
+	if got, want := len(tasks.enqueueCalls), 1; got != want {
+		t.Fatalf("len(EnqueueRun calls) = %d, want %d", got, want)
+	}
+	enqueueCall := tasks.enqueueCalls[0]
+	if got, want := enqueueCall.spec.TaskID, "task-1"; got != want {
+		t.Fatalf("EnqueueRun().task_id = %q, want %q", got, want)
+	}
+	if got, want := enqueueCall.spec.IdempotencyKey, "automation-run:"+run.ID; got != want {
+		t.Fatalf("EnqueueRun().idempotency_key = %q, want %q", got, want)
+	}
+	if got, want := enqueueCall.spec.NetworkChannel, "ops-automation"; got != want {
+		t.Fatalf("EnqueueRun().network_channel = %q, want %q", got, want)
+	}
+}
+
+func TestDispatchNonTaskJobStillUsesSessionRuntimeAndRecordsAutomationSessionActor(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator(sessionAttemptPlan{sessionID: "sess-automation-1"})
+	recorder := &recordingTaskActorRecorder{}
+	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherTaskActorRecorder(recorder))
+
+	job := testJob(AutomationScopeGlobal, "job-runtime", "")
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind: DispatchKindManual,
+		Job:  &job,
+	})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+
+	if got, want := len(creator.createCalls()), 1; got != want {
+		t.Fatalf("len(Create calls) = %d, want %d", got, want)
+	}
+	if got, want := len(creator.promptCalls()), 1; got != want {
+		t.Fatalf("len(Prompt calls) = %d, want %d", got, want)
+	}
+	if got, want := len(recorder.recorded), 1; got != want {
+		t.Fatalf("len(recorded actors) = %d, want %d", got, want)
+	}
+	recordedActor, ok := recorder.recorded["sess-automation-1"]
+	if !ok {
+		t.Fatalf("recorded actors = %#v, want session key", recorder.recorded)
+	}
+	if got, want := recordedActor.Actor.Kind, taskpkg.ActorKindAgentSession; got != want {
+		t.Fatalf("recorded actor.kind = %q, want %q", got, want)
+	}
+	if got, want := recordedActor.Actor.Ref, "sess-automation-1"; got != want {
+		t.Fatalf("recorded actor.ref = %q, want %q", got, want)
+	}
+	if got, want := recordedActor.Origin.Kind, taskpkg.OriginKindAutomation; got != want {
+		t.Fatalf("recorded origin.kind = %q, want %q", got, want)
+	}
+	if got, want := recordedActor.Origin.Ref, "run:"+run.ID; got != want {
+		t.Fatalf("recorded origin.ref = %q, want %q", got, want)
+	}
+	if got, want := len(recorder.deleted), 1; got != want {
+		t.Fatalf("len(deleted actors) = %d, want %d", got, want)
+	}
+	if got, want := recorder.deleted[0], "sess-automation-1"; got != want {
+		t.Fatalf("deleted session id = %q, want %q", got, want)
+	}
+	if got, want := run.Status, RunCompleted; got != want {
+		t.Fatalf("run.Status = %q, want %q", got, want)
+	}
+}
+
+func TestDispatchTaskBackedJobFailsWhenTaskServiceIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	dispatcher := newTestDispatcher(t, creator, store)
+
+	job := testJob(AutomationScopeGlobal, "job-task-missing-service", "")
+	job.Task = &JobTaskConfig{Title: "Create durable task"}
+
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind: DispatchKindManual,
+		Job:  &job,
+	})
+	if err == nil || !strings.Contains(err.Error(), "task-backed job requires task service") {
+		t.Fatalf("Dispatch() error = %v, want missing task service failure", err)
+	}
+	if got, want := run.Status, RunFailed; got != want {
+		t.Fatalf("run.Status = %q, want %q", got, want)
+	}
+	if got := len(creator.createCalls()); got != 0 {
+		t.Fatalf("len(Create calls) = %d, want 0", got)
+	}
+}
+
+func TestDispatchTaskBackedJobMarksRunCancelledForTaskServiceCancellation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		createErr  error
+		enqueueErr error
+	}{
+		{name: "ShouldClassifyCreateTaskCancellation", createErr: context.Canceled},
+		{name: "ShouldClassifyEnqueueRunDeadlineExceeded", enqueueErr: context.DeadlineExceeded},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newMemoryRunStore()
+			creator := newRecordingSessionCreator()
+			tasks := &recordingTaskService{
+				createErr:  tt.createErr,
+				enqueueErr: tt.enqueueErr,
+			}
+			dispatcher := newTestDispatcher(t, creator, store, WithDispatcherTasks(tasks))
+
+			job := testJob(AutomationScopeGlobal, "job-task-cancelled", "")
+			job.Task = &JobTaskConfig{Title: "Create durable task"}
+
+			run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+				Kind: DispatchKindManual,
+				Job:  &job,
+			})
+			if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("Dispatch() error = %v, want cancellation-classified error", err)
+			}
+			if got, want := run.Status, RunCancelled; got != want {
+				t.Fatalf("run.Status = %q, want %q", got, want)
+			}
+			if got := len(creator.createCalls()); got != 0 {
+				t.Fatalf("len(Create calls) = %d, want 0", got)
+			}
+		})
+	}
+}
+
+func TestDirectTaskSpecFallsBackToJobNameAndPrompt(t *testing.T) {
+	t.Parallel()
+
+	job := testJob(AutomationScopeGlobal, "job-fallbacks", "")
+	job.Prompt = "  Review the latest automation output.  "
+	job.Task = &JobTaskConfig{}
+
+	spec := directTaskSpec(&job, job.Prompt)
+	if got, want := spec.Scope, taskpkg.ScopeGlobal; got != want {
+		t.Fatalf("spec.Scope = %q, want %q", got, want)
+	}
+	if got, want := spec.Title, "job-fallbacks"; got != want {
+		t.Fatalf("spec.Title = %q, want %q", got, want)
+	}
+	if got, want := spec.Description, "Review the latest automation output."; got != want {
+		t.Fatalf("spec.Description = %q, want %q", got, want)
+	}
+}
+
+func TestDispatchTaskBackedJobUsesRewrittenPreFirePromptForTaskDescription(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	tasks := newRecordingTaskService()
+	hooks := &recordingAutomationHooks{
+		onJobPreFire: func(_ context.Context, payload hookspkg.AutomationJobPreFirePayload) (hookspkg.AutomationJobPreFirePayload, error) {
+			payload.Prompt = "Hook-rewritten durable task prompt."
+			return payload, nil
+		},
+	}
+	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherTasks(tasks), WithDispatcherHooks(hooks))
+
+	job := testJob(AutomationScopeGlobal, "job-hook-task", "")
+	job.Prompt = "Original automation prompt."
+	job.Task = &JobTaskConfig{Title: "Create durable task"}
+
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind: DispatchKindManual,
+		Job:  &job,
+	})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+	if got, want := run.Status, RunDelegated; got != want {
+		t.Fatalf("run.Status = %q, want %q", got, want)
+	}
+	if got, want := len(tasks.createCalls), 1; got != want {
+		t.Fatalf("len(CreateTask calls) = %d, want %d", got, want)
+	}
+	if got, want := tasks.createCalls[0].spec.Description, "Hook-rewritten durable task prompt."; got != want {
+		t.Fatalf("CreateTask().description = %q, want %q", got, want)
 	}
 }
 
@@ -784,6 +1053,72 @@ type stopCall struct {
 	sessionID string
 	cause     session.StopCause
 	detail    string
+}
+
+type taskCreateCall struct {
+	spec  taskpkg.CreateTask
+	actor taskpkg.ActorContext
+}
+
+type taskEnqueueCall struct {
+	spec  taskpkg.EnqueueRun
+	actor taskpkg.ActorContext
+}
+
+type recordingTaskService struct {
+	createCalls  []taskCreateCall
+	enqueueCalls []taskEnqueueCall
+	createErr    error
+	enqueueErr   error
+}
+
+func newRecordingTaskService() *recordingTaskService {
+	return &recordingTaskService{}
+}
+
+func (s *recordingTaskService) CreateTask(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+	s.createCalls = append(s.createCalls, taskCreateCall{spec: spec, actor: actor})
+	if s.createErr != nil {
+		return nil, s.createErr
+	}
+	return &taskpkg.Task{
+		ID:             "task-1",
+		Scope:          spec.Scope,
+		WorkspaceID:    spec.WorkspaceID,
+		NetworkChannel: spec.NetworkChannel,
+		Owner:          cloneTaskOwnership(spec.Owner),
+	}, nil
+}
+
+func (s *recordingTaskService) EnqueueRun(_ context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error) {
+	s.enqueueCalls = append(s.enqueueCalls, taskEnqueueCall{spec: spec, actor: actor})
+	if s.enqueueErr != nil {
+		return nil, s.enqueueErr
+	}
+	return &taskpkg.TaskRun{
+		ID:             "task-run-1",
+		TaskID:         spec.TaskID,
+		Origin:         actor.Origin,
+		IdempotencyKey: spec.IdempotencyKey,
+		NetworkChannel: spec.NetworkChannel,
+	}, nil
+}
+
+type recordingTaskActorRecorder struct {
+	recorded map[string]taskpkg.ActorContext
+	deleted  []string
+}
+
+func (r *recordingTaskActorRecorder) RecordAutomationSessionTaskActor(sessionID string, actor taskpkg.ActorContext) error {
+	if r.recorded == nil {
+		r.recorded = make(map[string]taskpkg.ActorContext)
+	}
+	r.recorded[sessionID] = actor
+	return nil
+}
+
+func (r *recordingTaskActorRecorder) DeleteAutomationSessionTaskActor(sessionID string) {
+	r.deleted = append(r.deleted, sessionID)
 }
 
 type recordingSessionCreator struct {

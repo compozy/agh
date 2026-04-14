@@ -1,0 +1,718 @@
+package globaldb
+
+import (
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"path/filepath"
+	"sort"
+	"testing"
+	"time"
+
+	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/pedronauck/agh/internal/testutil"
+	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+)
+
+func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+
+	assertTablesPresent(t, globalDB.db, "tasks", "task_runs", "task_dependencies", "task_events", "task_run_idempotency")
+	assertTableColumns(t, globalDB.db, "tasks", []string{
+		"id",
+		"identifier",
+		"scope",
+		"workspace_id",
+		"parent_task_id",
+		"network_channel",
+		"title",
+		"description",
+		"status",
+		"owner_kind",
+		"owner_ref",
+		"created_by_kind",
+		"created_by_ref",
+		"origin_kind",
+		"origin_ref",
+		"created_at",
+		"updated_at",
+		"closed_at",
+		"metadata_json",
+	})
+	assertTableColumns(t, globalDB.db, "task_runs", []string{
+		"id",
+		"task_id",
+		"status",
+		"attempt",
+		"claimed_by_kind",
+		"claimed_by_ref",
+		"session_id",
+		"origin_kind",
+		"origin_ref",
+		"idempotency_key",
+		"network_channel",
+		"queued_at",
+		"claimed_at",
+		"started_at",
+		"ended_at",
+		"error",
+		"result_json",
+	})
+	assertTableColumns(t, globalDB.db, "task_dependencies", []string{
+		"task_id",
+		"depends_on_task_id",
+		"kind",
+		"created_at",
+	})
+	assertTableColumns(t, globalDB.db, "task_events", []string{
+		"id",
+		"task_id",
+		"run_id",
+		"event_type",
+		"actor_kind",
+		"actor_ref",
+		"origin_kind",
+		"origin_ref",
+		"payload_json",
+		"timestamp",
+	})
+	assertTableColumns(t, globalDB.db, "task_run_idempotency", []string{
+		"idempotency_key",
+		"origin_kind",
+		"origin_ref",
+		"run_id",
+		"created_at",
+	})
+	assertIndexesPresent(t, globalDB.db, "tasks",
+		"idx_tasks_scope",
+		"idx_tasks_workspace",
+		"idx_tasks_status",
+		"idx_tasks_parent",
+		"idx_tasks_owner",
+		"idx_tasks_channel",
+	)
+	assertIndexesPresent(t, globalDB.db, "task_runs",
+		"idx_task_runs_task",
+		"idx_task_runs_task_status",
+		"idx_task_runs_status",
+		"idx_task_runs_session",
+		"idx_task_runs_channel",
+	)
+	assertIndexesPresent(t, globalDB.db, "task_dependencies",
+		"idx_task_dependencies_task",
+		"idx_task_dependencies_depends_on",
+	)
+	assertIndexesPresent(t, globalDB.db, "task_events",
+		"idx_task_events_task",
+		"idx_task_events_run",
+		"idx_task_events_type",
+	)
+	assertIndexesPresent(t, globalDB.db, "task_run_idempotency",
+		"idx_task_run_idempotency_run",
+	)
+}
+
+func TestGlobalDBTaskRoundTripPreservesNullableFields(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "task-roundtrip-workspace", filepath.Join(t.TempDir(), "workspace"))
+
+	parent := taskRecordForTest("task-parent")
+	parent.Metadata = json.RawMessage(`{"kind":"global"}`)
+	if err := globalDB.CreateTask(testutil.Context(t), parent); err != nil {
+		t.Fatalf("CreateTask(parent) error = %v", err)
+	}
+
+	child := taskRecordForTest("task-child")
+	child.Scope = taskpkg.ScopeWorkspace
+	child.WorkspaceID = workspaceID
+	child.ParentTaskID = parent.ID
+	child.NetworkChannel = "finance"
+	child.Owner = ownershipForTest(taskpkg.OwnerKindHuman, "alice")
+	child.Metadata = json.RawMessage(`{"kind":"workspace"}`)
+	if err := globalDB.CreateTask(testutil.Context(t), child); err != nil {
+		t.Fatalf("CreateTask(child) error = %v", err)
+	}
+
+	gotParent, err := globalDB.GetTask(testutil.Context(t), parent.ID)
+	if err != nil {
+		t.Fatalf("GetTask(parent) error = %v", err)
+	}
+	assertTaskEqual(t, gotParent, parent)
+	if gotParent.WorkspaceID != "" {
+		t.Fatalf("GetTask(parent).WorkspaceID = %q, want empty", gotParent.WorkspaceID)
+	}
+	if gotParent.ParentTaskID != "" {
+		t.Fatalf("GetTask(parent).ParentTaskID = %q, want empty", gotParent.ParentTaskID)
+	}
+	if gotParent.Owner != nil {
+		t.Fatalf("GetTask(parent).Owner = %#v, want nil", gotParent.Owner)
+	}
+	if gotParent.NetworkChannel != "" {
+		t.Fatalf("GetTask(parent).NetworkChannel = %q, want empty", gotParent.NetworkChannel)
+	}
+
+	gotChild, err := globalDB.GetTask(testutil.Context(t), child.ID)
+	if err != nil {
+		t.Fatalf("GetTask(child) error = %v", err)
+	}
+	assertTaskEqual(t, gotChild, child)
+
+	summaries, err := globalDB.ListTasks(testutil.Context(t), taskpkg.TaskQuery{ParentTaskID: parent.ID})
+	if err != nil {
+		t.Fatalf("ListTasks(parent filter) error = %v", err)
+	}
+	if got, want := len(summaries), 1; got != want {
+		t.Fatalf("len(ListTasks(parent filter)) = %d, want %d", got, want)
+	}
+	assertTaskSummaryMatchesTask(t, summaries[0], child)
+
+	children, err := globalDB.CountDirectChildren(testutil.Context(t), parent.ID)
+	if err != nil {
+		t.Fatalf("CountDirectChildren() error = %v", err)
+	}
+	if got, want := children, 1; got != want {
+		t.Fatalf("CountDirectChildren() = %d, want %d", got, want)
+	}
+}
+
+func TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "invalid-scope-workspace", filepath.Join(t.TempDir(), "workspace"))
+
+	t.Run("create rejects global task with workspace", func(t *testing.T) {
+		t.Parallel()
+
+		record := taskRecordForTest("task-invalid-create-global")
+		record.WorkspaceID = workspaceID
+
+		err := globalDB.CreateTask(testutil.Context(t), record)
+		if !errors.Is(err, taskpkg.ErrInvalidScopeBinding) {
+			t.Fatalf("CreateTask(global with workspace) error = %v, want ErrInvalidScopeBinding", err)
+		}
+	})
+
+	t.Run("create rejects workspace task without workspace", func(t *testing.T) {
+		t.Parallel()
+
+		record := taskRecordForTest("task-invalid-create-workspace")
+		record.Scope = taskpkg.ScopeWorkspace
+
+		err := globalDB.CreateTask(testutil.Context(t), record)
+		if !errors.Is(err, taskpkg.ErrInvalidScopeBinding) {
+			t.Fatalf("CreateTask(workspace without workspace_id) error = %v, want ErrInvalidScopeBinding", err)
+		}
+	})
+
+	t.Run("update rejects global task with workspace", func(t *testing.T) {
+		t.Parallel()
+
+		record := taskRecordForTest("task-invalid-update-global")
+		if err := globalDB.CreateTask(testutil.Context(t), record); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		record.WorkspaceID = workspaceID
+		record.UpdatedAt = record.UpdatedAt.Add(time.Minute)
+		err := globalDB.UpdateTask(testutil.Context(t), record)
+		if !errors.Is(err, taskpkg.ErrInvalidScopeBinding) {
+			t.Fatalf("UpdateTask(global with workspace) error = %v, want ErrInvalidScopeBinding", err)
+		}
+	})
+
+	t.Run("update rejects workspace task without workspace", func(t *testing.T) {
+		t.Parallel()
+
+		record := taskRecordForTest("task-invalid-update-workspace")
+		record.Scope = taskpkg.ScopeWorkspace
+		record.WorkspaceID = workspaceID
+		if err := globalDB.CreateTask(testutil.Context(t), record); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		record.WorkspaceID = ""
+		record.UpdatedAt = record.UpdatedAt.Add(time.Minute)
+		err := globalDB.UpdateTask(testutil.Context(t), record)
+		if !errors.Is(err, taskpkg.ErrInvalidScopeBinding) {
+			t.Fatalf("UpdateTask(workspace without workspace_id) error = %v, want ErrInvalidScopeBinding", err)
+		}
+	})
+}
+
+func TestGlobalDBListTasksFilters(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceA := registerWorkspaceForGlobalTests(t, globalDB, "task-filter-a", filepath.Join(t.TempDir(), "workspace-a"))
+	workspaceB := registerWorkspaceForGlobalTests(t, globalDB, "task-filter-b", filepath.Join(t.TempDir(), "workspace-b"))
+
+	globalTask := taskRecordForTest("task-filter-global")
+	globalTask.Status = taskpkg.TaskStatusPending
+
+	readyTask := taskRecordForTest("task-filter-ready")
+	readyTask.CreatedAt = readyTask.CreatedAt.Add(time.Minute)
+	readyTask.UpdatedAt = readyTask.UpdatedAt.Add(time.Minute)
+	readyTask.Scope = taskpkg.ScopeWorkspace
+	readyTask.WorkspaceID = workspaceA
+	readyTask.Status = taskpkg.TaskStatusReady
+	readyTask.Owner = ownershipForTest(taskpkg.OwnerKindHuman, "alice")
+	readyTask.NetworkChannel = "finance"
+
+	childTask := taskRecordForTest("task-filter-child")
+	childTask.CreatedAt = childTask.CreatedAt.Add(2 * time.Minute)
+	childTask.UpdatedAt = childTask.UpdatedAt.Add(2 * time.Minute)
+	childTask.Scope = taskpkg.ScopeWorkspace
+	childTask.WorkspaceID = workspaceB
+	childTask.ParentTaskID = globalTask.ID
+	childTask.Status = taskpkg.TaskStatusBlocked
+	childTask.Owner = ownershipForTest(taskpkg.OwnerKindPool, "backlog")
+	childTask.NetworkChannel = "engineering"
+
+	for _, record := range []taskpkg.Task{globalTask, readyTask, childTask} {
+		if err := globalDB.CreateTask(testutil.Context(t), record); err != nil {
+			t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+		}
+	}
+
+	for _, tc := range []struct {
+		name  string
+		query taskpkg.TaskQuery
+		want  []string
+	}{
+		{
+			name:  "scope",
+			query: taskpkg.TaskQuery{Scope: taskpkg.ScopeGlobal},
+			want:  []string{globalTask.ID},
+		},
+		{
+			name:  "workspace",
+			query: taskpkg.TaskQuery{WorkspaceID: workspaceA},
+			want:  []string{readyTask.ID},
+		},
+		{
+			name:  "status",
+			query: taskpkg.TaskQuery{Status: taskpkg.TaskStatusReady},
+			want:  []string{readyTask.ID},
+		},
+		{
+			name:  "parent",
+			query: taskpkg.TaskQuery{ParentTaskID: globalTask.ID},
+			want:  []string{childTask.ID},
+		},
+		{
+			name:  "owner kind",
+			query: taskpkg.TaskQuery{OwnerKind: taskpkg.OwnerKindHuman},
+			want:  []string{readyTask.ID},
+		},
+		{
+			name:  "owner ref",
+			query: taskpkg.TaskQuery{OwnerRef: "alice"},
+			want:  []string{readyTask.ID},
+		},
+		{
+			name:  "channel",
+			query: taskpkg.TaskQuery{NetworkChannel: "engineering"},
+			want:  []string{childTask.ID},
+		},
+		{
+			name:  "limit",
+			query: taskpkg.TaskQuery{Limit: 2},
+			want:  []string{childTask.ID, readyTask.ID},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			summaries, err := globalDB.ListTasks(testutil.Context(t), tc.query)
+			if err != nil {
+				t.Fatalf("ListTasks(%s) error = %v", tc.name, err)
+			}
+			gotIDs := taskSummaryIDs(summaries)
+			if !testutil.EqualStringSlices(gotIDs, tc.want) {
+				t.Fatalf("ListTasks(%s) ids = %#v, want %#v", tc.name, gotIDs, tc.want)
+			}
+		})
+	}
+}
+
+func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	taskRecord := taskRecordForTest("task-run-roundtrip")
+	if err := globalDB.CreateTask(testutil.Context(t), taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	queuedRun := taskRunForTest("run-queued", taskRecord.ID)
+	if err := globalDB.CreateTaskRun(testutil.Context(t), queuedRun); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+
+	storedQueued, err := globalDB.GetTaskRun(testutil.Context(t), queuedRun.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(queued) error = %v", err)
+	}
+	if storedQueued.SessionID != "" {
+		t.Fatalf("GetTaskRun(queued).SessionID = %q, want empty", storedQueued.SessionID)
+	}
+	if storedQueued.ClaimedBy != nil {
+		t.Fatalf("GetTaskRun(queued).ClaimedBy = %#v, want nil", storedQueued.ClaimedBy)
+	}
+
+	runningRun := queuedRun
+	runningRun.Status = taskpkg.TaskRunStatusRunning
+	runningRun.ClaimedBy = actorForTest(taskpkg.ActorKindDaemon, "scheduler")
+	runningRun.SessionID = "sess-task-run"
+	runningRun.NetworkChannel = "finance"
+	runningRun.ClaimedAt = queuedRun.QueuedAt.Add(30 * time.Second)
+	runningRun.StartedAt = queuedRun.QueuedAt.Add(time.Minute)
+	if err := globalDB.UpdateTaskRun(testutil.Context(t), runningRun); err != nil {
+		t.Fatalf("UpdateTaskRun(running) error = %v", err)
+	}
+
+	runsByTask, err := globalDB.ListTaskRuns(testutil.Context(t), taskpkg.TaskRunQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskRuns(task) error = %v", err)
+	}
+	if got, want := len(runsByTask), 1; got != want {
+		t.Fatalf("len(ListTaskRuns(task)) = %d, want %d", got, want)
+	}
+	assertTaskRunEqual(t, runsByTask[0], runningRun)
+
+	runsBySession, err := globalDB.ListTaskRuns(testutil.Context(t), taskpkg.TaskRunQuery{SessionID: "sess-task-run"})
+	if err != nil {
+		t.Fatalf("ListTaskRuns(session) error = %v", err)
+	}
+	if got, want := len(runsBySession), 1; got != want {
+		t.Fatalf("len(ListTaskRuns(session)) = %d, want %d", got, want)
+	}
+
+	runsByStatus, err := globalDB.ListTaskRunsByStatus(testutil.Context(t), []taskpkg.TaskRunStatus{taskpkg.TaskRunStatusRunning})
+	if err != nil {
+		t.Fatalf("ListTaskRunsByStatus() error = %v", err)
+	}
+	if got, want := len(runsByStatus), 1; got != want {
+		t.Fatalf("len(ListTaskRunsByStatus()) = %d, want %d", got, want)
+	}
+
+	activeBindings, err := globalDB.CountActiveSessionBindings(testutil.Context(t), "sess-task-run")
+	if err != nil {
+		t.Fatalf("CountActiveSessionBindings(running) error = %v", err)
+	}
+	if got, want := activeBindings, 1; got != want {
+		t.Fatalf("CountActiveSessionBindings(running) = %d, want %d", got, want)
+	}
+
+	completedRun := runningRun
+	completedRun.Status = taskpkg.TaskRunStatusCompleted
+	completedRun.EndedAt = runningRun.StartedAt.Add(5 * time.Minute)
+	completedRun.Result = json.RawMessage(`{"ok":true}`)
+	if err := globalDB.UpdateTaskRun(testutil.Context(t), completedRun); err != nil {
+		t.Fatalf("UpdateTaskRun(completed) error = %v", err)
+	}
+
+	storedCompleted, err := globalDB.GetTaskRun(testutil.Context(t), completedRun.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(completed) error = %v", err)
+	}
+	assertTaskRunEqual(t, storedCompleted, completedRun)
+
+	activeBindings, err = globalDB.CountActiveSessionBindings(testutil.Context(t), "sess-task-run")
+	if err != nil {
+		t.Fatalf("CountActiveSessionBindings(completed) error = %v", err)
+	}
+	if got, want := activeBindings, 0; got != want {
+		t.Fatalf("CountActiveSessionBindings(completed) = %d, want %d", got, want)
+	}
+}
+
+func TestGlobalDBUpdateTaskRunRejectsSessionRebinding(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	taskRecord := taskRecordForTest("task-run-rebinding")
+	if err := globalDB.CreateTask(testutil.Context(t), taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	run := taskRunForTest("run-rebinding", taskRecord.ID)
+	run.Status = taskpkg.TaskRunStatusRunning
+	run.SessionID = "sess-1"
+	run.StartedAt = run.QueuedAt.Add(time.Minute)
+	if err := globalDB.CreateTaskRun(testutil.Context(t), run); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+
+	run.SessionID = "sess-2"
+	err := globalDB.UpdateTaskRun(testutil.Context(t), run)
+	if !errors.Is(err, taskpkg.ErrSessionAlreadyBound) {
+		t.Fatalf("UpdateTaskRun(rebind) error = %v, want ErrSessionAlreadyBound", err)
+	}
+}
+
+func TestGlobalDBTaskAndRunReferenceErrors(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+
+	_, err := globalDB.GetTask(testutil.Context(t), "missing-task")
+	if !errors.Is(err, taskpkg.ErrTaskNotFound) {
+		t.Fatalf("GetTask(missing) error = %v, want ErrTaskNotFound", err)
+	}
+
+	_, err = globalDB.GetTaskRun(testutil.Context(t), "missing-run")
+	if !errors.Is(err, taskpkg.ErrTaskRunNotFound) {
+		t.Fatalf("GetTaskRun(missing) error = %v, want ErrTaskRunNotFound", err)
+	}
+
+	workspaceTask := taskRecordForTest("task-missing-workspace")
+	workspaceTask.Scope = taskpkg.ScopeWorkspace
+	workspaceTask.WorkspaceID = "ws-missing"
+	err = globalDB.CreateTask(testutil.Context(t), workspaceTask)
+	if !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
+		t.Fatalf("CreateTask(missing workspace) error = %v, want ErrWorkspaceNotFound", err)
+	}
+
+	childTask := taskRecordForTest("task-missing-parent")
+	childTask.ParentTaskID = "missing-parent"
+	err = globalDB.CreateTask(testutil.Context(t), childTask)
+	if !errors.Is(err, taskpkg.ErrTaskNotFound) {
+		t.Fatalf("CreateTask(missing parent) error = %v, want ErrTaskNotFound", err)
+	}
+
+	run := taskRunForTest("run-missing-task", "missing-task")
+	err = globalDB.CreateTaskRun(testutil.Context(t), run)
+	if !errors.Is(err, taskpkg.ErrTaskNotFound) {
+		t.Fatalf("CreateTaskRun(missing task) error = %v, want ErrTaskNotFound", err)
+	}
+}
+
+func TestTaskNormalizationDefaultsAndHelpers(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	globalDB.now = func() time.Time {
+		return time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC)
+	}
+
+	record := taskRecordForTest("task-defaults")
+	record.CreatedAt = time.Time{}
+	record.UpdatedAt = time.Time{}
+	record.Owner = ownershipForTest(taskpkg.OwnerKindHuman, " alice ")
+	normalizedTask, err := globalDB.normalizeTaskForCreate(record)
+	if err != nil {
+		t.Fatalf("normalizeTaskForCreate() error = %v", err)
+	}
+	if !normalizedTask.CreatedAt.Equal(globalDB.now()) {
+		t.Fatalf("normalizeTaskForCreate().CreatedAt = %v, want %v", normalizedTask.CreatedAt, globalDB.now())
+	}
+	if !normalizedTask.UpdatedAt.Equal(globalDB.now()) {
+		t.Fatalf("normalizeTaskForCreate().UpdatedAt = %v, want %v", normalizedTask.UpdatedAt, globalDB.now())
+	}
+	if normalizedTask.Owner == nil || normalizedTask.Owner.Ref != "alice" {
+		t.Fatalf("normalizeTaskForCreate().Owner = %#v, want trimmed owner", normalizedTask.Owner)
+	}
+
+	updateRecord := taskRecordForTest("task-update-default")
+	updateRecord.UpdatedAt = time.Time{}
+	normalizedUpdate, err := globalDB.normalizeTaskForUpdate(updateRecord)
+	if err != nil {
+		t.Fatalf("normalizeTaskForUpdate() error = %v", err)
+	}
+	if !normalizedUpdate.UpdatedAt.Equal(globalDB.now()) {
+		t.Fatalf("normalizeTaskForUpdate().UpdatedAt = %v, want %v", normalizedUpdate.UpdatedAt, globalDB.now())
+	}
+
+	run := taskRunForTest("run-defaults", "task-defaults")
+	run.Attempt = 0
+	run.QueuedAt = time.Time{}
+	normalizedRun, err := globalDB.normalizeTaskRunForCreate(run)
+	if err != nil {
+		t.Fatalf("normalizeTaskRunForCreate() error = %v", err)
+	}
+	if got, want := normalizedRun.Attempt, 1; got != want {
+		t.Fatalf("normalizeTaskRunForCreate().Attempt = %d, want %d", got, want)
+	}
+	if !normalizedRun.QueuedAt.Equal(globalDB.now()) {
+		t.Fatalf("normalizeTaskRunForCreate().QueuedAt = %v, want %v", normalizedRun.QueuedAt, globalDB.now())
+	}
+
+	runs, err := globalDB.ListTaskRunsByStatus(testutil.Context(t), nil)
+	if err != nil {
+		t.Fatalf("ListTaskRunsByStatus(nil) error = %v", err)
+	}
+	if got := len(runs); got != 0 {
+		t.Fatalf("len(ListTaskRunsByStatus(nil)) = %d, want 0", got)
+	}
+
+	if _, err := requireTaskValue("", "task id"); err == nil {
+		t.Fatal("requireTaskValue(empty) error = nil, want non-nil")
+	}
+
+	decoded, err := decodeTaskJSON(sqlNullStringForTest(`{"ok":true}`), "test")
+	if err != nil {
+		t.Fatalf("decodeTaskJSON(valid) error = %v", err)
+	}
+	if got, want := string(decoded), `{"ok":true}`; got != want {
+		t.Fatalf("decodeTaskJSON(valid) = %q, want %q", got, want)
+	}
+	if _, err := decodeTaskJSON(sqlNullStringForTest(`{"ok":`), "test"); err == nil {
+		t.Fatal("decodeTaskJSON(invalid) error = nil, want non-nil")
+	}
+}
+
+func taskRecordForTest(id string) taskpkg.Task {
+	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
+	return taskpkg.Task{
+		ID:          id,
+		Identifier:  "identifier-" + id,
+		Scope:       taskpkg.ScopeGlobal,
+		Title:       "Task " + id,
+		Description: "Description for " + id,
+		Status:      taskpkg.TaskStatusPending,
+		CreatedBy: taskpkg.ActorIdentity{
+			Kind: taskpkg.ActorKindHuman,
+			Ref:  "user:alice",
+		},
+		Origin: taskpkg.Origin{
+			Kind: taskpkg.OriginKindCLI,
+			Ref:  "cli",
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+}
+
+func taskRunForTest(id string, taskID string) taskpkg.TaskRun {
+	queuedAt := time.Date(2026, 4, 14, 13, 0, 0, 0, time.UTC)
+	return taskpkg.TaskRun{
+		ID:       id,
+		TaskID:   taskID,
+		Status:   taskpkg.TaskRunStatusQueued,
+		Attempt:  1,
+		Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+		QueuedAt: queuedAt,
+	}
+}
+
+func ownershipForTest(kind taskpkg.OwnerKind, ref string) *taskpkg.Ownership {
+	return &taskpkg.Ownership{Kind: kind, Ref: ref}
+}
+
+func actorForTest(kind taskpkg.ActorKind, ref string) *taskpkg.ActorIdentity {
+	return &taskpkg.ActorIdentity{Kind: kind, Ref: ref}
+}
+
+func assertTaskEqual(t *testing.T, got taskpkg.Task, want taskpkg.Task) {
+	t.Helper()
+
+	if got.ID != want.ID ||
+		got.Identifier != want.Identifier ||
+		got.Scope != want.Scope ||
+		got.WorkspaceID != want.WorkspaceID ||
+		got.ParentTaskID != want.ParentTaskID ||
+		got.NetworkChannel != want.NetworkChannel ||
+		got.Title != want.Title ||
+		got.Description != want.Description ||
+		got.Status != want.Status ||
+		got.CreatedBy != want.CreatedBy ||
+		got.Origin != want.Origin ||
+		!got.CreatedAt.Equal(want.CreatedAt) ||
+		!got.UpdatedAt.Equal(want.UpdatedAt) ||
+		!got.ClosedAt.Equal(want.ClosedAt) ||
+		string(got.Metadata) != string(want.Metadata) {
+		t.Fatalf("task = %#v, want %#v", got, want)
+	}
+	assertOwnershipEqual(t, got.Owner, want.Owner)
+}
+
+func assertTaskSummaryMatchesTask(t *testing.T, got taskpkg.TaskSummary, want taskpkg.Task) {
+	t.Helper()
+
+	if got.ID != want.ID ||
+		got.Identifier != want.Identifier ||
+		got.Scope != want.Scope ||
+		got.WorkspaceID != want.WorkspaceID ||
+		got.ParentTaskID != want.ParentTaskID ||
+		got.NetworkChannel != want.NetworkChannel ||
+		got.Title != want.Title ||
+		got.Status != want.Status ||
+		got.CreatedBy != want.CreatedBy ||
+		got.Origin != want.Origin ||
+		!got.CreatedAt.Equal(want.CreatedAt) ||
+		!got.UpdatedAt.Equal(want.UpdatedAt) ||
+		!got.ClosedAt.Equal(want.ClosedAt) {
+		t.Fatalf("task summary = %#v, want task %#v", got, want)
+	}
+	assertOwnershipEqual(t, got.Owner, want.Owner)
+}
+
+func assertTaskRunEqual(t *testing.T, got taskpkg.TaskRun, want taskpkg.TaskRun) {
+	t.Helper()
+
+	if got.ID != want.ID ||
+		got.TaskID != want.TaskID ||
+		got.Status != want.Status ||
+		got.Attempt != want.Attempt ||
+		got.SessionID != want.SessionID ||
+		got.Origin != want.Origin ||
+		got.IdempotencyKey != want.IdempotencyKey ||
+		got.NetworkChannel != want.NetworkChannel ||
+		!got.QueuedAt.Equal(want.QueuedAt) ||
+		!got.ClaimedAt.Equal(want.ClaimedAt) ||
+		!got.StartedAt.Equal(want.StartedAt) ||
+		!got.EndedAt.Equal(want.EndedAt) ||
+		got.Error != want.Error ||
+		string(got.Result) != string(want.Result) {
+		t.Fatalf("task run = %#v, want %#v", got, want)
+	}
+	assertActorEqual(t, got.ClaimedBy, want.ClaimedBy)
+}
+
+func assertOwnershipEqual(t *testing.T, got *taskpkg.Ownership, want *taskpkg.Ownership) {
+	t.Helper()
+
+	switch {
+	case got == nil && want == nil:
+		return
+	case got == nil || want == nil:
+		t.Fatalf("ownership = %#v, want %#v", got, want)
+	case *got != *want:
+		t.Fatalf("ownership = %#v, want %#v", *got, *want)
+	}
+}
+
+func assertActorEqual(t *testing.T, got *taskpkg.ActorIdentity, want *taskpkg.ActorIdentity) {
+	t.Helper()
+
+	switch {
+	case got == nil && want == nil:
+		return
+	case got == nil || want == nil:
+		t.Fatalf("actor = %#v, want %#v", got, want)
+	case *got != *want:
+		t.Fatalf("actor = %#v, want %#v", *got, *want)
+	}
+}
+
+func taskSummaryIDs(summaries []taskpkg.TaskSummary) []string {
+	ids := make([]string, 0, len(summaries))
+	for _, summary := range summaries {
+		ids = append(ids, summary.ID)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+func sqlNullStringForTest(value string) sql.NullString {
+	if value == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: value, Valid: true}
+}

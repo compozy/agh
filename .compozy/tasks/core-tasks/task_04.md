@@ -1,12 +1,12 @@
 ---
-status: pending
+status: completed
 title: "Implement `TaskManager` creation, mutation, and identity rules"
 type: backend
 complexity: critical
 dependencies:
-  - task_01
-  - task_02
-  - task_03
+    - task_01
+    - task_02
+    - task_03
 ---
 
 # Task 04: Implement `TaskManager` creation, mutation, and identity rules

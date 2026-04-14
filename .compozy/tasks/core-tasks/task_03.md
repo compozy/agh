@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Persist task dependencies, audit trail, and idempotency"
 type: backend
 complexity: high
@@ -28,11 +28,11 @@ Extend the storage layer so the task domain can safely represent bounded depende
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Add schema and storage methods for dependency edges between tasks.
-- [ ] 3.2 Add immutable task-event persistence for lifecycle and audit records.
-- [ ] 3.3 Add idempotency-key persistence and lookup for multi-writer ingress surfaces.
-- [ ] 3.4 Implement transactional dependency-edge writes with cycle detection and graph-limit enforcement.
-- [ ] 3.5 Add query helpers needed for dependency inspection, audit reads, and duplicate-ingress detection.
+- [x] 3.1 Add schema and storage methods for dependency edges between tasks.
+- [x] 3.2 Add immutable task-event persistence for lifecycle and audit records.
+- [x] 3.3 Add idempotency-key persistence and lookup for multi-writer ingress surfaces.
+- [x] 3.4 Implement transactional dependency-edge writes with cycle detection and graph-limit enforcement.
+- [x] 3.5 Add query helpers needed for dependency inspection, audit reads, and duplicate-ingress detection.
 
 ## Implementation Details
 Use the TechSpec "Data Models", "Run Authority and Attachment Rules", "Guardrails and Limits", and "Monitoring and Observability" sections. The transaction shape called out in the revised spec matters here: dependency-edge creation should use the documented transactional boundary instead of optimistic post-write repair.
@@ -64,12 +64,12 @@ Use the TechSpec "Data Models", "Run Authority and Attachment Rules", "Guardrail
 
 ## Tests
 - Unit tests:
-  - [ ] Verify dependency-edge validation rejects self-dependency, duplicate edges, and limit overflows before persistence.
-  - [ ] Verify event payload writes reject oversize payloads and preserve immutable actor/origin metadata.
-  - [ ] Verify idempotency lookups return the original result for duplicate keys from the same origin scope.
+  - [x] Verify dependency-edge validation rejects self-dependency, duplicate edges, and limit overflows before persistence.
+  - [x] Verify event payload writes reject oversize payloads and preserve immutable actor/origin metadata.
+  - [x] Verify idempotency lookups return the original result for duplicate keys from the same origin scope.
 - Integration tests:
-  - [ ] Verify creating an edge that would introduce a cycle fails transactionally and does not leave partial graph state behind.
-  - [ ] Verify two duplicate non-human writes with the same idempotency key are deduplicated against the same persisted record.
+  - [x] Verify creating an edge that would introduce a cycle fails transactionally and does not leave partial graph state behind.
+  - [x] Verify two duplicate non-human writes with the same idempotency key are deduplicated against the same persisted record.
 - Test coverage target: >=80%
 - All tests must pass
 

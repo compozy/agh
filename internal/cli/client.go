@@ -90,6 +90,22 @@ type DaemonClient interface {
 	AutomationTriggerRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error)
 	ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error)
 	GetAutomationRun(ctx context.Context, id string) (RunRecord, error)
+	ListTasks(ctx context.Context, query TaskListQuery) ([]TaskSummaryRecord, error)
+	CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error)
+	GetTask(ctx context.Context, id string) (TaskDetailRecord, error)
+	UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error)
+	CancelTask(ctx context.Context, id string, request CancelTaskRequest) (TaskRecord, error)
+	CreateChildTask(ctx context.Context, id string, request CreateTaskChildRequest) (TaskRecord, error)
+	AddTaskDependency(ctx context.Context, id string, request AddTaskDependencyRequest) (TaskDetailRecord, error)
+	RemoveTaskDependency(ctx context.Context, id string, dependsOnID string) (TaskDetailRecord, error)
+	EnqueueTaskRun(ctx context.Context, id string, request EnqueueTaskRunRequest) (TaskRunRecord, error)
+	ListTaskRuns(ctx context.Context, id string, query TaskRunListQuery) ([]TaskRunRecord, error)
+	ClaimTaskRun(ctx context.Context, id string, request ClaimTaskRunRequest) (TaskRunRecord, error)
+	StartTaskRun(ctx context.Context, id string, request StartTaskRunRequest) (TaskRunRecord, error)
+	AttachTaskRunSession(ctx context.Context, id string, request AttachTaskRunSessionRequest) (TaskRunRecord, error)
+	CompleteTaskRun(ctx context.Context, id string, request CompleteTaskRunRequest) (TaskRunRecord, error)
+	FailTaskRun(ctx context.Context, id string, request FailTaskRunRequest) (TaskRunRecord, error)
+	CancelTaskRun(ctx context.Context, id string, request CancelTaskRunRequest) (TaskRunRecord, error)
 }
 
 // CreateSessionRequest captures the shared daemon session creation payload.
@@ -223,6 +239,66 @@ type TriggerRecord = contract.TriggerPayload
 
 // RunRecord is the shared automation run payload.
 type RunRecord = contract.RunPayload
+
+// TaskSummaryRecord is the shared list-oriented task payload.
+type TaskSummaryRecord = contract.TaskSummaryPayload
+
+// TaskRecord is the shared single-task payload.
+type TaskRecord = contract.TaskPayload
+
+// TaskDetailRecord is the shared expanded task payload.
+type TaskDetailRecord = contract.TaskDetailPayload
+
+// TaskDependencyRecord is the shared dependency-edge payload.
+type TaskDependencyRecord = contract.TaskDependencyPayload
+
+// TaskRunRecord is the shared task-run payload.
+type TaskRunRecord = contract.TaskRunPayload
+
+// TaskEventRecord is the shared task audit-event payload.
+type TaskEventRecord = contract.TaskEventPayload
+
+// TaskListQuery captures CLI filters for task list calls.
+type TaskListQuery = contract.TaskListQuery
+
+// TaskRunListQuery captures CLI filters for task-run list calls.
+type TaskRunListQuery = contract.TaskRunListQuery
+
+// CreateTaskRequest captures the shared task-create payload.
+type CreateTaskRequest = contract.CreateTaskRequest
+
+// CreateTaskChildRequest captures the shared child-task create payload.
+type CreateTaskChildRequest = contract.CreateTaskChildRequest
+
+// UpdateTaskRequest captures mutable task fields.
+type UpdateTaskRequest = contract.UpdateTaskRequest
+
+// CancelTaskRequest captures the shared task-cancel payload.
+type CancelTaskRequest = contract.CancelTaskRequest
+
+// AddTaskDependencyRequest captures the shared dependency-create payload.
+type AddTaskDependencyRequest = contract.AddTaskDependencyRequest
+
+// EnqueueTaskRunRequest captures the shared run-enqueue payload.
+type EnqueueTaskRunRequest = contract.EnqueueTaskRunRequest
+
+// ClaimTaskRunRequest captures the shared run-claim payload.
+type ClaimTaskRunRequest = contract.ClaimTaskRunRequest
+
+// StartTaskRunRequest captures the shared run-start payload.
+type StartTaskRunRequest = contract.StartTaskRunRequest
+
+// AttachTaskRunSessionRequest captures the shared run-session attach payload.
+type AttachTaskRunSessionRequest = contract.AttachTaskRunSessionRequest
+
+// CompleteTaskRunRequest captures the shared run-complete payload.
+type CompleteTaskRunRequest = contract.CompleteTaskRunRequest
+
+// FailTaskRunRequest captures the shared run-fail payload.
+type FailTaskRunRequest = contract.FailTaskRunRequest
+
+// CancelTaskRunRequest captures the shared run-cancel payload.
+type CancelTaskRunRequest = contract.CancelTaskRunRequest
 
 // HealthStatus is the daemon API observability health payload.
 type HealthStatus = contract.ObserveHealthPayload
@@ -870,6 +946,118 @@ func (c *unixSocketClient) GetAutomationRun(ctx context.Context, id string) (Run
 	return response.Run, nil
 }
 
+func (c *unixSocketClient) ListTasks(ctx context.Context, query TaskListQuery) ([]TaskSummaryRecord, error) {
+	var response contract.TasksResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/api/tasks", taskValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Tasks, nil
+}
+
+func (c *unixSocketClient) CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error) {
+	var response contract.TaskResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/api/tasks", nil, request, &response); err != nil {
+		return TaskRecord{}, err
+	}
+	return response.Task, nil
+}
+
+func (c *unixSocketClient) GetTask(ctx context.Context, id string) (TaskDetailRecord, error) {
+	var response contract.TaskDetailResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return TaskDetailRecord{}, err
+	}
+	return response.Task, nil
+}
+
+func (c *unixSocketClient) UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error) {
+	var response contract.TaskResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
+		return TaskRecord{}, err
+	}
+	return response.Task, nil
+}
+
+func (c *unixSocketClient) CancelTask(ctx context.Context, id string, request CancelTaskRequest) (TaskRecord, error) {
+	var response contract.TaskResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/cancel"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskRecord{}, err
+	}
+	return response.Task, nil
+}
+
+func (c *unixSocketClient) CreateChildTask(ctx context.Context, id string, request CreateTaskChildRequest) (TaskRecord, error) {
+	var response contract.TaskResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/children"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskRecord{}, err
+	}
+	return response.Task, nil
+}
+
+func (c *unixSocketClient) AddTaskDependency(ctx context.Context, id string, request AddTaskDependencyRequest) (TaskDetailRecord, error) {
+	var response contract.TaskDetailResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/dependencies"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskDetailRecord{}, err
+	}
+	return response.Task, nil
+}
+
+func (c *unixSocketClient) RemoveTaskDependency(ctx context.Context, id string, dependsOnID string) (TaskDetailRecord, error) {
+	var response contract.TaskDetailResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/dependencies/" + url.PathEscape(strings.TrimSpace(dependsOnID))
+	if err := c.doJSON(ctx, http.MethodDelete, path, nil, nil, &response); err != nil {
+		return TaskDetailRecord{}, err
+	}
+	return response.Task, nil
+}
+
+func (c *unixSocketClient) EnqueueTaskRun(ctx context.Context, id string, request EnqueueTaskRunRequest) (TaskRunRecord, error) {
+	var response contract.TaskRunResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/runs"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskRunRecord{}, err
+	}
+	return response.Run, nil
+}
+
+func (c *unixSocketClient) ListTaskRuns(ctx context.Context, id string, query TaskRunListQuery) ([]TaskRunRecord, error) {
+	var response contract.TaskRunsResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/runs"
+	if err := c.doJSON(ctx, http.MethodGet, path, taskRunValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Runs, nil
+}
+
+func (c *unixSocketClient) ClaimTaskRun(ctx context.Context, id string, request ClaimTaskRunRequest) (TaskRunRecord, error) {
+	return c.taskRunAction(ctx, strings.TrimSpace(id), "claim", request)
+}
+
+func (c *unixSocketClient) StartTaskRun(ctx context.Context, id string, request StartTaskRunRequest) (TaskRunRecord, error) {
+	return c.taskRunAction(ctx, strings.TrimSpace(id), "start", request)
+}
+
+func (c *unixSocketClient) AttachTaskRunSession(ctx context.Context, id string, request AttachTaskRunSessionRequest) (TaskRunRecord, error) {
+	return c.taskRunAction(ctx, strings.TrimSpace(id), "attach-session", request)
+}
+
+func (c *unixSocketClient) CompleteTaskRun(ctx context.Context, id string, request CompleteTaskRunRequest) (TaskRunRecord, error) {
+	return c.taskRunAction(ctx, strings.TrimSpace(id), "complete", request)
+}
+
+func (c *unixSocketClient) FailTaskRun(ctx context.Context, id string, request FailTaskRunRequest) (TaskRunRecord, error) {
+	return c.taskRunAction(ctx, strings.TrimSpace(id), "fail", request)
+}
+
+func (c *unixSocketClient) CancelTaskRun(ctx context.Context, id string, request CancelTaskRunRequest) (TaskRunRecord, error) {
+	return c.taskRunAction(ctx, strings.TrimSpace(id), "cancel", request)
+}
+
 func (c *unixSocketClient) extensionAction(ctx context.Context, name string, action string) (ExtensionRecord, error) {
 	var response struct {
 		Extension ExtensionRecord `json:"extension"`
@@ -890,6 +1078,15 @@ func (c *unixSocketClient) bridgeAction(ctx context.Context, id string, action s
 		return BridgeRecord{}, err
 	}
 	return response.Bridge, nil
+}
+
+func (c *unixSocketClient) taskRunAction(ctx context.Context, id string, action string, requestBody any) (TaskRunRecord, error) {
+	var response contract.TaskRunResponse
+	path := "/api/task-runs/" + url.PathEscape(id) + "/" + action
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, requestBody, &response); err != nil {
+		return TaskRunRecord{}, err
+	}
+	return response.Run, nil
 }
 
 func (c *unixSocketClient) doJSON(ctx context.Context, method string, path string, query url.Values, requestBody any, responseBody any) error {
@@ -1158,6 +1355,49 @@ func automationRunValues(query AutomationRunQuery) url.Values {
 	}
 	if !query.Until.IsZero() {
 		values.Set("until", query.Until.UTC().Format(time.RFC3339Nano))
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
+}
+
+func taskValues(query TaskListQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
+		values.Set("scope", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
+		values.Set("workspace", trimmed)
+	}
+	if trimmed := strings.TrimSpace(string(query.Status)); trimmed != "" {
+		values.Set("status", trimmed)
+	}
+	if trimmed := strings.TrimSpace(string(query.OwnerKind)); trimmed != "" {
+		values.Set("owner_kind", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.OwnerRef); trimmed != "" {
+		values.Set("owner_ref", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.ParentTaskID); trimmed != "" {
+		values.Set("parent_task_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.NetworkChannel); trimmed != "" {
+		values.Set("network_channel", trimmed)
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
+}
+
+func taskRunValues(query TaskRunListQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(string(query.Status)); trimmed != "" {
+		values.Set("status", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.SessionID); trimmed != "" {
+		values.Set("session_id", trimmed)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))

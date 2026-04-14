@@ -162,6 +162,7 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	if done == nil {
 		return nil
 	}
+	defer m.finishFinalization(session.ID)
 
 	var errs []error
 	state := session.Info().State
@@ -250,7 +251,7 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 		}
 	}
 
-	m.remove(session.ID)
+	m.removeActive(session.ID)
 	m.dispatchSessionPostStop(ctx, session)
 	if m.notifier != nil {
 		m.notifier.OnSessionStopped(ctx, session)

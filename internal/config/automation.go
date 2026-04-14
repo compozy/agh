@@ -28,6 +28,7 @@ type AutomationJob struct {
 	Workspace string                        `toml:"workspace,omitempty"`
 	Prompt    string                        `toml:"prompt"`
 	Schedule  automationpkg.ScheduleSpec    `toml:"schedule"`
+	Task      *automationpkg.JobTaskConfig  `toml:"task,omitempty"`
 	Enabled   bool                          `toml:"enabled"`
 	Retry     automationpkg.RetryConfig     `toml:"retry,omitempty"`
 	FireLimit automationpkg.FireLimitConfig `toml:"fire_limit,omitempty"`
@@ -67,6 +68,7 @@ type parsedAutomationJob struct {
 	Workspace string                         `toml:"workspace"`
 	Prompt    string                         `toml:"prompt"`
 	Schedule  *automationpkg.ScheduleSpec    `toml:"schedule"`
+	Task      *automationpkg.JobTaskConfig   `toml:"task"`
 	Enabled   *bool                          `toml:"enabled"`
 	Retry     *automationpkg.RetryConfig     `toml:"retry"`
 	FireLimit *automationpkg.FireLimitConfig `toml:"fire_limit"`
@@ -121,10 +123,10 @@ func (j AutomationJob) Validate(path string) error {
 	if strings.TrimSpace(j.Name) == "" {
 		return errors.New(path + ".name is required")
 	}
-	if strings.TrimSpace(j.AgentName) == "" {
+	if j.Task == nil && strings.TrimSpace(j.AgentName) == "" {
 		return errors.New(path + ".agent is required")
 	}
-	if strings.TrimSpace(j.Prompt) == "" {
+	if j.Task == nil && strings.TrimSpace(j.Prompt) == "" {
 		return errors.New(path + ".prompt is required")
 	}
 	if err := automationpkg.ValidateScopeBinding(j.Scope, j.Workspace, path, "workspace"); err != nil {
@@ -141,6 +143,14 @@ func (j AutomationJob) Validate(path string) error {
 	}
 	if err := j.FireLimit.Validate(path + ".fire_limit"); err != nil {
 		return err
+	}
+	if j.Task != nil {
+		if err := j.Task.Validate(path + ".task"); err != nil {
+			return err
+		}
+		if j.Retry.Strategy != automationpkg.RetryStrategyNone {
+			return fmt.Errorf("%s.strategy must be %q when %s is configured", path+".retry", automationpkg.RetryStrategyNone, path+".task")
+		}
 	}
 
 	return nil
@@ -245,6 +255,7 @@ func (j parsedAutomationJob) toAutomationJob(defaultFireLimit automationpkg.Fire
 	if j.Schedule != nil {
 		job.Schedule = *j.Schedule
 	}
+	job.Task = cloneParsedJobTaskConfig(j.Task)
 	if j.Enabled != nil {
 		job.Enabled = *j.Enabled
 	}
@@ -256,6 +267,18 @@ func (j parsedAutomationJob) toAutomationJob(defaultFireLimit automationpkg.Fire
 	}
 
 	return job
+}
+
+func cloneParsedJobTaskConfig(config *automationpkg.JobTaskConfig) *automationpkg.JobTaskConfig {
+	if config == nil {
+		return nil
+	}
+	cloned := *config
+	if config.Owner != nil {
+		owner := *config.Owner
+		cloned.Owner = &owner
+	}
+	return &cloned
 }
 
 func (t parsedAutomationTrigger) toAutomationTrigger(defaultFireLimit automationpkg.FireLimitConfig) AutomationTrigger {

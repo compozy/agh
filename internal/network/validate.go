@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/pedronauck/agh/internal/network/rules"
 )
 
 var (
@@ -30,8 +32,7 @@ var (
 )
 
 var (
-	channelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
-	peerIDPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+	peerIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
 )
 
 // DefaultMaxReplayAge is the RFC-recommended maximum receiver replay age when
@@ -144,7 +145,7 @@ func ValidateEnvelope(env Envelope, opts ValidateOptions) error {
 
 // ValidateChannel reports whether the channel matches the RFC grammar.
 func ValidateChannel(channel string) error {
-	if !channelPattern.MatchString(channel) {
+	if !rules.ValidChannel(channel) {
 		return fmt.Errorf("%w: channel=%q", ErrInvalidField, channel)
 	}
 	return nil

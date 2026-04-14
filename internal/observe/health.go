@@ -21,6 +21,7 @@ type Health struct {
 	GlobalDBSizeBytes  int64                 `json:"global_db_size_bytes"`
 	SessionDBSizeBytes int64                 `json:"session_db_size_bytes"`
 	Bridges            BridgeAggregateHealth `json:"bridges"`
+	Tasks              TaskHealth            `json:"tasks"`
 	Version            string                `json:"version"`
 }
 
@@ -45,6 +46,10 @@ func (o *Observer) Health(ctx context.Context) (Health, error) {
 	if err != nil {
 		return Health{}, err
 	}
+	taskHealth, err := o.collectTaskHealth(ctx)
+	if err != nil {
+		return Health{}, fmt.Errorf("observe: collect task health: %w", err)
+	}
 
 	uptimeSeconds := int64(o.now().Sub(o.startedAt).Seconds())
 	if uptimeSeconds < 0 {
@@ -59,6 +64,7 @@ func (o *Observer) Health(ctx context.Context) (Health, error) {
 		GlobalDBSizeBytes:  globalDBSize,
 		SessionDBSizeBytes: sessionDBSize,
 		Bridges:            bridgeHealth,
+		Tasks:              taskHealth,
 		Version:            o.versionSource().Version,
 	}, nil
 }

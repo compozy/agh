@@ -1,13 +1,69 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/transcript"
 )
+
+type sessionManagerStub struct {
+	status func(context.Context, string) (*session.SessionInfo, error)
+}
+
+func (s sessionManagerStub) Create(context.Context, session.CreateOpts) (*session.Session, error) {
+	return nil, nil
+}
+
+func (s sessionManagerStub) List() []*session.SessionInfo { return nil }
+
+func (s sessionManagerStub) ListAll(context.Context) ([]*session.SessionInfo, error) { return nil, nil }
+
+func (s sessionManagerStub) Status(ctx context.Context, id string) (*session.SessionInfo, error) {
+	if s.status != nil {
+		return s.status(ctx, id)
+	}
+	return nil, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) Events(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+	return nil, nil
+}
+
+func (s sessionManagerStub) History(context.Context, string, store.EventQuery) ([]store.TurnHistory, error) {
+	return nil, nil
+}
+
+func (s sessionManagerStub) Transcript(context.Context, string) ([]transcript.Message, error) {
+	return nil, nil
+}
+
+func (s sessionManagerStub) Stop(context.Context, string) error { return nil }
+
+func (s sessionManagerStub) StopWithCause(context.Context, string, session.StopCause, string) error {
+	return nil
+}
+
+func (s sessionManagerStub) Resume(context.Context, string) (*session.Session, error) {
+	return nil, nil
+}
+
+func (s sessionManagerStub) Prompt(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+	ch := make(chan acp.AgentEvent)
+	close(ch)
+	return ch, nil
+}
+
+func (s sessionManagerStub) ApprovePermission(context.Context, string, acp.ApproveRequest) error {
+	return nil
+}
 
 func TestResolveUserHomeDir(t *testing.T) {
 	t.Parallel()
@@ -111,5 +167,98 @@ func TestResolveUserHomeDir(t *testing.T) {
 				t.Fatalf("resolveUserHomeDir() error = %q, should not include %q", result.err.Error(), tt.wantErrNotContains)
 			}
 		})
+	}
+}
+
+func TestBaseHandlersAccessorsAndSessionInfoHelpers(t *testing.T) {
+	t.Parallel()
+
+	var nilHandlers *BaseHandlers
+	if got := nilHandlers.HTTPPortValue(); got != 0 {
+		t.Fatalf("HTTPPortValue(nil) = %d, want 0", got)
+	}
+	if got := nilHandlers.StreamDoneChannel(); got != nil {
+		t.Fatalf("StreamDoneChannel(nil) = %v, want nil", got)
+	}
+
+	done := make(chan struct{})
+	calls := 0
+	info := &session.SessionInfo{ID: "sess-1", WorkspaceID: "ws-alpha"}
+	handlers := &BaseHandlers{
+		Sessions: sessionManagerStub{
+			status: func(_ context.Context, id string) (*session.SessionInfo, error) {
+				calls++
+				if id != "sess-1" {
+					t.Fatalf("Status() id = %q, want sess-1", id)
+				}
+				return info, nil
+			},
+		},
+	}
+	handlers.SetHTTPPort(4510)
+	handlers.SetStreamDone(done)
+
+	if got := handlers.HTTPPortValue(); got != 4510 {
+		t.Fatalf("HTTPPortValue() = %d, want 4510", got)
+	}
+	if got := handlers.StreamDoneChannel(); got != done {
+		t.Fatalf("StreamDoneChannel() = %v, want %v", got, done)
+	}
+	if got := handlers.transportName(); got != "apicore" {
+		t.Fatalf("transportName(default) = %q, want apicore", got)
+	}
+
+	handlers.TransportName = "uds-core"
+	if got := handlers.transportName(); got != "uds-core" {
+		t.Fatalf("transportName(custom) = %q, want uds-core", got)
+	}
+
+	eventInfo, err := handlers.sessionEventInfo(context.Background(), "sess-1")
+	if err != nil {
+		t.Fatalf("sessionEventInfo(disabled) error = %v", err)
+	}
+	if eventInfo != nil {
+		t.Fatalf("sessionEventInfo(disabled) = %#v, want nil", eventInfo)
+	}
+	if calls != 0 {
+		t.Fatalf("Status() called %d times with IncludeSessionWorkspaceInSSE disabled, want 0", calls)
+	}
+
+	handlers.IncludeSessionWorkspaceInSSE = true
+	eventInfo, err = handlers.sessionEventInfo(context.Background(), "sess-1")
+	if err != nil {
+		t.Fatalf("sessionEventInfo(enabled) error = %v", err)
+	}
+	if eventInfo != info {
+		t.Fatalf("sessionEventInfo(enabled) = %#v, want %#v", eventInfo, info)
+	}
+
+	streamInfo, err := handlers.streamSessionInfo(context.Background(), "sess-1")
+	if err != nil {
+		t.Fatalf("streamSessionInfo(enabled) error = %v", err)
+	}
+	if streamInfo != info {
+		t.Fatalf("streamSessionInfo(enabled) = %#v, want %#v", streamInfo, info)
+	}
+
+	handlers.IncludeSessionWorkspaceInSSE = false
+	streamInfo, err = handlers.streamSessionInfo(context.Background(), "sess-1")
+	if err != nil {
+		t.Fatalf("streamSessionInfo(disabled) error = %v", err)
+	}
+	if streamInfo != nil {
+		t.Fatalf("streamSessionInfo(disabled) = %#v, want nil", streamInfo)
+	}
+	if calls != 3 {
+		t.Fatalf("Status() calls = %d, want 3", calls)
+	}
+
+	handlers.Sessions = sessionManagerStub{
+		status: func(context.Context, string) (*session.SessionInfo, error) {
+			return nil, errors.New("boom")
+		},
+	}
+	if _, err := handlers.streamSessionInfo(context.Background(), "sess-1"); err == nil {
+		t.Fatal("streamSessionInfo(error) error = nil, want non-nil")
 	}
 }
