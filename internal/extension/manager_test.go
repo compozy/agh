@@ -1250,18 +1250,20 @@ type managerFixture struct {
 }
 
 type managerManifestOptions struct {
-	command      string
-	args         []string
-	withEnv      map[string]string
-	withSkills   bool
-	withAgents   bool
-	withHooks    bool
-	withMCP      bool
-	minVersion   string
-	capabilities []string
-	actions      []string
-	security     []string
-	shutdown     time.Duration
+	command           string
+	args              []string
+	withEnv           map[string]string
+	withSkills        bool
+	withAgents        bool
+	withHooks         bool
+	withMCP           bool
+	minVersion        string
+	capabilities      []string
+	actions           []string
+	security          []string
+	bridgePlatform    string
+	bridgeDisplayName string
+	shutdown          time.Duration
 }
 
 type fakeLauncher struct {
@@ -1781,6 +1783,16 @@ func managerTestManifest(name string, opts managerManifestOptions) string {
 	if len(security) == 0 {
 		security = []string{"session.read"}
 	}
+	bridgePlatform := opts.bridgePlatform
+	bridgeDisplayName := opts.bridgeDisplayName
+	if slices.Contains(capabilities, extensionprotocol.CapabilityProvideBridgeAdapter) {
+		if bridgePlatform == "" {
+			bridgePlatform = "telegram"
+		}
+		if bridgeDisplayName == "" {
+			bridgeDisplayName = "Telegram"
+		}
+	}
 
 	var builder strings.Builder
 	fmt.Fprintf(&builder, `[extension]
@@ -1823,7 +1835,15 @@ args = ["--context", "prod"]
 [capabilities]
 provides = ` + tomlStringArray(capabilities) + `
 
-[actions]
+`)
+	if bridgePlatform != "" || bridgeDisplayName != "" {
+		fmt.Fprintf(&builder, `[bridge]
+platform = %q
+display_name = %q
+
+`, bridgePlatform, bridgeDisplayName)
+	}
+	builder.WriteString(`[actions]
 requires = ` + tomlStringArray(actions) + `
 
 [subprocess]

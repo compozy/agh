@@ -125,6 +125,8 @@ func statusForSessionError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
 		return http.StatusGone
+	case errors.Is(err, workspacepkg.ErrAgentNotAvailable):
+		return http.StatusBadRequest
 	case errors.Is(err, session.ErrSessionNotActive):
 		return http.StatusBadRequest
 	case errors.Is(err, session.ErrMaxSessionsReached),

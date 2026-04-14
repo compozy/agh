@@ -341,6 +341,12 @@ func BridgeAggregateHealthPayloadFromObserve(summary observepkg.BridgeAggregateH
 // BridgeHealthPayloadFromObserve converts the observer per-instance bridge
 // health snapshot into the shared payload.
 func BridgeHealthPayloadFromObserve(health observepkg.BridgeInstanceHealth) contract.BridgeHealthPayload {
+	var lastSuccessAt *time.Time
+	if !health.LastSuccessAt.IsZero() {
+		timestamp := health.LastSuccessAt
+		lastSuccessAt = &timestamp
+	}
+
 	var lastErrorAt *time.Time
 	if !health.LastErrorAt.IsZero() {
 		timestamp := health.LastErrorAt
@@ -356,6 +362,7 @@ func BridgeHealthPayloadFromObserve(health observepkg.BridgeInstanceHealth) cont
 		DeliveryDroppedByReason: maps.Clone(health.DeliveryDroppedByReason),
 		DeliveryFailuresTotal:   health.DeliveryFailuresTotal,
 		AuthFailuresTotal:       health.AuthFailuresTotal,
+		LastSuccessAt:           lastSuccessAt,
 		LastError:               health.LastError,
 		LastErrorAt:             lastErrorAt,
 	}

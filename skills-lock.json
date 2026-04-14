@@ -61,6 +61,11 @@
             "sourceType": "github",
             "computedHash": "8bc7a75020275e4ad1813cb4b616dc9e0c7624a6e71178f98341e69c39bd65f4"
         },
+        "kb": {
+            "source": "compozy/kb",
+            "sourceType": "github",
+            "computedHash": "1950daed243399488ea990aa67b636ccb307997ebe071f484496869539594dcd"
+        },
         "kodebase": {
             "source": "pedronauck/kodebase-go",
             "sourceType": "github",

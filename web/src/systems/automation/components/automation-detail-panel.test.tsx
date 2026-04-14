@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AutomationDetailPanel } from "./automation-detail-panel";
-import { createAutomationJobDraft, createAutomationTriggerDraft } from "../lib/automation-drafts";
 
 const jobFixture = {
   id: "job_daily_review",
@@ -58,8 +57,7 @@ function renderPanel(overrides: Partial<Parameters<typeof AutomationDetailPanel>
 
   render(
     <AutomationDetailPanel
-      activeWorkspaceId="ws_alpha"
-      editor={null}
+      emptyState={null}
       error={null}
       isDeleting={false}
       isLoading={false}
@@ -82,43 +80,29 @@ function renderPanel(overrides: Partial<Parameters<typeof AutomationDetailPanel>
 }
 
 describe("AutomationDetailPanel", () => {
-  it("renders loading, error, and empty states", () => {
-    const loading = renderPanel({ isLoading: true, item: undefined });
+  it("renders loading state", () => {
+    renderPanel({ isLoading: true, item: undefined });
     expect(screen.getByTestId("automation-detail-loading")).toBeInTheDocument();
-
-    loading.onDelete.mockReset();
-
-    renderPanel({ error: new Error("boom"), item: undefined });
-    expect(screen.getByTestId("automation-detail-error")).toBeInTheDocument();
-
-    renderPanel({ item: undefined });
-    expect(screen.getByTestId("automation-detail-empty")).toBeInTheDocument();
   });
 
-  it("renders editor variants for jobs and triggers", () => {
-    const jobEditor = {
-      kind: "jobs" as const,
-      mode: "create" as const,
-      draft: createAutomationJobDraft("ws_alpha"),
-      isPending: false,
-      onCancel: vi.fn(),
-      onChange: vi.fn(),
-      onSubmit: vi.fn(),
-    };
-    renderPanel({ editor: jobEditor, item: undefined });
-    expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
+  it("renders error state", () => {
+    renderPanel({ error: new Error("boom"), item: undefined });
+    expect(screen.getByTestId("automation-detail-error")).toBeInTheDocument();
+  });
 
-    const triggerEditor = {
-      kind: "triggers" as const,
-      mode: "edit" as const,
-      draft: createAutomationTriggerDraft("ws_alpha"),
-      isPending: false,
-      onCancel: vi.fn(),
-      onChange: vi.fn(),
-      onSubmit: vi.fn(),
-    };
-    renderPanel({ editor: triggerEditor, item: undefined });
-    expect(screen.getByTestId("automation-trigger-form")).toBeInTheDocument();
+  it("renders route-level empty state", () => {
+    renderPanel({
+      emptyState: {
+        actionLabel: "Create Job",
+        description: "Create the first job.",
+        icon: "jobs",
+        onAction: vi.fn(),
+        title: "No jobs configured",
+      },
+      item: undefined,
+    });
+    expect(screen.getByTestId("automation-detail-empty")).toBeInTheDocument();
+    expect(screen.getByText("No jobs configured")).toBeInTheDocument();
   });
 
   it("renders dynamic job details and dispatches action callbacks", () => {
@@ -151,7 +135,7 @@ describe("AutomationDetailPanel", () => {
 
     expect(
       screen.getByText(
-        "Config-sourced automation can only toggle enabled state from the UI. Definition changes stay in configuration files."
+        "This automation is defined in configuration files. Only the enabled state can be toggled from the UI."
       )
     ).toBeInTheDocument();
     expect(screen.getByText("Webhook id")).toBeInTheDocument();

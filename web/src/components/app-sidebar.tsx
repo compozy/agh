@@ -4,12 +4,14 @@ import {
   Bot,
   ChevronRight,
   Loader2,
+  Network,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   Search,
   Settings,
   Terminal,
+  Waypoints,
   Wrench,
 } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
@@ -371,6 +373,8 @@ function SidebarPanel({
           </div>
           <div className="flex flex-col gap-0.5 px-1">
             <NavItem to="/automation" icon={<Bot className="size-3.5" />} label="Automation" />
+            <NavItem to="/bridges" icon={<Waypoints className="size-3.5" />} label="Bridges" />
+            <NavItem to="/network" icon={<Network className="size-3.5" />} label="Network" />
             <NavItem to="/knowledge" icon={<Book className="size-3.5" />} label="Knowledge" />
             <NavItem to="/skills" icon={<Wrench className="size-3.5" />} label="Skills" />
           </div>

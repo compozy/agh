@@ -1,17 +1,14 @@
-import { lazy, memo, Suspense } from "react";
+import { memo } from "react";
 
 import { cn } from "@/lib/utils";
 import type { UIMessage } from "../types";
+import { MessageMarkdown } from "./message-markdown";
 import { ThinkingBlock } from "./thinking-block";
 
 export interface MessageBubbleProps {
   message: UIMessage;
   agentName?: string;
 }
-
-const LazyMessageMarkdown = lazy(() =>
-  import("./message-markdown").then(module => ({ default: module.MessageMarkdown }))
-);
 
 const messageProseClasses =
   "prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:mb-2 prose-headings:mt-4 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-pre:my-0 prose-pre:bg-transparent prose-pre:p-0";
@@ -55,9 +52,7 @@ export const MessageBubble = memo(
                   "text-sm leading-relaxed text-[color:var(--color-text-primary)]"
                 )}
               >
-                <Suspense fallback={<span className="whitespace-pre-wrap">{message.content}</span>}>
-                  <LazyMessageMarkdown content={message.content} />
-                </Suspense>
+                <MessageMarkdown content={message.content} />
               </div>
             )}
           </div>
@@ -93,9 +88,7 @@ export const MessageBubble = memo(
               "text-sm leading-relaxed text-[color:var(--color-text-secondary)]"
             )}
           >
-            <Suspense fallback={<span className="whitespace-pre-wrap">{message.content}</span>}>
-              <LazyMessageMarkdown content={message.content} />
-            </Suspense>
+            <MessageMarkdown content={message.content} />
           </div>
         )}
 

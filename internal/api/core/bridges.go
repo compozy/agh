@@ -35,6 +35,22 @@ func (h *BaseHandlers) ListBridges(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.BridgesResponse{Bridges: instances, BridgeHealth: bridgeHealth})
 }
 
+// ListBridgeProviders returns installed bridge-capable providers.
+func (h *BaseHandlers) ListBridgeProviders(c *gin.Context) {
+	bridges, ok := h.bridgeService()
+	if !ok {
+		h.respondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable)
+		return
+	}
+
+	providers, err := bridges.ListProviders(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.BridgeProvidersResponse{Providers: providers})
+}
+
 // CreateBridge persists a new bridge instance.
 func (h *BaseHandlers) CreateBridge(c *gin.Context) {
 	bridges, ok := h.bridgeService()

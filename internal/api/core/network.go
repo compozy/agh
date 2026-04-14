@@ -47,7 +47,17 @@ func (h *BaseHandlers) NetworkPeers(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.NetworkPeersResponse{Peers: NetworkPeerPayloadsFromInfos(peers)})
+	sessions, err := h.Sessions.ListAll(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	sessionByID := sessionInfoMapByID(sessions)
+	payload := make([]contract.NetworkPeerPayload, 0, len(peers))
+	for _, peer := range peers {
+		payload = append(payload, networkPeerPayloadFromInfoWithSessions(peer, sessionByID))
+	}
+	c.JSON(http.StatusOK, contract.NetworkPeersResponse{Peers: payload})
 }
 
 // NetworkChannels returns the active runtime channels.
@@ -58,12 +68,24 @@ func (h *BaseHandlers) NetworkChannels(c *gin.Context) {
 		return
 	}
 
-	channels, err := service.ListChannels(c.Request.Context())
+	channels, err := h.networkChannelPayloads(c.Request.Context(), service)
 	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
+		status := http.StatusInternalServerError
+		if errors.Is(err, ErrNetworkValidation) ||
+			errors.Is(err, network.ErrLocalPeerNotFound) ||
+			errors.Is(err, network.ErrTargetPeerNotFound) ||
+			errors.Is(err, network.ErrMissingField) ||
+			errors.Is(err, network.ErrInvalidField) ||
+			errors.Is(err, network.ErrInvalidKind) ||
+			errors.Is(err, network.ErrInvalidBody) ||
+			errors.Is(err, network.ErrExpired) ||
+			errors.Is(err, network.ErrReplayTooOld) {
+			status = StatusForNetworkError(err)
+		}
+		h.respondError(c, status, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.NetworkChannelsResponse{Channels: NetworkChannelPayloadsFromInfos(channels)})
+	c.JSON(http.StatusOK, contract.NetworkChannelsResponse{Channels: channels})
 }
 
 // NetworkSend validates and forwards one outbound network send request.
@@ -234,11 +256,16 @@ func NetworkPeerPayloadsFromInfos(peers []network.PeerInfo) []contract.NetworkPe
 
 // NetworkPeerPayloadFromInfo converts one visible peer snapshot into the shared payload.
 func NetworkPeerPayloadFromInfo(peer network.PeerInfo) contract.NetworkPeerPayload {
+	displayName := peer.PeerID
+	if peer.PeerCard.DisplayName != nil {
+		displayName = strings.TrimSpace(*peer.PeerCard.DisplayName)
+	}
 	return contract.NetworkPeerPayload{
-		SessionID: peer.SessionID,
-		PeerID:    peer.PeerID,
-		Channel:   peer.Channel,
-		Local:     peer.Local,
+		SessionID:   peer.SessionID,
+		PeerID:      peer.PeerID,
+		DisplayName: displayName,
+		Channel:     peer.Channel,
+		Local:       peer.Local,
 		PeerCard: contract.NetworkPeerCardPayload{
 			PeerID:              peer.PeerCard.PeerID,
 			DisplayName:         peer.PeerCard.DisplayName,

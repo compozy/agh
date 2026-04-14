@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 
-import { fetchWorkspaces, resolveWorkspace } from "./workspace-api";
+import { fetchWorkspace, fetchWorkspaces, resolveWorkspace } from "./workspace-api";
 
 const mockWorkspace = {
   id: "ws_alpha",
@@ -11,6 +11,12 @@ const mockWorkspace = {
   name: "alpha",
   created_at: "2026-04-06T10:00:00Z",
   updated_at: "2026-04-06T10:00:00Z",
+};
+const mockWorkspaceDetail = {
+  agents: [{ name: "coder", prompt: "code", provider: "openai" }],
+  sessions: [],
+  skills: [],
+  workspace: mockWorkspace,
 };
 
 beforeEach(() => {
@@ -40,6 +46,19 @@ describe("fetchWorkspaces", () => {
     await expectFetchRequest({
       path: "/api/workspaces",
       signal: controller.signal,
+    });
+  });
+});
+
+describe("fetchWorkspace", () => {
+  it("loads the resolved workspace detail payload", async () => {
+    mockJsonResponse(mockWorkspaceDetail);
+
+    const result = await fetchWorkspace("ws_alpha");
+
+    expect(result).toEqual(mockWorkspaceDetail);
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha",
     });
   });
 });

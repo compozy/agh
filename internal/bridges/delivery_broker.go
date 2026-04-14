@@ -73,6 +73,7 @@ type instanceDeliveryMetrics struct {
 	deliveryFailuresTotal int
 	lastError             string
 	lastErrorAt           time.Time
+	lastSuccessAt         time.Time
 }
 
 // Broker projects session output into ordered delivery requests for one
@@ -199,6 +200,7 @@ func (b *Broker) DeliveryMetrics() map[string]BridgeDeliveryMetrics {
 			DeliveryFailuresTotal:   metrics.deliveryFailuresTotal,
 			LastError:               metrics.lastError,
 			LastErrorAt:             metrics.lastErrorAt,
+			LastSuccessAt:           metrics.lastSuccessAt,
 		}
 	}
 
@@ -700,6 +702,7 @@ func (b *Broker) handleSendSuccess(route *routeWorker, deliveryID string, eventT
 		}
 	}
 	delivery.updatedAt = b.now()
+	b.recordDeliverySuccessLocked(delivery.bridgeInstanceID, delivery.updatedAt)
 
 	if delivery.final && !delivery.hasQueuedItems() {
 		b.removeDeliveryLocked(route, delivery)
@@ -981,6 +984,14 @@ func (b *Broker) recordDeliveryFailureLocked(bridgeInstanceID string, message st
 	metrics.deliveryFailuresTotal++
 	metrics.lastError = strings.TrimSpace(message)
 	metrics.lastErrorAt = b.now()
+}
+
+func (b *Broker) recordDeliverySuccessLocked(bridgeInstanceID string, deliveredAt time.Time) {
+	metrics := b.metricsLocked(bridgeInstanceID)
+	if metrics == nil {
+		return
+	}
+	metrics.lastSuccessAt = deliveredAt.UTC()
 }
 
 func (b *Broker) removeQueuedSlotLocked(route *routeWorker, deliveryID string, kind deliveryQueueKind) bool {

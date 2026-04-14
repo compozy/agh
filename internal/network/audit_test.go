@@ -13,11 +13,17 @@ import (
 )
 
 type recordingAuditStore struct {
-	entries []store.NetworkAuditEntry
+	entries  []store.NetworkAuditEntry
+	messages []store.NetworkMessageEntry
 }
 
 func (s *recordingAuditStore) WriteNetworkAudit(_ context.Context, entry store.NetworkAuditEntry) error {
 	s.entries = append(s.entries, entry)
+	return nil
+}
+
+func (s *recordingAuditStore) WriteNetworkMessage(_ context.Context, entry store.NetworkMessageEntry) error {
+	s.messages = append(s.messages, entry)
 	return nil
 }
 
@@ -111,6 +117,58 @@ func TestAuditWriterRecordSentAndRejected(t *testing.T) {
 	}
 }
 
+func TestAuditWriterRecordsDeliveredDirection(t *testing.T) {
+	t.Parallel()
+
+	storeSink := &recordingAuditStore{}
+	writer, err := NewAuditWriter("", storeSink)
+	if err != nil {
+		t.Fatalf("NewAuditWriter() error = %v", err)
+	}
+
+	if err := writer.RecordDelivered(context.Background(), "sess-audit", testAuditEnvelope(t)); err != nil {
+		t.Fatalf("RecordDelivered() error = %v", err)
+	}
+	if got, want := len(storeSink.entries), 1; got != want {
+		t.Fatalf("len(store entries) = %d, want %d", got, want)
+	}
+	if got, want := storeSink.entries[0].Direction, AuditDirectionDelivered; got != want {
+		t.Fatalf("entries[0].Direction = %q, want %q", got, want)
+	}
+}
+
+func TestAuditWriterPersistsTimelineMessagesForSayEnvelopesOnly(t *testing.T) {
+	t.Parallel()
+
+	storeSink := &recordingAuditStore{}
+	writer, err := NewAuditWriter("", storeSink)
+	if err != nil {
+		t.Fatalf("NewAuditWriter() error = %v", err)
+	}
+	recordedAt := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+	writer.now = func() time.Time { return recordedAt }
+
+	if err := writer.RecordSent(context.Background(), "sess-audit", testSayAuditEnvelope(t)); err != nil {
+		t.Fatalf("RecordSent(say) error = %v", err)
+	}
+	if err := writer.RecordReceived(context.Background(), "sess-remote", testSayAuditEnvelope(t)); err != nil {
+		t.Fatalf("RecordReceived(say duplicate) error = %v", err)
+	}
+	if err := writer.RecordSent(context.Background(), "sess-audit", testAuditEnvelope(t)); err != nil {
+		t.Fatalf("RecordSent(direct) error = %v", err)
+	}
+
+	if got, want := len(storeSink.messages), 2; got != want {
+		t.Fatalf("len(store messages) = %d, want %d", got, want)
+	}
+	if got, want := storeSink.messages[0].MessageID, "msg_say_01"; got != want {
+		t.Fatalf("messages[0].MessageID = %q, want %q", got, want)
+	}
+	if got, want := storeSink.messages[0].Intent, "announce"; got != want {
+		t.Fatalf("messages[0].Intent = %q, want %q", got, want)
+	}
+}
+
 func testAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
@@ -124,5 +182,19 @@ func testAuditEnvelope(t *testing.T) Envelope {
 		InteractionID: stringPtr("int_patch_42"),
 		TS:            time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
 		Body:          mustRawJSON(t, map[string]any{"text": "Please inspect auth.go"}),
+	}
+}
+
+func testSayAuditEnvelope(t *testing.T) Envelope {
+	t.Helper()
+
+	return Envelope{
+		Protocol: ProtocolV0,
+		ID:       "msg_say_01",
+		Kind:     KindSay,
+		Channel:  "builders",
+		From:     "coder.sess-audit",
+		TS:       time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		Body:     mustRawJSON(t, SayBody{Text: "hello builders", Intent: "announce"}),
 	}
 }

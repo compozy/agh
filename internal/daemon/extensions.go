@@ -142,15 +142,28 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 }
 
 func (s *daemonExtensionService) lookup(name string) (*extensionpkg.Extension, error) {
+	return loadExtensionSnapshot(s.registry, s.runtime, s.logger, name)
+}
+
+func loadExtensionSnapshot(
+	registry *extensionpkg.Registry,
+	runtime extensionRuntime,
+	logger *slog.Logger,
+	name string,
+) (*extensionpkg.Extension, error) {
+	if registry == nil {
+		return nil, errors.New("daemon: extension registry is required")
+	}
+
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
 		return nil, errors.New("extension: extension name is required")
 	}
 
-	if s.runtime != nil {
-		ext, err := s.runtime.Get(trimmed)
+	if runtime != nil {
+		ext, err := runtime.Get(trimmed)
 		if err == nil {
-			s.populateManifest(ext)
+			populateExtensionManifest(logger, ext)
 			return ext, nil
 		}
 		if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
@@ -158,7 +171,7 @@ func (s *daemonExtensionService) lookup(name string) (*extensionpkg.Extension, e
 		}
 	}
 
-	info, err := s.registry.Get(trimmed)
+	info, err := registry.Get(trimmed)
 	if err != nil {
 		return nil, err
 	}
@@ -172,18 +185,20 @@ func (s *daemonExtensionService) lookup(name string) (*extensionpkg.Extension, e
 			Enabled: info.Enabled,
 		},
 	}
-	s.populateManifest(ext)
+	populateExtensionManifest(logger, ext)
 	return ext, nil
 }
 
-func (s *daemonExtensionService) populateManifest(ext *extensionpkg.Extension) {
+func populateExtensionManifest(logger *slog.Logger, ext *extensionpkg.Extension) {
 	if ext == nil || ext.Manifest != nil || strings.TrimSpace(ext.Info.ManifestPath) == "" {
 		return
 	}
 
 	manifest, err := extensionpkg.LoadManifest(filepath.Dir(ext.Info.ManifestPath))
 	if err != nil {
-		s.logger.Debug("daemon: load extension manifest for status failed", "path", ext.Info.ManifestPath, "error", err)
+		if logger != nil {
+			logger.Debug("daemon: load extension manifest for status failed", "path", ext.Info.ManifestPath, "error", err)
+		}
 		return
 	}
 	ext.Manifest = manifest

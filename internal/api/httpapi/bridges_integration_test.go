@@ -301,6 +301,9 @@ func TestHTTPBridgeDetailReportsBacklogAndClearsAfterDeliveryCompletes(t *testin
 	if bridge.Health.DeliveryBacklog != 0 {
 		t.Fatalf("bridge.health.delivery_backlog = %d, want 0", bridge.Health.DeliveryBacklog)
 	}
+	if bridge.Health.LastSuccessAt == nil {
+		t.Fatal("bridge.health.last_success_at = nil, want successful delivery timestamp")
+	}
 }
 
 func createIntegrationBridge(t *testing.T, runtime integrationRuntime, req bridgepkg.CreateInstanceRequest) *bridgepkg.BridgeInstance {

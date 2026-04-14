@@ -177,6 +177,29 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertRequired(t, responseSchema, "status", "delivery_target")
 			},
 		},
+		{
+			name: "ShouldDescribeBridgeProvidersAndHealthTelemetry",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				providers := operationFor(t, doc, "/api/bridges/providers", "GET")
+				providersSchema := jsonResponseSchema(t, providers, 200)
+				assertRequired(t, providersSchema, "providers")
+
+				providerItems := propertySchema(t, providersSchema, "providers")
+				if providerItems.Items == nil || providerItems.Items.Value == nil {
+					t.Fatal("expected providers to define an items schema")
+				}
+				providerSchema := providerItems.Items.Value
+				assertRequired(t, providerSchema, "platform", "extension_name", "display_name", "enabled", "state", "health")
+				assertNotRequired(t, providerSchema, "description", "health_message")
+
+				getBridge := operationFor(t, doc, "/api/bridges/{id}", "GET")
+				getBridgeSchema := jsonResponseSchema(t, getBridge, 200)
+				healthSchema := propertySchema(t, getBridgeSchema, "health")
+				assertNotRequired(t, healthSchema, "last_success_at", "last_error", "last_error_at")
+			},
+		},
 	}
 
 	for _, tt := range tests {

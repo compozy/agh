@@ -29,7 +29,7 @@ export function AutomationField({ label, hint, children }: AutomationFieldProps)
 
 function inputBaseClassName() {
   return cn(
-    "w-full rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
+    "w-full rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)]",
     "px-3 py-2 text-sm text-[color:var(--color-text-primary)] outline-none transition-colors",
     "placeholder:text-[color:var(--color-text-tertiary)] focus:border-[color:var(--color-accent)]"
   );
@@ -69,7 +69,7 @@ export function AutomationCheckbox({
 }: AutomationCheckboxProps) {
   return (
     <label
-      className="flex items-start gap-3 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-3"
+      className="flex items-start gap-3 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] p-3"
       data-testid={testId}
     >
       <input

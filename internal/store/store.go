@@ -72,6 +72,12 @@ type NetworkAuditStore interface {
 	ListNetworkAudit(ctx context.Context, query NetworkAuditQuery) ([]NetworkAuditEntry, error)
 }
 
+// NetworkMessageStore manages persisted network timeline messages.
+type NetworkMessageStore interface {
+	WriteNetworkMessage(ctx context.Context, entry NetworkMessageEntry) error
+	ListNetworkMessages(ctx context.Context, query NetworkMessageQuery) ([]NetworkMessageEntry, error)
+}
+
 // SessionRegistry composes the global persistence surfaces used by runtime consumers.
 type SessionRegistry interface {
 	SessionCatalog
@@ -79,6 +85,7 @@ type SessionRegistry interface {
 	TokenStatsStore
 	PermissionLogStore
 	NetworkAuditStore
+	NetworkMessageStore
 	Close(ctx context.Context) error
 }
 

@@ -85,9 +85,8 @@ describe("AutomationTriggerForm", () => {
     );
 
     fireEvent.click(screen.getByTestId("trigger-scope-workspace"));
-    fireEvent.change(screen.getByTestId("trigger-retry-strategy"), {
-      target: { value: "backoff" },
-    });
+    fireEvent.click(screen.getByTestId("trigger-governance-toggle"));
+    fireEvent.click(screen.getByTestId("trigger-retry-strategy-backoff"));
     fireEvent.change(screen.getByTestId("trigger-retry-max"), {
       target: { value: "6" },
     });
@@ -150,7 +149,7 @@ describe("AutomationTriggerForm", () => {
       mode: "edit",
     });
 
-    expect(screen.getByText("Edit trigger")).toBeInTheDocument();
+    expect(screen.getByText("Edit Trigger")).toBeInTheDocument();
     expect(screen.getByTestId("submit-trigger-form")).toHaveTextContent("Saving...");
 
     fireEvent.submit(screen.getByTestId("automation-trigger-form"));

@@ -52,6 +52,7 @@ type BridgeInstanceHealth struct {
 	DeliveryDroppedByReason map[string]int         `json:"delivery_dropped_by_reason,omitempty"`
 	DeliveryFailuresTotal   int                    `json:"delivery_failures_total"`
 	AuthFailuresTotal       int                    `json:"auth_failures_total"`
+	LastSuccessAt           time.Time              `json:"last_success_at,omitempty"`
 	LastError               string                 `json:"last_error,omitempty"`
 	LastErrorAt             time.Time              `json:"last_error_at,omitempty"`
 }
@@ -193,6 +194,7 @@ func (o *Observer) collectBridgeHealth(ctx context.Context) ([]BridgeInstanceHea
 			item.DeliveryDroppedTotal = metrics.DeliveryDroppedTotal
 			item.DeliveryDroppedByReason = cloneDroppedReasons(metrics.DeliveryDroppedByReason)
 			item.DeliveryFailuresTotal = metrics.DeliveryFailuresTotal
+			item.LastSuccessAt = metrics.LastSuccessAt
 			item.LastError = strings.TrimSpace(metrics.LastError)
 			item.LastErrorAt = metrics.LastErrorAt
 		}

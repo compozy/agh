@@ -1,13 +1,17 @@
-import { Plus, Search } from "lucide-react";
-import { useDeferredValue, useMemo } from "react";
+import { Search } from "lucide-react";
 
+import { Pill } from "@/components/design-system";
 import { cn } from "@/lib/utils";
 
 import {
+  automationScopeLabel,
+  automationScopeTone,
+  automationSemanticTone,
   automationSourceLabel,
-  automationStatusTone,
+  automationSourceTone,
   describeSchedule,
-  describeTrigger,
+  formatAutomationListSummary,
+  formatPromptPreview,
   formatRelativeTime,
 } from "../lib/automation-formatters";
 import type {
@@ -18,88 +22,29 @@ import type {
 } from "../types";
 
 interface AutomationListPanelProps {
+  activeWorkspaceName?: string;
   jobs: AutomationJob[];
   kind: AutomationKind;
-  onCreate: () => void;
   onSearchChange: (query: string) => void;
   onSelect: (id: string) => void;
   scopeFilter: AutomationScopeFilter;
   searchQuery: string;
   selectedId: string | null;
+  totalCount: number;
   triggers: AutomationTrigger[];
 }
 
-const SOURCE_ORDER = {
-  config: 0,
-  dynamic: 1,
-} as const;
-
-const TONE_CLASSES = {
-  accent: "bg-[color:var(--color-accent-tint)] text-[color:var(--color-accent)]",
-  success: "bg-[color:var(--color-success-tint)] text-[color:var(--color-success)]",
-  warning: "bg-[color:var(--color-warning-tint)] text-[color:var(--color-warning)]",
-  danger: "bg-[color:var(--color-danger-tint)] text-[color:var(--color-danger)]",
-  neutral: "bg-[color:var(--color-neutral-tint)] text-[color:var(--color-text-tertiary)]",
-} as const;
-
-function scopeLabel(scope: "global" | "workspace") {
-  return scope === "workspace" ? "WORKSPACE" : "GLOBAL";
-}
-
-function matchesJob(job: AutomationJob, query: string) {
-  const haystack = [
-    job.name,
-    job.agent_name,
-    job.prompt,
-    job.scope,
-    job.source,
-    job.schedule?.mode,
-    job.schedule?.expr,
-    job.schedule?.interval,
-    job.schedule?.time,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return haystack.includes(query);
-}
-
-function matchesTrigger(trigger: AutomationTrigger, query: string) {
-  const haystack = [
-    trigger.name,
-    trigger.agent_name,
-    trigger.prompt,
-    trigger.scope,
-    trigger.source,
-    trigger.event,
-    trigger.endpoint_slug,
-    trigger.webhook_id,
-    ...Object.entries(trigger.filter ?? {}).flat(),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return haystack.includes(query);
-}
-
-function AutomationBadge({
+function AutomationTag({
   children,
   tone,
 }: {
   children: string;
-  tone: keyof typeof TONE_CLASSES;
+  tone: "amber" | "danger" | "green" | "neutral" | "violet";
 }) {
   return (
-    <span
-      className={cn(
-        "inline-flex h-[18px] items-center rounded px-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]",
-        TONE_CLASSES[tone]
-      )}
-    >
+    <Pill className="border-none" emphasis="strong" kind="state" tone={tone}>
       {children}
-    </span>
+    </Pill>
   );
 }
 
@@ -115,7 +60,7 @@ function JobListItem({
   return (
     <button
       className={cn(
-        "relative flex w-full flex-col gap-1 border-b border-[color:rgba(58,58,60,0.45)] px-3 py-2.5 text-left transition-colors",
+        "relative flex w-full flex-col gap-2 border-b border-[color:rgba(58,58,60,0.5)] px-4 py-3 text-left transition-colors",
         "hover:bg-[color:var(--color-surface)]",
         isSelected && "bg-[color:var(--color-surface)]"
       )}
@@ -125,27 +70,35 @@ function JobListItem({
     >
       {isSelected ? (
         <span
-          className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-[color:var(--color-accent)]"
           data-testid="automation-active-indicator"
         />
       ) : null}
-      <div className="flex items-center gap-2">
-        <span className="flex-1 truncate text-sm font-medium text-[color:var(--color-text-primary)]">
-          {job.name}
-        </span>
-        <span className="text-[10px] text-[color:var(--color-text-tertiary)]">
+
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[0.95rem] font-medium text-[color:var(--color-text-primary)]">
+            {job.name}
+          </p>
+          <p className="mt-0.5 truncate text-sm text-[color:var(--color-text-secondary)]">
+            {describeSchedule(job.schedule)}
+          </p>
+        </div>
+        <span className="shrink-0 font-mono text-[0.66rem] uppercase tracking-[0.1em] text-[color:var(--color-accent)]">
           {formatRelativeTime(job.next_run)}
         </span>
       </div>
-      <span className="truncate text-xs text-[color:var(--color-text-secondary)]">
-        {describeSchedule(job.schedule)}
-      </span>
+
       <div className="flex flex-wrap items-center gap-1.5">
-        <AutomationBadge tone={automationStatusTone(job.enabled ? "enabled" : "disabled")}>
-          {job.enabled ? "enabled" : "disabled"}
-        </AutomationBadge>
-        <AutomationBadge tone="neutral">{scopeLabel(job.scope)}</AutomationBadge>
-        <AutomationBadge tone="neutral">{automationSourceLabel(job.source)}</AutomationBadge>
+        <AutomationTag tone={automationSemanticTone(job.enabled ? "enabled" : "disabled")}>
+          {job.enabled ? "ENABLED" : "DISABLED"}
+        </AutomationTag>
+        <AutomationTag tone={automationScopeTone(job.scope)}>
+          {automationScopeLabel(job.scope)}
+        </AutomationTag>
+        <AutomationTag tone={automationSourceTone(job.source)}>
+          {automationSourceLabel(job.source)}
+        </AutomationTag>
       </div>
     </button>
   );
@@ -163,7 +116,7 @@ function TriggerListItem({
   return (
     <button
       className={cn(
-        "relative flex w-full flex-col gap-1 border-b border-[color:rgba(58,58,60,0.45)] px-3 py-2.5 text-left transition-colors",
+        "relative flex w-full flex-col gap-2 border-b border-[color:rgba(58,58,60,0.5)] px-4 py-3 text-left transition-colors",
         "hover:bg-[color:var(--color-surface)]",
         isSelected && "bg-[color:var(--color-surface)]"
       )}
@@ -173,126 +126,119 @@ function TriggerListItem({
     >
       {isSelected ? (
         <span
-          className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-[color:var(--color-accent)]"
           data-testid="automation-active-indicator"
         />
       ) : null}
-      <div className="flex items-center gap-2">
-        <span className="flex-1 truncate text-sm font-medium text-[color:var(--color-text-primary)]">
-          {trigger.name}
+
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[0.95rem] font-medium text-[color:var(--color-text-primary)]">
+            {trigger.name}
+          </p>
+          <p className="mt-0.5 truncate text-sm text-[color:var(--color-text-secondary)]">
+            {formatPromptPreview(trigger.prompt)}
+          </p>
+        </div>
+        <span className="shrink-0 font-mono text-[0.66rem] tracking-[0.06em] text-[color:var(--color-info)]">
+          {trigger.event}
         </span>
-        <span className="text-[10px] text-[color:var(--color-text-tertiary)]">{trigger.event}</span>
       </div>
-      <span className="truncate text-xs text-[color:var(--color-text-secondary)]">
-        {describeTrigger(trigger)}
-      </span>
+
       <div className="flex flex-wrap items-center gap-1.5">
-        <AutomationBadge tone={automationStatusTone(trigger.enabled ? "enabled" : "disabled")}>
-          {trigger.enabled ? "enabled" : "disabled"}
-        </AutomationBadge>
-        <AutomationBadge tone="neutral">{scopeLabel(trigger.scope)}</AutomationBadge>
-        <AutomationBadge tone="neutral">{automationSourceLabel(trigger.source)}</AutomationBadge>
+        <AutomationTag tone={automationSemanticTone(trigger.enabled ? "enabled" : "disabled")}>
+          {trigger.enabled ? "ENABLED" : "DISABLED"}
+        </AutomationTag>
+        <AutomationTag tone={automationScopeTone(trigger.scope)}>
+          {automationScopeLabel(trigger.scope)}
+        </AutomationTag>
+        <AutomationTag tone={automationSourceTone(trigger.source)}>
+          {automationSourceLabel(trigger.source)}
+        </AutomationTag>
       </div>
     </button>
   );
 }
 
 export function AutomationListPanel({
+  activeWorkspaceName,
   jobs,
   kind,
-  onCreate,
   onSearchChange,
   onSelect,
   scopeFilter,
   searchQuery,
   selectedId,
+  totalCount,
   triggers,
 }: AutomationListPanelProps) {
-  const deferredQuery = useDeferredValue(searchQuery);
-
-  const items = useMemo(() => {
-    const normalizedQuery = deferredQuery.trim().toLowerCase();
-    const sourceItems = kind === "jobs" ? jobs : triggers;
-
-    const filtered =
-      normalizedQuery === ""
-        ? sourceItems
-        : sourceItems.filter(item =>
-            kind === "jobs"
-              ? matchesJob(item as AutomationJob, normalizedQuery)
-              : matchesTrigger(item as AutomationTrigger, normalizedQuery)
-          );
-
-    return [...filtered].sort((left, right) => {
-      const leftOrder = SOURCE_ORDER[left.source];
-      const rightOrder = SOURCE_ORDER[right.source];
-      if (leftOrder !== rightOrder) {
-        return leftOrder - rightOrder;
-      }
-
-      return left.name.localeCompare(right.name);
-    });
-  }, [deferredQuery, jobs, kind, triggers]);
+  const items = kind === "jobs" ? jobs : triggers;
+  const emptyLabel = kind === "jobs" ? "No jobs found" : "No triggers found";
+  const summary = formatAutomationListSummary({
+    activeWorkspaceName,
+    kind,
+    scopeFilter,
+    searchQuery,
+    totalCount,
+    visibleCount: items.length,
+  });
 
   return (
-    <div
+    <aside
       className="flex w-[320px] shrink-0 flex-col border-r border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]"
       data-testid="automation-list-panel"
     >
-      <div className="space-y-3 border-b border-[color:var(--color-divider)] p-3">
-        <div className="flex items-center gap-2 rounded-lg bg-[color:var(--color-surface)] px-3 py-2">
+      <div className="space-y-3 border-b border-[color:var(--color-divider)] px-3 py-4">
+        <label className="flex h-9 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3">
           <Search className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]" />
+          <span className="sr-only">Search automation items</span>
           <input
-            className="w-full bg-transparent text-sm text-[color:var(--color-text-primary)] outline-none placeholder:text-[color:var(--color-text-tertiary)]"
+            className="min-w-0 flex-1 bg-transparent text-sm text-[color:var(--color-text-primary)] outline-none placeholder:text-[color:var(--color-text-tertiary)]"
             data-testid="automation-search-input"
             onChange={event => onSearchChange(event.target.value)}
-            placeholder={`Search ${kind}...`}
+            placeholder={kind === "jobs" ? "Search jobs..." : "Search triggers..."}
             type="text"
             value={searchQuery}
           />
-        </div>
-        <button
-          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-[color:var(--color-accent)] px-4 text-sm font-medium text-[color:var(--color-accent-ink)] transition-colors hover:bg-[color:var(--color-accent-hover)]"
-          data-testid="create-automation-btn"
-          onClick={onCreate}
-          type="button"
+        </label>
+        <p
+          className="text-sm text-[color:var(--color-text-secondary)]"
+          data-testid="automation-list-summary"
         >
-          <Plus className="size-4" />
-          {kind === "jobs" ? "New job" : "New trigger"}
-        </button>
-        <p className="text-xs text-[color:var(--color-text-tertiary)]">
-          Showing {scopeFilter === "all" ? "all scopes" : `${scopeFilter} scope`} for {kind}.
+          {summary}
         </p>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 ? (
           <div
-            className="px-4 py-8 text-center text-sm text-[color:var(--color-text-secondary)]"
+            className="flex min-h-full items-center justify-center px-6 py-10 text-center text-sm text-[color:var(--color-text-secondary)]"
             data-testid="automation-list-empty"
           >
-            No {kind} match the current filters.
+            {emptyLabel}
           </div>
         ) : (
-          items.map(item =>
-            kind === "jobs" ? (
-              <JobListItem
-                key={item.id}
-                isSelected={selectedId === item.id}
-                job={item as AutomationJob}
-                onSelect={() => onSelect(item.id)}
-              />
-            ) : (
-              <TriggerListItem
-                key={item.id}
-                isSelected={selectedId === item.id}
-                onSelect={() => onSelect(item.id)}
-                trigger={item as AutomationTrigger}
-              />
-            )
-          )
+          <>
+            {kind === "jobs"
+              ? jobs.map(job => (
+                  <JobListItem
+                    isSelected={job.id === selectedId}
+                    job={job}
+                    key={job.id}
+                    onSelect={() => onSelect(job.id)}
+                  />
+                ))
+              : triggers.map(trigger => (
+                  <TriggerListItem
+                    isSelected={trigger.id === selectedId}
+                    key={trigger.id}
+                    onSelect={() => onSelect(trigger.id)}
+                    trigger={trigger}
+                  />
+                ))}
+          </>
         )}
       </div>
-    </div>
+    </aside>
   );
 }

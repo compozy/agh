@@ -15,12 +15,14 @@ vi.mock("lucide-react", () => ({
   Bot: () => <span>bot</span>,
   ChevronRight: () => <span>chevron</span>,
   Loader2: () => <span>loader</span>,
+  Network: () => <span data-testid="icon-network">network</span>,
   PanelLeftClose: () => <span>panel-close</span>,
   PanelLeftOpen: () => <span>panel-open</span>,
   Plus: () => <span>plus</span>,
   Search: () => <span>search</span>,
   Settings: () => <span>settings</span>,
   Terminal: () => <span data-testid="icon-terminal">terminal</span>,
+  Waypoints: () => <span data-testid="icon-waypoints">waypoints</span>,
   Wrench: () => <span data-testid="icon-wrench">wrench</span>,
 }));
 
@@ -253,6 +255,16 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("nav-knowledge")).toHaveAttribute("href", "/knowledge");
     });
 
+    it("renders Bridges nav item linking to /bridges", () => {
+      render(<AppSidebar {...makeProps()} />);
+      expect(screen.getByTestId("nav-bridges")).toHaveAttribute("href", "/bridges");
+    });
+
+    it("renders Network nav item linking to /network", () => {
+      render(<AppSidebar {...makeProps()} />);
+      expect(screen.getByTestId("nav-network")).toHaveAttribute("href", "/network");
+    });
+
     it("renders Automation nav item linking to /automation", () => {
       render(<AppSidebar {...makeProps()} />);
       expect(screen.getByTestId("nav-automation")).toHaveAttribute("href", "/automation");
@@ -279,6 +291,22 @@ describe("AppSidebar", () => {
       expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
     });
 
+    it("shows active indicator on active Bridges nav", () => {
+      matchedRoute["/bridges"] = true;
+      render(<AppSidebar {...makeProps()} />);
+      const indicator = screen.getByTestId("nav-active-bridges");
+      expect(indicator.className).toContain("w-[3px]");
+      expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
+    });
+
+    it("shows active indicator on active Network nav", () => {
+      matchedRoute["/network"] = true;
+      render(<AppSidebar {...makeProps()} />);
+      const indicator = screen.getByTestId("nav-active-network");
+      expect(indicator.className).toContain("w-[3px]");
+      expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
+    });
+
     it("shows active indicator on active Skills nav", () => {
       matchedRoute["/skills"] = true;
       render(<AppSidebar {...makeProps()} />);
@@ -290,6 +318,8 @@ describe("AppSidebar", () => {
     it("does not show active indicator when nav is not active", () => {
       render(<AppSidebar {...makeProps()} />);
       expect(screen.queryByTestId("nav-active-automation")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("nav-active-bridges")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("nav-active-network")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-knowledge")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-skills")).not.toBeInTheDocument();
     });

@@ -3102,6 +3102,14 @@ func (r *recordingRegistry) ListNetworkAudit(context.Context, store.NetworkAudit
 	return nil, nil
 }
 
+func (r *recordingRegistry) WriteNetworkMessage(context.Context, store.NetworkMessageEntry) error {
+	return nil
+}
+
+func (r *recordingRegistry) ListNetworkMessages(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+	return nil, nil
+}
+
 func (r *recordingRegistry) Close(context.Context) error {
 	if r.onClose != nil {
 		r.onClose()

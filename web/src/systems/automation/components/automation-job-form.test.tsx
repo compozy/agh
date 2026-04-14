@@ -73,23 +73,17 @@ describe("AutomationJobForm", () => {
       expect.objectContaining({ scope: "workspace", workspace_id: "ws_alpha" })
     );
 
-    fireEvent.change(screen.getByTestId("job-schedule-mode"), {
-      target: { value: "every" },
-    });
+    fireEvent.click(screen.getByTestId("job-schedule-mode-every"));
     fireEvent.change(screen.getByTestId("job-schedule-interval"), {
       target: { value: "45m" },
     });
 
-    fireEvent.change(screen.getByTestId("job-schedule-mode"), {
-      target: { value: "at" },
-    });
+    fireEvent.click(screen.getByTestId("job-schedule-mode-at"));
     fireEvent.change(screen.getByTestId("job-schedule-time"), {
       target: { value: "2026-04-15T15:00:00Z" },
     });
 
-    fireEvent.change(screen.getByTestId("job-retry-strategy"), {
-      target: { value: "backoff" },
-    });
+    fireEvent.click(screen.getByTestId("job-retry-strategy-backoff"));
     fireEvent.change(screen.getByTestId("job-retry-max"), {
       target: { value: "5" },
     });
@@ -146,7 +140,7 @@ describe("AutomationJobForm", () => {
       mode: "edit",
     });
 
-    expect(screen.getByText("Edit job")).toBeInTheDocument();
+    expect(screen.getByText("Edit Job")).toBeInTheDocument();
     expect(screen.getByTestId("submit-job-form")).toHaveTextContent("Saving...");
 
     fireEvent.submit(screen.getByTestId("automation-job-form"));

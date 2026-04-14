@@ -98,6 +98,7 @@ func TestSchedulerAtJobUnregistersAfterFiringOnce(t *testing.T) {
 	waitForTimers(t, fakeClock, 1)
 	fakeClock.Advance(1 * time.Minute)
 	dispatcher.waitForDispatchCount(t, 1, 2*time.Second)
+	dispatcher.waitForCompletionCount(t, 1, 2*time.Second)
 
 	if _, err := scheduler.State(job.ID); !errors.Is(err, ErrScheduledJobNotFound) {
 		t.Fatalf("State() error = %v, want ErrScheduledJobNotFound", err)
@@ -138,6 +139,7 @@ func TestSchedulerSingletonPreventsOverlap(t *testing.T) {
 	dispatcher.assertDispatchCount(t, 1)
 
 	dispatcher.releaseBlockedDispatch()
+	dispatcher.waitForCompletionCount(t, 1, 2*time.Second)
 	waitForTimers(t, fakeClock, 1)
 	fakeClock.Advance(1 * time.Second)
 	dispatcher.waitForDispatchCount(t, 2, 2*time.Second)
@@ -367,16 +369,20 @@ type stubScheduleDispatcher struct {
 	blocked        bool
 	releaseCh      chan struct{}
 	dispatchedCh   chan struct{}
+	completedCh    chan struct{}
 	dispatchResult error
 }
 
 func newStubScheduleDispatcher() *stubScheduleDispatcher {
 	return &stubScheduleDispatcher{
 		dispatchedCh: make(chan struct{}, 32),
+		completedCh:  make(chan struct{}, 32),
 	}
 }
 
 func (d *stubScheduleDispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, error) {
+	defer notify(d.completedCh)
+
 	d.mu.Lock()
 	d.calls = append(d.calls, req)
 	releaseCh := d.releaseCh
@@ -447,6 +453,21 @@ func (d *stubScheduleDispatcher) waitForDispatchCount(t *testing.T, want int, ti
 		case <-deadline:
 			t.Fatalf("dispatch count did not reach %d within %s; got %d", want, timeout, d.count())
 		case <-d.dispatchedCh:
+		}
+	}
+}
+
+func (d *stubScheduleDispatcher) waitForCompletionCount(t *testing.T, want int, timeout time.Duration) {
+	t.Helper()
+
+	completed := 0
+	deadline := time.After(timeout)
+	for completed < want {
+		select {
+		case <-deadline:
+			t.Fatalf("dispatch completion count did not reach %d within %s; got %d", want, timeout, completed)
+		case <-d.completedCh:
+			completed++
 		}
 	}
 }

@@ -1,8 +1,15 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AutomationJob, AutomationRun, AutomationTrigger } from "@/systems/automation";
+
+const { toast } = vi.hoisted(() => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
+}));
 
 let mockJobs: AutomationJob[] = [];
 let mockJobsLoading = false;
@@ -50,32 +57,36 @@ vi.mock("@tanstack/react-router", () => ({
   }),
 }));
 
+vi.mock("sonner", () => ({
+  toast,
+}));
+
 vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({
     workspaces: [
       {
-        id: "ws_test",
-        root_dir: "/workspace",
         add_dirs: [],
-        name: "test-workspace",
         created_at: "2026-04-03T12:00:00Z",
+        id: "ws_test",
+        name: "test-workspace",
+        root_dir: "/workspace",
         updated_at: "2026-04-03T12:00:00Z",
       },
     ],
     hasWorkspaces: true,
     activeWorkspace: {
-      id: "ws_test",
-      root_dir: "/workspace",
       add_dirs: [],
-      name: "test-workspace",
       created_at: "2026-04-03T12:00:00Z",
+      id: "ws_test",
+      name: "test-workspace",
+      root_dir: "/workspace",
       updated_at: "2026-04-03T12:00:00Z",
     },
     activeWorkspaceId: "ws_test",
-    setActiveWorkspaceId: vi.fn(),
     clearActiveWorkspaceSelection: vi.fn(),
-    isLoading: false,
     isError: false,
+    isLoading: false,
+    setActiveWorkspaceId: vi.fn(),
   }),
 }));
 
@@ -85,61 +96,61 @@ vi.mock("@/systems/automation", async () => {
     ...actual,
     useAutomationJobs: () => ({
       data: mockJobs,
-      isLoading: mockJobsLoading,
       error: mockJobsError,
+      isLoading: mockJobsLoading,
     }),
     useAutomationTriggers: () => ({
       data: mockTriggers,
-      isLoading: mockTriggersLoading,
       error: mockTriggersError,
+      isLoading: mockTriggersLoading,
     }),
     useAutomationJob: () => ({
       data: mockJobDetail,
-      isLoading: mockJobDetailLoading,
       error: mockJobDetailError,
+      isLoading: mockJobDetailLoading,
     }),
     useAutomationTrigger: () => ({
       data: mockTriggerDetail,
-      isLoading: mockTriggerDetailLoading,
       error: mockTriggerDetailError,
+      isLoading: mockTriggerDetailLoading,
     }),
     useAutomationJobRuns: () => ({
       data: mockJobRuns,
-      isLoading: mockJobRunsLoading,
       error: mockJobRunsError,
+      isLoading: mockJobRunsLoading,
     }),
     useAutomationTriggerRuns: () => ({
       data: mockTriggerRuns,
-      isLoading: mockTriggerRunsLoading,
       error: mockTriggerRunsError,
+      isLoading: mockTriggerRunsLoading,
     }),
     useCreateAutomationJob: () => ({
-      mutateAsync: mockCreateJobMutateAsync,
       isPending: mockCreateJobPending,
+      mutateAsync: mockCreateJobMutateAsync,
     }),
     useUpdateAutomationJob: () => ({
-      mutateAsync: mockUpdateJobMutateAsync,
       isPending: mockUpdateJobPending,
+      mutateAsync: mockUpdateJobMutateAsync,
     }),
     useDeleteAutomationJob: () => ({
-      mutateAsync: mockDeleteJobMutateAsync,
       isPending: mockDeleteJobPending,
+      mutateAsync: mockDeleteJobMutateAsync,
     }),
     useTriggerAutomationJob: () => ({
-      mutateAsync: mockTriggerJobMutateAsync,
       isPending: mockTriggerJobPending,
+      mutateAsync: mockTriggerJobMutateAsync,
     }),
     useCreateAutomationTrigger: () => ({
-      mutateAsync: mockCreateTriggerMutateAsync,
       isPending: mockCreateTriggerPending,
+      mutateAsync: mockCreateTriggerMutateAsync,
     }),
     useUpdateAutomationTrigger: () => ({
-      mutateAsync: mockUpdateTriggerMutateAsync,
       isPending: mockUpdateTriggerPending,
+      mutateAsync: mockUpdateTriggerMutateAsync,
     }),
     useDeleteAutomationTrigger: () => ({
-      mutateAsync: mockDeleteTriggerMutateAsync,
       isPending: mockDeleteTriggerPending,
+      mutateAsync: mockDeleteTriggerMutateAsync,
     }),
   };
 });
@@ -148,61 +159,60 @@ import { Route } from "./automation";
 
 function makeJob(overrides: Partial<AutomationJob> = {}): AutomationJob {
   return {
+    agent_name: "reviewer",
+    created_at: "2026-04-11T09:00:00Z",
+    enabled: true,
+    fire_limit: { max: 12, window: "1h" },
     id: "job_daily_review",
     name: "daily-review",
-    agent_name: "reviewer",
-    prompt: "Review recent changes.",
-    scope: "workspace",
-    workspace_id: "ws_test",
-    source: "dynamic",
-    enabled: true,
-    schedule: { mode: "cron", expr: "0 9 * * *" },
-    retry: { strategy: "none", max_retries: 3, base_delay: "2s" },
-    fire_limit: { max: 12, window: "1h" },
     next_run: "2026-04-12T09:00:00Z",
-    created_at: "2026-04-11T09:00:00Z",
+    prompt: "Review recent changes.",
+    retry: { strategy: "none", max_retries: 3, base_delay: "2s" },
+    schedule: { mode: "cron", expr: "0 9 * * *" },
+    scope: "workspace",
+    source: "dynamic",
     updated_at: "2026-04-11T09:05:00Z",
+    workspace_id: "ws_test",
     ...overrides,
   };
 }
 
 function makeTrigger(overrides: Partial<AutomationTrigger> = {}): AutomationTrigger {
   return {
-    id: "trg_push_review",
-    name: "push-review",
     agent_name: "reviewer",
-    prompt: "Review push event {{ .Data.branch }}.",
+    created_at: "2026-04-11T08:00:00Z",
+    enabled: true,
+    endpoint_slug: "push-review",
     event: "ext.github.push",
     filter: { "data.branch": "main" },
-    scope: "workspace",
-    workspace_id: "ws_test",
-    source: "dynamic",
-    enabled: true,
-    retry: { strategy: "backoff", max_retries: 4, base_delay: "5s" },
     fire_limit: { max: 12, window: "1h" },
-    endpoint_slug: "push-review",
-    webhook_id: "wbh_push_review",
-    created_at: "2026-04-11T08:00:00Z",
+    id: "trg_push_review",
+    name: "push-review",
+    prompt: "Review push event {{ .Data.branch }}.",
+    retry: { strategy: "backoff", max_retries: 4, base_delay: "5s" },
+    scope: "workspace",
+    source: "dynamic",
     updated_at: "2026-04-11T08:10:00Z",
+    webhook_id: "wbh_push_review",
+    workspace_id: "ws_test",
     ...overrides,
   };
 }
 
 function makeRun(overrides: Partial<AutomationRun> = {}): AutomationRun {
   return {
-    id: "run_001",
-    status: "completed",
     attempt: 1,
+    ended_at: "2026-04-11T10:05:00Z",
+    id: "run_001",
     job_id: "job_daily_review",
     session_id: "sess_001",
     started_at: "2026-04-11T10:00:00Z",
-    ended_at: "2026-04-11T10:05:00Z",
+    status: "completed",
     ...overrides,
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const AutomationPage = (Route as any).component as () => React.ReactNode;
+const AutomationPage = (Route as unknown as { component: () => React.ReactNode }).component;
 
 describe("Automation route integration", () => {
   beforeEach(() => {
@@ -222,7 +232,7 @@ describe("Automation route integration", () => {
     mockJobRunsLoading = false;
     mockJobRunsError = null;
     mockTriggerRuns = [
-      makeRun({ id: "run_trigger", trigger_id: "trg_push_review", job_id: undefined }),
+      makeRun({ id: "run_trigger", job_id: undefined, trigger_id: "trg_push_review" }),
     ];
     mockTriggerRunsLoading = false;
     mockTriggerRunsError = null;
@@ -242,16 +252,18 @@ describe("Automation route integration", () => {
     mockCreateTriggerMutateAsync.mockReset();
     mockUpdateTriggerMutateAsync.mockReset();
     mockDeleteTriggerMutateAsync.mockReset();
+    toast.success.mockReset();
+    toast.error.mockReset();
 
     mockCreateJobMutateAsync.mockResolvedValue(
       makeJob({ id: "job_created", name: "nightly-docs" })
     );
     mockTriggerJobMutateAsync.mockResolvedValue(
       makeRun({
-        id: "run_queued",
-        status: "running",
-        started_at: "2026-04-11T11:00:00Z",
         ended_at: undefined,
+        id: "run_queued",
+        started_at: "2026-04-11T11:00:00Z",
+        status: "running",
       })
     );
   });
@@ -271,21 +283,21 @@ describe("Automation route integration", () => {
     expect(screen.getByTestId("automation-error")).toHaveTextContent("boom");
   });
 
-  it("renders the jobs list, detail pane, and run history from mocked API-backed hooks", () => {
+  it("renders the jobs list, schedule detail, and run history from mocked hooks", () => {
     render(<AutomationPage />);
 
     const detailPanel = screen.getByTestId("automation-detail-panel");
 
     expect(screen.getByText("Automation")).toBeInTheDocument();
     expect(screen.getByTestId("automation-list-panel")).toBeInTheDocument();
-    expect(detailPanel).toBeInTheDocument();
     expect(screen.getByTestId("automation-item-job_daily_review")).toBeInTheDocument();
     expect(within(detailPanel).getByText("daily-review")).toBeInTheDocument();
     expect(within(detailPanel).getByText("Review recent changes.")).toBeInTheDocument();
+    expect(within(detailPanel).getByText("0 9 * * *")).toBeInTheDocument();
     expect(screen.getByTestId("automation-run-run_001")).toBeInTheDocument();
   });
 
-  it("switches to trigger management and shows trigger detail content", async () => {
+  it("switches to trigger management and shows trigger activation content", async () => {
     const user = userEvent.setup();
     render(<AutomationPage />);
 
@@ -295,14 +307,18 @@ describe("Automation route integration", () => {
 
     expect(screen.getByTestId("automation-item-trg_push_review")).toBeInTheDocument();
     expect(within(detailPanel).getByRole("heading", { name: "push-review" })).toBeInTheDocument();
-    expect(within(detailPanel).getByText("ext.github.push", { selector: "p" })).toBeInTheDocument();
+    expect(within(detailPanel).getAllByText("ext.github.push")).toHaveLength(2);
+    expect(within(detailPanel).getByText("Dispatches to")).toBeInTheDocument();
   });
 
-  it("submits a workspace-scoped job create payload using the active workspace id", async () => {
+  it("opens a create job modal and submits a workspace-scoped payload", async () => {
     const user = userEvent.setup();
     render(<AutomationPage />);
 
     await user.click(screen.getByTestId("create-automation-btn"));
+
+    expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
+
     await user.type(screen.getByTestId("job-name-input"), "nightly-docs");
     await user.type(screen.getByTestId("job-agent-input"), "writer");
     await user.type(
@@ -311,15 +327,47 @@ describe("Automation route integration", () => {
     );
     await user.click(screen.getByTestId("submit-job-form"));
 
-    expect(mockCreateJobMutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scope: "workspace",
-        workspace_id: "ws_test",
-        name: "nightly-docs",
-        agent_name: "writer",
-      })
-    );
-    expect(await screen.findByText("Created job nightly-docs.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockCreateJobMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent_name: "writer",
+          name: "nightly-docs",
+          scope: "workspace",
+          workspace_id: "ws_test",
+        })
+      );
+    });
+
+    expect(toast.success).toHaveBeenCalledWith("Created job nightly-docs.");
+  });
+
+  it("renders the no-runs state when the selected job has not executed yet", () => {
+    mockJobRuns = [];
+
+    render(<AutomationPage />);
+
+    expect(screen.getByText("No runs recorded yet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Runs will appear here after the first scheduled or manual execution.")
+    ).toBeInTheDocument();
+  });
+
+  it("renders jobs and triggers empty states when no automation exists", async () => {
+    const user = userEvent.setup();
+    mockJobs = [];
+    mockJobDetail = undefined;
+    mockJobRuns = [];
+    mockTriggers = [];
+    mockTriggerDetail = undefined;
+    mockTriggerRuns = [];
+
+    render(<AutomationPage />);
+
+    expect(screen.getByText("No jobs configured")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("automation-kind-triggers"));
+
+    expect(screen.getByText("No triggers configured")).toBeInTheDocument();
   });
 
   it("queues a manual run and prepends it to run history", async () => {
@@ -329,7 +377,7 @@ describe("Automation route integration", () => {
     await user.click(screen.getByTestId("trigger-job-btn"));
 
     expect(mockTriggerJobMutateAsync).toHaveBeenCalledWith({ id: "job_daily_review" });
-    expect(await screen.findByText("Queued run run_queued.")).toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith("Queued run run_queued.");
     expect(screen.getByTestId("automation-run-run_queued")).toBeInTheDocument();
   });
 });

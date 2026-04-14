@@ -12,4 +12,5 @@ type BridgeDeliveryMetrics struct {
 	DeliveryFailuresTotal   int            `json:"delivery_failures_total"`
 	LastError               string         `json:"last_error,omitempty"`
 	LastErrorAt             time.Time      `json:"last_error_at,omitempty"`
+	LastSuccessAt           time.Time      `json:"last_success_at,omitempty"`
 }

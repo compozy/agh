@@ -128,6 +128,11 @@ func TestHealthTracksDeliveryBacklogWithoutChangingActiveSessions(t *testing.T) 
 		health, err := h.observer.Health(testutil.Context(t))
 		return err == nil && health.Bridges.DeliveryBacklog == 0
 	})
+
+	observed := observeBridgeHealthMap(t, h)
+	if got := observed[instance.ID].LastSuccessAt; !got.Equal(h.now) {
+		t.Fatalf("QueryBridgeHealth(%s).LastSuccessAt = %s, want %s", instance.ID, got, h.now)
+	}
 }
 
 func TestQueryBridgeHealthSurfacesAuthAndTerminalDeliveryFailuresPerInstance(t *testing.T) {

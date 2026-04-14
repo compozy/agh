@@ -13,6 +13,7 @@ import (
 type handlerConfig struct {
 	sessions       core.SessionManager
 	network        core.NetworkService
+	networkStore   core.NetworkStore
 	observer       core.Observer
 	automation     core.AutomationManager
 	bridges        core.BridgeService
@@ -52,6 +53,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			IncludeSessionWorkspaceInSSE: false,
 			Sessions:                     cfg.sessions,
 			Network:                      cfg.network,
+			NetworkStore:                 cfg.networkStore,
 			Observer:                     cfg.observer,
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,

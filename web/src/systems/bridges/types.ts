@@ -1,0 +1,39 @@
+import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
+
+export type BridgesListResponse = OperationResponse<"listBridges", 200>;
+export type BridgeSummary = BridgesListResponse["bridges"][number];
+export type BridgeHealthMap = NonNullable<BridgesListResponse["bridge_health"]>;
+export type BridgeDetailResponse = OperationResponse<"getBridge", 200>;
+export type BridgeHealth = BridgeDetailResponse["health"];
+export type BridgeRoute = OperationResponse<"listBridgeRoutes", 200>["routes"][number];
+export type BridgeProvider = OperationResponse<"listBridgeProviders", 200>["providers"][number];
+export type CreateBridgeRequest = OperationRequestBody<"createBridge">;
+export type CreateBridgeResponse = OperationResponse<"createBridge", 201>;
+export type TestBridgeDeliveryRequest = OperationRequestBody<"testBridgeDelivery">;
+export type TestBridgeDeliveryResponse = OperationResponse<"testBridgeDelivery", 200>;
+
+export type BridgeScope = BridgeSummary["scope"];
+export type BridgeScopeFilter = "all" | BridgeScope;
+export type BridgeStatus = BridgeSummary["status"];
+export type BridgeRoutingPolicy = BridgeSummary["routing_policy"];
+export type BridgeDeliveryMode = NonNullable<TestBridgeDeliveryRequest["target"]["mode"]>;
+
+export interface BridgeDeliveryDefaults {
+  group_id?: string;
+  mode?: BridgeDeliveryMode;
+  peer_id?: string;
+  thread_id?: string;
+}
+
+export interface BridgeCreateDraft {
+  deliveryDefaults: BridgeDeliveryDefaults;
+  displayName: string;
+  routingPolicy: BridgeRoutingPolicy;
+  scope: BridgeScope;
+  selectedProviderKey: string;
+}
+
+export interface BridgeTestDeliveryDraft {
+  message: string;
+  target: BridgeDeliveryDefaults;
+}

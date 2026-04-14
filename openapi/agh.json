@@ -3251,6 +3251,11 @@
                                                         "nullable": true,
                                                         "type": "string"
                                                     },
+                                                    "last_success_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
                                                     "route_count": {
                                                         "type": "integer"
                                                     },
@@ -3597,6 +3602,11 @@
                                                     "nullable": true,
                                                     "type": "string"
                                                 },
+                                                "last_success_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
                                                 "route_count": {
                                                     "type": "integer"
                                                 },
@@ -3700,6 +3710,104 @@
                     }
                 },
                 "summary": "Create a bridge instance",
+                "tags": ["bridges"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/bridges/providers": {
+            "get": {
+                "operationId": "listBridgeProviders",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "providers": {
+                                            "items": {
+                                                "properties": {
+                                                    "description": {
+                                                        "type": "string"
+                                                    },
+                                                    "display_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "enabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "extension_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "health": {
+                                                        "type": "string"
+                                                    },
+                                                    "health_message": {
+                                                        "type": "string"
+                                                    },
+                                                    "platform": {
+                                                        "type": "string"
+                                                    },
+                                                    "state": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "display_name",
+                                                    "enabled",
+                                                    "extension_name",
+                                                    "health",
+                                                    "platform",
+                                                    "state"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["providers"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bridge service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List installed bridge-capable providers",
                 "tags": ["bridges"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -3829,6 +3937,11 @@
                                                     "type": "string"
                                                 },
                                                 "last_error_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "last_success_at": {
                                                     "format": "date-time",
                                                     "nullable": true,
                                                     "type": "string"
@@ -4089,6 +4202,11 @@
                                                     "nullable": true,
                                                     "type": "string"
                                                 },
+                                                "last_success_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
                                                 "route_count": {
                                                     "type": "integer"
                                                 },
@@ -4321,6 +4439,11 @@
                                                     "type": "string"
                                                 },
                                                 "last_error_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "last_success_at": {
                                                     "format": "date-time",
                                                     "nullable": true,
                                                     "type": "string"
@@ -4561,6 +4684,11 @@
                                                     "nullable": true,
                                                     "type": "string"
                                                 },
+                                                "last_success_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
                                                 "route_count": {
                                                     "type": "integer"
                                                 },
@@ -4793,6 +4921,11 @@
                                                     "type": "string"
                                                 },
                                                 "last_error_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "last_success_at": {
                                                     "format": "date-time",
                                                     "nullable": true,
                                                     "type": "string"
@@ -7256,6 +7389,1749 @@
                 },
                 "summary": "Write one memory document",
                 "tags": ["memory"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/channels": {
+            "get": {
+                "operationId": "listNetworkChannels",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "channels": {
+                                            "items": {
+                                                "properties": {
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
+                                                    "last_message_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "local_peer_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "message_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "peer_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "remote_peer_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "session_count": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": ["channel", "peer_count"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["channels"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List materialized network channels",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "post": {
+                "operationId": "createNetworkChannel",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "agent_names": {
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "type": "array"
+                                    },
+                                    "channel": {
+                                        "type": "string"
+                                    },
+                                    "workspace_id": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["agent_names", "channel", "workspace_id"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "channel": {
+                                            "properties": {
+                                                "channel": {
+                                                    "type": "string"
+                                                },
+                                                "last_message_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "local_peer_count": {
+                                                    "type": "integer"
+                                                },
+                                                "message_count": {
+                                                    "type": "integer"
+                                                },
+                                                "peer_count": {
+                                                    "type": "integer"
+                                                },
+                                                "peers": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "channel": {
+                                                                "type": "string"
+                                                            },
+                                                            "display_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "expires_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "joined_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "last_seen": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "local": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "peer_card": {
+                                                                "properties": {
+                                                                    "artifacts_supported": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "capabilities": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "display_name": {
+                                                                        "nullable": true,
+                                                                        "type": "string"
+                                                                    },
+                                                                    "ext": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "peer_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "profiles_supported": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "trust_modes_supported": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "artifacts_supported",
+                                                                    "capabilities",
+                                                                    "peer_id",
+                                                                    "profiles_supported",
+                                                                    "trust_modes_supported"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "peer_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "session_id": {
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "channel",
+                                                            "local",
+                                                            "peer_card",
+                                                            "peer_id"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "remote_peer_count": {
+                                                    "type": "integer"
+                                                },
+                                                "session_count": {
+                                                    "type": "integer"
+                                                },
+                                                "sessions": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "acp_caps": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "supported_models": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "supported_modes": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "supports_load_session": {
+                                                                        "type": "boolean"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "supports_load_session"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "acp_session_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "agent_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "channel": {
+                                                                "type": "string"
+                                                            },
+                                                            "created_at": {
+                                                                "format": "date-time",
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "state": {
+                                                                "enum": [
+                                                                    "starting",
+                                                                    "active",
+                                                                    "stopping",
+                                                                    "stopped"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "stop_detail": {
+                                                                "type": "string"
+                                                            },
+                                                            "stop_reason": {
+                                                                "enum": [
+                                                                    "completed",
+                                                                    "user_canceled",
+                                                                    "max_iterations",
+                                                                    "loop_detected",
+                                                                    "timeout",
+                                                                    "budget_exceeded",
+                                                                    "error",
+                                                                    "agent_crashed",
+                                                                    "hook_stopped",
+                                                                    "shutdown"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "updated_at": {
+                                                                "format": "date-time",
+                                                                "type": "string"
+                                                            },
+                                                            "workspace_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "workspace_path": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "agent_name",
+                                                            "created_at",
+                                                            "id",
+                                                            "state",
+                                                            "updated_at"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                }
+                                            },
+                                            "required": ["channel", "peer_count"],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["channel"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid network channel request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Create a network channel by spawning agent sessions",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/channels/{channel}": {
+            "get": {
+                "operationId": "getNetworkChannel",
+                "parameters": [
+                    {
+                        "description": "Network channel",
+                        "in": "path",
+                        "name": "channel",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "channel": {
+                                            "properties": {
+                                                "channel": {
+                                                    "type": "string"
+                                                },
+                                                "last_message_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "local_peer_count": {
+                                                    "type": "integer"
+                                                },
+                                                "message_count": {
+                                                    "type": "integer"
+                                                },
+                                                "peer_count": {
+                                                    "type": "integer"
+                                                },
+                                                "peers": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "channel": {
+                                                                "type": "string"
+                                                            },
+                                                            "display_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "expires_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "joined_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "last_seen": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "local": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "peer_card": {
+                                                                "properties": {
+                                                                    "artifacts_supported": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "capabilities": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "display_name": {
+                                                                        "nullable": true,
+                                                                        "type": "string"
+                                                                    },
+                                                                    "ext": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "peer_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "profiles_supported": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "trust_modes_supported": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "artifacts_supported",
+                                                                    "capabilities",
+                                                                    "peer_id",
+                                                                    "profiles_supported",
+                                                                    "trust_modes_supported"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "peer_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "session_id": {
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "channel",
+                                                            "local",
+                                                            "peer_card",
+                                                            "peer_id"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "remote_peer_count": {
+                                                    "type": "integer"
+                                                },
+                                                "session_count": {
+                                                    "type": "integer"
+                                                },
+                                                "sessions": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "acp_caps": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "supported_models": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "supported_modes": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "supports_load_session": {
+                                                                        "type": "boolean"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "supports_load_session"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "acp_session_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "agent_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "channel": {
+                                                                "type": "string"
+                                                            },
+                                                            "created_at": {
+                                                                "format": "date-time",
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "state": {
+                                                                "enum": [
+                                                                    "starting",
+                                                                    "active",
+                                                                    "stopping",
+                                                                    "stopped"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "stop_detail": {
+                                                                "type": "string"
+                                                            },
+                                                            "stop_reason": {
+                                                                "enum": [
+                                                                    "completed",
+                                                                    "user_canceled",
+                                                                    "max_iterations",
+                                                                    "loop_detected",
+                                                                    "timeout",
+                                                                    "budget_exceeded",
+                                                                    "error",
+                                                                    "agent_crashed",
+                                                                    "hook_stopped",
+                                                                    "shutdown"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "updated_at": {
+                                                                "format": "date-time",
+                                                                "type": "string"
+                                                            },
+                                                            "workspace_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "workspace_path": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "agent_name",
+                                                            "created_at",
+                                                            "id",
+                                                            "state",
+                                                            "updated_at"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                }
+                                            },
+                                            "required": ["channel", "peer_count"],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["channel"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid network channel"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network channel not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get one network channel detail",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/channels/{channel}/messages": {
+            "get": {
+                "operationId": "listNetworkChannelMessages",
+                "parameters": [
+                    {
+                        "description": "Network channel",
+                        "in": "path",
+                        "name": "channel",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of timeline messages to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "messages": {
+                                            "items": {
+                                                "properties": {
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
+                                                    "display_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "intent": {
+                                                        "type": "string"
+                                                    },
+                                                    "local": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "message_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "peer_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "text": {
+                                                        "type": "string"
+                                                    },
+                                                    "timestamp": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "channel",
+                                                    "message_id",
+                                                    "peer_id",
+                                                    "text",
+                                                    "timestamp"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["messages"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid network channel"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network channel not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List the read-only timeline for one network channel",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/inbox": {
+            "get": {
+                "operationId": "listNetworkInbox",
+                "parameters": [
+                    {
+                        "description": "Target local session id",
+                        "in": "query",
+                        "name": "session_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "messages": {
+                                            "items": {
+                                                "properties": {
+                                                    "body": {},
+                                                    "causation_id": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
+                                                    "expires_at": {
+                                                        "format": "int64",
+                                                        "nullable": true,
+                                                        "type": "integer"
+                                                    },
+                                                    "ext": {
+                                                        "additionalProperties": {},
+                                                        "type": "object"
+                                                    },
+                                                    "from": {
+                                                        "type": "string"
+                                                    },
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "interaction_id": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "type": "string"
+                                                    },
+                                                    "proof": {
+                                                        "additionalProperties": {},
+                                                        "type": "object"
+                                                    },
+                                                    "protocol": {
+                                                        "type": "string"
+                                                    },
+                                                    "reply_to": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "to": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "trace_id": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "ts": {
+                                                        "format": "int64",
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "body",
+                                                    "channel",
+                                                    "from",
+                                                    "id",
+                                                    "kind",
+                                                    "protocol",
+                                                    "ts"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["messages"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid inbox request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network target not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List queued network inbox messages for one local session",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/peers": {
+            "get": {
+                "operationId": "listNetworkPeers",
+                "parameters": [
+                    {
+                        "description": "Filter peers by channel",
+                        "in": "query",
+                        "name": "channel",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "peers": {
+                                            "items": {
+                                                "properties": {
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
+                                                    "display_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "expires_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "joined_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "last_seen": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "local": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "peer_card": {
+                                                        "properties": {
+                                                            "artifacts_supported": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "capabilities": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "display_name": {
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "ext": {
+                                                                "additionalProperties": {},
+                                                                "type": "object"
+                                                            },
+                                                            "peer_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "profiles_supported": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "trust_modes_supported": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "artifacts_supported",
+                                                            "capabilities",
+                                                            "peer_id",
+                                                            "profiles_supported",
+                                                            "trust_modes_supported"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "peer_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "session_id": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "channel",
+                                                    "local",
+                                                    "peer_card",
+                                                    "peer_id"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["peers"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid network filter"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List visible network peers",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/peers/{peer_id}": {
+            "get": {
+                "operationId": "getNetworkPeer",
+                "parameters": [
+                    {
+                        "description": "Network peer id",
+                        "in": "path",
+                        "name": "peer_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "peer": {
+                                            "properties": {
+                                                "channel": {
+                                                    "type": "string"
+                                                },
+                                                "display_name": {
+                                                    "type": "string"
+                                                },
+                                                "expires_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "joined_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "last_seen": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "local": {
+                                                    "type": "boolean"
+                                                },
+                                                "metrics": {
+                                                    "properties": {
+                                                        "delivered": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "received": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "rejected": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "sent": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "peer_card": {
+                                                    "properties": {
+                                                        "artifacts_supported": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "capabilities": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "display_name": {
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "ext": {
+                                                            "additionalProperties": {},
+                                                            "type": "object"
+                                                        },
+                                                        "peer_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "profiles_supported": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "trust_modes_supported": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "artifacts_supported",
+                                                        "capabilities",
+                                                        "peer_id",
+                                                        "profiles_supported",
+                                                        "trust_modes_supported"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "peer_id": {
+                                                    "type": "string"
+                                                },
+                                                "session_id": {
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["metrics", "peer_card", "peer_id"],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["peer"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network peer not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get one visible network peer detail",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/send": {
+            "post": {
+                "operationId": "sendNetworkMessage",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "body": {},
+                                    "causation_id": {
+                                        "type": "string"
+                                    },
+                                    "channel": {
+                                        "type": "string"
+                                    },
+                                    "expires_at": {
+                                        "format": "int64",
+                                        "nullable": true,
+                                        "type": "integer"
+                                    },
+                                    "ext": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                    },
+                                    "id": {
+                                        "type": "string"
+                                    },
+                                    "interaction_id": {
+                                        "type": "string"
+                                    },
+                                    "kind": {
+                                        "type": "string"
+                                    },
+                                    "reply_to": {
+                                        "type": "string"
+                                    },
+                                    "session_id": {
+                                        "type": "string"
+                                    },
+                                    "to": {
+                                        "type": "string"
+                                    },
+                                    "trace_id": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["body", "channel", "kind", "session_id"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "properties": {
+                                                "causation_id": {
+                                                    "type": "string"
+                                                },
+                                                "channel": {
+                                                    "type": "string"
+                                                },
+                                                "expires_at": {
+                                                    "format": "int64",
+                                                    "nullable": true,
+                                                    "type": "integer"
+                                                },
+                                                "ext": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "interaction_id": {
+                                                    "type": "string"
+                                                },
+                                                "kind": {
+                                                    "type": "string"
+                                                },
+                                                "reply_to": {
+                                                    "type": "string"
+                                                },
+                                                "session_id": {
+                                                    "type": "string"
+                                                },
+                                                "to": {
+                                                    "type": "string"
+                                                },
+                                                "trace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["channel", "id", "kind", "session_id"],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["message"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid network send request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network target not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Send one network message",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/status": {
+            "get": {
+                "operationId": "getNetworkStatus",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "network": {
+                                            "properties": {
+                                                "channels": {
+                                                    "type": "integer"
+                                                },
+                                                "delivery_workers": {
+                                                    "type": "integer"
+                                                },
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "handoff_tagged_events": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "kind_metrics": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "delivered": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
+                                                            "kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "received": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
+                                                            "rejected": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
+                                                            "sent": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "required": ["kind"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "last_disconnect": {
+                                                    "type": "string"
+                                                },
+                                                "listener_host": {
+                                                    "type": "string"
+                                                },
+                                                "listener_port": {
+                                                    "type": "integer"
+                                                },
+                                                "local_peers": {
+                                                    "type": "integer"
+                                                },
+                                                "messages_delivered": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "messages_received": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "messages_rejected": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "messages_sent": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "queued_messages": {
+                                                    "type": "integer"
+                                                },
+                                                "queued_sessions": {
+                                                    "type": "integer"
+                                                },
+                                                "remote_peers": {
+                                                    "type": "integer"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "workflow_tagged_events": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["enabled", "status"],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["network"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get the network runtime status snapshot",
+                "tags": ["network"],
                 "x-agh-transports": ["http", "uds"]
             }
         },
@@ -10913,6 +12789,9 @@
         },
         {
             "name": "daemon"
+        },
+        {
+            "name": "network"
         },
         {
             "name": "extensions"

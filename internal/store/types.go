@@ -366,9 +366,16 @@ func (e NetworkAuditEntry) Validate() error {
 	}
 	direction := strings.TrimSpace(e.Direction)
 	switch direction {
-	case "sent", "received", "rejected":
+	case "sent", "received", "rejected", "delivered":
 	default:
-		return fmt.Errorf("store: network audit direction must be one of %q, %q, %q: %q", "sent", "received", "rejected", e.Direction)
+		return fmt.Errorf(
+			"store: network audit direction must be one of %q, %q, %q, %q: %q",
+			"sent",
+			"received",
+			"rejected",
+			"delivered",
+			e.Direction,
+		)
 	}
 	if direction != e.Direction {
 		return fmt.Errorf("store: network audit direction must not contain surrounding whitespace: %q", e.Direction)
@@ -408,6 +415,53 @@ type NetworkAuditQuery struct {
 // Validate ensures the query uses sane bounds.
 func (q NetworkAuditQuery) Validate() error {
 	return requirePositiveLimit(q.Limit, "network audit limit")
+}
+
+// NetworkMessageEntry is one persisted network timeline message.
+type NetworkMessageEntry struct {
+	MessageID string
+	SessionID string
+	Channel   string
+	PeerFrom  string
+	Kind      string
+	Intent    string
+	Text      string
+	Timestamp time.Time
+}
+
+// Validate ensures the persisted network message is complete and internally consistent.
+func (e NetworkMessageEntry) Validate() error {
+	if err := requireField(e.MessageID, "network message id"); err != nil {
+		return err
+	}
+	if err := requireField(e.Channel, "network message channel"); err != nil {
+		return err
+	}
+	if err := requireField(e.PeerFrom, "network message peer_from"); err != nil {
+		return err
+	}
+	if err := requireField(e.Kind, "network message kind"); err != nil {
+		return err
+	}
+	if err := requireField(e.Text, "network message text"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// NetworkMessageQuery filters persisted network timeline lookups.
+type NetworkMessageQuery struct {
+	SessionID string
+	Channel   string
+	PeerFrom  string
+	MessageID string
+	Since     time.Time
+	Limit     int
+}
+
+// Validate ensures the query uses sane bounds.
+func (q NetworkMessageQuery) Validate() error {
+	return requirePositiveLimit(q.Limit, "network message limit")
 }
 
 // ReconcileResult reports which sessions were indexed or marked orphaned.

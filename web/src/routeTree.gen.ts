@@ -13,7 +13,9 @@ import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSkillsRouteImport } from './routes/_app/skills'
+import { Route as AppNetworkRouteImport } from './routes/_app/network'
 import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
+import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
 import { Route as AppAutomationRouteImport } from './routes/_app/automation'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 
@@ -36,9 +38,19 @@ const AppSkillsRoute = AppSkillsRouteImport.update({
   path: '/skills',
   getParentRoute: () => AppRoute,
 } as any)
+const AppNetworkRoute = AppNetworkRouteImport.update({
+  id: '/network',
+  path: '/network',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBridgesRoute = AppBridgesRouteImport.update({
+  id: '/bridges',
+  path: '/bridges',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAutomationRoute = AppAutomationRouteImport.update({
@@ -56,14 +68,18 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/design-system': typeof DesignSystemRoute
   '/automation': typeof AppAutomationRoute
+  '/bridges': typeof AppBridgesRoute
   '/knowledge': typeof AppKnowledgeRoute
+  '/network': typeof AppNetworkRoute
   '/skills': typeof AppSkillsRoute
   '/session/$id': typeof AppSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
   '/automation': typeof AppAutomationRoute
+  '/bridges': typeof AppBridgesRoute
   '/knowledge': typeof AppKnowledgeRoute
+  '/network': typeof AppNetworkRoute
   '/skills': typeof AppSkillsRoute
   '/': typeof AppIndexRoute
   '/session/$id': typeof AppSessionIdRoute
@@ -73,7 +89,9 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/design-system': typeof DesignSystemRoute
   '/_app/automation': typeof AppAutomationRoute
+  '/_app/bridges': typeof AppBridgesRoute
   '/_app/knowledge': typeof AppKnowledgeRoute
+  '/_app/network': typeof AppNetworkRoute
   '/_app/skills': typeof AppSkillsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/session/$id': typeof AppSessionIdRoute
@@ -84,14 +102,18 @@ export interface FileRouteTypes {
     | '/'
     | '/design-system'
     | '/automation'
+    | '/bridges'
     | '/knowledge'
+    | '/network'
     | '/skills'
     | '/session/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/design-system'
     | '/automation'
+    | '/bridges'
     | '/knowledge'
+    | '/network'
     | '/skills'
     | '/'
     | '/session/$id'
@@ -100,7 +122,9 @@ export interface FileRouteTypes {
     | '/_app'
     | '/design-system'
     | '/_app/automation'
+    | '/_app/bridges'
     | '/_app/knowledge'
+    | '/_app/network'
     | '/_app/skills'
     | '/_app/'
     | '/_app/session/$id'
@@ -141,11 +165,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSkillsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/network': {
+      id: '/_app/network'
+      path: '/network'
+      fullPath: '/network'
+      preLoaderRoute: typeof AppNetworkRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/knowledge': {
       id: '/_app/knowledge'
       path: '/knowledge'
       fullPath: '/knowledge'
       preLoaderRoute: typeof AppKnowledgeRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/bridges': {
+      id: '/_app/bridges'
+      path: '/bridges'
+      fullPath: '/bridges'
+      preLoaderRoute: typeof AppBridgesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/automation': {
@@ -167,7 +205,9 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAutomationRoute: typeof AppAutomationRoute
+  AppBridgesRoute: typeof AppBridgesRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
+  AppNetworkRoute: typeof AppNetworkRoute
   AppSkillsRoute: typeof AppSkillsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppSessionIdRoute: typeof AppSessionIdRoute
@@ -175,7 +215,9 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAutomationRoute: AppAutomationRoute,
+  AppBridgesRoute: AppBridgesRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
+  AppNetworkRoute: AppNetworkRoute,
   AppSkillsRoute: AppSkillsRoute,
   AppIndexRoute: AppIndexRoute,
   AppSessionIdRoute: AppSessionIdRoute,

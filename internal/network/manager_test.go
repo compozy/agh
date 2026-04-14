@@ -950,10 +950,11 @@ func discardManagerLogger() *slog.Logger {
 }
 
 type recordingAuditWriter struct {
-	mu       sync.Mutex
-	sent     []auditCall
-	received []auditCall
-	rejected []auditCall
+	mu        sync.Mutex
+	sent      []auditCall
+	received  []auditCall
+	rejected  []auditCall
+	delivered []auditCall
 }
 
 var _ AuditWriter = (*recordingAuditWriter)(nil)
@@ -982,6 +983,13 @@ func (w *recordingAuditWriter) RecordRejected(_ context.Context, sessionID strin
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.rejected = append(w.rejected, auditCall{sessionID: sessionID, envelope: envelope, reason: reason})
+	return nil
+}
+
+func (w *recordingAuditWriter) RecordDelivered(_ context.Context, sessionID string, envelope Envelope) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.delivered = append(w.delivered, auditCall{sessionID: sessionID, envelope: envelope})
 	return nil
 }
 
@@ -1043,4 +1051,5 @@ func (w *recordingAuditWriter) reset() {
 	w.sent = nil
 	w.received = nil
 	w.rejected = nil
+	w.delivered = nil
 }

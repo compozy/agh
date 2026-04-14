@@ -1014,6 +1014,10 @@ func (s *integrationBridgeService) RestartInstance(ctx context.Context, id strin
 	return instance, nil
 }
 
+func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.BridgeProvider, error) {
+	return nil, nil
+}
+
 func (s *integrationBridgeService) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
 	if s == nil || s.broker == nil {
 		return nil

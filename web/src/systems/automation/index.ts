@@ -61,14 +61,26 @@ export {
 } from "./lib/automation-drafts";
 export {
   automationSourceLabel,
+  automationScopeLabel,
+  automationScopeTone,
+  automationSemanticTone,
+  automationSourceTone,
   automationStatusTone,
   describeFireLimit,
   describeRetry,
   describeSchedule,
   describeTrigger,
+  filterAutomationJobs,
+  filterAutomationTriggers,
+  formatAutomationListSummary,
+  formatDate,
   formatDateTime,
+  formatPromptPreview,
   formatRelativeTime,
+  formatRunDuration,
   formatRunTitle,
+  sortAutomationJobs,
+  sortAutomationTriggers,
 } from "./lib/automation-formatters";
 
 // Hooks
@@ -93,6 +105,7 @@ export {
 
 // Components
 export { AutomationDetailPanel } from "./components/automation-detail-panel";
+export { AutomationEditorDialog } from "./components/automation-editor-dialog";
 export { AutomationJobForm } from "./components/automation-job-form";
 export { AutomationListPanel } from "./components/automation-list-panel";
 export { AutomationRunHistory } from "./components/automation-run-history";
