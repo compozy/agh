@@ -114,19 +114,7 @@ func (h *BaseHandlers) NetworkChannels(c *gin.Context) {
 
 	channels, err := h.networkChannelPayloads(c.Request.Context(), service)
 	if err != nil {
-		status := http.StatusInternalServerError
-		if errors.Is(err, ErrNetworkValidation) ||
-			errors.Is(err, network.ErrLocalPeerNotFound) ||
-			errors.Is(err, network.ErrTargetPeerNotFound) ||
-			errors.Is(err, network.ErrMissingField) ||
-			errors.Is(err, network.ErrInvalidField) ||
-			errors.Is(err, network.ErrInvalidKind) ||
-			errors.Is(err, network.ErrInvalidBody) ||
-			errors.Is(err, network.ErrExpired) ||
-			errors.Is(err, network.ErrReplayTooOld) {
-			status = StatusForNetworkError(err)
-		}
-		h.respondError(c, status, err)
+		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.NetworkChannelsResponse{Channels: channels})

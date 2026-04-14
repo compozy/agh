@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { BridgeCreateDraft } from "../types";
-import { BridgeCreateDialog } from "./bridge-create-dialog";
+import type { BridgeCreateDraft } from "@/systems/bridges/types";
+import { BridgeCreateDialog } from "@/systems/bridges/components/bridge-create-dialog";
 
 const baseDraft: BridgeCreateDraft = {
   deliveryDefaults: {},

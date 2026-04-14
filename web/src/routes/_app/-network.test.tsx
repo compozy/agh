@@ -71,7 +71,7 @@ vi.mock("@tanstack/react-router", () => ({
       </a>
     );
   },
-  createFileRoute: () => (opts: { component: () => React.ReactNode }) => ({
+  createFileRoute: () => (opts: { component: () => ReactNode }) => ({
     component: opts.component,
   }),
 }));
@@ -324,7 +324,7 @@ function makePeerDetail(overrides: Partial<NetworkPeerDetail> = {}): NetworkPeer
   };
 }
 
-const NetworkPage = (Route as unknown as { component: () => React.ReactNode }).component;
+const NetworkPage = (Route as unknown as { component: () => ReactNode }).component;
 
 describe("NetworkPage", () => {
   beforeEach(() => {

@@ -121,12 +121,21 @@ func (w *FileAuditWriter) record(ctx context.Context, sessionID string, directio
 	if w.path != "" {
 		recordErr = errors.Join(recordErr, w.appendFile(entry))
 	}
+	var auditWriteErr error
 	if w.store != nil {
-		recordErr = errors.Join(recordErr, w.store.WriteNetworkAudit(ctx, entry))
+		auditWriteErr = w.store.WriteNetworkAudit(ctx, entry)
+		recordErr = errors.Join(recordErr, auditWriteErr)
 	}
-	if messageEntry, ok, messageErr := normalizeTimelineMessageEntry(sessionID, direction, envelope, entry.Timestamp); messageErr != nil {
+	if w.messageStore == nil || auditWriteErr != nil {
+		return recordErr
+	}
+
+	messageEntry, ok, messageErr := normalizeTimelineMessageEntry(sessionID, direction, envelope, entry.Timestamp)
+	if messageErr != nil {
 		recordErr = errors.Join(recordErr, messageErr)
-	} else if ok && w.messageStore != nil {
+		return recordErr
+	}
+	if ok {
 		recordErr = errors.Join(recordErr, w.messageStore.WriteNetworkMessage(ctx, messageEntry))
 	}
 
