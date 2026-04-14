@@ -334,8 +334,13 @@ func (r Run) Validate(path string) error {
 	if r.StartedAt != nil && r.EndedAt != nil && r.EndedAt.Before(*r.StartedAt) {
 		return fmt.Errorf("%s must not be before %s", nestedPath(path, "ended_at"), nestedPath(path, "started_at"))
 	}
-	if strings.TrimSpace(r.TaskID) != "" && strings.TrimSpace(r.TaskRunID) == "" && r.Status == RunDelegated {
-		return fmt.Errorf("%s is required when %s is %q and %s is set", nestedPath(path, "task_run_id"), nestedPath(path, "status"), RunDelegated, nestedPath(path, "task_id"))
+	if r.Status == RunDelegated {
+		if strings.TrimSpace(r.TaskID) == "" {
+			return fmt.Errorf("%s is required when %s is %q", nestedPath(path, "task_id"), nestedPath(path, "status"), RunDelegated)
+		}
+		if strings.TrimSpace(r.TaskRunID) == "" {
+			return fmt.Errorf("%s is required when %s is %q", nestedPath(path, "task_run_id"), nestedPath(path, "status"), RunDelegated)
+		}
 	}
 	return nil
 }

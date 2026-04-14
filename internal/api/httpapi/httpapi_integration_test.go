@@ -1031,139 +1031,143 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 }
 
 func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-	created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
+	t.Run("Should enqueue claim start and complete a task run", func(t *testing.T) {
+		runtime := newIntegrationRuntime(t)
+		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
 
-	enqueueResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs"), []byte(`{"idempotency_key":"enqueue-1","network_channel":"builders"}`), nil)
-	if enqueueResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(enqueueResp.Body)
-		_ = enqueueResp.Body.Close()
-		t.Fatalf("enqueue run status = %d, want %d; body=%s", enqueueResp.StatusCode, http.StatusCreated, string(body))
-	}
-	var queued contract.TaskRunResponse
-	decodeHTTPJSON(t, enqueueResp, &queued)
-	if queued.Run.Status != taskpkg.TaskRunStatusQueued {
-		t.Fatalf("queued status = %q, want %q", queued.Run.Status, taskpkg.TaskRunStatusQueued)
-	}
-	if queued.Run.NetworkChannel != "builders" {
-		t.Fatalf("queued network_channel = %q, want %q", queued.Run.NetworkChannel, "builders")
-	}
+		enqueueResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs"), []byte(`{"idempotency_key":"enqueue-1","network_channel":"builders"}`), nil)
+		if enqueueResp.StatusCode != http.StatusCreated {
+			body, _ := io.ReadAll(enqueueResp.Body)
+			_ = enqueueResp.Body.Close()
+			t.Fatalf("enqueue run status = %d, want %d; body=%s", enqueueResp.StatusCode, http.StatusCreated, string(body))
+		}
+		var queued contract.TaskRunResponse
+		decodeHTTPJSON(t, enqueueResp, &queued)
+		if queued.Run.Status != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("queued status = %q, want %q", queued.Run.Status, taskpkg.TaskRunStatusQueued)
+		}
+		if queued.Run.NetworkChannel != "builders" {
+			t.Fatalf("queued network_channel = %q, want %q", queued.Run.NetworkChannel, "builders")
+		}
 
-	listQueuedResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs?status=queued&limit=1"), nil, nil)
-	if listQueuedResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(listQueuedResp.Body)
-		_ = listQueuedResp.Body.Close()
-		t.Fatalf("list queued runs status = %d, want %d; body=%s", listQueuedResp.StatusCode, http.StatusOK, string(body))
-	}
-	var queuedList contract.TaskRunsResponse
-	decodeHTTPJSON(t, listQueuedResp, &queuedList)
-	if len(queuedList.Runs) != 1 || queuedList.Runs[0].ID != queued.Run.ID {
-		t.Fatalf("queued runs = %#v, want queued run", queuedList.Runs)
-	}
+		listQueuedResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs?status=queued&limit=1"), nil, nil)
+		if listQueuedResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(listQueuedResp.Body)
+			_ = listQueuedResp.Body.Close()
+			t.Fatalf("list queued runs status = %d, want %d; body=%s", listQueuedResp.StatusCode, http.StatusOK, string(body))
+		}
+		var queuedList contract.TaskRunsResponse
+		decodeHTTPJSON(t, listQueuedResp, &queuedList)
+		if len(queuedList.Runs) != 1 || queuedList.Runs[0].ID != queued.Run.ID {
+			t.Fatalf("queued runs = %#v, want queued run", queuedList.Runs)
+		}
 
-	claimResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/claim"), []byte(`{"idempotency_key":"claim-1"}`), nil)
-	if claimResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(claimResp.Body)
-		_ = claimResp.Body.Close()
-		t.Fatalf("claim run status = %d, want %d; body=%s", claimResp.StatusCode, http.StatusOK, string(body))
-	}
-	var claimed contract.TaskRunResponse
-	decodeHTTPJSON(t, claimResp, &claimed)
-	if claimed.Run.Status != taskpkg.TaskRunStatusClaimed {
-		t.Fatalf("claimed status = %q, want %q", claimed.Run.Status, taskpkg.TaskRunStatusClaimed)
-	}
-	if claimed.Run.ClaimedBy == nil || claimed.Run.ClaimedBy.Ref != "local-user" {
-		t.Fatalf("claimed claimed_by = %#v, want local-user", claimed.Run.ClaimedBy)
-	}
+		claimResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/claim"), []byte(`{"idempotency_key":"claim-1"}`), nil)
+		if claimResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(claimResp.Body)
+			_ = claimResp.Body.Close()
+			t.Fatalf("claim run status = %d, want %d; body=%s", claimResp.StatusCode, http.StatusOK, string(body))
+		}
+		var claimed contract.TaskRunResponse
+		decodeHTTPJSON(t, claimResp, &claimed)
+		if claimed.Run.Status != taskpkg.TaskRunStatusClaimed {
+			t.Fatalf("claimed status = %q, want %q", claimed.Run.Status, taskpkg.TaskRunStatusClaimed)
+		}
+		if claimed.Run.ClaimedBy == nil || claimed.Run.ClaimedBy.Ref != "local-user" {
+			t.Fatalf("claimed claimed_by = %#v, want local-user", claimed.Run.ClaimedBy)
+		}
 
-	startResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/start"), []byte(`{"idempotency_key":"start-1"}`), nil)
-	if startResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(startResp.Body)
-		_ = startResp.Body.Close()
-		t.Fatalf("start run status = %d, want %d; body=%s", startResp.StatusCode, http.StatusOK, string(body))
-	}
-	var started contract.TaskRunResponse
-	decodeHTTPJSON(t, startResp, &started)
-	if started.Run.Status != taskpkg.TaskRunStatusRunning {
-		t.Fatalf("started status = %q, want %q", started.Run.Status, taskpkg.TaskRunStatusRunning)
-	}
-	if started.Run.SessionID == "" {
-		t.Fatal("expected started run session id")
-	}
+		startResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/start"), []byte(`{"idempotency_key":"start-1"}`), nil)
+		if startResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(startResp.Body)
+			_ = startResp.Body.Close()
+			t.Fatalf("start run status = %d, want %d; body=%s", startResp.StatusCode, http.StatusOK, string(body))
+		}
+		var started contract.TaskRunResponse
+		decodeHTTPJSON(t, startResp, &started)
+		if started.Run.Status != taskpkg.TaskRunStatusRunning {
+			t.Fatalf("started status = %q, want %q", started.Run.Status, taskpkg.TaskRunStatusRunning)
+		}
+		if started.Run.SessionID == "" {
+			t.Fatal("expected started run session id")
+		}
 
-	completeResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/complete"), []byte(`{"result":{"ok":true}}`), nil)
-	if completeResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(completeResp.Body)
-		_ = completeResp.Body.Close()
-		t.Fatalf("complete run status = %d, want %d; body=%s", completeResp.StatusCode, http.StatusOK, string(body))
-	}
-	var completed contract.TaskRunResponse
-	decodeHTTPJSON(t, completeResp, &completed)
-	if completed.Run.Status != taskpkg.TaskRunStatusCompleted {
-		t.Fatalf("completed status = %q, want %q", completed.Run.Status, taskpkg.TaskRunStatusCompleted)
-	}
+		completeResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/complete"), []byte(`{"result":{"ok":true}}`), nil)
+		if completeResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(completeResp.Body)
+			_ = completeResp.Body.Close()
+			t.Fatalf("complete run status = %d, want %d; body=%s", completeResp.StatusCode, http.StatusOK, string(body))
+		}
+		var completed contract.TaskRunResponse
+		decodeHTTPJSON(t, completeResp, &completed)
+		if completed.Run.Status != taskpkg.TaskRunStatusCompleted {
+			t.Fatalf("completed status = %q, want %q", completed.Run.Status, taskpkg.TaskRunStatusCompleted)
+		}
+	})
 
-	secondRun := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-2"}`)
-	claimIntegrationTaskRun(t, runtime, secondRun.ID, `{"idempotency_key":"claim-2"}`)
-	attachResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+secondRun.ID+"/attach-session"), []byte(`{"session_id":"sess-resume-1"}`), nil)
-	if attachResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(attachResp.Body)
-		_ = attachResp.Body.Close()
-		t.Fatalf("attach run session status = %d, want %d; body=%s", attachResp.StatusCode, http.StatusOK, string(body))
-	}
-	var attached contract.TaskRunResponse
-	decodeHTTPJSON(t, attachResp, &attached)
-	if attached.Run.Status != taskpkg.TaskRunStatusStarting {
-		t.Fatalf("attached status = %q, want %q", attached.Run.Status, taskpkg.TaskRunStatusStarting)
-	}
-	if attached.Run.SessionID != "sess-resume-1" {
-		t.Fatalf("attached session_id = %q, want %q", attached.Run.SessionID, "sess-resume-1")
-	}
+	t.Run("Should attach a claimed run session and then fail it", func(t *testing.T) {
+		runtime := newIntegrationRuntime(t)
+		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
+		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-2"}`)
+		claimIntegrationTaskRun(t, runtime, run.ID, `{"idempotency_key":"claim-2"}`)
 
-	failResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+secondRun.ID+"/fail"), []byte(`{"error":"boom","metadata":{"step":"attach"}}`), nil)
-	if failResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(failResp.Body)
-		_ = failResp.Body.Close()
-		t.Fatalf("fail run status = %d, want %d; body=%s", failResp.StatusCode, http.StatusOK, string(body))
-	}
-	var failed contract.TaskRunResponse
-	decodeHTTPJSON(t, failResp, &failed)
-	if failed.Run.Status != taskpkg.TaskRunStatusFailed {
-		t.Fatalf("failed status = %q, want %q", failed.Run.Status, taskpkg.TaskRunStatusFailed)
-	}
+		attachResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID+"/attach-session"), []byte(`{"session_id":"sess-resume-1"}`), nil)
+		if attachResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(attachResp.Body)
+			_ = attachResp.Body.Close()
+			t.Fatalf("attach run session status = %d, want %d; body=%s", attachResp.StatusCode, http.StatusOK, string(body))
+		}
+		var attached contract.TaskRunResponse
+		decodeHTTPJSON(t, attachResp, &attached)
+		if attached.Run.Status != taskpkg.TaskRunStatusStarting {
+			t.Fatalf("attached status = %q, want %q", attached.Run.Status, taskpkg.TaskRunStatusStarting)
+		}
+		if attached.Run.SessionID != "sess-resume-1" {
+			t.Fatalf("attached session_id = %q, want %q", attached.Run.SessionID, "sess-resume-1")
+		}
 
-	thirdRun := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-3"}`)
-	cancelResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+thirdRun.ID+"/cancel"), []byte(`{"reason":"operator cancelled"}`), nil)
-	if cancelResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(cancelResp.Body)
-		_ = cancelResp.Body.Close()
-		t.Fatalf("cancel run status = %d, want %d; body=%s", cancelResp.StatusCode, http.StatusOK, string(body))
-	}
-	var cancelled contract.TaskRunResponse
-	decodeHTTPJSON(t, cancelResp, &cancelled)
-	if cancelled.Run.Status != taskpkg.TaskRunStatusCancelled {
-		t.Fatalf("cancelled status = %q, want %q", cancelled.Run.Status, taskpkg.TaskRunStatusCancelled)
-	}
+		failResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID+"/fail"), []byte(`{"error":"boom","metadata":{"step":"attach"}}`), nil)
+		if failResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(failResp.Body)
+			_ = failResp.Body.Close()
+			t.Fatalf("fail run status = %d, want %d; body=%s", failResp.StatusCode, http.StatusOK, string(body))
+		}
+		var failed contract.TaskRunResponse
+		decodeHTTPJSON(t, failResp, &failed)
+		if failed.Run.Status != taskpkg.TaskRunStatusFailed {
+			t.Fatalf("failed status = %q, want %q", failed.Run.Status, taskpkg.TaskRunStatusFailed)
+		}
+	})
 
-	finalRunsResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs"), nil, nil)
-	if finalRunsResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(finalRunsResp.Body)
-		_ = finalRunsResp.Body.Close()
-		t.Fatalf("final list runs status = %d, want %d; body=%s", finalRunsResp.StatusCode, http.StatusOK, string(body))
-	}
-	var finalRuns contract.TaskRunsResponse
-	decodeHTTPJSON(t, finalRunsResp, &finalRuns)
-	if len(finalRuns.Runs) != 3 {
-		t.Fatalf("len(final runs) = %d, want 3", len(finalRuns.Runs))
-	}
+	t.Run("Should cancel one queued task run", func(t *testing.T) {
+		runtime := newIntegrationRuntime(t)
+		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
+		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-3"}`)
 
-	seenStatuses := map[taskpkg.TaskRunStatus]int{}
-	for _, run := range finalRuns.Runs {
-		seenStatuses[run.Status]++
-	}
-	if seenStatuses[taskpkg.TaskRunStatusCompleted] != 1 || seenStatuses[taskpkg.TaskRunStatusFailed] != 1 || seenStatuses[taskpkg.TaskRunStatusCancelled] != 1 {
-		t.Fatalf("final run statuses = %#v, want one completed, failed, cancelled", seenStatuses)
-	}
+		cancelResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID+"/cancel"), []byte(`{"reason":"operator cancelled"}`), nil)
+		if cancelResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(cancelResp.Body)
+			_ = cancelResp.Body.Close()
+			t.Fatalf("cancel run status = %d, want %d; body=%s", cancelResp.StatusCode, http.StatusOK, string(body))
+		}
+		var cancelled contract.TaskRunResponse
+		decodeHTTPJSON(t, cancelResp, &cancelled)
+		if cancelled.Run.Status != taskpkg.TaskRunStatusCancelled {
+			t.Fatalf("cancelled status = %q, want %q", cancelled.Run.Status, taskpkg.TaskRunStatusCancelled)
+		}
+
+		finalRunsResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs"), nil, nil)
+		if finalRunsResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(finalRunsResp.Body)
+			_ = finalRunsResp.Body.Close()
+			t.Fatalf("final list runs status = %d, want %d; body=%s", finalRunsResp.StatusCode, http.StatusOK, string(body))
+		}
+		var finalRuns contract.TaskRunsResponse
+		decodeHTTPJSON(t, finalRunsResp, &finalRuns)
+		if len(finalRuns.Runs) != 1 || finalRuns.Runs[0].Status != taskpkg.TaskRunStatusCancelled {
+			t.Fatalf("final runs = %#v, want one cancelled run", finalRuns.Runs)
+		}
+	})
 }
 
 type integrationRuntime struct {
@@ -1183,10 +1187,13 @@ type integrationRuntime struct {
 }
 
 type integrationTaskSessionExecutor struct {
+	mu      sync.Mutex
 	started int
 }
 
 func (e *integrationTaskSessionExecutor) StartTaskSession(_ context.Context, _ taskpkg.StartTaskSession) (*taskpkg.SessionRef, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.started++
 	return &taskpkg.SessionRef{SessionID: fmt.Sprintf("task-sess-%d", e.started)}, nil
 }

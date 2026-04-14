@@ -453,7 +453,7 @@ func (d *Dispatcher) dispatchTaskBackedAttempt(ctx context.Context, req Dispatch
 	if preFirePrompt == "" && req.Job != nil {
 		preFirePrompt = strings.TrimSpace(req.Job.Prompt)
 	}
-	_, cancelled, hookErr := d.dispatchPreFireHook(ctx, req, preFirePrompt, attempt)
+	preFirePrompt, cancelled, hookErr := d.dispatchPreFireHook(ctx, req, preFirePrompt, attempt)
 	if hookErr != nil {
 		return d.finishRun(ctx, scheduledRun, RunFailed, hookErr)
 	}
@@ -466,7 +466,7 @@ func (d *Dispatcher) dispatchTaskBackedAttempt(ctx context.Context, req Dispatch
 		return d.finishRun(ctx, scheduledRun, RunFailed, err)
 	}
 
-	taskRecord, err := d.tasks.CreateTask(ctx, directTaskSpec(req.Job), actor)
+	taskRecord, err := d.tasks.CreateTask(ctx, directTaskSpec(req.Job, preFirePrompt), actor)
 	if err != nil {
 		return d.finishRun(ctx, scheduledRun, RunFailed, err)
 	}
@@ -908,7 +908,7 @@ func automationSessionTaskActorContext(sessionID string, run *Run) (taskpkg.Acto
 	return taskpkg.DeriveAutomationLinkedAgentSessionActorContext(strings.TrimSpace(sessionID), automationTaskOriginRef(run.ID))
 }
 
-func directTaskSpec(job *Job) taskpkg.CreateTask {
+func directTaskSpec(job *Job, prompt string) taskpkg.CreateTask {
 	if job == nil || job.Task == nil {
 		return taskpkg.CreateTask{}
 	}
@@ -918,6 +918,9 @@ func directTaskSpec(job *Job) taskpkg.CreateTask {
 		title = strings.TrimSpace(job.Name)
 	}
 	description := strings.TrimSpace(job.Task.Description)
+	if description == "" {
+		description = strings.TrimSpace(prompt)
+	}
 	if description == "" {
 		description = strings.TrimSpace(job.Prompt)
 	}

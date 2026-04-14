@@ -457,6 +457,7 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 			events = append(events, "session:"+id)
 		},
 	}
+	d.tasks = &taskRuntime{}
 	d.network = &fakeNetworkRuntime{
 		onShutdown: func() {
 			events = append(events, "network")
@@ -489,6 +490,9 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 
 	if err := d.Shutdown(testutil.Context(t)); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if d.tasks != nil {
+		t.Fatalf("Shutdown() left task runtime = %#v, want nil", d.tasks)
 	}
 
 	want := []string{"extensions", "automation", "session:sess-a", "session:sess-b", "http", "uds", "network", "hooks", "db", "lock", "logger"}
@@ -688,21 +692,31 @@ func TestBootExtensionsKeepsHealthyRegisteredExtensionsAfterPartialStartFailure(
 
 	db := openDaemonTestGlobalDB(t)
 	installDaemonTestExtension(t, db, "ext-healthy", daemonTestExtensionOptions{}, true)
+	installDaemonTestExtension(t, db, "ext-bad", daemonTestExtensionOptions{}, true)
 
 	var logBuffer bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
 	runtime := &fakeExtensionRuntime{
 		startErr: errors.New("boom"),
-		getExt: &extensionpkg.Extension{
-			Info: extensionpkg.ExtensionInfo{
-				Name:    "ext-healthy",
-				Enabled: true,
-			},
-			Status: extensionpkg.ExtensionStatus{
-				Name:       "ext-healthy",
-				Enabled:    true,
-				Registered: true,
-			},
+		getFn: func(name string) (*extensionpkg.Extension, error) {
+			switch name {
+			case "ext-healthy":
+				return &extensionpkg.Extension{
+					Info: extensionpkg.ExtensionInfo{
+						Name:    "ext-healthy",
+						Enabled: true,
+					},
+					Status: extensionpkg.ExtensionStatus{
+						Name:       "ext-healthy",
+						Enabled:    true,
+						Registered: true,
+					},
+				}, nil
+			case "ext-bad":
+				return nil, extensionpkg.ErrExtensionNotFound
+			default:
+				return nil, extensionpkg.ErrExtensionNotFound
+			}
 		},
 	}
 	homePaths := testHomePaths(t)
@@ -748,6 +762,20 @@ func TestBootExtensionsKeepsHealthyRegisteredExtensionsAfterPartialStartFailure(
 	}
 	if state.bridges.extensions != runtime {
 		t.Fatalf("state.bridges.extensions = %#v, want runtime", state.bridges.extensions)
+	}
+	healthy, err := state.deps.Extensions.Status(testutil.Context(t), "ext-healthy")
+	if err != nil {
+		t.Fatalf("Extensions.Status(ext-healthy) error = %v", err)
+	}
+	if got, want := healthy.State, "registered"; got != want {
+		t.Fatalf("ext-healthy state = %q, want %q", got, want)
+	}
+	bad, err := state.deps.Extensions.Status(testutil.Context(t), "ext-bad")
+	if err != nil {
+		t.Fatalf("Extensions.Status(ext-bad) error = %v", err)
+	}
+	if got, want := bad.State, "enabled"; got != want {
+		t.Fatalf("ext-bad state = %q, want %q", got, want)
 	}
 	if !strings.Contains(logBuffer.String(), "healthy extensions only") {
 		t.Fatalf("log output = %q, want partial start continuation message", logBuffer.String())
@@ -3840,6 +3868,7 @@ type fakeExtensionRuntime struct {
 	hookErr     error
 	getExt      *extensionpkg.Extension
 	getErr      error
+	getFn       func(string) (*extensionpkg.Extension, error)
 	onStart     func()
 	onStop      func()
 }
@@ -3865,11 +3894,17 @@ func (f *fakeExtensionRuntime) Reload(context.Context) error {
 	return f.reloadErr
 }
 
-func (f *fakeExtensionRuntime) Get(string) (*extensionpkg.Extension, error) {
+func (f *fakeExtensionRuntime) Get(name string) (*extensionpkg.Extension, error) {
+	if f.getFn != nil {
+		return f.getFn(name)
+	}
 	if f.getErr != nil {
 		return nil, f.getErr
 	}
-	return f.getExt, nil
+	if f.getExt != nil {
+		return f.getExt, nil
+	}
+	return nil, extensionpkg.ErrExtensionNotFound
 }
 
 func (f *fakeExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {

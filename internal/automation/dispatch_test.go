@@ -262,8 +262,8 @@ func TestDispatchTaskBackedJobFailsWhenTaskServiceIsUnavailable(t *testing.T) {
 		Kind: DispatchKindManual,
 		Job:  &job,
 	})
-	if err == nil {
-		t.Fatal("Dispatch() error = nil, want non-nil")
+	if err == nil || !strings.Contains(err.Error(), "task-backed job requires task service") {
+		t.Fatalf("Dispatch() error = %v, want missing task service failure", err)
 	}
 	if got, want := run.Status, RunFailed; got != want {
 		t.Fatalf("run.Status = %q, want %q", got, want)
@@ -280,7 +280,7 @@ func TestDirectTaskSpecFallsBackToJobNameAndPrompt(t *testing.T) {
 	job.Prompt = "  Review the latest automation output.  "
 	job.Task = &JobTaskConfig{}
 
-	spec := directTaskSpec(&job)
+	spec := directTaskSpec(&job, job.Prompt)
 	if got, want := spec.Scope, taskpkg.ScopeGlobal; got != want {
 		t.Fatalf("spec.Scope = %q, want %q", got, want)
 	}
@@ -289,6 +289,42 @@ func TestDirectTaskSpecFallsBackToJobNameAndPrompt(t *testing.T) {
 	}
 	if got, want := spec.Description, "Review the latest automation output."; got != want {
 		t.Fatalf("spec.Description = %q, want %q", got, want)
+	}
+}
+
+func TestDispatchTaskBackedJobUsesRewrittenPreFirePromptForTaskDescription(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	tasks := newRecordingTaskService()
+	hooks := &recordingAutomationHooks{
+		onJobPreFire: func(_ context.Context, payload hookspkg.AutomationJobPreFirePayload) (hookspkg.AutomationJobPreFirePayload, error) {
+			payload.Prompt = "Hook-rewritten durable task prompt."
+			return payload, nil
+		},
+	}
+	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherTasks(tasks), WithDispatcherHooks(hooks))
+
+	job := testJob(AutomationScopeGlobal, "job-hook-task", "")
+	job.Prompt = "Original automation prompt."
+	job.Task = &JobTaskConfig{Title: "Create durable task"}
+
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind: DispatchKindManual,
+		Job:  &job,
+	})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+	if got, want := run.Status, RunDelegated; got != want {
+		t.Fatalf("run.Status = %q, want %q", got, want)
+	}
+	if got, want := len(tasks.createCalls), 1; got != want {
+		t.Fatalf("len(CreateTask calls) = %d, want %d", got, want)
+	}
+	if got, want := tasks.createCalls[0].spec.Description, "Hook-rewritten durable task prompt."; got != want {
+		t.Fatalf("CreateTask().description = %q, want %q", got, want)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/network"
@@ -677,7 +678,7 @@ func taskSummaryPayloadFromSummary(record taskpkg.TaskSummary) apicontract.TaskS
 		Origin:         record.Origin,
 		CreatedAt:      record.CreatedAt,
 		UpdatedAt:      record.UpdatedAt,
-		ClosedAt:       record.ClosedAt,
+		ClosedAt:       optionalTime(record.ClosedAt),
 	}
 }
 
@@ -701,7 +702,7 @@ func taskPayloadFromTask(record *taskpkg.Task) apicontract.TaskPayload {
 		Origin:         record.Origin,
 		CreatedAt:      record.CreatedAt,
 		UpdatedAt:      record.UpdatedAt,
-		ClosedAt:       record.ClosedAt,
+		ClosedAt:       optionalTime(record.ClosedAt),
 		Metadata:       cloneRawMessage(record.Metadata),
 	}
 }
@@ -743,12 +744,20 @@ func taskRunPayloadFromRun(run *taskpkg.TaskRun) apicontract.TaskRunPayload {
 		IdempotencyKey: run.IdempotencyKey,
 		NetworkChannel: run.NetworkChannel,
 		QueuedAt:       run.QueuedAt,
-		ClaimedAt:      run.ClaimedAt,
-		StartedAt:      run.StartedAt,
-		EndedAt:        run.EndedAt,
+		ClaimedAt:      optionalTime(run.ClaimedAt),
+		StartedAt:      optionalTime(run.StartedAt),
+		EndedAt:        optionalTime(run.EndedAt),
 		Error:          run.Error,
 		Result:         cloneRawMessage(run.Result),
 	}
+}
+
+func optionalTime(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	cloned := value
+	return &cloned
 }
 
 func taskEventPayloadsFromEvents(events []taskpkg.TaskEvent) []apicontract.TaskEventPayload {

@@ -591,34 +591,38 @@ func TestManagerObserversAndRunsRouteTriggerEvents(t *testing.T) {
 func TestManagerSessionTaskActorLifecycle(t *testing.T) {
 	t.Parallel()
 
-	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
-		Enabled:           true,
-		Timezone:          DefaultTimezone,
-		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
-		DefaultFireLimit:  DefaultFireLimitConfig(),
+	t.Run("Should record, load, and delete a session task actor", func(t *testing.T) {
+		t.Parallel()
+
+		h := newManagerHarness(t)
+		manager := h.newManager(t, aghconfig.AutomationConfig{
+			Enabled:           true,
+			Timezone:          DefaultTimezone,
+			MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+			DefaultFireLimit:  DefaultFireLimitConfig(),
+		})
+
+		actor, err := taskpkg.DeriveAutomationLinkedAgentSessionActorContext("sess-actor-1", "run:run-1")
+		if err != nil {
+			t.Fatalf("DeriveAutomationLinkedAgentSessionActorContext() error = %v", err)
+		}
+		if err := manager.RecordAutomationSessionTaskActor("sess-actor-1", actor); err != nil {
+			t.Fatalf("RecordAutomationSessionTaskActor() error = %v", err)
+		}
+
+		loaded, err := manager.TaskActorContextForSession("sess-actor-1")
+		if err != nil {
+			t.Fatalf("TaskActorContextForSession() error = %v", err)
+		}
+		if loaded != actor {
+			t.Fatalf("TaskActorContextForSession() = %#v, want %#v", loaded, actor)
+		}
+
+		manager.DeleteAutomationSessionTaskActor("sess-actor-1")
+		if _, err := manager.TaskActorContextForSession("sess-actor-1"); !errors.Is(err, ErrSessionTaskActorNotFound) {
+			t.Fatalf("TaskActorContextForSession(after delete) error = %v, want ErrSessionTaskActorNotFound", err)
+		}
 	})
-
-	actor, err := taskpkg.DeriveAutomationLinkedAgentSessionActorContext("sess-actor-1", "run:run-1")
-	if err != nil {
-		t.Fatalf("DeriveAutomationLinkedAgentSessionActorContext() error = %v", err)
-	}
-	if err := manager.RecordAutomationSessionTaskActor("sess-actor-1", actor); err != nil {
-		t.Fatalf("RecordAutomationSessionTaskActor() error = %v", err)
-	}
-
-	loaded, err := manager.TaskActorContextForSession("sess-actor-1")
-	if err != nil {
-		t.Fatalf("TaskActorContextForSession() error = %v", err)
-	}
-	if loaded != actor {
-		t.Fatalf("TaskActorContextForSession() = %#v, want %#v", loaded, actor)
-	}
-
-	manager.DeleteAutomationSessionTaskActor("sess-actor-1")
-	if _, err := manager.TaskActorContextForSession("sess-actor-1"); !errors.Is(err, ErrSessionTaskActorNotFound) {
-		t.Fatalf("TaskActorContextForSession(after delete) error = %v, want ErrSessionTaskActorNotFound", err)
-	}
 }
 
 func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {

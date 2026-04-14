@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
@@ -963,7 +964,7 @@ func TaskSummaryPayloadFromSummary(record taskpkg.TaskSummary) contract.TaskSumm
 		Origin:         record.Origin,
 		CreatedAt:      record.CreatedAt,
 		UpdatedAt:      record.UpdatedAt,
-		ClosedAt:       record.ClosedAt,
+		ClosedAt:       optionalTime(record.ClosedAt),
 	}
 }
 
@@ -988,7 +989,7 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 		Origin:         record.Origin,
 		CreatedAt:      record.CreatedAt,
 		UpdatedAt:      record.UpdatedAt,
-		ClosedAt:       record.ClosedAt,
+		ClosedAt:       optionalTime(record.ClosedAt),
 		Metadata:       cloneRawMessage(record.Metadata),
 	}
 }
@@ -1033,9 +1034,9 @@ func TaskRunPayloadFromRun(run *taskpkg.TaskRun) contract.TaskRunPayload {
 		IdempotencyKey: run.IdempotencyKey,
 		NetworkChannel: run.NetworkChannel,
 		QueuedAt:       run.QueuedAt,
-		ClaimedAt:      run.ClaimedAt,
-		StartedAt:      run.StartedAt,
-		EndedAt:        run.EndedAt,
+		ClaimedAt:      optionalTime(run.ClaimedAt),
+		StartedAt:      optionalTime(run.StartedAt),
+		EndedAt:        optionalTime(run.EndedAt),
 		Error:          run.Error,
 		Result:         cloneRawMessage(run.Result),
 	}
@@ -1117,6 +1118,14 @@ func trimStringPtr(source *string) *string {
 	}
 	trimmed := strings.TrimSpace(*source)
 	return &trimmed
+}
+
+func optionalTime(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	cloned := value
+	return &cloned
 }
 
 func cloneRawMessagePtr(source *json.RawMessage) *json.RawMessage {

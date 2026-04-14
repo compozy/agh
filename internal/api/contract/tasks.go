@@ -22,7 +22,7 @@ type TaskSummaryPayload struct {
 	Origin         taskpkg.Origin        `json:"origin"`
 	CreatedAt      time.Time             `json:"created_at"`
 	UpdatedAt      time.Time             `json:"updated_at"`
-	ClosedAt       time.Time             `json:"closed_at,omitempty"`
+	ClosedAt       *time.Time            `json:"closed_at,omitempty"`
 }
 
 // TaskPayload is the shared full task response payload.
@@ -41,7 +41,7 @@ type TaskPayload struct {
 	Origin         taskpkg.Origin        `json:"origin"`
 	CreatedAt      time.Time             `json:"created_at"`
 	UpdatedAt      time.Time             `json:"updated_at"`
-	ClosedAt       time.Time             `json:"closed_at,omitempty"`
+	ClosedAt       *time.Time            `json:"closed_at,omitempty"`
 	Metadata       json.RawMessage       `json:"metadata,omitempty"`
 }
 
@@ -65,9 +65,9 @@ type TaskRunPayload struct {
 	IdempotencyKey string                 `json:"idempotency_key,omitempty"`
 	NetworkChannel string                 `json:"network_channel,omitempty"`
 	QueuedAt       time.Time              `json:"queued_at"`
-	ClaimedAt      time.Time              `json:"claimed_at,omitempty"`
-	StartedAt      time.Time              `json:"started_at,omitempty"`
-	EndedAt        time.Time              `json:"ended_at,omitempty"`
+	ClaimedAt      *time.Time             `json:"claimed_at,omitempty"`
+	StartedAt      *time.Time             `json:"started_at,omitempty"`
+	EndedAt        *time.Time             `json:"ended_at,omitempty"`
 	Error          string                 `json:"error,omitempty"`
 	Result         json.RawMessage        `json:"result,omitempty"`
 }

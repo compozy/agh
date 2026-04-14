@@ -944,7 +944,7 @@ func taskBundle(item TaskRecord) outputBundle {
 				{Label: "Channel", Value: stringOrDash(item.NetworkChannel)},
 				{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
 				{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
-				{Label: "Closed", Value: stringOrDash(formatTime(item.ClosedAt))},
+				{Label: "Closed", Value: stringOrDash(formatTimePtr(item.ClosedAt))},
 				{Label: "Metadata", Value: stringOrDash(compactJSON(item.Metadata))},
 			}), nil
 		},
@@ -966,7 +966,7 @@ func taskBundle(item TaskRecord) outputBundle {
 				item.NetworkChannel,
 				formatTime(item.CreatedAt),
 				formatTime(item.UpdatedAt),
-				formatTime(item.ClosedAt),
+				formatTimePtr(item.ClosedAt),
 				compactJSON(item.Metadata),
 			}), nil
 		},
@@ -1057,9 +1057,9 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				{Label: "Idempotency Key", Value: stringOrDash(item.IdempotencyKey)},
 				{Label: "Channel", Value: stringOrDash(item.NetworkChannel)},
 				{Label: "Queued", Value: stringOrDash(formatTime(item.QueuedAt))},
-				{Label: "Claimed", Value: stringOrDash(formatTime(item.ClaimedAt))},
-				{Label: "Started", Value: stringOrDash(formatTime(item.StartedAt))},
-				{Label: "Ended", Value: stringOrDash(formatTime(item.EndedAt))},
+				{Label: "Claimed", Value: stringOrDash(formatTimePtr(item.ClaimedAt))},
+				{Label: "Started", Value: stringOrDash(formatTimePtr(item.StartedAt))},
+				{Label: "Ended", Value: stringOrDash(formatTimePtr(item.EndedAt))},
 				{Label: "Error", Value: stringOrDash(item.Error)},
 				{Label: "Result", Value: stringOrDash(compactJSON(item.Result))},
 			}), nil
@@ -1078,9 +1078,9 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				item.IdempotencyKey,
 				item.NetworkChannel,
 				formatTime(item.QueuedAt),
-				formatTime(item.ClaimedAt),
-				formatTime(item.StartedAt),
-				formatTime(item.EndedAt),
+				formatTimePtr(item.ClaimedAt),
+				formatTimePtr(item.StartedAt),
+				formatTimePtr(item.EndedAt),
 				item.Error,
 				compactJSON(item.Result),
 			}), nil
@@ -1105,8 +1105,8 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 				stringOrDash(formatTaskActorPtr(item.ClaimedBy)),
 				stringOrDash(item.NetworkChannel),
 				stringOrDash(formatTime(item.QueuedAt)),
-				stringOrDash(formatTime(item.StartedAt)),
-				stringOrDash(formatTime(item.EndedAt)),
+				stringOrDash(formatTimePtr(item.StartedAt)),
+				stringOrDash(formatTimePtr(item.EndedAt)),
 				stringOrDash(item.Error),
 			}
 		},
@@ -1119,8 +1119,8 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 				formatTaskActorPtr(item.ClaimedBy),
 				item.NetworkChannel,
 				formatTime(item.QueuedAt),
-				formatTime(item.StartedAt),
-				formatTime(item.EndedAt),
+				formatTimePtr(item.StartedAt),
+				formatTimePtr(item.EndedAt),
 				item.Error,
 			}
 		},
@@ -1196,8 +1196,8 @@ func taskRunRows(items []TaskRunRecord) [][]string {
 			stringOrDash(formatTaskActorPtr(item.ClaimedBy)),
 			stringOrDash(item.NetworkChannel),
 			stringOrDash(formatTime(item.QueuedAt)),
-			stringOrDash(formatTime(item.StartedAt)),
-			stringOrDash(formatTime(item.EndedAt)),
+			stringOrDash(formatTimePtr(item.StartedAt)),
+			stringOrDash(formatTimePtr(item.EndedAt)),
 			stringOrDash(item.Error),
 		})
 	}
@@ -1215,8 +1215,8 @@ func taskRunToonRows(items []TaskRunRecord) [][]string {
 			formatTaskActorPtr(item.ClaimedBy),
 			item.NetworkChannel,
 			formatTime(item.QueuedAt),
-			formatTime(item.StartedAt),
-			formatTime(item.EndedAt),
+			formatTimePtr(item.StartedAt),
+			formatTimePtr(item.EndedAt),
 			item.Error,
 		})
 	}

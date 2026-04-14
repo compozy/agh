@@ -588,6 +588,7 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	skillsDone := d.skillsDone
 
 	d.sessions = nil
+	d.tasks = nil
 	d.hooks = nil
 	d.extensions = nil
 	d.automation = nil

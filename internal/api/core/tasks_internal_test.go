@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -50,6 +52,16 @@ func (s workspaceServiceStub) Resolve(context.Context, string) (workspacepkg.Res
 
 func (s workspaceServiceStub) ResolveOrRegister(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func assertTaskValidationError(t *testing.T, err error, wantSubstring string) {
+	t.Helper()
+	if !errors.Is(err, taskpkg.ErrValidation) {
+		t.Fatalf("error = %v, want task validation error", err)
+	}
+	if wantSubstring != "" && !strings.Contains(err.Error(), wantSubstring) {
+		t.Fatalf("error = %q, want substring %q", err.Error(), wantSubstring)
+	}
 }
 
 func TestTaskActorContextAndTransportHelpers(t *testing.T) {
@@ -167,18 +179,28 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 
 	if _, err := attachTaskRunSessionIDFromRequest(contract.AttachTaskRunSessionRequest{}); err == nil {
 		t.Fatal("attachTaskRunSessionIDFromRequest() error = nil, want non-nil")
+	} else {
+		assertTaskValidationError(t, err, "session_id is required")
 	}
 	if _, err := failTaskRunFromRequest(contract.FailTaskRunRequest{}); err == nil {
 		t.Fatal("failTaskRunFromRequest() error = nil, want non-nil")
+	} else {
+		assertTaskValidationError(t, err, "run_failure.error is required")
 	}
 	if err := validateTaskChannel("task.network_channel", "bad.channel"); err == nil {
 		t.Fatal("validateTaskChannel(invalid) error = nil, want non-nil")
+	} else {
+		assertTaskValidationError(t, err, `task.network_channel: network: invalid field: channel="bad.channel"`)
 	}
 	if _, err := enqueueTaskRunFromRequest("task-1", contract.EnqueueTaskRunRequest{NetworkChannel: "bad.channel"}); err == nil {
 		t.Fatal("enqueueTaskRunFromRequest(invalid) error = nil, want non-nil")
+	} else {
+		assertTaskValidationError(t, err, `enqueue_run.network_channel: network: invalid field: channel="bad.channel"`)
 	}
 	if _, err := requiredPathID("", "task id"); err == nil {
 		t.Fatal("requiredPathID(empty) error = nil, want non-nil")
+	} else {
+		assertTaskValidationError(t, err, "task id is required")
 	}
 
 	invalidRecorder := httptest.NewRecorder()
@@ -186,6 +208,8 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	invalidCtx.Request = httptest.NewRequest("GET", "/tasks?limit=bad", nil)
 	if _, err := handlers.parseTaskListQuery(context.Background(), invalidCtx); err == nil {
 		t.Fatal("parseTaskListQuery(invalid limit) error = nil, want non-nil")
+	} else {
+		assertTaskValidationError(t, err, `invalid integer "bad"`)
 	}
 
 	invalidRunRecorder := httptest.NewRecorder()
@@ -193,6 +217,8 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	invalidRunCtx.Request = httptest.NewRequest("GET", "/tasks/task-1/runs?limit=bad", nil)
 	if _, err := parseTaskRunListQuery(invalidRunCtx); err == nil {
 		t.Fatal("parseTaskRunListQuery(invalid limit) error = nil, want non-nil")
+	} else {
+		assertTaskValidationError(t, err, `invalid integer "bad"`)
 	}
 
 	decodeRecorder := httptest.NewRecorder()
@@ -202,6 +228,8 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	var payload contract.CancelTaskRequest
 	if err := decodeOptionalJSON(decodeCtx, &payload); err == nil {
 		t.Fatal("decodeOptionalJSON(invalid) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), "unexpected EOF") {
+		t.Fatalf("decodeOptionalJSON(invalid) error = %q, want unexpected EOF", err.Error())
 	}
 }
 

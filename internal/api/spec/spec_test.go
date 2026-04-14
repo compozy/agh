@@ -12,6 +12,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/hooks"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/tools"
 )
 
@@ -200,6 +201,134 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertNotRequired(t, healthSchema, "last_success_at", "last_error", "last_error_at")
 			},
 		},
+		{
+			name: "ShouldRegisterTaskAndTaskRunOperations",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				operations := []struct {
+					path   string
+					method string
+				}{
+					{path: "/api/tasks", method: "GET"},
+					{path: "/api/tasks", method: "POST"},
+					{path: "/api/tasks/{id}", method: "GET"},
+					{path: "/api/tasks/{id}", method: "PATCH"},
+					{path: "/api/tasks/{id}/cancel", method: "POST"},
+					{path: "/api/tasks/{id}/children", method: "POST"},
+					{path: "/api/tasks/{id}/dependencies", method: "POST"},
+					{path: "/api/tasks/{id}/dependencies/{depends_on_id}", method: "DELETE"},
+					{path: "/api/tasks/{id}/runs", method: "GET"},
+					{path: "/api/tasks/{id}/runs", method: "POST"},
+					{path: "/api/task-runs/{id}/claim", method: "POST"},
+					{path: "/api/task-runs/{id}/start", method: "POST"},
+					{path: "/api/task-runs/{id}/attach-session", method: "POST"},
+					{path: "/api/task-runs/{id}/complete", method: "POST"},
+					{path: "/api/task-runs/{id}/fail", method: "POST"},
+					{path: "/api/task-runs/{id}/cancel", method: "POST"},
+				}
+
+				for _, operation := range operations {
+					operation := operation
+					t.Run(operation.method+" "+operation.path, func(t *testing.T) {
+						t.Parallel()
+						operationFor(t, doc, operation.path, operation.method)
+					})
+				}
+			},
+		},
+		{
+			name: "ShouldDescribeTaskSchemasAndEnums",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				createTask := operationFor(t, doc, "/api/tasks", "POST")
+				createTaskSchema := jsonRequestSchema(t, createTask)
+				assertRequired(t, createTaskSchema, "scope", "title")
+				assertNotRequired(t, createTaskSchema, "id", "identifier", "workspace", "network_channel", "description", "owner", "metadata")
+				assertEnumValues(t, propertySchema(t, createTaskSchema, "scope"), "global", "workspace")
+
+				createTaskResponse := jsonResponseSchema(t, createTask, 201)
+				assertRequired(t, createTaskResponse, "task")
+				taskSchema := propertySchema(t, createTaskResponse, "task")
+				assertEnumValues(t, propertySchema(t, taskSchema, "scope"), "global", "workspace")
+				assertEnumValues(t, propertySchema(t, taskSchema, "status"),
+					string(taskpkg.TaskStatusPending),
+					string(taskpkg.TaskStatusBlocked),
+					string(taskpkg.TaskStatusReady),
+					string(taskpkg.TaskStatusInProgress),
+					string(taskpkg.TaskStatusCompleted),
+					string(taskpkg.TaskStatusFailed),
+					string(taskpkg.TaskStatusCancelled),
+				)
+				assertEnumValues(t, propertySchema(t, propertySchema(t, taskSchema, "owner"), "kind"),
+					string(taskpkg.OwnerKindHuman),
+					string(taskpkg.OwnerKindAgentSession),
+					string(taskpkg.OwnerKindAutomation),
+					string(taskpkg.OwnerKindExtension),
+					string(taskpkg.OwnerKindNetworkPeer),
+					string(taskpkg.OwnerKindPool),
+				)
+				assertEnumValues(t, propertySchema(t, propertySchema(t, taskSchema, "created_by"), "kind"),
+					string(taskpkg.ActorKindHuman),
+					string(taskpkg.ActorKindAgentSession),
+					string(taskpkg.ActorKindAutomation),
+					string(taskpkg.ActorKindExtension),
+					string(taskpkg.ActorKindNetworkPeer),
+					string(taskpkg.ActorKindDaemon),
+				)
+				assertEnumValues(t, propertySchema(t, propertySchema(t, taskSchema, "origin"), "kind"),
+					string(taskpkg.OriginKindCLI),
+					string(taskpkg.OriginKindWeb),
+					string(taskpkg.OriginKindUDS),
+					string(taskpkg.OriginKindHTTP),
+					string(taskpkg.OriginKindAutomation),
+					string(taskpkg.OriginKindExtension),
+					string(taskpkg.OriginKindNetwork),
+					string(taskpkg.OriginKindAgentSession),
+					string(taskpkg.OriginKindDaemon),
+				)
+
+				listTaskRuns := operationFor(t, doc, "/api/tasks/{id}/runs", "GET")
+				assertParameter(t, listTaskRuns, "status", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTaskRuns, "session_id", openapi3.ParameterInQuery, false)
+
+				claimRun := operationFor(t, doc, "/api/task-runs/{id}/claim", "POST")
+				claimRunSchema := jsonResponseSchema(t, claimRun, 200)
+				assertRequired(t, claimRunSchema, "run")
+				runSchema := propertySchema(t, claimRunSchema, "run")
+				assertEnumValues(t, propertySchema(t, runSchema, "status"),
+					string(taskpkg.TaskRunStatusQueued),
+					string(taskpkg.TaskRunStatusClaimed),
+					string(taskpkg.TaskRunStatusStarting),
+					string(taskpkg.TaskRunStatusRunning),
+					string(taskpkg.TaskRunStatusCompleted),
+					string(taskpkg.TaskRunStatusFailed),
+					string(taskpkg.TaskRunStatusCancelled),
+				)
+				assertEnumValues(t, propertySchema(t, propertySchema(t, runSchema, "origin"), "kind"),
+					string(taskpkg.OriginKindCLI),
+					string(taskpkg.OriginKindWeb),
+					string(taskpkg.OriginKindUDS),
+					string(taskpkg.OriginKindHTTP),
+					string(taskpkg.OriginKindAutomation),
+					string(taskpkg.OriginKindExtension),
+					string(taskpkg.OriginKindNetwork),
+					string(taskpkg.OriginKindAgentSession),
+					string(taskpkg.OriginKindDaemon),
+				)
+
+				addDependency := operationFor(t, doc, "/api/tasks/{id}/dependencies", "POST")
+				addDependencySchema := jsonRequestSchema(t, addDependency)
+				assertRequired(t, addDependencySchema, "depends_on_task_id")
+				assertNotRequired(t, addDependencySchema, "kind")
+				assertEnumValues(t, propertySchema(t, addDependencySchema, "kind"), string(taskpkg.DependencyKindBlocks))
+
+				attachRun := operationFor(t, doc, "/api/task-runs/{id}/attach-session", "POST")
+				attachRunSchema := jsonRequestSchema(t, attachRun)
+				assertRequired(t, attachRunSchema, "session_id")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -251,6 +380,13 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		name string
 		typ  any
 	}{
+		{name: "TaskScope", typ: taskpkg.Scope(taskpkg.ScopeGlobal)},
+		{name: "TaskStatus", typ: taskpkg.TaskStatus(taskpkg.TaskStatusReady)},
+		{name: "TaskRunStatus", typ: taskpkg.TaskRunStatus(taskpkg.TaskRunStatusQueued)},
+		{name: "TaskActorKind", typ: taskpkg.ActorKind(taskpkg.ActorKindHuman)},
+		{name: "TaskOwnerKind", typ: taskpkg.OwnerKind(taskpkg.OwnerKindPool)},
+		{name: "TaskOriginKind", typ: taskpkg.OriginKind(taskpkg.OriginKindHTTP)},
+		{name: "TaskDependencyKind", typ: taskpkg.DependencyKind(taskpkg.DependencyKindBlocks)},
 		{name: "HookSkillSource", typ: hooks.HookSkillSource(hooks.HookSkillSourceBundled)},
 		{name: "HookExecutorKind", typ: hooks.HookExecutorKind(hooks.HookExecutorNative)},
 		{name: "ToolSource", typ: tools.ToolSource(0)},
@@ -295,6 +431,41 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 			name: "tool source values",
 			got:  toolSourceValues(),
 			want: []string{"builtin", "mcp", "extension", "dynamic"},
+		},
+		{
+			name: "task scope values",
+			got:  taskScopeValues(),
+			want: []string{"global", "workspace"},
+		},
+		{
+			name: "task status values",
+			got:  taskStatusValues(),
+			want: []string{"pending", "blocked", "ready", "in_progress", "completed", "failed", "cancelled"},
+		},
+		{
+			name: "task run status values",
+			got:  taskRunStatusValues(),
+			want: []string{"queued", "claimed", "starting", "running", "completed", "failed", "cancelled"},
+		},
+		{
+			name: "task actor kind values",
+			got:  taskActorKindValues(),
+			want: []string{"human", "agent_session", "automation", "extension", "network_peer", "daemon"},
+		},
+		{
+			name: "task owner kind values",
+			got:  taskOwnerKindValues(),
+			want: []string{"human", "agent_session", "automation", "extension", "network_peer", "pool"},
+		},
+		{
+			name: "task origin kind values",
+			got:  taskOriginKindValues(),
+			want: []string{"cli", "web", "uds", "http", "automation", "extension", "network", "agent_session", "daemon"},
+		},
+		{
+			name: "task dependency kind values",
+			got:  taskDependencyKindValues(),
+			want: []string{"blocks"},
 		},
 	}
 

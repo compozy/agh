@@ -829,6 +829,17 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 		t.Fatalf("Run.Validate(valid) error = %v", err)
 	}
 
+	delegatedMissingTaskID := Run{
+		Status:    RunDelegated,
+		Attempt:   1,
+		TaskRunID: "task-run-1",
+	}
+	if err := delegatedMissingTaskID.Validate("run"); err == nil {
+		t.Fatal("Run.Validate(delegated missing task id) error = nil, want non-nil")
+	} else if got := err.Error(); !strings.Contains(got, "run.task_id is required when run.status is \"delegated\"") {
+		t.Fatalf("Run.Validate(delegated missing task id) error = %q, want delegated task_id failure", got)
+	}
+
 	envelope := ActivationEnvelope{
 		Kind:   "session.stopped",
 		Scope:  AutomationScopeWorkspace,

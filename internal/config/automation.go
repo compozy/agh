@@ -255,10 +255,7 @@ func (j parsedAutomationJob) toAutomationJob(defaultFireLimit automationpkg.Fire
 	if j.Schedule != nil {
 		job.Schedule = *j.Schedule
 	}
-	if j.Task != nil {
-		taskCfg := *j.Task
-		job.Task = &taskCfg
-	}
+	job.Task = cloneParsedJobTaskConfig(j.Task)
 	if j.Enabled != nil {
 		job.Enabled = *j.Enabled
 	}
@@ -270,6 +267,18 @@ func (j parsedAutomationJob) toAutomationJob(defaultFireLimit automationpkg.Fire
 	}
 
 	return job
+}
+
+func cloneParsedJobTaskConfig(config *automationpkg.JobTaskConfig) *automationpkg.JobTaskConfig {
+	if config == nil {
+		return nil
+	}
+	cloned := *config
+	if config.Owner != nil {
+		owner := *config.Owner
+		cloned.Owner = &owner
+	}
+	return &cloned
 }
 
 func (t parsedAutomationTrigger) toAutomationTrigger(defaultFireLimit automationpkg.FireLimitConfig) AutomationTrigger {

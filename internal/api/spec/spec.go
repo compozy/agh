@@ -21,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/tools"
 )
 
@@ -94,6 +95,7 @@ func Document() (*openapi3.T, error) {
 			{Name: "observe"},
 			{Name: "sessions"},
 			{Name: "skills"},
+			{Name: "tasks"},
 			{Name: "workspaces"},
 		},
 	}
@@ -1221,6 +1223,326 @@ func Operations() []OperationSpec {
 		},
 		{
 			Method:      "GET",
+			Path:        "/api/tasks",
+			OperationID: "listTasks",
+			Summary:     "List tasks",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				enumQueryParam("scope", "Filter by task scope", false, taskScopeValues()),
+				queryParam("workspace", "Filter by workspace path, name, or ID", false),
+				enumQueryParam("status", "Filter by task status", false, taskStatusValues()),
+				enumQueryParam("owner_kind", "Filter by owner kind", false, taskOwnerKindValues()),
+				queryParam("owner_ref", "Filter by owner reference", false),
+				queryParam("parent_task_id", "Filter by parent task ID", false),
+				queryParam("network_channel", "Filter by network channel", false),
+				intQueryParam("limit", "Maximum number of records to return", false),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TasksResponse{}},
+				{Status: 400, Description: "Invalid task filter", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/tasks",
+			OperationID: "createTask",
+			Summary:     "Create a task",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			RequestBody: contract.CreateTaskRequest{},
+			Responses: []ResponseSpec{
+				{Status: 201, Description: "Created", Body: contract.TaskResponse{}},
+				{Status: 400, Description: "Invalid task request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
+				{Status: 413, Description: "Payload too large", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "GET",
+			Path:        "/api/tasks/{id}",
+			OperationID: "getTask",
+			Summary:     "Get one task with detail",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task id"),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskDetailResponse{}},
+				{Status: 400, Description: "Invalid task id", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "PATCH",
+			Path:        "/api/tasks/{id}",
+			OperationID: "updateTask",
+			Summary:     "Update one task",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task id"),
+			},
+			RequestBody: contract.UpdateTaskRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskResponse{}},
+				{Status: 400, Description: "Invalid task update", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Task update conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/tasks/{id}/cancel",
+			OperationID: "cancelTask",
+			Summary:     "Cancel one task tree",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task id"),
+			},
+			RequestBody: contract.CancelTaskRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskResponse{}},
+				{Status: 400, Description: "Invalid task cancel request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Task cancel conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/tasks/{id}/children",
+			OperationID: "createChildTask",
+			Summary:     "Create one child task",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Parent task id"),
+			},
+			RequestBody: contract.CreateTaskChildRequest{},
+			Responses: []ResponseSpec{
+				{Status: 201, Description: "Created", Body: contract.TaskResponse{}},
+				{Status: 400, Description: "Invalid child task request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task or workspace not found", Body: contract.ErrorPayload{}},
+				{Status: 413, Description: "Payload too large", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/tasks/{id}/dependencies",
+			OperationID: "addTaskDependency",
+			Summary:     "Add one task dependency",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task id"),
+			},
+			RequestBody: contract.AddTaskDependencyRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskDetailResponse{}},
+				{Status: 400, Description: "Invalid dependency request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Dependency conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "DELETE",
+			Path:        "/api/tasks/{id}/dependencies/{depends_on_id}",
+			OperationID: "removeTaskDependency",
+			Summary:     "Remove one task dependency",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task id"),
+				pathParam("depends_on_id", "Dependency task id"),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskDetailResponse{}},
+				{Status: 400, Description: "Invalid dependency request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task or dependency not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "GET",
+			Path:        "/api/tasks/{id}/runs",
+			OperationID: "listTaskRuns",
+			Summary:     "List runs for one task",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task id"),
+				enumQueryParam("status", "Filter by run status", false, taskRunStatusValues()),
+				queryParam("session_id", "Filter by attached session id", false),
+				intQueryParam("limit", "Maximum number of records to return", false),
+			},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskRunsResponse{}},
+				{Status: 400, Description: "Invalid task-run filter", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/tasks/{id}/runs",
+			OperationID: "enqueueTaskRun",
+			Summary:     "Enqueue one task run",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task id"),
+			},
+			RequestBody: contract.EnqueueTaskRunRequest{},
+			Responses: []ResponseSpec{
+				{Status: 201, Description: "Created", Body: contract.TaskRunResponse{}},
+				{Status: 400, Description: "Invalid task-run enqueue request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Task-run enqueue conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/task-runs/{id}/claim",
+			OperationID: "claimTaskRun",
+			Summary:     "Claim one queued task run",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task run id"),
+			},
+			RequestBody: contract.ClaimTaskRunRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
+				{Status: 400, Description: "Invalid task-run claim request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Task-run claim conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/task-runs/{id}/start",
+			OperationID: "startTaskRun",
+			Summary:     "Start one claimed task run",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task run id"),
+			},
+			RequestBody: contract.StartTaskRunRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
+				{Status: 400, Description: "Invalid task-run start request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Task-run start conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/task-runs/{id}/attach-session",
+			OperationID: "attachTaskRunSession",
+			Summary:     "Attach an existing session to one task run",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task run id"),
+			},
+			RequestBody: contract.AttachTaskRunSessionRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
+				{Status: 400, Description: "Invalid attach-session request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task run or session not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Attach-session conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/task-runs/{id}/complete",
+			OperationID: "completeTaskRun",
+			Summary:     "Complete one running task run",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task run id"),
+			},
+			RequestBody: contract.CompleteTaskRunRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
+				{Status: 400, Description: "Invalid task-run completion request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Task-run completion conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/task-runs/{id}/fail",
+			OperationID: "failTaskRun",
+			Summary:     "Fail one task run",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task run id"),
+			},
+			RequestBody: contract.FailTaskRunRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
+				{Status: 400, Description: "Invalid task-run failure request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Task-run failure conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "POST",
+			Path:        "/api/task-runs/{id}/cancel",
+			OperationID: "cancelTaskRun",
+			Summary:     "Cancel one task run",
+			Tags:        []string{"tasks"},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Parameters: []ParameterSpec{
+				pathParam("id", "Task run id"),
+			},
+			RequestBody: contract.CancelTaskRunRequest{},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
+				{Status: 400, Description: "Invalid task-run cancel request", Body: contract.ErrorPayload{}},
+				{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
+				{Status: 409, Description: "Task-run cancel conflict", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			},
+		},
+		{
+			Method:      "GET",
 			Path:        "/api/skills",
 			OperationID: "listSkills",
 			Summary:     "List skills for one workspace",
@@ -1557,6 +1879,27 @@ func schemaCustomizer(_ string, t reflect.Type, _ reflect.StructTag, schema *ope
 	case reflect.TypeOf(automationpkg.RunStatus("")):
 		setStringEnum(schema, automationRunStatusValues())
 		return nil
+	case reflect.TypeOf(taskpkg.Scope("")):
+		setStringEnum(schema, taskScopeValues())
+		return nil
+	case reflect.TypeOf(taskpkg.TaskStatus("")):
+		setStringEnum(schema, taskStatusValues())
+		return nil
+	case reflect.TypeOf(taskpkg.TaskRunStatus("")):
+		setStringEnum(schema, taskRunStatusValues())
+		return nil
+	case reflect.TypeOf(taskpkg.ActorKind("")):
+		setStringEnum(schema, taskActorKindValues())
+		return nil
+	case reflect.TypeOf(taskpkg.OwnerKind("")):
+		setStringEnum(schema, taskOwnerKindValues())
+		return nil
+	case reflect.TypeOf(taskpkg.OriginKind("")):
+		setStringEnum(schema, taskOriginKindValues())
+		return nil
+	case reflect.TypeOf(taskpkg.DependencyKind("")):
+		setStringEnum(schema, taskDependencyKindValues())
+		return nil
 	case reflect.TypeOf(hooks.HookEvent("")):
 		setStringEnum(schema, hookEventValues())
 		return nil
@@ -1826,6 +2169,79 @@ func automationRunStatusValues() []string {
 		string(automationpkg.RunCompleted),
 		string(automationpkg.RunFailed),
 		string(automationpkg.RunCancelled),
+	}
+}
+
+func taskScopeValues() []string {
+	return []string{
+		string(taskpkg.ScopeGlobal),
+		string(taskpkg.ScopeWorkspace),
+	}
+}
+
+func taskStatusValues() []string {
+	return []string{
+		string(taskpkg.TaskStatusPending),
+		string(taskpkg.TaskStatusBlocked),
+		string(taskpkg.TaskStatusReady),
+		string(taskpkg.TaskStatusInProgress),
+		string(taskpkg.TaskStatusCompleted),
+		string(taskpkg.TaskStatusFailed),
+		string(taskpkg.TaskStatusCancelled),
+	}
+}
+
+func taskRunStatusValues() []string {
+	return []string{
+		string(taskpkg.TaskRunStatusQueued),
+		string(taskpkg.TaskRunStatusClaimed),
+		string(taskpkg.TaskRunStatusStarting),
+		string(taskpkg.TaskRunStatusRunning),
+		string(taskpkg.TaskRunStatusCompleted),
+		string(taskpkg.TaskRunStatusFailed),
+		string(taskpkg.TaskRunStatusCancelled),
+	}
+}
+
+func taskActorKindValues() []string {
+	return []string{
+		string(taskpkg.ActorKindHuman),
+		string(taskpkg.ActorKindAgentSession),
+		string(taskpkg.ActorKindAutomation),
+		string(taskpkg.ActorKindExtension),
+		string(taskpkg.ActorKindNetworkPeer),
+		string(taskpkg.ActorKindDaemon),
+	}
+}
+
+func taskOwnerKindValues() []string {
+	return []string{
+		string(taskpkg.OwnerKindHuman),
+		string(taskpkg.OwnerKindAgentSession),
+		string(taskpkg.OwnerKindAutomation),
+		string(taskpkg.OwnerKindExtension),
+		string(taskpkg.OwnerKindNetworkPeer),
+		string(taskpkg.OwnerKindPool),
+	}
+}
+
+func taskOriginKindValues() []string {
+	return []string{
+		string(taskpkg.OriginKindCLI),
+		string(taskpkg.OriginKindWeb),
+		string(taskpkg.OriginKindUDS),
+		string(taskpkg.OriginKindHTTP),
+		string(taskpkg.OriginKindAutomation),
+		string(taskpkg.OriginKindExtension),
+		string(taskpkg.OriginKindNetwork),
+		string(taskpkg.OriginKindAgentSession),
+		string(taskpkg.OriginKindDaemon),
+	}
+}
+
+func taskDependencyKindValues() []string {
+	return []string{
+		string(taskpkg.DependencyKindBlocks),
 	}
 }
 
