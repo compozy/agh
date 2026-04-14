@@ -77,6 +77,9 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 		"capabilities",
 		"actions",
 		"checksum",
+		"registry_slug",
+		"registry_name",
+		"remote_version",
 	})
 }
 
@@ -112,6 +115,9 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 		"capabilities",
 		"actions",
 		"checksum",
+		"registry_slug",
+		"registry_name",
+		"remote_version",
 	})
 }
 

@@ -38,15 +38,52 @@ type Registry struct {
 
 // ExtensionInfo is one persisted extension registry row.
 type ExtensionInfo struct {
-	Name         string
-	Version      string
-	Source       ExtensionSource
-	Enabled      bool
-	ManifestPath string
-	InstalledAt  time.Time
-	Capabilities CapabilitiesConfig
-	Actions      ActionsConfig
-	Checksum     string
+	Name          string
+	Version       string
+	Source        ExtensionSource
+	Enabled       bool
+	ManifestPath  string
+	InstalledAt   time.Time
+	Capabilities  CapabilitiesConfig
+	Actions       ActionsConfig
+	Checksum      string
+	RegistrySlug  *string
+	RegistryName  *string
+	RemoteVersion *string
+}
+
+type installConfig struct {
+	source          ExtensionSource
+	replaceExisting bool
+	registrySlug    *string
+	registryName    *string
+	remoteVersion   *string
+}
+
+// InstallOption customizes one extension registry install operation.
+type InstallOption func(*installConfig)
+
+// WithInstallSource overrides the persisted source tier for one install.
+func WithInstallSource(source ExtensionSource) InstallOption {
+	return func(cfg *installConfig) {
+		cfg.source = source
+	}
+}
+
+// WithInstallReplaceExisting allows an install to overwrite an existing row.
+func WithInstallReplaceExisting() InstallOption {
+	return func(cfg *installConfig) {
+		cfg.replaceExisting = true
+	}
+}
+
+// WithInstallRegistryMetadata records remote registry provenance for one install.
+func WithInstallRegistryMetadata(slug string, registryName string, remoteVersion string) InstallOption {
+	return func(cfg *installConfig) {
+		cfg.registrySlug = optionalInstallString(slug)
+		cfg.registryName = optionalInstallString(registryName)
+		cfg.remoteVersion = optionalInstallString(remoteVersion)
+	}
 }
 
 // ExtensionNotFoundError describes a missing extension registry row.
@@ -77,8 +114,17 @@ func NewRegistry(db *sql.DB) *Registry {
 
 // Install verifies the extension artifact checksum and persists the install as
 // a user-sourced extension.
-func (r *Registry) Install(manifest *Manifest, path string, checksum string) error {
-	return r.installWithSource(manifest, path, checksum, SourceUser)
+func (r *Registry) Install(manifest *Manifest, path string, checksum string, opts ...InstallOption) error {
+	config := installConfig{
+		source: SourceUser,
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&config)
+		}
+	}
+
+	return r.installWithSource(manifest, path, checksum, config.source, opts...)
 }
 
 // Uninstall removes one extension from the registry.
@@ -117,7 +163,7 @@ func (r *Registry) List() ([]ExtensionInfo, error) {
 	}
 
 	rows, err := r.db.Query(`
-		SELECT name, version, source, enabled, manifest_path, installed_at, capabilities, actions, checksum
+		SELECT name, version, source, enabled, manifest_path, installed_at, capabilities, actions, checksum, registry_slug, registry_name, remote_version
 		FROM extensions
 		ORDER BY name ASC
 	`)
@@ -155,7 +201,7 @@ func (r *Registry) Get(name string) (*ExtensionInfo, error) {
 	}
 
 	row := r.db.QueryRow(`
-		SELECT name, version, source, enabled, manifest_path, installed_at, capabilities, actions, checksum
+		SELECT name, version, source, enabled, manifest_path, installed_at, capabilities, actions, checksum, registry_slug, registry_name, remote_version
 		FROM extensions
 		WHERE name = ?
 	`, trimmedName)
@@ -226,7 +272,7 @@ func ComputeDirectoryChecksum(path string) (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-func (r *Registry) installWithSource(manifest *Manifest, path string, checksum string, source ExtensionSource) error {
+func (r *Registry) installWithSource(manifest *Manifest, path string, checksum string, source ExtensionSource, opts ...InstallOption) error {
 	if err := r.checkReady("install extension"); err != nil {
 		return err
 	}
@@ -245,6 +291,27 @@ func (r *Registry) installWithSource(manifest *Manifest, path string, checksum s
 	sourceText := source.String()
 	if sourceText == "" {
 		return fmt.Errorf("extension: invalid source %d", source)
+	}
+
+	config := installConfig{
+		source: source,
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&config)
+		}
+	}
+	if config.source != source {
+		source = config.source
+		sourceText = source.String()
+		if sourceText == "" {
+			return fmt.Errorf("extension: invalid source %d", source)
+		}
+	}
+	if source != SourceMarketplace {
+		config.registrySlug = nil
+		config.registryName = nil
+		config.remoteVersion = nil
 	}
 
 	artifactRoot, manifestPath, err := resolveInstallArtifact(path)
@@ -288,23 +355,44 @@ func (r *Registry) installWithSource(manifest *Manifest, path string, checksum s
 	}
 
 	info := ExtensionInfo{
-		Name:         strings.TrimSpace(resolvedManifest.Name),
-		Version:      strings.TrimSpace(resolvedManifest.Version),
-		Source:       source,
-		Enabled:      true,
-		ManifestPath: manifestPath,
-		InstalledAt:  r.now().UTC(),
-		Capabilities: capabilities,
-		Actions:      actions,
-		Checksum:     actualChecksum,
+		Name:          strings.TrimSpace(resolvedManifest.Name),
+		Version:       strings.TrimSpace(resolvedManifest.Version),
+		Source:        source,
+		Enabled:       true,
+		ManifestPath:  manifestPath,
+		InstalledAt:   r.now().UTC(),
+		Capabilities:  capabilities,
+		Actions:       actions,
+		Checksum:      actualChecksum,
+		RegistrySlug:  config.registrySlug,
+		RegistryName:  config.registryName,
+		RemoteVersion: config.remoteVersion,
 	}
 
-	_, err = r.db.Exec(`
+	query := `
 		INSERT INTO extensions (
-			name, version, source, enabled, manifest_path, installed_at, capabilities, actions, checksum
+			name, version, source, enabled, manifest_path, installed_at, capabilities, actions, checksum, registry_slug, registry_name, remote_version
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	if config.replaceExisting {
+		query += `
+		ON CONFLICT(name) DO UPDATE SET
+			version = excluded.version,
+			source = excluded.source,
+			enabled = excluded.enabled,
+			manifest_path = excluded.manifest_path,
+			installed_at = excluded.installed_at,
+			capabilities = excluded.capabilities,
+			actions = excluded.actions,
+			checksum = excluded.checksum,
+			registry_slug = excluded.registry_slug,
+			registry_name = excluded.registry_name,
+			remote_version = excluded.remote_version
+		`
+	}
+
+	_, err = r.db.Exec(query,
 		info.Name,
 		info.Version,
 		sourceText,
@@ -314,8 +402,14 @@ func (r *Registry) installWithSource(manifest *Manifest, path string, checksum s
 		string(capabilitiesJSON),
 		string(actionsJSON),
 		info.Checksum,
+		nullableStringValue(info.RegistrySlug),
+		nullableStringValue(info.RegistryName),
+		nullableStringValue(info.RemoteVersion),
 	)
 	if err != nil {
+		if config.replaceExisting {
+			return err
+		}
 		return mapRegistryConstraintError(err, info.Name)
 	}
 
@@ -357,6 +451,9 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 		installedAtText string
 		capabilitiesRaw string
 		actionsRaw      string
+		registrySlug    sql.NullString
+		registryName    sql.NullString
+		remoteVersion   sql.NullString
 	)
 
 	if err := scanner.Scan(
@@ -369,6 +466,9 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 		&capabilitiesRaw,
 		&actionsRaw,
 		&info.Checksum,
+		&registrySlug,
+		&registryName,
+		&remoteVersion,
 	); err != nil {
 		return nil, err
 	}
@@ -393,8 +493,33 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 
 	info.Capabilities = normalizeCapabilitiesConfig(info.Capabilities)
 	info.Actions = normalizeActionsConfig(info.Actions)
+	info.RegistrySlug = nullableStringPointer(registrySlug)
+	info.RegistryName = nullableStringPointer(registryName)
+	info.RemoteVersion = nullableStringPointer(remoteVersion)
 
 	return &info, nil
+}
+
+func nullableStringPointer(value sql.NullString) *string {
+	if !value.Valid {
+		return nil
+	}
+	return optionalInstallString(value.String)
+}
+
+func nullableStringValue(value *string) any {
+	if value == nil {
+		return nil
+	}
+	return strings.TrimSpace(*value)
+}
+
+func optionalInstallString(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 func decodeRegistryJSON(raw string, target any) error {

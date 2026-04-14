@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -113,6 +114,12 @@ type MarketplaceConfig struct {
 	BaseURL  string `toml:"base_url,omitempty"`
 }
 
+// ExtensionsMarketplaceConfig controls the external extension registry used by CLI extension commands.
+type ExtensionsMarketplaceConfig struct {
+	Registry string `toml:"registry"`
+	BaseURL  string `toml:"base_url,omitempty"`
+}
+
 // SkillsConfig controls skill loading and discovery.
 type SkillsConfig struct {
 	Enabled                 bool              `toml:"enabled"`
@@ -121,6 +128,11 @@ type SkillsConfig struct {
 	AllowedMarketplaceMCP   []string          `toml:"allowed_marketplace_mcp,omitempty"`
 	AllowedMarketplaceHooks []string          `toml:"allowed_marketplace_hooks,omitempty"`
 	Marketplace             MarketplaceConfig `toml:"marketplace,omitempty"`
+}
+
+// ExtensionsConfig controls extension marketplace discovery and install behavior.
+type ExtensionsConfig struct {
+	Marketplace ExtensionsMarketplaceConfig `toml:"marketplace,omitempty"`
 }
 
 // NetworkConfig controls the embedded AGH network runtime.
@@ -148,6 +160,7 @@ type Config struct {
 	Log           LogConfig                 `toml:"log"`
 	Memory        MemoryConfig              `toml:"memory"`
 	Skills        SkillsConfig              `toml:"skills"`
+	Extensions    ExtensionsConfig          `toml:"extensions"`
 	Automation    AutomationConfig          `toml:"automation"`
 	Hooks         HooksConfig               `toml:"hooks"`
 	Network       NetworkConfig             `toml:"network"`
@@ -325,6 +338,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Enabled:      true,
 			PollInterval: 3 * time.Second,
 		},
+		Extensions: ExtensionsConfig{},
 		Automation: AutomationConfig{
 			Enabled:           true,
 			Timezone:          automationpkg.DefaultTimezone,
@@ -378,6 +392,9 @@ func (c Config) Validate() error {
 		return err
 	}
 	if err := c.Skills.Validate(); err != nil {
+		return err
+	}
+	if err := c.Extensions.Validate(); err != nil {
 		return err
 	}
 	if err := c.Automation.Validate(); err != nil {
@@ -528,6 +545,11 @@ func (c SkillsConfig) Validate() error {
 	return nil
 }
 
+// Validate ensures the extension marketplace configuration is internally consistent.
+func (c ExtensionsConfig) Validate() error {
+	return c.Marketplace.Validate()
+}
+
 var networkChannelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 
 const maxNetworkDurationSeconds = int64(1<<63-1) / int64(time.Second)
@@ -607,6 +629,40 @@ func (c MarketplaceConfig) Validate() error {
 		return nil
 	default:
 		return fmt.Errorf("skills.marketplace.registry must be %q: %q", "clawhub", c.Registry)
+	}
+}
+
+// Validate ensures the extension marketplace configuration is internally consistent when configured.
+func (c ExtensionsMarketplaceConfig) Validate() error {
+	registry := strings.TrimSpace(c.Registry)
+	baseURL := strings.TrimSpace(c.BaseURL)
+	if registry == "" && baseURL == "" {
+		return nil
+	}
+	if registry == "" {
+		return errors.New("extensions.marketplace.registry is required")
+	}
+	if baseURL != "" {
+		parsed, err := url.Parse(baseURL)
+		if err != nil {
+			return fmt.Errorf("extensions.marketplace.base_url is invalid: %w", err)
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fmt.Errorf("extensions.marketplace.base_url must use http or https: %q", c.BaseURL)
+		}
+		if strings.TrimSpace(parsed.Host) == "" {
+			return fmt.Errorf("extensions.marketplace.base_url must include a host: %q", c.BaseURL)
+		}
+		if parsed.Scheme == "http" {
+			slog.Warn("config: extensions marketplace base_url uses insecure http scheme", "url", c.BaseURL)
+		}
+	}
+
+	switch strings.ToLower(registry) {
+	case "github":
+		return nil
+	default:
+		return fmt.Errorf("extensions.marketplace.registry must be %q: %q", "github", c.Registry)
 	}
 }
 

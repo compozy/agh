@@ -110,7 +110,10 @@ var globalSchemaStatements = []string{
 		installed_at  TEXT NOT NULL,
 		capabilities  TEXT NOT NULL DEFAULT '{}',
 		actions       TEXT NOT NULL DEFAULT '{}',
-		checksum      TEXT NOT NULL
+		checksum      TEXT NOT NULL,
+		registry_slug TEXT,
+		registry_name TEXT,
+		remote_version TEXT
 	);`,
 	`CREATE TABLE IF NOT EXISTS automation_jobs (
 		id           TEXT PRIMARY KEY,

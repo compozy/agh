@@ -26,7 +26,10 @@ const registryTestExtensionsTableSchema = `CREATE TABLE IF NOT EXISTS extensions
 	installed_at  TEXT NOT NULL,
 	capabilities  TEXT NOT NULL DEFAULT '{}',
 	actions       TEXT NOT NULL DEFAULT '{}',
-	checksum      TEXT NOT NULL
+	checksum      TEXT NOT NULL,
+	registry_slug TEXT,
+	registry_name TEXT,
+	remote_version TEXT
 );`
 
 func TestRegistryInstallPersistsExtension(t *testing.T) {
@@ -77,6 +80,14 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 	if got.Checksum != checksum {
 		t.Fatalf("Checksum = %q, want %q", got.Checksum, checksum)
 	}
+	if got.RegistrySlug != nil || got.RegistryName != nil || got.RemoteVersion != nil {
+		t.Fatalf(
+			"local install registry metadata = (%v, %v, %v), want all nil",
+			got.RegistrySlug,
+			got.RegistryName,
+			got.RemoteVersion,
+		)
+	}
 }
 
 func TestRegistryInstallRejectsDuplicateName(t *testing.T) {
@@ -103,6 +114,40 @@ func TestRegistryInstallRejectsDuplicateName(t *testing.T) {
 	}
 	if existsErr.Name != manifest.Name {
 		t.Fatalf("ExtensionExistsError.Name = %q, want %q", existsErr.Name, manifest.Name)
+	}
+}
+
+func TestRegistryInstallPersistsMarketplaceMetadata(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	env := newRegistryTestEnv(t)
+	dir, manifest, checksum := createRegistryTestExtension(t, "marketplace-registry", registryManifestOptions{})
+
+	if err := env.registry.Install(
+		manifest,
+		dir,
+		checksum,
+		WithInstallSource(SourceMarketplace),
+		WithInstallRegistryMetadata("acme/marketplace-registry", "github", "v1.4.0"),
+	); err != nil {
+		t.Fatalf("Install(marketplace) error = %v", err)
+	}
+
+	got, err := env.registry.Get(manifest.Name)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.Source != SourceMarketplace {
+		t.Fatalf("Source = %v, want %v", got.Source, SourceMarketplace)
+	}
+	if got.RegistrySlug == nil || *got.RegistrySlug != "acme/marketplace-registry" {
+		t.Fatalf("RegistrySlug = %#v, want acme/marketplace-registry", got.RegistrySlug)
+	}
+	if got.RegistryName == nil || *got.RegistryName != "github" {
+		t.Fatalf("RegistryName = %#v, want github", got.RegistryName)
+	}
+	if got.RemoteVersion == nil || *got.RemoteVersion != "v1.4.0" {
+		t.Fatalf("RemoteVersion = %#v, want v1.4.0", got.RemoteVersion)
 	}
 }
 
@@ -304,6 +349,121 @@ func TestRegistryCapabilitiesAndActionsJSONRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.Actions, normalizeActionsConfig(manifest.Actions)) {
 		t.Fatalf("Actions = %#v, want %#v", got.Actions, normalizeActionsConfig(manifest.Actions))
+	}
+}
+
+func TestRegistryInstallConcurrentDuplicateReturnsSingleExistsError(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	env := newRegistryTestEnv(t)
+	dir, manifest, checksum := createRegistryTestExtension(t, "concurrent-registry", registryManifestOptions{})
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() {
+			<-start
+			errs <- env.registry.Install(manifest, dir, checksum)
+		}()
+	}
+	close(start)
+
+	var (
+		successes   int
+		existsCount int
+	)
+	for range 2 {
+		err := <-errs
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, ErrExtensionExists):
+			existsCount++
+		default:
+			t.Fatalf("concurrent Install() error = %v, want nil or ErrExtensionExists", err)
+		}
+	}
+
+	if successes != 1 || existsCount != 1 {
+		t.Fatalf("concurrent Install() outcomes = successes:%d exists:%d, want 1 and 1", successes, existsCount)
+	}
+}
+
+func TestRegistryInstallReplaceExistingUpdatesMarketplaceRecord(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	env := newRegistryTestEnv(t)
+	dir, manifest, checksum := createRegistryTestExtension(t, "replace-registry", registryManifestOptions{})
+
+	if err := env.registry.Install(
+		manifest,
+		dir,
+		checksum,
+		WithInstallSource(SourceMarketplace),
+		WithInstallRegistryMetadata("acme/replace-registry", "github", "1.0.0"),
+	); err != nil {
+		t.Fatalf("Install(first) error = %v", err)
+	}
+
+	writeFile(t, filepath.Join(dir, manifestTOMLFileName), strings.Replace(registryManifestTOML("replace-registry", registryManifestOptions{}), `version = "0.2.1"`, `version = "0.3.0"`, 1))
+	updatedManifest, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest(updated) error = %v", err)
+	}
+	updatedChecksum, err := ComputeDirectoryChecksum(dir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum(updated) error = %v", err)
+	}
+
+	if err := env.registry.Install(
+		updatedManifest,
+		dir,
+		updatedChecksum,
+		WithInstallSource(SourceMarketplace),
+		WithInstallRegistryMetadata("acme/replace-registry", "github", "1.1.0"),
+		WithInstallReplaceExisting(),
+	); err != nil {
+		t.Fatalf("Install(replace) error = %v", err)
+	}
+
+	got, err := env.registry.Get("replace-registry")
+	if err != nil {
+		t.Fatalf("Get(updated) error = %v", err)
+	}
+	if got.Version != "0.3.0" {
+		t.Fatalf("Version = %q, want %q", got.Version, "0.3.0")
+	}
+	if got.RemoteVersion == nil || *got.RemoteVersion != "1.1.0" {
+		t.Fatalf("RemoteVersion = %#v, want 1.1.0", got.RemoteVersion)
+	}
+}
+
+func TestRegistryInstallClearsRemoteMetadataForNonMarketplaceSources(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	env := newRegistryTestEnv(t)
+	dir, manifest, checksum := createRegistryTestExtension(t, "non-marketplace-registry", registryManifestOptions{})
+
+	if err := env.registry.Install(
+		manifest,
+		dir,
+		checksum,
+		WithInstallRegistryMetadata("acme/non-marketplace", "github", "1.0.0"),
+	); err != nil {
+		t.Fatalf("Install(non-marketplace metadata) error = %v", err)
+	}
+
+	got, err := env.registry.Get(manifest.Name)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.RegistrySlug != nil || got.RegistryName != nil || got.RemoteVersion != nil {
+		t.Fatalf(
+			"non-marketplace registry metadata = (%v, %v, %v), want all nil",
+			got.RegistrySlug,
+			got.RegistryName,
+			got.RemoteVersion,
+		)
 	}
 }
 
