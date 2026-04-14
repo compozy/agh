@@ -19,6 +19,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 func TestUpdateAutomationJobConfigBackedRejectsDefinitionEditsButAllowsEnabledToggle(t *testing.T) {
@@ -631,8 +632,16 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			Mode:     automationpkg.ScheduleModeEvery,
 			Interval: "2h",
 		},
+		Task: &automationpkg.JobTaskConfig{
+			Title:          " Review repo ",
+			NetworkChannel: " ops.automation ",
+			Owner: &taskpkg.Ownership{
+				Kind: taskpkg.OwnerKindAutomation,
+				Ref:  " rule:build-review ",
+			},
+		},
 	})
-	if createdJob.Scope != automationpkg.AutomationScopeWorkspace || createdJob.Name != "build review" || createdJob.AgentName != "coder" || createdJob.WorkspaceID != "ws-alpha" || createdJob.Prompt != "inspect repo" || createdJob.Schedule == nil || createdJob.Schedule.Interval != "2h" {
+	if createdJob.Scope != automationpkg.AutomationScopeWorkspace || createdJob.Name != "build review" || createdJob.AgentName != "coder" || createdJob.WorkspaceID != "ws-alpha" || createdJob.Prompt != "inspect repo" || createdJob.Schedule == nil || createdJob.Schedule.Interval != "2h" || createdJob.Task == nil || createdJob.Task.Title != "Review repo" || createdJob.Task.NetworkChannel != "ops.automation" || createdJob.Task.Owner == nil || createdJob.Task.Owner.Ref != "rule:build-review" {
 		t.Fatalf("jobFromCreateRequest() = %#v", createdJob)
 	}
 
@@ -642,6 +651,7 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 	jobPrompt := " next prompt "
 	jobEnabled := false
 	jobSchedule := automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeCron, Expr: "0 * * * *"}
+	jobTask := automationpkg.JobTaskConfig{Title: "Delegate review", NetworkChannel: "ops.queue"}
 	jobRetry := automationpkg.RetryConfig{Strategy: automationpkg.RetryStrategyBackoff, MaxRetries: 3, BaseDelay: "2m"}
 	jobFireLimit := automationpkg.FireLimitConfig{Max: 4, Window: "24h"}
 	updatedJob := applyJobPatch(automationpkg.Job{
@@ -652,6 +662,7 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		Prompt:      "old",
 		Enabled:     true,
 		Schedule:    &automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeEvery, Interval: "1h"},
+		Task:        &automationpkg.JobTaskConfig{Title: "Before"},
 		Source:      automationpkg.JobSourceDynamic,
 		Retry:       automationpkg.DefaultRetryConfig(),
 		FireLimit:   automationpkg.DefaultFireLimitConfig(),
@@ -661,11 +672,12 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		WorkspaceID: &jobWorkspace,
 		Prompt:      &jobPrompt,
 		Schedule:    &jobSchedule,
+		Task:        &jobTask,
 		Enabled:     &jobEnabled,
 		Retry:       &jobRetry,
 		FireLimit:   &jobFireLimit,
 	})
-	if updatedJob.Name != "renamed" || updatedJob.AgentName != "reviewer" || updatedJob.WorkspaceID != "ws-beta" || updatedJob.Prompt != "next prompt" || updatedJob.Enabled || updatedJob.Schedule == nil || updatedJob.Schedule.Expr != "0 * * * *" || updatedJob.Retry.MaxRetries != 3 || updatedJob.FireLimit.Max != 4 {
+	if updatedJob.Name != "renamed" || updatedJob.AgentName != "reviewer" || updatedJob.WorkspaceID != "ws-beta" || updatedJob.Prompt != "next prompt" || updatedJob.Enabled || updatedJob.Schedule == nil || updatedJob.Schedule.Expr != "0 * * * *" || updatedJob.Task == nil || updatedJob.Task.Title != "Delegate review" || updatedJob.Task.NetworkChannel != "ops.queue" || updatedJob.Retry.MaxRetries != 3 || updatedJob.FireLimit.Max != 4 {
 		t.Fatalf("applyJobPatch() = %#v", updatedJob)
 	}
 

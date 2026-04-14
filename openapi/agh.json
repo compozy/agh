@@ -367,6 +367,34 @@
                                                         "enum": ["config", "dynamic"],
                                                         "type": "string"
                                                     },
+                                                    "task": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "network_channel": {
+                                                                "type": "string"
+                                                            },
+                                                            "owner": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "kind": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "ref": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["kind", "ref"],
+                                                                "type": "object"
+                                                            },
+                                                            "title": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
                                                     "updated_at": {
                                                         "format": "date-time",
                                                         "type": "string"
@@ -529,6 +557,34 @@
                                         "enum": ["global", "workspace"],
                                         "type": "string"
                                     },
+                                    "task": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "description": {
+                                                "type": "string"
+                                            },
+                                            "network_channel": {
+                                                "type": "string"
+                                            },
+                                            "owner": {
+                                                "nullable": true,
+                                                "properties": {
+                                                    "kind": {
+                                                        "type": "string"
+                                                    },
+                                                    "ref": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["kind", "ref"],
+                                                "type": "object"
+                                            },
+                                            "title": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
                                     "workspace_id": {
                                         "type": "string"
                                     }
@@ -632,6 +688,34 @@
                                                 "source": {
                                                     "enum": ["config", "dynamic"],
                                                     "type": "string"
+                                                },
+                                                "task": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "description": {
+                                                            "type": "string"
+                                                        },
+                                                        "network_channel": {
+                                                            "type": "string"
+                                                        },
+                                                        "owner": {
+                                                            "nullable": true,
+                                                            "properties": {
+                                                                "kind": {
+                                                                    "type": "string"
+                                                                },
+                                                                "ref": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": ["kind", "ref"],
+                                                            "type": "object"
+                                                        },
+                                                        "title": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
                                                 },
                                                 "updated_at": {
                                                     "format": "date-time",
@@ -932,6 +1016,34 @@
                                                     "enum": ["config", "dynamic"],
                                                     "type": "string"
                                                 },
+                                                "task": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "description": {
+                                                            "type": "string"
+                                                        },
+                                                        "network_channel": {
+                                                            "type": "string"
+                                                        },
+                                                        "owner": {
+                                                            "nullable": true,
+                                                            "properties": {
+                                                                "kind": {
+                                                                    "type": "string"
+                                                                },
+                                                                "ref": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": ["kind", "ref"],
+                                                            "type": "object"
+                                                        },
+                                                        "title": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
                                                 "updated_at": {
                                                     "format": "date-time",
                                                     "type": "string"
@@ -1103,6 +1215,34 @@
                                         "required": ["mode"],
                                         "type": "object"
                                     },
+                                    "task": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "description": {
+                                                "type": "string"
+                                            },
+                                            "network_channel": {
+                                                "type": "string"
+                                            },
+                                            "owner": {
+                                                "nullable": true,
+                                                "properties": {
+                                                    "kind": {
+                                                        "type": "string"
+                                                    },
+                                                    "ref": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["kind", "ref"],
+                                                "type": "object"
+                                            },
+                                            "title": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
                                     "workspace_id": {
                                         "nullable": true,
                                         "type": "string"
@@ -1206,6 +1346,34 @@
                                                 "source": {
                                                     "enum": ["config", "dynamic"],
                                                     "type": "string"
+                                                },
+                                                "task": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "description": {
+                                                            "type": "string"
+                                                        },
+                                                        "network_channel": {
+                                                            "type": "string"
+                                                        },
+                                                        "owner": {
+                                                            "nullable": true,
+                                                            "properties": {
+                                                                "kind": {
+                                                                    "type": "string"
+                                                                },
+                                                                "ref": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": ["kind", "ref"],
+                                                            "type": "object"
+                                                        },
+                                                        "title": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
                                                 },
                                                 "updated_at": {
                                                     "format": "date-time",
@@ -1345,7 +1513,14 @@
                         "in": "query",
                         "name": "status",
                         "schema": {
-                            "enum": ["scheduled", "running", "completed", "failed", "cancelled"],
+                            "enum": [
+                                "scheduled",
+                                "running",
+                                "delegated",
+                                "completed",
+                                "failed",
+                                "cancelled"
+                            ],
                             "type": "string"
                         }
                     },
@@ -1415,10 +1590,17 @@
                                                         "enum": [
                                                             "scheduled",
                                                             "running",
+                                                            "delegated",
                                                             "completed",
                                                             "failed",
                                                             "cancelled"
                                                         ],
+                                                        "type": "string"
+                                                    },
+                                                    "task_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "task_run_id": {
                                                         "type": "string"
                                                     },
                                                     "trigger_id": {
@@ -1562,10 +1744,17 @@
                                                     "enum": [
                                                         "scheduled",
                                                         "running",
+                                                        "delegated",
                                                         "completed",
                                                         "failed",
                                                         "cancelled"
                                                     ],
+                                                    "type": "string"
+                                                },
+                                                "task_id": {
+                                                    "type": "string"
+                                                },
+                                                "task_run_id": {
                                                     "type": "string"
                                                 },
                                                 "trigger_id": {
@@ -1681,7 +1870,14 @@
                         "in": "query",
                         "name": "status",
                         "schema": {
-                            "enum": ["scheduled", "running", "completed", "failed", "cancelled"],
+                            "enum": [
+                                "scheduled",
+                                "running",
+                                "delegated",
+                                "completed",
+                                "failed",
+                                "cancelled"
+                            ],
                             "type": "string"
                         }
                     },
@@ -1751,10 +1947,17 @@
                                                         "enum": [
                                                             "scheduled",
                                                             "running",
+                                                            "delegated",
                                                             "completed",
                                                             "failed",
                                                             "cancelled"
                                                         ],
+                                                        "type": "string"
+                                                    },
+                                                    "task_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "task_run_id": {
                                                         "type": "string"
                                                     },
                                                     "trigger_id": {
@@ -1882,10 +2085,17 @@
                                                     "enum": [
                                                         "scheduled",
                                                         "running",
+                                                        "delegated",
                                                         "completed",
                                                         "failed",
                                                         "cancelled"
                                                     ],
+                                                    "type": "string"
+                                                },
+                                                "task_id": {
+                                                    "type": "string"
+                                                },
+                                                "task_run_id": {
                                                     "type": "string"
                                                 },
                                                 "trigger_id": {
@@ -3044,7 +3254,14 @@
                         "in": "query",
                         "name": "status",
                         "schema": {
-                            "enum": ["scheduled", "running", "completed", "failed", "cancelled"],
+                            "enum": [
+                                "scheduled",
+                                "running",
+                                "delegated",
+                                "completed",
+                                "failed",
+                                "cancelled"
+                            ],
                             "type": "string"
                         }
                     },
@@ -3114,10 +3331,17 @@
                                                         "enum": [
                                                             "scheduled",
                                                             "running",
+                                                            "delegated",
                                                             "completed",
                                                             "failed",
                                                             "cancelled"
                                                         ],
+                                                        "type": "string"
+                                                    },
+                                                    "task_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "task_run_id": {
                                                         "type": "string"
                                                     },
                                                     "trigger_id": {
@@ -11607,10 +11831,17 @@
                                                                 "enum": [
                                                                     "scheduled",
                                                                     "running",
+                                                                    "delegated",
                                                                     "completed",
                                                                     "failed",
                                                                     "cancelled"
                                                                 ],
+                                                                "type": "string"
+                                                            },
+                                                            "task_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "task_run_id": {
                                                                 "type": "string"
                                                             },
                                                             "trigger_id": {
@@ -11819,10 +12050,17 @@
                                                                 "enum": [
                                                                     "scheduled",
                                                                     "running",
+                                                                    "delegated",
                                                                     "completed",
                                                                     "failed",
                                                                     "cancelled"
                                                                 ],
+                                                                "type": "string"
+                                                            },
+                                                            "task_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "task_run_id": {
                                                                 "type": "string"
                                                             },
                                                             "trigger_id": {

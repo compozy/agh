@@ -108,6 +108,44 @@ func TestTaskManagerCreateTaskPersistsAgentSessionIdentity(t *testing.T) {
 	}
 }
 
+func TestTaskManagerCreateTaskPersistsAutomationLinkedAgentOrigin(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openTaskManagerGlobalDB(t)
+	manager := newTaskManagerIntegration(t, db)
+
+	actor, err := taskpkg.DeriveAutomationLinkedAgentSessionActorContext("sess-agent-2", "run:run-2")
+	if err != nil {
+		t.Fatalf("DeriveAutomationLinkedAgentSessionActorContext() error = %v", err)
+	}
+
+	created, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Investigate automation-linked task creation",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	stored, err := db.GetTask(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got, want := stored.CreatedBy.Kind, taskpkg.ActorKindAgentSession; got != want {
+		t.Fatalf("stored.CreatedBy.Kind = %q, want %q", got, want)
+	}
+	if got, want := stored.CreatedBy.Ref, "sess-agent-2"; got != want {
+		t.Fatalf("stored.CreatedBy.Ref = %q, want %q", got, want)
+	}
+	if got, want := stored.Origin.Kind, taskpkg.OriginKindAutomation; got != want {
+		t.Fatalf("stored.Origin.Kind = %q, want %q", got, want)
+	}
+	if got, want := stored.Origin.Ref, "run:run-2"; got != want {
+		t.Fatalf("stored.Origin.Ref = %q, want %q", got, want)
+	}
+}
+
 func TestTaskManagerChildAndDependencyFlowsPersistAudit(t *testing.T) {
 	t.Parallel()
 

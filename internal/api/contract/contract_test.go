@@ -175,6 +175,14 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 				Mode:     automationpkg.ScheduleModeEvery,
 				Interval: "1h",
 			},
+			Task: &automationpkg.JobTaskConfig{
+				Title:          "Review findings",
+				NetworkChannel: "ops.automation",
+				Owner: &taskpkg.Ownership{
+					Kind: taskpkg.OwnerKindAutomation,
+					Ref:  "rule:nightly-review",
+				},
+			},
 			Enabled: true,
 			Retry: automationpkg.RetryConfig{
 				Strategy:   automationpkg.RetryStrategyBackoff,
@@ -202,6 +210,10 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 		}
 		if got["source"] != string(automationpkg.JobSourceDynamic) {
 			t.Fatalf("source = %#v, want %q", got["source"], automationpkg.JobSourceDynamic)
+		}
+		taskValue, ok := got["task"].(map[string]any)
+		if !ok || taskValue["title"] != "Review findings" || taskValue["network_channel"] != "ops.automation" {
+			t.Fatalf("task = %#v, want populated task config", got["task"])
 		}
 		if _, exists := got["next_run"]; !exists {
 			t.Fatalf("job payload missing next_run: %#v", got)

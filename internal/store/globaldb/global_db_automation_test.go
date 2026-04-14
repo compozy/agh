@@ -44,6 +44,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"workspace_id",
 		"prompt",
 		"schedule",
+		"task",
 		"enabled",
 		"retry",
 		"fire_limit",
@@ -74,6 +75,8 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"job_id",
 		"trigger_id",
 		"session_id",
+		"task_id",
+		"task_run_id",
 		"status",
 		"attempt",
 		"started_at",
@@ -602,6 +605,14 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 	}); err == nil {
 		t.Fatal("validateAutomationRunRecord(both job and trigger) error = nil, want non-nil")
 	}
+	if err := validateAutomationRunRecord(Run{
+		JobID:   "job-1",
+		Status:  automation.RunDelegated,
+		Attempt: 1,
+		TaskID:  "task-1",
+	}); err == nil {
+		t.Fatal("validateAutomationRunRecord(delegated without task run) error = nil, want non-nil")
+	}
 
 	var schedule *automation.ScheduleSpec
 	if err := decodeAutomationSchedule(sql.NullString{Valid: true, String: `{"mode":"cron","expr":"0 * * * *"}`}, &schedule); err != nil {
@@ -612,6 +623,17 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 	}
 	if err := decodeAutomationSchedule(sql.NullString{Valid: true, String: `{`}, &schedule); err == nil {
 		t.Fatal("decodeAutomationSchedule(invalid) error = nil, want non-nil")
+	}
+
+	var taskConfig *automation.JobTaskConfig
+	if err := decodeAutomationTaskConfig(sql.NullString{Valid: true, String: `{"title":"Review findings","network_channel":"ops.automation"}`}, &taskConfig); err != nil {
+		t.Fatalf("decodeAutomationTaskConfig(valid) error = %v", err)
+	}
+	if taskConfig == nil || taskConfig.Title != "Review findings" {
+		t.Fatalf("decodeAutomationTaskConfig(valid) = %#v, want populated task config", taskConfig)
+	}
+	if err := decodeAutomationTaskConfig(sql.NullString{Valid: true, String: `{`}, &taskConfig); err == nil {
+		t.Fatal("decodeAutomationTaskConfig(invalid) error = nil, want non-nil")
 	}
 
 	var filter map[string]string

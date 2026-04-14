@@ -35,6 +35,17 @@ func DeriveAgentSessionActorContext(sessionRef string) (ActorContext, error) {
 	return deriveActorContext(ActorKindAgentSession, sessionRef, OriginKindAgentSession, sessionRef)
 }
 
+// DeriveAutomationLinkedAgentSessionActorContext derives one trusted
+// agent-session actor context for work created explicitly by an automation-
+// launched session. The session remains the immutable actor while the origin is
+// anchored to the automation activation that launched it.
+func DeriveAutomationLinkedAgentSessionActorContext(sessionRef string, originRef string) (ActorContext, error) {
+	if originRef == "" {
+		originRef = sessionRef
+	}
+	return deriveActorContext(ActorKindAgentSession, sessionRef, OriginKindAutomation, originRef)
+}
+
 // DeriveAutomationActorContext derives one trusted automation actor context.
 // If originRef is empty, the actor ref is reused as the durable origin ref.
 func DeriveAutomationActorContext(actorRef string, originRef string) (ActorContext, error) {
@@ -98,7 +109,8 @@ func validateActorOriginPair(actor ActorIdentity, origin Origin) error {
 			return nil
 		}
 	case ActorKindAgentSession:
-		if origin.Kind.Normalize() == OriginKindAgentSession {
+		switch origin.Kind.Normalize() {
+		case OriginKindAgentSession, OriginKindAutomation:
 			return nil
 		}
 	case ActorKindAutomation:

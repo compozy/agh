@@ -11,6 +11,7 @@ import (
 
 	automation "github.com/pedronauck/agh/internal/automation/model"
 	"github.com/pedronauck/agh/internal/store"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -42,7 +43,7 @@ func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (automatio
 		return automation.Job{}, err
 	}
 
-	scheduleJSON, retryJSON, fireLimitJSON, err := encodeJobRecord(normalized)
+	scheduleJSON, taskJSON, retryJSON, fireLimitJSON, err := encodeJobRecord(normalized)
 	if err != nil {
 		return automation.Job{}, err
 	}
@@ -50,7 +51,7 @@ func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (automatio
 	result, err := g.db.ExecContext(
 		ctx,
 		`UPDATE automation_jobs
-		 SET scope = ?, name = ?, agent_name = ?, workspace_id = ?, prompt = ?, schedule = ?, enabled = ?, retry = ?, fire_limit = ?, source = ?, updated_at = ?
+		 SET scope = ?, name = ?, agent_name = ?, workspace_id = ?, prompt = ?, schedule = ?, task = ?, enabled = ?, retry = ?, fire_limit = ?, source = ?, updated_at = ?
 		 WHERE id = ?`,
 		normalized.Scope,
 		normalized.Name,
@@ -58,6 +59,7 @@ func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (automatio
 		store.NullableString(normalized.WorkspaceID),
 		normalized.Prompt,
 		scheduleJSON,
+		taskJSON,
 		normalized.Enabled,
 		retryJSON,
 		fireLimitJSON,
@@ -108,7 +110,7 @@ func (g *GlobalDB) GetJob(ctx context.Context, id string) (automation.Job, error
 
 	return g.getJobByQuery(
 		ctx,
-		`SELECT id, scope, name, agent_name, workspace_id, prompt, schedule, enabled, retry, fire_limit, source, created_at, updated_at
+		`SELECT id, scope, name, agent_name, workspace_id, prompt, schedule, task, enabled, retry, fire_limit, source, created_at, updated_at
 		 FROM automation_jobs
 		 WHERE id = ?`,
 		trimmedID,
@@ -124,7 +126,7 @@ func (g *GlobalDB) ListJobs(ctx context.Context, query automation.JobListQuery) 
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, scope, name, agent_name, workspace_id, prompt, schedule, enabled, retry, fire_limit, source, created_at, updated_at FROM automation_jobs`
+	sqlQuery := `SELECT id, scope, name, agent_name, workspace_id, prompt, schedule, task, enabled, retry, fire_limit, source, created_at, updated_at FROM automation_jobs`
 	where, args := store.BuildClauses(
 		store.StringClause("scope", string(query.Scope)),
 		store.StringClause("workspace_id", query.WorkspaceID),
@@ -337,12 +339,14 @@ func (g *GlobalDB) CreateRun(ctx context.Context, run automation.Run) (automatio
 
 	if _, err := g.db.ExecContext(
 		ctx,
-		`INSERT INTO automation_runs (id, job_id, trigger_id, session_id, status, attempt, started_at, ended_at, error)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO automation_runs (id, job_id, trigger_id, session_id, task_id, task_run_id, status, attempt, started_at, ended_at, error)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		store.NullableString(normalized.JobID),
 		store.NullableString(normalized.TriggerID),
 		store.NullableString(normalized.SessionID),
+		store.NullableString(normalized.TaskID),
+		store.NullableString(normalized.TaskRunID),
 		normalized.Status,
 		normalized.Attempt,
 		nullableAutomationTimestamp(normalized.StartedAt),
@@ -369,11 +373,13 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run automation.Run) (automatio
 	result, err := g.db.ExecContext(
 		ctx,
 		`UPDATE automation_runs
-		 SET job_id = ?, trigger_id = ?, session_id = ?, status = ?, attempt = ?, started_at = ?, ended_at = ?, error = ?
+		 SET job_id = ?, trigger_id = ?, session_id = ?, task_id = ?, task_run_id = ?, status = ?, attempt = ?, started_at = ?, ended_at = ?, error = ?
 		 WHERE id = ?`,
 		store.NullableString(normalized.JobID),
 		store.NullableString(normalized.TriggerID),
 		store.NullableString(normalized.SessionID),
+		store.NullableString(normalized.TaskID),
+		store.NullableString(normalized.TaskRunID),
 		normalized.Status,
 		normalized.Attempt,
 		nullableAutomationTimestamp(normalized.StartedAt),
@@ -424,7 +430,7 @@ func (g *GlobalDB) GetRun(ctx context.Context, id string) (automation.Run, error
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT id, job_id, trigger_id, session_id, status, attempt, started_at, ended_at, error
+		`SELECT id, job_id, trigger_id, session_id, task_id, task_run_id, status, attempt, started_at, ended_at, error
 		 FROM automation_runs
 		 WHERE id = ?`,
 		trimmedID,
@@ -449,7 +455,7 @@ func (g *GlobalDB) ListRuns(ctx context.Context, query automation.RunQuery) ([]a
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, job_id, trigger_id, session_id, status, attempt, started_at, ended_at, error FROM automation_runs`
+	sqlQuery := `SELECT id, job_id, trigger_id, session_id, task_id, task_run_id, status, attempt, started_at, ended_at, error FROM automation_runs`
 	where, args := buildAutomationRunClauses(query)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY started_at DESC, id DESC"
@@ -810,7 +816,7 @@ func (g *GlobalDB) DeleteTriggerWebhookSecret(ctx context.Context, triggerID str
 }
 
 func (g *GlobalDB) insertJob(ctx context.Context, exec sqlExecutor, job automation.Job) error {
-	scheduleJSON, retryJSON, fireLimitJSON, err := encodeJobRecord(job)
+	scheduleJSON, taskJSON, retryJSON, fireLimitJSON, err := encodeJobRecord(job)
 	if err != nil {
 		return err
 	}
@@ -818,8 +824,8 @@ func (g *GlobalDB) insertJob(ctx context.Context, exec sqlExecutor, job automati
 	if _, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO automation_jobs (
-			id, scope, name, agent_name, workspace_id, prompt, schedule, enabled, retry, fire_limit, source, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, scope, name, agent_name, workspace_id, prompt, schedule, task, enabled, retry, fire_limit, source, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		job.ID,
 		job.Scope,
 		job.Name,
@@ -827,6 +833,7 @@ func (g *GlobalDB) insertJob(ctx context.Context, exec sqlExecutor, job automati
 		store.NullableString(job.WorkspaceID),
 		job.Prompt,
 		scheduleJSON,
+		taskJSON,
 		job.Enabled,
 		retryJSON,
 		fireLimitJSON,
@@ -1054,6 +1061,7 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 		scope       string
 		workspaceID sql.NullString
 		scheduleRaw sql.NullString
+		taskRaw     sql.NullString
 		retryRaw    string
 		fireLimit   string
 		source      string
@@ -1068,6 +1076,7 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 		&workspaceID,
 		&job.Prompt,
 		&scheduleRaw,
+		&taskRaw,
 		&job.Enabled,
 		&retryRaw,
 		&fireLimit,
@@ -1083,6 +1092,9 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 	job.Source = automation.JobSource(strings.TrimSpace(source))
 
 	if err := decodeAutomationSchedule(scheduleRaw, &job.Schedule); err != nil {
+		return automation.Job{}, err
+	}
+	if err := decodeAutomationTaskConfig(taskRaw, &job.Task); err != nil {
 		return automation.Job{}, err
 	}
 	if err := decodeAutomationJSON(retryRaw, &job.Retry, "job.retry"); err != nil {
@@ -1177,6 +1189,8 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 		jobID     sql.NullString
 		triggerID sql.NullString
 		sessionID sql.NullString
+		taskID    sql.NullString
+		taskRunID sql.NullString
 		status    string
 		startedAt sql.NullString
 		endedAt   sql.NullString
@@ -1187,6 +1201,8 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 		&jobID,
 		&triggerID,
 		&sessionID,
+		&taskID,
+		&taskRunID,
 		&status,
 		&run.Attempt,
 		&startedAt,
@@ -1199,6 +1215,8 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 	run.JobID = automationNullStringValue(jobID)
 	run.TriggerID = automationNullStringValue(triggerID)
 	run.SessionID = automationNullStringValue(sessionID)
+	run.TaskID = automationNullStringValue(taskID)
+	run.TaskRunID = automationNullStringValue(taskRunID)
 	run.Status = automation.RunStatus(strings.TrimSpace(status))
 	if startedAt.Valid {
 		value, err := store.ParseTimestamp(startedAt.String)
@@ -1253,21 +1271,25 @@ func scanTriggerEnabledOverlay(scanner rowScanner) (automation.TriggerEnabledOve
 	return overlay, nil
 }
 
-func encodeJobRecord(job automation.Job) (string, string, string, error) {
+func encodeJobRecord(job automation.Job) (string, any, string, string, error) {
 	scheduleJSON, err := encodeAutomationJSON(job.Schedule, "job.schedule")
 	if err != nil {
-		return "", "", "", err
+		return "", nil, "", "", err
+	}
+	taskJSON, err := encodeOptionalAutomationJSON(job.Task, job.Task == nil, "job.task")
+	if err != nil {
+		return "", nil, "", "", err
 	}
 	retryJSON, err := encodeAutomationJSON(job.Retry, "job.retry")
 	if err != nil {
-		return "", "", "", err
+		return "", nil, "", "", err
 	}
 	fireLimitJSON, err := encodeAutomationJSON(job.FireLimit, "job.fire_limit")
 	if err != nil {
-		return "", "", "", err
+		return "", nil, "", "", err
 	}
 
-	return scheduleJSON, retryJSON, fireLimitJSON, nil
+	return scheduleJSON, taskJSON, retryJSON, fireLimitJSON, nil
 }
 
 func encodeTriggerRecord(trigger automation.Trigger) (any, string, string, error) {
@@ -1348,11 +1370,19 @@ func validateAutomationRunRecord(run automation.Run) error {
 	}
 	jobID := strings.TrimSpace(run.JobID)
 	triggerID := strings.TrimSpace(run.TriggerID)
+	taskID := strings.TrimSpace(run.TaskID)
+	taskRunID := strings.TrimSpace(run.TaskRunID)
 	switch {
 	case jobID == "" && triggerID == "":
 		return errors.New("store: automation run job_id or trigger_id is required")
 	case jobID != "" && triggerID != "":
 		return errors.New("store: automation run must reference either a job or a trigger, not both")
+	case taskRunID != "" && taskID == "":
+		return errors.New("store: automation run task_id is required when task_run_id is set")
+	case run.Status == automation.RunDelegated && taskID == "":
+		return errors.New("store: automation run task_id is required when status is delegated")
+	case run.Status == automation.RunDelegated && taskRunID == "":
+		return errors.New("store: automation run task_run_id is required when status is delegated")
 	default:
 		return nil
 	}
@@ -1442,6 +1472,19 @@ func normalizeAutomationJob(job automation.Job) automation.Job {
 		schedule.Time = strings.TrimSpace(schedule.Time)
 		job.Schedule = &schedule
 	}
+	if job.Task != nil {
+		taskConfig := *job.Task
+		taskConfig.Title = strings.TrimSpace(taskConfig.Title)
+		taskConfig.Description = strings.TrimSpace(taskConfig.Description)
+		taskConfig.NetworkChannel = strings.TrimSpace(taskConfig.NetworkChannel)
+		if taskConfig.Owner != nil {
+			owner := *taskConfig.Owner
+			owner.Kind = taskpkg.OwnerKind(strings.TrimSpace(string(owner.Kind)))
+			owner.Ref = strings.TrimSpace(owner.Ref)
+			taskConfig.Owner = &owner
+		}
+		job.Task = &taskConfig
+	}
 	return job
 }
 
@@ -1473,6 +1516,8 @@ func normalizeAutomationRun(run automation.Run) automation.Run {
 	run.JobID = strings.TrimSpace(run.JobID)
 	run.TriggerID = strings.TrimSpace(run.TriggerID)
 	run.SessionID = strings.TrimSpace(run.SessionID)
+	run.TaskID = strings.TrimSpace(run.TaskID)
+	run.TaskRunID = strings.TrimSpace(run.TaskRunID)
 	run.Status = automation.RunStatus(strings.TrimSpace(string(run.Status)))
 	return run
 }
@@ -1539,6 +1584,20 @@ func decodeAutomationSchedule(raw sql.NullString, target **automation.ScheduleSp
 		return fmt.Errorf("store: decode job.schedule: %w", err)
 	}
 	*target = &schedule
+	return nil
+}
+
+func decodeAutomationTaskConfig(raw sql.NullString, target **automation.JobTaskConfig) error {
+	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
+		*target = nil
+		return nil
+	}
+
+	var taskConfig automation.JobTaskConfig
+	if err := json.Unmarshal([]byte(raw.String), &taskConfig); err != nil {
+		return fmt.Errorf("store: decode job.task: %w", err)
+	}
+	*target = &taskConfig
 	return nil
 }
 

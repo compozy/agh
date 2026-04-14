@@ -1182,6 +1182,15 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              task?: {
+                description?: string;
+                network_channel?: string;
+                owner?: {
+                  kind: string;
+                  ref: string;
+                } | null;
+                title?: string;
+              } | null;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -1264,6 +1273,15 @@ export interface operations {
           };
           /** @enum {string} */
           scope: "global" | "workspace";
+          task?: {
+            description?: string;
+            network_channel?: string;
+            owner?: {
+              kind: string;
+              ref: string;
+            } | null;
+            title?: string;
+          } | null;
           workspace_id?: string;
         };
       };
@@ -1307,6 +1325,15 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              task?: {
+                description?: string;
+                network_channel?: string;
+                owner?: {
+                  kind: string;
+                  ref: string;
+                } | null;
+                title?: string;
+              } | null;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -1416,6 +1443,15 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              task?: {
+                description?: string;
+                network_channel?: string;
+                owner?: {
+                  kind: string;
+                  ref: string;
+                } | null;
+                title?: string;
+              } | null;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -1570,6 +1606,15 @@ export interface operations {
             mode: "cron" | "every" | "at";
             time?: string;
           } | null;
+          task?: {
+            description?: string;
+            network_channel?: string;
+            owner?: {
+              kind: string;
+              ref: string;
+            } | null;
+            title?: string;
+          } | null;
           workspace_id?: string | null;
         };
       };
@@ -1613,6 +1658,15 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              task?: {
+                description?: string;
+                network_channel?: string;
+                owner?: {
+                  kind: string;
+                  ref: string;
+                } | null;
+                title?: string;
+              } | null;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -1687,7 +1741,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Filter by run status */
-        status?: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+        status?: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
         /** @description Only runs started since this timestamp */
         since?: string;
         /** @description Only runs started before this timestamp */
@@ -1722,7 +1776,9 @@ export interface operations {
               /** Format: date-time */
               started_at?: string | null;
               /** @enum {string} */
-              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
+              task_id?: string;
+              task_run_id?: string;
               trigger_id?: string;
             }[];
           };
@@ -1810,7 +1866,9 @@ export interface operations {
               /** Format: date-time */
               started_at?: string | null;
               /** @enum {string} */
-              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
+              task_id?: string;
+              task_run_id?: string;
               trigger_id?: string;
             };
           };
@@ -1876,7 +1934,7 @@ export interface operations {
         /** @description Filter by automation trigger id */
         trigger_id?: string;
         /** @description Filter by run status */
-        status?: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+        status?: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
         /** @description Only runs started since this timestamp */
         since?: string;
         /** @description Only runs started before this timestamp */
@@ -1908,7 +1966,9 @@ export interface operations {
               /** Format: date-time */
               started_at?: string | null;
               /** @enum {string} */
-              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
+              task_id?: string;
+              task_run_id?: string;
               trigger_id?: string;
             }[];
           };
@@ -1985,7 +2045,9 @@ export interface operations {
               /** Format: date-time */
               started_at?: string | null;
               /** @enum {string} */
-              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
+              task_id?: string;
+              task_run_id?: string;
               trigger_id?: string;
             };
           };
@@ -2583,7 +2645,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Filter by run status */
-        status?: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+        status?: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
         /** @description Only runs started since this timestamp */
         since?: string;
         /** @description Only runs started before this timestamp */
@@ -2618,7 +2680,9 @@ export interface operations {
               /** Format: date-time */
               started_at?: string | null;
               /** @enum {string} */
-              status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+              status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "cancelled";
+              task_id?: string;
+              task_run_id?: string;
               trigger_id?: string;
             }[];
           };
@@ -7148,7 +7212,15 @@ export interface operations {
                 /** Format: date-time */
                 started_at?: string | null;
                 /** @enum {string} */
-                status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+                status:
+                  | "scheduled"
+                  | "running"
+                  | "delegated"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                task_id?: string;
+                task_run_id?: string;
                 trigger_id?: string;
               }[];
             };
@@ -7264,7 +7336,15 @@ export interface operations {
                 /** Format: date-time */
                 started_at?: string | null;
                 /** @enum {string} */
-                status: "scheduled" | "running" | "completed" | "failed" | "cancelled";
+                status:
+                  | "scheduled"
+                  | "running"
+                  | "delegated"
+                  | "completed"
+                  | "failed"
+                  | "cancelled";
+                task_id?: string;
+                task_run_id?: string;
                 trigger_id?: string;
               }[];
             };

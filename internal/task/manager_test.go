@@ -442,6 +442,17 @@ func TestDeriveActorContextsForSupportedSurfaces(t *testing.T) {
 			},
 		},
 		{
+			name: "automation-linked agent session",
+			derive: func() (ActorContext, error) {
+				return DeriveAutomationLinkedAgentSessionActorContext("sess-1", "run:run-1")
+			},
+			want: ActorContext{
+				Actor:     ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-1"},
+				Origin:    Origin{Kind: OriginKindAutomation, Ref: "run:run-1"},
+				Authority: FullAccessAuthority(),
+			},
+		},
+		{
 			name: "automation",
 			derive: func() (ActorContext, error) {
 				return DeriveAutomationActorContext("rule:nightly", "")

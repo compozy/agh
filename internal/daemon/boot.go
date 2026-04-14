@@ -24,6 +24,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -517,9 +518,15 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 		return errors.New("daemon: automation manager factory is required")
 	}
 
+	var tasks taskpkg.Manager
+	if state.tasks != nil {
+		tasks = state.tasks.manager
+	}
+
 	manager, err := d.newAutomationManager(automationManagerDeps{
 		Store:               store,
 		Sessions:            state.sessions,
+		Tasks:               tasks,
 		WorkspaceResolver:   state.workspaceResolver,
 		Config:              state.cfg.Automation,
 		Hooks:               state.hooks,

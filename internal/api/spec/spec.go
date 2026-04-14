@@ -1822,6 +1822,7 @@ func automationRunStatusValues() []string {
 	return []string{
 		string(automationpkg.RunScheduled),
 		string(automationpkg.RunRunning),
+		string(automationpkg.RunDelegated),
 		string(automationpkg.RunCompleted),
 		string(automationpkg.RunFailed),
 		string(automationpkg.RunCancelled),

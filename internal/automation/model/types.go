@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	taskpkg "github.com/pedronauck/agh/internal/task"
+)
 
 // DefaultTimezone is the default schedule timezone used by automation config.
 const DefaultTimezone = "UTC"
@@ -58,6 +62,8 @@ const (
 	RunScheduled RunStatus = "scheduled"
 	// RunRunning reports a run that is actively dispatching or executing.
 	RunRunning RunStatus = "running"
+	// RunDelegated reports an automation activation that delegated execution into the task domain.
+	RunDelegated RunStatus = "delegated"
 	// RunCompleted reports a run that finished successfully.
 	RunCompleted RunStatus = "completed"
 	// RunFailed reports a run that finished with an error.
@@ -80,6 +86,14 @@ const (
 	ActivationSourceExtension ActivationSource = "extension"
 )
 
+// JobTaskConfig configures direct automation-to-task materialization for one job.
+type JobTaskConfig struct {
+	Title          string             `json:"title,omitempty" toml:"title,omitempty"`
+	Description    string             `json:"description,omitempty" toml:"description,omitempty"`
+	Owner          *taskpkg.Ownership `json:"owner,omitempty" toml:"owner,omitempty"`
+	NetworkChannel string             `json:"network_channel,omitempty" toml:"network_channel,omitempty"`
+}
+
 // Job is the canonical scheduled automation definition used by runtime and storage layers.
 type Job struct {
 	ID          string          `json:"id"`
@@ -89,6 +103,7 @@ type Job struct {
 	WorkspaceID string          `json:"workspace_id,omitempty"`
 	Prompt      string          `json:"prompt"`
 	Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
+	Task        *JobTaskConfig  `json:"task,omitempty"`
 	Enabled     bool            `json:"enabled"`
 	Retry       RetryConfig     `json:"retry"`
 	FireLimit   FireLimitConfig `json:"fire_limit"`
@@ -144,6 +159,8 @@ type Run struct {
 	JobID     string     `json:"job_id,omitempty"`
 	TriggerID string     `json:"trigger_id,omitempty"`
 	SessionID string     `json:"session_id,omitempty"`
+	TaskID    string     `json:"task_id,omitempty"`
+	TaskRunID string     `json:"task_run_id,omitempty"`
 	Status    RunStatus  `json:"status"`
 	Attempt   int        `json:"attempt"`
 	StartedAt *time.Time `json:"started_at,omitempty"`

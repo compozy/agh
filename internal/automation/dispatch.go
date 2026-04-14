@@ -13,6 +13,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 var (
@@ -128,6 +129,20 @@ type RunStore interface {
 	CountRuns(ctx context.Context, query RunQuery) (int64, error)
 }
 
+// TaskService exposes the minimal task-domain surface used by task-backed
+// automation jobs.
+type TaskService interface {
+	CreateTask(ctx context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error)
+	EnqueueRun(ctx context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+}
+
+// AutomationSessionTaskActorRecorder stores trusted task-domain provenance for
+// automation-launched sessions that may later create tasks explicitly.
+type AutomationSessionTaskActorRecorder interface {
+	RecordAutomationSessionTaskActor(sessionID string, actor taskpkg.ActorContext) error
+	DeleteAutomationSessionTaskActor(sessionID string)
+}
+
 // AutomationHookDispatcher emits automation lifecycle hooks around shared dispatch.
 type AutomationHookDispatcher interface {
 	DispatchAutomationJobPreFire(ctx context.Context, payload hookspkg.AutomationJobPreFirePayload) (hookspkg.AutomationJobPreFirePayload, error)
@@ -148,6 +163,7 @@ type DispatcherOption func(*Dispatcher)
 type Dispatcher struct {
 	sessions SessionCreator
 	runs     RunStore
+	tasks    TaskService
 
 	logger              *slog.Logger
 	now                 func() time.Time
@@ -155,6 +171,7 @@ type Dispatcher struct {
 	globalWorkspacePath string
 	maxConcurrent       int
 	hooks               AutomationHookDispatcher
+	taskActors          AutomationSessionTaskActorRecorder
 
 	fireLimitMu sync.Mutex
 	gate        chan struct{}
@@ -246,6 +263,22 @@ func WithDispatcherHooks(hooks AutomationHookDispatcher) DispatcherOption {
 	}
 }
 
+// WithDispatcherTasks injects the task-domain service used for direct
+// task-backed automation jobs.
+func WithDispatcherTasks(tasks TaskService) DispatcherOption {
+	return func(dispatcher *Dispatcher) {
+		dispatcher.tasks = tasks
+	}
+}
+
+// WithDispatcherTaskActorRecorder injects the session provenance recorder used
+// to support automation-linked agent task creation.
+func WithDispatcherTaskActorRecorder(recorder AutomationSessionTaskActorRecorder) DispatcherOption {
+	return func(dispatcher *Dispatcher) {
+		dispatcher.taskActors = recorder
+	}
+}
+
 // Dispatch executes one automation request through the shared governance path.
 func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, error) {
 	if ctx == nil {
@@ -308,6 +341,9 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	if err != nil {
 		return nil, err
 	}
+	if req.Job != nil && req.Job.Task != nil {
+		return d.dispatchTaskBackedAttempt(ctx, req, scheduledRun, attempt)
+	}
 
 	prompt, promptErr := req.prompt()
 	if promptErr != nil {
@@ -336,6 +372,9 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	})
 	if err != nil {
 		return cloneRun(scheduledRun), err
+	}
+	if err := d.recordAutomationSessionTaskActor(createdSession.ID, runningRun); err != nil {
+		return d.finishRunAfterSessionStop(ctx, runningRun, createdSession.ID, RunFailed, err)
 	}
 
 	events, promptErr := d.sessions.Prompt(ctx, createdSession.ID, prompt)
@@ -405,6 +444,56 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 	return &created, nil
 }
 
+func (d *Dispatcher) dispatchTaskBackedAttempt(ctx context.Context, req DispatchRequest, scheduledRun *Run, attempt int) (*Run, error) {
+	if d.tasks == nil {
+		return d.finishRun(ctx, scheduledRun, RunFailed, errors.New("automation: task-backed job requires task service"))
+	}
+
+	preFirePrompt := strings.TrimSpace(req.Prompt)
+	if preFirePrompt == "" && req.Job != nil {
+		preFirePrompt = strings.TrimSpace(req.Job.Prompt)
+	}
+	_, cancelled, hookErr := d.dispatchPreFireHook(ctx, req, preFirePrompt, attempt)
+	if hookErr != nil {
+		return d.finishRun(ctx, scheduledRun, RunFailed, hookErr)
+	}
+	if cancelled {
+		return d.finishRun(ctx, scheduledRun, RunCancelled, nil)
+	}
+
+	actor, err := directTaskActorContext(req.Job, scheduledRun.ID)
+	if err != nil {
+		return d.finishRun(ctx, scheduledRun, RunFailed, err)
+	}
+
+	taskRecord, err := d.tasks.CreateTask(ctx, directTaskSpec(req.Job), actor)
+	if err != nil {
+		return d.finishRun(ctx, scheduledRun, RunFailed, err)
+	}
+	if taskRecord == nil || strings.TrimSpace(taskRecord.ID) == "" {
+		return d.finishRun(ctx, scheduledRun, RunFailed, errors.New("automation: task service returned empty task"))
+	}
+
+	taskRun, err := d.tasks.EnqueueRun(ctx, taskpkg.EnqueueRun{
+		TaskID:         taskRecord.ID,
+		IdempotencyKey: automationTaskRunIdempotencyKey(scheduledRun.ID),
+		NetworkChannel: strings.TrimSpace(taskRecord.NetworkChannel),
+	}, actor)
+	if err != nil {
+		return d.finishRun(ctx, scheduledRun, RunFailed, err)
+	}
+	if taskRun == nil || strings.TrimSpace(taskRun.ID) == "" {
+		return d.finishRun(ctx, scheduledRun, RunFailed, errors.New("automation: task service returned empty task run"))
+	}
+
+	delegatedRun, err := d.delegateRun(ctx, scheduledRun, taskRecord.ID, taskRun.ID)
+	if err != nil {
+		return delegatedRun, err
+	}
+	d.dispatchPostFireHook(ctx, req, *delegatedRun)
+	return delegatedRun, nil
+}
+
 func (d *Dispatcher) transitionRun(ctx context.Context, current *Run, mutate func(run *Run, now time.Time)) (*Run, error) {
 	if current == nil {
 		return nil, errors.New("automation: run is required")
@@ -418,6 +507,30 @@ func (d *Dispatcher) transitionRun(ctx context.Context, current *Run, mutate fun
 		return cloneRun(current), fmt.Errorf("automation: update run %q: %w", current.ID, err)
 	}
 	return &updated, nil
+}
+
+func (d *Dispatcher) delegateRun(ctx context.Context, current *Run, taskID string, taskRunID string) (*Run, error) {
+	updatedRun, updateErr := d.transitionRun(ctx, current, func(run *Run, now time.Time) {
+		run.TaskID = strings.TrimSpace(taskID)
+		run.TaskRunID = strings.TrimSpace(taskRunID)
+		run.Status = RunDelegated
+		run.EndedAt = timePointer(now)
+		run.Error = ""
+	})
+	if updateErr != nil {
+		return updatedRun, updateErr
+	}
+
+	d.logger.Info(
+		"automation.dispatch.delegated",
+		"run_id", updatedRun.ID,
+		"job_id", strings.TrimSpace(updatedRun.JobID),
+		"trigger_id", strings.TrimSpace(updatedRun.TriggerID),
+		"task_id", strings.TrimSpace(updatedRun.TaskID),
+		"task_run_id", strings.TrimSpace(updatedRun.TaskRunID),
+		"attempt", updatedRun.Attempt,
+	)
+	return updatedRun, nil
 }
 
 func (d *Dispatcher) finishRun(ctx context.Context, current *Run, status RunStatus, runErr error) (*Run, error) {
@@ -480,6 +593,9 @@ func (d *Dispatcher) finishRun(ctx context.Context, current *Run, status RunStat
 
 func (d *Dispatcher) finishRunAfterSessionStop(ctx context.Context, current *Run, sessionID string, status RunStatus, runErr error) (*Run, error) {
 	stopErr := d.stopAutomationSession(ctx, sessionID, status, runErr)
+	if stopErr == nil {
+		d.deleteAutomationSessionTaskActor(sessionID)
+	}
 	if stopErr != nil {
 		wrappedStopErr := fmt.Errorf("automation: stop session %q: %w", strings.TrimSpace(sessionID), stopErr)
 		if runErr == nil {
@@ -645,6 +761,24 @@ func (d *Dispatcher) createOpts(req DispatchRequest) session.CreateOpts {
 	return opts
 }
 
+func (d *Dispatcher) recordAutomationSessionTaskActor(sessionID string, run *Run) error {
+	if d == nil || d.taskActors == nil {
+		return nil
+	}
+	actor, err := automationSessionTaskActorContext(sessionID, run)
+	if err != nil {
+		return err
+	}
+	return d.taskActors.RecordAutomationSessionTaskActor(strings.TrimSpace(sessionID), actor)
+}
+
+func (d *Dispatcher) deleteAutomationSessionTaskActor(sessionID string) {
+	if d == nil || d.taskActors == nil {
+		return
+	}
+	d.taskActors.DeleteAutomationSessionTaskActor(strings.TrimSpace(sessionID))
+}
+
 func (d *Dispatcher) tryAcquire() bool {
 	select {
 	case d.gate <- struct{}{}:
@@ -758,6 +892,69 @@ func executePromptTemplate(builder *strings.Builder, tmpl *template.Template, en
 		return fmt.Errorf("automation: execute trigger prompt template: %w", err)
 	}
 	return nil
+}
+
+func directTaskActorContext(job *Job, runID string) (taskpkg.ActorContext, error) {
+	if job == nil {
+		return taskpkg.ActorContext{}, errors.New("automation: task-backed dispatch job is required")
+	}
+	return taskpkg.DeriveAutomationActorContext(strings.TrimSpace(job.ID), automationTaskOriginRef(runID))
+}
+
+func automationSessionTaskActorContext(sessionID string, run *Run) (taskpkg.ActorContext, error) {
+	if run == nil {
+		return taskpkg.ActorContext{}, errors.New("automation: run is required for session task actor context")
+	}
+	return taskpkg.DeriveAutomationLinkedAgentSessionActorContext(strings.TrimSpace(sessionID), automationTaskOriginRef(run.ID))
+}
+
+func directTaskSpec(job *Job) taskpkg.CreateTask {
+	if job == nil || job.Task == nil {
+		return taskpkg.CreateTask{}
+	}
+
+	title := strings.TrimSpace(job.Task.Title)
+	if title == "" {
+		title = strings.TrimSpace(job.Name)
+	}
+	description := strings.TrimSpace(job.Task.Description)
+	if description == "" {
+		description = strings.TrimSpace(job.Prompt)
+	}
+
+	return taskpkg.CreateTask{
+		Scope:          taskScopeForAutomationScope(job.Scope),
+		WorkspaceID:    strings.TrimSpace(job.WorkspaceID),
+		NetworkChannel: strings.TrimSpace(job.Task.NetworkChannel),
+		Title:          title,
+		Description:    description,
+		Owner:          cloneTaskOwnership(job.Task.Owner),
+	}
+}
+
+func taskScopeForAutomationScope(scope AutomationScope) taskpkg.Scope {
+	switch scope {
+	case AutomationScopeWorkspace:
+		return taskpkg.ScopeWorkspace
+	default:
+		return taskpkg.ScopeGlobal
+	}
+}
+
+func cloneTaskOwnership(owner *taskpkg.Ownership) *taskpkg.Ownership {
+	if owner == nil {
+		return nil
+	}
+	cloned := *owner
+	return &cloned
+}
+
+func automationTaskOriginRef(runID string) string {
+	return "run:" + strings.TrimSpace(runID)
+}
+
+func automationTaskRunIdempotencyKey(runID string) string {
+	return "automation-run:" + strings.TrimSpace(runID)
 }
 
 func classifyDispatchError(err error) RunStatus {

@@ -143,7 +143,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				runOperation := operationFor(t, doc, "/api/automation/runs/{id}", "GET")
 				runSchema := jsonResponseSchema(t, runOperation, 200)
 				runPayloadSchema := propertySchema(t, runSchema, "run")
-				assertEnumValues(t, propertySchema(t, runPayloadSchema, "status"), "cancelled", "completed", "failed", "running", "scheduled")
+				assertEnumValues(t, propertySchema(t, runPayloadSchema, "status"), "cancelled", "completed", "delegated", "failed", "running", "scheduled")
 			},
 		},
 		{

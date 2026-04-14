@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 const (
@@ -707,6 +708,7 @@ func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 	}
 
 	schedule := req.Schedule
+	taskConfig := cloneAutomationJobTaskConfig(req.Task)
 	return automationpkg.Job{
 		Scope:       req.Scope,
 		Name:        strings.TrimSpace(req.Name),
@@ -714,6 +716,7 @@ func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
 		Prompt:      strings.TrimSpace(req.Prompt),
 		Schedule:    &schedule,
+		Task:        taskConfig,
 		Enabled:     enabled,
 		Retry:       retry,
 		FireLimit:   fireLimit,
@@ -739,6 +742,9 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) aut
 		schedule := *req.Schedule
 		next.Schedule = &schedule
 	}
+	if req.Task != nil {
+		next.Task = cloneAutomationJobTaskConfig(req.Task)
+	}
 	if req.Enabled != nil {
 		next.Enabled = *req.Enabled
 	}
@@ -755,11 +761,28 @@ func validateConfigJobUpdate(req contract.UpdateJobRequest) error {
 	switch {
 	case req.Enabled == nil:
 		return errors.New("config-backed automation jobs only accept enabled updates")
-	case req.Name != nil || req.AgentName != nil || req.WorkspaceID != nil || req.Prompt != nil || req.Schedule != nil || req.Retry != nil || req.FireLimit != nil:
+	case req.Name != nil || req.AgentName != nil || req.WorkspaceID != nil || req.Prompt != nil || req.Schedule != nil || req.Task != nil || req.Retry != nil || req.FireLimit != nil:
 		return errors.New("config-backed automation jobs only accept enabled updates")
 	default:
 		return nil
 	}
+}
+
+func cloneAutomationJobTaskConfig(config *automationpkg.JobTaskConfig) *automationpkg.JobTaskConfig {
+	if config == nil {
+		return nil
+	}
+	cloned := *config
+	cloned.Title = strings.TrimSpace(cloned.Title)
+	cloned.Description = strings.TrimSpace(cloned.Description)
+	cloned.NetworkChannel = strings.TrimSpace(cloned.NetworkChannel)
+	if config.Owner != nil {
+		owner := *config.Owner
+		owner.Kind = taskpkg.OwnerKind(strings.TrimSpace(string(owner.Kind)))
+		owner.Ref = strings.TrimSpace(owner.Ref)
+		cloned.Owner = &owner
+	}
+	return &cloned
 }
 
 func triggerFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.Trigger {

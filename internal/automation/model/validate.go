@@ -64,10 +64,10 @@ func (s JobSource) Validate(path string) error {
 // Validate ensures the run status is one of the supported lifecycle states.
 func (s RunStatus) Validate(path string) error {
 	switch s {
-	case RunScheduled, RunRunning, RunCompleted, RunFailed, RunCancelled:
+	case RunScheduled, RunRunning, RunDelegated, RunCompleted, RunFailed, RunCancelled:
 		return nil
 	default:
-		return fmt.Errorf("%s must be one of %q, %q, %q, %q, or %q: %q", path, RunScheduled, RunRunning, RunCompleted, RunFailed, RunCancelled, s)
+		return fmt.Errorf("%s must be one of %q, %q, %q, %q, %q, or %q: %q", path, RunScheduled, RunRunning, RunDelegated, RunCompleted, RunFailed, RunCancelled, s)
 	}
 }
 
@@ -236,10 +236,10 @@ func (j Job) Validate(path string) error {
 	if strings.TrimSpace(j.Name) == "" {
 		return errors.New(nestedPath(path, "name") + " is required")
 	}
-	if strings.TrimSpace(j.AgentName) == "" {
+	if j.Task == nil && strings.TrimSpace(j.AgentName) == "" {
 		return errors.New(nestedPath(path, "agent_name") + " is required")
 	}
-	if strings.TrimSpace(j.Prompt) == "" {
+	if j.Task == nil && strings.TrimSpace(j.Prompt) == "" {
 		return errors.New(nestedPath(path, "prompt") + " is required")
 	}
 	if err := ValidateScopeBinding(j.Scope, j.WorkspaceID, path, "workspace_id"); err != nil {
@@ -259,6 +259,14 @@ func (j Job) Validate(path string) error {
 	}
 	if err := j.FireLimit.Validate(nestedPath(path, "fire_limit")); err != nil {
 		return err
+	}
+	if j.Task != nil {
+		if err := j.Task.Validate(nestedPath(path, "task")); err != nil {
+			return err
+		}
+		if j.Retry.Strategy != RetryStrategyNone {
+			return fmt.Errorf("%s.strategy must be %q when %s is configured", nestedPath(path, "retry"), RetryStrategyNone, nestedPath(path, "task"))
+		}
 	}
 
 	return nil
@@ -325,6 +333,19 @@ func (r Run) Validate(path string) error {
 	}
 	if r.StartedAt != nil && r.EndedAt != nil && r.EndedAt.Before(*r.StartedAt) {
 		return fmt.Errorf("%s must not be before %s", nestedPath(path, "ended_at"), nestedPath(path, "started_at"))
+	}
+	if strings.TrimSpace(r.TaskID) != "" && strings.TrimSpace(r.TaskRunID) == "" && r.Status == RunDelegated {
+		return fmt.Errorf("%s is required when %s is %q and %s is set", nestedPath(path, "task_run_id"), nestedPath(path, "status"), RunDelegated, nestedPath(path, "task_id"))
+	}
+	return nil
+}
+
+// Validate ensures the direct task materialization configuration is internally consistent.
+func (c JobTaskConfig) Validate(path string) error {
+	if c.Owner != nil {
+		if err := c.Owner.Validate(nestedPath(path, "owner")); err != nil {
+			return err
+		}
 	}
 	return nil
 }

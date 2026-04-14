@@ -239,6 +239,14 @@ func JobPayloadFromJob(job automationpkg.Job, nextRun *time.Time) contract.JobPa
 		schedule := *job.Schedule
 		payload.Schedule = &schedule
 	}
+	if job.Task != nil {
+		taskConfig := *job.Task
+		if job.Task.Owner != nil {
+			owner := *job.Task.Owner
+			taskConfig.Owner = &owner
+		}
+		payload.Task = &taskConfig
+	}
 	return payload
 }
 
@@ -291,6 +299,8 @@ func RunPayloadFromRun(run automationpkg.Run) contract.RunPayload {
 		JobID:     run.JobID,
 		TriggerID: run.TriggerID,
 		SessionID: run.SessionID,
+		TaskID:    run.TaskID,
+		TaskRunID: run.TaskRunID,
 		Status:    run.Status,
 		Attempt:   run.Attempt,
 		StartedAt: run.StartedAt,

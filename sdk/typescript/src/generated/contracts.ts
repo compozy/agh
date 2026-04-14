@@ -222,6 +222,20 @@ export interface ScheduleSpec {
   time?: string;
 }
 
+export type OwnerKind = string;
+
+export interface Ownership {
+  kind: OwnerKind;
+  ref: string;
+}
+
+export interface JobTaskConfig {
+  title?: string;
+  description?: string;
+  owner?: Ownership;
+  network_channel?: string;
+}
+
 export type RetryStrategy = string;
 
 export interface RetryConfig {
@@ -242,6 +256,7 @@ export interface AutomationJobCreateParams {
   workspace_id?: string;
   prompt: string;
   schedule: ScheduleSpec;
+  task?: JobTaskConfig;
   enabled?: boolean;
   retry?: RetryConfig;
   fire_limit?: FireLimitConfig;
@@ -293,6 +308,7 @@ export interface AutomationJobUpdateParams {
   workspace_id?: string;
   prompt?: string;
   schedule?: ScheduleSpec;
+  task?: JobTaskConfig;
   enabled?: boolean;
   retry?: RetryConfig;
   fire_limit?: FireLimitConfig;
@@ -868,6 +884,7 @@ export interface Job {
   workspace_id?: string;
   prompt: string;
   schedule?: ScheduleSpec;
+  task?: JobTaskConfig;
   enabled: boolean;
   retry: RetryConfig;
   fire_limit: FireLimitConfig;
@@ -1221,6 +1238,8 @@ export interface Run {
   job_id?: string;
   trigger_id?: string;
   session_id?: string;
+  task_id?: string;
+  task_run_id?: string;
   status: RunStatus;
   attempt: number;
   started_at?: ISODateTime;

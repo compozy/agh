@@ -166,6 +166,7 @@ type automationRuntime interface {
 type automationManagerDeps struct {
 	Store               automationpkg.Store
 	Sessions            SessionManager
+	Tasks               taskpkg.Manager
 	WorkspaceResolver   workspacepkg.WorkspaceResolver
 	Config              aghconfig.AutomationConfig
 	Hooks               automationpkg.AutomationHookDispatcher
@@ -446,6 +447,7 @@ func (d *Daemon) applyDefaults() error {
 			manager, err := automationpkg.New(
 				automationpkg.WithStore(deps.Store),
 				automationpkg.WithSessions(deps.Sessions),
+				automationpkg.WithTasks(deps.Tasks),
 				automationpkg.WithWorkspaceResolver(deps.WorkspaceResolver),
 				automationpkg.WithConfig(deps.Config),
 				automationpkg.WithHooks(deps.Hooks),
