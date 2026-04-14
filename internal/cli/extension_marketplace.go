@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	registrypkg "github.com/pedronauck/agh/internal/registry"
 	registrygithub "github.com/pedronauck/agh/internal/registry/github"
@@ -19,7 +18,6 @@ import (
 
 const (
 	defaultExtensionRegistrySearchLimit = 20
-	managedExtensionsDirName            = "extensions"
 	extensionInstallRestartMessage      = "Extension installed. Restart the daemon to activate, or it will be discovered on next boot."
 	extensionUpdateRestartMessage       = "Extension updated. Restart the daemon to activate the new version."
 )
@@ -40,6 +38,11 @@ type extensionUpdateItem struct {
 	LatestVersion  string `json:"latest_version,omitempty"`
 	Path           string `json:"path"`
 	Status         string `json:"status"`
+}
+
+type extensionDirChange interface {
+	Commit() error
+	Rollback() error
 }
 
 type stagedExtensionDirChange struct {
@@ -115,7 +118,7 @@ func installMarketplaceExtension(
 			return ExtensionRecord{}, err
 		}
 
-		stagingDir, err := newManagedExtensionStagingDir(runtime.HomePaths)
+		stagingDir, err := extensionpkg.NewManagedInstallStagingDir(runtime.HomePaths)
 		if err != nil {
 			return ExtensionRecord{}, err
 		}
@@ -146,7 +149,7 @@ func installMarketplaceExtension(
 			return ExtensionRecord{}, getErr
 		}
 
-		finalDir := managedExtensionInstallPath(runtime.HomePaths, manifest.Name)
+		finalDir := extensionpkg.ManagedInstallPath(runtime.HomePaths, manifest.Name)
 		if err := registrypkg.MoveInstalledDir(result.InstallPath, finalDir, false); err != nil {
 			return ExtensionRecord{}, fmt.Errorf("cli: move extension %q into managed install path: %w", manifest.Name, err)
 		}
@@ -182,31 +185,83 @@ func installMarketplaceExtension(
 
 func removeInstalledExtension(ctx context.Context, deps commandDeps, name string) (_ extensionRemoveItem, err error) {
 	return withLocalExtensionRegistry(ctx, deps, func(_ runtimeContext, registry localExtensionRegistry) (_ extensionRemoveItem, err error) {
-		info, err := registry.Get(name)
-		if err != nil {
-			return extensionRemoveItem{}, err
-		}
-
-		installDir := filepath.Dir(info.ManifestPath)
-		change, err := stageExtensionDirRemoval(installDir)
-		if err != nil {
-			return extensionRemoveItem{}, err
-		}
-
-		if err := registry.Uninstall(info.Name); err != nil {
-			rollbackErr := change.Rollback()
-			return extensionRemoveItem{}, errors.Join(err, rollbackErr)
-		}
-		if err := change.Commit(); err != nil {
-			return extensionRemoveItem{}, err
-		}
-
-		return extensionRemoveItem{
-			Name:   info.Name,
-			Path:   installDir,
-			Status: "removed",
-		}, nil
+		return removeInstalledExtensionWithRegistry(registry, name, func(targetDir string) (extensionDirChange, error) {
+			return stageExtensionDirRemoval(targetDir)
+		})
 	})
+}
+
+func removeInstalledExtensionWithRegistry(
+	registry localExtensionRegistry,
+	name string,
+	stage func(targetDir string) (extensionDirChange, error),
+) (_ extensionRemoveItem, err error) {
+	info, err := registry.Get(name)
+	if err != nil {
+		return extensionRemoveItem{}, err
+	}
+
+	installDir := filepath.Dir(info.ManifestPath)
+	change, err := stage(installDir)
+	if err != nil {
+		return extensionRemoveItem{}, err
+	}
+
+	if err := registry.Uninstall(info.Name); err != nil {
+		rollbackErr := change.Rollback()
+		return extensionRemoveItem{}, errors.Join(err, rollbackErr)
+	}
+	if err := change.Commit(); err != nil {
+		restoreErr := restoreRemovedExtensionRecord(registry, *info, installDir, change)
+		return extensionRemoveItem{}, errors.Join(
+			fmt.Errorf("cli: finalize extension removal %q: %w", info.Name, err),
+			restoreErr,
+		)
+	}
+
+	return extensionRemoveItem{
+		Name:   info.Name,
+		Path:   installDir,
+		Status: "removed",
+	}, nil
+}
+
+func restoreRemovedExtensionRecord(
+	registry localExtensionRegistry,
+	info extensionpkg.ExtensionInfo,
+	installDir string,
+	change extensionDirChange,
+) error {
+	rollbackErr := change.Rollback()
+	if rollbackErr != nil {
+		return rollbackErr
+	}
+
+	manifest, err := extensionpkg.LoadManifest(installDir)
+	if err != nil {
+		return fmt.Errorf("cli: reload extension manifest from %q after failed remove: %w", installDir, err)
+	}
+
+	opts := []extensionpkg.InstallOption{
+		extensionpkg.WithInstallSource(info.Source),
+	}
+	if info.Source == extensionpkg.SourceMarketplace {
+		opts = append(opts, extensionpkg.WithInstallRegistryMetadata(
+			dereferenceOptionalString(info.RegistrySlug),
+			dereferenceOptionalString(info.RegistryName),
+			dereferenceOptionalString(info.RemoteVersion),
+		))
+	}
+
+	if err := registry.Install(manifest, installDir, info.Checksum, opts...); err != nil {
+		return fmt.Errorf("cli: restore extension registry record for %q: %w", info.Name, err)
+	}
+	if !info.Enabled {
+		if err := registry.Disable(info.Name); err != nil {
+			return fmt.Errorf("cli: restore disabled state for extension %q: %w", info.Name, err)
+		}
+	}
+	return nil
 }
 
 func updateMarketplaceExtensions(
@@ -286,7 +341,7 @@ func updateMarketplaceExtension(
 		return item, nil
 	}
 
-	stagingDir, err := newManagedExtensionStagingDir(runtime.HomePaths)
+	stagingDir, err := extensionpkg.NewManagedInstallStagingDir(runtime.HomePaths)
 	if err != nil {
 		return extensionUpdateItem{}, err
 	}
@@ -492,22 +547,6 @@ func selectMarketplaceExtensionsForUpdate(
 
 func marketplaceExtensionInstalled(info extensionpkg.ExtensionInfo) bool {
 	return info.Source == extensionpkg.SourceMarketplace && dereferenceOptionalString(info.RegistrySlug) != ""
-}
-
-func newManagedExtensionStagingDir(homePaths aghconfig.HomePaths) (string, error) {
-	root := managedExtensionsRoot(homePaths)
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return "", fmt.Errorf("cli: create managed extensions root %q: %w", root, err)
-	}
-	return os.MkdirTemp(root, ".agh-extension-stage-*")
-}
-
-func managedExtensionsRoot(homePaths aghconfig.HomePaths) string {
-	return filepath.Join(homePaths.HomeDir, managedExtensionsDirName)
-}
-
-func managedExtensionInstallPath(homePaths aghconfig.HomePaths, name string) string {
-	return filepath.Join(managedExtensionsRoot(homePaths), strings.TrimSpace(name))
 }
 
 func stageExtensionDirRemoval(targetDir string) (*stagedExtensionDirChange, error) {

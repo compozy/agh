@@ -624,7 +624,7 @@ func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
 	}
 }
 
-func TestBootExtensionsLogsStartFailureAndContinues(t *testing.T) {
+func TestBootExtensionsLogsStartFailureAndKeepsPartialRuntime(t *testing.T) {
 	t.Parallel()
 
 	db := openDaemonTestGlobalDB(t)
@@ -662,20 +662,20 @@ func TestBootExtensionsLogsStartFailureAndContinues(t *testing.T) {
 	if runtime.startCount != 1 {
 		t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
 	}
-	if rebuilds != 0 {
-		t.Fatalf("hook rebuild count = %d, want 0 after failed start", rebuilds)
+	if rebuilds != 1 {
+		t.Fatalf("hook rebuild count = %d, want 1 after failed start", rebuilds)
 	}
 	if len(cleanup.fns) != 1 {
 		t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
 	}
-	if state.currentExtensionRuntime() != nil {
-		t.Fatalf("state.extensions = %#v, want nil after failed start", state.currentExtensionRuntime())
+	if state.currentExtensionRuntime() != runtime {
+		t.Fatalf("state.extensions = %#v, want runtime after failed start", state.currentExtensionRuntime())
 	}
-	if state.deps.Extensions != nil {
-		t.Fatalf("state.deps.Extensions = %#v, want nil after failed start", state.deps.Extensions)
+	if state.deps.Extensions == nil {
+		t.Fatal("state.deps.Extensions = nil, want extension service after failed start")
 	}
-	if state.bridges.extensions != nil {
-		t.Fatalf("state.bridges.extensions = %#v, want nil after failed start", state.bridges.extensions)
+	if state.bridges.extensions != runtime {
+		t.Fatalf("state.bridges.extensions = %#v, want runtime after failed start", state.bridges.extensions)
 	}
 	if !strings.Contains(logBuffer.String(), "extension manager start failed") {
 		t.Fatalf("log output = %q, want extension start failure message", logBuffer.String())
@@ -904,6 +904,7 @@ func TestHooksNotifierNoopDispatchesWithoutRuntime(t *testing.T) {
 func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 	t.Parallel()
 
+	homePaths := testHomePaths(t)
 	db := openDaemonTestGlobalDB(t)
 	registry := extensionpkg.NewRegistry(db.DB())
 	manager := extensionpkg.NewManager(registry, extensionpkg.WithLogger(discardLogger()))
@@ -927,6 +928,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 				return nil
 			},
 		},
+		homePaths,
 		discardLogger(),
 		func() time.Time { return fixedNow },
 	)
@@ -956,6 +958,18 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 	}
 	if installed.Name != "service-ext" || installed.State != "active" || !installed.DaemonRunning {
 		t.Fatalf("installed extension = %#v, want active daemon-backed extension", installed)
+	}
+
+	info, err := registry.Get("service-ext")
+	if err != nil {
+		t.Fatalf("registry.Get(service-ext) error = %v", err)
+	}
+	wantManifestPath := filepath.Join(extensionpkg.ManagedInstallPath(homePaths, "service-ext"), "extension.toml")
+	if info.ManifestPath != wantManifestPath {
+		t.Fatalf("installed manifest path = %q, want %q", info.ManifestPath, wantManifestPath)
+	}
+	if _, err := os.Stat(filepath.Join(fixtureDir, "extension.toml")); err != nil {
+		t.Fatalf("source fixture manifest stat error = %v", err)
 	}
 
 	status, err := service.Status(testutil.Context(t), "service-ext")
@@ -3720,6 +3734,8 @@ type daemonTestExtensionOptions struct {
 	capabilities   []string
 	actions        []string
 	security       []string
+	bridgePlatform string
+	bridgeName     string
 }
 
 func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
@@ -3792,6 +3808,16 @@ func daemonTestExtensionManifest(name string, opts daemonTestExtensionOptions) s
 	if opts.security == nil {
 		security = []string{"session.read"}
 	}
+	bridgePlatform := strings.TrimSpace(opts.bridgePlatform)
+	bridgeName := strings.TrimSpace(opts.bridgeName)
+	if slices.Contains(capabilities, extensionprotocol.CapabilityProvideBridgeAdapter) {
+		if bridgePlatform == "" {
+			bridgePlatform = "telegram"
+		}
+		if bridgeName == "" {
+			bridgeName = "Telegram"
+		}
+	}
 
 	event := opts.hookEvent
 	if event == "" {
@@ -3826,6 +3852,15 @@ executor.command = %q
 [capabilities]
 provides = ` + daemonTOMLStringArray(capabilities) + `
 
+`)
+	if bridgePlatform != "" || bridgeName != "" {
+		fmt.Fprintf(&builder, `[bridge]
+platform = %q
+display_name = %q
+
+`, bridgePlatform, bridgeName)
+	}
+	builder.WriteString(`
 [actions]
 requires = ` + daemonTOMLStringArray(actions) + `
 
@@ -3900,6 +3935,24 @@ func TestDaemonTestExtensionManifest(t *testing.T) {
 		for _, unexpected := range []string{"memory.backend", "sessions/list", "session.read"} {
 			if strings.Contains(manifest, unexpected) {
 				t.Fatalf("daemonTestExtensionManifest() unexpectedly injected %q into manifest %q", unexpected, manifest)
+			}
+		}
+	})
+
+	t.Run("ShouldInjectBridgeMetadataWhenBridgeCapabilityIsRequested", func(t *testing.T) {
+		t.Parallel()
+
+		manifest := daemonTestExtensionManifest("bridge-ext", daemonTestExtensionOptions{
+			capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		})
+
+		for _, expected := range []string{
+			`[bridge]`,
+			`platform = "telegram"`,
+			`display_name = "Telegram"`,
+		} {
+			if !strings.Contains(manifest, expected) {
+				t.Fatalf("daemonTestExtensionManifest() missing bridge metadata %q in manifest %q", expected, manifest)
 			}
 		}
 	})

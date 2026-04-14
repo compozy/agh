@@ -10,15 +10,17 @@ import (
 
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/udsapi"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 )
 
 type daemonExtensionService struct {
-	registry *extensionpkg.Registry
-	runtime  extensionRuntime
-	hooks    hookRuntime
-	logger   *slog.Logger
-	now      func() time.Time
+	registry  *extensionpkg.Registry
+	runtime   extensionRuntime
+	hooks     hookRuntime
+	homePaths aghconfig.HomePaths
+	logger    *slog.Logger
+	now       func() time.Time
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
@@ -27,6 +29,7 @@ func newDaemonExtensionService(
 	registry *extensionpkg.Registry,
 	runtime extensionRuntime,
 	hooks hookRuntime,
+	homePaths aghconfig.HomePaths,
 	logger *slog.Logger,
 	now func() time.Time,
 ) udsapi.ExtensionService {
@@ -42,11 +45,12 @@ func newDaemonExtensionService(
 		}
 	}
 	return &daemonExtensionService{
-		registry: registry,
-		runtime:  runtime,
-		hooks:    hooks,
-		logger:   logger,
-		now:      now,
+		registry:  registry,
+		runtime:   runtime,
+		hooks:     hooks,
+		homePaths: homePaths,
+		logger:    logger,
+		now:       now,
 	}
 }
 
@@ -80,7 +84,7 @@ func (s *daemonExtensionService) Install(ctx context.Context, req contract.Insta
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	if err := s.registry.Install(manifest, req.Path, req.Checksum); err != nil {
+	if err := extensionpkg.InstallLocalManaged(s.homePaths, s.registry, manifest, req.Path, req.Checksum); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.reload(ctx); err != nil {

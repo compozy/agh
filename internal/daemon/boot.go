@@ -584,22 +584,22 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		return manager.Stop(ctx)
 	})
 
-	if err := manager.Start(ctx); err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return err
-		}
-		state.logger.Error("daemon: extension manager start failed; continuing without blocking boot", "error", err)
-		return nil
+	startErr := manager.Start(ctx)
+	if errors.Is(startErr, context.Canceled) || errors.Is(startErr, context.DeadlineExceeded) {
+		return startErr
 	}
 	if state.bridges != nil {
 		state.bridges.setExtensionRuntime(manager)
 	}
 	state.setExtensionRuntime(manager)
-	state.deps.Extensions = newDaemonExtensionService(extRegistry, manager, state.hooks, state.logger, d.now)
+	state.deps.Extensions = newDaemonExtensionService(extRegistry, manager, state.hooks, d.homePaths, state.logger, d.now)
 	if state.hooks != nil {
 		if err := state.hooks.Rebuild(ctx); err != nil {
 			state.logger.Error("daemon: rebuild hooks after extension boot failed; continuing without extension hooks", "error", err)
 		}
+	}
+	if startErr != nil {
+		state.logger.Error("daemon: extension manager start failed; continuing without blocking boot", "error", startErr)
 	}
 
 	return nil

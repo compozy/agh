@@ -150,7 +150,7 @@ func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {
 		t.Fatalf("extension remove integration error = %v", err)
 	}
 
-	installDir := managedExtensionInstallPath(env.homePaths, "integration-update-ext")
+	installDir := extensionpkg.ManagedInstallPath(env.homePaths, "integration-update-ext")
 	if _, err := os.Stat(installDir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("removed install dir stat error = %v, want not exist", err)
 	}

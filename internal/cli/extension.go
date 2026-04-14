@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/store/globaldb"
@@ -258,7 +259,7 @@ func installExtension(ctx context.Context, deps commandDeps, prepared preparedEx
 	}
 
 	return withLocalExtensionRegistry(ctx, deps, func(runtime runtimeContext, registry localExtensionRegistry) (ExtensionRecord, error) {
-		if err := installPreparedExtension(registry, prepared); err != nil {
+		if err := installPreparedExtension(runtime.HomePaths, registry, prepared); err != nil {
 			return ExtensionRecord{}, err
 		}
 		info, err := registry.Get(prepared.Manifest.Name)
@@ -435,14 +436,14 @@ func prepareLocalExtensionInstallIfPresent(path string) (preparedExtensionInstal
 	return prepared, true, nil
 }
 
-func installPreparedExtension(registry localExtensionRegistry, prepared preparedExtensionInstall) error {
+func installPreparedExtension(homePaths aghconfig.HomePaths, registry localExtensionRegistry, prepared preparedExtensionInstall) error {
 	if registry == nil {
 		return errors.New("extension: registry is required")
 	}
 	if prepared.Manifest == nil {
 		return errors.New("extension: manifest is required")
 	}
-	return registry.Install(prepared.Manifest, prepared.Path, prepared.Checksum)
+	return extensionpkg.InstallLocalManaged(homePaths, registry, prepared.Manifest, prepared.Path, prepared.Checksum)
 }
 
 func extensionUpdatesRequireRestart(items []extensionUpdateItem) bool {

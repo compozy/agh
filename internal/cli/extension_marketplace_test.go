@@ -97,6 +97,21 @@ func (s localExtensionRegistryStub) Disable(string) error { return nil }
 
 func (s localExtensionRegistryStub) Uninstall(string) error { return nil }
 
+type failingExtensionDirChange struct {
+	commitErr     error
+	rollbackErr   error
+	rollbackCalls int
+}
+
+func (c *failingExtensionDirChange) Commit() error {
+	return c.commitErr
+}
+
+func (c *failingExtensionDirChange) Rollback() error {
+	c.rollbackCalls++
+	return c.rollbackErr
+}
+
 func TestConfiguredExtensionRegistrySourcesClosesDroppedSources(t *testing.T) {
 	t.Parallel()
 
@@ -252,6 +267,72 @@ func TestExtensionSearchCommandUsesSearchableRegistrySources(t *testing.T) {
 	}
 }
 
+func TestExtensionSearchCommandAppliesSourceFilter(t *testing.T) {
+	t.Parallel()
+
+	githubCalls := 0
+	registryCalls := 0
+	env := newExtensionRegistryTestEnv(t,
+		&extensionRegistrySourceStub{
+			name: "github",
+			caps: registrypkg.SourceCaps{Search: true},
+			searchFunc: func(context.Context, string, registrypkg.SearchOpts) ([]registrypkg.Listing, error) {
+				githubCalls++
+				return []registrypkg.Listing{{
+					Slug:   "acme/github-ext",
+					Name:   "github-ext",
+					Source: "github",
+				}}, nil
+			},
+		},
+		&extensionRegistrySourceStub{
+			name: "registry",
+			caps: registrypkg.SourceCaps{Search: true},
+			searchFunc: func(context.Context, string, registrypkg.SearchOpts) ([]registrypkg.Listing, error) {
+				registryCalls++
+				return []registrypkg.Listing{{
+					Slug:   "acme/registry-ext",
+					Name:   "registry-ext",
+					Source: "registry",
+				}}, nil
+			},
+		},
+	)
+
+	stdout, _, err := executeRootCommand(t, env.deps, "extension", "search", "bridge", "--from", "registry", "-o", "json")
+	if err != nil {
+		t.Fatalf("extension search --from error = %v", err)
+	}
+
+	var listings []registrypkg.Listing
+	if err := json.Unmarshal([]byte(stdout), &listings); err != nil {
+		t.Fatalf("json.Unmarshal(extension search --from) error = %v; stdout=%s", err, stdout)
+	}
+	if len(listings) != 1 || listings[0].Source != "registry" {
+		t.Fatalf("extension search --from listings = %#v, want only registry results", listings)
+	}
+	if githubCalls != 0 {
+		t.Fatalf("github search calls = %d, want 0", githubCalls)
+	}
+	if registryCalls != 1 {
+		t.Fatalf("registry search calls = %d, want 1", registryCalls)
+	}
+}
+
+func TestExtensionSearchCommandRejectsNonPositiveLimit(t *testing.T) {
+	t.Parallel()
+
+	env := newExtensionRegistryTestEnv(t)
+
+	_, _, err := executeRootCommand(t, env.deps, "extension", "search", "bridge", "--limit", "0", "-o", "json")
+	if err == nil {
+		t.Fatal("extension search --limit 0 error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), "search limit must be positive") {
+		t.Fatalf("extension search --limit 0 error = %v, want limit validation", err)
+	}
+}
+
 func TestExtensionInstallCommandInstallsMarketplaceExtensionAndPrintsRestartMessage(t *testing.T) {
 	t.Parallel()
 
@@ -321,9 +402,37 @@ func TestExtensionInstallCommandInstallsMarketplaceExtensionAndPrintsRestartMess
 		t.Fatalf("installed RemoteVersion = %#v, want 1.0.0", info.RemoteVersion)
 	}
 
-	manifestPath := filepath.Join(managedExtensionInstallPath(env.homePaths, "remote-ext"), "extension.toml")
+	manifestPath := filepath.Join(extensionpkg.ManagedInstallPath(env.homePaths, "remote-ext"), "extension.toml")
 	if _, err := os.Stat(manifestPath); err != nil {
 		t.Fatalf("installed extension manifest stat error = %v", err)
+	}
+}
+
+func TestExtensionInstallCommandPassesAssetToRegistryDownload(t *testing.T) {
+	t.Parallel()
+
+	var downloadOpts registrypkg.DownloadOpts
+	env := newExtensionRegistryTestEnv(t, &extensionRegistrySourceStub{
+		name: "github",
+		infoFunc: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
+			return &registrypkg.Detail{Listing: registrypkg.Listing{
+				Slug:    slug,
+				Name:    "asset-ext",
+				Version: "1.0.0",
+				Source:  "github",
+			}}, nil
+		},
+		downloadFunc: func(_ context.Context, slug string, opts registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+			downloadOpts = opts
+			return newExtensionDownloadResult(t, slug, "1.0.0", remoteExtensionArchiveFiles("asset-ext", "1.0.0")), nil
+		},
+	})
+
+	if _, _, err := executeRootCommand(t, env.deps, "extension", "install", "acme/asset-ext", "--asset", "asset-ext-darwin-amd64.tar.gz", "-o", "json"); err != nil {
+		t.Fatalf("extension install with asset error = %v", err)
+	}
+	if downloadOpts.Asset != "asset-ext-darwin-amd64.tar.gz" {
+		t.Fatalf("download asset = %q, want %q", downloadOpts.Asset, "asset-ext-darwin-amd64.tar.gz")
 	}
 }
 
@@ -362,7 +471,7 @@ func TestExtensionRemoveCommandDeletesDirectoryAndRegistryRecord(t *testing.T) {
 		t.Fatalf("extension remove payload = %#v, want removed status", payload)
 	}
 
-	installDir := managedExtensionInstallPath(env.homePaths, "remove-ext")
+	installDir := extensionpkg.ManagedInstallPath(env.homePaths, "remove-ext")
 	if _, err := os.Stat(installDir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("extension install dir stat error = %v, want not exist", err)
 	}
@@ -386,6 +495,48 @@ func TestExtensionRemoveCommandReturnsClearErrorForMissingExtension(t *testing.T
 	}
 	if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 		t.Fatalf("extension remove missing error = %v, want ErrExtensionNotFound", err)
+	}
+}
+
+func TestRemoveInstalledExtensionRollsBackRegistryOnCommitFailure(t *testing.T) {
+	t.Parallel()
+
+	deps, homePaths := newExtensionLocalDeps(t, stubClient{})
+	sourceDir := writeExtensionFixture(t, "rollback-ext", extensionFixtureOptions{})
+
+	if _, _, err := executeRootCommand(t, deps, "extension", "install", sourceDir, "-o", "json"); err != nil {
+		t.Fatalf("extension install before rollback test error = %v", err)
+	}
+
+	registry, cleanup := openExtensionRegistry(t, homePaths)
+	defer cleanup()
+	if err := registry.Disable("rollback-ext"); err != nil {
+		t.Fatalf("registry.Disable(rollback-ext) error = %v", err)
+	}
+
+	change := &failingExtensionDirChange{commitErr: errors.New("disk full")}
+	_, err := removeInstalledExtensionWithRegistry(registry, "rollback-ext", func(string) (extensionDirChange, error) {
+		return change, nil
+	})
+	if err == nil {
+		t.Fatal("removeInstalledExtensionWithRegistry(commit failure) error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), "finalize extension removal") {
+		t.Fatalf("removeInstalledExtensionWithRegistry(commit failure) error = %v, want finalize context", err)
+	}
+	if change.rollbackCalls != 1 {
+		t.Fatalf("rollback calls = %d, want 1", change.rollbackCalls)
+	}
+
+	info, getErr := registry.Get("rollback-ext")
+	if getErr != nil {
+		t.Fatalf("registry.Get(rollback-ext) after failed remove error = %v", getErr)
+	}
+	if info.Enabled {
+		t.Fatalf("rollback-ext enabled = true, want disabled state restored")
+	}
+	if _, statErr := os.Stat(filepath.Join(extensionpkg.ManagedInstallPath(homePaths, "rollback-ext"), "extension.toml")); statErr != nil {
+		t.Fatalf("managed manifest stat after failed remove error = %v", statErr)
 	}
 }
 
@@ -430,6 +581,46 @@ func TestExtensionUpdateCommandCheckOnlyShowsAvailableUpdatesWithoutDownloading(
 	}
 	if downloadCalls != 1 {
 		t.Fatalf("download calls after --check = %d, want only the initial install download", downloadCalls)
+	}
+}
+
+func TestExtensionUpdateCommandReportsAlreadyUpToDate(t *testing.T) {
+	t.Parallel()
+
+	env := newExtensionRegistryTestEnv(t, &extensionRegistrySourceStub{
+		name: "github",
+		infoFunc: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
+			return &registrypkg.Detail{Listing: registrypkg.Listing{
+				Slug:    slug,
+				Name:    "steady-ext",
+				Version: "1.0.0",
+				Source:  "github",
+			}}, nil
+		},
+		downloadFunc: func(_ context.Context, slug string, opts registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+			version := firstNonEmpty(opts.Version, "1.0.0")
+			return newExtensionDownloadResult(t, slug, version, remoteExtensionArchiveFiles("steady-ext", version)), nil
+		},
+	})
+
+	if _, _, err := executeRootCommand(t, env.deps, "extension", "install", "acme/steady-ext", "-o", "json"); err != nil {
+		t.Fatalf("extension install before up-to-date check error = %v", err)
+	}
+
+	stdout, stderr, err := executeRootCommand(t, env.deps, "extension", "update", "steady-ext", "-o", "json")
+	if err != nil {
+		t.Fatalf("extension update already-latest error = %v", err)
+	}
+
+	var items []extensionUpdateItem
+	if err := json.Unmarshal([]byte(stdout), &items); err != nil {
+		t.Fatalf("json.Unmarshal(extension update already-latest) error = %v; stdout=%s", err, stdout)
+	}
+	if len(items) != 1 || items[0].Status != "already up to date" {
+		t.Fatalf("extension update already-latest items = %#v, want already up to date", items)
+	}
+	if stderr != "" {
+		t.Fatalf("extension update already-latest stderr = %q, want empty restart guidance", stderr)
 	}
 }
 
@@ -482,12 +673,93 @@ func TestExtensionUpdateCommandReinstallsNewerVersion(t *testing.T) {
 		t.Fatalf("installed RemoteVersion after update = %#v, want 1.2.0", info.RemoteVersion)
 	}
 
-	manifest, err := extensionpkg.LoadManifest(managedExtensionInstallPath(env.homePaths, "update-ext"))
+	manifest, err := extensionpkg.LoadManifest(extensionpkg.ManagedInstallPath(env.homePaths, "update-ext"))
 	if err != nil {
 		t.Fatalf("LoadManifest(updated extension) error = %v", err)
 	}
 	if manifest.Version != "1.2.0" {
 		t.Fatalf("manifest version after update = %q, want %q", manifest.Version, "1.2.0")
+	}
+}
+
+func TestExtensionUpdateCommandAllUpdatesMarketplaceExtensions(t *testing.T) {
+	t.Parallel()
+
+	latestVersions := map[string]string{
+		"acme/alpha-ext": "1.0.0",
+		"acme/beta-ext":  "1.0.0",
+	}
+	env := newExtensionRegistryTestEnv(t, &extensionRegistrySourceStub{
+		name: "github",
+		infoFunc: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
+			version := latestVersions[slug]
+			if version == "" {
+				return nil, fmt.Errorf("missing version fixture for %q", slug)
+			}
+			name := strings.TrimPrefix(slug, "acme/")
+			return &registrypkg.Detail{Listing: registrypkg.Listing{
+				Slug:    slug,
+				Name:    name,
+				Version: version,
+				Source:  "github",
+			}}, nil
+		},
+		downloadFunc: func(_ context.Context, slug string, opts registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+			version := firstNonEmpty(opts.Version, latestVersions[slug])
+			name := strings.TrimPrefix(slug, "acme/")
+			return newExtensionDownloadResult(t, slug, version, remoteExtensionArchiveFiles(name, version)), nil
+		},
+	})
+
+	for _, slug := range []string{"acme/alpha-ext", "acme/beta-ext"} {
+		if _, _, err := executeRootCommand(t, env.deps, "extension", "install", slug, "-o", "json"); err != nil {
+			t.Fatalf("extension install %q before --all update error = %v", slug, err)
+		}
+	}
+
+	localDir := writeExtensionFixture(t, "local-only-ext", extensionFixtureOptions{})
+	if _, _, err := executeRootCommand(t, env.deps, "extension", "install", localDir, "-o", "json"); err != nil {
+		t.Fatalf("local extension install before --all update error = %v", err)
+	}
+
+	latestVersions["acme/alpha-ext"] = "1.1.0"
+	latestVersions["acme/beta-ext"] = "1.2.0"
+
+	stdout, stderr, err := executeRootCommand(t, env.deps, "extension", "update", "--all", "-o", "json")
+	if err != nil {
+		t.Fatalf("extension update --all error = %v", err)
+	}
+
+	var items []extensionUpdateItem
+	if err := json.Unmarshal([]byte(stdout), &items); err != nil {
+		t.Fatalf("json.Unmarshal(extension update --all) error = %v; stdout=%s", err, stdout)
+	}
+	if len(items) != 2 {
+		t.Fatalf("extension update --all item count = %d, want 2 marketplace updates", len(items))
+	}
+	for _, item := range items {
+		if item.Status != "updated" {
+			t.Fatalf("extension update --all item = %#v, want updated status", item)
+		}
+	}
+	if !strings.Contains(stderr, "Restart the daemon to activate") {
+		t.Fatalf("extension update --all stderr = %q, want restart guidance", stderr)
+	}
+
+	if got := getInstalledExtension(t, env.homePaths, "alpha-ext").Version; got != "1.1.0" {
+		t.Fatalf("alpha-ext version after --all = %q, want 1.1.0", got)
+	}
+	if got := getInstalledExtension(t, env.homePaths, "beta-ext").Version; got != "1.2.0" {
+		t.Fatalf("beta-ext version after --all = %q, want 1.2.0", got)
+	}
+	localInfo := getInstalledExtension(t, env.homePaths, "local-only-ext")
+	if localInfo.RegistrySlug != nil || localInfo.RegistryName != nil || localInfo.RemoteVersion != nil {
+		t.Fatalf(
+			"local-only-ext marketplace metadata = (%#v, %#v, %#v), want nil",
+			localInfo.RegistrySlug,
+			localInfo.RegistryName,
+			localInfo.RemoteVersion,
+		)
 	}
 }
 

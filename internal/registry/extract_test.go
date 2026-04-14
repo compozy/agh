@@ -397,6 +397,36 @@ func TestExtractArchivePreservesPermissionBits(t *testing.T) {
 	}
 }
 
+func TestExtractArchiveStripsSpecialPermissionBits(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	archive := mustTarGz(t, []tarEntry{
+		{name: "review", typeflag: tar.TypeDir, mode: 0o2750},
+		{name: "review/run.sh", content: "#!/bin/sh\necho ok\n", mode: 0o4755},
+	})
+
+	if err := ExtractArchive(bytes.NewReader(archive), root); err != nil {
+		t.Fatalf("ExtractArchive() error = %v", err)
+	}
+
+	dirInfo, err := os.Stat(filepath.Join(root, "review"))
+	if err != nil {
+		t.Fatalf("Stat(review dir) error = %v", err)
+	}
+	if got := dirInfo.Mode().Perm(); got != 0o750 {
+		t.Fatalf("review dir mode = %#o, want 0o750 after stripping special bits", got)
+	}
+
+	fileInfo, err := os.Stat(filepath.Join(root, "review", "run.sh"))
+	if err != nil {
+		t.Fatalf("Stat(run.sh) error = %v", err)
+	}
+	if got := fileInfo.Mode().Perm(); got != 0o755 {
+		t.Fatalf("run.sh mode = %#o, want 0o755 after stripping special bits", got)
+	}
+}
+
 func TestDefaultExtractLimits(t *testing.T) {
 	t.Parallel()
 

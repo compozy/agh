@@ -789,6 +789,23 @@ func TestExtensionsConfigValidateMarketplaceConfig(t *testing.T) {
 			t.Fatalf("ExtensionsConfig.Validate() error = %v, want marketplace base_url context", err)
 		}
 	})
+
+	t.Run("ShouldRejectUnknownMarketplaceRegistry", func(t *testing.T) {
+		cfg := ExtensionsConfig{
+			Marketplace: ExtensionsMarketplaceConfig{
+				Registry: "unknown",
+				BaseURL:  "https://api.github.example.test",
+			},
+		}
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("ExtensionsConfig.Validate(unknown registry) error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "extensions.marketplace.registry") {
+			t.Fatalf("ExtensionsConfig.Validate(unknown registry) error = %v, want registry context", err)
+		}
+	})
 }
 
 func TestValidateRejectsInvalidPorts(t *testing.T) {

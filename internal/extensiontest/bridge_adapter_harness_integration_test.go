@@ -143,6 +143,9 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("ValidateConformance() error = %v", err)
 		}
+		waitForCondition(t, 10*time.Second, "observer ready bridge status count", func() bool {
+			return harness.ObserveHealth(t).Bridges.StatusCounts.Ready == 1
+		})
 		if got := harness.ObserveHealth(t).Bridges.StatusCounts.Ready; got != 1 {
 			t.Fatalf("ObserveHealth().Bridges.StatusCounts.Ready = %d, want 1", got)
 		}
@@ -169,6 +172,9 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("ValidateConformance() error = %v", err)
 		}
+		waitForCondition(t, 10*time.Second, "observer auth-required bridge status count", func() bool {
+			return harness.ObserveHealth(t).Bridges.StatusCounts.AuthRequired == 1
+		})
 		if got := harness.ObserveHealth(t).Bridges.StatusCounts.AuthRequired; got != 1 {
 			t.Fatalf("ObserveHealth().Bridges.StatusCounts.AuthRequired = %d, want 1", got)
 		}

@@ -1,0 +1,46 @@
+{"time":"2026-04-14T14:50:11.801487-03:00","level":"INFO","msg":"hook.registry.reloaded","version":1,"hook_count":3,"hook_count_delta":3,"duration_ms":0}
+{"time":"2026-04-14T14:50:11.802817-03:00","level":"INFO","msg":"automation.config.sync","component":"automation","jobs_synced":0,"triggers_synced":0,"jobs_removed":0,"triggers_removed":0}
+{"time":"2026-04-14T14:50:11.803431-03:00","level":"INFO","msg":"automation.scheduler.started","component":"automation","jobs_loaded":0}
+{"time":"2026-04-14T14:50:11.803441-03:00","level":"INFO","msg":"automation.manager.started","component":"automation","jobs_synced":0,"triggers_synced":0,"jobs_removed":0,"triggers_removed":0,"jobs_loaded":0,"triggers_loaded":0}
+{"time":"2026-04-14T14:50:11.804397-03:00","level":"WARN","msg":"api: stream shutdown bridge not provided; streaming handlers will rely on caller context until a transport installs one"}
+{"time":"2026-04-14T14:50:11.805384-03:00","level":"WARN","msg":"api: stream shutdown bridge not provided; streaming handlers will rely on caller context until a transport installs one"}
+{"time":"2026-04-14T14:50:11.806008-03:00","level":"INFO","msg":"automation.scheduler.shutdown","component":"automation","shutdown_duration_ms":0}
+{"time":"2026-04-14T14:50:11.806016-03:00","level":"INFO","msg":"automation.manager.shutdown","component":"automation"}
+{"time":"2026-04-14T14:50:33.813055-03:00","level":"INFO","msg":"hook.registry.reloaded","version":1,"hook_count":3,"hook_count_delta":3,"duration_ms":0}
+{"time":"2026-04-14T14:50:33.813222-03:00","level":"INFO","msg":"automation.config.sync","component":"automation","jobs_synced":0,"triggers_synced":0,"jobs_removed":0,"triggers_removed":0}
+{"time":"2026-04-14T14:50:33.813297-03:00","level":"INFO","msg":"automation.scheduler.started","component":"automation","jobs_loaded":0}
+{"time":"2026-04-14T14:50:33.813304-03:00","level":"INFO","msg":"automation.manager.started","component":"automation","jobs_synced":0,"triggers_synced":0,"jobs_removed":0,"triggers_removed":0,"jobs_loaded":0,"triggers_loaded":0}
+{"time":"2026-04-14T14:50:33.81333-03:00","level":"WARN","msg":"api: stream shutdown bridge not provided; streaming handlers will rely on caller context until a transport installs one"}
+{"time":"2026-04-14T14:50:33.813434-03:00","level":"WARN","msg":"api: stream shutdown bridge not provided; streaming handlers will rely on caller context until a transport installs one"}
+{"time":"2026-04-14T14:50:33.829503-03:00","level":"INFO","msg":"daemon: boot reconciliation complete","indexed_sessions":0,"orphaned_sessions":0}
+{"time":"2026-04-14T14:50:47.853529-03:00","level":"INFO","msg":"httpapi: request","method":"GET","path":"/api/daemon/status","status":200,"latency_ms":0,"client_ip":"127.0.0.1"}
+{"time":"2026-04-14T14:50:48.02556-03:00","level":"INFO","msg":"httpapi: request","method":"GET","path":"/api/skills","status":400,"latency_ms":0,"client_ip":"127.0.0.1"}
+{"time":"2026-04-14T14:50:48.025913-03:00","level":"INFO","msg":"httpapi: request","method":"GET","path":"/api/observe/health","status":200,"latency_ms":0,"client_ip":"127.0.0.1"}
+{"time":"2026-04-14T14:50:59.717694-03:00","level":"INFO","msg":"httpapi: request","method":"GET","path":"/api/skills","status":400,"latency_ms":0,"client_ip":"127.0.0.1"}
+{"time":"2026-04-14T14:51:21.607092-03:00","level":"INFO","msg":"httpapi: request","method":"GET","path":"/api/workspaces","status":200,"latency_ms":0,"client_ip":"127.0.0.1"}
+{"time":"2026-04-14T14:51:21.610715-03:00","level":"INFO","msg":"workspace.register","workspace_id":"ws_7bfe613fa9bba0b5","root_dir":"/Users/pedronauck/Dev/compozy/_worktrees/ext-registry","name":"ext-registry-qa"}
+{"time":"2026-04-14T14:51:33.859507-03:00","level":"INFO","msg":"httpapi: request","method":"GET","path":"/api/workspaces","status":200,"latency_ms":0,"client_ip":"127.0.0.1"}
+{"time":"2026-04-14T14:51:48.225506-03:00","level":"INFO","msg":"httpapi: request","method":"GET","path":"/api/skills","status":200,"latency_ms":0,"client_ip":"127.0.0.1"}
+{"time":"2026-04-14T14:51:48.369598-03:00","level":"INFO","msg":"httpapi: request","method":"GET","path":"","status":404,"latency_ms":1,"client_ip":"127.0.0.1"}
+{"time":"2026-04-14T14:52:28.817941-03:00","level":"INFO","msg":"extension.lifecycle.loaded","extension":"secret-guard","source":"user","active":true,"skill_count":0,"agent_count":0,"hook_count":1,"mcp_server_count":0}
+{"time":"2026-04-14T14:52:28.818832-03:00","level":"INFO","msg":"hook.registry.reloaded","version":2,"hook_count":4,"hook_count_delta":1,"duration_ms":0}
+{"time":"2026-04-14T14:52:36.213281-03:00","level":"INFO","msg":"httpapi: request","method":"GET","path":"","status":404,"latency_ms":0,"client_ip":"127.0.0.1"}
+{"time":"2026-04-14T15:10:06.068458-03:00","level":"INFO","msg":"daemon: received shutdown signal","signal":"terminated"}
+{"time":"2026-04-14T15:10:06.06963-03:00","level":"INFO","msg":"extension.lifecycle.shutdown","extension":"secret-guard"}
+{"time":"2026-04-14T15:10:06.069677-03:00","level":"INFO","msg":"automation.scheduler.shutdown","component":"automation","shutdown_duration_ms":0}
+{"time":"2026-04-14T15:10:06.069695-03:00","level":"INFO","msg":"automation.manager.shutdown","component":"automation"}
+{"time":"2026-04-14T15:10:17.182595-03:00","level":"INFO","msg":"hook.registry.reloaded","version":1,"hook_count":3,"hook_count_delta":3,"duration_ms":0}
+{"time":"2026-04-14T15:10:17.183216-03:00","level":"INFO","msg":"automation.config.sync","component":"automation","jobs_synced":0,"triggers_synced":0,"jobs_removed":0,"triggers_removed":0}
+{"time":"2026-04-14T15:10:17.183368-03:00","level":"INFO","msg":"automation.scheduler.started","component":"automation","jobs_loaded":0}
+{"time":"2026-04-14T15:10:17.183402-03:00","level":"INFO","msg":"automation.manager.started","component":"automation","jobs_synced":0,"triggers_synced":0,"jobs_removed":0,"triggers_removed":0,"jobs_loaded":0,"triggers_loaded":0}
+{"time":"2026-04-14T15:10:17.183512-03:00","level":"WARN","msg":"api: stream shutdown bridge not provided; streaming handlers will rely on caller context until a transport installs one"}
+{"time":"2026-04-14T15:10:17.183738-03:00","level":"WARN","msg":"api: stream shutdown bridge not provided; streaming handlers will rely on caller context until a transport installs one"}
+{"time":"2026-04-14T15:10:17.193238-03:00","level":"INFO","msg":"daemon: boot reconciliation complete","indexed_sessions":0,"orphaned_sessions":0}
+{"time":"2026-04-14T15:10:39.306336-03:00","level":"INFO","msg":"httpapi: request","method":"GET","path":"/api/daemon/status","status":200,"latency_ms":0,"client_ip":"127.0.0.1"}
+{"time":"2026-04-14T15:11:02.370757-03:00","level":"INFO","msg":"httpapi: request","method":"GET","path":"/api/observe/health","status":200,"latency_ms":0,"client_ip":"127.0.0.1"}
+{"time":"2026-04-14T15:11:02.392379-03:00","level":"INFO","msg":"extension.lifecycle.loaded","extension":"secret-guard","source":"user","active":true,"skill_count":0,"agent_count":0,"hook_count":1,"mcp_server_count":0}
+{"time":"2026-04-14T15:11:02.393067-03:00","level":"INFO","msg":"hook.registry.reloaded","version":2,"hook_count":4,"hook_count_delta":1,"duration_ms":0}
+{"time":"2026-04-14T15:11:52.842157-03:00","level":"INFO","msg":"daemon: received shutdown signal","signal":"terminated"}
+{"time":"2026-04-14T15:11:52.843002-03:00","level":"INFO","msg":"extension.lifecycle.shutdown","extension":"secret-guard"}
+{"time":"2026-04-14T15:11:52.843071-03:00","level":"INFO","msg":"automation.scheduler.shutdown","component":"automation","shutdown_duration_ms":0}
+{"time":"2026-04-14T15:11:52.843086-03:00","level":"INFO","msg":"automation.manager.shutdown","component":"automation"}
