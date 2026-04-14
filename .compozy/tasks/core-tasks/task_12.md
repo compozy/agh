@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Integrate network ingress and channel binding for tasks"
 type: backend
 complexity: high
@@ -28,11 +28,11 @@ Integrate the task domain with network peers and channel-oriented routing so tas
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Define the network-to-task integration seam for create/update/run operations.
-- [ ] 12.2 Validate network channel binding and mismatch handling for task-backed ingress.
-- [ ] 12.3 Carry peer identity, origin, and idempotency metadata into task manager calls.
-- [ ] 12.4 Apply stale-channel behavior for task records and run snapshots as defined in the revised spec.
-- [ ] 12.5 Add audit coverage for network-originated task writes and rejections.
+- [x] 12.1 Define the network-to-task integration seam for create/update/run operations.
+- [x] 12.2 Validate network channel binding and mismatch handling for task-backed ingress.
+- [x] 12.3 Carry peer identity, origin, and idempotency metadata into task manager calls.
+- [x] 12.4 Apply stale-channel behavior for task records and run snapshots as defined in the revised spec.
+- [x] 12.5 Add audit coverage for network-originated task writes and rejections.
 
 ## Implementation Details
 Use the TechSpec sections "Authorization Contract", "API Surface", "Integration Points", and "Known Risks" plus ADR-004 for channel semantics. Follow the existing patterns in the `internal/network` package for peer validation, delivery, routing, and auditing.
@@ -63,12 +63,12 @@ Use the TechSpec sections "Authorization Contract", "API Surface", "Integration 
 
 ## Tests
 - Unit tests:
-  - [ ] Verify ingress with a mismatched channel is rejected for a channel-bound task.
-  - [ ] Verify stale channel snapshots are handled according to the revised spec without mutating immutable task history unexpectedly.
-  - [ ] Verify duplicate network writes with the same idempotency key resolve to a single canonical task-domain effect.
+  - [x] Verify ingress with a mismatched channel is rejected for a channel-bound task.
+  - [x] Verify stale channel snapshots are handled according to the revised spec without mutating immutable task history unexpectedly.
+  - [x] Verify duplicate network writes with the same idempotency key resolve to a single canonical task-domain effect.
 - Integration tests:
-  - [ ] Verify a network peer can create a task with `network_channel` binding and later enqueue a run through the validated manager path.
-  - [ ] Verify mismatched network-channel ingress records an audit event and does not mutate the target task.
+  - [x] Verify a network peer can create a task with `network_channel` binding and later enqueue a run through the validated manager path.
+  - [x] Verify mismatched network-channel ingress records an audit event and does not mutate the target task.
 - Test coverage target: >=80%
 - All tests must pass
 

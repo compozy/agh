@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Wire the session bridge, dedicated subtask sessions, and boot recovery"
 type: backend
 complexity: critical
@@ -28,11 +28,11 @@ Connect task execution to the existing session runtime through the injected brid
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Implement the bridge adapter between `internal/task` and the existing session manager.
-- [ ] 6.2 Wire dedicated-session allocation for executable subtasks started through `TaskRun`.
-- [ ] 6.3 Implement explicit attach-session flows with single-assignment and lifecycle gating.
-- [ ] 6.4 Add daemon boot reconciliation for orphaned or stale task runs after restart.
-- [ ] 6.5 Ensure stop requests from task cancellation use the cooperative-then-forced shutdown path.
+- [x] 6.1 Implement the bridge adapter between `internal/task` and the existing session manager.
+- [x] 6.2 Wire dedicated-session allocation for executable subtasks started through `TaskRun`.
+- [x] 6.3 Implement explicit attach-session flows with single-assignment and lifecycle gating.
+- [x] 6.4 Add daemon boot reconciliation for orphaned or stale task runs after restart.
+- [x] 6.5 Ensure stop requests from task cancellation use the cooperative-then-forced shutdown path.
 
 ## Implementation Details
 Use the TechSpec sections "Run Authority and Attachment Rules", "Cancellation Model", "Cold-Start Recovery", and the ADR for the injected session bridge. The daemon remains the composition root and should own bridge construction and boot-time recovery orchestration.
@@ -64,12 +64,12 @@ Use the TechSpec sections "Run Authority and Attachment Rules", "Cancellation Mo
 
 ## Tests
 - Unit tests:
-  - [ ] Verify attach-session rejects attempts after a run is already bound to another session.
-  - [ ] Verify run start requests choose dedicated session allocation when no explicit attach target is supplied.
-  - [ ] Verify cold-start reconciliation classifies `claimed`, `starting`, and `running` runs correctly when their sessions are missing or stopped.
+  - [x] Verify attach-session rejects attempts after a run is already bound to another session.
+  - [x] Verify run start requests choose dedicated session allocation when no explicit attach target is supplied.
+  - [x] Verify cold-start reconciliation classifies `claimed`, `starting`, and `running` runs correctly when their sessions are missing or stopped.
 - Integration tests:
-  - [ ] Verify starting an executable subtask creates a dedicated session and persists the attached `session_id`.
-  - [ ] Verify daemon restart reclassifies orphaned in-flight runs and records recovery audit events.
+  - [x] Verify starting an executable subtask creates a dedicated session and persists the attached `session_id`.
+  - [x] Verify daemon restart reclassifies orphaned in-flight runs and records recovery audit events.
 - Test coverage target: >=80%
 - All tests must pass
 

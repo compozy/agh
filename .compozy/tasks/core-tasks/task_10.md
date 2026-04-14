@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Integrate automation with task-backed work items"
 type: backend
 complexity: high
@@ -28,11 +28,11 @@ Integrate the new task domain with `internal/automation` without turning tasks i
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Define the automation-to-task integration seam and explicit task-backed job behavior.
-- [ ] 10.2 Add direct automation-originated task creation and enqueue flows with trusted origin metadata.
-- [ ] 10.3 Add support for agent-mediated task creation inside automation-driven sessions.
-- [ ] 10.4 Prevent duplicate execution tracking between automation runs and task runs for task-backed work.
-- [ ] 10.5 Carry workspace, channel, ownership, and idempotency context through automation-originated task flows.
+- [x] 10.1 Define the automation-to-task integration seam and explicit task-backed job behavior.
+- [x] 10.2 Add direct automation-originated task creation and enqueue flows with trusted origin metadata.
+- [x] 10.3 Add support for agent-mediated task creation inside automation-driven sessions.
+- [x] 10.4 Prevent duplicate execution tracking between automation runs and task runs for task-backed work.
+- [x] 10.5 Carry workspace, channel, ownership, and idempotency context through automation-originated task flows.
 
 ## Implementation Details
 Use the TechSpec "Integration Points" section for automation and the revised review outcome that tasks are explicit resources, not the universal wrapper for all work. Follow the patterns in `internal/automation/manager.go`, `dispatch.go`, and `types.go` to keep the integration daemon-owned and explicit.
@@ -62,12 +62,12 @@ Use the TechSpec "Integration Points" section for automation and the revised rev
 
 ## Tests
 - Unit tests:
-  - [ ] Verify direct automation-originated task creation derives immutable origin and creator metadata server-side.
-  - [ ] Verify non-task automation jobs continue to use the existing automation runtime unchanged.
-  - [ ] Verify task-backed automation dispatch refuses to maintain a second execution state machine for the same work item.
+  - [x] Verify direct automation-originated task creation derives immutable origin and creator metadata server-side.
+  - [x] Verify non-task automation jobs continue to use the existing automation runtime unchanged.
+  - [x] Verify task-backed automation dispatch refuses to maintain a second execution state machine for the same work item.
 - Integration tests:
-  - [ ] Verify an automation job can create a task directly and enqueue a task run with the expected origin and idempotency metadata.
-  - [ ] Verify an automation-launched agent session can explicitly call `task.create` and produce a task whose `created_by` is the agent while `origin` remains automation-linked.
+  - [x] Verify an automation job can create a task directly and enqueue a task run with the expected origin and idempotency metadata.
+  - [x] Verify an automation-launched agent session can explicitly call `task.create` and produce a task whose `created_by` is the agent while `origin` remains automation-linked.
 - Test coverage target: >=80%
 - All tests must pass
 

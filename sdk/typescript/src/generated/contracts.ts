@@ -1078,6 +1078,74 @@ export interface BridgeAggregateHealth {
   status_counts: BridgeStatusCounts;
 }
 
+export interface TaskQueueDepth {
+  network_channel?: string;
+  count: number;
+  oldest_queued_at?: ISODateTime;
+  oldest_queue_age_ms: number;
+}
+
+export type TaskRunStatus = string;
+
+export type OriginKind = string;
+
+export interface StuckTaskRun {
+  task_id: string;
+  run_id: string;
+  status: TaskRunStatus;
+  origin_kind: OriginKind;
+  network_channel?: string;
+  session_id?: string;
+  age_ms: number;
+}
+
+export type Scope = string;
+
+export type TaskStatus = string;
+
+export interface TaskStatusTotal {
+  scope: Scope;
+  status: TaskStatus;
+  network_channel?: string;
+  count: number;
+}
+
+export interface TaskRunTotal {
+  status: TaskRunStatus;
+  origin_kind: OriginKind;
+  network_channel?: string;
+  count: number;
+}
+
+export interface TaskOwnerTotal {
+  owner_kind: OwnerKind;
+  owner_ref: string;
+  count: number;
+}
+
+export interface TaskRecoveryTotals {
+  requeued: number;
+  marked_running: number;
+  failed: number;
+}
+
+export interface TaskHealth {
+  status: string;
+  queue_depth_total: number;
+  oldest_queued_at?: ISODateTime;
+  oldest_queue_age_ms: number;
+  queue_depth?: TaskQueueDepth[];
+  stuck_runs?: StuckTaskRun[];
+  active_orphan_runs: number;
+  task_totals?: TaskStatusTotal[];
+  run_totals?: TaskRunTotal[];
+  owner_totals?: TaskOwnerTotal[];
+  forced_stops_since_start: number;
+  duplicate_ingress_since_start: number;
+  channel_mismatch_since_start: number;
+  recovery_since_start: TaskRecoveryTotals;
+}
+
 export interface ObserveHealth {
   status: string;
   uptime_seconds: number;
@@ -1086,6 +1154,7 @@ export interface ObserveHealth {
   global_db_size_bytes: number;
   session_db_size_bytes: number;
   bridges: BridgeAggregateHealth;
+  tasks: TaskHealth;
   version: string;
 }
 
@@ -1537,18 +1606,12 @@ export interface SkillsListParams {
   workspace?: string;
 }
 
-export type Scope = string;
-
-export type TaskStatus = string;
-
 export type ActorKind = string;
 
 export interface ActorIdentity {
   kind: ActorKind;
   ref: string;
 }
-
-export type OriginKind = string;
 
 export interface Origin {
   kind: OriginKind;
@@ -1617,8 +1680,6 @@ export interface TaskDependencyPayload {
   kind: DependencyKind;
   created_at: ISODateTime;
 }
-
-export type TaskRunStatus = string;
 
 export interface TaskRun {
   id: string;

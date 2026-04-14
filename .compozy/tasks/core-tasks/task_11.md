@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Integrate extension host APIs with the task domain"
 type: backend
 complexity: high
@@ -28,11 +28,11 @@ Expose the task domain safely to extensions through the existing host API and ca
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Add task-domain methods to the extension host API surface.
-- [ ] 11.2 Extend capability checks to cover task create/update/run operations.
-- [ ] 11.3 Carry trusted extension identity and origin metadata into task manager calls.
-- [ ] 11.4 Support extension-originated task run operations without bypassing lifecycle guards.
-- [ ] 11.5 Add host API tests for permitted and forbidden task operations.
+- [x] 11.1 Add task-domain methods to the extension host API surface.
+- [x] 11.2 Extend capability checks to cover task create/update/run operations.
+- [x] 11.3 Carry trusted extension identity and origin metadata into task manager calls.
+- [x] 11.4 Support extension-originated task run operations without bypassing lifecycle guards.
+- [x] 11.5 Add host API tests for permitted and forbidden task operations.
 
 ## Implementation Details
 Use the TechSpec "Integration Points" section for extensions and the authorization model accepted during the redesign. Follow the existing host API and capability-checker patterns already used for bridges and other extension-backed operations.
@@ -63,12 +63,12 @@ Use the TechSpec "Integration Points" section for extensions and the authorizati
 
 ## Tests
 - Unit tests:
-  - [ ] Verify extensions without the required capability cannot create, mutate, or run tasks.
-  - [ ] Verify payload-supplied identity fields are ignored in favor of trusted extension context.
-  - [ ] Verify extension-originated run lifecycle requests still pass through manager-owned transition checks.
+  - [x] Verify extensions without the required capability cannot create, mutate, or run tasks.
+  - [x] Verify payload-supplied identity fields are ignored in favor of trusted extension context.
+  - [x] Verify extension-originated run lifecycle requests still pass through manager-owned transition checks.
 - Integration tests:
-  - [ ] Verify a capability-granted extension can create a task and enqueue a run through the host API.
-  - [ ] Verify an extension can start an executable subtask and receive a dedicated session through the bridge-backed path.
+  - [x] Verify a capability-granted extension can create a task and enqueue a run through the host API.
+  - [x] Verify an extension can start an executable subtask and receive a dedicated session through the bridge-backed path.
 - Test coverage target: >=80%
 - All tests must pass
 

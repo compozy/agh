@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement `TaskRun` lifecycle and propagated cancellation"
 type: backend
 complexity: critical
@@ -27,11 +27,11 @@ Implement the execution-side lifecycle that turns stored task coordination into 
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Implement enqueue, claim, start, complete, fail, and cancel operations for `TaskRun`.
-- [ ] 5.2 Implement task-status reconciliation from dependencies and active or terminal run state.
-- [ ] 5.3 Implement cancellation propagation across task trees, including queued work and active runs.
-- [ ] 5.4 Persist lifecycle and cancellation audit events through the task store.
-- [ ] 5.5 Implement manager-side state gating that prevents invalid run transitions and arbitrary status mutation.
+- [x] 5.1 Implement enqueue, claim, start, complete, fail, and cancel operations for `TaskRun`.
+- [x] 5.2 Implement task-status reconciliation from dependencies and active or terminal run state.
+- [x] 5.3 Implement cancellation propagation across task trees, including queued work and active runs.
+- [x] 5.4 Persist lifecycle and cancellation audit events through the task store.
+- [x] 5.5 Implement manager-side state gating that prevents invalid run transitions and arbitrary status mutation.
 
 ## Implementation Details
 Use the TechSpec sections "Lifecycle Model", "Run Authority and Attachment Rules", "Mutability Rules", and "Cancellation Model". This task should leave transport and session concerns out of the manager core except through the interfaces defined in `internal/task`.
@@ -60,12 +60,12 @@ Use the TechSpec sections "Lifecycle Model", "Run Authority and Attachment Rules
 
 ## Tests
 - Unit tests:
-  - [ ] Verify invalid run transitions such as `queued -> completed` and `running -> claimed` are rejected.
-  - [ ] Verify task reconciliation moves tasks into `blocked`, `ready`, `in_progress`, and terminal states only from valid inputs.
-  - [ ] Verify parent cancellation cancels queued descendant runs immediately and marks active descendant runs for cooperative stop.
+  - [x] Verify invalid run transitions such as `queued -> completed` and `running -> claimed` are rejected.
+  - [x] Verify task reconciliation moves tasks into `blocked`, `ready`, `in_progress`, and terminal states only from valid inputs.
+  - [x] Verify parent cancellation cancels queued descendant runs immediately and marks active descendant runs for cooperative stop.
 - Integration tests:
-  - [ ] Verify a queued run can progress through claim, start, complete, and task reconciliation against real storage.
-  - [ ] Verify cancelling a task tree records cancellation events for the parent task, descendant tasks, and affected runs.
+  - [x] Verify a queued run can progress through claim, start, complete, and task reconciliation against real storage.
+  - [x] Verify cancelling a task tree records cancellation events for the parent task, descendant tasks, and affected runs.
 - Test coverage target: >=80%
 - All tests must pass
 
