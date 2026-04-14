@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -199,36 +200,74 @@ func TestBridgeHandlersRoutesAndTestDelivery(t *testing.T) {
 func TestBridgeHandlersListProviders(t *testing.T) {
 	t.Parallel()
 
-	_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
-		ListProvidersFn: func(context.Context) ([]bridgepkg.BridgeProvider, error) {
-			return []bridgepkg.BridgeProvider{{
-				Platform:      "telegram",
-				ExtensionName: "telegram-reference",
-				DisplayName:   "Telegram",
-				Description:   "Reference Telegram bridge adapter",
-				Enabled:       true,
-				State:         "active",
-				Health:        "healthy",
-				HealthMessage: "connected",
-			}}, nil
+	tests := []struct {
+		name            string
+		listProvidersFn func(context.Context) ([]bridgepkg.BridgeProvider, error)
+		wantError       string
+		wantHealth      string
+		wantPlatform    string
+		wantStatus      int
+	}{
+		{
+			name: "Should list bridge providers",
+			listProvidersFn: func(context.Context) ([]bridgepkg.BridgeProvider, error) {
+				return []bridgepkg.BridgeProvider{{
+					Platform:      "telegram",
+					ExtensionName: "telegram-reference",
+					DisplayName:   "Telegram",
+					Description:   "Reference Telegram bridge adapter",
+					Enabled:       true,
+					State:         "active",
+					Health:        "healthy",
+					HealthMessage: "connected",
+				}}, nil
+			},
+			wantHealth:   "healthy",
+			wantPlatform: "telegram",
+			wantStatus:   http.StatusOK,
 		},
-	})
-
-	resp := performRequest(t, engine, http.MethodGet, "/bridges/providers", nil)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("providers status = %d body=%s", resp.Code, resp.Body.String())
+		{
+			name: "Should map bridge provider errors through bridge status mapping",
+			listProvidersFn: func(context.Context) ([]bridgepkg.BridgeProvider, error) {
+				return nil, bridgepkg.ErrBridgeInstanceUnavailable
+			},
+			wantError:  bridgepkg.ErrBridgeInstanceUnavailable.Error(),
+			wantStatus: http.StatusConflict,
+		},
 	}
 
-	var payload contract.BridgeProvidersResponse
-	testutil.DecodeJSONResponse(t, resp, &payload)
-	if got, want := len(payload.Providers), 1; got != want {
-		t.Fatalf("len(providers) = %d, want %d", got, want)
-	}
-	if got, want := payload.Providers[0].Platform, "telegram"; got != want {
-		t.Fatalf("provider platform = %q, want %q", got, want)
-	}
-	if got, want := payload.Providers[0].Health, "healthy"; got != want {
-		t.Fatalf("provider health = %q, want %q", got, want)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+				ListProvidersFn: tt.listProvidersFn,
+			})
+
+			resp := performRequest(t, engine, http.MethodGet, "/bridges/providers", nil)
+			if resp.Code != tt.wantStatus {
+				t.Fatalf("providers status = %d, want %d body=%s", resp.Code, tt.wantStatus, resp.Body.String())
+			}
+			if tt.wantError != "" {
+				var payload contract.ErrorPayload
+				testutil.DecodeJSONResponse(t, resp, &payload)
+				if !strings.Contains(payload.Error, tt.wantError) {
+					t.Fatalf("error payload = %#v, want %q", payload, tt.wantError)
+				}
+				return
+			}
+
+			var payload contract.BridgeProvidersResponse
+			testutil.DecodeJSONResponse(t, resp, &payload)
+			if got, want := len(payload.Providers), 1; got != want {
+				t.Fatalf("len(providers) = %d, want %d", got, want)
+			}
+			if got, want := payload.Providers[0].Platform, tt.wantPlatform; got != want {
+				t.Fatalf("provider platform = %q, want %q", got, want)
+			}
+			if got, want := payload.Providers[0].Health, tt.wantHealth; got != want {
+				t.Fatalf("provider health = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

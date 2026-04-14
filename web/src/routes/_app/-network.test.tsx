@@ -81,6 +81,26 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/systems/workspace", () => ({
+  WorkspacePageShell: ({
+    children,
+    controls,
+    meta,
+    title,
+  }: {
+    children: ReactNode;
+    controls?: ReactNode;
+    meta?: ReactNode;
+    title: string;
+  }) => (
+    <div data-testid="workspace-page-shell">
+      <div data-testid="workspace-page-shell-header">
+        <h1>{title}</h1>
+        {controls ? <div data-testid="workspace-page-shell-controls">{controls}</div> : null}
+        {meta ? <div data-testid="workspace-page-shell-meta">{meta}</div> : null}
+      </div>
+      {children}
+    </div>
+  ),
   useActiveWorkspace: () => ({
     workspaces: mockActiveWorkspaceId
       ? [

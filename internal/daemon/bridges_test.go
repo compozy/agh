@@ -351,6 +351,49 @@ func TestBridgeRuntimeListProviders(t *testing.T) {
 			t.Fatalf("provider health message = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("ShouldSkipBridgeProvidersWithUnreadableManifestSnapshots", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time {
+			return time.Date(2026, 4, 11, 12, 35, 0, 0, time.UTC)
+		}, nil)
+		if runtime == nil || runtime.registry == nil {
+			t.Fatal("newBridgeRuntime() missing registry")
+		}
+
+		goodInfo := mustInstallDaemonExtension(t, runtime.registry, daemonExtensionFixture{
+			name:              "telegram-reference",
+			description:       "Reference Telegram bridge adapter",
+			capabilities:      []string{"bridge.adapter"},
+			bridgePlatform:    "telegram",
+			bridgeDisplayName: "Telegram",
+			enabled:           true,
+		})
+		badInfo := mustInstallDaemonExtension(t, runtime.registry, daemonExtensionFixture{
+			name:              "slack-broken",
+			description:       "Broken Slack bridge adapter",
+			capabilities:      []string{"bridge.adapter"},
+			bridgePlatform:    "slack",
+			bridgeDisplayName: "Slack",
+			enabled:           true,
+		})
+		if err := os.Remove(badInfo.ManifestPath); err != nil {
+			t.Fatalf("os.Remove(%s) error = %v", badInfo.ManifestPath, err)
+		}
+
+		providers, err := runtime.ListProviders(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("ListProviders() error = %v", err)
+		}
+		if got, want := len(providers), 1; got != want {
+			t.Fatalf("len(providers) = %d, want %d", got, want)
+		}
+		if got, want := providers[0].ExtensionName, goodInfo.Name; got != want {
+			t.Fatalf("provider extension_name = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {

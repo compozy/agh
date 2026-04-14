@@ -174,19 +174,23 @@ func (r *bridgeRuntime) ListProviders(ctx context.Context) ([]bridgepkg.BridgePr
 
 		ext, err := loadExtensionSnapshot(r.registry, extensions, r.logger, info.Name)
 		if err != nil {
-			return nil, fmt.Errorf("daemon: load bridge provider %q: %w", info.Name, err)
+			r.logger.Warn("daemon: skip invalid bridge provider extension", "extension_name", info.Name, "error", err)
+			continue
 		}
 		if ext == nil || ext.Manifest == nil {
-			return nil, fmt.Errorf("daemon: bridge provider %q manifest is required", info.Name)
+			r.logger.Warn("daemon: skip bridge provider with missing manifest", "extension_name", info.Name)
+			continue
 		}
 
 		platform := strings.TrimSpace(ext.Manifest.Bridge.Platform)
 		displayName := strings.TrimSpace(ext.Manifest.Bridge.DisplayName)
 		if platform == "" {
-			return nil, fmt.Errorf("daemon: bridge provider %q manifest bridge.platform is required", info.Name)
+			r.logger.Warn("daemon: skip bridge provider with missing platform", "extension_name", info.Name)
+			continue
 		}
 		if displayName == "" {
-			return nil, fmt.Errorf("daemon: bridge provider %q manifest bridge.display_name is required", info.Name)
+			r.logger.Warn("daemon: skip bridge provider with missing display name", "extension_name", info.Name)
+			continue
 		}
 
 		description := strings.TrimSpace(ext.Manifest.Description)

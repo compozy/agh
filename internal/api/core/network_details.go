@@ -88,6 +88,9 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 
 	detail, detailErr := h.networkChannelDetailPayload(c.Request.Context(), service, channel)
 	if detailErr != nil {
+		if rollbackErr := rollbackCreatedNetworkSessions(c.Request.Context(), h.Sessions, createdIDs); rollbackErr != nil {
+			detailErr = errors.Join(detailErr, rollbackErr)
+		}
 		h.respondError(c, http.StatusInternalServerError, detailErr)
 		return
 	}
@@ -368,10 +371,7 @@ func (h *BaseHandlers) networkChannelPayloads(ctx context.Context, service Netwo
 			return nil, msgErr
 		}
 		for _, message := range messages {
-			aggregate, ok := aggregates[strings.TrimSpace(message.Channel)]
-			if !ok {
-				continue
-			}
+			aggregate := ensureNetworkChannelAggregate(aggregates, message.Channel)
 			aggregate.messageCount++
 			aggregate.lastMessageAt = laterTimePtr(aggregate.lastMessageAt, message.Timestamp)
 		}
@@ -413,20 +413,6 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 	}
 
 	filteredSessions := sessionsForChannel(sessions, channel)
-	if len(filteredSessions) == 0 && len(peers) == 0 {
-		return contract.NetworkChannelDetailPayload{}, fmt.Errorf("%w: %s", errNetworkChannelNotFound, channel)
-	}
-
-	sessionByID := sessionInfoMapByID(filteredSessions)
-	payloadPeers := make([]contract.NetworkPeerPayload, 0, len(peers))
-	localPeerCount := 0
-	for _, peer := range peers {
-		if peer.Local {
-			localPeerCount++
-		}
-		payloadPeers = append(payloadPeers, networkPeerPayloadFromInfoWithSessions(peer, sessionByID))
-	}
-
 	messageCount := 0
 	var lastMessageAt *time.Time
 	if h != nil && h.NetworkStore != nil {
@@ -438,6 +424,19 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 		if messageCount > 0 {
 			lastMessageAt = laterTimePtr(nil, messages[len(messages)-1].Timestamp)
 		}
+	}
+	if len(filteredSessions) == 0 && len(peers) == 0 && messageCount == 0 {
+		return contract.NetworkChannelDetailPayload{}, fmt.Errorf("%w: %s", errNetworkChannelNotFound, channel)
+	}
+
+	sessionByID := sessionInfoMapByID(filteredSessions)
+	payloadPeers := make([]contract.NetworkPeerPayload, 0, len(peers))
+	localPeerCount := 0
+	for _, peer := range peers {
+		if peer.Local {
+			localPeerCount++
+		}
+		payloadPeers = append(payloadPeers, networkPeerPayloadFromInfoWithSessions(peer, sessionByID))
 	}
 
 	return contract.NetworkChannelDetailPayload{

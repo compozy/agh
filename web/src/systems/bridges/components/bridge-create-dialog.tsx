@@ -93,26 +93,36 @@ export function BridgeCreateDialog({
                     Only providers with healthy runtime state can be selected for bridge creation.
                   </p>
                 </div>
-                <div className="grid gap-3 lg:grid-cols-2">
-                  {providers.map(provider => (
-                    <BridgeProviderCard
-                      key={buildBridgeProviderKey(provider)}
-                      onSelect={() =>
-                        onDraftChange({
-                          ...draft,
-                          displayName:
-                            !draft.displayName.trim() ||
-                            draft.displayName.trim() === selectedProvider?.display_name
-                              ? provider.display_name
-                              : draft.displayName,
-                          selectedProviderKey: buildBridgeProviderKey(provider),
-                        })
-                      }
-                      provider={provider}
-                      selected={buildBridgeProviderKey(provider) === draft.selectedProviderKey}
-                    />
-                  ))}
-                </div>
+                {providers.length === 0 ? (
+                  <div
+                    className="rounded-xl border border-dashed border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-8 text-center text-sm leading-6 text-[color:var(--color-text-secondary)]"
+                    data-testid="bridge-provider-empty"
+                  >
+                    No bridge providers are currently available. Install or enable a bridge adapter
+                    extension before creating a new bridge.
+                  </div>
+                ) : (
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {providers.map(provider => (
+                      <BridgeProviderCard
+                        key={buildBridgeProviderKey(provider)}
+                        onSelect={() =>
+                          onDraftChange({
+                            ...draft,
+                            displayName:
+                              !draft.displayName.trim() ||
+                              draft.displayName.trim() === selectedProvider?.display_name
+                                ? provider.display_name
+                                : draft.displayName,
+                            selectedProviderKey: buildBridgeProviderKey(provider),
+                          })
+                        }
+                        provider={provider}
+                        selected={buildBridgeProviderKey(provider) === draft.selectedProviderKey}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
 
               <FieldGroup className="grid gap-4 lg:grid-cols-2">

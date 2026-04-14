@@ -14,15 +14,13 @@ interface NetworkChannelsListPanelProps {
   selectedChannel: string | null;
 }
 
-function ChannelListItem({
-  channel,
-  isSelected,
-  onSelect,
-}: {
+interface ChannelListItemProps {
   channel: NetworkChannelSummary;
   isSelected: boolean;
   onSelect: () => void;
-}) {
+}
+
+function ChannelListItem({ channel, isSelected, onSelect }: ChannelListItemProps) {
   return (
     <button
       className={cn(

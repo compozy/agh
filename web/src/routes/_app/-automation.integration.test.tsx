@@ -341,6 +341,37 @@ describe("Automation route integration", () => {
     expect(toast.success).toHaveBeenCalledWith("Created job nightly-docs.");
   });
 
+  it("uses the original job id when the visible selection changes during edit", async () => {
+    const user = userEvent.setup();
+    mockUpdateJobMutateAsync.mockResolvedValue(
+      makeJob({ id: "job_daily_review", name: "daily-review-updated" })
+    );
+
+    const { rerender } = render(<AutomationPage />);
+
+    await user.click(screen.getByTestId("edit-automation-btn"));
+    await user.clear(screen.getByTestId("job-name-input"));
+    await user.type(screen.getByTestId("job-name-input"), "daily-review-updated");
+
+    mockJobs = [
+      makeJob({
+        id: "job_release_notes",
+        name: "release-notes",
+        prompt: "Review the release notes.",
+      }),
+    ];
+    rerender(<AutomationPage />);
+
+    await user.click(screen.getByTestId("submit-job-form"));
+
+    await waitFor(() => {
+      expect(mockUpdateJobMutateAsync).toHaveBeenCalledWith({
+        data: expect.objectContaining({ name: "daily-review-updated" }),
+        id: "job_daily_review",
+      });
+    });
+  });
+
   it("renders the no-runs state when the selected job has not executed yet", () => {
     mockJobRuns = [];
 

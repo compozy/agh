@@ -51,12 +51,24 @@ type AutomationEditorState =
   | {
       draft: CreateAutomationJobRequest;
       kind: "jobs";
-      mode: "create" | "edit";
+      mode: "create";
     }
   | {
       draft: CreateAutomationTriggerRequest;
       kind: "triggers";
-      mode: "create" | "edit";
+      mode: "create";
+    }
+  | {
+      draft: CreateAutomationJobRequest;
+      id: string;
+      kind: "jobs";
+      mode: "edit";
+    }
+  | {
+      draft: CreateAutomationTriggerRequest;
+      id: string;
+      kind: "triggers";
+      mode: "edit";
     };
 
 function buildEmptyState({
@@ -261,12 +273,14 @@ function AutomationPage() {
       activeTab === "jobs" && selectedJob
         ? {
             draft: automationJobToDraft(selectedJob),
+            id: selectedJob.id,
             kind: "jobs",
             mode: "edit",
           }
         : selectedTrigger
           ? {
               draft: automationTriggerToDraft(selectedTrigger),
+              id: selectedTrigger.id,
               kind: "triggers",
               mode: "edit",
             }
@@ -285,7 +299,7 @@ function AutomationPage() {
           ? await createJobMutation.mutateAsync(editor.draft)
           : await updateJobMutation.mutateAsync({
               data: editor.draft,
-              id: effectiveSelectedJobId ?? "",
+              id: editor.id,
             });
 
       setSelectedJobId(job.id);
@@ -309,7 +323,7 @@ function AutomationPage() {
           ? await createTriggerMutation.mutateAsync(editor.draft)
           : await updateTriggerMutation.mutateAsync({
               data: editor.draft,
-              id: effectiveSelectedTriggerId ?? "",
+              id: editor.id,
             });
 
       setSelectedTriggerId(trigger.id);

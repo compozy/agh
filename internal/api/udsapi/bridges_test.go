@@ -127,33 +127,44 @@ func TestListBridgeRoutesHandlerReturnsRequestedPayload(t *testing.T) {
 func TestListBridgeProvidersHandlerReturnsRequestedPayload(t *testing.T) {
 	t.Parallel()
 
-	homePaths := newTestHomePaths(t)
-	bridges := stubBridgeService{
-		ListProvidersFn: func(_ context.Context) ([]bridgepkg.BridgeProvider, error) {
-			return []bridgepkg.BridgeProvider{{
-				Platform:      "telegram",
-				ExtensionName: "telegram-reference",
-				DisplayName:   "Telegram",
-				Description:   "Reference Telegram bridge adapter",
-				Enabled:       true,
-				State:         "active",
-				Health:        "healthy",
-			}}, nil
-		},
+	tests := []struct {
+		name string
+	}{
+		{name: "Should return requested payload"},
 	}
 
-	engine := newTestRouter(t, newTestHandlersWithBridges(t, stubSessionManager{}, stubObserver{}, bridges, stubWorkspaceService{}, homePaths))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/bridges/providers", nil)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			homePaths := newTestHomePaths(t)
+			bridges := stubBridgeService{
+				ListProvidersFn: func(_ context.Context) ([]bridgepkg.BridgeProvider, error) {
+					return []bridgepkg.BridgeProvider{{
+						Platform:      "telegram",
+						ExtensionName: "telegram-reference",
+						DisplayName:   "Telegram",
+						Description:   "Reference Telegram bridge adapter",
+						Enabled:       true,
+						State:         "active",
+						Health:        "healthy",
+					}}, nil
+				},
+			}
 
-	var response contract.BridgeProvidersResponse
-	decodeJSONResponse(t, recorder, &response)
-	if got, want := len(response.Providers), 1; got != want {
-		t.Fatalf("len(providers) = %d, want %d", got, want)
-	}
-	if response.Providers[0].ExtensionName != "telegram-reference" {
-		t.Fatalf("provider = %#v", response.Providers[0])
+			engine := newTestRouter(t, newTestHandlersWithBridges(t, stubSessionManager{}, stubObserver{}, bridges, stubWorkspaceService{}, homePaths))
+			recorder := performRequest(t, engine, http.MethodGet, "/api/bridges/providers", nil)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+			}
+
+			var response contract.BridgeProvidersResponse
+			decodeJSONResponse(t, recorder, &response)
+			if got, want := len(response.Providers), 1; got != want {
+				t.Fatalf("len(providers) = %d, want %d", got, want)
+			}
+			if response.Providers[0].ExtensionName != "telegram-reference" {
+				t.Fatalf("provider = %#v", response.Providers[0])
+			}
+		})
 	}
 }

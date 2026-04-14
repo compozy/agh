@@ -98,25 +98,73 @@ func TestGlobalDBNetworkMessageGuardClauses(t *testing.T) {
 	t.Parallel()
 
 	var nilDB *GlobalDB
-	if err := nilDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{}); err == nil {
-		t.Fatal("WriteNetworkMessage(nil receiver) error = nil, want non-nil")
-	}
-	if _, err := nilDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{}); err == nil {
-		t.Fatal("ListNetworkMessages(nil receiver) error = nil, want non-nil")
-	}
-
 	globalDB := openTestGlobalDB(t)
-	if err := globalDB.WriteNetworkMessage(nilGlobalContext(), store.NetworkMessageEntry{}); err == nil {
-		t.Fatal("WriteNetworkMessage(nil ctx) error = nil, want non-nil")
-	}
-	if _, err := globalDB.ListNetworkMessages(nilGlobalContext(), store.NetworkMessageQuery{}); err == nil {
-		t.Fatal("ListNetworkMessages(nil ctx) error = nil, want non-nil")
-	}
 	if err := globalDB.Close(testutil.Context(t)); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}
-	if err := globalDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{}); !errors.Is(err, store.ErrClosed) {
-		t.Fatalf("WriteNetworkMessage(after close) error = %v, want ErrClosed", err)
+
+	tests := []struct {
+		name string
+		run  func() error
+		want error
+	}{
+		{
+			name: "Should reject writes on a nil receiver",
+			run: func() error {
+				return nilDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{})
+			},
+		},
+		{
+			name: "Should reject reads on a nil receiver",
+			run: func() error {
+				_, err := nilDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{})
+				return err
+			},
+		},
+		{
+			name: "Should reject writes with a nil context",
+			run: func() error {
+				freshDB := openTestGlobalDB(t)
+				defer func() {
+					_ = freshDB.Close(testutil.Context(t))
+				}()
+				return freshDB.WriteNetworkMessage(nilGlobalContext(), store.NetworkMessageEntry{})
+			},
+		},
+		{
+			name: "Should reject reads with a nil context",
+			run: func() error {
+				freshDB := openTestGlobalDB(t)
+				defer func() {
+					_ = freshDB.Close(testutil.Context(t))
+				}()
+				_, err := freshDB.ListNetworkMessages(nilGlobalContext(), store.NetworkMessageQuery{})
+				return err
+			},
+		},
+		{
+			name: "Should reject writes after the store is closed",
+			run: func() error {
+				return globalDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{})
+			},
+			want: store.ErrClosed,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.run()
+			if tt.want != nil {
+				if !errors.Is(err, tt.want) {
+					t.Fatalf("error = %v, want %v", err, tt.want)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("error = nil, want non-nil")
+			}
+		})
 	}
 }
 

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -53,6 +53,26 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/systems/workspace", () => ({
+  WorkspacePageShell: ({
+    children,
+    controls,
+    meta,
+    title,
+  }: {
+    children: React.ReactNode;
+    controls?: React.ReactNode;
+    meta?: React.ReactNode;
+    title: string;
+  }) => (
+    <div data-testid="workspace-page-shell">
+      <div data-testid="workspace-page-shell-header">
+        <h1>{title}</h1>
+        {controls ? <div data-testid="workspace-page-shell-controls">{controls}</div> : null}
+        {meta ? <div data-testid="workspace-page-shell-meta">{meta}</div> : null}
+      </div>
+      {children}
+    </div>
+  ),
   useActiveWorkspace: () => ({
     workspaces: mockActiveWorkspaceId
       ? [
@@ -315,6 +335,29 @@ describe("BridgesPage", () => {
     });
 
     expect(toast.success).toHaveBeenCalledWith("Created bridge Support.");
+  });
+
+  it("blocks workspace-scoped bridge creation when the active workspace disappears", async () => {
+    const user = userEvent.setup();
+    mockBridgesData = {
+      bridge_health: {},
+      bridges: [],
+    };
+
+    const { rerender } = render(<BridgesPage />);
+
+    await user.click(screen.getByTestId("bridge-empty-create-btn"));
+
+    mockActiveWorkspaceId = null;
+    mockActiveWorkspaceName = "";
+    rerender(<BridgesPage />);
+
+    fireEvent.submit(screen.getByTestId("bridge-create-dialog"));
+
+    expect(mockCreateBridgeMutateAsync).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(
+      "Select an active workspace before creating a workspace-scoped bridge."
+    );
   });
 
   it("opens test delivery and shows the resolved target result", async () => {

@@ -29,8 +29,7 @@ import {
   useNetworkStatus,
 } from "@/systems/network";
 import type { NetworkTab } from "@/systems/network";
-import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
-import { WorkspacePageShell } from "@/systems/workspace/components/workspace-page-shell";
+import { useActiveWorkspace, useWorkspace, WorkspacePageShell } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/network")({
   component: NetworkPage,

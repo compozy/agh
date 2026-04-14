@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/session"
 )
 
 func (h *BaseHandlers) networkServiceRequired() (NetworkService, error) {
@@ -47,17 +49,59 @@ func (h *BaseHandlers) NetworkPeers(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	sessions, err := h.Sessions.ListAll(c.Request.Context())
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-	sessionByID := sessionInfoMapByID(sessions)
+	sessionByID := h.networkPeerSessionInfoMap(c.Request.Context(), peers)
 	payload := make([]contract.NetworkPeerPayload, 0, len(peers))
 	for _, peer := range peers {
 		payload = append(payload, networkPeerPayloadFromInfoWithSessions(peer, sessionByID))
 	}
 	c.JSON(http.StatusOK, contract.NetworkPeersResponse{Peers: payload})
+}
+
+func (h *BaseHandlers) networkPeerSessionInfoMap(
+	ctx context.Context,
+	peers []network.PeerInfo,
+) map[string]*session.SessionInfo {
+	if h == nil || h.Sessions == nil || len(peers) == 0 {
+		return nil
+	}
+
+	sessionByID := make(map[string]*session.SessionInfo, len(peers))
+	for _, peer := range peers {
+		if peer.SessionID == nil {
+			continue
+		}
+
+		sessionID := strings.TrimSpace(*peer.SessionID)
+		if sessionID == "" {
+			continue
+		}
+		if _, seen := sessionByID[sessionID]; seen {
+			continue
+		}
+
+		info, err := h.Sessions.Status(ctx, sessionID)
+		if err != nil {
+			if h.Logger != nil {
+				h.Logger.Warn(
+					h.transportName()+": skip network peer session enrichment",
+					"session_id",
+					sessionID,
+					"peer_id",
+					strings.TrimSpace(peer.PeerID),
+					"error",
+					err,
+				)
+			}
+			continue
+		}
+		if info != nil {
+			sessionByID[sessionID] = info
+		}
+	}
+	if len(sessionByID) == 0 {
+		return nil
+	}
+	return sessionByID
 }
 
 // NetworkChannels returns the active runtime channels.

@@ -45,7 +45,7 @@ func (h *BaseHandlers) ListBridgeProviders(c *gin.Context) {
 
 	providers, err := bridges.ListProviders(c.Request.Context())
 	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
+		h.respondError(c, StatusForBridgeError(err), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.BridgeProvidersResponse{Providers: providers})

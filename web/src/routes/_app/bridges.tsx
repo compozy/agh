@@ -30,8 +30,7 @@ import type {
   BridgeTestDeliveryDraft,
   TestBridgeDeliveryResponse,
 } from "@/systems/bridges";
-import { useActiveWorkspace } from "@/systems/workspace";
-import { WorkspacePageShell } from "@/systems/workspace/components/workspace-page-shell";
+import { useActiveWorkspace, WorkspacePageShell } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/bridges")({
   component: BridgesPage,
@@ -201,9 +200,12 @@ function BridgesPage() {
       toast.error("Select an available bridge provider before creating the bridge.");
       return;
     }
+    if (createDraft.scope === "workspace" && !activeWorkspaceId) {
+      toast.error("Select an active workspace before creating a workspace-scoped bridge.");
+      return;
+    }
 
-    const scope =
-      createDraft.scope === "workspace" && !activeWorkspaceId ? "global" : createDraft.scope;
+    const scope = createDraft.scope;
 
     try {
       const result = await createBridgeMutation.mutateAsync({
