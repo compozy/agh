@@ -74,6 +74,31 @@ type RunResponse struct {
 	Run RunPayload `json:"run"`
 }
 
+// TasksResponse wraps the shared task list payload.
+type TasksResponse struct {
+	Tasks []TaskSummaryPayload `json:"tasks"`
+}
+
+// TaskResponse wraps one shared task payload.
+type TaskResponse struct {
+	Task TaskPayload `json:"task"`
+}
+
+// TaskDetailResponse wraps one shared expanded task payload.
+type TaskDetailResponse struct {
+	Task TaskDetailPayload `json:"task"`
+}
+
+// TaskRunsResponse wraps the shared task-run list payload.
+type TaskRunsResponse struct {
+	Runs []TaskRunPayload `json:"runs"`
+}
+
+// TaskRunResponse wraps one shared task-run payload.
+type TaskRunResponse struct {
+	Run TaskRunPayload `json:"run"`
+}
+
 // WebhookDeliveryResponse wraps the shared webhook delivery result payload.
 type WebhookDeliveryResponse struct {
 	Result WebhookDeliveryPayload `json:"result"`

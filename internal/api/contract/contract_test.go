@@ -11,6 +11,7 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 func TestSessionPayloadJSONShape(t *testing.T) {
@@ -434,6 +435,112 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestTaskPayloadJSONShape(t *testing.T) {
+	t.Parallel()
+
+	payload := contract.TaskPayload{
+		ID:             "task-1",
+		Identifier:     "TASK-1",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    "ws-alpha",
+		ParentTaskID:   "task-root",
+		NetworkChannel: "builders",
+		Title:          "Review task",
+		Description:    "Check the API layer",
+		Status:         taskpkg.TaskStatusInProgress,
+		Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
+		CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
+		CreatedAt:      time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
+		UpdatedAt:      time.Date(2026, 4, 14, 10, 5, 0, 0, time.UTC),
+		Metadata:       json.RawMessage(`{"priority":"high"}`),
+	}
+
+	var got map[string]any
+	marshalJSON(t, payload, &got)
+
+	if got["workspace_id"] != "ws-alpha" || got["network_channel"] != "builders" {
+		t.Fatalf("task JSON = %#v", got)
+	}
+	createdBy, ok := got["created_by"].(map[string]any)
+	if !ok || createdBy["kind"] != string(taskpkg.ActorKindHuman) || createdBy["ref"] != "local-user" {
+		t.Fatalf("created_by JSON = %#v", got["created_by"])
+	}
+	origin, ok := got["origin"].(map[string]any)
+	if !ok || origin["kind"] != string(taskpkg.OriginKindHTTP) || origin["ref"] != "tasks.create" {
+		t.Fatalf("origin JSON = %#v", got["origin"])
+	}
+	owner, ok := got["owner"].(map[string]any)
+	if !ok || owner["kind"] != string(taskpkg.OwnerKindPool) || owner["ref"] != "reviewers" {
+		t.Fatalf("owner JSON = %#v", got["owner"])
+	}
+	if _, exists := got["metadata"]; !exists {
+		t.Fatalf("task JSON missing metadata: %#v", got)
+	}
+}
+
+func TestTaskRunPayloadJSONShape(t *testing.T) {
+	t.Parallel()
+
+	payload := contract.TaskRunPayload{
+		ID:             "run-1",
+		TaskID:         "task-1",
+		Status:         taskpkg.TaskRunStatusRunning,
+		Attempt:        2,
+		ClaimedBy:      &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		SessionID:      "sess-1",
+		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
+		IdempotencyKey: "key-1",
+		NetworkChannel: "builders",
+		QueuedAt:       time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
+		StartedAt:      time.Date(2026, 4, 14, 10, 1, 0, 0, time.UTC),
+		Result:         json.RawMessage(`{"ok":true}`),
+	}
+
+	var got map[string]any
+	marshalJSON(t, payload, &got)
+
+	if got["session_id"] != "sess-1" || got["idempotency_key"] != "key-1" {
+		t.Fatalf("task run JSON = %#v", got)
+	}
+	if got["network_channel"] != "builders" || got["status"] != string(taskpkg.TaskRunStatusRunning) {
+		t.Fatalf("task run JSON = %#v", got)
+	}
+}
+
+func TestUpdateTaskRequestHasChanges(t *testing.T) {
+	t.Parallel()
+
+	title := "updated"
+	channel := "builders"
+	owner := &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"}
+	metadata := json.RawMessage(`{"priority":"high"}`)
+
+	testCases := []struct {
+		name string
+		req  contract.UpdateTaskRequest
+		want bool
+	}{
+		{name: "empty", req: contract.UpdateTaskRequest{}, want: false},
+		{name: "title", req: contract.UpdateTaskRequest{Title: &title}, want: true},
+		{name: "channel", req: contract.UpdateTaskRequest{NetworkChannel: &channel}, want: true},
+		{name: "owner", req: contract.UpdateTaskRequest{Owner: owner}, want: true},
+		{name: "metadata", req: contract.UpdateTaskRequest{Metadata: &metadata}, want: true},
+		{name: "clear owner", req: contract.UpdateTaskRequest{ClearOwner: true}, want: true},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.req.HasChanges(); got != tc.want {
+				t.Fatalf("UpdateTaskRequest.HasChanges() = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }
 
 func marshalJSON[T any](t *testing.T, value any, target *T) {

@@ -1,0 +1,237 @@
+package core
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http/httptest"
+	"reflect"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
+	taskpkg "github.com/pedronauck/agh/internal/task"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+)
+
+type workspaceGetterFunc func(context.Context, string) (workspacepkg.Workspace, error)
+
+func (f workspaceGetterFunc) Get(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+	return f(ctx, ref)
+}
+
+type workspaceServiceStub struct {
+	get workspaceGetterFunc
+}
+
+func (s workspaceServiceStub) Register(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
+	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func (s workspaceServiceStub) Unregister(context.Context, string) error {
+	return workspacepkg.ErrWorkspaceNotFound
+}
+
+func (s workspaceServiceStub) Update(context.Context, string, workspacepkg.UpdateOptions) error {
+	return workspacepkg.ErrWorkspaceNotFound
+}
+
+func (s workspaceServiceStub) List(context.Context) ([]workspacepkg.Workspace, error) {
+	return nil, nil
+}
+
+func (s workspaceServiceStub) Get(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+	return s.get(ctx, ref)
+}
+
+func (s workspaceServiceStub) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func (s workspaceServiceStub) ResolveOrRegister(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func TestTaskActorContextAndTransportHelpers(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	testCases := []struct {
+		name      string
+		transport string
+		wantKind  taskpkg.OriginKind
+	}{
+		{name: "uds", transport: "uds-api", wantKind: taskpkg.OriginKindUDS},
+		{name: "web", transport: "web-ui", wantKind: taskpkg.OriginKindWeb},
+		{name: "cli", transport: "agh-cli", wantKind: taskpkg.OriginKindCLI},
+		{name: "default", transport: "api-core-test", wantKind: taskpkg.OriginKindHTTP},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			handlers := &BaseHandlers{TransportName: tc.transport}
+
+			actor, err := handlers.taskActorContext(ctx, taskActionGet)
+			if err != nil {
+				t.Fatalf("taskActorContext() error = %v", err)
+			}
+			if actor.Actor.Ref != defaultTaskActorRef || actor.Origin.Kind != tc.wantKind || actor.Origin.Ref != "tasks.get" {
+				t.Fatalf("taskActorContext() = %#v", actor)
+			}
+		})
+	}
+
+	t.Run("custom resolver", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		handlers := &BaseHandlers{
+			TaskActorContextResolver: func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
+				return taskpkg.DeriveHumanActorContext("user-2", taskpkg.OriginKindHTTP, "custom."+action)
+			},
+		}
+
+		actor, err := handlers.taskActorContext(ctx, taskActionList)
+		if err != nil {
+			t.Fatalf("taskActorContext(custom) error = %v", err)
+		}
+		if actor.Actor.Ref != "user-2" || actor.Origin.Ref != "custom.list" {
+			t.Fatalf("taskActorContext(custom) = %#v", actor)
+		}
+	})
+}
+
+func TestTaskParsingAndValidationHelpers(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	handlers := &BaseHandlers{
+		TransportName: "api-core-test",
+		Workspaces: workspaceServiceStub{get: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+			if ref != "alpha" {
+				t.Fatalf("workspace ref = %q, want %q", ref, "alpha")
+			}
+			return workspacepkg.Workspace{ID: "ws-alpha"}, nil
+		}},
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest("GET", "/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&network_channel=builders&limit=3", nil)
+
+	query, err := handlers.parseTaskListQuery(context.Background(), ctx)
+	if err != nil {
+		t.Fatalf("parseTaskListQuery() error = %v", err)
+	}
+	if query.WorkspaceID != "ws-alpha" || query.Status != taskpkg.TaskStatusReady || query.OwnerKind != taskpkg.OwnerKindPool {
+		t.Fatalf("parseTaskListQuery() = %#v", query)
+	}
+
+	runRecorder := httptest.NewRecorder()
+	runCtx, _ := gin.CreateTestContext(runRecorder)
+	runCtx.Request = httptest.NewRequest("GET", "/tasks/task-1/runs?status=running&session_id=sess-1&limit=1", nil)
+
+	runQuery, err := parseTaskRunListQuery(runCtx)
+	if err != nil {
+		t.Fatalf("parseTaskRunListQuery() error = %v", err)
+	}
+	if runQuery.Status != taskpkg.TaskRunStatusRunning || runQuery.SessionID != "sess-1" || runQuery.Limit != 1 {
+		t.Fatalf("parseTaskRunListQuery() = %#v", runQuery)
+	}
+
+	if _, err := addTaskDependencyFromRequest("task-1", contract.AddTaskDependencyRequest{DependsOnTaskID: "task-2"}); err != nil {
+		t.Fatalf("addTaskDependencyFromRequest() error = %v", err)
+	}
+	if _, err := claimTaskRunFromRequest(contract.ClaimTaskRunRequest{IdempotencyKey: "claim-1"}); err != nil {
+		t.Fatalf("claimTaskRunFromRequest() error = %v", err)
+	}
+	if _, err := startTaskRunFromRequest(contract.StartTaskRunRequest{IdempotencyKey: "start-1"}); err != nil {
+		t.Fatalf("startTaskRunFromRequest() error = %v", err)
+	}
+	if _, err := completeTaskRunFromRequest(contract.CompleteTaskRunRequest{Result: json.RawMessage(`{"ok":true}`)}); err != nil {
+		t.Fatalf("completeTaskRunFromRequest() error = %v", err)
+	}
+	if _, err := cancelTaskRunFromRequest(contract.CancelTaskRunRequest{Reason: "stop", Metadata: json.RawMessage(`{"source":"test"}`)}); err != nil {
+		t.Fatalf("cancelTaskRunFromRequest() error = %v", err)
+	}
+	if _, err := cancelTaskFromRequest(contract.CancelTaskRequest{Reason: "stop", Metadata: json.RawMessage(`{"source":"test"}`)}); err != nil {
+		t.Fatalf("cancelTaskFromRequest() error = %v", err)
+	}
+
+	if _, err := attachTaskRunSessionIDFromRequest(contract.AttachTaskRunSessionRequest{}); err == nil {
+		t.Fatal("attachTaskRunSessionIDFromRequest() error = nil, want non-nil")
+	}
+	if _, err := failTaskRunFromRequest(contract.FailTaskRunRequest{}); err == nil {
+		t.Fatal("failTaskRunFromRequest() error = nil, want non-nil")
+	}
+	if err := validateTaskChannel("task.network_channel", "bad.channel"); err == nil {
+		t.Fatal("validateTaskChannel(invalid) error = nil, want non-nil")
+	}
+	if _, err := enqueueTaskRunFromRequest("task-1", contract.EnqueueTaskRunRequest{NetworkChannel: "bad.channel"}); err == nil {
+		t.Fatal("enqueueTaskRunFromRequest(invalid) error = nil, want non-nil")
+	}
+	if _, err := requiredPathID("", "task id"); err == nil {
+		t.Fatal("requiredPathID(empty) error = nil, want non-nil")
+	}
+
+	invalidRecorder := httptest.NewRecorder()
+	invalidCtx, _ := gin.CreateTestContext(invalidRecorder)
+	invalidCtx.Request = httptest.NewRequest("GET", "/tasks?limit=bad", nil)
+	if _, err := handlers.parseTaskListQuery(context.Background(), invalidCtx); err == nil {
+		t.Fatal("parseTaskListQuery(invalid limit) error = nil, want non-nil")
+	}
+
+	invalidRunRecorder := httptest.NewRecorder()
+	invalidRunCtx, _ := gin.CreateTestContext(invalidRunRecorder)
+	invalidRunCtx.Request = httptest.NewRequest("GET", "/tasks/task-1/runs?limit=bad", nil)
+	if _, err := parseTaskRunListQuery(invalidRunCtx); err == nil {
+		t.Fatal("parseTaskRunListQuery(invalid limit) error = nil, want non-nil")
+	}
+
+	decodeRecorder := httptest.NewRecorder()
+	decodeCtx, _ := gin.CreateTestContext(decodeRecorder)
+	decodeCtx.Request = httptest.NewRequest("POST", "/tasks", bytes.NewBufferString(`{"broken":`))
+	decodeCtx.Request.Header.Set("Content-Type", "application/json")
+	var payload contract.CancelTaskRequest
+	if err := decodeOptionalJSON(decodeCtx, &payload); err == nil {
+		t.Fatal("decodeOptionalJSON(invalid) error = nil, want non-nil")
+	}
+}
+
+func TestTaskHandlerInfrastructureHelpers(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	handlers := &BaseHandlers{TransportName: "api-core-test"}
+
+	service, ok := handlers.requireTaskManager(ctx)
+	if ok || service != nil {
+		t.Fatalf("requireTaskManager() = (%v, %v), want (nil, false)", service, ok)
+	}
+
+	if !reflect.DeepEqual(TaskPayloadFromTask(nil), contract.TaskPayload{}) {
+		t.Fatal("TaskPayloadFromTask(nil) should return zero payload")
+	}
+	if !reflect.DeepEqual(TaskRunPayloadFromRun(nil), contract.TaskRunPayload{}) {
+		t.Fatal("TaskRunPayloadFromRun(nil) should return zero payload")
+	}
+	if !reflect.DeepEqual(TaskDetailPayloadFromView(nil), contract.TaskDetailPayload{}) {
+		t.Fatal("TaskDetailPayloadFromView(nil) should return zero payload")
+	}
+
+	idOnly := json.RawMessage(`{"ok":true}`)
+	ptr := cloneRawMessagePtr(&idOnly)
+	if ptr == nil || string(*ptr) != `{"ok":true}` {
+		t.Fatalf("cloneRawMessagePtr() = %v", ptr)
+	}
+}

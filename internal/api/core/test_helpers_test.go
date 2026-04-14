@@ -53,7 +53,7 @@ func newHandlerFixture(
 	store *memory.Store,
 	dream core.DreamTrigger,
 ) handlerFixture {
-	return newHandlerFixtureWithAutomation(t, manager, observer, testutil.StubAutomationManager{}, workspaces, store, dream)
+	return newHandlerFixtureWithAutomationAndTasks(t, manager, observer, testutil.StubAutomationManager{}, testutil.StubTaskManager{}, workspaces, store, dream)
 }
 
 func newHandlerFixtureWithAutomation(
@@ -61,6 +61,31 @@ func newHandlerFixtureWithAutomation(
 	manager testutil.StubSessionManager,
 	observer testutil.StubObserver,
 	automation testutil.StubAutomationManager,
+	workspaces testutil.StubWorkspaceService,
+	store *memory.Store,
+	dream core.DreamTrigger,
+) handlerFixture {
+	return newHandlerFixtureWithAutomationAndTasks(t, manager, observer, automation, testutil.StubTaskManager{}, workspaces, store, dream)
+}
+
+func newHandlerFixtureWithTasks(
+	t *testing.T,
+	manager testutil.StubSessionManager,
+	observer testutil.StubObserver,
+	tasks testutil.StubTaskManager,
+	workspaces testutil.StubWorkspaceService,
+	store *memory.Store,
+	dream core.DreamTrigger,
+) handlerFixture {
+	return newHandlerFixtureWithAutomationAndTasks(t, manager, observer, testutil.StubAutomationManager{}, tasks, workspaces, store, dream)
+}
+
+func newHandlerFixtureWithAutomationAndTasks(
+	t *testing.T,
+	manager testutil.StubSessionManager,
+	observer testutil.StubObserver,
+	automation testutil.StubAutomationManager,
+	tasks testutil.StubTaskManager,
 	workspaces testutil.StubWorkspaceService,
 	store *memory.Store,
 	dream core.DreamTrigger,
@@ -81,6 +106,7 @@ func newHandlerFixtureWithAutomation(
 		Sessions:                     manager,
 		Observer:                     observer,
 		Automation:                   automation,
+		Tasks:                        tasks,
 		Workspaces:                   workspaces,
 		MemoryStore:                  store,
 		DreamTrigger:                 dream,
@@ -141,6 +167,22 @@ func newHandlerFixtureWithAutomation(
 	engine.GET("/network/channels/:channel/messages", handlers.NetworkChannelMessages)
 	engine.POST("/network/send", handlers.NetworkSend)
 	engine.GET("/network/inbox", handlers.NetworkInbox)
+	engine.GET("/tasks", handlers.ListTasks)
+	engine.POST("/tasks", handlers.CreateTask)
+	engine.GET("/tasks/:id", handlers.GetTask)
+	engine.PATCH("/tasks/:id", handlers.UpdateTask)
+	engine.POST("/tasks/:id/cancel", handlers.CancelTask)
+	engine.POST("/tasks/:id/children", handlers.CreateChildTask)
+	engine.POST("/tasks/:id/dependencies", handlers.AddTaskDependency)
+	engine.DELETE("/tasks/:id/dependencies/:depends_on_id", handlers.RemoveTaskDependency)
+	engine.GET("/tasks/:id/runs", handlers.ListTaskRuns)
+	engine.POST("/tasks/:id/runs", handlers.EnqueueTaskRun)
+	engine.POST("/task-runs/:id/claim", handlers.ClaimTaskRun)
+	engine.POST("/task-runs/:id/start", handlers.StartTaskRun)
+	engine.POST("/task-runs/:id/attach-session", handlers.AttachTaskRunSession)
+	engine.POST("/task-runs/:id/complete", handlers.CompleteTaskRun)
+	engine.POST("/task-runs/:id/fail", handlers.FailTaskRun)
+	engine.POST("/task-runs/:id/cancel", handlers.CancelTaskRun)
 	engine.GET("/memory", handlers.ListMemory)
 	engine.GET("/memory/:filename", handlers.ReadMemory)
 	engine.PUT("/memory/:filename", handlers.WriteMemory)
