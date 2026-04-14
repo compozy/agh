@@ -14,6 +14,7 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/memory"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -706,6 +707,321 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 	})
 }
 
+func TestUnixSocketClientTaskMethods(t *testing.T) {
+	t.Parallel()
+
+	client := &unixSocketClient{
+		socketPath: "/tmp/agh.sock",
+		httpClient: &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				switch {
+				case req.Method == http.MethodGet && req.URL.Path == "/api/tasks":
+					if got := req.URL.Query().Get("scope"); got != "workspace" {
+						t.Fatalf("task scope query = %q, want %q", got, "workspace")
+					}
+					if got := req.URL.Query().Get("workspace"); got != "alpha" {
+						t.Fatalf("task workspace query = %q, want %q", got, "alpha")
+					}
+					if got := req.URL.Query().Get("status"); got != "ready" {
+						t.Fatalf("task status query = %q, want %q", got, "ready")
+					}
+					if got := req.URL.Query().Get("owner_kind"); got != "pool" {
+						t.Fatalf("task owner_kind query = %q, want %q", got, "pool")
+					}
+					if got := req.URL.Query().Get("owner_ref"); got != "triage" {
+						t.Fatalf("task owner_ref query = %q, want %q", got, "triage")
+					}
+					if got := req.URL.Query().Get("parent_task_id"); got != "task-root" {
+						t.Fatalf("task parent_task_id query = %q, want %q", got, "task-root")
+					}
+					if got := req.URL.Query().Get("network_channel"); got != "builders" {
+						t.Fatalf("task network_channel query = %q, want %q", got, "builders")
+					}
+					if got := req.URL.Query().Get("limit"); got != "3" {
+						t.Fatalf("task limit query = %q, want %q", got, "3")
+					}
+					body := mustJSON(t, contract.TasksResponse{Tasks: []contract.TaskSummaryPayload{sampleTaskSummaryRecord()}})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/tasks":
+					var payload contract.CreateTaskRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(create task body) error = %v", err)
+					}
+					if payload.Scope != taskpkg.ScopeWorkspace ||
+						payload.Workspace != "alpha" ||
+						payload.NetworkChannel != "builders" ||
+						payload.Title != "Investigate flaky task runs" ||
+						payload.Owner == nil ||
+						payload.Owner.Kind != taskpkg.OwnerKindPool ||
+						payload.Owner.Ref != "triage" {
+						t.Fatalf("create task payload = %#v", payload)
+					}
+					body := mustJSON(t, contract.TaskResponse{Task: sampleTaskRecord()})
+					return newHTTPResponse(http.StatusCreated, string(body)), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/tasks/task-1":
+					body := mustJSON(t, contract.TaskDetailResponse{Task: sampleTaskDetailRecord()})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPatch && req.URL.Path == "/api/tasks/task-1":
+					var payload contract.UpdateTaskRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(update task body) error = %v", err)
+					}
+					if payload.Title == nil || *payload.Title != "Investigate resolved" || payload.NetworkChannel == nil || *payload.NetworkChannel != "ops" {
+						t.Fatalf("update task payload = %#v", payload)
+					}
+					updated := sampleTaskRecord()
+					updated.Title = "Investigate resolved"
+					updated.NetworkChannel = "ops"
+					body := mustJSON(t, contract.TaskResponse{Task: updated})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/tasks/task-1/cancel":
+					var payload contract.CancelTaskRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(cancel task body) error = %v", err)
+					}
+					if payload.Reason != "operator-request" {
+						t.Fatalf("cancel task payload = %#v, want reason", payload)
+					}
+					cancelled := sampleTaskRecord()
+					cancelled.Status = taskpkg.TaskStatusCancelled
+					body := mustJSON(t, contract.TaskResponse{Task: cancelled})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/tasks/task-1/children":
+					var payload contract.CreateTaskChildRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(create child body) error = %v", err)
+					}
+					if payload.Scope != taskpkg.ScopeWorkspace || payload.Workspace != "alpha" || payload.Title != "Check runtime logs" {
+						t.Fatalf("create child payload = %#v", payload)
+					}
+					child := sampleTaskRecord()
+					child.ID = "task-child"
+					child.Title = "Check runtime logs"
+					body := mustJSON(t, contract.TaskResponse{Task: child})
+					return newHTTPResponse(http.StatusCreated, string(body)), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/tasks/task-1/dependencies":
+					var payload contract.AddTaskDependencyRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(add dependency body) error = %v", err)
+					}
+					if payload.DependsOnTaskID != "task-blocker" || payload.Kind != taskpkg.DependencyKindBlocks {
+						t.Fatalf("add dependency payload = %#v", payload)
+					}
+					body := mustJSON(t, contract.TaskDetailResponse{Task: sampleTaskDetailRecord()})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodDelete && req.URL.Path == "/api/tasks/task-1/dependencies/task-blocker":
+					body := mustJSON(t, contract.TaskDetailResponse{Task: sampleTaskDetailRecord()})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/tasks/task-1/runs":
+					var payload contract.EnqueueTaskRunRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(enqueue run body) error = %v", err)
+					}
+					if payload.IdempotencyKey != "idem-1" || payload.NetworkChannel != "builders" {
+						t.Fatalf("enqueue run payload = %#v", payload)
+					}
+					body := mustJSON(t, contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusQueued)})
+					return newHTTPResponse(http.StatusCreated, string(body)), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/tasks/task-1/runs":
+					if got := req.URL.Query().Get("status"); got != "running" {
+						t.Fatalf("task runs status query = %q, want %q", got, "running")
+					}
+					if got := req.URL.Query().Get("session_id"); got != "sess-1" {
+						t.Fatalf("task runs session_id query = %q, want %q", got, "sess-1")
+					}
+					if got := req.URL.Query().Get("limit"); got != "2" {
+						t.Fatalf("task runs limit query = %q, want %q", got, "2")
+					}
+					body := mustJSON(t, contract.TaskRunsResponse{Runs: []contract.TaskRunPayload{sampleTaskRunRecord(taskpkg.TaskRunStatusRunning)}})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/task-runs/run-1/claim":
+					var payload contract.ClaimTaskRunRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(claim run body) error = %v", err)
+					}
+					if payload.IdempotencyKey != "idem-claim" {
+						t.Fatalf("claim run payload = %#v", payload)
+					}
+					body := mustJSON(t, contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusClaimed)})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/task-runs/run-1/start":
+					var payload contract.StartTaskRunRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(start run body) error = %v", err)
+					}
+					if payload.IdempotencyKey != "idem-start" {
+						t.Fatalf("start run payload = %#v", payload)
+					}
+					body := mustJSON(t, contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusRunning)})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/task-runs/run-1/attach-session":
+					var payload contract.AttachTaskRunSessionRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(attach session body) error = %v", err)
+					}
+					if payload.SessionID != "sess-attach" {
+						t.Fatalf("attach session payload = %#v", payload)
+					}
+					body := mustJSON(t, contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusStarting)})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/task-runs/run-1/complete":
+					var payload contract.CompleteTaskRunRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(complete run body) error = %v", err)
+					}
+					if string(payload.Result) != `{"ok":true}` {
+						t.Fatalf("complete run payload = %#v", payload)
+					}
+					body := mustJSON(t, contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusCompleted)})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/task-runs/run-1/fail":
+					var payload contract.FailTaskRunRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(fail run body) error = %v", err)
+					}
+					if payload.Error != "boom" || string(payload.Metadata) != `{"code":"E_TASK"}` {
+						t.Fatalf("fail run payload = %#v", payload)
+					}
+					body := mustJSON(t, contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusFailed)})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/task-runs/run-1/cancel":
+					var payload contract.CancelTaskRunRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(cancel run body) error = %v", err)
+					}
+					if payload.Reason != "operator-request" || string(payload.Metadata) != `{"source":"cli"}` {
+						t.Fatalf("cancel run payload = %#v", payload)
+					}
+					body := mustJSON(t, contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusCancelled)})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				default:
+					return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
+				}
+			}),
+		},
+	}
+
+	ctx := context.Background()
+
+	t.Run("Should list tasks", func(t *testing.T) {
+		tasks, err := client.ListTasks(ctx, TaskListQuery{
+			Scope:          taskpkg.ScopeWorkspace,
+			Workspace:      "alpha",
+			Status:         taskpkg.TaskStatusReady,
+			OwnerKind:      taskpkg.OwnerKindPool,
+			OwnerRef:       "triage",
+			ParentTaskID:   "task-root",
+			NetworkChannel: "builders",
+			Limit:          3,
+		})
+		if err != nil || len(tasks) != 1 || tasks[0].ID != "task-1" {
+			t.Fatalf("ListTasks() = %#v, %v", tasks, err)
+		}
+	})
+
+	t.Run("Should create get update and cancel tasks", func(t *testing.T) {
+		created, err := client.CreateTask(ctx, CreateTaskRequest{
+			Scope:          taskpkg.ScopeWorkspace,
+			Workspace:      "alpha",
+			NetworkChannel: "builders",
+			Title:          "Investigate flaky task runs",
+			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+		})
+		if err != nil || created.ID != "task-1" {
+			t.Fatalf("CreateTask() = %#v, %v", created, err)
+		}
+
+		detail, err := client.GetTask(ctx, "task-1")
+		if err != nil || detail.Task.ID != "task-1" || len(detail.Dependencies) != 1 {
+			t.Fatalf("GetTask() = %#v, %v", detail, err)
+		}
+
+		updated, err := client.UpdateTask(ctx, "task-1", UpdateTaskRequest{
+			Title:          ptr("Investigate resolved"),
+			NetworkChannel: ptr("ops"),
+		})
+		if err != nil || updated.Title != "Investigate resolved" || updated.NetworkChannel != "ops" {
+			t.Fatalf("UpdateTask() = %#v, %v", updated, err)
+		}
+
+		cancelled, err := client.CancelTask(ctx, "task-1", CancelTaskRequest{Reason: "operator-request"})
+		if err != nil || cancelled.Status != taskpkg.TaskStatusCancelled {
+			t.Fatalf("CancelTask() = %#v, %v", cancelled, err)
+		}
+	})
+
+	t.Run("Should manage child tasks dependencies and runs", func(t *testing.T) {
+		child, err := client.CreateChildTask(ctx, "task-1", CreateTaskChildRequest{
+			Scope:     taskpkg.ScopeWorkspace,
+			Workspace: "alpha",
+			Title:     "Check runtime logs",
+		})
+		if err != nil || child.ID != "task-child" {
+			t.Fatalf("CreateChildTask() = %#v, %v", child, err)
+		}
+
+		detail, err := client.AddTaskDependency(ctx, "task-1", AddTaskDependencyRequest{
+			DependsOnTaskID: "task-blocker",
+			Kind:            taskpkg.DependencyKindBlocks,
+		})
+		if err != nil || len(detail.Dependencies) != 1 {
+			t.Fatalf("AddTaskDependency() = %#v, %v", detail, err)
+		}
+
+		detail, err = client.RemoveTaskDependency(ctx, "task-1", "task-blocker")
+		if err != nil || len(detail.Runs) != 1 {
+			t.Fatalf("RemoveTaskDependency() = %#v, %v", detail, err)
+		}
+
+		enqueued, err := client.EnqueueTaskRun(ctx, "task-1", EnqueueTaskRunRequest{
+			IdempotencyKey: "idem-1",
+			NetworkChannel: "builders",
+		})
+		if err != nil || enqueued.Status != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("EnqueueTaskRun() = %#v, %v", enqueued, err)
+		}
+
+		runs, err := client.ListTaskRuns(ctx, "task-1", TaskRunListQuery{
+			Status:    taskpkg.TaskRunStatusRunning,
+			SessionID: "sess-1",
+			Limit:     2,
+		})
+		if err != nil || len(runs) != 1 || runs[0].Status != taskpkg.TaskRunStatusRunning {
+			t.Fatalf("ListTaskRuns() = %#v, %v", runs, err)
+		}
+
+		claimed, err := client.ClaimTaskRun(ctx, "run-1", ClaimTaskRunRequest{IdempotencyKey: "idem-claim"})
+		if err != nil || claimed.Status != taskpkg.TaskRunStatusClaimed {
+			t.Fatalf("ClaimTaskRun() = %#v, %v", claimed, err)
+		}
+
+		started, err := client.StartTaskRun(ctx, "run-1", StartTaskRunRequest{IdempotencyKey: "idem-start"})
+		if err != nil || started.Status != taskpkg.TaskRunStatusRunning {
+			t.Fatalf("StartTaskRun() = %#v, %v", started, err)
+		}
+
+		attached, err := client.AttachTaskRunSession(ctx, "run-1", AttachTaskRunSessionRequest{SessionID: "sess-attach"})
+		if err != nil || attached.Status != taskpkg.TaskRunStatusStarting {
+			t.Fatalf("AttachTaskRunSession() = %#v, %v", attached, err)
+		}
+
+		completed, err := client.CompleteTaskRun(ctx, "run-1", CompleteTaskRunRequest{Result: mustJSON(t, map[string]bool{"ok": true})})
+		if err != nil || completed.Status != taskpkg.TaskRunStatusCompleted {
+			t.Fatalf("CompleteTaskRun() = %#v, %v", completed, err)
+		}
+
+		failed, err := client.FailTaskRun(ctx, "run-1", FailTaskRunRequest{Error: "boom", Metadata: mustJSON(t, map[string]string{"code": "E_TASK"})})
+		if err != nil || failed.Status != taskpkg.TaskRunStatusFailed {
+			t.Fatalf("FailTaskRun() = %#v, %v", failed, err)
+		}
+
+		cancelled, err := client.CancelTaskRun(ctx, "run-1", CancelTaskRunRequest{Reason: "operator-request", Metadata: mustJSON(t, map[string]string{"source": "cli"})})
+		if err != nil || cancelled.Status != taskpkg.TaskRunStatusCancelled {
+			t.Fatalf("CancelTaskRun() = %#v, %v", cancelled, err)
+		}
+	})
+}
+
 func TestUnixSocketClientBridgeMethods(t *testing.T) {
 	t.Parallel()
 
@@ -931,6 +1247,27 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		Limit:     4,
 	}); got.Get("job_id") != "job-1" || got.Get("trigger_id") != "trg-1" || got.Get("status") != "completed" || got.Get("limit") != "4" {
 		t.Fatalf("automationRunValues() = %v, want all run filters", got)
+	}
+
+	if got := taskValues(TaskListQuery{
+		Scope:          taskpkg.ScopeWorkspace,
+		Workspace:      "alpha",
+		Status:         taskpkg.TaskStatusReady,
+		OwnerKind:      taskpkg.OwnerKindPool,
+		OwnerRef:       "triage",
+		ParentTaskID:   "task-root",
+		NetworkChannel: "builders",
+		Limit:          3,
+	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("network_channel") != "builders" || got.Get("limit") != "3" {
+		t.Fatalf("taskValues() = %v, want all task filters", got)
+	}
+
+	if got := taskRunValues(TaskRunListQuery{
+		Status:    taskpkg.TaskRunStatusRunning,
+		SessionID: "sess-1",
+		Limit:     2,
+	}); got.Get("status") != "running" || got.Get("session_id") != "sess-1" || got.Get("limit") != "2" {
+		t.Fatalf("taskRunValues() = %v, want all task run filters", got)
 	}
 
 	plain := newHTTPResponse(http.StatusInternalServerError, "plain failure")
