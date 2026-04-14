@@ -9,10 +9,9 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-
-import { isBridgeProviderSelectable } from "../lib/bridge-formatters";
-import type { BridgeProvider } from "../types";
-import { BridgeProviderCard } from "./bridge-provider-card";
+import { BridgeProviderCard } from "@/systems/bridges/components/bridge-provider-card";
+import { isBridgeProviderSelectable } from "@/systems/bridges/lib/bridge-formatters";
+import type { BridgeProvider } from "@/systems/bridges/types";
 
 interface BridgeEmptyStateProps {
   onCreate: () => void;

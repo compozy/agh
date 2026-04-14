@@ -156,14 +156,16 @@ function EmptyState({
 }
 
 function JobScheduleCard({ job }: { job: AutomationJob }) {
-  const mode = job.schedule?.mode ?? "cron";
+  const mode = job.schedule ? (job.schedule.mode ?? "cron") : "manual";
   const ScheduleIcon = mode === "every" ? RefreshCw : mode === "at" ? CalendarDays : Clock3;
   const scheduleValue =
     mode === "cron"
       ? (job.schedule?.expr ?? "Cron schedule")
       : mode === "every"
         ? (job.schedule?.interval ?? "Interval")
-        : formatDate(job.schedule?.time);
+        : mode === "at"
+          ? formatDate(job.schedule?.time)
+          : describeSchedule(job.schedule);
 
   return (
     <section className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-5">

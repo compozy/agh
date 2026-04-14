@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -15,7 +16,7 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 		return err
 	}
 	if err := entry.Validate(); err != nil {
-		return err
+		return fmt.Errorf("store: validate network message entry: %w", err)
 	}
 	if entry.Timestamp.IsZero() {
 		entry.Timestamp = g.now()
@@ -43,12 +44,15 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 }
 
 // ListNetworkMessages returns persisted network timeline rows filtered by the supplied options.
-func (g *GlobalDB) ListNetworkMessages(ctx context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+func (g *GlobalDB) ListNetworkMessages(
+	ctx context.Context,
+	query store.NetworkMessageQuery,
+) (entries []store.NetworkMessageEntry, err error) {
 	if err := g.checkReady(ctx, "list network messages"); err != nil {
 		return nil, err
 	}
 	if err := query.Validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: validate network message query: %w", err)
 	}
 
 	sqlQuery := `SELECT message_id, session_id, channel, peer_from, kind, intent, text, timestamp FROM network_message_log`
@@ -68,10 +72,17 @@ func (g *GlobalDB) ListNetworkMessages(ctx context.Context, query store.NetworkM
 		return nil, fmt.Errorf("store: query network messages: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			closeErr = fmt.Errorf("store: close network messages rows: %w", closeErr)
+			if err != nil {
+				err = errors.Join(err, closeErr)
+				return
+			}
+			err = closeErr
+		}
 	}()
 
-	entries := make([]store.NetworkMessageEntry, 0)
+	entries = make([]store.NetworkMessageEntry, 0)
 	for rows.Next() {
 		entry, scanErr := scanNetworkMessage(rows)
 		if scanErr != nil {

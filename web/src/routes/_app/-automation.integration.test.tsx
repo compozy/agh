@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -216,6 +216,7 @@ const AutomationPage = (Route as unknown as { component: () => React.ReactNode }
 
 describe("Automation route integration", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     mockJobs = [makeJob()];
     mockJobsLoading = false;
     mockJobsError = null;
@@ -319,12 +320,15 @@ describe("Automation route integration", () => {
 
     expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
 
-    await user.type(screen.getByTestId("job-name-input"), "nightly-docs");
-    await user.type(screen.getByTestId("job-agent-input"), "writer");
-    await user.type(
-      screen.getByTestId("job-prompt-input"),
-      "Summarize docs changes and publish a digest."
-    );
+    fireEvent.change(screen.getByTestId("job-name-input"), {
+      target: { value: "nightly-docs" },
+    });
+    fireEvent.change(screen.getByTestId("job-agent-input"), {
+      target: { value: "writer" },
+    });
+    fireEvent.change(screen.getByTestId("job-prompt-input"), {
+      target: { value: "Summarize docs changes and publish a digest." },
+    });
     await user.click(screen.getByTestId("submit-job-form"));
 
     await waitFor(() => {
@@ -336,9 +340,8 @@ describe("Automation route integration", () => {
           workspace_id: "ws_test",
         })
       );
+      expect(toast.success).toHaveBeenCalledWith("Created job nightly-docs.");
     });
-
-    expect(toast.success).toHaveBeenCalledWith("Created job nightly-docs.");
   });
 
   it("uses the original job id when the visible selection changes during edit", async () => {
@@ -350,8 +353,9 @@ describe("Automation route integration", () => {
     const { rerender } = render(<AutomationPage />);
 
     await user.click(screen.getByTestId("edit-automation-btn"));
-    await user.clear(screen.getByTestId("job-name-input"));
-    await user.type(screen.getByTestId("job-name-input"), "daily-review-updated");
+    fireEvent.change(screen.getByTestId("job-name-input"), {
+      target: { value: "daily-review-updated" },
+    });
 
     mockJobs = [
       makeJob({
@@ -407,8 +411,10 @@ describe("Automation route integration", () => {
 
     await user.click(screen.getByTestId("trigger-job-btn"));
 
-    expect(mockTriggerJobMutateAsync).toHaveBeenCalledWith({ id: "job_daily_review" });
-    expect(toast.success).toHaveBeenCalledWith("Queued run run_queued.");
-    expect(screen.getByTestId("automation-run-run_queued")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockTriggerJobMutateAsync).toHaveBeenCalledWith({ id: "job_daily_review" });
+      expect(toast.success).toHaveBeenCalledWith("Queued run run_queued.");
+      expect(screen.getByTestId("automation-run-run_queued")).toBeInTheDocument();
+    });
   });
 });

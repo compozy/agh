@@ -3,13 +3,12 @@ import { Search } from "lucide-react";
 import { Pill } from "@/components/design-system";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-
 import {
   bridgeScopeTone,
   bridgeStatusTone,
   formatBridgeRelativeTime,
-} from "../lib/bridge-formatters";
-import type { BridgeHealthMap, BridgeSummary } from "../types";
+} from "@/systems/bridges/lib/bridge-formatters";
+import type { BridgeHealthMap, BridgeSummary } from "@/systems/bridges/types";
 
 interface BridgeListPanelProps {
   bridgeHealth: BridgeHealthMap;
@@ -21,17 +20,14 @@ interface BridgeListPanelProps {
   summary: string;
 }
 
-function BridgeListItem({
-  bridge,
-  health,
-  isSelected,
-  onSelect,
-}: {
+interface BridgeListItemProps {
   bridge: BridgeSummary;
   health?: BridgeHealthMap[string];
   isSelected: boolean;
   onSelect: () => void;
-}) {
+}
+
+function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItemProps) {
   return (
     <button
       className={cn(

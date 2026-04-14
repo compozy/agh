@@ -357,7 +357,7 @@ export function AutomationJobForm({
           <AutomationCheckbox
             checked={draft.enabled ?? true}
             description="Disabled jobs stay visible but never dispatch on their schedule."
-            label="Enabled on create"
+            label={mode === "create" ? "Enabled on create" : "Enabled"}
             onCheckedChange={checked => onChange({ ...draft, enabled: checked })}
           />
         </AutomationFormSection>

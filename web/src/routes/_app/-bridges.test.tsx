@@ -208,6 +208,7 @@ const BridgesPage = (Route as unknown as { component: () => React.ReactNode }).c
 
 describe("BridgesPage", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     mockBridgesData = {
       bridge_health: {
         brg_support: makeHealth(),
@@ -306,7 +307,6 @@ describe("BridgesPage", () => {
   });
 
   it("opens the create bridge dialog and submits a workspace-scoped payload", async () => {
-    const user = userEvent.setup();
     mockBridgesData = {
       bridge_health: {},
       bridges: [],
@@ -314,11 +314,11 @@ describe("BridgesPage", () => {
 
     render(<BridgesPage />);
 
-    await user.click(screen.getByTestId("bridge-empty-create-btn"));
+    fireEvent.click(screen.getByTestId("bridge-empty-create-btn"));
 
     expect(screen.getByTestId("bridge-create-dialog")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("submit-bridge-create"));
+    fireEvent.click(screen.getByTestId("submit-bridge-create"));
 
     await waitFor(() => {
       expect(mockCreateBridgeMutateAsync).toHaveBeenCalledWith({
@@ -332,9 +332,8 @@ describe("BridgesPage", () => {
         status: "starting",
         workspace_id: "ws_test",
       });
+      expect(toast.success).toHaveBeenCalledWith("Created bridge Support.");
     });
-
-    expect(toast.success).toHaveBeenCalledWith("Created bridge Support.");
   });
 
   it("blocks workspace-scoped bridge creation when the active workspace disappears", async () => {

@@ -1015,7 +1015,7 @@ func (s *integrationBridgeService) RestartInstance(ctx context.Context, id strin
 }
 
 func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.BridgeProvider, error) {
-	return nil, nil
+	return []bridgepkg.BridgeProvider{}, nil
 }
 
 func (s *integrationBridgeService) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {

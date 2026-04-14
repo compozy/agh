@@ -197,7 +197,7 @@ func normalizeTimelineMessageEntry(sessionID string, direction string, envelope 
 		PeerFrom:  strings.TrimSpace(envelope.From),
 		Kind:      strings.TrimSpace(string(envelope.Kind)),
 		Intent:    strings.TrimSpace(sayBody.Intent),
-		Text:      strings.TrimSpace(sayBody.Text),
+		Text:      sayBody.Text,
 		Timestamp: at.UTC(),
 	}
 	if err := entry.Validate(); err != nil {

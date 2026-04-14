@@ -52,6 +52,7 @@ describe("AutomationJobForm", () => {
     const { onCancel, onChange, onSubmit } = renderJobForm();
 
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
+    expect(screen.getByText("Enabled on create")).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("job-name-input"), {
       target: { value: "nightly-docs" },
@@ -141,6 +142,7 @@ describe("AutomationJobForm", () => {
     });
 
     expect(screen.getByText("Edit Job")).toBeInTheDocument();
+    expect(screen.getByText("Enabled")).toBeInTheDocument();
     expect(screen.getByTestId("submit-job-form")).toHaveTextContent("Saving...");
 
     fireEvent.submit(screen.getByTestId("automation-job-form"));

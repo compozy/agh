@@ -348,12 +348,12 @@ export function formatAutomationListSummary({
   }
 
   if (scopeFilter === "global") {
-    return `${totalCount} ${totalNoun} in global scope`;
+    return `${visibleCount} ${noun} in global scope`;
   }
 
   if (activeWorkspaceName) {
-    return `${totalCount} ${totalNoun} in ${activeWorkspaceName}`;
+    return `${visibleCount} ${noun} in ${activeWorkspaceName}`;
   }
 
-  return `${totalCount} ${totalNoun} in workspace scope`;
+  return `${visibleCount} ${noun} in workspace scope`;
 }

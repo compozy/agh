@@ -167,6 +167,9 @@ func TestAuditWriterPersistsTimelineMessagesForSayEnvelopesOnly(t *testing.T) {
 	if got, want := storeSink.messages[0].Intent, "announce"; got != want {
 		t.Fatalf("messages[0].Intent = %q, want %q", got, want)
 	}
+	if got, want := storeSink.messages[0].Text, "  hello builders  \n"; got != want {
+		t.Fatalf("messages[0].Text = %q, want %q", got, want)
+	}
 }
 
 func testAuditEnvelope(t *testing.T) Envelope {
@@ -195,6 +198,6 @@ func testSayAuditEnvelope(t *testing.T) Envelope {
 		Channel:  "builders",
 		From:     "coder.sess-audit",
 		TS:       time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
-		Body:     mustRawJSON(t, SayBody{Text: "hello builders", Intent: "announce"}),
+		Body:     mustRawJSON(t, SayBody{Text: "  hello builders  \n", Intent: "announce"}),
 	}
 }

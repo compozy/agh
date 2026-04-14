@@ -124,6 +124,19 @@ describe("AutomationDetailPanel", () => {
     expect(onDelete).toHaveBeenCalledOnce();
   });
 
+  it("renders manual jobs without implying a cron schedule", () => {
+    renderPanel({
+      item: {
+        ...jobFixture,
+        schedule: undefined,
+      },
+    });
+
+    expect(screen.getByText("manual")).toBeInTheDocument();
+    expect(screen.getAllByText("Manual")).toHaveLength(2);
+    expect(screen.queryByText("Cron schedule")).not.toBeInTheDocument();
+  });
+
   it("renders config trigger details without mutable actions", () => {
     renderPanel({
       item: triggerFixture,

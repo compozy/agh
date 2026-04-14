@@ -19,9 +19,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-
-import { bridgeProviderStateTone, describeBridgeTestTarget } from "../lib/bridge-formatters";
-import type { BridgeTestDeliveryDraft, TestBridgeDeliveryResponse } from "../types";
+import {
+  bridgeProviderStateTone,
+  describeBridgeTestTarget,
+} from "@/systems/bridges/lib/bridge-formatters";
+import type { BridgeTestDeliveryDraft, TestBridgeDeliveryResponse } from "@/systems/bridges/types";
 
 interface BridgeTestDeliveryDialogProps {
   bridgeName?: string;
@@ -55,6 +57,9 @@ export function BridgeTestDeliveryDialog({
           data-testid="bridge-test-delivery-dialog"
           onSubmit={event => {
             event.preventDefault();
+            if (isPending) {
+              return;
+            }
             onSubmit();
           }}
         >

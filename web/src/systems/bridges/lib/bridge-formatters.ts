@@ -4,11 +4,9 @@ import type {
   BridgeRoute,
   BridgeScope,
   BridgeStatus,
-} from "../types";
+} from "@/systems/bridges/types";
 
 type BridgeTone = "amber" | "danger" | "green" | "neutral" | "violet";
-
-const EMPTY_DELIVERY_DEFAULTS: BridgeDeliveryDefaults = {};
 
 function normalizeText(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -86,7 +84,7 @@ export function bridgeProviderStateTone(state?: string): BridgeTone {
 
 export function normalizeBridgeDeliveryDefaults(value: unknown): BridgeDeliveryDefaults {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return EMPTY_DELIVERY_DEFAULTS;
+    return {};
   }
 
   const candidate = value as Record<string, unknown>;
@@ -117,11 +115,13 @@ export function compactBridgeDeliveryDefaults(
   return normalized;
 }
 
-export function describeBridgeRoutingPolicy(policy: {
+export interface BridgeRoutingPolicy {
   include_group: boolean;
   include_peer: boolean;
   include_thread: boolean;
-}): string {
+}
+
+export function describeBridgeRoutingPolicy(policy: BridgeRoutingPolicy): string {
   const parts: string[] = [];
 
   if (policy.include_peer) {
@@ -187,21 +187,21 @@ export function formatBridgeRelativeTime(value?: string | null): string {
   }
 
   const diffMs = date.getTime() - Date.now();
-  const diffMinutes = Math.round(Math.abs(diffMs) / (1000 * 60));
-
-  if (diffMinutes < 1) {
+  if (Math.abs(diffMs) < 1000 * 60) {
     return "Just now";
   }
+
+  const diffMinutes = Math.floor(Math.abs(diffMs) / (1000 * 60));
   if (diffMinutes < 60) {
     return diffMs >= 0 ? `In ${diffMinutes}m` : `${diffMinutes}m ago`;
   }
 
-  const diffHours = Math.round(diffMinutes / 60);
+  const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) {
     return diffMs >= 0 ? `In ${diffHours}h` : `${diffHours}h ago`;
   }
 
-  const diffDays = Math.round(diffHours / 24);
+  const diffDays = Math.floor(diffHours / 24);
   return diffMs >= 0 ? `In ${diffDays}d` : `${diffDays}d ago`;
 }
 

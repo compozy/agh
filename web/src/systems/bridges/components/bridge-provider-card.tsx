@@ -1,13 +1,12 @@
 import { Pill } from "@/components/design-system";
 import { cn } from "@/lib/utils";
-
 import {
   bridgeProviderHealthTone,
   bridgeProviderStateTone,
   buildBridgeProviderKey,
   isBridgeProviderSelectable,
-} from "../lib/bridge-formatters";
-import type { BridgeProvider } from "../types";
+} from "@/systems/bridges/lib/bridge-formatters";
+import type { BridgeProvider } from "@/systems/bridges/types";
 
 interface BridgeProviderCardProps {
   onSelect?: () => void;

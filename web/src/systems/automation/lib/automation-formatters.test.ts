@@ -129,10 +129,19 @@ describe("automation formatter helpers", () => {
         kind: "jobs",
         scopeFilter: "workspace",
         searchQuery: "",
-        totalCount: 1,
+        totalCount: 4,
         visibleCount: 1,
       })
     ).toBe("1 job in alpha");
+    expect(
+      formatAutomationListSummary({
+        kind: "jobs",
+        scopeFilter: "global",
+        searchQuery: "",
+        totalCount: 4,
+        visibleCount: 2,
+      })
+    ).toBe("2 jobs in global scope");
     expect(
       formatAutomationListSummary({
         kind: "jobs",

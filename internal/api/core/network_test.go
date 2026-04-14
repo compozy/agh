@@ -141,6 +141,22 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			t.Fatalf("Ext = %#v, want cloned ext payload", envelopePayload.Ext)
 		}
 	})
+
+	t.Run("Should fall back to peer id when peer-card display name is blank", func(t *testing.T) {
+		t.Parallel()
+
+		blank := "   "
+		payload := core.NetworkPeerPayloadFromInfo(network.PeerInfo{
+			PeerID:   "reviewer.sess-b",
+			Channel:  "builders",
+			Local:    true,
+			PeerCard: network.PeerCard{PeerID: "reviewer.sess-b", DisplayName: &blank},
+		})
+
+		if got, want := payload.DisplayName, "reviewer.sess-b"; got != want {
+			t.Fatalf("payload.DisplayName = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestBaseHandlersNetworkEndpoints(t *testing.T) {
@@ -1286,13 +1302,24 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 	if got, want := len(createCalls), 2; got != want {
 		t.Fatalf("len(createCalls) = %d, want %d", got, want)
 	}
+	expectedAgents := map[string]struct{}{
+		"coder":    {},
+		"reviewer": {},
+	}
 	for _, call := range createCalls {
+		if _, ok := expectedAgents[call.AgentName]; !ok {
+			t.Fatalf("Create() agent = %q, want coder/reviewer", call.AgentName)
+		}
+		delete(expectedAgents, call.AgentName)
 		if got, want := call.Workspace, "ws-1"; got != want {
 			t.Fatalf("Create() workspace = %q, want %q", got, want)
 		}
 		if got, want := call.Channel, "builders"; got != want {
 			t.Fatalf("Create() channel = %q, want %q", got, want)
 		}
+	}
+	if len(expectedAgents) != 0 {
+		t.Fatalf("missing Create() calls for agents: %#v", expectedAgents)
 	}
 
 	var payload contract.CreateNetworkChannelResponse

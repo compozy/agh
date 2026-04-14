@@ -302,7 +302,9 @@ func NetworkPeerPayloadsFromInfos(peers []network.PeerInfo) []contract.NetworkPe
 func NetworkPeerPayloadFromInfo(peer network.PeerInfo) contract.NetworkPeerPayload {
 	displayName := peer.PeerID
 	if peer.PeerCard.DisplayName != nil {
-		displayName = strings.TrimSpace(*peer.PeerCard.DisplayName)
+		if trimmed := strings.TrimSpace(*peer.PeerCard.DisplayName); trimmed != "" {
+			displayName = trimmed
+		}
 	}
 	return contract.NetworkPeerPayload{
 		SessionID:   peer.SessionID,

@@ -2,14 +2,14 @@ import {
   buildBridgeProviderKey,
   isBridgeProviderSelectable,
   normalizeBridgeDeliveryDefaults,
-} from "./bridge-formatters";
+} from "@/systems/bridges/lib/bridge-formatters";
 
 import type {
   BridgeCreateDraft,
   BridgeProvider,
   BridgeSummary,
   BridgeTestDeliveryDraft,
-} from "../types";
+} from "@/systems/bridges/types";
 
 export const DEFAULT_BRIDGE_ROUTING_POLICY = {
   include_group: true,

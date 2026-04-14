@@ -5,7 +5,7 @@ import {
   bridgeProvidersOptions,
   bridgeRoutesOptions,
   bridgesListOptions,
-} from "./query-options";
+} from "@/systems/bridges/lib/query-options";
 
 describe("bridgesListOptions", () => {
   it("uses the expected timings and list query key", () => {

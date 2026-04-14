@@ -22,6 +22,15 @@ interface NetworkMetricCard {
   value: string;
 }
 
+function parseTimestampOrZero(value?: string | null): number {
+  if (!value) {
+    return 0;
+  }
+
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 export function createNetworkChannelDraft(): NetworkCreateChannelDraft {
   return {
     channelName: "",
@@ -194,8 +203,8 @@ export function getNetworkMetricCards(
 
 export function sortNetworkChannels(channels: NetworkChannelSummary[]) {
   return [...channels].sort((left, right) => {
-    const leftMessageTime = left.last_message_at ? new Date(left.last_message_at).getTime() : 0;
-    const rightMessageTime = right.last_message_at ? new Date(right.last_message_at).getTime() : 0;
+    const leftMessageTime = parseTimestampOrZero(left.last_message_at);
+    const rightMessageTime = parseTimestampOrZero(right.last_message_at);
 
     if (leftMessageTime !== rightMessageTime) {
       return rightMessageTime - leftMessageTime;
@@ -224,8 +233,8 @@ export function sortNetworkPeers(peers: NetworkPeerSummary[]) {
       return left.local ? -1 : 1;
     }
 
-    const leftSeen = left.last_seen ? new Date(left.last_seen).getTime() : 0;
-    const rightSeen = right.last_seen ? new Date(right.last_seen).getTime() : 0;
+    const leftSeen = parseTimestampOrZero(left.last_seen);
+    const rightSeen = parseTimestampOrZero(right.last_seen);
 
     if (leftSeen !== rightSeen) {
       return rightSeen - leftSeen;

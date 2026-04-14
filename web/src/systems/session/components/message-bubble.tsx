@@ -1,8 +1,8 @@
 import { memo } from "react";
 
 import { cn } from "@/lib/utils";
+import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import type { UIMessage } from "../types";
-import { MessageMarkdown } from "./message-markdown";
 import { ThinkingBlock } from "./thinking-block";
 
 export interface MessageBubbleProps {

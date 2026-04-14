@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -328,6 +328,7 @@ const NetworkPage = (Route as unknown as { component: () => React.ReactNode }).c
 
 describe("NetworkPage", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     mockActiveWorkspaceId = "ws_main";
     mockActiveWorkspaceName = "Polybot";
     mockWorkspaceAgents = [
@@ -481,10 +482,9 @@ describe("NetworkPage", () => {
   });
 
   it("opens the create dialog and submits the selected agents", async () => {
-    const user = userEvent.setup();
     render(<NetworkPage />);
 
-    await user.click(screen.getByTestId("open-network-create-dialog"));
+    fireEvent.click(screen.getByTestId("open-network-create-dialog"));
     expect(screen.getByTestId("network-create-channel-dialog")).toBeInTheDocument();
     expect(screen.queryByTestId("network-agent-option-researcher-01")).not.toBeInTheDocument();
 
@@ -492,15 +492,14 @@ describe("NetworkPage", () => {
     const firstAgent = screen.getByTestId("network-agent-option-polybot-main");
     const secondAgent = screen.getByTestId("network-agent-option-coder-agent-01");
 
-    await user.type(channelNameInput, "deployments");
-    await user.click(firstAgent);
-    await user.click(secondAgent);
+    fireEvent.change(channelNameInput, { target: { value: "deployments" } });
+    fireEvent.click(firstAgent);
+    fireEvent.click(secondAgent);
 
     expect(firstAgent).toHaveAttribute("aria-pressed", "true");
     expect(secondAgent).toHaveAttribute("aria-pressed", "true");
 
-    await user.click(channelNameInput);
-    await user.keyboard("{Enter}");
+    fireEvent.click(screen.getByTestId("network-create-channel-submit"));
 
     await waitFor(() =>
       expect(mockCreateNetworkChannelMutateAsync).toHaveBeenCalledWith({
