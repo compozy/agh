@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/registry/extract_test.go
 line: 111
 severity: nitpick
@@ -19,5 +19,6 @@ Also applies to: 125-127, 148-150, 163-165, 173-175
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).

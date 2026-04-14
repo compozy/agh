@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/registry/extract.go
 line: 146
 author: coderabbitai[bot]
@@ -133,5 +133,6 @@ original write/close error and any removal failure.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).

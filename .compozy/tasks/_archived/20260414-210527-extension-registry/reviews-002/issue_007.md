@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/registry/github/client.go
 line: 274
 author: coderabbitai[bot]
@@ -55,5 +55,6 @@ no Close() error is ignored.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).

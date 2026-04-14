@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/registry/github/client.go
 line: 508
 author: coderabbitai[bot]
@@ -64,5 +64,6 @@ parsing and close failures are observable while keeping the prior control flow.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).

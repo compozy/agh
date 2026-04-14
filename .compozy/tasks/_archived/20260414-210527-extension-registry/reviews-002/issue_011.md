@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/registry/multi.go
 line: 178
 severity: nitpick
@@ -17,5 +17,6 @@ At line 180, `detail` is guaranteed non-nil because `m.Info()` (line 173) return
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).

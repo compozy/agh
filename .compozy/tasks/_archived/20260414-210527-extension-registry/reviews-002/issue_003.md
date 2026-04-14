@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/extension/registry.go
 line: 403
 author: coderabbitai[bot]
@@ -73,5 +73,6 @@ mapRegistryConstraintError usage) so callers know which install failed.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).

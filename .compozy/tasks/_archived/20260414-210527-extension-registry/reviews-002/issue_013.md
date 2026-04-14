@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/registry/multi_test.go
 line: 491
 severity: nitpick
@@ -19,5 +19,6 @@ As per coding guidelines, "MUST use t.Run("Should...") pattern for ALL test case
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).

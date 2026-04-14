@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/registry/github/client.go
 line: 688
 severity: nitpick
@@ -19,5 +19,6 @@ The codebase already has `closeResponseBody` that properly handles close errors.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).

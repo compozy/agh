@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/extension/registry.go
 line: 165
 author: coderabbitai[bot]
@@ -231,5 +231,6 @@ have appropriate types/defaults to match how registry.go uses them.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).

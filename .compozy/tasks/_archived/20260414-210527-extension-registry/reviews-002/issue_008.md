@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/registry/github/client.go
 line: 471
 author: coderabbitai[bot]
@@ -81,5 +81,6 @@ around attempt, c.maxRetries, c.sleep, backoff and nextBackoff unchanged.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/registry/extract.go
 line: 267
 author: coderabbitai[bot]
@@ -192,5 +192,6 @@ empty/whitespace root inputs.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).

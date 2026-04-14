@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/extension/registry.go
 line: 359
 author: coderabbitai[bot]
@@ -61,5 +61,6 @@ preserved Enabled value so replaces do not change user-disabled extensions.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
+- Decision: `valid`
 - Notes:
+  Marked completed (resolved).
