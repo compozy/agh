@@ -14,6 +14,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/version"
 )
 
@@ -44,6 +45,7 @@ type Manifest struct {
 	Actions       ActionsConfig      `toml:"actions" json:"actions"`
 	Subprocess    SubprocessConfig   `toml:"subprocess" json:"subprocess"`
 	Security      SecurityConfig     `toml:"security" json:"security"`
+	Bridge        BridgeConfig       `toml:"bridge" json:"bridge"`
 }
 
 // ResourcesConfig declares static assets bundled with an extension.
@@ -76,6 +78,12 @@ type SubprocessConfig struct {
 // SecurityConfig declares the security grants the extension requests.
 type SecurityConfig struct {
 	Capabilities []string `toml:"capabilities,omitempty" json:"capabilities,omitempty"`
+}
+
+// BridgeConfig declares provider metadata for bridge-capable extensions.
+type BridgeConfig struct {
+	Platform    string `toml:"platform,omitempty" json:"platform,omitempty"`
+	DisplayName string `toml:"display_name,omitempty" json:"display_name,omitempty"`
 }
 
 // HookConfig mirrors the hook declaration shape accepted from extension manifests.
@@ -162,6 +170,7 @@ type manifestDocument struct {
 	Actions       ActionsConfig      `toml:"actions" json:"actions"`
 	Subprocess    SubprocessConfig   `toml:"subprocess" json:"subprocess"`
 	Security      SecurityConfig     `toml:"security" json:"security"`
+	Bridge        BridgeConfig       `toml:"bridge" json:"bridge"`
 }
 
 type manifestCore struct {
@@ -229,6 +238,14 @@ func (m *Manifest) Validate() error {
 	}
 	if err := validateDottedIdentifiers("security.capabilities", m.Security.Capabilities, true); err != nil {
 		return err
+	}
+	if providesCapability(m.Capabilities.Provides, extensionprotocol.CapabilityProvideBridgeAdapter) {
+		if err := requireField("bridge.platform", m.Bridge.Platform); err != nil {
+			return err
+		}
+		if err := requireField("bridge.display_name", m.Bridge.DisplayName); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -414,6 +431,7 @@ func (d manifestDocument) toManifest() (Manifest, error) {
 		Actions:       normalizeActionsConfig(d.Actions),
 		Subprocess:    normalizeSubprocessConfig(d.Subprocess),
 		Security:      normalizeSecurityConfig(d.Security),
+		Bridge:        normalizeBridgeConfig(d.Bridge),
 	}
 	return manifest, nil
 }
@@ -470,6 +488,13 @@ func normalizeSubprocessConfig(cfg SubprocessConfig) SubprocessConfig {
 func normalizeSecurityConfig(cfg SecurityConfig) SecurityConfig {
 	return SecurityConfig{
 		Capabilities: normalizeStrings(cfg.Capabilities),
+	}
+}
+
+func normalizeBridgeConfig(cfg BridgeConfig) BridgeConfig {
+	return BridgeConfig{
+		Platform:    strings.TrimSpace(cfg.Platform),
+		DisplayName: strings.TrimSpace(cfg.DisplayName),
 	}
 }
 
@@ -727,6 +752,15 @@ func validIdentifierPart(part string) bool {
 		}
 	}
 	return true
+}
+
+func providesCapability(values []string, want string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) == strings.TrimSpace(want) {
+			return true
+		}
+	}
+	return false
 }
 
 type semanticVersion struct {

@@ -128,6 +128,19 @@ func (p RoutingPolicy) Validate() error {
 	return nil
 }
 
+// BridgeProvider describes one installed bridge-capable extension that can be
+// selected when creating a bridge instance.
+type BridgeProvider struct {
+	Platform      string `json:"platform"`
+	ExtensionName string `json:"extension_name"`
+	DisplayName   string `json:"display_name"`
+	Description   string `json:"description,omitempty"`
+	Enabled       bool   `json:"enabled"`
+	State         string `json:"state"`
+	Health        string `json:"health"`
+	HealthMessage string `json:"health_message,omitempty"`
+}
+
 // BridgeInstance is the authoritative persisted configuration for one bridge adapter instance.
 type BridgeInstance struct {
 	ID               string          `json:"id"`

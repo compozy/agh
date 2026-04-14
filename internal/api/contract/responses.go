@@ -126,6 +126,26 @@ type NetworkChannelsResponse struct {
 	Channels []NetworkChannelPayload `json:"channels"`
 }
 
+// CreateNetworkChannelResponse wraps the created channel detail payload.
+type CreateNetworkChannelResponse struct {
+	Channel NetworkChannelDetailPayload `json:"channel"`
+}
+
+// NetworkChannelResponse wraps one channel detail payload.
+type NetworkChannelResponse struct {
+	Channel NetworkChannelDetailPayload `json:"channel"`
+}
+
+// NetworkChannelMessagesResponse wraps the read-only channel timeline payload.
+type NetworkChannelMessagesResponse struct {
+	Messages []NetworkChannelMessagePayload `json:"messages"`
+}
+
+// NetworkPeerResponse wraps one selected peer detail payload.
+type NetworkPeerResponse struct {
+	Peer NetworkPeerDetailPayload `json:"peer"`
+}
+
 // NetworkSendResponse wraps the outbound send result payload.
 type NetworkSendResponse struct {
 	Message NetworkSendPayload `json:"message"`

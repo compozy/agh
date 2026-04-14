@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -12,8 +13,12 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
@@ -136,6 +141,22 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			t.Fatalf("Ext = %#v, want cloned ext payload", envelopePayload.Ext)
 		}
 	})
+
+	t.Run("Should fall back to peer id when peer-card display name is blank", func(t *testing.T) {
+		t.Parallel()
+
+		blank := "   "
+		payload := core.NetworkPeerPayloadFromInfo(network.PeerInfo{
+			PeerID:   "reviewer.sess-b",
+			Channel:  "builders",
+			Local:    true,
+			PeerCard: network.PeerCard{PeerID: "reviewer.sess-b", DisplayName: &blank},
+		})
+
+		if got, want := payload.DisplayName, "reviewer.sess-b"; got != want {
+			t.Fatalf("payload.DisplayName = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestBaseHandlersNetworkEndpoints(t *testing.T) {
@@ -175,12 +196,12 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			}, nil
 		},
 		ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
-			if channel != "builders" {
-				t.Fatalf("ListPeers() channel = %q, want builders", channel)
+			if channel != "builders" && channel != "" {
+				t.Fatalf("ListPeers() channel = %q, want builders or empty", channel)
 			}
 			displayName := "Reviewer"
 			sessionID := "sess-a"
-			return []network.PeerInfo{{
+			peers := []network.PeerInfo{{
 				SessionID: &sessionID,
 				PeerID:    "reviewer.sess-a",
 				Channel:   "builders",
@@ -197,7 +218,22 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				JoinedAt:  timePtr(fixedNow),
 				LastSeen:  timePtr(fixedNow),
 				ExpiresAt: timePtr(fixedNow.Add(time.Minute)),
-			}}, nil
+			}}
+			if channel == "" {
+				remoteDisplayName := "Coder"
+				peers = append(peers, network.PeerInfo{
+					PeerID:  "coder.sess-remote",
+					Channel: "builders",
+					Local:   false,
+					PeerCard: network.PeerCard{
+						PeerID:      "coder.sess-remote",
+						DisplayName: &remoteDisplayName,
+					},
+					LastSeen:  timePtr(fixedNow),
+					ExpiresAt: timePtr(fixedNow.Add(time.Minute)),
+				})
+			}
+			return peers, nil
 		},
 		ListChannelsFn: func(context.Context) ([]network.ChannelInfo, error) {
 			return []network.ChannelInfo{{Channel: "builders", PeerCount: 2}}, nil
@@ -315,6 +351,263 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 	})
 }
 
+func TestBaseHandlersNetworkPeersUseBestEffortSessionEnrichment(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should enrich local peers and fall back to peer-card display names on lookup failures", func(t *testing.T) {
+		localSessionID := "sess-local"
+		brokenSessionID := "sess-broken"
+		brokenDisplayName := "Broken peer"
+
+		manager := testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+				t.Fatal("ListAll() should not be called for peer enrichment")
+				return nil, nil
+			},
+			StatusFn: func(_ context.Context, id string) (*session.SessionInfo, error) {
+				switch id {
+				case localSessionID:
+					return &session.SessionInfo{
+						ID:        localSessionID,
+						Name:      "Reviewer",
+						AgentName: "reviewer",
+					}, nil
+				case brokenSessionID:
+					return nil, errors.New("status lookup failed")
+				default:
+					return nil, session.ErrSessionNotFound
+				}
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if got, want := channel, "builders"; got != want {
+					t.Fatalf("ListPeers() channel = %q, want %q", got, want)
+				}
+				return []network.PeerInfo{
+					{
+						SessionID: &localSessionID,
+						PeerID:    "reviewer.sess-local",
+						Channel:   "builders",
+						Local:     true,
+						PeerCard:  network.PeerCard{PeerID: "reviewer.sess-local"},
+					},
+					{
+						SessionID: &brokenSessionID,
+						PeerID:    "broken.sess-broken",
+						Channel:   "builders",
+						Local:     true,
+						PeerCard: network.PeerCard{
+							PeerID:      "broken.sess-broken",
+							DisplayName: &brokenDisplayName,
+						},
+					},
+				}, nil
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers?channel=builders", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("peers code = %d, want %d", resp.Code, http.StatusOK)
+		}
+
+		var payload contract.NetworkPeersResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := len(payload.Peers), 2; got != want {
+			t.Fatalf("len(peers) = %d, want %d", got, want)
+		}
+		if got, want := payload.Peers[0].DisplayName, "Reviewer"; got != want {
+			t.Fatalf("peers[0].display_name = %q, want %q", got, want)
+		}
+		if got, want := payload.Peers[1].DisplayName, brokenDisplayName; got != want {
+			t.Fatalf("peers[1].display_name = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestBaseHandlersCreateNetworkChannelRollsBackWhenDetailReadbackFails(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should roll back created sessions when channel readback fails", func(t *testing.T) {
+		createdAt := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC)
+		var rolledBack []string
+		manager := testutil.StubSessionManager{
+			CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+				return &session.Session{
+					ID:          "sess-" + opts.AgentName,
+					Name:        strings.ToUpper(opts.AgentName),
+					AgentName:   opts.AgentName,
+					WorkspaceID: opts.Workspace,
+					Channel:     opts.Channel,
+					Type:        session.SessionTypeUser,
+					State:       session.StateActive,
+					CreatedAt:   createdAt,
+					UpdatedAt:   createdAt,
+				}, nil
+			},
+			ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+				return nil, errors.New("readback failed")
+			},
+			StopWithCauseFn: func(_ context.Context, id string, cause session.StopCause, detail string) error {
+				if got, want := cause, session.CauseFailed; got != want {
+					t.Fatalf("StopWithCause() cause = %q, want %q", got, want)
+				}
+				if got, want := detail, "rollback network channel creation"; got != want {
+					t.Fatalf("StopWithCause() detail = %q, want %q", got, want)
+				}
+				rolledBack = append(rolledBack, id)
+				return nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: ref, Name: "Workspace"},
+					Agents: []aghconfig.AgentDef{
+						{Name: "coder"},
+						{Name: "reviewer"},
+					},
+				}, nil
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(context.Context, string) ([]network.PeerInfo, error) {
+				return nil, nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/network/channels",
+			[]byte(`{"channel":"builders","workspace_id":"ws-1","agent_names":["coder","reviewer"]}`),
+		)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("create channel code = %d, want %d", resp.Code, http.StatusInternalServerError)
+		}
+
+		sort.Strings(rolledBack)
+		if got, want := strings.Join(rolledBack, ","), "sess-coder,sess-reviewer"; got != want {
+			t.Fatalf("rolled back sessions = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestBaseHandlersNetworkChannelsIncludeHistoryOnlyChannels(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include history-only channels from persisted message logs", func(t *testing.T) {
+		recordedAt := time.Date(2026, 4, 11, 18, 30, 0, 0, time.UTC)
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+				return nil, nil
+			},
+		}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(context.Context, string) ([]network.PeerInfo, error) {
+				return nil, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if got := query.Channel; got != "" {
+					t.Fatalf("ListNetworkMessages() channel = %q, want empty list query", got)
+				}
+				return []store.NetworkMessageEntry{{
+					MessageID: "msg-history-only",
+					Channel:   "builders",
+					PeerFrom:  "reviewer.sess-remote",
+					Kind:      "say",
+					Text:      "History survives runtime disconnects.",
+					Timestamp: recordedAt,
+				}}, nil
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("channels code = %d, want %d", resp.Code, http.StatusOK)
+		}
+
+		var payload contract.NetworkChannelsResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := len(payload.Channels), 1; got != want {
+			t.Fatalf("len(channels) = %d, want %d", got, want)
+		}
+		if got, want := payload.Channels[0].Channel, "builders"; got != want {
+			t.Fatalf("channel = %q, want %q", got, want)
+		}
+		if got, want := payload.Channels[0].MessageCount, 1; got != want {
+			t.Fatalf("message_count = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestBaseHandlersNetworkChannelReturnsHistoryOnlyDetails(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return history-only channel details from persisted message logs", func(t *testing.T) {
+		recordedAt := time.Date(2026, 4, 11, 19, 0, 0, 0, time.UTC)
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+				return nil, nil
+			},
+		}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if got, want := channel, "builders"; got != want {
+					t.Fatalf("ListPeers() channel = %q, want %q", got, want)
+				}
+				return nil, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if got, want := query.Channel, "builders"; got != want {
+					t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
+				}
+				return []store.NetworkMessageEntry{{
+					MessageID: "msg-history-detail",
+					Channel:   "builders",
+					PeerFrom:  "reviewer.sess-remote",
+					Kind:      "say",
+					Text:      "Still visible from persisted history.",
+					Timestamp: recordedAt,
+				}}, nil
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("channel detail code = %d, want %d body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+
+		var payload contract.NetworkChannelResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := payload.Channel.Channel, "builders"; got != want {
+			t.Fatalf("channel = %q, want %q", got, want)
+		}
+		if got, want := payload.Channel.MessageCount, 1; got != want {
+			t.Fatalf("message_count = %d, want %d", got, want)
+		}
+		if got, want := payload.Channel.SessionCount, 0; got != want {
+			t.Fatalf("session_count = %d, want %d", got, want)
+		}
+		if got, want := payload.Channel.PeerCount, 0; got != want {
+			t.Fatalf("peer_count = %d, want %d", got, want)
+		}
+	})
+}
+
 func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 	t.Parallel()
 
@@ -379,7 +672,7 @@ func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 		fixture.Handlers.Config.Network.Enabled = true
 		fixture.Handlers.Network = testutil.StubNetworkService{
-			ListChannelsFn: func(context.Context) ([]network.ChannelInfo, error) {
+			ListPeersFn: func(context.Context, string) ([]network.PeerInfo, error) {
 				return nil, network.ErrInvalidField
 			},
 		}
@@ -520,6 +813,626 @@ func TestValidationErrorHelpersPreserveInnerErrorChain(t *testing.T) {
 		}
 		if !errors.Is(wrapped, cause) {
 			t.Fatalf("NewNetworkValidationError() = %v, want wrapped cause", wrapped)
+		}
+	})
+}
+
+func TestBaseHandlersNetworkChannelEndpointsIgnoreStoppedSessions(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC)
+	coderSessionID := "sess-coder"
+	reviewerSessionID := "sess-reviewer"
+
+	newFixture := func(t *testing.T) handlerFixture {
+		t.Helper()
+
+		manager := testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+				return []*session.SessionInfo{
+					{
+						ID:          coderSessionID,
+						Name:        "Coder",
+						AgentName:   "coder",
+						WorkspaceID: "ws-1",
+						Channel:     "builders",
+						Type:        session.SessionTypeUser,
+						State:       session.StateActive,
+						CreatedAt:   createdAt,
+						UpdatedAt:   createdAt,
+					},
+					{
+						ID:          reviewerSessionID,
+						Name:        "Reviewer",
+						AgentName:   "reviewer",
+						WorkspaceID: "ws-1",
+						Channel:     "retro",
+						Type:        session.SessionTypeUser,
+						State:       session.StateStopped,
+						CreatedAt:   createdAt.Add(time.Minute),
+						UpdatedAt:   createdAt.Add(time.Minute),
+					},
+				}, nil
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				switch channel {
+				case "":
+					return []network.PeerInfo{
+						{
+							SessionID: &coderSessionID,
+							PeerID:    "coder.sess-coder",
+							Channel:   "builders",
+							Local:     true,
+							PeerCard:  network.PeerCard{PeerID: "coder.sess-coder"},
+							JoinedAt:  timePtr(createdAt),
+							LastSeen:  timePtr(createdAt),
+						},
+					}, nil
+				case "builders":
+					return []network.PeerInfo{
+						{
+							SessionID: &coderSessionID,
+							PeerID:    "coder.sess-coder",
+							Channel:   "builders",
+							Local:     true,
+							PeerCard:  network.PeerCard{PeerID: "coder.sess-coder"},
+							JoinedAt:  timePtr(createdAt),
+							LastSeen:  timePtr(createdAt),
+						},
+					}, nil
+				case "retro":
+					return nil, nil
+				default:
+					t.Fatalf("unexpected ListPeers() channel %q", channel)
+					return nil, nil
+				}
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkAuditFn: func(_ context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error) {
+				switch query.Channel {
+				case "builders":
+					return []store.NetworkAuditEntry{{
+						ID:        "naud-builders-01",
+						SessionID: coderSessionID,
+						Direction: network.AuditDirectionSent,
+						Kind:      "say",
+						Channel:   "builders",
+						PeerFrom:  "coder.sess-coder",
+						MessageID: "msg-builders-01",
+						Size:      1,
+						Timestamp: createdAt.Add(2 * time.Minute),
+					}}, nil
+				case "retro":
+					return []store.NetworkAuditEntry{{
+						ID:        "naud-retro-01",
+						SessionID: reviewerSessionID,
+						Direction: network.AuditDirectionSent,
+						Kind:      "say",
+						Channel:   "retro",
+						PeerFrom:  "reviewer.sess-reviewer",
+						MessageID: "msg-retro-01",
+						Size:      1,
+						Timestamp: createdAt.Add(3 * time.Minute),
+					}}, nil
+				default:
+					return nil, nil
+				}
+			},
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				switch query.Channel {
+				case "":
+					return []store.NetworkMessageEntry{
+						{
+							MessageID: "msg-builders-01",
+							SessionID: coderSessionID,
+							Channel:   "builders",
+							PeerFrom:  "coder.sess-coder",
+							Kind:      "say",
+							Intent:    "announce",
+							Text:      "hello builders",
+							Timestamp: createdAt.Add(2 * time.Minute),
+						},
+						{
+							MessageID: "msg-retro-01",
+							SessionID: reviewerSessionID,
+							Channel:   "retro",
+							PeerFrom:  "reviewer.sess-reviewer",
+							Kind:      "say",
+							Text:      "retro note",
+							Timestamp: createdAt.Add(3 * time.Minute),
+						},
+					}, nil
+				case "builders":
+					return []store.NetworkMessageEntry{{
+						MessageID: "msg-builders-01",
+						SessionID: coderSessionID,
+						Channel:   "builders",
+						PeerFrom:  "coder.sess-coder",
+						Kind:      "say",
+						Intent:    "announce",
+						Text:      "hello builders",
+						Timestamp: createdAt.Add(2 * time.Minute),
+					}}, nil
+				case "retro":
+					return []store.NetworkMessageEntry{{
+						MessageID: "msg-retro-01",
+						SessionID: reviewerSessionID,
+						Channel:   "retro",
+						PeerFrom:  "reviewer.sess-reviewer",
+						Kind:      "say",
+						Text:      "retro note",
+						Timestamp: createdAt.Add(3 * time.Minute),
+					}}, nil
+				default:
+					return nil, nil
+				}
+			},
+		}
+		return fixture
+	}
+
+	t.Run("Should keep stopped sessions out of the channel list while preserving history-only channels", func(t *testing.T) {
+		fixture := newFixture(t)
+
+		channelsResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels", nil)
+		if channelsResp.Code != http.StatusOK {
+			t.Fatalf("channels code = %d, want %d", channelsResp.Code, http.StatusOK)
+		}
+
+		var channelsPayload contract.NetworkChannelsResponse
+		testutil.DecodeJSONResponse(t, channelsResp, &channelsPayload)
+		if got, want := len(channelsPayload.Channels), 2; got != want {
+			t.Fatalf("len(channels) = %d, want %d", got, want)
+		}
+		sort.Slice(channelsPayload.Channels, func(i, j int) bool {
+			return channelsPayload.Channels[i].Channel < channelsPayload.Channels[j].Channel
+		})
+		if got, want := channelsPayload.Channels[0].Channel, "builders"; got != want {
+			t.Fatalf("channels[0].Channel = %q, want %q", got, want)
+		}
+		if got, want := channelsPayload.Channels[0].SessionCount, 1; got != want {
+			t.Fatalf("channels[0].SessionCount = %d, want %d", got, want)
+		}
+		if got, want := channelsPayload.Channels[1].Channel, "retro"; got != want {
+			t.Fatalf("channels[1].Channel = %q, want %q", got, want)
+		}
+		if got, want := channelsPayload.Channels[1].SessionCount, 0; got != want {
+			t.Fatalf("channels[1].SessionCount = %d, want %d", got, want)
+		}
+		if got, want := channelsPayload.Channels[1].MessageCount, 1; got != want {
+			t.Fatalf("channels[1].MessageCount = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should exclude stopped sessions from active channel details", func(t *testing.T) {
+		fixture := newFixture(t)
+
+		channelResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders", nil)
+		if channelResp.Code != http.StatusOK {
+			t.Fatalf("channel detail code = %d, want %d", channelResp.Code, http.StatusOK)
+		}
+
+		var channelPayload contract.NetworkChannelResponse
+		testutil.DecodeJSONResponse(t, channelResp, &channelPayload)
+		if got, want := channelPayload.Channel.Channel, "builders"; got != want {
+			t.Fatalf("channel detail channel = %q, want %q", got, want)
+		}
+		if got, want := channelPayload.Channel.Peers[0].DisplayName, "Coder"; got != want {
+			t.Fatalf("channel detail peer display = %q, want %q", got, want)
+		}
+		if got, want := channelPayload.Channel.MessageCount, 1; got != want {
+			t.Fatalf("channel detail message count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should preserve active local authors in channel message history", func(t *testing.T) {
+		fixture := newFixture(t)
+
+		messagesResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders/messages", nil)
+		if messagesResp.Code != http.StatusOK {
+			t.Fatalf("channel messages code = %d, want %d", messagesResp.Code, http.StatusOK)
+		}
+
+		var messagesPayload contract.NetworkChannelMessagesResponse
+		testutil.DecodeJSONResponse(t, messagesResp, &messagesPayload)
+		if got, want := len(messagesPayload.Messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+		if got, want := messagesPayload.Messages[0].DisplayName, "Coder"; got != want {
+			t.Fatalf("message display_name = %q, want %q", got, want)
+		}
+		if !messagesPayload.Messages[0].Local {
+			t.Fatal("message local = false, want true")
+		}
+	})
+
+	t.Run("Should return history-only channel details without reviving stopped sessions", func(t *testing.T) {
+		fixture := newFixture(t)
+
+		historyResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/retro", nil)
+		if historyResp.Code != http.StatusOK {
+			t.Fatalf("history-only channel detail code = %d, want %d", historyResp.Code, http.StatusOK)
+		}
+
+		var historyPayload contract.NetworkChannelResponse
+		testutil.DecodeJSONResponse(t, historyResp, &historyPayload)
+		if got, want := historyPayload.Channel.Channel, "retro"; got != want {
+			t.Fatalf("history-only channel = %q, want %q", got, want)
+		}
+		if got, want := historyPayload.Channel.SessionCount, 0; got != want {
+			t.Fatalf("history-only session count = %d, want %d", got, want)
+		}
+		if got, want := historyPayload.Channel.PeerCount, 0; got != want {
+			t.Fatalf("history-only peer count = %d, want %d", got, want)
+		}
+		if got, want := historyPayload.Channel.MessageCount, 1; got != want {
+			t.Fatalf("history-only message count = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve remote author identity while keeping local session metadata intact", func(t *testing.T) {
+		createdAt := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC)
+		localSessionID := "sess-coder"
+		remotePeerID := "reviewer.sess-remote"
+
+		manager := testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+				return []*session.SessionInfo{{
+					ID:          localSessionID,
+					Name:        "Coder",
+					AgentName:   "coder",
+					WorkspaceID: "ws-1",
+					Channel:     "builders",
+					Type:        session.SessionTypeUser,
+					State:       session.StateActive,
+					CreatedAt:   createdAt,
+					UpdatedAt:   createdAt,
+				}}, nil
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if channel != "builders" {
+					t.Fatalf("ListPeers() channel = %q, want builders", channel)
+				}
+				displayName := "Reviewer"
+				return []network.PeerInfo{
+					{
+						SessionID: &localSessionID,
+						PeerID:    "coder.sess-coder",
+						Channel:   "builders",
+						Local:     true,
+						PeerCard:  network.PeerCard{PeerID: "coder.sess-coder"},
+					},
+					{
+						PeerID:  remotePeerID,
+						Channel: "builders",
+						Local:   false,
+						PeerCard: network.PeerCard{
+							PeerID:      remotePeerID,
+							DisplayName: &displayName,
+						},
+					},
+				}, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkAuditFn: func(_ context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error) {
+				if got, want := query.Channel, "builders"; got != want {
+					t.Fatalf("ListNetworkAudit() channel = %q, want %q", got, want)
+				}
+				return []store.NetworkAuditEntry{
+					{
+						ID:        "naud-1",
+						SessionID: localSessionID,
+						Direction: network.AuditDirectionReceived,
+						Kind:      "say",
+						Channel:   "builders",
+						PeerFrom:  remotePeerID,
+						MessageID: "msg-remote-01",
+						Size:      1,
+						Timestamp: createdAt.Add(time.Minute),
+					},
+					{
+						ID:        "naud-2",
+						SessionID: localSessionID,
+						Direction: network.AuditDirectionDelivered,
+						Kind:      "say",
+						Channel:   "builders",
+						PeerFrom:  remotePeerID,
+						MessageID: "msg-remote-01",
+						Size:      1,
+						Timestamp: createdAt.Add(2 * time.Minute),
+					},
+					{
+						ID:        "naud-3",
+						SessionID: localSessionID,
+						Direction: network.AuditDirectionSent,
+						Kind:      "say",
+						Channel:   "builders",
+						PeerFrom:  "coder.sess-coder",
+						MessageID: "msg-local-01",
+						Size:      1,
+						Timestamp: createdAt.Add(3 * time.Minute),
+					},
+				}, nil
+			},
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if got, want := query.Channel, "builders"; got != want {
+					t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
+				}
+				return []store.NetworkMessageEntry{
+					{
+						MessageID: "msg-remote-01",
+						SessionID: localSessionID,
+						Channel:   "builders",
+						PeerFrom:  remotePeerID,
+						Kind:      "say",
+						Intent:    "review",
+						Text:      "Please double-check the rollout.",
+						Timestamp: createdAt.Add(time.Minute),
+					},
+					{
+						MessageID: "msg-local-01",
+						SessionID: localSessionID,
+						Channel:   "builders",
+						PeerFrom:  "coder.sess-coder",
+						Kind:      "say",
+						Intent:    "announce",
+						Text:      "Starting rollout now.",
+						Timestamp: createdAt.Add(3 * time.Minute),
+					},
+				}, nil
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders/messages", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("channel messages code = %d, want %d", resp.Code, http.StatusOK)
+		}
+
+		var payload contract.NetworkChannelMessagesResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := len(payload.Messages), 2; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+
+		if got, want := payload.Messages[0].DisplayName, "Reviewer"; got != want {
+			t.Fatalf("remote display_name = %q, want %q", got, want)
+		}
+		if payload.Messages[0].Local {
+			t.Fatal("remote message local = true, want false")
+		}
+		if got := payload.Messages[0].SessionID; got != "" {
+			t.Fatalf("remote session_id = %q, want empty", got)
+		}
+
+		if got, want := payload.Messages[1].DisplayName, "Coder"; got != want {
+			t.Fatalf("local display_name = %q, want %q", got, want)
+		}
+		if !payload.Messages[1].Local {
+			t.Fatal("local message local = false, want true")
+		}
+		if got, want := payload.Messages[1].SessionID, localSessionID; got != want {
+			t.Fatalf("local session_id = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create one session per requested agent and return the aggregated channel payload", func(t *testing.T) {
+		var createCalls []session.CreateOpts
+		manager := testutil.StubSessionManager{
+			CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+				createCalls = append(createCalls, opts)
+				return &session.Session{
+					ID:          "sess-" + opts.AgentName,
+					Name:        strings.ToUpper(opts.AgentName),
+					AgentName:   opts.AgentName,
+					WorkspaceID: opts.Workspace,
+					Channel:     opts.Channel,
+					Type:        session.SessionTypeUser,
+					State:       session.StateActive,
+					CreatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+					UpdatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+				}, nil
+			},
+			ListAllFn: func(_ context.Context) ([]*session.SessionInfo, error) {
+				infos := make([]*session.SessionInfo, 0, len(createCalls))
+				for _, call := range createCalls {
+					infos = append(infos, &session.SessionInfo{
+						ID:          "sess-" + call.AgentName,
+						Name:        strings.ToUpper(call.AgentName),
+						AgentName:   call.AgentName,
+						WorkspaceID: call.Workspace,
+						Channel:     call.Channel,
+						Type:        session.SessionTypeUser,
+						State:       session.StateActive,
+						CreatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+						UpdatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+					})
+				}
+				return infos, nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-1" {
+					t.Fatalf("Resolve() ref = %q, want ws-1", ref)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "Workspace"},
+					Agents: []aghconfig.AgentDef{
+						{Name: "coder"},
+						{Name: "reviewer"},
+					},
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if channel != "builders" {
+					return nil, nil
+				}
+				coderSessionID := "sess-coder"
+				reviewerSessionID := "sess-reviewer"
+				return []network.PeerInfo{
+					{
+						SessionID: &coderSessionID,
+						PeerID:    "coder.sess-coder",
+						Channel:   "builders",
+						Local:     true,
+						PeerCard:  network.PeerCard{PeerID: "coder.sess-coder"},
+					},
+					{
+						SessionID: &reviewerSessionID,
+						PeerID:    "reviewer.sess-reviewer",
+						Channel:   "builders",
+						Local:     true,
+						PeerCard:  network.PeerCard{PeerID: "reviewer.sess-reviewer"},
+					},
+				}, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if query.Channel != "builders" {
+					return nil, nil
+				}
+				return nil, nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/network/channels",
+			[]byte(`{"channel":"builders","workspace_id":"ws-1","agent_names":["coder","reviewer"]}`),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("create channel code = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+		}
+
+		if got, want := len(createCalls), 2; got != want {
+			t.Fatalf("len(createCalls) = %d, want %d", got, want)
+		}
+		expectedAgents := map[string]struct{}{
+			"coder":    {},
+			"reviewer": {},
+		}
+		for _, call := range createCalls {
+			if _, ok := expectedAgents[call.AgentName]; !ok {
+				t.Fatalf("Create() agent = %q, want coder/reviewer", call.AgentName)
+			}
+			delete(expectedAgents, call.AgentName)
+			if got, want := call.Workspace, "ws-1"; got != want {
+				t.Fatalf("Create() workspace = %q, want %q", got, want)
+			}
+			if got, want := call.Channel, "builders"; got != want {
+				t.Fatalf("Create() channel = %q, want %q", got, want)
+			}
+		}
+		if len(expectedAgents) != 0 {
+			t.Fatalf("missing Create() calls for agents: %#v", expectedAgents)
+		}
+
+		var payload contract.CreateNetworkChannelResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := payload.Channel.SessionCount, 2; got != want {
+			t.Fatalf("payload.Channel.SessionCount = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should derive peer metrics from persisted audit history", func(t *testing.T) {
+		coderSessionID := "sess-coder"
+		manager := testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.SessionInfo, error) {
+				return []*session.SessionInfo{{
+					ID:          coderSessionID,
+					Name:        "Coder",
+					AgentName:   "coder",
+					WorkspaceID: "ws-1",
+					Channel:     "builders",
+					Type:        session.SessionTypeUser,
+					State:       session.StateActive,
+					CreatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+					UpdatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+				}}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if channel != "" {
+					t.Fatalf("ListPeers() channel = %q, want empty filter", channel)
+				}
+				return []network.PeerInfo{{
+					SessionID: &coderSessionID,
+					PeerID:    "coder.sess-coder",
+					Channel:   "builders",
+					Local:     true,
+					PeerCard:  network.PeerCard{PeerID: "coder.sess-coder"},
+				}}, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkAuditFn: func(_ context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error) {
+				if query.SessionID != coderSessionID {
+					t.Fatalf("ListNetworkAudit() session_id = %q, want %q", query.SessionID, coderSessionID)
+				}
+				return []store.NetworkAuditEntry{
+					{SessionID: coderSessionID, Direction: network.AuditDirectionSent, Kind: "say", Channel: "builders", PeerFrom: "coder.sess-coder", MessageID: "msg-1", Size: 1},
+					{SessionID: coderSessionID, Direction: network.AuditDirectionReceived, Kind: "direct", Channel: "builders", PeerFrom: "reviewer.sess-remote", MessageID: "msg-2", Size: 1},
+					{SessionID: coderSessionID, Direction: network.AuditDirectionDelivered, Kind: "say", Channel: "builders", PeerFrom: "coder.sess-coder", MessageID: "msg-1", Size: 1},
+					{SessionID: coderSessionID, Direction: network.AuditDirectionRejected, Kind: "receipt", Channel: "builders", PeerFrom: "reviewer.sess-remote", MessageID: "msg-3", Reason: "busy", Size: 1},
+				}, nil
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers/coder.sess-coder", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("peer detail code = %d, want %d", resp.Code, http.StatusOK)
+		}
+
+		var payload contract.NetworkPeerResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := payload.Peer.DisplayName, "Coder"; got != want {
+			t.Fatalf("payload.Peer.DisplayName = %q, want %q", got, want)
+		}
+		if got, want := payload.Peer.Metrics.Sent, int64(1); got != want {
+			t.Fatalf("payload.Peer.Metrics.Sent = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.Received, int64(1); got != want {
+			t.Fatalf("payload.Peer.Metrics.Received = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.Delivered, int64(1); got != want {
+			t.Fatalf("payload.Peer.Metrics.Delivered = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.Rejected, int64(1); got != want {
+			t.Fatalf("payload.Peer.Metrics.Rejected = %d, want %d", got, want)
 		}
 	})
 }

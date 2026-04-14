@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/version"
 )
 
@@ -461,6 +462,61 @@ func TestManifestValidate_RejectsInvalidActionName(t *testing.T) {
 	if validationErr.Field != "actions.requires[0]" {
 		t.Fatalf("validation field = %q, want %q", validationErr.Field, "actions.requires[0]")
 	}
+}
+
+func TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	t.Run("Should reject bridge adapters without platform metadata", func(t *testing.T) {
+		manifest := expectedManifest()
+		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
+
+		err := manifest.Validate()
+		if err == nil {
+			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
+		}
+		if !errors.Is(err, ErrManifestInvalid) {
+			t.Fatalf("Validate() error = %v, want ErrManifestInvalid", err)
+		}
+
+		var validationErr *ManifestValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
+		}
+		if validationErr.Field != "bridge.platform" {
+			t.Fatalf("validation field = %q, want %q", validationErr.Field, "bridge.platform")
+		}
+	})
+
+	t.Run("Should reject bridge adapters without display name metadata", func(t *testing.T) {
+		manifest := expectedManifest()
+		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
+		manifest.Bridge.Platform = "telegram"
+
+		err := manifest.Validate()
+		if err == nil {
+			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
+		}
+
+		var validationErr *ManifestValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
+		}
+		if validationErr.Field != "bridge.display_name" {
+			t.Fatalf("validation field = %q, want %q", validationErr.Field, "bridge.display_name")
+		}
+	})
+
+	t.Run("Should accept bridge adapters with complete bridge metadata", func(t *testing.T) {
+		manifest := expectedManifest()
+		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
+		manifest.Bridge.Platform = "telegram"
+		manifest.Bridge.DisplayName = "Telegram"
+
+		if err := manifest.Validate(); err != nil {
+			t.Fatalf("Validate() with bridge metadata error = %v", err)
+		}
+	})
 }
 
 func TestManifestHelpers_ErrorFormattingAndDurationMethods(t *testing.T) {

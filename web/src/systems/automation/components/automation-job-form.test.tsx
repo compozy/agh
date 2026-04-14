@@ -52,6 +52,7 @@ describe("AutomationJobForm", () => {
     const { onCancel, onChange, onSubmit } = renderJobForm();
 
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
+    expect(screen.getByText("Enabled on create")).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("job-name-input"), {
       target: { value: "nightly-docs" },
@@ -73,23 +74,17 @@ describe("AutomationJobForm", () => {
       expect.objectContaining({ scope: "workspace", workspace_id: "ws_alpha" })
     );
 
-    fireEvent.change(screen.getByTestId("job-schedule-mode"), {
-      target: { value: "every" },
-    });
+    fireEvent.click(screen.getByTestId("job-schedule-mode-every"));
     fireEvent.change(screen.getByTestId("job-schedule-interval"), {
       target: { value: "45m" },
     });
 
-    fireEvent.change(screen.getByTestId("job-schedule-mode"), {
-      target: { value: "at" },
-    });
+    fireEvent.click(screen.getByTestId("job-schedule-mode-at"));
     fireEvent.change(screen.getByTestId("job-schedule-time"), {
       target: { value: "2026-04-15T15:00:00Z" },
     });
 
-    fireEvent.change(screen.getByTestId("job-retry-strategy"), {
-      target: { value: "backoff" },
-    });
+    fireEvent.click(screen.getByTestId("job-retry-strategy-backoff"));
     fireEvent.change(screen.getByTestId("job-retry-max"), {
       target: { value: "5" },
     });
@@ -134,6 +129,35 @@ describe("AutomationJobForm", () => {
     );
   });
 
+  it("resets retry values when switching back to none", () => {
+    const { onChange } = renderJobForm();
+
+    expect(screen.getByTestId("job-retry-max")).toBeDisabled();
+    expect(screen.getByTestId("job-retry-max")).toHaveValue(0);
+    expect(screen.getByTestId("job-retry-delay")).toHaveValue("");
+
+    fireEvent.click(screen.getByTestId("job-retry-strategy-backoff"));
+    expect(screen.getByTestId("job-retry-max")).toBeEnabled();
+    expect(screen.getByTestId("job-retry-delay")).toHaveValue("2s");
+
+    fireEvent.change(screen.getByTestId("job-retry-max"), {
+      target: { value: "4" },
+    });
+    fireEvent.change(screen.getByTestId("job-retry-delay"), {
+      target: { value: "8s" },
+    });
+    fireEvent.click(screen.getByTestId("job-retry-strategy-none"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        retry: { strategy: "none", max_retries: 0, base_delay: "" },
+      })
+    );
+    expect(screen.getByTestId("job-retry-max")).toBeDisabled();
+    expect(screen.getByTestId("job-retry-max")).toHaveValue(0);
+    expect(screen.getByTestId("job-retry-delay")).toHaveValue("");
+  });
+
   it("renders edit and pending labels without submitting", () => {
     const { onSubmit } = renderJobForm({
       draft: {
@@ -146,7 +170,8 @@ describe("AutomationJobForm", () => {
       mode: "edit",
     });
 
-    expect(screen.getByText("Edit job")).toBeInTheDocument();
+    expect(screen.getByText("Edit Job")).toBeInTheDocument();
+    expect(screen.getByText("Enabled")).toBeInTheDocument();
     expect(screen.getByTestId("submit-job-form")).toHaveTextContent("Saving...");
 
     fireEvent.submit(screen.getByTestId("automation-job-form"));

@@ -8,16 +8,17 @@ export type {
 
 // Adapters
 export type { ResolveWorkspaceParams } from "./adapters/workspace-api";
-export { fetchWorkspaces, resolveWorkspace } from "./adapters/workspace-api";
+export { fetchWorkspace, fetchWorkspaces, resolveWorkspace } from "./adapters/workspace-api";
 
 // Query infrastructure
 export { workspaceKeys } from "./lib/query-keys";
-export { workspacesListOptions } from "./lib/query-options";
+export { workspaceDetailOptions, workspacesListOptions } from "./lib/query-options";
 
 // Hooks
 export { useActiveWorkspace } from "./hooks/use-active-workspace";
-export { useResolveWorkspace, useWorkspaces } from "./hooks/use-workspaces";
+export { useResolveWorkspace, useWorkspace, useWorkspaces } from "./hooks/use-workspaces";
 
 // Components
+export { WorkspacePageShell } from "./components/workspace-page-shell";
 export { WorkspaceSelector } from "./components/workspace-selector";
 export { WorkspaceOnboarding, WorkspaceSetupDialog } from "./components/workspace-setup";

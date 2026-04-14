@@ -1,15 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  automationScopeTone,
+  automationSemanticTone,
   automationSourceLabel,
+  automationSourceTone,
   automationStatusTone,
   describeFireLimit,
   describeRetry,
   describeSchedule,
   describeTrigger,
+  formatAutomationListSummary,
+  formatDate,
   formatDateTime,
+  formatPromptPreview,
   formatRelativeTime,
+  formatRunDuration,
   formatRunTitle,
+  sortAutomationJobs,
 } from "./automation-formatters";
 
 const triggerFixture = {
@@ -51,6 +59,9 @@ describe("automation formatter helpers", () => {
   });
 
   it("formats calendar times and falls back when dates are missing or invalid", () => {
+    expect(formatDate()).toBe("Unavailable");
+    expect(formatDate("not-a-date")).toBe("not-a-date");
+    expect(formatDate("2026-04-11T08:10:00Z")).toContain("Apr 11, 2026");
     expect(formatDateTime()).toBe("Unavailable");
     expect(formatDateTime("not-a-date")).toBe("not-a-date");
     expect(formatDateTime("2026-04-11T08:10:00Z")).toContain("Apr 11, 2026");
@@ -88,6 +99,15 @@ describe("automation formatter helpers", () => {
     );
     expect(describeFireLimit({ max: 12, window: "1h" })).toBe("12 fires / 1h");
     expect(formatRunTitle({ status: "running", attempt: 2 } as never)).toBe("RUNNING · attempt 2");
+    expect(
+      formatRunDuration({
+        started_at: "2026-04-11T10:00:00Z",
+        ended_at: "2026-04-11T10:02:14Z",
+      } as never)
+    ).toBe("2m 14s");
+    expect(
+      formatPromptPreview("Review the session transcript and summarize follow-up actions.", 20)
+    ).toBe("Review the session…");
     expect(automationStatusTone("running")).toBe("accent");
     expect(automationStatusTone("completed")).toBe("success");
     expect(automationStatusTone("enabled")).toBe("success");
@@ -95,7 +115,68 @@ describe("automation formatter helpers", () => {
     expect(automationStatusTone("failed")).toBe("danger");
     expect(automationStatusTone("cancelled")).toBe("neutral");
     expect(automationStatusTone("disabled")).toBe("neutral");
+    expect(automationSemanticTone("running")).toBe("amber");
+    expect(automationScopeTone("workspace")).toBe("violet");
+    expect(automationSourceTone("dynamic")).toBe("amber");
     expect(automationSourceLabel("config")).toBe("CONFIG");
     expect(automationSourceLabel("dynamic")).toBe("DYNAMIC");
+  });
+
+  it("formats list summaries and sorts automation records by source then name", () => {
+    expect(
+      formatAutomationListSummary({
+        activeWorkspaceName: "alpha",
+        kind: "jobs",
+        scopeFilter: "workspace",
+        searchQuery: "",
+        totalCount: 4,
+        visibleCount: 1,
+      })
+    ).toBe("1 job in alpha");
+    expect(
+      formatAutomationListSummary({
+        kind: "jobs",
+        scopeFilter: "global",
+        searchQuery: "",
+        totalCount: 4,
+        visibleCount: 2,
+      })
+    ).toBe("2 jobs in global scope");
+    expect(
+      formatAutomationListSummary({
+        kind: "jobs",
+        scopeFilter: "all",
+        searchQuery: "nightly",
+        totalCount: 4,
+        visibleCount: 2,
+      })
+    ).toBe("2 jobs matching current search");
+    expect(
+      formatAutomationListSummary({
+        kind: "triggers",
+        scopeFilter: "all",
+        searchQuery: "",
+        totalCount: 0,
+        visibleCount: 0,
+      })
+    ).toBe("0 triggers found");
+
+    expect(
+      sortAutomationJobs([
+        {
+          id: "dynamic",
+          name: "beta",
+          source: "dynamic",
+        },
+        {
+          id: "config",
+          name: "alpha",
+          source: "config",
+        },
+      ] as never)
+    ).toEqual([
+      expect.objectContaining({ id: "config" }),
+      expect.objectContaining({ id: "dynamic" }),
+    ]);
   });
 });

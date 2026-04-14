@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/session"
 )
 
 func (h *BaseHandlers) networkServiceRequired() (NetworkService, error) {
@@ -47,7 +49,59 @@ func (h *BaseHandlers) NetworkPeers(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.NetworkPeersResponse{Peers: NetworkPeerPayloadsFromInfos(peers)})
+	sessionByID := h.networkPeerSessionInfoMap(c.Request.Context(), peers)
+	payload := make([]contract.NetworkPeerPayload, 0, len(peers))
+	for _, peer := range peers {
+		payload = append(payload, networkPeerPayloadFromInfoWithSessions(peer, sessionByID))
+	}
+	c.JSON(http.StatusOK, contract.NetworkPeersResponse{Peers: payload})
+}
+
+func (h *BaseHandlers) networkPeerSessionInfoMap(
+	ctx context.Context,
+	peers []network.PeerInfo,
+) map[string]*session.SessionInfo {
+	if h == nil || h.Sessions == nil || len(peers) == 0 {
+		return nil
+	}
+
+	sessionByID := make(map[string]*session.SessionInfo, len(peers))
+	for _, peer := range peers {
+		if peer.SessionID == nil {
+			continue
+		}
+
+		sessionID := strings.TrimSpace(*peer.SessionID)
+		if sessionID == "" {
+			continue
+		}
+		if _, seen := sessionByID[sessionID]; seen {
+			continue
+		}
+
+		info, err := h.Sessions.Status(ctx, sessionID)
+		if err != nil {
+			if h.Logger != nil {
+				h.Logger.Warn(
+					h.transportName()+": skip network peer session enrichment",
+					"session_id",
+					sessionID,
+					"peer_id",
+					strings.TrimSpace(peer.PeerID),
+					"error",
+					err,
+				)
+			}
+			continue
+		}
+		if info != nil {
+			sessionByID[sessionID] = info
+		}
+	}
+	if len(sessionByID) == 0 {
+		return nil
+	}
+	return sessionByID
 }
 
 // NetworkChannels returns the active runtime channels.
@@ -58,12 +112,12 @@ func (h *BaseHandlers) NetworkChannels(c *gin.Context) {
 		return
 	}
 
-	channels, err := service.ListChannels(c.Request.Context())
+	channels, err := h.networkChannelPayloads(c.Request.Context(), service)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.NetworkChannelsResponse{Channels: NetworkChannelPayloadsFromInfos(channels)})
+	c.JSON(http.StatusOK, contract.NetworkChannelsResponse{Channels: channels})
 }
 
 // NetworkSend validates and forwards one outbound network send request.
@@ -234,11 +288,18 @@ func NetworkPeerPayloadsFromInfos(peers []network.PeerInfo) []contract.NetworkPe
 
 // NetworkPeerPayloadFromInfo converts one visible peer snapshot into the shared payload.
 func NetworkPeerPayloadFromInfo(peer network.PeerInfo) contract.NetworkPeerPayload {
+	displayName := peer.PeerID
+	if peer.PeerCard.DisplayName != nil {
+		if trimmed := strings.TrimSpace(*peer.PeerCard.DisplayName); trimmed != "" {
+			displayName = trimmed
+		}
+	}
 	return contract.NetworkPeerPayload{
-		SessionID: peer.SessionID,
-		PeerID:    peer.PeerID,
-		Channel:   peer.Channel,
-		Local:     peer.Local,
+		SessionID:   peer.SessionID,
+		PeerID:      peer.PeerID,
+		DisplayName: displayName,
+		Channel:     peer.Channel,
+		Local:       peer.Local,
 		PeerCard: contract.NetworkPeerCardPayload{
 			PeerID:              peer.PeerCard.PeerID,
 			DisplayName:         peer.PeerCard.DisplayName,

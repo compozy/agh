@@ -3,15 +3,20 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useResolveWorkspace, useWorkspaces } from "./use-workspaces";
+import { useResolveWorkspace, useWorkspace, useWorkspaces } from "./use-workspaces";
 import { workspaceKeys } from "../lib/query-keys";
 
-vi.mock("../adapters/workspace-api", () => ({
+vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
+  fetchWorkspace: vi.fn(),
   fetchWorkspaces: vi.fn(),
   resolveWorkspace: vi.fn(),
 }));
 
-import { fetchWorkspaces, resolveWorkspace } from "../adapters/workspace-api";
+import {
+  fetchWorkspace,
+  fetchWorkspaces,
+  resolveWorkspace,
+} from "@/systems/workspace/adapters/workspace-api";
 
 function createWrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) =>
@@ -52,6 +57,48 @@ describe("workspace hooks", () => {
     });
 
     expect(fetchWorkspaces).toHaveBeenCalledOnce();
+  });
+
+  it("loads one resolved workspace detail", async () => {
+    vi.mocked(fetchWorkspace).mockResolvedValue({
+      agents: [{ name: "coder", prompt: "code", provider: "openai" }],
+      sessions: [],
+      skills: [],
+      workspace: {
+        id: "ws_alpha",
+        root_dir: "/workspace/alpha",
+        add_dirs: [],
+        name: "alpha",
+        created_at: "2026-04-06T10:00:00Z",
+        updated_at: "2026-04-06T10:00:00Z",
+      },
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(() => useWorkspace("ws_alpha"), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(result.current.data?.workspace.id).toBe("ws_alpha");
+    });
+
+    expect(fetchWorkspace).toHaveBeenCalledWith("ws_alpha", expect.any(AbortSignal));
+  });
+
+  it("allows callers to disable the workspace detail query", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    renderHook(() => useWorkspace("ws_alpha", { enabled: false }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    expect(fetchWorkspace).not.toHaveBeenCalled();
   });
 
   it("invalidates the workspace list after resolving a workspace", async () => {

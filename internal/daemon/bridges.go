@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
@@ -38,6 +40,7 @@ type bridgeRuntime struct {
 	*bridgepkg.Service
 
 	store          bridgeRuntimeStore
+	registry       *extensionpkg.Registry
 	secretResolver BridgeSecretResolver
 	broker         *bridgepkg.Broker
 	logger         *slog.Logger
@@ -72,9 +75,15 @@ func newBridgeRuntime(
 		now = func() time.Time { return time.Now().UTC() }
 	}
 
+	var registry *extensionpkg.Registry
+	if dbSource, ok := store.(extensionDBSource); ok && dbSource.DB() != nil {
+		registry = extensionpkg.NewRegistry(dbSource.DB())
+	}
+
 	return &bridgeRuntime{
 		Service:        bridgepkg.NewRegistry(store, bridgepkg.WithNow(now)),
 		store:          store,
+		registry:       registry,
 		secretResolver: secretResolver,
 		broker:         bridgepkg.NewBroker(nil, bridgepkg.WithDeliveryBrokerNow(now)),
 		logger:         logger,
@@ -132,6 +141,79 @@ func (r *bridgeRuntime) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMet
 		return nil
 	}
 	return r.broker.DeliveryMetrics()
+}
+
+func (r *bridgeRuntime) ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error) {
+	if r == nil {
+		return nil, errors.New("daemon: bridge runtime is required")
+	}
+	if ctx == nil {
+		return nil, errors.New("daemon: list bridge providers context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if r.registry == nil {
+		return nil, nil
+	}
+
+	infos, err := r.registry.List()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: list bridge providers: %w", err)
+	}
+
+	r.mu.RLock()
+	extensions := r.extensions
+	r.mu.RUnlock()
+
+	providers := make([]bridgepkg.BridgeProvider, 0, len(infos))
+	for _, info := range infos {
+		if !slices.Contains(info.Capabilities.Provides, extensionprotocol.CapabilityProvideBridgeAdapter) {
+			continue
+		}
+
+		ext, err := loadExtensionSnapshot(r.registry, extensions, r.logger, info.Name)
+		if err != nil {
+			r.logger.Warn("daemon: skip invalid bridge provider extension", "extension_name", info.Name, "error", err)
+			continue
+		}
+		if ext == nil || ext.Manifest == nil {
+			r.logger.Warn("daemon: skip bridge provider with missing manifest", "extension_name", info.Name)
+			continue
+		}
+
+		platform := strings.TrimSpace(ext.Manifest.Bridge.Platform)
+		displayName := strings.TrimSpace(ext.Manifest.Bridge.DisplayName)
+		if platform == "" {
+			r.logger.Warn("daemon: skip bridge provider with missing platform", "extension_name", info.Name)
+			continue
+		}
+		if displayName == "" {
+			r.logger.Warn("daemon: skip bridge provider with missing display name", "extension_name", info.Name)
+			continue
+		}
+
+		description := strings.TrimSpace(ext.Manifest.Description)
+		status := extensionpkg.DescribeExtension(ext, extensions != nil, r.now())
+		providers = append(providers, bridgepkg.BridgeProvider{
+			Platform:      platform,
+			ExtensionName: info.Name,
+			DisplayName:   displayName,
+			Description:   description,
+			Enabled:       info.Enabled,
+			State:         status.State,
+			Health:        status.Health,
+			HealthMessage: status.HealthMessage,
+		})
+	}
+
+	slices.SortFunc(providers, func(left, right bridgepkg.BridgeProvider) int {
+		if byName := strings.Compare(left.DisplayName, right.DisplayName); byName != 0 {
+			return byName
+		}
+		return strings.Compare(left.ExtensionName, right.ExtensionName)
+	})
+	return providers, nil
 }
 
 func (r *bridgeRuntime) Close() {

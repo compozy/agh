@@ -6,17 +6,48 @@ import {
 } from "@/lib/api-client";
 import type { OperationRequestBody } from "@/lib/api-contract";
 
-import type { WorkspacePayload } from "../types";
+import type { WorkspaceDetailPayload, WorkspacePayload } from "../types";
 
 export type ResolveWorkspaceParams = OperationRequestBody<"resolveWorkspace">;
+
+export class WorkspaceApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = "WorkspaceApiError";
+  }
+}
 
 export async function fetchWorkspaces(signal?: AbortSignal): Promise<WorkspacePayload[]> {
   const { data, error, response } = await apiClient.GET("/api/workspaces", { signal });
   if (apiRequestFailed(response, error)) {
-    throw new Error(defaultApiErrorMessage("Failed to fetch workspaces", response, error));
+    throw new WorkspaceApiError(
+      defaultApiErrorMessage("Failed to fetch workspaces", response, error),
+      response.status
+    );
   }
 
   return requireResponseData(data, response, "Failed to fetch workspaces").workspaces;
+}
+
+export async function fetchWorkspace(
+  workspaceID: string,
+  signal?: AbortSignal
+): Promise<WorkspaceDetailPayload> {
+  const { data, error, response } = await apiClient.GET("/api/workspaces/{id}", {
+    params: { path: { id: workspaceID } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new WorkspaceApiError(
+      defaultApiErrorMessage("Failed to fetch workspace", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to fetch workspace");
 }
 
 export async function resolveWorkspace(
@@ -28,7 +59,10 @@ export async function resolveWorkspace(
     signal,
   });
   if (apiRequestFailed(response, error)) {
-    throw new Error(defaultApiErrorMessage("Failed to resolve workspace", response, error));
+    throw new WorkspaceApiError(
+      defaultApiErrorMessage("Failed to resolve workspace", response, error),
+      response.status
+    );
   }
 
   return requireResponseData(data, response, "Failed to resolve workspace").workspace;

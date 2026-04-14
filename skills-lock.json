@@ -61,6 +61,11 @@
             "sourceType": "github",
             "computedHash": "8bc7a75020275e4ad1813cb4b616dc9e0c7624a6e71178f98341e69c39bd65f4"
         },
+        "kb": {
+            "source": "compozy/kb",
+            "sourceType": "github",
+            "computedHash": "1950daed243399488ea990aa67b636ccb307997ebe071f484496869539594dcd"
+        },
         "kodebase": {
             "source": "pedronauck/kodebase-go",
             "sourceType": "github",
@@ -100,6 +105,11 @@
             "source": "pedronauck/skills",
             "sourceType": "github",
             "computedHash": "8aa98ed5bea287bf04295aec57b4fca25cf724069aaf58c8a66ac68bf791360d"
+        },
+        "systematic-qa": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "cbc36a65128986475cb78c7a025b57abcde1383653af2616a40f59d546435295"
         },
         "tmux": {
             "source": "steipete/clawdis",

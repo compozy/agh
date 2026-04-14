@@ -3,6 +3,10 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -75,6 +79,9 @@ func TestComposeBridgeRuntime(t *testing.T) {
 		}
 		if runtime.store != db {
 			t.Fatalf("composeBridgeRuntime(globaldb) store = %#v, want global db", runtime.store)
+		}
+		if runtime.registry == nil {
+			t.Fatal("composeBridgeRuntime(globaldb) registry = nil, want extension registry")
 		}
 	})
 }
@@ -271,6 +278,120 @@ func TestBridgeRuntimeCreateInstance(t *testing.T) {
 		}
 		if got, want := created.Status, bridgepkg.BridgeStatusDisabled; got != want {
 			t.Fatalf("GetInstance().Status after failed create = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestBridgeRuntimeListProviders(t *testing.T) {
+	t.Run("ShouldProjectInstalledBridgeProvidersFromExtensionRegistry", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 11, 12, 25, 0, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+		if runtime == nil {
+			t.Fatal("newBridgeRuntime() = nil, want non-nil")
+		}
+		if runtime.registry == nil {
+			t.Fatal("runtime.registry = nil, want extension registry")
+		}
+
+		bridgeInfo := mustInstallDaemonExtension(t, runtime.registry, daemonExtensionFixture{
+			name:              "telegram-reference",
+			description:       "Reference Telegram bridge adapter",
+			capabilities:      []string{"bridge.adapter"},
+			bridgePlatform:    "telegram",
+			bridgeDisplayName: "Telegram",
+			enabled:           true,
+		})
+		mustInstallDaemonExtension(t, runtime.registry, daemonExtensionFixture{
+			name:         "memory-only",
+			description:  "Memory backend",
+			capabilities: []string{"memory.backend"},
+			enabled:      true,
+		})
+
+		runtime.setExtensionRuntime(&fakeExtensionRuntime{
+			getExt: &extensionpkg.Extension{
+				Info: *bridgeInfo,
+				Status: extensionpkg.ExtensionStatus{
+					Name:          bridgeInfo.Name,
+					Version:       bridgeInfo.Version,
+					Source:        bridgeInfo.Source,
+					Enabled:       bridgeInfo.Enabled,
+					Registered:    true,
+					Active:        true,
+					Healthy:       true,
+					HealthMessage: "connected",
+					LastStartedAt: now.Add(-time.Minute),
+				},
+			},
+		})
+
+		providers, err := runtime.ListProviders(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("ListProviders() error = %v", err)
+		}
+		if got, want := len(providers), 1; got != want {
+			t.Fatalf("len(providers) = %d, want %d", got, want)
+		}
+		if got, want := providers[0].Platform, "telegram"; got != want {
+			t.Fatalf("provider platform = %q, want %q", got, want)
+		}
+		if got, want := providers[0].DisplayName, "Telegram"; got != want {
+			t.Fatalf("provider display name = %q, want %q", got, want)
+		}
+		if got, want := providers[0].State, "active"; got != want {
+			t.Fatalf("provider state = %q, want %q", got, want)
+		}
+		if got, want := providers[0].Health, "healthy"; got != want {
+			t.Fatalf("provider health = %q, want %q", got, want)
+		}
+		if got, want := providers[0].HealthMessage, "connected"; got != want {
+			t.Fatalf("provider health message = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("ShouldSkipBridgeProvidersWithUnreadableManifestSnapshots", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time {
+			return time.Date(2026, 4, 11, 12, 35, 0, 0, time.UTC)
+		}, nil)
+		if runtime == nil || runtime.registry == nil {
+			t.Fatal("newBridgeRuntime() missing registry")
+		}
+
+		goodInfo := mustInstallDaemonExtension(t, runtime.registry, daemonExtensionFixture{
+			name:              "telegram-reference",
+			description:       "Reference Telegram bridge adapter",
+			capabilities:      []string{"bridge.adapter"},
+			bridgePlatform:    "telegram",
+			bridgeDisplayName: "Telegram",
+			enabled:           true,
+		})
+		badInfo := mustInstallDaemonExtension(t, runtime.registry, daemonExtensionFixture{
+			name:              "slack-broken",
+			description:       "Broken Slack bridge adapter",
+			capabilities:      []string{"bridge.adapter"},
+			bridgePlatform:    "slack",
+			bridgeDisplayName: "Slack",
+			enabled:           true,
+		})
+		if err := os.Remove(badInfo.ManifestPath); err != nil {
+			t.Fatalf("os.Remove(%s) error = %v", badInfo.ManifestPath, err)
+		}
+
+		providers, err := runtime.ListProviders(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("ListProviders() error = %v", err)
+		}
+		if got, want := len(providers), 1; got != want {
+			t.Fatalf("len(providers) = %d, want %d", got, want)
+		}
+		if got, want := providers[0].ExtensionName, goodInfo.Name; got != want {
+			t.Fatalf("provider extension_name = %q, want %q", got, want)
 		}
 	})
 }
@@ -757,6 +878,77 @@ func newBlockingReloadExtensionRuntime(reloadErr error) *blockingReloadExtension
 		secondStarted: make(chan struct{}),
 		releaseFirst:  make(chan struct{}),
 	}
+}
+
+type daemonExtensionFixture struct {
+	name              string
+	description       string
+	capabilities      []string
+	bridgePlatform    string
+	bridgeDisplayName string
+	enabled           bool
+}
+
+func mustInstallDaemonExtension(
+	t *testing.T,
+	registry *extensionpkg.Registry,
+	fixture daemonExtensionFixture,
+) *extensionpkg.ExtensionInfo {
+	t.Helper()
+
+	dir := t.TempDir()
+	manifestPath := filepath.Join(dir, "extension.toml")
+	if err := os.WriteFile(manifestPath, []byte(daemonExtensionManifest(fixture)), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%s) error = %v", manifestPath, err)
+	}
+
+	manifest, err := extensionpkg.LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest(%s) error = %v", dir, err)
+	}
+	checksum, err := extensionpkg.ComputeDirectoryChecksum(dir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum(%s) error = %v", dir, err)
+	}
+	if err := registry.Install(manifest, dir, checksum); err != nil {
+		t.Fatalf("Install(%s) error = %v", fixture.name, err)
+	}
+	if !fixture.enabled {
+		if err := registry.Disable(fixture.name); err != nil {
+			t.Fatalf("Disable(%s) error = %v", fixture.name, err)
+		}
+	}
+
+	info, err := registry.Get(fixture.name)
+	if err != nil {
+		t.Fatalf("Get(%s) error = %v", fixture.name, err)
+	}
+	return info
+}
+
+func daemonExtensionManifest(fixture daemonExtensionFixture) string {
+	var builder strings.Builder
+
+	fmt.Fprintf(&builder, "[extension]\nname = %q\nversion = \"0.1.0\"\ndescription = %q\nmin_agh_version = \"0.5.0\"\n\n", fixture.name, fixture.description)
+	if len(fixture.capabilities) > 0 {
+		fmt.Fprintf(&builder, "[capabilities]\nprovides = [%s]\n\n", quotedStringList(fixture.capabilities))
+	}
+	if fixture.bridgePlatform != "" || fixture.bridgeDisplayName != "" {
+		fmt.Fprintf(&builder, "[bridge]\nplatform = %q\ndisplay_name = %q\n", fixture.bridgePlatform, fixture.bridgeDisplayName)
+	}
+	return builder.String()
+}
+
+func quotedStringList(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, fmt.Sprintf("%q", value))
+	}
+	return strings.Join(quoted, ", ")
 }
 
 func (r *blockingReloadExtensionRuntime) Start(context.Context) error {

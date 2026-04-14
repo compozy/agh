@@ -44,20 +44,22 @@ describe("AutomationListPanel", () => {
   it("renders job items and highlights the selected record", () => {
     render(
       <AutomationListPanel
+        activeWorkspaceName="alpha"
         jobs={[jobFixture]}
         kind="jobs"
-        onCreate={vi.fn()}
         onSearchChange={vi.fn()}
         onSelect={vi.fn()}
         scopeFilter="workspace"
         searchQuery=""
         selectedId="job_daily_review"
+        totalCount={1}
         triggers={[]}
       />
     );
 
     expect(screen.getByTestId("automation-item-job_daily_review")).toBeInTheDocument();
     expect(screen.getByTestId("automation-active-indicator")).toBeInTheDocument();
+    expect(screen.getByTestId("automation-list-summary")).toHaveTextContent("1 job in alpha");
   });
 
   it("filters trigger items from the search box", async () => {
@@ -70,18 +72,18 @@ describe("AutomationListPanel", () => {
     });
 
     const onSelect = vi.fn();
-    const onCreate = vi.fn();
 
     const { rerender } = render(
       <AutomationListPanel
+        activeWorkspaceName="alpha"
         jobs={[]}
         kind="triggers"
-        onCreate={onCreate}
         onSearchChange={onSearchChange}
         onSelect={onSelect}
         scopeFilter="all"
         searchQuery={currentQuery}
         selectedId={null}
+        totalCount={1}
         triggers={[triggerFixture]}
       />
     );
@@ -89,15 +91,16 @@ describe("AutomationListPanel", () => {
     function rerenderPanel() {
       rerender(
         <AutomationListPanel
+          activeWorkspaceName="alpha"
           jobs={[]}
           kind="triggers"
-          onCreate={onCreate}
           onSearchChange={onSearchChange}
           onSelect={onSelect}
           scopeFilter="all"
           searchQuery={currentQuery}
           selectedId={null}
-          triggers={[triggerFixture]}
+          totalCount={1}
+          triggers={currentQuery === "webhook-only" ? [] : [triggerFixture]}
         />
       );
     }

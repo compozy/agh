@@ -10,6 +10,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	{
 		bridges.GET("", handlers.ListBridges)
 		bridges.POST("", handlers.CreateBridge)
+		bridges.GET("/providers", handlers.ListBridgeProviders)
 		bridges.GET("/:id", handlers.GetBridge)
 		bridges.PATCH("/:id", handlers.UpdateBridge)
 		bridges.POST("/:id/enable", handlers.EnableBridge)
@@ -115,7 +116,11 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	{
 		network.GET("/status", handlers.NetworkStatus)
 		network.GET("/peers", handlers.NetworkPeers)
+		network.GET("/peers/:peer_id", handlers.NetworkPeer)
 		network.GET("/channels", handlers.NetworkChannels)
+		network.POST("/channels", handlers.CreateNetworkChannel)
+		network.GET("/channels/:channel", handlers.NetworkChannel)
+		network.GET("/channels/:channel/messages", handlers.NetworkChannelMessages)
 		network.POST("/send", handlers.NetworkSend)
 		network.GET("/inbox", handlers.NetworkInbox)
 	}

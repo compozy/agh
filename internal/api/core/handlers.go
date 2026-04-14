@@ -30,6 +30,7 @@ type BaseHandlerConfig struct {
 	IncludeSessionWorkspaceInSSE bool
 	Sessions                     SessionManager
 	Network                      NetworkService
+	NetworkStore                 NetworkStore
 	Observer                     Observer
 	Automation                   AutomationManager
 	Bridges                      BridgeService
@@ -56,6 +57,7 @@ type BaseHandlers struct {
 	IncludeSessionWorkspaceInSSE bool
 	Sessions                     SessionManager
 	Network                      NetworkService
+	NetworkStore                 NetworkStore
 	Observer                     Observer
 	Automation                   AutomationManager
 	Bridges                      BridgeService
@@ -117,6 +119,7 @@ func NewBaseHandlers(cfg BaseHandlerConfig) *BaseHandlers {
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
 		Sessions:                     cfg.Sessions,
 		Network:                      cfg.Network,
+		NetworkStore:                 cfg.NetworkStore,
 		Observer:                     cfg.Observer,
 		Automation:                   cfg.Automation,
 		Bridges:                      cfg.Bridges,

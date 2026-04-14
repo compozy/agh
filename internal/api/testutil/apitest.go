@@ -340,6 +340,11 @@ type StubNetworkService struct {
 	InboxFn        func(context.Context, string) ([]network.Envelope, error)
 }
 
+type StubNetworkStore struct {
+	ListNetworkAuditFn    func(context.Context, store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
+	ListNetworkMessagesFn func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
+}
+
 func (s StubNetworkService) Send(ctx context.Context, req network.SendRequest) (string, error) {
 	if s.SendFn != nil {
 		return s.SendFn(ctx, req)
@@ -371,6 +376,20 @@ func (s StubNetworkService) Status(ctx context.Context) (*network.NetworkStatus,
 func (s StubNetworkService) Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error) {
 	if s.InboxFn != nil {
 		return s.InboxFn(ctx, sessionID)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkStore) ListNetworkAudit(ctx context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error) {
+	if s.ListNetworkAuditFn != nil {
+		return s.ListNetworkAuditFn(ctx, query)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkStore) ListNetworkMessages(ctx context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+	if s.ListNetworkMessagesFn != nil {
+		return s.ListNetworkMessagesFn(ctx, query)
 	}
 	return nil, nil
 }
@@ -414,6 +433,7 @@ type StubBridgeService struct {
 	CreateInstanceFn        func(context.Context, bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error)
 	GetInstanceFn           func(context.Context, string) (*bridgepkg.BridgeInstance, error)
 	ListInstancesFn         func(context.Context) ([]bridgepkg.BridgeInstance, error)
+	ListProvidersFn         func(context.Context) ([]bridgepkg.BridgeProvider, error)
 	UpdateInstanceFn        func(context.Context, bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error)
 	UpdateInstanceStateFn   func(context.Context, bridgepkg.UpdateInstanceStateRequest) (*bridgepkg.BridgeInstance, error)
 	BuildRoutingKeyFn       func(context.Context, bridgepkg.RoutingKey) (bridgepkg.RoutingKey, error)
@@ -446,6 +466,13 @@ func (s StubBridgeService) GetInstance(ctx context.Context, id string) (*bridgep
 func (s StubBridgeService) ListInstances(ctx context.Context) ([]bridgepkg.BridgeInstance, error) {
 	if s.ListInstancesFn != nil {
 		return s.ListInstancesFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s StubBridgeService) ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error) {
+	if s.ListProvidersFn != nil {
+		return s.ListProvidersFn(ctx)
 	}
 	return nil, nil
 }
@@ -785,6 +812,7 @@ func DiscardLogger() *slog.Logger {
 
 var _ core.SessionManager = (*StubSessionManager)(nil)
 var _ core.NetworkService = (*StubNetworkService)(nil)
+var _ core.NetworkStore = (*StubNetworkStore)(nil)
 var _ core.Observer = (*StubObserver)(nil)
 var _ core.AutomationManager = (*StubAutomationManager)(nil)
 var _ core.WorkspaceService = (*StubWorkspaceService)(nil)

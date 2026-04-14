@@ -373,6 +373,7 @@ func TestBrokerSnapshotCapturesActiveDeliveryAfterFailure(t *testing.T) {
 func TestBrokerDeliveryMetricsReflectBacklogAndClearAfterAck(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
 	releaseStart := make(chan struct{})
 	transport := &fakeDeliveryTransport{
 		handler: func(ctx context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
@@ -386,7 +387,7 @@ func TestBrokerDeliveryMetricsReflectBacklogAndClearAfterAck(t *testing.T) {
 			return DeliveryAck{DeliveryID: req.Event.DeliveryID, Seq: req.Event.Seq}, nil
 		},
 	}
-	broker := NewBroker(transport)
+	broker := NewBroker(transport, WithDeliveryBrokerNow(func() time.Time { return now }))
 	t.Cleanup(broker.Close)
 
 	reg := mustRegisterTestDelivery(t, broker, PromptDeliveryRegistration{
@@ -421,6 +422,9 @@ func TestBrokerDeliveryMetricsReflectBacklogAndClearAfterAck(t *testing.T) {
 	metrics = broker.DeliveryMetrics()["brg-metrics"]
 	if got, want := metrics.DeliveryBacklog, 0; got != want {
 		t.Fatalf("DeliveryMetrics().DeliveryBacklog after ack = %d, want %d", got, want)
+	}
+	if got, want := metrics.LastSuccessAt, now; !got.Equal(want) {
+		t.Fatalf("DeliveryMetrics().LastSuccessAt = %s, want %s", got, want)
 	}
 }
 

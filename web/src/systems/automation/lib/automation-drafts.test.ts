@@ -5,6 +5,8 @@ import {
   automationTriggerToDraft,
   createAutomationJobDraft,
   createAutomationTriggerDraft,
+  normalizeAutomationRetry,
+  retryDraftForStrategy,
 } from "./automation-drafts";
 
 const jobFixture = {
@@ -53,7 +55,7 @@ describe("automation draft helpers", () => {
       scope: "workspace",
       workspace_id: "ws_alpha",
       enabled: true,
-      retry: { strategy: "none", max_retries: 3, base_delay: "2s" },
+      retry: { strategy: "none", max_retries: 0, base_delay: "" },
       fire_limit: { max: 12, window: "1h" },
     });
   });
@@ -86,10 +88,12 @@ describe("automation draft helpers", () => {
       scope: "global",
       workspace_id: undefined,
       enabled: true,
+      retry: { strategy: "none", max_retries: 0, base_delay: "" },
     });
     expect(createAutomationTriggerDraft("ws_alpha")).toMatchObject({
       scope: "workspace",
       workspace_id: "ws_alpha",
+      retry: { strategy: "none", max_retries: 0, base_delay: "" },
     });
   });
 
@@ -103,10 +107,30 @@ describe("automation draft helpers", () => {
       scope: "workspace",
       workspace_id: "ws_alpha",
       enabled: false,
-      retry: { strategy: "none", max_retries: 3, base_delay: "2s" },
+      retry: { strategy: "none", max_retries: 0, base_delay: "" },
       fire_limit: { max: 12, window: "1h" },
       endpoint_slug: "push-review",
       webhook_id: "wbh_push_review",
+    });
+  });
+
+  it("normalizes retry payloads for none and backoff strategies", () => {
+    expect(normalizeAutomationRetry()).toEqual({
+      strategy: "none",
+      max_retries: 0,
+      base_delay: "",
+    });
+    expect(
+      normalizeAutomationRetry({ strategy: "none", max_retries: 9, base_delay: "7s" })
+    ).toEqual({
+      strategy: "none",
+      max_retries: 0,
+      base_delay: "",
+    });
+    expect(retryDraftForStrategy("backoff")).toEqual({
+      strategy: "backoff",
+      max_retries: 3,
+      base_delay: "2s",
     });
   });
 });

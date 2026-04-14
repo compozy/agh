@@ -23,6 +23,39 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 		assert  func(t *testing.T, recorder *httptest.ResponseRecorder)
 	}{
 		{
+			name:   "ShouldListBridgeProviders",
+			method: http.MethodGet,
+			path:   "/api/bridges/providers",
+			bridges: stubBridgeService{
+				ListProvidersFn: func(context.Context) ([]bridgepkg.BridgeProvider, error) {
+					return []bridgepkg.BridgeProvider{{
+						Platform:      "telegram",
+						ExtensionName: "telegram-reference",
+						DisplayName:   "Telegram",
+						Description:   "Reference Telegram bridge adapter",
+						Enabled:       true,
+						State:         "active",
+						Health:        "healthy",
+					}}, nil
+				},
+			},
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+				if recorder.Code != http.StatusOK {
+					t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+				}
+
+				var response contract.BridgeProvidersResponse
+				decodeJSONResponse(t, recorder, &response)
+				if got, want := len(response.Providers), 1; got != want {
+					t.Fatalf("len(providers) = %d, want %d", got, want)
+				}
+				if response.Providers[0].ExtensionName != "telegram-reference" {
+					t.Fatalf("provider = %#v", response.Providers[0])
+				}
+			},
+		},
+		{
 			name:   "ShouldCreateBridgeInstance",
 			method: http.MethodPost,
 			path:   "/api/bridges",

@@ -970,7 +970,15 @@ func (m *Manager) recordAuditRejected(ctx context.Context, sessionID string, env
 }
 
 func (m *Manager) recordDelivered(sessionID string, envelope Envelope, _ string, _ time.Duration) {
-	if m == nil || m.stats == nil {
+	if m == nil {
+		return
+	}
+	if m.auditor != nil {
+		if err := m.auditor.RecordDelivered(m.lifecycleCtx, sessionID, envelope); err != nil {
+			m.logger.Warn("network.audit.record_delivered_failed", "session_id", sessionID, "envelope_id", envelope.ID, "error", err)
+		}
+	}
+	if m.stats == nil {
 		return
 	}
 	m.stats.recordDelivered(envelope)

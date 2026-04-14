@@ -54,6 +54,7 @@ type Observer interface {
 type BridgeService interface {
 	bridgepkg.Registry
 	bridgepkg.TargetResolver
+	ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error)
 	StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
 	StopInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
 	RestartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
@@ -66,6 +67,12 @@ type NetworkService interface {
 	ListChannels(ctx context.Context) ([]network.ChannelInfo, error)
 	Status(ctx context.Context) (*network.NetworkStatus, error)
 	Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error)
+}
+
+// NetworkStore exposes persisted network audit and timeline queries to the API layer.
+type NetworkStore interface {
+	ListNetworkAudit(ctx context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
+	ListNetworkMessages(ctx context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
 }
 
 // DreamTrigger exposes consolidation controls and state to the API layer.

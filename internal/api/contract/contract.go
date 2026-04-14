@@ -290,6 +290,13 @@ type NetworkSendPayload struct {
 	Ext           map[string]json.RawMessage `json:"ext,omitempty"`
 }
 
+// CreateNetworkChannelRequest is the shared network channel creation payload.
+type CreateNetworkChannelRequest struct {
+	Channel     string   `json:"channel"`
+	WorkspaceID string   `json:"workspace_id"`
+	AgentNames  []string `json:"agent_names"`
+}
+
 // NetworkPeerCardPayload is the shared JSON representation of one peer card.
 type NetworkPeerCardPayload struct {
 	PeerID              string                     `json:"peer_id"`
@@ -303,20 +310,26 @@ type NetworkPeerCardPayload struct {
 
 // NetworkPeerPayload is the shared JSON representation of one visible peer.
 type NetworkPeerPayload struct {
-	SessionID *string                `json:"session_id,omitempty"`
-	PeerID    string                 `json:"peer_id"`
-	Channel   string                 `json:"channel"`
-	Local     bool                   `json:"local"`
-	PeerCard  NetworkPeerCardPayload `json:"peer_card"`
-	JoinedAt  *time.Time             `json:"joined_at,omitempty"`
-	LastSeen  *time.Time             `json:"last_seen,omitempty"`
-	ExpiresAt *time.Time             `json:"expires_at,omitempty"`
+	SessionID   *string                `json:"session_id,omitempty"`
+	PeerID      string                 `json:"peer_id"`
+	DisplayName string                 `json:"display_name,omitempty"`
+	Channel     string                 `json:"channel"`
+	Local       bool                   `json:"local"`
+	PeerCard    NetworkPeerCardPayload `json:"peer_card"`
+	JoinedAt    *time.Time             `json:"joined_at,omitempty"`
+	LastSeen    *time.Time             `json:"last_seen,omitempty"`
+	ExpiresAt   *time.Time             `json:"expires_at,omitempty"`
 }
 
 // NetworkChannelPayload is the shared JSON representation of one active channel.
 type NetworkChannelPayload struct {
-	Channel   string `json:"channel"`
-	PeerCount int    `json:"peer_count"`
+	Channel         string     `json:"channel"`
+	PeerCount       int        `json:"peer_count"`
+	LocalPeerCount  int        `json:"local_peer_count,omitempty"`
+	RemotePeerCount int        `json:"remote_peer_count,omitempty"`
+	SessionCount    int        `json:"session_count,omitempty"`
+	MessageCount    int        `json:"message_count,omitempty"`
+	LastMessageAt   *time.Time `json:"last_message_at,omitempty"`
 }
 
 // NetworkEnvelopePayload is the shared JSON representation of one surfaced
@@ -337,6 +350,54 @@ type NetworkEnvelopePayload struct {
 	Body          json.RawMessage            `json:"body"`
 	Proof         map[string]json.RawMessage `json:"proof,omitempty"`
 	Ext           map[string]json.RawMessage `json:"ext,omitempty"`
+}
+
+// NetworkChannelDetailPayload is the shared channel detail payload used by the network UI.
+type NetworkChannelDetailPayload struct {
+	Channel         string               `json:"channel"`
+	PeerCount       int                  `json:"peer_count"`
+	LocalPeerCount  int                  `json:"local_peer_count,omitempty"`
+	RemotePeerCount int                  `json:"remote_peer_count,omitempty"`
+	SessionCount    int                  `json:"session_count,omitempty"`
+	MessageCount    int                  `json:"message_count,omitempty"`
+	LastMessageAt   *time.Time           `json:"last_message_at,omitempty"`
+	Sessions        []SessionPayload     `json:"sessions,omitempty"`
+	Peers           []NetworkPeerPayload `json:"peers,omitempty"`
+}
+
+// NetworkChannelMessagePayload is the shared read-only channel timeline payload.
+type NetworkChannelMessagePayload struct {
+	MessageID   string    `json:"message_id"`
+	Channel     string    `json:"channel"`
+	PeerID      string    `json:"peer_id"`
+	DisplayName string    `json:"display_name,omitempty"`
+	SessionID   string    `json:"session_id,omitempty"`
+	Local       bool      `json:"local,omitempty"`
+	Intent      string    `json:"intent,omitempty"`
+	Text        string    `json:"text"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
+// NetworkPeerMetricsPayload is the shared peer-level counter payload.
+type NetworkPeerMetricsPayload struct {
+	Sent      int64 `json:"sent,omitempty"`
+	Received  int64 `json:"received,omitempty"`
+	Rejected  int64 `json:"rejected,omitempty"`
+	Delivered int64 `json:"delivered,omitempty"`
+}
+
+// NetworkPeerDetailPayload is the shared selected-peer detail payload.
+type NetworkPeerDetailPayload struct {
+	SessionID   *string                   `json:"session_id,omitempty"`
+	PeerID      string                    `json:"peer_id"`
+	DisplayName string                    `json:"display_name,omitempty"`
+	Channel     string                    `json:"channel,omitempty"`
+	Local       bool                      `json:"local,omitempty"`
+	PeerCard    NetworkPeerCardPayload    `json:"peer_card"`
+	JoinedAt    *time.Time                `json:"joined_at,omitempty"`
+	LastSeen    *time.Time                `json:"last_seen,omitempty"`
+	ExpiresAt   *time.Time                `json:"expires_at,omitempty"`
+	Metrics     NetworkPeerMetricsPayload `json:"metrics"`
 }
 
 // InstallExtensionRequest is the shared extension install request payload.

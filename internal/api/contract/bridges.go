@@ -126,6 +126,11 @@ type BridgesResponse struct {
 	BridgeHealth map[string]BridgeHealthPayload `json:"bridge_health,omitempty"`
 }
 
+// BridgeProvidersResponse wraps the shared installed provider catalog.
+type BridgeProvidersResponse struct {
+	Providers []bridgepkg.BridgeProvider `json:"providers"`
+}
+
 // BridgeResponse wraps one shared bridge payload.
 type BridgeResponse struct {
 	Bridge bridgepkg.BridgeInstance `json:"bridge"`
@@ -155,6 +160,7 @@ type BridgeHealthPayload struct {
 	DeliveryDroppedByReason map[string]int         `json:"delivery_dropped_by_reason,omitempty"`
 	DeliveryFailuresTotal   int                    `json:"delivery_failures_total"`
 	AuthFailuresTotal       int                    `json:"auth_failures_total"`
+	LastSuccessAt           *time.Time             `json:"last_success_at,omitempty"`
 	LastError               string                 `json:"last_error,omitempty"`
 	LastErrorAt             *time.Time             `json:"last_error_at,omitempty"`
 }

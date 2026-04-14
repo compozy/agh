@@ -56,6 +56,7 @@ type Observer interface {
 type Registry interface {
 	observe.Registry
 	store.NetworkAuditStore
+	store.NetworkMessageStore
 	workspacepkg.WorkspaceStore
 }
 
@@ -463,6 +464,7 @@ func (d *Daemon) applyDefaults() error {
 				httpapi.WithStartedAt(deps.StartedAt),
 				httpapi.WithSessionManager(deps.Sessions),
 				httpapi.WithNetworkService(deps.Network),
+				httpapi.WithNetworkStore(deps.Registry),
 				httpapi.WithObserver(deps.Observer),
 				httpapi.WithAutomation(deps.Automation),
 				httpapi.WithBridgeService(deps.Bridges),
@@ -482,6 +484,7 @@ func (d *Daemon) applyDefaults() error {
 				udsapi.WithStartedAt(deps.StartedAt),
 				udsapi.WithSessionManager(deps.Sessions),
 				udsapi.WithNetworkService(deps.Network),
+				udsapi.WithNetworkStore(deps.Registry),
 				udsapi.WithObserver(deps.Observer),
 				udsapi.WithAutomation(deps.Automation),
 				udsapi.WithBridgeService(deps.Bridges),

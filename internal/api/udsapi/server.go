@@ -52,6 +52,7 @@ type Server struct {
 	pollInterval   time.Duration
 	sessions       core.SessionManager
 	network        core.NetworkService
+	networkStore   core.NetworkStore
 	observer       core.Observer
 	automation     core.AutomationManager
 	bridges        core.BridgeService
@@ -75,6 +76,7 @@ type Server struct {
 type handlerConfig struct {
 	sessions       core.SessionManager
 	network        core.NetworkService
+	networkStore   core.NetworkStore
 	observer       core.Observer
 	automation     core.AutomationManager
 	bridges        core.BridgeService
@@ -158,6 +160,13 @@ func WithSessionManager(manager core.SessionManager) Option {
 func WithNetworkService(service core.NetworkService) Option {
 	return func(server *Server) {
 		server.network = service
+	}
+}
+
+// WithNetworkStore injects the persisted network query store.
+func WithNetworkStore(store core.NetworkStore) Option {
+	return func(server *Server) {
+		server.networkStore = store
 	}
 }
 
@@ -297,6 +306,7 @@ func New(opts ...Option) (*Server, error) {
 	server.handlers = newHandlers(handlerConfig{
 		sessions:       server.sessions,
 		network:        server.network,
+		networkStore:   server.networkStore,
 		observer:       server.observer,
 		automation:     server.automation,
 		bridges:        server.bridges,
@@ -507,6 +517,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			IncludeSessionWorkspaceInSSE: true,
 			Sessions:                     cfg.sessions,
 			Network:                      cfg.network,
+			NetworkStore:                 cfg.networkStore,
 			Observer:                     cfg.observer,
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,

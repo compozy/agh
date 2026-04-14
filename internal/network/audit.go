@@ -21,6 +21,8 @@ const (
 	AuditDirectionReceived = "received"
 	// AuditDirectionRejected records a rejected envelope.
 	AuditDirectionRejected = "rejected"
+	// AuditDirectionDelivered records a completed local delivery.
+	AuditDirectionDelivered = "delivered"
 )
 
 // AuditStore is the persistence surface consumed by the network audit writer.
@@ -28,19 +30,26 @@ type AuditStore interface {
 	WriteNetworkAudit(ctx context.Context, entry store.NetworkAuditEntry) error
 }
 
+// MessageStore is the persistence surface consumed by the network timeline writer.
+type MessageStore interface {
+	WriteNetworkMessage(ctx context.Context, entry store.NetworkMessageEntry) error
+}
+
 // AuditWriter records network activity into the configured sinks.
 type AuditWriter interface {
 	RecordSent(ctx context.Context, sessionID string, envelope Envelope) error
 	RecordReceived(ctx context.Context, sessionID string, envelope Envelope) error
 	RecordRejected(ctx context.Context, sessionID string, envelope Envelope, reason string) error
+	RecordDelivered(ctx context.Context, sessionID string, envelope Envelope) error
 }
 
 // FileAuditWriter writes normalized network audit records to a JSONL file and
 // optionally mirrors them into a persistent store.
 type FileAuditWriter struct {
-	path  string
-	store AuditStore
-	now   func() time.Time
+	path         string
+	store        AuditStore
+	messageStore MessageStore
+	now          func() time.Time
 
 	mu sync.Mutex
 }
@@ -58,7 +67,19 @@ func NewAuditWriter(path string, auditStore AuditStore) (*FileAuditWriter, error
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
+		messageStore: messageStoreFromAuditStore(auditStore),
 	}, nil
+}
+
+func messageStoreFromAuditStore(auditStore AuditStore) MessageStore {
+	if auditStore == nil {
+		return nil
+	}
+	messageStore, ok := auditStore.(MessageStore)
+	if !ok {
+		return nil
+	}
+	return messageStore
 }
 
 var _ AuditWriter = (*FileAuditWriter)(nil)
@@ -78,6 +99,11 @@ func (w *FileAuditWriter) RecordRejected(ctx context.Context, sessionID string, 
 	return w.record(ctx, sessionID, AuditDirectionRejected, envelope, reason)
 }
 
+// RecordDelivered stores a delivered network audit record.
+func (w *FileAuditWriter) RecordDelivered(ctx context.Context, sessionID string, envelope Envelope) error {
+	return w.record(ctx, sessionID, AuditDirectionDelivered, envelope, "")
+}
+
 func (w *FileAuditWriter) record(ctx context.Context, sessionID string, direction string, envelope Envelope, reason string) error {
 	if ctx == nil {
 		return errors.New("network: audit context is required")
@@ -95,8 +121,22 @@ func (w *FileAuditWriter) record(ctx context.Context, sessionID string, directio
 	if w.path != "" {
 		recordErr = errors.Join(recordErr, w.appendFile(entry))
 	}
+	var auditWriteErr error
 	if w.store != nil {
-		recordErr = errors.Join(recordErr, w.store.WriteNetworkAudit(ctx, entry))
+		auditWriteErr = w.store.WriteNetworkAudit(ctx, entry)
+		recordErr = errors.Join(recordErr, auditWriteErr)
+	}
+	if w.messageStore == nil || auditWriteErr != nil {
+		return recordErr
+	}
+
+	messageEntry, ok, messageErr := normalizeTimelineMessageEntry(sessionID, direction, envelope, entry.Timestamp)
+	if messageErr != nil {
+		recordErr = errors.Join(recordErr, messageErr)
+		return recordErr
+	}
+	if ok {
+		recordErr = errors.Join(recordErr, w.messageStore.WriteNetworkMessage(ctx, messageEntry))
 	}
 
 	return recordErr
@@ -135,6 +175,44 @@ func NormalizeAuditEntry(sessionID string, direction string, envelope Envelope, 
 	}
 
 	return entry, nil
+}
+
+func normalizeTimelineMessageEntry(sessionID string, direction string, envelope Envelope, at time.Time) (store.NetworkMessageEntry, bool, error) {
+	if envelope.Kind != KindSay {
+		return store.NetworkMessageEntry{}, false, nil
+	}
+	switch strings.TrimSpace(direction) {
+	case AuditDirectionSent, AuditDirectionReceived:
+	default:
+		return store.NetworkMessageEntry{}, false, nil
+	}
+
+	body, err := envelope.DecodeBody()
+	if err != nil {
+		return store.NetworkMessageEntry{}, false, fmt.Errorf("network: decode timeline envelope body: %w", err)
+	}
+	sayBody, ok := body.(SayBody)
+	if !ok {
+		return store.NetworkMessageEntry{}, false, fmt.Errorf("network: unexpected timeline body type for %q", envelope.ID)
+	}
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+
+	entry := store.NetworkMessageEntry{
+		MessageID: strings.TrimSpace(envelope.ID),
+		SessionID: strings.TrimSpace(sessionID),
+		Channel:   strings.TrimSpace(envelope.Channel),
+		PeerFrom:  strings.TrimSpace(envelope.From),
+		Kind:      strings.TrimSpace(string(envelope.Kind)),
+		Intent:    strings.TrimSpace(sayBody.Intent),
+		Text:      sayBody.Text,
+		Timestamp: at.UTC(),
+	}
+	if err := entry.Validate(); err != nil {
+		return store.NetworkMessageEntry{}, false, err
+	}
+	return entry, true, nil
 }
 
 func (w *FileAuditWriter) appendFile(entry store.NetworkAuditEntry) error {

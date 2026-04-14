@@ -587,6 +587,10 @@ func (s *integrationBridgeService) RestartInstance(ctx context.Context, id strin
 	return instance, nil
 }
 
+func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.BridgeProvider, error) {
+	return nil, nil
+}
+
 func (t *integrationDreamTrigger) Trigger(context.Context, string) (bool, string, error) {
 	t.calls++
 	return t.triggered, t.reason, nil

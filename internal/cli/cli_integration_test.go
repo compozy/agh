@@ -1167,6 +1167,10 @@ func (s *integrationBridgeService) RestartInstance(ctx context.Context, id strin
 	})
 }
 
+func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.BridgeProvider, error) {
+	return []bridgepkg.BridgeProvider{}, nil
+}
+
 func (s *integrationExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
 	infos, err := s.registry.List()
 	if err != nil {
