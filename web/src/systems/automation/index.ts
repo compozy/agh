@@ -58,6 +58,8 @@ export {
   automationTriggerToDraft,
   createAutomationJobDraft,
   createAutomationTriggerDraft,
+  normalizeAutomationRetry,
+  retryDraftForStrategy,
 } from "./lib/automation-drafts";
 export {
   automationSourceLabel,

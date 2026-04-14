@@ -259,6 +259,9 @@ describe("Automation route integration", () => {
     mockCreateJobMutateAsync.mockResolvedValue(
       makeJob({ id: "job_created", name: "nightly-docs" })
     );
+    mockCreateTriggerMutateAsync.mockResolvedValue(
+      makeTrigger({ id: "trg_created", name: "qa-trigger-browser", event: "ext.test.qa" })
+    );
     mockTriggerJobMutateAsync.mockResolvedValue(
       makeRun({
         ended_at: undefined,
@@ -336,11 +339,49 @@ describe("Automation route integration", () => {
         expect.objectContaining({
           agent_name: "writer",
           name: "nightly-docs",
+          retry: { strategy: "none", max_retries: 0, base_delay: "" },
           scope: "workspace",
           workspace_id: "ws_test",
         })
       );
       expect(toast.success).toHaveBeenCalledWith("Created job nightly-docs.");
+    });
+  });
+
+  it("opens a create trigger modal and submits a valid retry-none payload", async () => {
+    const user = userEvent.setup();
+    render(<AutomationPage />);
+
+    await user.click(screen.getByTestId("automation-kind-triggers"));
+    await user.click(screen.getByTestId("create-automation-btn"));
+
+    fireEvent.change(screen.getByTestId("trigger-name-input"), {
+      target: { value: "qa-trigger-browser" },
+    });
+    fireEvent.change(screen.getByTestId("trigger-agent-input"), {
+      target: { value: "reviewer" },
+    });
+    fireEvent.change(screen.getByTestId("trigger-event-input"), {
+      target: { value: "ext.test.qa" },
+    });
+    fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
+      target: { value: "Review {{ .EventName }}." },
+    });
+
+    await user.click(screen.getByTestId("submit-trigger-form"));
+
+    await waitFor(() => {
+      expect(mockCreateTriggerMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent_name: "reviewer",
+          event: "ext.test.qa",
+          name: "qa-trigger-browser",
+          retry: { strategy: "none", max_retries: 0, base_delay: "" },
+          scope: "workspace",
+          workspace_id: "ws_test",
+        })
+      );
+      expect(toast.success).toHaveBeenCalledWith("Created trigger qa-trigger-browser.");
     });
   });
 

@@ -23,12 +23,13 @@ export function networkStatusOptions() {
   });
 }
 
-export function networkChannelsOptions() {
+export function networkChannelsOptions(enabled = true) {
   return queryOptions({
     queryKey: networkKeys.channels(),
     queryFn: ({ signal }) => listNetworkChannels(signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: DEFAULT_REFETCH_INTERVAL,
+    enabled,
   });
 }
 

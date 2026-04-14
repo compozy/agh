@@ -1,12 +1,19 @@
 import type {
   AutomationJob,
+  AutomationRetry,
   AutomationTrigger,
   CreateAutomationJobRequest,
   CreateAutomationTriggerRequest,
 } from "../types";
 
-const DEFAULT_RETRY = {
+const DEFAULT_RETRY_NONE = {
   strategy: "none" as const,
+  max_retries: 0,
+  base_delay: "",
+};
+
+const DEFAULT_RETRY_BACKOFF = {
+  strategy: "backoff" as const,
   max_retries: 3,
   base_delay: "2s",
 };
@@ -15,6 +22,31 @@ const DEFAULT_FIRE_LIMIT = {
   max: 12,
   window: "1h",
 };
+
+export function retryDraftForStrategy(
+  strategy: AutomationRetry["strategy"],
+  retry?: AutomationRetry
+): AutomationRetry {
+  if (strategy === "backoff") {
+    return {
+      strategy: "backoff",
+      max_retries:
+        retry?.strategy === "backoff" && retry.max_retries > 0
+          ? retry.max_retries
+          : DEFAULT_RETRY_BACKOFF.max_retries,
+      base_delay:
+        retry?.strategy === "backoff" && retry.base_delay.trim() !== ""
+          ? retry.base_delay
+          : DEFAULT_RETRY_BACKOFF.base_delay,
+    };
+  }
+
+  return { ...DEFAULT_RETRY_NONE };
+}
+
+export function normalizeAutomationRetry(retry?: AutomationRetry): AutomationRetry {
+  return retryDraftForStrategy(retry?.strategy ?? "none", retry);
+}
 
 export function createAutomationJobDraft(
   activeWorkspaceId?: string | null
@@ -32,7 +64,7 @@ export function createAutomationJobDraft(
     scope: workspaceId ? "workspace" : "global",
     workspace_id: workspaceId,
     enabled: true,
-    retry: { ...DEFAULT_RETRY },
+    retry: normalizeAutomationRetry(),
     fire_limit: { ...DEFAULT_FIRE_LIMIT },
   };
 }
@@ -49,11 +81,7 @@ export function automationJobToDraft(job: AutomationJob): CreateAutomationJobReq
     scope: job.scope,
     workspace_id: job.workspace_id,
     enabled: job.enabled,
-    retry: {
-      strategy: job.retry.strategy,
-      max_retries: job.retry.max_retries,
-      base_delay: job.retry.base_delay,
-    },
+    retry: normalizeAutomationRetry(job.retry),
     fire_limit: {
       max: job.fire_limit.max,
       window: job.fire_limit.window,
@@ -75,7 +103,7 @@ export function createAutomationTriggerDraft(
     scope: workspaceId ? "workspace" : "global",
     workspace_id: workspaceId,
     enabled: true,
-    retry: { ...DEFAULT_RETRY },
+    retry: normalizeAutomationRetry(),
     fire_limit: { ...DEFAULT_FIRE_LIMIT },
   };
 }
@@ -92,11 +120,7 @@ export function automationTriggerToDraft(
     scope: trigger.scope,
     workspace_id: trigger.workspace_id,
     enabled: trigger.enabled,
-    retry: {
-      strategy: trigger.retry.strategy,
-      max_retries: trigger.retry.max_retries,
-      base_delay: trigger.retry.base_delay,
-    },
+    retry: normalizeAutomationRetry(trigger.retry),
     fire_limit: {
       max: trigger.fire_limit.max,
       window: trigger.fire_limit.window,

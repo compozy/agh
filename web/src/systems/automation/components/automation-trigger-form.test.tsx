@@ -137,6 +137,34 @@ describe("AutomationTriggerForm", () => {
     expect(screen.queryByTestId("trigger-webhook-secret-input")).not.toBeInTheDocument();
   });
 
+  it("resets trigger retry values when switching back to none", () => {
+    const { onChange } = renderTriggerForm();
+
+    fireEvent.click(screen.getByTestId("trigger-governance-toggle"));
+
+    expect(screen.getByTestId("trigger-retry-max")).toBeDisabled();
+    expect(screen.getByTestId("trigger-retry-max")).toHaveValue(0);
+    expect(screen.getByTestId("trigger-retry-delay")).toHaveValue("");
+
+    fireEvent.click(screen.getByTestId("trigger-retry-strategy-backoff"));
+    fireEvent.change(screen.getByTestId("trigger-retry-max"), {
+      target: { value: "6" },
+    });
+    fireEvent.change(screen.getByTestId("trigger-retry-delay"), {
+      target: { value: "9s" },
+    });
+    fireEvent.click(screen.getByTestId("trigger-retry-strategy-none"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        retry: { strategy: "none", max_retries: 0, base_delay: "" },
+      })
+    );
+    expect(screen.getByTestId("trigger-retry-max")).toBeDisabled();
+    expect(screen.getByTestId("trigger-retry-max")).toHaveValue(0);
+    expect(screen.getByTestId("trigger-retry-delay")).toHaveValue("");
+  });
+
   it("renders edit and pending labels without submitting", () => {
     const { onSubmit } = renderTriggerForm({
       draft: {

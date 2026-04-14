@@ -48,6 +48,10 @@ let mockNetworkPeersError: Error | null = null;
 let mockPeerDetail: NetworkPeerDetail | undefined;
 let mockPeerDetailLoading = false;
 let mockPeerDetailError: Error | null = null;
+let lastNetworkChannelsOptions: { enabled?: boolean } | undefined;
+let lastNetworkPeersArgs:
+  | [channel: string | undefined, options: { enabled?: boolean } | undefined]
+  | undefined;
 
 const mockCreateNetworkChannelMutateAsync = vi.fn();
 let mockCreateNetworkChannelPending = false;
@@ -173,11 +177,14 @@ vi.mock("@/systems/network", async () => {
       error: null,
       isLoading: false,
     }),
-    useNetworkChannels: () => ({
-      data: mockNetworkChannels,
-      error: mockNetworkChannelsError,
-      isLoading: mockNetworkChannelsLoading,
-    }),
+    useNetworkChannels: (options?: { enabled?: boolean }) => {
+      lastNetworkChannelsOptions = options;
+      return {
+        data: mockNetworkChannels,
+        error: mockNetworkChannelsError,
+        isLoading: mockNetworkChannelsLoading,
+      };
+    },
     useNetworkChannel: () => ({
       data: mockChannelDetail,
       error: mockChannelDetailError,
@@ -188,11 +195,14 @@ vi.mock("@/systems/network", async () => {
       error: mockChannelMessagesError,
       isLoading: mockChannelMessagesLoading,
     }),
-    useNetworkPeers: () => ({
-      data: mockNetworkPeers,
-      error: mockNetworkPeersError,
-      isLoading: mockNetworkPeersLoading,
-    }),
+    useNetworkPeers: (channel?: string, options?: { enabled?: boolean }) => {
+      lastNetworkPeersArgs = [channel, options];
+      return {
+        data: mockNetworkPeers,
+        error: mockNetworkPeersError,
+        isLoading: mockNetworkPeersLoading,
+      };
+    },
     useNetworkPeer: () => ({
       data: mockPeerDetail,
       error: mockPeerDetailError,
@@ -393,6 +403,8 @@ describe("NetworkPage", () => {
     mockPeerDetail = makePeerDetail();
     mockPeerDetailLoading = false;
     mockPeerDetailError = null;
+    lastNetworkChannelsOptions = undefined;
+    lastNetworkPeersArgs = undefined;
 
     mockCreateNetworkChannelPending = false;
     mockCreateNetworkChannelMutateAsync.mockReset();
@@ -446,6 +458,37 @@ describe("NetworkPage", () => {
       "peer discovery failed"
     );
     expect(screen.getByTestId("network-peer-error")).toHaveTextContent("peer discovery failed");
+  });
+
+  it("stops querying runtime collections and renders a disabled state when the network is off", async () => {
+    const user = userEvent.setup();
+    mockNetworkStatus = {
+      channels: 0,
+      delivery_workers: 0,
+      enabled: false,
+      local_peers: 0,
+      messages_sent: 0,
+      queued_messages: 0,
+      remote_peers: 0,
+      status: "disabled",
+    };
+    mockNetworkChannels = undefined;
+    mockNetworkChannelsError = new Error("Service Unavailable");
+    mockNetworkPeers = undefined;
+    mockNetworkPeersError = new Error("Service Unavailable");
+
+    render(<NetworkPage />);
+
+    expect(screen.getByTestId("network-disabled-state")).toHaveTextContent("Network disabled");
+    expect(screen.queryByTestId("open-network-create-dialog")).not.toBeInTheDocument();
+    expect(lastNetworkChannelsOptions).toEqual({ enabled: false });
+    expect(lastNetworkPeersArgs).toEqual([undefined, { enabled: false }]);
+
+    await user.click(screen.getByTestId("network-tab-peers"));
+
+    expect(screen.getByTestId("network-disabled-state")).toHaveTextContent("Network disabled");
+    expect(screen.queryByTestId("network-channels-list-error")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("network-peers-list-error")).not.toBeInTheDocument();
   });
 
   it("renders the channels view with metrics and the read-only timeline", () => {

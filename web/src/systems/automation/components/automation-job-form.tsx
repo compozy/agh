@@ -10,6 +10,7 @@ import {
   AutomationInput,
   AutomationTextarea,
 } from "./automation-form-primitives";
+import { retryDraftForStrategy } from "../lib/automation-drafts";
 import type { CreateAutomationJobRequest } from "../types";
 
 interface AutomationJobFormProps {
@@ -36,6 +37,7 @@ export function AutomationJobForm({
   onSubmit,
 }: AutomationJobFormProps) {
   const schedule = currentSchedule(draft);
+  const retry = retryDraftForStrategy(draft.retry?.strategy ?? "none", draft.retry ?? undefined);
   const canSubmit =
     draft.name.trim() !== "" &&
     draft.agent_name.trim() !== "" &&
@@ -252,32 +254,20 @@ export function AutomationJobForm({
             <AutomationField label="Retry policy">
               <div className="flex flex-wrap items-center gap-2">
                 <PillButton
-                  active={(draft.retry?.strategy ?? "none") === "none"}
+                  active={retry.strategy === "none"}
                   data-testid="job-retry-strategy-none"
                   onClick={() =>
-                    onChange({
-                      ...draft,
-                      retry: {
-                        ...(draft.retry ?? { base_delay: "2s", max_retries: 3 }),
-                        strategy: "none",
-                      },
-                    })
+                    onChange({ ...draft, retry: retryDraftForStrategy("none", retry) })
                   }
                   size="dense"
                 >
                   NONE
                 </PillButton>
                 <PillButton
-                  active={(draft.retry?.strategy ?? "none") === "backoff"}
+                  active={retry.strategy === "backoff"}
                   data-testid="job-retry-strategy-backoff"
                   onClick={() =>
-                    onChange({
-                      ...draft,
-                      retry: {
-                        ...(draft.retry ?? { base_delay: "2s", max_retries: 3 }),
-                        strategy: "backoff",
-                      },
-                    })
+                    onChange({ ...draft, retry: retryDraftForStrategy("backoff", retry) })
                   }
                   size="dense"
                 >
@@ -288,34 +278,36 @@ export function AutomationJobForm({
             <AutomationField label="Max retries">
               <AutomationInput
                 data-testid="job-retry-max"
+                disabled={retry.strategy !== "backoff"}
                 min={0}
                 onChange={event =>
                   onChange({
                     ...draft,
                     retry: {
-                      ...(draft.retry ?? { strategy: "none", base_delay: "2s" }),
+                      ...retryDraftForStrategy("backoff", retry),
                       max_retries: Number(event.target.value || "0"),
                     },
                   })
                 }
                 type="number"
-                value={draft.retry?.max_retries ?? 3}
+                value={retry.strategy === "backoff" ? retry.max_retries : 0}
               />
             </AutomationField>
             <AutomationField label="Base delay">
               <AutomationInput
                 data-testid="job-retry-delay"
+                disabled={retry.strategy !== "backoff"}
                 onChange={event =>
                   onChange({
                     ...draft,
                     retry: {
-                      ...(draft.retry ?? { strategy: "none", max_retries: 3 }),
+                      ...retryDraftForStrategy("backoff", retry),
                       base_delay: event.target.value,
                     },
                   })
                 }
                 placeholder="2s"
-                value={draft.retry?.base_delay ?? "2s"}
+                value={retry.strategy === "backoff" ? retry.base_delay : ""}
               />
             </AutomationField>
           </div>

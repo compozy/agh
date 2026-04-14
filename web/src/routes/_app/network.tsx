@@ -50,8 +50,13 @@ function NetworkPage() {
   const deferredPeerSearch = useDeferredValue(peerSearchQuery);
 
   const networkStatusQuery = useNetworkStatus();
-  const networkChannelsQuery = useNetworkChannels();
-  const networkPeersQuery = useNetworkPeers();
+  const isNetworkEnabled = networkStatusQuery.data?.enabled === true;
+  const isNetworkDisabled = networkStatusQuery.data?.enabled === false;
+  const isNetworkStatusLoading = networkStatusQuery.isLoading && !networkStatusQuery.data;
+  const networkStatusError = !networkStatusQuery.data ? networkStatusQuery.error : null;
+
+  const networkChannelsQuery = useNetworkChannels({ enabled: isNetworkEnabled });
+  const networkPeersQuery = useNetworkPeers(undefined, { enabled: isNetworkEnabled });
   const createChannelMutation = useCreateNetworkChannel();
   const workspaceDetailQuery = useWorkspace(activeWorkspaceId ?? "", {
     enabled: Boolean(activeWorkspaceId),
@@ -91,21 +96,31 @@ function NetworkPage() {
   }, [selectedPeerId, visiblePeers]);
 
   const channelDetailQuery = useNetworkChannel(effectiveSelectedChannel ?? "", {
-    enabled: activeTab === "channels" && Boolean(effectiveSelectedChannel),
+    enabled: isNetworkEnabled && activeTab === "channels" && Boolean(effectiveSelectedChannel),
   });
   const channelMessagesQuery = useNetworkChannelMessages(effectiveSelectedChannel ?? "", {
-    enabled: activeTab === "channels" && Boolean(effectiveSelectedChannel),
+    enabled: isNetworkEnabled && activeTab === "channels" && Boolean(effectiveSelectedChannel),
   });
   const peerDetailQuery = useNetworkPeer(effectiveSelectedPeerId ?? "", {
-    enabled: activeTab === "peers" && Boolean(effectiveSelectedPeerId),
+    enabled: isNetworkEnabled && activeTab === "peers" && Boolean(effectiveSelectedPeerId),
   });
 
   const pageMetrics = getNetworkMetricCards(networkStatusQuery.data, allChannels.length);
   const headerCount = activeTab === "channels" ? allChannels.length : allPeers.length;
-  const isChannelsListLoading = networkChannelsQuery.isLoading && !networkChannelsQuery.data;
-  const channelsListError = !networkChannelsQuery.data ? networkChannelsQuery.error : null;
-  const isPeersListLoading = networkPeersQuery.isLoading && !networkPeersQuery.data;
-  const peersListError = !networkPeersQuery.data ? networkPeersQuery.error : null;
+  const isChannelsListLoading =
+    !isNetworkDisabled &&
+    ((isNetworkStatusLoading && !networkStatusQuery.data) ||
+      (networkChannelsQuery.isLoading && !networkChannelsQuery.data));
+  const channelsListError = !isNetworkDisabled
+    ? (networkStatusError ?? (!networkChannelsQuery.data ? networkChannelsQuery.error : null))
+    : null;
+  const isPeersListLoading =
+    !isNetworkDisabled &&
+    ((isNetworkStatusLoading && !networkStatusQuery.data) ||
+      (networkPeersQuery.isLoading && !networkPeersQuery.data));
+  const peersListError = !isNetworkDisabled
+    ? (networkStatusError ?? (!networkPeersQuery.data ? networkPeersQuery.error : null))
+    : null;
 
   const handleOpenCreateDialog = () => {
     setCreateDraft(createNetworkChannelDraft());
@@ -150,6 +165,7 @@ function NetworkPage() {
   };
 
   const canSubmitCreate =
+    isNetworkEnabled &&
     Boolean(activeWorkspaceId) &&
     createDraft.channelName.trim() !== "" &&
     createDraft.selectedAgentNames.length > 0;
@@ -179,7 +195,7 @@ function NetworkPage() {
           </div>
         }
         meta={
-          activeTab === "channels" ? (
+          activeTab === "channels" && isNetworkEnabled ? (
             <Button
               className="border-[color:var(--color-accent)] bg-transparent text-[color:var(--color-accent)] hover:bg-[color:var(--color-accent-tint)] hover:text-[color:var(--color-accent)]"
               data-testid="open-network-create-dialog"
@@ -208,7 +224,14 @@ function NetworkPage() {
             </div>
           </div>
 
-          {activeTab === "channels" ? (
+          {isNetworkDisabled ? (
+            <NetworkEmptyState
+              description="Enable the embedded network in AGH config to inspect channels, peers, and runtime message flow."
+              icon={<NetworkIcon className="size-5" />}
+              testId="network-disabled-state"
+              title="Network disabled"
+            />
+          ) : activeTab === "channels" ? (
             <div className="flex min-h-0 flex-1 overflow-hidden">
               <NetworkChannelsListPanel
                 channels={visibleChannels}

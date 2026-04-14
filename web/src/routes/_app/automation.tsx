@@ -15,6 +15,7 @@ import {
   createAutomationTriggerDraft,
   filterAutomationJobs,
   filterAutomationTriggers,
+  normalizeAutomationRetry,
   sortAutomationJobs,
   sortAutomationTriggers,
   useAutomationJob,
@@ -294,11 +295,15 @@ function AutomationPage() {
     }
 
     try {
+      const payload = {
+        ...editor.draft,
+        retry: normalizeAutomationRetry(editor.draft.retry ?? undefined),
+      };
       const job =
         editor.mode === "create"
-          ? await createJobMutation.mutateAsync(editor.draft)
+          ? await createJobMutation.mutateAsync(payload)
           : await updateJobMutation.mutateAsync({
-              data: editor.draft,
+              data: payload,
               id: editor.id,
             });
 
@@ -318,11 +323,15 @@ function AutomationPage() {
     }
 
     try {
+      const payload = {
+        ...editor.draft,
+        retry: normalizeAutomationRetry(editor.draft.retry ?? undefined),
+      };
       const trigger =
         editor.mode === "create"
-          ? await createTriggerMutation.mutateAsync(editor.draft)
+          ? await createTriggerMutation.mutateAsync(payload)
           : await updateTriggerMutation.mutateAsync({
-              data: editor.draft,
+              data: payload,
               id: editor.id,
             });
 

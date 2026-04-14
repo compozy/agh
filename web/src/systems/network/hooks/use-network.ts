@@ -13,8 +13,8 @@ export function useNetworkStatus() {
   return useQuery(networkStatusOptions());
 }
 
-export function useNetworkChannels() {
-  return useQuery(networkChannelsOptions());
+export function useNetworkChannels(options?: { enabled?: boolean }) {
+  return useQuery(networkChannelsOptions(options?.enabled));
 }
 
 export function useNetworkChannel(channel: string, options?: { enabled?: boolean }) {

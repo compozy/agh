@@ -129,6 +129,35 @@ describe("AutomationJobForm", () => {
     );
   });
 
+  it("resets retry values when switching back to none", () => {
+    const { onChange } = renderJobForm();
+
+    expect(screen.getByTestId("job-retry-max")).toBeDisabled();
+    expect(screen.getByTestId("job-retry-max")).toHaveValue(0);
+    expect(screen.getByTestId("job-retry-delay")).toHaveValue("");
+
+    fireEvent.click(screen.getByTestId("job-retry-strategy-backoff"));
+    expect(screen.getByTestId("job-retry-max")).toBeEnabled();
+    expect(screen.getByTestId("job-retry-delay")).toHaveValue("2s");
+
+    fireEvent.change(screen.getByTestId("job-retry-max"), {
+      target: { value: "4" },
+    });
+    fireEvent.change(screen.getByTestId("job-retry-delay"), {
+      target: { value: "8s" },
+    });
+    fireEvent.click(screen.getByTestId("job-retry-strategy-none"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        retry: { strategy: "none", max_retries: 0, base_delay: "" },
+      })
+    );
+    expect(screen.getByTestId("job-retry-max")).toBeDisabled();
+    expect(screen.getByTestId("job-retry-max")).toHaveValue(0);
+    expect(screen.getByTestId("job-retry-delay")).toHaveValue("");
+  });
+
   it("renders edit and pending labels without submitting", () => {
     const { onSubmit } = renderJobForm({
       draft: {
