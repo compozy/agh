@@ -142,6 +142,7 @@ type extensionManagerDeps struct {
 	Registry          *extensionpkg.Registry
 	Sessions          SessionManager
 	Automation        func() extensionpkg.HostAPIAutomationManager
+	Tasks             taskpkg.Manager
 	MemoryStore       *memory.Store
 	Observer          Observer
 	SkillsRegistry    *skills.Registry
@@ -403,6 +404,7 @@ func (d *Daemon) applyDefaults() error {
 			capChecker := &extensionpkg.CapabilityChecker{}
 			hostAPIOpts := []extensionpkg.HostAPIOption{
 				extensionpkg.WithHostAPIAutomationGetter(deps.Automation),
+				extensionpkg.WithHostAPITaskManager(deps.Tasks),
 				extensionpkg.WithHostAPICapabilityChecker(capChecker),
 				extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
 			}

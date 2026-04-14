@@ -10,9 +10,12 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/session"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
@@ -110,6 +113,160 @@ func TestHostAPIIntegrationStoresAndRecallsMemory(t *testing.T) {
 	decodeResult(t, result, &entries)
 	if len(entries) == 0 {
 		t.Fatal("memory/recall len = 0, want stored memory")
+	}
+}
+
+func TestHostAPIIntegrationExtensionCanCreateTaskAndEnqueueRun(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grant(
+		"ext-tasks",
+		[]string{"tasks/create", "tasks/get", "tasks/runs/enqueue"},
+		[]string{"task.write", "task.read"},
+	)
+
+	createResult, err := env.call(t, "ext-tasks", "tasks/create", map[string]any{
+		"scope":     taskpkg.ScopeWorkspace,
+		"workspace": env.workspaceID,
+		"title":     "Extension-created task",
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/create) error = %v", err)
+	}
+
+	var created apicontract.TaskPayload
+	decodeResult(t, createResult, &created)
+	if created.ID == "" {
+		t.Fatal("tasks/create id = empty, want non-empty")
+	}
+
+	enqueueResult, err := env.call(t, "ext-tasks", "tasks/runs/enqueue", map[string]any{
+		"task_id":         created.ID,
+		"idempotency_key": "enqueue-int",
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/runs/enqueue) error = %v", err)
+	}
+
+	var run apicontract.TaskRunPayload
+	decodeResult(t, enqueueResult, &run)
+	if run.ID == "" {
+		t.Fatal("tasks/runs/enqueue id = empty, want non-empty")
+	}
+	if got, want := run.Status, taskpkg.TaskRunStatusQueued; got != want {
+		t.Fatalf("tasks/runs/enqueue status = %q, want %q", got, want)
+	}
+
+	storedTask, err := env.registry.GetTask(testutil.Context(t), created.ID)
+	if err != nil {
+		t.Fatalf("registry.GetTask(%q) error = %v", created.ID, err)
+	}
+	if got, want := storedTask.CreatedBy.Kind, taskpkg.ActorKindExtension; got != want {
+		t.Fatalf("storedTask.CreatedBy.Kind = %q, want %q", got, want)
+	}
+	if got, want := storedTask.CreatedBy.Ref, "ext-tasks"; got != want {
+		t.Fatalf("storedTask.CreatedBy.Ref = %q, want %q", got, want)
+	}
+
+	storedRun, err := env.registry.GetTaskRun(testutil.Context(t), run.ID)
+	if err != nil {
+		t.Fatalf("registry.GetTaskRun(%q) error = %v", run.ID, err)
+	}
+	if got, want := storedRun.Origin.Kind, taskpkg.OriginKindExtension; got != want {
+		t.Fatalf("storedRun.Origin.Kind = %q, want %q", got, want)
+	}
+	if got, want := storedRun.Origin.Ref, "ext-tasks"; got != want {
+		t.Fatalf("storedRun.Origin.Ref = %q, want %q", got, want)
+	}
+
+	getResult, err := env.call(t, "ext-tasks", "tasks/get", map[string]any{"id": created.ID})
+	if err != nil {
+		t.Fatalf("Handle(tasks/get) error = %v", err)
+	}
+
+	var detail apicontract.TaskDetailPayload
+	decodeResult(t, getResult, &detail)
+	if got, want := len(detail.Runs), 1; got != want {
+		t.Fatalf("len(tasks/get.runs) = %d, want %d", got, want)
+	}
+	if got, want := detail.Runs[0].ID, run.ID; got != want {
+		t.Fatalf("tasks/get.runs[0].ID = %q, want %q", got, want)
+	}
+}
+
+func TestHostAPIIntegrationStartRunAllocatesDedicatedSession(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grant(
+		"ext-tasks",
+		[]string{"tasks/create", "tasks/runs/enqueue", "tasks/runs/claim", "tasks/runs/start"},
+		[]string{"task.write"},
+	)
+
+	createResult, err := env.call(t, "ext-tasks", "tasks/create", map[string]any{
+		"scope":     taskpkg.ScopeWorkspace,
+		"workspace": env.workspaceID,
+		"title":     "Executable extension task",
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/create) error = %v", err)
+	}
+
+	var created apicontract.TaskPayload
+	decodeResult(t, createResult, &created)
+
+	enqueueResult, err := env.call(t, "ext-tasks", "tasks/runs/enqueue", map[string]any{
+		"task_id":         created.ID,
+		"idempotency_key": "enqueue-start-int",
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/runs/enqueue) error = %v", err)
+	}
+
+	var queued apicontract.TaskRunPayload
+	decodeResult(t, enqueueResult, &queued)
+
+	claimResult, err := env.call(t, "ext-tasks", "tasks/runs/claim", map[string]any{
+		"id":              queued.ID,
+		"idempotency_key": "claim-start-int",
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/runs/claim) error = %v", err)
+	}
+
+	var claimed apicontract.TaskRunPayload
+	decodeResult(t, claimResult, &claimed)
+	if got, want := claimed.Status, taskpkg.TaskRunStatusClaimed; got != want {
+		t.Fatalf("tasks/runs/claim status = %q, want %q", got, want)
+	}
+
+	startResult, err := env.call(t, "ext-tasks", "tasks/runs/start", map[string]any{
+		"id":              queued.ID,
+		"idempotency_key": "start-start-int",
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/runs/start) error = %v", err)
+	}
+
+	var started apicontract.TaskRunPayload
+	decodeResult(t, startResult, &started)
+	if got, want := started.Status, taskpkg.TaskRunStatusRunning; got != want {
+		t.Fatalf("tasks/runs/start status = %q, want %q", got, want)
+	}
+	if started.SessionID == "" {
+		t.Fatal("tasks/runs/start session_id = empty, want non-empty")
+	}
+
+	info, err := env.sessions.Status(testutil.Context(t), started.SessionID)
+	if err != nil {
+		t.Fatalf("sessions.Status(%q) error = %v", started.SessionID, err)
+	}
+	if got, want := info.WorkspaceID, env.workspaceID; got != want {
+		t.Fatalf("session.WorkspaceID = %q, want %q", got, want)
+	}
+	if got, want := info.Type, session.SessionTypeSystem; got != want {
+		t.Fatalf("session.Type = %q, want %q", got, want)
+	}
+	if got, want := info.State, session.StateActive; got != want {
+		t.Fatalf("session.State = %q, want %q", got, want)
 	}
 }
 

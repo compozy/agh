@@ -53,6 +53,19 @@ const (
 	HostAPIMethodAutomationTriggersRuns      HostAPIMethod = "automation/triggers/runs"
 	HostAPIMethodAutomationTriggersFire      HostAPIMethod = "automation/triggers/fire"
 	HostAPIMethodAutomationRuns              HostAPIMethod = "automation/runs"
+	HostAPIMethodTasks                       HostAPIMethod = "tasks"
+	HostAPIMethodTasksGet                    HostAPIMethod = "tasks/get"
+	HostAPIMethodTasksCreate                 HostAPIMethod = "tasks/create"
+	HostAPIMethodTasksUpdate                 HostAPIMethod = "tasks/update"
+	HostAPIMethodTasksCancel                 HostAPIMethod = "tasks/cancel"
+	HostAPIMethodTasksRuns                   HostAPIMethod = "tasks/runs"
+	HostAPIMethodTasksRunsEnqueue            HostAPIMethod = "tasks/runs/enqueue"
+	HostAPIMethodTasksRunsClaim              HostAPIMethod = "tasks/runs/claim"
+	HostAPIMethodTasksRunsStart              HostAPIMethod = "tasks/runs/start"
+	HostAPIMethodTasksRunsAttachSession      HostAPIMethod = "tasks/runs/attach_session"
+	HostAPIMethodTasksRunsComplete           HostAPIMethod = "tasks/runs/complete"
+	HostAPIMethodTasksRunsFail               HostAPIMethod = "tasks/runs/fail"
+	HostAPIMethodTasksRunsCancel             HostAPIMethod = "tasks/runs/cancel"
 	HostAPIMethodBridgesMessagesIngest       HostAPIMethod = "bridges/messages/ingest"
 	HostAPIMethodBridgesInstancesGet         HostAPIMethod = "bridges/instances/get"
 	HostAPIMethodBridgesInstancesReportState HostAPIMethod = "bridges/instances/report_state"
@@ -88,6 +101,19 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodAutomationTriggersRuns,
 		HostAPIMethodAutomationTriggersFire,
 		HostAPIMethodAutomationRuns,
+		HostAPIMethodTasks,
+		HostAPIMethodTasksGet,
+		HostAPIMethodTasksCreate,
+		HostAPIMethodTasksUpdate,
+		HostAPIMethodTasksCancel,
+		HostAPIMethodTasksRuns,
+		HostAPIMethodTasksRunsEnqueue,
+		HostAPIMethodTasksRunsClaim,
+		HostAPIMethodTasksRunsStart,
+		HostAPIMethodTasksRunsAttachSession,
+		HostAPIMethodTasksRunsComplete,
+		HostAPIMethodTasksRunsFail,
+		HostAPIMethodTasksRunsCancel,
 		HostAPIMethodBridgesMessagesIngest,
 		HostAPIMethodBridgesInstancesGet,
 		HostAPIMethodBridgesInstancesReportState,

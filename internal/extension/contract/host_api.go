@@ -44,6 +44,19 @@ const (
 	HostAPIMethodAutomationTriggersRuns      = extensionprotocol.HostAPIMethodAutomationTriggersRuns
 	HostAPIMethodAutomationTriggersFire      = extensionprotocol.HostAPIMethodAutomationTriggersFire
 	HostAPIMethodAutomationRuns              = extensionprotocol.HostAPIMethodAutomationRuns
+	HostAPIMethodTasks                       = extensionprotocol.HostAPIMethodTasks
+	HostAPIMethodTasksGet                    = extensionprotocol.HostAPIMethodTasksGet
+	HostAPIMethodTasksCreate                 = extensionprotocol.HostAPIMethodTasksCreate
+	HostAPIMethodTasksUpdate                 = extensionprotocol.HostAPIMethodTasksUpdate
+	HostAPIMethodTasksCancel                 = extensionprotocol.HostAPIMethodTasksCancel
+	HostAPIMethodTasksRuns                   = extensionprotocol.HostAPIMethodTasksRuns
+	HostAPIMethodTasksRunsEnqueue            = extensionprotocol.HostAPIMethodTasksRunsEnqueue
+	HostAPIMethodTasksRunsClaim              = extensionprotocol.HostAPIMethodTasksRunsClaim
+	HostAPIMethodTasksRunsStart              = extensionprotocol.HostAPIMethodTasksRunsStart
+	HostAPIMethodTasksRunsAttachSession      = extensionprotocol.HostAPIMethodTasksRunsAttachSession
+	HostAPIMethodTasksRunsComplete           = extensionprotocol.HostAPIMethodTasksRunsComplete
+	HostAPIMethodTasksRunsFail               = extensionprotocol.HostAPIMethodTasksRunsFail
+	HostAPIMethodTasksRunsCancel             = extensionprotocol.HostAPIMethodTasksRunsCancel
 	HostAPIMethodBridgesMessagesIngest       = extensionprotocol.HostAPIMethodBridgesMessagesIngest
 	HostAPIMethodBridgesInstancesGet         = extensionprotocol.HostAPIMethodBridgesInstancesGet
 	HostAPIMethodBridgesInstancesReportState = extensionprotocol.HostAPIMethodBridgesInstancesReportState
@@ -210,6 +223,77 @@ type AutomationTriggerFireParams struct {
 	Scope       automationpkg.AutomationScope `json:"scope"`
 	WorkspaceID string                        `json:"workspace_id,omitempty"`
 	Payload     map[string]any                `json:"payload,omitempty"`
+}
+
+// TasksParams filters visible tasks.
+type TasksParams = apicontract.TaskListQuery
+
+// TaskTargetParams identifies one task by id.
+type TaskTargetParams struct {
+	ID string `json:"id"`
+}
+
+// TaskCreateParams creates one task.
+type TaskCreateParams = apicontract.CreateTaskRequest
+
+// TaskUpdateParams patches one task.
+type TaskUpdateParams struct {
+	ID string `json:"id"`
+	apicontract.UpdateTaskRequest
+}
+
+// TaskCancelParams requests cancellation for one task.
+type TaskCancelParams struct {
+	ID string `json:"id"`
+	apicontract.CancelTaskRequest
+}
+
+// TaskRunsParams filters runs for one task.
+type TaskRunsParams struct {
+	ID string `json:"id"`
+	apicontract.TaskRunListQuery
+}
+
+// TaskRunEnqueueParams enqueues one run for a task.
+type TaskRunEnqueueParams struct {
+	TaskID string `json:"task_id"`
+	apicontract.EnqueueTaskRunRequest
+}
+
+// TaskRunClaimParams claims one queued run.
+type TaskRunClaimParams struct {
+	ID string `json:"id"`
+	apicontract.ClaimTaskRunRequest
+}
+
+// TaskRunStartParams starts one claimed run.
+type TaskRunStartParams struct {
+	ID string `json:"id"`
+	apicontract.StartTaskRunRequest
+}
+
+// TaskRunAttachSessionParams attaches one existing session to a run.
+type TaskRunAttachSessionParams struct {
+	ID string `json:"id"`
+	apicontract.AttachTaskRunSessionRequest
+}
+
+// TaskRunCompleteParams completes one run.
+type TaskRunCompleteParams struct {
+	ID string `json:"id"`
+	apicontract.CompleteTaskRunRequest
+}
+
+// TaskRunFailParams fails one run.
+type TaskRunFailParams struct {
+	ID string `json:"id"`
+	apicontract.FailTaskRunRequest
+}
+
+// TaskRunCancelParams cancels one run.
+type TaskRunCancelParams struct {
+	ID string `json:"id"`
+	apicontract.CancelTaskRunRequest
 }
 
 // BridgesMessagesIngestParams carries one normalized inbound bridge message.
@@ -430,6 +514,72 @@ func HostAPIMethodSpecs() []HostAPIMethodSpec {
 			Params:         NamedType{Name: "AutomationRunsParams", Value: AutomationRunsParams{}},
 			Result:         NamedType{Name: "Run", Value: []automationpkg.Run{}},
 			OptionalParams: true,
+		},
+		{
+			Method:         HostAPIMethodTasks,
+			Params:         NamedType{Name: "TasksParams", Value: TasksParams{}},
+			Result:         NamedType{Name: "TaskSummary", Value: []apicontract.TaskSummaryPayload{}},
+			OptionalParams: true,
+		},
+		{
+			Method: HostAPIMethodTasksGet,
+			Params: NamedType{Name: "TaskTargetParams", Value: TaskTargetParams{}},
+			Result: NamedType{Name: "TaskDetail", Value: apicontract.TaskDetailPayload{}},
+		},
+		{
+			Method: HostAPIMethodTasksCreate,
+			Params: NamedType{Name: "TaskCreateParams", Value: TaskCreateParams{}},
+			Result: NamedType{Name: "Task", Value: apicontract.TaskPayload{}},
+		},
+		{
+			Method: HostAPIMethodTasksUpdate,
+			Params: NamedType{Name: "TaskUpdateParams", Value: TaskUpdateParams{}},
+			Result: NamedType{Name: "Task", Value: apicontract.TaskPayload{}},
+		},
+		{
+			Method: HostAPIMethodTasksCancel,
+			Params: NamedType{Name: "TaskCancelParams", Value: TaskCancelParams{}},
+			Result: NamedType{Name: "Task", Value: apicontract.TaskPayload{}},
+		},
+		{
+			Method: HostAPIMethodTasksRuns,
+			Params: NamedType{Name: "TaskRunsParams", Value: TaskRunsParams{}},
+			Result: NamedType{Name: "TaskRun", Value: []apicontract.TaskRunPayload{}},
+		},
+		{
+			Method: HostAPIMethodTasksRunsEnqueue,
+			Params: NamedType{Name: "TaskRunEnqueueParams", Value: TaskRunEnqueueParams{}},
+			Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		},
+		{
+			Method: HostAPIMethodTasksRunsClaim,
+			Params: NamedType{Name: "TaskRunClaimParams", Value: TaskRunClaimParams{}},
+			Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		},
+		{
+			Method: HostAPIMethodTasksRunsStart,
+			Params: NamedType{Name: "TaskRunStartParams", Value: TaskRunStartParams{}},
+			Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		},
+		{
+			Method: HostAPIMethodTasksRunsAttachSession,
+			Params: NamedType{Name: "TaskRunAttachSessionParams", Value: TaskRunAttachSessionParams{}},
+			Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		},
+		{
+			Method: HostAPIMethodTasksRunsComplete,
+			Params: NamedType{Name: "TaskRunCompleteParams", Value: TaskRunCompleteParams{}},
+			Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		},
+		{
+			Method: HostAPIMethodTasksRunsFail,
+			Params: NamedType{Name: "TaskRunFailParams", Value: TaskRunFailParams{}},
+			Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		},
+		{
+			Method: HostAPIMethodTasksRunsCancel,
+			Params: NamedType{Name: "TaskRunCancelParams", Value: TaskRunCancelParams{}},
+			Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
 		},
 		{
 			Method: HostAPIMethodBridgesMessagesIngest,

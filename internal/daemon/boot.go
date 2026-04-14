@@ -576,6 +576,7 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		Automation: func() extensionpkg.HostAPIAutomationManager {
 			return state.automation
 		},
+		Tasks:             state.deps.Tasks,
 		MemoryStore:       state.memoryStore,
 		Observer:          state.observer,
 		SkillsRegistry:    state.skillsRegistry,

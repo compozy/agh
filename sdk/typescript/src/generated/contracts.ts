@@ -31,7 +31,20 @@ export type HostAPIMethod =
   | "sessions/prompt"
   | "sessions/status"
   | "sessions/stop"
-  | "skills/list";
+  | "skills/list"
+  | "tasks"
+  | "tasks/cancel"
+  | "tasks/create"
+  | "tasks/get"
+  | "tasks/runs"
+  | "tasks/runs/attach_session"
+  | "tasks/runs/cancel"
+  | "tasks/runs/claim"
+  | "tasks/runs/complete"
+  | "tasks/runs/enqueue"
+  | "tasks/runs/fail"
+  | "tasks/runs/start"
+  | "tasks/update";
 
 export interface AcceptedCapabilities {
   provides: string[];
@@ -1524,6 +1537,196 @@ export interface SkillsListParams {
   workspace?: string;
 }
 
+export type Scope = string;
+
+export type TaskStatus = string;
+
+export type ActorKind = string;
+
+export interface ActorIdentity {
+  kind: ActorKind;
+  ref: string;
+}
+
+export type OriginKind = string;
+
+export interface Origin {
+  kind: OriginKind;
+  ref: string;
+}
+
+export interface Task {
+  id: string;
+  identifier?: string;
+  scope: Scope;
+  workspace_id?: string;
+  parent_task_id?: string;
+  network_channel?: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  owner?: Ownership;
+  created_by: ActorIdentity;
+  origin: Origin;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  closed_at?: ISODateTime;
+  metadata?: JSONValue;
+}
+
+export interface TaskCancelParams {
+  id: string;
+  reason?: string;
+  metadata?: JSONValue;
+}
+
+export interface TaskCreateParams {
+  id?: string;
+  identifier?: string;
+  scope: Scope;
+  workspace?: string;
+  network_channel?: string;
+  title: string;
+  description?: string;
+  owner?: Ownership;
+  metadata?: JSONValue;
+}
+
+export interface TaskSummary {
+  id: string;
+  identifier?: string;
+  scope: Scope;
+  workspace_id?: string;
+  parent_task_id?: string;
+  network_channel?: string;
+  title: string;
+  status: TaskStatus;
+  owner?: Ownership;
+  created_by: ActorIdentity;
+  origin: Origin;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  closed_at?: ISODateTime;
+}
+
+export type DependencyKind = string;
+
+export interface TaskDependencyPayload {
+  task_id: string;
+  depends_on_task_id: string;
+  kind: DependencyKind;
+  created_at: ISODateTime;
+}
+
+export type TaskRunStatus = string;
+
+export interface TaskRun {
+  id: string;
+  task_id: string;
+  status: TaskRunStatus;
+  attempt: number;
+  claimed_by?: ActorIdentity;
+  session_id?: string;
+  origin: Origin;
+  idempotency_key?: string;
+  network_channel?: string;
+  queued_at: ISODateTime;
+  claimed_at?: ISODateTime;
+  started_at?: ISODateTime;
+  ended_at?: ISODateTime;
+  error?: string;
+  result?: JSONValue;
+}
+
+export interface TaskEventPayload {
+  id: string;
+  task_id: string;
+  run_id?: string;
+  event_type: string;
+  actor: ActorIdentity;
+  origin: Origin;
+  payload?: JSONValue;
+  timestamp: ISODateTime;
+}
+
+export interface TaskDetail {
+  task: Task;
+  children?: TaskSummary[];
+  dependencies?: TaskDependencyPayload[];
+  runs?: TaskRun[];
+  events?: TaskEventPayload[];
+}
+
+export interface TaskRunAttachSessionParams {
+  id: string;
+  session_id: string;
+}
+
+export interface TaskRunCancelParams {
+  id: string;
+  reason?: string;
+  metadata?: JSONValue;
+}
+
+export interface TaskRunClaimParams {
+  id: string;
+  idempotency_key?: string;
+}
+
+export interface TaskRunCompleteParams {
+  id: string;
+  result?: JSONValue;
+}
+
+export interface TaskRunEnqueueParams {
+  task_id: string;
+  idempotency_key?: string;
+  network_channel?: string;
+}
+
+export interface TaskRunFailParams {
+  id: string;
+  error: string;
+  metadata?: JSONValue;
+}
+
+export interface TaskRunStartParams {
+  id: string;
+  idempotency_key?: string;
+}
+
+export interface TaskRunsParams {
+  id: string;
+  status?: TaskRunStatus;
+  session_id?: string;
+  limit?: number;
+}
+
+export interface TaskTargetParams {
+  id: string;
+}
+
+export interface TaskUpdateParams {
+  id: string;
+  title?: string;
+  description?: string;
+  metadata?: JSONValue;
+  network_channel?: string;
+  owner?: Ownership;
+  clear_owner?: boolean;
+}
+
+export interface TasksParams {
+  scope?: Scope;
+  workspace?: string;
+  status?: TaskStatus;
+  owner_kind?: OwnerKind;
+  owner_ref?: string;
+  parent_task_id?: string;
+  network_channel?: string;
+  limit?: number;
+}
+
 export type ToolSource = "builtin" | "mcp" | "extension" | "dynamic";
 
 export interface Tool {
@@ -1913,6 +2116,58 @@ export interface HostAPIMethodMap {
   "automation/runs": {
     params: AutomationRunsParams | undefined;
     result: Run[];
+  };
+  tasks: {
+    params: TasksParams | undefined;
+    result: TaskSummary[];
+  };
+  "tasks/get": {
+    params: TaskTargetParams;
+    result: TaskDetail;
+  };
+  "tasks/create": {
+    params: TaskCreateParams;
+    result: Task;
+  };
+  "tasks/update": {
+    params: TaskUpdateParams;
+    result: Task;
+  };
+  "tasks/cancel": {
+    params: TaskCancelParams;
+    result: Task;
+  };
+  "tasks/runs": {
+    params: TaskRunsParams;
+    result: TaskRun[];
+  };
+  "tasks/runs/enqueue": {
+    params: TaskRunEnqueueParams;
+    result: TaskRun;
+  };
+  "tasks/runs/claim": {
+    params: TaskRunClaimParams;
+    result: TaskRun;
+  };
+  "tasks/runs/start": {
+    params: TaskRunStartParams;
+    result: TaskRun;
+  };
+  "tasks/runs/attach_session": {
+    params: TaskRunAttachSessionParams;
+    result: TaskRun;
+  };
+  "tasks/runs/complete": {
+    params: TaskRunCompleteParams;
+    result: TaskRun;
+  };
+  "tasks/runs/fail": {
+    params: TaskRunFailParams;
+    result: TaskRun;
+  };
+  "tasks/runs/cancel": {
+    params: TaskRunCancelParams;
+    result: TaskRun;
   };
   "bridges/messages/ingest": {
     params: InboundMessageEnvelope;

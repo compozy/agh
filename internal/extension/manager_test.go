@@ -28,6 +28,14 @@ const (
 	extensionHelperMarkerKey   = "AGH_TEST_EXTENSION_MARKER"
 )
 
+type noopBridgeTelemetrySink struct{}
+
+func (noopBridgeTelemetrySink) RecordBridgeAuthFailure(string) {}
+
+func (noopBridgeTelemetrySink) RecordBridgeRuntimeIssue(string, bridgepkg.BridgeStatus, string) {}
+
+func (noopBridgeTelemetrySink) ClearBridgeRuntimeIssue(string) {}
+
 func TestExtensionManagerHelperProcess(t *testing.T) {
 	if os.Getenv(extensionHelperEnvKey) != "1" {
 		return
@@ -674,9 +682,11 @@ func TestManagerStopKillsHungSubprocessAfterTimeout(t *testing.T) {
 func TestNewManagerAppliesOptionsAndRestoresDefaults(t *testing.T) {
 	t.Parallel()
 
+	telemetrySink := &noopBridgeTelemetrySink{}
 	manager := NewManager(
 		nil,
 		WithCapabilityChecker(nil),
+		WithBridgeTelemetrySink(telemetrySink),
 		WithLogger(nil),
 		WithNow(nil),
 		WithGetenv(nil),
@@ -704,6 +714,9 @@ func TestNewManagerAppliesOptionsAndRestoresDefaults(t *testing.T) {
 	}
 	if manager.getenv == nil {
 		t.Fatal("getenv = nil, want default env resolver")
+	}
+	if manager.bridgeTelemetrySink != telemetrySink {
+		t.Fatalf("bridgeTelemetrySink = %#v, want injected sink %#v", manager.bridgeTelemetrySink, telemetrySink)
 	}
 	if manager.launch == nil {
 		t.Fatal("launch = nil, want default launcher")
@@ -734,6 +747,43 @@ func TestNewManagerAppliesOptionsAndRestoresDefaults(t *testing.T) {
 	}
 	if _, ok := manager.hostMethods["sessions/list"]; !ok {
 		t.Fatalf("hostMethods = %#v, want trimmed sessions/list key", manager.hostMethods)
+	}
+}
+
+func TestManagerReloadValidatesAndRestarts(t *testing.T) {
+	t.Parallel()
+
+	var nilManager *Manager
+	if err := nilManager.Reload(testutil.Context(t)); err == nil || !strings.Contains(err.Error(), "manager is required") {
+		t.Fatalf("nil manager Reload() error = %v, want manager is required", err)
+	}
+
+	manager := NewManager(nil)
+	ctx, cancel := context.WithCancel(testutil.Context(t))
+	cancel()
+	if err := manager.Reload(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Reload(canceled context) error = %v, want %v", err, context.Canceled)
+	}
+
+	err := manager.Reload(testutil.Context(t))
+	if err == nil || !strings.Contains(err.Error(), "registry is required") {
+		t.Fatalf("Reload() error = %v, want registry is required", err)
+	}
+
+	withDaemonVersion(t, "0.5.0")
+	env := newRegistryTestEnv(t)
+	startedManager := NewManager(env.registry)
+	if err := startedManager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := startedManager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	if err := startedManager.Reload(testutil.Context(t)); err != nil {
+		t.Fatalf("Reload(started manager) error = %v", err)
 	}
 }
 

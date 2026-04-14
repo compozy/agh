@@ -24,6 +24,7 @@ import (
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/subprocess"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -62,6 +63,7 @@ type HostAPIOption func(*HostAPIHandler)
 type HostAPIHandler struct {
 	sessions         hostAPISessionManager
 	automation       HostAPIAutomationManager
+	tasks            hostAPITaskManager
 	memory           *memory.Store
 	observer         hostAPIObserver
 	skills           hostAPISkillsRegistry
@@ -120,6 +122,21 @@ type HostAPIAutomationManager interface {
 	FireExtensionTrigger(ctx context.Context, request automationpkg.ExtensionTriggerRequest) (automationpkg.TriggerResult, error)
 }
 
+type hostAPITaskManager interface {
+	ListTasks(ctx context.Context, query taskpkg.TaskQuery, actor taskpkg.ActorContext) ([]taskpkg.TaskSummary, error)
+	GetTask(ctx context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.TaskView, error)
+	CreateTask(ctx context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error)
+	UpdateTask(ctx context.Context, id string, patch taskpkg.TaskPatch, actor taskpkg.ActorContext) (*taskpkg.Task, error)
+	CancelTask(ctx context.Context, id string, req taskpkg.CancelTask, actor taskpkg.ActorContext) (*taskpkg.Task, error)
+	EnqueueRun(ctx context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	ClaimRun(ctx context.Context, runID string, claim taskpkg.ClaimRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	StartRun(ctx context.Context, runID string, req taskpkg.StartRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	AttachRunSession(ctx context.Context, runID string, sessionID string, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	CompleteRun(ctx context.Context, runID string, result taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	FailRun(ctx context.Context, runID string, failure taskpkg.RunFailure, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+	CancelRun(ctx context.Context, runID string, req taskpkg.CancelRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
+}
+
 type hostAPIDeliveryBroker interface {
 	RegisterPromptDelivery(ctx context.Context, reg bridgepkg.PromptDeliveryRegistration) (*bridgepkg.DeliverySnapshot, error)
 	ProjectEvent(ctx context.Context, sessionID string, event bridgepkg.DeliveryProjectionEvent) error
@@ -141,6 +158,13 @@ func WithHostAPICapabilityChecker(checker *CapabilityChecker) HostAPIOption {
 func WithHostAPIAutomationManager(manager HostAPIAutomationManager) HostAPIOption {
 	return func(handler *HostAPIHandler) {
 		handler.automation = manager
+	}
+}
+
+// WithHostAPITaskManager injects the task manager used for task Host API methods.
+func WithHostAPITaskManager(manager hostAPITaskManager) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.tasks = manager
 	}
 }
 
@@ -267,6 +291,19 @@ func NewHostAPIHandler(
 		"automation/triggers/runs":       handler.handleAutomationTriggersRuns,
 		"automation/triggers/fire":       handler.handleAutomationTriggersFire,
 		"automation/runs":                handler.handleAutomationRuns,
+		"tasks":                          handler.handleTasks,
+		"tasks/get":                      handler.handleTasksGet,
+		"tasks/create":                   handler.handleTasksCreate,
+		"tasks/update":                   handler.handleTasksUpdate,
+		"tasks/cancel":                   handler.handleTasksCancel,
+		"tasks/runs":                     handler.handleTasksRuns,
+		"tasks/runs/enqueue":             handler.handleTasksRunsEnqueue,
+		"tasks/runs/claim":               handler.handleTasksRunsClaim,
+		"tasks/runs/start":               handler.handleTasksRunsStart,
+		"tasks/runs/attach_session":      handler.handleTasksRunsAttachSession,
+		"tasks/runs/complete":            handler.handleTasksRunsComplete,
+		"tasks/runs/fail":                handler.handleTasksRunsFail,
+		"tasks/runs/cancel":              handler.handleTasksRunsCancel,
 		"bridges/instances/get":          handler.handleBridgesInstancesGet,
 		"bridges/instances/report_state": handler.handleBridgesInstancesReportState,
 		"bridges/messages/ingest":        handler.handleBridgesMessagesIngest,
@@ -393,6 +430,32 @@ type hostAPIAutomationTriggerUpdateParams = extensioncontract.AutomationTriggerU
 type hostAPIAutomationTriggerRunsParams = extensioncontract.AutomationTriggerRunsParams
 
 type hostAPIAutomationTriggerFireParams = extensioncontract.AutomationTriggerFireParams
+
+type hostAPITasksParams = extensioncontract.TasksParams
+
+type hostAPITaskTargetParams = extensioncontract.TaskTargetParams
+
+type hostAPITaskCreateParams = extensioncontract.TaskCreateParams
+
+type hostAPITaskUpdateParams = extensioncontract.TaskUpdateParams
+
+type hostAPITaskCancelParams = extensioncontract.TaskCancelParams
+
+type hostAPITaskRunsParams = extensioncontract.TaskRunsParams
+
+type hostAPITaskRunEnqueueParams = extensioncontract.TaskRunEnqueueParams
+
+type hostAPITaskRunClaimParams = extensioncontract.TaskRunClaimParams
+
+type hostAPITaskRunStartParams = extensioncontract.TaskRunStartParams
+
+type hostAPITaskRunAttachSessionParams = extensioncontract.TaskRunAttachSessionParams
+
+type hostAPITaskRunCompleteParams = extensioncontract.TaskRunCompleteParams
+
+type hostAPITaskRunFailParams = extensioncontract.TaskRunFailParams
+
+type hostAPITaskRunCancelParams = extensioncontract.TaskRunCancelParams
 
 type hostAPIBridgesMessagesIngestParams = extensioncontract.BridgesMessagesIngestParams
 
