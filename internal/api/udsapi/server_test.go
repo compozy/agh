@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -105,7 +104,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 	testCases := []struct {
 		name    string
 		opts    []Option
-		wantErr string
+		wantErr error
 	}{
 		{
 			name: "Should require a session manager",
@@ -115,7 +114,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 				WithObserver(stubObserver{}),
 				WithWorkspaceResolver(stubWorkspaceService{}),
 			},
-			wantErr: "udsapi: session manager is required",
+			wantErr: ErrSessionManagerRequired,
 		},
 		{
 			name: "Should require a task service",
@@ -125,7 +124,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 				WithObserver(stubObserver{}),
 				WithWorkspaceResolver(stubWorkspaceService{}),
 			},
-			wantErr: "udsapi: task service is required",
+			wantErr: ErrTaskServiceRequired,
 		},
 		{
 			name: "Should require an observer",
@@ -135,7 +134,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 				WithTaskService(stubTaskManager{}),
 				WithWorkspaceResolver(stubWorkspaceService{}),
 			},
-			wantErr: "udsapi: observer is required",
+			wantErr: ErrObserverRequired,
 		},
 		{
 			name: "Should require a workspace resolver",
@@ -145,7 +144,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 				WithTaskService(stubTaskManager{}),
 				WithObserver(stubObserver{}),
 			},
-			wantErr: "udsapi: workspace resolver is required",
+			wantErr: ErrWorkspaceResolverRequired,
 		},
 	}
 
@@ -154,8 +153,8 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := New(tc.opts...); err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("New() error = %v, want %q", err, tc.wantErr)
+			if _, err := New(tc.opts...); err == nil || !errors.Is(err, tc.wantErr) {
+				t.Fatalf("New() error = %v, want %v", err, tc.wantErr)
 			}
 		})
 	}

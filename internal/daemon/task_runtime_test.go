@@ -22,7 +22,7 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 		wantPath      string
 	}{
 		{
-			name: "workspace task uses workspace id",
+			name: "Should use the workspace identifier for workspace-scoped tasks",
 			taskRecord: taskpkg.Task{
 				ID:          "task-workspace",
 				Scope:       taskpkg.ScopeWorkspace,
@@ -32,7 +32,7 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			wantWorkspace: "ws-123",
 		},
 		{
-			name: "global task uses global workspace path",
+			name: "Should use the global workspace path for global tasks",
 			taskRecord: taskpkg.Task{
 				ID:    "task-global",
 				Scope: taskpkg.ScopeGlobal,
@@ -172,7 +172,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 		wantNil    bool
 	}{
 		{
-			name: "claimed without session requeues",
+			name: "Should requeue claimed runs without a bound session",
 			run: taskpkg.TaskRun{
 				ID:       "run-claimed",
 				TaskID:   "task-1",
@@ -185,7 +185,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 			wantState:  taskRecoverySessionMissing,
 		},
 		{
-			name: "starting with active session resumes running",
+			name: "Should resume starting runs when the bound session is active",
 			run: taskpkg.TaskRun{
 				ID:        "run-starting",
 				TaskID:    "task-2",
@@ -199,7 +199,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 			wantState:  string(session.StateActive),
 		},
 		{
-			name: "running with stopping session is kept live",
+			name: "Should keep running runs live while the bound session is stopping",
 			run: taskpkg.TaskRun{
 				ID:        "run-running",
 				TaskID:    "task-3",
@@ -212,7 +212,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 			wantNil: true,
 		},
 		{
-			name: "starting with stopped session fails",
+			name: "Should fail starting runs when the bound session is stopped",
 			run: taskpkg.TaskRun{
 				ID:        "run-orphaned-starting",
 				TaskID:    "task-4",
@@ -226,7 +226,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 			wantState:  string(session.StateStopped),
 		},
 		{
-			name: "running with missing session fails",
+			name: "Should fail running runs when the bound session is missing",
 			run: taskpkg.TaskRun{
 				ID:        "run-orphaned-running",
 				TaskID:    "task-5",

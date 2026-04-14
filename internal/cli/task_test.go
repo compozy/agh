@@ -19,22 +19,22 @@ func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "create requires workspace for workspace scope",
+			name:    "Should require workspace for workspace scope",
 			args:    []string{"task", "create", "--scope", "workspace", "--title", "Investigate"},
 			wantErr: "--workspace is required when --scope is workspace",
 		},
 		{
-			name:    "create forbids workspace for global scope",
+			name:    "Should forbid workspace for global scope",
 			args:    []string{"task", "create", "--scope", "global", "--workspace", "alpha", "--title", "Investigate"},
 			wantErr: "--workspace must be empty when --scope is global",
 		},
 		{
-			name:    "update requires change flags",
+			name:    "Should require change flags on update",
 			args:    []string{"task", "update", "task-1"},
 			wantErr: "task update requires at least one change flag",
 		},
 		{
-			name:    "update rejects clear owner with owner mutation",
+			name:    "Should reject clear owner with owner mutation",
 			args:    []string{"task", "update", "task-1", "--clear-owner", "--owner-kind", "pool", "--owner-ref", "triage"},
 			wantErr: "--clear-owner cannot be combined with --owner-kind or --owner-ref",
 		},

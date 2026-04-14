@@ -3,10 +3,10 @@ package model
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
+	networkrules "github.com/pedronauck/agh/internal/network/rules"
 	cron "github.com/robfig/cron/v3"
 )
 
@@ -19,8 +19,6 @@ const (
 )
 
 var standardCronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-
-var jobTaskNetworkChannelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 
 // DefaultRetryConfig returns the default retry policy for automation definitions.
 func DefaultRetryConfig() RetryConfig {
@@ -351,7 +349,7 @@ func (r Run) Validate(path string) error {
 // Validate ensures the direct task materialization configuration is internally consistent.
 func (c JobTaskConfig) Validate(path string) error {
 	if channel := strings.TrimSpace(c.NetworkChannel); channel != "" {
-		if !jobTaskNetworkChannelPattern.MatchString(channel) {
+		if !networkrules.ValidChannel(channel) {
 			return fmt.Errorf("%s is invalid: channel=%q", nestedPath(path, "network_channel"), channel)
 		}
 	}

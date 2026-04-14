@@ -126,24 +126,38 @@ func (w *FileAuditWriter) RecordDelivered(ctx context.Context, sessionID string,
 // RecordTaskIngress stores one accepted or rejected task-ingress audit record
 // using the existing network audit sinks.
 func (w *FileAuditWriter) RecordTaskIngress(ctx context.Context, audit TaskIngressAudit) error {
-	if ctx == nil {
-		return errors.New("network: audit context is required")
-	}
 	if w == nil {
 		return errors.New("network: audit writer is required")
 	}
+	if ctx == nil {
+		return errors.New("network: audit context is required")
+	}
+	if w.path == "" && w.store == nil {
+		return errors.New("network: audit sink is required")
+	}
 
-	entry, err := normalizeTaskIngressAuditEntry(audit, w.now())
+	now := w.now
+	if now == nil {
+		now = func() time.Time {
+			return time.Now().UTC()
+		}
+	}
+
+	entry, err := normalizeTaskIngressAuditEntry(audit, now())
 	if err != nil {
-		return err
+		return fmt.Errorf("network: normalize task ingress audit entry: %w", err)
 	}
 
 	var recordErr error
 	if w.path != "" {
-		recordErr = errors.Join(recordErr, w.appendFile(entry))
+		if err := w.appendFile(entry); err != nil {
+			recordErr = errors.Join(recordErr, fmt.Errorf("network: append file audit entry: %w", err))
+		}
 	}
 	if w.store != nil {
-		recordErr = errors.Join(recordErr, w.store.WriteNetworkAudit(ctx, entry))
+		if err := w.store.WriteNetworkAudit(ctx, entry); err != nil {
+			recordErr = errors.Join(recordErr, fmt.Errorf("network: persist audit entry: %w", err))
+		}
 	}
 
 	return recordErr
@@ -285,7 +299,7 @@ func normalizeTaskIngressAuditEntry(audit TaskIngressAudit, at time.Time) (store
 		Timestamp: at.UTC(),
 	}
 	if err := entry.Validate(); err != nil {
-		return store.NetworkAuditEntry{}, err
+		return store.NetworkAuditEntry{}, fmt.Errorf("network: validate audit entry: %w", err)
 	}
 	return entry, nil
 }

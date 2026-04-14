@@ -30,6 +30,8 @@ const (
 
 type noopBridgeTelemetrySink struct{}
 
+var _ BridgeTelemetrySink = (*noopBridgeTelemetrySink)(nil)
+
 func (noopBridgeTelemetrySink) RecordBridgeAuthFailure(string) {}
 
 func (noopBridgeTelemetrySink) RecordBridgeRuntimeIssue(string, bridgepkg.BridgeStatus, string) {}

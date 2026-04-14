@@ -184,11 +184,11 @@ func (h *HostAPIHandler) handleTasksRuns(ctx context.Context, raw json.RawMessag
 		return nil, err
 	}
 
-	view, err := manager.GetTask(ctx, taskID, actor)
+	runs, err := manager.ListTaskRuns(ctx, taskID, query, actor)
 	if err != nil {
 		return nil, mapTaskRPCError("task", taskID, err)
 	}
-	return taskRunPayloadsFromRuns(filterTaskRuns(view.Runs, query)), nil
+	return taskRunPayloadsFromRuns(runs), nil
 }
 
 func (h *HostAPIHandler) handleTasksRunsEnqueue(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -432,24 +432,35 @@ func (h *HostAPIHandler) taskActorContext(ctx context.Context) (taskpkg.ActorCon
 }
 
 func (h *HostAPIHandler) taskQueryFromParams(ctx context.Context, params hostAPITasksParams) (taskpkg.TaskQuery, error) {
-	workspaceID, err := h.resolveTaskWorkspaceID(ctx, strings.TrimSpace(params.Workspace))
-	if err != nil {
-		return taskpkg.TaskQuery{}, err
+	query := taskpkg.TaskQuery{
+		Scope:        params.Scope.Normalize(),
+		Status:       params.Status.Normalize(),
+		OwnerKind:    params.OwnerKind.Normalize(),
+		OwnerRef:     strings.TrimSpace(params.OwnerRef),
+		ParentTaskID: strings.TrimSpace(params.ParentTaskID),
+		Limit:        params.Limit,
+	}
+	if query.Scope.Normalize() != "" {
+		if err := query.Scope.Validate("task_query.scope"); err != nil {
+			return taskpkg.TaskQuery{}, invalidParamsRPCError(err)
+		}
+	}
+	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
+		if query.Scope.Normalize() == taskpkg.ScopeGlobal {
+			if err := taskpkg.ValidateScopeBinding(query.Scope, workspaceRef, "task_query", "workspace"); err != nil {
+				return taskpkg.TaskQuery{}, invalidParamsRPCError(err)
+			}
+		}
+		workspaceID, err := h.resolveTaskWorkspaceID(ctx, workspaceRef)
+		if err != nil {
+			return taskpkg.TaskQuery{}, err
+		}
+		query.WorkspaceID = workspaceID
 	}
 	if err := validateTaskChannel("task_query.network_channel", params.NetworkChannel); err != nil {
 		return taskpkg.TaskQuery{}, err
 	}
-
-	query := taskpkg.TaskQuery{
-		Scope:          params.Scope.Normalize(),
-		WorkspaceID:    workspaceID,
-		Status:         params.Status.Normalize(),
-		OwnerKind:      params.OwnerKind.Normalize(),
-		OwnerRef:       strings.TrimSpace(params.OwnerRef),
-		ParentTaskID:   strings.TrimSpace(params.ParentTaskID),
-		NetworkChannel: strings.TrimSpace(params.NetworkChannel),
-		Limit:          params.Limit,
-	}
+	query.NetworkChannel = strings.TrimSpace(params.NetworkChannel)
 	if err := query.Validate("task_query"); err != nil {
 		return taskpkg.TaskQuery{}, invalidParamsRPCError(err)
 	}
@@ -469,7 +480,11 @@ func taskRunQueryFromParams(params apicontract.TaskRunListQuery) (taskpkg.TaskRu
 }
 
 func (h *HostAPIHandler) createTaskSpecFromRequest(ctx context.Context, req apicontract.CreateTaskRequest) (taskpkg.CreateTask, error) {
-	workspaceID, err := h.resolveTaskWorkspaceID(ctx, strings.TrimSpace(req.Workspace))
+	scope := req.Scope.Normalize()
+	if err := scope.Validate("create_task.scope"); err != nil {
+		return taskpkg.CreateTask{}, invalidParamsRPCError(err)
+	}
+	workspaceID, err := h.resolveTaskWorkspaceBinding(ctx, scope, strings.TrimSpace(req.Workspace), "create_task")
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
@@ -480,7 +495,7 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(ctx context.Context, req apic
 	spec := taskpkg.CreateTask{
 		ID:             strings.TrimSpace(req.ID),
 		Identifier:     strings.TrimSpace(req.Identifier),
-		Scope:          req.Scope.Normalize(),
+		Scope:          scope,
 		WorkspaceID:    workspaceID,
 		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
 		Title:          strings.TrimSpace(req.Title),
@@ -594,6 +609,17 @@ func cancelTaskRunFromRequest(req apicontract.CancelTaskRunRequest) (taskpkg.Can
 		return taskpkg.CancelRun{}, invalidParamsRPCError(err)
 	}
 	return cancelReq, nil
+}
+
+func (h *HostAPIHandler) resolveTaskWorkspaceBinding(ctx context.Context, scope taskpkg.Scope, workspaceRef string, path string) (string, error) {
+	trimmed := strings.TrimSpace(workspaceRef)
+	if err := taskpkg.ValidateScopeBinding(scope, trimmed, path, "workspace"); err != nil {
+		return "", invalidParamsRPCError(err)
+	}
+	if scope.Normalize() != taskpkg.ScopeWorkspace {
+		return "", nil
+	}
+	return h.resolveTaskWorkspaceID(ctx, trimmed)
 }
 
 func (h *HostAPIHandler) resolveTaskWorkspaceID(ctx context.Context, workspaceRef string) (string, error) {

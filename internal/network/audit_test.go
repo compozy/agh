@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -306,6 +307,97 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 		}
 		if entry.Size <= 0 {
 			t.Fatalf("entry.Size = %d, want positive payload size", entry.Size)
+		}
+	})
+
+	t.Run("Should reject task ingress when no audit sink is configured", func(t *testing.T) {
+		writer := &FileAuditWriter{}
+
+		err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
+			Action:    networkTaskActionEnqueue,
+			Direction: AuditDirectionRejected,
+			PeerID:    "reviewer.sess-ops",
+			Channel:   "ops",
+			RequestID: "req-enqueue-2",
+			Reason:    "channel_mismatch",
+		})
+		if err == nil || !strings.Contains(err.Error(), "audit sink is required") {
+			t.Fatalf("RecordTaskIngress(no sink) error = %v, want audit sink validation", err)
+		}
+	})
+
+	t.Run("Should fall back to the current time when the writer clock is unset", func(t *testing.T) {
+		storeSink := &recordingAuditStore{}
+		writer := &FileAuditWriter{store: storeSink}
+
+		if err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
+			Action:    networkTaskActionEnqueue,
+			Direction: AuditDirectionRejected,
+			PeerID:    "reviewer.sess-ops",
+			Channel:   "ops",
+			RequestID: "req-enqueue-3",
+			Reason:    "channel_mismatch",
+		}); err != nil {
+			t.Fatalf("RecordTaskIngress(nil now) error = %v", err)
+		}
+		if got, want := len(storeSink.entries), 1; got != want {
+			t.Fatalf("len(store entries) = %d, want %d", got, want)
+		}
+		if storeSink.entries[0].Timestamp.IsZero() {
+			t.Fatal("entry.Timestamp = zero, want fallback timestamp")
+		}
+	})
+
+	t.Run("Should wrap task ingress normalization failures with operation context", func(t *testing.T) {
+		writer := &FileAuditWriter{store: &recordingAuditStore{}}
+
+		err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
+			Direction: AuditDirectionRejected,
+			PeerID:    "reviewer.sess-ops",
+			Channel:   "ops",
+			RequestID: "req-enqueue-4",
+		})
+		if err == nil || !strings.Contains(err.Error(), "network: normalize task ingress audit entry") {
+			t.Fatalf("RecordTaskIngress(normalize) error = %v, want normalize context", err)
+		}
+		if !strings.Contains(err.Error(), "network: validate audit entry") {
+			t.Fatalf("RecordTaskIngress(normalize) error = %v, want validate context", err)
+		}
+	})
+
+	t.Run("Should wrap task ingress sink failures with operation context", func(t *testing.T) {
+		storeErr := errors.New("audit store unavailable")
+		storeSink := &failingAuditStore{auditErr: storeErr}
+		writer := &FileAuditWriter{
+			path:  filepath.Join(t.TempDir(), "audit-dir"),
+			store: storeSink,
+			now: func() time.Time {
+				return time.Date(2026, 4, 14, 18, 15, 0, 0, time.UTC)
+			},
+		}
+		if err := os.MkdirAll(writer.path, 0o755); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", writer.path, err)
+		}
+
+		err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
+			Action:    networkTaskActionEnqueue,
+			Direction: AuditDirectionRejected,
+			PeerID:    "reviewer.sess-ops",
+			Channel:   "ops",
+			RequestID: "req-enqueue-5",
+			Reason:    "channel_mismatch",
+		})
+		if err == nil {
+			t.Fatal("RecordTaskIngress(sink failures) error = nil, want joined error")
+		}
+		if !errors.Is(err, storeErr) {
+			t.Fatalf("RecordTaskIngress(sink failures) error = %v, want wrapped store error", err)
+		}
+		if !strings.Contains(err.Error(), "network: append file audit entry") {
+			t.Fatalf("RecordTaskIngress(sink failures) error = %v, want append context", err)
+		}
+		if !strings.Contains(err.Error(), "network: persist audit entry") {
+			t.Fatalf("RecordTaskIngress(sink failures) error = %v, want persist context", err)
 		}
 	})
 }

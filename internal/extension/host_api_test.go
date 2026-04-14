@@ -2285,7 +2285,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("MissingManager", func(t *testing.T) {
+	t.Run("ShouldRejectWhenTaskManagerIsMissing", func(t *testing.T) {
 		t.Parallel()
 
 		checker := &CapabilityChecker{}
@@ -2331,7 +2331,7 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 		}
 	})
 
-	t.Run("InvalidInputs", func(t *testing.T) {
+	t.Run("ShouldRejectInvalidTaskMethodInputs", func(t *testing.T) {
 		t.Parallel()
 
 		env := newHostAPITestEnv(t)
@@ -2358,6 +2358,27 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 				},
 				wantCode: HostAPINotFoundCode,
 				wantText: "workspace",
+			},
+			{
+				name:   "ShouldRejectInvalidQueryScopeBeforeWorkspaceLookup",
+				method: "tasks",
+				params: map[string]any{
+					"scope":     "invalid",
+					"workspace": "ws-missing",
+				},
+				wantCode: HostAPIInvalidParamsCode,
+				wantText: "task_query.scope",
+			},
+			{
+				name:   "ShouldRejectGlobalCreateWorkspaceBindingBeforeWorkspaceLookup",
+				method: "tasks/create",
+				params: map[string]any{
+					"scope":     taskpkg.ScopeGlobal,
+					"workspace": "ws-missing",
+					"title":     "Global task",
+				},
+				wantCode: HostAPIInvalidParamsCode,
+				wantText: "create_task.workspace",
 			},
 			{
 				name:   "ShouldRejectInvalidListChannel",

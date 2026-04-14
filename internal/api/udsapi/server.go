@@ -27,6 +27,13 @@ const (
 	defaultIdleTimeout       = 60 * time.Second
 )
 
+var (
+	ErrSessionManagerRequired    = errors.New("udsapi: session manager is required")
+	ErrTaskServiceRequired       = errors.New("udsapi: task service is required")
+	ErrObserverRequired          = errors.New("udsapi: observer is required")
+	ErrWorkspaceResolverRequired = errors.New("udsapi: workspace resolver is required")
+)
+
 // Option customizes UDS server construction.
 type Option func(*Server)
 
@@ -290,16 +297,16 @@ func New(opts ...Option) (*Server, error) {
 		server.agentLoader = aghconfig.LoadAgentDef
 	}
 	if server.sessions == nil {
-		return nil, errors.New("udsapi: session manager is required")
+		return nil, ErrSessionManagerRequired
 	}
 	if server.tasks == nil {
-		return nil, errors.New("udsapi: task service is required")
+		return nil, ErrTaskServiceRequired
 	}
 	if server.observer == nil {
-		return nil, errors.New("udsapi: observer is required")
+		return nil, ErrObserverRequired
 	}
 	if server.workspaces == nil {
-		return nil, errors.New("udsapi: workspace resolver is required")
+		return nil, ErrWorkspaceResolverRequired
 	}
 	if strings.TrimSpace(server.config.Daemon.Socket) == "" {
 		server.config.Daemon.Socket = server.homePaths.DaemonSocket
