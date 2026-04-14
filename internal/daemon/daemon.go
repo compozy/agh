@@ -29,6 +29,7 @@ import (
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -72,6 +73,7 @@ type RuntimeDeps struct {
 	HomePaths         aghconfig.HomePaths
 	Logger            *slog.Logger
 	Sessions          SessionManager
+	Tasks             taskpkg.Manager
 	Network           core.NetworkService
 	Observer          Observer
 	Automation        core.AutomationManager
@@ -222,6 +224,7 @@ type Daemon struct {
 	registry             Registry
 	memoryStore          *memory.Store
 	sessions             SessionManager
+	tasks                *taskRuntime
 	network              networkRuntime
 	hooks                hookRuntime
 	extensions           extensionRuntime

@@ -496,6 +496,8 @@ func TestEnumAndIdentityValidation(t *testing.T) {
 		{name: "dependency kind invalid", run: func() error { return DependencyKind("soft").Validate("dependency.kind") }, wantErr: ErrValidation},
 		{name: "stop reason valid", run: func() error { return StopReasonCancellation.Validate("stop.reason") }},
 		{name: "stop reason invalid", run: func() error { return StopReason("later").Validate("stop.reason") }, wantErr: ErrValidation},
+		{name: "run boot recovery action valid", run: func() error { return RunBootRecoveryMarkRunning.Validate("recovery.action") }},
+		{name: "run boot recovery action invalid", run: func() error { return RunBootRecoveryAction("resume").Validate("recovery.action") }, wantErr: ErrValidation},
 		{name: "actor identity valid", run: func() error { return validTask().CreatedBy.Validate("actor") }},
 		{name: "actor identity invalid", run: func() error { return ActorIdentity{Kind: ActorKindHuman}.Validate("actor") }, wantErr: ErrValidation},
 		{name: "origin valid", run: func() error { return validTask().Origin.Validate("origin") }},
@@ -509,6 +511,12 @@ func TestEnumAndIdentityValidation(t *testing.T) {
 			ctx := validActorContext()
 			ctx.Actor.Ref = ""
 			return ctx.Validate()
+		}, wantErr: ErrValidation},
+		{name: "run boot recovery valid", run: func() error {
+			return RunBootRecovery{Action: RunBootRecoveryFail}.Validate("recovery")
+		}},
+		{name: "run boot recovery invalid", run: func() error {
+			return RunBootRecovery{}.Validate("recovery")
 		}, wantErr: ErrValidation},
 	}
 

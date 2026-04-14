@@ -27,6 +27,7 @@ const (
 	taskEventRunFailed         = "task.run_failed"
 	taskEventRunCancelled      = "task.run_cancelled"
 	taskEventRunForceStopped   = "task.run_force_stopped"
+	taskEventRunRecovered      = "task.run_recovered"
 )
 
 // Option customizes TaskManager construction.
@@ -894,6 +895,128 @@ func (m *TaskManager) CancelRun(ctx context.Context, runID string, req CancelRun
 	})
 }
 
+// RecoverRunOnBoot applies one daemon-owned recovery decision to a non-terminal
+// run discovered during startup reconciliation.
+func (m *TaskManager) RecoverRunOnBoot(ctx context.Context, runID string, recovery RunBootRecovery, actor ActorContext) (*TaskRun, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return nil, err
+	}
+
+	normalizedRecovery, err := normalizeRunBootRecovery(recovery)
+	if err != nil {
+		return nil, err
+	}
+
+	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+
+	previousStatus := run.Status.Normalize()
+	previousSessionID := strings.TrimSpace(run.SessionID)
+	switch normalizedRecovery.Action.Normalize() {
+	case RunBootRecoveryRequeue:
+		if previousStatus != TaskRunStatusClaimed {
+			return nil, fmt.Errorf("%w: task run %q cannot recover from %q via %q", ErrInvalidStatusTransition, run.ID, previousStatus, normalizedRecovery.Action)
+		}
+
+		run.Status = TaskRunStatusQueued
+		run.ClaimedBy = nil
+		run.ClaimedAt = time.Time{}
+		run.SessionID = ""
+		run.StartedAt = time.Time{}
+		run.EndedAt = time.Time{}
+		run.Error = ""
+		run.Result = nil
+		if err := m.store.UpdateTaskRun(ctx, run); err != nil {
+			return nil, err
+		}
+
+		reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID)
+		if err != nil {
+			return nil, err
+		}
+		if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunRecovered, actor, recoveredRunPayload{
+			Action:         normalizedRecovery.Action,
+			PreviousStatus: previousStatus,
+			Status:         run.Status,
+			TaskStatus:     reconciledTask.Status,
+			Reason:         normalizedRecovery.Reason,
+			SessionID:      previousSessionID,
+			SessionState:   normalizedRecovery.SessionState,
+		}); err != nil {
+			return nil, err
+		}
+		return &run, nil
+
+	case RunBootRecoveryMarkRunning:
+		switch previousStatus {
+		case TaskRunStatusClaimed, TaskRunStatusStarting:
+		case TaskRunStatusRunning:
+			return &run, nil
+		default:
+			return nil, fmt.Errorf("%w: task run %q cannot recover from %q via %q", ErrInvalidStatusTransition, run.ID, previousStatus, normalizedRecovery.Action)
+		}
+		if previousSessionID == "" {
+			return nil, fmt.Errorf("%w: task run %q cannot recover to running without a session binding", ErrInvalidStatusTransition, run.ID)
+		}
+
+		run.Status = TaskRunStatusRunning
+		if run.StartedAt.IsZero() {
+			run.StartedAt = m.now().UTC()
+		}
+		if err := m.store.UpdateTaskRun(ctx, run); err != nil {
+			return nil, err
+		}
+
+		reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID)
+		if err != nil {
+			return nil, err
+		}
+		if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunRecovered, actor, recoveredRunPayload{
+			Action:         normalizedRecovery.Action,
+			PreviousStatus: previousStatus,
+			Status:         run.Status,
+			TaskStatus:     reconciledTask.Status,
+			Reason:         normalizedRecovery.Reason,
+			SessionID:      previousSessionID,
+			SessionState:   normalizedRecovery.SessionState,
+		}); err != nil {
+			return nil, err
+		}
+		return &run, nil
+
+	case RunBootRecoveryFail:
+		failedRun, err := m.failRunRecord(ctx, taskRecord, run, RunFailure{
+			Error:    runBootRecoveryError(run, normalizedRecovery),
+			Metadata: runBootRecoveryMetadata(run, normalizedRecovery),
+		}, actor)
+		if err != nil {
+			return nil, err
+		}
+
+		reconciledTask, err := m.store.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			return nil, err
+		}
+		if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunRecovered, actor, recoveredRunPayload{
+			Action:         normalizedRecovery.Action,
+			PreviousStatus: previousStatus,
+			Status:         failedRun.Status,
+			TaskStatus:     reconciledTask.Status,
+			Reason:         normalizedRecovery.Reason,
+			SessionID:      previousSessionID,
+			SessionState:   normalizedRecovery.SessionState,
+		}); err != nil {
+			return nil, err
+		}
+		return failedRun, nil
+
+	default:
+		return nil, fmt.Errorf("%w: run boot recovery action %q is not supported", ErrValidation, normalizedRecovery.Action)
+	}
+}
+
 func requireReadAuthority(actor ActorContext) error {
 	if err := actor.Validate(); err != nil {
 		return err
@@ -1056,6 +1179,17 @@ func normalizeRunFailure(failure RunFailure) (RunFailure, error) {
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	if err := normalized.Validate("run_failure"); err != nil {
 		return RunFailure{}, err
+	}
+	return normalized, nil
+}
+
+func normalizeRunBootRecovery(recovery RunBootRecovery) (RunBootRecovery, error) {
+	normalized := recovery
+	normalized.Action = normalized.Action.Normalize()
+	normalized.Reason = strings.TrimSpace(normalized.Reason)
+	normalized.SessionState = strings.TrimSpace(normalized.SessionState)
+	if err := normalized.Validate("run_boot_recovery"); err != nil {
+		return RunBootRecovery{}, err
 	}
 	return normalized, nil
 }
@@ -1632,6 +1766,39 @@ func errorsJoin(errs ...error) error {
 	return errors.Join(errs...)
 }
 
+func runBootRecoveryError(run TaskRun, recovery RunBootRecovery) string {
+	sessionID := strings.TrimSpace(run.SessionID)
+	switch {
+	case sessionID != "" && recovery.SessionState != "":
+		return fmt.Sprintf("orphaned on boot: session %q is %s", sessionID, recovery.SessionState)
+	case sessionID != "":
+		return fmt.Sprintf("orphaned on boot: session %q is not live", sessionID)
+	default:
+		return "orphaned on boot: run has no live session"
+	}
+}
+
+func runBootRecoveryMetadata(run TaskRun, recovery RunBootRecovery) json.RawMessage {
+	payload, err := marshalTaskEventPayload(map[string]string{
+		"reason":          normalizedBootRecoveryReason(recovery.Reason),
+		"previous_status": string(run.Status.Normalize()),
+		"session_id":      strings.TrimSpace(run.SessionID),
+		"session_state":   strings.TrimSpace(recovery.SessionState),
+	})
+	if err != nil {
+		return nil
+	}
+	return payload
+}
+
+func normalizedBootRecoveryReason(reason string) string {
+	trimmed := strings.TrimSpace(reason)
+	if trimmed == "" {
+		return "orphaned_on_boot"
+	}
+	return trimmed
+}
+
 func (m *TaskManager) recordTaskEvent(ctx context.Context, taskID string, runID string, eventType string, actor ActorContext, payload any) error {
 	rawPayload, err := marshalTaskEventPayload(payload)
 	if err != nil {
@@ -1797,4 +1964,14 @@ type forceStoppedRunPayload struct {
 	SessionID            string `json:"session_id"`
 	GraceTimeoutMillis   int64  `json:"grace_timeout_ms"`
 	PropagatedFromTaskID string `json:"propagated_from_task_id,omitempty"`
+}
+
+type recoveredRunPayload struct {
+	Action         RunBootRecoveryAction `json:"action"`
+	PreviousStatus TaskRunStatus         `json:"previous_status"`
+	Status         TaskRunStatus         `json:"status"`
+	TaskStatus     TaskStatus            `json:"task_status"`
+	Reason         string                `json:"reason,omitempty"`
+	SessionID      string                `json:"session_id,omitempty"`
+	SessionState   string                `json:"session_state,omitempty"`
 }

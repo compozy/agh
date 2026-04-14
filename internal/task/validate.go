@@ -196,6 +196,23 @@ func (r StopReason) Validate(path string) error {
 	}
 }
 
+// Normalize returns the normalized representation of the boot-recovery action.
+func (a RunBootRecoveryAction) Normalize() RunBootRecoveryAction {
+	return RunBootRecoveryAction(strings.ToLower(strings.TrimSpace(string(a))))
+}
+
+// Validate reports whether the boot-recovery action is supported.
+func (a RunBootRecoveryAction) Validate(path string) error {
+	switch a.Normalize() {
+	case RunBootRecoveryRequeue, RunBootRecoveryMarkRunning, RunBootRecoveryFail:
+		return nil
+	case "":
+		return fmt.Errorf("%w: %s is required", ErrValidation, path)
+	default:
+		return fmt.Errorf("%w: %s has unsupported value %q", ErrValidation, path, a)
+	}
+}
+
 // Validate reports whether the actor identity contains a supported kind and non-empty reference.
 func (a ActorIdentity) Validate(path string) error {
 	if err := a.Kind.Validate(nestedPath(path, "kind")); err != nil {
@@ -336,6 +353,15 @@ func (r TaskRun) Validate() error {
 		return fmt.Errorf("%w: task_run.session_id must be empty while status is %q", ErrValidation, TaskRunStatusQueued)
 	}
 	if err := ValidateResultSize(r.Result, "task_run.result"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Validate reports whether the boot-recovery request contains one supported
+// recovery action.
+func (r RunBootRecovery) Validate(path string) error {
+	if err := r.Action.Validate(nestedPath(path, "action")); err != nil {
 		return err
 	}
 	return nil

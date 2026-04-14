@@ -1668,6 +1668,284 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 	})
 }
 
+func TestManagerRecoverRunOnBoot(t *testing.T) {
+	t.Parallel()
+
+	daemonActor, err := DeriveDaemonActorContext("boot-recovery", "daemon.boot")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+
+	t.Run("claimed run requeues and records recovery event", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Claimed recovery",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		if err != nil {
+			t.Fatalf("ClaimRun() error = %v", err)
+		}
+
+		recovered, err := manager.RecoverRunOnBoot(context.Background(), run.ID, RunBootRecovery{
+			Action:       RunBootRecoveryRequeue,
+			Reason:       "orphaned_on_boot",
+			SessionState: "missing",
+		}, daemonActor)
+		if err != nil {
+			t.Fatalf("RecoverRunOnBoot(requeue) error = %v", err)
+		}
+		if got, want := recovered.Status, TaskRunStatusQueued; got != want {
+			t.Fatalf("recovered.Status = %q, want %q", got, want)
+		}
+		if recovered.ClaimedBy != nil {
+			t.Fatalf("recovered.ClaimedBy = %#v, want nil", recovered.ClaimedBy)
+		}
+		if !store.runs[run.ID].ClaimedAt.IsZero() {
+			t.Fatalf("store.runs[%q].ClaimedAt = %v, want zero", run.ID, store.runs[run.ID].ClaimedAt)
+		}
+
+		events, err := store.ListTaskEvents(context.Background(), TaskEventQuery{TaskID: taskRecord.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEvents() error = %v", err)
+		}
+		if !containsEventType(events, taskEventRunRecovered) {
+			t.Fatalf("events = %#v, want %q", sortedEventTypes(events), taskEventRunRecovered)
+		}
+	})
+
+	t.Run("starting run is promoted to running when session is live", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{}
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Starting recovery",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		if err != nil {
+			t.Fatalf("ClaimRun() error = %v", err)
+		}
+		run, err = manager.AttachRunSession(context.Background(), run.ID, "sess-live", actor)
+		if err != nil {
+			t.Fatalf("AttachRunSession() error = %v", err)
+		}
+
+		recovered, err := manager.RecoverRunOnBoot(context.Background(), run.ID, RunBootRecovery{
+			Action:       RunBootRecoveryMarkRunning,
+			Reason:       "orphaned_on_boot",
+			SessionState: "active",
+		}, daemonActor)
+		if err != nil {
+			t.Fatalf("RecoverRunOnBoot(mark running) error = %v", err)
+		}
+		if got, want := recovered.Status, TaskRunStatusRunning; got != want {
+			t.Fatalf("recovered.Status = %q, want %q", got, want)
+		}
+		if recovered.StartedAt.IsZero() {
+			t.Fatal("recovered.StartedAt = zero, want recovery timestamp")
+		}
+	})
+
+	t.Run("running run fails closed when the attached session is not live", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{}
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Running recovery",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		if err != nil {
+			t.Fatalf("ClaimRun() error = %v", err)
+		}
+		run, err = manager.StartRun(context.Background(), run.ID, StartRun{}, actor)
+		if err != nil {
+			t.Fatalf("StartRun() error = %v", err)
+		}
+
+		recovered, err := manager.RecoverRunOnBoot(context.Background(), run.ID, RunBootRecovery{
+			Action:       RunBootRecoveryFail,
+			Reason:       "orphaned_on_boot",
+			SessionState: "missing",
+		}, daemonActor)
+		if err != nil {
+			t.Fatalf("RecoverRunOnBoot(fail) error = %v", err)
+		}
+		if got, want := recovered.Status, TaskRunStatusFailed; got != want {
+			t.Fatalf("recovered.Status = %q, want %q", got, want)
+		}
+		if !strings.Contains(recovered.Error, "orphaned on boot") {
+			t.Fatalf("recovered.Error = %q, want orphaned-on-boot detail", recovered.Error)
+		}
+
+		events, err := store.ListTaskEvents(context.Background(), TaskEventQuery{TaskID: taskRecord.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEvents() error = %v", err)
+		}
+		if !containsEventType(events, taskEventRunFailed) || !containsEventType(events, taskEventRunRecovered) {
+			t.Fatalf("events = %#v, want %q and %q", sortedEventTypes(events), taskEventRunFailed, taskEventRunRecovered)
+		}
+	})
+
+	t.Run("claimed run cannot recover to running without a session binding", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Claimed without session",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		if err != nil {
+			t.Fatalf("ClaimRun() error = %v", err)
+		}
+
+		if _, err := manager.RecoverRunOnBoot(context.Background(), run.ID, RunBootRecovery{
+			Action:       RunBootRecoveryMarkRunning,
+			Reason:       "orphaned_on_boot",
+			SessionState: "missing",
+		}, daemonActor); !errors.Is(err, ErrInvalidStatusTransition) {
+			t.Fatalf("RecoverRunOnBoot(mark running without session) error = %v, want %v", err, ErrInvalidStatusTransition)
+		}
+	})
+
+	t.Run("running run remains unchanged when recovery confirms it is still live", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{}
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Running still live",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		if err != nil {
+			t.Fatalf("ClaimRun() error = %v", err)
+		}
+		run, err = manager.StartRun(context.Background(), run.ID, StartRun{}, actor)
+		if err != nil {
+			t.Fatalf("StartRun() error = %v", err)
+		}
+
+		eventsBefore, err := store.ListTaskEvents(context.Background(), TaskEventQuery{TaskID: taskRecord.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(before) error = %v", err)
+		}
+
+		recovered, err := manager.RecoverRunOnBoot(context.Background(), run.ID, RunBootRecovery{
+			Action:       RunBootRecoveryMarkRunning,
+			Reason:       "orphaned_on_boot",
+			SessionState: "active",
+		}, daemonActor)
+		if err != nil {
+			t.Fatalf("RecoverRunOnBoot(mark running while already running) error = %v", err)
+		}
+		if got, want := recovered.Status, TaskRunStatusRunning; got != want {
+			t.Fatalf("recovered.Status = %q, want %q", got, want)
+		}
+
+		eventsAfter, err := store.ListTaskEvents(context.Background(), TaskEventQuery{TaskID: taskRecord.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(after) error = %v", err)
+		}
+		if got, want := len(eventsAfter), len(eventsBefore); got != want {
+			t.Fatalf("event count after noop recovery = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("starting run cannot be requeued on boot", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{}
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Starting cannot requeue",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		if err != nil {
+			t.Fatalf("ClaimRun() error = %v", err)
+		}
+		run, err = manager.AttachRunSession(context.Background(), run.ID, "sess-bound", actor)
+		if err != nil {
+			t.Fatalf("AttachRunSession() error = %v", err)
+		}
+
+		if _, err := manager.RecoverRunOnBoot(context.Background(), run.ID, RunBootRecovery{
+			Action:       RunBootRecoveryRequeue,
+			Reason:       "orphaned_on_boot",
+			SessionState: "missing",
+		}, daemonActor); !errors.Is(err, ErrInvalidStatusTransition) {
+			t.Fatalf("RecoverRunOnBoot(requeue starting) error = %v, want %v", err, ErrInvalidStatusTransition)
+		}
+	})
+}
+
 func TestManagerGetTaskAndFailRunGuardrails(t *testing.T) {
 	t.Parallel()
 
@@ -1697,6 +1975,71 @@ func TestManagerGetTaskAndFailRunGuardrails(t *testing.T) {
 	}, actor); !errors.Is(err, ErrInvalidStatusTransition) {
 		t.Fatalf("FailRun(queued) error = %v, want %v", err, ErrInvalidStatusTransition)
 	}
+}
+
+func TestRunBootRecoveryHelpersAndWriteAuthority(t *testing.T) {
+	t.Parallel()
+
+	t.Run("formats recovery errors for bound and missing sessions", func(t *testing.T) {
+		t.Parallel()
+
+		if got, want := runBootRecoveryError(TaskRun{
+			ID:        "run-active",
+			SessionID: "sess-active",
+		}, RunBootRecovery{
+			SessionState: "stopped",
+		}), `orphaned on boot: session "sess-active" is stopped`; got != want {
+			t.Fatalf("runBootRecoveryError(bound+state) = %q, want %q", got, want)
+		}
+		if got, want := runBootRecoveryError(TaskRun{
+			ID:        "run-bound",
+			SessionID: "sess-bound",
+		}, RunBootRecovery{}), `orphaned on boot: session "sess-bound" is not live`; got != want {
+			t.Fatalf("runBootRecoveryError(bound) = %q, want %q", got, want)
+		}
+		if got, want := runBootRecoveryError(TaskRun{ID: "run-missing"}, RunBootRecovery{}), "orphaned on boot: run has no live session"; got != want {
+			t.Fatalf("runBootRecoveryError(missing) = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("normalizes recovery metadata reason", func(t *testing.T) {
+		t.Parallel()
+
+		metadata := runBootRecoveryMetadata(TaskRun{
+			ID:        "run-meta",
+			Status:    TaskRunStatusStarting,
+			SessionID: "sess-meta",
+		}, RunBootRecovery{
+			Reason:       "   ",
+			SessionState: "missing",
+		})
+		if metadata == nil {
+			t.Fatal("runBootRecoveryMetadata() = nil, want payload")
+		}
+
+		var payload map[string]string
+		if err := json.Unmarshal(metadata, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(metadata) error = %v", err)
+		}
+		if got, want := payload["reason"], "orphaned_on_boot"; got != want {
+			t.Fatalf("payload[reason] = %q, want %q", got, want)
+		}
+		if got, want := payload["previous_status"], string(TaskRunStatusStarting); got != want {
+			t.Fatalf("payload[previous_status] = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("write authority rejects read-only actors", func(t *testing.T) {
+		t.Parallel()
+
+		actor := validActorContext()
+		actor.Authority.Write = false
+		actor.Authority.CreateGlobal = false
+		actor.Authority.CreateWorkspace = false
+		if err := requireWriteAuthority(actor); !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("requireWriteAuthority(read-only) error = %v, want %v", err, ErrPermissionDenied)
+		}
+	})
 }
 
 func TestManagerAdditionalBranchCoverage(t *testing.T) {

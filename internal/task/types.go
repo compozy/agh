@@ -135,6 +135,19 @@ const (
 	StopReasonOrphanedRun StopReason = "orphaned_run"
 )
 
+// RunBootRecoveryAction identifies the manager-owned recovery action applied to
+// a non-terminal run during daemon startup reconciliation.
+type RunBootRecoveryAction string
+
+const (
+	// RunBootRecoveryRequeue resets one claimed run back to the durable queue.
+	RunBootRecoveryRequeue RunBootRecoveryAction = "requeue"
+	// RunBootRecoveryMarkRunning promotes one live attached run into running.
+	RunBootRecoveryMarkRunning RunBootRecoveryAction = "mark_running"
+	// RunBootRecoveryFail marks one orphaned attached run as failed.
+	RunBootRecoveryFail RunBootRecoveryAction = "fail"
+)
+
 // ActorIdentity is the immutable server-derived actor identity attached to task and run writes.
 type ActorIdentity struct {
 	Kind ActorKind `json:"kind"`
@@ -373,4 +386,12 @@ type SessionRef struct {
 	SessionID   string    `json:"session_id"`
 	WorkspaceID string    `json:"workspace_id,omitempty"`
 	StartedAt   time.Time `json:"started_at,omitempty"`
+}
+
+// RunBootRecovery captures one daemon-owned recovery decision for an in-flight
+// run discovered during boot reconciliation.
+type RunBootRecovery struct {
+	Action       RunBootRecoveryAction `json:"action"`
+	Reason       string                `json:"reason,omitempty"`
+	SessionState string                `json:"session_state,omitempty"`
 }
