@@ -1,21 +1,18 @@
 package cli
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
+	registrypkg "github.com/pedronauck/agh/internal/registry"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/marketplace"
 	"github.com/pedronauck/agh/internal/skills/marketplace/clawhub"
@@ -362,69 +359,8 @@ func readInstalledMarketplaceSkill(skillDir string) (installedMarketplaceSkill, 
 	}, nil
 }
 
-func extractMarketplaceArchive(reader io.Reader, destRoot string) (err error) {
-	if strings.TrimSpace(destRoot) == "" {
-		return errors.New("destination root is required")
-	}
-	if err := os.MkdirAll(destRoot, 0o755); err != nil {
-		return fmt.Errorf("create destination root %q: %w", destRoot, err)
-	}
-
-	gzipReader, err := gzip.NewReader(reader)
-	if err != nil {
-		return fmt.Errorf("open gzip stream: %w", err)
-	}
-	defer func() {
-		err = joinContextError(err, gzipReader.Close(), "close gzip stream: %w")
-	}()
-
-	tarReader := tar.NewReader(gzipReader)
-	for {
-		header, err := tarReader.Next()
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("read tar entry: %w", err)
-		}
-
-		entryName, err := cleanArchiveEntryPath(header.Name)
-		if err != nil {
-			return err
-		}
-		targetPath, err := pathWithinRoot(destRoot, filepath.FromSlash(entryName))
-		if err != nil {
-			return fmt.Errorf("resolve archive entry %q: %w", header.Name, err)
-		}
-
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(targetPath, 0o755); err != nil {
-				return fmt.Errorf("create archive directory %q: %w", targetPath, err)
-			}
-		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-				return fmt.Errorf("create archive parent %q: %w", filepath.Dir(targetPath), err)
-			}
-
-			file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-			if err != nil {
-				return fmt.Errorf("create archive file %q: %w", targetPath, err)
-			}
-			if _, err := io.Copy(file, tarReader); err != nil {
-				writeErr := fmt.Errorf("write archive file %q: %w", targetPath, err)
-				if closeErr := file.Close(); closeErr != nil {
-					return errors.Join(writeErr, fmt.Errorf("close archive file %q after write failure: %w", targetPath, closeErr))
-				}
-				return writeErr
-			}
-			if err := file.Close(); err != nil {
-				return fmt.Errorf("close archive file %q: %w", targetPath, err)
-			}
-		default:
-			return fmt.Errorf("unsupported archive entry type %d for %q", header.Typeflag, header.Name)
-		}
-	}
+func extractMarketplaceArchive(reader io.Reader, destRoot string) error {
+	return registrypkg.ExtractArchive(reader, destRoot)
 }
 
 func locateExtractedSkillFile(root string) (string, error) {
@@ -456,83 +392,15 @@ func locateExtractedSkillFile(root string) (string, error) {
 }
 
 func moveInstalledSkillDir(extractedDir string, targetDir string, replaceExisting bool) error {
-	if !replaceExisting {
-		if _, err := os.Stat(targetDir); err == nil {
-			return fmt.Errorf("skill %q already exists at %s", filepath.Base(targetDir), targetDir)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("cli: inspect target skill directory %q: %w", targetDir, err)
-		}
-
-		if err := os.Rename(extractedDir, targetDir); err != nil {
-			return fmt.Errorf("cli: install skill into %q: %w", targetDir, err)
-		}
-		return nil
-	}
-
-	if _, err := os.Stat(targetDir); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("cli: inspect target skill directory %q: %w", targetDir, err)
-		}
-		if err := os.Rename(extractedDir, targetDir); err != nil {
-			return fmt.Errorf("cli: install updated skill into %q: %w", targetDir, err)
-		}
-		return nil
-	}
-
-	backupDir := fmt.Sprintf("%s.backup-%d", targetDir, time.Now().UTC().UnixNano())
-	if err := os.Rename(targetDir, backupDir); err != nil {
-		return fmt.Errorf("cli: stage existing skill backup %q: %w", targetDir, err)
-	}
-
-	if err := os.Rename(extractedDir, targetDir); err != nil {
-		revertErr := os.Rename(backupDir, targetDir)
-		if revertErr != nil {
-			return errors.Join(
-				fmt.Errorf("cli: install updated skill into %q: %w", targetDir, err),
-				fmt.Errorf("cli: restore original skill from %q: %w", backupDir, revertErr),
-			)
-		}
-		return fmt.Errorf("cli: install updated skill into %q: %w", targetDir, err)
-	}
-
-	if err := os.RemoveAll(backupDir); err != nil {
-		return fmt.Errorf("cli: remove backup skill directory %q: %w", backupDir, err)
-	}
-	return nil
+	return registrypkg.MoveInstalledDir(extractedDir, targetDir, replaceExisting)
 }
 
 func cleanArchiveEntryPath(entry string) (string, error) {
-	cleaned := path.Clean(strings.TrimSpace(strings.ReplaceAll(entry, "\\", "/")))
-	switch {
-	case cleaned == ".", cleaned == "":
-		return "", errors.New("archive entry path is required")
-	case strings.HasPrefix(cleaned, "/"):
-		return "", fmt.Errorf("archive entry %q must be relative", entry)
-	case cleaned == "..", strings.HasPrefix(cleaned, "../"):
-		return "", fmt.Errorf("archive entry %q escapes the extraction root", entry)
-	default:
-		return cleaned, nil
-	}
+	return registrypkg.CleanArchiveEntryPath(entry)
 }
 
 func pathWithinRoot(root string, child string) (string, error) {
-	absRoot, err := filepath.Abs(strings.TrimSpace(root))
-	if err != nil {
-		return "", fmt.Errorf("resolve root %q: %w", root, err)
-	}
-	targetPath := filepath.Join(absRoot, child)
-	absTarget, err := filepath.Abs(targetPath)
-	if err != nil {
-		return "", fmt.Errorf("resolve target %q: %w", targetPath, err)
-	}
-	relative, err := filepath.Rel(absRoot, absTarget)
-	if err != nil {
-		return "", fmt.Errorf("resolve target %q within %q: %w", absTarget, absRoot, err)
-	}
-	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", errors.New("path must stay within the root directory")
-	}
-	return absTarget, nil
+	return registrypkg.PathWithinRoot(root, child)
 }
 
 func pathInsideRoot(root string, target string) (string, error) {
@@ -588,175 +456,5 @@ func criticalWarnings(warnings []skills.Warning) []string {
 }
 
 func versionIsNewer(current string, latest string) bool {
-	normalizedCurrent := normalizeVersion(current)
-	normalizedLatest := normalizeVersion(latest)
-	if normalizedLatest == "" {
-		return false
-	}
-	if normalizedCurrent == "" {
-		return true
-	}
-
-	currentVersion, currentOK := parseSemanticVersion(normalizedCurrent)
-	latestVersion, latestOK := parseSemanticVersion(normalizedLatest)
-	if currentOK && latestOK {
-		return compareSemanticVersions(currentVersion, latestVersion) < 0
-	}
-
-	return normalizedLatest > normalizedCurrent
-}
-
-func normalizeVersion(version string) string {
-	trimmed := strings.TrimSpace(version)
-	trimmed = strings.TrimPrefix(trimmed, "v")
-	trimmed = strings.TrimPrefix(trimmed, "V")
-	return trimmed
-}
-
-func parseVersionParts(version string) ([]int, bool) {
-	segments := strings.Split(version, ".")
-	if len(segments) == 0 {
-		return nil, false
-	}
-
-	parts := make([]int, 0, len(segments))
-	for _, segment := range segments {
-		if segment == "" {
-			return nil, false
-		}
-		value, err := strconv.Atoi(segment)
-		if err != nil {
-			return nil, false
-		}
-		parts = append(parts, value)
-	}
-	return parts, true
-}
-
-func versionPartAt(parts []int, index int) int {
-	if index < 0 || index >= len(parts) {
-		return 0
-	}
-	return parts[index]
-}
-
-type semanticVersion struct {
-	core       []int
-	prerelease []string
-}
-
-func parseSemanticVersion(version string) (semanticVersion, bool) {
-	trimmed := strings.TrimSpace(version)
-	if trimmed == "" {
-		return semanticVersion{}, false
-	}
-
-	corePart, _, _ := strings.Cut(trimmed, "+")
-	corePart, prereleasePart, hasPrerelease := strings.Cut(corePart, "-")
-
-	core, ok := parseVersionParts(corePart)
-	if !ok {
-		return semanticVersion{}, false
-	}
-
-	parsed := semanticVersion{core: core}
-	if !hasPrerelease {
-		return parsed, true
-	}
-
-	identifiers, ok := parsePrereleaseIdentifiers(prereleasePart)
-	if !ok {
-		return semanticVersion{}, false
-	}
-	parsed.prerelease = identifiers
-	return parsed, true
-}
-
-func parsePrereleaseIdentifiers(value string) ([]string, bool) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return nil, false
-	}
-
-	parts := strings.Split(trimmed, ".")
-	identifiers := make([]string, 0, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			return nil, false
-		}
-		identifiers = append(identifiers, part)
-	}
-	return identifiers, true
-}
-
-func compareSemanticVersions(current semanticVersion, latest semanticVersion) int {
-	for i := 0; i < max(len(current.core), len(latest.core)); i++ {
-		currentPart := versionPartAt(current.core, i)
-		latestPart := versionPartAt(latest.core, i)
-		switch {
-		case currentPart < latestPart:
-			return -1
-		case currentPart > latestPart:
-			return 1
-		}
-	}
-
-	switch {
-	case len(current.prerelease) == 0 && len(latest.prerelease) == 0:
-		return 0
-	case len(current.prerelease) == 0:
-		return 1
-	case len(latest.prerelease) == 0:
-		return -1
-	default:
-		return comparePrereleaseIdentifiers(current.prerelease, latest.prerelease)
-	}
-}
-
-func comparePrereleaseIdentifiers(current []string, latest []string) int {
-	for i := 0; i < max(len(current), len(latest)); i++ {
-		switch {
-		case i >= len(current):
-			return -1
-		case i >= len(latest):
-			return 1
-		}
-
-		currentID := current[i]
-		latestID := latest[i]
-		currentNumber, currentNumeric := parseNumericIdentifier(currentID)
-		latestNumber, latestNumeric := parseNumericIdentifier(latestID)
-
-		switch {
-		case currentNumeric && latestNumeric:
-			switch {
-			case currentNumber < latestNumber:
-				return -1
-			case currentNumber > latestNumber:
-				return 1
-			}
-		case currentNumeric:
-			return -1
-		case latestNumeric:
-			return 1
-		case currentID < latestID:
-			return -1
-		case currentID > latestID:
-			return 1
-		}
-	}
-
-	return 0
-}
-
-func parseNumericIdentifier(value string) (int, bool) {
-	if value == "" {
-		return 0, false
-	}
-	number, err := strconv.Atoi(value)
-	if err != nil {
-		return 0, false
-	}
-	return number, true
+	return registrypkg.VersionIsNewer(current, latest)
 }
