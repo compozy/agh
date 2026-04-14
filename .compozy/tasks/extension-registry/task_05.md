@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Migrate skill CLI to MultiRegistry and remove marketplace package
 type: refactor
 complexity: high
@@ -34,12 +34,12 @@ Refactor the existing `agh skill search`, `install`, and `update` commands in `i
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Refactor `skill_commands.go` search/install/update to use MultiRegistry and Installer
-- [ ] 5.2 Update skill install to call `Installer.Install()` then `skills.WriteSidecar()` for `.agh-meta.json`
-- [ ] 5.3 Run full test suite against new implementation — verify all existing tests pass
-- [ ] 5.4 Remove `internal/skills/marketplace/` package (registry.go, types.go, clawhub/)
-- [ ] 5.5 Clean up any remaining imports of the deleted package
-- [ ] 5.6 Run `make verify` to confirm clean build after deletion
+- [x] 5.1 Refactor `skill_commands.go` search/install/update to use MultiRegistry and Installer
+- [x] 5.2 Update skill install to call `Installer.Install()` then `skills.WriteSidecar()` for `.agh-meta.json`
+- [x] 5.3 Run full test suite against new implementation — verify all existing tests pass
+- [x] 5.4 Remove `internal/skills/marketplace/` package (registry.go, types.go, clawhub/)
+- [x] 5.5 Clean up any remaining imports of the deleted package
+- [x] 5.6 Run `make verify` to confirm clean build after deletion
 
 ## Implementation Details
 
@@ -74,21 +74,21 @@ See TechSpec "Build Order Steps 10-11" and "Updated CLI Commands — Skills" sec
 
 ## Tests
 - Unit tests:
-  - [ ] `agh skill search <query>` returns results via MultiRegistry (ClawHub source)
-  - [ ] `agh skill search` with unreachable registry returns clear offline error
-  - [ ] `agh skill install <slug>` calls Installer then writes `.agh-meta.json` sidecar
-  - [ ] `agh skill install <slug>` with invalid archive returns extraction error
-  - [ ] `agh skill update <name>` with newer version available triggers re-install
-  - [ ] `agh skill update --check` shows update info without installing
-  - [ ] `agh skill update <name>` with no update available shows "up to date" message
-  - [ ] `agh skill list`, `view`, `info`, `create` remain unchanged and working
+  - [x] `agh skill search <query>` returns results via MultiRegistry (ClawHub source)
+  - [x] `agh skill search` with unreachable registry returns clear offline error
+  - [x] `agh skill install <slug>` calls Installer then writes `.agh-meta.json` sidecar
+  - [x] `agh skill install <slug>` with invalid archive returns extraction error
+  - [x] `agh skill update <name>` with newer version available triggers re-install
+  - [x] `agh skill update --check` shows update info without installing
+  - [x] `agh skill update <name>` with no update available shows "up to date" message
+  - [x] `agh skill list`, `view`, `info`, `create` remain unchanged and working
 - Integration tests:
-  - [ ] Full install flow: search → install → verify sidecar exists → list shows skill → remove
-  - [ ] Install replaces existing skill (atomic move with backup)
-  - [ ] All existing `skill_marketplace_integration_test.go` tests pass against new code
+  - [x] Full install flow: search → install → verify sidecar exists → list shows skill → remove
+  - [x] Install replaces existing skill (atomic move with backup)
+  - [x] All existing `skill_marketplace_integration_test.go` tests pass against new code
 - Post-deletion verification:
-  - [ ] `make verify` passes with `internal/skills/marketplace/` deleted
-  - [ ] No remaining imports of `internal/skills/marketplace` in codebase
+  - [x] `make verify` passes with `internal/skills/marketplace/` deleted
+  - [x] No remaining imports of `internal/skills/marketplace` in codebase
 - Test coverage target: >=80%
 - All tests must pass
 

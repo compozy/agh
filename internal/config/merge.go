@@ -25,6 +25,7 @@ type configOverlay struct {
 	Log           logOverlay                 `toml:"log"`
 	Memory        memoryOverlay              `toml:"memory"`
 	Skills        skillsOverlay              `toml:"skills"`
+	Extensions    extensionsOverlay          `toml:"extensions"`
 	Automation    automationOverlay          `toml:"automation"`
 	Hooks         hooksOverlay               `toml:"hooks"`
 	Network       networkOverlay             `toml:"network"`
@@ -108,6 +109,10 @@ type skillsOverlay struct {
 	Marketplace             marketplaceOverlay `toml:"marketplace"`
 }
 
+type extensionsOverlay struct {
+	Marketplace extensionsMarketplaceOverlay `toml:"marketplace"`
+}
+
 type networkOverlay struct {
 	Enabled        *bool   `toml:"enabled"`
 	DefaultChannel *string `toml:"default_channel"`
@@ -119,6 +124,11 @@ type networkOverlay struct {
 }
 
 type marketplaceOverlay struct {
+	Registry *string `toml:"registry"`
+	BaseURL  *string `toml:"base_url"`
+}
+
+type extensionsMarketplaceOverlay struct {
 	Registry *string `toml:"registry"`
 	BaseURL  *string `toml:"base_url"`
 }
@@ -186,6 +196,7 @@ func (o configOverlay) Apply(dst *Config) error {
 	o.Log.Apply(&dst.Log)
 	o.Memory.Apply(&dst.Memory)
 	o.Skills.Apply(&dst.Skills)
+	o.Extensions.Apply(&dst.Extensions)
 	if err := o.Automation.Apply(&dst.Automation); err != nil {
 		return err
 	}
@@ -335,6 +346,10 @@ func (o skillsOverlay) Apply(dst *SkillsConfig) {
 	o.Marketplace.Apply(&dst.Marketplace)
 }
 
+func (o extensionsOverlay) Apply(dst *ExtensionsConfig) {
+	o.Marketplace.Apply(&dst.Marketplace)
+}
+
 func (o networkOverlay) Apply(dst *NetworkConfig) {
 	if o.Enabled != nil {
 		dst.Enabled = *o.Enabled
@@ -360,6 +375,15 @@ func (o networkOverlay) Apply(dst *NetworkConfig) {
 }
 
 func (o marketplaceOverlay) Apply(dst *MarketplaceConfig) {
+	if o.Registry != nil {
+		dst.Registry = *o.Registry
+	}
+	if o.BaseURL != nil {
+		dst.BaseURL = *o.BaseURL
+	}
+}
+
+func (o extensionsMarketplaceOverlay) Apply(dst *ExtensionsMarketplaceConfig) {
 	if o.Registry != nil {
 		dst.Registry = *o.Registry
 	}

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extract shared extraction logic and define registry interfaces
 type: refactor
 complexity: high
@@ -33,13 +33,13 @@ Move ~300 lines of archive extraction, path validation, version comparison, and 
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Create `internal/registry/extract.go` with moved extraction functions and decompression limits
-- [ ] 1.2 Create `internal/registry/version.go` with moved `versionIsNewer` logic
-- [ ] 1.3 Update `internal/cli/skill_marketplace.go` to call new shared functions
-- [ ] 1.4 Verify `skill_marketplace_integration_test.go` passes with no changes
-- [ ] 1.5 Create `internal/registry/types.go` with all shared types (Listing, Detail, DownloadOpts, DownloadResult, SourceCaps, SearchOpts, PackageType, UpdateInfo, InstallResult)
-- [ ] 1.6 Create `internal/registry/source.go` with `RegistrySource` interface and `ErrNotSupported`
-- [ ] 1.7 Write unit tests for extraction limits, version comparison, and type validation
+- [x] 1.1 Create `internal/registry/extract.go` with moved extraction functions and decompression limits
+- [x] 1.2 Create `internal/registry/version.go` with moved `versionIsNewer` logic
+- [x] 1.3 Update `internal/cli/skill_marketplace.go` to call new shared functions
+- [x] 1.4 Verify `skill_marketplace_integration_test.go` passes with no changes
+- [x] 1.5 Create `internal/registry/types.go` with all shared types (Listing, Detail, DownloadOpts, DownloadResult, SourceCaps, SearchOpts, PackageType, UpdateInfo, InstallResult)
+- [x] 1.6 Create `internal/registry/source.go` with `RegistrySource` interface and `ErrNotSupported`
+- [x] 1.7 Write unit tests for extraction limits, version comparison, and type validation
 
 ## Implementation Details
 
@@ -71,21 +71,21 @@ See TechSpec "Core Interfaces" and "Build Order Step 1-2" sections for interface
 
 ## Tests
 - Unit tests:
-  - [ ] `extractArchive` with valid tar.gz produces expected directory structure
-  - [ ] `extractArchive` exceeding `maxDecompressedSize` (500MB) returns error before exhausting disk
-  - [ ] `extractArchive` exceeding `maxFileCount` (10000) returns error
-  - [ ] `extractArchive` rejects symlinks in archives
-  - [ ] `extractArchive` rejects path traversal (`../` in entry names)
-  - [ ] `pathWithinRoot` accepts valid child paths, rejects escape attempts
-  - [ ] `cleanArchiveEntryPath` rejects absolute paths and `..` components
-  - [ ] `versionIsNewer` with semver: "1.2.0" newer than "1.1.0" → true
-  - [ ] `versionIsNewer` with prerelease: "1.0.0-beta" older than "1.0.0" → true
-  - [ ] `versionIsNewer` with invalid version strings → false (no panic)
-  - [ ] `SourceCaps` zero value has `Search: false`
-  - [ ] `ErrNotSupported` matches via `errors.Is`
+  - [x] `extractArchive` with valid tar.gz produces expected directory structure
+  - [x] `extractArchive` exceeding `maxDecompressedSize` (500MB) returns error before exhausting disk
+  - [x] `extractArchive` exceeding `maxFileCount` (10000) returns error
+  - [x] `extractArchive` rejects symlinks in archives
+  - [x] `extractArchive` rejects path traversal (`../` in entry names)
+  - [x] `pathWithinRoot` accepts valid child paths, rejects escape attempts
+  - [x] `cleanArchiveEntryPath` rejects absolute paths and `..` components
+  - [x] `versionIsNewer` with semver: "1.2.0" newer than "1.1.0" → true
+  - [x] `versionIsNewer` with prerelease: "1.0.0-beta" older than "1.0.0" → true
+  - [x] `versionIsNewer` with invalid version strings → false (no panic)
+  - [x] `SourceCaps` zero value has `Search: false`
+  - [x] `ErrNotSupported` matches via `errors.Is`
 - Integration tests:
-  - [ ] Existing `TestSkillInstallCommandIntegrationCreatesSkillDirectoryAndSidecar` passes unchanged
-  - [ ] Existing `TestSkillInstallAndRemoveIntegrationRefreshesRegistry` passes unchanged
+  - [x] Existing `TestSkillInstallCommandIntegrationCreatesSkillDirectoryAndSidecar` passes unchanged
+  - [x] Existing `TestSkillInstallAndRemoveIntegrationRefreshesRegistry` passes unchanged
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/store/globaldb"
@@ -22,11 +23,12 @@ type preparedExtensionInstall struct {
 }
 
 type localExtensionRegistry interface {
-	Install(manifest *extensionpkg.Manifest, path string, checksum string) error
+	Install(manifest *extensionpkg.Manifest, path string, checksum string, opts ...extensionpkg.InstallOption) error
 	List() ([]extensionpkg.ExtensionInfo, error)
 	Get(name string) (*extensionpkg.ExtensionInfo, error)
 	Enable(name string) error
 	Disable(name string) error
+	Uninstall(name string) error
 }
 
 func newExtensionCommand(deps commandDeps) *cobra.Command {
@@ -35,11 +37,35 @@ func newExtensionCommand(deps commandDeps) *cobra.Command {
 		Short: "Manage AGH extensions",
 	}
 
+	cmd.AddCommand(newExtensionSearchCommand(deps))
 	cmd.AddCommand(newExtensionListCommand(deps))
 	cmd.AddCommand(newExtensionInstallCommand(deps))
+	cmd.AddCommand(newExtensionRemoveCommand(deps))
+	cmd.AddCommand(newExtensionUpdateCommand(deps))
 	cmd.AddCommand(newExtensionEnableCommand(deps))
 	cmd.AddCommand(newExtensionDisableCommand(deps))
 	cmd.AddCommand(newExtensionStatusCommand(deps))
+	return cmd
+}
+
+func newExtensionSearchCommand(deps commandDeps) *cobra.Command {
+	limit := defaultExtensionRegistrySearchLimit
+	var sourceFilter string
+
+	cmd := &cobra.Command{
+		Use:   "search <query>",
+		Short: "Search remote extension registries",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			results, err := searchExtensions(cmd.Context(), deps, args[0], sourceFilter, limit)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, extensionSearchBundle(results))
+		},
+	}
+	cmd.Flags().IntVar(&limit, "limit", defaultExtensionRegistrySearchLimit, "Maximum number of extension registry results to return")
+	cmd.Flags().StringVar(&sourceFilter, "from", "", "Only query one configured extension registry source")
 	return cmd
 }
 
@@ -58,23 +84,98 @@ func newExtensionListCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
-		Use:   "install <path>",
-		Short: "Install a local extension directory",
+	var sourceFilter string
+	var version string
+	var asset string
+
+	cmd := &cobra.Command{
+		Use:   "install <path-or-slug>",
+		Short: "Install a local extension or download one from a registry",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			prepared, err := prepareExtensionInstall(args[0])
+			prepared, isLocalPath, err := prepareLocalExtensionInstallIfPresent(args[0])
 			if err != nil {
 				return err
+			}
+			if isLocalPath {
+				if strings.TrimSpace(sourceFilter) != "" || strings.TrimSpace(version) != "" || strings.TrimSpace(asset) != "" {
+					return errors.New("cli: --from, --version, and --asset are only supported for registry installs")
+				}
+
+				item, err := installExtension(cmd.Context(), deps, prepared)
+				if err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, extensionBundle(item))
 			}
 
-			item, err := installExtension(cmd.Context(), deps, prepared)
+			item, message, err := installMarketplaceExtension(cmd.Context(), deps, args[0], sourceFilter, version, asset)
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, extensionBundle(item))
+			if err := writeCommandOutput(cmd, extensionBundle(item)); err != nil {
+				return err
+			}
+			if strings.TrimSpace(message) != "" {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), message)
+			}
+			return nil
 		},
 	}
+	cmd.Flags().StringVar(&sourceFilter, "from", "", "Only use one configured extension registry source")
+	cmd.Flags().StringVar(&version, "version", "", "Install a specific registry version")
+	cmd.Flags().StringVar(&asset, "asset", "", "Select a specific registry asset when multiple archives exist")
+	return cmd
+}
+
+func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "remove <name>",
+		Short: "Remove an installed extension from disk and the registry",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			item, err := removeInstalledExtension(cmd.Context(), deps, args[0])
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, extensionRemoveBundle(item))
+		},
+	}
+}
+
+func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
+	var updateAll bool
+	var checkOnly bool
+
+	cmd := &cobra.Command{
+		Use:   "update [name]",
+		Short: "Check for or install updates for marketplace extensions",
+		Args: func(_ *cobra.Command, args []string) error {
+			if updateAll && len(args) > 0 {
+				return errors.New("cli: update accepts either an extension name or --all, not both")
+			}
+			if !updateAll && len(args) != 1 {
+				return errors.New("cli: update requires an extension name unless --all is set")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			items, err := updateMarketplaceExtensions(cmd.Context(), deps, args, updateAll, checkOnly)
+			if err != nil {
+				return err
+			}
+			if err := writeCommandOutput(cmd, extensionUpdateBundle(items)); err != nil {
+				return err
+			}
+			if !checkOnly && extensionUpdatesRequireRestart(items) {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), extensionUpdateRestartMessage)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&updateAll, "all", false, "Update every installed marketplace extension")
+	cmd.Flags().BoolVar(&checkOnly, "check", false, "Only check for updates without installing them")
+	return cmd
 }
 
 func newExtensionEnableCommand(deps commandDeps) *cobra.Command {
@@ -158,7 +259,7 @@ func installExtension(ctx context.Context, deps commandDeps, prepared preparedEx
 	}
 
 	return withLocalExtensionRegistry(ctx, deps, func(runtime runtimeContext, registry localExtensionRegistry) (ExtensionRecord, error) {
-		if err := installPreparedExtension(registry, prepared); err != nil {
+		if err := installPreparedExtension(runtime.HomePaths, registry, prepared); err != nil {
 			return ExtensionRecord{}, err
 		}
 		info, err := registry.Get(prepared.Manifest.Name)
@@ -306,14 +407,52 @@ func prepareExtensionInstall(path string) (preparedExtensionInstall, error) {
 	}, nil
 }
 
-func installPreparedExtension(registry localExtensionRegistry, prepared preparedExtensionInstall) error {
+func prepareLocalExtensionInstallIfPresent(path string) (preparedExtensionInstall, bool, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return preparedExtensionInstall{}, false, errors.New("extension: install path or registry slug is required")
+	}
+
+	absPath, err := filepath.Abs(trimmed)
+	if err != nil {
+		return preparedExtensionInstall{}, false, fmt.Errorf("extension: resolve install path %q: %w", path, err)
+	}
+
+	info, err := os.Stat(absPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return preparedExtensionInstall{}, false, nil
+	}
+	if err != nil {
+		return preparedExtensionInstall{}, false, fmt.Errorf("extension: stat install path %q: %w", absPath, err)
+	}
+	if !info.IsDir() {
+		return preparedExtensionInstall{}, false, fmt.Errorf("extension: install path %q must be a directory", absPath)
+	}
+
+	prepared, err := prepareExtensionInstall(absPath)
+	if err != nil {
+		return preparedExtensionInstall{}, false, err
+	}
+	return prepared, true, nil
+}
+
+func installPreparedExtension(homePaths aghconfig.HomePaths, registry localExtensionRegistry, prepared preparedExtensionInstall) error {
 	if registry == nil {
 		return errors.New("extension: registry is required")
 	}
 	if prepared.Manifest == nil {
 		return errors.New("extension: manifest is required")
 	}
-	return registry.Install(prepared.Manifest, prepared.Path, prepared.Checksum)
+	return extensionpkg.InstallLocalManaged(homePaths, registry, prepared.Manifest, prepared.Path, prepared.Checksum)
+}
+
+func extensionUpdatesRequireRestart(items []extensionUpdateItem) bool {
+	for _, item := range items {
+		if item.Status == "updated" {
+			return true
+		}
+	}
+	return false
 }
 
 func localExtensionRecord(info extensionpkg.ExtensionInfo, now func() time.Time) ExtensionRecord {

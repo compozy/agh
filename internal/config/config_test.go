@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -79,6 +81,10 @@ allowed_marketplace_hooks = ["@registry/hook-a", "@registry/hook-b"]
 registry = "clawhub"
 base_url = "https://registry.example.test/api/v1"
 
+[extensions.marketplace]
+registry = "github"
+base_url = "https://api.github.example.test"
+
 [memory]
 enabled = true
 global_dir = "~/agh-memory-test"
@@ -155,6 +161,12 @@ max_queue_depth = 250
 	}
 	if got, want := cfg.Skills.Marketplace.BaseURL, "https://registry.example.test/api/v1"; got != want {
 		t.Fatalf("Load() Skills.Marketplace.BaseURL = %q, want %q", got, want)
+	}
+	if got, want := cfg.Extensions.Marketplace.Registry, "github"; got != want {
+		t.Fatalf("Load() Extensions.Marketplace.Registry = %q, want %q", got, want)
+	}
+	if got, want := cfg.Extensions.Marketplace.BaseURL, "https://api.github.example.test"; got != want {
+		t.Fatalf("Load() Extensions.Marketplace.BaseURL = %q, want %q", got, want)
 	}
 	userHome, err := os.UserHomeDir()
 	if err != nil {
@@ -661,6 +673,9 @@ func TestDefaultWithHomeLeavesMarketplaceConfigEmpty(t *testing.T) {
 	if cfg.Skills.Marketplace != (MarketplaceConfig{}) {
 		t.Fatalf("DefaultWithHome() Skills.Marketplace = %#v, want zero value", cfg.Skills.Marketplace)
 	}
+	if cfg.Extensions.Marketplace != (ExtensionsMarketplaceConfig{}) {
+		t.Fatalf("DefaultWithHome() Extensions.Marketplace = %#v, want zero value", cfg.Extensions.Marketplace)
+	}
 }
 
 func TestSkillsConfigValidateMarketplaceConfig(t *testing.T) {
@@ -713,6 +728,91 @@ func TestSkillsConfigValidateMarketplaceConfig(t *testing.T) {
 			t.Fatalf("SkillsConfig.Validate() error = %v, want marketplace base_url context", err)
 		}
 	})
+}
+
+func TestExtensionsConfigValidateMarketplaceConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		cfg         ExtensionsConfig
+		wantErrPath string
+	}{
+		{
+			name: "ShouldAcceptValidMarketplaceConfig",
+			cfg: ExtensionsConfig{
+				Marketplace: ExtensionsMarketplaceConfig{
+					Registry: "github",
+					BaseURL:  "https://api.github.example.test",
+				},
+			},
+		},
+		{
+			name: "ShouldAcceptEmptyMarketplaceConfig",
+			cfg:  ExtensionsConfig{},
+		},
+		{
+			name: "ShouldRejectMarketplaceBaseURLWithoutHost",
+			cfg: ExtensionsConfig{
+				Marketplace: ExtensionsMarketplaceConfig{
+					Registry: "github",
+					BaseURL:  "https://",
+				},
+			},
+			wantErrPath: "extensions.marketplace.base_url",
+		},
+		{
+			name: "ShouldRejectUnknownMarketplaceRegistry",
+			cfg: ExtensionsConfig{
+				Marketplace: ExtensionsMarketplaceConfig{
+					Registry: "unknown",
+					BaseURL:  "https://api.github.example.test",
+				},
+			},
+			wantErrPath: "extensions.marketplace.registry",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+			if tt.wantErrPath == "" {
+				if err != nil {
+					t.Fatalf("ExtensionsConfig.Validate() error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("ExtensionsConfig.Validate() error = nil, want marketplace validation failure")
+			}
+			if !strings.Contains(err.Error(), tt.wantErrPath) {
+				t.Fatalf("ExtensionsConfig.Validate() error = %v, want %s context", err, tt.wantErrPath)
+			}
+		})
+	}
+
+	t.Run("ShouldWarnForHTTPBaseURL", func(t *testing.T) {
+		// This subtest swaps slog.Default(), so the parent test must remain
+		// non-parallel to avoid cross-test interference.
+		var logs bytes.Buffer
+		original := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})))
+		defer slog.SetDefault(original)
+
+		cfg := ExtensionsConfig{
+			Marketplace: ExtensionsMarketplaceConfig{
+				Registry: "github",
+				BaseURL:  "http://api.github.example.test",
+			},
+		}
+
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("ExtensionsConfig.Validate(http) error = %v", err)
+		}
+		if !strings.Contains(logs.String(), "insecure http scheme") {
+			t.Fatalf("ExtensionsConfig.Validate(http) logs = %q, want insecure http scheme warning", logs.String())
+		}
+	})
+
 }
 
 func TestValidateRejectsInvalidPorts(t *testing.T) {

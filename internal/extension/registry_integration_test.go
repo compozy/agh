@@ -84,8 +84,8 @@ func TestRegistryIntegrationMultipleSourcesCoexist(t *testing.T) {
 	if err := env.registry.Install(userManifest, userDir, userChecksum); err != nil {
 		t.Fatalf("Install(user) error = %v", err)
 	}
-	if err := env.registry.installWithSource(workspaceManifest, workspaceDir, workspaceChecksum, SourceWorkspace); err != nil {
-		t.Fatalf("installWithSource(workspace) error = %v", err)
+	if err := env.registry.Install(workspaceManifest, workspaceDir, workspaceChecksum, WithInstallSource(SourceWorkspace)); err != nil {
+		t.Fatalf("Install(workspace) error = %v", err)
 	}
 
 	listed, err := env.registry.List()

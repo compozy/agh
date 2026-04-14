@@ -9,7 +9,6 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/skills/marketplace"
 	"github.com/spf13/cobra"
 )
 
@@ -216,20 +215,10 @@ func newSkillSearchCommand(deps commandDeps) *cobra.Command {
 		Short: "Search marketplace skills",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if limit <= 0 {
-				return fmt.Errorf("cli: search limit must be positive: %d", limit)
-			}
-
-			_, registry, _, err := loadMarketplaceRegistry(deps)
+			results, err := searchMarketplaceSkills(cmd.Context(), deps, args[0], limit)
 			if err != nil {
 				return err
 			}
-
-			results, err := registry.Search(cmd.Context(), args[0], marketplace.SearchOpts{Limit: limit})
-			if err != nil {
-				return err
-			}
-
 			return writeCommandOutput(cmd, skillSearchBundle(results))
 		},
 	}
@@ -242,18 +231,21 @@ func newSkillInstallCommand(deps commandDeps) *cobra.Command {
 		Use:   "install <slug>",
 		Short: "Install a marketplace skill",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			slug, err := normalizeSkillSlug(args[0])
 			if err != nil {
 				return err
 			}
 
-			runtime, registry, registryName, err := loadMarketplaceRegistry(deps)
+			runtime, registry, err := loadSkillRegistry(deps)
 			if err != nil {
 				return err
 			}
+			defer func() {
+				err = errors.Join(err, registry.Close())
+			}()
 
-			item, err := installMarketplaceSkill(cmd.Context(), runtime, registry, registryName, slug, false, "")
+			item, err := installMarketplaceSkill(cmd.Context(), runtime, registry, slug, "", "", deps.now)
 			if err != nil {
 				return err
 			}
@@ -291,10 +283,11 @@ func newSkillRemoveCommand(deps commandDeps) *cobra.Command {
 
 func newSkillUpdateCommand(deps commandDeps) *cobra.Command {
 	updateAll := false
+	checkOnly := false
 
 	cmd := &cobra.Command{
 		Use:   "update [name]",
-		Short: "Update installed marketplace skills",
+		Short: "Check for or install updates for marketplace skills",
 		Args: func(_ *cobra.Command, args []string) error {
 			if updateAll && len(args) > 0 {
 				return errors.New("cli: update accepts either a skill name or --all, not both")
@@ -308,13 +301,16 @@ func newSkillUpdateCommand(deps commandDeps) *cobra.Command {
 			}
 			return nil
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			runtime, registry, registryName, err := loadMarketplaceRegistry(deps)
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
+			runtime, registry, err := loadSkillRegistry(deps)
 			if err != nil {
 				return err
 			}
+			defer func() {
+				err = errors.Join(err, registry.Close())
+			}()
 
-			items, err := updateMarketplaceSkills(cmd.Context(), runtime, registry, registryName, args, updateAll)
+			items, err := updateMarketplaceSkills(cmd.Context(), runtime, registry, args, updateAll, checkOnly, deps.now)
 			if err != nil {
 				return err
 			}
@@ -323,5 +319,6 @@ func newSkillUpdateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&updateAll, "all", false, "Update every installed marketplace skill")
+	cmd.Flags().BoolVar(&checkOnly, "check", false, "Only check for updates without installing them")
 	return cmd
 }

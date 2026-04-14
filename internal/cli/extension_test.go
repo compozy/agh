@@ -93,8 +93,39 @@ func TestInstallPreparedExtensionDetectsChecksumMismatch(t *testing.T) {
 	registry, cleanup := openExtensionRegistry(t, homePaths)
 	defer cleanup()
 
-	if err := installPreparedExtension(registry, prepared); err == nil || !errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch) {
+	if err := installPreparedExtension(homePaths, registry, prepared); err == nil || !errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch) {
 		t.Fatalf("installPreparedExtension(checksum mismatch) error = %v, want ErrExtensionChecksumMismatch", err)
+	}
+}
+
+func TestExtensionInstallAndRemoveOfflinePreservesSourceDirectory(t *testing.T) {
+	t.Parallel()
+
+	deps, homePaths := newExtensionLocalDeps(t, stubClient{})
+	sourceDir := writeExtensionFixture(t, "local-remove-ext", extensionFixtureOptions{})
+
+	if _, _, err := executeRootCommand(t, deps, "extension", "install", sourceDir, "-o", "json"); err != nil {
+		t.Fatalf("extension install error = %v", err)
+	}
+
+	info := getInstalledExtension(t, homePaths, "local-remove-ext")
+	wantManifestPath := filepath.Join(extensionpkg.ManagedInstallPath(homePaths, "local-remove-ext"), "extension.toml")
+	if info.ManifestPath != wantManifestPath {
+		t.Fatalf("installed manifest path = %q, want %q", info.ManifestPath, wantManifestPath)
+	}
+	if _, err := os.Stat(filepath.Join(sourceDir, "extension.toml")); err != nil {
+		t.Fatalf("source manifest stat after install error = %v", err)
+	}
+
+	if _, _, err := executeRootCommand(t, deps, "extension", "remove", "local-remove-ext", "-o", "json"); err != nil {
+		t.Fatalf("extension remove error = %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(sourceDir, "extension.toml")); err != nil {
+		t.Fatalf("source manifest stat after remove error = %v", err)
+	}
+	if _, err := os.Stat(extensionpkg.ManagedInstallPath(homePaths, "local-remove-ext")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("managed install dir stat error = %v, want not exist", err)
 	}
 }
 

@@ -1171,6 +1171,10 @@ func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.B
 	return []bridgepkg.BridgeProvider{}, nil
 }
 
+func (s *integrationBridgeService) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
+	return nil
+}
+
 func (s *integrationExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
 	infos, err := s.registry.List()
 	if err != nil {

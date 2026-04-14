@@ -1727,8 +1727,8 @@ func createManagerTestExtension(t *testing.T, manifestContent string, files map[
 func installManagerFixture(t *testing.T, registry *Registry, fixture managerFixture, source ExtensionSource, enabled bool) {
 	t.Helper()
 
-	if err := registry.installWithSource(fixture.manifest, fixture.dir, fixture.checksum, source); err != nil {
-		t.Fatalf("installWithSource(%q) error = %v", fixture.manifest.Name, err)
+	if err := registry.Install(fixture.manifest, fixture.dir, fixture.checksum, WithInstallSource(source)); err != nil {
+		t.Fatalf("Install(%q) error = %v", fixture.manifest.Name, err)
 	}
 	if !enabled {
 		if err := registry.Disable(fixture.manifest.Name); err != nil {

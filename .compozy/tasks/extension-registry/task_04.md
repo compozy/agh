@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add extension registry schema, config, and CLI commands
 type: backend
 complexity: critical
@@ -38,13 +38,13 @@ Add three nullable columns to the `extensions` SQLite table for remote install t
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Update extensions table schema in `global_db.go` and `ExtensionInfo` struct in `extension/registry.go`
-- [ ] 4.2 Update `scanExtensionInfo`, `installWithSource`, and SQL queries for new columns
-- [ ] 4.3 Add `ExtensionsMarketplaceConfig` struct and `Validate()` to `internal/config/config.go`
-- [ ] 4.4 Wire `agh extension search` command using MultiRegistry
-- [ ] 4.5 Wire `agh extension install` command with Installer + SQLite registration
-- [ ] 4.6 Wire `agh extension remove` command with filesystem + DB cleanup
-- [ ] 4.7 Wire `agh extension update` command with CheckUpdate + re-install
+- [x] 4.1 Update extensions table schema in `global_db.go` and `ExtensionInfo` struct in `extension/registry.go`
+- [x] 4.2 Update `scanExtensionInfo`, `installWithSource`, and SQL queries for new columns
+- [x] 4.3 Add `ExtensionsMarketplaceConfig` struct and `Validate()` to `internal/config/config.go`
+- [x] 4.4 Wire `agh extension search` command using MultiRegistry
+- [x] 4.5 Wire `agh extension install` command with Installer + SQLite registration
+- [x] 4.6 Wire `agh extension remove` command with filesystem + DB cleanup
+- [x] 4.7 Wire `agh extension update` command with CheckUpdate + re-install
 
 ## Implementation Details
 
@@ -80,21 +80,21 @@ See TechSpec "Data Models > ExtensionInfo additions", "API Endpoints > New CLI C
 
 ## Tests
 - Unit tests:
-  - [ ] `ExtensionInfo` with registry_slug/registry_name/remote_version round-trips through insert and query
-  - [ ] `ExtensionInfo` with nil registry fields (local install) works correctly
-  - [ ] Concurrent install of same extension → one success, one `ErrExtensionExists`
-  - [ ] `ExtensionsMarketplaceConfig.Validate()` accepts valid HTTPS config
-  - [ ] `ExtensionsMarketplaceConfig.Validate()` accepts empty config (disabled)
-  - [ ] `ExtensionsMarketplaceConfig.Validate()` logs warning for HTTP base_url
-  - [ ] `ExtensionsMarketplaceConfig.Validate()` rejects invalid URL (no host)
+  - [x] `ExtensionInfo` with registry_slug/registry_name/remote_version round-trips through insert and query
+  - [x] `ExtensionInfo` with nil registry fields (local install) works correctly
+  - [x] Concurrent install of same extension → one success, one `ErrExtensionExists`
+  - [x] `ExtensionsMarketplaceConfig.Validate()` accepts valid HTTPS config
+  - [x] `ExtensionsMarketplaceConfig.Validate()` accepts empty config (disabled)
+  - [x] `ExtensionsMarketplaceConfig.Validate()` logs warning for HTTP base_url
+  - [x] `ExtensionsMarketplaceConfig.Validate()` rejects invalid URL (no host)
 - Integration tests:
-  - [ ] `agh extension search <query>` returns results from configured sources
-  - [ ] `agh extension install <slug>` downloads, extracts, registers in DB with `SourceMarketplace`
-  - [ ] `agh extension install <slug>` prints "Restart daemon to activate" (no Reload call)
-  - [ ] `agh extension remove <name>` deletes directory AND DB record
-  - [ ] `agh extension remove <name>` for non-existent extension returns clear error
-  - [ ] `agh extension update --check` shows available updates without installing
-  - [ ] `agh extension update <name>` re-installs with newer version
+  - [x] `agh extension search <query>` returns results from configured sources
+  - [x] `agh extension install <slug>` downloads, extracts, registers in DB with `SourceMarketplace`
+  - [x] `agh extension install <slug>` prints "Restart daemon to activate" (no Reload call)
+  - [x] `agh extension remove <name>` deletes directory AND DB record
+  - [x] `agh extension remove <name>` for non-existent extension returns clear error
+  - [x] `agh extension update --check` shows available updates without installing
+  - [x] `agh extension update <name>` re-installs with newer version
 - Test coverage target: >=80%
 - All tests must pass
 

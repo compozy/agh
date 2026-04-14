@@ -38,23 +38,25 @@ type runtimeContext struct {
 type installWizardRunner func(context.Context, installWizardInput) (installWizardSelection, error)
 
 type commandDeps struct {
-	loadConfig       func() (aghconfig.Config, error)
-	resolveHome      func() (aghconfig.HomePaths, error)
-	ensureHome       func(aghconfig.HomePaths) error
-	runInstallWizard installWizardRunner
-	newClient        func(socketPath string) (DaemonClient, error)
-	newDaemon        func() (daemonRunner, error)
-	readDaemonInfo   func(path string) (aghdaemon.Info, error)
-	signalProcess    func(pid int, sig syscall.Signal) error
-	processAlive     func(pid int) bool
-	executable       func() (string, error)
-	getwd            func() (string, error)
-	getenv           func(string) string
-	now              func() time.Time
-	pollInterval     time.Duration
-	startTimeout     time.Duration
-	stopTimeout      time.Duration
-	spawnDetached    func(aghconfig.HomePaths) (daemonProcess, error)
+	loadConfig                   func() (aghconfig.Config, error)
+	loadExtensionRegistrySources extensionRegistrySourceLoader
+	loadSkillRegistrySources     skillRegistrySourceLoader
+	resolveHome                  func() (aghconfig.HomePaths, error)
+	ensureHome                   func(aghconfig.HomePaths) error
+	runInstallWizard             installWizardRunner
+	newClient                    func(socketPath string) (DaemonClient, error)
+	newDaemon                    func() (daemonRunner, error)
+	readDaemonInfo               func(path string) (aghdaemon.Info, error)
+	signalProcess                func(pid int, sig syscall.Signal) error
+	processAlive                 func(pid int) bool
+	executable                   func() (string, error)
+	getwd                        func() (string, error)
+	getenv                       func(string) string
+	now                          func() time.Time
+	pollInterval                 time.Duration
+	startTimeout                 time.Duration
+	stopTimeout                  time.Duration
+	spawnDetached                func(aghconfig.HomePaths) (daemonProcess, error)
 }
 
 // NewRootCommand constructs the AGH v1 CLI command tree.
@@ -137,6 +139,12 @@ func (d commandDeps) withDefaults() commandDeps {
 		d.loadConfig = func() (aghconfig.Config, error) {
 			return aghconfig.Load()
 		}
+	}
+	if d.loadExtensionRegistrySources == nil {
+		d.loadExtensionRegistrySources = defaultExtensionRegistrySourceLoader
+	}
+	if d.loadSkillRegistrySources == nil {
+		d.loadSkillRegistrySources = defaultSkillRegistrySourceLoader
 	}
 	if d.resolveHome == nil {
 		d.resolveHome = aghconfig.ResolveHomePaths

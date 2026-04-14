@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement MultiRegistry and Installer pipeline
 type: backend
 complexity: high
@@ -34,12 +34,12 @@ Implement the `MultiRegistry` aggregator that queries multiple `RegistrySource` 
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Create `internal/registry/multi.go` with concurrent query logic and priority-based dedup
-- [ ] 2.2 Implement `Capabilities()`-aware `Search()` that skips non-searchable sources
-- [ ] 2.3 Implement `CheckUpdate()` using `Info()` + `versionIsNewer()`
-- [ ] 2.4 Create `internal/registry/installer.go` with download-extract-verify pipeline
-- [ ] 2.5 Write unit tests for MultiRegistry (concurrent queries, dedup, partial failure)
-- [ ] 2.6 Write unit tests for Installer (extraction, limits, manifest validation, cleanup)
+- [x] 2.1 Create `internal/registry/multi.go` with concurrent query logic and priority-based dedup
+- [x] 2.2 Implement `Capabilities()`-aware `Search()` that skips non-searchable sources
+- [x] 2.3 Implement `CheckUpdate()` using `Info()` + `versionIsNewer()`
+- [x] 2.4 Create `internal/registry/installer.go` with download-extract-verify pipeline
+- [x] 2.5 Write unit tests for MultiRegistry (concurrent queries, dedup, partial failure)
+- [x] 2.6 Write unit tests for Installer (extraction, limits, manifest validation, cleanup)
 
 ## Implementation Details
 
@@ -67,28 +67,28 @@ See TechSpec "Core Interfaces" section for `MultiRegistry` and `Installer` signa
 
 ## Tests
 - Unit tests (MultiRegistry):
-  - [ ] Search with two sources returns merged results, later source overrides on slug collision
-  - [ ] Search skips source where `Capabilities().Search == false`
-  - [ ] Search with one erroring source still returns results from healthy sources
-  - [ ] Search with all sources erroring returns combined error
-  - [ ] Search with empty sources list returns empty slice (not nil)
-  - [ ] Info resolves from first source that has the slug (priority order)
-  - [ ] Download delegates to the correct source based on slug resolution
-  - [ ] CheckUpdate returns `HasUpdate: true` when remote version is newer
-  - [ ] CheckUpdate returns `HasUpdate: false` when versions are equal
-  - [ ] Close() calls Close() on all sources
+  - [x] Search with two sources returns merged results, later source overrides on slug collision
+  - [x] Search skips source where `Capabilities().Search == false`
+  - [x] Search with one erroring source still returns results from healthy sources
+  - [x] Search with all sources erroring returns combined error
+  - [x] Search with empty sources list returns empty slice (not nil)
+  - [x] Info resolves from first source that has the slug (priority order)
+  - [x] Download delegates to the correct source based on slug resolution
+  - [x] CheckUpdate returns `HasUpdate: true` when remote version is newer
+  - [x] CheckUpdate returns `HasUpdate: false` when versions are equal
+  - [x] Close() calls Close() on all sources
 - Unit tests (Installer):
-  - [ ] Install with valid tar.gz containing extension.toml returns InstallResult with correct checksum
-  - [ ] Install with valid tar.gz containing SKILL.md returns InstallResult
-  - [ ] Install where archive exceeds `maxArchiveSize` (compressed) fails with clear error
-  - [ ] Install where archive exceeds `maxDecompressedSize` fails with clear error
-  - [ ] Install where archive has no manifest (no extension.toml or SKILL.md) fails with clear error
-  - [ ] Install cleans up temp dir on failure
-  - [ ] Install with context cancellation mid-download closes reader and cleans up
-  - [ ] Content-Type validation rejects `text/html` responses
-  - [ ] Stale temp dir cleanup removes dirs older than 1 hour
+  - [x] Install with valid tar.gz containing extension.toml returns InstallResult with correct checksum
+  - [x] Install with valid tar.gz containing SKILL.md returns InstallResult
+  - [x] Install where archive exceeds `maxArchiveSize` (compressed) fails with clear error
+  - [x] Install where archive exceeds `maxDecompressedSize` fails with clear error
+  - [x] Install where archive has no manifest (no extension.toml or SKILL.md) fails with clear error
+  - [x] Install cleans up temp dir on failure
+  - [x] Install with context cancellation mid-download closes reader and cleans up
+  - [x] Content-Type validation rejects `text/html` responses
+  - [x] Stale temp dir cleanup removes dirs older than 1 hour
 - Integration tests:
-  - [ ] Full pipeline with in-memory Downloader mock: download → extract → validate → result
+  - [x] Full pipeline with in-memory Downloader mock: download → extract → validate → result
 - Test coverage target: >=80%
 - All tests must pass
 
