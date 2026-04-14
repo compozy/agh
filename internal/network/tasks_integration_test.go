@@ -241,7 +241,7 @@ func openNetworkTaskIngressDB(t *testing.T) *globaldb.GlobalDB {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := db.Close(ctx); err != nil {
+		if err := db.Close(context.Background()); err != nil {
 			t.Fatalf("GlobalDB.Close() error = %v", err)
 		}
 	})

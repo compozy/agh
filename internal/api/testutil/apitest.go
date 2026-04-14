@@ -192,6 +192,7 @@ type StubTaskManager struct {
 	FailRunFn          func(context.Context, string, taskpkg.RunFailure, taskpkg.ActorContext) (*taskpkg.TaskRun, error)
 	CancelRunFn        func(context.Context, string, taskpkg.CancelRun, taskpkg.ActorContext) (*taskpkg.TaskRun, error)
 	GetTaskFn          func(context.Context, string, taskpkg.ActorContext) (*taskpkg.TaskView, error)
+	ListTaskRunsFn     func(context.Context, string, taskpkg.TaskRunQuery, taskpkg.ActorContext) ([]taskpkg.TaskRun, error)
 	ListTasksFn        func(context.Context, taskpkg.TaskQuery, taskpkg.ActorContext) ([]taskpkg.TaskSummary, error)
 }
 
@@ -442,6 +443,13 @@ func (s StubTaskManager) GetTask(ctx context.Context, id string, actor taskpkg.A
 		return s.GetTaskFn(ctx, id, actor)
 	}
 	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) ListTaskRuns(ctx context.Context, taskID string, query taskpkg.TaskRunQuery, actor taskpkg.ActorContext) ([]taskpkg.TaskRun, error) {
+	if s.ListTaskRunsFn != nil {
+		return s.ListTaskRunsFn(ctx, taskID, query, actor)
+	}
+	return nil, nil
 }
 
 func (s StubTaskManager) ListTasks(ctx context.Context, query taskpkg.TaskQuery, actor taskpkg.ActorContext) ([]taskpkg.TaskSummary, error) {

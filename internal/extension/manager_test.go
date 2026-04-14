@@ -268,8 +268,8 @@ func TestManagerStartBridgeAdapterRequiresScopedLaunchRuntime(t *testing.T) {
 	if err == nil {
 		t.Fatal("Start() error = nil, want missing bridge runtime resolver failure")
 	}
-	if !strings.Contains(err.Error(), "bridge runtime resolver is required") {
-		t.Fatalf("Start() error = %v, want bridge runtime resolver failure", err)
+	if !errors.Is(err, ErrBridgeRuntimeResolverRequired) {
+		t.Fatalf("Start() error = %v, want %v", err, ErrBridgeRuntimeResolverRequired)
 	}
 }
 
@@ -757,8 +757,8 @@ func TestManagerReloadValidatesAndRestarts(t *testing.T) {
 		t.Parallel()
 
 		var nilManager *Manager
-		if err := nilManager.Reload(testutil.Context(t)); err == nil || !strings.Contains(err.Error(), "manager is required") {
-			t.Fatalf("nil manager Reload() error = %v, want manager is required", err)
+		if err := nilManager.Reload(testutil.Context(t)); !errors.Is(err, ErrManagerRequired) {
+			t.Fatalf("nil manager Reload() error = %v, want %v", err, ErrManagerRequired)
 		}
 	})
 
@@ -778,8 +778,8 @@ func TestManagerReloadValidatesAndRestarts(t *testing.T) {
 
 		manager := NewManager(nil)
 		err := manager.Reload(testutil.Context(t))
-		if err == nil || !strings.Contains(err.Error(), "registry is required") {
-			t.Fatalf("Reload() error = %v, want registry is required", err)
+		if !errors.Is(err, ErrRegistryRequired) {
+			t.Fatalf("Reload() error = %v, want %v", err, ErrRegistryRequired)
 		}
 	})
 
@@ -1012,12 +1012,12 @@ func TestManagerResolveCommandKeepsPathLikeValuesInsideExtensionRoot(t *testing.
 		t.Fatalf("resolveCommand(bare) = %q, want %q", got, "node")
 	}
 
-	if _, err := manager.resolveCommand(root, "../outside/tool"); err == nil || !strings.Contains(err.Error(), "escapes extension root") {
-		t.Fatalf("resolveCommand(escape) error = %v, want extension-root escape failure", err)
+	if _, err := manager.resolveCommand(root, "../outside/tool"); !errors.Is(err, ErrPathEscapesExtensionRoot) {
+		t.Fatalf("resolveCommand(escape) error = %v, want %v", err, ErrPathEscapesExtensionRoot)
 	}
 
-	if _, err := resolveResourcePath(root, "../skills"); err == nil || !strings.Contains(err.Error(), "escapes extension root") {
-		t.Fatalf("resolveResourcePath(escape) error = %v, want extension-root escape failure", err)
+	if _, err := resolveResourcePath(root, "../skills"); !errors.Is(err, ErrPathEscapesExtensionRoot) {
+		t.Fatalf("resolveResourcePath(escape) error = %v, want %v", err, ErrPathEscapesExtensionRoot)
 	}
 
 	resourceRoot, err := resolveResourcePath(root, "skills")

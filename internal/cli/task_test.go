@@ -612,6 +612,31 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 	}
 }
 
+func TestParseTaskListFiltersRejectsHalfSpecifiedOwnerFilter(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		ownerKindRaw string
+		ownerRef     string
+	}{
+		{name: "ShouldRejectOwnerKindWithoutOwnerRef", ownerKindRaw: "pool"},
+		{name: "ShouldRejectOwnerRefWithoutOwnerKind", ownerRef: "triage"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := parseTaskListFilters("", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", 0)
+			if err == nil || !strings.Contains(err.Error(), "--owner-kind and --owner-ref must be provided together") {
+				t.Fatalf("parseTaskListFilters() error = %v, want paired owner filter validation", err)
+			}
+		})
+	}
+}
+
 func sampleTaskSummaryRecord() TaskSummaryRecord {
 	return TaskSummaryRecord{
 		ID:             "task-1",

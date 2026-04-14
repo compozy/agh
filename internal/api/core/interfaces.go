@@ -126,6 +126,7 @@ type TaskService interface {
 	CancelRun(ctx context.Context, runID string, req taskpkg.CancelRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error)
 
 	GetTask(ctx context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.TaskView, error)
+	ListTaskRuns(ctx context.Context, taskID string, query taskpkg.TaskRunQuery, actor taskpkg.ActorContext) ([]taskpkg.TaskRun, error)
 	ListTasks(ctx context.Context, query taskpkg.TaskQuery, actor taskpkg.ActorContext) ([]taskpkg.TaskSummary, error)
 }
 

@@ -117,7 +117,7 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 	job.Task = &JobTaskConfig{
 		Title:          "Review automation findings",
 		Description:    "Create a durable review task.",
-		NetworkChannel: "ops.automation",
+		NetworkChannel: "ops-automation",
 		Owner: &taskpkg.Ownership{
 			Kind: taskpkg.OwnerKindAutomation,
 			Ref:  "job-task-backed",
@@ -176,7 +176,7 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 	if got, want := createCall.spec.WorkspaceID, "ws_alpha"; got != want {
 		t.Fatalf("CreateTask().workspace_id = %q, want %q", got, want)
 	}
-	if got, want := createCall.spec.NetworkChannel, "ops.automation"; got != want {
+	if got, want := createCall.spec.NetworkChannel, "ops-automation"; got != want {
 		t.Fatalf("CreateTask().network_channel = %q, want %q", got, want)
 	}
 
@@ -190,7 +190,7 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 	if got, want := enqueueCall.spec.IdempotencyKey, "automation-run:"+run.ID; got != want {
 		t.Fatalf("EnqueueRun().idempotency_key = %q, want %q", got, want)
 	}
-	if got, want := enqueueCall.spec.NetworkChannel, "ops.automation"; got != want {
+	if got, want := enqueueCall.spec.NetworkChannel, "ops-automation"; got != want {
 		t.Fatalf("EnqueueRun().network_channel = %q, want %q", got, want)
 	}
 }
@@ -270,6 +270,51 @@ func TestDispatchTaskBackedJobFailsWhenTaskServiceIsUnavailable(t *testing.T) {
 	}
 	if got := len(creator.createCalls()); got != 0 {
 		t.Fatalf("len(Create calls) = %d, want 0", got)
+	}
+}
+
+func TestDispatchTaskBackedJobMarksRunCancelledForTaskServiceCancellation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		createErr  error
+		enqueueErr error
+	}{
+		{name: "ShouldClassifyCreateTaskCancellation", createErr: context.Canceled},
+		{name: "ShouldClassifyEnqueueRunDeadlineExceeded", enqueueErr: context.DeadlineExceeded},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newMemoryRunStore()
+			creator := newRecordingSessionCreator()
+			tasks := &recordingTaskService{
+				createErr:  tt.createErr,
+				enqueueErr: tt.enqueueErr,
+			}
+			dispatcher := newTestDispatcher(t, creator, store, WithDispatcherTasks(tasks))
+
+			job := testJob(AutomationScopeGlobal, "job-task-cancelled", "")
+			job.Task = &JobTaskConfig{Title: "Create durable task"}
+
+			run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+				Kind: DispatchKindManual,
+				Job:  &job,
+			})
+			if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("Dispatch() error = %v, want cancellation-classified error", err)
+			}
+			if got, want := run.Status, RunCancelled; got != want {
+				t.Fatalf("run.Status = %q, want %q", got, want)
+			}
+			if got := len(creator.createCalls()); got != 0 {
+				t.Fatalf("len(Create calls) = %d, want 0", got)
+			}
+		})
 	}
 }
 
@@ -1023,6 +1068,8 @@ type taskEnqueueCall struct {
 type recordingTaskService struct {
 	createCalls  []taskCreateCall
 	enqueueCalls []taskEnqueueCall
+	createErr    error
+	enqueueErr   error
 }
 
 func newRecordingTaskService() *recordingTaskService {
@@ -1031,6 +1078,9 @@ func newRecordingTaskService() *recordingTaskService {
 
 func (s *recordingTaskService) CreateTask(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
 	s.createCalls = append(s.createCalls, taskCreateCall{spec: spec, actor: actor})
+	if s.createErr != nil {
+		return nil, s.createErr
+	}
 	return &taskpkg.Task{
 		ID:             "task-1",
 		Scope:          spec.Scope,
@@ -1042,6 +1092,9 @@ func (s *recordingTaskService) CreateTask(_ context.Context, spec taskpkg.Create
 
 func (s *recordingTaskService) EnqueueRun(_ context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.TaskRun, error) {
 	s.enqueueCalls = append(s.enqueueCalls, taskEnqueueCall{spec: spec, actor: actor})
+	if s.enqueueErr != nil {
+		return nil, s.enqueueErr
+	}
 	return &taskpkg.TaskRun{
 		ID:             "task-run-1",
 		TaskID:         spec.TaskID,

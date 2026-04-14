@@ -468,7 +468,7 @@ func (d *Dispatcher) dispatchTaskBackedAttempt(ctx context.Context, req Dispatch
 
 	taskRecord, err := d.tasks.CreateTask(ctx, directTaskSpec(req.Job, preFirePrompt), actor)
 	if err != nil {
-		return d.finishRun(ctx, scheduledRun, RunFailed, err)
+		return d.finishRun(ctx, scheduledRun, classifyDispatchError(err), err)
 	}
 	if taskRecord == nil || strings.TrimSpace(taskRecord.ID) == "" {
 		return d.finishRun(ctx, scheduledRun, RunFailed, errors.New("automation: task service returned empty task"))
@@ -480,7 +480,7 @@ func (d *Dispatcher) dispatchTaskBackedAttempt(ctx context.Context, req Dispatch
 		NetworkChannel: strings.TrimSpace(taskRecord.NetworkChannel),
 	}, actor)
 	if err != nil {
-		return d.finishRun(ctx, scheduledRun, RunFailed, err)
+		return d.finishRun(ctx, scheduledRun, classifyDispatchError(err), err)
 	}
 	if taskRun == nil || strings.TrimSpace(taskRun.ID) == "" {
 		return d.finishRun(ctx, scheduledRun, RunFailed, errors.New("automation: task service returned empty task run"))

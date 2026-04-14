@@ -201,6 +201,52 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 		}
 	})
 
+	t.Run("ShouldRejectGlobalWorkspaceBindingsWithoutWorkspaceLookup", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceLookups := 0
+		tasks := testutil.StubTaskManager{
+			ListTasksFn: func(context.Context, taskpkg.TaskQuery, taskpkg.ActorContext) ([]taskpkg.TaskSummary, error) {
+				t.Fatal("ListTasks should not be called when global scope includes workspace filter")
+				return nil, nil
+			},
+			CreateTaskFn: func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error) {
+				t.Fatal("CreateTask should not be called when global scope includes workspace binding")
+				return nil, nil
+			},
+			CreateChildTaskFn: func(context.Context, string, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error) {
+				t.Fatal("CreateChildTask should not be called when global scope includes workspace binding")
+				return nil, nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				workspaceLookups++
+				return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+			},
+		}
+		fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, testutil.StubObserver{}, tasks, workspaces, nil, nil)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks?scope=global&workspace=missing", nil)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("global list status = %d, want %d; body=%s", resp.Code, http.StatusBadRequest, resp.Body.String())
+		}
+
+		resp = performRequest(t, fixture.Engine, http.MethodPost, "/tasks", []byte(`{"scope":"global","workspace":"missing","title":"Broken"}`))
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("global create status = %d, want %d; body=%s", resp.Code, http.StatusBadRequest, resp.Body.String())
+		}
+
+		resp = performRequest(t, fixture.Engine, http.MethodPost, "/tasks/task-root/children", []byte(`{"scope":"global","workspace":"missing","title":"Broken child"}`))
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("global child create status = %d, want %d; body=%s", resp.Code, http.StatusBadRequest, resp.Body.String())
+		}
+
+		if workspaceLookups != 0 {
+			t.Fatalf("workspace lookup count = %d, want 0", workspaceLookups)
+		}
+	})
+
 	t.Run("ShouldMapTaskDomainErrorsToStableStatuses", func(t *testing.T) {
 		t.Parallel()
 
@@ -248,6 +294,8 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	var removedTaskID string
 	var removedDependsOnID string
 	var enqueuedRun taskpkg.EnqueueRun
+	var listedRunTaskID string
+	var listedRunQuery taskpkg.TaskRunQuery
 	var claimedRun taskpkg.ClaimRun
 	var startedRun taskpkg.StartRun
 	var attachedRunID string
@@ -308,6 +356,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		}},
 	}
 
+	getTaskCalls := 0
 	tasks := testutil.StubTaskManager{
 		ListTasksFn: func(_ context.Context, query taskpkg.TaskQuery, _ taskpkg.ActorContext) ([]taskpkg.TaskSummary, error) {
 			listedQuery = query
@@ -337,10 +386,16 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 			return &record, nil
 		},
 		GetTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (*taskpkg.TaskView, error) {
+			getTaskCalls++
 			if id != "task-1" {
 				t.Fatalf("GetTask id = %q, want %q", id, "task-1")
 			}
 			return taskView, nil
+		},
+		ListTaskRunsFn: func(_ context.Context, taskID string, query taskpkg.TaskRunQuery, _ taskpkg.ActorContext) ([]taskpkg.TaskRun, error) {
+			listedRunTaskID = taskID
+			listedRunQuery = query
+			return []taskpkg.TaskRun{taskView.Runs[0]}, nil
 		},
 		UpdateTaskFn: func(_ context.Context, _ string, patch taskpkg.TaskPatch, _ taskpkg.ActorContext) (*taskpkg.Task, error) {
 			updatedPatch = patch
@@ -572,6 +627,15 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	if listedQuery.Status != taskpkg.TaskStatusReady || listedQuery.OwnerKind != taskpkg.OwnerKindPool || listedQuery.OwnerRef != "reviewers" || listedQuery.Limit != 2 {
 		t.Fatalf("listed query = %#v", listedQuery)
 	}
+	if listedRunTaskID != "task-1" {
+		t.Fatalf("listed run task id = %q, want %q", listedRunTaskID, "task-1")
+	}
+	if listedRunQuery.Status != taskpkg.TaskRunStatusRunning || listedRunQuery.SessionID != "sess-1" || listedRunQuery.Limit != 1 {
+		t.Fatalf("listed run query = %#v", listedRunQuery)
+	}
+	if getTaskCalls != 3 {
+		t.Fatalf("GetTask() calls = %d, want 3 detail reads without extra run-list fetch", getTaskCalls)
+	}
 	if createdSpec.WorkspaceID != "ws-alpha" || createdSpec.NetworkChannel != "builders" || createdSpec.Owner == nil || createdSpec.Owner.Ref != "reviewers" {
 		t.Fatalf("created spec = %#v", createdSpec)
 	}
@@ -706,6 +770,9 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 			return nil, taskpkg.ErrPermissionDenied
 		},
 		GetTaskFn: func(context.Context, string, taskpkg.ActorContext) (*taskpkg.TaskView, error) {
+			return nil, taskpkg.ErrTaskNotFound
+		},
+		ListTaskRunsFn: func(context.Context, string, taskpkg.TaskRunQuery, taskpkg.ActorContext) ([]taskpkg.TaskRun, error) {
 			return nil, taskpkg.ErrTaskNotFound
 		},
 		UpdateTaskFn: func(context.Context, string, taskpkg.TaskPatch, taskpkg.ActorContext) (*taskpkg.Task, error) {

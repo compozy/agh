@@ -392,13 +392,13 @@ func (h *BaseHandlers) ListTaskRuns(c *gin.Context) {
 		return
 	}
 
-	view, err := manager.GetTask(c.Request.Context(), taskID, actor)
+	runs, err := manager.ListTaskRuns(c.Request.Context(), taskID, query, actor)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskRunsResponse{Runs: TaskRunPayloadsFromRuns(filterTaskRuns(view.Runs, query))})
+	c.JSON(http.StatusOK, contract.TaskRunsResponse{Runs: TaskRunPayloadsFromRuns(runs)})
 }
 
 // EnqueueTaskRun creates one new queue-first run for the supplied task.
@@ -697,6 +697,9 @@ func (h *BaseHandlers) parseTaskListQuery(ctx context.Context, c *gin.Context) (
 	}
 
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
+		if query.Scope.Normalize() == taskpkg.ScopeGlobal {
+			return taskpkg.TaskQuery{}, taskpkg.ValidateScopeBinding(query.Scope, workspaceRef, "task_query", "workspace")
+		}
 		workspaceID, err := h.lookupWorkspaceID(ctx, workspaceRef)
 		if err != nil {
 			return taskpkg.TaskQuery{}, err
@@ -735,7 +738,8 @@ func parseTaskRunListQuery(c *gin.Context) (taskpkg.TaskRunQuery, error) {
 }
 
 func (h *BaseHandlers) createTaskSpecFromRequest(ctx context.Context, req contract.CreateTaskRequest) (taskpkg.CreateTask, error) {
-	workspaceID, err := h.resolveTaskWorkspaceID(ctx, strings.TrimSpace(req.Workspace))
+	scope := req.Scope.Normalize()
+	workspaceID, err := h.resolveTaskWorkspaceBinding(ctx, scope, req.Workspace, "create_task")
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
@@ -746,7 +750,7 @@ func (h *BaseHandlers) createTaskSpecFromRequest(ctx context.Context, req contra
 	spec := taskpkg.CreateTask{
 		ID:             strings.TrimSpace(req.ID),
 		Identifier:     strings.TrimSpace(req.Identifier),
-		Scope:          req.Scope.Normalize(),
+		Scope:          scope,
 		WorkspaceID:    workspaceID,
 		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
 		Title:          strings.TrimSpace(req.Title),
@@ -761,7 +765,8 @@ func (h *BaseHandlers) createTaskSpecFromRequest(ctx context.Context, req contra
 }
 
 func (h *BaseHandlers) createChildTaskSpecFromRequest(ctx context.Context, req contract.CreateTaskChildRequest) (taskpkg.CreateTask, error) {
-	workspaceID, err := h.resolveTaskWorkspaceID(ctx, strings.TrimSpace(req.Workspace))
+	scope := req.Scope.Normalize()
+	workspaceID, err := h.resolveTaskWorkspaceBinding(ctx, scope, req.Workspace, "create_child_task")
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
@@ -772,7 +777,7 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(ctx context.Context, req c
 	spec := taskpkg.CreateTask{
 		ID:             strings.TrimSpace(req.ID),
 		Identifier:     strings.TrimSpace(req.Identifier),
-		Scope:          req.Scope.Normalize(),
+		Scope:          scope,
 		WorkspaceID:    workspaceID,
 		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
 		Title:          strings.TrimSpace(req.Title),
@@ -905,9 +910,12 @@ func cancelTaskRunFromRequest(req contract.CancelTaskRunRequest) (taskpkg.Cancel
 	return cancelReq, nil
 }
 
-func (h *BaseHandlers) resolveTaskWorkspaceID(ctx context.Context, workspaceRef string) (string, error) {
+func (h *BaseHandlers) resolveTaskWorkspaceBinding(ctx context.Context, scope taskpkg.Scope, workspaceRef string, path string) (string, error) {
 	trimmed := strings.TrimSpace(workspaceRef)
-	if trimmed == "" {
+	if err := taskpkg.ValidateScopeBinding(scope, trimmed, path, "workspace"); err != nil {
+		return "", err
+	}
+	if scope.Normalize() != taskpkg.ScopeWorkspace {
 		return "", nil
 	}
 	return h.lookupWorkspaceID(ctx, trimmed)
@@ -1073,23 +1081,6 @@ func TaskDetailPayloadFromView(view *taskpkg.TaskView) contract.TaskDetailPayloa
 		Runs:         TaskRunPayloadsFromRuns(view.Runs),
 		Events:       TaskEventPayloadsFromEvents(view.Events),
 	}
-}
-
-func filterTaskRuns(runs []taskpkg.TaskRun, query taskpkg.TaskRunQuery) []taskpkg.TaskRun {
-	filtered := make([]taskpkg.TaskRun, 0, len(runs))
-	for _, run := range runs {
-		if query.Status.Normalize() != "" && run.Status.Normalize() != query.Status.Normalize() {
-			continue
-		}
-		if strings.TrimSpace(query.SessionID) != "" && strings.TrimSpace(run.SessionID) != strings.TrimSpace(query.SessionID) {
-			continue
-		}
-		filtered = append(filtered, run)
-		if query.Limit > 0 && len(filtered) >= query.Limit {
-			break
-		}
-	}
-	return filtered
 }
 
 func cloneOwnership(source *taskpkg.Ownership) *taskpkg.Ownership {

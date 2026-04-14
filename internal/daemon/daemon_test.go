@@ -690,96 +690,100 @@ func TestBootExtensionsLogsStartFailureAndKeepsPartialRuntime(t *testing.T) {
 func TestBootExtensionsKeepsHealthyRegisteredExtensionsAfterPartialStartFailure(t *testing.T) {
 	t.Parallel()
 
-	db := openDaemonTestGlobalDB(t)
-	installDaemonTestExtension(t, db, "ext-healthy", daemonTestExtensionOptions{}, true)
-	installDaemonTestExtension(t, db, "ext-bad", daemonTestExtensionOptions{}, true)
+	t.Run("ShouldKeepHealthyRegisteredExtensionsAfterPartialStartFailure", func(t *testing.T) {
+		t.Parallel()
 
-	var logBuffer bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
-	runtime := &fakeExtensionRuntime{
-		startErr: errors.New("boom"),
-		getFn: func(name string) (*extensionpkg.Extension, error) {
-			switch name {
-			case "ext-healthy":
-				return &extensionpkg.Extension{
-					Info: extensionpkg.ExtensionInfo{
-						Name:    "ext-healthy",
-						Enabled: true,
-					},
-					Status: extensionpkg.ExtensionStatus{
-						Name:       "ext-healthy",
-						Enabled:    true,
-						Registered: true,
-					},
-				}, nil
-			case "ext-bad":
-				return nil, extensionpkg.ErrExtensionNotFound
-			default:
-				return nil, extensionpkg.ErrExtensionNotFound
-			}
-		},
-	}
-	homePaths := testHomePaths(t)
-	d := newTestDaemon(t, homePaths, testConfig(t, homePaths))
-	d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
-		return runtime
-	}
+		db := openDaemonTestGlobalDB(t)
+		installDaemonTestExtension(t, db, "ext-healthy", daemonTestExtensionOptions{}, true)
+		installDaemonTestExtension(t, db, "ext-bad", daemonTestExtensionOptions{}, true)
 
-	rebuilds := 0
-	state := &bootState{
-		logger:   logger,
-		registry: db,
-		sessions: &fakeSessionManager{},
-		observer: &fakeObserver{},
-		bridges:  &bridgeRuntime{broker: bridgepkg.NewBroker(nil)},
-		hooks: &fakeHookRuntime{
-			onRebuild: func(context.Context) error {
-				rebuilds++
-				return nil
+		var logBuffer bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
+		runtime := &fakeExtensionRuntime{
+			startErr: errors.New("boom"),
+			getFn: func(name string) (*extensionpkg.Extension, error) {
+				switch name {
+				case "ext-healthy":
+					return &extensionpkg.Extension{
+						Info: extensionpkg.ExtensionInfo{
+							Name:    "ext-healthy",
+							Enabled: true,
+						},
+						Status: extensionpkg.ExtensionStatus{
+							Name:       "ext-healthy",
+							Enabled:    true,
+							Registered: true,
+						},
+					}, nil
+				case "ext-bad":
+					return nil, extensionpkg.ErrExtensionNotFound
+				default:
+					return nil, extensionpkg.ErrExtensionNotFound
+				}
 			},
-		},
-	}
-	cleanup := &bootCleanup{}
+		}
+		homePaths := testHomePaths(t)
+		d := newTestDaemon(t, homePaths, testConfig(t, homePaths))
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+			return runtime
+		}
 
-	if err := d.bootExtensions(testutil.Context(t), state, cleanup); err != nil {
-		t.Fatalf("bootExtensions() error = %v, want nil", err)
-	}
+		rebuilds := 0
+		state := &bootState{
+			logger:   logger,
+			registry: db,
+			sessions: &fakeSessionManager{},
+			observer: &fakeObserver{},
+			bridges:  &bridgeRuntime{broker: bridgepkg.NewBroker(nil)},
+			hooks: &fakeHookRuntime{
+				onRebuild: func(context.Context) error {
+					rebuilds++
+					return nil
+				},
+			},
+		}
+		cleanup := &bootCleanup{}
 
-	if runtime.startCount != 1 {
-		t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
-	}
-	if rebuilds != 1 {
-		t.Fatalf("hook rebuild count = %d, want 1 after partial start", rebuilds)
-	}
-	if len(cleanup.fns) != 1 {
-		t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
-	}
-	if state.currentExtensionRuntime() != runtime {
-		t.Fatalf("state.extensions = %#v, want runtime", state.currentExtensionRuntime())
-	}
-	if state.deps.Extensions == nil {
-		t.Fatal("state.deps.Extensions = nil, want extension service")
-	}
-	if state.bridges.extensions != runtime {
-		t.Fatalf("state.bridges.extensions = %#v, want runtime", state.bridges.extensions)
-	}
-	healthy, err := state.deps.Extensions.Status(testutil.Context(t), "ext-healthy")
-	if err != nil {
-		t.Fatalf("Extensions.Status(ext-healthy) error = %v", err)
-	}
-	if got, want := healthy.State, "registered"; got != want {
-		t.Fatalf("ext-healthy state = %q, want %q", got, want)
-	}
-	bad, err := state.deps.Extensions.Status(testutil.Context(t), "ext-bad")
-	if err != nil {
-		t.Fatalf("Extensions.Status(ext-bad) error = %v", err)
-	}
-	if got, want := bad.State, "enabled"; got != want {
-		t.Fatalf("ext-bad state = %q, want %q", got, want)
-	}
-	if !strings.Contains(logBuffer.String(), "healthy extensions only") {
-		t.Fatalf("log output = %q, want partial start continuation message", logBuffer.String())
-	}
+		if err := d.bootExtensions(testutil.Context(t), state, cleanup); err != nil {
+			t.Fatalf("bootExtensions() error = %v, want nil", err)
+		}
+
+		if runtime.startCount != 1 {
+			t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
+		}
+		if rebuilds != 1 {
+			t.Fatalf("hook rebuild count = %d, want 1 after partial start", rebuilds)
+		}
+		if len(cleanup.fns) != 1 {
+			t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
+		}
+		if state.currentExtensionRuntime() != runtime {
+			t.Fatalf("state.extensions = %#v, want runtime", state.currentExtensionRuntime())
+		}
+		if state.deps.Extensions == nil {
+			t.Fatal("state.deps.Extensions = nil, want extension service")
+		}
+		if state.bridges.extensions != runtime {
+			t.Fatalf("state.bridges.extensions = %#v, want runtime", state.bridges.extensions)
+		}
+		healthy, err := state.deps.Extensions.Status(testutil.Context(t), "ext-healthy")
+		if err != nil {
+			t.Fatalf("Extensions.Status(ext-healthy) error = %v", err)
+		}
+		if got, want := healthy.State, "registered"; got != want {
+			t.Fatalf("ext-healthy state = %q, want %q", got, want)
+		}
+		bad, err := state.deps.Extensions.Status(testutil.Context(t), "ext-bad")
+		if err != nil {
+			t.Fatalf("Extensions.Status(ext-bad) error = %v", err)
+		}
+		if got, want := bad.State, "enabled"; got != want {
+			t.Fatalf("ext-bad state = %q, want %q", got, want)
+		}
+		if !strings.Contains(logBuffer.String(), "healthy extensions only") {
+			t.Fatalf("log output = %q, want partial start continuation message", logBuffer.String())
+		}
+	})
 }
 
 func TestBootExtensionsPropagatesContextCancellation(t *testing.T) {

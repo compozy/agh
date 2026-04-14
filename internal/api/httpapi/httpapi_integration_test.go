@@ -1032,6 +1032,8 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 
 func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 	t.Run("Should enqueue claim start and complete a task run", func(t *testing.T) {
+		t.Parallel()
+
 		runtime := newIntegrationRuntime(t)
 		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
 
@@ -1106,6 +1108,8 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 	})
 
 	t.Run("Should attach a claimed run session and then fail it", func(t *testing.T) {
+		t.Parallel()
+
 		runtime := newIntegrationRuntime(t)
 		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
 		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-2"}`)
@@ -1140,6 +1144,8 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 	})
 
 	t.Run("Should cancel one queued task run", func(t *testing.T) {
+		t.Parallel()
+
 		runtime := newIntegrationRuntime(t)
 		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
 		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-3"}`)

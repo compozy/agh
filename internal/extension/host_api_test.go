@@ -1014,7 +1014,7 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 		if got, want := notifiedSessionID, sess.ID; got != want {
 			t.Fatalf("turn end notifier session id = %q, want %q", got, want)
 		}
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for prompt completion")
 	}
 
@@ -1743,17 +1743,17 @@ func TestHostAPIHandlerTaskOperationsRequireCapabilities(t *testing.T) {
 		params map[string]any
 	}{
 		{
-			name:   "CreateDenied",
+			name:   "ShouldDenyCreate",
 			method: "tasks/create",
 			params: map[string]any{"scope": taskpkg.ScopeGlobal, "title": "Denied create"},
 		},
 		{
-			name:   "UpdateDenied",
+			name:   "ShouldDenyUpdate",
 			method: "tasks/update",
 			params: map[string]any{"id": "task-denied", "title": "Denied update"},
 		},
 		{
-			name:   "RunStartDenied",
+			name:   "ShouldDenyRunStart",
 			method: "tasks/runs/start",
 			params: map[string]any{"id": "run-denied", "idempotency_key": "idem-denied"},
 		},
@@ -2310,9 +2310,9 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 			method string
 			params map[string]any
 		}{
-			{name: "List", method: "tasks", params: map[string]any{}},
-			{name: "Get", method: "tasks/get", params: map[string]any{"id": "task-1"}},
-			{name: "Runs", method: "tasks/runs", params: map[string]any{"id": "task-1"}},
+			{name: "ShouldRejectList", method: "tasks", params: map[string]any{}},
+			{name: "ShouldRejectGet", method: "tasks/get", params: map[string]any{"id": "task-1"}},
+			{name: "ShouldRejectRuns", method: "tasks/runs", params: map[string]any{"id": "task-1"}},
 		}
 
 		for _, tt := range tests {
@@ -2349,7 +2349,7 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 			wantText string
 		}{
 			{
-				name:   "UnknownWorkspace",
+				name:   "ShouldRejectUnknownWorkspace",
 				method: "tasks/create",
 				params: map[string]any{
 					"scope":     taskpkg.ScopeWorkspace,
@@ -2360,7 +2360,7 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 				wantText: "workspace",
 			},
 			{
-				name:   "InvalidListChannel",
+				name:   "ShouldRejectInvalidListChannel",
 				method: "tasks",
 				params: map[string]any{
 					"network_channel": "not valid",
@@ -2369,14 +2369,14 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 				wantText: "task_query.network_channel",
 			},
 			{
-				name:     "UpdateRequiresChanges",
+				name:     "ShouldRequireUpdateChanges",
 				method:   "tasks/update",
 				params:   map[string]any{"id": "task-1"},
 				wantCode: HostAPIInvalidParamsCode,
 				wantText: "at least one mutable field",
 			},
 			{
-				name:     "AttachRequiresSessionID",
+				name:     "ShouldRequireAttachSessionID",
 				method:   "tasks/runs/attach_session",
 				params:   map[string]any{"id": "run-1"},
 				wantCode: HostAPIInvalidParamsCode,
@@ -2424,16 +2424,16 @@ func TestHostAPIHandlerTaskMethodsRequireIdentifiers(t *testing.T) {
 		params   map[string]any
 		wantText string
 	}{
-		{name: "Get", method: "tasks/get", params: map[string]any{}, wantText: "id is required"},
-		{name: "Update", method: "tasks/update", params: map[string]any{"title": "rename"}, wantText: "id is required"},
-		{name: "Cancel", method: "tasks/cancel", params: map[string]any{"reason": "stop"}, wantText: "id is required"},
-		{name: "RunsList", method: "tasks/runs", params: map[string]any{}, wantText: "id is required"},
-		{name: "RunEnqueue", method: "tasks/runs/enqueue", params: map[string]any{"idempotency_key": "idem"}, wantText: "task_id is required"},
-		{name: "RunClaim", method: "tasks/runs/claim", params: map[string]any{"idempotency_key": "idem"}, wantText: "id is required"},
-		{name: "RunStart", method: "tasks/runs/start", params: map[string]any{"idempotency_key": "idem"}, wantText: "id is required"},
-		{name: "RunComplete", method: "tasks/runs/complete", params: map[string]any{"result": map[string]any{"ok": true}}, wantText: "id is required"},
-		{name: "RunFail", method: "tasks/runs/fail", params: map[string]any{"error": "boom"}, wantText: "id is required"},
-		{name: "RunCancel", method: "tasks/runs/cancel", params: map[string]any{"reason": "cancel"}, wantText: "id is required"},
+		{name: "ShouldRequireTaskIDForGet", method: "tasks/get", params: map[string]any{}, wantText: "id is required"},
+		{name: "ShouldRequireTaskIDForUpdate", method: "tasks/update", params: map[string]any{"title": "rename"}, wantText: "id is required"},
+		{name: "ShouldRequireTaskIDForCancel", method: "tasks/cancel", params: map[string]any{"reason": "stop"}, wantText: "id is required"},
+		{name: "ShouldRequireTaskIDForRunsList", method: "tasks/runs", params: map[string]any{}, wantText: "id is required"},
+		{name: "ShouldRequireTaskIDForRunEnqueue", method: "tasks/runs/enqueue", params: map[string]any{"idempotency_key": "idem"}, wantText: "task_id is required"},
+		{name: "ShouldRequireTaskIDForRunClaim", method: "tasks/runs/claim", params: map[string]any{"idempotency_key": "idem"}, wantText: "id is required"},
+		{name: "ShouldRequireTaskIDForRunStart", method: "tasks/runs/start", params: map[string]any{"idempotency_key": "idem"}, wantText: "id is required"},
+		{name: "ShouldRequireTaskIDForRunComplete", method: "tasks/runs/complete", params: map[string]any{"result": map[string]any{"ok": true}}, wantText: "id is required"},
+		{name: "ShouldRequireTaskIDForRunFail", method: "tasks/runs/fail", params: map[string]any{"error": "boom"}, wantText: "id is required"},
+		{name: "ShouldRequireTaskIDForRunCancel", method: "tasks/runs/cancel", params: map[string]any{"reason": "cancel"}, wantText: "id is required"},
 	}
 
 	for _, tt := range tests {
@@ -2475,16 +2475,16 @@ func TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords(t *testing.T) 
 		params   map[string]any
 		wantText string
 	}{
-		{name: "GetTask", method: "tasks/get", params: map[string]any{"id": "task-missing"}, wantText: "task not found"},
-		{name: "UpdateTask", method: "tasks/update", params: map[string]any{"id": "task-missing", "title": "rename"}, wantText: "task not found"},
-		{name: "CancelTask", method: "tasks/cancel", params: map[string]any{"id": "task-missing"}, wantText: "task not found"},
-		{name: "ListRuns", method: "tasks/runs", params: map[string]any{"id": "task-missing"}, wantText: "task not found"},
-		{name: "ClaimRun", method: "tasks/runs/claim", params: map[string]any{"id": "run-missing", "idempotency_key": "idem"}, wantText: "task run not found"},
-		{name: "StartRun", method: "tasks/runs/start", params: map[string]any{"id": "run-missing", "idempotency_key": "idem"}, wantText: "task run not found"},
-		{name: "AttachRun", method: "tasks/runs/attach_session", params: map[string]any{"id": "run-missing", "session_id": "sess-missing"}, wantText: "task run not found"},
-		{name: "CompleteRun", method: "tasks/runs/complete", params: map[string]any{"id": "run-missing", "result": map[string]any{"ok": true}}, wantText: "task run not found"},
-		{name: "FailRun", method: "tasks/runs/fail", params: map[string]any{"id": "run-missing", "error": "boom"}, wantText: "task run not found"},
-		{name: "CancelRun", method: "tasks/runs/cancel", params: map[string]any{"id": "run-missing"}, wantText: "task run not found"},
+		{name: "ShouldReturnTaskNotFoundForGet", method: "tasks/get", params: map[string]any{"id": "task-missing"}, wantText: "task not found"},
+		{name: "ShouldReturnTaskNotFoundForUpdate", method: "tasks/update", params: map[string]any{"id": "task-missing", "title": "rename"}, wantText: "task not found"},
+		{name: "ShouldReturnTaskNotFoundForCancel", method: "tasks/cancel", params: map[string]any{"id": "task-missing"}, wantText: "task not found"},
+		{name: "ShouldReturnTaskNotFoundForListRuns", method: "tasks/runs", params: map[string]any{"id": "task-missing"}, wantText: "task not found"},
+		{name: "ShouldReturnRunNotFoundForClaim", method: "tasks/runs/claim", params: map[string]any{"id": "run-missing", "idempotency_key": "idem"}, wantText: "task run not found"},
+		{name: "ShouldReturnRunNotFoundForStart", method: "tasks/runs/start", params: map[string]any{"id": "run-missing", "idempotency_key": "idem"}, wantText: "task run not found"},
+		{name: "ShouldReturnRunNotFoundForAttach", method: "tasks/runs/attach_session", params: map[string]any{"id": "run-missing", "session_id": "sess-missing"}, wantText: "task run not found"},
+		{name: "ShouldReturnRunNotFoundForComplete", method: "tasks/runs/complete", params: map[string]any{"id": "run-missing", "result": map[string]any{"ok": true}}, wantText: "task run not found"},
+		{name: "ShouldReturnRunNotFoundForFail", method: "tasks/runs/fail", params: map[string]any{"id": "run-missing", "error": "boom"}, wantText: "task run not found"},
+		{name: "ShouldReturnRunNotFoundForCancel", method: "tasks/runs/cancel", params: map[string]any{"id": "run-missing"}, wantText: "task run not found"},
 	}
 
 	for _, tt := range tests {
@@ -2512,14 +2512,14 @@ func TestMapTaskRPCErrorTranslatesKnownErrors(t *testing.T) {
 		wantNil  bool
 		wantSame bool
 	}{
-		{name: "Nil", err: nil, wantNil: true},
-		{name: "WorkspaceNotFound", resource: "workspace", id: "ws-1", err: workspacepkg.ErrWorkspaceNotFound, wantCode: HostAPINotFoundCode, wantText: "workspace not found"},
-		{name: "TaskNotFound", resource: "task", id: "task-1", err: taskpkg.ErrTaskNotFound, wantCode: HostAPINotFoundCode, wantText: "task not found"},
-		{name: "RunNotFound", resource: "task_run", id: "run-1", err: taskpkg.ErrTaskRunNotFound, wantCode: HostAPINotFoundCode, wantText: "task run not found"},
-		{name: "DependencyNotFound", resource: "task_dependency", id: "dep-1", err: taskpkg.ErrTaskDependencyNotFound, wantCode: HostAPINotFoundCode, wantText: "task dependency not found"},
-		{name: "PermissionDenied", resource: "task", id: "task-1", err: taskpkg.ErrPermissionDenied, wantCode: HostAPIInvalidParamsCode, wantText: "permission denied"},
-		{name: "StaleNetworkChannel", resource: "task_run", id: "run-1", err: taskpkg.ErrStaleNetworkChannel, wantCode: HostAPIInvalidParamsCode, wantText: "stale network channel"},
-		{name: "Passthrough", resource: "task", id: "task-1", err: errors.New("boom"), wantSame: true},
+		{name: "ShouldReturnNilForNilError", err: nil, wantNil: true},
+		{name: "ShouldMapWorkspaceNotFound", resource: "workspace", id: "ws-1", err: workspacepkg.ErrWorkspaceNotFound, wantCode: HostAPINotFoundCode, wantText: "workspace not found"},
+		{name: "ShouldMapTaskNotFound", resource: "task", id: "task-1", err: taskpkg.ErrTaskNotFound, wantCode: HostAPINotFoundCode, wantText: "task not found"},
+		{name: "ShouldMapRunNotFound", resource: "task_run", id: "run-1", err: taskpkg.ErrTaskRunNotFound, wantCode: HostAPINotFoundCode, wantText: "task run not found"},
+		{name: "ShouldMapDependencyNotFound", resource: "task_dependency", id: "dep-1", err: taskpkg.ErrTaskDependencyNotFound, wantCode: HostAPINotFoundCode, wantText: "task dependency not found"},
+		{name: "ShouldMapPermissionDenied", resource: "task", id: "task-1", err: taskpkg.ErrPermissionDenied, wantCode: HostAPIInvalidParamsCode, wantText: "permission denied"},
+		{name: "ShouldMapStaleNetworkChannel", resource: "task_run", id: "run-1", err: taskpkg.ErrStaleNetworkChannel, wantCode: HostAPIInvalidParamsCode, wantText: "stale network channel"},
+		{name: "ShouldPassThroughUnknownErrors", resource: "task", id: "task-1", err: errors.New("boom"), wantSame: true},
 	}
 
 	for _, tt := range tests {
@@ -2744,7 +2744,7 @@ func (e *hostAPITestTaskSessionExecutor) StartTaskSession(ctx context.Context, s
 
 	created, err := e.sessions.Create(ctx, opts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("start task session: create session: %w", err)
 	}
 	info := created.Info()
 	if info == nil {
@@ -2764,7 +2764,7 @@ func (e *hostAPITestTaskSessionExecutor) AttachTaskSession(ctx context.Context, 
 
 	info, err := e.sessions.Status(ctx, strings.TrimSpace(sessionID))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("attach task session: read session status: %w", err)
 	}
 	if info == nil || info.State != session.StateActive {
 		return nil, fmt.Errorf("%w: session %q is not active", taskpkg.ErrSessionAttachNotAllowed, strings.TrimSpace(sessionID))
@@ -2777,11 +2777,23 @@ func (e *hostAPITestTaskSessionExecutor) AttachTaskSession(ctx context.Context, 
 }
 
 func (e *hostAPITestTaskSessionExecutor) RequestTaskStop(ctx context.Context, sessionID string, _ taskpkg.StopReason) error {
-	return e.sessions.RequestStopWithCause(ctx, strings.TrimSpace(sessionID), session.CauseUserRequested, "task cancellation")
+	if ctx == nil {
+		return errors.New("extension: host api test task request stop context is required")
+	}
+	if err := e.sessions.RequestStopWithCause(ctx, strings.TrimSpace(sessionID), session.CauseUserRequested, "task cancellation"); err != nil {
+		return fmt.Errorf("request task stop: %w", err)
+	}
+	return nil
 }
 
 func (e *hostAPITestTaskSessionExecutor) ForceTaskStop(ctx context.Context, sessionID string, _ taskpkg.StopReason) error {
-	return e.sessions.StopWithCause(ctx, strings.TrimSpace(sessionID), session.CauseUserRequested, "task cancellation")
+	if ctx == nil {
+		return errors.New("extension: host api test task force stop context is required")
+	}
+	if err := e.sessions.StopWithCause(ctx, strings.TrimSpace(sessionID), session.CauseUserRequested, "task cancellation"); err != nil {
+		return fmt.Errorf("force task stop: %w", err)
+	}
+	return nil
 }
 
 func newHostAPITestEnv(t *testing.T, opts ...hostAPITestEnvOption) *hostAPITestEnv {

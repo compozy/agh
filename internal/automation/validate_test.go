@@ -840,6 +840,25 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 		t.Fatalf("Run.Validate(delegated missing task id) error = %q, want delegated task_id failure", got)
 	}
 
+	delegatedMissingTaskRunID := Run{
+		Status:  RunDelegated,
+		Attempt: 1,
+		TaskID:  "task-1",
+	}
+	if err := delegatedMissingTaskRunID.Validate("run"); err == nil {
+		t.Fatal("Run.Validate(delegated missing task run id) error = nil, want non-nil")
+	} else if got := err.Error(); !strings.Contains(got, "run.task_run_id is required when run.status is \"delegated\"") {
+		t.Fatalf("Run.Validate(delegated missing task run id) error = %q, want delegated task_run_id failure", got)
+	}
+
+	if err := (JobTaskConfig{
+		NetworkChannel: "bad channel",
+	}).Validate("job.task"); err == nil {
+		t.Fatal("JobTaskConfig.Validate(invalid channel) error = nil, want non-nil")
+	} else if got := err.Error(); !strings.Contains(got, "job.task.network_channel is invalid") {
+		t.Fatalf("JobTaskConfig.Validate(invalid channel) error = %q, want network_channel validation", got)
+	}
+
 	envelope := ActivationEnvelope{
 		Kind:   "session.stopped",
 		Scope:  AutomationScopeWorkspace,

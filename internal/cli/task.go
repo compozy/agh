@@ -761,6 +761,10 @@ func parseTaskListFilters(scopeRaw string, workspaceRef string, statusRaw string
 	if err != nil {
 		return TaskListQuery{}, err
 	}
+	trimmedOwnerRef := strings.TrimSpace(ownerRef)
+	if (ownerKind != "" && trimmedOwnerRef == "") || (ownerKind == "" && trimmedOwnerRef != "") {
+		return TaskListQuery{}, errors.New("cli: --owner-kind and --owner-ref must be provided together")
+	}
 	if err := validateTaskChannelFlag("channel", channelRaw); err != nil {
 		return TaskListQuery{}, err
 	}
@@ -773,7 +777,7 @@ func parseTaskListFilters(scopeRaw string, workspaceRef string, statusRaw string
 		Workspace:      workspace,
 		Status:         status,
 		OwnerKind:      ownerKind,
-		OwnerRef:       strings.TrimSpace(ownerRef),
+		OwnerRef:       trimmedOwnerRef,
 		ParentTaskID:   strings.TrimSpace(parentTaskID),
 		NetworkChannel: strings.TrimSpace(channelRaw),
 		Limit:          last,

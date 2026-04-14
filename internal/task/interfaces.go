@@ -23,6 +23,7 @@ type Manager interface {
 	CancelRun(ctx context.Context, runID string, req CancelRun, actor ActorContext) (*TaskRun, error)
 
 	GetTask(ctx context.Context, id string, actor ActorContext) (*TaskView, error)
+	ListTaskRuns(ctx context.Context, taskID string, query TaskRunQuery, actor ActorContext) ([]TaskRun, error)
 	ListTasks(ctx context.Context, query TaskQuery, actor ActorContext) ([]TaskSummary, error)
 }
 

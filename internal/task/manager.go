@@ -473,6 +473,27 @@ func (m *TaskManager) GetTask(ctx context.Context, id string, actor ActorContext
 	return view, nil
 }
 
+// ListTaskRuns returns task runs for one task after enforcing read authority and
+// task existence.
+func (m *TaskManager) ListTaskRuns(ctx context.Context, taskID string, query TaskRunQuery, actor ActorContext) ([]TaskRun, error) {
+	if err := requireReadAuthority(actor); err != nil {
+		return nil, err
+	}
+
+	trimmedID := strings.TrimSpace(taskID)
+	if trimmedID == "" {
+		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
+	}
+
+	if _, err := m.store.GetTask(ctx, trimmedID); err != nil {
+		return nil, err
+	}
+
+	normalizedQuery := query
+	normalizedQuery.TaskID = trimmedID
+	return m.store.ListTaskRuns(ctx, normalizedQuery)
+}
+
 // ListTasks returns task summaries that satisfy the supplied query filters
 // after enforcing read authority.
 func (m *TaskManager) ListTasks(ctx context.Context, query TaskQuery, actor ActorContext) ([]TaskSummary, error) {
