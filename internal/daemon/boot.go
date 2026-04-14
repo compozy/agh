@@ -602,11 +602,11 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 			return err
 		}
 
-		if !extensionRuntimeHasRegisteredEntries(ctx, extRegistry, manager) {
+		if extensionRuntimeHasRegisteredEntries(ctx, extRegistry, manager) {
+			state.logger.Error("daemon: extension manager start failed; continuing with healthy extensions only", "error", err)
+		} else {
 			state.logger.Error("daemon: extension manager start failed; continuing without blocking boot", "error", err)
-			return nil
 		}
-		state.logger.Error("daemon: extension manager start failed; continuing with healthy extensions only", "error", err)
 	}
 	if state.bridges != nil {
 		state.bridges.setExtensionRuntime(manager)
@@ -617,9 +617,6 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		if err := state.hooks.Rebuild(ctx); err != nil {
 			state.logger.Error("daemon: rebuild hooks after extension boot failed; continuing without extension hooks", "error", err)
 		}
-	}
-	if startErr != nil {
-		state.logger.Error("daemon: extension manager start failed; continuing without blocking boot", "error", startErr)
 	}
 
 	return nil
