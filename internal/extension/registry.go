@@ -118,13 +118,9 @@ func (r *Registry) Install(manifest *Manifest, path string, checksum string, opt
 	config := installConfig{
 		source: SourceUser,
 	}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(&config)
-		}
-	}
+	applyInstallOptions(&config, opts...)
 
-	return r.installWithSource(manifest, path, checksum, config.source, opts...)
+	return r.installWithConfig(manifest, path, checksum, config)
 }
 
 // Uninstall removes one extension from the registry.
@@ -273,6 +269,14 @@ func ComputeDirectoryChecksum(path string) (string, error) {
 }
 
 func (r *Registry) installWithSource(manifest *Manifest, path string, checksum string, source ExtensionSource, opts ...InstallOption) error {
+	config := installConfig{
+		source: source,
+	}
+	applyInstallOptions(&config, opts...)
+	return r.installWithConfig(manifest, path, checksum, config)
+}
+
+func (r *Registry) installWithConfig(manifest *Manifest, path string, checksum string, config installConfig) error {
 	if err := r.checkReady("install extension"); err != nil {
 		return err
 	}
@@ -288,26 +292,12 @@ func (r *Registry) installWithSource(manifest *Manifest, path string, checksum s
 		return errors.New("extension: checksum is required")
 	}
 
+	source := config.source
 	sourceText := source.String()
 	if sourceText == "" {
 		return fmt.Errorf("extension: invalid source %d", source)
 	}
 
-	config := installConfig{
-		source: source,
-	}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(&config)
-		}
-	}
-	if config.source != source {
-		source = config.source
-		sourceText = source.String()
-		if sourceText == "" {
-			return fmt.Errorf("extension: invalid source %d", source)
-		}
-	}
 	if source != SourceMarketplace {
 		config.registrySlug = nil
 		config.registryName = nil
@@ -414,6 +404,18 @@ func (r *Registry) installWithSource(manifest *Manifest, path string, checksum s
 	}
 
 	return nil
+}
+
+func applyInstallOptions(config *installConfig, opts ...InstallOption) {
+	if config == nil {
+		return
+	}
+
+	for _, opt := range opts {
+		if opt != nil {
+			opt(config)
+		}
+	}
 }
 
 func (r *Registry) updateEnabled(name string, enabled bool) error {

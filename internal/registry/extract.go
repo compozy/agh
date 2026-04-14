@@ -99,15 +99,32 @@ func extractArchive(reader io.Reader, destRoot string, limits extractLimits) (er
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(targetPath, 0o755); err != nil {
-				return fmt.Errorf("create archive directory %q: %w", targetPath, err)
-			}
-		case tar.TypeReg, 0:
-			if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-				return fmt.Errorf("create archive parent %q: %w", filepath.Dir(targetPath), err)
+			if err := ensureExtractionPathSafe(destRoot, targetPath); err != nil {
+				return fmt.Errorf("validate archive directory %q: %w", targetPath, err)
 			}
 
-			file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+			dirMode := archiveDirMode(header)
+			if err := os.MkdirAll(targetPath, dirMode); err != nil {
+				return fmt.Errorf("create archive directory %q: %w", targetPath, err)
+			}
+			if err := os.Chmod(targetPath, dirMode); err != nil {
+				return fmt.Errorf("set archive directory mode %q: %w", targetPath, err)
+			}
+		case tar.TypeReg, 0:
+			parentDir := filepath.Dir(targetPath)
+			if err := ensureExtractionPathSafe(destRoot, parentDir); err != nil {
+				return fmt.Errorf("validate archive parent %q: %w", parentDir, err)
+			}
+			if err := os.MkdirAll(parentDir, 0o755); err != nil {
+				return fmt.Errorf("create archive parent %q: %w", parentDir, err)
+			}
+
+			if err := ensureExtractionPathSafe(destRoot, targetPath); err != nil {
+				return fmt.Errorf("validate archive file %q: %w", targetPath, err)
+			}
+
+			fileMode := archiveFileMode(header)
+			file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fileMode)
 			if err != nil {
 				return fmt.Errorf("create archive file %q: %w", targetPath, err)
 			}
@@ -127,6 +144,9 @@ func extractArchive(reader io.Reader, destRoot string, limits extractLimits) (er
 			}
 			if err := file.Close(); err != nil {
 				return fmt.Errorf("close archive file %q: %w", targetPath, err)
+			}
+			if err := os.Chmod(targetPath, fileMode); err != nil {
+				return fmt.Errorf("set archive file mode %q: %w", targetPath, err)
 			}
 		default:
 			return fmt.Errorf("unsupported archive entry type %d for %q", header.Typeflag, header.Name)
@@ -245,4 +265,83 @@ func PathWithinRoot(root string, child string) (string, error) {
 		return "", errors.New("path must stay within the root directory")
 	}
 	return absTarget, nil
+}
+
+func archiveDirMode(header *tar.Header) os.FileMode {
+	if header == nil {
+		return 0o755
+	}
+
+	mode := os.FileMode(header.Mode) & os.ModePerm
+	if mode == 0 {
+		return 0o755
+	}
+	return mode
+}
+
+func archiveFileMode(header *tar.Header) os.FileMode {
+	if header == nil {
+		return 0o644
+	}
+
+	mode := os.FileMode(header.Mode) & os.ModePerm
+	if mode == 0 {
+		return 0o644
+	}
+	return mode
+}
+
+func ensureExtractionPathSafe(root string, targetPath string) error {
+	absRoot, err := filepath.Abs(strings.TrimSpace(root))
+	if err != nil {
+		return fmt.Errorf("resolve extraction root %q: %w", root, err)
+	}
+	absTarget, err := filepath.Abs(strings.TrimSpace(targetPath))
+	if err != nil {
+		return fmt.Errorf("resolve extraction target %q: %w", targetPath, err)
+	}
+
+	relative, err := filepath.Rel(absRoot, absTarget)
+	if err != nil {
+		return fmt.Errorf("resolve extraction target %q within %q: %w", absTarget, absRoot, err)
+	}
+
+	if err := ensureExtractionComponent(absRoot, true); err != nil {
+		return err
+	}
+	if relative == "." {
+		return nil
+	}
+
+	current := absRoot
+	for _, component := range strings.Split(relative, string(filepath.Separator)) {
+		if component == "" || component == "." {
+			continue
+		}
+
+		current = filepath.Join(current, component)
+		if err := ensureExtractionComponent(current, current != absTarget); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func ensureExtractionComponent(path string, mustBeDir bool) error {
+	info, err := os.Lstat(path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return nil
+	case err != nil:
+		return fmt.Errorf("inspect extraction path %q: %w", path, err)
+	}
+
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("extraction path %q traverses symlink", path)
+	}
+	if mustBeDir && !info.IsDir() {
+		return fmt.Errorf("extraction path %q is not a directory", path)
+	}
+	return nil
 }

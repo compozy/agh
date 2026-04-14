@@ -91,6 +91,9 @@ func (m *MultiRegistry) Search(ctx context.Context, query string, opts SearchOpt
 	}
 
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("registry: search canceled: %w", err)
+	}
 
 	if searchableSources == 0 {
 		return []Listing{}, nil
@@ -202,6 +205,26 @@ func (m *MultiRegistry) Close() error {
 	return errors.Join(errs...)
 }
 
+// SourceNamed returns the highest-priority source with the requested name.
+func (m *MultiRegistry) SourceNamed(name string) RegistrySource {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return nil
+	}
+
+	for index := len(m.sources) - 1; index >= 0; index-- {
+		source := m.sources[index]
+		if source == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(source.Name()), trimmed) {
+			return source
+		}
+	}
+
+	return nil
+}
+
 func (m *MultiRegistry) resolveSource(ctx context.Context, slug string) (RegistrySource, *Detail, error) {
 	if err := checkMultiRegistryContext(ctx); err != nil {
 		return nil, nil, err
@@ -237,6 +260,9 @@ func (m *MultiRegistry) resolveSource(ctx context.Context, slug string) (Registr
 	}
 
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, nil, fmt.Errorf("registry: info canceled for %q: %w", trimmedSlug, err)
+	}
 
 	for index := len(m.sources) - 1; index >= 0; index-- {
 		if results[index].detail != nil {

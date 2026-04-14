@@ -263,6 +263,9 @@ func (c *Client) Download(ctx context.Context, slug string, opts registry.Downlo
 	default:
 		return nil, fmt.Errorf("github: no download candidate resolved for %q", repo.full)
 	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return nil, responseError(response, "download", repo.full)
+	}
 
 	contentType := strings.TrimSpace(response.Header.Get("Content-Type"))
 	if err := validateDownloadContentType(contentType); err != nil {

@@ -440,11 +440,11 @@ func manifestPathAtRoot(root string) (string, error) {
 	extensionManifest := filepath.Join(root, installerExtensionManifestName)
 	skillManifest := filepath.Join(root, installerSkillManifestName)
 
-	hasExtensionManifest, err := fileExists(extensionManifest)
+	hasExtensionManifest, err := manifestFileExists(extensionManifest)
 	if err != nil {
 		return "", fmt.Errorf("registry: inspect manifest %q: %w", extensionManifest, err)
 	}
-	hasSkillManifest, err := fileExists(skillManifest)
+	hasSkillManifest, err := manifestFileExists(skillManifest)
 	if err != nil {
 		return "", fmt.Errorf("registry: inspect manifest %q: %w", skillManifest, err)
 	}
@@ -588,15 +588,26 @@ func writeInstallChecksumEntry(hasher hash.Hash, root string, relPath string) er
 	}
 
 	if info.Mode().IsRegular() {
-		content, err := os.ReadFile(absPath)
+		file, err := os.Open(absPath)
 		if err != nil {
-			return fmt.Errorf("registry: read checksum path %q: %w", absPath, err)
+			return fmt.Errorf("registry: open checksum path %q: %w", absPath, err)
 		}
 		if err := writeInstallChecksumString(hasher, fmt.Sprintf("file:%s\nmode:%#o\n", normalizedPath, info.Mode().Perm())); err != nil {
+			closeErr := file.Close()
+			if closeErr != nil {
+				return errors.Join(err, fmt.Errorf("registry: close checksum path %q: %w", absPath, closeErr))
+			}
 			return err
 		}
-		if _, err := hasher.Write(content); err != nil {
-			return fmt.Errorf("registry: hash regular file %q: %w", absPath, err)
+		if _, err := io.Copy(hasher, file); err != nil {
+			copyErr := fmt.Errorf("registry: hash regular file %q: %w", absPath, err)
+			if closeErr := file.Close(); closeErr != nil {
+				copyErr = errors.Join(copyErr, fmt.Errorf("registry: close checksum path %q after read failure: %w", absPath, closeErr))
+			}
+			return copyErr
+		}
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("registry: close checksum path %q: %w", absPath, err)
 		}
 		if _, err := hasher.Write([]byte{0}); err != nil {
 			return fmt.Errorf("registry: hash separator for %q: %w", absPath, err)
@@ -626,11 +637,14 @@ func writeInstallChecksumString(hasher hash.Hash, value string) error {
 	return nil
 }
 
-func fileExists(path string) (bool, error) {
-	info, err := os.Stat(path)
+func manifestFileExists(path string) (bool, error) {
+	info, err := os.Lstat(path)
 	switch {
 	case err == nil:
-		return !info.IsDir(), nil
+		if info.Mode().IsRegular() {
+			return true, nil
+		}
+		return false, fmt.Errorf("manifest %q must be a regular file", path)
 	case errors.Is(err, os.ErrNotExist):
 		return false, nil
 	default:

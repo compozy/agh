@@ -26,11 +26,20 @@ type skillRegistry interface {
 	CheckUpdate(ctx context.Context, slug string, currentVersion string) (*registrypkg.UpdateInfo, error)
 }
 
+type namedSkillRegistry interface {
+	skillRegistry
+	SourceNamed(name string) registrypkg.RegistrySource
+}
+
 type installedMarketplaceSkill struct {
 	Name       string
 	Dir        string
 	FilePath   string
 	Provenance skills.Provenance
+}
+
+type sourceBackedSkillRegistry struct {
+	source registrypkg.RegistrySource
 }
 
 func defaultSkillRegistrySourceLoader(runtime runtimeContext) ([]registrypkg.RegistrySource, error) {
@@ -81,6 +90,66 @@ func normalizeSkillSlug(slug string) (string, error) {
 		return "", errors.New(`skill slug must match "@author/name"`)
 	}
 	return trimmed, nil
+}
+
+func (r sourceBackedSkillRegistry) Download(ctx context.Context, slug string, opts registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+	if r.source == nil {
+		return nil, errors.New("cli: registry source is required")
+	}
+	return r.source.Download(ctx, slug, opts)
+}
+
+func (r sourceBackedSkillRegistry) Info(ctx context.Context, slug string) (*registrypkg.Detail, error) {
+	if r.source == nil {
+		return nil, errors.New("cli: registry source is required")
+	}
+
+	detail, err := r.source.Info(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	if detail != nil && strings.TrimSpace(detail.Source) == "" {
+		detail.Source = strings.TrimSpace(r.source.Name())
+	}
+	return detail, nil
+}
+
+func (r sourceBackedSkillRegistry) CheckUpdate(ctx context.Context, slug string, currentVersion string) (*registrypkg.UpdateInfo, error) {
+	detail, err := r.Info(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	if detail == nil {
+		return nil, fmt.Errorf("cli: marketplace info returned no detail for %q", slug)
+	}
+
+	latestVersion := strings.TrimSpace(detail.Version)
+	return &registrypkg.UpdateInfo{
+		Slug:           strings.TrimSpace(slug),
+		CurrentVersion: strings.TrimSpace(currentVersion),
+		LatestVersion:  latestVersion,
+		HasUpdate:      registrypkg.VersionIsNewer(currentVersion, latestVersion),
+		Source:         strings.TrimSpace(detail.Source),
+	}, nil
+}
+
+func resolveInstalledSkillRegistry(registry skillRegistry, installed installedMarketplaceSkill) (skillRegistry, error) {
+	registryName := strings.TrimSpace(installed.Provenance.Registry)
+	if registryName == "" {
+		return nil, fmt.Errorf("cli: marketplace skill %q is missing registry metadata", installed.Name)
+	}
+
+	namedRegistry, ok := registry.(namedSkillRegistry)
+	if !ok {
+		return registry, nil
+	}
+
+	source := namedRegistry.SourceNamed(registryName)
+	if source == nil {
+		return nil, fmt.Errorf("cli: marketplace registry source %q is not configured for %q", registryName, installed.Name)
+	}
+
+	return sourceBackedSkillRegistry{source: source}, nil
 }
 
 func installMarketplaceSkill(
@@ -223,9 +292,13 @@ func updateMarketplaceSkill(
 	if slug == "" {
 		return skillUpdateItem{}, fmt.Errorf("cli: marketplace skill %q is missing registry slug metadata", installed.Name)
 	}
+	resolvedRegistry, err := resolveInstalledSkillRegistry(registry, installed)
+	if err != nil {
+		return skillUpdateItem{}, err
+	}
 
 	currentVersion := strings.TrimSpace(installed.Provenance.Version)
-	updateInfo, err := registry.CheckUpdate(ctx, slug, currentVersion)
+	updateInfo, err := resolvedRegistry.CheckUpdate(ctx, slug, currentVersion)
 	if err != nil {
 		return skillUpdateItem{}, err
 	}
@@ -251,7 +324,7 @@ func updateMarketplaceSkill(
 		return item, nil
 	}
 
-	installedItem, err := installMarketplaceSkill(ctx, runtime, registry, slug, latestVersion, installed.Dir, now)
+	installedItem, err := installMarketplaceSkill(ctx, runtime, resolvedRegistry, slug, latestVersion, installed.Dir, now)
 	if err != nil {
 		return skillUpdateItem{}, err
 	}

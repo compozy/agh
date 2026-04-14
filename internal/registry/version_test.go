@@ -24,7 +24,9 @@ func TestVersionIsNewer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if got := VersionIsNewer(tt.current, tt.latest); got != tt.want {
 				t.Fatalf("VersionIsNewer(%q, %q) = %v, want %v", tt.current, tt.latest, got, tt.want)
 			}

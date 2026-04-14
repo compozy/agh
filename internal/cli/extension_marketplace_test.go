@@ -68,6 +68,133 @@ func (s *extensionRegistrySourceStub) Close() error {
 	return s.closeFunc()
 }
 
+type localExtensionRegistryStub struct {
+	listFunc func() ([]extensionpkg.ExtensionInfo, error)
+	getFunc  func(string) (*extensionpkg.ExtensionInfo, error)
+}
+
+func (s localExtensionRegistryStub) Install(*extensionpkg.Manifest, string, string, ...extensionpkg.InstallOption) error {
+	return nil
+}
+
+func (s localExtensionRegistryStub) List() ([]extensionpkg.ExtensionInfo, error) {
+	if s.listFunc == nil {
+		return nil, nil
+	}
+	return s.listFunc()
+}
+
+func (s localExtensionRegistryStub) Get(name string) (*extensionpkg.ExtensionInfo, error) {
+	if s.getFunc == nil {
+		return nil, nil
+	}
+	return s.getFunc(name)
+}
+
+func (s localExtensionRegistryStub) Enable(string) error { return nil }
+
+func (s localExtensionRegistryStub) Disable(string) error { return nil }
+
+func (s localExtensionRegistryStub) Uninstall(string) error { return nil }
+
+func TestConfiguredExtensionRegistrySourcesClosesDroppedSources(t *testing.T) {
+	t.Parallel()
+
+	closed := make(map[string]int)
+	sources := []registrypkg.RegistrySource{
+		&extensionRegistrySourceStub{
+			name: "github",
+			closeFunc: func() error {
+				closed["github"]++
+				return nil
+			},
+		},
+		&extensionRegistrySourceStub{
+			name: "clawhub",
+			closeFunc: func() error {
+				closed["clawhub"]++
+				return nil
+			},
+		},
+	}
+
+	filtered, err := configuredExtensionRegistrySources(runtimeContext{}, commandDeps{
+		loadExtensionRegistrySources: func(runtimeContext) ([]registrypkg.RegistrySource, error) {
+			return sources, nil
+		},
+	}, "github")
+	if err != nil {
+		t.Fatalf("configuredExtensionRegistrySources() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := closeRegistrySources(filtered); err != nil {
+			t.Errorf("closeRegistrySources(filtered) error = %v", err)
+		}
+	})
+
+	if len(filtered) != 1 || filtered[0].Name() != "github" {
+		t.Fatalf("configuredExtensionRegistrySources() = %#v, want only github", filtered)
+	}
+	if got := closed["github"]; got != 0 {
+		t.Fatalf("github close calls = %d, want 0", got)
+	}
+	if got := closed["clawhub"]; got != 1 {
+		t.Fatalf("clawhub close calls = %d, want 1", got)
+	}
+}
+
+func TestConfiguredExtensionRegistrySourcesClosesAllSourcesOnError(t *testing.T) {
+	t.Parallel()
+
+	closed := make(map[string]int)
+	sources := []registrypkg.RegistrySource{
+		&extensionRegistrySourceStub{
+			name: "github",
+			closeFunc: func() error {
+				closed["github"]++
+				return nil
+			},
+		},
+		&extensionRegistrySourceStub{
+			name: "clawhub",
+			closeFunc: func() error {
+				closed["clawhub"]++
+				return nil
+			},
+		},
+	}
+
+	_, err := configuredExtensionRegistrySources(runtimeContext{}, commandDeps{
+		loadExtensionRegistrySources: func(runtimeContext) ([]registrypkg.RegistrySource, error) {
+			return sources, nil
+		},
+	}, "missing")
+	if err == nil {
+		t.Fatal("configuredExtensionRegistrySources(missing) error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), "not configured") {
+		t.Fatalf("configuredExtensionRegistrySources(missing) error = %v, want filter failure", err)
+	}
+	if got := closed["github"]; got != 1 {
+		t.Fatalf("github close calls = %d, want 1", got)
+	}
+	if got := closed["clawhub"]; got != 1 {
+		t.Fatalf("clawhub close calls = %d, want 1", got)
+	}
+}
+
+func TestSelectMarketplaceExtensionsForUpdateRequiresName(t *testing.T) {
+	t.Parallel()
+
+	_, err := selectMarketplaceExtensionsForUpdate(localExtensionRegistryStub{}, nil, false)
+	if err == nil {
+		t.Fatal("selectMarketplaceExtensionsForUpdate(nil args) error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), "extension name is required") {
+		t.Fatalf("selectMarketplaceExtensionsForUpdate(nil args) error = %v, want argument validation", err)
+	}
+}
+
 func TestExtensionSearchCommandUsesSearchableRegistrySources(t *testing.T) {
 	t.Parallel()
 

@@ -372,15 +372,20 @@ func configuredExtensionRegistrySources(
 
 	sources, err := loader(runtime)
 	if err != nil {
-		return nil, err
+		return nil, joinExtensionRegistrySourceError(err, closeRegistrySources(sources))
 	}
 	if len(sources) == 0 {
-		return nil, errors.New("cli: no extension registry sources are configured")
+		err := errors.New("cli: no extension registry sources are configured")
+		return nil, joinExtensionRegistrySourceError(err, closeRegistrySources(sources))
 	}
 
 	filtered := filterExtensionRegistrySources(sources, sourceFilter)
 	if len(filtered) == 0 {
-		return nil, fmt.Errorf("cli: extension registry source %q is not configured", sourceFilter)
+		err := fmt.Errorf("cli: extension registry source %q is not configured", sourceFilter)
+		return nil, joinExtensionRegistrySourceError(err, closeRegistrySources(sources))
+	}
+	if err := closeUnselectedExtensionRegistrySources(sources, sourceFilter); err != nil {
+		return nil, joinExtensionRegistrySourceError(err, closeRegistrySources(filtered))
 	}
 	return filtered, nil
 }
@@ -403,6 +408,49 @@ func filterExtensionRegistrySources(sources []registrypkg.RegistrySource, source
 	return filtered
 }
 
+func closeUnselectedExtensionRegistrySources(sources []registrypkg.RegistrySource, sourceFilter string) error {
+	filter := strings.TrimSpace(sourceFilter)
+	if filter == "" {
+		return nil
+	}
+
+	dropped := make([]registrypkg.RegistrySource, 0, len(sources))
+	for _, source := range sources {
+		if source == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(source.Name()), filter) {
+			continue
+		}
+		dropped = append(dropped, source)
+	}
+
+	return closeRegistrySources(dropped)
+}
+
+func closeRegistrySources(sources []registrypkg.RegistrySource) error {
+	errs := make([]error, 0, len(sources))
+	for _, source := range sources {
+		if source == nil {
+			continue
+		}
+		if err := source.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("cli: close registry source %q: %w", source.Name(), err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func joinExtensionRegistrySourceError(base error, extra error) error {
+	if extra == nil {
+		return base
+	}
+	if base == nil {
+		return extra
+	}
+	return errors.Join(base, extra)
+}
+
 func selectMarketplaceExtensionsForUpdate(
 	registry localExtensionRegistry,
 	args []string,
@@ -423,7 +471,15 @@ func selectMarketplaceExtensionsForUpdate(
 		return items, nil
 	}
 
-	info, err := registry.Get(args[0])
+	name := ""
+	if len(args) > 0 {
+		name = strings.TrimSpace(args[0])
+	}
+	if name == "" {
+		return nil, errors.New("cli: extension name is required unless --all is set")
+	}
+
+	info, err := registry.Get(name)
 	if err != nil {
 		return nil, err
 	}

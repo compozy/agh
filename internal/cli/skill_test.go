@@ -39,6 +39,15 @@ type skillRegistryStub struct {
 	checkUpdateFn func(context.Context, string, string) (*registrypkg.UpdateInfo, error)
 }
 
+type skillRegistrySourceStub struct {
+	name         string
+	infoFn       func(context.Context, string) (*registrypkg.Detail, error)
+	downloadFn   func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error)
+	searchFn     func(context.Context, string, registrypkg.SearchOpts) ([]registrypkg.Listing, error)
+	closeFn      func() error
+	downloadHits int
+}
+
 type errorReadCloser struct {
 	io.Reader
 	closeErr error
@@ -67,6 +76,43 @@ func (s skillRegistryStub) CheckUpdate(ctx context.Context, slug string, current
 		return nil, nil
 	}
 	return s.checkUpdateFn(ctx, slug, currentVersion)
+}
+
+func (s *skillRegistrySourceStub) Name() string {
+	return s.name
+}
+
+func (s *skillRegistrySourceStub) Capabilities() registrypkg.SourceCaps {
+	return registrypkg.SourceCaps{Search: false}
+}
+
+func (s *skillRegistrySourceStub) Search(ctx context.Context, query string, opts registrypkg.SearchOpts) ([]registrypkg.Listing, error) {
+	if s.searchFn == nil {
+		return nil, registrypkg.ErrNotSupported
+	}
+	return s.searchFn(ctx, query, opts)
+}
+
+func (s *skillRegistrySourceStub) Info(ctx context.Context, slug string) (*registrypkg.Detail, error) {
+	if s.infoFn == nil {
+		return nil, nil
+	}
+	return s.infoFn(ctx, slug)
+}
+
+func (s *skillRegistrySourceStub) Download(ctx context.Context, slug string, opts registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+	s.downloadHits++
+	if s.downloadFn == nil {
+		return nil, nil
+	}
+	return s.downloadFn(ctx, slug, opts)
+}
+
+func (s *skillRegistrySourceStub) Close() error {
+	if s.closeFn == nil {
+		return nil
+	}
+	return s.closeFn()
 }
 
 func TestSkillCommandRegisteredInHelp(t *testing.T) {
@@ -1604,6 +1650,94 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "missing registry slug metadata") {
 			t.Fatalf("updateMarketplaceSkill(missing slug) error = %v, want slug-metadata validation", err)
+		}
+	})
+
+	t.Run("update-marketplace-skill-keeps-installed-registry-provenance", func(t *testing.T) {
+		env := newSkillTestEnv(t, nil)
+		writeInstalledMarketplaceSkill(t, env.homePaths, "review", "@agh/review", "1.0.0", skillDocument("review", "Review helper", "old body"))
+
+		clawhubSource := &skillRegistrySourceStub{
+			name: "clawhub",
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return &registrypkg.Detail{Listing: registrypkg.Listing{
+					Slug:    "@agh/review",
+					Name:    "review",
+					Version: "2.0.0",
+					Source:  "clawhub",
+				}}, nil
+			},
+			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+				return &registrypkg.DownloadResult{
+					Slug:        "@agh/review",
+					Version:     "2.0.0",
+					ContentType: "application/gzip",
+					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
+						"review/SKILL.md": skillDocument("review", "Review helper", "clawhub body"),
+					}))),
+				}, nil
+			},
+		}
+		githubSource := &skillRegistrySourceStub{
+			name: "github",
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return &registrypkg.Detail{Listing: registrypkg.Listing{
+					Slug:    "@agh/review",
+					Name:    "review",
+					Version: "9.9.9",
+					Source:  "github",
+				}}, nil
+			},
+			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+				return &registrypkg.DownloadResult{
+					Slug:        "@agh/review",
+					Version:     "9.9.9",
+					ContentType: "application/gzip",
+					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
+						"review/SKILL.md": skillDocument("review", "Review helper", "github body"),
+					}))),
+				}, nil
+			},
+		}
+
+		installed, err := findInstalledMarketplaceSkill(env.homePaths.SkillsDir, "review")
+		if err != nil {
+			t.Fatalf("findInstalledMarketplaceSkill() error = %v", err)
+		}
+
+		runtime := runtimeContext{HomePaths: env.homePaths}
+		registry := registrypkg.NewMultiRegistry(nil, clawhubSource, githubSource)
+		item, err := updateMarketplaceSkill(testutil.Context(t), runtime, registry, installed, false, env.deps.now)
+		if err != nil {
+			t.Fatalf("updateMarketplaceSkill(provenance pin) error = %v", err)
+		}
+		if item.LatestVersion != "2.0.0" {
+			t.Fatalf("updateMarketplaceSkill(provenance pin) latest = %q, want 2.0.0", item.LatestVersion)
+		}
+		if got := clawhubSource.downloadHits; got != 1 {
+			t.Fatalf("clawhub download hits = %d, want 1", got)
+		}
+		if got := githubSource.downloadHits; got != 0 {
+			t.Fatalf("github download hits = %d, want 0", got)
+		}
+
+		updated, err := findInstalledMarketplaceSkill(env.homePaths.SkillsDir, "review")
+		if err != nil {
+			t.Fatalf("findInstalledMarketplaceSkill(updated) error = %v", err)
+		}
+		if updated.Provenance.Registry != "clawhub" {
+			t.Fatalf("updated registry provenance = %q, want clawhub", updated.Provenance.Registry)
+		}
+
+		content, err := os.ReadFile(filepath.Join(env.homePaths.SkillsDir, "review", skillMarkdownFileName))
+		if err != nil {
+			t.Fatalf("ReadFile(updated skill) error = %v", err)
+		}
+		if !strings.Contains(string(content), "clawhub body") {
+			t.Fatalf("updated skill content = %q, want clawhub content", string(content))
+		}
+		if strings.Contains(string(content), "github body") {
+			t.Fatalf("updated skill content = %q, want to avoid github content", string(content))
 		}
 	})
 

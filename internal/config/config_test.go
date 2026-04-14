@@ -751,6 +751,8 @@ func TestExtensionsConfigValidateMarketplaceConfig(t *testing.T) {
 	})
 
 	t.Run("ShouldWarnForHTTPBaseURL", func(t *testing.T) {
+		// This subtest swaps slog.Default(), so the parent test must remain
+		// non-parallel to avoid cross-test interference.
 		var logs bytes.Buffer
 		original := slog.Default()
 		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})))

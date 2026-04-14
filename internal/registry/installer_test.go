@@ -30,11 +30,16 @@ func (d *stubDownloader) Download(ctx context.Context, slug string, opts Downloa
 }
 
 type blockingReadCloser struct {
-	ctx    context.Context
-	closed atomic.Bool
+	ctx         context.Context
+	readStarted chan struct{}
+	started     atomic.Bool
+	closed      atomic.Bool
 }
 
 func (r *blockingReadCloser) Read(_ []byte) (int, error) {
+	if r.readStarted != nil && r.started.CompareAndSwap(false, true) {
+		close(r.readStarted)
+	}
 	<-r.ctx.Done()
 	return 0, r.ctx.Err()
 }
@@ -225,12 +230,10 @@ func TestInstallerInstallWithContextCancellationClosesReaderAndCleansUp(t *testi
 
 	parent := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
-	reader := &blockingReadCloser{ctx: ctx}
-
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		cancel()
-	}()
+	reader := &blockingReadCloser{
+		ctx:         ctx,
+		readStarted: make(chan struct{}),
+	}
 
 	downloader := &stubDownloader{
 		downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
@@ -241,7 +244,16 @@ func TestInstallerInstallWithContextCancellationClosesReaderAndCleansUp(t *testi
 		},
 	}
 
-	_, err := NewInstaller(downloader).Install(ctx, "acme/cancelled", DownloadOpts{}, filepath.Join(parent, "cancelled"))
+	resultCh := make(chan error, 1)
+	go func() {
+		_, err := NewInstaller(downloader).Install(ctx, "acme/cancelled", DownloadOpts{}, filepath.Join(parent, "cancelled"))
+		resultCh <- err
+	}()
+
+	waitForReadStart(t, reader.readStarted)
+	cancel()
+
+	err := <-resultCh
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Install() error = %v, want context.Canceled", err)
 	}
@@ -346,6 +358,32 @@ func TestInstallerInstallBlocksCriticalVerificationContent(t *testing.T) {
 	}
 }
 
+func TestManifestPathAtRootRejectsSymlinkedManifest(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	target := filepath.Join(t.TempDir(), installerSkillManifestName)
+	writeTestFile(t, target, strings.Join([]string{
+		"---",
+		"name: review",
+		"description: Review helper",
+		"version: 1.0.0",
+		"---",
+		"body",
+	}, "\n"))
+	if err := os.Symlink(target, filepath.Join(root, installerSkillManifestName)); err != nil {
+		t.Fatalf("Symlink(SKILL.md) error = %v", err)
+	}
+
+	_, err := manifestPathAtRoot(root)
+	if err == nil {
+		t.Fatal("manifestPathAtRoot(symlink) error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), "must be a regular file") {
+		t.Fatalf("manifestPathAtRoot(symlink) error = %v, want regular-file validation", err)
+	}
+}
+
 func TestNewInstallerNormalizesDefaultsAndOptions(t *testing.T) {
 	t.Parallel()
 
@@ -405,7 +443,7 @@ func TestComputeInstallChecksumSupportsSymlinksAndValidation(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	writeTestFile(t, filepath.Join(root, "payload.txt"), "first")
+	writeTestFile(t, filepath.Join(root, "payload.txt"), strings.Repeat("first", 4096))
 	if err := os.Symlink("payload.txt", filepath.Join(root, "current")); err != nil {
 		t.Fatalf("Symlink() error = %v", err)
 	}
@@ -420,6 +458,29 @@ func TestComputeInstallChecksumSupportsSymlinksAndValidation(t *testing.T) {
 	}
 	if first != second {
 		t.Fatalf("computeInstallChecksum() = %q then %q, want stable checksum", first, second)
+	}
+}
+
+func TestComputeInstallChecksumChangesWhenRegularFileChanges(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	payloadPath := filepath.Join(root, "payload.txt")
+	writeTestFile(t, payloadPath, strings.Repeat("payload-", 8192))
+
+	first, err := computeInstallChecksum(root)
+	if err != nil {
+		t.Fatalf("computeInstallChecksum(first) error = %v", err)
+	}
+
+	writeTestFile(t, payloadPath, strings.Repeat("updated-", 8192))
+
+	second, err := computeInstallChecksum(root)
+	if err != nil {
+		t.Fatalf("computeInstallChecksum(second) error = %v", err)
+	}
+	if first == second {
+		t.Fatalf("computeInstallChecksum() = %q after content change, want different checksum", second)
 	}
 }
 
@@ -452,6 +513,16 @@ func assertNoTempInstallDirs(t *testing.T, parent string) {
 		if entry.IsDir() && strings.HasPrefix(entry.Name(), ".agh-install-") {
 			t.Fatalf("found unexpected temp install dir %q", filepath.Join(parent, entry.Name()))
 		}
+	}
+}
+
+func waitForReadStart(t *testing.T, started <-chan struct{}) {
+	t.Helper()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("read start signal not received")
 	}
 }
 

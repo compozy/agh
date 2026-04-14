@@ -15,6 +15,7 @@ import (
 type tarEntry struct {
 	name     string
 	content  string
+	mode     int64
 	typeflag byte
 	linkname string
 }
@@ -123,6 +124,32 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "escapes the extraction root") {
 			t.Fatalf("ExtractArchive(traversal) error = %v, want traversal context", err)
+		}
+	})
+
+	t.Run("symlinked-parent", func(t *testing.T) {
+		root := t.TempDir()
+		outside := filepath.Join(t.TempDir(), "outside")
+		if err := os.MkdirAll(outside, 0o755); err != nil {
+			t.Fatalf("MkdirAll(outside) error = %v", err)
+		}
+		if err := os.Symlink(outside, filepath.Join(root, "review")); err != nil {
+			t.Fatalf("Symlink(review) error = %v", err)
+		}
+
+		archive := mustTarGz(t, []tarEntry{
+			{name: "review/SKILL.md", content: "name: review\n"},
+		})
+
+		err := ExtractArchive(bytes.NewReader(archive), root)
+		if err == nil {
+			t.Fatal("ExtractArchive(symlinked parent) error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "traverses symlink") {
+			t.Fatalf("ExtractArchive(symlinked parent) error = %v, want symlink guard", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(outside, "SKILL.md")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("outside manifest stat error = %v, want not-exist", statErr)
 		}
 	})
 
@@ -294,6 +321,37 @@ func TestMoveInstalledDir(t *testing.T) {
 	})
 }
 
+func TestExtractArchivePreservesPermissionBits(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	archive := mustTarGz(t, []tarEntry{
+		{name: "review", typeflag: tar.TypeDir, mode: 0o750},
+		{name: "review/scripts", typeflag: tar.TypeDir, mode: 0o755},
+		{name: "review/scripts/run.sh", content: "#!/bin/sh\necho ok\n", mode: 0o755},
+	})
+
+	if err := ExtractArchive(bytes.NewReader(archive), root); err != nil {
+		t.Fatalf("ExtractArchive() error = %v", err)
+	}
+
+	scriptInfo, err := os.Stat(filepath.Join(root, "review", "scripts", "run.sh"))
+	if err != nil {
+		t.Fatalf("Stat(script) error = %v", err)
+	}
+	if got := scriptInfo.Mode().Perm(); got != 0o755 {
+		t.Fatalf("script mode = %#o, want 0o755", got)
+	}
+
+	dirInfo, err := os.Stat(filepath.Join(root, "review"))
+	if err != nil {
+		t.Fatalf("Stat(review dir) error = %v", err)
+	}
+	if got := dirInfo.Mode().Perm(); got != 0o750 {
+		t.Fatalf("review dir mode = %#o, want 0o750", got)
+	}
+}
+
 func TestDefaultExtractLimits(t *testing.T) {
 	t.Parallel()
 
@@ -348,9 +406,14 @@ func mustTarGz(t *testing.T, entries []tarEntry) []byte {
 			Typeflag: typeflag,
 			Linkname: entry.linkname,
 		}
+		if entry.mode != 0 {
+			header.Mode = entry.mode
+		}
 		switch typeflag {
 		case tar.TypeDir:
-			header.Mode = 0o755
+			if entry.mode == 0 {
+				header.Mode = 0o755
+			}
 		case tar.TypeReg:
 			header.Size = int64(len(entry.content))
 		}

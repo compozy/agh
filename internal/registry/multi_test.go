@@ -260,6 +260,49 @@ func TestMultiRegistrySearchWithNoSourcesReturnsEmptySlice(t *testing.T) {
 	}
 }
 
+func TestMultiRegistrySearchHonorsCancellationAfterPartialResults(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	registry := NewMultiRegistry(
+		testLogger(),
+		&stubRegistrySource{
+			name: "healthy",
+			caps: SourceCaps{Search: true},
+			searchFunc: func(context.Context, string, SearchOpts) ([]Listing, error) {
+				return []Listing{{Slug: "pkg"}}, nil
+			},
+		},
+		&stubRegistrySource{
+			name: "blocking",
+			caps: SourceCaps{Search: true},
+			searchFunc: func(ctx context.Context, _ string, _ SearchOpts) ([]Listing, error) {
+				close(started)
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+		},
+	)
+
+	resultCh := make(chan searchResult, 1)
+	go func() {
+		listings, err := registry.Search(ctx, "pkg", SearchOpts{})
+		resultCh <- searchResult{listings: listings, err: err}
+	}()
+
+	waitForSignal(t, started)
+	cancel()
+
+	result := waitForSearchResult(t, resultCh)
+	if !errors.Is(result.err, context.Canceled) {
+		t.Fatalf("Search() error = %v, want context.Canceled", result.err)
+	}
+	if result.listings != nil {
+		t.Fatalf("Search() listings = %#v, want nil on cancellation", result.listings)
+	}
+}
+
 func TestMultiRegistryInfoResolvesHighestPrioritySource(t *testing.T) {
 	t.Parallel()
 
@@ -288,6 +331,56 @@ func TestMultiRegistryInfoResolvesHighestPrioritySource(t *testing.T) {
 	}
 	if detail.Source != "high" {
 		t.Fatalf("Info() source = %q, want high", detail.Source)
+	}
+}
+
+func TestMultiRegistryInfoHonorsCancellationAfterPartialResults(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	registry := NewMultiRegistry(
+		testLogger(),
+		&stubRegistrySource{
+			name: "healthy",
+			infoFunc: func(context.Context, string) (*Detail, error) {
+				return &Detail{Listing: Listing{Slug: "pkg", Version: "1.0.0"}}, nil
+			},
+		},
+		&stubRegistrySource{
+			name: "blocking",
+			infoFunc: func(ctx context.Context, _ string) (*Detail, error) {
+				close(started)
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+		},
+	)
+
+	type infoResult struct {
+		detail *Detail
+		err    error
+	}
+
+	resultCh := make(chan infoResult, 1)
+	go func() {
+		detail, err := registry.Info(ctx, "pkg")
+		resultCh <- infoResult{detail: detail, err: err}
+	}()
+
+	waitForSignal(t, started)
+	cancel()
+
+	select {
+	case result := <-resultCh:
+		if !errors.Is(result.err, context.Canceled) {
+			t.Fatalf("Info() error = %v, want context.Canceled", result.err)
+		}
+		if result.detail != nil {
+			t.Fatalf("Info() detail = %#v, want nil on cancellation", result.detail)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for Info() result")
 	}
 }
 
@@ -330,7 +423,9 @@ func TestMultiRegistryDownloadDelegatesToResolvedSource(t *testing.T) {
 	if got := high.downloadCalls.Load(); got != 1 {
 		t.Fatalf("high.downloadCalls = %d, want 1", got)
 	}
-	_ = result.Reader.Close()
+	if err := result.Reader.Close(); err != nil {
+		t.Fatalf("result.Reader.Close() error = %v", err)
+	}
 }
 
 func TestMultiRegistryCheckUpdate(t *testing.T) {
@@ -483,6 +578,16 @@ func waitForSearchResult(t *testing.T, resultCh <-chan searchResult) searchResul
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for Search() result")
 		return searchResult{}
+	}
+}
+
+func waitForSignal(t *testing.T, signal <-chan struct{}) {
+	t.Helper()
+
+	select {
+	case <-signal:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for signal")
 	}
 }
 

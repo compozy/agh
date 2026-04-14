@@ -281,6 +281,41 @@ func TestClientDownloadRejectsUnexpectedContentType(t *testing.T) {
 	}
 }
 
+func TestClientDownloadSurfacesHTTPFailuresBeforeContentTypeValidation(t *testing.T) {
+	t.Parallel()
+
+	server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/repos/acme/demo/releases/latest":
+			writeJSON(writer, `{
+				"tag_name":"v1.2.3",
+				"draft":false,
+				"prerelease":false,
+				"tarball_url":"`+serverURLPlaceholder+`/downloads/source.tar.gz",
+				"assets":[{"name":"demo-v1.2.3.tar.gz","url":"`+serverURLPlaceholder+`/downloads/asset.tar.gz","content_type":"application/gzip","size":123}]
+			}`)
+		case "/downloads/asset.tar.gz":
+			writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+			http.Error(writer, `{"message":"missing asset"}`, http.StatusNotFound)
+		default:
+			http.NotFound(writer, request)
+		}
+	})
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	_, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
+	if err == nil {
+		t.Fatal("Download() error = nil, want HTTP failure")
+	}
+	if !strings.Contains(err.Error(), "404") || !strings.Contains(err.Error(), "missing asset") {
+		t.Fatalf("Download() error = %v, want download HTTP context", err)
+	}
+	if strings.Contains(err.Error(), "unexpected download content type") {
+		t.Fatalf("Download() error = %v, want HTTP failure before content-type validation", err)
+	}
+}
+
 func TestClientRateLimitExceeded(t *testing.T) {
 	t.Parallel()
 
