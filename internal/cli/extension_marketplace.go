@@ -155,7 +155,7 @@ func installMarketplaceExtension(
 		}
 
 		remoteVersion := firstNonEmpty(result.Version, detail.Version, manifest.Version)
-		registryName := firstNonEmpty(detail.Source, strings.TrimSpace(sourceFilter))
+		registryName := strings.TrimSpace(detail.Source)
 		if err := registry.Install(
 			manifest,
 			finalDir,
@@ -201,7 +201,10 @@ func removeInstalledExtensionWithRegistry(
 		return extensionRemoveItem{}, err
 	}
 
-	installDir := filepath.Dir(info.ManifestPath)
+	installDir, err := installedExtensionDir(*info)
+	if err != nil {
+		return extensionRemoveItem{}, err
+	}
 	change, err := stage(installDir)
 	if err != nil {
 		return extensionRemoveItem{}, err
@@ -323,13 +326,18 @@ func updateMarketplaceExtension(
 		return extensionUpdateItem{}, err
 	}
 
+	installDir, err := installedExtensionDir(info)
+	if err != nil {
+		return extensionUpdateItem{}, err
+	}
+
 	item := extensionUpdateItem{
 		Name:           info.Name,
 		Slug:           slug,
 		Registry:       registryName,
 		CurrentVersion: currentVersion,
 		LatestVersion:  firstNonEmpty(updateInfo.LatestVersion, currentVersion),
-		Path:           filepath.Dir(info.ManifestPath),
+		Path:           installDir,
 	}
 
 	if !updateInfo.HasUpdate {
@@ -443,6 +451,28 @@ func configuredExtensionRegistrySources(
 		return nil, joinExtensionRegistrySourceError(err, closeRegistrySources(filtered))
 	}
 	return filtered, nil
+}
+
+func installedExtensionDir(info extensionpkg.ExtensionInfo) (string, error) {
+	manifestPath := filepath.Clean(strings.TrimSpace(info.ManifestPath))
+	if manifestPath == "" || manifestPath == "." {
+		return "", fmt.Errorf("cli: extension %q has an invalid manifest path %q", info.Name, info.ManifestPath)
+	}
+	if !filepath.IsAbs(manifestPath) {
+		return "", fmt.Errorf("cli: extension %q has a non-absolute manifest path %q", info.Name, info.ManifestPath)
+	}
+
+	switch filepath.Base(manifestPath) {
+	case "extension.toml", "extension.json":
+	default:
+		return "", fmt.Errorf("cli: extension %q has an invalid manifest path %q", info.Name, info.ManifestPath)
+	}
+
+	installDir := filepath.Dir(manifestPath)
+	if installDir == "." || installDir == string(filepath.Separator) {
+		return "", fmt.Errorf("cli: extension %q has an invalid install directory %q", info.Name, installDir)
+	}
+	return installDir, nil
 }
 
 func filterExtensionRegistrySources(sources []registrypkg.RegistrySource, sourceFilter string) []registrypkg.RegistrySource {

@@ -35,6 +35,8 @@ var (
 	ErrPathRootRequired = errors.New("root path is required")
 	// ErrPathOutsideRoot reports that a path resolves outside the provided root.
 	ErrPathOutsideRoot = errors.New("path must stay within the root directory")
+	// ErrPathTraversesSymlink reports that extraction would traverse a symlink on disk.
+	ErrPathTraversesSymlink = errors.New("path traverses symlink")
 
 	errArchiveTooLarge     = errors.New("registry: archive exceeds max decompressed size")
 	errArchiveTooManyFiles = errors.New("registry: archive exceeds max file count")
@@ -105,7 +107,7 @@ func extractArchive(reader io.Reader, destRoot string, limits extractLimits) (er
 
 		entryName, err := CleanArchiveEntryPath(header.Name)
 		if err != nil {
-			return err
+			return fmt.Errorf("clean archive entry %q: %w", header.Name, err)
 		}
 		targetPath, err := PathWithinRoot(destRoot, filepath.FromSlash(entryName))
 		if err != nil {
@@ -246,10 +248,19 @@ func MoveInstalledDir(extractedDir string, targetDir string, replaceExisting boo
 		return fmt.Errorf("registry: install updated package into %q: %w", targetDir, err)
 	}
 
-	if err := os.RemoveAll(backupDir); err != nil {
-		return fmt.Errorf("registry: remove backup package directory %q: %w", backupDir, err)
-	}
+	removeInstalledDirBackup(backupDir, os.RemoveAll)
 	return nil
+}
+
+func removeInstalledDirBackup(backupDir string, removeAll func(string) error) {
+	if removeAll == nil {
+		return
+	}
+	if err := removeAll(backupDir); err != nil && !errors.Is(err, os.ErrNotExist) {
+		// The replacement already committed successfully. Keep the backup around
+		// for manual cleanup instead of reporting the install as failed.
+		return
+	}
 }
 
 // CleanArchiveEntryPath normalizes one archive entry and rejects absolute or
@@ -365,7 +376,7 @@ func ensureExtractionComponent(path string, mustBeDir bool) error {
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("extraction path %q traverses symlink", path)
+		return fmt.Errorf("%w: extraction path %q", ErrPathTraversesSymlink, path)
 	}
 	if mustBeDir && !info.IsDir() {
 		return fmt.Errorf("extraction path %q is not a directory", path)

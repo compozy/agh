@@ -268,14 +268,6 @@ func ComputeDirectoryChecksum(path string) (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-func (r *Registry) installWithSource(manifest *Manifest, path string, checksum string, source ExtensionSource, opts ...InstallOption) error {
-	config := installConfig{
-		source: source,
-	}
-	applyInstallOptions(&config, opts...)
-	return r.installWithConfig(manifest, path, checksum, config)
-}
-
 func (r *Registry) installWithConfig(manifest *Manifest, path string, checksum string, config installConfig) error {
 	if err := r.checkReady("install extension"); err != nil {
 		return err

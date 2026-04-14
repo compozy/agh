@@ -331,7 +331,8 @@ func (c *Client) fetchLatestRelease(ctx context.Context, repo repoSlug) (*releas
 		if len(releases) == 0 {
 			return nil, fmt.Errorf("github: repository %q has no published releases", repo.full)
 		}
-		return nil, fmt.Errorf("github: latest release not found for %q", repo.full)
+		latest := releases[0]
+		return &latest, nil
 	default:
 		return nil, responseError(response, "latest release", repo.full)
 	}
@@ -502,8 +503,17 @@ func (c *Client) checkRateLimit(response *http.Response) error {
 		return nil
 	}
 	if remaining == 0 {
-		rateLimitErr := errors.New("github: rate limit exceeded; set GITHUB_TOKEN for higher limits")
-		return joinErrors(rateLimitErr, closeResponseBody(response.Body, fmt.Sprintf("rate limit response for %s", requestURLString(response))))
+		if response.StatusCode == http.StatusForbidden || response.StatusCode == http.StatusTooManyRequests {
+			rateLimitErr := errors.New("github: rate limit exceeded; set GITHUB_TOKEN for higher limits")
+			return joinErrors(rateLimitErr, closeResponseBody(response.Body, fmt.Sprintf("rate limit response for %s", requestURLString(response))))
+		}
+		if c.logger != nil {
+			c.logger.Warn(
+				"github: rate limit exhausted after successful response",
+				"status", response.StatusCode,
+				"url", requestURLString(response),
+			)
+		}
 	}
 	if remaining < rateLimitWarnThreshold && c.logger != nil {
 		c.logger.Warn("github: rate limit running low", "remaining", remaining, "url", requestURLString(response))

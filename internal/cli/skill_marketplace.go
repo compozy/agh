@@ -184,7 +184,10 @@ func installMarketplaceSkill(
 		return skillInstallItem{}, fmt.Errorf("cli: create temporary install directory: %w", err)
 	}
 	defer func() {
-		_ = os.RemoveAll(tempRoot)
+		removeErr := os.RemoveAll(tempRoot)
+		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			err = errors.Join(err, fmt.Errorf("cli: remove temporary install directory %q: %w", tempRoot, removeErr))
+		}
 	}()
 
 	installer := registrypkg.NewInstaller(registry)

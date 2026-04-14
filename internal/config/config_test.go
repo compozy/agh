@@ -731,24 +731,64 @@ func TestSkillsConfigValidateMarketplaceConfig(t *testing.T) {
 }
 
 func TestExtensionsConfigValidateMarketplaceConfig(t *testing.T) {
-	t.Run("ShouldAcceptValidMarketplaceConfig", func(t *testing.T) {
-		cfg := ExtensionsConfig{
-			Marketplace: ExtensionsMarketplaceConfig{
-				Registry: "github",
-				BaseURL:  "https://api.github.example.test",
+	tests := []struct {
+		name        string
+		cfg         ExtensionsConfig
+		wantErrPath string
+	}{
+		{
+			name: "ShouldAcceptValidMarketplaceConfig",
+			cfg: ExtensionsConfig{
+				Marketplace: ExtensionsMarketplaceConfig{
+					Registry: "github",
+					BaseURL:  "https://api.github.example.test",
+				},
 			},
-		}
+		},
+		{
+			name: "ShouldAcceptEmptyMarketplaceConfig",
+			cfg:  ExtensionsConfig{},
+		},
+		{
+			name: "ShouldRejectMarketplaceBaseURLWithoutHost",
+			cfg: ExtensionsConfig{
+				Marketplace: ExtensionsMarketplaceConfig{
+					Registry: "github",
+					BaseURL:  "https://",
+				},
+			},
+			wantErrPath: "extensions.marketplace.base_url",
+		},
+		{
+			name: "ShouldRejectUnknownMarketplaceRegistry",
+			cfg: ExtensionsConfig{
+				Marketplace: ExtensionsMarketplaceConfig{
+					Registry: "unknown",
+					BaseURL:  "https://api.github.example.test",
+				},
+			},
+			wantErrPath: "extensions.marketplace.registry",
+		},
+	}
 
-		if err := cfg.Validate(); err != nil {
-			t.Fatalf("ExtensionsConfig.Validate() error = %v", err)
-		}
-	})
-
-	t.Run("ShouldAcceptEmptyMarketplaceConfig", func(t *testing.T) {
-		if err := (ExtensionsConfig{}).Validate(); err != nil {
-			t.Fatalf("ExtensionsConfig.Validate(empty) error = %v", err)
-		}
-	})
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+			if tt.wantErrPath == "" {
+				if err != nil {
+					t.Fatalf("ExtensionsConfig.Validate() error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("ExtensionsConfig.Validate() error = nil, want marketplace validation failure")
+			}
+			if !strings.Contains(err.Error(), tt.wantErrPath) {
+				t.Fatalf("ExtensionsConfig.Validate() error = %v, want %s context", err, tt.wantErrPath)
+			}
+		})
+	}
 
 	t.Run("ShouldWarnForHTTPBaseURL", func(t *testing.T) {
 		// This subtest swaps slog.Default(), so the parent test must remain
@@ -773,39 +813,6 @@ func TestExtensionsConfigValidateMarketplaceConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldRejectMarketplaceBaseURLWithoutHost", func(t *testing.T) {
-		cfg := ExtensionsConfig{
-			Marketplace: ExtensionsMarketplaceConfig{
-				Registry: "github",
-				BaseURL:  "https://",
-			},
-		}
-
-		err := cfg.Validate()
-		if err == nil {
-			t.Fatal("ExtensionsConfig.Validate() error = nil, want marketplace base_url validation failure")
-		}
-		if !strings.Contains(err.Error(), "extensions.marketplace.base_url") {
-			t.Fatalf("ExtensionsConfig.Validate() error = %v, want marketplace base_url context", err)
-		}
-	})
-
-	t.Run("ShouldRejectUnknownMarketplaceRegistry", func(t *testing.T) {
-		cfg := ExtensionsConfig{
-			Marketplace: ExtensionsMarketplaceConfig{
-				Registry: "unknown",
-				BaseURL:  "https://api.github.example.test",
-			},
-		}
-
-		err := cfg.Validate()
-		if err == nil {
-			t.Fatal("ExtensionsConfig.Validate(unknown registry) error = nil, want failure")
-		}
-		if !strings.Contains(err.Error(), "extensions.marketplace.registry") {
-			t.Fatalf("ExtensionsConfig.Validate(unknown registry) error = %v, want registry context", err)
-		}
-	})
 }
 
 func TestValidateRejectsInvalidPorts(t *testing.T) {

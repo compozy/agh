@@ -431,6 +431,34 @@ func TestClientRepositoryWithoutReleases(t *testing.T) {
 	}
 }
 
+func TestClientFallsBackToFirstPublishedReleaseWhenLatestEndpointIsMissing(t *testing.T) {
+	t.Parallel()
+
+	server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/repos/acme/demo/releases/latest":
+			http.NotFound(writer, request)
+		case "/repos/acme/demo/releases":
+			writeJSON(writer, `[
+				{"tag_name":"v2.0.0","draft":false,"prerelease":false,"tarball_url":"`+serverURLPlaceholder+`/downloads/v2.0.0.tar.gz","assets":[]},
+				{"tag_name":"v1.5.0","draft":false,"prerelease":false,"tarball_url":"`+serverURLPlaceholder+`/downloads/v1.5.0.tar.gz","assets":[]}
+			]`)
+		default:
+			http.NotFound(writer, request)
+		}
+	})
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	release, err := client.fetchLatestRelease(context.Background(), repoSlug{owner: "acme", name: "demo", full: "acme/demo"})
+	if err != nil {
+		t.Fatalf("fetchLatestRelease() error = %v", err)
+	}
+	if release.TagName != "v2.0.0" {
+		t.Fatalf("fetchLatestRelease() tag = %q, want v2.0.0", release.TagName)
+	}
+}
+
 func TestClientUsesGitHubToken(t *testing.T) {
 	t.Setenv("GITHUB_TOKEN", "secret-token")
 	server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
@@ -809,6 +837,22 @@ func TestCheckRateLimitErrorsWhenRemainingZero(t *testing.T) {
 	client := NewClient("")
 	if err := client.checkRateLimit(response); err == nil {
 		t.Fatal("checkRateLimit() error = nil, want rate-limit failure")
+	}
+}
+
+func TestCheckRateLimitAllowsSuccessfulResponsesThatConsumeFinalQuota(t *testing.T) {
+	t.Parallel()
+
+	var logBuffer bytes.Buffer
+	response := newHTTPResponse(http.StatusOK, `{"ok":true}`)
+	response.Header.Set("X-RateLimit-Remaining", "0")
+
+	client := NewClient("", WithLogger(slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{Level: slog.LevelWarn}))))
+	if err := client.checkRateLimit(response); err != nil {
+		t.Fatalf("checkRateLimit() error = %v, want nil", err)
+	}
+	if !strings.Contains(logBuffer.String(), "rate limit exhausted after successful response") {
+		t.Fatalf("rate limit logs = %q, want exhausted-after-success warning", logBuffer.String())
 	}
 }
 

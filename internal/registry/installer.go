@@ -107,6 +107,7 @@ type Installer struct {
 	maxDecompressedSize int64
 	maxFileCount        int
 	now                 func() time.Time
+	removeAll           func(string) error
 	tempDirMaxAge       time.Duration
 }
 
@@ -146,6 +147,7 @@ func NewInstaller(dl Downloader, opts ...InstallerOption) *Installer {
 		maxDecompressedSize: DefaultMaxDecompressedSize,
 		maxFileCount:        DefaultMaxFileCount,
 		now:                 time.Now,
+		removeAll:           os.RemoveAll,
 		tempDirMaxAge:       defaultInstallerTempDirMaxAge,
 	}
 
@@ -166,6 +168,9 @@ func NewInstaller(dl Downloader, opts ...InstallerOption) *Installer {
 	}
 	if installer.now == nil {
 		installer.now = time.Now
+	}
+	if installer.removeAll == nil {
+		installer.removeAll = os.RemoveAll
 	}
 	if installer.tempDirMaxAge <= 0 {
 		installer.tempDirMaxAge = defaultInstallerTempDirMaxAge
@@ -249,7 +254,7 @@ func (i *Installer) Install(ctx context.Context, slug string, dlOpts DownloadOpt
 		return nil, fmt.Errorf("registry: create temporary install directory: %w", err)
 	}
 	defer func() {
-		removeErr := os.RemoveAll(tempRoot)
+		removeErr := i.removeAll(tempRoot)
 		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
 			err = joinInstallerError(err, fmt.Errorf("registry: remove temporary install directory %q: %w", tempRoot, removeErr))
 		}
@@ -338,8 +343,10 @@ func (i *Installer) cleanupStaleTempDirs(parent string) error {
 		if info.ModTime().After(cutoff) {
 			continue
 		}
-		if err := os.RemoveAll(fullPath); err != nil {
-			return fmt.Errorf("registry: remove stale temporary install directory %q: %w", fullPath, err)
+		if err := i.removeAll(fullPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			// A stale temp directory from an earlier install should not block
+			// the current install if cleanup is best-effort only.
+			continue
 		}
 	}
 

@@ -331,6 +331,55 @@ func TestInstallerCleansStaleTempDirs(t *testing.T) {
 	}
 }
 
+func TestInstallerIgnoresStaleTempCleanupRemoveFailures(t *testing.T) {
+	t.Parallel()
+
+	parent := t.TempDir()
+	now := time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC)
+	staleDir := filepath.Join(parent, ".agh-install-stale")
+	if err := os.MkdirAll(staleDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(staleDir) error = %v", err)
+	}
+	if err := os.Chtimes(staleDir, now.Add(-2*time.Hour), now.Add(-2*time.Hour)); err != nil {
+		t.Fatalf("Chtimes(staleDir) error = %v", err)
+	}
+
+	archive := mustTarGz(t, []tarEntry{
+		{name: "extension/extension.toml", content: "name = \"demo-ext\"\nversion = \"1.2.3\"\n"},
+	})
+	downloader := &stubDownloader{
+		downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+			return &DownloadResult{
+				ContentType: "application/gzip",
+				Reader:      io.NopCloser(bytes.NewReader(archive)),
+			}, nil
+		},
+	}
+
+	installer := NewInstaller(
+		downloader,
+		WithInstallerNow(func() time.Time { return now }),
+	)
+	installer.removeAll = func(path string) error {
+		if path == staleDir {
+			return errors.New("stale cleanup failed")
+		}
+		return os.RemoveAll(path)
+	}
+
+	targetDir := filepath.Join(parent, "demo-ext")
+	result, err := installer.Install(context.Background(), "acme/demo-ext", DownloadOpts{}, targetDir)
+	if err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if result == nil || result.InstallPath != targetDir {
+		t.Fatalf("Install() result = %#v, want install path %q", result, targetDir)
+	}
+	if _, statErr := os.Stat(staleDir); statErr != nil {
+		t.Fatalf("stale temp dir stat error = %v, want existing after ignored cleanup failure", statErr)
+	}
+}
+
 func TestInstallerInstallBlocksCriticalVerificationContent(t *testing.T) {
 	t.Parallel()
 
@@ -405,6 +454,9 @@ func TestNewInstallerNormalizesDefaultsAndOptions(t *testing.T) {
 	}
 	if installer.maxFileCount != 321 {
 		t.Fatalf("maxFileCount = %d, want 321", installer.maxFileCount)
+	}
+	if installer.removeAll == nil {
+		t.Fatal("removeAll = nil, want default remover")
 	}
 	if installer.tempDirMaxAge != 2*time.Hour {
 		t.Fatalf("tempDirMaxAge = %s, want 2h", installer.tempDirMaxAge)

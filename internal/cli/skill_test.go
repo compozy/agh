@@ -1424,6 +1424,38 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("install-marketplace-skill-joins-temp-dir-cleanup-errors", func(t *testing.T) {
+		env := newSkillTestEnv(t, nil)
+		t.Cleanup(func() {
+			if chmodErr := os.Chmod(env.homePaths.SkillsDir, 0o755); chmodErr != nil && !errors.Is(chmodErr, os.ErrNotExist) {
+				t.Fatalf("Chmod(skills dir restore) error = %v", chmodErr)
+			}
+		})
+
+		_, err := installMarketplaceSkill(testutil.Context(t), runtimeContext{
+			HomePaths: env.homePaths,
+		}, skillRegistryStub{
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return &registrypkg.Detail{Listing: registrypkg.Listing{Name: "review", Source: "clawhub"}}, nil
+			},
+			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+				if chmodErr := os.Chmod(env.homePaths.SkillsDir, 0o555); chmodErr != nil {
+					t.Fatalf("Chmod(skills dir read-only) error = %v", chmodErr)
+				}
+				return nil, errors.New("download failed")
+			},
+		}, "@agh/review", "", "", env.deps.now)
+		if err == nil {
+			t.Fatal("installMarketplaceSkill(cleanup error) error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "download failed") {
+			t.Fatalf("installMarketplaceSkill(cleanup error) error = %v, want download failure", err)
+		}
+		if !strings.Contains(err.Error(), "remove temporary install directory") {
+			t.Fatalf("installMarketplaceSkill(cleanup error) error = %v, want cleanup context", err)
+		}
+	})
+
 	t.Run("install-marketplace-skill-falls-back-to-detail-version-and-default-registry", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 		targetDir := filepath.Join(env.homePaths.SkillsDir, "custom-review")

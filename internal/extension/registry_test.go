@@ -234,8 +234,8 @@ func TestRegistryListReturnsAllInstalledExtensions(t *testing.T) {
 	if err := env.registry.Install(alphaManifest, alphaDir, alphaChecksum); err != nil {
 		t.Fatalf("Install(alpha) error = %v", err)
 	}
-	if err := env.registry.installWithSource(betaManifest, betaDir, betaChecksum, SourceMarketplace); err != nil {
-		t.Fatalf("installWithSource(beta) error = %v", err)
+	if err := env.registry.Install(betaManifest, betaDir, betaChecksum, WithInstallSource(SourceMarketplace)); err != nil {
+		t.Fatalf("Install(beta) error = %v", err)
 	}
 
 	got, err := env.registry.List()
@@ -566,8 +566,8 @@ func TestRegistryInstallAcceptsManifestFilePathAndExplicitSource(t *testing.T) {
 	dir, manifest, checksum := createRegistryTestExtension(t, "file-path-install", registryManifestOptions{})
 	manifestPath := filepath.Join(dir, manifestTOMLFileName)
 
-	if err := env.registry.installWithSource(manifest, manifestPath, checksum, SourceBundled); err != nil {
-		t.Fatalf("installWithSource(file manifest) error = %v", err)
+	if err := env.registry.Install(manifest, manifestPath, checksum, WithInstallSource(SourceBundled)); err != nil {
+		t.Fatalf("Install(file manifest) error = %v", err)
 	}
 
 	got, err := env.registry.Get(manifest.Name)
@@ -588,8 +588,8 @@ func TestRegistryInstallRejectsInvalidSourceAndBlankChecksum(t *testing.T) {
 	env := newRegistryTestEnv(t)
 	dir, manifest, checksum := createRegistryTestExtension(t, "invalid-source", registryManifestOptions{})
 
-	if err := env.registry.installWithSource(manifest, dir, checksum, ExtensionSource(99)); err == nil {
-		t.Fatal("installWithSource(invalid source) error = nil, want non-nil")
+	if err := env.registry.Install(manifest, dir, checksum, WithInstallSource(ExtensionSource(99))); err == nil {
+		t.Fatal("Install(invalid source) error = nil, want non-nil")
 	}
 	if err := env.registry.Install(manifest, dir, ""); err == nil {
 		t.Fatal("Install(blank checksum) error = nil, want non-nil")
@@ -605,12 +605,12 @@ func TestRegistryInstallRejectsOnDiskManifestIdentityMismatch(t *testing.T) {
 	spoofed := *manifest
 	spoofed.Name = "spoofed-registry"
 
-	err := env.registry.installWithSource(&spoofed, dir, checksum, SourceUser)
+	err := env.registry.Install(&spoofed, dir, checksum, WithInstallSource(SourceUser))
 	if err == nil {
-		t.Fatal("installWithSource(mismatched manifest) error = nil, want non-nil")
+		t.Fatal("Install(mismatched manifest) error = nil, want non-nil")
 	}
 	if !strings.Contains(err.Error(), "does not match provided identity") {
-		t.Fatalf("installWithSource(mismatched manifest) error = %v, want identity mismatch detail", err)
+		t.Fatalf("Install(mismatched manifest) error = %v, want identity mismatch detail", err)
 	}
 }
 

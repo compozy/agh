@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -24,42 +25,50 @@ type tarEntry struct {
 func TestExtractArchive_ValidArchiveProducesDirectoryStructure(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	archive := mustTarGz(t, []tarEntry{
-		{name: "review/assets", typeflag: tar.TypeDir},
-		{name: "review/SKILL.md", content: "name: review\n"},
-		{name: "review/docs/guide.md", content: "guide"},
-		{name: "review/scripts/run.sh", content: "echo ok\n"},
+	t.Run("ShouldExtractValidArchiveIntoExpectedDirectoryStructure", func(t *testing.T) {
+		root := t.TempDir()
+		archive := mustTarGz(t, []tarEntry{
+			{name: "review/assets", typeflag: tar.TypeDir},
+			{name: "review/SKILL.md", content: "name: review\n"},
+			{name: "review/docs/guide.md", content: "guide"},
+			{name: "review/scripts/run.sh", content: "echo ok\n"},
+		})
+
+		if err := ExtractArchive(bytes.NewReader(archive), root); err != nil {
+			t.Fatalf("ExtractArchive() error = %v", err)
+		}
+
+		checks := []struct {
+			name    string
+			path    string
+			content string
+		}{
+			{name: "ShouldReadExpectedSkillDocument", path: filepath.Join(root, "review", "SKILL.md"), content: "name: review\n"},
+			{name: "ShouldReadExpectedGuide", path: filepath.Join(root, "review", "docs", "guide.md"), content: "guide"},
+			{name: "ShouldReadExpectedScript", path: filepath.Join(root, "review", "scripts", "run.sh"), content: "echo ok\n"},
+		}
+
+		for _, check := range checks {
+			check := check
+			t.Run(check.name, func(t *testing.T) {
+				data, err := os.ReadFile(check.path)
+				if err != nil {
+					t.Fatalf("ReadFile(%q) error = %v", check.path, err)
+				}
+				if got := string(data); got != check.content {
+					t.Fatalf("ReadFile(%q) = %q, want %q", check.path, got, check.content)
+				}
+			})
+		}
 	})
-
-	if err := ExtractArchive(bytes.NewReader(archive), root); err != nil {
-		t.Fatalf("ExtractArchive() error = %v", err)
-	}
-
-	checks := []struct {
-		path    string
-		content string
-	}{
-		{path: filepath.Join(root, "review", "SKILL.md"), content: "name: review\n"},
-		{path: filepath.Join(root, "review", "docs", "guide.md"), content: "guide"},
-		{path: filepath.Join(root, "review", "scripts", "run.sh"), content: "echo ok\n"},
-	}
-
-	for _, check := range checks {
-		data, err := os.ReadFile(check.path)
-		if err != nil {
-			t.Fatalf("ReadFile(%q) error = %v", check.path, err)
-		}
-		if got := string(data); got != check.content {
-			t.Fatalf("ReadFile(%q) = %q, want %q", check.path, got, check.content)
-		}
-	}
 }
 
 func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 	t.Parallel()
 
-	t.Run("decompressed-size", func(t *testing.T) {
+	t.Run("ShouldRejectArchivesThatExceedTheDecompressedSizeLimit", func(t *testing.T) {
+		t.Parallel()
+
 		root := t.TempDir()
 		archive := mustTarGz(t, []tarEntry{
 			{name: "review/SKILL.md", content: "0123456789"},
@@ -83,7 +92,9 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		}
 	})
 
-	t.Run("file-count", func(t *testing.T) {
+	t.Run("ShouldRejectArchivesThatExceedTheFileCountLimit", func(t *testing.T) {
+		t.Parallel()
+
 		root := t.TempDir()
 		archive := mustTarGz(t, []tarEntry{
 			{name: "one.txt", content: "one"},
@@ -100,7 +111,9 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		}
 	})
 
-	t.Run("symlink", func(t *testing.T) {
+	t.Run("ShouldRejectSymlinkEntries", func(t *testing.T) {
+		t.Parallel()
+
 		archive := mustTarGz(t, []tarEntry{
 			{name: "review/link", typeflag: tar.TypeSymlink, linkname: "../target"},
 		})
@@ -114,7 +127,9 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		}
 	})
 
-	t.Run("path-traversal", func(t *testing.T) {
+	t.Run("ShouldRejectArchivePathsThatEscapeTheRoot", func(t *testing.T) {
+		t.Parallel()
+
 		archive := mustTarGz(t, []tarEntry{
 			{name: "../escape.txt", content: "nope"},
 		})
@@ -128,7 +143,13 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		}
 	})
 
-	t.Run("symlinked-parent", func(t *testing.T) {
+	t.Run("ShouldRejectExtractionThroughASymlinkedParent", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink semantics are platform-specific on windows")
+		}
+
 		root := t.TempDir()
 		outside := filepath.Join(t.TempDir(), "outside")
 		if err := os.MkdirAll(outside, 0o755); err != nil {
@@ -146,15 +167,17 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		if err == nil {
 			t.Fatal("ExtractArchive(symlinked parent) error = nil, want failure")
 		}
-		if !strings.Contains(err.Error(), "traverses symlink") {
-			t.Fatalf("ExtractArchive(symlinked parent) error = %v, want symlink guard", err)
+		if !errors.Is(err, ErrPathTraversesSymlink) {
+			t.Fatalf("ExtractArchive(symlinked parent) error = %v, want %v", err, ErrPathTraversesSymlink)
 		}
 		if _, statErr := os.Stat(filepath.Join(outside, "SKILL.md")); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("outside manifest stat error = %v, want not-exist", statErr)
 		}
 	})
 
-	t.Run("empty-destination", func(t *testing.T) {
+	t.Run("ShouldRejectAnEmptyDestinationRoot", func(t *testing.T) {
+		t.Parallel()
+
 		err := ExtractArchive(bytes.NewReader(mustTarGz(t, []tarEntry{
 			{name: "review/SKILL.md", content: "name: review\n"},
 		})), "")
@@ -166,13 +189,15 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid-gzip", func(t *testing.T) {
+	t.Run("ShouldRejectInvalidGzipStreams", func(t *testing.T) {
+		t.Parallel()
+
 		err := ExtractArchive(strings.NewReader("not-a-gzip-stream"), t.TempDir())
 		if err == nil {
 			t.Fatal("ExtractArchive(invalid gzip) error = nil, want failure")
 		}
-		if !strings.Contains(err.Error(), "open gzip stream") {
-			t.Fatalf("ExtractArchive(invalid gzip) error = %v, want gzip-open context", err)
+		if !errors.Is(err, gzip.ErrHeader) {
+			t.Fatalf("ExtractArchive(invalid gzip) error = %v, want %v", err, gzip.ErrHeader)
 		}
 	})
 }
@@ -180,22 +205,24 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 func TestPathWithinRoot(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
+	t.Run("ShouldResolvePathsInsideTheRootAndRejectEscapes", func(t *testing.T) {
+		root := t.TempDir()
 
-	target, err := PathWithinRoot(root, filepath.Join("review", "SKILL.md"))
-	if err != nil {
-		t.Fatalf("PathWithinRoot(valid) error = %v", err)
-	}
-	if !strings.HasPrefix(target, root+string(filepath.Separator)) {
-		t.Fatalf("PathWithinRoot(valid) = %q, want path under %q", target, root)
-	}
+		target, err := PathWithinRoot(root, filepath.Join("review", "SKILL.md"))
+		if err != nil {
+			t.Fatalf("PathWithinRoot(valid) error = %v", err)
+		}
+		if !strings.HasPrefix(target, root+string(filepath.Separator)) {
+			t.Fatalf("PathWithinRoot(valid) = %q, want path under %q", target, root)
+		}
 
-	if _, err := PathWithinRoot(root, filepath.Join("..", "escape")); !errors.Is(err, ErrPathOutsideRoot) {
-		t.Fatalf("PathWithinRoot(escape) error = %v, want %v", err, ErrPathOutsideRoot)
-	}
-	if _, err := PathWithinRoot("   ", "review/SKILL.md"); !errors.Is(err, ErrPathRootRequired) {
-		t.Fatalf("PathWithinRoot(blank root) error = %v, want %v", err, ErrPathRootRequired)
-	}
+		if _, err := PathWithinRoot(root, filepath.Join("..", "escape")); !errors.Is(err, ErrPathOutsideRoot) {
+			t.Fatalf("PathWithinRoot(escape) error = %v, want %v", err, ErrPathOutsideRoot)
+		}
+		if _, err := PathWithinRoot("   ", "review/SKILL.md"); !errors.Is(err, ErrPathRootRequired) {
+			t.Fatalf("PathWithinRoot(blank root) error = %v, want %v", err, ErrPathRootRequired)
+		}
+	})
 }
 
 func TestCleanArchiveEntryPath(t *testing.T) {
@@ -207,14 +234,16 @@ func TestCleanArchiveEntryPath(t *testing.T) {
 		want    string
 		wantErr error
 	}{
-		{name: "valid", entry: "review\\SKILL.md", want: "review/SKILL.md"},
-		{name: "empty", entry: "", wantErr: ErrArchiveEntryPathRequired},
-		{name: "absolute", entry: "/tmp/skill.md", wantErr: ErrArchiveEntryMustBeRelative},
-		{name: "traversal", entry: "../escape.txt", wantErr: ErrArchiveEntryEscapesRoot},
+		{name: "ShouldNormalizeWindowsStyleSeparators", entry: "review\\SKILL.md", want: "review/SKILL.md"},
+		{name: "ShouldRejectEmptyEntryPaths", entry: "", wantErr: ErrArchiveEntryPathRequired},
+		{name: "ShouldRejectAbsoluteEntryPaths", entry: "/tmp/skill.md", wantErr: ErrArchiveEntryMustBeRelative},
+		{name: "ShouldRejectEscapingEntryPaths", entry: "../escape.txt", wantErr: ErrArchiveEntryEscapesRoot},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := CleanArchiveEntryPath(tt.entry)
 			if tt.wantErr == nil {
 				if err != nil {
@@ -235,48 +264,56 @@ func TestCleanArchiveEntryPath(t *testing.T) {
 func TestCleanupArchiveFileJoinsRemoveFailure(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	target := filepath.Join(root, "review", "SKILL.md")
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		t.Fatalf("MkdirAll(parent) error = %v", err)
-	}
-
-	file, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		t.Fatalf("OpenFile(target) error = %v", err)
-	}
-	if _, err := file.WriteString("partial"); err != nil {
-		t.Fatalf("WriteString(target) error = %v", err)
-	}
-
-	if err := os.Chmod(filepath.Dir(target), 0o555); err != nil {
-		t.Fatalf("Chmod(parent read-only) error = %v", err)
-	}
-	defer func() {
-		if chmodErr := os.Chmod(filepath.Dir(target), 0o755); chmodErr != nil {
-			t.Fatalf("Chmod(parent restore) error = %v", chmodErr)
+	t.Run("ShouldJoinBaseAndRemoveErrors", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("directory permission failure semantics are platform-specific on windows")
 		}
-	}()
 
-	baseErr := errors.New("write failed")
-	err = cleanupArchiveFile(file, target, baseErr, false)
-	if err == nil {
-		t.Fatal("cleanupArchiveFile() error = nil, want joined failure")
-	}
-	if !errors.Is(err, baseErr) {
-		t.Fatalf("cleanupArchiveFile() error = %v, want base error", err)
-	}
+		root := t.TempDir()
+		target := filepath.Join(root, "review", "SKILL.md")
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			t.Fatalf("MkdirAll(parent) error = %v", err)
+		}
 
-	var pathErr *fs.PathError
-	if !errors.As(err, &pathErr) {
-		t.Fatalf("cleanupArchiveFile() error = %v, want remove path error", err)
-	}
+		file, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		if err != nil {
+			t.Fatalf("OpenFile(target) error = %v", err)
+		}
+		if _, err := file.WriteString("partial"); err != nil {
+			t.Fatalf("WriteString(target) error = %v", err)
+		}
+
+		if err := os.Chmod(filepath.Dir(target), 0o555); err != nil {
+			t.Fatalf("Chmod(parent read-only) error = %v", err)
+		}
+		defer func() {
+			if chmodErr := os.Chmod(filepath.Dir(target), 0o755); chmodErr != nil {
+				t.Fatalf("Chmod(parent restore) error = %v", chmodErr)
+			}
+		}()
+
+		baseErr := errors.New("write failed")
+		err = cleanupArchiveFile(file, target, baseErr, false)
+		if err == nil {
+			t.Fatal("cleanupArchiveFile() error = nil, want joined failure")
+		}
+		if !errors.Is(err, baseErr) {
+			t.Fatalf("cleanupArchiveFile() error = %v, want base error", err)
+		}
+
+		var pathErr *fs.PathError
+		if !errors.As(err, &pathErr) {
+			t.Fatalf("cleanupArchiveFile() error = %v, want remove path error", err)
+		}
+	})
 }
 
 func TestMoveInstalledDir(t *testing.T) {
 	t.Parallel()
 
-	t.Run("install-into-new-target", func(t *testing.T) {
+	t.Run("ShouldInstallIntoANewTarget", func(t *testing.T) {
+		t.Parallel()
+
 		parent := t.TempDir()
 		source := filepath.Join(parent, "source")
 		target := filepath.Join(parent, "target")
@@ -295,7 +332,9 @@ func TestMoveInstalledDir(t *testing.T) {
 		}
 	})
 
-	t.Run("replace-into-new-target", func(t *testing.T) {
+	t.Run("ShouldReplaceIntoANewTargetWhenRequested", func(t *testing.T) {
+		t.Parallel()
+
 		parent := t.TempDir()
 		source := filepath.Join(parent, "source")
 		target := filepath.Join(parent, "target")
@@ -314,7 +353,9 @@ func TestMoveInstalledDir(t *testing.T) {
 		}
 	})
 
-	t.Run("replace-existing", func(t *testing.T) {
+	t.Run("ShouldReplaceAnExistingTarget", func(t *testing.T) {
+		t.Parallel()
+
 		parent := t.TempDir()
 		source := filepath.Join(parent, "source")
 		target := filepath.Join(parent, "target")
@@ -334,7 +375,9 @@ func TestMoveInstalledDir(t *testing.T) {
 		}
 	})
 
-	t.Run("reject-existing-when-replace-disabled", func(t *testing.T) {
+	t.Run("ShouldRejectExistingTargetsWhenReplaceIsDisabled", func(t *testing.T) {
+		t.Parallel()
+
 		parent := t.TempDir()
 		source := filepath.Join(parent, "source")
 		target := filepath.Join(parent, "target")
@@ -346,7 +389,9 @@ func TestMoveInstalledDir(t *testing.T) {
 		}
 	})
 
-	t.Run("restore-backup-when-replacement-fails", func(t *testing.T) {
+	t.Run("ShouldRestoreTheBackupWhenReplacementFails", func(t *testing.T) {
+		t.Parallel()
+
 		parent := t.TempDir()
 		source := filepath.Join(parent, "missing-source")
 		target := filepath.Join(parent, "target")
@@ -369,86 +414,96 @@ func TestMoveInstalledDir(t *testing.T) {
 func TestExtractArchivePreservesPermissionBits(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	archive := mustTarGz(t, []tarEntry{
-		{name: "review", typeflag: tar.TypeDir, mode: 0o750},
-		{name: "review/scripts", typeflag: tar.TypeDir, mode: 0o755},
-		{name: "review/scripts/run.sh", content: "#!/bin/sh\necho ok\n", mode: 0o755},
+	t.Run("ShouldPreservePermissionBitsFromTheArchive", func(t *testing.T) {
+		root := t.TempDir()
+		archive := mustTarGz(t, []tarEntry{
+			{name: "review", typeflag: tar.TypeDir, mode: 0o750},
+			{name: "review/scripts", typeflag: tar.TypeDir, mode: 0o755},
+			{name: "review/scripts/run.sh", content: "#!/bin/sh\necho ok\n", mode: 0o755},
+		})
+
+		if err := ExtractArchive(bytes.NewReader(archive), root); err != nil {
+			t.Fatalf("ExtractArchive() error = %v", err)
+		}
+
+		scriptInfo, err := os.Stat(filepath.Join(root, "review", "scripts", "run.sh"))
+		if err != nil {
+			t.Fatalf("Stat(script) error = %v", err)
+		}
+		if got := scriptInfo.Mode().Perm(); got != 0o755 {
+			t.Fatalf("script mode = %#o, want 0o755", got)
+		}
+
+		dirInfo, err := os.Stat(filepath.Join(root, "review"))
+		if err != nil {
+			t.Fatalf("Stat(review dir) error = %v", err)
+		}
+		if got := dirInfo.Mode().Perm(); got != 0o750 {
+			t.Fatalf("review dir mode = %#o, want 0o750", got)
+		}
 	})
-
-	if err := ExtractArchive(bytes.NewReader(archive), root); err != nil {
-		t.Fatalf("ExtractArchive() error = %v", err)
-	}
-
-	scriptInfo, err := os.Stat(filepath.Join(root, "review", "scripts", "run.sh"))
-	if err != nil {
-		t.Fatalf("Stat(script) error = %v", err)
-	}
-	if got := scriptInfo.Mode().Perm(); got != 0o755 {
-		t.Fatalf("script mode = %#o, want 0o755", got)
-	}
-
-	dirInfo, err := os.Stat(filepath.Join(root, "review"))
-	if err != nil {
-		t.Fatalf("Stat(review dir) error = %v", err)
-	}
-	if got := dirInfo.Mode().Perm(); got != 0o750 {
-		t.Fatalf("review dir mode = %#o, want 0o750", got)
-	}
 }
 
 func TestExtractArchiveStripsSpecialPermissionBits(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	archive := mustTarGz(t, []tarEntry{
-		{name: "review", typeflag: tar.TypeDir, mode: 0o2750},
-		{name: "review/run.sh", content: "#!/bin/sh\necho ok\n", mode: 0o4755},
+	t.Run("ShouldStripSpecialPermissionBits", func(t *testing.T) {
+		root := t.TempDir()
+		archive := mustTarGz(t, []tarEntry{
+			{name: "review", typeflag: tar.TypeDir, mode: 0o2750},
+			{name: "review/run.sh", content: "#!/bin/sh\necho ok\n", mode: 0o4755},
+		})
+
+		if err := ExtractArchive(bytes.NewReader(archive), root); err != nil {
+			t.Fatalf("ExtractArchive() error = %v", err)
+		}
+
+		dirInfo, err := os.Stat(filepath.Join(root, "review"))
+		if err != nil {
+			t.Fatalf("Stat(review dir) error = %v", err)
+		}
+		if got := dirInfo.Mode().Perm(); got != 0o750 {
+			t.Fatalf("review dir mode = %#o, want 0o750 after stripping special bits", got)
+		}
+
+		fileInfo, err := os.Stat(filepath.Join(root, "review", "run.sh"))
+		if err != nil {
+			t.Fatalf("Stat(run.sh) error = %v", err)
+		}
+		if got := fileInfo.Mode().Perm(); got != 0o755 {
+			t.Fatalf("run.sh mode = %#o, want 0o755 after stripping special bits", got)
+		}
 	})
-
-	if err := ExtractArchive(bytes.NewReader(archive), root); err != nil {
-		t.Fatalf("ExtractArchive() error = %v", err)
-	}
-
-	dirInfo, err := os.Stat(filepath.Join(root, "review"))
-	if err != nil {
-		t.Fatalf("Stat(review dir) error = %v", err)
-	}
-	if got := dirInfo.Mode().Perm(); got != 0o750 {
-		t.Fatalf("review dir mode = %#o, want 0o750 after stripping special bits", got)
-	}
-
-	fileInfo, err := os.Stat(filepath.Join(root, "review", "run.sh"))
-	if err != nil {
-		t.Fatalf("Stat(run.sh) error = %v", err)
-	}
-	if got := fileInfo.Mode().Perm(); got != 0o755 {
-		t.Fatalf("run.sh mode = %#o, want 0o755 after stripping special bits", got)
-	}
 }
 
 func TestDefaultExtractLimits(t *testing.T) {
 	t.Parallel()
 
-	if got, want := DefaultMaxDecompressedSize, int64(500*1024*1024); got != want {
-		t.Fatalf("DefaultMaxDecompressedSize = %d, want %d", got, want)
-	}
-	if got, want := DefaultMaxFileCount, 10000; got != want {
-		t.Fatalf("DefaultMaxFileCount = %d, want %d", got, want)
-	}
+	t.Run("ShouldExposeTheDefaultExtractionLimits", func(t *testing.T) {
+		if got, want := DefaultMaxDecompressedSize, int64(500*1024*1024); got != want {
+			t.Fatalf("DefaultMaxDecompressedSize = %d, want %d", got, want)
+		}
+		if got, want := DefaultMaxFileCount, 10000; got != want {
+			t.Fatalf("DefaultMaxFileCount = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestCountingLimitWriter(t *testing.T) {
 	t.Parallel()
 
-	t.Run("nil-total", func(t *testing.T) {
+	t.Run("ShouldRejectANilTotalCounter", func(t *testing.T) {
+		t.Parallel()
+
 		writer := &countingLimitWriter{limit: 10}
 		if _, err := writer.Write([]byte("abc")); err == nil {
 			t.Fatal("countingLimitWriter.Write(nil total) error = nil, want failure")
 		}
 	})
 
-	t.Run("no-limit", func(t *testing.T) {
+	t.Run("ShouldCountBytesWithoutEnforcingALimitWhenUnlimited", func(t *testing.T) {
+		t.Parallel()
+
 		var total int64
 		writer := &countingLimitWriter{total: &total}
 		if n, err := writer.Write([]byte("abcdef")); err != nil {
@@ -458,6 +513,23 @@ func TestCountingLimitWriter(t *testing.T) {
 		}
 		if total != 6 {
 			t.Fatalf("total = %d, want 6", total)
+		}
+	})
+}
+
+func TestRemoveInstalledDirBackup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldIgnoreBackupCleanupFailuresAfterReplacementCommits", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		removeInstalledDirBackup(filepath.Join(t.TempDir(), "backup"), func(string) error {
+			calls++
+			return errors.New("cleanup failed")
+		})
+		if calls != 1 {
+			t.Fatalf("removeInstalledDirBackup() calls = %d, want 1", calls)
 		}
 	})
 }

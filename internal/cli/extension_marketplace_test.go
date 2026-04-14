@@ -16,6 +16,7 @@ import (
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	registrypkg "github.com/pedronauck/agh/internal/registry"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 type extensionRegistryTestEnv struct {
@@ -69,12 +70,16 @@ func (s *extensionRegistrySourceStub) Close() error {
 }
 
 type localExtensionRegistryStub struct {
-	listFunc func() ([]extensionpkg.ExtensionInfo, error)
-	getFunc  func(string) (*extensionpkg.ExtensionInfo, error)
+	installFunc func(*extensionpkg.Manifest, string, string, ...extensionpkg.InstallOption) error
+	listFunc    func() ([]extensionpkg.ExtensionInfo, error)
+	getFunc     func(string) (*extensionpkg.ExtensionInfo, error)
 }
 
-func (s localExtensionRegistryStub) Install(*extensionpkg.Manifest, string, string, ...extensionpkg.InstallOption) error {
-	return nil
+func (s localExtensionRegistryStub) Install(manifest *extensionpkg.Manifest, path string, checksum string, opts ...extensionpkg.InstallOption) error {
+	if s.installFunc == nil {
+		return nil
+	}
+	return s.installFunc(manifest, path, checksum, opts...)
 }
 
 func (s localExtensionRegistryStub) List() ([]extensionpkg.ExtensionInfo, error) {
@@ -540,6 +545,28 @@ func TestRemoveInstalledExtensionRollsBackRegistryOnCommitFailure(t *testing.T) 
 	}
 }
 
+func TestRemoveInstalledExtensionRejectsInvalidManifestPath(t *testing.T) {
+	t.Parallel()
+
+	_, err := removeInstalledExtensionWithRegistry(localExtensionRegistryStub{
+		getFunc: func(string) (*extensionpkg.ExtensionInfo, error) {
+			return &extensionpkg.ExtensionInfo{
+				Name:         "broken-ext",
+				ManifestPath: "",
+			}, nil
+		},
+	}, "broken-ext", func(string) (extensionDirChange, error) {
+		t.Fatal("stage callback should not run for invalid manifest path")
+		return nil, nil
+	})
+	if err == nil {
+		t.Fatal("removeInstalledExtensionWithRegistry(invalid manifest path) error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), "invalid manifest path") {
+		t.Fatalf("removeInstalledExtensionWithRegistry(invalid manifest path) error = %v, want manifest-path validation", err)
+	}
+}
+
 func TestExtensionUpdateCommandCheckOnlyShowsAvailableUpdatesWithoutDownloading(t *testing.T) {
 	t.Parallel()
 
@@ -760,6 +787,46 @@ func TestExtensionUpdateCommandAllUpdatesMarketplaceExtensions(t *testing.T) {
 			localInfo.RegistryName,
 			localInfo.RemoteVersion,
 		)
+	}
+}
+
+func TestUpdateMarketplaceExtensionRejectsInvalidManifestPath(t *testing.T) {
+	t.Parallel()
+
+	runtime := runtimeContext{}
+	deps := commandDeps{
+		loadExtensionRegistrySources: func(runtimeContext) ([]registrypkg.RegistrySource, error) {
+			return []registrypkg.RegistrySource{&extensionRegistrySourceStub{
+				name: "github",
+				infoFunc: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
+					return &registrypkg.Detail{
+						Listing: registrypkg.Listing{
+							Slug:    slug,
+							Name:    "broken-ext",
+							Version: "1.2.0",
+							Source:  "github",
+						},
+					}, nil
+				},
+			}}, nil
+		},
+	}
+	slug := "acme/broken-ext"
+	registryName := "github"
+	info := extensionpkg.ExtensionInfo{
+		Name:         "broken-ext",
+		Version:      "1.0.0",
+		ManifestPath: "",
+		RegistrySlug: &slug,
+		RegistryName: &registryName,
+	}
+
+	_, err := updateMarketplaceExtension(testutil.Context(t), runtime, deps, localExtensionRegistryStub{}, info, true)
+	if err == nil {
+		t.Fatal("updateMarketplaceExtension(invalid manifest path) error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), "invalid manifest path") {
+		t.Fatalf("updateMarketplaceExtension(invalid manifest path) error = %v, want manifest-path validation", err)
 	}
 }
 
