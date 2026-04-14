@@ -411,14 +411,40 @@ describe("NetworkPage", () => {
     mockNetworkChannels = undefined;
     const { rerender } = render(<NetworkPage />);
 
-    expect(screen.getByTestId("network-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-page-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("network-channels-list-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("network-channel-loading")).toBeInTheDocument();
 
     mockNetworkChannelsLoading = false;
     mockNetworkChannels = undefined;
     mockNetworkChannelsError = new Error("network down");
     rerender(<NetworkPage />);
 
-    expect(screen.getByTestId("network-error")).toHaveTextContent("network down");
+    expect(screen.getByTestId("network-channels-list-error")).toHaveTextContent("network down");
+    expect(screen.getByTestId("network-channel-error")).toHaveTextContent("network down");
+  });
+
+  it("renders peer loading and error states inside the panel instead of replacing the page", async () => {
+    const user = userEvent.setup();
+    mockNetworkPeersLoading = true;
+    mockNetworkPeers = undefined;
+    const { rerender } = render(<NetworkPage />);
+
+    await user.click(screen.getByTestId("network-tab-peers"));
+
+    expect(screen.getByTestId("workspace-page-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("network-peers-list-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("network-peer-loading")).toBeInTheDocument();
+
+    mockNetworkPeersLoading = false;
+    mockNetworkPeers = undefined;
+    mockNetworkPeersError = new Error("peer discovery failed");
+    rerender(<NetworkPage />);
+
+    expect(screen.getByTestId("network-peers-list-error")).toHaveTextContent(
+      "peer discovery failed"
+    );
+    expect(screen.getByTestId("network-peer-error")).toHaveTextContent("peer discovery failed");
   });
 
   it("renders the channels view with metrics and the read-only timeline", () => {
@@ -462,10 +488,19 @@ describe("NetworkPage", () => {
     expect(screen.getByTestId("network-create-channel-dialog")).toBeInTheDocument();
     expect(screen.queryByTestId("network-agent-option-researcher-01")).not.toBeInTheDocument();
 
-    await user.type(screen.getByTestId("network-channel-name-input"), "deployments");
-    await user.click(screen.getByTestId("network-agent-option-polybot-main"));
-    await user.click(screen.getByTestId("network-agent-option-coder-agent-01"));
-    await user.click(screen.getByTestId("network-create-channel-submit"));
+    const channelNameInput = screen.getByTestId("network-channel-name-input");
+    const firstAgent = screen.getByTestId("network-agent-option-polybot-main");
+    const secondAgent = screen.getByTestId("network-agent-option-coder-agent-01");
+
+    await user.type(channelNameInput, "deployments");
+    await user.click(firstAgent);
+    await user.click(secondAgent);
+
+    expect(firstAgent).toHaveAttribute("aria-pressed", "true");
+    expect(secondAgent).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(channelNameInput);
+    await user.keyboard("{Enter}");
 
     await waitFor(() =>
       expect(mockCreateNetworkChannelMutateAsync).toHaveBeenCalledWith({
@@ -474,6 +509,7 @@ describe("NetworkPage", () => {
         workspace_id: "ws_main",
       })
     );
+    expect(mockCreateNetworkChannelMutateAsync).toHaveBeenCalledOnce();
     expect(toast.success).toHaveBeenCalledWith("Created channel deployments.");
   });
 

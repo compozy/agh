@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: web/src/systems/network/components/network-peers-list-panel.tsx
 line: 22
 severity: nitpick
@@ -21,5 +21,8 @@ As per coding guidelines, "Use `interface` for defining object shapes in TypeScr
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `PeerListItem` uses an inline object-shape type for props inside a file that otherwise follows named-interface conventions. This is a style-consistency issue rather than a behavior bug, but it matches the project’s TypeScript shape rule.
+- Fix approach: extract the props shape into a named `PeerListItemProps` interface without changing behavior.
+- Resolution: extracted `PeerListItemProps` and kept the component behavior unchanged.
+- Verification: `make web-lint`, `make web-typecheck`, and `make verify` passed after the refactor.

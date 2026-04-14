@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: web/src/systems/network/lib/network-formatters.ts
 line: 151
 severity: nitpick
@@ -19,5 +19,8 @@ As per coding guidelines, `web/**/*.ts?(x)`: Use `interface` for defining object
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `getNetworkMetricCards` returns an inline object-shape array instead of a named interface, which is inconsistent with the project’s TypeScript object-shape convention.
+- Fix approach: introduce a small named interface for the metric-card shape and use it as the return type. No behavior change is required.
+- Resolution: introduced a dedicated `NetworkMetricCard` interface and applied it to the formatter return type.
+- Verification: route tests plus `make web-lint`, `make web-typecheck`, and `make verify` passed.

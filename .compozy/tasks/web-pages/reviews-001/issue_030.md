@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: web/src/systems/workspace/hooks/use-workspaces.ts
 line: 5
 severity: nitpick
@@ -19,5 +19,8 @@ As per coding guidelines, `web/src/**/*.{ts,tsx}`: "Use path alias `@/*` to map 
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `use-workspaces.ts` currently mixes in a relative import for the adapter while the `web/` codebase standard is to use the `@/*` alias.
+- Fix approach: switch the new relative import to the project alias form while keeping behavior unchanged.
+- Resolution: converted the hook module imports to `@/systems/workspace/...` alias paths and aligned the hook test mock path with the real import target.
+- Verification: updated hook tests passed in the focused Vitest run, and `make web-lint`, `make web-typecheck`, and `make verify` stayed green.

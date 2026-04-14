@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: web/src/systems/workspace/adapters/workspace-api.test.ts
 line: 53
 severity: nitpick
@@ -17,5 +17,8 @@ The new test covers the success path, but it doesn’t validate signal propagati
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: the new `fetchWorkspace` adapter test covers the success path but does not assert that the hook passes the provided `AbortSignal` through to `fetch`, which is part of the adapter contract already tested for the list endpoint.
+- Fix approach: add a focused `fetchWorkspace` abort-signal test alongside the existing adapter coverage.
+- Resolution: added abort-signal coverage for `fetchWorkspace` in `workspace-api.test.ts`.
+- Verification: the focused adapter test run plus `make web-lint`, `make web-typecheck`, and `make verify` passed.

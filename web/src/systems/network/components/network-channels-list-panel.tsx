@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { AlertCircle, Loader2, Search } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,8 @@ import type { NetworkChannelSummary } from "../types";
 
 interface NetworkChannelsListPanelProps {
   channels: NetworkChannelSummary[];
+  errorMessage?: string | null;
+  isLoading?: boolean;
   onSearchChange: (query: string) => void;
   onSelectChannel: (channel: string) => void;
   searchQuery: string;
@@ -47,11 +49,15 @@ function ChannelListItem({ channel, isSelected, onSelect }: ChannelListItemProps
 
 export function NetworkChannelsListPanel({
   channels,
+  errorMessage = null,
+  isLoading = false,
   onSearchChange,
   onSelectChannel,
   searchQuery,
   selectedChannel,
 }: NetworkChannelsListPanelProps) {
+  const isEmpty = channels.length === 0;
+
   return (
     <aside
       className="flex w-[280px] shrink-0 flex-col border-r border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]"
@@ -71,7 +77,24 @@ export function NetworkChannelsListPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {channels.length === 0 ? (
+        {isLoading && isEmpty ? (
+          <div
+            className="flex min-h-full items-center justify-center px-6 py-10"
+            data-testid="network-channels-list-loading"
+          >
+            <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+          </div>
+        ) : errorMessage && isEmpty ? (
+          <div
+            className="flex min-h-full items-center justify-center px-6 py-10"
+            data-testid="network-channels-list-error"
+          >
+            <div className="flex max-w-xs flex-col items-center gap-2 text-center">
+              <AlertCircle className="size-5 text-[color:var(--color-danger)]" />
+              <p className="text-sm text-[color:var(--color-text-secondary)]">{errorMessage}</p>
+            </div>
+          </div>
+        ) : isEmpty ? (
           <div
             className="flex min-h-full items-center justify-center px-6 py-10 text-center text-sm text-[color:var(--color-text-secondary)]"
             data-testid="network-channels-list-empty"

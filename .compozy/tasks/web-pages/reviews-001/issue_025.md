@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: web/src/systems/network/components/network-peers-list-panel.tsx
 line: 66
 severity: nitpick
@@ -19,5 +19,8 @@ As per coding guidelines, "Handle all loading, error, and empty states in compon
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `NetworkPeersListPanel` only knows how to render loaded peers or an empty state, so `web/src/routes/_app/network.tsx` handles peers-list loading/failure with page-level early returns. That duplicates UI-state ownership outside the component and conflicts with the `web/` component-state rule.
+- Fix approach: add loading/error support to the peers panel and update the network route/tests so the peers list renders those states in-panel instead of replacing the whole page. This also requires a minimal route/test touch outside the batch code-file list because the current caller wiring is part of the defect.
+- Resolution: added in-panel loading/error states to `NetworkPeersListPanel` and updated the route so peers loading/failure is rendered inside the shell instead of short-circuiting the page.
+- Verification: added peers-panel route coverage and passed the focused Vitest run, `make web-lint`, `make web-typecheck`, and `make verify`.

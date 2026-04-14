@@ -1,4 +1,4 @@
-import { AlertCircle, Hash, Loader2, Network as NetworkIcon, Plus, Users } from "lucide-react";
+import { Hash, Network as NetworkIcon, Plus, Users } from "lucide-react";
 import { startTransition, useDeferredValue, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -102,18 +102,10 @@ function NetworkPage() {
 
   const pageMetrics = getNetworkMetricCards(networkStatusQuery.data, allChannels.length);
   const headerCount = activeTab === "channels" ? allChannels.length : allPeers.length;
-  const activeListLoading =
-    activeTab === "channels"
-      ? networkChannelsQuery.isLoading && !networkChannelsQuery.data
-      : networkPeersQuery.isLoading && !networkPeersQuery.data;
-  const activeListError =
-    activeTab === "channels"
-      ? !networkChannelsQuery.data
-        ? networkChannelsQuery.error
-        : null
-      : !networkPeersQuery.data
-        ? networkPeersQuery.error
-        : null;
+  const isChannelsListLoading = networkChannelsQuery.isLoading && !networkChannelsQuery.data;
+  const channelsListError = !networkChannelsQuery.data ? networkChannelsQuery.error : null;
+  const isPeersListLoading = networkPeersQuery.isLoading && !networkPeersQuery.data;
+  const peersListError = !networkPeersQuery.data ? networkPeersQuery.error : null;
 
   const handleOpenCreateDialog = () => {
     setCreateDraft(createNetworkChannelDraft());
@@ -156,27 +148,6 @@ function NetworkPage() {
       toast.error(error instanceof Error ? error.message : "Failed to create network channel");
     }
   };
-
-  if (activeListLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center" data-testid="network-loading">
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
-      </div>
-    );
-  }
-
-  if (activeListError) {
-    return (
-      <div className="flex flex-1 items-center justify-center" data-testid="network-error">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
-            {activeListError.message ?? "Failed to load network data"}
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   const canSubmitCreate =
     Boolean(activeWorkspaceId) &&
@@ -241,12 +212,30 @@ function NetworkPage() {
             <div className="flex min-h-0 flex-1 overflow-hidden">
               <NetworkChannelsListPanel
                 channels={visibleChannels}
+                errorMessage={channelsListError?.message ?? null}
+                isLoading={isChannelsListLoading}
                 onSearchChange={setChannelSearchQuery}
                 onSelectChannel={setSelectedChannel}
                 searchQuery={channelSearchQuery}
                 selectedChannel={effectiveSelectedChannel}
               />
-              {allChannels.length === 0 ? (
+              {isChannelsListLoading ? (
+                <NetworkChannelDetailPanel
+                  channel={undefined}
+                  error={null}
+                  isLoading={true}
+                  isMessagesLoading={false}
+                  messages={[]}
+                />
+              ) : channelsListError ? (
+                <NetworkChannelDetailPanel
+                  channel={undefined}
+                  error={channelsListError}
+                  isLoading={false}
+                  isMessagesLoading={false}
+                  messages={[]}
+                />
+              ) : allChannels.length === 0 ? (
                 <NetworkEmptyState
                   actionLabel="Create Channel"
                   description="Create your first channel to enable agent-to-agent coordination inside the active workspace."
@@ -275,13 +264,19 @@ function NetworkPage() {
           ) : (
             <div className="flex min-h-0 flex-1 overflow-hidden">
               <NetworkPeersListPanel
+                errorMessage={peersListError?.message ?? null}
+                isLoading={isPeersListLoading}
                 onSearchChange={setPeerSearchQuery}
                 onSelectPeer={setSelectedPeerId}
                 peers={visiblePeers}
                 searchQuery={peerSearchQuery}
                 selectedPeerId={effectiveSelectedPeerId}
               />
-              {allPeers.length === 0 ? (
+              {isPeersListLoading ? (
+                <NetworkPeerDetailPanel error={null} isLoading={true} peer={undefined} />
+              ) : peersListError ? (
+                <NetworkPeerDetailPanel error={peersListError} isLoading={false} peer={undefined} />
+              ) : allPeers.length === 0 ? (
                 <NetworkEmptyState
                   description="Peers are discovered automatically when agents join the network. Start a channel session to make local peers visible."
                   icon={<Users className="size-5" />}

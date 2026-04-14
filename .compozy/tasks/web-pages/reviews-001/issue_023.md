@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: web/src/systems/network/components/network-create-channel-dialog.tsx
 line: 127
 author: coderabbitai[bot]
@@ -102,5 +102,8 @@ the existing onToggleAgent handler and visual classes unchanged.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: each agent row is implemented as a toggle button, but selection is exposed only through styling and the checkmark glyph. Assistive technology currently gets no pressed/selected state announcement.
+- Fix approach: preserve the button semantics, add `aria-pressed={isSelected}`, and ensure the row’s accessible name still includes the rendered agent identity text.
+- Resolution: added `aria-pressed` to the agent-toggle buttons without changing their existing visual behavior.
+- Verification: the network route test now asserts pressed state changes, and the focused/full verification commands passed.

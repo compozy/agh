@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: web/src/systems/network/hooks/use-network-actions.ts
 line: 22
 author: coderabbitai[bot]
@@ -137,5 +137,8 @@ accordingly.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `invalid`
+- Root cause analysis: there is no missing optimistic-update bug here. `useCreateNetworkChannel` already invalidates both network and session queries on settle, and the server returns the authoritative created channel. The channel list UI depends on server-derived fields such as `peer_count`, `message_count`, `session_count`, and `last_message_at`; synthesizing those client-side for an optimistic insert would require fake placeholder data or duplicated server logic.
+- Why not fix: the project rule is that optimistic updates need rollback when used, not that every mutation must optimistically mutate the cache. Adding an optimistic channel row here would make the UI less truthful and create rollback-only complexity without addressing an actual defect. This issue should be closed as analysis-only.
+- Resolution: no code change was made. The mutation remains invalidate-on-settle so the UI continues to rely on authoritative server data.
+- Verification: the focused/full verification commands passed with this issue intentionally left as analysis-only.

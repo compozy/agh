@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: web/src/systems/workspace/adapters/workspace-api.ts
 line: 30
 severity: nitpick
@@ -21,5 +21,8 @@ As per coding guidelines: "Use typed error classes in API adapters — never thr
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `workspace-api.ts` throws raw `Error` instances, so consumers cannot inspect HTTP status without string parsing. Other current `web/` adapters in the same codebase expose typed `*ApiError` classes with a `status` field, which is the pattern this system should follow.
+- Fix approach: introduce `WorkspaceApiError`, throw it from the three adapter functions, and extend adapter tests to verify the typed error/status behavior. This is a local change in the batch file and does not require a broader refactor.
+- Resolution: added `WorkspaceApiError` and switched the workspace adapter failure paths to throw it with the HTTP status.
+- Verification: added typed-error coverage in `workspace-api.test.ts`, and the focused/full verification commands passed.

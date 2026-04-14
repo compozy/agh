@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { AlertCircle, Loader2, Search } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,8 @@ import {
 import type { NetworkPeerSummary } from "../types";
 
 interface NetworkPeersListPanelProps {
+  errorMessage?: string | null;
+  isLoading?: boolean;
   onSearchChange: (query: string) => void;
   onSelectPeer: (peerId: string) => void;
   peers: NetworkPeerSummary[];
@@ -19,15 +21,13 @@ interface NetworkPeersListPanelProps {
   selectedPeerId: string | null;
 }
 
-function PeerListItem({
-  isSelected,
-  onSelect,
-  peer,
-}: {
+interface PeerListItemProps {
   isSelected: boolean;
   onSelect: () => void;
   peer: NetworkPeerSummary;
-}) {
+}
+
+function PeerListItem({ isSelected, onSelect, peer }: PeerListItemProps) {
   const displayName = getPeerDisplayName(peer);
   const meta = peer.local ? getPeerTypeLabel(peer) : formatNetworkRelativeTime(peer.last_seen);
 
@@ -64,12 +64,16 @@ function PeerListItem({
 }
 
 export function NetworkPeersListPanel({
+  errorMessage = null,
+  isLoading = false,
   onSearchChange,
   onSelectPeer,
   peers,
   searchQuery,
   selectedPeerId,
 }: NetworkPeersListPanelProps) {
+  const isEmpty = peers.length === 0;
+
   return (
     <aside
       className="flex w-[280px] shrink-0 flex-col border-r border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]"
@@ -89,7 +93,24 @@ export function NetworkPeersListPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {peers.length === 0 ? (
+        {isLoading && isEmpty ? (
+          <div
+            className="flex min-h-full items-center justify-center px-6 py-10"
+            data-testid="network-peers-list-loading"
+          >
+            <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+          </div>
+        ) : errorMessage && isEmpty ? (
+          <div
+            className="flex min-h-full items-center justify-center px-6 py-10"
+            data-testid="network-peers-list-error"
+          >
+            <div className="flex max-w-xs flex-col items-center gap-2 text-center">
+              <AlertCircle className="size-5 text-[color:var(--color-danger)]" />
+              <p className="text-sm text-[color:var(--color-text-secondary)]">{errorMessage}</p>
+            </div>
+          </div>
+        ) : isEmpty ? (
           <div
             className="flex min-h-full items-center justify-center px-6 py-10 text-center text-sm text-[color:var(--color-text-secondary)]"
             data-testid="network-peers-list-empty"

@@ -6,13 +6,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useResolveWorkspace, useWorkspace, useWorkspaces } from "./use-workspaces";
 import { workspaceKeys } from "../lib/query-keys";
 
-vi.mock("../adapters/workspace-api", () => ({
+vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
   fetchWorkspace: vi.fn(),
   fetchWorkspaces: vi.fn(),
   resolveWorkspace: vi.fn(),
 }));
 
-import { fetchWorkspace, fetchWorkspaces, resolveWorkspace } from "../adapters/workspace-api";
+import {
+  fetchWorkspace,
+  fetchWorkspaces,
+  resolveWorkspace,
+} from "@/systems/workspace/adapters/workspace-api";
 
 function createWrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) =>
@@ -83,6 +87,18 @@ describe("workspace hooks", () => {
     });
 
     expect(fetchWorkspace).toHaveBeenCalledWith("ws_alpha", expect.any(AbortSignal));
+  });
+
+  it("allows callers to disable the workspace detail query", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    renderHook(() => useWorkspace("ws_alpha", { enabled: false }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    expect(fetchWorkspace).not.toHaveBeenCalled();
   });
 
   it("invalidates the workspace list after resolving a workspace", async () => {

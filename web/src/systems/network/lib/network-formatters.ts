@@ -16,6 +16,12 @@ const timeFormatter = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 });
 
+interface NetworkMetricCard {
+  detail?: string;
+  label: string;
+  value: string;
+}
+
 export function createNetworkChannelDraft(): NetworkCreateChannelDraft {
   return {
     channelName: "",
@@ -151,7 +157,7 @@ export function getPeerPresenceTone(peer: Pick<NetworkPeerSummary, "last_seen" |
 export function getNetworkMetricCards(
   status: NetworkStatus | undefined,
   channelCount: number
-): Array<{ detail?: string; label: string; value: string }> {
+): NetworkMetricCard[] {
   const localPeers = status?.local_peers ?? 0;
   const remotePeers = status?.remote_peers ?? 0;
 

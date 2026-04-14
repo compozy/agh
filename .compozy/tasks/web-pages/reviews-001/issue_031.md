@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: web/src/systems/workspace/hooks/use-workspaces.ts
 line: 12
 severity: nitpick
@@ -21,5 +21,8 @@ As per coding guidelines, `web/**/*.ts?(x)`: "Use `interface` for defining objec
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `useWorkspace` takes an inline object-shape options type instead of a named interface, which is inconsistent with the repository’s TypeScript interface convention.
+- Fix approach: extract the options shape into a named interface and keep the hook behavior unchanged.
+- Resolution: extracted `UseWorkspaceOptions` and kept the hook API behavior unchanged.
+- Verification: added hook coverage for `enabled: false`, and the focused/full verification commands passed.

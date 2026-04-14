@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: web/src/systems/network/components/network-channels-list-panel.tsx
 line: 50
 severity: nitpick
@@ -19,5 +19,8 @@ As per coding guidelines, "Handle all loading, error, and empty states in compon
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `NetworkChannelsListPanel` only accepts a loaded channel array, so `web/src/routes/_app/network.tsx` has to short-circuit the entire page for channel-list loading and failure. That violates the `web/` rule that components should own loading/error/empty rendering for the data they present.
+- Fix approach: extend the panel API to accept loading and error state, render those states inside the panel under the search control, and update the network route/tests to stop handling the channel-list query with page-level early returns. This requires a minimal route/test touch outside the batch code-file list because the current caller behavior is the actual source of the problem.
+- Resolution: added in-panel loading/error states to `NetworkChannelsListPanel` and rewired `web/src/routes/_app/network.tsx` so the page shell stays mounted while the panel/detail panes render truthful loading or error UI.
+- Verification: `bun x vitest run web/src/routes/_app/-network.test.tsx ...`, `make web-lint`, `make web-typecheck`, and `make verify` all passed.
