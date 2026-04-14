@@ -19,13 +19,14 @@ import (
 
 type stubSessionManager = testutil.StubSessionManager
 type stubObserver = testutil.StubObserver
+type stubTaskManager = testutil.StubTaskManager
 type stubBridgeService = testutil.StubBridgeService
 type stubWorkspaceService = testutil.StubWorkspaceService
 type sseRecord = testutil.SSERecord
 
 func newTestHandlers(t *testing.T, manager core.SessionManager, observer core.Observer, homePaths aghconfig.HomePaths) *Handlers {
 	t.Helper()
-	return newTestHandlersWithAutomationBridgesAndWorkspace(t, manager, observer, nil, nil, stubWorkspaceService{}, homePaths)
+	return newTestHandlersWithAutomationBridgesTasksAndWorkspace(t, manager, observer, nil, stubTaskManager{}, nil, stubWorkspaceService{}, homePaths)
 }
 
 func newTestHandlersWithBridges(
@@ -37,14 +38,15 @@ func newTestHandlersWithBridges(
 	homePaths aghconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
-	return newTestHandlersWithAutomationBridgesAndWorkspace(t, manager, observer, nil, bridges, workspaces, homePaths)
+	return newTestHandlersWithAutomationBridgesTasksAndWorkspace(t, manager, observer, nil, stubTaskManager{}, bridges, workspaces, homePaths)
 }
 
-func newTestHandlersWithAutomationBridgesAndWorkspace(
+func newTestHandlersWithAutomationBridgesTasksAndWorkspace(
 	t *testing.T,
 	manager core.SessionManager,
 	observer core.Observer,
 	automation core.AutomationManager,
+	tasks core.TaskService,
 	bridges core.BridgeService,
 	workspaces core.WorkspaceService,
 	homePaths aghconfig.HomePaths,
@@ -57,6 +59,7 @@ func newTestHandlersWithAutomationBridgesAndWorkspace(
 
 	return newHandlers(handlerConfig{
 		sessions:     manager,
+		tasks:        tasks,
 		observer:     observer,
 		automation:   automation,
 		bridges:      bridges,

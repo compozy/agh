@@ -51,6 +51,7 @@ type Server struct {
 	now            func() time.Time
 	pollInterval   time.Duration
 	sessions       core.SessionManager
+	tasks          core.TaskService
 	network        core.NetworkService
 	networkStore   core.NetworkStore
 	observer       core.Observer
@@ -75,6 +76,7 @@ type Server struct {
 
 type handlerConfig struct {
 	sessions       core.SessionManager
+	tasks          core.TaskService
 	network        core.NetworkService
 	networkStore   core.NetworkStore
 	observer       core.Observer
@@ -153,6 +155,13 @@ func WithPollInterval(interval time.Duration) Option {
 func WithSessionManager(manager core.SessionManager) Option {
 	return func(server *Server) {
 		server.sessions = manager
+	}
+}
+
+// WithTaskService injects the daemon-owned task service.
+func WithTaskService(service core.TaskService) Option {
+	return func(server *Server) {
+		server.tasks = service
 	}
 }
 
@@ -283,6 +292,9 @@ func New(opts ...Option) (*Server, error) {
 	if server.sessions == nil {
 		return nil, errors.New("udsapi: session manager is required")
 	}
+	if server.tasks == nil {
+		return nil, errors.New("udsapi: task service is required")
+	}
 	if server.observer == nil {
 		return nil, errors.New("udsapi: observer is required")
 	}
@@ -305,6 +317,7 @@ func New(opts ...Option) (*Server, error) {
 
 	server.handlers = newHandlers(handlerConfig{
 		sessions:       server.sessions,
+		tasks:          server.tasks,
 		network:        server.network,
 		networkStore:   server.networkStore,
 		observer:       server.observer,
@@ -516,6 +529,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			MaskInternalErrors:           false,
 			IncludeSessionWorkspaceInSSE: true,
 			Sessions:                     cfg.sessions,
+			Tasks:                        cfg.tasks,
 			Network:                      cfg.network,
 			NetworkStore:                 cfg.networkStore,
 			Observer:                     cfg.observer,

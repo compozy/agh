@@ -17,6 +17,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerObserveRoutes(api, handlers)
 	registerHookRoutes(api, handlers)
 	registerAutomationRoutes(api, handlers)
+	registerTaskRoutes(api, handlers)
 	registerSkillRoutes(api, handlers)
 	registerMemoryRoutes(api, handlers)
 	registerDaemonRoutes(api, handlers)
@@ -110,6 +111,28 @@ func registerAutomationRoutes(api gin.IRouter, handlers *Handlers) {
 	runs := automationGroup.Group("/runs")
 	runs.GET("", handlers.ListAutomationRuns)
 	runs.GET("/:id", handlers.GetAutomationRun)
+}
+
+func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
+	tasks := api.Group("/tasks")
+	tasks.POST("", handlers.CreateTask)
+	tasks.GET("", handlers.ListTasks)
+	tasks.GET("/:id", handlers.GetTask)
+	tasks.PATCH("/:id", handlers.UpdateTask)
+	tasks.POST("/:id/cancel", handlers.CancelTask)
+	tasks.POST("/:id/children", handlers.CreateChildTask)
+	tasks.POST("/:id/dependencies", handlers.AddTaskDependency)
+	tasks.DELETE("/:id/dependencies/:depends_on_id", handlers.RemoveTaskDependency)
+	tasks.POST("/:id/runs", handlers.EnqueueTaskRun)
+	tasks.GET("/:id/runs", handlers.ListTaskRuns)
+
+	taskRuns := api.Group("/task-runs")
+	taskRuns.POST("/:id/claim", handlers.ClaimTaskRun)
+	taskRuns.POST("/:id/start", handlers.StartTaskRun)
+	taskRuns.POST("/:id/attach-session", handlers.AttachTaskRunSession)
+	taskRuns.POST("/:id/complete", handlers.CompleteTaskRun)
+	taskRuns.POST("/:id/fail", handlers.FailTaskRun)
+	taskRuns.POST("/:id/cancel", handlers.CancelTaskRun)
 }
 
 func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {

@@ -3212,16 +3212,87 @@ func (r *recordingRegistry) ListNetworkMessages(context.Context, store.NetworkMe
 	return nil, nil
 }
 
+func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
+	return nil
+}
+
+func (r *recordingRegistry) UpdateTask(context.Context, taskpkg.Task) error {
+	return nil
+}
+
+func (r *recordingRegistry) GetTask(context.Context, string) (taskpkg.Task, error) {
+	return taskpkg.Task{}, taskpkg.ErrTaskNotFound
+}
 func (r *recordingRegistry) ListTasks(context.Context, taskpkg.TaskQuery) ([]taskpkg.TaskSummary, error) {
 	return nil, nil
+}
+
+func (r *recordingRegistry) CountDirectChildren(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (r *recordingRegistry) CreateDependency(context.Context, taskpkg.TaskDependency) error {
+	return nil
+}
+
+func (r *recordingRegistry) DeleteDependency(context.Context, string, string) error {
+	return nil
+}
+
+func (r *recordingRegistry) ListDependencies(context.Context, string) ([]taskpkg.TaskDependency, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) ListDependents(context.Context, string) ([]taskpkg.TaskDependency, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) CountDependencies(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (r *recordingRegistry) HasDependencyPath(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
+func (r *recordingRegistry) CreateTaskRun(context.Context, taskpkg.TaskRun) error {
+	return nil
+}
+
+func (r *recordingRegistry) UpdateTaskRun(context.Context, taskpkg.TaskRun) error {
+	return nil
+}
+
+func (r *recordingRegistry) GetTaskRun(context.Context, string) (taskpkg.TaskRun, error) {
+	return taskpkg.TaskRun{}, taskpkg.ErrTaskRunNotFound
 }
 
 func (r *recordingRegistry) ListTaskRuns(context.Context, taskpkg.TaskRunQuery) ([]taskpkg.TaskRun, error) {
 	return nil, nil
 }
 
+func (r *recordingRegistry) ListTaskRunsByStatus(context.Context, []taskpkg.TaskRunStatus) ([]taskpkg.TaskRun, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) CountActiveSessionBindings(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (r *recordingRegistry) CreateTaskEvent(context.Context, taskpkg.TaskEvent) error {
+	return nil
+}
+
 func (r *recordingRegistry) ListTaskEvents(context.Context, taskpkg.TaskEventQuery) ([]taskpkg.TaskEvent, error) {
 	return nil, nil
+}
+
+func (r *recordingRegistry) GetTaskRunByIdempotencyKey(context.Context, string, taskpkg.Origin) (taskpkg.TaskRun, error) {
+	return taskpkg.TaskRun{}, taskpkg.ErrTaskRunIdempotencyNotFound
+}
+
+func (r *recordingRegistry) SaveTaskRunIdempotency(context.Context, taskpkg.TaskRunIdempotency) error {
+	return nil
 }
 func (r *recordingRegistry) Close(context.Context) error {
 	if r.onClose != nil {

@@ -12,6 +12,7 @@ import (
 
 type handlerConfig struct {
 	sessions       core.SessionManager
+	tasks          core.TaskService
 	network        core.NetworkService
 	networkStore   core.NetworkStore
 	observer       core.Observer
@@ -52,6 +53,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			MaskInternalErrors:           true,
 			IncludeSessionWorkspaceInSSE: false,
 			Sessions:                     cfg.sessions,
+			Tasks:                        cfg.tasks,
 			Network:                      cfg.network,
 			NetworkStore:                 cfg.networkStore,
 			Observer:                     cfg.observer,
