@@ -39,6 +39,7 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/subprocess"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -3211,6 +3212,17 @@ func (r *recordingRegistry) ListNetworkMessages(context.Context, store.NetworkMe
 	return nil, nil
 }
 
+func (r *recordingRegistry) ListTasks(context.Context, taskpkg.TaskQuery) ([]taskpkg.TaskSummary, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) ListTaskRuns(context.Context, taskpkg.TaskRunQuery) ([]taskpkg.TaskRun, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) ListTaskEvents(context.Context, taskpkg.TaskEventQuery) ([]taskpkg.TaskEvent, error) {
+	return nil, nil
+}
 func (r *recordingRegistry) Close(context.Context) error {
 	if r.onClose != nil {
 		r.onClose()
