@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement ClawHub and GitHub adapters
 type: backend
 complexity: critical
@@ -38,12 +38,12 @@ Create two `RegistrySource` implementations: a ClawHub adapter (refactoring the 
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Create `internal/registry/clawhub/` adapter wrapping existing client logic
-- [ ] 3.2 Adapt ClawHub `Download` signature to new `DownloadOpts` / `*DownloadResult` types
-- [ ] 3.3 Create `internal/registry/github/` adapter with Releases API integration
-- [ ] 3.4 Implement GitHub asset resolution with naming convention and `--asset` fallback
-- [ ] 3.5 Implement GitHub rate-limit handling and `GITHUB_TOKEN` authentication
-- [ ] 3.6 Write unit tests for both adapters using httptest servers
+- [x] 3.1 Create `internal/registry/clawhub/` adapter wrapping existing client logic
+- [x] 3.2 Adapt ClawHub `Download` signature to new `DownloadOpts` / `*DownloadResult` types
+- [x] 3.3 Create `internal/registry/github/` adapter with Releases API integration
+- [x] 3.4 Implement GitHub asset resolution with naming convention and `--asset` fallback
+- [x] 3.5 Implement GitHub rate-limit handling and `GITHUB_TOKEN` authentication
+- [x] 3.6 Write unit tests for both adapters using httptest servers
 
 ## Implementation Details
 
