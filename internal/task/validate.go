@@ -250,6 +250,9 @@ func (a ActorContext) Validate() error {
 	if err := a.Origin.Validate("origin"); err != nil {
 		return err
 	}
+	if err := validateActorOriginPair(a.Actor, a.Origin); err != nil {
+		return err
+	}
 	if err := a.Authority.Validate("authority"); err != nil {
 		return err
 	}

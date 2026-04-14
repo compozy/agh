@@ -31,6 +31,10 @@ func (fakeStore) ListDependencies(context.Context, string) ([]taskpkg.TaskDepend
 	return []taskpkg.TaskDependency{{TaskID: "task-1", DependsOnTaskID: "task-0", Kind: taskpkg.DependencyKindBlocks}}, nil
 }
 
+func (fakeStore) ListDependents(context.Context, string) ([]taskpkg.TaskDependency, error) {
+	return nil, nil
+}
+
 func (fakeStore) CountDependencies(context.Context, string) (int, error) { return 1, nil }
 
 func (fakeStore) HasDependencyPath(context.Context, string, string) (bool, error) { return false, nil }

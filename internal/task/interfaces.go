@@ -7,6 +7,7 @@ import (
 // Manager is the task-domain authority for task and run lifecycle operations.
 type Manager interface {
 	CreateTask(ctx context.Context, spec CreateTask, actor ActorContext) (*Task, error)
+	CreateChildTask(ctx context.Context, parentTaskID string, spec CreateTask, actor ActorContext) (*Task, error)
 	UpdateTask(ctx context.Context, id string, patch TaskPatch, actor ActorContext) (*Task, error)
 	CancelTask(ctx context.Context, id string, req CancelTask, actor ActorContext) (*Task, error)
 
@@ -21,8 +22,8 @@ type Manager interface {
 	FailRun(ctx context.Context, runID string, failure RunFailure, actor ActorContext) (*TaskRun, error)
 	CancelRun(ctx context.Context, runID string, req CancelRun, actor ActorContext) (*TaskRun, error)
 
-	GetTask(ctx context.Context, id string) (*TaskView, error)
-	ListTasks(ctx context.Context, query TaskQuery) ([]TaskSummary, error)
+	GetTask(ctx context.Context, id string, actor ActorContext) (*TaskView, error)
+	ListTasks(ctx context.Context, query TaskQuery, actor ActorContext) ([]TaskSummary, error)
 }
 
 // TaskStore is the persistence surface for durable task records.
@@ -39,6 +40,7 @@ type DependencyStore interface {
 	CreateDependency(ctx context.Context, dependency TaskDependency) error
 	DeleteDependency(ctx context.Context, taskID string, dependsOnID string) error
 	ListDependencies(ctx context.Context, taskID string) ([]TaskDependency, error)
+	ListDependents(ctx context.Context, dependsOnTaskID string) ([]TaskDependency, error)
 	CountDependencies(ctx context.Context, taskID string) (int, error)
 	HasDependencyPath(ctx context.Context, fromTaskID string, toTaskID string) (bool, error)
 }

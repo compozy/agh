@@ -169,6 +169,47 @@ func (g *GlobalDB) ListDependencies(ctx context.Context, taskID string) ([]taskp
 	return dependencies, nil
 }
 
+// ListDependents returns persisted dependency edges that point at one task.
+func (g *GlobalDB) ListDependents(ctx context.Context, dependsOnTaskID string) ([]taskpkg.TaskDependency, error) {
+	if err := g.checkReady(ctx, "list task dependents"); err != nil {
+		return nil, err
+	}
+
+	trimmedDependsOnID, err := requireTaskValue(dependsOnTaskID, "task dependent depends_on_task_id")
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := g.db.QueryContext(
+		ctx,
+		`SELECT task_id, depends_on_task_id, kind, created_at
+		 FROM task_dependencies
+		 WHERE depends_on_task_id = ?
+		 ORDER BY created_at ASC, task_id ASC`,
+		trimmedDependsOnID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: query task dependents for %q: %w", trimmedDependsOnID, err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	dependents := make([]taskpkg.TaskDependency, 0)
+	for rows.Next() {
+		record, scanErr := scanTaskDependencyRecord(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		dependents = append(dependents, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate task dependents for %q: %w", trimmedDependsOnID, err)
+	}
+
+	return dependents, nil
+}
+
 // CountDependencies reports how many dependency edges are stored for one task.
 func (g *GlobalDB) CountDependencies(ctx context.Context, taskID string) (int, error) {
 	if err := g.checkReady(ctx, "count task dependencies"); err != nil {

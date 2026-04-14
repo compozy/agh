@@ -31,4 +31,6 @@ var (
 	ErrSessionAlreadyBound = errors.New("task: session already bound")
 	// ErrSessionAttachNotAllowed reports that a run cannot attach an existing session in its current state.
 	ErrSessionAttachNotAllowed = errors.New("task: session attach not allowed")
+	// ErrPermissionDenied reports that the resolved actor context lacks authority for the requested task action.
+	ErrPermissionDenied = errors.New("task: permission denied")
 )
