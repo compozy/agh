@@ -201,22 +201,7 @@ func (o *Observer) QueryTaskSummary(ctx context.Context, query TaskSummaryQuery)
 	if err != nil {
 		return TaskSummary{}, err
 	}
-
-	totals := summarizeTasks(snapshot.tasks)
-	origins := summarizeTaskOrigins(snapshot.tasks)
-	runTotals := summarizeRuns(snapshot.runs)
-	owners := summarizeOwners(snapshot.tasks)
-	queue := summarizeQueueDepth(snapshot.runs, o.now)
-
-	return TaskSummary{
-		TotalTasks:  len(snapshot.tasks),
-		TotalRuns:   len(snapshot.runs),
-		TaskTotals:  totals,
-		TaskOrigins: origins,
-		RunTotals:   runTotals,
-		OwnerTotals: owners,
-		QueueDepth:  queue,
-	}, nil
+	return taskSummaryFromSnapshot(snapshot, o.now), nil
 }
 
 // QueryTaskMetrics returns task-domain counters and latency summaries derived from durable state and audit rows.
@@ -232,29 +217,7 @@ func (o *Observer) QueryTaskMetrics(ctx context.Context, query TaskMetricsQuery)
 	if err != nil {
 		return TaskMetrics{}, err
 	}
-
-	runs := filterRunsByOrigin(snapshot.runs, query.OriginKind)
-	events := filterTaskEvents(snapshot.events, snapshot.tasksByID, snapshot.runsByID, query)
-	audits := filterTaskIngressAudits(snapshot.audits, query)
-	networkEnqueueEvents := filterNetworkEnqueueEvents(events)
-
-	duplicateIngress := len(filterAcceptedEnqueueAudits(audits)) - len(networkEnqueueEvents)
-	if duplicateIngress < 0 {
-		duplicateIngress = 0
-	}
-
-	return TaskMetrics{
-		TasksTotal:              summarizeTasks(filterTasksByOrigin(snapshot.tasks, query.OriginKind)),
-		TaskRunsTotal:           summarizeRuns(runs),
-		TaskQueueDepth:          summarizeQueueDepth(runs, o.now),
-		TaskCancelRequestsTotal: summarizeCancelRequests(events),
-		TaskForcedStopsTotal:    countEventsByType(events, taskEventRunForceStopped),
-		TaskClaimLatencyMillis:  summarizeClaimLatency(runs),
-		TaskStartLatencyMillis:  summarizeStartLatency(runs),
-		DuplicateIngressTotal:   duplicateIngress,
-		ChannelMismatchTotal:    countChannelMismatchAudits(audits),
-		RecoveryTotals:          summarizeRecovery(events),
-	}, nil
+	return taskMetricsFromSnapshot(snapshot, query, o.now), nil
 }
 
 func (o *Observer) collectTaskHealth(ctx context.Context) (TaskHealth, error) {
@@ -262,18 +225,12 @@ func (o *Observer) collectTaskHealth(ctx context.Context) (TaskHealth, error) {
 		return TaskHealth{}, errors.New("observe: task health context is required")
 	}
 
-	summary, err := o.QueryTaskSummary(ctx, TaskSummaryQuery{})
-	if err != nil {
-		return TaskHealth{}, err
-	}
-	metrics, err := o.QueryTaskMetrics(ctx, TaskMetricsQuery{Since: o.startedAt})
-	if err != nil {
-		return TaskHealth{}, err
-	}
 	snapshot, err := o.loadTaskSnapshot(ctx, TaskSummaryQuery{})
 	if err != nil {
 		return TaskHealth{}, err
 	}
+	summary := taskSummaryFromSnapshot(snapshot, o.now)
+	metrics := taskMetricsFromSnapshot(snapshot, TaskMetricsQuery{Since: o.startedAt}, o.now)
 
 	stuckRuns := findStuckRuns(snapshot.runs, o.now(), o.taskHealthConfig)
 	sortStuckRuns(stuckRuns)
@@ -317,6 +274,43 @@ func (o *Observer) collectTaskHealth(ctx context.Context) (TaskHealth, error) {
 		ChannelMismatchSinceStart:  metrics.ChannelMismatchTotal,
 		RecoverySinceStart:         metrics.RecoveryTotals,
 	}, nil
+}
+
+func taskSummaryFromSnapshot(snapshot taskSnapshot, now func() time.Time) TaskSummary {
+	return TaskSummary{
+		TotalTasks:  len(snapshot.tasks),
+		TotalRuns:   len(snapshot.runs),
+		TaskTotals:  summarizeTasks(snapshot.tasks),
+		TaskOrigins: summarizeTaskOrigins(snapshot.tasks),
+		RunTotals:   summarizeRuns(snapshot.runs),
+		OwnerTotals: summarizeOwners(snapshot.tasks),
+		QueueDepth:  summarizeQueueDepth(snapshot.runs, now),
+	}
+}
+
+func taskMetricsFromSnapshot(snapshot taskSnapshot, query TaskMetricsQuery, now func() time.Time) TaskMetrics {
+	runs := filterRunsByOrigin(snapshot.runs, query.OriginKind)
+	events := filterTaskEvents(snapshot.events, snapshot.tasksByID, snapshot.runsByID, query)
+	audits := filterTaskIngressAudits(snapshot.audits, query)
+	networkEnqueueEvents := filterNetworkEnqueueEvents(events)
+
+	duplicateIngress := len(filterAcceptedEnqueueAudits(audits)) - len(networkEnqueueEvents)
+	if duplicateIngress < 0 {
+		duplicateIngress = 0
+	}
+
+	return TaskMetrics{
+		TasksTotal:              summarizeTasks(filterTasksByOrigin(snapshot.tasks, query.OriginKind)),
+		TaskRunsTotal:           summarizeRuns(runs),
+		TaskQueueDepth:          summarizeQueueDepth(runs, now),
+		TaskCancelRequestsTotal: summarizeCancelRequests(events),
+		TaskForcedStopsTotal:    countEventsByType(events, taskEventRunForceStopped),
+		TaskClaimLatencyMillis:  summarizeClaimLatency(runs),
+		TaskStartLatencyMillis:  summarizeStartLatency(runs),
+		DuplicateIngressTotal:   duplicateIngress,
+		ChannelMismatchTotal:    countChannelMismatchAudits(audits),
+		RecoveryTotals:          summarizeRecovery(events),
+	}
 }
 
 func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery) (taskSnapshot, error) {

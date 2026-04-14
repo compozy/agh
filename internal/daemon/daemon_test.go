@@ -1543,6 +1543,39 @@ func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 	}
 }
 
+func TestStopSessionsWaitsForInFlightFinalizations(t *testing.T) {
+	d, err := New(WithLogger(discardLogger()))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	release := make(chan struct{})
+	manager := &fakeSessionManager{
+		infos:                    []*session.SessionInfo{{ID: "sess-a"}},
+		waitFinalizationsRelease: release,
+	}
+
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- d.stopSessions(testutil.Context(t), manager)
+	}()
+
+	select {
+	case err := <-stopDone:
+		t.Fatalf("stopSessions() returned before finalizations completed: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+
+	if err := <-stopDone; err != nil {
+		t.Fatalf("stopSessions() error = %v", err)
+	}
+	if got := manager.waitFinalizationsCalls; got != 1 {
+		t.Fatalf("WaitForFinalizations() calls = %d, want 1", got)
+	}
+}
+
 func TestCleanupOrphansHandlesListAndSignalErrors(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {
@@ -2755,12 +2788,14 @@ type fakeSessionManager struct {
 		id  string
 		msg string
 	}
-	promptStarted      chan struct{}
-	promptRelease      <-chan struct{}
-	promptCtxCancelled chan struct{}
-	stopCalls          []string
-	stopWithCauseCalls []fakeStopWithCauseCall
-	requestStopCalls   []fakeStopWithCauseCall
+	promptStarted            chan struct{}
+	promptRelease            <-chan struct{}
+	promptCtxCancelled       chan struct{}
+	stopCalls                []string
+	stopWithCauseCalls       []fakeStopWithCauseCall
+	requestStopCalls         []fakeStopWithCauseCall
+	waitFinalizationsRelease <-chan struct{}
+	waitFinalizationsCalls   int
 }
 
 type fakeStopWithCauseCall struct {
@@ -2869,6 +2904,24 @@ func (f *fakeSessionManager) RequestStopWithCause(_ context.Context, id string, 
 		return f.requestStopErr(id, cause, detail)
 	}
 	return nil
+}
+
+func (f *fakeSessionManager) WaitForFinalizations(ctx context.Context) error {
+	f.mu.Lock()
+	f.waitFinalizationsCalls++
+	release := f.waitFinalizationsRelease
+	f.mu.Unlock()
+
+	if release == nil {
+		return nil
+	}
+
+	select {
+	case <-release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (f *fakeSessionManager) Resume(context.Context, string) (*session.Session, error) {
@@ -3934,17 +3987,17 @@ func (f *fakeExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.Hoo
 }
 
 type daemonTestExtensionOptions struct {
-	runtimeCommand string
-	runtimeArgs    []string
-	runtimeEnv     map[string]string
-	hookCommand    string
-	hookArgs       []string
-	hookEvent      hookspkg.HookEvent
-	capabilities   []string
-	actions        []string
-	security       []string
-	bridgePlatform string
-	bridgeName     string
+	runtimeCommand    string
+	runtimeArgs       []string
+	runtimeEnv        map[string]string
+	hookCommand       string
+	hookArgs          []string
+	hookEvent         hookspkg.HookEvent
+	capabilities      []string
+	actions           []string
+	security          []string
+	bridgePlatform    string
+	bridgeDisplayName string
 }
 
 func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
@@ -4018,13 +4071,13 @@ func daemonTestExtensionManifest(name string, opts daemonTestExtensionOptions) s
 		security = []string{"session.read"}
 	}
 	bridgePlatform := strings.TrimSpace(opts.bridgePlatform)
-	bridgeName := strings.TrimSpace(opts.bridgeName)
+	bridgeDisplayName := strings.TrimSpace(opts.bridgeDisplayName)
 	if slices.Contains(capabilities, extensionprotocol.CapabilityProvideBridgeAdapter) {
 		if bridgePlatform == "" {
 			bridgePlatform = "telegram"
 		}
-		if bridgeName == "" {
-			bridgeName = "Telegram"
+		if bridgeDisplayName == "" {
+			bridgeDisplayName = "Telegram"
 		}
 	}
 
@@ -4062,13 +4115,6 @@ executor.command = %q
 provides = ` + daemonTOMLStringArray(capabilities) + `
 
 `)
-	if bridgePlatform != "" || bridgeName != "" {
-		fmt.Fprintf(&builder, `[bridge]
-platform = %q
-display_name = %q
-
-`, bridgePlatform, bridgeName)
-	}
 	builder.WriteString(`
 [actions]
 requires = ` + daemonTOMLStringArray(actions) + `
@@ -4095,6 +4141,13 @@ command = ` + fmt.Sprintf("%q", command) + `
 [security]
 capabilities = ` + daemonTOMLStringArray(security) + `
 `)
+	if bridgePlatform != "" || bridgeDisplayName != "" {
+		fmt.Fprintf(&builder, `
+[bridge]
+platform = %q
+display_name = %q
+`, bridgePlatform, bridgeDisplayName)
+	}
 
 	return builder.String()
 }
@@ -4148,14 +4201,14 @@ func TestDaemonTestExtensionManifest(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldInjectBridgeMetadataWhenBridgeCapabilityIsRequested", func(t *testing.T) {
+	t.Run("ShouldEmitBridgeMetadataForBridgeAdapters", func(t *testing.T) {
 		t.Parallel()
 
 		manifest := daemonTestExtensionManifest("bridge-ext", daemonTestExtensionOptions{
 			capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		})
-
 		for _, expected := range []string{
+			`provides = ["bridge.adapter"]`,
 			`[bridge]`,
 			`platform = "telegram"`,
 			`display_name = "Telegram"`,

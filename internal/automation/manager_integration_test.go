@@ -42,7 +42,7 @@ func TestManagerIntegrationDirectTaskBackedJobDelegatesIntoTaskDomain(t *testing
 		Task: &JobTaskConfig{
 			Title:          "Direct automation review",
 			Description:    "Persist a durable review task.",
-			NetworkChannel: "ops.automation",
+			NetworkChannel: "ops-automation",
 			Owner: &taskpkg.Ownership{
 				Kind: taskpkg.OwnerKindAutomation,
 				Ref:  "job:direct-task-backed",
@@ -94,7 +94,7 @@ func TestManagerIntegrationDirectTaskBackedJobDelegatesIntoTaskDomain(t *testing
 	if got, want := taskRecord.WorkspaceID, h.workspace.ID; got != want {
 		t.Fatalf("task.WorkspaceID = %q, want %q", got, want)
 	}
-	if got, want := taskRecord.NetworkChannel, "ops.automation"; got != want {
+	if got, want := taskRecord.NetworkChannel, "ops-automation"; got != want {
 		t.Fatalf("task.NetworkChannel = %q, want %q", got, want)
 	}
 	if taskRecord.Owner == nil || taskRecord.Owner.Kind != taskpkg.OwnerKindAutomation || taskRecord.Owner.Ref != "job:direct-task-backed" {
@@ -126,7 +126,7 @@ func TestManagerIntegrationDirectTaskBackedJobDelegatesIntoTaskDomain(t *testing
 	if got, want := taskRun.IdempotencyKey, "automation-run:"+run.ID; got != want {
 		t.Fatalf("taskRun.IdempotencyKey = %q, want %q", got, want)
 	}
-	if got, want := taskRun.NetworkChannel, "ops.automation"; got != want {
+	if got, want := taskRun.NetworkChannel, "ops-automation"; got != want {
 		t.Fatalf("taskRun.NetworkChannel = %q, want %q", got, want)
 	}
 }

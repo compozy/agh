@@ -427,6 +427,22 @@ func (m *Manager) remove(id string) {
 	delete(m.finalizing, id)
 }
 
+func (m *Manager) removeActive(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.sessions, id)
+	delete(m.pending, id)
+}
+
+func (m *Manager) finishFinalization(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if done, ok := m.finalizing[id]; ok {
+		close(done)
+	}
+	delete(m.finalizing, id)
+}
+
 func (m *Manager) claimFinalization(session *Session) (bool, <-chan struct{}) {
 	if session == nil {
 		return false, nil
@@ -446,6 +462,39 @@ func (m *Manager) claimFinalization(session *Session) (bool, <-chan struct{}) {
 	done := make(chan struct{})
 	m.finalizing[session.ID] = done
 	return true, done
+}
+
+// WaitForFinalizations blocks until all in-flight finalization routines finish.
+func (m *Manager) WaitForFinalizations(ctx context.Context) error {
+	if m == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("session: wait for finalizations context is required")
+	}
+
+	for {
+		m.mu.RLock()
+		pending := make([]<-chan struct{}, 0, len(m.finalizing))
+		for _, done := range m.finalizing {
+			if done != nil {
+				pending = append(pending, done)
+			}
+		}
+		m.mu.RUnlock()
+
+		if len(pending) == 0 {
+			return nil
+		}
+
+		for _, done := range pending {
+			select {
+			case <-done:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
 }
 
 type maxSessionsReachedError struct {

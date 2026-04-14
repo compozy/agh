@@ -936,6 +936,13 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 	if len(summaries) != 1 || summaries[0].ID != child.ID {
 		t.Fatalf("ListTasks(parent filter) = %#v, want only child %q", summaries, child.ID)
 	}
+	runs, err := manager.ListTaskRuns(context.Background(), child.ID, TaskRunQuery{}, actor)
+	if err != nil {
+		t.Fatalf("ListTaskRuns() error = %v", err)
+	}
+	if len(runs) != 1 || runs[0].ID != "run-active" {
+		t.Fatalf("ListTaskRuns() = %#v, want only run-active", runs)
+	}
 
 	noRead := actor
 	noRead.Authority.Read = false
@@ -944,6 +951,9 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 	}
 	if _, err := manager.ListTasks(context.Background(), TaskQuery{}, noRead); !errors.Is(err, ErrPermissionDenied) {
 		t.Fatalf("ListTasks(no read) error = %v, want %v", err, ErrPermissionDenied)
+	}
+	if _, err := manager.ListTaskRuns(context.Background(), child.ID, TaskRunQuery{}, noRead); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("ListTaskRuns(no read) error = %v, want %v", err, ErrPermissionDenied)
 	}
 }
 

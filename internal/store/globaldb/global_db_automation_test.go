@@ -626,7 +626,7 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 	}
 
 	var taskConfig *automation.JobTaskConfig
-	if err := decodeAutomationTaskConfig(sql.NullString{Valid: true, String: `{"title":"Review findings","network_channel":"ops.automation"}`}, &taskConfig); err != nil {
+	if err := decodeAutomationTaskConfig(sql.NullString{Valid: true, String: `{"title":"Review findings","network_channel":"ops-automation"}`}, &taskConfig); err != nil {
 		t.Fatalf("decodeAutomationTaskConfig(valid) error = %v", err)
 	}
 	if taskConfig == nil || taskConfig.Title != "Review findings" {

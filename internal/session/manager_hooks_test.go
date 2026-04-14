@@ -426,6 +426,52 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 			t.Fatalf("cleanup Stop() error = %v", err)
 		}
 	})
+
+	t.Run("ShouldWaitForPostStopDispatchWhenWatcherFinalizesFirst", func(t *testing.T) {
+		t.Parallel()
+
+		postStopStarted := make(chan struct{})
+		releasePostStop := make(chan struct{})
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPostStopFn: func(_ context.Context, payload hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error) {
+				close(postStopStarted)
+				<-releasePostStop
+				return payload, nil
+			},
+		}
+		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		session := createSession(t, h)
+
+		h.driver.stopHook = func(proc *fakeProcess) error {
+			proc.exit()
+			select {
+			case <-postStopStarted:
+				return nil
+			case <-time.After(time.Second):
+				return errors.New("test: watcher did not reach session.post_stop")
+			}
+		}
+
+		stopDone := make(chan error, 1)
+		go func() {
+			stopDone <- h.manager.StopWithCause(testutil.Context(t), session.ID, CauseShutdown, "daemon shutdown")
+		}()
+
+		select {
+		case err := <-stopDone:
+			t.Fatalf("StopWithCause() returned before session.post_stop completed: %v", err)
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		close(releasePostStop)
+
+		if err := <-stopDone; err != nil {
+			t.Fatalf("StopWithCause() error = %v", err)
+		}
+		if got := h.notifier.stoppedCount(); got != 1 {
+			t.Fatalf("stopped notifications = %d, want 1", got)
+		}
+	})
 }
 
 func TestCreateUsesPatchedPrompt(t *testing.T) {

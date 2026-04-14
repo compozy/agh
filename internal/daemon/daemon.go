@@ -118,6 +118,10 @@ type shutdownStopper interface {
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
 
+type finalizationWaiter interface {
+	WaitForFinalizations(ctx context.Context) error
+}
+
 type extensionDBSource interface {
 	DB() *sql.DB
 }
@@ -712,6 +716,11 @@ func (d *Daemon) stopSessions(ctx context.Context, sessions SessionManager) erro
 		}
 		if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
 			errs = append(errs, fmt.Errorf("daemon: stop session %q: %w", info.ID, err))
+		}
+	}
+	if waiter, ok := sessions.(finalizationWaiter); ok {
+		if err := waiter.WaitForFinalizations(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("daemon: wait for session finalizations: %w", err))
 		}
 	}
 
