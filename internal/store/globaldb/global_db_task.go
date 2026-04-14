@@ -181,6 +181,7 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.TaskQuery) ([]ta
 		return nil, fmt.Errorf("store: query tasks: %w", err)
 	}
 	defer func() {
+		// Close errors are not actionable here once Next/Err have reported the read outcome.
 		_ = rows.Close()
 	}()
 
@@ -382,6 +383,7 @@ func (g *GlobalDB) ListTaskRuns(ctx context.Context, query taskpkg.TaskRunQuery)
 		return nil, fmt.Errorf("store: query task runs: %w", err)
 	}
 	defer func() {
+		// Close errors are not actionable here once Next/Err have reported the read outcome.
 		_ = rows.Close()
 	}()
 
@@ -437,6 +439,7 @@ func (g *GlobalDB) ListTaskRunsByStatus(ctx context.Context, statuses []taskpkg.
 		return nil, fmt.Errorf("store: query task runs by status: %w", err)
 	}
 	defer func() {
+		// Close errors are not actionable here once Next/Err have reported the read outcome.
 		_ = rows.Close()
 	}()
 

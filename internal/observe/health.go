@@ -48,7 +48,7 @@ func (o *Observer) Health(ctx context.Context) (Health, error) {
 	}
 	taskHealth, err := o.collectTaskHealth(ctx)
 	if err != nil {
-		return Health{}, err
+		return Health{}, fmt.Errorf("observe: collect task health: %w", err)
 	}
 
 	uptimeSeconds := int64(o.now().Sub(o.startedAt).Seconds())

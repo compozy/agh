@@ -979,6 +979,13 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 
 	env := newHostAPITestEnv(t)
 	env.grant("delivery-replayer", []string{"sessions/prompt"}, []string{"session.write"})
+	turnEnded := make(chan string, 1)
+	env.sessions.SetTurnEndNotifier(func(sessionID string) {
+		select {
+		case turnEnded <- sessionID:
+		default:
+		}
+	})
 
 	broker := &recordingPromptDeliveryBroker{}
 	env.handler = NewHostAPIHandler(
@@ -1002,24 +1009,23 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 		t.Fatalf("submitPrompt() error = %v", err)
 	}
 
-	var promptEvents []store.SessionEvent
-	deadline := time.Now().Add(500 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		promptEvents, err = env.sessions.Events(testutil.Context(t), sess.ID, store.EventQuery{TurnID: prompt.TurnID})
-		if err != nil {
-			t.Fatalf("sessions.Events(%q) error = %v", sess.ID, err)
+	select {
+	case notifiedSessionID := <-turnEnded:
+		if got, want := notifiedSessionID, sess.ID; got != want {
+			t.Fatalf("turn end notifier session id = %q, want %q", got, want)
 		}
-		hasDone := false
-		for _, storedEvent := range promptEvents {
-			if strings.TrimSpace(storedEvent.Type) == acp.EventTypeDone {
-				hasDone = true
-				break
-			}
-		}
-		if hasDone {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timed out waiting for prompt completion")
+	}
+
+	promptEvents, err := env.sessions.Events(testutil.Context(t), sess.ID, store.EventQuery{TurnID: prompt.TurnID})
+	if err != nil {
+		t.Fatalf("sessions.Events(%q) error = %v", sess.ID, err)
+	}
+	if !slices.ContainsFunc(promptEvents, func(storedEvent store.SessionEvent) bool {
+		return strings.TrimSpace(storedEvent.Type) == acp.EventTypeDone
+	}) {
+		t.Fatalf("prompt events = %#v, want done event after turn completion notification", promptEvents)
 	}
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{

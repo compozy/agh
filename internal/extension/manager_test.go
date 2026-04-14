@@ -753,38 +753,91 @@ func TestNewManagerAppliesOptionsAndRestoresDefaults(t *testing.T) {
 func TestManagerReloadValidatesAndRestarts(t *testing.T) {
 	t.Parallel()
 
-	var nilManager *Manager
-	if err := nilManager.Reload(testutil.Context(t)); err == nil || !strings.Contains(err.Error(), "manager is required") {
-		t.Fatalf("nil manager Reload() error = %v, want manager is required", err)
-	}
+	t.Run("Should reject nil manager", func(t *testing.T) {
+		t.Parallel()
 
-	manager := NewManager(nil)
-	ctx, cancel := context.WithCancel(testutil.Context(t))
-	cancel()
-	if err := manager.Reload(ctx); !errors.Is(err, context.Canceled) {
-		t.Fatalf("Reload(canceled context) error = %v, want %v", err, context.Canceled)
-	}
-
-	err := manager.Reload(testutil.Context(t))
-	if err == nil || !strings.Contains(err.Error(), "registry is required") {
-		t.Fatalf("Reload() error = %v, want registry is required", err)
-	}
-
-	withDaemonVersion(t, "0.5.0")
-	env := newRegistryTestEnv(t)
-	startedManager := NewManager(env.registry)
-	if err := startedManager.Start(testutil.Context(t)); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := startedManager.Stop(testutil.Context(t)); err != nil {
-			t.Fatalf("Stop() cleanup error = %v", err)
+		var nilManager *Manager
+		if err := nilManager.Reload(testutil.Context(t)); err == nil || !strings.Contains(err.Error(), "manager is required") {
+			t.Fatalf("nil manager Reload() error = %v, want manager is required", err)
 		}
 	})
 
-	if err := startedManager.Reload(testutil.Context(t)); err != nil {
-		t.Fatalf("Reload(started manager) error = %v", err)
-	}
+	t.Run("Should reject canceled context", func(t *testing.T) {
+		t.Parallel()
+
+		manager := NewManager(nil)
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		cancel()
+		if err := manager.Reload(ctx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Reload(canceled context) error = %v, want %v", err, context.Canceled)
+		}
+	})
+
+	t.Run("Should reject missing registry", func(t *testing.T) {
+		t.Parallel()
+
+		manager := NewManager(nil)
+		err := manager.Reload(testutil.Context(t))
+		if err == nil || !strings.Contains(err.Error(), "registry is required") {
+			t.Fatalf("Reload() error = %v, want registry is required", err)
+		}
+	})
+
+	t.Run("Should restart loaded extensions", func(t *testing.T) {
+		t.Parallel()
+
+		withDaemonVersion(t, "0.5.0")
+		env := newRegistryTestEnv(t)
+		fixture := createManagerTestExtension(t, managerTestManifest("ext-reload", managerManifestOptions{
+			command:      "fake-extension",
+			capabilities: []string{"memory.backend"},
+			actions:      []string{"sessions/list"},
+			security:     []string{"session.read"},
+		}), nil)
+		installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+		firstProc := newFakeProcess(101)
+		secondProc := newFakeProcess(202)
+		launcher := &fakeLauncher{queue: []*fakeProcess{firstProc, secondProc}}
+		startedManager := NewManager(
+			env.registry,
+			withProcessLauncher(launcher.launch),
+			withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
+		)
+		if err := startedManager.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := startedManager.Stop(testutil.Context(t)); err != nil {
+				t.Fatalf("Stop() cleanup error = %v", err)
+			}
+		})
+
+		if got, want := launcher.launchCount(), 1; got != want {
+			t.Fatalf("launch count after Start() = %d, want %d", got, want)
+		}
+
+		if err := startedManager.Reload(testutil.Context(t)); err != nil {
+			t.Fatalf("Reload(started manager) error = %v", err)
+		}
+
+		if got, want := launcher.launchCount(), 2; got != want {
+			t.Fatalf("launch count after Reload() = %d, want %d", got, want)
+		}
+		if got, want := firstProc.shutdownCnt, 1; got != want {
+			t.Fatalf("first process shutdown count = %d, want %d", got, want)
+		}
+		if got, want := len(secondProc.initRequests()), 1; got != want {
+			t.Fatalf("len(second process initialize requests) = %d, want %d", got, want)
+		}
+		statuses := startedManager.Statuses()
+		if got, want := len(statuses), 1; got != want {
+			t.Fatalf("len(Statuses()) = %d, want %d", got, want)
+		}
+		if got, want := statuses[0].PID, 202; got != want {
+			t.Fatalf("Statuses()[0].PID = %d, want %d after reload restart", got, want)
+		}
+	})
 }
 
 func TestManagerHelperPathsAndAccessors(t *testing.T) {

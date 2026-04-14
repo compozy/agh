@@ -309,8 +309,8 @@ func findNetworkAuditByMessageID(t *testing.T, db *globaldb.GlobalDB, messageID 
 	if err != nil {
 		t.Fatalf("ListNetworkAudit(%q) error = %v", messageID, err)
 	}
-	if len(entries) == 0 {
-		t.Fatalf("ListNetworkAudit(%q) = no entries", messageID)
+	if len(entries) != 1 {
+		t.Fatalf("ListNetworkAudit(%q) returned %d entries, want exactly 1", messageID, len(entries))
 	}
 	return entries[0]
 }

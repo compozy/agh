@@ -52,6 +52,9 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 // RequestStopWithCause marks a session as stopping and sends the cooperative ACP
 // cancel signal without forcing process termination.
 func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
+	if m == nil {
+		return errors.New("session: manager is required")
+	}
 	if ctx == nil {
 		return errors.New("session: request stop context is required")
 	}
@@ -82,6 +85,9 @@ func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause Sto
 
 // StopWithCause stops a session while preserving the explicit stop initiator.
 func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
+	if m == nil {
+		return errors.New("session: manager is required")
+	}
 	if ctx == nil {
 		return errors.New("session: stop context is required")
 	}

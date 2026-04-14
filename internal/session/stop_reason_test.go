@@ -2,9 +2,11 @@ package session
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestClassifyStopReason(t *testing.T) {
@@ -116,4 +118,28 @@ func TestClassifyStopReason(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStopMethodsRejectNilManager(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject request stop on nil manager", func(t *testing.T) {
+		t.Parallel()
+
+		var nilManager *Manager
+		err := nilManager.RequestStopWithCause(testutil.Context(t), "sess-1", CauseUserRequested, "")
+		if err == nil || !strings.Contains(err.Error(), "manager is required") {
+			t.Fatalf("RequestStopWithCause(nil manager) error = %v, want manager is required", err)
+		}
+	})
+
+	t.Run("Should reject forced stop on nil manager", func(t *testing.T) {
+		t.Parallel()
+
+		var nilManager *Manager
+		err := nilManager.StopWithCause(testutil.Context(t), "sess-1", CauseUserRequested, "")
+		if err == nil || !strings.Contains(err.Error(), "manager is required") {
+			t.Fatalf("StopWithCause(nil manager) error = %v, want manager is required", err)
+		}
+	})
 }

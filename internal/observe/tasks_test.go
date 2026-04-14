@@ -2,6 +2,8 @@ package observe
 
 import (
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -385,14 +387,32 @@ func TestTaskObserveQueryValidationAndConfigOption(t *testing.T) {
 		t.Fatalf("observer.taskHealthConfig = %#v, want %#v", observer.taskHealthConfig, cfg)
 	}
 
-	if err := (TaskSummaryQuery{Scope: taskpkg.Scope("bogus")}).Validate(); err == nil {
-		t.Fatal("TaskSummaryQuery.Validate(invalid scope) error = nil, want non-nil")
+	if err := (TaskSummaryQuery{Scope: taskpkg.Scope("bogus")}).Validate(); !errors.Is(err, taskpkg.ErrValidation) || !strings.Contains(err.Error(), "scope") {
+		t.Fatalf("TaskSummaryQuery.Validate(invalid scope) error = %v, want ErrValidation mentioning scope", err)
 	}
-	if err := (TaskSummaryQuery{OwnerKind: taskpkg.OwnerKind("bogus")}).Validate(); err == nil {
-		t.Fatal("TaskSummaryQuery.Validate(invalid owner kind) error = nil, want non-nil")
+	if err := (TaskSummaryQuery{OwnerKind: taskpkg.OwnerKind("bogus")}).Validate(); !errors.Is(err, taskpkg.ErrValidation) || !strings.Contains(err.Error(), "owner_kind") {
+		t.Fatalf("TaskSummaryQuery.Validate(invalid owner kind) error = %v, want ErrValidation mentioning owner_kind", err)
 	}
-	if err := (TaskMetricsQuery{OriginKind: taskpkg.OriginKind("bogus")}).Validate(); err == nil {
-		t.Fatal("TaskMetricsQuery.Validate(invalid origin kind) error = nil, want non-nil")
+	if err := (TaskMetricsQuery{OriginKind: taskpkg.OriginKind("bogus")}).Validate(); !errors.Is(err, taskpkg.ErrValidation) || !strings.Contains(err.Error(), "origin_kind") {
+		t.Fatalf("TaskMetricsQuery.Validate(invalid origin kind) error = %v, want ErrValidation mentioning origin_kind", err)
+	}
+}
+
+func TestObserverHealthWrapsTaskHealthErrors(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.observer.bridgeSource = nil
+	if err := h.registry.Close(testutil.Context(t)); err != nil {
+		t.Fatalf("registry.Close() error = %v", err)
+	}
+
+	_, err := h.observer.Health(testutil.Context(t))
+	if err == nil {
+		t.Fatal("Health() error = nil, want wrapped task health failure")
+	}
+	if !strings.Contains(err.Error(), "observe: collect task health") {
+		t.Fatalf("Health() error = %v, want collect task health context", err)
 	}
 }
 
