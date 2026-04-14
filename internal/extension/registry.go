@@ -370,7 +370,6 @@ func (r *Registry) installWithConfig(manifest *Manifest, path string, checksum s
 		ON CONFLICT(name) DO UPDATE SET
 			version = excluded.version,
 			source = excluded.source,
-			enabled = excluded.enabled,
 			manifest_path = excluded.manifest_path,
 			installed_at = excluded.installed_at,
 			capabilities = excluded.capabilities,
@@ -398,7 +397,7 @@ func (r *Registry) installWithConfig(manifest *Manifest, path string, checksum s
 	)
 	if err != nil {
 		if config.replaceExisting {
-			return err
+			return fmt.Errorf("extension: persist %q: %w", info.Name, err)
 		}
 		return mapRegistryConstraintError(err, info.Name)
 	}

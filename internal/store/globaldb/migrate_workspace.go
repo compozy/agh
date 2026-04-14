@@ -54,6 +54,10 @@ type legacySessionMetaCompat struct {
 }
 
 func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
+	if err := migrateExtensionColumns(ctx, db); err != nil {
+		return err
+	}
+
 	hasSessions, err := tableExists(ctx, db, "sessions")
 	if err != nil {
 		return err
@@ -137,6 +141,39 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	return migrateNetworkAuditTable(ctx, db)
+}
+
+func migrateExtensionColumns(ctx context.Context, db *sql.DB) error {
+	exists, err := tableExists(ctx, db, "extensions")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, db, "extensions")
+	if err != nil {
+		return err
+	}
+
+	if _, ok := columns["registry_slug"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE extensions ADD COLUMN registry_slug TEXT`); err != nil {
+			return fmt.Errorf("store: add extensions.registry_slug column: %w", err)
+		}
+	}
+	if _, ok := columns["registry_name"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE extensions ADD COLUMN registry_name TEXT`); err != nil {
+			return fmt.Errorf("store: add extensions.registry_name column: %w", err)
+		}
+	}
+	if _, ok := columns["remote_version"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE extensions ADD COLUMN remote_version TEXT`); err != nil {
+			return fmt.Errorf("store: add extensions.remote_version column: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func migrateSessionColumns(ctx context.Context, db *sql.DB) error {

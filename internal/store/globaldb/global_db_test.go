@@ -121,6 +121,101 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 	})
 }
 
+func TestOpenGlobalDBMigratesLegacyExtensionsTableColumns(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, GlobalDatabaseName)
+
+	db, err := sql.Open(sqliteDriverName, sqliteDSN(path))
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+
+	ctx := testutil.Context(t)
+	if _, err := db.ExecContext(ctx, `CREATE TABLE extensions (
+		name          TEXT PRIMARY KEY,
+		version       TEXT NOT NULL,
+		source        TEXT NOT NULL,
+		enabled       BOOLEAN NOT NULL DEFAULT 1,
+		manifest_path TEXT NOT NULL,
+		installed_at  TEXT NOT NULL,
+		capabilities  TEXT NOT NULL DEFAULT '{}',
+		actions       TEXT NOT NULL DEFAULT '{}',
+		checksum      TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create legacy extensions error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO extensions (name, version, source, enabled, manifest_path, installed_at, capabilities, actions, checksum) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"legacy-extension",
+		"0.1.0",
+		"user",
+		true,
+		"/tmp/legacy-extension/extension.toml",
+		formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
+		"{}",
+		"{}",
+		"abc123",
+	); err != nil {
+		t.Fatalf("insert legacy extension error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(legacy db) error = %v", err)
+	}
+
+	globalDB, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+			t.Fatalf("Close() error = %v", closeErr)
+		}
+	})
+
+	assertTableColumns(t, globalDB.db, "extensions", []string{
+		"name",
+		"version",
+		"source",
+		"enabled",
+		"manifest_path",
+		"installed_at",
+		"capabilities",
+		"actions",
+		"checksum",
+		"registry_slug",
+		"registry_name",
+		"remote_version",
+	})
+
+	var (
+		version       string
+		source        string
+		enabled       bool
+		registrySlug  sql.NullString
+		registryName  sql.NullString
+		remoteVersion sql.NullString
+	)
+	if err := globalDB.db.QueryRowContext(ctx, `
+		SELECT version, source, enabled, registry_slug, registry_name, remote_version
+		FROM extensions
+		WHERE name = ?
+	`, "legacy-extension").Scan(&version, &source, &enabled, &registrySlug, &registryName, &remoteVersion); err != nil {
+		t.Fatalf("QueryRowContext(legacy extension) error = %v", err)
+	}
+	if version != "0.1.0" || source != "user" || !enabled {
+		t.Fatalf("legacy extension row = version:%q source:%q enabled:%v", version, source, enabled)
+	}
+	if registrySlug.Valid || registryName.Valid || remoteVersion.Valid {
+		t.Fatalf(
+			"legacy extension provenance = (%v, %v, %v), want all NULL",
+			registrySlug,
+			registryName,
+			remoteVersion,
+		)
+	}
+}
+
 func TestGlobalDBCheckReady(t *testing.T) {
 	t.Parallel()
 

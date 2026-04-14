@@ -269,8 +269,7 @@ func (c *Client) Download(ctx context.Context, slug string, opts registry.Downlo
 
 	contentType := strings.TrimSpace(response.Header.Get("Content-Type"))
 	if err := validateDownloadContentType(contentType); err != nil {
-		_ = response.Body.Close()
-		return nil, err
+		return nil, joinErrors(err, closeResponseBody(response.Body, fmt.Sprintf("download response for %q", repo.full)))
 	}
 
 	if response.ContentLength > 0 {
@@ -462,7 +461,9 @@ func (c *Client) doRequest(ctx context.Context, method string, rawURL string, ac
 
 		retryable := response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= http.StatusInternalServerError
 		if retryable && attempt < c.maxRetries {
-			_ = response.Body.Close()
+			if closeErr := closeResponseBody(response.Body, fmt.Sprintf("retry response for %s", requestURLString(response))); closeErr != nil && c.logger != nil {
+				c.logger.Debug("github: close response body before retry", "error", closeErr, "url", requestURLString(response), "attempt", attempt+1)
+			}
 			if err := c.sleep(ctx, backoff); err != nil {
 				return nil, fmt.Errorf("github: retry wait aborted: %w", err)
 			}
@@ -495,14 +496,17 @@ func (c *Client) checkRateLimit(response *http.Response) error {
 	}
 	remaining, err := strconv.Atoi(remainingValue)
 	if err != nil {
+		if c.logger != nil {
+			c.logger.Debug("github: invalid X-RateLimit-Remaining header", "value", remainingValue, "error", err, "url", requestURLString(response))
+		}
 		return nil
 	}
 	if remaining == 0 {
-		_ = response.Body.Close()
-		return errors.New("github: rate limit exceeded; set GITHUB_TOKEN for higher limits")
+		rateLimitErr := errors.New("github: rate limit exceeded; set GITHUB_TOKEN for higher limits")
+		return joinErrors(rateLimitErr, closeResponseBody(response.Body, fmt.Sprintf("rate limit response for %s", requestURLString(response))))
 	}
 	if remaining < rateLimitWarnThreshold && c.logger != nil {
-		c.logger.Warn("github: rate limit running low", "remaining", remaining, "url", response.Request.URL.String())
+		c.logger.Warn("github: rate limit running low", "remaining", remaining, "url", requestURLString(response))
 	}
 	return nil
 }
@@ -749,6 +753,13 @@ func closeIdleConnections(httpClient *http.Client) {
 	if transport, ok := httpClient.Transport.(interface{ CloseIdleConnections() }); ok {
 		transport.CloseIdleConnections()
 	}
+}
+
+func requestURLString(response *http.Response) string {
+	if response == nil || response.Request == nil || response.Request.URL == nil {
+		return ""
+	}
+	return response.Request.URL.String()
 }
 
 func firstNonEmpty(values ...string) string {

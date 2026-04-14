@@ -21,6 +21,21 @@ const (
 )
 
 var (
+	// ErrArchiveDestinationRequired reports that ExtractArchive received a blank destination root.
+	ErrArchiveDestinationRequired = errors.New("destination root is required")
+	// ErrArchiveEntryPathRequired reports that an archive entry did not contain a usable path.
+	ErrArchiveEntryPathRequired = errors.New("archive entry path is required")
+	// ErrArchiveEntryMustBeRelative reports that an archive entry path was absolute.
+	ErrArchiveEntryMustBeRelative = errors.New("archive entry must be relative")
+	// ErrArchiveEntryEscapesRoot reports that an archive entry would escape the extraction root.
+	ErrArchiveEntryEscapesRoot = errors.New("archive entry escapes the extraction root")
+	// ErrUnsupportedArchiveEntryType reports that ExtractArchive encountered an unsupported tar entry type.
+	ErrUnsupportedArchiveEntryType = errors.New("unsupported archive entry type")
+	// ErrPathRootRequired reports that PathWithinRoot received a blank root path.
+	ErrPathRootRequired = errors.New("root path is required")
+	// ErrPathOutsideRoot reports that a path resolves outside the provided root.
+	ErrPathOutsideRoot = errors.New("path must stay within the root directory")
+
 	errArchiveTooLarge     = errors.New("registry: archive exceeds max decompressed size")
 	errArchiveTooManyFiles = errors.New("registry: archive exceeds max file count")
 )
@@ -48,7 +63,7 @@ func ExtractArchive(reader io.Reader, destRoot string) error {
 
 func extractArchive(reader io.Reader, destRoot string, limits extractLimits) (err error) {
 	if strings.TrimSpace(destRoot) == "" {
-		return errors.New("destination root is required")
+		return ErrArchiveDestinationRequired
 	}
 	if err := os.MkdirAll(destRoot, 0o755); err != nil {
 		return fmt.Errorf("create destination root %q: %w", destRoot, err)
@@ -135,21 +150,16 @@ func extractArchive(reader io.Reader, destRoot string, limits extractLimits) (er
 			}
 			teeReader := io.TeeReader(tarReader, counter)
 			if _, err := io.Copy(file, teeReader); err != nil {
-				writeErr := fmt.Errorf("write archive file %q: %w", targetPath, err)
-				if closeErr := file.Close(); closeErr != nil {
-					writeErr = errors.Join(writeErr, fmt.Errorf("close archive file %q after write failure: %w", targetPath, closeErr))
-				}
-				_ = os.Remove(targetPath)
-				return writeErr
+				return cleanupArchiveFile(file, targetPath, fmt.Errorf("write archive file %q: %w", targetPath, err), false)
 			}
 			if err := file.Close(); err != nil {
-				return fmt.Errorf("close archive file %q: %w", targetPath, err)
+				return cleanupArchiveFile(nil, targetPath, fmt.Errorf("close archive file %q: %w", targetPath, err), true)
 			}
 			if err := os.Chmod(targetPath, fileMode); err != nil {
 				return fmt.Errorf("set archive file mode %q: %w", targetPath, err)
 			}
 		default:
-			return fmt.Errorf("unsupported archive entry type %d for %q", header.Typeflag, header.Name)
+			return fmt.Errorf("%w %d for %q", ErrUnsupportedArchiveEntryType, header.Typeflag, header.Name)
 		}
 	}
 }
@@ -179,6 +189,18 @@ func (w *countingLimitWriter) Write(p []byte) (int, error) {
 
 	*w.total += int64(len(p))
 	return len(p), nil
+}
+
+func cleanupArchiveFile(file *os.File, targetPath string, baseErr error, alreadyClosed bool) error {
+	if file != nil && !alreadyClosed {
+		if closeErr := file.Close(); closeErr != nil {
+			baseErr = errors.Join(baseErr, fmt.Errorf("close archive file %q after failure: %w", targetPath, closeErr))
+		}
+	}
+	if removeErr := os.Remove(targetPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+		baseErr = errors.Join(baseErr, fmt.Errorf("remove partial archive file %q: %w", targetPath, removeErr))
+	}
+	return baseErr
 }
 
 // MoveInstalledDir moves an extracted package directory into its final location.
@@ -236,11 +258,11 @@ func CleanArchiveEntryPath(entry string) (string, error) {
 	cleaned := path.Clean(strings.TrimSpace(strings.ReplaceAll(entry, "\\", "/")))
 	switch {
 	case cleaned == ".", cleaned == "":
-		return "", errors.New("archive entry path is required")
+		return "", ErrArchiveEntryPathRequired
 	case strings.HasPrefix(cleaned, "/"):
-		return "", fmt.Errorf("archive entry %q must be relative", entry)
+		return "", fmt.Errorf("%w: %q", ErrArchiveEntryMustBeRelative, entry)
 	case cleaned == "..", strings.HasPrefix(cleaned, "../"):
-		return "", fmt.Errorf("archive entry %q escapes the extraction root", entry)
+		return "", fmt.Errorf("%w: %q", ErrArchiveEntryEscapesRoot, entry)
 	default:
 		return cleaned, nil
 	}
@@ -248,7 +270,12 @@ func CleanArchiveEntryPath(entry string) (string, error) {
 
 // PathWithinRoot resolves a child path and guarantees it stays under root.
 func PathWithinRoot(root string, child string) (string, error) {
-	absRoot, err := filepath.Abs(strings.TrimSpace(root))
+	trimmedRoot := strings.TrimSpace(root)
+	if trimmedRoot == "" {
+		return "", ErrPathRootRequired
+	}
+
+	absRoot, err := filepath.Abs(trimmedRoot)
 	if err != nil {
 		return "", fmt.Errorf("resolve root %q: %w", root, err)
 	}
@@ -262,7 +289,7 @@ func PathWithinRoot(root string, child string) (string, error) {
 		return "", fmt.Errorf("resolve target %q within %q: %w", absTarget, absRoot, err)
 	}
 	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", errors.New("path must stay within the root directory")
+		return "", ErrPathOutsideRoot
 	}
 	return absTarget, nil
 }

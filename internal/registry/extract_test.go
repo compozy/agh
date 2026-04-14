@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,8 +109,8 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		if err == nil {
 			t.Fatal("ExtractArchive(symlink) error = nil, want failure")
 		}
-		if !strings.Contains(err.Error(), "unsupported archive entry type") {
-			t.Fatalf("ExtractArchive(symlink) error = %v, want unsupported entry context", err)
+		if !errors.Is(err, ErrUnsupportedArchiveEntryType) {
+			t.Fatalf("ExtractArchive(symlink) error = %v, want %v", err, ErrUnsupportedArchiveEntryType)
 		}
 	})
 
@@ -122,8 +123,8 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		if err == nil {
 			t.Fatal("ExtractArchive(traversal) error = nil, want failure")
 		}
-		if !strings.Contains(err.Error(), "escapes the extraction root") {
-			t.Fatalf("ExtractArchive(traversal) error = %v, want traversal context", err)
+		if !errors.Is(err, ErrArchiveEntryEscapesRoot) {
+			t.Fatalf("ExtractArchive(traversal) error = %v, want %v", err, ErrArchiveEntryEscapesRoot)
 		}
 	})
 
@@ -160,8 +161,8 @@ func TestExtractArchive_EnforcesLimitsAndRejectsUnsafeEntries(t *testing.T) {
 		if err == nil {
 			t.Fatal("ExtractArchive(empty dest) error = nil, want failure")
 		}
-		if !strings.Contains(err.Error(), "destination root is required") {
-			t.Fatalf("ExtractArchive(empty dest) error = %v, want destination validation", err)
+		if !errors.Is(err, ErrArchiveDestinationRequired) {
+			t.Fatalf("ExtractArchive(empty dest) error = %v, want %v", err, ErrArchiveDestinationRequired)
 		}
 	})
 
@@ -189,8 +190,11 @@ func TestPathWithinRoot(t *testing.T) {
 		t.Fatalf("PathWithinRoot(valid) = %q, want path under %q", target, root)
 	}
 
-	if _, err := PathWithinRoot(root, filepath.Join("..", "escape")); err == nil {
-		t.Fatal("PathWithinRoot(escape) error = nil, want failure")
+	if _, err := PathWithinRoot(root, filepath.Join("..", "escape")); !errors.Is(err, ErrPathOutsideRoot) {
+		t.Fatalf("PathWithinRoot(escape) error = %v, want %v", err, ErrPathOutsideRoot)
+	}
+	if _, err := PathWithinRoot("   ", "review/SKILL.md"); !errors.Is(err, ErrPathRootRequired) {
+		t.Fatalf("PathWithinRoot(blank root) error = %v, want %v", err, ErrPathRootRequired)
 	}
 }
 
@@ -198,21 +202,21 @@ func TestCleanArchiveEntryPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		entry string
-		want  string
-		ok    bool
+		name    string
+		entry   string
+		want    string
+		wantErr error
 	}{
-		{name: "valid", entry: "review\\SKILL.md", want: "review/SKILL.md", ok: true},
-		{name: "empty", entry: ""},
-		{name: "absolute", entry: "/tmp/skill.md"},
-		{name: "traversal", entry: "../escape.txt"},
+		{name: "valid", entry: "review\\SKILL.md", want: "review/SKILL.md"},
+		{name: "empty", entry: "", wantErr: ErrArchiveEntryPathRequired},
+		{name: "absolute", entry: "/tmp/skill.md", wantErr: ErrArchiveEntryMustBeRelative},
+		{name: "traversal", entry: "../escape.txt", wantErr: ErrArchiveEntryEscapesRoot},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := CleanArchiveEntryPath(tt.entry)
-			if tt.ok {
+			if tt.wantErr == nil {
 				if err != nil {
 					t.Fatalf("CleanArchiveEntryPath(%q) error = %v", tt.entry, err)
 				}
@@ -221,10 +225,51 @@ func TestCleanArchiveEntryPath(t *testing.T) {
 				}
 				return
 			}
-			if err == nil {
-				t.Fatalf("CleanArchiveEntryPath(%q) error = nil, want failure", tt.entry)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("CleanArchiveEntryPath(%q) error = %v, want %v", tt.entry, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestCleanupArchiveFileJoinsRemoveFailure(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	target := filepath.Join(root, "review", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatalf("MkdirAll(parent) error = %v", err)
+	}
+
+	file, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		t.Fatalf("OpenFile(target) error = %v", err)
+	}
+	if _, err := file.WriteString("partial"); err != nil {
+		t.Fatalf("WriteString(target) error = %v", err)
+	}
+
+	if err := os.Chmod(filepath.Dir(target), 0o555); err != nil {
+		t.Fatalf("Chmod(parent read-only) error = %v", err)
+	}
+	defer func() {
+		if chmodErr := os.Chmod(filepath.Dir(target), 0o755); chmodErr != nil {
+			t.Fatalf("Chmod(parent restore) error = %v", chmodErr)
+		}
+	}()
+
+	baseErr := errors.New("write failed")
+	err = cleanupArchiveFile(file, target, baseErr, false)
+	if err == nil {
+		t.Fatal("cleanupArchiveFile() error = nil, want joined failure")
+	}
+	if !errors.Is(err, baseErr) {
+		t.Fatalf("cleanupArchiveFile() error = %v, want base error", err)
+	}
+
+	var pathErr *fs.PathError
+	if !errors.As(err, &pathErr) {
+		t.Fatalf("cleanupArchiveFile() error = %v, want remove path error", err)
 	}
 }
 

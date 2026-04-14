@@ -281,6 +281,59 @@ func TestClientDownloadRejectsUnexpectedContentType(t *testing.T) {
 	}
 }
 
+func TestClientDownloadJoinsCloseErrorOnContentTypeValidationFailure(t *testing.T) {
+	t.Parallel()
+
+	closeErr := errors.New("asset close failed")
+	client := NewClient(
+		"https://example.com",
+		WithHTTPClient(&http.Client{
+			Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				switch request.URL.Path {
+				case "/repos/acme/demo/releases/latest":
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Status:     "200 OK",
+						Header:     http.Header{"Content-Type": []string{"application/json"}},
+						Body: io.NopCloser(strings.NewReader(`{
+							"tag_name":"v1.2.3",
+							"draft":false,
+							"prerelease":false,
+							"tarball_url":"https://example.com/downloads/source.tar.gz",
+							"assets":[{"name":"demo-v1.2.3.tar.gz","url":"https://example.com/downloads/asset.tar.gz","content_type":"application/gzip","size":123}]
+						}`)),
+						Request: request,
+					}, nil
+				case "/downloads/asset.tar.gz":
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Status:     "200 OK",
+						Header:     http.Header{"Content-Type": []string{"text/html; charset=utf-8"}},
+						Body: &errorReadCloser{
+							Reader:   strings.NewReader("<html>login</html>"),
+							closeErr: closeErr,
+						},
+						Request: request,
+					}, nil
+				default:
+					return newHTTPResponse(http.StatusNotFound, `{"message":"not found"}`), nil
+				}
+			}),
+		}),
+	)
+
+	_, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
+	if err == nil {
+		t.Fatal("Download() error = nil, want content-type + close failure")
+	}
+	if !strings.Contains(err.Error(), "unexpected download content type") {
+		t.Fatalf("Download() error = %v, want content-type failure", err)
+	}
+	if !errors.Is(err, closeErr) {
+		t.Fatalf("Download() error = %v, want joined close failure", err)
+	}
+}
+
 func TestClientDownloadSurfacesHTTPFailuresBeforeContentTypeValidation(t *testing.T) {
 	t.Parallel()
 
@@ -424,6 +477,68 @@ func TestClientRetriesHTTP500(t *testing.T) {
 	}
 	if attempts != 3 {
 		t.Fatalf("attempts = %d, want 3", attempts)
+	}
+}
+
+func TestClientRetriesHTTP500LogsCloseErrorBeforeRetry(t *testing.T) {
+	t.Parallel()
+
+	closeErr := errors.New("retry close failed")
+	var logBuffer bytes.Buffer
+	attempts := 0
+
+	client := NewClient(
+		"https://example.com",
+		WithHTTPClient(&http.Client{
+			Transport: stubRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				attempts++
+				if attempts == 1 {
+					return &http.Response{
+						StatusCode: http.StatusInternalServerError,
+						Status:     "500 Internal Server Error",
+						Header:     make(http.Header),
+						Body: &errorReadCloser{
+							Reader:   strings.NewReader(`{"message":"temporary failure"}`),
+							closeErr: closeErr,
+						},
+						Request: request,
+					}, nil
+				}
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body: io.NopCloser(strings.NewReader(`{
+						"tag_name":"v1.2.3",
+						"draft":false,
+						"prerelease":false,
+						"tarball_url":"https://example.com/downloads/source.tar.gz",
+						"assets":[]
+					}`)),
+					Request: request,
+				}, nil
+			}),
+		}),
+		WithRetryPolicy(time.Millisecond, time.Millisecond, 1),
+		WithSleep(func(context.Context, time.Duration) error { return nil }),
+		WithLogger(slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{Level: slog.LevelDebug}))),
+	)
+
+	_, err := client.fetchLatestRelease(context.Background(), repoSlug{owner: "acme", name: "demo", full: "acme/demo"})
+	if err != nil {
+		t.Fatalf("fetchLatestRelease() error = %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts = %d, want 2", attempts)
+	}
+
+	logs := logBuffer.String()
+	if !strings.Contains(logs, "github: close response body before retry") {
+		t.Fatalf("retry logs = %q, want close-before-retry message", logs)
+	}
+	if !strings.Contains(logs, "retry close failed") {
+		t.Fatalf("retry logs = %q, want close failure details", logs)
 	}
 }
 
@@ -697,6 +812,53 @@ func TestCheckRateLimitErrorsWhenRemainingZero(t *testing.T) {
 	}
 }
 
+func TestCheckRateLimitLogsInvalidRemainingHeader(t *testing.T) {
+	t.Parallel()
+
+	var logBuffer bytes.Buffer
+	response := newHTTPResponse(http.StatusOK, "")
+	response.Header.Set("X-RateLimit-Remaining", "bogus")
+
+	client := NewClient("", WithLogger(slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{Level: slog.LevelDebug}))))
+	if err := client.checkRateLimit(response); err != nil {
+		t.Fatalf("checkRateLimit() error = %v, want nil", err)
+	}
+
+	logs := logBuffer.String()
+	if !strings.Contains(logs, "invalid X-RateLimit-Remaining") {
+		t.Fatalf("rate limit logs = %q, want invalid-header message", logs)
+	}
+}
+
+func TestCheckRateLimitJoinsCloseErrorWhenRemainingZero(t *testing.T) {
+	t.Parallel()
+
+	closeErr := errors.New("rate limit close failed")
+	response := &http.Response{
+		StatusCode: http.StatusForbidden,
+		Status:     http.StatusText(http.StatusForbidden),
+		Body: &errorReadCloser{
+			Reader:   strings.NewReader(`{"message":"rate limit"}`),
+			closeErr: closeErr,
+		},
+		Header:  make(http.Header),
+		Request: &http.Request{URL: mustParseURL("https://api.github.com/repos/acme/demo/releases/latest")},
+	}
+	response.Header.Set("X-RateLimit-Remaining", "0")
+
+	client := NewClient("")
+	err := client.checkRateLimit(response)
+	if err == nil {
+		t.Fatal("checkRateLimit() error = nil, want rate-limit failure")
+	}
+	if !strings.Contains(err.Error(), "GITHUB_TOKEN") {
+		t.Fatalf("checkRateLimit() error = %v, want GITHUB_TOKEN hint", err)
+	}
+	if !errors.Is(err, closeErr) {
+		t.Fatalf("checkRateLimit() error = %v, want joined close failure", err)
+	}
+}
+
 func TestCheckRateLimitWarnsWithoutFailing(t *testing.T) {
 	t.Parallel()
 
@@ -832,6 +994,21 @@ type stubCloser struct {
 
 func (s *stubCloser) Close() error {
 	return s.err
+}
+
+type errorReadCloser struct {
+	io.Reader
+	closeErr error
+}
+
+func (r *errorReadCloser) Close() error {
+	return r.closeErr
+}
+
+type stubRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f stubRoundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
 }
 
 func mustTarGz(t *testing.T, files map[string]string) []byte {
