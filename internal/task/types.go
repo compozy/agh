@@ -1,0 +1,367 @@
+package task
+
+import (
+	"encoding/json"
+	"time"
+)
+
+// Scope identifies whether a task is daemon-global or workspace-scoped.
+type Scope string
+
+const (
+	// ScopeGlobal identifies a daemon-wide task with no workspace binding.
+	ScopeGlobal Scope = "global"
+	// ScopeWorkspace identifies a task bound to one workspace.
+	ScopeWorkspace Scope = "workspace"
+)
+
+// TaskStatus identifies the canonical lifecycle state of a task.
+type TaskStatus string
+
+const (
+	// TaskStatusPending reports a task that exists but has not yet been reconciled into ready work.
+	TaskStatusPending TaskStatus = "pending"
+	// TaskStatusBlocked reports a task with unresolved dependencies.
+	TaskStatusBlocked TaskStatus = "blocked"
+	// TaskStatusReady reports a task that may execute because dependencies are satisfied.
+	TaskStatusReady TaskStatus = "ready"
+	// TaskStatusInProgress reports a task with an active starting or running run.
+	TaskStatusInProgress TaskStatus = "in_progress"
+	// TaskStatusCompleted reports a task that finished successfully.
+	TaskStatusCompleted TaskStatus = "completed"
+	// TaskStatusFailed reports a task that ended unsuccessfully.
+	TaskStatusFailed TaskStatus = "failed"
+	// TaskStatusCancelled reports a task that was cancelled before successful completion.
+	TaskStatusCancelled TaskStatus = "cancelled"
+)
+
+// TaskRunStatus identifies the canonical lifecycle state of a task run.
+type TaskRunStatus string
+
+const (
+	// TaskRunStatusQueued reports a run that has been accepted but not yet claimed.
+	TaskRunStatusQueued TaskRunStatus = "queued"
+	// TaskRunStatusClaimed reports a run that has been claimed for execution.
+	TaskRunStatusClaimed TaskRunStatus = "claimed"
+	// TaskRunStatusStarting reports a run that is starting its execution session.
+	TaskRunStatusStarting TaskRunStatus = "starting"
+	// TaskRunStatusRunning reports a run that is actively executing.
+	TaskRunStatusRunning TaskRunStatus = "running"
+	// TaskRunStatusCompleted reports a run that finished successfully.
+	TaskRunStatusCompleted TaskRunStatus = "completed"
+	// TaskRunStatusFailed reports a run that finished with an error.
+	TaskRunStatusFailed TaskRunStatus = "failed"
+	// TaskRunStatusCancelled reports a run that was cancelled.
+	TaskRunStatusCancelled TaskRunStatus = "cancelled"
+)
+
+// ActorKind identifies the authenticated principal class behind task writes.
+type ActorKind string
+
+const (
+	// ActorKindHuman identifies a human principal writing through CLI, web, HTTP, or UDS surfaces.
+	ActorKindHuman ActorKind = "human"
+	// ActorKindAgentSession identifies an AGH agent session principal.
+	ActorKindAgentSession ActorKind = "agent_session"
+	// ActorKindAutomation identifies daemon-owned automation flows.
+	ActorKindAutomation ActorKind = "automation"
+	// ActorKindExtension identifies an authenticated extension runtime principal.
+	ActorKindExtension ActorKind = "extension"
+	// ActorKindNetworkPeer identifies an authenticated network peer principal.
+	ActorKindNetworkPeer ActorKind = "network_peer"
+	// ActorKindDaemon identifies daemon-owned system work.
+	ActorKindDaemon ActorKind = "daemon"
+)
+
+// OwnerKind identifies who currently owns a task operationally.
+type OwnerKind string
+
+const (
+	// OwnerKindHuman identifies a human owner.
+	OwnerKindHuman OwnerKind = "human"
+	// OwnerKindAgentSession identifies an agent-session owner.
+	OwnerKindAgentSession OwnerKind = "agent_session"
+	// OwnerKindAutomation identifies an automation owner.
+	OwnerKindAutomation OwnerKind = "automation"
+	// OwnerKindExtension identifies an extension owner.
+	OwnerKindExtension OwnerKind = "extension"
+	// OwnerKindNetworkPeer identifies a network-peer owner.
+	OwnerKindNetworkPeer OwnerKind = "network_peer"
+	// OwnerKindPool identifies pooled ownership without a dedicated assignee.
+	OwnerKindPool OwnerKind = "pool"
+)
+
+// OriginKind identifies the technical ingress surface that produced a task-domain write.
+type OriginKind string
+
+const (
+	// OriginKindCLI identifies CLI ingress.
+	OriginKindCLI OriginKind = "cli"
+	// OriginKindWeb identifies web UI ingress.
+	OriginKindWeb OriginKind = "web"
+	// OriginKindUDS identifies local UDS ingress.
+	OriginKindUDS OriginKind = "uds"
+	// OriginKindHTTP identifies HTTP ingress.
+	OriginKindHTTP OriginKind = "http"
+	// OriginKindAutomation identifies automation ingress.
+	OriginKindAutomation OriginKind = "automation"
+	// OriginKindExtension identifies extension ingress.
+	OriginKindExtension OriginKind = "extension"
+	// OriginKindNetwork identifies network ingress.
+	OriginKindNetwork OriginKind = "network"
+	// OriginKindAgentSession identifies session tool-call ingress.
+	OriginKindAgentSession OriginKind = "agent_session"
+	// OriginKindDaemon identifies daemon-owned internal ingress.
+	OriginKindDaemon OriginKind = "daemon"
+)
+
+// DependencyKind identifies the semantic meaning of one dependency edge.
+type DependencyKind string
+
+const (
+	// DependencyKindBlocks identifies a dependency that must resolve before the task may proceed.
+	DependencyKindBlocks DependencyKind = "blocks"
+)
+
+// StopReason identifies why the task domain asked the session bridge to stop a session.
+type StopReason string
+
+const (
+	// StopReasonCancellation identifies explicit task or run cancellation.
+	StopReasonCancellation StopReason = "cancellation"
+	// StopReasonShutdown identifies daemon shutdown or boot recovery stop requests.
+	StopReasonShutdown StopReason = "shutdown"
+	// StopReasonOrphanedRun identifies orphaned-run recovery handling.
+	StopReasonOrphanedRun StopReason = "orphaned_run"
+)
+
+// ActorIdentity is the immutable server-derived actor identity attached to task and run writes.
+type ActorIdentity struct {
+	Kind ActorKind `json:"kind"`
+	Ref  string    `json:"ref"`
+}
+
+// Ownership is the optional mutable operational assignee attached to a task.
+type Ownership struct {
+	Kind OwnerKind `json:"kind"`
+	Ref  string    `json:"ref"`
+}
+
+// Origin is the immutable technical ingress context attached to task and run writes.
+type Origin struct {
+	Kind OriginKind `json:"kind"`
+	Ref  string     `json:"ref"`
+}
+
+// Authority captures the task-domain permissions resolved for one authenticated principal.
+type Authority struct {
+	Read            bool `json:"read"`
+	Write           bool `json:"write"`
+	CreateGlobal    bool `json:"create_global"`
+	CreateWorkspace bool `json:"create_workspace"`
+}
+
+// ActorContext carries the authenticated principal, ingress origin, and resolved task authority.
+type ActorContext struct {
+	Actor     ActorIdentity `json:"actor"`
+	Origin    Origin        `json:"origin"`
+	Authority Authority     `json:"authority"`
+}
+
+// Task is the durable coordination record owned by the task domain.
+type Task struct {
+	ID             string          `json:"id"`
+	Identifier     string          `json:"identifier,omitempty"`
+	Scope          Scope           `json:"scope"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	ParentTaskID   string          `json:"parent_task_id,omitempty"`
+	NetworkChannel string          `json:"network_channel,omitempty"`
+	Title          string          `json:"title"`
+	Description    string          `json:"description,omitempty"`
+	Status         TaskStatus      `json:"status"`
+	Owner          *Ownership      `json:"owner,omitempty"`
+	CreatedBy      ActorIdentity   `json:"created_by"`
+	Origin         Origin          `json:"origin"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	ClosedAt       time.Time       `json:"closed_at,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+}
+
+// TaskDependency is the durable edge record connecting one task to a blocking dependency.
+type TaskDependency struct {
+	TaskID          string         `json:"task_id"`
+	DependsOnTaskID string         `json:"depends_on_task_id"`
+	Kind            DependencyKind `json:"kind"`
+	CreatedAt       time.Time      `json:"created_at"`
+}
+
+// TaskRun is the durable execution record for one task attempt.
+type TaskRun struct {
+	ID             string          `json:"id"`
+	TaskID         string          `json:"task_id"`
+	Status         TaskRunStatus   `json:"status"`
+	Attempt        int             `json:"attempt"`
+	ClaimedBy      *ActorIdentity  `json:"claimed_by,omitempty"`
+	SessionID      string          `json:"session_id,omitempty"`
+	Origin         Origin          `json:"origin"`
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	NetworkChannel string          `json:"network_channel,omitempty"`
+	QueuedAt       time.Time       `json:"queued_at"`
+	ClaimedAt      time.Time       `json:"claimed_at,omitempty"`
+	StartedAt      time.Time       `json:"started_at,omitempty"`
+	EndedAt        time.Time       `json:"ended_at,omitempty"`
+	Error          string          `json:"error,omitempty"`
+	Result         json.RawMessage `json:"result,omitempty"`
+}
+
+// TaskEvent is the immutable audit record emitted for task-domain actions.
+type TaskEvent struct {
+	ID        string          `json:"id"`
+	TaskID    string          `json:"task_id"`
+	RunID     string          `json:"run_id,omitempty"`
+	EventType string          `json:"event_type"`
+	Actor     ActorIdentity   `json:"actor"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
+	Timestamp time.Time       `json:"timestamp"`
+}
+
+// TaskSummary is the lightweight read model returned from list-oriented task queries.
+type TaskSummary struct {
+	ID             string        `json:"id"`
+	Identifier     string        `json:"identifier,omitempty"`
+	Scope          Scope         `json:"scope"`
+	WorkspaceID    string        `json:"workspace_id,omitempty"`
+	ParentTaskID   string        `json:"parent_task_id,omitempty"`
+	NetworkChannel string        `json:"network_channel,omitempty"`
+	Title          string        `json:"title"`
+	Status         TaskStatus    `json:"status"`
+	Owner          *Ownership    `json:"owner,omitempty"`
+	CreatedBy      ActorIdentity `json:"created_by"`
+	Origin         Origin        `json:"origin"`
+	CreatedAt      time.Time     `json:"created_at"`
+	UpdatedAt      time.Time     `json:"updated_at"`
+	ClosedAt       time.Time     `json:"closed_at,omitempty"`
+}
+
+// TaskView is the expanded read model returned from single-task lookups.
+type TaskView struct {
+	Task         Task             `json:"task"`
+	Children     []TaskSummary    `json:"children,omitempty"`
+	Dependencies []TaskDependency `json:"dependencies,omitempty"`
+	Runs         []TaskRun        `json:"runs,omitempty"`
+	Events       []TaskEvent      `json:"events,omitempty"`
+}
+
+// CreateTask captures the mutable inputs accepted when creating a new task.
+type CreateTask struct {
+	ID             string          `json:"id,omitempty"`
+	Identifier     string          `json:"identifier,omitempty"`
+	Scope          Scope           `json:"scope"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	ParentTaskID   string          `json:"parent_task_id,omitempty"`
+	NetworkChannel string          `json:"network_channel,omitempty"`
+	Title          string          `json:"title"`
+	Description    string          `json:"description,omitempty"`
+	Owner          *Ownership      `json:"owner,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+}
+
+// TaskPatch captures the mutable task fields accepted by update operations.
+type TaskPatch struct {
+	Title          *string          `json:"title,omitempty"`
+	Description    *string          `json:"description,omitempty"`
+	Metadata       *json.RawMessage `json:"metadata,omitempty"`
+	NetworkChannel *string          `json:"network_channel,omitempty"`
+	Owner          *Ownership       `json:"owner,omitempty"`
+	ClearOwner     bool             `json:"clear_owner,omitempty"`
+}
+
+// CancelTask captures the task-level cancellation request payload.
+type CancelTask struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// AddDependency captures one dependency-edge creation request.
+type AddDependency struct {
+	TaskID          string         `json:"task_id"`
+	DependsOnTaskID string         `json:"depends_on_task_id"`
+	Kind            DependencyKind `json:"kind"`
+}
+
+// EnqueueRun captures the mutable inputs accepted when queuing a task run.
+type EnqueueRun struct {
+	TaskID         string `json:"task_id"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	NetworkChannel string `json:"network_channel,omitempty"`
+}
+
+// ClaimRun captures one run-claim request.
+type ClaimRun struct {
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// StartRun captures one run-start request.
+type StartRun struct {
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// CancelRun captures one run-cancellation request.
+type CancelRun struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// RunResult captures the durable JSON result returned by a completed run.
+type RunResult struct {
+	Value json.RawMessage `json:"value,omitempty"`
+}
+
+// RunFailure captures the durable failure payload returned by a failed run.
+type RunFailure struct {
+	Error    string          `json:"error"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// TaskQuery captures the supported list filters for task reads.
+type TaskQuery struct {
+	Scope          Scope      `json:"scope,omitempty"`
+	WorkspaceID    string     `json:"workspace_id,omitempty"`
+	Status         TaskStatus `json:"status,omitempty"`
+	OwnerKind      OwnerKind  `json:"owner_kind,omitempty"`
+	OwnerRef       string     `json:"owner_ref,omitempty"`
+	ParentTaskID   string     `json:"parent_task_id,omitempty"`
+	NetworkChannel string     `json:"network_channel,omitempty"`
+	Limit          int        `json:"limit,omitempty"`
+}
+
+// TaskRunQuery captures the supported list filters for task-run reads.
+type TaskRunQuery struct {
+	TaskID    string        `json:"task_id,omitempty"`
+	Status    TaskRunStatus `json:"status,omitempty"`
+	SessionID string        `json:"session_id,omitempty"`
+	Limit     int           `json:"limit,omitempty"`
+}
+
+// TaskEventQuery captures the supported list filters for task-event reads.
+type TaskEventQuery struct {
+	TaskID    string `json:"task_id,omitempty"`
+	RunID     string `json:"run_id,omitempty"`
+	EventType string `json:"event_type,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
+// StartTaskSession captures the task and run context needed to allocate a dedicated session.
+type StartTaskSession struct {
+	Task  Task         `json:"task"`
+	Run   TaskRun      `json:"run"`
+	Actor ActorContext `json:"actor"`
+}
+
+// SessionRef is the task-domain view of a runtime session binding.
+type SessionRef struct {
+	SessionID   string    `json:"session_id"`
+	WorkspaceID string    `json:"workspace_id,omitempty"`
+	StartedAt   time.Time `json:"started_at,omitempty"`
+}
