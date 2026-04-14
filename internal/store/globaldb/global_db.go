@@ -199,6 +199,71 @@ var globalSchemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_automation_runs_trigger ON automation_runs(trigger_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status);`,
 	`CREATE INDEX IF NOT EXISTS idx_automation_runs_started ON automation_runs(started_at);`,
+	`CREATE TABLE IF NOT EXISTS tasks (
+		id              TEXT PRIMARY KEY,
+		identifier      TEXT,
+		scope           TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+		workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+		parent_task_id  TEXT REFERENCES tasks(id),
+		network_channel TEXT,
+		title           TEXT NOT NULL,
+		description     TEXT,
+		status          TEXT NOT NULL CHECK (status IN ('pending', 'blocked', 'ready', 'in_progress', 'completed', 'failed', 'cancelled')),
+		owner_kind      TEXT CHECK (owner_kind IS NULL OR owner_kind IN ('human', 'agent_session', 'automation', 'extension', 'network_peer', 'pool')),
+		owner_ref       TEXT,
+		created_by_kind TEXT NOT NULL CHECK (created_by_kind IN ('human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon')),
+		created_by_ref  TEXT NOT NULL,
+		origin_kind     TEXT NOT NULL CHECK (origin_kind IN ('cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon')),
+		origin_ref      TEXT NOT NULL,
+		created_at      TEXT NOT NULL,
+		updated_at      TEXT NOT NULL,
+		closed_at       TEXT,
+		metadata_json   TEXT,
+		CHECK (
+			(scope = 'global' AND workspace_id IS NULL) OR
+			(scope = 'workspace' AND workspace_id IS NOT NULL)
+		),
+		CHECK (
+			(owner_kind IS NULL AND owner_ref IS NULL) OR
+			(owner_kind IS NOT NULL AND owner_ref IS NOT NULL)
+		),
+		CHECK (parent_task_id IS NULL OR parent_task_id <> id)
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_scope ON tasks(scope);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_workspace ON tasks(workspace_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_owner ON tasks(owner_kind, owner_ref);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_channel ON tasks(network_channel);`,
+	`CREATE TABLE IF NOT EXISTS task_runs (
+		id              TEXT PRIMARY KEY,
+		task_id         TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+		status          TEXT NOT NULL CHECK (status IN ('queued', 'claimed', 'starting', 'running', 'completed', 'failed', 'cancelled')),
+		attempt         INTEGER NOT NULL CHECK (attempt > 0),
+		claimed_by_kind TEXT CHECK (claimed_by_kind IS NULL OR claimed_by_kind IN ('human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon')),
+		claimed_by_ref  TEXT,
+		session_id      TEXT,
+		origin_kind     TEXT NOT NULL CHECK (origin_kind IN ('cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon')),
+		origin_ref      TEXT NOT NULL,
+		idempotency_key TEXT,
+		network_channel TEXT,
+		queued_at       TEXT NOT NULL,
+		claimed_at      TEXT,
+		started_at      TEXT,
+		ended_at        TEXT,
+		error           TEXT,
+		result_json     TEXT,
+		CHECK (
+			(claimed_by_kind IS NULL AND claimed_by_ref IS NULL) OR
+			(claimed_by_kind IS NOT NULL AND claimed_by_ref IS NOT NULL)
+		),
+		CHECK (status <> 'queued' OR session_id IS NULL)
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_runs_task ON task_runs(task_id, queued_at DESC, id DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_runs_task_status ON task_runs(task_id, status, queued_at DESC, id DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_runs_status ON task_runs(status);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_runs_session ON task_runs(session_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_runs_channel ON task_runs(network_channel);`,
 	`CREATE TABLE IF NOT EXISTS bridge_instances (
 		id                TEXT PRIMARY KEY,
 		scope             TEXT NOT NULL,
