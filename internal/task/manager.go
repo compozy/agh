@@ -28,6 +28,7 @@ const (
 	taskEventRunCancelled      = "task.run_cancelled"
 	taskEventRunForceStopped   = "task.run_force_stopped"
 	taskEventRunRecovered      = "task.run_recovered"
+	taskEventRunRejected       = "task.run_rejected"
 )
 
 // Option customizes TaskManager construction.
@@ -36,6 +37,7 @@ type Option func(*managerOptions)
 type managerOptions struct {
 	store             Store
 	sessions          SessionExecutor
+	channelValidator  func(string) error
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
@@ -46,6 +48,7 @@ type managerOptions struct {
 type TaskManager struct {
 	store             Store
 	sessions          SessionExecutor
+	channelValidator  func(string) error
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
@@ -65,6 +68,15 @@ func WithStore(store Store) Option {
 func WithSessionExecutor(sessions SessionExecutor) Option {
 	return func(opts *managerOptions) {
 		opts.sessions = sessions
+	}
+}
+
+// WithNetworkChannelValidator injects the active channel validator used to
+// check task and run bindings without coupling the task package to the network
+// runtime implementation.
+func WithNetworkChannelValidator(validator func(string) error) Option {
+	return func(opts *managerOptions) {
+		opts.channelValidator = validator
 	}
 }
 
@@ -119,6 +131,7 @@ func NewManager(opts ...Option) (*TaskManager, error) {
 	return &TaskManager{
 		store:             options.store,
 		sessions:          options.sessions,
+		channelValidator:  options.channelValidator,
 		now:               options.now,
 		newID:             options.newID,
 		cancelGracePeriod: options.cancelGracePeriod,
@@ -137,6 +150,9 @@ func (m *TaskManager) CreateTask(ctx context.Context, spec CreateTask, actor Act
 		return nil, err
 	}
 	if err := m.validateParentConstraints(ctx, normalizedSpec); err != nil {
+		return nil, err
+	}
+	if err := m.validateNetworkChannel("create_task.network_channel", normalizedSpec.NetworkChannel); err != nil {
 		return nil, err
 	}
 
@@ -221,6 +237,11 @@ func (m *TaskManager) UpdateTask(ctx context.Context, id string, patch TaskPatch
 	normalizedPatch, err := normalizeTaskPatch(patch)
 	if err != nil {
 		return nil, err
+	}
+	if normalizedPatch.NetworkChannel != nil {
+		if err := m.validateNetworkChannel("task_patch.network_channel", *normalizedPatch.NetworkChannel); err != nil {
+			return nil, err
+		}
 	}
 
 	current, err := m.store.GetTask(ctx, trimmedID)
@@ -535,6 +556,9 @@ func (m *TaskManager) EnqueueRun(ctx context.Context, spec EnqueueRun, actor Act
 	if err := requireLifecycleIdempotency(actor, normalizedSpec.IdempotencyKey, "enqueue_run"); err != nil {
 		return nil, err
 	}
+	if err := m.validateNetworkChannel("enqueue_run.network_channel", normalizedSpec.NetworkChannel); err != nil {
+		return nil, err
+	}
 
 	taskRecord, err := m.store.GetTask(ctx, normalizedSpec.TaskID)
 	if err != nil {
@@ -656,6 +680,9 @@ func (m *TaskManager) StartRun(ctx context.Context, runID string, req StartRun, 
 	if err := m.ensureTaskExecutable(ctx, taskRecord); err != nil {
 		return nil, err
 	}
+	if err := m.validateRunChannelUsable(ctx, taskRecord, run, actor, "start"); err != nil {
+		return nil, err
+	}
 
 	switch run.Status.Normalize() {
 	case TaskRunStatusClaimed:
@@ -761,6 +788,9 @@ func (m *TaskManager) AttachRunSession(ctx context.Context, runID string, sessio
 		return nil, err
 	}
 	if err := m.ensureTaskExecutable(ctx, taskRecord); err != nil {
+		return nil, err
+	}
+	if err := m.validateRunChannelUsable(ctx, taskRecord, run, actor, "attach"); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(run.SessionID) != "" {
@@ -1755,6 +1785,47 @@ func nextRunAttempt(runs []TaskRun) int {
 	return maxAttempt + 1
 }
 
+func (m *TaskManager) validateNetworkChannel(path string, channel string) error {
+	if m == nil || m.channelValidator == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(channel)
+	if trimmed == "" {
+		return nil
+	}
+	if err := m.channelValidator(trimmed); err != nil {
+		return fmt.Errorf("%w: %s: %w", ErrValidation, path, err)
+	}
+	return nil
+}
+
+func (m *TaskManager) validateRunChannelUsable(ctx context.Context, taskRecord Task, run TaskRun, actor ActorContext, operation string) error {
+	channel := resolvedRunChannel(run.NetworkChannel, taskRecord.NetworkChannel)
+	if strings.TrimSpace(channel) == "" {
+		return nil
+	}
+	if err := m.validateNetworkChannel("task_run.network_channel", channel); err == nil {
+		return nil
+	}
+
+	rejectedErr := fmt.Errorf(
+		"%w: task %q run %q channel %q is no longer valid",
+		ErrStaleNetworkChannel,
+		taskRecord.ID,
+		run.ID,
+		strings.TrimSpace(channel),
+	)
+	if recordErr := m.recordTaskEvent(ctx, taskRecord.ID, run.ID, taskEventRunRejected, actor, rejectedRunPayload{
+		Operation:      strings.TrimSpace(operation),
+		Reason:         "stale_network_channel",
+		NetworkChannel: strings.TrimSpace(channel),
+	}); recordErr != nil {
+		return errorsJoin(rejectedErr, recordErr)
+	}
+	return rejectedErr
+}
+
 func resolvedRunChannel(requested string, taskChannel string) string {
 	if strings.TrimSpace(requested) != "" {
 		return strings.TrimSpace(requested)
@@ -1964,6 +2035,12 @@ type forceStoppedRunPayload struct {
 	SessionID            string `json:"session_id"`
 	GraceTimeoutMillis   int64  `json:"grace_timeout_ms"`
 	PropagatedFromTaskID string `json:"propagated_from_task_id,omitempty"`
+}
+
+type rejectedRunPayload struct {
+	Operation      string `json:"operation"`
+	Reason         string `json:"reason"`
+	NetworkChannel string `json:"network_channel,omitempty"`
 }
 
 type recoveredRunPayload struct {

@@ -429,6 +429,7 @@ func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *boo
 		d.homePaths.NetworkAuditFile,
 		state.registry,
 		network.WithManagerLogger(state.logger),
+		network.WithManagerTaskService(state.deps.Tasks),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create network manager: %w", err)

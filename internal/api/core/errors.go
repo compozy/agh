@@ -103,7 +103,8 @@ func StatusForTaskError(err error) int {
 		errors.Is(err, taskpkg.ErrGraphLimitExceeded),
 		errors.Is(err, taskpkg.ErrCycleDetected),
 		errors.Is(err, taskpkg.ErrSessionAlreadyBound),
-		errors.Is(err, taskpkg.ErrSessionAttachNotAllowed):
+		errors.Is(err, taskpkg.ErrSessionAttachNotAllowed),
+		errors.Is(err, taskpkg.ErrStaleNetworkChannel):
 		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError

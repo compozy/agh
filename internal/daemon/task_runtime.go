@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
@@ -188,6 +189,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 	manager, err := taskpkg.NewManager(
 		taskpkg.WithStore(store),
 		taskpkg.WithSessionExecutor(bridge),
+		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
 	)
 	if err != nil {

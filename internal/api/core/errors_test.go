@@ -113,6 +113,7 @@ func TestTaskErrorHelpers(t *testing.T) {
 		{name: "os not exist", err: os.ErrNotExist, want: http.StatusNotFound},
 		{name: "workspace root missing", err: workspacepkg.ErrWorkspaceRootMissing, want: http.StatusGone},
 		{name: "attach forbidden", err: taskpkg.ErrSessionAttachNotAllowed, want: http.StatusConflict},
+		{name: "stale network channel", err: taskpkg.ErrStaleNetworkChannel, want: http.StatusConflict},
 		{name: "default", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}
 

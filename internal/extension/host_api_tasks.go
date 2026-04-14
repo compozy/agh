@@ -646,6 +646,7 @@ func mapTaskRPCError(resource string, id string, err error) error {
 		errors.Is(err, taskpkg.ErrInvalidStatusTransition),
 		errors.Is(err, taskpkg.ErrSessionAlreadyBound),
 		errors.Is(err, taskpkg.ErrSessionAttachNotAllowed),
+		errors.Is(err, taskpkg.ErrStaleNetworkChannel),
 		errors.Is(err, taskpkg.ErrPermissionDenied):
 		return invalidParamsRPCError(err)
 	default:

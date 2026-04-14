@@ -31,6 +31,8 @@ var (
 	ErrSessionAlreadyBound = errors.New("task: session already bound")
 	// ErrSessionAttachNotAllowed reports that a run cannot attach an existing session in its current state.
 	ErrSessionAttachNotAllowed = errors.New("task: session attach not allowed")
+	// ErrStaleNetworkChannel reports that a stored task or run channel no longer passes the active validator.
+	ErrStaleNetworkChannel = errors.New("task: stale network channel")
 	// ErrPermissionDenied reports that the resolved actor context lacks authority for the requested task action.
 	ErrPermissionDenied = errors.New("task: permission denied")
 )

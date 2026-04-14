@@ -1409,6 +1409,147 @@ func TestManagerNonHumanIdempotencyAndExecutionGuards(t *testing.T) {
 	}
 }
 
+func TestManagerNetworkPeerEnqueueRunUsesOriginScopedIdempotency(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor, err := DeriveNetworkPeerActorContext("peer.ops-review", "peer:peer.ops-review/channel:ops")
+	if err != nil {
+		t.Fatalf("DeriveNetworkPeerActorContext() error = %v", err)
+	}
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope:          ScopeGlobal,
+		Title:          "Peer-originated task",
+		NetworkChannel: "ops",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	firstRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{
+		TaskID:         taskRecord.ID,
+		IdempotencyKey: "delivery-1",
+	}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(first) error = %v", err)
+	}
+	secondRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{
+		TaskID:         taskRecord.ID,
+		IdempotencyKey: "delivery-1",
+	}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(duplicate) error = %v", err)
+	}
+
+	if got, want := secondRun.ID, firstRun.ID; got != want {
+		t.Fatalf("duplicate enqueue run id = %q, want %q", got, want)
+	}
+	if got, want := len(store.runs), 1; got != want {
+		t.Fatalf("len(store.runs) = %d, want %d", got, want)
+	}
+	if got, want := len(store.idempotencyByKey), 1; got != want {
+		t.Fatalf("len(store.idempotencyByKey) = %d, want %d", got, want)
+	}
+}
+
+func TestManagerStartRunRejectsStaleRunChannelWithoutMutation(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	bootstrap := newTaskManagerForTest(t, store)
+	actor, err := DeriveHumanActorContext("user-1", OriginKindCLI, "agh task run start")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+
+	taskRecord, err := bootstrap.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Stale run snapshot task",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run, err := bootstrap.EnqueueRun(context.Background(), EnqueueRun{
+		TaskID:         taskRecord.ID,
+		NetworkChannel: "legacy",
+	}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	run, err = bootstrap.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun() error = %v", err)
+	}
+
+	executor := &recordingSessionExecutor{}
+	manager := newTaskManagerForTestWithOptions(
+		t,
+		store,
+		WithSessionExecutor(executor),
+		WithNetworkChannelValidator(func(channel string) error {
+			if channel == "legacy" {
+				return fmt.Errorf("channel retired")
+			}
+			return nil
+		}),
+	)
+
+	started, err := manager.StartRun(context.Background(), run.ID, StartRun{}, actor)
+	if !errors.Is(err, ErrStaleNetworkChannel) {
+		t.Fatalf("StartRun() error = %v, want %v", err, ErrStaleNetworkChannel)
+	}
+	if started != nil {
+		t.Fatalf("StartRun() run = %#v, want nil on stale-channel rejection", started)
+	}
+	if got := len(executor.startCalls); got != 0 {
+		t.Fatalf("len(executor.startCalls) = %d, want 0", got)
+	}
+
+	storedRun, err := store.GetTaskRun(context.Background(), run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun() error = %v", err)
+	}
+	if got, want := storedRun.Status, TaskRunStatusClaimed; got != want {
+		t.Fatalf("storedRun.Status = %q, want %q", got, want)
+	}
+	if !storedRun.StartedAt.IsZero() {
+		t.Fatalf("storedRun.StartedAt = %s, want zero", storedRun.StartedAt)
+	}
+	if got, want := storedRun.NetworkChannel, "legacy"; got != want {
+		t.Fatalf("storedRun.NetworkChannel = %q, want %q", got, want)
+	}
+
+	events, err := store.ListTaskEvents(context.Background(), TaskEventQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	rejectedEvents := make([]TaskEvent, 0)
+	for _, event := range events {
+		if event.EventType == taskEventRunRejected {
+			rejectedEvents = append(rejectedEvents, event)
+		}
+	}
+	if got, want := len(rejectedEvents), 1; got != want {
+		t.Fatalf("len(rejectedEvents) = %d, want %d; event types=%v", got, want, sortedEventTypes(events))
+	}
+
+	var payload rejectedRunPayload
+	if err := json.Unmarshal(rejectedEvents[0].Payload, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(rejected payload) error = %v", err)
+	}
+	if got, want := payload.Operation, "start"; got != want {
+		t.Fatalf("payload.Operation = %q, want %q", got, want)
+	}
+	if got, want := payload.Reason, "stale_network_channel"; got != want {
+		t.Fatalf("payload.Reason = %q, want %q", got, want)
+	}
+	if got, want := payload.NetworkChannel, "legacy"; got != want {
+		t.Fatalf("payload.NetworkChannel = %q, want %q", got, want)
+	}
+}
+
 func TestManagerBlockedExecutionAndFailureGuardrails(t *testing.T) {
 	t.Parallel()
 

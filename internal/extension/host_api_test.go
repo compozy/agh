@@ -2512,6 +2512,7 @@ func TestMapTaskRPCErrorTranslatesKnownErrors(t *testing.T) {
 		{name: "RunNotFound", resource: "task_run", id: "run-1", err: taskpkg.ErrTaskRunNotFound, wantCode: HostAPINotFoundCode, wantText: "task run not found"},
 		{name: "DependencyNotFound", resource: "task_dependency", id: "dep-1", err: taskpkg.ErrTaskDependencyNotFound, wantCode: HostAPINotFoundCode, wantText: "task dependency not found"},
 		{name: "PermissionDenied", resource: "task", id: "task-1", err: taskpkg.ErrPermissionDenied, wantCode: HostAPIInvalidParamsCode, wantText: "permission denied"},
+		{name: "StaleNetworkChannel", resource: "task_run", id: "run-1", err: taskpkg.ErrStaleNetworkChannel, wantCode: HostAPIInvalidParamsCode, wantText: "stale network channel"},
 		{name: "Passthrough", resource: "task", id: "task-1", err: errors.New("boom"), wantSame: true},
 	}
 

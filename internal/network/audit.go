@@ -43,6 +43,24 @@ type AuditWriter interface {
 	RecordDelivered(ctx context.Context, sessionID string, envelope Envelope) error
 }
 
+// TaskIngressAudit captures one task-domain ingress decision originating from a
+// validated network peer.
+type TaskIngressAudit struct {
+	Action    string
+	Direction string
+	PeerID    string
+	Channel   string
+	RequestID string
+	Reason    string
+	Payload   any
+}
+
+// TaskIngressAuditWriter is the optional audit extension used by task-aware
+// network ingress. Existing protocol-message auditing remains unchanged.
+type TaskIngressAuditWriter interface {
+	RecordTaskIngress(ctx context.Context, audit TaskIngressAudit) error
+}
+
 // FileAuditWriter writes normalized network audit records to a JSONL file and
 // optionally mirrors them into a persistent store.
 type FileAuditWriter struct {
@@ -83,6 +101,7 @@ func messageStoreFromAuditStore(auditStore AuditStore) MessageStore {
 }
 
 var _ AuditWriter = (*FileAuditWriter)(nil)
+var _ TaskIngressAuditWriter = (*FileAuditWriter)(nil)
 
 // RecordSent stores a sent network audit record.
 func (w *FileAuditWriter) RecordSent(ctx context.Context, sessionID string, envelope Envelope) error {
@@ -104,6 +123,31 @@ func (w *FileAuditWriter) RecordDelivered(ctx context.Context, sessionID string,
 	return w.record(ctx, sessionID, AuditDirectionDelivered, envelope, "")
 }
 
+// RecordTaskIngress stores one accepted or rejected task-ingress audit record
+// using the existing network audit sinks.
+func (w *FileAuditWriter) RecordTaskIngress(ctx context.Context, audit TaskIngressAudit) error {
+	if ctx == nil {
+		return errors.New("network: audit context is required")
+	}
+	if w == nil {
+		return errors.New("network: audit writer is required")
+	}
+
+	entry, err := normalizeTaskIngressAuditEntry(audit, w.now())
+	if err != nil {
+		return err
+	}
+
+	var recordErr error
+	if w.path != "" {
+		recordErr = errors.Join(recordErr, w.appendFile(entry))
+	}
+	if w.store != nil {
+		recordErr = errors.Join(recordErr, w.store.WriteNetworkAudit(ctx, entry))
+	}
+
+	return recordErr
+}
 func (w *FileAuditWriter) record(ctx context.Context, sessionID string, direction string, envelope Envelope, reason string) error {
 	if ctx == nil {
 		return errors.New("network: audit context is required")
@@ -215,6 +259,36 @@ func normalizeTimelineMessageEntry(sessionID string, direction string, envelope 
 	return entry, true, nil
 }
 
+func normalizeTaskIngressAuditEntry(audit TaskIngressAudit, at time.Time) (store.NetworkAuditEntry, error) {
+	payloadSize := 0
+	if audit.Payload != nil {
+		payload, err := json.Marshal(audit.Payload)
+		if err != nil {
+			return store.NetworkAuditEntry{}, fmt.Errorf("network: marshal task ingress audit payload: %w", err)
+		}
+		payloadSize = len(payload)
+	}
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+
+	entry := store.NetworkAuditEntry{
+		ID:        store.NewID("naud"),
+		SessionID: "netpeer:" + strings.TrimSpace(audit.PeerID),
+		Direction: strings.TrimSpace(audit.Direction),
+		Kind:      strings.TrimSpace(audit.Action),
+		Channel:   strings.TrimSpace(audit.Channel),
+		PeerFrom:  strings.TrimSpace(audit.PeerID),
+		MessageID: strings.TrimSpace(audit.RequestID),
+		Reason:    strings.TrimSpace(audit.Reason),
+		Size:      payloadSize,
+		Timestamp: at.UTC(),
+	}
+	if err := entry.Validate(); err != nil {
+		return store.NetworkAuditEntry{}, err
+	}
+	return entry, nil
+}
 func (w *FileAuditWriter) appendFile(entry store.NetworkAuditEntry) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()

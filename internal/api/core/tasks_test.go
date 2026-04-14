@@ -130,6 +130,7 @@ func TestStatusForTaskError(t *testing.T) {
 		{name: "task not found", err: taskpkg.ErrTaskNotFound, want: http.StatusNotFound},
 		{name: "workspace missing", err: workspacepkg.ErrWorkspaceNotFound, want: http.StatusNotFound},
 		{name: "invalid transition", err: taskpkg.ErrInvalidStatusTransition, want: http.StatusConflict},
+		{name: "stale network channel", err: taskpkg.ErrStaleNetworkChannel, want: http.StatusConflict},
 	}
 
 	for _, tc := range testCases {

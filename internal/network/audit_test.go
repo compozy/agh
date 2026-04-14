@@ -261,6 +261,53 @@ func TestAuditWriterSkipsTimelineWriteWhenAuditStoreFails(t *testing.T) {
 	})
 }
 
+func TestAuditWriterRecordTaskIngress(t *testing.T) {
+	t.Parallel()
+
+	storeSink := &recordingAuditStore{}
+	writer, err := NewAuditWriter("", storeSink)
+	if err != nil {
+		t.Fatalf("NewAuditWriter() error = %v", err)
+	}
+	writer.now = func() time.Time {
+		return time.Date(2026, 4, 14, 18, 15, 0, 0, time.UTC)
+	}
+
+	if err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
+		Action:    networkTaskActionEnqueue,
+		Direction: AuditDirectionRejected,
+		PeerID:    "reviewer.sess-ops",
+		Channel:   "ops",
+		RequestID: "req-enqueue-1",
+		Reason:    "channel_mismatch",
+		Payload: map[string]any{
+			"task_id": "task-1",
+		},
+	}); err != nil {
+		t.Fatalf("RecordTaskIngress() error = %v", err)
+	}
+
+	if got, want := len(storeSink.entries), 1; got != want {
+		t.Fatalf("len(store entries) = %d, want %d", got, want)
+	}
+	entry := storeSink.entries[0]
+	if got, want := entry.SessionID, "netpeer:reviewer.sess-ops"; got != want {
+		t.Fatalf("entry.SessionID = %q, want %q", got, want)
+	}
+	if got, want := entry.Kind, networkTaskActionEnqueue; got != want {
+		t.Fatalf("entry.Kind = %q, want %q", got, want)
+	}
+	if got, want := entry.Direction, AuditDirectionRejected; got != want {
+		t.Fatalf("entry.Direction = %q, want %q", got, want)
+	}
+	if got, want := entry.Reason, "channel_mismatch"; got != want {
+		t.Fatalf("entry.Reason = %q, want %q", got, want)
+	}
+	if entry.Size <= 0 {
+		t.Fatalf("entry.Size = %d, want positive payload size", entry.Size)
+	}
+}
+
 func TestAuditWriterAllowsFileOnlySinksWithoutTimelineNormalization(t *testing.T) {
 	t.Parallel()
 
@@ -280,7 +327,6 @@ func TestAuditWriterAllowsFileOnlySinksWithoutTimelineNormalization(t *testing.T
 		}
 	})
 }
-
 func testAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
