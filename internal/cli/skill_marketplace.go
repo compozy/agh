@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,10 +14,17 @@ import (
 	"time"
 
 	registrypkg "github.com/pedronauck/agh/internal/registry"
+	registryclawhub "github.com/pedronauck/agh/internal/registry/clawhub"
 	"github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/skills/marketplace"
-	"github.com/pedronauck/agh/internal/skills/marketplace/clawhub"
 )
+
+type skillRegistrySourceLoader func(runtimeContext) ([]registrypkg.RegistrySource, error)
+
+type skillRegistry interface {
+	registrypkg.Downloader
+	Info(ctx context.Context, slug string) (*registrypkg.Detail, error)
+	CheckUpdate(ctx context.Context, slug string, currentVersion string) (*registrypkg.UpdateInfo, error)
+}
 
 type installedMarketplaceSkill struct {
 	Name       string
@@ -25,12 +33,7 @@ type installedMarketplaceSkill struct {
 	Provenance skills.Provenance
 }
 
-func loadMarketplaceRegistry(deps commandDeps) (runtimeContext, marketplace.Registry, string, error) {
-	runtime, err := loadRuntimeContext(deps)
-	if err != nil {
-		return runtimeContext{}, nil, "", err
-	}
-
+func defaultSkillRegistrySourceLoader(runtime runtimeContext) ([]registrypkg.RegistrySource, error) {
 	registryCfg := runtime.Config.Skills.Marketplace
 	registryName := strings.ToLower(strings.TrimSpace(registryCfg.Registry))
 	if registryName == "" {
@@ -39,10 +42,34 @@ func loadMarketplaceRegistry(deps commandDeps) (runtimeContext, marketplace.Regi
 
 	switch registryName {
 	case defaultMarketplaceRegistry:
-		return runtime, clawhub.NewClient(registryCfg.BaseURL), registryName, nil
+		return []registrypkg.RegistrySource{
+			registryclawhub.NewClient(registryCfg.BaseURL),
+		}, nil
 	default:
-		return runtimeContext{}, nil, "", fmt.Errorf("cli: unsupported marketplace registry %q", registryCfg.Registry)
+		return nil, fmt.Errorf("cli: unsupported marketplace registry %q", registryCfg.Registry)
 	}
+}
+
+func loadSkillRegistry(deps commandDeps) (runtimeContext, *registrypkg.MultiRegistry, error) {
+	runtime, err := loadRuntimeContext(deps)
+	if err != nil {
+		return runtimeContext{}, nil, err
+	}
+
+	loader := deps.loadSkillRegistrySources
+	if loader == nil {
+		loader = defaultSkillRegistrySourceLoader
+	}
+
+	sources, err := loader(runtime)
+	if err != nil {
+		return runtimeContext{}, nil, err
+	}
+	if len(sources) == 0 {
+		return runtimeContext{}, nil, errors.New("cli: no skill registry sources are configured")
+	}
+
+	return runtime, registrypkg.NewMultiRegistry(slog.Default(), sources...), nil
 }
 
 func normalizeSkillSlug(slug string) (string, error) {
@@ -59,95 +86,81 @@ func normalizeSkillSlug(slug string) (string, error) {
 func installMarketplaceSkill(
 	ctx context.Context,
 	runtime runtimeContext,
-	registry marketplace.Registry,
-	registryName string,
+	registry skillRegistry,
 	slug string,
-	replaceExisting bool,
+	version string,
 	targetDirOverride string,
+	now func() time.Time,
 ) (item skillInstallItem, err error) {
 	if err := os.MkdirAll(runtime.HomePaths.SkillsDir, 0o755); err != nil {
 		return skillInstallItem{}, fmt.Errorf("cli: create skills directory %q: %w", runtime.HomePaths.SkillsDir, err)
 	}
 
-	archive, err := registry.Download(ctx, slug)
+	if now == nil {
+		now = func() time.Time {
+			return time.Now().UTC()
+		}
+	}
+
+	detail, err := registry.Info(ctx, slug)
 	if err != nil {
 		return skillInstallItem{}, err
 	}
-	if archive == nil {
-		return skillInstallItem{}, fmt.Errorf("cli: marketplace download returned no archive for %q", slug)
+	if detail == nil {
+		return skillInstallItem{}, fmt.Errorf("cli: marketplace info returned no detail for %q", slug)
 	}
-	if archive.Data == nil {
-		return skillInstallItem{}, fmt.Errorf("cli: marketplace download returned no archive stream for %q", slug)
-	}
-	defer func() {
-		err = joinContextError(err, archive.Data.Close(), "cli: close marketplace archive for %q: %w", slug)
-	}()
 
-	tempRoot, err := os.MkdirTemp(runtime.HomePaths.SkillsDir, ".agh-skill-install-*")
+	tempRoot, err := os.MkdirTemp(runtime.HomePaths.SkillsDir, ".agh-skill-stage-*")
 	if err != nil {
 		return skillInstallItem{}, fmt.Errorf("cli: create temporary install directory: %w", err)
 	}
 	defer func() {
-		// Best-effort cleanup; install correctness is determined by the primary result.
 		_ = os.RemoveAll(tempRoot)
 	}()
 
-	if err := extractMarketplaceArchive(archive.Data, tempRoot); err != nil {
-		return skillInstallItem{}, fmt.Errorf("cli: extract skill archive for %q: %w", slug, err)
-	}
-
-	skillFile, err := locateExtractedSkillFile(tempRoot)
+	installer := registrypkg.NewInstaller(registry)
+	result, err := installer.Install(ctx, slug, registrypkg.DownloadOpts{
+		Version: strings.TrimSpace(version),
+	}, tempRoot)
 	if err != nil {
-		return skillInstallItem{}, fmt.Errorf("cli: locate extracted skill for %q: %w", slug, err)
+		return skillInstallItem{}, err
 	}
 
-	parsedSkill, err := skills.ParseSkillFile(skillFile)
-	if err != nil {
-		return skillInstallItem{}, fmt.Errorf("cli: parse extracted skill for %q: %w", slug, err)
-	}
-
-	content, err := skills.ReadSkillContent(skillFile)
-	if err != nil {
-		return skillInstallItem{}, fmt.Errorf("cli: read extracted skill content for %q: %w", slug, err)
-	}
-
-	if critical := criticalWarnings(skills.VerifyContent(content)); len(critical) > 0 {
-		return skillInstallItem{}, fmt.Errorf(
-			"cli: install blocked for %q due to critical verification findings: %s",
-			slug,
-			strings.Join(critical, "; "),
-		)
-	}
-
-	hash, err := skills.ComputeDirectoryHash(parsedSkill.Dir)
+	hash, err := skills.ComputeDirectoryHash(result.InstallPath)
 	if err != nil {
 		return skillInstallItem{}, fmt.Errorf("cli: compute extracted skill hash for %q: %w", slug, err)
 	}
 
-	version := firstNonEmpty(archive.Version, parsedSkill.Meta.Version)
-	targetDir, err := resolveMarketplaceInstallTarget(runtime.HomePaths.SkillsDir, parsedSkill.Meta.Name, targetDirOverride)
-	if err != nil {
-		return skillInstallItem{}, fmt.Errorf("cli: resolve install path for %q: %w", slug, err)
+	installedAt := now()
+	if installedAt.IsZero() {
+		installedAt = time.Now().UTC()
+	} else {
+		installedAt = installedAt.UTC()
 	}
-
-	if err := skills.WriteSidecar(parsedSkill.Dir, skills.Provenance{
+	resolvedVersion := firstNonEmpty(result.Version, detail.Version)
+	registryName := firstNonEmpty(detail.Source, defaultMarketplaceRegistry)
+	if err := skills.WriteSidecar(result.InstallPath, skills.Provenance{
 		Hash:        hash,
 		Registry:    registryName,
 		Slug:        slug,
-		Version:     version,
-		InstalledAt: time.Now().UTC(),
+		Version:     resolvedVersion,
+		InstalledAt: installedAt,
 	}); err != nil {
 		return skillInstallItem{}, fmt.Errorf("cli: write provenance for %q: %w", slug, err)
 	}
 
-	if err := moveInstalledSkillDir(parsedSkill.Dir, targetDir, replaceExisting); err != nil {
+	targetDir, err := resolveMarketplaceInstallTarget(runtime.HomePaths.SkillsDir, result.Name, targetDirOverride)
+	if err != nil {
+		return skillInstallItem{}, fmt.Errorf("cli: resolve install path for %q: %w", slug, err)
+	}
+	if err := moveInstalledSkillDir(result.InstallPath, targetDir, true); err != nil {
 		return skillInstallItem{}, err
 	}
 
 	return skillInstallItem{
-		Name:     parsedSkill.Meta.Name,
+		Name:     result.Name,
 		Slug:     slug,
-		Version:  version,
+		Version:  resolvedVersion,
 		Registry: registryName,
 		Path:     targetDir,
 		Hash:     hash,
@@ -158,10 +171,11 @@ func installMarketplaceSkill(
 func updateMarketplaceSkills(
 	ctx context.Context,
 	runtime runtimeContext,
-	registry marketplace.Registry,
-	registryName string,
+	registry skillRegistry,
 	args []string,
 	updateAll bool,
+	checkOnly bool,
+	now func() time.Time,
 ) ([]skillUpdateItem, error) {
 	if updateAll {
 		installedSkills, err := listInstalledMarketplaceSkills(runtime.HomePaths.SkillsDir)
@@ -171,7 +185,7 @@ func updateMarketplaceSkills(
 
 		items := make([]skillUpdateItem, 0, len(installedSkills))
 		for _, installed := range installedSkills {
-			item, err := updateMarketplaceSkill(ctx, runtime, registry, registryName, installed)
+			item, err := updateMarketplaceSkill(ctx, runtime, registry, installed, checkOnly, now)
 			if err != nil {
 				return nil, err
 			}
@@ -190,7 +204,7 @@ func updateMarketplaceSkills(
 		return nil, err
 	}
 
-	item, err := updateMarketplaceSkill(ctx, runtime, registry, registryName, installed)
+	item, err := updateMarketplaceSkill(ctx, runtime, registry, installed, checkOnly, now)
 	if err != nil {
 		return nil, err
 	}
@@ -200,49 +214,81 @@ func updateMarketplaceSkills(
 func updateMarketplaceSkill(
 	ctx context.Context,
 	runtime runtimeContext,
-	registry marketplace.Registry,
-	registryName string,
+	registry skillRegistry,
 	installed installedMarketplaceSkill,
+	checkOnly bool,
+	now func() time.Time,
 ) (skillUpdateItem, error) {
 	slug := strings.TrimSpace(installed.Provenance.Slug)
 	if slug == "" {
 		return skillUpdateItem{}, fmt.Errorf("cli: marketplace skill %q is missing registry slug metadata", installed.Name)
 	}
 
-	detail, err := registry.Info(ctx, slug)
-	if err != nil {
-		return skillUpdateItem{}, err
-	}
-
 	currentVersion := strings.TrimSpace(installed.Provenance.Version)
-	latestVersion := ""
-	if detail != nil {
-		latestVersion = strings.TrimSpace(detail.Version)
-	}
-	if !versionIsNewer(currentVersion, latestVersion) {
-		return skillUpdateItem{
-			Name:           installed.Name,
-			Slug:           slug,
-			CurrentVersion: currentVersion,
-			LatestVersion:  firstNonEmpty(latestVersion, currentVersion),
-			Path:           installed.Dir,
-			Status:         "already up to date",
-		}, nil
-	}
-
-	installedItem, err := installMarketplaceSkill(ctx, runtime, registry, registryName, slug, true, installed.Dir)
+	updateInfo, err := registry.CheckUpdate(ctx, slug, currentVersion)
 	if err != nil {
 		return skillUpdateItem{}, err
 	}
+	if updateInfo == nil {
+		return skillUpdateItem{}, fmt.Errorf("cli: marketplace update check returned no result for %q", slug)
+	}
 
-	return skillUpdateItem{
-		Name:           installedItem.Name,
+	latestVersion := strings.TrimSpace(updateInfo.LatestVersion)
+	item := skillUpdateItem{
+		Name:           installed.Name,
 		Slug:           slug,
 		CurrentVersion: currentVersion,
-		LatestVersion:  firstNonEmpty(installedItem.Version, latestVersion),
-		Path:           installedItem.Path,
-		Status:         "updated",
-	}, nil
+		LatestVersion:  firstNonEmpty(latestVersion, currentVersion),
+		Path:           installed.Dir,
+	}
+
+	if !updateInfo.HasUpdate {
+		item.Status = "already up to date"
+		return item, nil
+	}
+	if checkOnly {
+		item.Status = "update available"
+		return item, nil
+	}
+
+	installedItem, err := installMarketplaceSkill(ctx, runtime, registry, slug, latestVersion, installed.Dir, now)
+	if err != nil {
+		return skillUpdateItem{}, err
+	}
+
+	item.Name = installedItem.Name
+	item.LatestVersion = firstNonEmpty(installedItem.Version, latestVersion)
+	item.Path = installedItem.Path
+	item.Status = "updated"
+	return item, nil
+}
+
+func searchMarketplaceSkills(ctx context.Context, deps commandDeps, query string, limit int) (_ []registrypkg.Listing, err error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("cli: search limit must be positive: %d", limit)
+	}
+
+	_, registry, err := loadSkillRegistry(deps)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = errors.Join(err, registry.Close())
+	}()
+
+	listings, err := registry.Search(ctx, query, registrypkg.SearchOpts{
+		Limit: limit,
+		Type:  registrypkg.PackageTypeSkill,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return listings, nil
+}
+
+func versionIsNewer(current string, latest string) bool {
+	return registrypkg.VersionIsNewer(current, latest)
 }
 
 func removeMarketplaceSkill(skillsDir string, name string) (skillRemoveItem, error) {
@@ -431,19 +477,6 @@ func resolveMarketplaceInstallTarget(skillsDir string, parsedName string, target
 	return pathWithinRoot(skillsDir, parsedName)
 }
 
-func joinContextError(base error, extra error, format string, args ...any) error {
-	if extra == nil {
-		return base
-	}
-
-	args = append(args, extra)
-	wrapped := fmt.Errorf(format, args...)
-	if base == nil {
-		return wrapped
-	}
-	return errors.Join(base, wrapped)
-}
-
 func criticalWarnings(warnings []skills.Warning) []string {
 	items := make([]string, 0, len(warnings))
 	for _, warning := range warnings {
@@ -453,8 +486,4 @@ func criticalWarnings(warnings []skills.Warning) []string {
 		items = append(items, firstNonEmpty(warning.Message, warning.Pattern))
 	}
 	return items
-}
-
-func versionIsNewer(current string, latest string) bool {
-	return registrypkg.VersionIsNewer(current, latest)
 }

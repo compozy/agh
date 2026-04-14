@@ -19,8 +19,8 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	registrypkg "github.com/pedronauck/agh/internal/registry"
 	"github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/skills/marketplace"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -33,10 +33,10 @@ type skillTestEnv struct {
 	workspace string
 }
 
-type marketplaceRegistryStub struct {
-	searchFn   func(context.Context, string, marketplace.SearchOpts) ([]marketplace.SkillListing, error)
-	downloadFn func(context.Context, string) (*marketplace.SkillArchive, error)
-	infoFn     func(context.Context, string) (*marketplace.SkillDetail, error)
+type skillRegistryStub struct {
+	downloadFn    func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error)
+	infoFn        func(context.Context, string) (*registrypkg.Detail, error)
+	checkUpdateFn func(context.Context, string, string) (*registrypkg.UpdateInfo, error)
 }
 
 type errorReadCloser struct {
@@ -48,25 +48,25 @@ func (r errorReadCloser) Close() error {
 	return r.closeErr
 }
 
-func (s marketplaceRegistryStub) Search(ctx context.Context, query string, opts marketplace.SearchOpts) ([]marketplace.SkillListing, error) {
-	if s.searchFn == nil {
-		return nil, nil
-	}
-	return s.searchFn(ctx, query, opts)
-}
-
-func (s marketplaceRegistryStub) Download(ctx context.Context, slug string) (*marketplace.SkillArchive, error) {
+func (s skillRegistryStub) Download(ctx context.Context, slug string, opts registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 	if s.downloadFn == nil {
 		return nil, nil
 	}
-	return s.downloadFn(ctx, slug)
+	return s.downloadFn(ctx, slug, opts)
 }
 
-func (s marketplaceRegistryStub) Info(ctx context.Context, slug string) (*marketplace.SkillDetail, error) {
+func (s skillRegistryStub) Info(ctx context.Context, slug string) (*registrypkg.Detail, error) {
 	if s.infoFn == nil {
 		return nil, nil
 	}
 	return s.infoFn(ctx, slug)
+}
+
+func (s skillRegistryStub) CheckUpdate(ctx context.Context, slug string, currentVersion string) (*registrypkg.UpdateInfo, error) {
+	if s.checkUpdateFn == nil {
+		return nil, nil
+	}
+	return s.checkUpdateFn(ctx, slug, currentVersion)
 }
 
 func TestSkillCommandRegisteredInHelp(t *testing.T) {
@@ -569,7 +569,7 @@ func TestSkillSearchCommandPassesLimitAndRendersTable(t *testing.T) {
 	t.Parallel()
 
 	server := newMarketplaceTestServer(t, marketplaceServerFixture{
-		searchResults: []marketplace.SkillListing{{
+		searchResults: []registrypkg.Listing{{
 			Slug:        "@agh/review",
 			Name:        "review",
 			Description: "Review helper",
@@ -622,6 +622,29 @@ func TestSkillSearchCommandRejectsNonPositiveLimit(t *testing.T) {
 	}
 }
 
+func TestSkillSearchCommandReturnsOfflineError(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.NotFoundHandler())
+	serverURL := server.URL
+	server.Close()
+
+	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
+		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+			Registry: "clawhub",
+			BaseURL:  serverURL,
+		}
+	})
+
+	_, _, err := executeRootCommand(t, env.deps, "skill", "search", "review")
+	if err == nil {
+		t.Fatal("skill search offline error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), "search via clawhub") {
+		t.Fatalf("skill search offline error = %v, want wrapped source context", err)
+	}
+}
+
 func TestSkillInstallCommandValidatesSlug(t *testing.T) {
 	t.Parallel()
 
@@ -662,7 +685,7 @@ func TestSkillInstallCommandBlocksCriticalContent(t *testing.T) {
 	if err == nil {
 		t.Fatal("skill install critical error = nil, want failure")
 	}
-	if !strings.Contains(err.Error(), "critical verification findings") {
+	if !strings.Contains(err.Error(), "install blocked by content verification") {
 		t.Fatalf("skill install critical error = %v, want verification context", err)
 	}
 
@@ -713,6 +736,39 @@ func TestSkillInstallCommandInstallsMarketplaceSkill(t *testing.T) {
 	}
 }
 
+func TestSkillInstallCommandRejectsInvalidArchive(t *testing.T) {
+	t.Parallel()
+
+	server := newMarketplaceTestServer(t, marketplaceServerFixture{
+		downloads: map[string]marketplaceDownloadFixture{
+			"@agh/review": {
+				version:     "1.2.0",
+				archive:     []byte("not-a-gzip-archive"),
+				contentType: "application/gzip",
+			},
+		},
+		info: map[string]registrypkg.Detail{
+			"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "1.2.0"}},
+		},
+	})
+	defer server.Close()
+
+	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
+		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+			Registry: "clawhub",
+			BaseURL:  server.URL(),
+		}
+	})
+
+	_, _, err := executeRootCommand(t, env.deps, "skill", "install", "@agh/review")
+	if err == nil {
+		t.Fatal("skill install invalid archive error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), "open gzip stream") {
+		t.Fatalf("skill install invalid archive error = %v, want extraction context", err)
+	}
+}
+
 func TestSkillRemoveCommandRefusesNonMarketplaceSkill(t *testing.T) {
 	t.Parallel()
 
@@ -755,9 +811,9 @@ func TestSkillUpdateCommandAllUpdatesMarketplaceSkills(t *testing.T) {
 	t.Parallel()
 
 	server := newMarketplaceTestServer(t, marketplaceServerFixture{
-		info: map[string]marketplace.SkillDetail{
-			"@agh/alpha": {SkillListing: marketplace.SkillListing{Slug: "@agh/alpha", Name: "alpha", Version: "1.1.0"}},
-			"@agh/beta":  {SkillListing: marketplace.SkillListing{Slug: "@agh/beta", Name: "beta", Version: "2.2.0"}},
+		info: map[string]registrypkg.Detail{
+			"@agh/alpha": {Listing: registrypkg.Listing{Slug: "@agh/alpha", Name: "alpha", Version: "1.1.0"}},
+			"@agh/beta":  {Listing: registrypkg.Listing{Slug: "@agh/beta", Name: "beta", Version: "2.2.0"}},
 		},
 		downloads: map[string]marketplaceDownloadFixture{
 			"@agh/alpha": {
@@ -814,8 +870,8 @@ func TestSkillUpdateCommandReportsAlreadyUpToDate(t *testing.T) {
 	t.Parallel()
 
 	server := newMarketplaceTestServer(t, marketplaceServerFixture{
-		info: map[string]marketplace.SkillDetail{
-			"@agh/review": {SkillListing: marketplace.SkillListing{Slug: "@agh/review", Name: "review", Version: "1.2.0"}},
+		info: map[string]registrypkg.Detail{
+			"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "1.2.0"}},
 		},
 	})
 	defer server.Close()
@@ -834,6 +890,52 @@ func TestSkillUpdateCommandReportsAlreadyUpToDate(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "already up to date") {
 		t.Fatalf("skill update output = %q, want already up to date message", stdout)
+	}
+}
+
+func TestSkillUpdateCommandCheckOnlyReportsUpdateWithoutDownloading(t *testing.T) {
+	t.Parallel()
+
+	server := newMarketplaceTestServer(t, marketplaceServerFixture{
+		info: map[string]registrypkg.Detail{
+			"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "1.3.0"}},
+		},
+		downloads: map[string]marketplaceDownloadFixture{
+			"@agh/review": {
+				version: "1.3.0",
+				files: map[string]string{
+					"review/SKILL.md": skillDocument("review", "Review skill", "new body"),
+				},
+			},
+		},
+	})
+	defer server.Close()
+
+	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
+		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+			Registry: "clawhub",
+			BaseURL:  server.URL(),
+		}
+	})
+	writeInstalledMarketplaceSkill(t, env.homePaths, "review", "@agh/review", "1.0.0", skillDocument("review", "Review skill", "body"))
+
+	stdout, _, err := executeRootCommand(t, env.deps, "skill", "update", "review", "--check", "-o", "json")
+	if err != nil {
+		t.Fatalf("skill update --check error = %v", err)
+	}
+
+	var payload []skillUpdateItem
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(skill update --check) error = %v; stdout=%s", err, stdout)
+	}
+	if len(payload) != 1 {
+		t.Fatalf("skill update --check payload len = %d, want 1", len(payload))
+	}
+	if payload[0].Status != "update available" {
+		t.Fatalf("skill update --check payload = %#v, want update available", payload)
+	}
+	if got := server.DownloadCount("@agh/review"); got != 0 {
+		t.Fatalf("download count = %d, want 0 during check-only update", got)
 	}
 }
 
@@ -863,20 +965,43 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 	t.Parallel()
 
 	t.Run("load-marketplace-registry-default-and-unsupported", func(t *testing.T) {
-		defaultEnv := newSkillTestEnv(t, nil)
-		_, registry, registryName, err := loadMarketplaceRegistry(defaultEnv.deps)
+		server := newMarketplaceTestServer(t, marketplaceServerFixture{
+			info: map[string]registrypkg.Detail{
+				"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "1.2.0"}},
+			},
+		})
+		defer server.Close()
+
+		defaultEnv := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
+			cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+				BaseURL: server.URL(),
+			}
+		})
+		_, registry, err := loadSkillRegistry(defaultEnv.deps)
 		if err != nil {
-			t.Fatalf("loadMarketplaceRegistry(default) error = %v", err)
+			t.Fatalf("loadSkillRegistry(default) error = %v", err)
 		}
-		if registry == nil || registryName != "clawhub" {
-			t.Fatalf("loadMarketplaceRegistry(default) = %#v, %q, want clawhub registry", registry, registryName)
+		if registry == nil {
+			t.Fatal("loadSkillRegistry(default) = nil, want registry")
+		}
+		defer func() {
+			if closeErr := registry.Close(); closeErr != nil {
+				t.Fatalf("registry.Close() error = %v", closeErr)
+			}
+		}()
+		detail, infoErr := registry.Info(testutil.Context(t), "@agh/review")
+		if infoErr != nil {
+			t.Fatalf("registry.Info() error = %v", infoErr)
+		}
+		if detail == nil || detail.Source != "clawhub" {
+			t.Fatalf("registry.Info() = %#v, want clawhub-backed detail", detail)
 		}
 
 		unsupportedEnv := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
 			cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{Registry: "custom"}
 		})
-		if _, _, _, err := loadMarketplaceRegistry(unsupportedEnv.deps); err == nil {
-			t.Fatal("loadMarketplaceRegistry(custom) error = nil, want unsupported registry")
+		if _, _, err := loadSkillRegistry(unsupportedEnv.deps); err == nil {
+			t.Fatal("loadSkillRegistry(custom) error = nil, want unsupported registry")
 		}
 	})
 
@@ -1083,12 +1208,17 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		})
 		writeInstalledMarketplaceSkill(t, env.homePaths, "review", "@agh/review", "1.0.0", skillDocument("review", "Review helper", "old body"))
 
-		runtime, registry, registryName, err := loadMarketplaceRegistry(env.deps)
+		runtime, registry, err := loadSkillRegistry(env.deps)
 		if err != nil {
-			t.Fatalf("loadMarketplaceRegistry() error = %v", err)
+			t.Fatalf("loadSkillRegistry() error = %v", err)
 		}
+		defer func() {
+			if closeErr := registry.Close(); closeErr != nil {
+				t.Fatalf("registry.Close() error = %v", closeErr)
+			}
+		}()
 
-		item, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, registryName, "@agh/review", true, "")
+		item, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, "@agh/review", "", "", env.deps.now)
 		if err != nil {
 			t.Fatalf("installMarketplaceSkill(replace) error = %v", err)
 		}
@@ -1105,7 +1235,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("install-marketplace-skill-rejects-existing-when-not-replacing", func(t *testing.T) {
+	t.Run("install-marketplace-skill-replaces-existing-target", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			downloads: map[string]marketplaceDownloadFixture{
 				"@agh/review": {
@@ -1126,13 +1256,18 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		})
 		writeInstalledMarketplaceSkill(t, env.homePaths, "review", "@agh/review", "1.0.0", skillDocument("review", "Review helper", "old body"))
 
-		runtime, registry, registryName, err := loadMarketplaceRegistry(env.deps)
+		runtime, registry, err := loadSkillRegistry(env.deps)
 		if err != nil {
-			t.Fatalf("loadMarketplaceRegistry() error = %v", err)
+			t.Fatalf("loadSkillRegistry() error = %v", err)
 		}
+		defer func() {
+			if closeErr := registry.Close(); closeErr != nil {
+				t.Fatalf("registry.Close() error = %v", closeErr)
+			}
+		}()
 
-		if _, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, registryName, "@agh/review", false, ""); err == nil {
-			t.Fatal("installMarketplaceSkill(no replace) error = nil, want existing-target failure")
+		if _, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, "@agh/review", "", "", env.deps.now); err != nil {
+			t.Fatalf("installMarketplaceSkill(replace existing) error = %v", err)
 		}
 	})
 
@@ -1141,15 +1276,18 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 
 		_, err := installMarketplaceSkill(testutil.Context(t), runtimeContext{
 			HomePaths: env.homePaths,
-		}, marketplaceRegistryStub{
-			downloadFn: func(context.Context, string) (*marketplace.SkillArchive, error) {
+		}, skillRegistryStub{
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return &registrypkg.Detail{Listing: registrypkg.Listing{Name: "review", Source: "clawhub"}}, nil
+			},
+			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 				return nil, nil
 			},
-		}, "clawhub", "@agh/review", false, "")
+		}, "@agh/review", "", "", env.deps.now)
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(nil archive) error = nil, want failure")
 		}
-		if !strings.Contains(err.Error(), "returned no archive") {
+		if !strings.Contains(err.Error(), "returned no result") {
 			t.Fatalf("installMarketplaceSkill(nil archive) error = %v, want nil-archive context", err)
 		}
 	})
@@ -1159,11 +1297,14 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 
 		_, err := installMarketplaceSkill(testutil.Context(t), runtimeContext{
 			HomePaths: env.homePaths,
-		}, marketplaceRegistryStub{
-			downloadFn: func(context.Context, string) (*marketplace.SkillArchive, error) {
-				return &marketplace.SkillArchive{Version: "1.0.0"}, nil
+		}, skillRegistryStub{
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return &registrypkg.Detail{Listing: registrypkg.Listing{Name: "review", Source: "clawhub"}}, nil
 			},
-		}, "clawhub", "@agh/review", false, "")
+			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+				return &registrypkg.DownloadResult{Version: "1.0.0"}, nil
+			},
+		}, "@agh/review", "", "", env.deps.now)
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(nil stream) error = nil, want failure")
 		}
@@ -1192,14 +1333,19 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			}
 		})
 
-		runtime, registry, registryName, err := loadMarketplaceRegistry(env.deps)
+		runtime, registry, err := loadSkillRegistry(env.deps)
 		if err != nil {
-			t.Fatalf("loadMarketplaceRegistry() error = %v", err)
+			t.Fatalf("loadSkillRegistry() error = %v", err)
 		}
+		defer func() {
+			if closeErr := registry.Close(); closeErr != nil {
+				t.Fatalf("registry.Close() error = %v", closeErr)
+			}
+		}()
 
-		if _, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, registryName, "@agh/review", false, ""); err == nil {
+		if _, err := installMarketplaceSkill(testutil.Context(t), runtime, registry, "@agh/review", "", "", env.deps.now); err == nil {
 			t.Fatal("installMarketplaceSkill(missing skill file) error = nil, want failure")
-		} else if !strings.Contains(err.Error(), "archive did not contain SKILL.md") {
+		} else if !strings.Contains(err.Error(), "archive missing extension.toml or SKILL.md at root") {
 			t.Fatalf("installMarketplaceSkill(missing skill file) error = %v, want missing-skill-file context", err)
 		}
 	})
@@ -1209,22 +1355,225 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 
 		_, err := installMarketplaceSkill(testutil.Context(t), runtimeContext{
 			HomePaths: env.homePaths,
-		}, marketplaceRegistryStub{
-			downloadFn: func(context.Context, string) (*marketplace.SkillArchive, error) {
-				return &marketplace.SkillArchive{
-					Version: "1.0.0",
-					Data: errorReadCloser{
+		}, skillRegistryStub{
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return &registrypkg.Detail{Listing: registrypkg.Listing{Name: "review", Source: "clawhub"}}, nil
+			},
+			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+				return &registrypkg.DownloadResult{
+					Version:     "1.0.0",
+					ContentType: "application/gzip",
+					Reader: errorReadCloser{
 						Reader:   bytes.NewReader(mustTarGz(t, map[string]string{"review/SKILL.md": skillDocument("review", "Review helper", "body")})),
 						closeErr: errors.New("stream close failed"),
 					},
 				}, nil
 			},
-		}, "clawhub", "@agh/review", false, "")
+		}, "@agh/review", "", "", env.deps.now)
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(close error) error = nil, want failure")
 		}
-		if !strings.Contains(err.Error(), "close marketplace archive") {
+		if !strings.Contains(err.Error(), "close download stream") {
 			t.Fatalf("installMarketplaceSkill(close error) error = %v, want archive close context", err)
+		}
+	})
+
+	t.Run("install-marketplace-skill-falls-back-to-detail-version-and-default-registry", func(t *testing.T) {
+		env := newSkillTestEnv(t, nil)
+		targetDir := filepath.Join(env.homePaths.SkillsDir, "custom-review")
+
+		item, err := installMarketplaceSkill(testutil.Context(t), runtimeContext{
+			HomePaths: env.homePaths,
+		}, skillRegistryStub{
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return &registrypkg.Detail{
+					Listing: registrypkg.Listing{
+						Name:    "review",
+						Version: "1.4.0",
+					},
+				}, nil
+			},
+			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+				return &registrypkg.DownloadResult{
+					Slug:        "@agh/review",
+					ContentType: "application/gzip",
+					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
+						"review/SKILL.md": skillDocument("review", "Review helper", "body"),
+					}))),
+				}, nil
+			},
+		}, "@agh/review", "", targetDir, func() time.Time { return time.Time{} })
+		if err != nil {
+			t.Fatalf("installMarketplaceSkill(fallbacks) error = %v", err)
+		}
+		if item.Version != "1.4.0" {
+			t.Fatalf("installMarketplaceSkill(fallbacks) version = %q, want 1.4.0", item.Version)
+		}
+		if item.Registry != defaultMarketplaceRegistry {
+			t.Fatalf("installMarketplaceSkill(fallbacks) registry = %q, want %q", item.Registry, defaultMarketplaceRegistry)
+		}
+		if item.Path != targetDir {
+			t.Fatalf("installMarketplaceSkill(fallbacks) path = %q, want %q", item.Path, targetDir)
+		}
+
+		provenance, err := skills.ReadSidecar(targetDir)
+		if err != nil {
+			t.Fatalf("ReadSidecar(%q) error = %v", targetDir, err)
+		}
+		if provenance == nil {
+			t.Fatal("ReadSidecar() = nil, want provenance")
+		}
+		if provenance.Version != "1.4.0" {
+			t.Fatalf("sidecar version = %q, want 1.4.0", provenance.Version)
+		}
+		if provenance.Registry != defaultMarketplaceRegistry {
+			t.Fatalf("sidecar registry = %q, want %q", provenance.Registry, defaultMarketplaceRegistry)
+		}
+		if provenance.InstalledAt.IsZero() {
+			t.Fatal("sidecar installed_at is zero, want populated timestamp")
+		}
+	})
+
+	t.Run("install-marketplace-skill-uses-runtime-now-when-clock-is-nil", func(t *testing.T) {
+		env := newSkillTestEnv(t, nil)
+
+		item, err := installMarketplaceSkill(testutil.Context(t), runtimeContext{
+			HomePaths: env.homePaths,
+		}, skillRegistryStub{
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return &registrypkg.Detail{
+					Listing: registrypkg.Listing{
+						Name:    "review",
+						Version: "1.4.0",
+						Source:  "clawhub",
+					},
+				}, nil
+			},
+			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+				return &registrypkg.DownloadResult{
+					Slug:        "@agh/review",
+					Version:     "1.4.0",
+					ContentType: "application/gzip",
+					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
+						"review/SKILL.md": skillDocument("review", "Review helper", "body"),
+					}))),
+				}, nil
+			},
+		}, "@agh/review", "", "", nil)
+		if err != nil {
+			t.Fatalf("installMarketplaceSkill(nil clock) error = %v", err)
+		}
+
+		provenance, err := skills.ReadSidecar(item.Path)
+		if err != nil {
+			t.Fatalf("ReadSidecar(%q) error = %v", item.Path, err)
+		}
+		if provenance == nil || provenance.InstalledAt.IsZero() {
+			t.Fatalf("ReadSidecar(%q) = %#v, want populated installed_at", item.Path, provenance)
+		}
+	})
+
+	t.Run("install-marketplace-skill-propagates-info-errors", func(t *testing.T) {
+		env := newSkillTestEnv(t, nil)
+
+		_, err := installMarketplaceSkill(testutil.Context(t), runtimeContext{
+			HomePaths: env.homePaths,
+		}, skillRegistryStub{
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return nil, errors.New("lookup failed")
+			},
+		}, "@agh/review", "", "", env.deps.now)
+		if err == nil {
+			t.Fatal("installMarketplaceSkill(info error) error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "lookup failed") {
+			t.Fatalf("installMarketplaceSkill(info error) error = %v, want propagated info error", err)
+		}
+	})
+
+	t.Run("install-marketplace-skill-rejects-nil-detail", func(t *testing.T) {
+		env := newSkillTestEnv(t, nil)
+
+		_, err := installMarketplaceSkill(testutil.Context(t), runtimeContext{
+			HomePaths: env.homePaths,
+		}, skillRegistryStub{
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return nil, nil
+			},
+		}, "@agh/review", "", "", env.deps.now)
+		if err == nil {
+			t.Fatal("installMarketplaceSkill(nil detail) error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "returned no detail") {
+			t.Fatalf("installMarketplaceSkill(nil detail) error = %v, want nil-detail context", err)
+		}
+	})
+
+	t.Run("install-marketplace-skill-rejects-target-override-outside-root", func(t *testing.T) {
+		env := newSkillTestEnv(t, nil)
+
+		_, err := installMarketplaceSkill(testutil.Context(t), runtimeContext{
+			HomePaths: env.homePaths,
+		}, skillRegistryStub{
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return &registrypkg.Detail{
+					Listing: registrypkg.Listing{
+						Name:    "review",
+						Version: "1.4.0",
+						Source:  "clawhub",
+					},
+				}, nil
+			},
+			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+				return &registrypkg.DownloadResult{
+					Slug:        "@agh/review",
+					Version:     "1.4.0",
+					ContentType: "application/gzip",
+					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
+						"review/SKILL.md": skillDocument("review", "Review helper", "body"),
+					}))),
+				}, nil
+			},
+		}, "@agh/review", "", filepath.Join(env.homePaths.SkillsDir, "..", "escape"), env.deps.now)
+		if err == nil {
+			t.Fatal("installMarketplaceSkill(outside target override) error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "path must stay within the root directory") {
+			t.Fatalf("installMarketplaceSkill(outside target override) error = %v, want root guard", err)
+		}
+	})
+
+	t.Run("install-marketplace-skill-surfaces-move-errors", func(t *testing.T) {
+		env := newSkillTestEnv(t, nil)
+
+		_, err := installMarketplaceSkill(testutil.Context(t), runtimeContext{
+			HomePaths: env.homePaths,
+		}, skillRegistryStub{
+			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				return &registrypkg.Detail{
+					Listing: registrypkg.Listing{
+						Name:    "review",
+						Version: "1.4.0",
+						Source:  "clawhub",
+					},
+				}, nil
+			},
+			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+				return &registrypkg.DownloadResult{
+					Slug:        "@agh/review",
+					Version:     "1.4.0",
+					ContentType: "application/gzip",
+					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
+						"review/SKILL.md": skillDocument("review", "Review helper", "body"),
+					}))),
+				}, nil
+			},
+		}, "@agh/review", "", filepath.Join(env.homePaths.SkillsDir, "missing-parent", "review"), env.deps.now)
+		if err == nil {
+			t.Fatal("installMarketplaceSkill(move error) error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "install updated package into") {
+			t.Fatalf("installMarketplaceSkill(move error) error = %v, want move failure", err)
 		}
 	})
 
@@ -1243,13 +1592,13 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 
 		_, err := updateMarketplaceSkill(testutil.Context(t), runtimeContext{
 			HomePaths: env.homePaths,
-		}, nil, "clawhub", installedMarketplaceSkill{
+		}, nil, installedMarketplaceSkill{
 			Name: "review",
 			Dir:  filepath.Join(env.homePaths.SkillsDir, "review"),
 			Provenance: skills.Provenance{
 				Version: "1.0.0",
 			},
-		})
+		}, false, env.deps.now)
 		if err == nil {
 			t.Fatal("updateMarketplaceSkill(missing slug) error = nil, want failure")
 		}
@@ -1260,8 +1609,8 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 
 	t.Run("update-marketplace-skill-keeps-existing-directory-when-package-name-changes", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
-			info: map[string]marketplace.SkillDetail{
-				"@agh/review": {SkillListing: marketplace.SkillListing{Slug: "@agh/review", Name: "review", Version: "2.0.0"}},
+			info: map[string]registrypkg.Detail{
+				"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "2.0.0"}},
 			},
 			downloads: map[string]marketplaceDownloadFixture{
 				"@agh/review": {
@@ -1282,17 +1631,22 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		})
 		writeInstalledMarketplaceSkill(t, env.homePaths, "review", "@agh/review", "1.0.0", skillDocument("review", "Review helper", "old body"))
 
-		runtime, registry, registryName, err := loadMarketplaceRegistry(env.deps)
+		runtime, registry, err := loadSkillRegistry(env.deps)
 		if err != nil {
-			t.Fatalf("loadMarketplaceRegistry() error = %v", err)
+			t.Fatalf("loadSkillRegistry() error = %v", err)
 		}
+		defer func() {
+			if closeErr := registry.Close(); closeErr != nil {
+				t.Fatalf("registry.Close() error = %v", closeErr)
+			}
+		}()
 
 		installed, err := findInstalledMarketplaceSkill(env.homePaths.SkillsDir, "review")
 		if err != nil {
 			t.Fatalf("findInstalledMarketplaceSkill() error = %v", err)
 		}
 
-		item, err := updateMarketplaceSkill(testutil.Context(t), runtime, registry, registryName, installed)
+		item, err := updateMarketplaceSkill(testutil.Context(t), runtime, registry, installed, false, env.deps.now)
 		if err != nil {
 			t.Fatalf("updateMarketplaceSkill(rename) error = %v", err)
 		}
@@ -1311,6 +1665,34 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 		if !strings.Contains(string(content), "renamed body") {
 			t.Fatalf("updated renamed skill content = %q, want replacement content", string(content))
+		}
+	})
+
+	t.Run("update-marketplace-skills-all-with-no-installed-items", func(t *testing.T) {
+		env := newSkillTestEnv(t, nil)
+
+		items, err := updateMarketplaceSkills(testutil.Context(t), runtimeContext{
+			HomePaths: env.homePaths,
+		}, skillRegistryStub{}, nil, true, false, env.deps.now)
+		if err != nil {
+			t.Fatalf("updateMarketplaceSkills(--all empty) error = %v", err)
+		}
+		if len(items) != 0 {
+			t.Fatalf("updateMarketplaceSkills(--all empty) = %#v, want empty slice", items)
+		}
+	})
+
+	t.Run("update-marketplace-skills-validates-name-when-not-updating-all", func(t *testing.T) {
+		env := newSkillTestEnv(t, nil)
+
+		_, err := updateMarketplaceSkills(testutil.Context(t), runtimeContext{
+			HomePaths: env.homePaths,
+		}, skillRegistryStub{}, []string{"."}, false, false, env.deps.now)
+		if err == nil {
+			t.Fatal("updateMarketplaceSkills(invalid name) error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "must not be a relative path segment") {
+			t.Fatalf("updateMarketplaceSkills(invalid name) error = %v, want name validation", err)
 		}
 	})
 }
@@ -1450,7 +1832,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 		t.Fatalf("skillCreateBundle().human() = %q, want created", createHuman)
 	}
 
-	searchHuman, err := skillSearchBundle([]marketplace.SkillListing{{
+	searchHuman, err := skillSearchBundle([]registrypkg.Listing{{
 		Slug:        "@agh/review",
 		Name:        "review",
 		Description: "Review helper",
@@ -1464,7 +1846,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	if !strings.Contains(searchHuman, "@agh/review") {
 		t.Fatalf("skillSearchBundle().human() = %q, want listing", searchHuman)
 	}
-	searchToon, err := skillSearchBundle([]marketplace.SkillListing{{
+	searchToon, err := skillSearchBundle([]registrypkg.Listing{{
 		Slug:        "@agh/review",
 		Name:        "review",
 		Description: "Review helper",
@@ -1671,14 +2053,16 @@ func findSkillListItem(t *testing.T, items []skillListItem, name string) skillLi
 }
 
 type marketplaceServerFixture struct {
-	searchResults []marketplace.SkillListing
-	info          map[string]marketplace.SkillDetail
+	searchResults []registrypkg.Listing
+	info          map[string]registrypkg.Detail
 	downloads     map[string]marketplaceDownloadFixture
 }
 
 type marketplaceDownloadFixture struct {
-	version string
-	files   map[string]string
+	version     string
+	files       map[string]string
+	archive     []byte
+	contentType string
 }
 
 type marketplaceTestServer struct {
@@ -1714,6 +2098,33 @@ func newMarketplaceTestServer(t *testing.T, fixture marketplaceServerFixture) *m
 				"skills": srv.fixture.searchResults,
 			})
 			return
+		case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/api/v1/skills/") && strings.Contains(request.URL.Path, "/versions/") && strings.HasSuffix(request.URL.Path, "/archive"):
+			slug := strings.TrimPrefix(request.URL.Path, "/api/v1/skills/")
+			slug = slug[:strings.Index(slug, "/versions/")]
+			slug = decodeSkillSlug(t, slug)
+
+			download, ok := srv.fixture.downloads[slug]
+			if !ok {
+				http.Error(writer, `{"error":"missing skill"}`, http.StatusNotFound)
+				return
+			}
+
+			srv.mu.Lock()
+			srv.downloadRequests[slug]++
+			srv.mu.Unlock()
+
+			contentType := strings.TrimSpace(download.contentType)
+			if contentType == "" {
+				contentType = "application/gzip"
+			}
+			writer.Header().Set("Content-Type", contentType)
+			writer.Header().Set("X-Skill-Version", download.version)
+			payload := download.archive
+			if payload == nil {
+				payload = mustTarGz(t, download.files)
+			}
+			_, _ = writer.Write(payload)
+			return
 		case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/api/v1/skills/") && strings.HasSuffix(request.URL.Path, "/download"):
 			slug := strings.TrimPrefix(request.URL.Path, "/api/v1/skills/")
 			slug = strings.TrimSuffix(slug, "/download")
@@ -1729,13 +2140,33 @@ func newMarketplaceTestServer(t *testing.T, fixture marketplaceServerFixture) *m
 			srv.downloadRequests[slug]++
 			srv.mu.Unlock()
 
-			writer.Header().Set("Content-Type", "application/gzip")
+			contentType := strings.TrimSpace(download.contentType)
+			if contentType == "" {
+				contentType = "application/gzip"
+			}
+			writer.Header().Set("Content-Type", contentType)
 			writer.Header().Set("X-Skill-Version", download.version)
-			_, _ = writer.Write(mustTarGz(t, download.files))
+			payload := download.archive
+			if payload == nil {
+				payload = mustTarGz(t, download.files)
+			}
+			_, _ = writer.Write(payload)
 			return
 		case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/api/v1/skills/"):
 			slug := decodeSkillSlug(t, strings.TrimPrefix(request.URL.Path, "/api/v1/skills/"))
 			detail, ok := srv.fixture.info[slug]
+			if !ok {
+				if download, hasDownload := srv.fixture.downloads[slug]; hasDownload {
+					detail = registrypkg.Detail{
+						Listing: registrypkg.Listing{
+							Slug:    slug,
+							Name:    skillNameFromSlug(slug),
+							Version: download.version,
+						},
+					}
+					ok = true
+				}
+			}
 			if !ok {
 				http.Error(writer, `{"error":"missing skill"}`, http.StatusNotFound)
 				return
@@ -1843,4 +2274,12 @@ func decodeSkillSlug(t *testing.T, value string) string {
 		t.Fatalf("decodeSkillSlug(%q) left unexpected escape sequence", value)
 	}
 	return decoded
+}
+
+func skillNameFromSlug(slug string) string {
+	trimmed := strings.TrimSpace(slug)
+	if index := strings.LastIndex(trimmed, "/"); index >= 0 {
+		return trimmed[index+1:]
+	}
+	return trimmed
 }

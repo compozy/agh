@@ -6,13 +6,90 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	registrypkg "github.com/pedronauck/agh/internal/registry"
 	"github.com/pedronauck/agh/internal/skills"
 	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/testutil"
 )
+
+func TestSkillSearchInstallListRemoveIntegrationFlow(t *testing.T) {
+	t.Parallel()
+
+	server := newMarketplaceTestServer(t, marketplaceServerFixture{
+		searchResults: []registrypkg.Listing{{
+			Slug:        "@agh/review",
+			Name:        "review",
+			Description: "Review helper",
+			Author:      "agh",
+			Version:     "1.2.0",
+		}},
+		info: map[string]registrypkg.Detail{
+			"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "1.2.0"}},
+		},
+		downloads: map[string]marketplaceDownloadFixture{
+			"@agh/review": {
+				version: "1.2.0",
+				files: map[string]string{
+					"review/SKILL.md": skillDocument("review", "Review helper", "body"),
+				},
+			},
+		},
+	})
+	defer server.Close()
+
+	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
+		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+			Registry: "clawhub",
+			BaseURL:  server.URL(),
+		}
+	})
+
+	searchStdout, _, err := executeRootCommand(t, env.deps, "skill", "search", "review", "-o", "json")
+	if err != nil {
+		t.Fatalf("skill search error = %v", err)
+	}
+
+	var searchPayload []registrypkg.Listing
+	if err := json.Unmarshal([]byte(searchStdout), &searchPayload); err != nil {
+		t.Fatalf("json.Unmarshal(skill search) error = %v; stdout=%s", err, searchStdout)
+	}
+	if len(searchPayload) != 1 || searchPayload[0].Slug != "@agh/review" {
+		t.Fatalf("skill search payload = %#v, want one review listing", searchPayload)
+	}
+
+	if _, _, err := executeRootCommand(t, env.deps, "skill", "install", "@agh/review", "-o", "json"); err != nil {
+		t.Fatalf("skill install error = %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(env.homePaths.SkillsDir, "review", ".agh-meta.json")); err != nil {
+		t.Fatalf("installed sidecar stat error = %v", err)
+	}
+
+	listStdout, _, err := executeRootCommand(t, env.deps, "skill", "list", "-o", "json")
+	if err != nil {
+		t.Fatalf("skill list error = %v", err)
+	}
+
+	var listPayload []skillListItem
+	if err := json.Unmarshal([]byte(listStdout), &listPayload); err != nil {
+		t.Fatalf("json.Unmarshal(skill list) error = %v; stdout=%s", err, listStdout)
+	}
+	item := findSkillListItem(t, listPayload, "review")
+	if item.Source != "marketplace" {
+		t.Fatalf("skill list item = %#v, want marketplace source", item)
+	}
+
+	if _, _, err := executeRootCommand(t, env.deps, "skill", "remove", "review", "-o", "json"); err != nil {
+		t.Fatalf("skill remove error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(env.homePaths.SkillsDir, "review")); !os.IsNotExist(err) {
+		t.Fatalf("removed skill stat error = %v, want not exist", err)
+	}
+}
 
 func TestSkillInstallCommandIntegrationCreatesSkillDirectoryAndSidecar(t *testing.T) {
 	t.Parallel()
@@ -153,5 +230,52 @@ func TestSkillInstallCommandIntegrationWritesMatchingHash(t *testing.T) {
 
 	if got, want := provenance.Hash, hash; got != want {
 		t.Fatalf("provenance.Hash = %q, want %q", got, want)
+	}
+}
+
+func TestSkillInstallCommandIntegrationReplacesExistingSkillDirectory(t *testing.T) {
+	t.Parallel()
+
+	server := newMarketplaceTestServer(t, marketplaceServerFixture{
+		info: map[string]registrypkg.Detail{
+			"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "2.0.0"}},
+		},
+		downloads: map[string]marketplaceDownloadFixture{
+			"@agh/review": {
+				version: "2.0.0",
+				files: map[string]string{
+					"review/SKILL.md": skillDocument("review", "Review helper", "new body"),
+				},
+			},
+		},
+	})
+	defer server.Close()
+
+	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
+		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+			Registry: "clawhub",
+			BaseURL:  server.URL(),
+		}
+	})
+	writeInstalledMarketplaceSkill(t, env.homePaths, "review", "@agh/review", "1.0.0", skillDocument("review", "Review helper", "old body"))
+
+	if _, _, err := executeRootCommand(t, env.deps, "skill", "install", "@agh/review", "-o", "json"); err != nil {
+		t.Fatalf("skill install replace error = %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(env.homePaths.SkillsDir, "review", skillMarkdownFileName))
+	if err != nil {
+		t.Fatalf("ReadFile(updated skill) error = %v", err)
+	}
+	if !strings.Contains(string(content), "new body") {
+		t.Fatalf("updated skill content = %q, want replacement content", string(content))
+	}
+
+	provenance, err := skills.ReadSidecar(filepath.Join(env.homePaths.SkillsDir, "review"))
+	if err != nil {
+		t.Fatalf("ReadSidecar() error = %v", err)
+	}
+	if provenance == nil || provenance.Version != "2.0.0" {
+		t.Fatalf("provenance = %#v, want updated version", provenance)
 	}
 }

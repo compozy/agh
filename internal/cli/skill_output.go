@@ -3,10 +3,10 @@ package cli
 import (
 	"strconv"
 
-	"github.com/pedronauck/agh/internal/skills/marketplace"
+	registrypkg "github.com/pedronauck/agh/internal/registry"
 )
 
-func skillSearchBundle(items []marketplace.SkillListing) outputBundle {
+func skillSearchBundle(items []registrypkg.Listing) outputBundle {
 	return listBundle(
 		items,
 		items,
@@ -14,7 +14,7 @@ func skillSearchBundle(items []marketplace.SkillListing) outputBundle {
 		[]string{"Slug", "Name", "Description", "Author", "Version", "Downloads"},
 		"skills",
 		[]string{"slug", "name", "description", "author", "version", "downloads"},
-		func(item marketplace.SkillListing) []string {
+		func(item registrypkg.Listing) []string {
 			return []string{
 				stringOrDash(item.Slug),
 				stringOrDash(item.Name),
@@ -24,7 +24,7 @@ func skillSearchBundle(items []marketplace.SkillListing) outputBundle {
 				strconv.Itoa(item.Downloads),
 			}
 		},
-		func(item marketplace.SkillListing) []string {
+		func(item registrypkg.Listing) []string {
 			return []string{
 				item.Slug,
 				item.Name,

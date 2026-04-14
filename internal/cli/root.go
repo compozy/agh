@@ -40,6 +40,7 @@ type installWizardRunner func(context.Context, installWizardInput) (installWizar
 type commandDeps struct {
 	loadConfig                   func() (aghconfig.Config, error)
 	loadExtensionRegistrySources extensionRegistrySourceLoader
+	loadSkillRegistrySources     skillRegistrySourceLoader
 	resolveHome                  func() (aghconfig.HomePaths, error)
 	ensureHome                   func(aghconfig.HomePaths) error
 	runInstallWizard             installWizardRunner
@@ -141,6 +142,9 @@ func (d commandDeps) withDefaults() commandDeps {
 	}
 	if d.loadExtensionRegistrySources == nil {
 		d.loadExtensionRegistrySources = defaultExtensionRegistrySourceLoader
+	}
+	if d.loadSkillRegistrySources == nil {
+		d.loadSkillRegistrySources = defaultSkillRegistrySourceLoader
 	}
 	if d.resolveHome == nil {
 		d.resolveHome = aghconfig.ResolveHomePaths
