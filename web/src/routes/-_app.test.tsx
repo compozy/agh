@@ -24,10 +24,6 @@ vi.mock("@tanstack/react-router", () => ({
   Outlet: () => <div data-testid="outlet" />,
 }));
 
-vi.mock("@/components/app-header", () => ({
-  AppHeader: () => <header data-testid="app-header">Header</header>,
-}));
-
 vi.mock("@/components/app-sidebar", () => ({
   AppSidebar: ({ onAddWorkspace }: { onAddWorkspace: () => void }) => (
     <button data-testid="app-sidebar" onClick={onAddWorkspace} type="button">
@@ -124,12 +120,6 @@ describe("AppLayout", () => {
     render(<AppLayout />);
     expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("outlet")).toBeInTheDocument();
-  });
-
-  it("renders header alongside sidebar", () => {
-    render(<AppLayout />);
-    expect(screen.getByTestId("app-header")).toBeInTheDocument();
-    expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
   });
 
   it("renders outlet", () => {

@@ -1,6 +1,5 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 
-import { AppHeader } from "@/components/app-header";
 import { AppSidebar } from "@/components/app-sidebar";
 import { useAppLayout } from "@/hooks/routes/use-app-layout";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
@@ -36,7 +35,6 @@ function AppLayout() {
         isCreatingSession={page.isCreatingSession}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <AppHeader />
         <div className="relative flex flex-1 flex-col overflow-hidden bg-background">
           <Outlet />
         </div>
