@@ -32,6 +32,11 @@ func TestStatusForBridgeError(t *testing.T) {
 			want: http.StatusBadRequest,
 		},
 		{
+			name: "Should return bad request for invalid secret binding",
+			err:  bridgepkg.ErrInvalidBridgeSecretBinding,
+			want: http.StatusBadRequest,
+		},
+		{
 			name: "Should return not found for missing bridge",
 			err:  bridgepkg.ErrBridgeInstanceNotFound,
 			want: http.StatusNotFound,

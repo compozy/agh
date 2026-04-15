@@ -542,7 +542,7 @@ func TestPutBridgeSecretBindingRequestValidation(t *testing.T) {
 	t.Parallel()
 
 	req := contract.PutBridgeSecretBindingRequest{
-		VaultRef: " vault://telegram/bot ",
+		VaultRef: " env:TG_TOKEN ",
 		Kind:     " env ",
 	}
 
@@ -550,7 +550,7 @@ func TestPutBridgeSecretBindingRequestValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ToBridgeSecretBinding() error = %v", err)
 	}
-	if binding.BridgeInstanceID != "brg-1" || binding.BindingName != "bot_token" || binding.VaultRef != "vault://telegram/bot" || binding.Kind != "env" {
+	if binding.BridgeInstanceID != "brg-1" || binding.BindingName != "bot_token" || binding.VaultRef != "env:TG_TOKEN" || binding.Kind != "env" {
 		t.Fatalf("binding = %#v", binding)
 	}
 

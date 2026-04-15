@@ -42,6 +42,7 @@ type telegramProvider struct {
 	mu             sync.RWMutex
 	lastError      string
 	server         *http.Server
+	listener       net.Listener
 	serverAddr     string
 	listenAddr     string
 	routes         map[string]resolvedInstanceConfig
@@ -56,6 +57,7 @@ type telegramProvider struct {
 
 type deliveryState struct {
 	LastSeq                int64
+	LastContent            string
 	RemoteMessageID        string
 	ReplaceRemoteMessageID string
 }
@@ -283,11 +285,18 @@ func (p *telegramProvider) afterInitialize(session *bridgesdk.Session) {
 	}
 	p.reportSideEffectError("write ownership marker", writeJSONFile(p.env.ownershipPath, ownership))
 
+	if p.stopped() {
+		return
+	}
+
 	configs, reconcileErr := p.reconcileInstanceConfigs(ctx, session, listed)
 	if reconcileErr != nil && ownershipErr == nil {
 		ownershipErr = reconcileErr
 	}
 	for _, cfg := range configs {
+		if p.stopped() {
+			return
+		}
 		status := cfg.initialStatus
 		degradation := cfg.initialDegradation
 		if status == "" {
@@ -383,9 +392,17 @@ func (p *telegramProvider) handleShutdown(
 
 	p.mu.Lock()
 	server := p.server
+	listener := p.listener
+	p.server = nil
+	p.listener = nil
+	p.serverAddr = ""
 	p.mu.Unlock()
+	if listener != nil {
+		_ = listener.Close()
+	}
 	if server != nil {
 		_ = server.Shutdown(shutdownCtx)
+		_ = server.Close()
 	}
 
 	done := make(chan struct{})
@@ -560,6 +577,15 @@ func (p *telegramProvider) retryHostCall(ctx context.Context, fn func(context.Co
 	return nil
 }
 
+func (p *telegramProvider) stopped() bool {
+	select {
+	case <-p.stopCh:
+		return true
+	default:
+		return false
+	}
+}
+
 func (p *telegramProvider) reconcileInstanceConfigs(
 	ctx context.Context,
 	session *bridgesdk.Session,
@@ -592,6 +618,16 @@ func (p *telegramProvider) reconcileInstanceConfigs(
 			usedPaths[cfg.webhookPath] = cfg.instanceID
 		}
 		configs = append(configs, cfg)
+	}
+
+	if p.stopped() {
+		for idx := range configs {
+			if configs[idx].batcher != nil {
+				configs[idx].batcher.Close()
+				configs[idx].batcher = nil
+			}
+		}
+		return nil, nil
 	}
 
 	if requestedListen == "" {
@@ -770,6 +806,10 @@ func (p *telegramProvider) startServer(listenAddr string) error {
 	if err != nil {
 		return fmt.Errorf("telegram: listen %q: %w", listenAddr, err)
 	}
+	if p.stopped() {
+		_ = ln.Close()
+		return errors.New("telegram: runtime is stopping")
+	}
 
 	httpServer := &http.Server{
 		Handler: http.HandlerFunc(p.serveWebhookHTTP),
@@ -778,6 +818,7 @@ func (p *telegramProvider) startServer(listenAddr string) error {
 	actualAddr := ln.Addr().String()
 	p.mu.Lock()
 	p.server = httpServer
+	p.listener = ln
 	p.serverAddr = actualAddr
 	p.listenAddr = strings.TrimSpace(listenAddr)
 	p.mu.Unlock()
@@ -790,6 +831,13 @@ func (p *telegramProvider) startServer(listenAddr string) error {
 		if serveErr := httpServer.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			p.setLastError(serveErr)
 		}
+		p.mu.Lock()
+		if p.server == httpServer {
+			p.server = nil
+			p.listener = nil
+			p.serverAddr = ""
+		}
+		p.mu.Unlock()
 	}()
 
 	return nil
@@ -1023,6 +1071,7 @@ func executeDelivery(
 	}
 	if event.EventType == bridgepkg.DeliveryEventTypeResume && request.Snapshot != nil {
 		state.LastSeq = request.Snapshot.LastAckedSeq
+		state.LastContent = request.Snapshot.CurrentContent.Text
 		state.RemoteMessageID = strings.TrimSpace(request.Snapshot.RemoteMessageID)
 		state.ReplaceRemoteMessageID = strings.TrimSpace(request.Snapshot.ReplaceRemoteMessageID)
 	}
@@ -1061,6 +1110,7 @@ func executeDelivery(
 			ReplaceRemoteMessageID: firstNonEmpty(state.RemoteMessageID, remoteID),
 		}
 		state.LastSeq = event.Seq
+		state.LastContent = ""
 		state.RemoteMessageID = remoteID
 		state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
 		return ack, state, ack.ValidateFor(event)
@@ -1080,6 +1130,7 @@ func executeDelivery(
 			RemoteMessageID: remoteID,
 		}
 		state.LastSeq = event.Seq
+		state.LastContent = event.Content.Text
 		state.ReplaceRemoteMessageID = state.RemoteMessageID
 		state.RemoteMessageID = remoteID
 		if state.ReplaceRemoteMessageID != "" {
@@ -1093,6 +1144,18 @@ func executeDelivery(
 		}
 		if remoteID == "" {
 			return bridgepkg.DeliveryAck{}, state, errors.New("telegram: edit delivery requires a remote message id")
+		}
+		if event.Content.Text == state.LastContent {
+			ack := bridgepkg.DeliveryAck{
+				DeliveryID:             event.DeliveryID,
+				Seq:                    event.Seq,
+				RemoteMessageID:        remoteID,
+				ReplaceRemoteMessageID: firstNonEmpty(state.RemoteMessageID, remoteID),
+			}
+			state.LastSeq = event.Seq
+			state.RemoteMessageID = remoteID
+			state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
+			return ack, state, ack.ValidateFor(event)
 		}
 		chatID, messageID, err := decodeRemoteMessageID(remoteID)
 		if err != nil {
@@ -1112,6 +1175,7 @@ func executeDelivery(
 			ReplaceRemoteMessageID: firstNonEmpty(state.RemoteMessageID, remoteID),
 		}
 		state.LastSeq = event.Seq
+		state.LastContent = event.Content.Text
 		state.RemoteMessageID = remoteID
 		state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
 		return ack, state, ack.ValidateFor(event)

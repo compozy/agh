@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -2761,20 +2760,7 @@ func shortSocketPath(t *testing.T) string {
 
 func freeTCPPort(t *testing.T) int {
 	t.Helper()
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("net.Listen(:0) error = %v", err)
-	}
-	defer func() {
-		_ = ln.Close()
-	}()
-
-	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
-	if !ok {
-		t.Fatalf("listener addr type = %T, want *net.TCPAddr", ln.Addr())
-	}
-	return tcpAddr.Port
+	return testutil.FreeTCPPort(t)
 }
 
 type fakeSessionManager struct {

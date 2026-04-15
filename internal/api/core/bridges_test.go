@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -265,7 +266,7 @@ func TestBridgeHandlersSecretBindingsCRUD(t *testing.T) {
 			return []bridgepkg.BridgeSecretBinding{{
 				BridgeInstanceID: bridgeInstanceID,
 				BindingName:      "bot_token",
-				VaultRef:         "vault://telegram/bot",
+				VaultRef:         "env:TG_TOKEN",
 				Kind:             "env",
 			}}, nil
 		},
@@ -293,11 +294,11 @@ func TestBridgeHandlersSecretBindingsCRUD(t *testing.T) {
 		t.Fatalf("binding = %#v", listPayload.Bindings[0])
 	}
 
-	putResp := performRequest(t, engine, http.MethodPut, "/bridges/brg-core/secret-bindings/bot_token", []byte(`{"vault_ref":"vault://telegram/bot","kind":"env"}`))
+	putResp := performRequest(t, engine, http.MethodPut, "/bridges/brg-core/secret-bindings/bot_token", []byte(`{"vault_ref":"env:TG_TOKEN","kind":"env"}`))
 	if putResp.Code != http.StatusOK {
 		t.Fatalf("put secret binding status = %d body=%s", putResp.Code, putResp.Body.String())
 	}
-	if putBinding.BridgeInstanceID != "brg-core" || putBinding.BindingName != "bot_token" || putBinding.VaultRef != "vault://telegram/bot" || putBinding.Kind != "env" {
+	if putBinding.BridgeInstanceID != "brg-core" || putBinding.BindingName != "bot_token" || putBinding.VaultRef != "env:TG_TOKEN" || putBinding.Kind != "env" {
 		t.Fatalf("put binding = %#v", putBinding)
 	}
 
@@ -346,7 +347,7 @@ func TestBridgeHandlersLifecycleAndSecretBindingErrorPaths(t *testing.T) {
 			{method: http.MethodPost, path: "/bridges/brg-core/disable"},
 			{method: http.MethodPost, path: "/bridges/brg-core/restart"},
 			{method: http.MethodGet, path: "/bridges/brg-core/secret-bindings"},
-			{method: http.MethodPut, path: "/bridges/brg-core/secret-bindings/bot_token", body: []byte(`{"vault_ref":"vault://telegram/bot","kind":"env"}`)},
+			{method: http.MethodPut, path: "/bridges/brg-core/secret-bindings/bot_token", body: []byte(`{"vault_ref":"env:TG_TOKEN","kind":"env"}`)},
 			{method: http.MethodDelete, path: "/bridges/brg-core/secret-bindings/bot_token"},
 		}
 
@@ -368,9 +369,24 @@ func TestBridgeHandlersLifecycleAndSecretBindingErrorPaths(t *testing.T) {
 			},
 		})
 
-		resp := performRequest(t, engine, http.MethodPut, "/bridges/brg-core/secret-bindings/bot_token", []byte(`{"vault_ref":"vault://telegram/bot","kind":7}`))
+		resp := performRequest(t, engine, http.MethodPut, "/bridges/brg-core/secret-bindings/bot_token", []byte(`{"vault_ref":"env:TG_TOKEN","kind":7}`))
 		if resp.Code != http.StatusBadRequest {
 			t.Fatalf("put invalid secret binding status = %d, want %d body=%s", resp.Code, http.StatusBadRequest, resp.Body.String())
+		}
+	})
+
+	t.Run("invalid bridge secret binding maps to bad request", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			PutSecretBindingFn: func(context.Context, bridgepkg.BridgeSecretBinding) error {
+				return fmt.Errorf("%w: stock daemon bridge secret refs must use env:NAME", bridgepkg.ErrInvalidBridgeSecretBinding)
+			},
+		})
+
+		resp := performRequest(t, engine, http.MethodPut, "/bridges/brg-core/secret-bindings/bot_token", []byte(`{"vault_ref":"env:TG_TOKEN","kind":"env"}`))
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("put invalid secret binding service error status = %d, want %d body=%s", resp.Code, http.StatusBadRequest, resp.Body.String())
 		}
 	})
 }
@@ -495,7 +511,7 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 			},
 		})
 
-		resp := performRequest(t, engine, http.MethodPut, "/bridges/brg-core/secret-bindings/bot_token", []byte(`{"vault_ref":"vault://telegram/bot","kind":"env"}`))
+		resp := performRequest(t, engine, http.MethodPut, "/bridges/brg-core/secret-bindings/bot_token", []byte(`{"vault_ref":"env:TG_TOKEN","kind":"env"}`))
 		if resp.Code != http.StatusConflict {
 			t.Fatalf("put secret binding service error status = %d, want %d body=%s", resp.Code, http.StatusConflict, resp.Body.String())
 		}

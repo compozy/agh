@@ -1,0 +1,1379 @@
+=== RUN   TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios
+=== PAUSE TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios
+=== RUN   TestBridgeDeliveryNotifierProjectsEventsAndForwardsLifecycle
+=== PAUSE TestBridgeDeliveryNotifierProjectsEventsAndForwardsLifecycle
+=== RUN   TestBridgeDeliveryNotifierNilPathsAreNoOps
+=== PAUSE TestBridgeDeliveryNotifierNilPathsAreNoOps
+=== RUN   TestManagerDeliverBridge
+=== PAUSE TestManagerDeliverBridge
+=== RUN   TestCapabilityCheckerCheckShouldAllowGrantedCapability
+=== PAUSE TestCapabilityCheckerCheckShouldAllowGrantedCapability
+=== RUN   TestCapabilityCheckerCheckShouldReturnCapabilityDenied
+=== PAUSE TestCapabilityCheckerCheckShouldReturnCapabilityDenied
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities
+=== RUN   TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources
+=== PAUSE TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources
+=== RUN   TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities
+=== PAUSE TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities
+=== RUN   TestCapabilityCheckerMarketplaceShouldAllowDefaultReadCapabilities
+=== PAUSE TestCapabilityCheckerMarketplaceShouldAllowDefaultReadCapabilities
+=== RUN   TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling
+=== PAUSE TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling
+=== RUN   TestCapabilityCheckerCheckShouldHonorGlobalWildcardGrant
+=== PAUSE TestCapabilityCheckerCheckShouldHonorGlobalWildcardGrant
+=== RUN   TestCapabilityCheckerCheckShouldHonorFamilyWildcardGrant
+=== PAUSE TestCapabilityCheckerCheckShouldHonorFamilyWildcardGrant
+=== RUN   TestDescribeExtension
+=== PAUSE TestDescribeExtension
+=== RUN   TestHostAPIIntegrationSessionLifecycleThroughHostAPI
+--- PASS: TestHostAPIIntegrationSessionLifecycleThroughHostAPI (0.12s)
+=== RUN   TestHostAPIIntegrationStoresAndRecallsMemory
+--- PASS: TestHostAPIIntegrationStoresAndRecallsMemory (0.09s)
+=== RUN   TestHostAPIIntegrationExtensionCanCreateTaskAndEnqueueRun
+--- PASS: TestHostAPIIntegrationExtensionCanCreateTaskAndEnqueueRun (0.09s)
+=== RUN   TestHostAPIIntegrationStartRunAllocatesDedicatedSession
+--- PASS: TestHostAPIIntegrationStartRunAllocatesDedicatedSession (0.14s)
+=== RUN   TestHostAPIIntegrationBridgesMessagesIngestCreatesRouteAndSession
+--- PASS: TestHostAPIIntegrationBridgesMessagesIngestCreatesRouteAndSession (0.12s)
+=== RUN   TestHostAPIIntegrationBridgesMessagesIngestSupportsSiblingInstancesInOneRuntime
+--- PASS: TestHostAPIIntegrationBridgesMessagesIngestSupportsSiblingInstancesInOneRuntime (0.13s)
+=== RUN   TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed
+--- PASS: TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed (0.13s)
+=== RUN   TestHostAPIIntegrationBridgesMessagesIngestRejectsNonOwnedInstance
+--- PASS: TestHostAPIIntegrationBridgesMessagesIngestRejectsNonOwnedInstance (0.08s)
+=== RUN   TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired
+--- PASS: TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired (0.08s)
+=== RUN   TestHostAPIIntegrationBridgesInstancesListAndGetReturnOwnedInstances
+--- PASS: TestHostAPIIntegrationBridgesInstancesListAndGetReturnOwnedInstances (0.08s)
+=== RUN   TestHostAPIIntegrationBridgesMessagesIngestConcurrentSameRoutingKeyUsesOneRouteAndSession
+--- PASS: TestHostAPIIntegrationBridgesMessagesIngestConcurrentSameRoutingKeyUsesOneRouteAndSession (0.12s)
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/list
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/create
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/prompt
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/stop
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/status
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/events
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/memory/recall
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/memory/store
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/memory/forget
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/observe/health
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/observe/events
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/skills/list
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/automation/jobs
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/automation/jobs/create
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/automation/triggers/fire
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/bridges/messages/ingest
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/bridges/instances/list
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/bridges/instances/get
+=== RUN   TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/bridges/instances/report_state
+--- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod (0.14s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/list (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/create (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/prompt (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/stop (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/status (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/sessions/events (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/memory/recall (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/memory/store (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/memory/forget (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/observe/health (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/observe/events (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/skills/list (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/automation/jobs (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/automation/jobs/create (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/automation/triggers/fire (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/bridges/messages/ingest (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/bridges/instances/list (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/bridges/instances/get (0.00s)
+    --- PASS: TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod/bridges/instances/report_state (0.00s)
+=== RUN   TestHostAPIIntegrationAutomationJobCreateReturnsCreatedJobPayload
+--- PASS: TestHostAPIIntegrationAutomationJobCreateReturnsCreatedJobPayload (0.08s)
+=== RUN   TestHostAPIIntegrationAutomationTriggerFireDispatchesThroughTriggerEngine
+--- PASS: TestHostAPIIntegrationAutomationTriggerFireDispatchesThroughTriggerEngine (0.15s)
+=== RUN   TestHostAPIIntegrationAutomationPreFireHookMutatesPrompt
+2026/04/15 11:45:19 INFO hook.registry.reloaded version=1 hook_count=1 hook_count_delta=1 duration_ms=0
+2026/04/15 11:45:19 INFO hook.dispatch.started event=automation.job.pre_fire dispatch_depth=1 sync_hooks=1 async_hooks=0
+2026/04/15 11:45:19 INFO hook.dispatch.completed event=automation.job.pre_fire dispatch_depth=1 duration_ms=0 pipeline_trace=[mutate-automation-prompt:applied] sync_hooks=1 async_hooks=0
+--- PASS: TestHostAPIIntegrationAutomationPreFireHookMutatesPrompt (0.15s)
+=== RUN   TestHostAPIHandlerSessionsListReturnsAuthorizedSessions
+=== PAUSE TestHostAPIHandlerSessionsListReturnsAuthorizedSessions
+=== RUN   TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead
+=== PAUSE TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead
+=== RUN   TestHostAPIHandlerSessionsCreateReturnsSessionID
+=== PAUSE TestHostAPIHandlerSessionsCreateReturnsSessionID
+=== RUN   TestHostAPIHandlerSessionsCreateReturnsCapabilityDeniedWithoutSessionWrite
+=== PAUSE TestHostAPIHandlerSessionsCreateReturnsCapabilityDeniedWithoutSessionWrite
+=== RUN   TestHostAPIHandlerSessionsPromptReturnsTurnIDAndPersistsEvents
+=== PAUSE TestHostAPIHandlerSessionsPromptReturnsTurnIDAndPersistsEvents
+=== RUN   TestHostAPIHandlerSessionsStopStopsSession
+=== PAUSE TestHostAPIHandlerSessionsStopStopsSession
+=== RUN   TestHostAPIHandlerSessionsStatusReturnsAuthorizedState
+=== PAUSE TestHostAPIHandlerSessionsStatusReturnsAuthorizedState
+=== RUN   TestHostAPIHandlerSessionsEventsSupportsSinceFilter
+=== PAUSE TestHostAPIHandlerSessionsEventsSupportsSinceFilter
+=== RUN   TestHostAPIHandlerSessionsMethodsRequireConfiguredManager
+=== PAUSE TestHostAPIHandlerSessionsMethodsRequireConfiguredManager
+=== RUN   TestHostAPIHandlerMemoryStorePersistsContentWithTags
+=== PAUSE TestHostAPIHandlerMemoryStorePersistsContentWithTags
+=== RUN   TestHostAPIHandlerMemoryRecallReturnsRankedMatches
+=== PAUSE TestHostAPIHandlerMemoryRecallReturnsRankedMatches
+=== RUN   TestHostAPIHandlerMemoryRecallRequiresConfiguredStore
+=== PAUSE TestHostAPIHandlerMemoryRecallRequiresConfiguredStore
+=== RUN   TestHostAPIHandlerMemoryForgetRemovesEntries
+=== PAUSE TestHostAPIHandlerMemoryForgetRemovesEntries
+=== RUN   TestHostAPIHandlerObserveHealthReturnsSnapshot
+=== PAUSE TestHostAPIHandlerObserveHealthReturnsSnapshot
+=== RUN   TestHostAPIHandlerObserveEventsReturnsFilteredEventsWithSince
+=== PAUSE TestHostAPIHandlerObserveEventsReturnsFilteredEventsWithSince
+=== RUN   TestHostAPIHandlerSkillsListReturnsWorkspaceSkills
+=== PAUSE TestHostAPIHandlerSkillsListReturnsWorkspaceSkills
+=== RUN   TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads
+=== PAUSE TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads
+=== RUN   TestHostAPIHandlerBridgesMessagesIngestRejectsDisabledOrUnknownInstances
+=== PAUSE TestHostAPIHandlerBridgesMessagesIngestRejectsDisabledOrUnknownInstances
+=== RUN   TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries
+=== PAUSE TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries
+=== RUN   TestHostAPIHandlerBridgesInstancesReportStateRejectsInvalidUpdates
+=== PAUSE TestHostAPIHandlerBridgesInstancesReportStateRejectsInvalidUpdates
+=== RUN   TestHostAPIHandlerBridgesInstancesReportStateRejectsConflictingDegradationControls
+=== PAUSE TestHostAPIHandlerBridgesInstancesReportStateRejectsConflictingDegradationControls
+=== RUN   TestHostAPIHandlerBridgesInstancesReportStateClearsDegradationOnRecovery
+=== PAUSE TestHostAPIHandlerBridgesInstancesReportStateClearsDegradationOnRecovery
+=== RUN   TestHostAPIHandlerBridgesInstancesGetRejectsMismatchedRuntimeOwnership
+=== PAUSE TestHostAPIHandlerBridgesInstancesGetRejectsMismatchedRuntimeOwnership
+=== RUN   TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup
+=== PAUSE TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup
+=== RUN   TestHostAPIHandlerBridgesInstancesListReturnsOwnedInstancesForProviderRuntime
+=== PAUSE TestHostAPIHandlerBridgesInstancesListReturnsOwnedInstancesForProviderRuntime
+=== RUN   TestHostAPIHandlerBridgesInstancesListAllowsZeroManagedInstances
+=== PAUSE TestHostAPIHandlerBridgesInstancesListAllowsZeroManagedInstances
+=== RUN   TestHostAPIHandlerBridgesMessagesIngestConcurrentSameRoutingKeyCreatesOneSessionAndRoute
+=== PAUSE TestHostAPIHandlerBridgesMessagesIngestConcurrentSameRoutingKeyCreatesOneSessionAndRoute
+=== RUN   TestHostAPIHandlerBridgesMessagesIngestRebindsStaleRouteToReplacementSession
+=== PAUSE TestHostAPIHandlerBridgesMessagesIngestRebindsStaleRouteToReplacementSession
+=== RUN   TestHostAPIHandlerBridgesMessagesIngestExpiredDedupAllowsReingest
+=== PAUSE TestHostAPIHandlerBridgesMessagesIngestExpiredDedupAllowsReingest
+=== RUN   TestHostAPIHandlerBridgesMessagesIngestRegistersPromptDelivery
+=== PAUSE TestHostAPIHandlerBridgesMessagesIngestRegistersPromptDelivery
+=== RUN   TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents
+=== PAUSE TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents
+=== RUN   TestBridgeHostAPIHelpersMapErrorsAndFormatInboundMetadata
+=== PAUSE TestBridgeHostAPIHelpersMapErrorsAndFormatInboundMetadata
+=== RUN   TestHostAPIHandlerUnknownMethodReturnsMethodNotFound
+=== PAUSE TestHostAPIHandlerUnknownMethodReturnsMethodNotFound
+=== RUN   TestHostAPIHandlerRateLimitExceededReturnsRetryAfter
+=== PAUSE TestHostAPIHandlerRateLimitExceededReturnsRetryAfter
+=== RUN   TestHostAPIHandlerRateLimitUsesConfiguredClockRegardlessOfOptionOrder
+=== PAUSE TestHostAPIHandlerRateLimitUsesConfiguredClockRegardlessOfOptionOrder
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities
+=== RUN   TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler
+=== PAUSE TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler
+=== RUN   TestHostAPIHandlerAutomationTriggerFireRejectsNonExtensionEvent
+=== PAUSE TestHostAPIHandlerAutomationTriggerFireRejectsNonExtensionEvent
+=== RUN   TestHostAPIHandlerAutomationJobCRUDAndRunQueries
+=== PAUSE TestHostAPIHandlerAutomationJobCRUDAndRunQueries
+=== RUN   TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails
+=== PAUSE TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails
+=== RUN   TestDescribeExtensionProjectsHealthAndState
+=== PAUSE TestDescribeExtensionProjectsHealthAndState
+=== RUN   TestHostAPIHandlerAutomationGetterAndMethodHandlers
+=== PAUSE TestHostAPIHandlerAutomationGetterAndMethodHandlers
+=== RUN   TestHostAPIHandlerTaskOperationsRequireCapabilities
+=== PAUSE TestHostAPIHandlerTaskOperationsRequireCapabilities
+=== RUN   TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity
+=== PAUSE TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity
+=== RUN   TestHostAPIHandlerTaskRunStartRespectsManagerTransitions
+=== PAUSE TestHostAPIHandlerTaskRunStartRespectsManagerTransitions
+=== RUN   TestHostAPIHandlerTasksListAndGetReturnFilteredDetail
+=== PAUSE TestHostAPIHandlerTasksListAndGetReturnFilteredDetail
+=== RUN   TestHostAPIHandlerTasksUpdateAndCancelMutateTask
+=== PAUSE TestHostAPIHandlerTasksUpdateAndCancelMutateTask
+=== RUN   TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering
+=== PAUSE TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration
+=== RUN   TestHostAPIHandlerTaskMethodsRequireIdentifiers
+=== PAUSE TestHostAPIHandlerTaskMethodsRequireIdentifiers
+=== RUN   TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords
+=== PAUSE TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords
+=== RUN   TestMapTaskRPCErrorTranslatesKnownErrors
+=== PAUSE TestMapTaskRPCErrorTranslatesKnownErrors
+=== RUN   TestHostAPITaskHelpersHandleZeroAndUnavailableCases
+=== PAUSE TestHostAPITaskHelpersHandleZeroAndUnavailableCases
+=== RUN   TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations
+=== PAUSE TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations
+=== RUN   TestHostAPITaskRequestHelpersRejectInvalidPayloads
+=== PAUSE TestHostAPITaskRequestHelpersRejectInvalidPayloads
+=== RUN   TestManagedInstallHelpers
+=== PAUSE TestManagedInstallHelpers
+=== RUN   TestCopyInstallTreeMaterializesSymlinkTargets
+=== PAUSE TestCopyInstallTreeMaterializesSymlinkTargets
+=== RUN   TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly
+=== PAUSE TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly
+=== RUN   TestInstallLocalManagedUsesInstalledChecksumForMaterializedSymlinks
+=== PAUSE TestInstallLocalManagedUsesInstalledChecksumForMaterializedSymlinks
+=== RUN   TestInstallLocalManagedNormalizesProvidedChecksum
+=== PAUSE TestInstallLocalManagedNormalizesProvidedChecksum
+=== RUN   TestInstallLocalManagedRejectsExistingOrFailedInstall
+=== PAUSE TestInstallLocalManagedRejectsExistingOrFailedInstall
+=== RUN   TestCopyInstallTreeRejectsSymlinkDirectoryCycles
+=== PAUSE TestCopyInstallTreeRejectsSymlinkDirectoryCycles
+=== RUN   TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot
+=== PAUSE TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot
+=== RUN   TestInstallLocalManagedWrapsPhaseErrors
+=== PAUSE TestInstallLocalManagedWrapsPhaseErrors
+=== RUN   TestManagerIntegrationLifecycleAndHostAPICall
+2026/04/15 11:45:19 INFO extension.lifecycle.loaded extension=ext-host source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:20 INFO extension.lifecycle.shutdown extension=ext-host
+--- PASS: TestManagerIntegrationLifecycleAndHostAPICall (1.06s)
+=== RUN   TestManagerIntegrationRestartRecovery
+2026/04/15 11:45:20 INFO extension.lifecycle.loaded extension=ext-recover source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:20 WARN extension.lifecycle.failed extension=ext-recover phase=recover error="subprocess: process exited: exit status 1\nsubprocess: process exited: exit status 1" consecutive_failures=1 restart_backoff_ms=10
+2026/04/15 11:45:20 INFO extension.lifecycle.loaded extension=ext-recover source=user recovered=true
+2026/04/15 11:45:20 INFO extension.lifecycle.shutdown extension=ext-recover
+--- PASS: TestManagerIntegrationRestartRecovery (0.10s)
+=== RUN   TestManagerIntegrationResourceRegistration
+2026/04/15 11:45:20 INFO extension.lifecycle.loaded extension=ext-resources source=user active=true skill_count=1 agent_count=1 hook_count=1 mcp_server_count=1
+2026/04/15 11:45:21 INFO extension.lifecycle.shutdown extension=ext-resources
+--- PASS: TestManagerIntegrationResourceRegistration (1.04s)
+=== RUN   TestManagerIntegrationBridgeAdapterNegotiatesDeliveryRuntime
+2026/04/15 11:45:21 INFO extension.lifecycle.loaded extension=ext-bridge-live source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:22 INFO extension.lifecycle.shutdown extension=ext-bridge-live
+--- PASS: TestManagerIntegrationBridgeAdapterNegotiatesDeliveryRuntime (1.05s)
+=== RUN   TestManagerIntegrationNonBridgeExtensionStartsWithoutBridgeNegotiation
+2026/04/15 11:45:22 INFO extension.lifecycle.loaded extension=ext-plain-live source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:23 INFO extension.lifecycle.shutdown extension=ext-plain-live
+--- PASS: TestManagerIntegrationNonBridgeExtensionStartsWithoutBridgeNegotiation (1.04s)
+=== RUN   TestManagerIntegrationBridgeAdapterRestartPreservesNegotiatedSurface
+2026/04/15 11:45:23 INFO extension.lifecycle.loaded extension=ext-bridge-restart source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:23 WARN extension.lifecycle.failed extension=ext-bridge-restart phase=recover error="subprocess: process exited: exit status 1\nsubprocess: process exited: exit status 1" consecutive_failures=1 restart_backoff_ms=10
+2026/04/15 11:45:23 INFO extension.lifecycle.loaded extension=ext-bridge-restart source=user recovered=true
+2026/04/15 11:45:23 INFO extension.lifecycle.shutdown extension=ext-bridge-restart
+--- PASS: TestManagerIntegrationBridgeAdapterRestartPreservesNegotiatedSurface (0.11s)
+=== RUN   TestManagerIntegrationBridgeAdapterDefersUntilRuntimeExists
+2026/04/15 11:45:23 INFO extension.lifecycle.loaded extension=ext-bridge-deferred-live source=user active=false skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:23 INFO extension.lifecycle.shutdown extension=ext-bridge-deferred-live
+--- PASS: TestManagerIntegrationBridgeAdapterDefersUntilRuntimeExists (0.01s)
+=== RUN   TestExtensionManagerHelperProcess
+--- PASS: TestExtensionManagerHelperProcess (0.00s)
+=== RUN   TestManagerStartRegistersResourcesAndActivatesExtension
+=== PAUSE TestManagerStartRegistersResourcesAndActivatesExtension
+=== RUN   TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime
+=== PAUSE TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime
+=== RUN   TestManagerStartBridgeAdapterRequiresScopedLaunchRuntime
+=== PAUSE TestManagerStartBridgeAdapterRequiresScopedLaunchRuntime
+=== RUN   TestManagerStartBridgeAdapterDefersUntilRuntimeExists
+=== PAUSE TestManagerStartBridgeAdapterDefersUntilRuntimeExists
+=== RUN   TestManagerStartSkipsDisabledExtensions
+=== PAUSE TestManagerStartSkipsDisabledExtensions
+=== RUN   TestManagerStartContinuesAfterParseFailure
+=== PAUSE TestManagerStartContinuesAfterParseFailure
+=== RUN   TestManagerStartRejectsIncompatibleManifest
+=== PAUSE TestManagerStartRejectsIncompatibleManifest
+=== RUN   TestManagerCrashTriggersRestartWithBackoff
+=== PAUSE TestManagerCrashTriggersRestartWithBackoff
+=== RUN   TestManagerStartDetachesSupervisorFromStartContext
+=== PAUSE TestManagerStartDetachesSupervisorFromStartContext
+=== RUN   TestManagerDisablesExtensionAfterConsecutiveFailures
+=== PAUSE TestManagerDisablesExtensionAfterConsecutiveFailures
+=== RUN   TestManagerStopUsesRealSubprocessShutdown
+=== PAUSE TestManagerStopUsesRealSubprocessShutdown
+=== RUN   TestManagerStopKillsHungSubprocessAfterTimeout
+=== PAUSE TestManagerStopKillsHungSubprocessAfterTimeout
+=== RUN   TestNewManagerAppliesOptionsAndRestoresDefaults
+=== PAUSE TestNewManagerAppliesOptionsAndRestoresDefaults
+=== RUN   TestManagerReloadValidatesAndRestarts
+=== PAUSE TestManagerReloadValidatesAndRestarts
+=== RUN   TestManagerHelperPathsAndAccessors
+=== PAUSE TestManagerHelperPathsAndAccessors
+=== RUN   TestManagerResolveCommandKeepsPathLikeValuesInsideExtensionRoot
+=== PAUSE TestManagerResolveCommandKeepsPathLikeValuesInsideExtensionRoot
+=== RUN   TestManagerResolveEnvMapUsesSafeBaselineOnly
+=== PAUSE TestManagerResolveEnvMapUsesSafeBaselineOnly
+=== RUN   TestManagerCloneExtensionReturnsIsolatedSnapshot
+=== PAUSE TestManagerCloneExtensionReturnsIsolatedSnapshot
+=== RUN   TestManagerDirectPhaseAndMonitorBranches
+=== PAUSE TestManagerDirectPhaseAndMonitorBranches
+=== RUN   TestLoadManifestBridgeMetadataRoundTrip
+--- PASS: TestLoadManifestBridgeMetadataRoundTrip (0.00s)
+=== RUN   TestLoadManifest_ParsesTOMLAndJSONEquivalently
+=== RUN   TestLoadManifest_ParsesTOMLAndJSONEquivalently/ShouldMatchExpectedManifestFromTOML
+=== RUN   TestLoadManifest_ParsesTOMLAndJSONEquivalently/ShouldMatchExpectedManifestFromJSON
+=== RUN   TestLoadManifest_ParsesTOMLAndJSONEquivalently/ShouldParseTOMLAndJSONEquivalently
+--- PASS: TestLoadManifest_ParsesTOMLAndJSONEquivalently (0.00s)
+    --- PASS: TestLoadManifest_ParsesTOMLAndJSONEquivalently/ShouldMatchExpectedManifestFromTOML (0.00s)
+    --- PASS: TestLoadManifest_ParsesTOMLAndJSONEquivalently/ShouldMatchExpectedManifestFromJSON (0.00s)
+    --- PASS: TestLoadManifest_ParsesTOMLAndJSONEquivalently/ShouldParseTOMLAndJSONEquivalently (0.00s)
+=== RUN   TestLoadManifest_FiltersBlankStringEntries
+--- PASS: TestLoadManifest_FiltersBlankStringEntries (0.00s)
+=== RUN   TestNormalizeMCPServersDropsBlankKeysAndUsesDeterministicCollisions
+=== PAUSE TestNormalizeMCPServersDropsBlankKeysAndUsesDeterministicCollisions
+=== RUN   TestNormalizeStringMapDropsBlankKeysAndUsesDeterministicCollisions
+=== PAUSE TestNormalizeStringMapDropsBlankKeysAndUsesDeterministicCollisions
+=== RUN   TestNormalizeBridgeConfigTrimsSecretSlotsAndSchemaHints
+=== PAUSE TestNormalizeBridgeConfigTrimsSecretSlotsAndSchemaHints
+=== RUN   TestCloneBoolPointer
+=== PAUSE TestCloneBoolPointer
+=== RUN   TestLoadManifest_ValidationErrors
+=== RUN   TestLoadManifest_ValidationErrors/missing_name
+=== RUN   TestLoadManifest_ValidationErrors/missing_version
+=== RUN   TestLoadManifest_ValidationErrors/invalid_version_semver
+=== RUN   TestLoadManifest_ValidationErrors/invalid_capability_name
+=== RUN   TestLoadManifest_ValidationErrors/incompatible_minimum_agh_version
+--- PASS: TestLoadManifest_ValidationErrors (0.00s)
+    --- PASS: TestLoadManifest_ValidationErrors/missing_name (0.00s)
+    --- PASS: TestLoadManifest_ValidationErrors/missing_version (0.00s)
+    --- PASS: TestLoadManifest_ValidationErrors/invalid_version_semver (0.00s)
+    --- PASS: TestLoadManifest_ValidationErrors/invalid_capability_name (0.00s)
+    --- PASS: TestLoadManifest_ValidationErrors/incompatible_minimum_agh_version (0.00s)
+=== RUN   TestLoadManifest_PrefersTOMLWhenBothFilesExist
+--- PASS: TestLoadManifest_PrefersTOMLWhenBothFilesExist (0.00s)
+=== RUN   TestLoadManifest_ReturnsTypedNotFoundError
+--- PASS: TestLoadManifest_ReturnsTypedNotFoundError (0.00s)
+=== RUN   TestLoadManifest_AcceptsUnknownTopLevelSections
+--- PASS: TestLoadManifest_AcceptsUnknownTopLevelSections (0.00s)
+=== RUN   TestLoadManifest_RejectsConflictingRootAndWrappedValues
+--- PASS: TestLoadManifest_RejectsConflictingRootAndWrappedValues (0.00s)
+=== RUN   TestDuration_UnmarshalJSON
+=== RUN   TestDuration_UnmarshalJSON/string
+=== RUN   TestDuration_UnmarshalJSON/nanoseconds
+=== RUN   TestDuration_UnmarshalJSON/null
+=== RUN   TestDuration_UnmarshalJSON/invalid
+--- PASS: TestDuration_UnmarshalJSON (0.00s)
+    --- PASS: TestDuration_UnmarshalJSON/string (0.00s)
+    --- PASS: TestDuration_UnmarshalJSON/nanoseconds (0.00s)
+    --- PASS: TestDuration_UnmarshalJSON/null (0.00s)
+    --- PASS: TestDuration_UnmarshalJSON/invalid (0.00s)
+=== RUN   TestParseSemanticVersion_PrereleaseComparison
+--- PASS: TestParseSemanticVersion_PrereleaseComparison (0.00s)
+=== RUN   TestManifestValidate_AllowsWildcardSecurityCapability
+--- PASS: TestManifestValidate_AllowsWildcardSecurityCapability (0.00s)
+=== RUN   TestManifestValidate_RejectsInvalidActionName
+--- PASS: TestManifestValidate_RejectsInvalidActionName (0.00s)
+=== RUN   TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters
+=== RUN   TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters/Should_reject_bridge_adapters_without_platform_metadata
+=== RUN   TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters/Should_reject_bridge_adapters_without_display_name_metadata
+=== RUN   TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters/Should_accept_bridge_adapters_with_complete_bridge_metadata
+--- PASS: TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters (0.00s)
+    --- PASS: TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters/Should_reject_bridge_adapters_without_platform_metadata (0.00s)
+    --- PASS: TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters/Should_reject_bridge_adapters_without_display_name_metadata (0.00s)
+    --- PASS: TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters/Should_accept_bridge_adapters_with_complete_bridge_metadata (0.00s)
+=== RUN   TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints
+=== RUN   TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints/Should_reject_bridge_secret_slots_without_names
+=== RUN   TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints/Should_reject_duplicate_bridge_secret_slot_names
+=== RUN   TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints/Should_accept_bridge_secret_slots_and_config_schema_hints
+--- PASS: TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints (0.00s)
+    --- PASS: TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints/Should_reject_bridge_secret_slots_without_names (0.00s)
+    --- PASS: TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints/Should_reject_duplicate_bridge_secret_slot_names (0.00s)
+    --- PASS: TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints/Should_accept_bridge_secret_slots_and_config_schema_hints (0.00s)
+=== RUN   TestManifestHelpers_ErrorFormattingAndDurationMethods
+--- PASS: TestManifestHelpers_ErrorFormattingAndDurationMethods (0.00s)
+=== RUN   TestLoadManifest_RejectsManifestDirectoryEntries
+--- PASS: TestLoadManifest_RejectsManifestDirectoryEntries (0.00s)
+=== RUN   TestSemanticVersion_HelperValidation
+--- PASS: TestSemanticVersion_HelperValidation (0.00s)
+=== RUN   TestRegistryBlocksDisableAndUninstallWithActiveBundles
+=== PAUSE TestRegistryBlocksDisableAndUninstallWithActiveBundles
+=== RUN   TestLoadBundleSpecsRejectsCaseInsensitiveDuplicateBundleNames
+=== PAUSE TestLoadBundleSpecsRejectsCaseInsensitiveDuplicateBundleNames
+=== RUN   TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults
+=== PAUSE TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults
+=== RUN   TestRegistryIntegrationLifecycle
+--- PASS: TestRegistryIntegrationLifecycle (0.01s)
+=== RUN   TestRegistryIntegrationMultipleSourcesCoexist
+--- PASS: TestRegistryIntegrationMultipleSourcesCoexist (0.01s)
+=== RUN   TestRegistryInstallPersistsExtension
+--- PASS: TestRegistryInstallPersistsExtension (0.01s)
+=== RUN   TestRegistryInstallRejectsDuplicateName
+--- PASS: TestRegistryInstallRejectsDuplicateName (0.00s)
+=== RUN   TestRegistryInstallPersistsMarketplaceMetadata
+--- PASS: TestRegistryInstallPersistsMarketplaceMetadata (0.00s)
+=== RUN   TestRegistryInstallRejectsChecksumMismatch
+--- PASS: TestRegistryInstallRejectsChecksumMismatch (0.00s)
+=== RUN   TestRegistryGetReturnsNotFound
+--- PASS: TestRegistryGetReturnsNotFound (0.00s)
+=== RUN   TestRegistryListReturnsAllInstalledExtensions
+--- PASS: TestRegistryListReturnsAllInstalledExtensions (0.01s)
+=== RUN   TestRegistryListReturnsEmptySlice
+--- PASS: TestRegistryListReturnsEmptySlice (0.00s)
+=== RUN   TestRegistryEnableAndDisable
+--- PASS: TestRegistryEnableAndDisable (0.01s)
+=== RUN   TestRegistryUninstallRemovesExtension
+--- PASS: TestRegistryUninstallRemovesExtension (0.01s)
+=== RUN   TestRegistryUninstallMissingReturnsNotFound
+--- PASS: TestRegistryUninstallMissingReturnsNotFound (0.00s)
+=== RUN   TestRegistryCapabilitiesAndActionsJSONRoundTrip
+--- PASS: TestRegistryCapabilitiesAndActionsJSONRoundTrip (0.00s)
+=== RUN   TestRegistryInstallConcurrentDuplicateReturnsSingleExistsError
+--- PASS: TestRegistryInstallConcurrentDuplicateReturnsSingleExistsError (0.01s)
+=== RUN   TestRegistryInstallReplaceExistingUpdatesMarketplaceRecord
+--- PASS: TestRegistryInstallReplaceExistingUpdatesMarketplaceRecord (0.01s)
+=== RUN   TestRegistryInstallReplaceExistingPreservesEnabledState
+--- PASS: TestRegistryInstallReplaceExistingPreservesEnabledState (0.01s)
+=== RUN   TestRegistryInstallReplaceExistingWrapsPersistErrors
+--- PASS: TestRegistryInstallReplaceExistingWrapsPersistErrors (0.00s)
+=== RUN   TestRegistryInstallClearsRemoteMetadataForNonMarketplaceSources
+--- PASS: TestRegistryInstallClearsRemoteMetadataForNonMarketplaceSources (0.00s)
+=== RUN   TestRegistryInstallAcceptsManifestFilePathAndExplicitSource
+--- PASS: TestRegistryInstallAcceptsManifestFilePathAndExplicitSource (0.00s)
+=== RUN   TestRegistryInstallRejectsInvalidSourceAndBlankChecksum
+--- PASS: TestRegistryInstallRejectsInvalidSourceAndBlankChecksum (0.00s)
+=== RUN   TestRegistryInstallRejectsOnDiskManifestIdentityMismatch
+--- PASS: TestRegistryInstallRejectsOnDiskManifestIdentityMismatch (0.00s)
+=== RUN   TestRegistryUtilityHelpers
+=== RUN   TestRegistryUtilityHelpers/capability_denied_error_formatting
+=== RUN   TestRegistryUtilityHelpers/typed_registry_errors_expose_sentinels
+=== RUN   TestRegistryUtilityHelpers/parse_extension_source
+=== RUN   TestRegistryUtilityHelpers/check_ready_validates_receiver
+=== RUN   TestRegistryUtilityHelpers/resolve_install_artifact_supports_directory_and_manifest_file
+=== RUN   TestRegistryUtilityHelpers/checksum_helper_handles_errors_and_hashes_symlinks_deterministically
+=== RUN   TestRegistryUtilityHelpers/constraint_mapper_preserves_passthrough_errors
+=== RUN   TestRegistryUtilityHelpers/string_and_json_helpers_normalize_optional_values
+=== PAUSE TestRegistryUtilityHelpers/string_and_json_helpers_normalize_optional_values
+=== RUN   TestRegistryUtilityHelpers/manifest_resolution_prefers_toml_and_reports_missing_manifests
+=== PAUSE TestRegistryUtilityHelpers/manifest_resolution_prefers_toml_and_reports_missing_manifests
+=== RUN   TestRegistryUtilityHelpers/rows_affected_helper_and_checksum_string_handle_edge_cases
+=== PAUSE TestRegistryUtilityHelpers/rows_affected_helper_and_checksum_string_handle_edge_cases
+=== RUN   TestRegistryUtilityHelpers/write_checksum_entry_covers_regular_files_symlinks_and_errors
+=== PAUSE TestRegistryUtilityHelpers/write_checksum_entry_covers_regular_files_symlinks_and_errors
+=== CONT  TestRegistryUtilityHelpers/string_and_json_helpers_normalize_optional_values
+=== CONT  TestRegistryUtilityHelpers/write_checksum_entry_covers_regular_files_symlinks_and_errors
+=== CONT  TestRegistryUtilityHelpers/manifest_resolution_prefers_toml_and_reports_missing_manifests
+=== CONT  TestRegistryUtilityHelpers/rows_affected_helper_and_checksum_string_handle_edge_cases
+--- PASS: TestRegistryUtilityHelpers (0.00s)
+    --- PASS: TestRegistryUtilityHelpers/capability_denied_error_formatting (0.00s)
+    --- PASS: TestRegistryUtilityHelpers/typed_registry_errors_expose_sentinels (0.00s)
+    --- PASS: TestRegistryUtilityHelpers/parse_extension_source (0.00s)
+    --- PASS: TestRegistryUtilityHelpers/check_ready_validates_receiver (0.00s)
+    --- PASS: TestRegistryUtilityHelpers/resolve_install_artifact_supports_directory_and_manifest_file (0.00s)
+    --- PASS: TestRegistryUtilityHelpers/checksum_helper_handles_errors_and_hashes_symlinks_deterministically (0.00s)
+    --- PASS: TestRegistryUtilityHelpers/constraint_mapper_preserves_passthrough_errors (0.00s)
+    --- PASS: TestRegistryUtilityHelpers/string_and_json_helpers_normalize_optional_values (0.00s)
+    --- PASS: TestRegistryUtilityHelpers/rows_affected_helper_and_checksum_string_handle_edge_cases (0.00s)
+    --- PASS: TestRegistryUtilityHelpers/write_checksum_entry_covers_regular_files_symlinks_and_errors (0.00s)
+    --- PASS: TestRegistryUtilityHelpers/manifest_resolution_prefers_toml_and_reports_missing_manifests (0.00s)
+=== RUN   TestDiscordProviderLaunchNegotiatesBridgeRuntime
+2026/04/15 11:45:24 INFO extension.lifecycle.loaded extension=discord source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:24 INFO extension.lifecycle.shutdown extension=discord
+--- PASS: TestDiscordProviderLaunchNegotiatesBridgeRuntime (0.29s)
+=== RUN   TestDiscordProviderIngressAndDeliveryConformance
+2026/04/15 11:45:24 INFO extension.lifecycle.loaded extension=discord source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:24 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:24 INFO extension.lifecycle.shutdown extension=discord
+--- PASS: TestDiscordProviderIngressAndDeliveryConformance (0.28s)
+=== RUN   TestGChatProviderLaunchNegotiatesBridgeRuntime
+2026/04/15 11:45:25 INFO extension.lifecycle.loaded extension=gchat source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:25 INFO extension.lifecycle.shutdown extension=gchat
+--- PASS: TestGChatProviderLaunchNegotiatesBridgeRuntime (0.40s)
+=== RUN   TestGChatProviderIngressAndDeliveryConformance
+2026/04/15 11:45:25 INFO extension.lifecycle.loaded extension=gchat source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:25 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:25 WARN observe: resolve permission mode failed session_id=sess-2 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:25 INFO extension.lifecycle.shutdown extension=gchat
+--- PASS: TestGChatProviderIngressAndDeliveryConformance (0.38s)
+=== RUN   TestGitHubProviderLaunchNegotiatesBridgeRuntime
+2026/04/15 11:45:25 INFO extension.lifecycle.loaded extension=github source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:25 INFO extension.lifecycle.shutdown extension=github
+--- PASS: TestGitHubProviderLaunchNegotiatesBridgeRuntime (0.36s)
+=== RUN   TestGitHubProviderSharedWebhookIngressAndDeliveryConformance
+2026/04/15 11:45:25 INFO extension.lifecycle.loaded extension=github source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:26 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:26 WARN observe: resolve permission mode failed session_id=sess-2 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:26 INFO extension.lifecycle.shutdown extension=github
+--- PASS: TestGitHubProviderSharedWebhookIngressAndDeliveryConformance (0.33s)
+=== RUN   TestLinearProviderLaunchNegotiatesBridgeRuntime
+2026/04/15 11:45:26 INFO extension.lifecycle.loaded extension=linear source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:26 INFO extension.lifecycle.shutdown extension=linear
+--- PASS: TestLinearProviderLaunchNegotiatesBridgeRuntime (0.27s)
+=== RUN   TestLinearProviderSharedWebhookIngressAndDeliveryConformance
+2026/04/15 11:45:26 INFO extension.lifecycle.loaded extension=linear source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:26 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:26 WARN observe: resolve permission mode failed session_id=sess-2 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:26 INFO extension.lifecycle.shutdown extension=linear
+--- PASS: TestLinearProviderSharedWebhookIngressAndDeliveryConformance (0.28s)
+=== RUN   TestRepresentativeProviderConformanceMatrix
+=== RUN   TestRepresentativeProviderConformanceMatrix/GitHubMultiInstance
+2026/04/15 11:45:26 INFO extension.lifecycle.loaded extension=github source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:26 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:26 WARN observe: resolve permission mode failed session_id=sess-2 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:27 INFO extension.lifecycle.shutdown extension=github
+=== RUN   TestRepresentativeProviderConformanceMatrix/TelegramRestartRecovery
+2026/04/15 11:45:27 INFO extension.lifecycle.loaded extension=telegram source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:27 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:27 WARN extension.lifecycle.failed extension=telegram phase=recover error="subprocess: process exited: exit status 23\nsubprocess: process exited: exit status 23" consecutive_failures=1 restart_backoff_ms=1000
+2026/04/15 11:45:28 INFO extension.lifecycle.loaded extension=telegram source=user recovered=true
+2026/04/15 11:45:28 INFO extension.lifecycle.shutdown extension=telegram
+=== RUN   TestRepresentativeProviderConformanceMatrix/WhatsAppDMPolicy
+2026/04/15 11:45:28 INFO extension.lifecycle.loaded extension=whatsapp source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:28 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:28 INFO extension.lifecycle.shutdown extension=whatsapp
+=== RUN   TestRepresentativeProviderConformanceMatrix/TelegramAuthDegradation
+2026/04/15 11:45:28 INFO extension.lifecycle.loaded extension=telegram source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:28 INFO extension.lifecycle.shutdown extension=telegram
+=== RUN   TestRepresentativeProviderConformanceMatrix/WhatsAppRateLimitRecovery
+2026/04/15 11:45:29 INFO extension.lifecycle.loaded extension=whatsapp source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:29 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:29 INFO extension.lifecycle.shutdown extension=whatsapp
+--- PASS: TestRepresentativeProviderConformanceMatrix (2.43s)
+    --- PASS: TestRepresentativeProviderConformanceMatrix/GitHubMultiInstance (0.33s)
+    --- PASS: TestRepresentativeProviderConformanceMatrix/TelegramRestartRecovery (1.41s)
+    --- PASS: TestRepresentativeProviderConformanceMatrix/WhatsAppDMPolicy (0.34s)
+    --- PASS: TestRepresentativeProviderConformanceMatrix/TelegramAuthDegradation (0.14s)
+    --- PASS: TestRepresentativeProviderConformanceMatrix/WhatsAppRateLimitRecovery (0.22s)
+=== RUN   TestReferenceExtensionACPHelperProcess
+--- PASS: TestReferenceExtensionACPHelperProcess (0.00s)
+=== RUN   TestReferenceExtensionsEndToEnd
+2026/04/15 11:45:36 INFO peer connection closed
+--- PASS: TestReferenceExtensionsEndToEnd (7.41s)
+=== RUN   TestNonEmptyLines
+=== PAUSE TestNonEmptyLines
+=== RUN   TestContainsFragmentsInOrder
+=== PAUSE TestContainsFragmentsInOrder
+=== RUN   TestDecodeJSONLines
+=== PAUSE TestDecodeJSONLines
+=== RUN   TestSlackProviderLaunchNegotiatesBridgeRuntime
+2026/04/15 11:45:36 INFO extension.lifecycle.loaded extension=slack source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:36 INFO extension.lifecycle.shutdown extension=slack
+--- PASS: TestSlackProviderLaunchNegotiatesBridgeRuntime (0.27s)
+=== RUN   TestSlackProviderIngressInteractionsAndDeliveryConformance
+2026/04/15 11:45:36 INFO extension.lifecycle.loaded extension=slack source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:36 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:37 INFO extension.lifecycle.shutdown extension=slack
+--- PASS: TestSlackProviderIngressInteractionsAndDeliveryConformance (0.25s)
+=== RUN   TestTeamsProviderLaunchNegotiatesBridgeRuntime
+2026/04/15 11:45:37 INFO extension.lifecycle.loaded extension=teams source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:37 INFO extension.lifecycle.shutdown extension=teams
+--- PASS: TestTeamsProviderLaunchNegotiatesBridgeRuntime (0.28s)
+=== RUN   TestTeamsProviderIngressAndDeliveryConformance
+2026/04/15 11:45:37 INFO extension.lifecycle.loaded extension=teams source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:37 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:37 INFO extension.lifecycle.shutdown extension=teams
+--- PASS: TestTeamsProviderIngressAndDeliveryConformance (0.31s)
+=== RUN   TestTeamsProviderInvalidTenantConfigReportsDegradedState
+2026/04/15 11:45:37 INFO extension.lifecycle.loaded extension=teams source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:37 INFO extension.lifecycle.shutdown extension=teams
+--- PASS: TestTeamsProviderInvalidTenantConfigReportsDegradedState (0.16s)
+=== RUN   TestTelegramProviderLaunchNegotiatesBridgeRuntime
+2026/04/15 11:45:37 INFO extension.lifecycle.loaded extension=telegram source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:37 INFO extension.lifecycle.shutdown extension=telegram
+--- PASS: TestTelegramProviderLaunchNegotiatesBridgeRuntime (0.14s)
+=== RUN   TestTelegramProviderIngressAndDeliveryConformance
+2026/04/15 11:45:38 INFO extension.lifecycle.loaded extension=telegram source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:38 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:38 INFO extension.lifecycle.shutdown extension=telegram
+--- PASS: TestTelegramProviderIngressAndDeliveryConformance (0.21s)
+=== RUN   TestTelegramProviderRestartResumesActiveDelivery
+2026/04/15 11:45:38 INFO extension.lifecycle.loaded extension=telegram source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:38 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:38 WARN extension.lifecycle.failed extension=telegram phase=recover error="subprocess: process exited: exit status 23\nsubprocess: process exited: exit status 23" consecutive_failures=1 restart_backoff_ms=1000
+2026/04/15 11:45:39 INFO extension.lifecycle.loaded extension=telegram source=user recovered=true
+2026/04/15 11:45:39 INFO extension.lifecycle.shutdown extension=telegram
+--- PASS: TestTelegramProviderRestartResumesActiveDelivery (1.26s)
+=== RUN   TestTelegramReferenceAdapterLaunchNegotiatesBridgeRuntime
+2026/04/15 11:45:39 INFO extension.lifecycle.loaded extension=telegram-reference source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:39 INFO extension.lifecycle.shutdown extension=telegram-reference
+--- PASS: TestTelegramReferenceAdapterLaunchNegotiatesBridgeRuntime (0.27s)
+=== RUN   TestTelegramReferenceAdapterIngressAndDeliveryConformance
+2026/04/15 11:45:39 INFO extension.lifecycle.loaded extension=telegram-reference source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:39 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:39 INFO extension.lifecycle.shutdown extension=telegram-reference
+--- PASS: TestTelegramReferenceAdapterIngressAndDeliveryConformance (0.25s)
+=== RUN   TestTelegramReferenceAdapterRestartResumesActiveDelivery
+2026/04/15 11:45:40 INFO extension.lifecycle.loaded extension=telegram-reference source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:40 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:40 WARN extension.lifecycle.failed extension=telegram-reference phase=recover error="subprocess: process exited: exit status 23\nsubprocess: process exited: exit status 23" consecutive_failures=1 restart_backoff_ms=1000
+2026/04/15 11:45:41 INFO extension.lifecycle.loaded extension=telegram-reference source=user recovered=true
+2026/04/15 11:45:41 WARN observe: resolve permission mode failed session_id=sess-2 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:41 INFO extension.lifecycle.shutdown extension=telegram-reference
+--- PASS: TestTelegramReferenceAdapterRestartResumesActiveDelivery (1.29s)
+=== RUN   TestTelegramReferenceAdapterAuthRequiredHealthSurface
+2026/04/15 11:45:41 INFO extension.lifecycle.loaded extension=telegram-reference source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:41 INFO extension.lifecycle.shutdown extension=telegram-reference
+--- PASS: TestTelegramReferenceAdapterAuthRequiredHealthSurface (0.13s)
+=== RUN   TestWhatsAppProviderLaunchNegotiatesBridgeRuntime
+2026/04/15 11:45:41 INFO extension.lifecycle.loaded extension=whatsapp source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:41 INFO extension.lifecycle.shutdown extension=whatsapp
+--- PASS: TestWhatsAppProviderLaunchNegotiatesBridgeRuntime (0.14s)
+=== RUN   TestWhatsAppProviderIngressAndDeliveryConformance
+2026/04/15 11:45:41 INFO extension.lifecycle.loaded extension=whatsapp source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:41 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:41 INFO extension.lifecycle.shutdown extension=whatsapp
+--- PASS: TestWhatsAppProviderIngressAndDeliveryConformance (0.21s)
+=== RUN   TestWhatsAppProviderRateLimitReportsDegradedState
+2026/04/15 11:45:41 INFO extension.lifecycle.loaded extension=whatsapp source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:41 WARN observe: resolve permission mode failed session_id=sess-1 agent_name=coder workspace_id=ws-bridge-adapter error="resolve agent \"coder\": unknown provider \"fake\""
+2026/04/15 11:45:41 INFO extension.lifecycle.shutdown extension=whatsapp
+--- PASS: TestWhatsAppProviderRateLimitReportsDegradedState (0.21s)
+=== CONT  TestInstallLocalManagedUsesInstalledChecksumForMaterializedSymlinks
+=== CONT  TestDecodeJSONLines
+=== CONT  TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead
+=== CONT  TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly
+=== CONT  TestHostAPIHandlerBridgesMessagesIngestRejectsDisabledOrUnknownInstances
+=== CONT  TestContainsFragmentsInOrder
+=== RUN   TestContainsFragmentsInOrder/ShouldMatchOrderedFragments
+=== CONT  TestHostAPIHandlerMemoryRecallRequiresConfiguredStore
+=== CONT  TestHostAPIHandlerSessionsPromptReturnsTurnIDAndPersistsEvents
+=== RUN   TestContainsFragmentsInOrder/ShouldRejectOutOfOrderFragments
+=== CONT  TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup
+=== CONT  TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults
+=== RUN   TestDecodeJSONLines/ShouldDecodeMultipleJSONLines
+=== CONT  TestHostAPIHandlerBridgesInstancesReportStateRejectsInvalidUpdates
+=== RUN   TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults/Should_reject_case-insensitive_duplicate_profile_names
+=== CONT  TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries
+=== PAUSE TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults/Should_reject_case-insensitive_duplicate_profile_names
+=== CONT  TestHostAPIHandlerSessionsCreateReturnsCapabilityDeniedWithoutSessionWrite
+=== RUN   TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults/Should_reject_invalid_bridge_delivery_default_JSON
+=== CONT  TestCopyInstallTreeMaterializesSymlinkTargets
+=== CONT  TestHostAPIHandlerBridgesInstancesReportStateClearsDegradationOnRecovery
+--- PASS: TestHostAPIHandlerMemoryRecallRequiresConfiguredStore (0.00s)
+=== CONT  TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources
+=== RUN   TestContainsFragmentsInOrder/ShouldIgnoreEmptyFragments
+=== RUN   TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/bundled
+=== PAUSE TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/bundled
+=== RUN   TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/user
+--- PASS: TestContainsFragmentsInOrder (0.00s)
+    --- PASS: TestContainsFragmentsInOrder/ShouldMatchOrderedFragments (0.00s)
+    --- PASS: TestContainsFragmentsInOrder/ShouldRejectOutOfOrderFragments (0.00s)
+    --- PASS: TestContainsFragmentsInOrder/ShouldIgnoreEmptyFragments (0.00s)
+=== CONT  TestManagerDeliverBridge
+=== RUN   TestDecodeJSONLines/ShouldDecodeEmptyPayloadIntoEmptySlice
+=== PAUSE TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults/Should_reject_invalid_bridge_delivery_default_JSON
+=== PAUSE TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/user
+=== CONT  TestHostAPIHandlerSessionsListReturnsAuthorizedSessions
+=== RUN   TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/workspace
+=== CONT  TestNonEmptyLines
+=== PAUSE TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/workspace
+=== RUN   TestManagerDeliverBridge/success
+=== RUN   TestNonEmptyLines/ShouldTrimAndDropBlankLines
+=== RUN   TestDecodeJSONLines/ShouldReportInvalidJSONLineContent
+=== CONT  TestManagerCloneExtensionReturnsIsolatedSnapshot
+=== PAUSE TestManagerDeliverBridge/success
+=== RUN   TestManagerDeliverBridge/canceled_context
+=== RUN   TestNonEmptyLines/ShouldReturnEmptySliceWhenEveryLineIsBlank
+=== PAUSE TestManagerDeliverBridge/canceled_context
+--- PASS: TestManagerCloneExtensionReturnsIsolatedSnapshot (0.00s)
+=== CONT  TestManagerResolveCommandKeepsPathLikeValuesInsideExtensionRoot
+=== RUN   TestManagerDeliverBridge/nil_manager
+--- PASS: TestNonEmptyLines (0.00s)
+    --- PASS: TestNonEmptyLines/ShouldTrimAndDropBlankLines (0.00s)
+    --- PASS: TestNonEmptyLines/ShouldReturnEmptySliceWhenEveryLineIsBlank (0.00s)
+=== PAUSE TestManagerDeliverBridge/nil_manager
+=== CONT  TestManagerDirectPhaseAndMonitorBranches
+--- PASS: TestDecodeJSONLines (0.00s)
+    --- PASS: TestDecodeJSONLines/ShouldDecodeMultipleJSONLines (0.00s)
+    --- PASS: TestDecodeJSONLines/ShouldDecodeEmptyPayloadIntoEmptySlice (0.00s)
+    --- PASS: TestDecodeJSONLines/ShouldReportInvalidJSONLineContent (0.00s)
+2026/04/15 11:45:41 ERROR extension.lifecycle.failed extension=ext-discover phase=discover error="manifest path is required"
+=== CONT  TestDescribeExtension
+2026/04/15 11:45:41 ERROR extension.lifecycle.failed extension=ext-discover phase=discover error="invalid manifest path \"extension.toml\""
+2026/04/15 11:45:41 ERROR extension.lifecycle.failed extension=ext-validate phase=validate error="manifest is required"
+=== RUN   TestDescribeExtension/Should_report_active_subprocess_runtime
+=== RUN   TestManagerDeliverBridge/inactive_extension
+2026/04/15 11:45:41 ERROR extension.lifecycle.failed extension=ext-validate phase=validate error="registry name \"ext-validate\" does not match manifest name \"other\""
+2026/04/15 11:45:41 ERROR extension.lifecycle.failed extension=ext-validate phase=validate error="registry version \"1.0.0\" does not match manifest version \"2.0.0\""
+2026/04/15 11:45:41 ERROR extension.lifecycle.failed extension=ext-validate phase=validate error="subprocess command is required when runtime capabilities or actions are declared"
+2026/04/15 11:45:41 INFO extension.lifecycle.loaded extension=ext-lite source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+=== PAUSE TestManagerDeliverBridge/inactive_extension
+=== PAUSE TestDescribeExtension/Should_report_active_subprocess_runtime
+=== RUN   TestDescribeExtension/Should_report_registered_resource_health
+=== RUN   TestManagerDeliverBridge/missing_negotiated_method
+=== PAUSE TestDescribeExtension/Should_report_registered_resource_health
+=== PAUSE TestManagerDeliverBridge/missing_negotiated_method
+=== CONT  TestHostAPIHandlerSessionsCreateReturnsSessionID
+=== RUN   TestManagerDeliverBridge/process_call_failure
+=== PAUSE TestManagerDeliverBridge/process_call_failure
+=== RUN   TestManagerDeliverBridge/invalid_request
+=== PAUSE TestManagerDeliverBridge/invalid_request
+=== RUN   TestManagerDeliverBridge/missing_extension_name
+=== PAUSE TestManagerDeliverBridge/missing_extension_name
+=== CONT  TestManagerHelperPathsAndAccessors
+2026/04/15 11:45:41 ERROR extension.lifecycle.failed extension=ext-skills phase=register error="skills registry is required for extension skill resources"
+--- PASS: TestManagerDirectPhaseAndMonitorBranches (0.01s)
+=== CONT  TestRegistryBlocksDisableAndUninstallWithActiveBundles
+--- PASS: TestManagerResolveCommandKeepsPathLikeValuesInsideExtensionRoot (0.01s)
+=== CONT  TestCapabilityCheckerCheckShouldHonorFamilyWildcardGrant
+--- PASS: TestCapabilityCheckerCheckShouldHonorFamilyWildcardGrant (0.00s)
+=== CONT  TestHostAPIHandlerSkillsListReturnsWorkspaceSkills
+--- PASS: TestInstallLocalManagedUsesInstalledChecksumForMaterializedSymlinks (0.02s)
+=== CONT  TestManagerResolveEnvMapUsesSafeBaselineOnly
+=== CONT  TestLoadBundleSpecsRejectsCaseInsensitiveDuplicateBundleNames
+--- PASS: TestManagerResolveEnvMapUsesSafeBaselineOnly (0.00s)
+--- PASS: TestLoadBundleSpecsRejectsCaseInsensitiveDuplicateBundleNames (0.00s)
+=== CONT  TestCapabilityCheckerCheckShouldHonorGlobalWildcardGrant
+--- PASS: TestCapabilityCheckerCheckShouldHonorGlobalWildcardGrant (0.00s)
+=== CONT  TestHostAPIHandlerBridgesInstancesReportStateRejectsConflictingDegradationControls
+--- PASS: TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly (0.03s)
+=== CONT  TestCloneBoolPointer
+--- PASS: TestCloneBoolPointer (0.00s)
+=== CONT  TestCapabilityCheckerMarketplaceShouldAllowDefaultReadCapabilities
+=== CONT  TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads
+--- PASS: TestCapabilityCheckerMarketplaceShouldAllowDefaultReadCapabilities (0.00s)
+--- PASS: TestCopyInstallTreeMaterializesSymlinkTargets (0.03s)
+=== CONT  TestNormalizeStringMapDropsBlankKeysAndUsesDeterministicCollisions
+--- PASS: TestNormalizeStringMapDropsBlankKeysAndUsesDeterministicCollisions (0.00s)
+=== CONT  TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities
+=== RUN   TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/permission_family
+=== PAUSE TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/permission_family
+=== RUN   TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/session_write
+=== PAUSE TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/session_write
+=== RUN   TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/memory_write
+=== PAUSE TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/memory_write
+=== CONT  TestNormalizeMCPServersDropsBlankKeysAndUsesDeterministicCollisions
+--- PASS: TestNormalizeMCPServersDropsBlankKeysAndUsesDeterministicCollisions (0.00s)
+=== CONT  TestCapabilityCheckerCheckShouldReturnCapabilityDenied
+--- PASS: TestCapabilityCheckerCheckShouldReturnCapabilityDenied (0.00s)
+=== CONT  TestNormalizeBridgeConfigTrimsSecretSlotsAndSchemaHints
+--- PASS: TestNormalizeBridgeConfigTrimsSecretSlotsAndSchemaHints (0.00s)
+=== CONT  TestManagerReloadValidatesAndRestarts
+=== RUN   TestManagerReloadValidatesAndRestarts/Should_reject_nil_manager
+=== PAUSE TestManagerReloadValidatesAndRestarts/Should_reject_nil_manager
+=== RUN   TestManagerReloadValidatesAndRestarts/Should_reject_canceled_context
+=== PAUSE TestManagerReloadValidatesAndRestarts/Should_reject_canceled_context
+=== RUN   TestManagerReloadValidatesAndRestarts/Should_reject_missing_registry
+=== PAUSE TestManagerReloadValidatesAndRestarts/Should_reject_missing_registry
+=== RUN   TestManagerReloadValidatesAndRestarts/Should_restart_loaded_extensions
+=== PAUSE TestManagerReloadValidatesAndRestarts/Should_restart_loaded_extensions
+=== CONT  TestHostAPIHandlerMemoryForgetRemovesEntries
+--- PASS: TestRegistryBlocksDisableAndUninstallWithActiveBundles (0.02s)
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/get
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/get
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/create
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/create
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/update
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/update
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/delete
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/delete
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/trigger
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/trigger
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/runs
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/runs
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/get
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/get
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/create
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/create
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/update
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/update
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/delete
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/delete
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/runs
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/runs
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/fire
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/fire
+=== RUN   TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/runs
+=== PAUSE TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/runs
+=== CONT  TestHostAPIHandlerObserveHealthReturnsSnapshot
+--- PASS: TestManagerHelperPathsAndAccessors (0.03s)
+=== CONT  TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling
+--- PASS: TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling (0.00s)
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/succeeds_when_action_and_security_are_granted
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/succeeds_when_action_and_security_are_granted
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_list_method_with_matching_grant
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_list_method_with_matching_grant
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_read_method_with_matching_grant
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_read_method_with_matching_grant
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutActionGrant
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutActionGrant
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutWriteGrant
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutWriteGrant
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_when_action_grant_is_missing
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_when_action_grant_is_missing
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_when_security_grant_is_missing
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_when_security_grant_is_missing
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/automation_read_requires_action_and_automation.read_capability
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/automation_read_requires_action_and_automation.read_capability
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/automation_write_requires_action_and_automation.write_capability
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/automation_write_requires_action_and_automation.write_capability
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_for_bridge_write_method_without_bridge_security_grant
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_for_bridge_write_method_without_bridge_security_grant
+=== CONT  TestHostAPIHandlerAutomationJobCRUDAndRunQueries
+--- PASS: TestHostAPIHandlerSessionsCreateReturnsCapabilityDeniedWithoutSessionWrite (0.34s)
+=== CONT  TestBridgeDeliveryNotifierNilPathsAreNoOps
+--- PASS: TestBridgeDeliveryNotifierNilPathsAreNoOps (0.00s)
+=== CONT  TestManagerStartBridgeAdapterRequiresScopedLaunchRuntime
+=== CONT  TestHostAPITaskRequestHelpersRejectInvalidPayloads
+--- PASS: TestHostAPIHandlerBridgesInstancesReportStateRejectsInvalidUpdates (0.35s)
+=== CONT  TestCapabilityCheckerCheckShouldAllowGrantedCapability
+=== CONT  TestManagerStopUsesRealSubprocessShutdown
+--- PASS: TestHostAPIHandlerBridgesInstancesReportStateClearsDegradationOnRecovery (0.35s)
+--- PASS: TestCapabilityCheckerCheckShouldAllowGrantedCapability (0.00s)
+=== RUN   TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads/MissingBridgeInstanceID
+=== PAUSE TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads/MissingBridgeInstanceID
+=== RUN   TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads/MissingPolicyRequiredPeer
+=== PAUSE TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads/MissingPolicyRequiredPeer
+=== CONT  TestManagedInstallHelpers
+--- PASS: TestManagedInstallHelpers (0.01s)
+=== CONT  TestManagerDisablesExtensionAfterConsecutiveFailures
+--- PASS: TestHostAPIHandlerBridgesMessagesIngestRejectsDisabledOrUnknownInstances (0.37s)
+=== CONT  TestHostAPIHandlerSessionsStatusReturnsAuthorizedState
+--- PASS: TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead (0.37s)
+=== CONT  TestHostAPIHandlerTasksUpdateAndCancelMutateTask
+--- PASS: TestHostAPIHandlerBridgesInstancesReportStateRejectsConflictingDegradationControls (0.35s)
+=== CONT  TestHostAPIHandlerTasksListAndGetReturnFilteredDetail
+--- PASS: TestHostAPIHandlerSkillsListReturnsWorkspaceSkills (0.36s)
+=== CONT  TestHostAPIHandlerMemoryStorePersistsContentWithTags
+2026/04/15 11:45:42 ERROR extension.lifecycle.failed extension=ext-bridge-missing phase=initialize error="extension: bridge runtime resolver is required for \"ext-bridge-missing\""
+--- PASS: TestManagerStartBridgeAdapterRequiresScopedLaunchRuntime (0.05s)
+=== CONT  TestManagerStopKillsHungSubprocessAfterTimeout
+--- PASS: TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup (0.41s)
+=== CONT  TestHostAPIHandlerTaskRunStartRespectsManagerTransitions
+=== CONT  TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations
+--- PASS: TestHostAPIHandlerMemoryForgetRemovesEntries (0.38s)
+2026/04/15 11:45:42 INFO extension.lifecycle.loaded extension=ext-stop source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+=== CONT  TestHostAPIHandlerMemoryRecallReturnsRankedMatches
+--- PASS: TestHostAPIHandlerSessionsCreateReturnsSessionID (0.62s)
+--- PASS: TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries (0.67s)
+=== CONT  TestManagerCrashTriggersRestartWithBackoff
+--- PASS: TestHostAPIHandlerSessionsListReturnsAuthorizedSessions (0.67s)
+=== CONT  TestHostAPITaskHelpersHandleZeroAndUnavailableCases
+--- PASS: TestHostAPIHandlerObserveHealthReturnsSnapshot (0.68s)
+=== CONT  TestHostAPIHandlerSessionsMethodsRequireConfiguredManager
+=== RUN   TestHostAPIHandlerSessionsMethodsRequireConfiguredManager/ShouldRejectStopWithoutManager
+=== RUN   TestHostAPIHandlerSessionsMethodsRequireConfiguredManager/ShouldRejectStatusWithoutManager
+=== RUN   TestHostAPIHandlerSessionsMethodsRequireConfiguredManager/ShouldRejectEventsWithoutManager
+=== CONT  TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering
+--- PASS: TestHostAPIHandlerSessionsMethodsRequireConfiguredManager (0.00s)
+    --- PASS: TestHostAPIHandlerSessionsMethodsRequireConfiguredManager/ShouldRejectStopWithoutManager (0.00s)
+    --- PASS: TestHostAPIHandlerSessionsMethodsRequireConfiguredManager/ShouldRejectStatusWithoutManager (0.00s)
+    --- PASS: TestHostAPIHandlerSessionsMethodsRequireConfiguredManager/ShouldRejectEventsWithoutManager (0.00s)
+--- PASS: TestHostAPIHandlerSessionsPromptReturnsTurnIDAndPersistsEvents (0.71s)
+=== CONT  TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot
+=== RUN   TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot/ShouldRejectExternalDirectoryTargets
+=== PAUSE TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot/ShouldRejectExternalDirectoryTargets
+=== RUN   TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot/ShouldRejectExternalFileTargets
+=== PAUSE TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot/ShouldRejectExternalFileTargets
+=== CONT  TestManagerStartDetachesSupervisorFromStartContext
+=== CONT  TestManagerStartContinuesAfterParseFailure
+--- PASS: TestHostAPIHandlerAutomationJobCRUDAndRunQueries (0.69s)
+--- PASS: TestHostAPITaskRequestHelpersRejectInvalidPayloads (0.50s)
+=== CONT  TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents
+--- PASS: TestHostAPIHandlerMemoryStorePersistsContentWithTags (0.48s)
+=== CONT  TestHostAPIHandlerAutomationGetterAndMethodHandlers
+--- PASS: TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations (0.48s)
+=== CONT  TestHostAPIHandlerTaskMethodsRequireIdentifiers
+=== CONT  TestManagerStartRejectsIncompatibleManifest
+--- PASS: TestHostAPIHandlerTaskRunStartRespectsManagerTransitions (0.48s)
+--- PASS: TestHostAPIHandlerTasksUpdateAndCancelMutateTask (0.54s)
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs
+=== CONT  TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity
+--- PASS: TestHostAPIHandlerTasksListAndGetReturnFilteredDetail (0.57s)
+=== CONT  TestManagerStartRegistersResourcesAndActivatesExtension
+--- PASS: TestHostAPIHandlerMemoryRecallReturnsRankedMatches (0.32s)
+=== CONT  TestMapTaskRPCErrorTranslatesKnownErrors
+=== RUN   TestMapTaskRPCErrorTranslatesKnownErrors/ShouldReturnNilForNilError
+=== PAUSE TestMapTaskRPCErrorTranslatesKnownErrors/ShouldReturnNilForNilError
+=== RUN   TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapWorkspaceNotFound
+=== PAUSE TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapWorkspaceNotFound
+=== RUN   TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapTaskNotFound
+=== PAUSE TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapTaskNotFound
+=== RUN   TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapRunNotFound
+=== PAUSE TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapRunNotFound
+=== RUN   TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapDependencyNotFound
+=== PAUSE TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapDependencyNotFound
+=== RUN   TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapPermissionDenied
+=== PAUSE TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapPermissionDenied
+=== RUN   TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapStaleNetworkChannel
+=== PAUSE TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapStaleNetworkChannel
+=== RUN   TestMapTaskRPCErrorTranslatesKnownErrors/ShouldPassThroughUnknownErrors
+=== PAUSE TestMapTaskRPCErrorTranslatesKnownErrors/ShouldPassThroughUnknownErrors
+=== CONT  TestDescribeExtensionProjectsHealthAndState
+--- PASS: TestDescribeExtensionProjectsHealthAndState (0.00s)
+=== CONT  TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords
+--- PASS: TestHostAPITaskHelpersHandleZeroAndUnavailableCases (0.29s)
+=== CONT  TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime
+--- PASS: TestHostAPIHandlerSessionsStatusReturnsAuthorizedState (0.58s)
+=== CONT  TestManagerStartSkipsDisabledExtensions
+--- PASS: TestHostAPIHandlerAutomationGetterAndMethodHandlers (0.21s)
+=== CONT  TestHostAPIHandlerAutomationTriggerFireRejectsNonExtensionEvent
+=== RUN   TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForGet
+=== PAUSE TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForGet
+=== RUN   TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForUpdate
+=== PAUSE TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForUpdate
+=== RUN   TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForCancel
+=== PAUSE TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForCancel
+=== RUN   TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunsList
+=== PAUSE TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunsList
+=== RUN   TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunEnqueue
+=== PAUSE TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunEnqueue
+=== RUN   TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunClaim
+=== PAUSE TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunClaim
+=== RUN   TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunStart
+=== PAUSE TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunStart
+=== RUN   TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunComplete
+=== PAUSE TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunComplete
+=== RUN   TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunFail
+=== PAUSE TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunFail
+=== RUN   TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunCancel
+=== PAUSE TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunCancel
+=== CONT  TestInstallLocalManagedWrapsPhaseErrors
+=== RUN   TestInstallLocalManagedWrapsPhaseErrors/ShouldWrapSourceChecksumFailures
+=== PAUSE TestInstallLocalManagedWrapsPhaseErrors/ShouldWrapSourceChecksumFailures
+=== RUN   TestInstallLocalManagedWrapsPhaseErrors/ShouldWrapRegistryInstallFailures
+=== PAUSE TestInstallLocalManagedWrapsPhaseErrors/ShouldWrapRegistryInstallFailures
+=== CONT  TestHostAPIHandlerTaskOperationsRequireCapabilities
+=== RUN   TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForGet
+=== PAUSE TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForGet
+=== RUN   TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForUpdate
+=== PAUSE TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForUpdate
+=== RUN   TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForCancel
+=== PAUSE TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForCancel
+=== RUN   TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForListRuns
+=== PAUSE TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForListRuns
+=== RUN   TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForClaim
+=== PAUSE TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForClaim
+=== RUN   TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForStart
+=== PAUSE TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForStart
+=== RUN   TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForAttach
+=== PAUSE TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForAttach
+=== RUN   TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForComplete
+=== PAUSE TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForComplete
+=== RUN   TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForFail
+=== PAUSE TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForFail
+=== RUN   TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForCancel
+=== PAUSE TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForCancel
+=== CONT  TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler
+--- PASS: TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity (0.19s)
+=== CONT  TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails
+--- PASS: TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents (0.33s)
+=== CONT  TestHostAPIHandlerSessionsStopStopsSession
+--- PASS: TestHostAPIHandlerAutomationTriggerFireRejectsNonExtensionEvent (0.20s)
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities
+=== RUN   TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyCreate
+=== PAUSE TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyCreate
+=== RUN   TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyUpdate
+=== PAUSE TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyUpdate
+=== RUN   TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyRunStart
+=== PAUSE TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyRunStart
+=== CONT  TestHostAPIHandlerBridgesMessagesIngestRebindsStaleRouteToReplacementSession
+--- PASS: TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering (0.57s)
+=== CONT  TestHostAPIHandlerObserveEventsReturnsFilteredEventsWithSince
+--- PASS: TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler (0.20s)
+=== CONT  TestHostAPIHandlerSessionsEventsSupportsSinceFilter
+--- PASS: TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails (0.34s)
+=== CONT  TestCopyInstallTreeRejectsSymlinkDirectoryCycles
+--- PASS: TestCopyInstallTreeRejectsSymlinkDirectoryCycles (0.00s)
+=== CONT  TestHostAPIHandlerRateLimitExceededReturnsRetryAfter
+=== CONT  TestBridgeHostAPIHelpersMapErrorsAndFormatInboundMetadata
+--- PASS: TestHostAPIHandlerSessionsStopStopsSession (0.29s)
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/list
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/list
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/create
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/create
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/prompt
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/prompt
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/stop
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/stop
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/status
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/status
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/events
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/events
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/recall
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/recall
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/store
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/store
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/forget
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/forget
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/observe/health
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/observe/health
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/observe/events
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/observe/events
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/skills/list
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/skills/list
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/jobs
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/jobs
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/jobs/create
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/jobs/create
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/triggers/fire
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/triggers/fire
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/messages/ingest
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/messages/ingest
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/list
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/list
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/get
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/get
+=== RUN   TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/report_state
+=== PAUSE TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/report_state
+=== CONT  TestBridgeDeliveryNotifierProjectsEventsAndForwardsLifecycle
+=== CONT  TestHostAPIHandlerUnknownMethodReturnsMethodNotFound
+--- PASS: TestBridgeDeliveryNotifierProjectsEventsAndForwardsLifecycle (0.00s)
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-stop
+--- PASS: TestManagerStopUsesRealSubprocessShutdown (1.20s)
+=== CONT  TestInstallLocalManagedNormalizesProvidedChecksum
+=== CONT  TestNewManagerAppliesOptionsAndRestoresDefaults
+--- PASS: TestInstallLocalManagedNormalizesProvidedChecksum (0.00s)
+=== CONT  TestHostAPIHandlerBridgesMessagesIngestRegistersPromptDelivery
+--- PASS: TestNewManagerAppliesOptionsAndRestoresDefaults (0.00s)
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-flaky source=user active=true skill_count=0 agent_count=0 hook_count=1 mcp_server_count=0
+2026/04/15 11:45:43 WARN extension.lifecycle.failed extension=ext-flaky phase=recover error=panic consecutive_failures=1 restart_backoff_ms=2
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-flaky source=user recovered=true
+2026/04/15 11:45:43 WARN extension.lifecycle.failed extension=ext-flaky phase=recover error=panic consecutive_failures=2 restart_backoff_ms=2
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-flaky source=user recovered=true
+2026/04/15 11:45:43 WARN extension.lifecycle.failed extension=ext-flaky phase=recover error=panic consecutive_failures=3 restart_backoff_ms=2
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-flaky source=user recovered=true
+2026/04/15 11:45:43 WARN extension.lifecycle.failed extension=ext-flaky phase=recover error=panic consecutive_failures=4 restart_backoff_ms=2
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-flaky source=user recovered=true
+2026/04/15 11:45:43 ERROR extension.lifecycle.failed extension=ext-flaky phase=recover error=panic consecutive_failures=5
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-flaky
+--- PASS: TestManagerDisablesExtensionAfterConsecutiveFailures (1.23s)
+=== CONT  TestHostAPIHandlerBridgesInstancesListReturnsOwnedInstancesForProviderRuntime
+--- PASS: TestHostAPIHandlerBridgesMessagesIngestRebindsStaleRouteToReplacementSession (0.35s)
+=== CONT  TestInstallLocalManagedRejectsExistingOrFailedInstall
+=== CONT  TestHostAPIHandlerRateLimitUsesConfiguredClockRegardlessOfOptionOrder
+--- PASS: TestInstallLocalManagedRejectsExistingOrFailedInstall (0.00s)
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-hang source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+=== CONT  TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios
+--- PASS: TestHostAPIHandlerObserveEventsReturnsFilteredEventsWithSince (0.38s)
+=== RUN   TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldProduceOrderedDeliveryStream
+=== PAUSE TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldProduceOrderedDeliveryStream
+=== RUN   TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldCoalesceIntermediateDeltasForSlowAdapters
+=== PAUSE TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldCoalesceIntermediateDeltasForSlowAdapters
+=== RUN   TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldResumeActiveDeliveryAfterRestart
+=== PAUSE TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldResumeActiveDeliveryAfterRestart
+=== CONT  TestHostAPIHandlerBridgesMessagesIngestConcurrentSameRoutingKeyCreatesOneSessionAndRoute
+--- PASS: TestHostAPIHandlerSessionsEventsSupportsSinceFilter (0.40s)
+=== CONT  TestHostAPIHandlerBridgesInstancesGetRejectsMismatchedRuntimeOwnership
+--- PASS: TestHostAPIHandlerRateLimitExceededReturnsRetryAfter (0.28s)
+=== CONT  TestHostAPIHandlerBridgesInstancesListAllowsZeroManagedInstances
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-hang
+--- PASS: TestManagerStopKillsHungSubprocessAfterTimeout (1.35s)
+=== CONT  TestHostAPIHandlerBridgesMessagesIngestExpiredDedupAllowsReingest
+--- PASS: TestBridgeHostAPIHelpersMapErrorsAndFormatInboundMetadata (0.29s)
+=== CONT  TestManagerStartBridgeAdapterDefersUntilRuntimeExists
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-restart source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:43 WARN extension.lifecycle.failed extension=ext-restart phase=recover error=boom consecutive_failures=1 restart_backoff_ms=2
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-restart source=user recovered=true
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-restart
+--- PASS: TestManagerCrashTriggersRestartWithBackoff (1.09s)
+=== CONT  TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults/Should_reject_case-insensitive_duplicate_profile_names
+=== CONT  TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults/Should_reject_invalid_bridge_delivery_default_JSON
+=== CONT  TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/bundled
+--- PASS: TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults (0.00s)
+    --- PASS: TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults/Should_reject_case-insensitive_duplicate_profile_names (0.00s)
+    --- PASS: TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults/Should_reject_invalid_bridge_delivery_default_JSON (0.00s)
+=== CONT  TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/user
+=== CONT  TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/workspace
+=== CONT  TestDescribeExtension/Should_report_active_subprocess_runtime
+--- PASS: TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources (0.00s)
+    --- PASS: TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/bundled (0.00s)
+    --- PASS: TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/user (0.00s)
+    --- PASS: TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources/workspace (0.00s)
+=== CONT  TestDescribeExtension/Should_report_registered_resource_health
+=== CONT  TestManagerDeliverBridge/success
+--- PASS: TestDescribeExtension (0.00s)
+    --- PASS: TestDescribeExtension/Should_report_active_subprocess_runtime (0.00s)
+    --- PASS: TestDescribeExtension/Should_report_registered_resource_health (0.00s)
+=== CONT  TestManagerDeliverBridge/missing_extension_name
+=== CONT  TestManagerDeliverBridge/invalid_request
+=== CONT  TestManagerDeliverBridge/missing_negotiated_method
+=== CONT  TestManagerDeliverBridge/inactive_extension
+=== CONT  TestManagerDeliverBridge/process_call_failure
+=== CONT  TestManagerDeliverBridge/canceled_context
+=== CONT  TestManagerDeliverBridge/nil_manager
+=== CONT  TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/memory_write
+--- PASS: TestManagerDeliverBridge (0.00s)
+    --- PASS: TestManagerDeliverBridge/success (0.00s)
+    --- PASS: TestManagerDeliverBridge/missing_extension_name (0.00s)
+    --- PASS: TestManagerDeliverBridge/invalid_request (0.00s)
+    --- PASS: TestManagerDeliverBridge/missing_negotiated_method (0.00s)
+    --- PASS: TestManagerDeliverBridge/inactive_extension (0.00s)
+    --- PASS: TestManagerDeliverBridge/process_call_failure (0.00s)
+    --- PASS: TestManagerDeliverBridge/canceled_context (0.00s)
+    --- PASS: TestManagerDeliverBridge/nil_manager (0.00s)
+=== CONT  TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/session_write
+=== CONT  TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/permission_family
+--- PASS: TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities (0.00s)
+    --- PASS: TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/memory_write (0.00s)
+    --- PASS: TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/session_write (0.00s)
+    --- PASS: TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities/permission_family (0.00s)
+=== CONT  TestManagerReloadValidatesAndRestarts/Should_reject_nil_manager
+=== CONT  TestManagerReloadValidatesAndRestarts/Should_restart_loaded_extensions
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-detached source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:43 WARN extension.lifecycle.failed extension=ext-detached phase=recover error=boom consecutive_failures=1 restart_backoff_ms=2
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-detached source=user recovered=true
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-detached
+=== CONT  TestManagerReloadValidatesAndRestarts/Should_reject_missing_registry
+--- PASS: TestHostAPIHandlerUnknownMethodReturnsMethodNotFound (0.30s)
+=== CONT  TestManagerReloadValidatesAndRestarts/Should_reject_canceled_context
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs
+--- PASS: TestManagerStartDetachesSupervisorFromStartContext (1.07s)
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/runs
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/fire
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/trigger
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/update
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/update
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/create
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/runs
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/delete
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/runs
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/create
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/delete
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/get
+=== CONT  TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/get
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_list_method_with_matching_grant
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_when_security_grant_is_missing
+--- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/runs (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/fire (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/trigger (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/update (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/update (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/create (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/runs (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/delete (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/runs (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/create (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/delete (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/triggers/get (0.00s)
+    --- PASS: TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities/automation/jobs/get (0.00s)
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutActionGrant
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_for_bridge_write_method_without_bridge_security_grant
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/succeeds_when_action_and_security_are_granted
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_read_method_with_matching_grant
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/automation_write_requires_action_and_automation.write_capability
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_when_action_grant_is_missing
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/automation_read_requires_action_and_automation.read_capability
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutWriteGrant
+=== CONT  TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads/MissingPolicyRequiredPeer
+=== CONT  TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads/MissingBridgeInstanceID
+--- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_list_method_with_matching_grant (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_when_security_grant_is_missing (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutActionGrant (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_for_bridge_write_method_without_bridge_security_grant (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/succeeds_when_action_and_security_are_granted (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_read_method_with_matching_grant (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/automation_write_requires_action_and_automation.write_capability (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_when_action_grant_is_missing (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/automation_read_requires_action_and_automation.read_capability (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutWriteGrant (0.00s)
+=== CONT  TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot/ShouldRejectExternalFileTargets
+=== CONT  TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot/ShouldRejectExternalDirectoryTargets
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectList
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectList
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectGet
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectGet
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectRuns
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectRuns
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs
+=== CONT  TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapTaskNotFound
+--- PASS: TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot (0.00s)
+    --- PASS: TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot/ShouldRejectExternalFileTargets (0.00s)
+    --- PASS: TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot/ShouldRejectExternalDirectoryTargets (0.00s)
+=== CONT  TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapRunNotFound
+=== CONT  TestMapTaskRPCErrorTranslatesKnownErrors/ShouldPassThroughUnknownErrors
+=== CONT  TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapStaleNetworkChannel
+=== CONT  TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapPermissionDenied
+=== CONT  TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapWorkspaceNotFound
+=== CONT  TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapDependencyNotFound
+=== CONT  TestMapTaskRPCErrorTranslatesKnownErrors/ShouldReturnNilForNilError
+=== CONT  TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForGet
+--- PASS: TestMapTaskRPCErrorTranslatesKnownErrors (0.00s)
+    --- PASS: TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapTaskNotFound (0.00s)
+    --- PASS: TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapRunNotFound (0.00s)
+    --- PASS: TestMapTaskRPCErrorTranslatesKnownErrors/ShouldPassThroughUnknownErrors (0.00s)
+    --- PASS: TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapStaleNetworkChannel (0.00s)
+    --- PASS: TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapPermissionDenied (0.00s)
+    --- PASS: TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapWorkspaceNotFound (0.00s)
+    --- PASS: TestMapTaskRPCErrorTranslatesKnownErrors/ShouldMapDependencyNotFound (0.00s)
+    --- PASS: TestMapTaskRPCErrorTranslatesKnownErrors/ShouldReturnNilForNilError (0.00s)
+=== CONT  TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunCancel
+=== CONT  TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunFail
+=== CONT  TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunComplete
+=== CONT  TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunClaim
+=== CONT  TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunEnqueue
+=== CONT  TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunStart
+=== CONT  TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForCancel
+=== CONT  TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForUpdate
+=== CONT  TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunsList
+=== CONT  TestInstallLocalManagedWrapsPhaseErrors/ShouldWrapRegistryInstallFailures
+=== CONT  TestInstallLocalManagedWrapsPhaseErrors/ShouldWrapSourceChecksumFailures
+=== CONT  TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForUpdate
+--- PASS: TestInstallLocalManagedWrapsPhaseErrors (0.00s)
+    --- PASS: TestInstallLocalManagedWrapsPhaseErrors/ShouldWrapRegistryInstallFailures (0.00s)
+    --- PASS: TestInstallLocalManagedWrapsPhaseErrors/ShouldWrapSourceChecksumFailures (0.00s)
+=== CONT  TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForCancel
+=== CONT  TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForStart
+=== CONT  TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForComplete
+=== CONT  TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForAttach
+2026/04/15 11:45:43 ERROR extension.lifecycle.failed extension=ext-bad phase=parse error="extension: decode manifest \"/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/TestManagerStartContinuesAfterParseFailure1633667608/002/extension.toml\": toml: line 1 (last key \"not\"): expected value but found \"valid\" instead"
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-good source=user active=true skill_count=0 agent_count=0 hook_count=1 mcp_server_count=0
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-bad
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-good
+=== CONT  TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForFail
+=== CONT  TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForCancel
+--- PASS: TestManagerStartContinuesAfterParseFailure (1.06s)
+=== CONT  TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForClaim
+=== CONT  TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForListRuns
+--- PASS: TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads (0.35s)
+    --- PASS: TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads/MissingBridgeInstanceID (0.00s)
+    --- PASS: TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads/MissingPolicyRequiredPeer (0.00s)
+=== CONT  TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForGet
+=== CONT  TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyCreate
+=== CONT  TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyRunStart
+=== CONT  TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyUpdate
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/list
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/get
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/list
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/store
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/observe/health
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/create
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/messages/ingest
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/recall
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/report_state
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/events
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/jobs/create
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/forget
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/prompt
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/stop
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/status
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/jobs
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/observe/events
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/triggers/fire
+=== CONT  TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/skills/list
+=== CONT  TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldProduceOrderedDeliveryStream
+--- PASS: TestHostAPIHandlerTaskMethodsRequireIdentifiers (0.19s)
+    --- PASS: TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForGet (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunCancel (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunFail (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunComplete (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunClaim (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunEnqueue (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunStart (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForCancel (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForUpdate (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsRequireIdentifiers/ShouldRequireTaskIDForRunsList (0.00s)
+2026/04/15 11:45:43 ERROR extension.lifecycle.failed extension=ext-incompatible phase=parse error="extension: incompatible manifest: current daemon version \"0.5.0\" does not satisfy min_agh_version \"9.0.0\""
+=== CONT  TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldCoalesceIntermediateDeltasForSlowAdapters
+--- PASS: TestManagerStartRejectsIncompatibleManifest (0.92s)
+--- PASS: TestHostAPIHandlerTaskOperationsRequireCapabilities (0.21s)
+    --- PASS: TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyCreate (0.00s)
+    --- PASS: TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyRunStart (0.00s)
+    --- PASS: TestHostAPIHandlerTaskOperationsRequireCapabilities/ShouldDenyUpdate (0.00s)
+--- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities (0.23s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/list (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/get (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/list (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/store (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/observe/health (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/create (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/messages/ingest (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/recall (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/bridges/instances/report_state (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/events (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/jobs/create (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/memory/forget (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/prompt (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/stop (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/sessions/status (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/jobs (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/observe/events (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/automation/triggers/fire (0.00s)
+    --- PASS: TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities/skills/list (0.00s)
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-runtime source=user active=true skill_count=1 agent_count=1 hook_count=1 mcp_server_count=1
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-runtime
+--- PASS: TestManagerStartRegistersResourcesAndActivatesExtension (0.88s)
+=== CONT  TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldResumeActiveDeliveryAfterRestart
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectList
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectRuns
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-bridge source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectGet
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-bridge
+--- PASS: TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime (0.88s)
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-disabled
+--- PASS: TestManagerStartSkipsDisabledExtensions (0.89s)
+--- PASS: TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords (0.18s)
+    --- PASS: TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForUpdate (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForCancel (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForStart (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForComplete (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForAttach (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForFail (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForCancel (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForListRuns (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnTaskNotFoundForGet (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords/ShouldReturnRunNotFoundForClaim (0.04s)
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-bridge-deferred source=user active=false skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-bridge-deferred
+--- PASS: TestManagerStartBridgeAdapterDefersUntilRuntimeExists (0.11s)
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-reload source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-reload
+2026/04/15 11:45:43 INFO extension.lifecycle.loaded extension=ext-reload source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:43 INFO extension.lifecycle.shutdown extension=ext-reload
+--- PASS: TestHostAPIHandlerBridgesInstancesListReturnsOwnedInstancesForProviderRuntime (0.29s)
+--- PASS: TestManagerReloadValidatesAndRestarts (0.00s)
+    --- PASS: TestManagerReloadValidatesAndRestarts/Should_reject_nil_manager (0.00s)
+    --- PASS: TestManagerReloadValidatesAndRestarts/Should_reject_missing_registry (0.00s)
+    --- PASS: TestManagerReloadValidatesAndRestarts/Should_reject_canceled_context (0.00s)
+    --- PASS: TestManagerReloadValidatesAndRestarts/Should_restart_loaded_extensions (0.13s)
+--- PASS: TestHostAPIHandlerRateLimitUsesConfiguredClockRegardlessOfOptionOrder (0.29s)
+--- PASS: TestHostAPIHandlerBridgesInstancesGetRejectsMismatchedRuntimeOwnership (0.27s)
+--- PASS: TestHostAPIHandlerBridgesMessagesIngestRegistersPromptDelivery (0.41s)
+--- PASS: TestHostAPIHandlerBridgesInstancesListAllowsZeroManagedInstances (0.24s)
+--- PASS: TestHostAPIHandlerBridgesMessagesIngestConcurrentSameRoutingKeyCreatesOneSessionAndRoute (0.32s)
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectUnknownWorkspace
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectUnknownWorkspace
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectInvalidQueryScopeBeforeWorkspaceLookup
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectInvalidQueryScopeBeforeWorkspaceLookup
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectGlobalCreateWorkspaceBindingBeforeWorkspaceLookup
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectGlobalCreateWorkspaceBindingBeforeWorkspaceLookup
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectInvalidListChannel
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectInvalidListChannel
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRequireUpdateChanges
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRequireUpdateChanges
+=== RUN   TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRequireAttachSessionID
+=== PAUSE TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRequireAttachSessionID
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectGlobalCreateWorkspaceBindingBeforeWorkspaceLookup
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRequireAttachSessionID
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectInvalidQueryScopeBeforeWorkspaceLookup
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectInvalidListChannel
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectUnknownWorkspace
+=== CONT  TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRequireUpdateChanges
+--- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing (0.00s)
+        --- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectList (0.00s)
+        --- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectRuns (0.00s)
+        --- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectWhenTaskManagerIsMissing/ShouldRejectGet (0.00s)
+    --- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs (0.23s)
+        --- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRequireAttachSessionID (0.00s)
+        --- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectInvalidQueryScopeBeforeWorkspaceLookup (0.00s)
+        --- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectInvalidListChannel (0.00s)
+        --- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectGlobalCreateWorkspaceBindingBeforeWorkspaceLookup (0.00s)
+        --- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRequireUpdateChanges (0.00s)
+        --- PASS: TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration/ShouldRejectInvalidTaskMethodInputs/ShouldRejectUnknownWorkspace (0.00s)
+--- PASS: TestHostAPIHandlerBridgesMessagesIngestExpiredDedupAllowsReingest (0.31s)
+2026/04/15 11:45:44 INFO extension.lifecycle.loaded extension=ext-bridge-order source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:45 INFO extension.lifecycle.shutdown extension=ext-bridge-order
+2026/04/15 11:45:45 INFO extension.lifecycle.loaded extension=ext-bridge-slow source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:46 INFO extension.lifecycle.shutdown extension=ext-bridge-slow
+2026/04/15 11:45:46 INFO extension.lifecycle.loaded extension=ext-bridge-resume source=user active=true skill_count=0 agent_count=0 hook_count=0 mcp_server_count=0
+2026/04/15 11:45:46 WARN extension.lifecycle.failed extension=ext-bridge-resume phase=recover error="subprocess: process exited: exit status 1\nsubprocess: process exited: exit status 1" consecutive_failures=1 restart_backoff_ms=10
+2026/04/15 11:45:46 INFO extension.lifecycle.loaded extension=ext-bridge-resume source=user recovered=true
+2026/04/15 11:45:47 INFO extension.lifecycle.shutdown extension=ext-bridge-resume
+--- PASS: TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios (0.00s)
+    --- PASS: TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldProduceOrderedDeliveryStream (1.38s)
+    --- PASS: TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldCoalesceIntermediateDeltasForSlowAdapters (2.61s)
+    --- PASS: TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios/ShouldResumeActiveDeliveryAfterRestart (3.84s)
+PASS
+ok  	github.com/pedronauck/agh/internal/extension	30.775s

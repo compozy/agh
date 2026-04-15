@@ -1735,6 +1735,175 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 	}
 }
 
+func TestBootStartsBridgeExtensionWithDefaultEnvSecretResolver(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	t.Setenv("AGH_BRIDGE_DEFAULT_TOKEN", "token-from-env")
+
+	markerPath := filepath.Join(t.TempDir(), "bridge-init-default-env.jsonl")
+	extensionName := "ext-bridge-daemon-default-env"
+	instanceID := "brg-daemon-default-env"
+	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		runtimeCommand: daemonExtensionHelperCommand(t),
+		runtimeArgs:    daemonExtensionHelperArgs(),
+		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
+		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
+		},
+		security: []string{"bridge.read", "bridge.write"},
+	}, true)
+
+	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
+	bridgeRegistry := bridgepkg.NewRegistry(registry)
+	instance, err := bridgeRegistry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+		ID:            instanceID,
+		Scope:         bridgepkg.ScopeGlobal,
+		Platform:      "slack",
+		ExtensionName: extensionName,
+		DisplayName:   "Daemon Bridge Default Env",
+		Enabled:       true,
+		Status:        bridgepkg.BridgeStatusReady,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	if err != nil {
+		t.Fatalf("CreateInstance() error = %v", err)
+	}
+	if err := registry.PutBridgeSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
+		BridgeInstanceID: instance.ID,
+		BindingName:      "bot_token",
+		VaultRef:         "env:AGH_BRIDGE_DEFAULT_TOKEN",
+		Kind:             "bot_token",
+		CreatedAt:        time.Date(2026, 4, 11, 13, 32, 0, 0, time.UTC),
+		UpdatedAt:        time.Date(2026, 4, 11, 13, 32, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("PutBridgeSecretBinding() error = %v", err)
+	}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	waitForCondition(t, "bridge initialize marker", func() bool {
+		return markerLineCount(markerPath) >= 1
+	})
+
+	markers := readDaemonInitializeMarkers(t, markerPath)
+	if len(markers) == 0 {
+		t.Fatal("initialize markers = empty, want bridge launch handshake")
+	}
+
+	request := markers[0].Request
+	if request.Runtime.Bridge == nil {
+		t.Fatal("initialize runtime bridge = nil, want bound launch payload")
+	}
+	managed, err := request.Runtime.Bridge.SingleManagedInstance()
+	if err != nil {
+		t.Fatalf("request.Runtime.Bridge.SingleManagedInstance() error = %v", err)
+	}
+	if got, want := managed.BoundSecrets[0].Value, "token-from-env"; got != want {
+		t.Fatalf("initialize runtime bridge bound secrets = %#v, want env-resolved bot_token binding", managed.BoundSecrets)
+	}
+}
+
+func TestBootFailsWhenDefaultBridgeSecretEnvIsMissing(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	markerPath := filepath.Join(t.TempDir(), "bridge-init-missing-env.jsonl")
+	extensionName := "ext-bridge-daemon-missing-env"
+	instanceID := "brg-daemon-missing-env"
+	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		runtimeCommand: daemonExtensionHelperCommand(t),
+		runtimeArgs:    daemonExtensionHelperArgs(),
+		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
+		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
+		},
+		security: []string{"bridge.read", "bridge.write"},
+	}, true)
+
+	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
+	bridgeRegistry := bridgepkg.NewRegistry(registry)
+	instance, err := bridgeRegistry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+		ID:            instanceID,
+		Scope:         bridgepkg.ScopeGlobal,
+		Platform:      "slack",
+		ExtensionName: extensionName,
+		DisplayName:   "Daemon Bridge Missing Env",
+		Enabled:       true,
+		Status:        bridgepkg.BridgeStatusReady,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	if err != nil {
+		t.Fatalf("CreateInstance() error = %v", err)
+	}
+	if err := registry.PutBridgeSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
+		BridgeInstanceID: instance.ID,
+		BindingName:      "bot_token",
+		VaultRef:         "env:AGH_BRIDGE_UNSET_TOKEN",
+		Kind:             "bot_token",
+		CreatedAt:        time.Date(2026, 4, 11, 13, 33, 0, 0, time.UTC),
+		UpdatedAt:        time.Date(2026, 4, 11, 13, 33, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("PutBridgeSecretBinding() error = %v", err)
+	}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v, want daemon to stay up with extension failure recorded", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	ext, err := d.extensions.Get(extensionName)
+	if err != nil {
+		t.Fatalf("extensions.Get(%q) error = %v", extensionName, err)
+	}
+	if ext == nil {
+		t.Fatalf("extensions.Get(%q) = nil, want extension snapshot", extensionName)
+	}
+	if !strings.Contains(ext.Status.LastError, `AGH_BRIDGE_UNSET_TOKEN`) || !strings.Contains(ext.Status.LastError, "not set or empty") {
+		t.Fatalf("extension last error = %q, want missing env name and actionable message", ext.Status.LastError)
+	}
+	if strings.Contains(ext.Status.LastError, errBridgeSecretResolverRequired.Error()) {
+		t.Fatalf("extension last error = %q, want missing env failure instead of missing resolver", ext.Status.LastError)
+	}
+	if ext.Status.Active {
+		t.Fatalf("extension active = %v, want false after missing env secret", ext.Status.Active)
+	}
+}
+
 func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)

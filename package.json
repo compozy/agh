@@ -7,6 +7,7 @@
         "sdk/examples/prompt-enhancer"
     ],
     "scripts": {
+        "postinstall": "bash scripts/postinstall.sh",
         "prepare": "husky",
         "codegen": "make codegen",
         "codegen-check": "make codegen-check",

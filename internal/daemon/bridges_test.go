@@ -15,6 +15,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
@@ -128,6 +129,138 @@ func TestWithBridgeSecretResolver(t *testing.T) {
 
 		if d.bridgeSecretResolver != resolver {
 			t.Fatalf("WithBridgeSecretResolver() stored %#v, want %#v", d.bridgeSecretResolver, resolver)
+		}
+	})
+}
+
+func TestDaemonApplyDefaultsBridgeSecretResolver(t *testing.T) {
+	t.Run("ShouldInstallDefaultEnvResolverWhenUnset", func(t *testing.T) {
+		t.Parallel()
+
+		d := &Daemon{
+			getenv: func(key string) string {
+				if key == "TG_TOKEN" {
+					return "token-from-env"
+				}
+				return ""
+			},
+		}
+
+		if err := d.applyDefaults(); err != nil {
+			t.Fatalf("applyDefaults() error = %v", err)
+		}
+		if d.bridgeSecretResolver == nil {
+			t.Fatal("applyDefaults() bridgeSecretResolver = nil, want default resolver")
+		}
+
+		value, err := d.bridgeSecretResolver.ResolveBridgeSecret(testutil.Context(t), bridgepkg.BridgeSecretBinding{
+			BridgeInstanceID: "brg-default",
+			BindingName:      "bot_token",
+			VaultRef:         "env:TG_TOKEN",
+			Kind:             "token",
+		})
+		if err != nil {
+			t.Fatalf("ResolveBridgeSecret() error = %v", err)
+		}
+		if got, want := value, "token-from-env"; got != want {
+			t.Fatalf("ResolveBridgeSecret() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("ShouldPreserveInjectedResolver", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := &recordingBridgeSecretResolver{}
+		d := &Daemon{
+			getenv:               func(string) string { return "" },
+			bridgeSecretResolver: resolver,
+		}
+
+		if err := d.applyDefaults(); err != nil {
+			t.Fatalf("applyDefaults() error = %v", err)
+		}
+		if d.bridgeSecretResolver != resolver {
+			t.Fatalf("applyDefaults() bridgeSecretResolver = %#v, want %#v", d.bridgeSecretResolver, resolver)
+		}
+	})
+}
+
+func TestEnvBridgeSecretResolver(t *testing.T) {
+	t.Run("ShouldValidateAndResolveSupportedEnvRefs", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := envBridgeSecretResolver{
+			getenv: func(key string) string {
+				if key == "TG_TOKEN" {
+					return "resolved-token"
+				}
+				return ""
+			},
+		}
+		binding := bridgepkg.BridgeSecretBinding{
+			BridgeInstanceID: "brg-env",
+			BindingName:      "bot_token",
+			VaultRef:         " env:TG_TOKEN ",
+			Kind:             "token",
+		}
+
+		if err := resolver.ValidateBridgeSecretBinding(binding); err != nil {
+			t.Fatalf("ValidateBridgeSecretBinding() error = %v", err)
+		}
+
+		value, err := resolver.ResolveBridgeSecret(testutil.Context(t), binding)
+		if err != nil {
+			t.Fatalf("ResolveBridgeSecret() error = %v", err)
+		}
+		if got, want := value, "resolved-token"; got != want {
+			t.Fatalf("ResolveBridgeSecret() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("ShouldRejectUnsupportedRefSchemes", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := envBridgeSecretResolver{getenv: func(string) string { return "" }}
+		binding := bridgepkg.BridgeSecretBinding{
+			BridgeInstanceID: "brg-env-invalid",
+			BindingName:      "bot_token",
+			VaultRef:         "vault://telegram/bot",
+			Kind:             "token",
+		}
+
+		err := resolver.ValidateBridgeSecretBinding(binding)
+		if !errors.Is(err, bridgepkg.ErrInvalidBridgeSecretBinding) || !strings.Contains(err.Error(), "env:NAME") {
+			t.Fatalf("ValidateBridgeSecretBinding() error = %v, want invalid env ref validation", err)
+		}
+	})
+
+	t.Run("ShouldRejectInvalidEnvNames", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := envBridgeSecretResolver{getenv: func(string) string { return "" }}
+		err := resolver.ValidateBridgeSecretBinding(bridgepkg.BridgeSecretBinding{
+			BridgeInstanceID: "brg-env-invalid-name",
+			BindingName:      "bot_token",
+			VaultRef:         "env:TG-TOKEN",
+			Kind:             "token",
+		})
+		if !errors.Is(err, bridgepkg.ErrInvalidBridgeSecretBinding) || !strings.Contains(err.Error(), "invalid") {
+			t.Fatalf("ValidateBridgeSecretBinding() error = %v, want invalid env name error", err)
+		}
+	})
+
+	t.Run("ShouldReportMissingEnvValues", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := envBridgeSecretResolver{getenv: func(string) string { return "" }}
+		_, err := resolver.ResolveBridgeSecret(testutil.Context(t), bridgepkg.BridgeSecretBinding{
+			BridgeInstanceID: "brg-env-missing",
+			BindingName:      "bot_token",
+			VaultRef:         "env:MISSING_TOKEN",
+			Kind:             "token",
+		})
+		if !errors.Is(err, bridgepkg.ErrInvalidBridgeSecretBinding) || !strings.Contains(err.Error(), `MISSING_TOKEN`) {
+			t.Fatalf("ResolveBridgeSecret() error = %v, want missing env error", err)
 		}
 	})
 }
@@ -309,6 +442,64 @@ func TestBridgeRuntimeCreateInstance(t *testing.T) {
 		}
 		if got, want := created.Status, bridgepkg.BridgeStatusDisabled; got != want {
 			t.Fatalf("GetInstance().Status after failed create = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("ShouldAllowReloadToResolveCurrentManagedInstanceWithoutDeadlock", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 11, 12, 22, 0, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+		reload := &resolvingReloadExtensionRuntime{
+			runtime:       runtime,
+			extensionName: "ext-create-reentrant",
+		}
+		runtime.setExtensionRuntime(reload)
+
+		done := make(chan struct{})
+		var (
+			created *bridgepkg.BridgeInstance
+			err     error
+		)
+		go func() {
+			created, err = runtime.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+				ID:            "brg-create-reentrant",
+				Scope:         bridgepkg.ScopeGlobal,
+				Platform:      "slack",
+				ExtensionName: "ext-create-reentrant",
+				DisplayName:   "Create Reentrant Bridge",
+				Enabled:       true,
+				Status:        bridgepkg.BridgeStatusStarting,
+				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+			})
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("CreateInstance() blocked while reload resolved the current managed instance")
+		}
+
+		if err != nil {
+			t.Fatalf("CreateInstance() error = %v", err)
+		}
+		if created == nil {
+			t.Fatal("CreateInstance() = nil, want non-nil")
+		}
+		if got, want := reload.reloadCount, 1; got != want {
+			t.Fatalf("reload count = %d, want %d", got, want)
+		}
+		if reload.launch == nil {
+			t.Fatal("reload launch = nil, want resolved bridge runtime")
+		}
+		managed, ok := reload.launch.ManagedInstance(created.ID)
+		if !ok {
+			t.Fatalf("resolved runtime missing managed instance %q", created.ID)
+		}
+		if got, want := managed.Instance.ID, created.ID; got != want {
+			t.Fatalf("resolved managed instance id = %q, want %q", got, want)
 		}
 	})
 }
@@ -514,6 +705,54 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 		}
 	})
 
+	t.Run("ShouldResolveStockEnvBackedSecrets", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 11, 12, 31, 0, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, envBridgeSecretResolver{
+			getenv: func(key string) string {
+				if key == "AGH_BRIDGE_TEST_TOKEN" {
+					return "secret-from-env"
+				}
+				return ""
+			},
+		})
+		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-secret-env",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-secret-env",
+			DisplayName:   "Secret Env Bridge",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		if err := db.PutBridgeSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
+			BridgeInstanceID: instance.ID,
+			BindingName:      "bot_token",
+			VaultRef:         "env:AGH_BRIDGE_TEST_TOKEN",
+			Kind:             "bot_token",
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		}); err != nil {
+			t.Fatalf("PutBridgeSecretBinding() error = %v", err)
+		}
+
+		launch, err := runtime.ResolveBridgeRuntime(testutil.Context(t), instance.ExtensionName)
+		if err != nil {
+			t.Fatalf("ResolveBridgeRuntime() error = %v", err)
+		}
+
+		managed, ok := launch.ManagedInstance(instance.ID)
+		if !ok {
+			t.Fatalf("ResolveBridgeRuntime() missing managed instance %q", instance.ID)
+		}
+		if got, want := managed.BoundSecrets[0].Value, "secret-from-env"; got != want {
+			t.Fatalf("ResolveBridgeRuntime().ManagedInstance(%q).BoundSecrets[0].Value = %q, want %q", instance.ID, got, want)
+		}
+	})
+
 	t.Run("ShouldRequireSecretResolverWhenBindingsExist", func(t *testing.T) {
 		t.Parallel()
 
@@ -591,6 +830,45 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 		}
 	})
 
+	t.Run("ShouldReportMissingStockEnvSecret", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 11, 12, 36, 30, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, envBridgeSecretResolver{
+			getenv: func(string) string { return "" },
+		})
+
+		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-secret-missing-env",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-secret-missing-env",
+			DisplayName:   "Secret Missing Env",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		if err := db.PutBridgeSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
+			BridgeInstanceID: instance.ID,
+			BindingName:      "bot_token",
+			VaultRef:         "env:AGH_BRIDGE_MISSING_TOKEN",
+			Kind:             "bot_token",
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		}); err != nil {
+			t.Fatalf("PutBridgeSecretBinding() error = %v", err)
+		}
+
+		_, err := runtime.ResolveBridgeRuntime(testutil.Context(t), instance.ExtensionName)
+		if !errors.Is(err, bridgepkg.ErrInvalidBridgeSecretBinding) || !strings.Contains(err.Error(), `AGH_BRIDGE_MISSING_TOKEN`) {
+			t.Fatalf("ResolveBridgeRuntime() error = %v, want missing env error", err)
+		}
+		if strings.Contains(err.Error(), errBridgeSecretResolverRequired.Error()) {
+			t.Fatalf("ResolveBridgeRuntime() error = %v, want missing env failure instead of missing resolver", err)
+		}
+	})
+
 	t.Run("ShouldResolveMultipleEnabledInstancesForOneExtension", func(t *testing.T) {
 		t.Parallel()
 
@@ -659,7 +937,7 @@ func TestBridgeRuntimeSecretBindings(t *testing.T) {
 		t.Parallel()
 
 		db := openDaemonTestGlobalDB(t)
-		runtime := newBridgeRuntime(db, discardLogger(), nil, nil)
+		runtime := newBridgeRuntime(db, discardLogger(), nil, envBridgeSecretResolver{getenv: func(string) string { return "" }})
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
 			ID:            "brg-secret-binding",
 			Scope:         bridgepkg.ScopeGlobal,
@@ -674,7 +952,7 @@ func TestBridgeRuntimeSecretBindings(t *testing.T) {
 		err := runtime.PutSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
 			BridgeInstanceID: " " + instance.ID + " ",
 			BindingName:      " bot_token ",
-			VaultRef:         "vault://bridges/ext-secret-binding/bot-token",
+			VaultRef:         " env:TG_TOKEN ",
 			Kind:             "token",
 		})
 		if err != nil {
@@ -705,6 +983,33 @@ func TestBridgeRuntimeSecretBindings(t *testing.T) {
 		}
 		if got := len(bindings); got != 0 {
 			t.Fatalf("len(bindings after delete) = %d, want 0", got)
+		}
+	})
+
+	t.Run("ShouldRejectUnsupportedStockSecretRefs", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		runtime := newBridgeRuntime(db, discardLogger(), nil, envBridgeSecretResolver{getenv: func(string) string { return "" }})
+		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-secret-binding-invalid",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-secret-binding-invalid",
+			DisplayName:   "Secret Binding Invalid",
+			Enabled:       false,
+			Status:        bridgepkg.BridgeStatusDisabled,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+
+		err := runtime.PutSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
+			BridgeInstanceID: instance.ID,
+			BindingName:      "bot_token",
+			VaultRef:         "vault://telegram/bot",
+			Kind:             "token",
+		})
+		if !errors.Is(err, bridgepkg.ErrInvalidBridgeSecretBinding) || !strings.Contains(err.Error(), "env:NAME") {
+			t.Fatalf("PutSecretBinding() error = %v, want invalid stock env ref error", err)
 		}
 	})
 
@@ -1029,6 +1334,76 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 			t.Fatalf("GetInstance().Status after concurrent restart/stop = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("ShouldSerializeReloadsAcrossInstancesOfSameExtension", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 11, 13, 12, 0, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+
+		first := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-race-a",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-race-shared",
+			DisplayName:   "Race Shared A",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		second := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-race-b",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-race-shared",
+			DisplayName:   "Race Shared B",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		extensions := newBlockingReloadExtensionRuntime(nil)
+		runtime.setExtensionRuntime(extensions)
+
+		ctx := testutil.Context(t)
+		firstErrCh := make(chan error, 1)
+		go func() {
+			_, err := runtime.RestartInstance(ctx, first.ID)
+			firstErrCh <- err
+		}()
+
+		select {
+		case <-extensions.firstStarted:
+		case <-time.After(time.Second):
+			t.Fatal("RestartInstance(first) did not enter reload")
+		}
+
+		secondErrCh := make(chan error, 1)
+		go func() {
+			_, err := runtime.RestartInstance(ctx, second.ID)
+			secondErrCh <- err
+		}()
+
+		select {
+		case <-extensions.secondStarted:
+			t.Fatal("RestartInstance(second) entered reload before same-extension reload completed")
+		case err := <-secondErrCh:
+			t.Fatalf("RestartInstance(second) returned before same-extension reload completed: %v", err)
+		case <-time.After(200 * time.Millisecond):
+		}
+
+		close(extensions.releaseFirst)
+
+		if err := <-firstErrCh; err != nil {
+			t.Fatalf("RestartInstance(first) error = %v", err)
+		}
+		if err := <-secondErrCh; err != nil {
+			t.Fatalf("RestartInstance(second) error = %v", err)
+		}
+		if got, want := extensions.reloadCount, 2; got != want {
+			t.Fatalf("reload count = %d, want %d", got, want)
+		}
+	})
 }
 
 func mustCreateDaemonBridgeInstance(
@@ -1069,6 +1444,13 @@ type blockingReloadExtensionRuntime struct {
 	firstStartOnce sync.Once
 }
 
+type resolvingReloadExtensionRuntime struct {
+	runtime       *bridgeRuntime
+	extensionName string
+	reloadCount   int
+	launch        *subprocess.InitializeBridgeRuntime
+}
+
 func newBlockingReloadExtensionRuntime(reloadErr error) *blockingReloadExtensionRuntime {
 	return &blockingReloadExtensionRuntime{
 		reloadErr:     reloadErr,
@@ -1076,6 +1458,32 @@ func newBlockingReloadExtensionRuntime(reloadErr error) *blockingReloadExtension
 		secondStarted: make(chan struct{}),
 		releaseFirst:  make(chan struct{}),
 	}
+}
+
+func (r *resolvingReloadExtensionRuntime) Start(context.Context) error {
+	return nil
+}
+
+func (r *resolvingReloadExtensionRuntime) Stop(context.Context) error {
+	return nil
+}
+
+func (r *resolvingReloadExtensionRuntime) Reload(ctx context.Context) error {
+	r.reloadCount++
+	launch, err := r.runtime.ResolveBridgeRuntime(ctx, r.extensionName)
+	if err != nil {
+		return err
+	}
+	r.launch = launch
+	return nil
+}
+
+func (r *resolvingReloadExtensionRuntime) Get(string) (*extensionpkg.Extension, error) {
+	return nil, nil
+}
+
+func (r *resolvingReloadExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
+	return nil, nil
 }
 
 type daemonExtensionFixture struct {

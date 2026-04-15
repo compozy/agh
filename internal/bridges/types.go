@@ -14,6 +14,9 @@ var (
 	ErrBridgeInstanceNotFound = errors.New("bridges: bridge instance not found")
 	// ErrBridgeInstanceUnavailable reports that the instance exists but cannot currently accept routing work.
 	ErrBridgeInstanceUnavailable = errors.New("bridges: bridge instance unavailable")
+	// ErrInvalidBridgeSecretBinding reports that a bridge secret binding payload
+	// is malformed or unsupported by the active daemon secret backend.
+	ErrInvalidBridgeSecretBinding = errors.New("bridges: invalid bridge secret binding")
 	// ErrBridgeSecretBindingNotFound reports that no persisted secret binding matched the lookup.
 	ErrBridgeSecretBindingNotFound = errors.New("bridges: bridge secret binding not found")
 	// ErrBridgeRouteNotFound reports that no persisted route matched the lookup.

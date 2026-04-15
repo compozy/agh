@@ -1023,6 +1023,83 @@ func TestDispatchInboundBatchMergesContent(t *testing.T) {
 	}
 }
 
+func TestStopClosesBatchersWithoutProviderLockDeadlock(t *testing.T) {
+	runtime, err := newSlackProvider(io.Discard)
+	if err != nil {
+		t.Fatalf("newSlackProvider() error = %v", err)
+	}
+
+	dispatchStarted := make(chan struct{})
+	allowLookup := make(chan struct{})
+	dispatchDone := make(chan struct{})
+
+	batcher, err := bridgesdk.NewInboundBatcher(bridgesdk.InboundBatcherConfig{
+		Context: context.Background(),
+		Delay:   5 * time.Millisecond,
+		Dispatch: func(context.Context, bridgesdk.InboundBatch) error {
+			close(dispatchStarted)
+			<-allowLookup
+			_, lookupErr := runtime.configForInstance("brg-1")
+			close(dispatchDone)
+			return lookupErr
+		},
+		Now: func() time.Time { return time.Now().UTC() },
+	})
+	if err != nil {
+		t.Fatalf("NewInboundBatcher() error = %v", err)
+	}
+
+	runtime.routes = map[string]resolvedInstanceConfig{
+		"brg-1": {
+			instanceID:  "brg-1",
+			webhookPath: "/slack/brg-1",
+			batcher:     batcher,
+		},
+	}
+
+	if err := batcher.Enqueue(bridgepkg.InboundMessageEnvelope{
+		BridgeInstanceID:  "brg-1",
+		Scope:             bridgepkg.ScopeWorkspace,
+		WorkspaceID:       "ws-slack",
+		GroupID:           "C123",
+		ThreadID:          "thread-1",
+		PlatformMessageID: "m-1",
+		ReceivedAt:        time.Now().UTC(),
+		Sender:            bridgepkg.MessageSender{ID: "U1"},
+		Content:           bridgepkg.MessageContent{Text: "hello"},
+		EventFamily:       bridgepkg.InboundEventFamilyMessage,
+		IdempotencyKey:    "slack-stop-deadlock",
+	}); err != nil {
+		t.Fatalf("batcher.Enqueue() error = %v", err)
+	}
+
+	select {
+	case <-dispatchStarted:
+	case <-time.After(time.Second):
+		t.Fatal("dispatch did not start before timeout")
+	}
+
+	stopDone := make(chan struct{})
+	go func() {
+		runtime.stop()
+		close(stopDone)
+	}()
+
+	close(allowLookup)
+
+	select {
+	case <-dispatchDone:
+	case <-time.After(time.Second):
+		t.Fatal("dispatch remained blocked during stop")
+	}
+
+	select {
+	case <-stopDone:
+	case <-time.After(time.Second):
+		t.Fatal("stop() remained blocked while closing batchers")
+	}
+}
+
 func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	env := setProviderTestEnv(t)
 	_ = env
@@ -1033,13 +1110,14 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	now := time.Date(2026, 4, 15, 14, 0, 0, 0, time.UTC)
 	managed := testBridgeRuntime(now, "brg-1")
 	managed.Instance.DMPolicy = bridgepkg.BridgeDMPolicyPairing
-	managed.Instance.ProviderConfig = []byte(`{
+	configured := managed
+	configured.Instance.ProviderConfig = []byte(`{
 		"api_base_url":"https://slack-gov.example/api/",
 		"webhook":{"listen_addr":"127.0.0.1:9999","path":"slack"},
 		"batching":{"delay_ms":5,"split_delay_ms":7,"split_threshold":2},
 		"dm":{"allow_user_ids":[" u123 "],"allow_usernames":["@Alice"],"paired_usernames":["Bob"]}
 	}`)
-	managed.BoundSecrets = []subprocess.InitializeBridgeBoundSecret{
+	configured.BoundSecrets = []subprocess.InitializeBridgeBoundSecret{
 		{BindingName: "bot_token", Kind: "token", Value: "xoxb-slack-token"},
 		{BindingName: "signing_secret", Kind: "token", Value: "top-secret"},
 	}
@@ -1069,7 +1147,7 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 		t.Fatal("runtime.currentSession() = nil, want session")
 	}
 
-	cfg := runtime.resolveInstanceConfig(session, managed)
+	cfg := runtime.resolveInstanceConfig(session, configured)
 	if cfg.configError != nil {
 		t.Fatalf("resolveInstanceConfig() configError = %v, want nil", cfg.configError)
 	}
@@ -1109,7 +1187,7 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 		t.Fatalf("normalizeURL() = %q, want %q", got, want)
 	}
 
-	bad := managed
+	bad := configured
 	bad.Instance.ProviderConfig = []byte("{")
 	if cfg := runtime.resolveInstanceConfig(session, bad); cfg.configError == nil {
 		t.Fatal("resolveInstanceConfig(bad json) configError = nil, want non-nil")
@@ -1586,10 +1664,17 @@ func newRuntimePeerPair(t *testing.T) (*slackProvider, *bridgesdk.Peer, func()) 
 			runtime.stop()
 			runtime.mu.RLock()
 			server := runtime.server
+			listener := runtime.serverListener
 			runtime.mu.RUnlock()
+			if listener != nil {
+				_ = listener.Close()
+			}
 			if server != nil {
 				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-				_ = server.Shutdown(shutdownCtx)
+				if err := server.Shutdown(shutdownCtx); err != nil {
+					_ = server.Close()
+				}
+				_ = server.Close()
 				shutdownCancel()
 			}
 			_ = hostConn.Close()

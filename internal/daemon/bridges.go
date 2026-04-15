@@ -48,15 +48,23 @@ type bridgeRuntime struct {
 	logger         *slog.Logger
 	now            func() time.Time
 
-	lifecycleMu    sync.Mutex
-	lifecycleLocks map[string]*bridgeLifecycleLock
-	mu             sync.RWMutex
-	extensions     extensionRuntime
+	lifecycleMu             sync.Mutex
+	lifecycleLocks          map[string]*bridgeLifecycleLock
+	extensionLifecycleLocks map[string]*bridgeLifecycleLock
+	mu                      sync.RWMutex
+	extensions              extensionRuntime
 }
 
 type bridgeLifecycleLock struct {
 	mu   sync.Mutex
 	refs int
+}
+
+type bridgeLifecycleContextKey struct{}
+
+type bridgeLifecycleContextState struct {
+	extensions map[string]struct{}
+	instances  map[string]struct{}
 }
 
 var _ extensionpkg.BridgeRuntimeResolver = (*bridgeRuntime)(nil)
@@ -108,8 +116,10 @@ func (r *bridgeRuntime) CreateInstance(ctx context.Context, req bridgepkg.Create
 		return nil, errors.New("daemon: bridge runtime is required")
 	}
 
-	unlock := r.lockInstanceLifecycle(req.ID)
-	defer unlock()
+	ctx, unlockExtension := r.lockExtensionLifecycleContext(ctx, req.ExtensionName)
+	defer unlockExtension()
+	ctx, unlockInstance := r.lockInstanceLifecycleContext(ctx, req.ID)
+	defer unlockInstance()
 
 	created, err := r.Service.CreateInstance(ctx, req)
 	if err != nil {
@@ -180,6 +190,11 @@ func (r *bridgeRuntime) PutSecretBinding(ctx context.Context, binding bridgepkg.
 	}
 	binding.BridgeInstanceID = strings.TrimSpace(binding.BridgeInstanceID)
 	binding.BindingName = strings.TrimSpace(binding.BindingName)
+	if validator, ok := r.secretResolver.(bridgeSecretBindingValidator); ok {
+		if err := validator.ValidateBridgeSecretBinding(binding); err != nil {
+			return fmt.Errorf("daemon: put bridge secret binding: %w", err)
+		}
+	}
 	if err := r.store.PutBridgeSecretBinding(ctx, binding); err != nil {
 		return fmt.Errorf("daemon: put bridge secret binding: %w", err)
 	}
@@ -342,6 +357,9 @@ func (r *bridgeRuntime) ResolveBridgeRuntime(ctx context.Context, extensionName 
 		return nil, err
 	}
 
+	ctx, unlock := r.lockExtensionLifecycleContext(ctx, extensionName)
+	defer unlock()
+
 	managedInstances, err := r.managedInstancesForExtension(ctx, extensionName)
 	if err != nil {
 		return nil, err
@@ -387,8 +405,20 @@ func (r *bridgeRuntime) transitionInstance(
 		return nil, fmt.Errorf("daemon: %s bridge instance id is required", action)
 	}
 
-	unlock := r.lockInstanceLifecycle(trimmedID)
-	defer unlock()
+	var extensionName string
+	if reload {
+		current, loadErr := r.GetInstance(ctx, trimmedID)
+		if loadErr != nil {
+			return nil, fmt.Errorf("daemon: %s bridge instance %q: load current extension: %w", action, trimmedID, loadErr)
+		}
+		if current != nil {
+			extensionName = current.ExtensionName
+		}
+	}
+	ctx, unlockExtension := r.lockExtensionLifecycleContext(ctx, extensionName)
+	defer unlockExtension()
+	ctx, unlockInstance := r.lockInstanceLifecycleContext(ctx, trimmedID)
+	defer unlockInstance()
 
 	var previous *bridgepkg.BridgeInstance
 	if reload {
@@ -495,6 +525,41 @@ func (r *bridgeRuntime) lockInstanceLifecycle(id string) func() {
 	}
 }
 
+func (r *bridgeRuntime) lockExtensionLifecycle(extensionName string) func() {
+	if r == nil {
+		return func() {}
+	}
+
+	trimmed := strings.TrimSpace(extensionName)
+	if trimmed == "" {
+		return func() {}
+	}
+
+	r.lifecycleMu.Lock()
+	if r.extensionLifecycleLocks == nil {
+		r.extensionLifecycleLocks = make(map[string]*bridgeLifecycleLock)
+	}
+	lock := r.extensionLifecycleLocks[trimmed]
+	if lock == nil {
+		lock = &bridgeLifecycleLock{}
+		r.extensionLifecycleLocks[trimmed] = lock
+	}
+	lock.refs++
+	r.lifecycleMu.Unlock()
+
+	lock.mu.Lock()
+	return func() {
+		lock.mu.Unlock()
+
+		r.lifecycleMu.Lock()
+		lock.refs--
+		if lock.refs == 0 {
+			delete(r.extensionLifecycleLocks, trimmed)
+		}
+		r.lifecycleMu.Unlock()
+	}
+}
+
 func (r *bridgeRuntime) managedInstancesForExtension(ctx context.Context, extensionName string) ([]bridgepkg.BridgeInstance, error) {
 	trimmed := strings.TrimSpace(extensionName)
 	if trimmed == "" {
@@ -535,7 +600,7 @@ func (r *bridgeRuntime) prepareManagedBridgeRuntime(
 		return nil, errors.New("daemon: bridge runtime requires at least one managed instance")
 	}
 
-	unlock := r.lockManagedInstanceLifecycleSet(bridgeInstanceIDs(instances))
+	ctx, unlock := r.lockManagedInstanceLifecycleSet(ctx, bridgeInstanceIDs(instances))
 	defer unlock()
 
 	resolvedSecrets := make(map[string][]subprocess.InitializeBridgeBoundSecret, len(instances))
@@ -639,9 +704,12 @@ func (r *bridgeRuntime) rollbackManagedInstanceStates(
 	return rollbackErr
 }
 
-func (r *bridgeRuntime) lockManagedInstanceLifecycleSet(ids []string) func() {
+func (r *bridgeRuntime) lockManagedInstanceLifecycleSet(
+	ctx context.Context,
+	ids []string,
+) (context.Context, func()) {
 	if len(ids) == 0 {
-		return func() {}
+		return ctx, func() {}
 	}
 
 	normalized := append([]string(nil), ids...)
@@ -650,22 +718,133 @@ func (r *bridgeRuntime) lockManagedInstanceLifecycleSet(ids []string) func() {
 	}
 	normalized = slices.DeleteFunc(normalized, func(id string) bool { return id == "" })
 	if len(normalized) == 0 {
-		return func() {}
+		return ctx, func() {}
 	}
 
 	slices.Sort(normalized)
 	normalized = slices.Compact(normalized)
 
 	unlocks := make([]func(), 0, len(normalized))
+	lockedIDs := make([]string, 0, len(normalized))
 	for _, id := range normalized {
+		if bridgeLifecycleContextHasInstance(ctx, id) {
+			continue
+		}
 		unlocks = append(unlocks, r.lockInstanceLifecycle(id))
+		lockedIDs = append(lockedIDs, id)
 	}
 
-	return func() {
+	updatedCtx := withBridgeLifecycleContextInstances(ctx, lockedIDs...)
+	return updatedCtx, func() {
 		for idx := len(unlocks) - 1; idx >= 0; idx-- {
 			unlocks[idx]()
 		}
 	}
+}
+
+func (r *bridgeRuntime) lockExtensionLifecycleContext(
+	ctx context.Context,
+	extensionName string,
+) (context.Context, func()) {
+	trimmed := strings.TrimSpace(extensionName)
+	if trimmed == "" || bridgeLifecycleContextHasExtension(ctx, trimmed) {
+		return ctx, func() {}
+	}
+
+	unlock := r.lockExtensionLifecycle(trimmed)
+	return withBridgeLifecycleContextExtensions(ctx, trimmed), unlock
+}
+
+func (r *bridgeRuntime) lockInstanceLifecycleContext(ctx context.Context, id string) (context.Context, func()) {
+	trimmed := strings.TrimSpace(id)
+	if trimmed == "" || bridgeLifecycleContextHasInstance(ctx, trimmed) {
+		return ctx, func() {}
+	}
+
+	unlock := r.lockInstanceLifecycle(trimmed)
+	return withBridgeLifecycleContextInstances(ctx, trimmed), unlock
+}
+
+func bridgeLifecycleContextHasExtension(ctx context.Context, extensionName string) bool {
+	if ctx == nil {
+		return false
+	}
+	state, _ := ctx.Value(bridgeLifecycleContextKey{}).(bridgeLifecycleContextState)
+	if len(state.extensions) == 0 {
+		return false
+	}
+	_, ok := state.extensions[strings.TrimSpace(extensionName)]
+	return ok
+}
+
+func bridgeLifecycleContextHasInstance(ctx context.Context, id string) bool {
+	if ctx == nil {
+		return false
+	}
+	state, _ := ctx.Value(bridgeLifecycleContextKey{}).(bridgeLifecycleContextState)
+	if len(state.instances) == 0 {
+		return false
+	}
+	_, ok := state.instances[strings.TrimSpace(id)]
+	return ok
+}
+
+func withBridgeLifecycleContextExtensions(ctx context.Context, extensionNames ...string) context.Context {
+	if ctx == nil {
+		return nil
+	}
+
+	state, _ := ctx.Value(bridgeLifecycleContextKey{}).(bridgeLifecycleContextState)
+	next := bridgeLifecycleContextState{
+		extensions: cloneBridgeLifecycleContextSet(state.extensions),
+		instances:  cloneBridgeLifecycleContextSet(state.instances),
+	}
+	for _, name := range extensionNames {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			continue
+		}
+		if next.extensions == nil {
+			next.extensions = make(map[string]struct{})
+		}
+		next.extensions[trimmed] = struct{}{}
+	}
+	return context.WithValue(ctx, bridgeLifecycleContextKey{}, next)
+}
+
+func withBridgeLifecycleContextInstances(ctx context.Context, ids ...string) context.Context {
+	if ctx == nil {
+		return nil
+	}
+
+	state, _ := ctx.Value(bridgeLifecycleContextKey{}).(bridgeLifecycleContextState)
+	next := bridgeLifecycleContextState{
+		extensions: cloneBridgeLifecycleContextSet(state.extensions),
+		instances:  cloneBridgeLifecycleContextSet(state.instances),
+	}
+	for _, id := range ids {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" {
+			continue
+		}
+		if next.instances == nil {
+			next.instances = make(map[string]struct{})
+		}
+		next.instances[trimmed] = struct{}{}
+	}
+	return context.WithValue(ctx, bridgeLifecycleContextKey{}, next)
+}
+
+func cloneBridgeLifecycleContextSet(source map[string]struct{}) map[string]struct{} {
+	if len(source) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]struct{}, len(source))
+	for key := range source {
+		cloned[key] = struct{}{}
+	}
+	return cloned
 }
 
 func bridgeInstanceIDs(instances []bridgepkg.BridgeInstance) []string {

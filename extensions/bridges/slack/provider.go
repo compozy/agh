@@ -45,6 +45,7 @@ type slackProvider struct {
 	mu             sync.RWMutex
 	lastError      string
 	server         *http.Server
+	serverListener net.Listener
 	serverAddr     string
 	listenAddr     string
 	routes         map[string]resolvedInstanceConfig
@@ -455,9 +456,18 @@ func (p *slackProvider) handleShutdown(
 
 	p.mu.Lock()
 	server := p.server
+	listener := p.serverListener
+	p.server = nil
+	p.serverListener = nil
 	p.mu.Unlock()
+	if listener != nil {
+		_ = listener.Close()
+	}
 	if server != nil {
-		_ = server.Shutdown(shutdownCtx)
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+		}
+		_ = server.Close()
 	}
 
 	done := make(chan struct{})
@@ -478,15 +488,17 @@ func (p *slackProvider) handleShutdown(
 func (p *slackProvider) stop() {
 	p.stopOnce.Do(func() {
 		close(p.stopCh)
+		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{}, len(p.routes))
 		p.mu.Lock()
-		defer p.mu.Unlock()
 		for id, cfg := range p.routes {
 			if cfg.batcher != nil {
-				cfg.batcher.Close()
+				batchersToClose[cfg.batcher] = struct{}{}
 				cfg.batcher = nil
 				p.routes[id] = cfg
 			}
 		}
+		p.mu.Unlock()
+		closeInboundBatchers(batchersToClose)
 	})
 }
 
@@ -638,9 +650,16 @@ func (p *slackProvider) reconcileInstanceConfigs(
 	managed []subprocess.InitializeBridgeManagedInstance,
 ) ([]resolvedInstanceConfig, error) {
 	if len(managed) == 0 {
+		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{}, len(p.routes))
 		p.mu.Lock()
+		for _, cfg := range p.routes {
+			if cfg.batcher != nil {
+				batchersToClose[cfg.batcher] = struct{}{}
+			}
+		}
 		p.routes = make(map[string]resolvedInstanceConfig)
 		p.mu.Unlock()
+		closeInboundBatchers(batchersToClose)
 		return nil, nil
 	}
 
@@ -681,11 +700,12 @@ func (p *slackProvider) reconcileInstanceConfigs(
 	}
 
 	nextRoutes := make(map[string]resolvedInstanceConfig, len(configs))
+	batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
 	p.mu.Lock()
 	existing := p.routes
 	for _, cfg := range configs {
-		if prior, ok := existing[cfg.instanceID]; ok && prior.batcher != nil && cfg.batcher == nil {
-			prior.batcher.Close()
+		if prior, ok := existing[cfg.instanceID]; ok && prior.batcher != nil && prior.batcher != cfg.batcher {
+			batchersToClose[prior.batcher] = struct{}{}
 		}
 		nextRoutes[cfg.instanceID] = cfg
 	}
@@ -694,12 +714,13 @@ func (p *slackProvider) reconcileInstanceConfigs(
 			continue
 		}
 		if prior.batcher != nil {
-			prior.batcher.Close()
+			batchersToClose[prior.batcher] = struct{}{}
 		}
 	}
 	p.routes = nextRoutes
 	p.listenAddr = requestedListen
 	p.mu.Unlock()
+	closeInboundBatchers(batchersToClose)
 
 	for idx := range configs {
 		status, degradation, err := p.determineInitialState(ctx, configs[idx])
@@ -852,6 +873,7 @@ func (p *slackProvider) startServer(listenAddr string) error {
 	actualAddr := ln.Addr().String()
 	p.mu.Lock()
 	p.server = httpServer
+	p.serverListener = ln
 	p.serverAddr = actualAddr
 	p.listenAddr = strings.TrimSpace(listenAddr)
 	p.mu.Unlock()
@@ -1160,6 +1182,12 @@ func (p *slackProvider) storeDeliveryState(instanceID string, deliveryID string,
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
+}
+
+func closeInboundBatchers(batchers map[*bridgesdk.InboundBatcher]struct{}) {
+	for batcher := range batchers {
+		batcher.Close()
+	}
 }
 
 func (p *slackProvider) setLastError(err error) {

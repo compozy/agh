@@ -118,6 +118,8 @@ func StatusForBridgeError(err error) int {
 		return http.StatusOK
 	case errors.Is(err, contract.ErrBridgeInstanceMismatch):
 		return http.StatusBadRequest
+	case errors.Is(err, bridgepkg.ErrInvalidBridgeSecretBinding):
+		return http.StatusBadRequest
 	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, bridgepkg.ErrBridgeSecretBindingNotFound):

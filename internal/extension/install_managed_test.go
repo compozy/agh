@@ -129,6 +129,94 @@ func TestCopyInstallTreeMaterializesSymlinkTargets(t *testing.T) {
 	}
 }
 
+func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := filepath.Join(t.TempDir(), "source")
+	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules", "@agh"), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(source node_modules) error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules", "@types"), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(source @types) error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules", ".bin"), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(source .bin) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "package.json"), []byte("{\"dependencies\":{\"@agh/extension-sdk\":\"workspace:*\"},\"devDependencies\":{\"@types/node\":\"^25.5.2\",\"typescript\":\"^6.0.2\"}}\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(source package.json) error = %v", err)
+	}
+
+	runtimePackageDir := filepath.Join(t.TempDir(), "extension-sdk")
+	if err := os.MkdirAll(filepath.Join(runtimePackageDir, "dist"), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(runtime package) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(runtimePackageDir, "package.json"), []byte("{\"name\":\"@agh/extension-sdk\",\"main\":\"./dist/index.js\"}\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(runtime package.json) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(runtimePackageDir, "dist", "index.js"), []byte("export const runtime = true;\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(runtime dist) error = %v", err)
+	}
+
+	typescriptDir := filepath.Join(t.TempDir(), "typescript")
+	if err := os.MkdirAll(filepath.Join(typescriptDir, "bin"), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(typescript) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(typescriptDir, "bin", "tsc"), []byte("#!/usr/bin/env node\n"), 0o755); err != nil {
+		t.Fatalf("os.WriteFile(tsc) error = %v", err)
+	}
+
+	nodeTypesDir := filepath.Join(t.TempDir(), "node-types")
+	if err := os.MkdirAll(nodeTypesDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(node types) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(nodeTypesDir, "index.d.ts"), []byte("export {};\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(node types) error = %v", err)
+	}
+
+	if err := os.Symlink(runtimePackageDir, filepath.Join(sourceDir, "node_modules", "@agh", "extension-sdk")); err != nil {
+		t.Skipf("os.Symlink(runtime dependency) unavailable: %v", err)
+	}
+	if err := os.Symlink(typescriptDir, filepath.Join(sourceDir, "node_modules", "typescript")); err != nil {
+		t.Skipf("os.Symlink(dev dependency) unavailable: %v", err)
+	}
+	if err := os.Symlink(nodeTypesDir, filepath.Join(sourceDir, "node_modules", "@types", "node")); err != nil {
+		t.Skipf("os.Symlink(dev dependency) unavailable: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(typescriptDir, "bin", "tsc"), filepath.Join(sourceDir, "node_modules", ".bin", "tsc")); err != nil {
+		t.Skipf("os.Symlink(dev binary) unavailable: %v", err)
+	}
+
+	targetDir := filepath.Join(t.TempDir(), "target")
+	if err := copyInstallTree(sourceDir, targetDir); err != nil {
+		t.Fatalf("copyInstallTree() error = %v", err)
+	}
+
+	copiedRuntimeDir := filepath.Join(targetDir, "node_modules", "@agh", "extension-sdk")
+	info, err := os.Lstat(copiedRuntimeDir)
+	if err != nil {
+		t.Fatalf("os.Lstat(%q) error = %v", copiedRuntimeDir, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("copied runtime dir mode = %v, want materialized directory", info.Mode())
+	}
+	if _, err := os.Stat(filepath.Join(copiedRuntimeDir, "package.json")); err != nil {
+		t.Fatalf("os.Stat(copied runtime package.json) error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(copiedRuntimeDir, "dist", "index.js")); err != nil {
+		t.Fatalf("os.Stat(copied runtime dist) error = %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(targetDir, "node_modules", "typescript")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("os.Stat(copied dev dependency) error = %v, want not exists", err)
+	}
+	if _, err := os.Stat(filepath.Join(targetDir, "node_modules", "@types")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("os.Stat(copied dev types) error = %v, want not exists", err)
+	}
+	if _, err := os.Stat(filepath.Join(targetDir, "node_modules", ".bin")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("os.Stat(copied dev bin) error = %v, want not exists", err)
+	}
+}
+
 func TestInstallLocalManagedUsesInstalledChecksumForMaterializedSymlinks(t *testing.T) {
 	t.Parallel()
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/subprocess"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestMapTelegramUpdateDirectAndForumRouting(t *testing.T) {
@@ -148,6 +150,7 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 	}
 
 	finalReq := testDeliveryRequest("brg-1", "delivery-1", 2, bridgepkg.DeliveryEventTypeFinal, true)
+	finalReq.Event.Content.Text = "hello world"
 	finalAck, state, err := executeDelivery(context.Background(), api, cfg, finalReq, state)
 	if err != nil {
 		t.Fatalf("executeDelivery(final) error = %v", err)
@@ -156,12 +159,25 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 		t.Fatalf("finalAck.ReplaceRemoteMessageID = %q, want %q", got, want)
 	}
 
-	deleteReq := testDeleteRequest("brg-1", "delivery-1", 3, finalAck.RemoteMessageID)
+	finalNoOpReq := testDeliveryRequest("brg-1", "delivery-1", 3, bridgepkg.DeliveryEventTypeFinal, true)
+	finalNoOpReq.Event.Content.Text = "hello world"
+	finalNoOpAck, state, err := executeDelivery(context.Background(), api, cfg, finalNoOpReq, state)
+	if err != nil {
+		t.Fatalf("executeDelivery(final no-op) error = %v", err)
+	}
+	if got, want := finalNoOpAck.RemoteMessageID, finalAck.RemoteMessageID; got != want {
+		t.Fatalf("finalNoOpAck.RemoteMessageID = %q, want %q", got, want)
+	}
+	if got, want := finalNoOpAck.ReplaceRemoteMessageID, finalAck.RemoteMessageID; got != want {
+		t.Fatalf("finalNoOpAck.ReplaceRemoteMessageID = %q, want %q", got, want)
+	}
+
+	deleteReq := testDeleteRequest("brg-1", "delivery-1", 4, finalNoOpAck.RemoteMessageID)
 	deleteAck, _, err := executeDelivery(context.Background(), api, cfg, deleteReq, state)
 	if err != nil {
 		t.Fatalf("executeDelivery(delete) error = %v", err)
 	}
-	if got, want := deleteAck.RemoteMessageID, finalAck.RemoteMessageID; got != want {
+	if got, want := deleteAck.RemoteMessageID, finalNoOpAck.RemoteMessageID; got != want {
 		t.Fatalf("deleteAck.RemoteMessageID = %q, want %q", got, want)
 	}
 	if got, want := strings.Join(api.methods, ","), "sendMessage,editMessageText,deleteMessage"; got != want {
@@ -438,7 +454,9 @@ func TestRuntimeDeliveriesCallTelegramBotAPI(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "bridges/deliver", testDeliveryRequest("brg-1", "delivery-1", 1, bridgepkg.DeliveryEventTypeStart, false), &ack); err != nil {
 		t.Fatalf("hostPeer.Call(start delivery) error = %v", err)
 	}
-	if err := hostPeer.Call(context.Background(), "bridges/deliver", testDeliveryRequest("brg-1", "delivery-1", 2, bridgepkg.DeliveryEventTypeFinal, true), &ack); err != nil {
+	finalReq := testDeliveryRequest("brg-1", "delivery-1", 2, bridgepkg.DeliveryEventTypeFinal, true)
+	finalReq.Event.Content.Text = "hello world"
+	if err := hostPeer.Call(context.Background(), "bridges/deliver", finalReq, &ack); err != nil {
 		t.Fatalf("hostPeer.Call(final delivery) error = %v", err)
 	}
 
@@ -509,6 +527,9 @@ func TestHandleShutdownWritesMarker(t *testing.T) {
 func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	env := setProviderTestEnv(t)
 	_ = env
+	listenAddr := reserveListenAddr(t)
+	mockAPI := newTelegramAPIServer(t)
+	apiBaseURL := mockAPI.URL() + "/"
 
 	runtime, hostPeer, cleanup := newRuntimePeerPair(t)
 	defer cleanup()
@@ -516,12 +537,12 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	now := time.Date(2026, 4, 15, 14, 0, 0, 0, time.UTC)
 	managed := testBridgeRuntime(now, "brg-1")
 	managed.Instance.DMPolicy = bridgepkg.BridgeDMPolicyPairing
-	managed.Instance.ProviderConfig = []byte(`{
-		"api_base_url":"http://api.example/",
-		"webhook":{"listen_addr":"127.0.0.1:9999","path":"telegram"},
+	managed.Instance.ProviderConfig = []byte(fmt.Sprintf(`{
+		"api_base_url":%q,
+		"webhook":{"listen_addr":%q,"path":"telegram"},
 		"batching":{"delay_ms":5,"split_delay_ms":7,"split_threshold":2},
 		"dm":{"allow_user_ids":[" 42 "],"allow_usernames":["@Alice"],"paired_usernames":["Bob"]}
-	}`)
+	}`, apiBaseURL, listenAddr))
 	managed.BoundSecrets = []subprocess.InitializeBridgeBoundSecret{
 		{BindingName: "bot_token", Kind: "token", Value: "telegram-token"},
 		{BindingName: "webhook_secret", Kind: "token", Value: "top-secret"},
@@ -558,10 +579,10 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	}
 	defer cfg.batcher.Close()
 
-	if got, want := cfg.apiBaseURL, "http://api.example"; got != want {
+	if got, want := cfg.apiBaseURL, strings.TrimSuffix(mockAPI.URL(), "/"); got != want {
 		t.Fatalf("cfg.apiBaseURL = %q, want %q", got, want)
 	}
-	if got, want := cfg.listenAddr, "127.0.0.1:9999"; got != want {
+	if got, want := cfg.listenAddr, listenAddr; got != want {
 		t.Fatalf("cfg.listenAddr = %q, want %q", got, want)
 	}
 	if got, want := cfg.webhookPath, "/telegram"; got != want {
@@ -1172,10 +1193,15 @@ func newRuntimePeerPair(t *testing.T) (*telegramProvider, *bridgesdk.Peer, func(
 			runtime.stop()
 			runtime.mu.RLock()
 			server := runtime.server
+			listener := runtime.listener
 			runtime.mu.RUnlock()
+			if listener != nil {
+				_ = listener.Close()
+			}
 			if server != nil {
 				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 				_ = server.Shutdown(shutdownCtx)
+				_ = server.Close()
 				shutdownCancel()
 			}
 			_ = hostConn.Close()
@@ -1330,16 +1356,7 @@ func setProviderTestEnv(t *testing.T) markerEnv {
 
 func reserveListenAddr(t *testing.T) string {
 	t.Helper()
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("net.Listen() error = %v", err)
-	}
-	addr := ln.Addr().String()
-	if err := ln.Close(); err != nil {
-		t.Fatalf("ln.Close() error = %v", err)
-	}
-	return addr
+	return fmt.Sprintf("127.0.0.1:%d", testutil.FreeTCPPort(t))
 }
 
 func waitForNonEmptyLines(t *testing.T, path string) []string {

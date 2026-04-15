@@ -1201,9 +1201,10 @@ func executeLinearAgentSessionDelivery(
 
 	if delta == "" {
 		ack := bridgepkg.DeliveryAck{
-			DeliveryID:      event.DeliveryID,
-			Seq:             event.Seq,
-			RemoteMessageID: remoteID,
+			DeliveryID:             event.DeliveryID,
+			Seq:                    event.Seq,
+			RemoteMessageID:        remoteID,
+			ReplaceRemoteMessageID: firstNonEmpty(state.RemoteMessageID, remoteID),
 		}
 		return ack, next, nil
 	}

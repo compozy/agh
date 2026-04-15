@@ -434,29 +434,45 @@ func TestExecuteLinearDeliveryCommentAndAgentSessionModes(t *testing.T) {
 		t.Fatalf("agent start remote id = %q, want %q", got, want)
 	}
 
-	agentFinal := agentStart
-	agentFinal.Event.Seq = 2
+	agentDelta := agentStart
+	agentDelta.Event.Seq = 2
+	agentDelta.Event.EventType = bridgepkg.DeliveryEventTypeDelta
+	agentDelta.Event.Content.Text = "hello world"
+	agentAck, agentState, err = executeLinearDelivery(context.Background(), api, resolvedInstanceConfig{
+		mode: linearModeAgentSessions,
+	}, agentDelta, agentState)
+	if err != nil {
+		t.Fatalf("executeLinearDelivery(agent delta) error = %v", err)
+	}
+	if got, want := agentAck.RemoteMessageID, "agent-comment-2"; got != want {
+		t.Fatalf("agent delta remote id = %q, want %q", got, want)
+	}
+
+	agentFinal := agentDelta
+	agentFinal.Event.Seq = 3
 	agentFinal.Event.EventType = bridgepkg.DeliveryEventTypeFinal
 	agentFinal.Event.Final = true
-	agentFinal.Event.Content.Text = "hello world"
-	agentAck, agentState, err = executeLinearDelivery(context.Background(), api, resolvedInstanceConfig{
+	finalAck, agentState, err := executeLinearDelivery(context.Background(), api, resolvedInstanceConfig{
 		mode: linearModeAgentSessions,
 	}, agentFinal, agentState)
 	if err != nil {
-		t.Fatalf("executeLinearDelivery(agent final) error = %v", err)
+		t.Fatalf("executeLinearDelivery(agent final no-op) error = %v", err)
 	}
-	if got, want := agentAck.RemoteMessageID, "agent-comment-2"; got != want {
+	if got, want := finalAck.RemoteMessageID, agentAck.RemoteMessageID; got != want {
 		t.Fatalf("agent final remote id = %q, want %q", got, want)
+	}
+	if got, want := finalAck.ReplaceRemoteMessageID, agentAck.RemoteMessageID; got != want {
+		t.Fatalf("agent final replace remote id = %q, want %q", got, want)
 	}
 	if got, want := api.agentActivities, []string{"hello", " world"}; !equalStrings(got, want) {
 		t.Fatalf("agentActivities = %#v, want %#v", got, want)
 	}
 
 	agentDelete := agentFinal
-	agentDelete.Event.Seq = 3
+	agentDelete.Event.Seq = 4
 	agentDelete.Event.EventType = bridgepkg.DeliveryEventTypeDelete
 	agentDelete.Event.Operation = bridgepkg.DeliveryOperationDelete
-	agentDelete.Event.Reference = &bridgepkg.DeliveryMessageReference{RemoteMessageID: agentAck.RemoteMessageID}
+	agentDelete.Event.Reference = &bridgepkg.DeliveryMessageReference{RemoteMessageID: finalAck.RemoteMessageID}
 	agentDelete.Event.Content.Text = ""
 	if _, _, err := executeLinearDelivery(context.Background(), api, resolvedInstanceConfig{
 		mode: linearModeAgentSessions,

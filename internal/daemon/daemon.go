@@ -290,7 +290,9 @@ func WithLogger(logger *slog.Logger) Option {
 }
 
 // WithBridgeSecretResolver injects the daemon-owned resolver used to convert
-// bridge secret bindings into launch-time bound secret material.
+// bridge secret bindings into launch-time bound secret material. When this
+// option is not supplied, the stock daemon installs an env-backed resolver that
+// supports `env:NAME` refs.
 func WithBridgeSecretResolver(resolver BridgeSecretResolver) Option {
 	return func(d *Daemon) {
 		d.bridgeSecretResolver = resolver
@@ -534,6 +536,9 @@ func (d *Daemon) applyDefaults() error {
 	}
 	if d.getenv == nil {
 		d.getenv = os.Getenv
+	}
+	if d.bridgeSecretResolver == nil {
+		d.bridgeSecretResolver = envBridgeSecretResolver{getenv: d.getenv}
 	}
 	if d.closeLogger == nil {
 		d.closeLogger = func() error { return nil }

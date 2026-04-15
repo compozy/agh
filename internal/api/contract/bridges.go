@@ -118,8 +118,11 @@ type UpdateBridgeRequest struct {
 
 // PutBridgeSecretBindingRequest is the shared bridge secret binding upsert payload.
 type PutBridgeSecretBindingRequest struct {
+	// VaultRef identifies the daemon-owned secret reference. The stock daemon
+	// currently supports `env:NAME` refs.
 	VaultRef string `json:"vault_ref"`
-	Kind     string `json:"kind"`
+	// Kind identifies the materialized secret kind passed to the provider runtime.
+	Kind string `json:"kind"`
 }
 
 // ToUpdateInstanceRequest validates and converts the transport patch payload
