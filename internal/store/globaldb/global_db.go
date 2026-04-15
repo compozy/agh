@@ -308,6 +308,7 @@ var globalSchemaStatements = []string{
 		platform          TEXT NOT NULL,
 		extension_name    TEXT NOT NULL,
 		display_name      TEXT NOT NULL,
+		source            TEXT NOT NULL DEFAULT 'dynamic',
 		enabled           BOOLEAN NOT NULL DEFAULT 1,
 		status            TEXT NOT NULL,
 		routing_policy    TEXT NOT NULL,
@@ -349,6 +350,33 @@ var globalSchemaStatements = []string{
 		expires_at         TEXT NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_bridge_ingest_dedup_expires ON bridge_ingest_dedup(expires_at);`,
+	`CREATE TABLE IF NOT EXISTS bundle_activations (
+		id                           TEXT PRIMARY KEY,
+		extension_name               TEXT NOT NULL REFERENCES extensions(name) ON DELETE CASCADE,
+		bundle_name                  TEXT NOT NULL,
+		profile_name                 TEXT NOT NULL,
+		scope                        TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+		workspace_id                 TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+		spec_content_hash            TEXT,
+		bind_primary_channel_default BOOLEAN NOT NULL DEFAULT 0,
+		created_at                   TEXT NOT NULL,
+		updated_at                   TEXT NOT NULL,
+		CHECK (
+			(scope = 'global' AND workspace_id IS NULL) OR
+			(scope = 'workspace' AND workspace_id IS NOT NULL)
+		)
+	);`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_bundle_activations_tuple ON bundle_activations(extension_name, bundle_name, profile_name, scope, IFNULL(workspace_id, ''));`,
+	`CREATE INDEX IF NOT EXISTS idx_bundle_activations_extension ON bundle_activations(extension_name, created_at);`,
+	`CREATE TABLE IF NOT EXISTS bundle_activation_inventory (
+		activation_id TEXT NOT NULL REFERENCES bundle_activations(id) ON DELETE CASCADE,
+		resource_kind TEXT NOT NULL,
+		resource_id   TEXT NOT NULL,
+		resource_name TEXT NOT NULL,
+		recorded_at   TEXT NOT NULL,
+		PRIMARY KEY (activation_id, resource_kind, resource_id)
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_bundle_activation_inventory_kind ON bundle_activation_inventory(resource_kind, recorded_at DESC);`,
 }
 
 // GlobalDB owns the global session index and observability database.

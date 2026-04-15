@@ -120,11 +120,15 @@ func StatusForBridgeError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound):
 		return http.StatusNotFound
+	case errors.Is(err, bridgepkg.ErrBridgeSecretBindingNotFound):
+		return http.StatusNotFound
 	case errors.Is(err, bridgepkg.ErrBridgeRouteNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable):
 		return http.StatusConflict
 	case errors.Is(err, bridgepkg.ErrInvalidBridgeStateTransition):
+		return http.StatusConflict
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceReadOnly):
 		return http.StatusConflict
 	case errors.Is(err, bridgepkg.ErrDeliveryNotFound):
 		return http.StatusNotFound

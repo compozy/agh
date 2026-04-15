@@ -3058,6 +3058,7 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
+              source?: string;
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3150,6 +3151,7 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
+              source?: string;
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3323,6 +3325,7 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
+              source?: string;
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3439,6 +3442,7 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
+              source?: string;
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3553,6 +3557,7 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
+              source?: string;
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3667,6 +3672,7 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
+              source?: string;
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3781,6 +3787,7 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
+              source?: string;
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -4073,7 +4080,20 @@ export interface operations {
               http_port: number;
               network?: {
                 channels?: number;
+                configured_default_channel?: string;
+                declared_channels?: {
+                  activation_id?: string;
+                  bundle_name?: string;
+                  description?: string;
+                  extension_name?: string;
+                  name: string;
+                  primary?: boolean;
+                  profile_name?: string;
+                  workspace_id?: string;
+                }[];
                 delivery_workers?: number;
+                effective_default_channel?: string;
+                effective_default_source?: string;
                 enabled: boolean;
                 /** Format: int64 */
                 handoff_tagged_events?: number;
@@ -4156,6 +4176,11 @@ export interface operations {
           "application/json": {
             extensions: {
               actions?: string[];
+              bundles?: {
+                description?: string;
+                name: string;
+                profiles?: string[];
+              }[];
               capabilities?: string[];
               daemon_running: boolean;
               enabled: boolean;
@@ -4230,6 +4255,11 @@ export interface operations {
           "application/json": {
             extension: {
               actions?: string[];
+              bundles?: {
+                description?: string;
+                name: string;
+                profiles?: string[];
+              }[];
               capabilities?: string[];
               daemon_running: boolean;
               enabled: boolean;
@@ -4310,6 +4340,11 @@ export interface operations {
           "application/json": {
             extension: {
               actions?: string[];
+              bundles?: {
+                description?: string;
+                name: string;
+                profiles?: string[];
+              }[];
               capabilities?: string[];
               daemon_running: boolean;
               enabled: boolean;
@@ -4390,6 +4425,11 @@ export interface operations {
           "application/json": {
             extension: {
               actions?: string[];
+              bundles?: {
+                description?: string;
+                name: string;
+                profiles?: string[];
+              }[];
               capabilities?: string[];
               daemon_running: boolean;
               enabled: boolean;
@@ -4470,6 +4510,11 @@ export interface operations {
           "application/json": {
             extension: {
               actions?: string[];
+              bundles?: {
+                description?: string;
+                name: string;
+                profiles?: string[];
+              }[];
               capabilities?: string[];
               daemon_running: boolean;
               enabled: boolean;
@@ -6053,7 +6098,20 @@ export interface operations {
           "application/json": {
             network: {
               channels?: number;
+              configured_default_channel?: string;
+              declared_channels?: {
+                activation_id?: string;
+                bundle_name?: string;
+                description?: string;
+                extension_name?: string;
+                name: string;
+                primary?: boolean;
+                profile_name?: string;
+                workspace_id?: string;
+              }[];
               delivery_workers?: number;
+              effective_default_channel?: string;
+              effective_default_source?: string;
               enabled: boolean;
               /** Format: int64 */
               handoff_tagged_events?: number;

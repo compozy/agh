@@ -22,6 +22,9 @@ var (
 	ErrIngestDedupRecordNotFound = errors.New("bridges: ingest dedup record not found")
 	// ErrInvalidBridgeStateTransition reports that the requested instance lifecycle transition is not allowed.
 	ErrInvalidBridgeStateTransition = errors.New("bridges: invalid bridge state transition")
+	// ErrBridgeInstanceReadOnly reports that a managed bridge instance does not
+	// allow direct spec mutation through the generic CRUD surface.
+	ErrBridgeInstanceReadOnly = errors.New("bridges: bridge instance is managed and read-only")
 )
 
 // Scope identifies whether a bridge resource is daemon-global or workspace-owned.
@@ -37,6 +40,33 @@ const (
 // Normalize returns the normalized representation of the scope.
 func (s Scope) Normalize() Scope {
 	return Scope(strings.ToLower(strings.TrimSpace(string(s))))
+}
+
+// BridgeInstanceSource identifies where a persisted bridge instance originated.
+type BridgeInstanceSource string
+
+const (
+	// BridgeInstanceSourceDynamic identifies a regular operator-created bridge instance.
+	BridgeInstanceSourceDynamic BridgeInstanceSource = "dynamic"
+	// BridgeInstanceSourcePackage identifies an extension bundle-managed bridge instance.
+	BridgeInstanceSourcePackage BridgeInstanceSource = "package"
+)
+
+// Normalize returns the normalized representation of the source.
+func (s BridgeInstanceSource) Normalize() BridgeInstanceSource {
+	return BridgeInstanceSource(strings.ToLower(strings.TrimSpace(string(s))))
+}
+
+// Validate reports whether the bridge-instance source is supported.
+func (s BridgeInstanceSource) Validate() error {
+	switch s.Normalize() {
+	case BridgeInstanceSourceDynamic, BridgeInstanceSourcePackage:
+		return nil
+	case "":
+		return errors.New("bridges: bridge instance source is required")
+	default:
+		return fmt.Errorf("bridges: unsupported bridge instance source %q", s)
+	}
 }
 
 // Validate reports whether the scope is supported.
@@ -143,18 +173,19 @@ type BridgeProvider struct {
 
 // BridgeInstance is the authoritative persisted configuration for one bridge adapter instance.
 type BridgeInstance struct {
-	ID               string          `json:"id"`
-	Scope            Scope           `json:"scope"`
-	WorkspaceID      string          `json:"workspace_id,omitempty"`
-	Platform         string          `json:"platform"`
-	ExtensionName    string          `json:"extension_name"`
-	DisplayName      string          `json:"display_name"`
-	Enabled          bool            `json:"enabled"`
-	Status           BridgeStatus    `json:"status"`
-	RoutingPolicy    RoutingPolicy   `json:"routing_policy"`
-	DeliveryDefaults json.RawMessage `json:"delivery_defaults,omitempty"`
-	CreatedAt        time.Time       `json:"created_at"`
-	UpdatedAt        time.Time       `json:"updated_at"`
+	ID               string               `json:"id"`
+	Scope            Scope                `json:"scope"`
+	WorkspaceID      string               `json:"workspace_id,omitempty"`
+	Platform         string               `json:"platform"`
+	ExtensionName    string               `json:"extension_name"`
+	DisplayName      string               `json:"display_name"`
+	Source           BridgeInstanceSource `json:"source,omitempty"`
+	Enabled          bool                 `json:"enabled"`
+	Status           BridgeStatus         `json:"status"`
+	RoutingPolicy    RoutingPolicy        `json:"routing_policy"`
+	DeliveryDefaults json.RawMessage      `json:"delivery_defaults,omitempty"`
+	CreatedAt        time.Time            `json:"created_at"`
+	UpdatedAt        time.Time            `json:"updated_at"`
 }
 
 // Validate reports whether the persisted bridge instance shape is complete and valid.
@@ -173,6 +204,9 @@ func (i BridgeInstance) Validate() error {
 		return err
 	}
 	if err := requireField(normalized.DisplayName, "bridge instance display name"); err != nil {
+		return err
+	}
+	if err := normalized.Source.Validate(); err != nil {
 		return err
 	}
 	if err := normalized.Status.Validate(); err != nil {
@@ -409,6 +443,10 @@ func (i BridgeInstance) normalize() BridgeInstance {
 	normalized.Platform = strings.TrimSpace(normalized.Platform)
 	normalized.ExtensionName = strings.TrimSpace(normalized.ExtensionName)
 	normalized.DisplayName = strings.TrimSpace(normalized.DisplayName)
+	normalized.Source = normalized.Source.Normalize()
+	if normalized.Source == "" {
+		normalized.Source = BridgeInstanceSourceDynamic
+	}
 	normalized.Status = normalized.Status.Normalize()
 	normalized.DeliveryDefaults = bytes.TrimSpace(normalized.DeliveryDefaults)
 	return normalized

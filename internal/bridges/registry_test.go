@@ -19,6 +19,7 @@ import (
 type stubRegistryStore struct {
 	insertBridgeInstanceFn func(context.Context, bridgepkg.BridgeInstance) error
 	updateBridgeInstanceFn func(context.Context, bridgepkg.BridgeInstance) error
+	deleteBridgeInstanceFn func(context.Context, string) error
 	getBridgeInstanceFn    func(context.Context, string) (bridgepkg.BridgeInstance, error)
 	listBridgeInstancesFn  func(context.Context) ([]bridgepkg.BridgeInstance, error)
 	putBridgeRouteFn       func(context.Context, bridgepkg.BridgeRoute) error
@@ -36,6 +37,13 @@ func (s stubRegistryStore) InsertBridgeInstance(ctx context.Context, instance br
 func (s stubRegistryStore) UpdateBridgeInstance(ctx context.Context, instance bridgepkg.BridgeInstance) error {
 	if s.updateBridgeInstanceFn != nil {
 		return s.updateBridgeInstanceFn(ctx, instance)
+	}
+	return nil
+}
+
+func (s stubRegistryStore) DeleteBridgeInstance(ctx context.Context, id string) error {
+	if s.deleteBridgeInstanceFn != nil {
+		return s.deleteBridgeInstanceFn(ctx, id)
 	}
 	return nil
 }

@@ -25,9 +25,9 @@ var (
 	// ErrManagerNotRunning reports that a runtime-only manager action was called
 	// before Start or after Shutdown.
 	ErrManagerNotRunning = errors.New("automation: manager not running")
-	// ErrDefinitionReadOnly reports that a config-backed definition cannot be
+	// ErrDefinitionReadOnly reports that a managed definition cannot be
 	// mutated through the runtime CRUD surface.
-	ErrDefinitionReadOnly = errors.New("automation: definition is config-backed and read-only")
+	ErrDefinitionReadOnly = errors.New("automation: definition is managed and read-only")
 	// ErrSessionTaskActorNotFound reports that no automation-linked task actor
 	// context is recorded for the supplied session.
 	ErrSessionTaskActorNotFound = errors.New("automation: session task actor context not found")
@@ -907,8 +907,8 @@ func (m *Manager) SetJobEnabled(ctx context.Context, id string, enabled bool) (J
 		return Job{}, err
 	}
 
-	switch stored.Source {
-	case JobSourceConfig:
+	switch {
+	case isOverlayManagedSource(stored.Source):
 		if err := m.persistJobOverlay(ctx, stored, enabled); err != nil {
 			return Job{}, err
 		}
@@ -949,8 +949,8 @@ func (m *Manager) SetTriggerEnabled(ctx context.Context, id string, enabled bool
 		return Trigger{}, err
 	}
 
-	switch stored.Source {
-	case JobSourceConfig:
+	switch {
+	case isOverlayManagedSource(stored.Source):
 		if err := m.persistTriggerOverlay(ctx, stored, enabled); err != nil {
 			return Trigger{}, err
 		}
@@ -1105,7 +1105,7 @@ func (m *Manager) loadEffectiveJobs(ctx context.Context, query JobListQuery) ([]
 	effective := make([]Job, 0, len(jobs))
 	for _, job := range jobs {
 		next := cloneJob(job)
-		if next.Source == JobSourceConfig {
+		if isOverlayManagedSource(next.Source) {
 			if enabled, ok := overlayByID[next.ID]; ok {
 				next.Enabled = enabled
 			}
@@ -1134,7 +1134,7 @@ func (m *Manager) loadEffectiveTriggers(ctx context.Context, query TriggerListQu
 	effective := make([]Trigger, 0, len(triggers))
 	for _, trigger := range triggers {
 		next := cloneTrigger(trigger)
-		if next.Source == JobSourceConfig {
+		if isOverlayManagedSource(next.Source) {
 			if enabled, ok := overlayByID[next.ID]; ok {
 				next.Enabled = enabled
 			}
@@ -1155,7 +1155,7 @@ func (m *Manager) effectiveJob(ctx context.Context, id string) (Job, error) {
 
 func (m *Manager) effectiveJobFromStored(ctx context.Context, job Job) (Job, error) {
 	effective := cloneJob(job)
-	if effective.Source != JobSourceConfig {
+	if !isOverlayManagedSource(effective.Source) {
 		return effective, nil
 	}
 
@@ -1181,7 +1181,7 @@ func (m *Manager) effectiveTrigger(ctx context.Context, id string) (Trigger, err
 
 func (m *Manager) effectiveTriggerFromStored(ctx context.Context, trigger Trigger) (Trigger, error) {
 	effective := cloneTrigger(trigger)
-	if effective.Source != JobSourceConfig {
+	if !isOverlayManagedSource(effective.Source) {
 		return effective, nil
 	}
 
@@ -1290,11 +1290,53 @@ func (m *Manager) syncConfigDefinitions(ctx context.Context) (SyncStats, error) 
 	}
 	sortTriggers(desiredTriggers)
 
-	jobsSynced, jobsRemoved, err := m.syncJobs(ctx, desiredJobs)
+	return m.SyncManagedDefinitions(ctx, JobSourceConfig, desiredJobs, desiredTriggers, desiredTriggerSecrets)
+}
+
+// SyncManagedDefinitions reconciles one daemon-managed automation source
+// against the persisted store and runtime registries.
+func (m *Manager) SyncManagedDefinitions(
+	ctx context.Context,
+	source JobSource,
+	desiredJobs []Job,
+	desiredTriggers []Trigger,
+	desiredTriggerSecrets map[string]string,
+) (SyncStats, error) {
+	if ctx == nil {
+		return SyncStats{}, errors.New("automation: sync managed definitions context is required")
+	}
+	switch source {
+	case JobSourceConfig, JobSourcePackage:
+	default:
+		return SyncStats{}, fmt.Errorf("automation: managed sync requires config or package source, got %q", source)
+	}
+
+	jobs := make([]Job, 0, len(desiredJobs))
+	for _, job := range desiredJobs {
+		next := cloneJob(job)
+		next.Source = source
+		jobs = append(jobs, next)
+	}
+	sortJobs(jobs)
+
+	triggers := make([]Trigger, 0, len(desiredTriggers))
+	for _, trigger := range desiredTriggers {
+		next := cloneTrigger(trigger)
+		next.Source = source
+		triggers = append(triggers, next)
+	}
+	sortTriggers(triggers)
+
+	secrets := make(map[string]string, len(desiredTriggerSecrets))
+	for id, secret := range desiredTriggerSecrets {
+		secrets[strings.TrimSpace(id)] = strings.TrimSpace(secret)
+	}
+
+	jobsSynced, jobsRemoved, err := m.syncJobsForSource(ctx, source, jobs)
 	if err != nil {
 		return SyncStats{}, err
 	}
-	triggersSynced, triggersRemoved, err := m.syncTriggers(ctx, desiredTriggers, desiredTriggerSecrets)
+	triggersSynced, triggersRemoved, err := m.syncTriggersForSource(ctx, source, triggers, secrets)
 	if err != nil {
 		return SyncStats{}, err
 	}
@@ -1306,9 +1348,9 @@ func (m *Manager) syncConfigDefinitions(ctx context.Context) (SyncStats, error) 
 		TriggersRemoved: triggersRemoved,
 		SyncedAt:        m.now().UTC(),
 	}
-
 	m.logger.Info(
-		"automation.config.sync",
+		"automation.managed.sync",
+		"source", source,
 		"jobs_synced", stats.JobsSynced,
 		"triggers_synced", stats.TriggersSynced,
 		"jobs_removed", stats.JobsRemoved,
@@ -1317,8 +1359,8 @@ func (m *Manager) syncConfigDefinitions(ctx context.Context) (SyncStats, error) 
 	return stats, nil
 }
 
-func (m *Manager) syncJobs(ctx context.Context, desired []Job) (int, int, error) {
-	existing, err := m.store.ListJobs(ctx, JobListQuery{Source: JobSourceConfig})
+func (m *Manager) syncJobsForSource(ctx context.Context, source JobSource, desired []Job) (int, int, error) {
+	existing, err := m.store.ListJobs(ctx, JobListQuery{Source: source})
 	if err != nil {
 		return 0, 0, err
 	}
@@ -1338,8 +1380,8 @@ func (m *Manager) syncJobs(ctx context.Context, desired []Job) (int, int, error)
 			if _, err := m.store.CreateJob(ctx, job); err != nil {
 				return 0, 0, err
 			}
-		case current.Source != JobSourceConfig:
-			return 0, 0, fmt.Errorf("automation: config job %q conflicts with non-config source", job.ID)
+		case current.Source != source:
+			return 0, 0, fmt.Errorf("automation: managed job %q conflicts with non-%s source", job.ID, source)
 		case !sameJobDefinition(current, job):
 			if _, err := m.store.UpdateJob(ctx, job); err != nil {
 				return 0, 0, err
@@ -1362,8 +1404,8 @@ func (m *Manager) syncJobs(ctx context.Context, desired []Job) (int, int, error)
 	return synced, removed, nil
 }
 
-func (m *Manager) syncTriggers(ctx context.Context, desired []Trigger, desiredSecrets map[string]string) (int, int, error) {
-	existing, err := m.store.ListTriggers(ctx, TriggerListQuery{Source: JobSourceConfig})
+func (m *Manager) syncTriggersForSource(ctx context.Context, source JobSource, desired []Trigger, desiredSecrets map[string]string) (int, int, error) {
+	existing, err := m.store.ListTriggers(ctx, TriggerListQuery{Source: source})
 	if err != nil {
 		return 0, 0, err
 	}
@@ -1383,14 +1425,14 @@ func (m *Manager) syncTriggers(ctx context.Context, desired []Trigger, desiredSe
 			if _, err := m.store.CreateTrigger(ctx, trigger); err != nil {
 				return 0, 0, err
 			}
-		case current.Source != JobSourceConfig:
-			return 0, 0, fmt.Errorf("automation: config trigger %q conflicts with non-config source", trigger.ID)
+		case current.Source != source:
+			return 0, 0, fmt.Errorf("automation: managed trigger %q conflicts with non-%s source", trigger.ID, source)
 		case !sameTriggerDefinition(current, trigger):
 			if _, err := m.store.UpdateTrigger(ctx, trigger); err != nil {
 				return 0, 0, err
 			}
 		}
-		if err := m.syncConfigTriggerWebhookSecret(ctx, current, trigger, desiredSecrets[trigger.ID]); err != nil {
+		if err := m.syncManagedTriggerWebhookSecret(ctx, current, trigger, desiredSecrets[trigger.ID]); err != nil {
 			return 0, 0, err
 		}
 		synced++
@@ -1546,7 +1588,7 @@ func (m *Manager) resolveConfigWorkspace(ctx context.Context, scope AutomationSc
 }
 
 func (m *Manager) persistJobOverlay(ctx context.Context, definition Job, enabled bool) error {
-	if definition.Source != JobSourceConfig {
+	if !isOverlayManagedSource(definition.Source) {
 		return ErrOverlayRequiresConfigSource
 	}
 	if enabled == definition.Enabled {
@@ -1560,7 +1602,7 @@ func (m *Manager) persistJobOverlay(ctx context.Context, definition Job, enabled
 }
 
 func (m *Manager) persistTriggerOverlay(ctx context.Context, definition Trigger, enabled bool) error {
-	if definition.Source != JobSourceConfig {
+	if !isOverlayManagedSource(definition.Source) {
 		return ErrOverlayRequiresConfigSource
 	}
 	if enabled == definition.Enabled {
@@ -1574,8 +1616,8 @@ func (m *Manager) persistTriggerOverlay(ctx context.Context, definition Trigger,
 }
 
 func (m *Manager) rollbackJobEnabled(ctx context.Context, definition Job, enabled bool) error {
-	switch definition.Source {
-	case JobSourceConfig:
+	switch {
+	case isOverlayManagedSource(definition.Source):
 		return m.persistJobOverlay(ctx, definition, enabled)
 	default:
 		definition.Enabled = enabled
@@ -1585,13 +1627,22 @@ func (m *Manager) rollbackJobEnabled(ctx context.Context, definition Job, enable
 }
 
 func (m *Manager) rollbackTriggerEnabled(ctx context.Context, definition Trigger, enabled bool) error {
-	switch definition.Source {
-	case JobSourceConfig:
+	switch {
+	case isOverlayManagedSource(definition.Source):
 		return m.persistTriggerOverlay(ctx, definition, enabled)
 	default:
 		definition.Enabled = enabled
 		_, err := m.store.UpdateTrigger(ctx, definition)
 		return err
+	}
+}
+
+func isOverlayManagedSource(source JobSource) bool {
+	switch source {
+	case JobSourceConfig, JobSourcePackage:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -1610,7 +1661,7 @@ func (m *Manager) syncTriggerWebhookSecret(ctx context.Context, previous Trigger
 	return m.store.SetTriggerWebhookSecret(ctx, current.ID, secret)
 }
 
-func (m *Manager) syncConfigTriggerWebhookSecret(ctx context.Context, _ Trigger, current Trigger, secret string) error {
+func (m *Manager) syncManagedTriggerWebhookSecret(ctx context.Context, _ Trigger, current Trigger, secret string) error {
 	if !strings.EqualFold(strings.TrimSpace(current.Event), "webhook") {
 		return m.store.DeleteTriggerWebhookSecret(ctx, current.ID)
 	}

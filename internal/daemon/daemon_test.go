@@ -1032,6 +1032,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 				return nil
 			},
 		},
+		nil,
 		homePaths,
 		discardLogger(),
 		func() time.Time { return fixedNow },
@@ -3630,6 +3631,30 @@ func (f *fakeAutomationManager) SetTriggerEnabled(context.Context, string, bool)
 
 func (f *fakeAutomationManager) HandleWebhook(context.Context, automationpkg.WebhookRequest) (automationpkg.TriggerResult, error) {
 	return automationpkg.TriggerResult{}, nil
+}
+
+func (f *fakeAutomationManager) SyncManagedDefinitions(
+	_ context.Context,
+	source automationpkg.JobSource,
+	desiredJobs []automationpkg.Job,
+	desiredTriggers []automationpkg.Trigger,
+	_ map[string]string,
+) (automationpkg.SyncStats, error) {
+	f.jobs = slices.DeleteFunc(append([]automationpkg.Job(nil), f.jobs...), func(job automationpkg.Job) bool {
+		return job.Source == source
+	})
+	f.jobs = append(f.jobs, desiredJobs...)
+
+	f.triggers = slices.DeleteFunc(append([]automationpkg.Trigger(nil), f.triggers...), func(trigger automationpkg.Trigger) bool {
+		return trigger.Source == source
+	})
+	f.triggers = append(f.triggers, desiredTriggers...)
+
+	return automationpkg.SyncStats{
+		JobsSynced:     len(desiredJobs),
+		TriggersSynced: len(desiredTriggers),
+		SyncedAt:       time.Now().UTC(),
+	}, nil
 }
 
 func (f *fakeAutomationManager) FireExtensionTrigger(_ context.Context, request automationpkg.ExtensionTriggerRequest) (automationpkg.TriggerResult, error) {

@@ -13,6 +13,7 @@ import (
 	core "github.com/pedronauck/agh/internal/api/core"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -54,6 +55,7 @@ type bootState struct {
 	extensions         extensionRuntime
 	automation         automationRuntime
 	bridges            *bridgeRuntime
+	bundles            *bundlepkg.Service
 	httpServer         Server
 	udsServer          Server
 	skillsCancel       context.CancelFunc
@@ -142,6 +144,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return err
 	}
 	if err := d.bootAutomation(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootBundles(ctx, state); err != nil {
 		return err
 	}
 	if err := d.bootServers(ctx, state, cleanup); err != nil {
@@ -559,6 +564,49 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 	return nil
 }
 
+func (d *Daemon) bootBundles(ctx context.Context, state *bootState) error {
+	if state == nil {
+		return errors.New("daemon: boot bundle state is required")
+	}
+
+	dbSource, ok := state.registry.(interface {
+		bundlepkg.Store
+		bridgepkg.ManagedSyncStore
+		extensionDBSource
+	})
+	if !ok {
+		return nil
+	}
+
+	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
+	bridgeSyncer := bridgepkg.NewManagedSyncer(dbSource, bridgepkg.WithManagedSyncNow(d.now))
+	service := bundlepkg.NewService(
+		dbSource,
+		extRegistry,
+		func(name string) (*extensionpkg.Extension, error) {
+			return loadExtensionSnapshot(extRegistry, state.currentExtensionRuntime(), state.logger, name)
+		},
+		bundlepkg.WithAutomation(state.automation),
+		bundlepkg.WithBridges(bridgeSyncer),
+		bundlepkg.WithWorkspaceResolver(state.workspaceResolver),
+		bundlepkg.WithConfiguredDefaultChannel(state.cfg.Network.DefaultChannel),
+		bundlepkg.WithLogger(state.logger),
+		bundlepkg.WithNow(d.now),
+	)
+	if service == nil {
+		return nil
+	}
+	if err := service.Reconcile(ctx); err != nil {
+		return fmt.Errorf("daemon: reconcile bundle activations: %w", err)
+	}
+	state.bundles = service
+	state.deps.Bundles = service
+	if extRegistry, ok := any(state.deps.Extensions).(*daemonExtensionService); ok {
+		extRegistry.bundles = service
+	}
+	return nil
+}
+
 func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state == nil || state.registry == nil {
 		return nil
@@ -612,7 +660,7 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		state.bridges.setExtensionRuntime(manager)
 	}
 	state.setExtensionRuntime(manager)
-	state.deps.Extensions = newDaemonExtensionService(extRegistry, manager, state.hooks, d.homePaths, state.logger, d.now)
+	state.deps.Extensions = newDaemonExtensionService(extRegistry, manager, state.hooks, state.bundles, d.homePaths, state.logger, d.now)
 	if state.hooks != nil {
 		if err := state.hooks.Rebuild(ctx); err != nil {
 			state.logger.Error("daemon: rebuild hooks after extension boot failed; continuing without extension hooks", "error", err)

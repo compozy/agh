@@ -18,6 +18,7 @@ type handlerConfig struct {
 	observer       core.Observer
 	automation     core.AutomationManager
 	bridges        core.BridgeService
+	bundles        core.BundleService
 	workspaces     core.WorkspaceService
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
@@ -59,6 +60,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			Observer:                     cfg.observer,
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,
+			Bundles:                      cfg.bundles,
 			Workspaces:                   cfg.workspaces,
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,

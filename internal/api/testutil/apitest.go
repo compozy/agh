@@ -568,6 +568,9 @@ type StubBridgeService struct {
 	GetInstanceFn           func(context.Context, string) (*bridgepkg.BridgeInstance, error)
 	ListInstancesFn         func(context.Context) ([]bridgepkg.BridgeInstance, error)
 	ListProvidersFn         func(context.Context) ([]bridgepkg.BridgeProvider, error)
+	ListSecretBindingsFn    func(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
+	PutSecretBindingFn      func(context.Context, bridgepkg.BridgeSecretBinding) error
+	DeleteSecretBindingFn   func(context.Context, string, string) error
 	UpdateInstanceFn        func(context.Context, bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error)
 	UpdateInstanceStateFn   func(context.Context, bridgepkg.UpdateInstanceStateRequest) (*bridgepkg.BridgeInstance, error)
 	BuildRoutingKeyFn       func(context.Context, bridgepkg.RoutingKey) (bridgepkg.RoutingKey, error)
@@ -609,6 +612,27 @@ func (s StubBridgeService) ListProviders(ctx context.Context) ([]bridgepkg.Bridg
 		return s.ListProvidersFn(ctx)
 	}
 	return nil, nil
+}
+
+func (s StubBridgeService) ListSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error) {
+	if s.ListSecretBindingsFn != nil {
+		return s.ListSecretBindingsFn(ctx, bridgeInstanceID)
+	}
+	return nil, nil
+}
+
+func (s StubBridgeService) PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error {
+	if s.PutSecretBindingFn != nil {
+		return s.PutSecretBindingFn(ctx, binding)
+	}
+	return nil
+}
+
+func (s StubBridgeService) DeleteSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error {
+	if s.DeleteSecretBindingFn != nil {
+		return s.DeleteSecretBindingFn(ctx, bridgeInstanceID, bindingName)
+	}
+	return bridgepkg.ErrBridgeSecretBindingNotFound
 }
 
 func (s StubBridgeService) UpdateInstance(ctx context.Context, req bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error) {

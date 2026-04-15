@@ -64,6 +64,7 @@ type Server struct {
 	observer       core.Observer
 	automation     core.AutomationManager
 	bridges        core.BridgeService
+	bundles        core.BundleService
 	workspaces     core.WorkspaceService
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
@@ -89,6 +90,7 @@ type handlerConfig struct {
 	observer       core.Observer
 	automation     core.AutomationManager
 	bridges        core.BridgeService
+	bundles        core.BundleService
 	workspaces     core.WorkspaceService
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
@@ -204,6 +206,13 @@ func WithAutomation(manager core.AutomationManager) Option {
 func WithBridgeService(bridges core.BridgeService) Option {
 	return func(server *Server) {
 		server.bridges = bridges
+	}
+}
+
+// WithBundleService injects the daemon-owned bundle runtime.
+func WithBundleService(service core.BundleService) Option {
+	return func(server *Server) {
+		server.bundles = service
 	}
 }
 
@@ -330,6 +339,7 @@ func New(opts ...Option) (*Server, error) {
 		observer:       server.observer,
 		automation:     server.automation,
 		bridges:        server.bridges,
+		bundles:        server.bundles,
 		workspaces:     server.workspaces,
 		skillsRegistry: server.skillsRegistry,
 		memoryStore:    server.memoryStore,
@@ -542,6 +552,7 @@ func newHandlers(cfg handlerConfig) *Handlers {
 			Observer:                     cfg.observer,
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,
+			Bundles:                      cfg.bundles,
 			Workspaces:                   cfg.workspaces,
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,

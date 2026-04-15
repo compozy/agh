@@ -39,6 +39,7 @@ type BaseHandlerConfig struct {
 	Automation                   AutomationManager
 	Tasks                        TaskService
 	Bridges                      BridgeService
+	Bundles                      BundleService
 	Workspaces                   WorkspaceService
 	SkillsRegistry               SkillsRegistry
 	TaskActorContextResolver     TaskActorContextResolver
@@ -68,6 +69,7 @@ type BaseHandlers struct {
 	Automation                   AutomationManager
 	Tasks                        TaskService
 	Bridges                      BridgeService
+	Bundles                      BundleService
 	Workspaces                   WorkspaceService
 	SkillsRegistry               SkillsRegistry
 	TaskActorContextResolver     TaskActorContextResolver
@@ -132,6 +134,7 @@ func NewBaseHandlers(cfg BaseHandlerConfig) *BaseHandlers {
 		Automation:                   cfg.Automation,
 		Tasks:                        cfg.Tasks,
 		Bridges:                      cfg.Bridges,
+		Bundles:                      cfg.Bundles,
 		Workspaces:                   cfg.Workspaces,
 		SkillsRegistry:               cfg.SkillsRegistry,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
@@ -208,12 +211,18 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		return
 	}
 
+	channel, err := h.defaultSessionChannel(c.Request.Context(), strings.TrimSpace(req.Channel))
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
 	sess, err := h.Sessions.Create(c.Request.Context(), session.CreateOpts{
 		AgentName:     req.AgentName,
 		Name:          req.Name,
 		Workspace:     strings.TrimSpace(req.Workspace),
 		WorkspacePath: strings.TrimSpace(req.WorkspacePath),
-		Channel:       strings.TrimSpace(req.Channel),
+		Channel:       channel,
 		Type:          session.SessionTypeUser,
 	})
 	if err != nil {
@@ -666,7 +675,20 @@ func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.Netw
 		return nil, errors.New("api: network status is required")
 	}
 
-	return NetworkStatusPayloadFromStatus(status), nil
+	payload := NetworkStatusPayloadFromStatus(status)
+	if h.Bundles == nil {
+		return payload, nil
+	}
+
+	settings, err := h.Bundles.NetworkSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	payload.ConfiguredDefaultChannel = strings.TrimSpace(settings.ConfiguredDefaultChannel)
+	payload.EffectiveDefaultChannel = strings.TrimSpace(settings.EffectiveDefaultChannel)
+	payload.EffectiveDefaultSource = strings.TrimSpace(settings.EffectiveDefaultSource)
+	payload.DeclaredChannels = DeclaredNetworkChannelPayloads(settings.DeclaredChannels)
+	return payload, nil
 }
 
 func (h *BaseHandlers) daemonUserHomeDir() string {

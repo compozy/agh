@@ -772,14 +772,25 @@ type integrationDreamTrigger struct {
 	calls     int
 }
 
+type integrationBridgeSecretStore interface {
+	ListBridgeSecretBindings(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
+	PutBridgeSecretBinding(context.Context, bridgepkg.BridgeSecretBinding) error
+	DeleteBridgeSecretBinding(context.Context, string, string) error
+}
+
 type integrationBridgeService struct {
 	*bridgepkg.Service
+	store integrationBridgeSecretStore
 }
 
 var _ core.BridgeService = (*integrationBridgeService)(nil)
 
 func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
-	return &integrationBridgeService{Service: bridgepkg.NewRegistry(store)}
+	secretStore, _ := store.(integrationBridgeSecretStore)
+	return &integrationBridgeService{
+		Service: bridgepkg.NewRegistry(store),
+		store:   secretStore,
+	}
 }
 
 func (s *integrationBridgeService) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {
@@ -834,6 +845,27 @@ func (s *integrationBridgeService) RestartInstance(ctx context.Context, id strin
 
 func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.BridgeProvider, error) {
 	return nil, nil
+}
+
+func (s *integrationBridgeService) ListSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error) {
+	if s == nil || s.store == nil {
+		return nil, errors.New("integration bridge secret store is not configured")
+	}
+	return s.store.ListBridgeSecretBindings(ctx, bridgeInstanceID)
+}
+
+func (s *integrationBridgeService) PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error {
+	if s == nil || s.store == nil {
+		return errors.New("integration bridge secret store is not configured")
+	}
+	return s.store.PutBridgeSecretBinding(ctx, binding)
+}
+
+func (s *integrationBridgeService) DeleteSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error {
+	if s == nil || s.store == nil {
+		return errors.New("integration bridge secret store is not configured")
+	}
+	return s.store.DeleteBridgeSecretBinding(ctx, bridgeInstanceID, bindingName)
 }
 
 func (t *integrationDreamTrigger) Trigger(context.Context, string) (bool, string, error) {

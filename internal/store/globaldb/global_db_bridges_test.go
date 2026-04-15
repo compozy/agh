@@ -24,6 +24,7 @@ func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
 		"platform",
 		"extension_name",
 		"display_name",
+		"source",
 		"enabled",
 		"status",
 		"routing_policy",

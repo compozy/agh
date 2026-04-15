@@ -35,6 +35,7 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		HealthMessage: ext.Status.HealthMessage,
 		LastError:     ext.Status.LastError,
 		DaemonRunning: daemonRunning,
+		Bundles:       bundleSummaryPayloads(ext.Bundles),
 	}
 }
 
@@ -81,4 +82,23 @@ func extensionHealth(manifest *Manifest, info ExtensionInfo, status ExtensionSta
 		return "healthy"
 	}
 	return "unknown"
+}
+
+func bundleSummaryPayloads(values []BundleSpec) []contract.ExtensionBundleSummaryPayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.ExtensionBundleSummaryPayload, 0, len(values))
+	for _, value := range values {
+		profiles := make([]string, 0, len(value.Profiles))
+		for _, profile := range value.Profiles {
+			profiles = append(profiles, profile.Name)
+		}
+		payloads = append(payloads, contract.ExtensionBundleSummaryPayload{
+			Name:        value.Name,
+			Description: value.Description,
+			Profiles:    profiles,
+		})
+	}
+	return payloads
 }

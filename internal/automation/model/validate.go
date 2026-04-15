@@ -55,10 +55,10 @@ func (s AutomationScope) Validate(path string) error {
 // Validate ensures the source is one of the supported automation source values.
 func (s JobSource) Validate(path string) error {
 	switch s {
-	case JobSourceConfig, JobSourceDynamic:
+	case JobSourceConfig, JobSourcePackage, JobSourceDynamic:
 		return nil
 	default:
-		return fmt.Errorf("%s must be one of %q or %q: %q", path, JobSourceConfig, JobSourceDynamic, s)
+		return fmt.Errorf("%s must be one of %q, %q, or %q: %q", path, JobSourceConfig, JobSourcePackage, JobSourceDynamic, s)
 	}
 }
 

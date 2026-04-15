@@ -444,6 +444,8 @@ export interface AutomationTriggersParams {
 
 export type BridgeScope = string;
 
+export type BridgeInstanceSource = string;
+
 export type BridgeStatus = string;
 
 export interface RoutingPolicy {
@@ -459,6 +461,7 @@ export interface BridgeInstance {
   platform: string;
   extension_name: string;
   display_name: string;
+  source?: BridgeInstanceSource;
   enabled: boolean;
   status: BridgeStatus;
   routing_policy: RoutingPolicy;

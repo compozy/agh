@@ -1,0 +1,26 @@
+{
+  "name": "live-bundle-ext",
+  "version": "0.1.0",
+  "type": "subprocess",
+  "source": "user",
+  "enabled": true,
+  "state": "active",
+  "capabilities": [
+    "content.validate"
+  ],
+  "actions": [
+    "sessions/list"
+  ],
+  "pid": 41558,
+  "health": "healthy",
+  "daemon_running": true,
+  "bundles": [
+    {
+      "name": "team-bundle",
+      "description": "Live QA bundle",
+      "profiles": [
+        "default"
+      ]
+    }
+  ]
+}

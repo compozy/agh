@@ -57,6 +57,12 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 	if err := migrateExtensionColumns(ctx, db); err != nil {
 		return err
 	}
+	if err := migrateBridgeColumns(ctx, db); err != nil {
+		return err
+	}
+	if err := migrateBundleActivationColumns(ctx, db); err != nil {
+		return err
+	}
 
 	hasSessions, err := tableExists(ctx, db, "sessions")
 	if err != nil {
@@ -198,6 +204,52 @@ func migrateSessionColumns(ctx context.Context, db *sql.DB) error {
 		}
 	}
 
+	return nil
+}
+
+func migrateBridgeColumns(ctx context.Context, db *sql.DB) error {
+	exists, err := tableExists(ctx, db, "bridge_instances")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, db, "bridge_instances")
+	if err != nil {
+		return err
+	}
+	if _, ok := columns["source"]; ok {
+		return nil
+	}
+
+	if _, err := db.ExecContext(ctx, `ALTER TABLE bridge_instances ADD COLUMN source TEXT NOT NULL DEFAULT 'dynamic'`); err != nil {
+		return fmt.Errorf("store: add bridge_instances.source column: %w", err)
+	}
+	return nil
+}
+
+func migrateBundleActivationColumns(ctx context.Context, db *sql.DB) error {
+	exists, err := tableExists(ctx, db, "bundle_activations")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, db, "bundle_activations")
+	if err != nil {
+		return err
+	}
+	if _, ok := columns["spec_content_hash"]; ok {
+		return nil
+	}
+
+	if _, err := db.ExecContext(ctx, `ALTER TABLE bundle_activations ADD COLUMN spec_content_hash TEXT`); err != nil {
+		return fmt.Errorf("store: add bundle_activations.spec_content_hash column: %w", err)
+	}
 	return nil
 }
 

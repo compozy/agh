@@ -230,24 +230,28 @@ type DaemonStatusPayload struct {
 
 // NetworkStatusPayload is the shared network diagnostics response payload.
 type NetworkStatusPayload struct {
-	Enabled              bool                       `json:"enabled"`
-	Status               string                     `json:"status"`
-	ListenerHost         string                     `json:"listener_host,omitempty"`
-	ListenerPort         int                        `json:"listener_port,omitempty"`
-	LocalPeers           int                        `json:"local_peers,omitempty"`
-	RemotePeers          int                        `json:"remote_peers,omitempty"`
-	Channels             int                        `json:"channels,omitempty"`
-	QueuedMessages       int                        `json:"queued_messages,omitempty"`
-	QueuedSessions       int                        `json:"queued_sessions,omitempty"`
-	DeliveryWorkers      int                        `json:"delivery_workers,omitempty"`
-	MessagesSent         int64                      `json:"messages_sent,omitempty"`
-	MessagesReceived     int64                      `json:"messages_received,omitempty"`
-	MessagesRejected     int64                      `json:"messages_rejected,omitempty"`
-	MessagesDelivered    int64                      `json:"messages_delivered,omitempty"`
-	WorkflowTaggedEvents int64                      `json:"workflow_tagged_events,omitempty"`
-	HandoffTaggedEvents  int64                      `json:"handoff_tagged_events,omitempty"`
-	LastDisconnect       string                     `json:"last_disconnect,omitempty"`
-	KindMetrics          []NetworkKindMetricPayload `json:"kind_metrics,omitempty"`
+	Enabled                  bool                            `json:"enabled"`
+	Status                   string                          `json:"status"`
+	ConfiguredDefaultChannel string                          `json:"configured_default_channel,omitempty"`
+	EffectiveDefaultChannel  string                          `json:"effective_default_channel,omitempty"`
+	EffectiveDefaultSource   string                          `json:"effective_default_source,omitempty"`
+	ListenerHost             string                          `json:"listener_host,omitempty"`
+	ListenerPort             int                             `json:"listener_port,omitempty"`
+	LocalPeers               int                             `json:"local_peers,omitempty"`
+	RemotePeers              int                             `json:"remote_peers,omitempty"`
+	Channels                 int                             `json:"channels,omitempty"`
+	QueuedMessages           int                             `json:"queued_messages,omitempty"`
+	QueuedSessions           int                             `json:"queued_sessions,omitempty"`
+	DeliveryWorkers          int                             `json:"delivery_workers,omitempty"`
+	MessagesSent             int64                           `json:"messages_sent,omitempty"`
+	MessagesReceived         int64                           `json:"messages_received,omitempty"`
+	MessagesRejected         int64                           `json:"messages_rejected,omitempty"`
+	MessagesDelivered        int64                           `json:"messages_delivered,omitempty"`
+	WorkflowTaggedEvents     int64                           `json:"workflow_tagged_events,omitempty"`
+	HandoffTaggedEvents      int64                           `json:"handoff_tagged_events,omitempty"`
+	LastDisconnect           string                          `json:"last_disconnect,omitempty"`
+	DeclaredChannels         []DeclaredNetworkChannelPayload `json:"declared_channels,omitempty"`
+	KindMetrics              []NetworkKindMetricPayload      `json:"kind_metrics,omitempty"`
 }
 
 // NetworkKindMetricPayload is the per-kind network runtime metric snapshot.
@@ -408,20 +412,29 @@ type InstallExtensionRequest struct {
 
 // ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
 type ExtensionPayload struct {
-	Name          string   `json:"name"`
-	Version       string   `json:"version"`
-	Type          string   `json:"type"`
-	Source        string   `json:"source"`
-	Enabled       bool     `json:"enabled"`
-	State         string   `json:"state"`
-	Capabilities  []string `json:"capabilities,omitempty"`
-	Actions       []string `json:"actions,omitempty"`
-	PID           int      `json:"pid,omitempty"`
-	UptimeSeconds int64    `json:"uptime_seconds,omitempty"`
-	Health        string   `json:"health,omitempty"`
-	HealthMessage string   `json:"health_message,omitempty"`
-	LastError     string   `json:"last_error,omitempty"`
-	DaemonRunning bool     `json:"daemon_running"`
+	Name          string                          `json:"name"`
+	Version       string                          `json:"version"`
+	Type          string                          `json:"type"`
+	Source        string                          `json:"source"`
+	Enabled       bool                            `json:"enabled"`
+	State         string                          `json:"state"`
+	Capabilities  []string                        `json:"capabilities,omitempty"`
+	Actions       []string                        `json:"actions,omitempty"`
+	PID           int                             `json:"pid,omitempty"`
+	UptimeSeconds int64                           `json:"uptime_seconds,omitempty"`
+	Health        string                          `json:"health,omitempty"`
+	HealthMessage string                          `json:"health_message,omitempty"`
+	LastError     string                          `json:"last_error,omitempty"`
+	DaemonRunning bool                            `json:"daemon_running"`
+	Bundles       []ExtensionBundleSummaryPayload `json:"bundles,omitempty"`
+}
+
+// ExtensionBundleSummaryPayload captures the installed bundle catalog surfaced
+// alongside extension status.
+type ExtensionBundleSummaryPayload struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Profiles    []string `json:"profiles,omitempty"`
 }
 
 // ErrorPayload is the shared error response payload.

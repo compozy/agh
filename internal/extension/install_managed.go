@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,11 +56,25 @@ func InstallLocalManaged(
 	if manifest == nil {
 		return errors.New("extension: manifest is required")
 	}
+	if strings.TrimSpace(checksum) == "" {
+		return errors.New("extension: checksum is required")
+	}
 
 	if _, err := registry.Get(manifest.Name); err == nil {
 		return &ExtensionExistsError{Name: manifest.Name}
 	} else if !errors.Is(err, ErrExtensionNotFound) {
 		return err
+	}
+
+	actualSourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
+	if err != nil {
+		return err
+	}
+	if actualSourceChecksum != checksum {
+		return &ExtensionChecksumMismatchError{
+			ExpectedChecksum: checksum,
+			ActualChecksum:   actualSourceChecksum,
+		}
 	}
 
 	stagingDir, err := NewManagedInstallStagingDir(homePaths)
@@ -86,7 +99,16 @@ func InstallLocalManaged(
 	}
 	cleanupStaging = false
 
-	if err := registry.Install(manifest, finalDir, checksum, opts...); err != nil {
+	installedChecksum, err := ComputeDirectoryChecksum(finalDir)
+	if err != nil {
+		removeErr := os.RemoveAll(finalDir)
+		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			return errors.Join(err, fmt.Errorf("extension: remove failed local install %q after checksum error: %w", finalDir, removeErr))
+		}
+		return err
+	}
+
+	if err := registry.Install(manifest, finalDir, installedChecksum, opts...); err != nil {
 		removeErr := os.RemoveAll(finalDir)
 		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
 			return errors.Join(err, fmt.Errorf("extension: remove failed local install %q: %w", finalDir, removeErr))
@@ -119,46 +141,55 @@ func copyInstallTree(sourceDir string, targetDir string) error {
 	if strings.TrimSpace(targetDir) == "" {
 		return errors.New("extension: target directory is required")
 	}
+	if err := os.MkdirAll(targetDir, info.Mode().Perm()); err != nil {
+		return fmt.Errorf("extension: create target directory %q: %w", targetDir, err)
+	}
 	if err := os.Chmod(targetDir, info.Mode().Perm()); err != nil {
 		return fmt.Errorf("extension: set target directory mode %q: %w", targetDir, err)
 	}
 
-	return filepath.WalkDir(absSourceRoot, func(entryPath string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return fmt.Errorf("extension: walk source directory %q: %w", absSourceRoot, walkErr)
-		}
-		if entryPath == absSourceRoot {
-			return nil
-		}
+	return copyInstallDirectoryContents(absSourceRoot, targetDir)
+}
 
-		relPath, err := filepath.Rel(absSourceRoot, entryPath)
-		if err != nil {
-			return fmt.Errorf("extension: resolve relative path for %q: %w", entryPath, err)
-		}
-		targetPath := filepath.Join(targetDir, relPath)
+func copyInstallDirectoryContents(sourceDir string, targetDir string) error {
+	entries, err := os.ReadDir(sourceDir)
+	if err != nil {
+		return fmt.Errorf("extension: read source directory %q: %w", sourceDir, err)
+	}
 
-		info, err := os.Lstat(entryPath)
-		if err != nil {
-			return fmt.Errorf("extension: stat source path %q: %w", entryPath, err)
+	for _, entry := range entries {
+		sourcePath := filepath.Join(sourceDir, entry.Name())
+		targetPath := filepath.Join(targetDir, entry.Name())
+		if err := copyInstallEntry(sourcePath, targetPath); err != nil {
+			return err
 		}
+	}
 
-		switch {
-		case info.IsDir():
-			if err := os.MkdirAll(targetPath, info.Mode().Perm()); err != nil {
-				return fmt.Errorf("extension: create target directory %q: %w", targetPath, err)
-			}
-			if err := os.Chmod(targetPath, info.Mode().Perm()); err != nil {
-				return fmt.Errorf("extension: set target directory mode %q: %w", targetPath, err)
-			}
-			return nil
-		case info.Mode().IsRegular():
-			return copyInstallFile(entryPath, targetPath, info.Mode().Perm())
-		case info.Mode()&os.ModeSymlink != 0:
-			return copyInstallSymlink(entryPath, targetPath)
-		default:
-			return fmt.Errorf("extension: unsupported file type in extension payload %q", entryPath)
+	return nil
+}
+
+func copyInstallEntry(sourcePath string, targetPath string) error {
+	info, err := os.Lstat(sourcePath)
+	if err != nil {
+		return fmt.Errorf("extension: stat source path %q: %w", sourcePath, err)
+	}
+
+	switch {
+	case info.IsDir():
+		if err := os.MkdirAll(targetPath, info.Mode().Perm()); err != nil {
+			return fmt.Errorf("extension: create target directory %q: %w", targetPath, err)
 		}
-	})
+		if err := os.Chmod(targetPath, info.Mode().Perm()); err != nil {
+			return fmt.Errorf("extension: set target directory mode %q: %w", targetPath, err)
+		}
+		return copyInstallDirectoryContents(sourcePath, targetPath)
+	case info.Mode().IsRegular():
+		return copyInstallFile(sourcePath, targetPath, info.Mode().Perm())
+	case info.Mode()&os.ModeSymlink != 0:
+		return copyInstallSymlink(sourcePath, targetPath)
+	default:
+		return fmt.Errorf("extension: unsupported file type in extension payload %q", sourcePath)
+	}
 }
 
 func copyInstallFile(sourcePath string, targetPath string, perm os.FileMode) (err error) {
@@ -197,16 +228,28 @@ func copyInstallFile(sourcePath string, targetPath string, perm os.FileMode) (er
 }
 
 func copyInstallSymlink(sourcePath string, targetPath string) error {
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-		return fmt.Errorf("extension: create target symlink parent %q: %w", filepath.Dir(targetPath), err)
+	resolvedPath, err := filepath.EvalSymlinks(sourcePath)
+	if err != nil {
+		return fmt.Errorf("extension: resolve source symlink %q: %w", sourcePath, err)
 	}
 
-	linkTarget, err := os.Readlink(sourcePath)
+	info, err := os.Stat(resolvedPath)
 	if err != nil {
-		return fmt.Errorf("extension: read source symlink %q: %w", sourcePath, err)
+		return fmt.Errorf("extension: stat resolved symlink target %q: %w", resolvedPath, err)
 	}
-	if err := os.Symlink(linkTarget, targetPath); err != nil {
-		return fmt.Errorf("extension: create target symlink %q: %w", targetPath, err)
+
+	switch {
+	case info.IsDir():
+		if err := os.MkdirAll(targetPath, info.Mode().Perm()); err != nil {
+			return fmt.Errorf("extension: create target directory %q for symlinked source %q: %w", targetPath, sourcePath, err)
+		}
+		if err := os.Chmod(targetPath, info.Mode().Perm()); err != nil {
+			return fmt.Errorf("extension: set target directory mode %q for symlinked source %q: %w", targetPath, sourcePath, err)
+		}
+		return copyInstallDirectoryContents(resolvedPath, targetPath)
+	case info.Mode().IsRegular():
+		return copyInstallFile(resolvedPath, targetPath, info.Mode().Perm())
+	default:
+		return fmt.Errorf("extension: unsupported symlink target type for %q", sourcePath)
 	}
-	return nil
 }

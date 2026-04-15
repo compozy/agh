@@ -61,7 +61,12 @@ func TestBrokerSetTransportFlushesQueuedResume(t *testing.T) {
 	}
 
 	waitForSnapshot(t, broker, reg.DeliveryID, func(snapshot *DeliverySnapshot) bool {
-		return snapshot.LastSentSeq == 1 && snapshot.LastAckedSeq == 0
+		if snapshot.LastSentSeq != 1 || snapshot.LastAckedSeq != 0 {
+			return false
+		}
+		metrics := broker.DeliveryMetrics()
+		entry, ok := metrics[reg.BridgeInstanceID]
+		return ok && strings.TrimSpace(entry.LastError) != ""
 	})
 
 	transport := &fakeDeliveryTransport{}

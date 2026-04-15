@@ -25,7 +25,9 @@ type bridgeDedupStore interface {
 type bridgeRuntimeStore interface {
 	bridgepkg.RegistryStore
 	bridgeDedupStore
+	PutBridgeSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error
 	ListBridgeSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error)
+	DeleteBridgeSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error
 }
 
 var errBridgeSecretResolverRequired = errors.New("daemon: bridge secret resolver is required")
@@ -141,6 +143,54 @@ func (r *bridgeRuntime) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMet
 		return nil
 	}
 	return r.broker.DeliveryMetrics()
+}
+
+func (r *bridgeRuntime) ListSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error) {
+	if r == nil {
+		return nil, errors.New("daemon: bridge runtime is required")
+	}
+	if ctx == nil {
+		return nil, errors.New("daemon: list bridge secret bindings context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if r.store == nil {
+		return nil, errors.New("daemon: bridge store is required")
+	}
+	return r.store.ListBridgeSecretBindings(ctx, strings.TrimSpace(bridgeInstanceID))
+}
+
+func (r *bridgeRuntime) PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error {
+	if r == nil {
+		return errors.New("daemon: bridge runtime is required")
+	}
+	if ctx == nil {
+		return errors.New("daemon: put bridge secret binding context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if r.store == nil {
+		return errors.New("daemon: bridge store is required")
+	}
+	return r.store.PutBridgeSecretBinding(ctx, binding)
+}
+
+func (r *bridgeRuntime) DeleteSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error {
+	if r == nil {
+		return errors.New("daemon: bridge runtime is required")
+	}
+	if ctx == nil {
+		return errors.New("daemon: delete bridge secret binding context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if r.store == nil {
+		return errors.New("daemon: bridge store is required")
+	}
+	return r.store.DeleteBridgeSecretBinding(ctx, strings.TrimSpace(bridgeInstanceID), strings.TrimSpace(bindingName))
 }
 
 func (r *bridgeRuntime) ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error) {
