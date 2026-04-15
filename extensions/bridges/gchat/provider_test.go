@@ -307,6 +307,8 @@ func TestRuntimeInitializeWebhookAndDeliveryFlow(t *testing.T) {
 	t.Setenv(gchatListenAddrEnv, listenAddr)
 	t.Setenv(gchatAPIBaseEnv, mockAPI.URL())
 	t.Setenv(gchatTokenURLEnv, mockAPI.TokenURL())
+	t.Setenv(gchatDirectCertsEnv, mockAPI.DirectCertsURL())
+	t.Setenv(gchatPubSubCertsEnv, mockAPI.PubSubCertsURL())
 
 	runtime, hostPeer, cleanup := newRuntimePeerPair(t)
 	defer cleanup()
@@ -320,9 +322,7 @@ func TestRuntimeInitializeWebhookAndDeliveryFlow(t *testing.T) {
 			"path":        "/gchat/brg-gchat",
 		},
 		"verification": map[string]any{
-			"direct_certs_url":             mockAPI.DirectCertsURL(),
 			"pubsub_audience":              "https://example.test/pubsub",
-			"pubsub_certs_url":             mockAPI.PubSubCertsURL(),
 			"pubsub_service_account_email": "push@example.iam.gserviceaccount.com",
 		},
 	})
@@ -527,7 +527,7 @@ func TestRuntimePubSubMessageAndDirectDeliveryPaths(t *testing.T) {
 	}
 
 	recorder := httptest.NewRecorder()
-	err = runtime.handlePubSubWebhook(recorder, cfg, bridgesdk.WebhookRequest{
+	err = runtime.handlePubSubWebhook(context.Background(), recorder, cfg, bridgesdk.WebhookRequest{
 		Body:       []byte(pubSubMessagePayload(now)),
 		ReceivedAt: now,
 	})
@@ -654,14 +654,14 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 	now := time.Date(2026, 4, 15, 20, 20, 0, 0, time.UTC)
 	managed := testBridgeRuntime(t, now, "brg-gchat")
 	managed.Instance.ProviderConfig = mustJSON(t, map[string]any{
-		"mode": "hybrid",
+		"api_base_url":    "https://tenant.example.invalid",
+		"oauth_token_url": "https://tenant.example.invalid/oauth2/token",
+		"mode":            "hybrid",
 		"webhook": map[string]any{
 			"path": "/custom/gchat",
 		},
 		"verification": map[string]any{
-			"direct_certs_url":             server.DirectCertsURL(),
 			"pubsub_audience":              "https://example.test/pubsub",
-			"pubsub_certs_url":             server.PubSubCertsURL(),
 			"pubsub_service_account_email": "push@example.iam.gserviceaccount.com",
 		},
 		"dm": map[string]any{
@@ -700,6 +700,8 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 	t.Setenv(gchatListenAddrEnv, reserveListenAddr(t))
 	t.Setenv(gchatAPIBaseEnv, server.URL())
 	t.Setenv(gchatTokenURLEnv, server.TokenURL())
+	t.Setenv(gchatDirectCertsEnv, server.DirectCertsURL())
+	t.Setenv(gchatPubSubCertsEnv, server.PubSubCertsURL())
 
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
@@ -714,8 +716,34 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 	if cfg.configError != nil {
 		t.Fatalf("resolveInstanceConfig() configError = %v", cfg.configError)
 	}
+	if got, want := cfg.apiBaseURL, server.URL(); got != want {
+		t.Fatalf("cfg.apiBaseURL = %q, want %q", got, want)
+	}
 	if got, want := cfg.tokenURL, server.TokenURL(); got != want {
 		t.Fatalf("cfg.tokenURL = %q, want %q", got, want)
+	}
+	if got, want := cfg.directCertsURL, server.DirectCertsURL(); got != want {
+		t.Fatalf("cfg.directCertsURL = %q, want %q", got, want)
+	}
+	if got, want := cfg.pubsubCertsURL, server.PubSubCertsURL(); got != want {
+		t.Fatalf("cfg.pubsubCertsURL = %q, want %q", got, want)
+	}
+	waitForCondition(t, func() bool {
+		runtime.mu.RLock()
+		defer runtime.mu.RUnlock()
+		return runtime.server != nil
+	})
+	runtime.mu.RLock()
+	httpServer := runtime.server
+	runtime.mu.RUnlock()
+	if httpServer == nil {
+		t.Fatal("runtime.server = nil, want initialized webhook server")
+	}
+	if got, want := httpServer.ReadHeaderTimeout, gchatWebhookReadHeaderTimeout; got != want {
+		t.Fatalf("ReadHeaderTimeout = %s, want %s", got, want)
+	}
+	if got, want := httpServer.IdleTimeout, gchatWebhookIdleTimeout; got != want {
+		t.Fatalf("IdleTimeout = %s, want %s", got, want)
 	}
 	if got, want := cfg.webhookPath, "/custom/gchat"; got != want {
 		t.Fatalf("cfg.webhookPath = %q, want %q", got, want)
@@ -831,6 +859,40 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 	if cfgBadConfig.configError == nil || !strings.Contains(cfgBadConfig.configError.Error(), "decode provider_config") {
 		t.Fatalf("resolveInstanceConfig(bad provider_config) configError = %v, want decode error", cfgBadConfig.configError)
 	}
+
+	t.Setenv(gchatDirectCertsEnv, "")
+	t.Setenv(gchatPubSubCertsEnv, "")
+
+	managedBlockedCerts := testBridgeRuntime(t, now, "brg-blocked-certs")
+	managedBlockedCerts.Instance.ProviderConfig = mustJSON(t, map[string]any{
+		"mode": "pubsub",
+		"verification": map[string]any{
+			"pubsub_audience":              "https://example.test/pubsub",
+			"pubsub_service_account_email": "push@example.iam.gserviceaccount.com",
+			"pubsub_certs_url":             "https://evil.example/certs",
+		},
+	})
+	cfgBlockedCerts := provider.resolveInstanceConfig(session, managedBlockedCerts)
+	if cfgBlockedCerts.configError == nil || !strings.Contains(cfgBlockedCerts.configError.Error(), "pubsub_certs_url") {
+		t.Fatalf("resolveInstanceConfig(blocked cert host) configError = %v, want pubsub_certs_url allowlist error", cfgBlockedCerts.configError)
+	}
+
+	managedAllowedCerts := testBridgeRuntime(t, now, "brg-allowed-certs")
+	managedAllowedCerts.Instance.ProviderConfig = mustJSON(t, map[string]any{
+		"mode": "pubsub",
+		"verification": map[string]any{
+			"pubsub_audience":              "https://example.test/pubsub",
+			"pubsub_service_account_email": "push@example.iam.gserviceaccount.com",
+			"pubsub_certs_url":             gchatDefaultPubSubCertsURL,
+		},
+	})
+	cfgAllowedCerts := provider.resolveInstanceConfig(session, managedAllowedCerts)
+	if cfgAllowedCerts.configError != nil {
+		t.Fatalf("resolveInstanceConfig(allowed cert host) configError = %v, want nil", cfgAllowedCerts.configError)
+	}
+	if got, want := cfgAllowedCerts.pubsubCertsURL, gchatDefaultPubSubCertsURL; got != want {
+		t.Fatalf("cfgAllowedCerts.pubsubCertsURL = %q, want %q", got, want)
+	}
 }
 
 func TestGChatTransportAndClassificationHelpers(t *testing.T) {
@@ -913,6 +975,142 @@ func TestGChatTransportAndClassificationHelpers(t *testing.T) {
 	}
 	if got := cloneDegradation(&bridgepkg.BridgeDegradation{Reason: bridgepkg.BridgeDegradationReasonRateLimited, Message: "slow"}); got == nil || got.Reason != bridgepkg.BridgeDegradationReasonRateLimited {
 		t.Fatalf("cloneDegradation() = %#v, want cloned value", got)
+	}
+}
+
+func TestGChatWebhookHandlersUseRequestContext(t *testing.T) {
+	server := newGChatProviderTestServer(t)
+	defer server.Close()
+
+	now := time.Date(2026, 4, 15, 21, 45, 0, 0, time.UTC)
+	runtime, hostPeer, cleanup := newRuntimePeerPair(t)
+	defer cleanup()
+
+	managed := testBridgeRuntime(t, now, "brg-gchat-ctx")
+	managed.Instance.ProviderConfig = mustJSON(t, map[string]any{
+		"mode": "hybrid",
+		"verification": map[string]any{
+			"pubsub_audience":              "https://example.test/pubsub",
+			"pubsub_service_account_email": "push@example.iam.gserviceaccount.com",
+		},
+	})
+
+	mustHandle(t, hostPeer, string(extensionprotocol.HostAPIMethodBridgesInstancesList), func(context.Context, json.RawMessage) (any, error) {
+		return []bridgepkg.BridgeInstance{managed.Instance}, nil
+	})
+	mustHandle(t, hostPeer, string(extensionprotocol.HostAPIMethodBridgesInstancesGet), func(context.Context, json.RawMessage) (any, error) {
+		return managed.Instance, nil
+	})
+	mustHandle(t, hostPeer, string(extensionprotocol.HostAPIMethodBridgesInstancesReportState), func(_ context.Context, params json.RawMessage) (any, error) {
+		var payload extensioncontract.BridgesInstancesReportStateParams
+		if err := json.Unmarshal(params, &payload); err != nil {
+			return nil, err
+		}
+		instance := managed.Instance
+		instance.Status = payload.Status
+		instance.Degradation = payload.Degradation
+		return instance, nil
+	})
+	mustHandle(t, hostPeer, string(extensionprotocol.HostAPIMethodBridgesMessagesIngest), func(ctx context.Context, _ json.RawMessage) (any, error) {
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			t.Fatalf("bridges/messages/ingest ctx.Err() = %v, want context.Canceled", ctx.Err())
+		}
+		return nil, context.Canceled
+	})
+
+	t.Setenv(gchatListenAddrEnv, reserveListenAddr(t))
+	t.Setenv(gchatAPIBaseEnv, server.URL())
+	t.Setenv(gchatTokenURLEnv, server.TokenURL())
+	t.Setenv(gchatDirectCertsEnv, server.DirectCertsURL())
+	t.Setenv(gchatPubSubCertsEnv, server.PubSubCertsURL())
+
+	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
+		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
+	}
+
+	cfg, err := runtime.waitForInstanceConfig("brg-gchat-ctx", time.Second)
+	if err != nil {
+		t.Fatalf("waitForInstanceConfig() error = %v", err)
+	}
+	runtime.apiFactory = func(resolvedInstanceConfig) gchatAPI {
+		return &contextCheckingGChatAPI{
+			t:       t,
+			message: gchatMessage{Name: "spaces/AAA/messages/msg-react", Space: &gchatSpace{Name: "spaces/AAA", Type: "SPACE"}},
+		}
+	}
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	recorder := httptest.NewRecorder()
+	err = runtime.handleDirectWebhook(
+		canceledCtx,
+		recorder,
+		cfg,
+		bridgesdk.WebhookRequest{Body: []byte(directWebhookPayload()), ReceivedAt: now},
+	)
+	var httpErr *bridgesdk.HTTPError
+	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("handleDirectWebhook(canceled context) error = %v, want HTTP 500", err)
+	}
+
+	recorder = httptest.NewRecorder()
+	err = runtime.handlePubSubWebhook(
+		canceledCtx,
+		recorder,
+		cfg,
+		bridgesdk.WebhookRequest{Body: []byte(pubSubReactionPayload()), ReceivedAt: now},
+	)
+	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("handlePubSubWebhook(canceled context) error = %v, want HTTP 500", err)
+	}
+}
+
+func TestGoogleX509KeyCacheReusesFreshKeysAndFallsBackToStaleEntries(t *testing.T) {
+	server := newGChatProviderTestServer(t)
+	url := server.DirectCertsURL()
+	cache := newGoogleX509KeyCache(&http.Client{Timeout: time.Second}, time.Minute, time.Now)
+
+	first, err := cache.fetch(context.Background(), url)
+	if err != nil {
+		t.Fatalf("cache.fetch(first) error = %v", err)
+	}
+	second, err := cache.fetch(context.Background(), url)
+	if err != nil {
+		t.Fatalf("cache.fetch(second) error = %v", err)
+	}
+	if len(first) == 0 || len(second) == 0 {
+		t.Fatal("cache.fetch() returned no keys, want cached keys")
+	}
+	if got, want := server.DirectCertHits(), 1; got != want {
+		t.Fatalf("DirectCertHits() = %d, want %d after cache reuse", got, want)
+	}
+
+	cache.entries[url] = googleX509KeyCacheEntry{
+		keys:      first,
+		expiresAt: time.Now().Add(-time.Second),
+	}
+	server.Close()
+
+	stale, err := cache.fetch(context.Background(), url)
+	if err != nil {
+		t.Fatalf("cache.fetch(stale fallback) error = %v", err)
+	}
+	if len(stale) == 0 {
+		t.Fatal("cache.fetch(stale fallback) = empty, want cached keys")
+	}
+}
+
+func TestGoogleX509KeyCacheUsesBoundedClientTimeout(t *testing.T) {
+	slowServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(100 * time.Millisecond)
+		_ = json.NewEncoder(w).Encode(map[string]string{"kid": "bad"})
+	}))
+	defer slowServer.Close()
+
+	cache := newGoogleX509KeyCache(&http.Client{Timeout: 20 * time.Millisecond}, time.Minute, time.Now)
+	if _, err := cache.fetch(context.Background(), slowServer.URL); err == nil {
+		t.Fatal("cache.fetch(timeout) error = nil, want non-nil")
 	}
 }
 
@@ -1062,13 +1260,13 @@ func TestGChatWebhookAndBatchErrorPaths(t *testing.T) {
 	}
 
 	recorder = httptest.NewRecorder()
-	err = provider.handleDirectWebhook(recorder, cfg, bridgesdk.WebhookRequest{Body: []byte(`{`), ReceivedAt: now})
+	err = provider.handleDirectWebhook(context.Background(), recorder, cfg, bridgesdk.WebhookRequest{Body: []byte(`{`), ReceivedAt: now})
 	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("handleDirectWebhook(invalid json) error = %v, want HTTP 400", err)
 	}
 
 	recorder = httptest.NewRecorder()
-	err = provider.handleDirectWebhook(recorder, cfg, bridgesdk.WebhookRequest{Body: []byte(`{"chat":null}`), ReceivedAt: now})
+	err = provider.handleDirectWebhook(context.Background(), recorder, cfg, bridgesdk.WebhookRequest{Body: []byte(`{"chat":null}`), ReceivedAt: now})
 	if err != nil {
 		t.Fatalf("handleDirectWebhook(nil chat) error = %v", err)
 	}
@@ -1103,19 +1301,19 @@ func TestGChatWebhookAndBatchErrorPaths(t *testing.T) {
 		},
 	})
 	recorder = httptest.NewRecorder()
-	err = provider.handleDirectWebhook(recorder, cfg, bridgesdk.WebhookRequest{Body: actionPayload, ReceivedAt: now})
+	err = provider.handleDirectWebhook(context.Background(), recorder, cfg, bridgesdk.WebhookRequest{Body: actionPayload, ReceivedAt: now})
 	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("handleDirectWebhook(uninitialized session) error = %v, want HTTP 500", err)
 	}
 
 	recorder = httptest.NewRecorder()
-	err = provider.handlePubSubWebhook(recorder, cfg, bridgesdk.WebhookRequest{Body: []byte(`{"message":{"data":"%%%"}}`), ReceivedAt: now})
+	err = provider.handlePubSubWebhook(context.Background(), recorder, cfg, bridgesdk.WebhookRequest{Body: []byte(`{"message":{"data":"%%%"}}`), ReceivedAt: now})
 	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("handlePubSubWebhook(invalid payload) error = %v, want HTTP 400", err)
 	}
 
 	recorder = httptest.NewRecorder()
-	err = provider.handlePubSubWebhook(recorder, cfg, bridgesdk.WebhookRequest{Body: []byte(pubSubReactionPayload()), ReceivedAt: now})
+	err = provider.handlePubSubWebhook(context.Background(), recorder, cfg, bridgesdk.WebhookRequest{Body: []byte(pubSubReactionPayload()), ReceivedAt: now})
 	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("handlePubSubWebhook(uninitialized session) error = %v, want HTTP 500", err)
 	}
@@ -1402,6 +1600,40 @@ func (f *fakeGChatAPI) GetMessage(_ context.Context, messageName string) (*gchat
 	return nil, errors.New("not found")
 }
 
+type contextCheckingGChatAPI struct {
+	t       *testing.T
+	message gchatMessage
+}
+
+func (c *contextCheckingGChatAPI) ValidateAuth(context.Context) error { return nil }
+
+func (c *contextCheckingGChatAPI) CreateMessage(context.Context, gchatCreateMessageRequest) (*gchatSentMessage, error) {
+	return nil, errors.New("unsupported")
+}
+
+func (c *contextCheckingGChatAPI) UpdateMessage(context.Context, gchatUpdateMessageRequest) (*gchatSentMessage, error) {
+	return nil, errors.New("unsupported")
+}
+
+func (c *contextCheckingGChatAPI) DeleteMessage(context.Context, string) error {
+	return errors.New("unsupported")
+}
+
+func (c *contextCheckingGChatAPI) GetMessage(ctx context.Context, messageName string) (*gchatMessage, error) {
+	c.t.Helper()
+	if !errors.Is(ctx.Err(), context.Canceled) {
+		c.t.Fatalf("GetMessage ctx.Err() = %v, want context.Canceled", ctx.Err())
+	}
+	if c.message.Name != "" {
+		copy := c.message
+		if strings.TrimSpace(copy.Name) == "" {
+			copy.Name = messageName
+		}
+		return &copy, nil
+	}
+	return nil, context.Canceled
+}
+
 type gchatProviderTestServer struct {
 	server         *httptest.Server
 	mu             sync.Mutex
@@ -1410,6 +1642,8 @@ type gchatProviderTestServer struct {
 	pubSubKey      *rsa.PrivateKey
 	directCertPEM  string
 	pubSubCertPEM  string
+	directCertHits int
+	pubSubCertHits int
 	messageCounter int
 	messageStore   map[string]gchatMessage
 }
@@ -1453,6 +1687,18 @@ func (s *gchatProviderTestServer) DirectCertsURL() string { return s.server.URL 
 
 func (s *gchatProviderTestServer) PubSubCertsURL() string { return s.server.URL + "/pubsub-certs" }
 
+func (s *gchatProviderTestServer) DirectCertHits() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.directCertHits
+}
+
+func (s *gchatProviderTestServer) PubSubCertHits() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.pubSubCertHits
+}
+
 func (s *gchatProviderTestServer) Calls() []gchatAPICall {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1464,9 +1710,15 @@ func (s *gchatProviderTestServer) Calls() []gchatAPICall {
 func (s *gchatProviderTestServer) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/direct-certs":
+		s.mu.Lock()
+		s.directCertHits++
+		s.mu.Unlock()
 		_ = json.NewEncoder(w).Encode(map[string]string{"direct-kid": s.directCertPEM})
 		return
 	case r.Method == http.MethodGet && r.URL.Path == "/pubsub-certs":
+		s.mu.Lock()
+		s.pubSubCertHits++
+		s.mu.Unlock()
 		_ = json.NewEncoder(w).Encode(map[string]string{"pubsub-kid": s.pubSubCertPEM})
 		return
 	case r.Method == http.MethodPost && r.URL.Path == "/oauth2/token":

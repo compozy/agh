@@ -27,7 +27,9 @@ const (
 	discordListenAddrEnv = "AGH_BRIDGE_DISCORD_LISTEN_ADDR"
 	discordAPIBaseEnv    = "AGH_BRIDGE_DISCORD_API_BASE_URL"
 
-	discordDefaultAPIBaseURL = "https://discord.com/api/v10"
+	discordDefaultAPIBaseURL        = "https://discord.com/api/v10"
+	discordWebhookReadHeaderTimeout = 10 * time.Second
+	discordWebhookIdleTimeout       = 2 * time.Minute
 
 	discordInteractionTypePing               = 1
 	discordInteractionTypeApplicationCommand = 2
@@ -751,7 +753,7 @@ func (p *discordProvider) resolveInstanceConfig(
 	publicKey, _ := session.Cache().BoundSecretValue(managed.Instance.ID, "public_key")
 	listenAddr := firstNonEmpty(cfg.Webhook.ListenAddr, strings.TrimSpace(os.Getenv(discordListenAddrEnv)))
 	webhookPath := normalizeWebhookPath(firstNonEmpty(cfg.Webhook.Path, "/discord/"+strings.TrimSpace(managed.Instance.ID)))
-	apiBaseURL := normalizeURL(firstNonEmpty(cfg.APIBaseURL, strings.TrimSpace(os.Getenv(discordAPIBaseEnv)), discordDefaultAPIBaseURL))
+	apiBaseURL := normalizeURL(firstNonEmpty(strings.TrimSpace(os.Getenv(discordAPIBaseEnv)), discordDefaultAPIBaseURL))
 
 	resolved := resolvedInstanceConfig{
 		managed:         managed,
@@ -873,7 +875,9 @@ func (p *discordProvider) startServer(listenAddr string) error {
 	}
 
 	httpServer := &http.Server{
-		Handler: http.HandlerFunc(p.serveWebhookHTTP),
+		Handler:           http.HandlerFunc(p.serveWebhookHTTP),
+		ReadHeaderTimeout: discordWebhookReadHeaderTimeout,
+		IdleTimeout:       discordWebhookIdleTimeout,
 	}
 
 	actualAddr := ln.Addr().String()
@@ -929,7 +933,7 @@ func (p *discordProvider) serveWebhookHTTP(w http.ResponseWriter, r *http.Reques
 
 func (p *discordProvider) handleWebhookRequest(
 	w http.ResponseWriter,
-	_ *http.Request,
+	r *http.Request,
 	cfg resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 ) error {
@@ -940,7 +944,7 @@ func (p *discordProvider) handleWebhookRequest(
 	if len(bytes.TrimSpace(probe.Token)) > 0 {
 		return p.handleInteractionWebhook(w, cfg, request)
 	}
-	return p.handleEventWebhook(w, cfg, request)
+	return p.handleEventWebhook(w, r, cfg, request)
 }
 
 func (p *discordProvider) handleInteractionWebhook(
@@ -981,6 +985,7 @@ func (p *discordProvider) handleInteractionWebhook(
 
 func (p *discordProvider) handleEventWebhook(
 	w http.ResponseWriter,
+	r *http.Request,
 	cfg resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 ) error {
@@ -998,6 +1003,10 @@ func (p *discordProvider) handleEventWebhook(
 	}
 	if envelope.Event == nil {
 		return writeWebhookNoContent(w)
+	}
+	ctx := context.Background()
+	if r != nil && r.Context() != nil {
+		ctx = r.Context()
 	}
 
 	switch strings.TrimSpace(envelope.Event.Type) {
@@ -1019,7 +1028,7 @@ func (p *discordProvider) handleEventWebhook(
 			}
 			return writeWebhookNoContent(w)
 		}
-		if err := p.dispatchInboundEnvelope(context.Background(), cfg.instanceID, mapped.Envelope); err != nil {
+		if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, mapped.Envelope); err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
 		return writeWebhookNoContent(w)
@@ -1035,7 +1044,7 @@ func (p *discordProvider) handleEventWebhook(
 		if cfg.dedup.Mark(mapped.Envelope.IdempotencyKey) {
 			return writeWebhookNoContent(w)
 		}
-		if err := p.dispatchInboundEnvelope(context.Background(), cfg.instanceID, mapped.Envelope); err != nil {
+		if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, mapped.Envelope); err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
 		return writeWebhookNoContent(w)
@@ -2058,8 +2067,7 @@ func isNotInitializedRPCError(err error) bool {
 	if errors.As(err, &rpcErr) {
 		return rpcErr.Code() == rpcCodeNotInitialized
 	}
-	text := strings.ToLower(strings.TrimSpace(err.Error()))
-	return strings.Contains(text, "not initialized")
+	return false
 }
 
 func cloneDegradation(degradation *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {

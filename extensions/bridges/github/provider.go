@@ -59,9 +59,12 @@ type githubProvider struct {
 	deliveries        map[string]deliveryState
 	reportedStatus    map[string]bridgepkg.BridgeStatus
 	installationCache map[string]int64
+	apiClients        map[string]githubAPI
 	apiFactory        func(resolvedInstanceConfig) githubAPI
 	rateLimiter       *bridgesdk.FixedWindowRateLimiter
 	inFlightLimiter   *bridgesdk.InFlightLimiter
+	initReady         chan struct{}
+	initReadyOnce     sync.Once
 
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -205,18 +208,27 @@ func newGitHubProvider(stderr io.Writer) (*githubProvider, error) {
 		deliveries:        make(map[string]deliveryState),
 		reportedStatus:    make(map[string]bridgepkg.BridgeStatus),
 		installationCache: make(map[string]int64),
+		apiClients:        make(map[string]githubAPI),
 		rateLimiter:       bridgesdk.NewFixedWindowRateLimiter(300, time.Minute),
 		inFlightLimiter:   bridgesdk.NewInFlightLimiter(48),
+		initReady:         make(chan struct{}),
 		stopCh:            make(chan struct{}),
 	}
 	provider.apiFactory = func(cfg resolvedInstanceConfig) githubAPI {
-		return &githubClient{
+		provider.mu.Lock()
+		defer provider.mu.Unlock()
+		if client, ok := provider.apiClients[cfg.instanceID]; ok {
+			return client
+		}
+		client := &githubClient{
 			cfg: cfg,
 			httpClient: &http.Client{
 				Timeout: 10 * time.Second,
 			},
 			now: func() time.Time { return provider.now() },
 		}
+		provider.apiClients[cfg.instanceID] = client
+		return client
 	}
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
@@ -265,6 +277,8 @@ func (p *githubProvider) handleInitialize(_ context.Context, session *bridgesdk.
 }
 
 func (p *githubProvider) afterInitialize(session *bridgesdk.Session) {
+	defer p.markInitializationReady()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -326,7 +340,7 @@ func (p *githubProvider) handleBridgesDeliver(
 		Request: request,
 	}
 
-	cfg, err := p.waitForInstanceConfig(strings.TrimSpace(request.Event.BridgeInstanceID), 500*time.Millisecond)
+	cfg, err := p.waitForInstanceConfig(ctx, strings.TrimSpace(request.Event.BridgeInstanceID))
 	if err != nil {
 		marker.Error = err.Error()
 		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
@@ -367,7 +381,7 @@ func (p *githubProvider) handleBridgesDeliver(
 		return bridgepkg.DeliveryAck{}, err
 	}
 
-	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
+	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, request.Event, state)
 	p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
 
 	marker.Ack = &ack
@@ -578,6 +592,7 @@ func (p *githubProvider) reconcileInstanceConfigs(
 		p.mu.Lock()
 		p.routes = make(map[string]resolvedInstanceConfig)
 		p.installationCache = make(map[string]int64)
+		p.apiClients = make(map[string]githubAPI)
 		p.mu.Unlock()
 		return nil, nil
 	}
@@ -585,6 +600,7 @@ func (p *githubProvider) reconcileInstanceConfigs(
 	configs := make([]resolvedInstanceConfig, 0, len(managed))
 	requestedListen := strings.TrimSpace(os.Getenv(githubListenAddrEnv))
 	seenRepos := make(map[string]string, len(managed))
+	seenWebhookPaths := make(map[string]string, len(managed))
 
 	for _, item := range managed {
 		cfg := p.resolveInstanceConfig(session, item)
@@ -600,6 +616,12 @@ func (p *githubProvider) reconcileInstanceConfigs(
 		}
 		if cfg.repoFullName != "" {
 			seenRepos[cfg.repoFullName] = cfg.instanceID
+		}
+		if owner, ok := seenWebhookPaths[cfg.webhookPath]; ok && cfg.webhookPath != "" && cfg.configError == nil {
+			cfg.configError = fmt.Errorf("github: webhook path %q is already owned by %q and cannot also belong to %q", cfg.webhookPath, owner, cfg.instanceID)
+		}
+		if cfg.webhookPath != "" {
+			seenWebhookPaths[cfg.webhookPath] = cfg.instanceID
 		}
 		configs = append(configs, cfg)
 	}
@@ -619,6 +641,17 @@ func (p *githubProvider) reconcileInstanceConfigs(
 	}
 
 	nextRoutes := make(map[string]resolvedInstanceConfig, len(configs))
+	for _, cfg := range configs {
+		nextRoutes[cfg.instanceID] = cfg
+	}
+
+	p.mu.Lock()
+	p.routes = nextRoutes
+	p.listenAddr = requestedListen
+	p.apiClients = make(map[string]githubAPI, len(nextRoutes))
+	p.mu.Unlock()
+	p.markInitializationReady()
+
 	for idx := range configs {
 		updated, status, degradation, err := p.determineInitialState(ctx, configs[idx])
 		if err != nil {
@@ -632,7 +665,6 @@ func (p *githubProvider) reconcileInstanceConfigs(
 
 	p.mu.Lock()
 	p.routes = nextRoutes
-	p.listenAddr = requestedListen
 	p.mu.Unlock()
 
 	return configs, nil
@@ -958,18 +990,25 @@ func (p *githubProvider) configForInstance(instanceID string) (resolvedInstanceC
 	return cfg, nil
 }
 
-func (p *githubProvider) waitForInstanceConfig(instanceID string, timeout time.Duration) (resolvedInstanceConfig, error) {
-	if timeout <= 0 {
-		return p.configForInstance(instanceID)
+func (p *githubProvider) waitForInstanceConfig(ctx context.Context, instanceID string) (resolvedInstanceConfig, error) {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-
-	deadline := time.Now().Add(timeout)
+	initReady := p.initializationReady()
 	for {
 		cfg, err := p.configForInstance(instanceID)
 		if err == nil {
 			return cfg, nil
 		}
-		if time.Now().After(deadline) {
+		if initReady != nil {
+			select {
+			case <-initReady:
+				initReady = nil
+				continue
+			default:
+			}
+		}
+		if initReady == nil {
 			return resolvedInstanceConfig{}, err
 		}
 
@@ -980,6 +1019,16 @@ func (p *githubProvider) waitForInstanceConfig(instanceID string, timeout time.D
 				<-timer.C
 			}
 			return resolvedInstanceConfig{}, err
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return resolvedInstanceConfig{}, ctx.Err()
+		case <-initReady:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			initReady = nil
 		case <-timer.C:
 		}
 	}
@@ -1011,10 +1060,32 @@ func (p *githubProvider) deliveryState(instanceID string, deliveryID string) del
 	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
 }
 
-func (p *githubProvider) storeDeliveryState(instanceID string, deliveryID string, state deliveryState) {
+func (p *githubProvider) storeDeliveryState(instanceID string, deliveryID string, event bridgepkg.DeliveryEvent, state deliveryState) {
+	key := deliveryStateKey(instanceID, deliveryID)
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
+	if isTerminalGitHubDeliveryEvent(event) {
+		delete(p.deliveries, key)
+		return
+	}
+	p.deliveries[key] = state
+}
+
+func (p *githubProvider) initializationReady() <-chan struct{} {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.initReady
+}
+
+func (p *githubProvider) markInitializationReady() {
+	p.initReadyOnce.Do(func() {
+		p.mu.Lock()
+		ch := p.initReady
+		p.mu.Unlock()
+		if ch != nil {
+			close(ch)
+		}
+	})
 }
 
 func (p *githubProvider) storeInstallationID(repoFullName string, installationID int64) {
@@ -1597,4 +1668,16 @@ func firstNonEmpty(values ...string) string {
 
 func normalizeDeliveryEventType(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func isTerminalGitHubDeliveryEvent(event bridgepkg.DeliveryEvent) bool {
+	if event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete {
+		return true
+	}
+	switch normalizeDeliveryEventType(event.EventType) {
+	case bridgepkg.DeliveryEventTypeFinal, bridgepkg.DeliveryEventTypeError, bridgepkg.DeliveryEventTypeDelete:
+		return true
+	default:
+		return false
+	}
 }

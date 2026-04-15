@@ -631,7 +631,7 @@ func TestGitHubProviderAfterInitializeSyncsOwnedInstancesAndReportsState(t *test
 					},
 					"webhook": map[string]any{
 						"listen_addr": "127.0.0.1:0",
-						"path":        "/github",
+						"path":        "/github/app-one",
 					},
 				}),
 			},
@@ -654,7 +654,7 @@ func TestGitHubProviderAfterInitializeSyncsOwnedInstancesAndReportsState(t *test
 					},
 					"webhook": map[string]any{
 						"listen_addr": "127.0.0.1:0",
-						"path":        "/github",
+						"path":        "/github/app-two",
 					},
 				}),
 			},
@@ -805,7 +805,7 @@ func TestGitHubProviderServeWebhookHTTPSharedEndpointIngestsMultipleInstances(t 
 				repoOwner:     "acme",
 				repoName:      "app-one",
 				repoFullName:  "acme/app-one",
-				webhookPath:   "/github",
+				webhookPath:   "/github/app-one",
 				webhookSecret: "secret",
 				botLogin:      "bridge-bot",
 				dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
@@ -816,7 +816,7 @@ func TestGitHubProviderServeWebhookHTTPSharedEndpointIngestsMultipleInstances(t 
 				repoOwner:     "acme",
 				repoName:      "app-two",
 				repoFullName:  "acme/app-two",
-				webhookPath:   "/github",
+				webhookPath:   "/github/app-two",
 				webhookSecret: "secret",
 				botLogin:      "bridge-bot",
 				dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
@@ -871,7 +871,7 @@ func TestGitHubProviderServeWebhookHTTPSharedEndpointIngestsMultipleInstances(t 
 	})
 
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "http://example.test/github", strings.NewReader(string(first)))
+	req := httptest.NewRequest(http.MethodPost, "http://example.test/github/app-one", strings.NewReader(string(first)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-GitHub-Event", "issue_comment")
 	req.Header.Set("X-Hub-Signature-256", signGitHubTestBody("secret", first))
@@ -881,7 +881,7 @@ func TestGitHubProviderServeWebhookHTTPSharedEndpointIngestsMultipleInstances(t 
 	}
 
 	recorder = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "http://example.test/github", strings.NewReader(string(second)))
+	req = httptest.NewRequest(http.MethodPost, "http://example.test/github/app-two", strings.NewReader(string(second)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-GitHub-Event", "pull_request_review_comment")
 	req.Header.Set("X-Hub-Signature-256", signGitHubTestBody("secret", second))
@@ -904,6 +904,127 @@ func TestGitHubProviderServeWebhookHTTPSharedEndpointIngestsMultipleInstances(t 
 	}
 	if len(reported) == 0 {
 		t.Fatal("reported state transitions = 0, want at least 1 ready report")
+	}
+}
+
+func TestGitHubProviderDefaultAPIFactoryReusesClientPerInstance(t *testing.T) {
+	provider, err := newGitHubProvider(io.Discard)
+	if err != nil {
+		t.Fatalf("newGitHubProvider() error = %v", err)
+	}
+
+	cfg := resolvedInstanceConfig{
+		instanceID:   "brg-github",
+		apiBaseURL:   githubDefaultAPIBaseURL,
+		mode:         githubModeApp,
+		repoOwner:    "acme",
+		repoName:     "app",
+		repoFullName: "acme/app",
+	}
+	first := provider.apiFactory(cfg)
+	second := provider.apiFactory(cfg)
+	if first != second {
+		t.Fatal("apiFactory() returned different clients for the same instance, want reuse")
+	}
+
+	other := provider.apiFactory(resolvedInstanceConfig{
+		instanceID:   "brg-github-2",
+		apiBaseURL:   githubDefaultAPIBaseURL,
+		mode:         githubModeApp,
+		repoOwner:    "acme",
+		repoName:     "other",
+		repoFullName: "acme/other",
+	})
+	if first == other {
+		t.Fatal("apiFactory() reused a client across different instances, want per-instance isolation")
+	}
+}
+
+func TestGitHubProviderReconcileRejectsSharedWebhookPaths(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv(githubListenAddrEnv, "127.0.0.1:0")
+	t.Setenv(adapterStartsEnv, filepath.Join(tmpDir, "starts.log"))
+
+	provider, err := newGitHubProvider(io.Discard)
+	if err != nil {
+		t.Fatalf("newGitHubProvider() error = %v", err)
+	}
+	t.Cleanup(func() {
+		provider.stop()
+		if provider.server != nil {
+			_ = provider.server.Close()
+		}
+	})
+	provider.apiFactory = func(cfg resolvedInstanceConfig) githubAPI {
+		return &fakeGitHubAPI{viewer: &githubViewer{Login: cfg.repoName + "-bot"}}
+	}
+
+	session := newGitHubTestSession(t, nil, func(_ context.Context, method string, _ any, result any) error {
+		switch method {
+		case "bridges/instances/list":
+			*(result.(*[]bridgepkg.BridgeInstance)) = nil
+			return nil
+		case "bridges/instances/get":
+			*(result.(*bridgepkg.BridgeInstance)) = bridgepkg.BridgeInstance{}
+			return nil
+		case "bridges/instances/report_state":
+			*(result.(*bridgepkg.BridgeInstance)) = bridgepkg.BridgeInstance{}
+			return nil
+		default:
+			return errors.New("unexpected method: " + method)
+		}
+	})
+
+	first := subprocess.InitializeBridgeManagedInstance{
+		Instance: bridgepkg.BridgeInstance{
+			ID:          "brg-github-1",
+			Scope:       bridgepkg.ScopeWorkspace,
+			WorkspaceID: "ws-1",
+			ProviderConfig: mustJSON(t, map[string]any{
+				"mode": "pat",
+				"webhook": map[string]any{
+					"path": "/shared",
+				},
+				"repository": map[string]any{
+					"full_name": "acme/app-one",
+				},
+			}),
+		},
+		BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
+			{BindingName: "webhook_secret", Value: "secret-one"},
+			{BindingName: "token", Value: "ghp-one"},
+		},
+	}
+	second := subprocess.InitializeBridgeManagedInstance{
+		Instance: bridgepkg.BridgeInstance{
+			ID:          "brg-github-2",
+			Scope:       bridgepkg.ScopeWorkspace,
+			WorkspaceID: "ws-1",
+			ProviderConfig: mustJSON(t, map[string]any{
+				"mode": "pat",
+				"webhook": map[string]any{
+					"path": "/shared",
+				},
+				"repository": map[string]any{
+					"full_name": "acme/app-two",
+				},
+			}),
+		},
+		BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
+			{BindingName: "webhook_secret", Value: "secret-two"},
+			{BindingName: "token", Value: "ghp-two"},
+		},
+	}
+
+	configs, err := provider.reconcileInstanceConfigs(context.Background(), session, []subprocess.InitializeBridgeManagedInstance{first, second})
+	if err != nil {
+		t.Fatalf("reconcileInstanceConfigs() error = %v", err)
+	}
+	if got, want := len(configs), 2; got != want {
+		t.Fatalf("len(configs) = %d, want %d", got, want)
+	}
+	if configs[1].configError == nil || !strings.Contains(configs[1].configError.Error(), "webhook path") {
+		t.Fatalf("configs[1].configError = %v, want shared webhook path error", configs[1].configError)
 	}
 }
 
@@ -1591,25 +1712,32 @@ func TestGitHubAdditionalHelpersAndErrorClassification(t *testing.T) {
 	}
 
 	waitProvider := &githubProvider{
-		routes: map[string]resolvedInstanceConfig{},
-		stopCh: make(chan struct{}),
+		routes:    map[string]resolvedInstanceConfig{},
+		stopCh:    make(chan struct{}),
+		initReady: make(chan struct{}),
 	}
 	go func() {
 		time.Sleep(20 * time.Millisecond)
 		waitProvider.mu.Lock()
 		waitProvider.routes["brg-github"] = resolvedInstanceConfig{instanceID: "brg-github"}
 		waitProvider.mu.Unlock()
+		waitProvider.markInitializationReady()
 	}()
-	if cfg, err := waitProvider.waitForInstanceConfig("brg-github", 200*time.Millisecond); err != nil || cfg.instanceID != "brg-github" {
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer waitCancel()
+	if cfg, err := waitProvider.waitForInstanceConfig(waitCtx, "brg-github"); err != nil || cfg.instanceID != "brg-github" {
 		t.Fatalf("waitForInstanceConfig(available later) = (%#v, %v), want brg-github", cfg, err)
 	}
 
 	stopProvider := &githubProvider{
-		routes: map[string]resolvedInstanceConfig{},
-		stopCh: make(chan struct{}),
+		routes:    map[string]resolvedInstanceConfig{},
+		stopCh:    make(chan struct{}),
+		initReady: make(chan struct{}),
 	}
 	close(stopProvider.stopCh)
-	if _, err := stopProvider.waitForInstanceConfig("missing", 50*time.Millisecond); err == nil {
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer stopCancel()
+	if _, err := stopProvider.waitForInstanceConfig(stopCtx, "missing"); err == nil {
 		t.Fatal("waitForInstanceConfig(stopped) error = nil, want non-nil")
 	}
 
@@ -1617,6 +1745,22 @@ func TestGitHubAdditionalHelpersAndErrorClassification(t *testing.T) {
 	cloned := cloneDegradation(degradation)
 	if cloned == degradation || cloned.Message != degradation.Message {
 		t.Fatalf("cloneDegradation() = %#v, want cloned copy", cloned)
+	}
+}
+
+func TestGitHubProviderStoreDeliveryStateEvictsTerminalEntries(t *testing.T) {
+	provider := &githubProvider{deliveries: make(map[string]deliveryState)}
+	startEvent := bridgepkg.DeliveryEvent{EventType: bridgepkg.DeliveryEventTypeStart}
+	finalEvent := bridgepkg.DeliveryEvent{EventType: bridgepkg.DeliveryEventTypeFinal}
+
+	provider.storeDeliveryState("brg-github", "delivery-1", startEvent, deliveryState{LastSeq: 1, RemoteMessageID: "issue:1"})
+	if got := provider.deliveryState("brg-github", "delivery-1").RemoteMessageID; got != "issue:1" {
+		t.Fatalf("deliveryState(start) = %q, want %q", got, "issue:1")
+	}
+
+	provider.storeDeliveryState("brg-github", "delivery-1", finalEvent, deliveryState{LastSeq: 2, RemoteMessageID: "issue:1"})
+	if got := provider.deliveryState("brg-github", "delivery-1"); got != (deliveryState{}) {
+		t.Fatalf("deliveryState(final) = %#v, want empty after eviction", got)
 	}
 }
 

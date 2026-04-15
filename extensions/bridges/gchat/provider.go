@@ -30,17 +30,23 @@ import (
 )
 
 const (
-	gchatListenAddrEnv = "AGH_BRIDGE_GCHAT_LISTEN_ADDR"
-	gchatAPIBaseEnv    = "AGH_BRIDGE_GCHAT_API_BASE_URL"
-	gchatTokenURLEnv   = "AGH_BRIDGE_GCHAT_TOKEN_URL"
+	gchatListenAddrEnv  = "AGH_BRIDGE_GCHAT_LISTEN_ADDR"
+	gchatAPIBaseEnv     = "AGH_BRIDGE_GCHAT_API_BASE_URL"
+	gchatTokenURLEnv    = "AGH_BRIDGE_GCHAT_TOKEN_URL"
+	gchatDirectCertsEnv = "AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL"
+	gchatPubSubCertsEnv = "AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL"
 
-	gchatDefaultAPIBaseURL      = "https://chat.googleapis.com"
-	gchatDefaultTokenURL        = "https://oauth2.googleapis.com/token"
-	gchatDefaultDirectCertsURL  = "https://www.googleapis.com/service_accounts/v1/metadata/x509/chat@system.gserviceaccount.com"
-	gchatDefaultPubSubCertsURL  = "https://www.googleapis.com/oauth2/v1/certs"
-	gchatDefaultDirectIssuer    = "chat@system.gserviceaccount.com"
-	gchatDefaultPubSubIssuerURL = "https://accounts.google.com"
-	gchatBotScope               = "https://www.googleapis.com/auth/chat.bot"
+	gchatDefaultAPIBaseURL        = "https://chat.googleapis.com"
+	gchatDefaultTokenURL          = "https://oauth2.googleapis.com/token"
+	gchatDefaultDirectCertsURL    = "https://www.googleapis.com/service_accounts/v1/metadata/x509/chat@system.gserviceaccount.com"
+	gchatDefaultPubSubCertsURL    = "https://www.googleapis.com/oauth2/v1/certs"
+	gchatDefaultDirectIssuer      = "chat@system.gserviceaccount.com"
+	gchatDefaultPubSubIssuerURL   = "https://accounts.google.com"
+	gchatBotScope                 = "https://www.googleapis.com/auth/chat.bot"
+	gchatWebhookReadHeaderTimeout = 10 * time.Second
+	gchatWebhookIdleTimeout       = 2 * time.Minute
+	gchatCertFetchTimeout         = 5 * time.Second
+	gchatCertCacheFallbackTTL     = 5 * time.Minute
 
 	gchatModeDirect = "direct"
 	gchatModePubSub = "pubsub"
@@ -52,6 +58,12 @@ const (
 )
 
 var reactionMessagePattern = regexp.MustCompile(`^(spaces/[^/]+/messages/[^/]+)/reactions/[^/]+$`)
+
+var defaultGoogleX509KeyCache = newGoogleX509KeyCache(
+	&http.Client{Timeout: gchatCertFetchTimeout},
+	gchatCertCacheFallbackTTL,
+	func() time.Time { return time.Now().UTC() },
+)
 
 type gchatProvider struct {
 	sdk     *bridgesdk.Runtime
@@ -115,6 +127,19 @@ type serviceAccountCredentials struct {
 	PrivateKey  string `json:"private_key"`
 	ProjectID   string `json:"project_id,omitempty"`
 	TokenURI    string `json:"token_uri,omitempty"`
+}
+
+type googleX509KeyCache struct {
+	mu          sync.Mutex
+	client      *http.Client
+	fallbackTTL time.Duration
+	now         func() time.Time
+	entries     map[string]googleX509KeyCacheEntry
+}
+
+type googleX509KeyCacheEntry struct {
+	keys      map[string]*rsa.PublicKey
+	expiresAt time.Time
 }
 
 type resolvedInstanceConfig struct {
@@ -825,12 +850,26 @@ func (p *gchatProvider) resolveInstanceConfig(
 
 	listenAddr := firstNonEmpty(cfg.Webhook.ListenAddr, strings.TrimSpace(os.Getenv(gchatListenAddrEnv)))
 	webhookPath := normalizeWebhookPath(firstNonEmpty(cfg.Webhook.Path, "/gchat/"+strings.TrimSpace(managed.Instance.ID)))
-	apiBaseURL := normalizeURL(firstNonEmpty(cfg.APIBaseURL, strings.TrimSpace(os.Getenv(gchatAPIBaseEnv)), gchatDefaultAPIBaseURL))
-	tokenURL := normalizeURL(firstNonEmpty(cfg.TokenURL, strings.TrimSpace(os.Getenv(gchatTokenURLEnv)), strings.TrimSpace(credentials.TokenURI), gchatDefaultTokenURL))
+	apiBaseURL := normalizeURL(firstNonEmpty(strings.TrimSpace(os.Getenv(gchatAPIBaseEnv)), gchatDefaultAPIBaseURL))
+	tokenURL := normalizeURL(firstNonEmpty(strings.TrimSpace(os.Getenv(gchatTokenURLEnv)), strings.TrimSpace(credentials.TokenURI), gchatDefaultTokenURL))
 	mode := normalizeGChatMode(cfg.Mode)
 	if mode == "" {
 		mode = gchatModeDirect
 	}
+	directCertsURL, directCertsErr := resolveAllowedGoogleURLOverride(
+		strings.TrimSpace(os.Getenv(gchatDirectCertsEnv)),
+		cfg.Verification.DirectCertsURL,
+		gchatDefaultDirectCertsURL,
+		"provider_config.verification.direct_certs_url",
+		"www.googleapis.com",
+	)
+	pubsubCertsURL, pubsubCertsErr := resolveAllowedGoogleURLOverride(
+		strings.TrimSpace(os.Getenv(gchatPubSubCertsEnv)),
+		cfg.Verification.PubSubCertsURL,
+		gchatDefaultPubSubCertsURL,
+		"provider_config.verification.pubsub_certs_url",
+		"www.googleapis.com",
+	)
 
 	resolved := resolvedInstanceConfig{
 		managed:                   managed,
@@ -843,10 +882,10 @@ func (p *gchatProvider) resolveInstanceConfig(
 		credentials:               credentials,
 		projectNumber:             strings.TrimSpace(projectNumber),
 		directIssuer:              firstNonEmpty(cfg.Verification.DirectIssuer, gchatDefaultDirectIssuer),
-		directCertsURL:            normalizeURL(firstNonEmpty(cfg.Verification.DirectCertsURL, gchatDefaultDirectCertsURL)),
+		directCertsURL:            directCertsURL,
 		pubsubAudience:            strings.TrimSpace(cfg.Verification.PubSubAudience),
 		pubsubIssuer:              firstNonEmpty(cfg.Verification.PubSubIssuer, gchatDefaultPubSubIssuerURL),
-		pubsubCertsURL:            normalizeURL(firstNonEmpty(cfg.Verification.PubSubCertsURL, gchatDefaultPubSubCertsURL)),
+		pubsubCertsURL:            pubsubCertsURL,
 		pubsubServiceAccountEmail: strings.TrimSpace(cfg.Verification.PubSubServiceAccount),
 		dmPolicy:                  managed.Instance.DMPolicy.Normalize(),
 		allowUserIDs:              buildIdentitySet(cfg.DM.AllowUserIDs),
@@ -859,6 +898,14 @@ func (p *gchatProvider) resolveInstanceConfig(
 	}
 	if resolved.dmPolicy == "" {
 		resolved.dmPolicy = bridgepkg.BridgeDMPolicyOpen
+	}
+	if directCertsErr != nil {
+		resolved.configError = directCertsErr
+		return resolved
+	}
+	if pubsubCertsErr != nil {
+		resolved.configError = pubsubCertsErr
+		return resolved
 	}
 
 	switch {
@@ -969,7 +1016,11 @@ func (p *gchatProvider) startServer(listenAddr string) error {
 		return fmt.Errorf("gchat: listen %q: %w", listenAddr, err)
 	}
 
-	httpServer := &http.Server{Handler: http.HandlerFunc(p.serveWebhookHTTP)}
+	httpServer := &http.Server{
+		Handler:           http.HandlerFunc(p.serveWebhookHTTP),
+		ReadHeaderTimeout: gchatWebhookReadHeaderTimeout,
+		IdleTimeout:       gchatWebhookIdleTimeout,
+	}
 	actualAddr := ln.Addr().String()
 
 	p.mu.Lock()
@@ -1023,28 +1074,33 @@ func (p *gchatProvider) serveWebhookHTTP(w http.ResponseWriter, r *http.Request)
 
 func (p *gchatProvider) handleWebhookRequest(
 	w http.ResponseWriter,
-	_ *http.Request,
+	r *http.Request,
 	cfg resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 ) error {
+	ctx := context.Background()
+	if r != nil && r.Context() != nil {
+		ctx = r.Context()
+	}
 	shape := detectGChatWebhookShape(request.Body)
 	switch shape {
 	case gchatModePubSub:
 		if !modeUsesPubSubIngress(cfg.mode) {
 			return writeWebhookJSON(w, http.StatusOK, map[string]any{"ignored": true})
 		}
-		return p.handlePubSubWebhook(w, cfg, request)
+		return p.handlePubSubWebhook(ctx, w, cfg, request)
 	case gchatModeDirect:
 		if !modeUsesDirectIngress(cfg.mode) {
 			return writeWebhookJSON(w, http.StatusOK, map[string]any{"ignored": true})
 		}
-		return p.handleDirectWebhook(w, cfg, request)
+		return p.handleDirectWebhook(ctx, w, cfg, request)
 	default:
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: "invalid google chat webhook payload"}
 	}
 }
 
 func (p *gchatProvider) handleDirectWebhook(
+	ctx context.Context,
 	w http.ResponseWriter,
 	cfg resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
@@ -1064,7 +1120,7 @@ func (p *gchatProvider) handleDirectWebhook(
 			return writeWebhookJSON(w, http.StatusOK, map[string]any{})
 		}
 		if allowGChatDirectMessage(cfg, item.User, item.Direct) {
-			if err := p.dispatchInboundEnvelope(context.Background(), cfg.instanceID, item.Envelope); err != nil {
+			if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, item.Envelope); err != nil {
 				return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 			}
 		}
@@ -1084,7 +1140,7 @@ func (p *gchatProvider) handleDirectWebhook(
 				return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 			}
 		} else {
-			if err := p.dispatchInboundEnvelope(context.Background(), cfg.instanceID, item.Envelope); err != nil {
+			if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, item.Envelope); err != nil {
 				return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 			}
 		}
@@ -1093,6 +1149,7 @@ func (p *gchatProvider) handleDirectWebhook(
 }
 
 func (p *gchatProvider) handlePubSubWebhook(
+	ctx context.Context,
 	w http.ResponseWriter,
 	cfg resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
@@ -1123,12 +1180,12 @@ func (p *gchatProvider) handlePubSubWebhook(
 				return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 			}
 		} else {
-			if err := p.dispatchInboundEnvelope(context.Background(), cfg.instanceID, item.Envelope); err != nil {
+			if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, item.Envelope); err != nil {
 				return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 			}
 		}
 	case notification.Reaction != nil:
-		item, mapErr := mapPubSubReactionEvent(context.Background(), p.apiFactory(cfg), notification, cfg.managed, request.ReceivedAt)
+		item, mapErr := mapPubSubReactionEvent(ctx, p.apiFactory(cfg), notification, cfg.managed, request.ReceivedAt)
 		if mapErr != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: mapErr.Error()}
 		}
@@ -1138,7 +1195,7 @@ func (p *gchatProvider) handlePubSubWebhook(
 		if !allowGChatDirectMessage(cfg, item.User, item.Direct) {
 			return writeWebhookJSON(w, http.StatusOK, map[string]any{"success": true})
 		}
-		if err := p.dispatchInboundEnvelope(context.Background(), cfg.instanceID, item.Envelope); err != nil {
+		if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, item.Envelope); err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
 	}
@@ -1788,42 +1845,137 @@ func fetchGoogleX509Keys(ctx context.Context, certsURL string) (map[string]*rsa.
 	if strings.TrimSpace(certsURL) == "" {
 		return nil, errors.New("gchat: certs url is required")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, certsURL, nil)
+	return defaultGoogleX509KeyCache.fetch(ctx, certsURL)
+}
+
+func newGoogleX509KeyCache(client *http.Client, fallbackTTL time.Duration, now func() time.Time) *googleX509KeyCache {
+	if client == nil {
+		client = &http.Client{Timeout: gchatCertFetchTimeout}
+	}
+	if fallbackTTL <= 0 {
+		fallbackTTL = gchatCertCacheFallbackTTL
+	}
+	if now == nil {
+		now = func() time.Time { return time.Now().UTC() }
+	}
+	return &googleX509KeyCache{
+		client:      client,
+		fallbackTTL: fallbackTTL,
+		now:         now,
+		entries:     make(map[string]googleX509KeyCacheEntry),
+	}
+}
+
+func (c *googleX509KeyCache) fetch(ctx context.Context, certsURL string) (map[string]*rsa.PublicKey, error) {
+	trimmedURL := strings.TrimSpace(certsURL)
+	if trimmedURL == "" {
+		return nil, errors.New("gchat: certs url is required")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := c.now()
+	if entry, ok := c.entries[trimmedURL]; ok && len(entry.keys) > 0 && now.Before(entry.expiresAt) {
+		return entry.keys, nil
+	}
+
+	keys, expiresAt, err := c.fetchRemote(ctx, trimmedURL)
 	if err != nil {
+		if entry, ok := c.entries[trimmedURL]; ok && len(entry.keys) > 0 {
+			return entry.keys, nil
+		}
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	c.entries[trimmedURL] = googleX509KeyCacheEntry{
+		keys:      keys,
+		expiresAt: expiresAt,
+	}
+	return keys, nil
+}
+
+func (c *googleX509KeyCache) fetchRemote(ctx context.Context, certsURL string) (map[string]*rsa.PublicKey, time.Time, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, certsURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, time.Time{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, classifyGChatHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), readResponseBody(resp.Body))
+		return nil, time.Time{}, classifyGChatHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), readResponseBody(resp.Body))
 	}
 	certs := map[string]string{}
 	if err := json.NewDecoder(resp.Body).Decode(&certs); err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 	if len(certs) == 0 {
-		return nil, errors.New("gchat: x509 cert document omitted keys")
+		return nil, time.Time{}, errors.New("gchat: x509 cert document omitted keys")
 	}
 	keys := make(map[string]*rsa.PublicKey, len(certs))
 	for keyID, pemCert := range certs {
 		block, _ := pem.Decode([]byte(strings.TrimSpace(pemCert)))
 		if block == nil {
-			return nil, fmt.Errorf("gchat: decode x509 cert %q: missing pem block", keyID)
+			return nil, time.Time{}, fmt.Errorf("gchat: decode x509 cert %q: missing pem block", keyID)
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, fmt.Errorf("gchat: parse x509 cert %q: %w", keyID, err)
+			return nil, time.Time{}, fmt.Errorf("gchat: parse x509 cert %q: %w", keyID, err)
 		}
 		publicKey, ok := cert.PublicKey.(*rsa.PublicKey)
 		if !ok {
-			return nil, fmt.Errorf("gchat: x509 cert %q did not contain an rsa public key", keyID)
+			return nil, time.Time{}, fmt.Errorf("gchat: x509 cert %q did not contain an rsa public key", keyID)
 		}
 		keys[strings.TrimSpace(keyID)] = publicKey
 	}
-	return keys, nil
+	return keys, cacheExpiryFromHeaders(c.now(), resp.Header, c.fallbackTTL), nil
+}
+
+func resolveAllowedGoogleURLOverride(envOverride string, providerOverride string, fallback string, fieldName string, allowedHosts ...string) (string, error) {
+	if trimmedEnv := strings.TrimSpace(envOverride); trimmedEnv != "" {
+		return normalizeURL(trimmedEnv), nil
+	}
+	if strings.TrimSpace(providerOverride) == "" {
+		return normalizeURL(fallback), nil
+	}
+	normalized := normalizeURL(providerOverride)
+	parsed, err := url.Parse(normalized)
+	if err != nil || parsed == nil || strings.TrimSpace(parsed.Hostname()) == "" || !strings.EqualFold(parsed.Scheme, "https") {
+		return "", fmt.Errorf("gchat: %s must use an allowed Google https host", fieldName)
+	}
+	host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+	for _, allowedHost := range allowedHosts {
+		if host == strings.ToLower(strings.TrimSpace(allowedHost)) {
+			return normalized, nil
+		}
+	}
+	return "", fmt.Errorf("gchat: %s host %q is not allowed", fieldName, parsed.Hostname())
+}
+
+func cacheExpiryFromHeaders(now time.Time, header http.Header, fallback time.Duration) time.Time {
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	if fallback <= 0 {
+		fallback = gchatCertCacheFallbackTTL
+	}
+	for _, directive := range strings.Split(header.Get("Cache-Control"), ",") {
+		part := strings.TrimSpace(directive)
+		lower := strings.ToLower(part)
+		if !strings.HasPrefix(lower, "max-age=") {
+			continue
+		}
+		seconds, err := strconv.Atoi(strings.TrimSpace(lower[len("max-age="):]))
+		if err == nil && seconds > 0 {
+			return now.Add(time.Duration(seconds) * time.Second)
+		}
+	}
+	return now.Add(fallback)
 }
 
 func bearerToken(req *http.Request) (string, error) {
