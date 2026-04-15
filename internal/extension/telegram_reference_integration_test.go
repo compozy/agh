@@ -59,13 +59,17 @@ func TestTelegramReferenceAdapterLaunchNegotiatesBridgeRuntime(t *testing.T) {
 	if handshake.Request.Runtime.Bridge == nil {
 		t.Fatal("initialize runtime.bridge = nil, want bound bridge launch metadata")
 	}
-	if got, want := handshake.Request.Runtime.Bridge.Instance.ID, harness.Instance.ID; got != want {
+	managed, err := handshake.Request.Runtime.Bridge.SingleManagedInstance()
+	if err != nil {
+		t.Fatalf("handshake.Request.Runtime.Bridge.SingleManagedInstance() error = %v", err)
+	}
+	if got, want := managed.Instance.ID, harness.Instance.ID; got != want {
 		t.Fatalf("initialize runtime bridge instance = %q, want %q", got, want)
 	}
-	if got, want := handshake.Request.Runtime.Bridge.Instance.ExtensionName, "telegram-reference"; got != want {
+	if got, want := managed.Instance.ExtensionName, "telegram-reference"; got != want {
 		t.Fatalf("initialize runtime bridge extension = %q, want %q", got, want)
 	}
-	if got, want := strings.TrimSpace(handshake.Request.Runtime.Bridge.BoundSecrets[0].Value), "telegram-bot-token"; got != want {
+	if got, want := strings.TrimSpace(managed.BoundSecrets[0].Value), "telegram-bot-token"; got != want {
 		t.Fatalf("initialize bound bot token = %q, want %q", got, want)
 	}
 	if report.Instance == nil {

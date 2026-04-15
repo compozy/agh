@@ -184,12 +184,13 @@ func TestManagerIntegrationBridgeAdapterNegotiatesDeliveryRuntime(t *testing.T) 
 		env.registry,
 		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
 			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
-				"ext-bridge-live": {
-					Instance: testBridgeRuntimeInstance("ext-bridge-live", "brg-live"),
-					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
+				"ext-bridge-live": testScopedBridgeRuntime(
+					"ext-bridge-live",
+					"brg-live",
+					[]subprocess.InitializeBridgeBoundSecret{
 						{BindingName: "bot_token", Kind: "bot_token", Value: "token-live"},
 					},
-				},
+				),
 			},
 		}),
 		WithHealthCheckTimeout(20*time.Millisecond),
@@ -221,10 +222,11 @@ func TestManagerIntegrationBridgeAdapterNegotiatesDeliveryRuntime(t *testing.T) 
 	if request.Runtime.Bridge == nil {
 		t.Fatal("initialize runtime bridge = nil, want bound bridge launch payload")
 	}
-	if got, want := request.Runtime.Bridge.Instance.ID, "brg-live"; got != want {
+	managed := mustSingleManagedBridge(t, request.Runtime.Bridge)
+	if got, want := managed.Instance.ID, "brg-live"; got != want {
 		t.Fatalf("initialize runtime bridge instance id = %q, want %q", got, want)
 	}
-	if got := request.Runtime.Bridge.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-live" {
+	if got := managed.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-live" {
 		t.Fatalf("initialize runtime bridge bound secrets = %#v, want one bound secret", got)
 	}
 }
@@ -301,9 +303,19 @@ func TestManagerIntegrationBridgeAdapterRestartPreservesNegotiatedSurface(t *tes
 		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
 			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
 				"ext-bridge-restart": {
-					Instance: testBridgeRuntimeInstance("ext-bridge-restart", "brg-restart"),
-					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
-						{BindingName: "bot_token", Kind: "bot_token", Value: "token-restart"},
+					RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+					Provider:       "ext-bridge-restart",
+					Platform:       "telegram",
+					ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
+						{
+							Instance: testBridgeRuntimeInstance("ext-bridge-restart", "brg-restart-a"),
+							BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
+								{BindingName: "bot_token", Kind: "bot_token", Value: "token-restart"},
+							},
+						},
+						{
+							Instance: testBridgeRuntimeInstance("ext-bridge-restart", "brg-restart-b"),
+						},
 					},
 				},
 			},
@@ -339,9 +351,63 @@ func TestManagerIntegrationBridgeAdapterRestartPreservesNegotiatedSurface(t *tes
 		if marker.Request.Runtime.Bridge == nil {
 			t.Fatalf("marker %d runtime bridge = nil, want bound bridge launch payload", index)
 		}
-		if got, want := marker.Request.Runtime.Bridge.Instance.ID, "brg-restart"; got != want {
-			t.Fatalf("marker %d runtime bridge instance id = %q, want %q", index, got, want)
+		if got, want := marker.Request.Runtime.Bridge.ManagedBridgeInstanceIDs(), []string{"brg-restart-a", "brg-restart-b"}; !slicesEqualStrings(got, want) {
+			t.Fatalf("marker %d runtime bridge managed ids = %#v, want %#v", index, got, want)
 		}
+	}
+}
+
+func TestManagerIntegrationBridgeAdapterDefersUntilRuntimeExists(t *testing.T) {
+	withDaemonVersion(t, "0.5.0")
+
+	env := newRegistryTestEnv(t)
+	markerPath := filepath.Join(t.TempDir(), "bridge-deferred.jsonl")
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge-deferred-live", managerManifestOptions{
+		command:      helperCommand(t),
+		args:         helperArgs(),
+		withEnv:      helperEnv("record_initialize", markerPath),
+		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
+		},
+		security: []string{"bridge.read", "bridge.write"},
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+	manager := NewManager(
+		env.registry,
+		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{err: ErrBridgeRuntimeDeferred}),
+		WithHealthCheckTimeout(20*time.Millisecond),
+		WithSubprocessSignalGrace(15*time.Millisecond),
+	)
+
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	if _, err := os.Stat(markerPath); !os.IsNotExist(err) {
+		t.Fatalf("initialize marker stat error = %v, want os.ErrNotExist", err)
+	}
+
+	loaded, err := manager.Get("ext-bridge-deferred-live")
+	if err != nil {
+		t.Fatalf("Get(ext-bridge-deferred-live) error = %v", err)
+	}
+	if loaded.Status.Active {
+		t.Fatal("Get(ext-bridge-deferred-live).Status.Active = true, want false")
+	}
+	if !loaded.Status.Registered {
+		t.Fatal("Get(ext-bridge-deferred-live).Status.Registered = false, want true")
+	}
+	if loaded.Status.LastError != "" {
+		t.Fatalf("Get(ext-bridge-deferred-live).Status.LastError = %q, want empty", loaded.Status.LastError)
 	}
 }
 

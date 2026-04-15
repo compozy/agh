@@ -815,9 +815,16 @@ export interface InitializeBridgeBoundSecret {
   value: string;
 }
 
-export interface InitializeBridgeRuntime {
+export interface InitializeBridgeManagedInstance {
   instance: BridgeInstance;
   bound_secrets?: InitializeBridgeBoundSecret[];
+}
+
+export interface InitializeBridgeRuntime {
+  runtime_version: string;
+  provider: string;
+  platform: string;
+  managed_instances?: InitializeBridgeManagedInstance[];
 }
 
 export interface InitializeCapabilities {

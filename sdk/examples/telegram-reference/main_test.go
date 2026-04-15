@@ -279,7 +279,11 @@ func TestHandleInitializeReportsReadyAndShutdown(t *testing.T) {
 	}
 
 	handshake := waitForJSONFile[initializeMarker](t, env.handshakePath)
-	if got, want := handshake.Request.Runtime.Bridge.Instance.ID, instance.ID; got != want {
+	managed, err := handshake.Request.Runtime.Bridge.SingleManagedInstance()
+	if err != nil {
+		t.Fatalf("handshake.Request.Runtime.Bridge.SingleManagedInstance() error = %v", err)
+	}
+	if got, want := managed.Instance.ID, instance.ID; got != want {
 		t.Fatalf("handshake runtime instance id = %q, want %q", got, want)
 	}
 	instanceMarker := waitForJSONFile[bridgepkg.BridgeInstance](t, env.instancePath)
@@ -505,8 +509,8 @@ func TestUtilityHelpers(t *testing.T) {
 	}
 }
 
-func testBridgeRuntime(now time.Time) subprocess.InitializeBridgeRuntime {
-	return subprocess.InitializeBridgeRuntime{
+func testBridgeRuntime(now time.Time) subprocess.InitializeBridgeManagedInstance {
+	return subprocess.InitializeBridgeManagedInstance{
 		Instance: bridgepkg.BridgeInstance{
 			ID:            "brg-telegram-reference",
 			Scope:         bridgepkg.ScopeWorkspace,
@@ -553,7 +557,14 @@ func testInitializeRequest(now time.Time, includeBotToken bool) subprocess.Initi
 			HealthCheckTimeoutMS:  5_000,
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
-			Bridge:                &bridgeRuntime,
+			Bridge: &subprocess.InitializeBridgeRuntime{
+				RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+				Provider:       "telegram-reference",
+				Platform:       bridgeRuntime.Instance.Platform,
+				ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
+					bridgeRuntime,
+				},
+			},
 		},
 	}
 }

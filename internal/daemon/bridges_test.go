@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -490,11 +491,15 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 		if launch == nil {
 			t.Fatal("ResolveBridgeRuntime() = nil, want non-nil")
 		}
-		if got, want := launch.Instance.ID, instance.ID; got != want {
-			t.Fatalf("ResolveBridgeRuntime().Instance.ID = %q, want %q", got, want)
+		managed, ok := launch.ManagedInstance(instance.ID)
+		if !ok {
+			t.Fatalf("ResolveBridgeRuntime() missing managed instance %q", instance.ID)
 		}
-		if got := launch.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "secret-value" {
-			t.Fatalf("ResolveBridgeRuntime().BoundSecrets = %#v, want resolved bot_token binding", got)
+		if got, want := managed.Instance.ID, instance.ID; got != want {
+			t.Fatalf("ResolveBridgeRuntime().ManagedInstance(%q).Instance.ID = %q, want %q", instance.ID, got, want)
+		}
+		if got := managed.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "secret-value" {
+			t.Fatalf("ResolveBridgeRuntime().ManagedInstance(%q).BoundSecrets = %#v, want resolved bot_token binding", instance.ID, got)
 		}
 		if len(resolver.calls) != 1 || resolver.calls[0].BindingName != "bot_token" {
 			t.Fatalf("ResolveBridgeSecret() calls = %#v, want bot_token binding", resolver.calls)
@@ -583,6 +588,56 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 		}
 		if got, want := updated.Status, bridgepkg.BridgeStatusReady; got != want {
 			t.Fatalf("instance status after failed secret resolution = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("ShouldResolveMultipleEnabledInstancesForOneExtension", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 11, 12, 37, 0, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+
+		first := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-multi-a",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-multi",
+			DisplayName:   "Multi A",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		second := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-multi-b",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-multi",
+			DisplayName:   "Multi B",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusDegraded,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+
+		launch, err := runtime.ResolveBridgeRuntime(testutil.Context(t), "ext-multi")
+		if err != nil {
+			t.Fatalf("ResolveBridgeRuntime() error = %v", err)
+		}
+		if launch == nil {
+			t.Fatal("ResolveBridgeRuntime() = nil, want non-nil")
+		}
+		if got, want := launch.ManagedBridgeInstanceIDs(), []string{first.ID, second.ID}; !slices.Equal(got, want) {
+			t.Fatalf("ResolveBridgeRuntime().ManagedBridgeInstanceIDs() = %#v, want %#v", got, want)
+		}
+
+		for _, instanceID := range []string{first.ID, second.ID} {
+			managed, ok := launch.ManagedInstance(instanceID)
+			if !ok {
+				t.Fatalf("ResolveBridgeRuntime() missing managed instance %q", instanceID)
+			}
+			if got, want := managed.Instance.Status.Normalize(), bridgepkg.BridgeStatusStarting; got != want {
+				t.Fatalf("managed instance %q status = %q, want %q", instanceID, got, want)
+			}
 		}
 	})
 

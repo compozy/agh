@@ -182,12 +182,13 @@ func TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
 		env.registry,
 		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
 			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
-				"ext-bridge": {
-					Instance: testBridgeRuntimeInstance("ext-bridge", "brg-1"),
-					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
+				"ext-bridge": testScopedBridgeRuntime(
+					"ext-bridge",
+					"brg-1",
+					[]subprocess.InitializeBridgeBoundSecret{
 						{BindingName: "bot_token", Kind: "bot_token", Value: "token-1"},
 					},
-				},
+				),
 			},
 		}),
 		withProcessLauncher(launcher.launch),
@@ -226,13 +227,14 @@ func TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
 	if request.Runtime.Bridge == nil {
 		t.Fatal("initialize runtime bridge = nil, want scoped bridge launch payload")
 	}
-	if got, want := request.Runtime.Bridge.Instance.ID, "brg-1"; got != want {
+	managed := mustSingleManagedBridge(t, request.Runtime.Bridge)
+	if got, want := managed.Instance.ID, "brg-1"; got != want {
 		t.Fatalf("initialize runtime bridge instance id = %q, want %q", got, want)
 	}
-	if got, want := request.Runtime.Bridge.Instance.ExtensionName, "ext-bridge"; got != want {
+	if got, want := managed.Instance.ExtensionName, "ext-bridge"; got != want {
 		t.Fatalf("initialize runtime bridge instance extension = %q, want %q", got, want)
 	}
-	if got := request.Runtime.Bridge.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-1" {
+	if got := managed.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-1" {
 		t.Fatalf("initialize runtime bridge bound secrets = %#v, want only bot_token", got)
 	}
 
@@ -2081,4 +2083,42 @@ func testBridgeRuntimeInstance(extensionName string, instanceID string) bridgepk
 		Status:        bridgepkg.BridgeStatusReady,
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	}
+}
+
+func testScopedBridgeRuntime(
+	extensionName string,
+	instanceID string,
+	boundSecrets []subprocess.InitializeBridgeBoundSecret,
+) *subprocess.InitializeBridgeRuntime {
+	instance := testBridgeRuntimeInstance(extensionName, instanceID)
+	return testScopedBridgeRuntimeForInstance(instance, boundSecrets)
+}
+
+func testScopedBridgeRuntimeForInstance(
+	instance bridgepkg.BridgeInstance,
+	boundSecrets []subprocess.InitializeBridgeBoundSecret,
+) *subprocess.InitializeBridgeRuntime {
+	return &subprocess.InitializeBridgeRuntime{
+		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+		Provider:       instance.ExtensionName,
+		Platform:       instance.Platform,
+		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
+			Instance:     instance,
+			BoundSecrets: append([]subprocess.InitializeBridgeBoundSecret(nil), boundSecrets...),
+		}},
+	}
+}
+
+func mustSingleManagedBridge(t testing.TB, runtime *subprocess.InitializeBridgeRuntime) subprocess.InitializeBridgeManagedInstance {
+	t.Helper()
+
+	if runtime == nil {
+		t.Fatal("bridge runtime = nil, want non-nil")
+		return subprocess.InitializeBridgeManagedInstance{}
+	}
+	managed, err := runtime.SingleManagedInstance()
+	if err != nil {
+		t.Fatalf("runtime.SingleManagedInstance() error = %v", err)
+	}
+	return *managed
 }

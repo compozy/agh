@@ -3055,7 +3055,12 @@ func (e *hostAPITestEnv) bridgeContext(t testing.TB, instance *bridgepkg.BridgeI
 	}
 
 	return withHostAPIBridgeRuntime(testutil.Context(t), &subprocess.InitializeBridgeRuntime{
-		Instance: *instance,
+		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+		Provider:       instance.ExtensionName,
+		Platform:       instance.Platform,
+		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
+			Instance: *instance,
+		}},
 	})
 }
 

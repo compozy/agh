@@ -342,28 +342,26 @@ func (r *bridgeRuntime) ResolveBridgeRuntime(ctx context.Context, extensionName 
 		return nil, err
 	}
 
-	instance, err := r.instanceForExtension(ctx, extensionName)
+	managedInstances, err := r.managedInstancesForExtension(ctx, extensionName)
 	if err != nil {
 		return nil, err
 	}
 
-	boundSecrets, err := r.resolveBoundSecrets(ctx, instance.ID)
+	launching, err := r.prepareManagedBridgeRuntime(ctx, managedInstances)
 	if err != nil {
-		return nil, fmt.Errorf("daemon: resolve bound secrets for bridge instance %q: %w", instance.ID, err)
+		return nil, err
 	}
 
-	launching := instance
-	if !instance.Enabled || instance.Status.Normalize() != bridgepkg.BridgeStatusStarting {
-		launching, err = r.transitionInstance(ctx, instance.ID, true, bridgepkg.BridgeStatusStarting, false, "launch")
-		if err != nil {
-			return nil, err
-		}
+	runtime := subprocess.InitializeBridgeRuntime{
+		RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+		Provider:         strings.TrimSpace(extensionName),
+		Platform:         strings.TrimSpace(launching[0].Instance.Platform),
+		ManagedInstances: launching,
 	}
-
-	return &subprocess.InitializeBridgeRuntime{
-		Instance:     *launching,
-		BoundSecrets: boundSecrets,
-	}, nil
+	if err := runtime.Validate(); err != nil {
+		return nil, fmt.Errorf("daemon: build bridge runtime for extension %q: %w", strings.TrimSpace(extensionName), err)
+	}
+	return &runtime, nil
 }
 
 func (r *bridgeRuntime) transitionInstance(
@@ -497,7 +495,7 @@ func (r *bridgeRuntime) lockInstanceLifecycle(id string) func() {
 	}
 }
 
-func (r *bridgeRuntime) instanceForExtension(ctx context.Context, extensionName string) (*bridgepkg.BridgeInstance, error) {
+func (r *bridgeRuntime) managedInstancesForExtension(ctx context.Context, extensionName string) ([]bridgepkg.BridgeInstance, error) {
 	trimmed := strings.TrimSpace(extensionName)
 	if trimmed == "" {
 		return nil, errors.New("daemon: bridge runtime extension name is required")
@@ -519,15 +517,72 @@ func (r *bridgeRuntime) instanceForExtension(ctx context.Context, extensionName 
 		matches = append(matches, instance)
 	}
 
-	switch len(matches) {
-	case 0:
+	if len(matches) == 0 {
 		return nil, fmt.Errorf("%w: no enabled bridge instance configured for extension %q", extensionpkg.ErrBridgeRuntimeDeferred, trimmed)
-	case 1:
-		instance := matches[0]
-		return &instance, nil
-	default:
-		return nil, fmt.Errorf("daemon: multiple enabled bridge instances configured for extension %q", trimmed)
 	}
+
+	slices.SortFunc(matches, func(left bridgepkg.BridgeInstance, right bridgepkg.BridgeInstance) int {
+		return strings.Compare(left.ID, right.ID)
+	})
+	return matches, nil
+}
+
+func (r *bridgeRuntime) prepareManagedBridgeRuntime(
+	ctx context.Context,
+	instances []bridgepkg.BridgeInstance,
+) ([]subprocess.InitializeBridgeManagedInstance, error) {
+	if len(instances) == 0 {
+		return nil, errors.New("daemon: bridge runtime requires at least one managed instance")
+	}
+
+	unlock := r.lockManagedInstanceLifecycleSet(bridgeInstanceIDs(instances))
+	defer unlock()
+
+	resolvedSecrets := make(map[string][]subprocess.InitializeBridgeBoundSecret, len(instances))
+	for _, instance := range instances {
+		boundSecrets, err := r.resolveBoundSecrets(ctx, instance.ID)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: resolve bound secrets for bridge instance %q: %w", instance.ID, err)
+		}
+		resolvedSecrets[instance.ID] = boundSecrets
+	}
+
+	updated := make([]subprocess.InitializeBridgeManagedInstance, 0, len(instances))
+	previous := make([]bridgepkg.BridgeInstance, 0, len(instances))
+	for _, instance := range instances {
+		launching := instance
+		if instance.Status.Normalize() != bridgepkg.BridgeStatusStarting {
+			transitioned, err := r.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
+				ID:        instance.ID,
+				Enabled:   instance.Enabled,
+				Status:    bridgepkg.BridgeStatusStarting,
+				UpdatedAt: r.now().UTC(),
+			})
+			if err != nil {
+				if rollbackErr := r.rollbackManagedInstanceStates(ctx, previous, "restore bridge instances after launch failure"); rollbackErr != nil {
+					return nil, fmt.Errorf(
+						"daemon: launch bridge runtime for extension %q: transition failed and rollback also failed: %w",
+						strings.TrimSpace(instance.ExtensionName),
+						errors.Join(err, rollbackErr),
+					)
+				}
+				return nil, fmt.Errorf(
+					"daemon: launch bridge runtime for extension %q: restored persisted state after launch failure: %w",
+					strings.TrimSpace(instance.ExtensionName),
+					err,
+				)
+			}
+			previous = append(previous, instance)
+			launching = *transitioned
+		}
+
+		updated = append(updated, subprocess.InitializeBridgeManagedInstance{
+			Instance:     launching,
+			BoundSecrets: resolvedSecrets[instance.ID],
+		})
+	}
+
+	return updated, nil
 }
 
 func (r *bridgeRuntime) resolveBoundSecrets(
@@ -564,6 +619,65 @@ func (r *bridgeRuntime) resolveBoundSecrets(
 	}
 
 	return resolved, nil
+}
+
+func (r *bridgeRuntime) rollbackManagedInstanceStates(
+	ctx context.Context,
+	instances []bridgepkg.BridgeInstance,
+	action string,
+) error {
+	if len(instances) == 0 {
+		return nil
+	}
+
+	var rollbackErr error
+	for _, instance := range instances {
+		if err := r.persistCompensatingInstance(ctx, instance, action); err != nil {
+			rollbackErr = errors.Join(rollbackErr, err)
+		}
+	}
+	return rollbackErr
+}
+
+func (r *bridgeRuntime) lockManagedInstanceLifecycleSet(ids []string) func() {
+	if len(ids) == 0 {
+		return func() {}
+	}
+
+	normalized := append([]string(nil), ids...)
+	for idx := range normalized {
+		normalized[idx] = strings.TrimSpace(normalized[idx])
+	}
+	normalized = slices.DeleteFunc(normalized, func(id string) bool { return id == "" })
+	if len(normalized) == 0 {
+		return func() {}
+	}
+
+	slices.Sort(normalized)
+	normalized = slices.Compact(normalized)
+
+	unlocks := make([]func(), 0, len(normalized))
+	for _, id := range normalized {
+		unlocks = append(unlocks, r.lockInstanceLifecycle(id))
+	}
+
+	return func() {
+		for idx := len(unlocks) - 1; idx >= 0; idx-- {
+			unlocks[idx]()
+		}
+	}
+}
+
+func bridgeInstanceIDs(instances []bridgepkg.BridgeInstance) []string {
+	if len(instances) == 0 {
+		return nil
+	}
+
+	ids := make([]string, 0, len(instances))
+	for _, instance := range instances {
+		ids = append(ids, strings.TrimSpace(instance.ID))
+	}
+	return ids
 }
 
 func (r *bridgeRuntime) persistCompensatingInstance(

@@ -42,7 +42,7 @@ func (h *HostAPIHandler) handleBridgesInstancesGet(ctx context.Context, raw json
 		return nil, err
 	}
 
-	_, instance, err := h.authorizedBridgeInstance(ctx)
+	_, instance, err := h.authorizedBridgeInstance(ctx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, 
 		return nil, invalidParamsRPCError(errors.New("bridge status disabled is operator-controlled"))
 	}
 
-	_, instance, err := h.authorizedBridgeInstance(ctx)
+	_, instance, err := h.authorizedBridgeInstance(ctx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -109,16 +109,9 @@ func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw js
 		return nil, invalidParamsRPCError(err)
 	}
 
-	_, instance, err := h.authorizedBridgeInstance(ctx)
+	_, instance, err := h.authorizedBridgeInstance(ctx, params.BridgeInstanceID)
 	if err != nil {
 		return nil, err
-	}
-	if strings.TrimSpace(params.BridgeInstanceID) != instance.ID {
-		return nil, notFoundRPCError(
-			"bridge_instance",
-			strings.TrimSpace(params.BridgeInstanceID),
-			fmt.Errorf("bridge instance %q is not assigned to this extension", strings.TrimSpace(params.BridgeInstanceID)),
-		)
 	}
 	if err := validateBridgeIngressInstance(*instance); err != nil {
 		return nil, err
@@ -180,7 +173,10 @@ func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw js
 	}, nil
 }
 
-func (h *HostAPIHandler) authorizedBridgeInstance(ctx context.Context) (*subprocess.InitializeBridgeRuntime, *bridgepkg.BridgeInstance, error) {
+func (h *HostAPIHandler) authorizedBridgeInstance(
+	ctx context.Context,
+	bridgeInstanceID string,
+) (*subprocess.InitializeBridgeRuntime, *bridgepkg.BridgeInstance, error) {
 	if h.bridges == nil {
 		return nil, nil, unavailableRPCError(errors.New("bridge registry is not configured"))
 	}
@@ -195,15 +191,35 @@ func (h *HostAPIHandler) authorizedBridgeInstance(ctx context.Context) (*subproc
 		return nil, nil, unavailableRPCError(errors.New("bridge extension name is not available"))
 	}
 
-	instanceID := strings.TrimSpace(runtime.Instance.ID)
+	var managed *subprocess.InitializeBridgeManagedInstance
+	trimmedID := strings.TrimSpace(bridgeInstanceID)
+	if trimmedID != "" {
+		var ok bool
+		managed, ok = runtime.ManagedInstance(trimmedID)
+		if !ok {
+			return nil, nil, notFoundRPCError(
+				"bridge_instance",
+				trimmedID,
+				fmt.Errorf("bridge instance %q is not assigned to this extension", trimmedID),
+			)
+		}
+	} else {
+		selected, err := runtime.SingleManagedInstance()
+		if err != nil {
+			return nil, nil, unavailableRPCError(err)
+		}
+		managed = selected
+	}
+
+	instanceID := strings.TrimSpace(managed.Instance.ID)
 	if instanceID == "" {
 		return nil, nil, unavailableRPCError(errors.New("bridge runtime instance id is required"))
 	}
-	if strings.TrimSpace(runtime.Instance.ExtensionName) != extName {
+	if strings.TrimSpace(managed.Instance.ExtensionName) != extName {
 		return nil, nil, notFoundRPCError(
 			"bridge_instance",
 			instanceID,
-			fmt.Errorf("bridge runtime instance belongs to extension %q", strings.TrimSpace(runtime.Instance.ExtensionName)),
+			fmt.Errorf("bridge runtime instance belongs to extension %q", strings.TrimSpace(managed.Instance.ExtensionName)),
 		)
 	}
 

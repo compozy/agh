@@ -179,10 +179,15 @@ func validConformanceReport() ConformanceReport {
 					ShutdownTimeoutMS:     10_000,
 					DefaultHookTimeoutMS:  5_000,
 					Bridge: &subprocess.InitializeBridgeRuntime{
-						Instance: testBridgeInstance(),
-						BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
-							{BindingName: "bot_token", Kind: "token", Value: "telegram-token"},
-						},
+						RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+						Provider:       "telegram-reference",
+						Platform:       "telegram",
+						ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
+							Instance: testBridgeInstance(),
+							BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
+								{BindingName: "bot_token", Kind: "token", Value: "telegram-token"},
+							},
+						}},
 					},
 				},
 			},

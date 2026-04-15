@@ -295,9 +295,7 @@ func newDeliveryIntegrationEnv(
 		registryEnv.registry,
 		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
 			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
-				extensionName: {
-					Instance: testBridgeRuntimeInstance(extensionName, "runtime-"+extensionName),
-				},
+				extensionName: testScopedBridgeRuntime(extensionName, "runtime-"+extensionName, nil),
 			},
 		}),
 		WithHealthCheckTimeout(20*time.Millisecond),
@@ -391,9 +389,7 @@ func (e *deliveryIntegrationEnv) callWithContext(
 }
 
 func (e *deliveryIntegrationEnv) bridgeContext(instance *bridgepkg.BridgeInstance) context.Context {
-	return withHostAPIBridgeRuntime(context.Background(), &subprocess.InitializeBridgeRuntime{
-		Instance: *instance,
-	})
+	return withHostAPIBridgeRuntime(context.Background(), testScopedBridgeRuntimeForInstance(*instance, nil))
 }
 
 func (e *deliveryIntegrationEnv) createBridgeInstance(

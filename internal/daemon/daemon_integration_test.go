@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -1719,14 +1720,158 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 	if request.Runtime.Bridge == nil {
 		t.Fatal("initialize runtime bridge = nil, want bound launch payload")
 	}
-	if got, want := request.Runtime.Bridge.Instance.ID, instanceID; got != want {
+	managed, err := request.Runtime.Bridge.SingleManagedInstance()
+	if err != nil {
+		t.Fatalf("request.Runtime.Bridge.SingleManagedInstance() error = %v", err)
+	}
+	if got, want := managed.Instance.ID, instanceID; got != want {
 		t.Fatalf("initialize runtime bridge instance id = %q, want %q", got, want)
 	}
-	if got := request.Runtime.Bridge.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-daemon" {
+	if got := managed.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-daemon" {
 		t.Fatalf("initialize runtime bridge bound secrets = %#v, want resolved bot_token binding", got)
 	}
 	if len(resolver.calls) != 1 || resolver.calls[0].BridgeInstanceID != instanceID {
 		t.Fatalf("ResolveBridgeSecret() calls = %#v, want one call for %q", resolver.calls, instanceID)
+	}
+}
+
+func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	markerPath := filepath.Join(t.TempDir(), "bridge-init-multi.jsonl")
+	extensionName := "ext-bridge-daemon-multi"
+	firstID := "brg-daemon-init-a"
+	secondID := "brg-daemon-init-b"
+	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		runtimeCommand: daemonExtensionHelperCommand(t),
+		runtimeArgs:    daemonExtensionHelperArgs(),
+		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
+		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		actions: []string{
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
+		},
+		security: []string{"bridge.read", "bridge.write"},
+	}, true)
+
+	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
+	bridgeRegistry := bridgepkg.NewRegistry(registry)
+	for _, req := range []bridgepkg.CreateInstanceRequest{
+		{
+			ID:            firstID,
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: extensionName,
+			DisplayName:   "Daemon Bridge A",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		},
+		{
+			ID:            secondID,
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: extensionName,
+			DisplayName:   "Daemon Bridge B",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusDegraded,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		},
+	} {
+		if _, err := bridgeRegistry.CreateInstance(testutil.Context(t), req); err != nil {
+			t.Fatalf("CreateInstance(%q) error = %v", req.ID, err)
+		}
+	}
+	for _, binding := range []bridgepkg.BridgeSecretBinding{
+		{
+			BridgeInstanceID: firstID,
+			BindingName:      "bot_token",
+			VaultRef:         "vault://bridges/ext-bridge-daemon-multi/bot-token",
+			Kind:             "bot_token",
+			CreatedAt:        time.Date(2026, 4, 11, 13, 35, 0, 0, time.UTC),
+			UpdatedAt:        time.Date(2026, 4, 11, 13, 35, 0, 0, time.UTC),
+		},
+		{
+			BridgeInstanceID: secondID,
+			BindingName:      "webhook_secret",
+			VaultRef:         "vault://bridges/ext-bridge-daemon-multi/webhook-secret",
+			Kind:             "webhook_secret",
+			CreatedAt:        time.Date(2026, 4, 11, 13, 35, 0, 0, time.UTC),
+			UpdatedAt:        time.Date(2026, 4, 11, 13, 35, 0, 0, time.UTC),
+		},
+	} {
+		if err := registry.PutBridgeSecretBinding(testutil.Context(t), binding); err != nil {
+			t.Fatalf("PutBridgeSecretBinding(%q) error = %v", binding.BridgeInstanceID, err)
+		}
+	}
+
+	resolver := &recordingBridgeSecretResolver{
+		values: map[string]string{
+			"bot_token":      "token-daemon",
+			"webhook_secret": "webhook-daemon",
+		},
+	}
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+		WithBridgeSecretResolver(resolver),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	waitForCondition(t, "bridge initialize marker", func() bool {
+		return markerLineCount(markerPath) >= 1
+	})
+
+	markers := readDaemonInitializeMarkers(t, markerPath)
+	if got, want := len(markers), 1; got != want {
+		t.Fatalf("len(initialize markers) = %d, want %d", got, want)
+	}
+	request := markers[0].Request
+	if request.Runtime.Bridge == nil {
+		t.Fatal("initialize runtime bridge = nil, want bound launch payload")
+	}
+	if got, want := request.Runtime.Bridge.ManagedBridgeInstanceIDs(), []string{firstID, secondID}; !slices.Equal(got, want) {
+		t.Fatalf("initialize runtime managed ids = %#v, want %#v", got, want)
+	}
+	firstManaged, ok := request.Runtime.Bridge.ManagedInstance(firstID)
+	if !ok {
+		t.Fatalf("initialize runtime missing managed instance %q", firstID)
+	}
+	secondManaged, ok := request.Runtime.Bridge.ManagedInstance(secondID)
+	if !ok {
+		t.Fatalf("initialize runtime missing managed instance %q", secondID)
+	}
+	if got, want := firstManaged.BoundSecrets[0].Value, "token-daemon"; got != want {
+		t.Fatalf("first managed bound secret value = %q, want %q", got, want)
+	}
+	if got, want := secondManaged.BoundSecrets[0].Value, "webhook-daemon"; got != want {
+		t.Fatalf("second managed bound secret value = %q, want %q", got, want)
+	}
+	if got, want := len(resolver.calls), 2; got != want {
+		t.Fatalf("ResolveBridgeSecret() calls = %#v, want %d calls", resolver.calls, want)
+	}
+	for _, instanceID := range []string{firstID, secondID} {
+		instance, err := d.bridges.GetInstance(testutil.Context(t), instanceID)
+		if err != nil {
+			t.Fatalf("GetInstance(%q) error = %v", instanceID, err)
+		}
+		if got, want := instance.Status.Normalize(), bridgepkg.BridgeStatusStarting; got != want {
+			t.Fatalf("GetInstance(%q).Status = %q, want %q", instanceID, got, want)
+		}
 	}
 }
 
@@ -1803,7 +1948,11 @@ func TestCreateEnabledBridgeAfterBootReloadsErroredExtension(t *testing.T) {
 	if len(markers) == 0 {
 		t.Fatal("initialize markers after create = empty, want launch handshake")
 	}
-	if got, want := markers[len(markers)-1].Request.Runtime.Bridge.Instance.ID, instanceID; got != want {
+	managed, err := markers[len(markers)-1].Request.Runtime.Bridge.SingleManagedInstance()
+	if err != nil {
+		t.Fatalf("markers[len(markers)-1].Request.Runtime.Bridge.SingleManagedInstance() error = %v", err)
+	}
+	if got, want := managed.Instance.ID, instanceID; got != want {
 		t.Fatalf("initialize runtime bridge instance id after create = %q, want %q", got, want)
 	}
 

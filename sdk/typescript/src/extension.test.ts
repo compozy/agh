@@ -175,7 +175,7 @@ describe("Extension", () => {
       acknowledged: true,
     }));
     extension.onReady((_host, session) => {
-      ready(session.initializeRequest.runtime.bridge?.instance.id);
+      ready(session.initializeRequest.runtime.bridge?.managed_instances?.[0]?.instance.id);
     });
 
     await harness.loadExtension(extension, {
@@ -183,19 +183,30 @@ describe("Extension", () => {
       grantedSecurity: ["bridge.read"],
       runtime: {
         bridge: {
-          instance: {
-            id: "chan-1",
-            scope: "global",
-            platform: "telegram",
-            extension_name: "bridge-adapter",
-            display_name: "Telegram",
-            enabled: true,
-            status: "ready",
-            routing_policy: { include_peer: true, include_thread: false, include_group: false },
-            created_at: "2026-04-11T12:00:00.000Z",
-            updated_at: "2026-04-11T12:00:00.000Z",
-          },
-          bound_secrets: [{ binding_name: "bot_token", kind: "bot_token", value: "secret" }],
+          runtime_version: "1",
+          provider: "bridge-adapter",
+          platform: "telegram",
+          managed_instances: [
+            {
+              instance: {
+                id: "chan-1",
+                scope: "global",
+                platform: "telegram",
+                extension_name: "bridge-adapter",
+                display_name: "Telegram",
+                enabled: true,
+                status: "ready",
+                routing_policy: {
+                  include_peer: true,
+                  include_thread: false,
+                  include_group: false,
+                },
+                created_at: "2026-04-11T12:00:00.000Z",
+                updated_at: "2026-04-11T12:00:00.000Z",
+              },
+              bound_secrets: [{ binding_name: "bot_token", kind: "bot_token", value: "secret" }],
+            },
+          ],
         },
       },
     });

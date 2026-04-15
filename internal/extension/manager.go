@@ -94,7 +94,7 @@ type skillRegistry interface {
 	RemoveExternal(owner string)
 }
 
-// BridgeRuntimeResolver resolves one instance-scoped bridge launch payload
+// BridgeRuntimeResolver resolves one provider-scoped bridge launch payload
 // for a bridge-capable extension session.
 type BridgeRuntimeResolver interface {
 	ResolveBridgeRuntime(ctx context.Context, extensionName string) (*subprocess.InitializeBridgeRuntime, error)
@@ -1613,11 +1613,11 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.lastExitedAt = m.now()
 	ext.lastError = reason.Error()
 	ext.consecutiveFailures++
-	instanceID := managedBridgeInstanceID(ext)
+	instanceIDs := managedBridgeInstanceIDs(ext)
 	failures := ext.consecutiveFailures
 	if ext.consecutiveFailures >= m.restartFailureThreshold {
 		m.mu.Unlock()
-		m.reportBridgeRuntimeIssue(instanceID, bridgepkg.BridgeStatusError, reason)
+		m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, reason)
 		m.logger.Error("extension.lifecycle.failed", "extension", name, "phase", ExtensionPhaseRecover, "error", reason, "consecutive_failures", failures)
 		return 0, true, true
 	}
@@ -1625,7 +1625,7 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.restartBackoff = restartBackoff(ext.consecutiveFailures, m.restartBackoffMax)
 	backoff := ext.restartBackoff
 	m.mu.Unlock()
-	m.reportBridgeRuntimeIssue(instanceID, bridgepkg.BridgeStatusDegraded, reason)
+	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusDegraded, reason)
 
 	m.logger.Warn(
 		"extension.lifecycle.failed",
@@ -1643,7 +1643,7 @@ func (m *Manager) disableExtension(name string, reason error) {
 	if !ok {
 		return
 	}
-	instanceID := managedBridgeInstanceID(ext)
+	instanceIDs := managedBridgeInstanceIDs(ext)
 
 	if err := m.registry.Disable(name); err != nil {
 		reason = errors.Join(reason, err)
@@ -1658,7 +1658,7 @@ func (m *Manager) disableExtension(name string, reason error) {
 	ext.active = false
 	ext.process = nil
 	ext.awaitingStability = false
-	m.reportBridgeRuntimeIssue(instanceID, bridgepkg.BridgeStatusError, reason)
+	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, reason)
 }
 
 func (m *Manager) unregisterResources(ext *managedExtension) {
@@ -1682,12 +1682,12 @@ func (m *Manager) markStable(name string, generation int64) {
 		m.mu.Unlock()
 		return
 	}
-	instanceID := managedBridgeInstanceID(ext)
+	instanceIDs := managedBridgeInstanceIDs(ext)
 	ext.awaitingStability = false
 	ext.consecutiveFailures = 0
 	ext.restartBackoff = 0
 	m.mu.Unlock()
-	m.clearBridgeRuntimeIssue(instanceID)
+	m.clearBridgeRuntimeIssues(instanceIDs)
 }
 
 func (m *Manager) statusLocked(ext *managedExtension) ExtensionStatus {
@@ -1801,6 +1801,15 @@ func (m *Manager) reportBridgeRuntimeIssue(bridgeInstanceID string, status bridg
 	m.bridgeTelemetrySink.RecordBridgeRuntimeIssue(trimmedID, status, reason.Error())
 }
 
+func (m *Manager) reportBridgeRuntimeIssues(bridgeInstanceIDs []string, status bridgepkg.BridgeStatus, reason error) {
+	if len(bridgeInstanceIDs) == 0 {
+		return
+	}
+	for _, bridgeInstanceID := range bridgeInstanceIDs {
+		m.reportBridgeRuntimeIssue(bridgeInstanceID, status, reason)
+	}
+}
+
 func (m *Manager) clearBridgeRuntimeIssue(bridgeInstanceID string) {
 	if m == nil || m.bridgeTelemetrySink == nil {
 		return
@@ -1812,11 +1821,20 @@ func (m *Manager) clearBridgeRuntimeIssue(bridgeInstanceID string) {
 	m.bridgeTelemetrySink.ClearBridgeRuntimeIssue(trimmedID)
 }
 
-func managedBridgeInstanceID(ext *managedExtension) string {
-	if ext == nil || ext.runtime.Bridge == nil {
-		return ""
+func (m *Manager) clearBridgeRuntimeIssues(bridgeInstanceIDs []string) {
+	if len(bridgeInstanceIDs) == 0 {
+		return
 	}
-	return strings.TrimSpace(ext.runtime.Bridge.Instance.ID)
+	for _, bridgeInstanceID := range bridgeInstanceIDs {
+		m.clearBridgeRuntimeIssue(bridgeInstanceID)
+	}
+}
+
+func managedBridgeInstanceIDs(ext *managedExtension) []string {
+	if ext == nil || ext.runtime.Bridge == nil {
+		return nil
+	}
+	return ext.runtime.Bridge.ManagedBridgeInstanceIDs()
 }
 
 func (m *Manager) waitBackoff(delay time.Duration) bool {
@@ -1959,13 +1977,25 @@ func (m *Manager) resolveBridgeRuntime(ctx context.Context, ext *managedExtensio
 	if resolved == nil {
 		return nil, fmt.Errorf("extension: bridge runtime is required for %q", ext.info.Name)
 	}
-	if strings.TrimSpace(resolved.Instance.ExtensionName) != ext.info.Name {
+	if strings.TrimSpace(resolved.Provider) != ext.info.Name {
 		return nil, fmt.Errorf(
-			"extension: bridge runtime instance %q belongs to extension %q, want %q",
-			resolved.Instance.ID,
-			resolved.Instance.ExtensionName,
+			"extension: bridge runtime provider %q, want %q",
+			resolved.Provider,
 			ext.info.Name,
 		)
+	}
+	if len(resolved.ManagedInstances) == 0 {
+		return nil, fmt.Errorf("extension: bridge runtime managed instances are required for %q", ext.info.Name)
+	}
+	for _, managed := range resolved.ManagedInstances {
+		if strings.TrimSpace(managed.Instance.ExtensionName) != ext.info.Name {
+			return nil, fmt.Errorf(
+				"extension: bridge runtime instance %q belongs to extension %q, want %q",
+				managed.Instance.ID,
+				managed.Instance.ExtensionName,
+				ext.info.Name,
+			)
+		}
 	}
 
 	return resolved, nil

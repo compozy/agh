@@ -108,7 +108,7 @@ type telegramReferenceRuntime struct {
 type runtimeSession struct {
 	request     subprocess.InitializeRequest
 	response    subprocess.InitializeResponse
-	bridge      subprocess.InitializeBridgeRuntime
+	bridge      subprocess.InitializeBridgeManagedInstance
 	boundSecret map[string]subprocess.InitializeBridgeBoundSecret
 }
 
@@ -368,6 +368,10 @@ func (r *telegramReferenceRuntime) handleInitialize(params json.RawMessage) (any
 	if request.Runtime.Bridge == nil {
 		return nil, errors.New("telegram-reference: initialize runtime bridge is required")
 	}
+	managedBridge, err := request.Runtime.Bridge.SingleManagedInstance()
+	if err != nil {
+		return nil, fmt.Errorf("telegram-reference: select managed bridge instance: %w", err)
+	}
 
 	response := subprocess.InitializeResponse{
 		ProtocolVersion: request.ProtocolVersion,
@@ -395,8 +399,8 @@ func (r *telegramReferenceRuntime) handleInitialize(params json.RawMessage) (any
 	r.session = runtimeSession{
 		request:     request,
 		response:    response,
-		bridge:      *subprocess.CloneInitializeBridgeRuntime(request.Runtime.Bridge),
-		boundSecret: indexBoundSecrets(request.Runtime.Bridge.BoundSecrets),
+		bridge:      *managedBridge,
+		boundSecret: indexBoundSecrets(managedBridge.BoundSecrets),
 	}
 	r.lastError = ""
 	r.mu.Unlock()
@@ -747,7 +751,7 @@ func (r *telegramReferenceRuntime) reportSideEffectError(action string, err erro
 
 func mapTelegramUpdate(
 	update telegramUpdate,
-	bridgeRuntime subprocess.InitializeBridgeRuntime,
+	bridgeRuntime subprocess.InitializeBridgeManagedInstance,
 	now func() time.Time,
 ) (bridgepkg.InboundMessageEnvelope, error) {
 	if update.Message == nil {
@@ -789,7 +793,7 @@ func mapTelegramUpdate(
 	}, nil
 }
 
-func boundSecretValue(bridgeRuntime subprocess.InitializeBridgeRuntime, bindingName string) (string, bool) {
+func boundSecretValue(bridgeRuntime subprocess.InitializeBridgeManagedInstance, bindingName string) (string, bool) {
 	trimmed := strings.TrimSpace(bindingName)
 	if trimmed == "" {
 		return "", false

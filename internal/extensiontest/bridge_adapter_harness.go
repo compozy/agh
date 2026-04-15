@@ -182,40 +182,39 @@ func ValidateConformance(report ConformanceReport, expect ConformanceExpectation
 				Message: "initialize runtime.bridge was nil",
 			})
 		} else {
-			if expect.InstanceID != "" && strings.TrimSpace(request.Runtime.Bridge.Instance.ID) != strings.TrimSpace(expect.InstanceID) {
+			managed, managedOK := conformanceManagedInstance(*request.Runtime.Bridge, expect.InstanceID)
+			if !managedOK {
 				issues = append(issues, ConformanceIssue{
 					Code: "wrong_instance",
 					Message: fmt.Sprintf(
-						"initialize runtime bridge instance id = %q, want %q",
-						request.Runtime.Bridge.Instance.ID,
+						"initialize runtime bridge did not include managed instance %q",
 						expect.InstanceID,
 					),
 				})
-			}
-			if expect.ExtensionName != "" && strings.TrimSpace(request.Runtime.Bridge.Instance.ExtensionName) != strings.TrimSpace(expect.ExtensionName) {
+			} else if expect.ExtensionName != "" && strings.TrimSpace(managed.Instance.ExtensionName) != strings.TrimSpace(expect.ExtensionName) {
 				issues = append(issues, ConformanceIssue{
 					Code: "wrong_extension",
 					Message: fmt.Sprintf(
 						"initialize runtime bridge extension = %q, want %q",
-						request.Runtime.Bridge.Instance.ExtensionName,
+						managed.Instance.ExtensionName,
 						expect.ExtensionName,
 					),
 				})
-			}
-
-			bound := make(map[string]struct{}, len(request.Runtime.Bridge.BoundSecrets))
-			for _, secret := range request.Runtime.Bridge.BoundSecrets {
-				bound[strings.TrimSpace(secret.BindingName)] = struct{}{}
-			}
-			for _, bindingName := range expect.BoundSecretNames {
-				if _, ok := bound[strings.TrimSpace(bindingName)]; !ok {
-					issues = append(issues, ConformanceIssue{
-						Code: "missing_bound_secret",
-						Message: fmt.Sprintf(
-							"initialize runtime did not include bound secret %q",
-							bindingName,
-						),
-					})
+			} else if managedOK {
+				bound := make(map[string]struct{}, len(managed.BoundSecrets))
+				for _, secret := range managed.BoundSecrets {
+					bound[strings.TrimSpace(secret.BindingName)] = struct{}{}
+				}
+				for _, bindingName := range expect.BoundSecretNames {
+					if _, ok := bound[strings.TrimSpace(bindingName)]; !ok {
+						issues = append(issues, ConformanceIssue{
+							Code: "missing_bound_secret",
+							Message: fmt.Sprintf(
+								"initialize runtime did not include bound secret %q",
+								bindingName,
+							),
+						})
+					}
 				}
 			}
 		}
@@ -593,8 +592,13 @@ func NewHarness(t testing.TB, cfg HarnessConfig) *Harness {
 		extensionpkg.WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
 			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
 				extensionName: {
-					Instance:     *instance,
-					BoundSecrets: cloneBoundSecrets(cfg.BoundSecrets),
+					RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+					Provider:       extensionName,
+					Platform:       instance.Platform,
+					ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
+						Instance:     *instance,
+						BoundSecrets: cloneBoundSecrets(cfg.BoundSecrets),
+					}},
 				},
 			},
 		}),
@@ -925,6 +929,22 @@ func cloneBoundSecrets(src []subprocess.InitializeBridgeBoundSecret) []subproces
 		return nil
 	}
 	return append([]subprocess.InitializeBridgeBoundSecret(nil), src...)
+}
+
+func conformanceManagedInstance(
+	runtime subprocess.InitializeBridgeRuntime,
+	instanceID string,
+) (*subprocess.InitializeBridgeManagedInstance, bool) {
+	trimmedID := strings.TrimSpace(instanceID)
+	if trimmedID != "" {
+		return runtime.ManagedInstance(trimmedID)
+	}
+
+	managed, err := runtime.SingleManagedInstance()
+	if err != nil {
+		return nil, false
+	}
+	return managed, true
 }
 
 func sequentialIDGenerator(prefix string) session.IDGenerator {
