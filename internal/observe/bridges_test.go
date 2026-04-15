@@ -2,7 +2,6 @@ package observe
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -282,12 +281,9 @@ func registerObserveDelivery(t *testing.T, h *harness, instance *bridgepkg.Bridg
 }
 
 func observeDeliveryEvent(snapshot bridgepkg.DeliverySnapshot, seq int64, eventType string, text string, final bool) bridgepkg.DeliveryEvent {
-	var metadata json.RawMessage
+	var errorDetail *bridgepkg.DeliveryErrorDetail
 	if eventType == bridgepkg.DeliveryEventTypeError {
-		data, err := json.Marshal(map[string]string{"error": text})
-		if err == nil {
-			metadata = json.RawMessage(data)
-		}
+		errorDetail = &bridgepkg.DeliveryErrorDetail{Message: text}
 	}
 	return bridgepkg.DeliveryEvent{
 		DeliveryID:       snapshot.DeliveryID,
@@ -298,7 +294,7 @@ func observeDeliveryEvent(snapshot bridgepkg.DeliverySnapshot, seq int64, eventT
 		EventType:        eventType,
 		Content:          bridgepkg.MessageContent{Text: text},
 		Final:            final,
-		Metadata:         metadata,
+		Error:            errorDetail,
 	}
 }
 

@@ -603,6 +603,10 @@ export interface DeliveryAck {
   replace_remote_message_id?: string;
 }
 
+export interface DeliveryErrorDetail {
+  message: string;
+}
+
 export type DeliveryMode = string;
 
 export interface DeliveryTarget {
@@ -617,6 +621,17 @@ export interface MessageContent {
   text?: string;
 }
 
+export type DeliveryOperation = string;
+
+export interface DeliveryMessageReference {
+  delivery_id?: string;
+  remote_message_id?: string;
+}
+
+export interface DeliveryResumeState {
+  latest_event_type: string;
+}
+
 export interface DeliveryEvent {
   delivery_id: string;
   bridge_instance_id: string;
@@ -626,7 +641,11 @@ export interface DeliveryEvent {
   event_type: string;
   content: MessageContent;
   final: boolean;
-  metadata?: JSONValue;
+  operation?: DeliveryOperation;
+  reference?: DeliveryMessageReference;
+  error?: DeliveryErrorDetail;
+  resume?: DeliveryResumeState;
+  provider_metadata?: JSONValue;
 }
 
 export interface DeliverySnapshot {
@@ -639,6 +658,9 @@ export interface DeliverySnapshot {
   latest_seq: number;
   latest_event_type: string;
   current_content?: MessageContent;
+  operation?: DeliveryOperation;
+  reference?: DeliveryMessageReference;
+  provider_metadata?: JSONValue;
   last_sent_seq?: number;
   last_acked_seq?: number;
   remote_message_id?: string;
@@ -781,6 +803,21 @@ export type HookRunOutcome = "applied" | "denied" | "failed" | "skipped" | "drop
 
 export type HookSkillSource = "bundled" | "marketplace" | "user" | "additional" | "workspace";
 
+export interface InboundAction {
+  action_id: string;
+  message_id?: string;
+  value?: string;
+  trigger_id?: string;
+}
+
+export interface InboundCommand {
+  command: string;
+  text?: string;
+  trigger_id?: string;
+}
+
+export type InboundEventFamily = string;
+
 export interface MessageSender {
   id?: string;
   username?: string;
@@ -792,6 +829,13 @@ export interface MessageAttachment {
   name?: string;
   mime_type?: string;
   url?: string;
+}
+
+export interface InboundReaction {
+  message_id: string;
+  emoji: string;
+  raw_emoji?: string;
+  added: boolean;
 }
 
 export interface InboundMessageEnvelope {
@@ -806,6 +850,11 @@ export interface InboundMessageEnvelope {
   sender: MessageSender;
   content: MessageContent;
   attachments?: MessageAttachment[];
+  event_family: InboundEventFamily;
+  command?: InboundCommand;
+  action?: InboundAction;
+  reaction?: InboundReaction;
+  provider_metadata?: JSONValue;
   idempotency_key: string;
 }
 

@@ -44,14 +44,17 @@ type activeDelivery struct {
 	target           DeliveryTarget
 	routeHash        string
 
-	latestSeq       int64
-	lastSentSeq     int64
-	lastAckedSeq    int64
-	latestEventType string
-	currentContent  MessageContent
-	final           bool
-	errorText       string
-	updatedAt       time.Time
+	latestSeq        int64
+	lastSentSeq      int64
+	lastAckedSeq     int64
+	latestEventType  string
+	currentContent   MessageContent
+	operation        DeliveryOperation
+	reference        *DeliveryMessageReference
+	providerMetadata json.RawMessage
+	final            bool
+	errorText        string
+	updatedAt        time.Time
 
 	remoteMessageID        string
 	replaceRemoteMessageID string
@@ -265,6 +268,7 @@ func (b *Broker) RegisterPromptDelivery(ctx context.Context, reg PromptDeliveryR
 		routingKey:       normalized.RoutingKey,
 		target:           normalized.DeliveryTarget,
 		routeHash:        routeHash,
+		operation:        DeliveryOperationPost,
 		updatedAt:        now,
 		seen:             make(map[string]struct{}),
 	}
@@ -468,9 +472,10 @@ func (b *Broker) FailSession(ctx context.Context, sessionID string, reason strin
 			EventType:        DeliveryEventTypeError,
 			Content:          delivery.currentContent,
 			Final:            true,
-			Metadata: deliveryMetadataJSON(map[string]string{
-				"error": reason,
-			}),
+			Operation:        delivery.operation,
+			Reference:        cloneDeliveryReference(delivery.reference),
+			Error:            &DeliveryErrorDetail{Message: reason},
+			ProviderMetadata: cloneRawJSON(delivery.providerMetadata),
 		}
 		route := b.ensureRouteLocked(delivery.routeHash, delivery.bridgeInstanceID, delivery.extensionName)
 		if err := b.enqueueEventLocked(route, delivery, projected); err != nil {
@@ -623,10 +628,13 @@ func (b *Broker) prepareRequest(route *routeWorker, item deliveryQueueItem) (Del
 			Seq:              delivery.latestSeq,
 			EventType:        DeliveryEventTypeResume,
 			Content:          delivery.currentContent,
+			Operation:        delivery.operation,
+			Reference:        cloneDeliveryReference(delivery.reference),
+			Resume: &DeliveryResumeState{
+				LatestEventType: delivery.latestEventType,
+			},
 			Final:            delivery.final,
-			Metadata: deliveryMetadataJSON(map[string]string{
-				"latest_event_type": delivery.latestEventType,
-			}),
+			ProviderMetadata: cloneRawJSON(delivery.providerMetadata),
 		}
 		if event.Seq > delivery.lastSentSeq {
 			delivery.lastSentSeq = event.Seq
@@ -655,6 +663,32 @@ func (b *Broker) handleSendFailure(route *routeWorker, deliveryID string, reason
 	delivery.pendingStart = nil
 	delivery.pendingDelta = nil
 	delivery.pendingTerminal = nil
+
+	if delivery.latestEventType == DeliveryEventTypeDelete {
+		deleteEvent := DeliveryEvent{
+			DeliveryID:       delivery.deliveryID,
+			BridgeInstanceID: delivery.bridgeInstanceID,
+			RoutingKey:       delivery.routingKey,
+			DeliveryTarget:   delivery.target,
+			Seq:              delivery.latestSeq,
+			EventType:        DeliveryEventTypeDelete,
+			Final:            true,
+			Operation:        DeliveryOperationDelete,
+			Reference:        cloneDeliveryReference(delivery.reference),
+			ProviderMetadata: cloneRawJSON(delivery.providerMetadata),
+		}
+		delivery.pendingTerminal = &deleteEvent
+		route.queue = append([]deliveryQueueItem{{
+			deliveryID: deliveryID,
+			kind:       deliveryQueueKindTerminal,
+		}}, route.queue...)
+		delivery.queuedTerminal = true
+		delivery.updatedAt = b.now()
+		if reason != nil && (delivery.latestEventType != DeliveryEventTypeError || strings.TrimSpace(delivery.errorText) == "") {
+			b.recordDeliveryIssueLocked(delivery.bridgeInstanceID, reason.Error())
+		}
+		return
+	}
 
 	if !delivery.queuedResume {
 		route.queue = append([]deliveryQueueItem{{
@@ -736,7 +770,7 @@ func (b *Broker) enqueueEventLocked(route *routeWorker, delivery *activeDelivery
 			start := cloneDeliveryEvent(*delivery.pendingStart)
 			start.Content = event.Content
 			start.Seq = event.Seq
-			start.Metadata = cloneRawJSON(event.Metadata)
+			start.ProviderMetadata = cloneRawJSON(event.ProviderMetadata)
 			delivery.pendingStart = &start
 			return nil
 		}
@@ -773,7 +807,7 @@ func (b *Broker) enqueueEventLocked(route *routeWorker, delivery *activeDelivery
 		delivery.queuedDelta = true
 		route.queue = append(route.queue, deliveryQueueItem{deliveryID: delivery.deliveryID, kind: deliveryQueueKindDelta})
 		return nil
-	case DeliveryEventTypeFinal, DeliveryEventTypeError:
+	case DeliveryEventTypeFinal, DeliveryEventTypeError, DeliveryEventTypeDelete:
 		b.removeQueuedSlotLocked(route, delivery.deliveryID, deliveryQueueKindDelta)
 		delivery.pendingDelta = nil
 		if delivery.queuedTerminal {
@@ -845,9 +879,7 @@ func (b *Broker) projectEventLocked(delivery *activeDelivery, event DeliveryProj
 			EventType:        DeliveryEventTypeError,
 			Content:          delivery.currentContent,
 			Final:            true,
-			Metadata: deliveryMetadataJSON(map[string]string{
-				"error": errorText,
-			}),
+			Error:            &DeliveryErrorDetail{Message: errorText},
 		}, true, nil
 	default:
 		return DeliveryEvent{}, false, nil
@@ -865,11 +897,18 @@ func (b *Broker) applyQueuedEventLocked(delivery *activeDelivery, event Delivery
 	}
 	delivery.latestEventType = normalizedType
 	delivery.currentContent = event.Content
+	delivery.operation = event.Operation.Normalize()
+	delivery.reference = cloneDeliveryReference(event.Reference)
+	delivery.providerMetadata = cloneRawJSON(event.ProviderMetadata)
 	delivery.final = event.Final
 	delivery.updatedAt = b.now()
 
 	if normalizedType == DeliveryEventTypeError {
-		delivery.errorText = deliveryErrorText(event.Metadata)
+		if event.Error != nil {
+			delivery.errorText = strings.TrimSpace(event.Error.Message)
+		} else {
+			delivery.errorText = ""
+		}
 		b.recordDeliveryFailureLocked(delivery.bridgeInstanceID, delivery.errorText)
 	} else if normalizedType != DeliveryEventTypeResume {
 		delivery.errorText = ""
@@ -887,6 +926,9 @@ func (b *Broker) snapshotLocked(delivery *activeDelivery) DeliverySnapshot {
 		LatestSeq:              delivery.latestSeq,
 		LatestEventType:        delivery.latestEventType,
 		CurrentContent:         delivery.currentContent,
+		Operation:              delivery.operation,
+		Reference:              cloneDeliveryReference(delivery.reference),
+		ProviderMetadata:       cloneRawJSON(delivery.providerMetadata),
 		LastSentSeq:            delivery.lastSentSeq,
 		LastAckedSeq:           delivery.lastAckedSeq,
 		RemoteMessageID:        delivery.remoteMessageID,
@@ -1071,19 +1113,10 @@ func agentEventFingerprint(event DeliveryProjectionEvent) string {
 	return strings.TrimSpace(event.Type) + "|" + strings.TrimSpace(event.TurnID) + "|" + event.Timestamp.UTC().Format(time.RFC3339Nano) + "|" + event.Text + "|" + event.Error
 }
 
-func deliveryErrorText(raw []byte) string {
-	type errorEnvelope struct {
-		Error string `json:"error"`
+func cloneDeliveryReference(reference *DeliveryMessageReference) *DeliveryMessageReference {
+	if reference == nil {
+		return nil
 	}
-
-	trimmed := strings.TrimSpace(string(raw))
-	if trimmed == "" {
-		return ""
-	}
-
-	var payload errorEnvelope
-	if err := json.Unmarshal([]byte(trimmed), &payload); err != nil {
-		return ""
-	}
-	return strings.TrimSpace(payload.Error)
+	cloned := reference.normalize()
+	return &cloned
 }

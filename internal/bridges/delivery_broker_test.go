@@ -2,7 +2,6 @@ package bridges
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -456,7 +455,7 @@ func TestBrokerDeliveryMetricsCaptureTerminalFailures(t *testing.T) {
 		t.Fatalf("Deliver(start) error = %v", err)
 	}
 	errorEvent := testDeliveryEvent(reg.DeliveryID, reg.BridgeInstanceID, reg.RoutingKey, reg.DeliveryTarget, 2, DeliveryEventTypeError, "boom", true)
-	errorEvent.Metadata = json.RawMessage(`{"error":"boom"}`)
+	errorEvent.Error = &DeliveryErrorDetail{Message: "boom"}
 	if err := broker.Deliver(ctx, errorEvent); err != nil {
 		t.Fatalf("Deliver(error) error = %v", err)
 	}

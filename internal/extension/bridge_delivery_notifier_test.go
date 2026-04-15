@@ -369,9 +369,26 @@ func TestManagerDeliverBridge(t *testing.T) {
 
 func cloneExtensionDeliveryRequest(req bridgepkg.DeliveryRequest) bridgepkg.DeliveryRequest {
 	cloned := req
-	cloned.Event.Metadata = append([]byte(nil), req.Event.Metadata...)
+	cloned.Event.ProviderMetadata = append([]byte(nil), req.Event.ProviderMetadata...)
+	if req.Event.Reference != nil {
+		reference := *req.Event.Reference
+		cloned.Event.Reference = &reference
+	}
+	if req.Event.Error != nil {
+		errorDetail := *req.Event.Error
+		cloned.Event.Error = &errorDetail
+	}
+	if req.Event.Resume != nil {
+		resume := *req.Event.Resume
+		cloned.Event.Resume = &resume
+	}
 	if req.Snapshot != nil {
 		snapshot := *req.Snapshot
+		snapshot.ProviderMetadata = append([]byte(nil), req.Snapshot.ProviderMetadata...)
+		if req.Snapshot.Reference != nil {
+			reference := *req.Snapshot.Reference
+			snapshot.Reference = &reference
+		}
 		cloned.Snapshot = &snapshot
 	}
 	return cloned

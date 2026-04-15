@@ -624,9 +624,49 @@ func bridgeRouteForRoutingKey(
 
 func renderInboundMessagePrompt(envelope bridgepkg.InboundMessageEnvelope) string {
 	var lines []string
+	family := envelope.EventFamily.Normalize()
+	if family == "" {
+		family = bridgepkg.InboundEventFamilyMessage
+	}
 
-	lines = append(lines, "Inbound bridge message")
-	lines = append(lines, "Platform message ID: "+strings.TrimSpace(envelope.PlatformMessageID))
+	switch family {
+	case bridgepkg.InboundEventFamilyCommand:
+		lines = append(lines, "Inbound bridge command")
+		lines = append(lines, "Command: "+strings.TrimSpace(envelope.Command.Command))
+		if text := strings.TrimSpace(envelope.Command.Text); text != "" {
+			lines = append(lines, "Arguments: "+text)
+		}
+		if triggerID := strings.TrimSpace(envelope.Command.TriggerID); triggerID != "" {
+			lines = append(lines, "Trigger ID: "+triggerID)
+		}
+	case bridgepkg.InboundEventFamilyAction:
+		lines = append(lines, "Inbound bridge action")
+		lines = append(lines, "Action ID: "+strings.TrimSpace(envelope.Action.ActionID))
+		if messageID := strings.TrimSpace(envelope.Action.MessageID); messageID != "" {
+			lines = append(lines, "Message ID: "+messageID)
+		}
+		if value := strings.TrimSpace(envelope.Action.Value); value != "" {
+			lines = append(lines, "Value: "+value)
+		}
+		if triggerID := strings.TrimSpace(envelope.Action.TriggerID); triggerID != "" {
+			lines = append(lines, "Trigger ID: "+triggerID)
+		}
+	case bridgepkg.InboundEventFamilyReaction:
+		lines = append(lines, "Inbound bridge reaction")
+		lines = append(lines, "Message ID: "+strings.TrimSpace(envelope.Reaction.MessageID))
+		lines = append(lines, "Emoji: "+strings.TrimSpace(envelope.Reaction.Emoji))
+		if rawEmoji := strings.TrimSpace(envelope.Reaction.RawEmoji); rawEmoji != "" {
+			lines = append(lines, "Raw emoji: "+rawEmoji)
+		}
+		if envelope.Reaction.Added {
+			lines = append(lines, "Change: added")
+		} else {
+			lines = append(lines, "Change: removed")
+		}
+	default:
+		lines = append(lines, "Inbound bridge message")
+		lines = append(lines, "Platform message ID: "+strings.TrimSpace(envelope.PlatformMessageID))
+	}
 	if !envelope.ReceivedAt.IsZero() {
 		lines = append(lines, "Received at: "+envelope.ReceivedAt.UTC().Format(time.RFC3339Nano))
 	}
@@ -643,16 +683,18 @@ func renderInboundMessagePrompt(envelope bridgepkg.InboundMessageEnvelope) strin
 		lines = append(lines, "Group ID: "+groupID)
 	}
 
-	body := strings.TrimSpace(envelope.Content.Text)
-	if body == "" {
-		body = "[No text body]"
-	}
-	lines = append(lines, "", body)
+	if family == bridgepkg.InboundEventFamilyMessage {
+		body := strings.TrimSpace(envelope.Content.Text)
+		if body == "" {
+			body = "[No text body]"
+		}
+		lines = append(lines, "", body)
 
-	if len(envelope.Attachments) > 0 {
-		lines = append(lines, "", "Attachments:")
-		for _, attachment := range envelope.Attachments {
-			lines = append(lines, "- "+summarizeInboundAttachment(attachment))
+		if len(envelope.Attachments) > 0 {
+			lines = append(lines, "", "Attachments:")
+			for _, attachment := range envelope.Attachments {
+				lines = append(lines, "- "+summarizeInboundAttachment(attachment))
+			}
 		}
 	}
 

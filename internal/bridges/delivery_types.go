@@ -1,6 +1,7 @@
 package bridges
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -29,6 +30,8 @@ const (
 	DeliveryEventTypeError = "error"
 	// DeliveryEventTypeResume rehydrates the latest delivery snapshot after adapter recovery.
 	DeliveryEventTypeResume = "resume"
+	// DeliveryEventTypeDelete removes one previously delivered message.
+	DeliveryEventTypeDelete = "delete"
 )
 
 const (
@@ -129,22 +132,25 @@ func (a DeliveryAck) ValidateFor(event DeliveryEvent) error {
 // DeliverySnapshot captures the current progressive state for one active
 // delivery so the broker can resume it after adapter recovery.
 type DeliverySnapshot struct {
-	DeliveryID             string         `json:"delivery_id"`
-	SessionID              string         `json:"session_id"`
-	TurnID                 string         `json:"turn_id"`
-	BridgeInstanceID       string         `json:"bridge_instance_id"`
-	RoutingKey             RoutingKey     `json:"routing_key"`
-	DeliveryTarget         DeliveryTarget `json:"delivery_target"`
-	LatestSeq              int64          `json:"latest_seq"`
-	LatestEventType        string         `json:"latest_event_type"`
-	CurrentContent         MessageContent `json:"current_content,omitempty"`
-	LastSentSeq            int64          `json:"last_sent_seq,omitempty"`
-	LastAckedSeq           int64          `json:"last_acked_seq,omitempty"`
-	RemoteMessageID        string         `json:"remote_message_id,omitempty"`
-	ReplaceRemoteMessageID string         `json:"replace_remote_message_id,omitempty"`
-	Final                  bool           `json:"final"`
-	Error                  string         `json:"error,omitempty"`
-	UpdatedAt              time.Time      `json:"updated_at"`
+	DeliveryID             string                    `json:"delivery_id"`
+	SessionID              string                    `json:"session_id"`
+	TurnID                 string                    `json:"turn_id"`
+	BridgeInstanceID       string                    `json:"bridge_instance_id"`
+	RoutingKey             RoutingKey                `json:"routing_key"`
+	DeliveryTarget         DeliveryTarget            `json:"delivery_target"`
+	LatestSeq              int64                     `json:"latest_seq"`
+	LatestEventType        string                    `json:"latest_event_type"`
+	CurrentContent         MessageContent            `json:"current_content,omitempty"`
+	Operation              DeliveryOperation         `json:"operation,omitempty"`
+	Reference              *DeliveryMessageReference `json:"reference,omitempty"`
+	ProviderMetadata       json.RawMessage           `json:"provider_metadata,omitempty"`
+	LastSentSeq            int64                     `json:"last_sent_seq,omitempty"`
+	LastAckedSeq           int64                     `json:"last_acked_seq,omitempty"`
+	RemoteMessageID        string                    `json:"remote_message_id,omitempty"`
+	ReplaceRemoteMessageID string                    `json:"replace_remote_message_id,omitempty"`
+	Final                  bool                      `json:"final"`
+	Error                  string                    `json:"error,omitempty"`
+	UpdatedAt              time.Time                 `json:"updated_at"`
 }
 
 // Validate reports whether the snapshot contains the state needed to resume a
@@ -192,6 +198,24 @@ func (s DeliverySnapshot) Validate() error {
 	}
 	if normalized.UpdatedAt.IsZero() {
 		return errors.New("bridges: delivery snapshot updated at is required")
+	}
+	if err := normalized.Operation.Validate(); err != nil {
+		return err
+	}
+	if normalized.Operation == DeliveryOperationPost {
+		if normalized.Reference != nil {
+			return errors.New("bridges: delivery snapshot post operation cannot include a reference")
+		}
+	} else {
+		if normalized.Reference == nil {
+			return fmt.Errorf("bridges: delivery snapshot %s operation requires a reference", normalized.Operation)
+		}
+		if err := normalized.Reference.Validate(); err != nil {
+			return err
+		}
+	}
+	if _, err := normalizeRawJSON(normalized.ProviderMetadata, "delivery snapshot provider metadata"); err != nil {
+		return err
 	}
 	if err := validateDeliveryEventType(normalized.LatestEventType, normalized.Final); err != nil {
 		return err
@@ -294,6 +318,15 @@ func normalizeDeliveryEventType(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+func isTerminalDeliveryEventType(value string) bool {
+	switch normalizeDeliveryEventType(value) {
+	case DeliveryEventTypeFinal, DeliveryEventTypeError, DeliveryEventTypeDelete:
+		return true
+	default:
+		return false
+	}
+}
+
 func validateDeliveryEventType(value string, final bool) error {
 	switch normalizeDeliveryEventType(value) {
 	case DeliveryEventTypeStart:
@@ -317,6 +350,11 @@ func validateDeliveryEventType(value string, final bool) error {
 		}
 		return nil
 	case DeliveryEventTypeResume:
+		return nil
+	case DeliveryEventTypeDelete:
+		if !final {
+			return errors.New("bridges: delivery delete event must set final=true")
+		}
 		return nil
 	case "":
 		return errors.New("bridges: delivery event type is required")
@@ -342,9 +380,18 @@ func (s DeliverySnapshot) normalize() DeliverySnapshot {
 	normalized.RoutingKey = normalized.RoutingKey.normalize()
 	normalized.DeliveryTarget = normalized.DeliveryTarget.normalize()
 	normalized.LatestEventType = normalizeDeliveryEventType(normalized.LatestEventType)
+	normalized.Operation = normalized.Operation.Normalize()
+	if normalized.Operation == "" {
+		normalized.Operation = DeliveryOperationPost
+	}
+	normalized.ProviderMetadata = bytes.TrimSpace(normalized.ProviderMetadata)
 	normalized.RemoteMessageID = strings.TrimSpace(normalized.RemoteMessageID)
 	normalized.ReplaceRemoteMessageID = strings.TrimSpace(normalized.ReplaceRemoteMessageID)
 	normalized.Error = strings.TrimSpace(normalized.Error)
+	if normalized.Reference != nil {
+		reference := normalized.Reference.normalize()
+		normalized.Reference = &reference
+	}
 	return normalized
 }
 
@@ -376,7 +423,19 @@ func (e DeliveryProjectionEvent) normalize() DeliveryProjectionEvent {
 
 func cloneDeliveryEvent(event DeliveryEvent) DeliveryEvent {
 	cloned := event.normalize()
-	cloned.Metadata = cloneRawJSON(cloned.Metadata)
+	cloned.ProviderMetadata = cloneRawJSON(cloned.ProviderMetadata)
+	if cloned.Reference != nil {
+		reference := cloned.Reference.normalize()
+		cloned.Reference = &reference
+	}
+	if cloned.Error != nil {
+		errorDetail := cloned.Error.normalize()
+		cloned.Error = &errorDetail
+	}
+	if cloned.Resume != nil {
+		resume := cloned.Resume.normalize()
+		cloned.Resume = &resume
+	}
 	return cloned
 }
 
@@ -394,17 +453,6 @@ func cloneDeliveryRequest(req DeliveryRequest) DeliveryRequest {
 		cloned.Snapshot = &snapshot
 	}
 	return cloned
-}
-
-func deliveryMetadataJSON(payload any) json.RawMessage {
-	if payload == nil {
-		return nil
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil
-	}
-	return json.RawMessage(data)
 }
 
 func cloneRawJSON(raw json.RawMessage) json.RawMessage {

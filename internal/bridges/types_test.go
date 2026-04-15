@@ -296,6 +296,7 @@ func TestDeliveryTargetEnvelopeAndEventValidation(t *testing.T) {
 		ReceivedAt:        time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC),
 		Sender:            MessageSender{ID: "user-1", DisplayName: "Alice"},
 		Content:           MessageContent{Text: "hello"},
+		EventFamily:       InboundEventFamilyMessage,
 		IdempotencyKey:    "idem-1",
 	}
 	if err := envelope.Validate(); err != nil {
@@ -315,11 +316,11 @@ func TestDeliveryTargetEnvelopeAndEventValidation(t *testing.T) {
 			BridgeInstanceID: "brg-1",
 			PeerID:           "peer-1",
 		},
-		DeliveryTarget: target,
-		Seq:            1,
-		EventType:      DeliveryEventTypeStart,
-		Content:        MessageContent{Text: "hello"},
-		Metadata:       []byte(`{"remote":true}`),
+		DeliveryTarget:   target,
+		Seq:              1,
+		EventType:        DeliveryEventTypeStart,
+		Content:          MessageContent{Text: "hello"},
+		ProviderMetadata: []byte(`{"remote":true}`),
 	}
 	if err := event.Validate(); err != nil {
 		t.Fatalf("DeliveryEvent.Validate(valid) error = %v", err)
@@ -331,9 +332,9 @@ func TestDeliveryTargetEnvelopeAndEventValidation(t *testing.T) {
 	}
 
 	event.DeliveryTarget.BridgeInstanceID = "brg-1"
-	event.Metadata = []byte(`{`)
+	event.ProviderMetadata = []byte(`{`)
 	if err := event.Validate(); err == nil {
-		t.Fatal("DeliveryEvent.Validate(invalid metadata) error = nil, want non-nil")
+		t.Fatal("DeliveryEvent.Validate(invalid provider metadata) error = nil, want non-nil")
 	}
 }
 
@@ -349,6 +350,7 @@ func TestInboundMessageEnvelopeNormalizeClonesAttachments(t *testing.T) {
 		ReceivedAt:        time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC),
 		Sender:            MessageSender{ID: " user-1 ", DisplayName: " Alice "},
 		Content:           MessageContent{Text: " hello "},
+		EventFamily:       InboundEventFamilyMessage,
 		Attachments: []MessageAttachment{{
 			ID:       " att-1 ",
 			Name:     " image.png ",
@@ -373,6 +375,217 @@ func TestInboundMessageEnvelopeNormalizeClonesAttachments(t *testing.T) {
 	if got := envelope.Attachments[0].ID; got != " att-1 " {
 		t.Fatalf("normalize() mutated original attachment id to %q", got)
 	}
+}
+
+func TestInboundMessageEnvelopeValidatesTypedInteractionFamilies(t *testing.T) {
+	t.Parallel()
+
+	base := InboundMessageEnvelope{
+		BridgeInstanceID: "brg-1",
+		Scope:            ScopeWorkspace,
+		WorkspaceID:      "ws-1",
+		PeerID:           "peer-1",
+		ThreadID:         "thread-1",
+		ReceivedAt:       time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC),
+		Sender:           MessageSender{ID: "user-1", DisplayName: "Alice"},
+		IdempotencyKey:   "idem-1",
+	}
+
+	t.Run("command", func(t *testing.T) {
+		event := base
+		event.EventFamily = InboundEventFamilyCommand
+		event.Command = &InboundCommand{Command: "/help", Text: "bridge"}
+		if err := event.Validate(); err != nil {
+			t.Fatalf("command Validate() error = %v", err)
+		}
+
+		event.Command = &InboundCommand{}
+		if err := event.Validate(); err == nil {
+			t.Fatal("command Validate() error = nil, want non-nil")
+		}
+	})
+
+	t.Run("action", func(t *testing.T) {
+		event := base
+		event.EventFamily = InboundEventFamilyAction
+		event.Action = &InboundAction{ActionID: "approve", MessageID: "msg-1", Value: "run-1"}
+		if err := event.Validate(); err != nil {
+			t.Fatalf("action Validate() error = %v", err)
+		}
+
+		event.Action = &InboundAction{}
+		if err := event.Validate(); err == nil {
+			t.Fatal("action Validate() error = nil, want non-nil")
+		}
+	})
+
+	t.Run("reaction", func(t *testing.T) {
+		event := base
+		event.EventFamily = InboundEventFamilyReaction
+		event.Reaction = &InboundReaction{MessageID: "msg-1", Emoji: "thumbs_up", Added: true}
+		if err := event.Validate(); err != nil {
+			t.Fatalf("reaction Validate() error = %v", err)
+		}
+
+		event.Reaction = &InboundReaction{Emoji: "thumbs_up", Added: true}
+		if err := event.Validate(); err == nil {
+			t.Fatal("reaction Validate() error = nil, want non-nil")
+		}
+	})
+}
+
+func TestInboundMessageEnvelopeRejectsUnsupportedFamilyCombinations(t *testing.T) {
+	t.Parallel()
+
+	event := InboundMessageEnvelope{
+		BridgeInstanceID:  "brg-1",
+		Scope:             ScopeWorkspace,
+		WorkspaceID:       "ws-1",
+		PeerID:            "peer-1",
+		PlatformMessageID: "msg-1",
+		ReceivedAt:        time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC),
+		EventFamily:       InboundEventFamilyCommand,
+		Command:           &InboundCommand{Command: "/help"},
+		Content:           MessageContent{Text: "should-not-be-here"},
+		IdempotencyKey:    "idem-1",
+	}
+
+	if err := event.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want command/message combination rejection")
+	}
+}
+
+func TestDeliveryEventValidatesEditAndDeleteSemantics(t *testing.T) {
+	t.Parallel()
+
+	base := DeliveryEvent{
+		DeliveryID:       "del-1",
+		BridgeInstanceID: "brg-1",
+		RoutingKey: RoutingKey{
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      "ws-1",
+			BridgeInstanceID: "brg-1",
+			PeerID:           "peer-1",
+		},
+		DeliveryTarget: DeliveryTarget{
+			BridgeInstanceID: "brg-1",
+			PeerID:           "peer-1",
+			Mode:             DeliveryModeReply,
+		},
+		Seq:       2,
+		EventType: DeliveryEventTypeFinal,
+		Content:   MessageContent{Text: "updated"},
+		Final:     true,
+	}
+
+	edit := base
+	edit.Operation = DeliveryOperationEdit
+	edit.Reference = &DeliveryMessageReference{RemoteMessageID: "remote-1"}
+	if err := edit.Validate(); err != nil {
+		t.Fatalf("edit Validate() error = %v", err)
+	}
+
+	edit.Reference = nil
+	if err := edit.Validate(); err == nil {
+		t.Fatal("edit Validate() error = nil, want reference validation")
+	}
+
+	deleteEvent := base
+	deleteEvent.EventType = DeliveryEventTypeDelete
+	deleteEvent.Operation = DeliveryOperationDelete
+	deleteEvent.Reference = &DeliveryMessageReference{DeliveryID: "del-prev"}
+	deleteEvent.Content = MessageContent{}
+	if err := deleteEvent.Validate(); err != nil {
+		t.Fatalf("delete Validate() error = %v", err)
+	}
+
+	deleteEvent.Content = MessageContent{Text: "not allowed"}
+	if err := deleteEvent.Validate(); err == nil {
+		t.Fatal("delete Validate() error = nil, want content rejection")
+	}
+}
+
+func TestInboundProviderMetadataRoundTripKeepsFamilySelection(t *testing.T) {
+	t.Parallel()
+
+	event := InboundMessageEnvelope{
+		BridgeInstanceID: "brg-1",
+		Scope:            ScopeWorkspace,
+		WorkspaceID:      "ws-1",
+		PeerID:           "peer-1",
+		ReceivedAt:       time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC),
+		EventFamily:      InboundEventFamilyAction,
+		Action:           &InboundAction{ActionID: "approve", MessageID: "msg-1"},
+		ProviderMetadata: json.RawMessage(`{"provider":"slack","raw_action_id":"A123"}`),
+		IdempotencyKey:   "idem-1",
+	}
+
+	data, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	var decoded InboundMessageEnvelope
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got, want := decoded.EventFamily, InboundEventFamilyAction; got != want {
+		t.Fatalf("decoded.EventFamily = %q, want %q", got, want)
+	}
+	if decoded.Action == nil || decoded.Command != nil || decoded.Reaction != nil {
+		t.Fatalf("decoded interaction family = %#v, want action only", decoded)
+	}
+	if got, want := string(decoded.ProviderMetadata), `{"provider":"slack","raw_action_id":"A123"}`; got != want {
+		t.Fatalf("decoded.ProviderMetadata = %s, want %s", got, want)
+	}
+}
+
+func TestDeliveryEventRejectsInvalidTypedPayloadCombinations(t *testing.T) {
+	t.Parallel()
+
+	base := DeliveryEvent{
+		DeliveryID:       "del-typed",
+		BridgeInstanceID: "brg-1",
+		RoutingKey: RoutingKey{
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      "ws-1",
+			BridgeInstanceID: "brg-1",
+			PeerID:           "peer-1",
+		},
+		DeliveryTarget: DeliveryTarget{
+			BridgeInstanceID: "brg-1",
+			PeerID:           "peer-1",
+			Mode:             DeliveryModeReply,
+		},
+		Seq:   3,
+		Final: true,
+	}
+
+	t.Run("error event requires typed error payload", func(t *testing.T) {
+		event := base
+		event.EventType = DeliveryEventTypeError
+		if err := event.Validate(); err == nil {
+			t.Fatal("Validate() error = nil, want typed error validation")
+		}
+	})
+
+	t.Run("resume event requires typed resume payload", func(t *testing.T) {
+		event := base
+		event.EventType = DeliveryEventTypeResume
+		event.Final = false
+		if err := event.Validate(); err == nil {
+			t.Fatal("Validate() error = nil, want typed resume validation")
+		}
+	})
+
+	t.Run("delete event requires delete operation", func(t *testing.T) {
+		event := base
+		event.EventType = DeliveryEventTypeDelete
+		event.Operation = DeliveryOperationPost
+		if err := event.Validate(); err == nil {
+			t.Fatal("Validate() error = nil, want delete operation validation")
+		}
+	})
 }
 
 func TestBridgeRouteValidateHashMismatch(t *testing.T) {

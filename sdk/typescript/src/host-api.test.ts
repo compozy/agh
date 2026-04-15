@@ -144,6 +144,7 @@ describe("HostAPI", () => {
       expect(params).toEqual({
         bridge_instance_id: "chan-1",
         scope: "global",
+        event_family: "message",
         platform_message_id: "msg-1",
         received_at: "2026-04-11T12:00:00.000Z",
         sender: { id: "user-1" },
@@ -206,6 +207,7 @@ describe("HostAPI", () => {
       host.bridges.ingest({
         bridge_instance_id: "chan-1",
         scope: "global",
+        event_family: "message",
         platform_message_id: "msg-1",
         received_at: "2026-04-11T12:00:00.000Z",
         sender: { id: "user-1" },

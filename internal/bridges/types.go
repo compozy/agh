@@ -480,6 +480,81 @@ type MessageAttachment struct {
 	URL      string `json:"url,omitempty"`
 }
 
+// InboundEventFamily identifies the typed inbound bridge event family.
+type InboundEventFamily string
+
+const (
+	// InboundEventFamilyMessage identifies a text-and-attachment message event.
+	InboundEventFamilyMessage InboundEventFamily = "message"
+	// InboundEventFamilyCommand identifies a typed slash-command style event.
+	InboundEventFamilyCommand InboundEventFamily = "command"
+	// InboundEventFamilyAction identifies a typed button/action event.
+	InboundEventFamilyAction InboundEventFamily = "action"
+	// InboundEventFamilyReaction identifies a typed reaction add/remove event.
+	InboundEventFamilyReaction InboundEventFamily = "reaction"
+)
+
+// Normalize returns the canonical inbound event-family representation.
+func (f InboundEventFamily) Normalize() InboundEventFamily {
+	return InboundEventFamily(strings.ToLower(strings.TrimSpace(string(f))))
+}
+
+// Validate reports whether the inbound event family belongs to the supported set.
+func (f InboundEventFamily) Validate() error {
+	switch f.Normalize() {
+	case InboundEventFamilyMessage,
+		InboundEventFamilyCommand,
+		InboundEventFamilyAction,
+		InboundEventFamilyReaction:
+		return nil
+	case "":
+		return errors.New("bridges: inbound event family is required")
+	default:
+		return fmt.Errorf("bridges: unsupported inbound event family %q", strings.TrimSpace(string(f)))
+	}
+}
+
+// InboundCommand captures a typed slash-command style inbound interaction.
+type InboundCommand struct {
+	Command   string `json:"command"`
+	Text      string `json:"text,omitempty"`
+	TriggerID string `json:"trigger_id,omitempty"`
+}
+
+// Validate reports whether the command payload contains the required identity.
+func (c InboundCommand) Validate() error {
+	return requireField(strings.TrimSpace(c.Command), "inbound command")
+}
+
+// InboundAction captures a typed button/action inbound interaction.
+type InboundAction struct {
+	ActionID  string `json:"action_id"`
+	MessageID string `json:"message_id,omitempty"`
+	Value     string `json:"value,omitempty"`
+	TriggerID string `json:"trigger_id,omitempty"`
+}
+
+// Validate reports whether the action payload contains the required identity.
+func (a InboundAction) Validate() error {
+	return requireField(strings.TrimSpace(a.ActionID), "inbound action id")
+}
+
+// InboundReaction captures a typed reaction add/remove inbound interaction.
+type InboundReaction struct {
+	MessageID string `json:"message_id"`
+	Emoji     string `json:"emoji"`
+	RawEmoji  string `json:"raw_emoji,omitempty"`
+	Added     bool   `json:"added"`
+}
+
+// Validate reports whether the reaction payload contains the required identity.
+func (r InboundReaction) Validate() error {
+	if err := requireField(strings.TrimSpace(r.MessageID), "inbound reaction message id"); err != nil {
+		return err
+	}
+	return requireField(strings.TrimSpace(r.Emoji), "inbound reaction emoji")
+}
+
 // InboundMessageEnvelope is the normalized bridge ingest payload delivered by adapters.
 type InboundMessageEnvelope struct {
 	BridgeInstanceID  string              `json:"bridge_instance_id"`
@@ -493,6 +568,11 @@ type InboundMessageEnvelope struct {
 	Sender            MessageSender       `json:"sender"`
 	Content           MessageContent      `json:"content"`
 	Attachments       []MessageAttachment `json:"attachments,omitempty"`
+	EventFamily       InboundEventFamily  `json:"event_family"`
+	Command           *InboundCommand     `json:"command,omitempty"`
+	Action            *InboundAction      `json:"action,omitempty"`
+	Reaction          *InboundReaction    `json:"reaction,omitempty"`
+	ProviderMetadata  json.RawMessage     `json:"provider_metadata,omitempty"`
 	IdempotencyKey    string              `json:"idempotency_key"`
 }
 
@@ -505,29 +585,109 @@ func (e InboundMessageEnvelope) Validate() error {
 	if err := ValidateScopeWorkspaceID(normalized.Scope, normalized.WorkspaceID); err != nil {
 		return err
 	}
-	if err := requireField(normalized.PlatformMessageID, "inbound message platform message id"); err != nil {
-		return err
-	}
 	if normalized.ReceivedAt.IsZero() {
 		return errors.New("bridges: inbound message received at is required")
 	}
+	if err := normalized.EventFamily.Validate(); err != nil {
+		return err
+	}
+	if _, err := normalizeRawJSON(normalized.ProviderMetadata, "inbound provider metadata"); err != nil {
+		return err
+	}
 	if err := requireField(normalized.IdempotencyKey, "inbound message idempotency key"); err != nil {
+		return err
+	}
+	if err := normalized.validatePayload(); err != nil {
 		return err
 	}
 	return nil
 }
 
+// DeliveryOperation identifies whether the outbound delivery is posting new text,
+// editing an existing remote message, or deleting one.
+type DeliveryOperation string
+
+const (
+	// DeliveryOperationPost creates or continues a new daemon-owned delivery.
+	DeliveryOperationPost DeliveryOperation = "post"
+	// DeliveryOperationEdit updates a previously delivered message in-place.
+	DeliveryOperationEdit DeliveryOperation = "edit"
+	// DeliveryOperationDelete removes a previously delivered message.
+	DeliveryOperationDelete DeliveryOperation = "delete"
+)
+
+// Normalize returns the canonical delivery-operation representation.
+func (o DeliveryOperation) Normalize() DeliveryOperation {
+	return DeliveryOperation(strings.ToLower(strings.TrimSpace(string(o))))
+}
+
+// Validate reports whether the delivery operation belongs to the supported set.
+func (o DeliveryOperation) Validate() error {
+	switch o.Normalize() {
+	case "", DeliveryOperationPost, DeliveryOperationEdit, DeliveryOperationDelete:
+		return nil
+	default:
+		return fmt.Errorf("bridges: unsupported delivery operation %q", strings.TrimSpace(string(o)))
+	}
+}
+
+// DeliveryMessageReference identifies one previously delivered message.
+type DeliveryMessageReference struct {
+	DeliveryID      string `json:"delivery_id,omitempty"`
+	RemoteMessageID string `json:"remote_message_id,omitempty"`
+}
+
+// Validate reports whether the reference identifies at least one prior message handle.
+func (r DeliveryMessageReference) Validate() error {
+	normalized := r.normalize()
+	if normalized.DeliveryID == "" && normalized.RemoteMessageID == "" {
+		return errors.New("bridges: delivery reference requires delivery id or remote message id")
+	}
+	return nil
+}
+
+// DeliveryErrorDetail captures one typed delivery failure payload.
+type DeliveryErrorDetail struct {
+	Message string `json:"message"`
+}
+
+// Validate reports whether the error detail carries a message.
+func (d DeliveryErrorDetail) Validate() error {
+	return requireField(strings.TrimSpace(d.Message), "delivery error message")
+}
+
+// DeliveryResumeState captures the typed resumable delivery phase.
+type DeliveryResumeState struct {
+	LatestEventType string `json:"latest_event_type"`
+}
+
+// Validate reports whether the resume state references a supported prior event type.
+func (s DeliveryResumeState) Validate() error {
+	normalized := s.normalize()
+	if normalized.LatestEventType == "" {
+		return errors.New("bridges: delivery resume latest event type is required")
+	}
+	if normalized.LatestEventType == DeliveryEventTypeResume {
+		return errors.New("bridges: delivery resume latest event type cannot itself be resume")
+	}
+	return validateDeliveryEventType(normalized.LatestEventType, isTerminalDeliveryEventType(normalized.LatestEventType))
+}
+
 // DeliveryEvent is the daemon-owned outbound projection sent to a bridge adapter.
 type DeliveryEvent struct {
-	DeliveryID       string          `json:"delivery_id"`
-	BridgeInstanceID string          `json:"bridge_instance_id"`
-	RoutingKey       RoutingKey      `json:"routing_key"`
-	DeliveryTarget   DeliveryTarget  `json:"delivery_target"`
-	Seq              int64           `json:"seq"`
-	EventType        string          `json:"event_type"`
-	Content          MessageContent  `json:"content"`
-	Final            bool            `json:"final"`
-	Metadata         json.RawMessage `json:"metadata,omitempty"`
+	DeliveryID       string                    `json:"delivery_id"`
+	BridgeInstanceID string                    `json:"bridge_instance_id"`
+	RoutingKey       RoutingKey                `json:"routing_key"`
+	DeliveryTarget   DeliveryTarget            `json:"delivery_target"`
+	Seq              int64                     `json:"seq"`
+	EventType        string                    `json:"event_type"`
+	Content          MessageContent            `json:"content"`
+	Final            bool                      `json:"final"`
+	Operation        DeliveryOperation         `json:"operation,omitempty"`
+	Reference        *DeliveryMessageReference `json:"reference,omitempty"`
+	Error            *DeliveryErrorDetail      `json:"error,omitempty"`
+	Resume           *DeliveryResumeState      `json:"resume,omitempty"`
+	ProviderMetadata json.RawMessage           `json:"provider_metadata,omitempty"`
 }
 
 // Validate reports whether the delivery event contains the required identifiers.
@@ -556,10 +716,19 @@ func (e DeliveryEvent) Validate() error {
 	if normalized.Seq < 0 {
 		return fmt.Errorf("bridges: invalid delivery event sequence %d", normalized.Seq)
 	}
+	if err := normalized.Operation.Validate(); err != nil {
+		return err
+	}
 	if err := validateDeliveryEventType(normalized.EventType, normalized.Final); err != nil {
 		return err
 	}
-	if _, err := normalizeRawJSON(normalized.Metadata, "delivery event metadata"); err != nil {
+	if _, err := normalizeRawJSON(normalized.ProviderMetadata, "delivery event provider metadata"); err != nil {
+		return err
+	}
+	if err := normalized.validateOperation(); err != nil {
+		return err
+	}
+	if err := normalized.validateTypedFields(); err != nil {
 		return err
 	}
 	return nil
@@ -682,7 +851,12 @@ func (e InboundMessageEnvelope) normalize() InboundMessageEnvelope {
 		DisplayName: strings.TrimSpace(normalized.Sender.DisplayName),
 	}
 	normalized.Content = MessageContent{Text: strings.TrimSpace(normalized.Content.Text)}
+	normalized.EventFamily = normalized.EventFamily.Normalize()
+	if normalized.EventFamily == "" && normalized.Command == nil && normalized.Action == nil && normalized.Reaction == nil {
+		normalized.EventFamily = InboundEventFamilyMessage
+	}
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
+	normalized.ProviderMetadata = bytes.TrimSpace(normalized.ProviderMetadata)
 	for idx := range normalized.Attachments {
 		normalized.Attachments[idx] = MessageAttachment{
 			ID:       strings.TrimSpace(normalized.Attachments[idx].ID),
@@ -690,6 +864,18 @@ func (e InboundMessageEnvelope) normalize() InboundMessageEnvelope {
 			MIMEType: strings.TrimSpace(normalized.Attachments[idx].MIMEType),
 			URL:      strings.TrimSpace(normalized.Attachments[idx].URL),
 		}
+	}
+	if normalized.Command != nil {
+		command := normalized.Command.normalize()
+		normalized.Command = &command
+	}
+	if normalized.Action != nil {
+		action := normalized.Action.normalize()
+		normalized.Action = &action
+	}
+	if normalized.Reaction != nil {
+		reaction := normalized.Reaction.normalize()
+		normalized.Reaction = &reaction
 	}
 	return normalized
 }
@@ -702,7 +888,23 @@ func (e DeliveryEvent) normalize() DeliveryEvent {
 	normalized.DeliveryTarget = normalized.DeliveryTarget.normalize()
 	normalized.EventType = normalizeDeliveryEventType(normalized.EventType)
 	normalized.Content = MessageContent{Text: strings.TrimSpace(normalized.Content.Text)}
-	normalized.Metadata = bytes.TrimSpace(normalized.Metadata)
+	normalized.Operation = normalized.Operation.Normalize()
+	if normalized.Operation == "" {
+		normalized.Operation = DeliveryOperationPost
+	}
+	normalized.ProviderMetadata = bytes.TrimSpace(normalized.ProviderMetadata)
+	if normalized.Reference != nil {
+		reference := normalized.Reference.normalize()
+		normalized.Reference = &reference
+	}
+	if normalized.Error != nil {
+		errorDetail := normalized.Error.normalize()
+		normalized.Error = &errorDetail
+	}
+	if normalized.Resume != nil {
+		resume := normalized.Resume.normalize()
+		normalized.Resume = &resume
+	}
 	return normalized
 }
 
@@ -735,4 +937,153 @@ func normalizeRawJSON(value json.RawMessage, label string) (json.RawMessage, err
 	}
 
 	return compacted.Bytes(), nil
+}
+
+func (c InboundCommand) normalize() InboundCommand {
+	return InboundCommand{
+		Command:   strings.TrimSpace(c.Command),
+		Text:      strings.TrimSpace(c.Text),
+		TriggerID: strings.TrimSpace(c.TriggerID),
+	}
+}
+
+func (a InboundAction) normalize() InboundAction {
+	return InboundAction{
+		ActionID:  strings.TrimSpace(a.ActionID),
+		MessageID: strings.TrimSpace(a.MessageID),
+		Value:     strings.TrimSpace(a.Value),
+		TriggerID: strings.TrimSpace(a.TriggerID),
+	}
+}
+
+func (r InboundReaction) normalize() InboundReaction {
+	return InboundReaction{
+		MessageID: strings.TrimSpace(r.MessageID),
+		Emoji:     strings.TrimSpace(r.Emoji),
+		RawEmoji:  strings.TrimSpace(r.RawEmoji),
+		Added:     r.Added,
+	}
+}
+
+func (e InboundMessageEnvelope) validatePayload() error {
+	switch e.EventFamily {
+	case InboundEventFamilyMessage:
+		if e.Command != nil || e.Action != nil || e.Reaction != nil {
+			return errors.New("bridges: inbound message family cannot include command, action, or reaction payloads")
+		}
+		return requireField(e.PlatformMessageID, "inbound message platform message id")
+	case InboundEventFamilyCommand:
+		if e.Command == nil {
+			return errors.New("bridges: inbound command family requires command payload")
+		}
+		if e.Action != nil || e.Reaction != nil {
+			return errors.New("bridges: inbound command family cannot include action or reaction payloads")
+		}
+		if e.PlatformMessageID != "" || strings.TrimSpace(e.Content.Text) != "" || len(e.Attachments) > 0 {
+			return errors.New("bridges: inbound command family cannot include message payload fields")
+		}
+		return e.Command.Validate()
+	case InboundEventFamilyAction:
+		if e.Action == nil {
+			return errors.New("bridges: inbound action family requires action payload")
+		}
+		if e.Command != nil || e.Reaction != nil {
+			return errors.New("bridges: inbound action family cannot include command or reaction payloads")
+		}
+		if e.PlatformMessageID != "" || strings.TrimSpace(e.Content.Text) != "" || len(e.Attachments) > 0 {
+			return errors.New("bridges: inbound action family cannot include message payload fields")
+		}
+		return e.Action.Validate()
+	case InboundEventFamilyReaction:
+		if e.Reaction == nil {
+			return errors.New("bridges: inbound reaction family requires reaction payload")
+		}
+		if e.Command != nil || e.Action != nil {
+			return errors.New("bridges: inbound reaction family cannot include command or action payloads")
+		}
+		if e.PlatformMessageID != "" || strings.TrimSpace(e.Content.Text) != "" || len(e.Attachments) > 0 {
+			return errors.New("bridges: inbound reaction family cannot include message payload fields")
+		}
+		return e.Reaction.Validate()
+	default:
+		return errors.New("bridges: inbound event family is required")
+	}
+}
+
+func (r DeliveryMessageReference) normalize() DeliveryMessageReference {
+	return DeliveryMessageReference{
+		DeliveryID:      strings.TrimSpace(r.DeliveryID),
+		RemoteMessageID: strings.TrimSpace(r.RemoteMessageID),
+	}
+}
+
+func (d DeliveryErrorDetail) normalize() DeliveryErrorDetail {
+	return DeliveryErrorDetail{Message: strings.TrimSpace(d.Message)}
+}
+
+func (s DeliveryResumeState) normalize() DeliveryResumeState {
+	return DeliveryResumeState{LatestEventType: normalizeDeliveryEventType(s.LatestEventType)}
+}
+
+func (e DeliveryEvent) validateOperation() error {
+	switch e.Operation {
+	case DeliveryOperationPost:
+		if e.Reference != nil {
+			return errors.New("bridges: delivery post operation cannot include a reference")
+		}
+	case DeliveryOperationEdit, DeliveryOperationDelete:
+		if e.Reference == nil {
+			return fmt.Errorf("bridges: delivery %s operation requires a reference", e.Operation)
+		}
+		if err := e.Reference.Validate(); err != nil {
+			return err
+		}
+	}
+	if e.EventType == DeliveryEventTypeDelete && e.Operation != DeliveryOperationDelete {
+		return errors.New("bridges: delete delivery events must use delete operation")
+	}
+	if e.EventType != DeliveryEventTypeDelete && e.Operation == DeliveryOperationDelete {
+		return errors.New("bridges: delete operation requires delete event type")
+	}
+	return nil
+}
+
+func (e DeliveryEvent) validateTypedFields() error {
+	switch e.EventType {
+	case DeliveryEventTypeError:
+		if e.Error == nil {
+			return errors.New("bridges: delivery error events require an error payload")
+		}
+		if err := e.Error.Validate(); err != nil {
+			return err
+		}
+		if e.Resume != nil {
+			return errors.New("bridges: delivery error events cannot include resume payload")
+		}
+	case DeliveryEventTypeResume:
+		if e.Resume == nil {
+			return errors.New("bridges: delivery resume events require a resume payload")
+		}
+		if err := e.Resume.Validate(); err != nil {
+			return err
+		}
+		if e.Error != nil {
+			return errors.New("bridges: delivery resume events cannot include error payload")
+		}
+	case DeliveryEventTypeDelete:
+		if strings.TrimSpace(e.Content.Text) != "" {
+			return errors.New("bridges: delivery delete events cannot include message content")
+		}
+		if e.Error != nil || e.Resume != nil {
+			return errors.New("bridges: delivery delete events cannot include error or resume payloads")
+		}
+	default:
+		if e.Error != nil {
+			return errors.New("bridges: only delivery error events may include error payload")
+		}
+		if e.Resume != nil {
+			return errors.New("bridges: only delivery resume events may include resume payload")
+		}
+	}
+	return nil
 }

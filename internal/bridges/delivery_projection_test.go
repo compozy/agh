@@ -181,8 +181,11 @@ func TestBrokerProjectEventDeduplicatesAndFailsSession(t *testing.T) {
 	if !last.Final {
 		t.Fatal("failed-session event Final = false, want true")
 	}
-	if got, want := deliveryErrorText(last.Metadata), "adapter stopped"; got != want {
-		t.Fatalf("deliveryErrorText(metadata) = %q, want %q", got, want)
+	if last.Error == nil {
+		t.Fatal("failed-session event Error = nil, want typed error payload")
+	}
+	if got, want := last.Error.Message, "adapter stopped"; got != want {
+		t.Fatalf("last.Error.Message = %q, want %q", got, want)
 	}
 }
 
@@ -399,7 +402,7 @@ func TestDeliveryValidationAndMetadataHelpers(t *testing.T) {
 				Seq:              snapshot.LatestSeq,
 				EventType:        DeliveryEventTypeResume,
 				Content:          snapshot.CurrentContent,
-				Metadata:         deliveryMetadataJSON(map[string]string{"latest_event_type": DeliveryEventTypeDelta}),
+				Resume:           &DeliveryResumeState{LatestEventType: DeliveryEventTypeDelta},
 			},
 			Snapshot: &snapshot,
 		}
@@ -445,6 +448,7 @@ func TestDeliveryValidationAndMetadataHelpers(t *testing.T) {
 			snapshot := newSnapshot()
 			req := newResumeRequest(snapshot)
 			req.Event.EventType = DeliveryEventTypeStart
+			req.Event.Resume = nil
 			err := req.Validate()
 			if err == nil || !strings.Contains(err.Error(), "only resume delivery requests may include a snapshot") {
 				t.Fatalf("req.Validate() error = %v, want non-resume snapshot validation", err)
@@ -485,23 +489,40 @@ func TestDeliveryValidationAndMetadataHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldEncodeAndDecodeDeliveryMetadata", func(t *testing.T) {
-		metadata := deliveryMetadataJSON(map[string]string{"error": "broken"})
-		if len(metadata) == 0 {
-			t.Fatal("deliveryMetadataJSON(map) = empty, want JSON payload")
+	t.Run("ShouldCloneTypedDeliveryPayloads", func(t *testing.T) {
+		event := DeliveryEvent{
+			DeliveryID:       "del-clone",
+			BridgeInstanceID: "brg-clone",
+			RoutingKey:       routingKey,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        DeliveryEventTypeError,
+			Content:          MessageContent{Text: "hello"},
+			Final:            true,
+			Operation:        DeliveryOperationEdit,
+			Reference:        &DeliveryMessageReference{RemoteMessageID: "remote-1"},
+			Error:            &DeliveryErrorDetail{Message: "broken"},
+			ProviderMetadata: json.RawMessage(`{"provider":"slack"}`),
 		}
-		var decoded map[string]string
-		if err := json.Unmarshal(metadata, &decoded); err != nil {
-			t.Fatalf("json.Unmarshal(metadata) error = %v", err)
+
+		cloned := cloneDeliveryEvent(event)
+		if cloned.Reference == nil || cloned.Error == nil {
+			t.Fatalf("cloneDeliveryEvent() = %#v, want cloned typed payloads", cloned)
 		}
-		if got, want := decoded["error"], "broken"; got != want {
-			t.Fatalf("decoded error = %q, want %q", got, want)
+		if got, want := string(cloned.ProviderMetadata), `{"provider":"slack"}`; got != want {
+			t.Fatalf("cloned.ProviderMetadata = %s, want %s", got, want)
 		}
-		if got := deliveryMetadataJSON(func() {}); got != nil {
-			t.Fatalf("deliveryMetadataJSON(func) = %q, want nil", string(got))
+		event.Reference.RemoteMessageID = "changed"
+		event.Error.Message = "changed"
+		event.ProviderMetadata[0] = '['
+		if got, want := cloned.Reference.RemoteMessageID, "remote-1"; got != want {
+			t.Fatalf("cloned.Reference.RemoteMessageID = %q, want %q", got, want)
 		}
-		if got := deliveryErrorText([]byte("{")); got != "" {
-			t.Fatalf("deliveryErrorText(invalid json) = %q, want empty string", got)
+		if got, want := cloned.Error.Message, "broken"; got != want {
+			t.Fatalf("cloned.Error.Message = %q, want %q", got, want)
+		}
+		if got, want := string(cloned.ProviderMetadata), `{"provider":"slack"}`; got != want {
+			t.Fatalf("cloned.ProviderMetadata mutated to %s, want %s", got, want)
 		}
 	})
 }
@@ -568,8 +589,11 @@ func TestBrokerProjectEventLockedCoversTerminalAndIgnoredPaths(t *testing.T) {
 	if got, want := errorEvent.EventType, DeliveryEventTypeError; got != want {
 		t.Fatalf("error event type = %q, want %q", got, want)
 	}
-	if got, want := deliveryErrorText(errorEvent.Metadata), "boom"; got != want {
-		t.Fatalf("deliveryErrorText(errorEvent.Metadata) = %q, want %q", got, want)
+	if errorEvent.Error == nil {
+		t.Fatal("error event Error = nil, want typed error payload")
+	}
+	if got, want := errorEvent.Error.Message, "boom"; got != want {
+		t.Fatalf("errorEvent.Error.Message = %q, want %q", got, want)
 	}
 
 	if _, ok, err := broker.projectEventLocked(delivery, DeliveryProjectionEvent{Type: "unknown"}); err != nil || ok {
