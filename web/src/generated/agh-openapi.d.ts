@@ -318,6 +318,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/bridges/{id}/secret-bindings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List persisted secret bindings for a bridge instance */
+    get: operations["listBridgeSecretBindings"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/bridges/{id}/secret-bindings/{binding_name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Create or update one bridge secret binding */
+    put: operations["putBridgeSecretBinding"];
+    post?: never;
+    /** Delete one bridge secret binding */
+    delete: operations["deleteBridgeSecretBinding"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/bridges/{id}/test-delivery": {
     parameters: {
       query?: never;
@@ -4184,6 +4219,246 @@ export interface operations {
         };
       };
       /** @description Bridge instance not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listBridgeSecretBindings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bridge instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            bindings: {
+              binding_name: string;
+              bridge_instance_id: string;
+              /** Format: date-time */
+              created_at: string;
+              kind: string;
+              /** Format: date-time */
+              updated_at: string;
+              vault_ref: string;
+            }[];
+          };
+        };
+      };
+      /** @description Bridge instance not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  putBridgeSecretBinding: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bridge instance id */
+        id: string;
+        /** @description Bridge provider secret slot name */
+        binding_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          kind: string;
+          vault_ref: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            binding: {
+              binding_name: string;
+              bridge_instance_id: string;
+              /** Format: date-time */
+              created_at: string;
+              kind: string;
+              /** Format: date-time */
+              updated_at: string;
+              vault_ref: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid bridge secret binding request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge instance not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge secret binding conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteBridgeSecretBinding: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bridge instance id */
+        id: string;
+        /** @description Bridge provider secret slot name */
+        binding_name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bridge instance or secret binding not found */
       404: {
         headers: {
           [name: string]: unknown;

@@ -12,7 +12,10 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -149,6 +152,108 @@ func TestStreamObserveEventsPollsForNewEvents(t *testing.T) {
 	}
 	if records[0].ID == records[1].ID {
 		t.Fatalf("expected distinct observe SSE ids, got %#v", records)
+	}
+}
+
+func TestStreamBridgeHealthPollsForChangedSnapshots(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	done := make(chan struct{})
+	callCount := 0
+	observer := stubObserver{
+		QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
+			callCount++
+			switch callCount {
+			case 1, 2:
+				return []observe.BridgeInstanceHealth{{
+					BridgeInstanceID:  "brg-123",
+					Status:            bridgepkg.BridgeStatusAuthRequired,
+					AuthFailuresTotal: 1,
+				}}, nil
+			case 3:
+				close(done)
+				return []observe.BridgeInstanceHealth{{
+					BridgeInstanceID:      "brg-123",
+					Status:                bridgepkg.BridgeStatusReady,
+					RouteCount:            2,
+					DeliveryFailuresTotal: 1,
+				}}, nil
+			default:
+				return nil, nil
+			}
+		},
+	}
+	handlers := newTestHandlersWithBridges(t, stubSessionManager{}, observer, stubBridgeService{}, stubWorkspaceService{}, homePaths)
+	handlers.setStreamDone(done)
+	engine := newTestRouter(t, handlers)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/bridges/health/stream", nil)
+	engine.ServeHTTP(recorder, req)
+
+	records := parseSSE(t, recorder.Body.String())
+	if len(records) != 2 {
+		t.Fatalf("len(records) = %d, want 2; body=%s", len(records), recorder.Body.String())
+	}
+	if records[0].Event != "snapshot" || records[1].Event != "snapshot" {
+		t.Fatalf("events = %#v, want snapshot events", records)
+	}
+	if records[0].ID == records[1].ID {
+		t.Fatalf("expected distinct snapshot ids, got %#v", records)
+	}
+
+	var first contract.BridgeHealthStreamPayload
+	if err := json.Unmarshal(records[0].Data, &first); err != nil {
+		t.Fatalf("json.Unmarshal(first snapshot) error = %v", err)
+	}
+	if got, want := first.BridgeHealth["brg-123"].Status, bridgepkg.BridgeStatusAuthRequired; got != want {
+		t.Fatalf("first status = %q, want %q", got, want)
+	}
+
+	var second contract.BridgeHealthStreamPayload
+	if err := json.Unmarshal(records[1].Data, &second); err != nil {
+		t.Fatalf("json.Unmarshal(second snapshot) error = %v", err)
+	}
+	if got, want := second.BridgeHealth["brg-123"].Status, bridgepkg.BridgeStatusReady; got != want {
+		t.Fatalf("second status = %q, want %q", got, want)
+	}
+	if got, want := second.BridgeHealth["brg-123"].RouteCount, 2; got != want {
+		t.Fatalf("second route_count = %d, want %d", got, want)
+	}
+}
+
+func TestStreamBridgeHealthEmitsErrorEventWhenPollingFails(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	callCount := 0
+	observer := stubObserver{
+		QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
+			callCount++
+			if callCount == 1 {
+				return []observe.BridgeInstanceHealth{{BridgeInstanceID: "brg-123", Status: bridgepkg.BridgeStatusStarting}}, nil
+			}
+			return nil, errors.New("bridge observer unavailable")
+		},
+	}
+	handlers := newTestHandlersWithBridges(t, stubSessionManager{}, observer, stubBridgeService{}, stubWorkspaceService{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/bridges/health/stream", nil)
+	engine.ServeHTTP(recorder, req)
+
+	records := parseSSE(t, recorder.Body.String())
+	if len(records) != 2 {
+		t.Fatalf("len(records) = %d, want 2; body=%s", len(records), recorder.Body.String())
+	}
+	if records[1].Event != "error" {
+		t.Fatalf("records[1].Event = %q, want error", records[1].Event)
+	}
+
+	var payload contract.ErrorPayload
+	if err := json.Unmarshal(records[1].Data, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(error payload) error = %v", err)
+	}
+	if got, want := payload.Error, "bridge observer unavailable"; got != want {
+		t.Fatalf("payload.Error = %q, want %q", got, want)
 	}
 }
 

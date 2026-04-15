@@ -231,6 +231,12 @@ type BridgesResponse struct {
 	BridgeHealth map[string]BridgeHealthPayload `json:"bridge_health,omitempty"`
 }
 
+// BridgeHealthStreamPayload wraps one bridge-health SSE snapshot payload.
+type BridgeHealthStreamPayload struct {
+	GeneratedAt  time.Time                      `json:"generated_at"`
+	BridgeHealth map[string]BridgeHealthPayload `json:"bridge_health"`
+}
+
 // BridgeProvidersResponse wraps the shared installed provider catalog.
 type BridgeProvidersResponse struct {
 	Providers []BridgeProviderPayload `json:"providers"`

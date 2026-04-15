@@ -31,7 +31,12 @@ schema = "agh.bridge.teams"
 version = "1"
 
 [actions]
-requires = ["bridges/instances/list", "bridges/messages/ingest", "bridges/instances/get", "bridges/instances/report_state"]
+requires = [
+  "bridges/instances/list",
+  "bridges/messages/ingest",
+  "bridges/instances/get",
+  "bridges/instances/report_state",
+]
 
 [subprocess]
 command = "./bin/teams"

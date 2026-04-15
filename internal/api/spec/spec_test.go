@@ -236,6 +236,37 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeBridgeSecretBindingContracts",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				listBindings := operationFor(t, doc, "/api/bridges/{id}/secret-bindings", "GET")
+				assertParameter(t, listBindings, "id", openapi3.ParameterInPath, true)
+				listBindingsSchema := jsonResponseSchema(t, listBindings, 200)
+				assertRequired(t, listBindingsSchema, "bindings")
+
+				bindingsSchema := propertySchema(t, listBindingsSchema, "bindings")
+				if bindingsSchema.Items == nil || bindingsSchema.Items.Value == nil {
+					t.Fatal("expected bindings to define an items schema")
+				}
+				bindingSchema := bindingsSchema.Items.Value
+				assertRequired(t, bindingSchema, "bridge_instance_id", "binding_name", "vault_ref", "kind", "created_at", "updated_at")
+
+				putBinding := operationFor(t, doc, "/api/bridges/{id}/secret-bindings/{binding_name}", "PUT")
+				assertParameter(t, putBinding, "id", openapi3.ParameterInPath, true)
+				assertParameter(t, putBinding, "binding_name", openapi3.ParameterInPath, true)
+				putBindingSchema := jsonRequestSchema(t, putBinding)
+				assertRequired(t, putBindingSchema, "vault_ref", "kind")
+
+				putBindingResponseSchema := jsonResponseSchema(t, putBinding, 200)
+				assertRequired(t, putBindingResponseSchema, "binding")
+
+				deleteBinding := operationFor(t, doc, "/api/bridges/{id}/secret-bindings/{binding_name}", "DELETE")
+				assertParameter(t, deleteBinding, "id", openapi3.ParameterInPath, true)
+				assertParameter(t, deleteBinding, "binding_name", openapi3.ParameterInPath, true)
+			},
+		},
+		{
 			name: "ShouldRegisterTaskAndTaskRunOperations",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()

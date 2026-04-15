@@ -11,4 +11,6 @@ export const bridgeKeys = {
   detail: (id: string) => [...bridgeKeys.details(), normalizeText(id)] as const,
   routesRoot: () => [...bridgeKeys.all, "routes"] as const,
   routes: (id: string) => [...bridgeKeys.routesRoot(), normalizeText(id)] as const,
+  secretBindingsRoot: () => [...bridgeKeys.all, "secret-bindings"] as const,
+  secretBindings: (id: string) => [...bridgeKeys.secretBindingsRoot(), normalizeText(id)] as const,
 };

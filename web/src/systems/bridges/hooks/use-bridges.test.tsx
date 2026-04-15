@@ -7,20 +7,29 @@ import {
   useBridge,
   useBridgeProviders,
   useBridgeRoutes,
+  useBridgeSecretBindings,
   useBridges,
 } from "@/systems/bridges/hooks/use-bridges";
 
 vi.mock("@/systems/bridges/adapters/bridges-api", () => ({
   createBridge: vi.fn(),
+  deleteBridgeSecretBinding: vi.fn(),
+  disableBridge: vi.fn(),
+  enableBridge: vi.fn(),
   getBridge: vi.fn(),
+  listBridgeSecretBindings: vi.fn(),
   listBridgeProviders: vi.fn(),
   listBridgeRoutes: vi.fn(),
   listBridges: vi.fn(),
+  putBridgeSecretBinding: vi.fn(),
+  restartBridge: vi.fn(),
   testBridgeDelivery: vi.fn(),
+  updateBridge: vi.fn(),
 }));
 
 import {
   getBridge,
+  listBridgeSecretBindings,
   listBridgeProviders,
   listBridgeRoutes,
   listBridges,
@@ -183,5 +192,38 @@ describe("useBridgeRoutes", () => {
     });
 
     expect(listBridgeRoutes).toHaveBeenCalledWith("brg_support", expect.any(AbortSignal));
+  });
+});
+
+describe("useBridgeSecretBindings", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("loads secret bindings for the selected bridge", async () => {
+    vi.mocked(listBridgeSecretBindings).mockResolvedValue([
+      {
+        binding_name: "bot_token",
+        bridge_instance_id: "brg_support",
+        created_at: "2026-04-13T12:00:00Z",
+        kind: "bot_token",
+        updated_at: "2026-04-13T12:10:00Z",
+        vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+      },
+    ]);
+
+    const { result } = renderHook(() => useBridgeSecretBindings("brg_support"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.data).toHaveLength(1);
+    });
+
+    expect(listBridgeSecretBindings).toHaveBeenCalledWith("brg_support", expect.any(AbortSignal));
   });
 });

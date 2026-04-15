@@ -1,7 +1,8 @@
-import { AlertCircle, Loader2, SendHorizontal } from "lucide-react";
+import { AlertCircle, Loader2, Pencil, Power, RotateCw, SendHorizontal } from "lucide-react";
 
 import { Pill } from "@/components/design-system";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 import {
@@ -17,18 +18,37 @@ import {
   formatBridgeDateTime,
   formatBridgeRelativeTime,
 } from "../lib/bridge-formatters";
-import type { BridgeHealth, BridgeProvider, BridgeRoute, BridgeSummary } from "../types";
+import type {
+  BridgeHealth,
+  BridgeProvider,
+  BridgeRoute,
+  BridgeSecretBinding,
+  BridgeSummary,
+} from "../types";
 
 interface BridgeDetailPanelProps {
   bridge: BridgeSummary | undefined;
   emptyMessage?: string;
   error: Error | null;
   health: BridgeHealth | undefined;
+  isLifecyclePending?: boolean;
   isLoading: boolean;
   isRoutesLoading: boolean;
+  isSecretBindingPending?: boolean;
+  isSecretBindingsLoading?: boolean;
+  onDeleteSecretBinding?: (bindingName: string) => void;
+  onDisableBridge?: () => void;
+  onEnableBridge?: () => void;
+  onOpenEdit?: () => void;
   onOpenTestDelivery: () => void;
+  onRestartBridge?: () => void;
+  onSaveSecretBinding?: (bindingName: string) => void;
+  onSecretDraftChange?: (bindingName: string, value: string) => void;
   provider?: BridgeProvider;
+  restartRequired?: boolean;
   routes: BridgeRoute[];
+  secretBindings?: BridgeSecretBinding[];
+  secretInputValues?: Record<string, string>;
   workspaceName?: string | null;
 }
 
@@ -98,14 +118,29 @@ export function BridgeDetailPanel({
   emptyMessage = "Select a bridge to inspect configuration, routes, and delivery health.",
   error,
   health,
+  isLifecyclePending = false,
   isLoading,
   isRoutesLoading,
+  isSecretBindingPending = false,
+  isSecretBindingsLoading = false,
+  onDeleteSecretBinding,
+  onDisableBridge,
+  onEnableBridge,
+  onOpenEdit,
   onOpenTestDelivery,
+  onRestartBridge,
+  onSaveSecretBinding,
+  onSecretDraftChange,
   provider,
+  restartRequired = false,
   routes,
+  secretBindings = [],
+  secretInputValues = {},
   workspaceName,
 }: BridgeDetailPanelProps) {
   const providerConfig = formatBridgeProviderConfig(bridge?.provider_config);
+  const effectiveStatus = health?.status ?? bridge?.status;
+  const bindingsByName = new Map(secretBindings.map(binding => [binding.binding_name, binding]));
 
   if (isLoading) {
     return (
@@ -142,24 +177,90 @@ export function BridgeDetailPanel({
     <div className="flex flex-1 overflow-y-auto" data-testid="bridge-detail-panel">
       <div className="flex w-full flex-col gap-4 p-6">
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-xl font-semibold text-[color:var(--color-text-primary)]">
-              {bridge.display_name}
-            </h2>
-            <Pill emphasis="strong" kind="state" tone={bridgeStatusTone(bridge.status)}>
-              {bridge.status}
-            </Pill>
-            <Pill kind="tag" tone={bridgeScopeTone(bridge.scope)}>
-              {bridge.scope}
-            </Pill>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-xl font-semibold text-[color:var(--color-text-primary)]">
+                  {bridge.display_name}
+                </h2>
+                <Pill
+                  emphasis="strong"
+                  kind="state"
+                  tone={bridgeStatusTone(effectiveStatus ?? bridge.status)}
+                >
+                  {effectiveStatus ?? bridge.status}
+                </Pill>
+                <Pill kind="tag" tone={bridgeScopeTone(bridge.scope)}>
+                  {bridge.scope}
+                </Pill>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-[color:var(--color-text-secondary)]">
+                <span>{bridge.platform}</span>
+                <span className="text-[color:var(--color-text-tertiary)]">/</span>
+                <span>{bridge.extension_name}</span>
+                <span className="text-[color:var(--color-text-tertiary)]">/</span>
+                <span>Last success {formatBridgeRelativeTime(health?.last_success_at)}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                data-testid="edit-bridge-btn"
+                disabled={isLifecyclePending}
+                onClick={onOpenEdit}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <Pencil className="size-4" />
+                Edit
+              </Button>
+              <Button
+                data-testid="restart-bridge-btn"
+                disabled={isLifecyclePending}
+                onClick={onRestartBridge}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <RotateCw className="size-4" />
+                Restart
+              </Button>
+              {bridge.enabled ? (
+                <Button
+                  data-testid="disable-bridge-btn"
+                  disabled={isLifecyclePending}
+                  onClick={onDisableBridge}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <Power className="size-4" />
+                  Disable
+                </Button>
+              ) : (
+                <Button
+                  data-testid="enable-bridge-btn"
+                  disabled={isLifecyclePending}
+                  onClick={onEnableBridge}
+                  size="sm"
+                  type="button"
+                >
+                  <Power className="size-4" />
+                  Enable
+                </Button>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-[color:var(--color-text-secondary)]">
-            <span>{bridge.platform}</span>
-            <span className="text-[color:var(--color-text-tertiary)]">/</span>
-            <span>{bridge.extension_name}</span>
-            <span className="text-[color:var(--color-text-tertiary)]">/</span>
-            <span>Last success {formatBridgeRelativeTime(health?.last_success_at)}</span>
-          </div>
+          {restartRequired ? (
+            <div
+              className="rounded-lg border border-[color:var(--color-warning)] bg-[color:var(--color-warning-tint)] px-4 py-3 text-sm text-[color:var(--color-warning)]"
+              data-testid="bridge-restart-required"
+            >
+              Pending runtime changes require a restart or enable action before the provider picks
+              them up.
+            </div>
+          ) : null}
         </div>
 
         <DetailSection title="Configuration">
@@ -214,24 +315,88 @@ export function BridgeDetailPanel({
 
           {provider?.secret_slots?.length ? (
             <div className="mt-4 space-y-3" data-testid="bridge-detail-secret-slots">
-              {provider.secret_slots.map(slot => (
-                <div
-                  key={slot.name}
-                  className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-4 py-3"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-mono text-[0.68rem] uppercase tracking-[0.14em] text-[color:var(--color-text-primary)]">
-                      {slot.name}
+              {provider.secret_slots.map(slot => {
+                const binding = bindingsByName.get(slot.name);
+                const inputValue = secretInputValues[slot.name] ?? "";
+
+                return (
+                  <article
+                    key={slot.name}
+                    className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-4 py-3"
+                    data-testid={`bridge-secret-binding-${slot.name}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-mono text-[0.68rem] uppercase tracking-[0.14em] text-[color:var(--color-text-primary)]">
+                        {slot.name}
+                      </p>
+                      <Pill kind="tag" tone={slot.required === false ? "neutral" : "amber"}>
+                        {slot.required === false ? "optional" : "required"}
+                      </Pill>
+                      <Pill kind="tag" tone={binding ? "green" : "neutral"}>
+                        {binding ? "bound" : "unbound"}
+                      </Pill>
+                    </div>
+                    <p className="mt-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+                      {describeBridgeSecretSlot(slot)}
                     </p>
-                    <Pill kind="tag" tone={slot.required === false ? "neutral" : "amber"}>
-                      {slot.required === false ? "optional" : "required"}
-                    </Pill>
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
-                    {describeBridgeSecretSlot(slot)}
-                  </p>
-                </div>
-              ))}
+                    <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                      <div className="space-y-2">
+                        <label
+                          className="font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]"
+                          htmlFor={`bridge-secret-env-${slot.name}`}
+                        >
+                          Environment variable
+                        </label>
+                        <Input
+                          data-testid={`bridge-secret-env-input-${slot.name}`}
+                          id={`bridge-secret-env-${slot.name}`}
+                          onChange={event => onSecretDraftChange?.(slot.name, event.target.value)}
+                          placeholder="AGH_BRIDGE_TOKEN"
+                          value={inputValue}
+                        />
+                        <p className="text-xs leading-relaxed text-[color:var(--color-text-tertiary)]">
+                          The stock daemon resolves bridge secrets from `env:NAME` refs.
+                        </p>
+                        {binding ? (
+                          <p className="text-xs text-[color:var(--color-text-secondary)]">
+                            Current ref: <span className="font-mono">{binding.vault_ref}</span>
+                          </p>
+                        ) : (
+                          <p className="text-xs text-[color:var(--color-text-tertiary)]">
+                            No secret binding stored.
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          data-testid={`save-bridge-secret-${slot.name}`}
+                          disabled={!inputValue.trim() || isSecretBindingPending}
+                          onClick={() => onSaveSecretBinding?.(slot.name)}
+                          size="sm"
+                          type="button"
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          data-testid={`delete-bridge-secret-${slot.name}`}
+                          disabled={!binding || isSecretBindingPending}
+                          onClick={() => onDeleteSecretBinding?.(slot.name)}
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : isSecretBindingsLoading ? (
+            <div className="mt-4 flex items-center gap-2 text-sm text-[color:var(--color-text-tertiary)]">
+              <Loader2 className="size-4 animate-spin" />
+              <span>Loading secret bindings…</span>
             </div>
           ) : null}
 

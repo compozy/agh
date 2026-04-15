@@ -8,12 +8,20 @@ import {
 import type {
   BridgeDetailResponse,
   BridgeRoute,
+  BridgeSecretBinding,
   BridgeProvider,
+  BridgeSecretBindingsResponse,
+  DisableBridgeResponse,
+  EnableBridgeResponse,
   BridgesListResponse,
   CreateBridgeRequest,
   CreateBridgeResponse,
+  PutBridgeSecretBindingRequest,
+  RestartBridgeResponse,
   TestBridgeDeliveryRequest,
   TestBridgeDeliveryResponse,
+  UpdateBridgeRequest,
+  UpdateBridgeResponse,
 } from "../types";
 
 export class BridgesApiError extends Error {
@@ -92,6 +100,30 @@ export async function listBridgeRoutes(id: string, signal?: AbortSignal): Promis
   return requireResponseData(data, response, `Failed to load routes for bridge "${id}"`).routes;
 }
 
+export async function listBridgeSecretBindings(
+  id: string,
+  signal?: AbortSignal
+): Promise<BridgeSecretBindingsResponse["bindings"]> {
+  const { data, error, response } = await apiClient.GET("/api/bridges/{id}/secret-bindings", {
+    params: { path: { id } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new BridgesApiError(`Bridge not found: ${id}`, 404);
+    }
+
+    throw new BridgesApiError(
+      defaultApiErrorMessage(`Failed to load secret bindings for bridge "${id}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to load secret bindings for bridge "${id}"`)
+    .bindings;
+}
+
 export async function createBridge(
   data: CreateBridgeRequest,
   signal?: AbortSignal
@@ -113,6 +145,152 @@ export async function createBridge(
   }
 
   return requireResponseData(responseData, response, "Failed to create bridge");
+}
+
+export async function updateBridge(
+  id: string,
+  data: UpdateBridgeRequest,
+  signal?: AbortSignal
+): Promise<UpdateBridgeResponse> {
+  const {
+    data: responseData,
+    error,
+    response,
+  } = await apiClient.PATCH("/api/bridges/{id}", {
+    body: data,
+    params: { path: { id } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new BridgesApiError(`Bridge not found: ${id}`, 404);
+    }
+
+    throw new BridgesApiError(
+      defaultApiErrorMessage(`Failed to update bridge "${id}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(responseData, response, `Failed to update bridge "${id}"`);
+}
+
+export async function putBridgeSecretBinding(
+  id: string,
+  bindingName: string,
+  data: PutBridgeSecretBindingRequest,
+  signal?: AbortSignal
+): Promise<BridgeSecretBinding> {
+  const {
+    data: responseData,
+    error,
+    response,
+  } = await apiClient.PUT("/api/bridges/{id}/secret-bindings/{binding_name}", {
+    body: data,
+    params: { path: { binding_name: bindingName, id } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new BridgesApiError(`Bridge not found: ${id}`, 404);
+    }
+
+    throw new BridgesApiError(
+      defaultApiErrorMessage(
+        `Failed to update secret binding "${bindingName}" for bridge "${id}"`,
+        response,
+        error
+      ),
+      response.status
+    );
+  }
+
+  return requireResponseData(
+    responseData,
+    response,
+    `Failed to update secret binding "${bindingName}" for bridge "${id}"`
+  ).binding;
+}
+
+export async function deleteBridgeSecretBinding(
+  id: string,
+  bindingName: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.DELETE(
+    "/api/bridges/{id}/secret-bindings/{binding_name}",
+    {
+      params: { path: { binding_name: bindingName, id } },
+      signal,
+    }
+  );
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new BridgesApiError(`Bridge not found: ${id}`, 404);
+    }
+
+    throw new BridgesApiError(
+      defaultApiErrorMessage(
+        `Failed to delete secret binding "${bindingName}" for bridge "${id}"`,
+        response,
+        error
+      ),
+      response.status
+    );
+  }
+}
+
+async function postBridgeLifecycle(
+  path: "/api/bridges/{id}/disable" | "/api/bridges/{id}/enable" | "/api/bridges/{id}/restart",
+  actionLabel: "disable" | "enable" | "restart",
+  id: string,
+  signal?: AbortSignal
+): Promise<BridgeDetailResponse> {
+  const {
+    data: responseData,
+    error,
+    response,
+  } = await apiClient.POST(path, {
+    params: { path: { id } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new BridgesApiError(`Bridge not found: ${id}`, 404);
+    }
+
+    throw new BridgesApiError(
+      defaultApiErrorMessage(`Failed to ${actionLabel} bridge "${id}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(responseData, response, `Failed to ${actionLabel} bridge "${id}"`);
+}
+
+export async function enableBridge(
+  id: string,
+  signal?: AbortSignal
+): Promise<EnableBridgeResponse> {
+  return postBridgeLifecycle("/api/bridges/{id}/enable", "enable", id, signal);
+}
+
+export async function disableBridge(
+  id: string,
+  signal?: AbortSignal
+): Promise<DisableBridgeResponse> {
+  return postBridgeLifecycle("/api/bridges/{id}/disable", "disable", id, signal);
+}
+
+export async function restartBridge(
+  id: string,
+  signal?: AbortSignal
+): Promise<RestartBridgeResponse> {
+  return postBridgeLifecycle("/api/bridges/{id}/restart", "restart", id, signal);
 }
 
 export async function testBridgeDelivery(

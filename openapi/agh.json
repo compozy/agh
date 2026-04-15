@@ -6085,6 +6085,388 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
+        "/api/bridges/{id}/secret-bindings": {
+            "get": {
+                "operationId": "listBridgeSecretBindings",
+                "parameters": [
+                    {
+                        "description": "Bridge instance id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "bindings": {
+                                            "items": {
+                                                "properties": {
+                                                    "binding_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "bridge_instance_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "created_at": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "type": "string"
+                                                    },
+                                                    "updated_at": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "vault_ref": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "binding_name",
+                                                    "bridge_instance_id",
+                                                    "created_at",
+                                                    "kind",
+                                                    "updated_at",
+                                                    "vault_ref"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["bindings"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bridge instance not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bridge service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List persisted secret bindings for a bridge instance",
+                "tags": ["bridges"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/bridges/{id}/secret-bindings/{binding_name}": {
+            "delete": {
+                "operationId": "deleteBridgeSecretBinding",
+                "parameters": [
+                    {
+                        "description": "Bridge instance id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Bridge provider secret slot name",
+                        "in": "path",
+                        "name": "binding_name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bridge instance or secret binding not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bridge service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Delete one bridge secret binding",
+                "tags": ["bridges"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "put": {
+                "operationId": "putBridgeSecretBinding",
+                "parameters": [
+                    {
+                        "description": "Bridge instance id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Bridge provider secret slot name",
+                        "in": "path",
+                        "name": "binding_name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "kind": {
+                                        "type": "string"
+                                    },
+                                    "vault_ref": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["kind", "vault_ref"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "binding": {
+                                            "properties": {
+                                                "binding_name": {
+                                                    "type": "string"
+                                                },
+                                                "bridge_instance_id": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "kind": {
+                                                    "type": "string"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "vault_ref": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "binding_name",
+                                                "bridge_instance_id",
+                                                "created_at",
+                                                "kind",
+                                                "updated_at",
+                                                "vault_ref"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["binding"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid bridge secret binding request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bridge instance not found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bridge secret binding conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bridge service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Create or update one bridge secret binding",
+                "tags": ["bridges"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
         "/api/bridges/{id}/test-delivery": {
             "post": {
                 "operationId": "testBridgeDelivery",

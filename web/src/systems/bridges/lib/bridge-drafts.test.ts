@@ -3,8 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { BridgeCreateDraft } from "@/systems/bridges/types";
 
 import {
+  bridgeSecretBindingEnvName,
   buildBridgeCreateRequest,
+  buildBridgeSecretBindingRequest,
+  buildBridgeUpdateRequest,
   createBridgeCreateDraft,
+  createBridgeUpdateDraft,
   parseBridgeDmPolicy,
   parseBridgeProviderConfig,
 } from "./bridge-drafts";
@@ -131,5 +135,97 @@ describe("buildBridgeCreateRequest", () => {
     });
     expect(parseBridgeDmPolicy("open")).toBe("open");
     expect(parseBridgeDmPolicy("unsupported")).toBeUndefined();
+  });
+});
+
+describe("createBridgeUpdateDraft", () => {
+  it("hydrates mutable fields from an existing bridge", () => {
+    const draft = createBridgeUpdateDraft({
+      delivery_defaults: {
+        mode: "reply",
+        peer_id: "peer_123",
+      },
+      display_name: "Support",
+      dm_policy: "allowlist",
+      provider_config: {
+        mode: "bot",
+      },
+      routing_policy: {
+        include_group: true,
+        include_peer: false,
+        include_thread: true,
+      },
+    });
+
+    expect(draft).toEqual({
+      deliveryDefaults: {
+        mode: "reply",
+        peer_id: "peer_123",
+      },
+      displayName: "Support",
+      dmPolicy: "allowlist",
+      providerConfigText: '{\n  "mode": "bot"\n}',
+      routingPolicy: {
+        include_group: true,
+        include_peer: false,
+        include_thread: true,
+      },
+    });
+  });
+});
+
+describe("buildBridgeUpdateRequest", () => {
+  it("preserves nullable fields for clearing provider config and delivery defaults", () => {
+    const result = buildBridgeUpdateRequest({
+      deliveryDefaults: {},
+      displayName: "Support Ops",
+      dmPolicy: "",
+      providerConfigText: "",
+      routingPolicy: {
+        include_group: true,
+        include_peer: false,
+        include_thread: true,
+      },
+    });
+
+    expect(result).toEqual({
+      data: {
+        delivery_defaults: null,
+        display_name: "Support Ops",
+        dm_policy: undefined,
+        provider_config: null,
+        routing_policy: {
+          include_group: true,
+          include_peer: false,
+          include_thread: true,
+        },
+      },
+      ok: true,
+    });
+  });
+});
+
+describe("bridge secret binding helpers", () => {
+  it("normalizes env refs and builds env-backed secret binding payloads", () => {
+    expect(
+      bridgeSecretBindingEnvName({
+        vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+      } as never)
+    ).toBe("AGH_BRIDGE_BOT_TOKEN");
+
+    expect(buildBridgeSecretBindingRequest("env:AGH_BRIDGE_BOT_TOKEN", "bot_token")).toEqual({
+      data: {
+        kind: "bot_token",
+        vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+      },
+      ok: true,
+    });
+  });
+
+  it("rejects invalid environment variable names", () => {
+    expect(buildBridgeSecretBindingRequest("not-valid-name", "bot_token")).toEqual({
+      error: "Secret binding must reference an environment variable name like AGH_BRIDGE_TOKEN.",
+      ok: false,
+    });
   });
 });

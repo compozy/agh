@@ -97,6 +97,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/automation/triggers/:id/runs",
 		"GET /api/bridges",
 		"GET /api/bridges/:id",
+		"GET /api/bridges/health/stream",
 		"GET /api/bridges/:id/routes",
 		"GET /api/bridges/:id/secret-bindings",
 		"GET /api/bridges/providers",

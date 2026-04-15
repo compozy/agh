@@ -4,6 +4,7 @@ import {
   bridgeDetailOptions,
   bridgeProvidersOptions,
   bridgeRoutesOptions,
+  bridgeSecretBindingsOptions,
   bridgesListOptions,
 } from "@/systems/bridges/lib/query-options";
 
@@ -47,5 +48,15 @@ describe("bridgeRoutesOptions", () => {
 
     expect(options.queryKey).toEqual(["bridges", "routes", "brg_support"]);
     expect(options.enabled).toBe(true);
+  });
+});
+
+describe("bridgeSecretBindingsOptions", () => {
+  it("uses the secret bindings key and is gated by id", () => {
+    const options = bridgeSecretBindingsOptions("brg_support");
+
+    expect(options.queryKey).toEqual(["bridges", "secret-bindings", "brg_support"]);
+    expect(options.enabled).toBe(true);
+    expect(options.refetchInterval).toBe(30_000);
   });
 });

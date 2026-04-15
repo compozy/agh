@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   bridgeDetailOptions,
+  bridgeSecretBindingsOptions,
   bridgeProvidersOptions,
   bridgeRoutesOptions,
   bridgesListOptions,
@@ -21,4 +22,8 @@ export function useBridge(id: string, options?: { enabled?: boolean }) {
 
 export function useBridgeRoutes(id: string, options?: { enabled?: boolean }) {
   return useQuery(bridgeRoutesOptions(id, options?.enabled));
+}
+
+export function useBridgeSecretBindings(id: string, options?: { enabled?: boolean }) {
+  return useQuery(bridgeSecretBindingsOptions(id, options?.enabled));
 }

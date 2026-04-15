@@ -6,9 +6,11 @@ import type {
   BridgeDetailResponse,
   BridgeProvider,
   BridgeRoute,
+  BridgeSecretBinding,
   BridgesListResponse,
   CreateBridgeResponse,
   TestBridgeDeliveryResponse,
+  UpdateBridgeResponse,
 } from "@/systems/bridges";
 
 const { toast } = vi.hoisted(() => ({
@@ -33,10 +35,25 @@ let mockBridgeDetailError: Error | null = null;
 let mockBridgeRoutes: BridgeRoute[] | undefined;
 let mockBridgeRoutesLoading = false;
 let mockBridgeRoutesError: Error | null = null;
+let mockSecretBindingsData: BridgeSecretBinding[] | undefined;
+let mockSecretBindingsLoading = false;
+let mockSecretBindingsError: Error | null = null;
 
 const mockCreateBridgeMutateAsync = vi.fn();
+const mockUpdateBridgeMutateAsync = vi.fn();
+const mockPutBridgeSecretBindingMutateAsync = vi.fn();
+const mockDeleteBridgeSecretBindingMutateAsync = vi.fn();
+const mockEnableBridgeMutateAsync = vi.fn();
+const mockDisableBridgeMutateAsync = vi.fn();
+const mockRestartBridgeMutateAsync = vi.fn();
 const mockTestDeliveryMutateAsync = vi.fn();
 let mockCreateBridgePending = false;
+let mockUpdateBridgePending = false;
+let mockPutBridgeSecretBindingPending = false;
+let mockDeleteBridgeSecretBindingPending = false;
+let mockEnableBridgePending = false;
+let mockDisableBridgePending = false;
+let mockRestartBridgePending = false;
 let mockTestDeliveryPending = false;
 
 let mockActiveWorkspaceId: string | null = "ws_test";
@@ -130,9 +147,39 @@ vi.mock("@/systems/bridges", async () => {
       error: mockBridgeRoutesError,
       isLoading: mockBridgeRoutesLoading,
     }),
+    useBridgeSecretBindings: () => ({
+      data: mockSecretBindingsData,
+      error: mockSecretBindingsError,
+      isLoading: mockSecretBindingsLoading,
+    }),
+    useBridgeHealthStream: vi.fn(),
     useCreateBridge: () => ({
       isPending: mockCreateBridgePending,
       mutateAsync: mockCreateBridgeMutateAsync,
+    }),
+    useUpdateBridge: () => ({
+      isPending: mockUpdateBridgePending,
+      mutateAsync: mockUpdateBridgeMutateAsync,
+    }),
+    usePutBridgeSecretBinding: () => ({
+      isPending: mockPutBridgeSecretBindingPending,
+      mutateAsync: mockPutBridgeSecretBindingMutateAsync,
+    }),
+    useDeleteBridgeSecretBinding: () => ({
+      isPending: mockDeleteBridgeSecretBindingPending,
+      mutateAsync: mockDeleteBridgeSecretBindingMutateAsync,
+    }),
+    useEnableBridge: () => ({
+      isPending: mockEnableBridgePending,
+      mutateAsync: mockEnableBridgeMutateAsync,
+    }),
+    useDisableBridge: () => ({
+      isPending: mockDisableBridgePending,
+      mutateAsync: mockDisableBridgeMutateAsync,
+    }),
+    useRestartBridge: () => ({
+      isPending: mockRestartBridgePending,
+      mutateAsync: mockRestartBridgeMutateAsync,
     }),
     useTestBridgeDelivery: () => ({
       isPending: mockTestDeliveryPending,
@@ -227,6 +274,18 @@ function makeRoute(overrides: Partial<BridgeRoute> = {}): BridgeRoute {
   };
 }
 
+function makeSecretBinding(overrides: Partial<BridgeSecretBinding> = {}): BridgeSecretBinding {
+  return {
+    binding_name: "bot_token",
+    bridge_instance_id: "brg_support",
+    created_at: "2026-04-13T12:00:00Z",
+    kind: "bot_token",
+    updated_at: "2026-04-13T12:10:00Z",
+    vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+    ...overrides,
+  };
+}
+
 const BridgesPage = (Route as unknown as { component: () => React.ReactNode }).component;
 
 describe("BridgesPage", () => {
@@ -252,12 +311,27 @@ describe("BridgesPage", () => {
     mockBridgeRoutes = [makeRoute()];
     mockBridgeRoutesLoading = false;
     mockBridgeRoutesError = null;
+    mockSecretBindingsData = [makeSecretBinding()];
+    mockSecretBindingsLoading = false;
+    mockSecretBindingsError = null;
     mockCreateBridgePending = false;
+    mockUpdateBridgePending = false;
+    mockPutBridgeSecretBindingPending = false;
+    mockDeleteBridgeSecretBindingPending = false;
+    mockEnableBridgePending = false;
+    mockDisableBridgePending = false;
+    mockRestartBridgePending = false;
     mockTestDeliveryPending = false;
     mockActiveWorkspaceId = "ws_test";
     mockActiveWorkspaceName = "test-workspace";
 
     mockCreateBridgeMutateAsync.mockReset();
+    mockUpdateBridgeMutateAsync.mockReset();
+    mockPutBridgeSecretBindingMutateAsync.mockReset();
+    mockDeleteBridgeSecretBindingMutateAsync.mockReset();
+    mockEnableBridgeMutateAsync.mockReset();
+    mockDisableBridgeMutateAsync.mockReset();
+    mockRestartBridgeMutateAsync.mockReset();
     mockTestDeliveryMutateAsync.mockReset();
     toast.success.mockReset();
     toast.error.mockReset();
@@ -275,6 +349,24 @@ describe("BridgesPage", () => {
       message: "Ping",
       status: "resolved",
     } satisfies TestBridgeDeliveryResponse);
+    mockUpdateBridgeMutateAsync.mockResolvedValue({
+      bridge: makeBridge({ display_name: "Support Ops" }),
+      health: makeHealth(),
+    } satisfies UpdateBridgeResponse);
+    mockPutBridgeSecretBindingMutateAsync.mockResolvedValue(makeSecretBinding());
+    mockDeleteBridgeSecretBindingMutateAsync.mockResolvedValue(undefined);
+    mockEnableBridgeMutateAsync.mockResolvedValue({
+      bridge: makeBridge({ enabled: true, status: "starting" }),
+      health: makeHealth({ status: "starting" }),
+    } satisfies BridgeDetailResponse);
+    mockDisableBridgeMutateAsync.mockResolvedValue({
+      bridge: makeBridge({ enabled: false, status: "disabled" }),
+      health: makeHealth({ status: "disabled" }),
+    } satisfies BridgeDetailResponse);
+    mockRestartBridgeMutateAsync.mockResolvedValue({
+      bridge: makeBridge({ status: "starting" }),
+      health: makeHealth({ status: "starting" }),
+    } satisfies BridgeDetailResponse);
   });
 
   it("renders loading and error states from the list queries", () => {
@@ -473,5 +565,85 @@ describe("BridgesPage", () => {
 
     expect(screen.getByTestId("bridge-test-delivery-result")).toHaveTextContent("peer:peer_123");
     expect(toast.success).toHaveBeenCalledWith("Resolved delivery target for Support.");
+  });
+
+  it("edits mutable bridge fields and prompts for restart", async () => {
+    const user = userEvent.setup();
+    render(<BridgesPage />);
+
+    await user.click(screen.getByTestId("edit-bridge-btn"));
+
+    expect(screen.getByTestId("bridge-edit-dialog")).toBeInTheDocument();
+
+    await user.clear(screen.getByTestId("bridge-edit-display-name-input"));
+    await user.type(screen.getByTestId("bridge-edit-display-name-input"), "Support Ops");
+    await user.click(screen.getByTestId("submit-bridge-edit"));
+
+    await waitFor(() => {
+      expect(mockUpdateBridgeMutateAsync).toHaveBeenCalledWith({
+        data: {
+          delivery_defaults: null,
+          display_name: "Support Ops",
+          dm_policy: "open",
+          provider_config: {
+            mode: "bot",
+            webhook_url: "https://example.test/webhook",
+          },
+          routing_policy: { include_group: true, include_peer: true, include_thread: true },
+        },
+        id: "brg_support",
+      });
+    });
+
+    expect(toast.success).toHaveBeenCalledWith(
+      "Updated bridge Support Ops. Restart to apply changes."
+    );
+    expect(screen.getByTestId("bridge-restart-required")).toBeInTheDocument();
+  });
+
+  it("writes secret bindings and clears the restart hint after restart", async () => {
+    const user = userEvent.setup();
+    render(<BridgesPage />);
+
+    await user.clear(screen.getByTestId("bridge-secret-env-input-bot_token"));
+    await user.type(screen.getByTestId("bridge-secret-env-input-bot_token"), "AGH_BRIDGE_NEW");
+    await user.click(screen.getByTestId("save-bridge-secret-bot_token"));
+
+    await waitFor(() => {
+      expect(mockPutBridgeSecretBindingMutateAsync).toHaveBeenCalledWith({
+        bindingName: "bot_token",
+        data: {
+          kind: "bot_token",
+          vault_ref: "env:AGH_BRIDGE_NEW",
+        },
+        id: "brg_support",
+      });
+    });
+
+    expect(screen.getByTestId("bridge-restart-required")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("restart-bridge-btn"));
+
+    await waitFor(() => {
+      expect(mockRestartBridgeMutateAsync).toHaveBeenCalledWith({
+        id: "brg_support",
+      });
+    });
+
+    expect(toast.success).toHaveBeenCalledWith("Restarted bridge Support.");
+    expect(screen.queryByTestId("bridge-restart-required")).not.toBeInTheDocument();
+  });
+
+  it("disables the selected bridge", async () => {
+    const user = userEvent.setup();
+    render(<BridgesPage />);
+
+    await user.click(screen.getByTestId("disable-bridge-btn"));
+    await waitFor(() => {
+      expect(mockDisableBridgeMutateAsync).toHaveBeenCalledWith({
+        id: "brg_support",
+      });
+    });
+    expect(toast.success).toHaveBeenCalledWith("Disabled bridge Support.");
   });
 });

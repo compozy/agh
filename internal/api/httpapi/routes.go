@@ -35,6 +35,7 @@ func registerBridgeRoutes(api gin.IRouter, handlers *Handlers) {
 	bridges.GET("", handlers.ListBridges)
 	bridges.POST("", handlers.CreateBridge)
 	bridges.GET("/providers", handlers.ListBridgeProviders)
+	bridges.GET("/health/stream", handlers.StreamBridgeHealth)
 	bridges.GET("/:id", handlers.GetBridge)
 	bridges.PATCH("/:id", handlers.UpdateBridge)
 	bridges.POST("/:id/enable", handlers.EnableBridge)

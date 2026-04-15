@@ -12,7 +12,12 @@ platform = "telegram"
 display_name = "Telegram"
 
 [actions]
-requires = ["bridges/instances/list", "bridges/messages/ingest", "bridges/instances/get", "bridges/instances/report_state"]
+requires = [
+  "bridges/instances/list",
+  "bridges/messages/ingest",
+  "bridges/instances/get",
+  "bridges/instances/report_state",
+]
 
 [subprocess]
 command = "./bin/telegram-reference"

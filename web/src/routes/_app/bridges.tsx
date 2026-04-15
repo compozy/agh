@@ -6,7 +6,11 @@ import { toast } from "sonner";
 import { PillButton } from "@/components/design-system";
 import { Button } from "@/components/ui/button";
 import {
+  bridgeSecretBindingEnvName,
   buildBridgeCreateRequest,
+  buildBridgeSecretBindingRequest,
+  buildBridgeUpdateRequest,
+  BridgeEditDialog,
   BridgeCreateDialog,
   BridgeDetailPanel,
   BridgeEmptyState,
@@ -15,20 +19,30 @@ import {
   compactBridgeDeliveryDefaults,
   createBridgeCreateDraft,
   createBridgeTestDeliveryDraft,
+  createBridgeUpdateDraft,
   findBridgeProviderByKey,
   isBridgeProviderSelectable,
   useBridge,
+  useBridgeHealthStream,
   useBridgeProviders,
   useBridgeRoutes,
+  useBridgeSecretBindings,
   useBridges,
   useCreateBridge,
+  useDeleteBridgeSecretBinding,
+  useDisableBridge,
+  useEnableBridge,
+  usePutBridgeSecretBinding,
+  useRestartBridge,
   useTestBridgeDelivery,
+  useUpdateBridge,
 } from "@/systems/bridges";
 import type {
   BridgeCreateDraft,
   BridgeScopeFilter,
   BridgeSummary,
   BridgeTestDeliveryDraft,
+  BridgeUpdateDraft,
   TestBridgeDeliveryResponse,
 } from "@/systems/bridges";
 import { useActiveWorkspace, WorkspacePageShell } from "@/systems/workspace";
@@ -77,6 +91,10 @@ function sortBridges(bridges: BridgeSummary[]) {
   });
 }
 
+function bridgeSecretDraftKey(bridgeID: string, bindingName: string) {
+  return `${bridgeID}:${bindingName}`;
+}
+
 function BridgesPage() {
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
 
@@ -84,10 +102,14 @@ function BridgesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBridgeId, setSelectedBridgeId] = useState<string | null>(null);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isTestDeliveryDialogOpen, setTestDeliveryDialogOpen] = useState(false);
   const [createDraft, setCreateDraft] = useState<BridgeCreateDraft>(() =>
     createBridgeCreateDraft([], activeWorkspaceId)
   );
+  const [editDraft, setEditDraft] = useState<BridgeUpdateDraft>(() => createBridgeUpdateDraft());
+  const [secretInputValues, setSecretInputValues] = useState<Record<string, string>>({});
+  const [restartRequiredByID, setRestartRequiredByID] = useState<Record<string, true>>({});
   const [testDeliveryDraft, setTestDeliveryDraft] = useState<BridgeTestDeliveryDraft>(() =>
     createBridgeTestDeliveryDraft()
   );
@@ -96,10 +118,17 @@ function BridgesPage() {
   );
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
+  useBridgeHealthStream();
 
   const bridgesQuery = useBridges();
   const providersQuery = useBridgeProviders();
   const createBridgeMutation = useCreateBridge();
+  const updateBridgeMutation = useUpdateBridge();
+  const putBridgeSecretBindingMutation = usePutBridgeSecretBinding();
+  const deleteBridgeSecretBindingMutation = useDeleteBridgeSecretBinding();
+  const enableBridgeMutation = useEnableBridge();
+  const disableBridgeMutation = useDisableBridge();
+  const restartBridgeMutation = useRestartBridge();
   const testDeliveryMutation = useTestBridgeDelivery();
 
   const bridges = bridgesQuery.data?.bridges ?? [];
@@ -139,6 +168,9 @@ function BridgesPage() {
   const bridgeRoutesQuery = useBridgeRoutes(effectiveSelectedBridgeId ?? "", {
     enabled: Boolean(effectiveSelectedBridgeId),
   });
+  const bridgeSecretBindingsQuery = useBridgeSecretBindings(effectiveSelectedBridgeId ?? "", {
+    enabled: Boolean(effectiveSelectedBridgeId),
+  });
 
   const selectedBridge = bridgeDetailQuery.data?.bridge ?? selectedBridgeSummary;
   const selectedBridgeProvider = useMemo(
@@ -155,13 +187,46 @@ function BridgesPage() {
   const selectedHealth =
     bridgeDetailQuery.data?.health ??
     (effectiveSelectedBridgeId ? bridgeHealth[effectiveSelectedBridgeId] : undefined);
+  const selectedSecretBindings = bridgeSecretBindingsQuery.data ?? [];
+  const selectedSecretBindingsByName = useMemo(
+    () => new Map(selectedSecretBindings.map(binding => [binding.binding_name, binding])),
+    [selectedSecretBindings]
+  );
+  const selectedSecretInputMap = useMemo(() => {
+    if (!selectedBridge) {
+      return {};
+    }
+
+    const inputEntries = new Map<string, string>();
+    for (const binding of selectedSecretBindings) {
+      inputEntries.set(binding.binding_name, bridgeSecretBindingEnvName(binding));
+    }
+    for (const [key, value] of Object.entries(secretInputValues)) {
+      const prefix = `${selectedBridge.id}:`;
+      if (!key.startsWith(prefix)) {
+        continue;
+      }
+      inputEntries.set(key.slice(prefix.length), value);
+    }
+
+    return Object.fromEntries(inputEntries.entries());
+  }, [secretInputValues, selectedBridge, selectedSecretBindings]);
+  const restartRequired =
+    selectedBridge != null ? Boolean(restartRequiredByID[selectedBridge.id]) : false;
+  const isLifecyclePending =
+    enableBridgeMutation.isPending ||
+    disableBridgeMutation.isPending ||
+    restartBridgeMutation.isPending;
+  const isSecretBindingPending =
+    putBridgeSecretBindingMutation.isPending || deleteBridgeSecretBindingMutation.isPending;
 
   const isInitialLoading =
     (bridgesQuery.isLoading && !bridgesQuery.data) ||
     (providersQuery.isLoading && !providersQuery.data);
   const fatalError =
     (!bridgesQuery.data && bridgesQuery.error) || (!providersQuery.data && providersQuery.error);
-  const detailError = bridgeDetailQuery.error ?? bridgeRoutesQuery.error ?? null;
+  const detailError =
+    bridgeDetailQuery.error ?? bridgeRoutesQuery.error ?? bridgeSecretBindingsQuery.error ?? null;
   const detailLoading =
     Boolean(effectiveSelectedBridgeId) &&
     bridgeDetailQuery.isLoading &&
@@ -193,6 +258,19 @@ function BridgesPage() {
     setCreateDialogOpen(open);
   };
 
+  const openEditDialog = () => {
+    if (!selectedBridge) {
+      return;
+    }
+
+    setEditDraft(createBridgeUpdateDraft(selectedBridge));
+    setEditDialogOpen(true);
+  };
+
+  const handleEditDialogOpenChange = (open: boolean) => {
+    setEditDialogOpen(open);
+  };
+
   const openTestDeliveryDialog = () => {
     setTestDeliveryDraft(createBridgeTestDeliveryDraft(selectedBridge));
     setTestDeliveryResult(null);
@@ -204,6 +282,25 @@ function BridgesPage() {
     if (!open) {
       setTestDeliveryResult(null);
     }
+  };
+
+  const markRestartRequired = (bridgeID: string) => {
+    setRestartRequiredByID(current => ({
+      ...current,
+      [bridgeID]: true,
+    }));
+  };
+
+  const clearRestartRequired = (bridgeID: string) => {
+    setRestartRequiredByID(current => {
+      if (!(bridgeID in current)) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[bridgeID];
+      return next;
+    });
   };
 
   const handleCreateBridge = async () => {
@@ -235,6 +332,137 @@ function BridgesPage() {
       toast.success(`Created bridge ${result.bridge.display_name}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create bridge");
+    }
+  };
+
+  const handleUpdateBridge = async () => {
+    if (!selectedBridge) {
+      return;
+    }
+
+    const requestResult = buildBridgeUpdateRequest(editDraft);
+    if (!requestResult.ok) {
+      toast.error(requestResult.error);
+      return;
+    }
+
+    try {
+      const result = await updateBridgeMutation.mutateAsync({
+        data: requestResult.data,
+        id: selectedBridge.id,
+      });
+
+      setEditDialogOpen(false);
+      markRestartRequired(result.bridge.id);
+      toast.success(`Updated bridge ${result.bridge.display_name}. Restart to apply changes.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update bridge");
+    }
+  };
+
+  const handleSecretInputChange = (bindingName: string, value: string) => {
+    if (!selectedBridge) {
+      return;
+    }
+
+    setSecretInputValues(current => ({
+      ...current,
+      [bridgeSecretDraftKey(selectedBridge.id, bindingName)]: value,
+    }));
+  };
+
+  const handleSaveSecretBinding = async (bindingName: string) => {
+    if (!selectedBridge) {
+      return;
+    }
+
+    const envName =
+      selectedSecretInputMap[bindingName] ??
+      bridgeSecretBindingEnvName(selectedSecretBindingsByName.get(bindingName));
+    const requestResult = buildBridgeSecretBindingRequest(envName, bindingName);
+    if (!requestResult.ok) {
+      toast.error(requestResult.error);
+      return;
+    }
+
+    try {
+      const binding = await putBridgeSecretBindingMutation.mutateAsync({
+        bindingName,
+        data: requestResult.data,
+        id: selectedBridge.id,
+      });
+
+      setSecretInputValues(current => ({
+        ...current,
+        [bridgeSecretDraftKey(selectedBridge.id, bindingName)]: bridgeSecretBindingEnvName(binding),
+      }));
+      markRestartRequired(selectedBridge.id);
+      toast.success(`Updated secret binding ${bindingName} for ${selectedBridge.display_name}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update bridge secret");
+    }
+  };
+
+  const handleDeleteSecretBinding = async (bindingName: string) => {
+    if (!selectedBridge) {
+      return;
+    }
+
+    try {
+      await deleteBridgeSecretBindingMutation.mutateAsync({
+        bindingName,
+        id: selectedBridge.id,
+      });
+
+      setSecretInputValues(current => ({
+        ...current,
+        [bridgeSecretDraftKey(selectedBridge.id, bindingName)]: "",
+      }));
+      markRestartRequired(selectedBridge.id);
+      toast.success(`Deleted secret binding ${bindingName} for ${selectedBridge.display_name}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete bridge secret");
+    }
+  };
+
+  const handleEnableBridge = async () => {
+    if (!selectedBridge) {
+      return;
+    }
+
+    try {
+      const result = await enableBridgeMutation.mutateAsync({ id: selectedBridge.id });
+      clearRestartRequired(result.bridge.id);
+      toast.success(`Enabled bridge ${result.bridge.display_name}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to enable bridge");
+    }
+  };
+
+  const handleDisableBridge = async () => {
+    if (!selectedBridge) {
+      return;
+    }
+
+    try {
+      const result = await disableBridgeMutation.mutateAsync({ id: selectedBridge.id });
+      toast.success(`Disabled bridge ${result.bridge.display_name}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to disable bridge");
+    }
+  };
+
+  const handleRestartBridge = async () => {
+    if (!selectedBridge) {
+      return;
+    }
+
+    try {
+      const result = await restartBridgeMutation.mutateAsync({ id: selectedBridge.id });
+      clearRestartRequired(result.bridge.id);
+      toast.success(`Restarted bridge ${result.bridge.display_name}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to restart bridge");
     }
   };
 
@@ -343,11 +571,26 @@ function BridgesPage() {
               }
               error={detailError}
               health={selectedHealth}
+              isLifecyclePending={isLifecyclePending}
               isLoading={detailLoading}
               isRoutesLoading={bridgeRoutesQuery.isLoading && !bridgeRoutesQuery.data}
+              isSecretBindingPending={isSecretBindingPending}
+              isSecretBindingsLoading={
+                bridgeSecretBindingsQuery.isLoading && !bridgeSecretBindingsQuery.data
+              }
+              onDeleteSecretBinding={handleDeleteSecretBinding}
+              onDisableBridge={handleDisableBridge}
+              onEnableBridge={handleEnableBridge}
+              onOpenEdit={openEditDialog}
               onOpenTestDelivery={openTestDeliveryDialog}
+              onRestartBridge={handleRestartBridge}
+              onSaveSecretBinding={handleSaveSecretBinding}
+              onSecretDraftChange={handleSecretInputChange}
               provider={selectedBridgeProvider}
+              restartRequired={restartRequired}
               routes={bridgeRoutesQuery.data ?? []}
+              secretBindings={selectedSecretBindings}
+              secretInputValues={selectedSecretInputMap}
               workspaceName={
                 selectedBridge?.scope === "workspace" &&
                 selectedBridge.workspace_id === activeWorkspaceId
@@ -369,6 +612,18 @@ function BridgesPage() {
         onSubmit={handleCreateBridge}
         open={isCreateDialogOpen}
         providers={providers}
+      />
+
+      <BridgeEditDialog
+        allowProviderDefaultDmPolicy={selectedBridge?.dm_policy == null}
+        bridgeName={selectedBridge?.display_name}
+        draft={editDraft}
+        isPending={updateBridgeMutation.isPending}
+        onDraftChange={setEditDraft}
+        onOpenChange={handleEditDialogOpenChange}
+        onSubmit={handleUpdateBridge}
+        open={isEditDialogOpen}
+        provider={selectedBridgeProvider}
       />
 
       <BridgeTestDeliveryDialog

@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import {
   getBridge,
+  listBridgeSecretBindings,
   listBridgeProviders,
   listBridgeRoutes,
   listBridges,
@@ -44,6 +45,16 @@ export function bridgeRoutesOptions(id: string, enabled = true) {
   return queryOptions({
     queryKey: bridgeKeys.routes(id),
     queryFn: ({ signal }) => listBridgeRoutes(id, signal),
+    staleTime: DEFAULT_STALE_TIME,
+    refetchInterval: DEFAULT_REFETCH_INTERVAL,
+    enabled: Boolean(id) && enabled,
+  });
+}
+
+export function bridgeSecretBindingsOptions(id: string, enabled = true) {
+  return queryOptions({
+    queryKey: bridgeKeys.secretBindings(id),
+    queryFn: ({ signal }) => listBridgeSecretBindings(id, signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: DEFAULT_REFETCH_INTERVAL,
     enabled: Boolean(id) && enabled,

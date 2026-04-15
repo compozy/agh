@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { BridgeHealth, BridgeProvider, BridgeRoute, BridgeSummary } from "@/systems/bridges";
@@ -133,5 +134,63 @@ describe("BridgeDetailPanel", () => {
     expect(
       screen.getByText("No provider runtime config stored for this bridge.")
     ).toBeInTheDocument();
+  });
+
+  it("renders lifecycle actions and secret binding controls", async () => {
+    const user = userEvent.setup();
+    const onOpenEdit = vi.fn();
+    const onRestartBridge = vi.fn();
+    const onDisableBridge = vi.fn();
+    const onSaveSecretBinding = vi.fn();
+    const onDeleteSecretBinding = vi.fn();
+    const onSecretDraftChange = vi.fn();
+
+    render(
+      <BridgeDetailPanel
+        bridge={makeBridge()}
+        error={null}
+        health={makeHealth({ status: "degraded" })}
+        isLoading={false}
+        isRoutesLoading={false}
+        onDeleteSecretBinding={onDeleteSecretBinding}
+        onDisableBridge={onDisableBridge}
+        onOpenEdit={onOpenEdit}
+        onOpenTestDelivery={vi.fn()}
+        onRestartBridge={onRestartBridge}
+        onSaveSecretBinding={onSaveSecretBinding}
+        onSecretDraftChange={onSecretDraftChange}
+        provider={makeProvider()}
+        restartRequired
+        routes={[]}
+        secretBindings={[
+          {
+            binding_name: "bot_token",
+            bridge_instance_id: "brg_support",
+            created_at: "2026-04-13T12:00:00Z",
+            kind: "bot_token",
+            updated_at: "2026-04-13T12:10:00Z",
+            vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+          },
+        ]}
+        secretInputValues={{ bot_token: "AGH_BRIDGE_BOT_TOKEN" }}
+      />
+    );
+
+    expect(screen.getByTestId("bridge-restart-required")).toBeInTheDocument();
+    expect(screen.getByTestId("disable-bridge-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-secret-binding-bot_token")).toHaveTextContent("bound");
+
+    await user.click(screen.getByTestId("edit-bridge-btn"));
+    await user.click(screen.getByTestId("restart-bridge-btn"));
+    await user.type(screen.getByTestId("bridge-secret-env-input-bot_token"), "X");
+    await user.click(screen.getByTestId("save-bridge-secret-bot_token"));
+    await user.click(screen.getByTestId("delete-bridge-secret-bot_token"));
+
+    expect(onOpenEdit).toHaveBeenCalledTimes(1);
+    expect(onRestartBridge).toHaveBeenCalledTimes(1);
+    expect(onDisableBridge).not.toHaveBeenCalled();
+    expect(onSecretDraftChange).toHaveBeenCalled();
+    expect(onSaveSecretBinding).toHaveBeenCalledWith("bot_token");
+    expect(onDeleteSecretBinding).toHaveBeenCalledWith("bot_token");
   });
 });

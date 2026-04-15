@@ -4,11 +4,18 @@ import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 import {
   BridgesApiError,
   createBridge,
+  deleteBridgeSecretBinding,
+  disableBridge,
+  enableBridge,
   getBridge,
+  listBridgeSecretBindings,
   listBridgeProviders,
   listBridgeRoutes,
   listBridges,
+  putBridgeSecretBinding,
+  restartBridge,
   testBridgeDelivery,
+  updateBridge,
 } from "@/systems/bridges/adapters/bridges-api";
 
 const bridgeFixture = {
@@ -271,6 +278,176 @@ describe("createBridge", () => {
         workspace_id: "ws_test",
       })
     ).rejects.toThrow("Failed to create bridge: 400");
+  });
+});
+
+describe("updateBridge", () => {
+  it("calls PATCH /api/bridges/:id with the update payload", async () => {
+    mockJsonResponse({
+      bridge: {
+        ...bridgeFixture,
+        display_name: "Support Ops",
+      },
+      health: {
+        auth_failures_total: 0,
+        bridge_instance_id: "brg_support",
+        delivery_backlog: 0,
+        delivery_dropped_total: 0,
+        delivery_failures_total: 0,
+        route_count: 0,
+        status: "ready",
+      },
+    });
+
+    const payload = {
+      delivery_defaults: {
+        peer_id: "peer_default",
+      },
+      display_name: "Support Ops",
+      dm_policy: "allowlist" as const,
+      provider_config: {
+        mode: "bot",
+      },
+      routing_policy: {
+        include_group: true,
+        include_peer: false,
+        include_thread: true,
+      },
+    };
+
+    const result = await updateBridge("brg_support", payload);
+
+    expect(result.bridge.display_name).toBe("Support Ops");
+    await expectFetchRequest({
+      body: payload,
+      method: "PATCH",
+      path: "/api/bridges/brg_support",
+    });
+  });
+});
+
+describe("listBridgeSecretBindings", () => {
+  it("calls GET /api/bridges/:id/secret-bindings", async () => {
+    mockJsonResponse({
+      bindings: [
+        {
+          binding_name: "bot_token",
+          bridge_instance_id: "brg_support",
+          created_at: "2026-04-13T12:00:00Z",
+          kind: "bot_token",
+          updated_at: "2026-04-13T12:00:00Z",
+          vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+        },
+      ],
+    });
+
+    const result = await listBridgeSecretBindings("brg_support");
+
+    expect(result).toHaveLength(1);
+    await expectFetchRequest({ path: "/api/bridges/brg_support/secret-bindings" });
+  });
+});
+
+describe("putBridgeSecretBinding", () => {
+  it("calls PUT /api/bridges/:id/secret-bindings/:binding_name", async () => {
+    mockJsonResponse({
+      binding: {
+        binding_name: "bot_token",
+        bridge_instance_id: "brg_support",
+        created_at: "2026-04-13T12:00:00Z",
+        kind: "bot_token",
+        updated_at: "2026-04-13T12:30:00Z",
+        vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+      },
+    });
+
+    const payload = {
+      kind: "bot_token",
+      vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+    };
+
+    const result = await putBridgeSecretBinding("brg_support", "bot_token", payload);
+
+    expect(result.vault_ref).toBe("env:AGH_BRIDGE_BOT_TOKEN");
+    await expectFetchRequest({
+      body: payload,
+      method: "PUT",
+      path: "/api/bridges/brg_support/secret-bindings/bot_token",
+    });
+  });
+});
+
+describe("deleteBridgeSecretBinding", () => {
+  it("calls DELETE /api/bridges/:id/secret-bindings/:binding_name", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 204 }));
+
+    await deleteBridgeSecretBinding("brg_support", "bot_token");
+
+    await expectFetchRequest({
+      method: "DELETE",
+      path: "/api/bridges/brg_support/secret-bindings/bot_token",
+    });
+  });
+});
+
+describe("bridge lifecycle", () => {
+  it("calls the enable, disable, and restart endpoints", async () => {
+    mockJsonResponse({
+      bridge: bridgeFixture,
+      health: {
+        auth_failures_total: 0,
+        bridge_instance_id: "brg_support",
+        delivery_backlog: 0,
+        delivery_dropped_total: 0,
+        delivery_failures_total: 0,
+        route_count: 0,
+        status: "starting",
+      },
+    });
+    await enableBridge("brg_support");
+    await expectFetchRequest({
+      callIndex: 0,
+      method: "POST",
+      path: "/api/bridges/brg_support/enable",
+    });
+
+    mockJsonResponse({
+      bridge: bridgeFixture,
+      health: {
+        auth_failures_total: 0,
+        bridge_instance_id: "brg_support",
+        delivery_backlog: 0,
+        delivery_dropped_total: 0,
+        delivery_failures_total: 0,
+        route_count: 0,
+        status: "disabled",
+      },
+    });
+    await disableBridge("brg_support");
+    await expectFetchRequest({
+      callIndex: 1,
+      method: "POST",
+      path: "/api/bridges/brg_support/disable",
+    });
+
+    mockJsonResponse({
+      bridge: bridgeFixture,
+      health: {
+        auth_failures_total: 0,
+        bridge_instance_id: "brg_support",
+        delivery_backlog: 0,
+        delivery_dropped_total: 0,
+        delivery_failures_total: 0,
+        route_count: 0,
+        status: "starting",
+      },
+    });
+    await restartBridge("brg_support");
+    await expectFetchRequest({
+      callIndex: 2,
+      method: "POST",
+      path: "/api/bridges/brg_support/restart",
+    });
   });
 });
 
