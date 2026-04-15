@@ -51,6 +51,24 @@ func TestOpenGlobalDBMigratesLegacyBundleActivationSpecHashColumn(t *testing.T) 
 	)`); err != nil {
 		t.Fatalf("ExecContext(create legacy bundle_activations) error = %v", err)
 	}
+	legacyCreatedAt := time.Date(2026, 4, 14, 20, 0, 0, 0, time.UTC)
+	if _, err := db.ExecContext(
+		testutil.Context(t),
+		`INSERT INTO bundle_activations (
+			id, extension_name, bundle_name, profile_name, scope, workspace_id, bind_primary_channel_default, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"act-legacy",
+		"marketing-team",
+		"marketing",
+		"default",
+		string(bundlemodel.ScopeGlobal),
+		nil,
+		true,
+		store.FormatTimestamp(legacyCreatedAt),
+		store.FormatTimestamp(legacyCreatedAt),
+	); err != nil {
+		t.Fatalf("ExecContext(insert legacy bundle activation) error = %v", err)
+	}
 	if err := db.Close(); err != nil {
 		t.Fatalf("db.Close() error = %v", err)
 	}
@@ -77,6 +95,26 @@ func TestOpenGlobalDBMigratesLegacyBundleActivationSpecHashColumn(t *testing.T) 
 		"updated_at",
 		"spec_content_hash",
 	})
+
+	loaded, err := globalDB.GetBundleActivation(testutil.Context(t), "act-legacy")
+	if err != nil {
+		t.Fatalf("GetBundleActivation() error = %v", err)
+	}
+	if got, want := loaded.ExtensionName, "marketing-team"; got != want {
+		t.Fatalf("loaded.ExtensionName = %q, want %q", got, want)
+	}
+	if got, want := loaded.BundleName, "marketing"; got != want {
+		t.Fatalf("loaded.BundleName = %q, want %q", got, want)
+	}
+	if got, want := loaded.ProfileName, "default"; got != want {
+		t.Fatalf("loaded.ProfileName = %q, want %q", got, want)
+	}
+	if got, want := loaded.Scope, bundlemodel.ScopeGlobal; got != want {
+		t.Fatalf("loaded.Scope = %q, want %q", got, want)
+	}
+	if got := loaded.SpecContentHash; got != "" {
+		t.Fatalf("loaded.SpecContentHash = %q, want empty for migrated legacy row", got)
+	}
 }
 
 func TestGlobalDBBundleActivationRoundTripWithSpecHashAndInventory(t *testing.T) {

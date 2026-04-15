@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -326,10 +328,15 @@ func StatusForBundleError(err error) int {
 		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
 		return StatusForWorkspaceError(err)
 	default:
-		return http.StatusBadRequest
+		return http.StatusInternalServerError
 	}
 }
 
 func bundlepkgStableID(prefix string, parts ...string) string {
-	return strings.Join(append([]string{prefix}, parts...), ":")
+	normalized := make([]string, 0, len(parts))
+	for _, part := range parts {
+		normalized = append(normalized, strings.TrimSpace(part))
+	}
+	sum := sha256.Sum256([]byte(strings.Join(normalized, "\n")))
+	return prefix + "_" + hex.EncodeToString(sum[:8])
 }

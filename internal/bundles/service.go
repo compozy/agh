@@ -506,6 +506,9 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 		desiredTriggers = append(desiredTriggers, resolved.triggers...)
 		desiredBridges = append(desiredBridges, resolved.bridges...)
 	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
 
 	if s.automation == nil {
 		if len(desiredJobs) > 0 || len(desiredTriggers) > 0 {

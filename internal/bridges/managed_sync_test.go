@@ -2,6 +2,7 @@ package bridges_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -100,8 +101,99 @@ func TestManagedSyncerReconcilesCreateUpdateDelete(t *testing.T) {
 	if got, want := len(deleted), 1; got != want {
 		t.Fatalf("len(deleted) = %d, want %d", got, want)
 	}
-	if updated[0].CreatedAt.IsZero() {
-		t.Fatal("updated[0].CreatedAt = zero, want original created_at preserved")
+	if got, want := updated[0].CreatedAt, time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC); !got.Equal(want) {
+		t.Fatalf("updated[0].CreatedAt = %s, want %s", got, want)
+	}
+}
+
+func TestManagedSyncerWrapsStoreErrors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		store     stubRegistryStore
+		desired   []bridgepkg.BridgeInstance
+		wantError string
+	}{
+		{
+			name: "ShouldWrapListFailuresWithSourceContext",
+			store: stubRegistryStore{
+				listBridgeInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+					return nil, errors.New("list failed")
+				},
+			},
+			wantError: `bridges: reconcile list "package" instances: list failed`,
+		},
+		{
+			name: "ShouldWrapUpdateFailuresWithInstanceContext",
+			store: stubRegistryStore{
+				listBridgeInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+					return []bridgepkg.BridgeInstance{{
+						ID:            "brg-existing",
+						Scope:         bridgepkg.ScopeGlobal,
+						Platform:      "telegram",
+						ExtensionName: "telegram-adapter",
+						DisplayName:   "Old Name",
+						Source:        bridgepkg.BridgeInstanceSourcePackage,
+						Enabled:       false,
+						Status:        bridgepkg.BridgeStatusDisabled,
+						RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+						CreatedAt:     time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+					}}, nil
+				},
+				updateBridgeInstanceFn: func(context.Context, bridgepkg.BridgeInstance) error {
+					return errors.New("update failed")
+				},
+			},
+			desired: []bridgepkg.BridgeInstance{{
+				ID:            "brg-existing",
+				Scope:         bridgepkg.ScopeGlobal,
+				Platform:      "telegram",
+				ExtensionName: "telegram-adapter",
+				DisplayName:   "New Name",
+				Status:        bridgepkg.BridgeStatusDisabled,
+				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+			}},
+			wantError: `bridges: reconcile update "package" instance "brg-existing": update failed`,
+		},
+		{
+			name: "ShouldWrapDeleteFailuresWithInstanceContext",
+			store: stubRegistryStore{
+				listBridgeInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+					return []bridgepkg.BridgeInstance{{
+						ID:            "brg-remove",
+						Scope:         bridgepkg.ScopeGlobal,
+						Platform:      "telegram",
+						ExtensionName: "telegram-adapter",
+						DisplayName:   "Remove",
+						Source:        bridgepkg.BridgeInstanceSourcePackage,
+						Enabled:       false,
+						Status:        bridgepkg.BridgeStatusDisabled,
+						RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+					}}, nil
+				},
+				deleteBridgeInstanceFn: func(_ context.Context, id string) error {
+					if id != "brg-remove" {
+						t.Fatalf("DeleteBridgeInstance() id = %q, want brg-remove", id)
+					}
+					return errors.New("delete failed")
+				},
+			},
+			wantError: `bridges: reconcile delete "package" instance "brg-remove": delete failed`,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			syncer := bridgepkg.NewManagedSyncer(tc.store)
+			_, err := syncer.SyncManagedInstances(testutil.Context(t), bridgepkg.BridgeInstanceSourcePackage, tc.desired)
+			if err == nil || !containsText(err, tc.wantError) {
+				t.Fatalf("SyncManagedInstances() error = %v, want substring %q", err, tc.wantError)
+			}
+		})
 	}
 }
 

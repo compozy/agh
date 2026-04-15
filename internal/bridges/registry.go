@@ -217,7 +217,7 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 		return nil, fmt.Errorf("bridges: update bridge instance %q: load current state: %w", trimmedID, err)
 	}
 	if instance.Source == BridgeInstanceSourcePackage {
-		return nil, ErrBridgeInstanceReadOnly
+		return nil, fmt.Errorf("bridges: update bridge instance %q: %w", trimmedID, ErrBridgeInstanceReadOnly)
 	}
 	if req.DisplayName != nil {
 		instance.DisplayName = strings.TrimSpace(*req.DisplayName)

@@ -95,7 +95,7 @@ func (s *ManagedSyncService) SyncManagedInstances(
 
 	existing, err := s.store.ListBridgeInstances(ctx)
 	if err != nil {
-		return ManagedSyncStats{}, err
+		return ManagedSyncStats{}, fmt.Errorf("bridges: reconcile list %q instances: %w", normalizedSource, err)
 	}
 
 	existingByID := make(map[string]BridgeInstance)
@@ -122,7 +122,7 @@ func (s *ManagedSyncService) SyncManagedInstances(
 		switch {
 		case !exists:
 			if err := s.store.InsertBridgeInstance(ctx, next); err != nil {
-				return ManagedSyncStats{}, err
+				return ManagedSyncStats{}, fmt.Errorf("bridges: reconcile insert %q instance %q: %w", normalizedSource, strings.TrimSpace(next.ID), err)
 			}
 		case !sameManagedInstance(current, next):
 			next.CreatedAt = current.CreatedAt
@@ -130,7 +130,7 @@ func (s *ManagedSyncService) SyncManagedInstances(
 				next.CreatedAt = s.now().UTC()
 			}
 			if err := s.store.UpdateBridgeInstance(ctx, next); err != nil {
-				return ManagedSyncStats{}, err
+				return ManagedSyncStats{}, fmt.Errorf("bridges: reconcile update %q instance %q: %w", normalizedSource, strings.TrimSpace(next.ID), err)
 			}
 		}
 		synced++
@@ -142,7 +142,7 @@ func (s *ManagedSyncService) SyncManagedInstances(
 			continue
 		}
 		if err := s.store.DeleteBridgeInstance(ctx, id); err != nil {
-			return ManagedSyncStats{}, err
+			return ManagedSyncStats{}, fmt.Errorf("bridges: reconcile delete %q instance %q: %w", normalizedSource, strings.TrimSpace(id), err)
 		}
 		removed++
 	}

@@ -158,7 +158,11 @@ func (r *bridgeRuntime) ListSecretBindings(ctx context.Context, bridgeInstanceID
 	if r.store == nil {
 		return nil, errors.New("daemon: bridge store is required")
 	}
-	return r.store.ListBridgeSecretBindings(ctx, strings.TrimSpace(bridgeInstanceID))
+	bindings, err := r.store.ListBridgeSecretBindings(ctx, strings.TrimSpace(bridgeInstanceID))
+	if err != nil {
+		return nil, fmt.Errorf("daemon: list bridge secret bindings: %w", err)
+	}
+	return bindings, nil
 }
 
 func (r *bridgeRuntime) PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error {
@@ -174,7 +178,12 @@ func (r *bridgeRuntime) PutSecretBinding(ctx context.Context, binding bridgepkg.
 	if r.store == nil {
 		return errors.New("daemon: bridge store is required")
 	}
-	return r.store.PutBridgeSecretBinding(ctx, binding)
+	binding.BridgeInstanceID = strings.TrimSpace(binding.BridgeInstanceID)
+	binding.BindingName = strings.TrimSpace(binding.BindingName)
+	if err := r.store.PutBridgeSecretBinding(ctx, binding); err != nil {
+		return fmt.Errorf("daemon: put bridge secret binding: %w", err)
+	}
+	return nil
 }
 
 func (r *bridgeRuntime) DeleteSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error {
@@ -190,7 +199,10 @@ func (r *bridgeRuntime) DeleteSecretBinding(ctx context.Context, bridgeInstanceI
 	if r.store == nil {
 		return errors.New("daemon: bridge store is required")
 	}
-	return r.store.DeleteBridgeSecretBinding(ctx, strings.TrimSpace(bridgeInstanceID), strings.TrimSpace(bindingName))
+	if err := r.store.DeleteBridgeSecretBinding(ctx, strings.TrimSpace(bridgeInstanceID), strings.TrimSpace(bindingName)); err != nil {
+		return fmt.Errorf("daemon: delete bridge secret binding: %w", err)
+	}
+	return nil
 }
 
 func (r *bridgeRuntime) ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error) {

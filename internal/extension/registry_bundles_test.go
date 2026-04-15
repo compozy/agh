@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -83,5 +86,122 @@ func newRegistryTestEnvWithBundleActivations(t *testing.T) registryTestEnv {
 		db:          db,
 		registry:    registry,
 		installedAt: installedAt,
+	}
+}
+
+func TestLoadBundleSpecsRejectsCaseInsensitiveDuplicateBundleNames(t *testing.T) {
+	t.Parallel()
+
+	rootDir := t.TempDir()
+	bundlesDir := filepath.Join(rootDir, "bundles")
+	if err := os.MkdirAll(bundlesDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bundlesDir, "alpha.json"), []byte(`{
+		"name": "Marketing",
+		"profiles": [{
+			"name": "default",
+			"channels": {
+				"primary": "ops",
+				"items": [{"name": "ops"}]
+			}
+		}]
+	}`), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(alpha.json) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bundlesDir, "beta.json"), []byte(`{
+		"name": "marketing",
+		"profiles": [{
+			"name": "default",
+			"channels": {
+				"primary": "ops",
+				"items": [{"name": "ops"}]
+			}
+		}]
+	}`), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(beta.json) error = %v", err)
+	}
+
+	_, err := LoadBundleSpecs(rootDir, &Manifest{
+		Name: "bundle-guard",
+		Resources: ResourcesConfig{
+			Bundles: []string{"bundles"},
+		},
+	})
+	if !errors.Is(err, ErrBundleInvalid) {
+		t.Fatalf("LoadBundleSpecs() error = %v, want ErrBundleInvalid", err)
+	}
+}
+
+func TestBundleSpecValidateRejectsCaseInsensitiveDuplicateProfilesAndInvalidDeliveryDefaults(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		spec BundleSpec
+	}{
+		{
+			name: "Should reject case-insensitive duplicate profile names",
+			spec: BundleSpec{
+				Name: "marketing",
+				Profiles: []BundleProfile{
+					{
+						Name: "Default",
+						Channels: BundleChannelsConfig{
+							Primary: "ops",
+							Items:   []BundleChannel{{Name: "ops"}},
+						},
+					},
+					{
+						Name: "default",
+						Channels: BundleChannelsConfig{
+							Primary: "ops-2",
+							Items:   []BundleChannel{{Name: "ops-2"}},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Should reject invalid bridge delivery default JSON",
+			spec: BundleSpec{
+				Name: "marketing",
+				Profiles: []BundleProfile{{
+					Name: "default",
+					Channels: BundleChannelsConfig{
+						Primary: "ops",
+						Items:   []BundleChannel{{Name: "ops"}},
+					},
+					Bridges: []BundleBridgePreset{{
+						Name:             "telegram-main",
+						Platform:         "telegram",
+						DisplayName:      "Marketing Bridge",
+						RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+						DeliveryDefaults: []byte(`{invalid`),
+					}},
+				}},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.spec.Validate(&Manifest{
+				Name: "bundle-guard",
+				Bridge: BridgeConfig{
+					Platform:    "telegram",
+					DisplayName: "Telegram",
+				},
+				Capabilities: CapabilitiesConfig{
+					Provides: []string{"bridge.adapter"},
+				},
+			})
+			if !errors.Is(err, ErrBundleInvalid) {
+				t.Fatalf("BundleSpec.Validate() error = %v, want ErrBundleInvalid", err)
+			}
+		})
 	}
 }

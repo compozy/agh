@@ -430,12 +430,13 @@ func TestServiceUpdateActivationRestoresRecordOnReconcileFailure(t *testing.T) {
 		t.Fatalf("Activate() error = %v", err)
 	}
 
-	automation.err = errors.New("sync failed")
+	syncErr := errors.New("sync failed")
+	automation.err = syncErr
 	_, err = service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
 		ID:                          preview.Activation.ID,
 		BindPrimaryChannelAsDefault: true,
 	})
-	if err == nil || !strings.Contains(err.Error(), "sync failed") {
+	if !errors.Is(err, syncErr) {
 		t.Fatalf("UpdateActivation() error = %v, want sync failure", err)
 	}
 
@@ -466,10 +467,12 @@ func TestServiceDeactivateReturnsRollbackFailureWhenRestoreFails(t *testing.T) {
 		t.Fatalf("Activate() error = %v", err)
 	}
 
-	automation.err = errors.New("sync failed")
+	syncErr := errors.New("sync failed")
+	recreateErr := errors.New("recreate failed")
+	automation.err = syncErr
 	store.createBundleActivationHook = func(activation Activation) error {
 		if activation.ID == preview.Activation.ID {
-			return errors.New("recreate failed")
+			return recreateErr
 		}
 		return nil
 	}
@@ -478,11 +481,76 @@ func TestServiceDeactivateReturnsRollbackFailureWhenRestoreFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("Deactivate() error = nil, want reconcile + rollback failure")
 	}
-	if !strings.Contains(err.Error(), "sync failed") {
+	if !errors.Is(err, syncErr) {
 		t.Fatalf("Deactivate() error = %v, want sync failure", err)
 	}
-	if !strings.Contains(err.Error(), "recreate failed") {
+	if !errors.Is(err, recreateErr) {
 		t.Fatalf("Deactivate() error = %v, want rollback failure", err)
+	}
+}
+
+func TestServiceReconcileReturnsBeforeSyncWhenActivationResolutionFails(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryStore()
+	goodActivation := Activation{
+		ID:            stableID("act", "marketing-team", "marketing", "default", string(ScopeGlobal), ""),
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
+	}
+	badActivation := Activation{
+		ID:            stableID("act", "broken-team", "marketing", "default", string(ScopeGlobal), ""),
+		ExtensionName: "broken-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
+	}
+	store.activations[goodActivation.ID] = goodActivation
+	store.activations[badActivation.ID] = badActivation
+	store.bridges[stableID("bri", badActivation.ID, "telegram-main")] = bridgepkg.BridgeInstance{
+		ID:            stableID("bri", badActivation.ID, "telegram-main"),
+		Scope:         bridgepkg.ScopeGlobal,
+		Platform:      "telegram",
+		ExtensionName: "broken-team",
+		DisplayName:   "Broken Bridge",
+		Source:        bridgepkg.BridgeInstanceSourcePackage,
+		Status:        bridgepkg.BridgeStatusDisabled,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	}
+
+	loadErr := errors.New("load failed")
+	automation := &recordingAutomationSyncer{}
+	service := NewService(
+		store,
+		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: "marketing-team"}, {Name: "broken-team"}}},
+		func(name string) (*extensionpkg.Extension, error) {
+			switch name {
+			case "marketing-team":
+				return newMarketingExtension(), nil
+			case "broken-team":
+				return nil, loadErr
+			default:
+				return nil, extensionpkg.ErrExtensionNotFound
+			}
+		},
+		WithAutomation(automation),
+		WithBridges(bridgepkg.NewManagedSyncer(store)),
+	)
+
+	err := service.Reconcile(testutil.Context(t))
+	if !errors.Is(err, loadErr) {
+		t.Fatalf("Reconcile() error = %v, want load failure", err)
+	}
+	if got, want := automation.calls, 0; got != want {
+		t.Fatalf("automation calls = %d, want %d", got, want)
+	}
+	if got, want := len(store.bridges), 1; got != want {
+		t.Fatalf("len(store.bridges) = %d, want %d", got, want)
+	}
+	if _, ok := store.bridges[stableID("bri", badActivation.ID, "telegram-main")]; !ok {
+		t.Fatal("managed bridge for unresolved activation was removed, want preserved state after failed reconcile")
 	}
 }
 

@@ -162,16 +162,17 @@ func LoadBundleSpecs(rootDir string, manifest *Manifest) ([]BundleSpec, error) {
 			if err := spec.Validate(manifest); err != nil {
 				return nil, err
 			}
-			if _, exists := loaded[spec.Name]; exists {
+			key := bundleLookupKey(spec.Name)
+			if _, exists := loaded[key]; exists {
 				return nil, fmt.Errorf("%w: duplicate bundle %q", ErrBundleInvalid, spec.Name)
 			}
-			loaded[spec.Name] = spec
+			loaded[key] = spec
 		}
 	}
 
 	bundles := make([]BundleSpec, 0, len(loaded))
-	for _, name := range sortedKeys(loaded) {
-		bundles = append(bundles, loaded[name])
+	for _, key := range sortedKeys(loaded) {
+		bundles = append(bundles, loaded[key])
 	}
 	return bundles, nil
 }
@@ -192,10 +193,11 @@ func (b BundleSpec) Validate(manifest *Manifest) error {
 		if profileName == "" {
 			return fmt.Errorf("%w: bundle %q profile[%d].name is required", ErrBundleInvalid, name, idx)
 		}
-		if _, exists := seenProfiles[profileName]; exists {
+		profileKey := bundleLookupKey(profileName)
+		if _, exists := seenProfiles[profileKey]; exists {
 			return fmt.Errorf("%w: bundle %q profile %q is duplicated", ErrBundleInvalid, name, profileName)
 		}
-		seenProfiles[profileName] = struct{}{}
+		seenProfiles[profileKey] = struct{}{}
 		if err := profile.Validate(name, manifest); err != nil {
 			return err
 		}
@@ -334,8 +336,9 @@ func (b BundleBridgePreset) Validate(bundleName string, profileName string, mani
 	if err := b.RoutingPolicy.Validate(); err != nil {
 		return fmt.Errorf("%w: bundle %q profile %q bridge %q routing_policy: %w", ErrBundleInvalid, bundleName, profileName, b.Name, err)
 	}
-	if _, err := json.Marshal(b.DeliveryDefaults); err != nil && len(b.DeliveryDefaults) > 0 {
-		return fmt.Errorf("%w: bundle %q profile %q bridge %q delivery_defaults: %w", ErrBundleInvalid, bundleName, profileName, b.Name, err)
+	trimmedDeliveryDefaults := strings.TrimSpace(string(b.DeliveryDefaults))
+	if trimmedDeliveryDefaults != "" && !json.Valid([]byte(trimmedDeliveryDefaults)) {
+		return fmt.Errorf("%w: bundle %q profile %q bridge %q delivery_defaults: invalid JSON", ErrBundleInvalid, bundleName, profileName, b.Name)
 	}
 	for _, slot := range b.SecretSlots {
 		if strings.TrimSpace(slot.Name) == "" {
@@ -363,6 +366,10 @@ func loadBundleSpecAtPath(path string) (BundleSpec, error) {
 	default:
 		return BundleSpec{}, fmt.Errorf("%w: unsupported bundle path %q", ErrBundleInvalid, path)
 	}
+}
+
+func bundleLookupKey(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
 }
 
 func loadBundleTOML(path string) (BundleSpec, error) {

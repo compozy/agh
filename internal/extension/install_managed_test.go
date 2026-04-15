@@ -1,12 +1,16 @@
 package extension
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )
+
+var _ managedInstallRegistry = (*recordingManagedInstallRegistry)(nil)
 
 func TestCopyInstallTreeMaterializesSymlinkTargets(t *testing.T) {
 	t.Parallel()
@@ -125,8 +129,81 @@ func TestInstallLocalManagedUsesInstalledChecksumForMaterializedSymlinks(t *test
 	}
 }
 
+func TestCopyInstallTreeRejectsSymlinkDirectoryCycles(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := filepath.Join(t.TempDir(), "source")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(source) error = %v", err)
+	}
+	if err := os.Symlink(".", filepath.Join(sourceDir, "loop")); err != nil {
+		t.Skipf("os.Symlink(directory) unavailable: %v", err)
+	}
+
+	targetDir := filepath.Join(t.TempDir(), "target")
+	err := copyInstallTree(sourceDir, targetDir)
+	if err == nil {
+		t.Fatal("copyInstallTree() error = nil, want symlink cycle failure")
+	}
+	if !strings.Contains(err.Error(), "symlink directory cycle detected") {
+		t.Fatalf("copyInstallTree() error = %v, want symlink cycle context", err)
+	}
+}
+
+func TestInstallLocalManagedWrapsPhaseErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldWrapSourceChecksumFailures", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		err = InstallLocalManaged(
+			homePaths,
+			&recordingManagedInstallRegistry{},
+			&Manifest{Name: "missing-ext"},
+			filepath.Join(t.TempDir(), "missing"),
+			"checksum",
+		)
+		if err == nil || !strings.Contains(err.Error(), "extension: compute source checksum") {
+			t.Fatalf("InstallLocalManaged() error = %v, want wrapped source checksum failure", err)
+		}
+	})
+
+	t.Run("ShouldWrapRegistryInstallFailures", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := filepath.Join(t.TempDir(), "source")
+		if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(source) error = %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(sourceDir, "extension.toml"), []byte("name = \"wrapped-ext\"\nversion = \"1.0.0\"\nmin_agh_version = \"0.1.0\"\n"), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
+		}
+
+		sourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+		}
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		registry := &recordingManagedInstallRegistry{installErr: errors.New("registry boom")}
+		err = InstallLocalManaged(homePaths, registry, &Manifest{Name: "wrapped-ext"}, sourceDir, sourceChecksum)
+		if err == nil || !strings.Contains(err.Error(), `extension: persist managed extension "wrapped-ext"`) {
+			t.Fatalf("InstallLocalManaged() error = %v, want wrapped registry install failure", err)
+		}
+	})
+}
+
 type recordingManagedInstallRegistry struct {
 	installedChecksum string
+	installErr        error
 }
 
 func (*recordingManagedInstallRegistry) Get(string) (*ExtensionInfo, error) {
@@ -135,5 +212,8 @@ func (*recordingManagedInstallRegistry) Get(string) (*ExtensionInfo, error) {
 
 func (r *recordingManagedInstallRegistry) Install(_ *Manifest, _ string, checksum string, _ ...InstallOption) error {
 	r.installedChecksum = checksum
+	if r.installErr != nil {
+		return r.installErr
+	}
 	return nil
 }

@@ -23,6 +23,34 @@ type recordingBridgeSecretResolver struct {
 	err    error
 }
 
+type bridgeRuntimeStoreStub struct {
+	bridgeRuntimeStore
+	listBridgeSecretBindingsFn  func(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
+	putBridgeSecretBindingFn    func(context.Context, bridgepkg.BridgeSecretBinding) error
+	deleteBridgeSecretBindingFn func(context.Context, string, string) error
+}
+
+func (s bridgeRuntimeStoreStub) ListBridgeSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error) {
+	if s.listBridgeSecretBindingsFn != nil {
+		return s.listBridgeSecretBindingsFn(ctx, bridgeInstanceID)
+	}
+	return nil, nil
+}
+
+func (s bridgeRuntimeStoreStub) PutBridgeSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error {
+	if s.putBridgeSecretBindingFn != nil {
+		return s.putBridgeSecretBindingFn(ctx, binding)
+	}
+	return nil
+}
+
+func (s bridgeRuntimeStoreStub) DeleteBridgeSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error {
+	if s.deleteBridgeSecretBindingFn != nil {
+		return s.deleteBridgeSecretBindingFn(ctx, bridgeInstanceID, bindingName)
+	}
+	return nil
+}
+
 func (r *recordingBridgeSecretResolver) ResolveBridgeSecret(_ context.Context, binding bridgepkg.BridgeSecretBinding) (string, error) {
 	r.calls = append(r.calls, binding)
 	if r.err != nil {
@@ -542,6 +570,96 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 		_, err := runtime.ResolveBridgeRuntime(testutil.Context(t), "ext-missing")
 		if !errors.Is(err, extensionpkg.ErrBridgeRuntimeDeferred) {
 			t.Fatalf("ResolveBridgeRuntime() error = %v, want deferred sentinel", err)
+		}
+	})
+}
+
+func TestBridgeRuntimeSecretBindings(t *testing.T) {
+	t.Run("ShouldNormalizeBindingKeysOnWrite", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		runtime := newBridgeRuntime(db, discardLogger(), nil, nil)
+		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-secret-binding",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-secret-binding",
+			DisplayName:   "Secret Binding",
+			Enabled:       false,
+			Status:        bridgepkg.BridgeStatusDisabled,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+
+		err := runtime.PutSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
+			BridgeInstanceID: " " + instance.ID + " ",
+			BindingName:      " bot_token ",
+			VaultRef:         "vault://bridges/ext-secret-binding/bot-token",
+			Kind:             "token",
+		})
+		if err != nil {
+			t.Fatalf("PutSecretBinding() error = %v", err)
+		}
+
+		bindings, err := runtime.ListSecretBindings(testutil.Context(t), " "+instance.ID+" ")
+		if err != nil {
+			t.Fatalf("ListSecretBindings() error = %v", err)
+		}
+		if got, want := len(bindings), 1; got != want {
+			t.Fatalf("len(bindings) = %d, want %d", got, want)
+		}
+		if got, want := bindings[0].BridgeInstanceID, instance.ID; got != want {
+			t.Fatalf("bindings[0].BridgeInstanceID = %q, want %q", got, want)
+		}
+		if got, want := bindings[0].BindingName, "bot_token"; got != want {
+			t.Fatalf("bindings[0].BindingName = %q, want %q", got, want)
+		}
+
+		if err := runtime.DeleteSecretBinding(testutil.Context(t), " "+instance.ID+" ", " bot_token "); err != nil {
+			t.Fatalf("DeleteSecretBinding() error = %v", err)
+		}
+
+		bindings, err = runtime.ListSecretBindings(testutil.Context(t), instance.ID)
+		if err != nil {
+			t.Fatalf("ListSecretBindings(after delete) error = %v", err)
+		}
+		if got := len(bindings); got != 0 {
+			t.Fatalf("len(bindings after delete) = %d, want 0", got)
+		}
+	})
+
+	t.Run("ShouldWrapStoreErrorsWithDaemonContext", func(t *testing.T) {
+		t.Parallel()
+
+		listErr := errors.New("list failed")
+		putErr := errors.New("put failed")
+		deleteErr := errors.New("delete failed")
+		runtime := newBridgeRuntime(bridgeRuntimeStoreStub{
+			listBridgeSecretBindingsFn: func(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error) {
+				return nil, listErr
+			},
+			putBridgeSecretBindingFn: func(context.Context, bridgepkg.BridgeSecretBinding) error {
+				return putErr
+			},
+			deleteBridgeSecretBindingFn: func(context.Context, string, string) error {
+				return deleteErr
+			},
+		}, discardLogger(), nil, nil)
+
+		_, err := runtime.ListSecretBindings(testutil.Context(t), "brg-1")
+		if !errors.Is(err, listErr) || !strings.Contains(err.Error(), "daemon: list bridge secret bindings") {
+			t.Fatalf("ListSecretBindings() error = %v, want wrapped list failure", err)
+		}
+		err = runtime.PutSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
+			BridgeInstanceID: " brg-1 ",
+			BindingName:      " token ",
+		})
+		if !errors.Is(err, putErr) || !strings.Contains(err.Error(), "daemon: put bridge secret binding") {
+			t.Fatalf("PutSecretBinding() error = %v, want wrapped put failure", err)
+		}
+		err = runtime.DeleteSecretBinding(testutil.Context(t), " brg-1 ", " token ")
+		if !errors.Is(err, deleteErr) || !strings.Contains(err.Error(), "daemon: delete bridge secret binding") {
+			t.Fatalf("DeleteSecretBinding() error = %v, want wrapped delete failure", err)
 		}
 	})
 }

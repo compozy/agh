@@ -682,7 +682,7 @@ func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.Netw
 
 	settings, err := h.Bundles.NetworkSettings(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("api: load bundle network settings: %w", err)
 	}
 	payload.ConfiguredDefaultChannel = strings.TrimSpace(settings.ConfiguredDefaultChannel)
 	payload.EffectiveDefaultChannel = strings.TrimSpace(settings.EffectiveDefaultChannel)

@@ -68,7 +68,7 @@ func InstallLocalManaged(
 
 	actualSourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("extension: compute source checksum %q: %w", sourceDir, err)
 	}
 	if actualSourceChecksum != checksum {
 		return &ExtensionChecksumMismatchError{
@@ -101,19 +101,21 @@ func InstallLocalManaged(
 
 	installedChecksum, err := ComputeDirectoryChecksum(finalDir)
 	if err != nil {
+		checksumErr := fmt.Errorf("extension: compute installed checksum %q: %w", finalDir, err)
 		removeErr := os.RemoveAll(finalDir)
 		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			return errors.Join(err, fmt.Errorf("extension: remove failed local install %q after checksum error: %w", finalDir, removeErr))
+			return errors.Join(checksumErr, fmt.Errorf("extension: remove failed local install %q after checksum error: %w", finalDir, removeErr))
 		}
-		return err
+		return checksumErr
 	}
 
 	if err := registry.Install(manifest, finalDir, installedChecksum, opts...); err != nil {
+		installErr := fmt.Errorf("extension: persist managed extension %q: %w", manifest.Name, err)
 		removeErr := os.RemoveAll(finalDir)
 		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			return errors.Join(err, fmt.Errorf("extension: remove failed local install %q: %w", finalDir, removeErr))
+			return errors.Join(installErr, fmt.Errorf("extension: remove failed local install %q: %w", finalDir, removeErr))
 		}
-		return err
+		return installErr
 	}
 
 	return nil
@@ -148,10 +150,12 @@ func copyInstallTree(sourceDir string, targetDir string) error {
 		return fmt.Errorf("extension: set target directory mode %q: %w", targetDir, err)
 	}
 
-	return copyInstallDirectoryContents(absSourceRoot, targetDir)
+	return copyInstallDirectoryContents(absSourceRoot, targetDir, map[string]struct{}{
+		absSourceRoot: {},
+	})
 }
 
-func copyInstallDirectoryContents(sourceDir string, targetDir string) error {
+func copyInstallDirectoryContents(sourceDir string, targetDir string, activeDirs map[string]struct{}) error {
 	entries, err := os.ReadDir(sourceDir)
 	if err != nil {
 		return fmt.Errorf("extension: read source directory %q: %w", sourceDir, err)
@@ -160,7 +164,7 @@ func copyInstallDirectoryContents(sourceDir string, targetDir string) error {
 	for _, entry := range entries {
 		sourcePath := filepath.Join(sourceDir, entry.Name())
 		targetPath := filepath.Join(targetDir, entry.Name())
-		if err := copyInstallEntry(sourcePath, targetPath); err != nil {
+		if err := copyInstallEntry(sourcePath, targetPath, activeDirs); err != nil {
 			return err
 		}
 	}
@@ -168,7 +172,7 @@ func copyInstallDirectoryContents(sourceDir string, targetDir string) error {
 	return nil
 }
 
-func copyInstallEntry(sourcePath string, targetPath string) error {
+func copyInstallEntry(sourcePath string, targetPath string, activeDirs map[string]struct{}) error {
 	info, err := os.Lstat(sourcePath)
 	if err != nil {
 		return fmt.Errorf("extension: stat source path %q: %w", sourcePath, err)
@@ -176,17 +180,21 @@ func copyInstallEntry(sourcePath string, targetPath string) error {
 
 	switch {
 	case info.IsDir():
+		nextActiveDirs, err := pushInstallCopyDir(activeDirs, sourcePath, sourcePath)
+		if err != nil {
+			return err
+		}
 		if err := os.MkdirAll(targetPath, info.Mode().Perm()); err != nil {
 			return fmt.Errorf("extension: create target directory %q: %w", targetPath, err)
 		}
 		if err := os.Chmod(targetPath, info.Mode().Perm()); err != nil {
 			return fmt.Errorf("extension: set target directory mode %q: %w", targetPath, err)
 		}
-		return copyInstallDirectoryContents(sourcePath, targetPath)
+		return copyInstallDirectoryContents(sourcePath, targetPath, nextActiveDirs)
 	case info.Mode().IsRegular():
 		return copyInstallFile(sourcePath, targetPath, info.Mode().Perm())
 	case info.Mode()&os.ModeSymlink != 0:
-		return copyInstallSymlink(sourcePath, targetPath)
+		return copyInstallSymlink(sourcePath, targetPath, activeDirs)
 	default:
 		return fmt.Errorf("extension: unsupported file type in extension payload %q", sourcePath)
 	}
@@ -227,7 +235,7 @@ func copyInstallFile(sourcePath string, targetPath string, perm os.FileMode) (er
 	return nil
 }
 
-func copyInstallSymlink(sourcePath string, targetPath string) error {
+func copyInstallSymlink(sourcePath string, targetPath string, activeDirs map[string]struct{}) error {
 	resolvedPath, err := filepath.EvalSymlinks(sourcePath)
 	if err != nil {
 		return fmt.Errorf("extension: resolve source symlink %q: %w", sourcePath, err)
@@ -240,16 +248,37 @@ func copyInstallSymlink(sourcePath string, targetPath string) error {
 
 	switch {
 	case info.IsDir():
+		nextActiveDirs, err := pushInstallCopyDir(activeDirs, resolvedPath, sourcePath)
+		if err != nil {
+			return err
+		}
 		if err := os.MkdirAll(targetPath, info.Mode().Perm()); err != nil {
 			return fmt.Errorf("extension: create target directory %q for symlinked source %q: %w", targetPath, sourcePath, err)
 		}
 		if err := os.Chmod(targetPath, info.Mode().Perm()); err != nil {
 			return fmt.Errorf("extension: set target directory mode %q for symlinked source %q: %w", targetPath, sourcePath, err)
 		}
-		return copyInstallDirectoryContents(resolvedPath, targetPath)
+		return copyInstallDirectoryContents(resolvedPath, targetPath, nextActiveDirs)
 	case info.Mode().IsRegular():
 		return copyInstallFile(resolvedPath, targetPath, info.Mode().Perm())
 	default:
 		return fmt.Errorf("extension: unsupported symlink target type for %q", sourcePath)
 	}
+}
+
+func pushInstallCopyDir(activeDirs map[string]struct{}, resolvedPath string, sourcePath string) (map[string]struct{}, error) {
+	canonicalPath, err := filepath.Abs(strings.TrimSpace(resolvedPath))
+	if err != nil {
+		return nil, fmt.Errorf("extension: resolve directory %q: %w", resolvedPath, err)
+	}
+	if _, exists := activeDirs[canonicalPath]; exists {
+		return nil, fmt.Errorf("extension: symlink directory cycle detected from %q to %q", sourcePath, canonicalPath)
+	}
+
+	nextActiveDirs := make(map[string]struct{}, len(activeDirs)+1)
+	for path := range activeDirs {
+		nextActiveDirs[path] = struct{}{}
+	}
+	nextActiveDirs[canonicalPath] = struct{}{}
+	return nextActiveDirs, nil
 }
