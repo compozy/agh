@@ -26,7 +26,7 @@ vi.mock("@tanstack/react-router", () => ({
   },
 }));
 
-vi.mock("@/components/ui/badge", () => ({
+vi.mock("@agh/ui", () => ({
   Badge: ({
     children,
     className,

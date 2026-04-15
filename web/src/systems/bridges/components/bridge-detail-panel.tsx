@@ -1,8 +1,7 @@
 import { AlertCircle, Loader2, Pencil, Power, RotateCw, SendHorizontal } from "lucide-react";
 
 import { Pill } from "@/components/design-system";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button, Input } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import {

@@ -1,7 +1,7 @@
 import { Search } from "lucide-react";
 
 import { Pill } from "@/components/design-system";
-import { Input } from "@/components/ui/input";
+import { Input } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import {
   bridgeScopeTone,

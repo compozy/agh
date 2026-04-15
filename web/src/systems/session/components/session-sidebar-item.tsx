@@ -1,7 +1,7 @@
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@agh/ui";
 import { SidebarMenuSubButton, SidebarMenuSubItem } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import type { SessionPayload, SessionState } from "../types";

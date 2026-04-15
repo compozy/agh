@@ -63,7 +63,8 @@ vi.mock("@/components/ui/collapsible", () => ({
   ),
 }));
 
-vi.mock("@/components/ui/kbd", () => ({
+vi.mock("@agh/ui", () => ({
+  cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
   Kbd: ({ children }: { children: ReactNode }) => <kbd>{children}</kbd>,
 }));
 

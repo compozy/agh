@@ -21,6 +21,7 @@
         "typecheck:raw": "tsgo --noEmit"
     },
     "dependencies": {
+        "@agh/ui": "workspace:*",
         "@ai-sdk/react": "^3.0.147",
         "@base-ui/react": "^1.3.0",
         "@fontsource-variable/inter": "^5.2.8",

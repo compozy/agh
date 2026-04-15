@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 title: "Update web/ to consume packages/ui"
 type: refactor
 complexity: medium
@@ -18,6 +18,7 @@ Migrate the existing `web/` React SPA to consume design tokens and base UI compo
 - FOCUS ON "WHAT" — describe what needs to be accomplished, not how
 - MINIMIZE CODE — show code only to illustrate current structure or problem areas
 - TESTS REQUIRED — every task MUST include tests in deliverables
+- **IMPECCABLE (non-blocking, Compozy-safe)** — Preserve visual parity; any styling fix must follow the **impeccable** skill (`/impeccable` — already in Claude Code; no installs). Use `.impeccable.md` when present; otherwise DESIGN.md + TechSpec + this task. **Never** run `/impeccable teach` in unattended execution. Apply **absolute_bans** and anti-slop checks; do not introduce thick side-stripe borders, gradient text, or forbidden patterns.
 </critical>
 
 <requirements>
@@ -34,17 +35,17 @@ Migrate the existing `web/` React SPA to consume design tokens and base UI compo
 
 ## Subtasks
 
-- [ ] 2.1 Add `@agh/ui` workspace dependency to `web/package.json`
-- [ ] 2.2 Update `web/src/styles.css` to import tokens from `@agh/ui`
-- [ ] 2.3 Find all imports of the 12 moved components across `web/src/`
-- [ ] 2.4 Update each import to reference `@agh/ui` instead of local path
-- [ ] 2.5 Delete local copies of moved components from `web/src/components/ui/`
-- [ ] 2.6 Update `web/src/lib/utils.ts` to use `cn` from `@agh/ui`
-- [ ] 2.7 Run `bun install` to link workspace dependencies
-- [ ] 2.8 Verify `make web-build` passes
-- [ ] 2.9 Verify `make web-lint` passes
-- [ ] 2.10 Verify `make web-typecheck` passes
-- [ ] 2.11 Verify `make web-test` passes
+- [x] 2.1 Add `@agh/ui` workspace dependency to `web/package.json`
+- [x] 2.2 Update `web/src/styles.css` to import tokens from `@agh/ui`
+- [x] 2.3 Find all imports of the 12 moved components across `web/src/`
+- [x] 2.4 Update each import to reference `@agh/ui` instead of local path
+- [x] 2.5 Delete local copies of moved components from `web/src/components/ui/`
+- [x] 2.6 Update `web/src/lib/utils.ts` to use `cn` from `@agh/ui`
+- [x] 2.7 Run `bun install` to link workspace dependencies
+- [x] 2.8 Verify `make web-build` passes
+- [x] 2.9 Verify `make web-lint` passes
+- [x] 2.10 Verify `make web-typecheck` passes
+- [x] 2.11 Verify `make web-test` passes
 
 ## Implementation Details
 

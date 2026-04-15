@@ -2,7 +2,7 @@ import { AlertCircle, Loader2, Plus, Zap } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { PillButton } from "@/components/design-system";
-import { Button } from "@/components/ui/button";
+import { Button } from "@agh/ui";
 import {
   AutomationDetailPanel,
   AutomationEditorDialog,

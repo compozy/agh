@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@agh/ui";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import type { WorkspacePayload } from "../types";
 

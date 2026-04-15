@@ -28,7 +28,7 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@agh/ui", () => ({
   Button: ({
     children,
     onClick,

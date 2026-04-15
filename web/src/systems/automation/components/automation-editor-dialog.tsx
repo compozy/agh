@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@agh/ui";
 import { Dialog, DialogClose, DialogContent } from "@/components/ui/dialog";
 
 import { AutomationJobForm } from "./automation-job-form";

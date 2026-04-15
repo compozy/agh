@@ -1,6 +1,6 @@
 import { AlertCircle, Loader2, Search } from "lucide-react";
 
-import { Input } from "@/components/ui/input";
+import { Input } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import { formatChannelPeerCount } from "../lib/network-formatters";

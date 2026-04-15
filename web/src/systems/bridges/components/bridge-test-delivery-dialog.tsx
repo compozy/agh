@@ -1,7 +1,7 @@
 import { Loader2 } from "lucide-react";
 
 import { Pill } from "@/components/design-system";
-import { Button } from "@/components/ui/button";
+import { Button, Input } from "@agh/ui";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,6 @@ import {
   FieldGroup,
   FieldTitle,
 } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import {

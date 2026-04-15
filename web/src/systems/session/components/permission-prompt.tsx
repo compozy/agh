@@ -2,8 +2,7 @@ import { useCallback, useState } from "react";
 import { ShieldAlert, Check, X, ShieldCheck, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button, Card, CardContent, CardFooter, CardHeader, CardTitle } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import type { PermissionRequest } from "../types";
 import type { PermissionDecision } from "../adapters/session-api";

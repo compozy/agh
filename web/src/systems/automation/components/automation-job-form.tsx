@@ -1,7 +1,7 @@
 import type { FormEvent } from "react";
 
 import { PillButton } from "@/components/design-system";
-import { Button } from "@/components/ui/button";
+import { Button } from "@agh/ui";
 
 import {
   AutomationCheckbox,

@@ -9,7 +9,7 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@agh/ui", () => ({
   Button: ({
     children,
     onClick,
@@ -25,9 +25,6 @@ vi.mock("@/components/ui/button", () => ({
       {children}
     </button>
   ),
-}));
-
-vi.mock("@/components/ui/card", () => ({
   Card: ({ children, ...props }: Record<string, unknown>) => (
     <div {...props}>{children as React.ReactNode}</div>
   ),

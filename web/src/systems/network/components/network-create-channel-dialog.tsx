@@ -1,7 +1,7 @@
 import { Check, Loader2 } from "lucide-react";
 import type { FormEvent } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, Input } from "@agh/ui";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { AgentIcon, type AgentPayload } from "@/systems/agent";
 

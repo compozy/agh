@@ -2,7 +2,7 @@ import { Hash, Network as NetworkIcon, Plus, Users } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { MetricStrip, PillButton } from "@/components/design-system";
-import { Button } from "@/components/ui/button";
+import { Button } from "@agh/ui";
 import {
   NetworkChannelDetailPanel,
   NetworkChannelsListPanel,

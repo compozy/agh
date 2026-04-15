@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { Pill, PillButton } from "@/components/design-system";
-import { Button } from "@/components/ui/button";
+import { Button } from "@agh/ui";
 
 import {
   AutomationCheckbox,

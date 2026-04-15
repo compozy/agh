@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { ArrowDown, MessageSquare } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { useChatViewContent } from "../hooks/use-chat-view-content";
 import { mergeToolPairs, type RowDescriptor } from "../hooks/use-chat-view-rows";

@@ -1,7 +1,7 @@
 import { FolderPlus, Home, Loader2, Sparkles } from "lucide-react";
 
 import { PillButton } from "@/components/design-system/pill-button";
-import { Button } from "@/components/ui/button";
+import { Button, Input } from "@agh/ui";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 import {

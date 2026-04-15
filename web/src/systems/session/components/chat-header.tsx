@@ -1,7 +1,7 @@
 import { ChevronRight, Square, Play } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button } from "@agh/ui";
 import type { SessionPayload } from "../types";
 
 export interface ChatHeaderProps {

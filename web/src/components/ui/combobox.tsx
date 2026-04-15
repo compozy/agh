@@ -4,7 +4,7 @@ import * as React from "react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button } from "@agh/ui";
 import { useComboboxAnchor } from "@/components/ui/hooks/use-combobox-anchor";
 import {
   InputGroup,
