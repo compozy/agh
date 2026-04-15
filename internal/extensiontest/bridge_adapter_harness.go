@@ -648,10 +648,11 @@ func (d *ScriptedPromptDriver) Stop(_ context.Context, proc *session.AgentProces
 
 // ManagedInstanceConfig configures one provider-owned bridge instance created by the harness.
 type ManagedInstanceConfig struct {
-	ID            string
-	DisplayName   string
-	RoutingPolicy bridgepkg.RoutingPolicy
-	BoundSecrets  []subprocess.InitializeBridgeBoundSecret
+	ID             string
+	DisplayName    string
+	RoutingPolicy  bridgepkg.RoutingPolicy
+	ProviderConfig map[string]any
+	BoundSecrets   []subprocess.InitializeBridgeBoundSecret
 }
 
 // HarnessConfig configures one subprocess-backed bridge adapter test harness.
@@ -771,16 +772,25 @@ func NewHarness(t testing.TB, cfg HarnessConfig) *Harness {
 	instances := make([]bridgepkg.BridgeInstance, 0, len(managedConfigs))
 	managedRuntime := make([]subprocess.InitializeBridgeManagedInstance, 0, len(managedConfigs))
 	for _, managedCfg := range managedConfigs {
+		var providerConfig json.RawMessage
+		if managedCfg.ProviderConfig != nil {
+			encodedProviderConfig, err := json.Marshal(managedCfg.ProviderConfig)
+			if err != nil {
+				t.Fatalf("json.Marshal(provider_config for %q) error = %v", managedCfg.ID, err)
+			}
+			providerConfig = encodedProviderConfig
+		}
 		createReq := bridgepkg.CreateInstanceRequest{
-			ID:            firstNonEmpty(managedCfg.ID, fmt.Sprintf("brg-%d", len(instances)+1)),
-			Scope:         bridgepkg.ScopeWorkspace,
-			WorkspaceID:   workspace.ID,
-			Platform:      firstNonEmpty(cfg.Platform, "telegram"),
-			ExtensionName: extensionName,
-			DisplayName:   firstNonEmpty(managedCfg.DisplayName, cfg.DisplayName, "Telegram Reference"),
-			Enabled:       true,
-			Status:        bridgepkg.BridgeStatusStarting,
-			RoutingPolicy: managedCfg.RoutingPolicy,
+			ID:             firstNonEmpty(managedCfg.ID, fmt.Sprintf("brg-%d", len(instances)+1)),
+			Scope:          bridgepkg.ScopeWorkspace,
+			WorkspaceID:    workspace.ID,
+			Platform:       firstNonEmpty(cfg.Platform, "telegram"),
+			ExtensionName:  extensionName,
+			DisplayName:    firstNonEmpty(managedCfg.DisplayName, cfg.DisplayName, "Telegram Reference"),
+			Enabled:        true,
+			Status:         bridgepkg.BridgeStatusStarting,
+			RoutingPolicy:  managedCfg.RoutingPolicy,
+			ProviderConfig: providerConfig,
 		}
 		if createReq.RoutingPolicy == (bridgepkg.RoutingPolicy{}) {
 			createReq.RoutingPolicy = bridgepkg.RoutingPolicy{IncludePeer: true}
