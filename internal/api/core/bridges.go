@@ -32,7 +32,19 @@ func (h *BaseHandlers) ListBridges(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.BridgesResponse{Bridges: instances, BridgeHealth: bridgeHealth})
+
+	payloads := make([]contract.BridgePayload, 0, len(instances))
+	for _, instance := range instances {
+		payloads = append(payloads, BridgePayloadFromBridgeInstance(instance))
+		if bridgeHealth != nil {
+			key := strings.TrimSpace(instance.ID)
+			health := bridgeHealth[key]
+			health.Degradation = cloneBridgeDegradation(instance.Degradation)
+			bridgeHealth[key] = health
+		}
+	}
+
+	c.JSON(http.StatusOK, contract.BridgesResponse{Bridges: payloads, BridgeHealth: bridgeHealth})
 }
 
 // ListBridgeProviders returns installed bridge-capable providers.
@@ -48,7 +60,12 @@ func (h *BaseHandlers) ListBridgeProviders(c *gin.Context) {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.BridgeProvidersResponse{Providers: providers})
+
+	payloads := make([]contract.BridgeProviderPayload, 0, len(providers))
+	for _, provider := range providers {
+		payloads = append(payloads, BridgeProviderPayloadFromBridgeProvider(provider))
+	}
+	c.JSON(http.StatusOK, contract.BridgeProvidersResponse{Providers: payloads})
 }
 
 // CreateBridge persists a new bridge instance.
@@ -319,8 +336,12 @@ func (h *BaseHandlers) respondBridge(c *gin.Context, status int, instance bridge
 			)
 		}
 		c.JSON(status, contract.BridgeResponse{
-			Bridge: instance,
-			Health: contract.BridgeHealthPayload{},
+			Bridge: BridgePayloadFromBridgeInstance(instance),
+			Health: contract.BridgeHealthPayload{
+				BridgeInstanceID: strings.TrimSpace(instance.ID),
+				Status:           instance.Status,
+				Degradation:      cloneBridgeDegradation(instance.Degradation),
+			},
 		})
 		return
 	}
@@ -332,8 +353,9 @@ func (h *BaseHandlers) bridgeResponse(ctx context.Context, instance bridgepkg.Br
 	if err != nil {
 		return nil, err
 	}
+	health.Degradation = cloneBridgeDegradation(instance.Degradation)
 	return &contract.BridgeResponse{
-		Bridge: instance,
+		Bridge: BridgePayloadFromBridgeInstance(instance),
 		Health: health,
 	}, nil
 }

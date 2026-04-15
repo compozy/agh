@@ -1232,8 +1232,9 @@ type integrationBridgeSecretStore interface {
 
 type integrationBridgeService struct {
 	*bridgepkg.Service
-	store  integrationBridgeSecretStore
-	broker *bridgepkg.Broker
+	store     integrationBridgeSecretStore
+	broker    *bridgepkg.Broker
+	providers []bridgepkg.BridgeProvider
 }
 
 func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
@@ -1300,7 +1301,9 @@ func (s *integrationBridgeService) RestartInstance(ctx context.Context, id strin
 }
 
 func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.BridgeProvider, error) {
-	return []bridgepkg.BridgeProvider{}, nil
+	providers := make([]bridgepkg.BridgeProvider, 0, len(s.providers))
+	providers = append(providers, s.providers...)
+	return providers, nil
 }
 
 func (s *integrationBridgeService) ListSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error) {

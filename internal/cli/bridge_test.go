@@ -74,7 +74,7 @@ func TestBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 			record.ExtensionName = request.ExtensionName
 			record.DisplayName = request.DisplayName
 			record.RoutingPolicy = request.RoutingPolicy
-			record.DeliveryDefaults = request.DeliveryDefaults
+			record.DeliveryDefaults = json.RawMessage(request.DeliveryDefaults)
 			return record, nil
 		},
 	})
@@ -199,7 +199,7 @@ func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing
 			updated := current
 			updated.DisplayName = *request.DisplayName
 			updated.RoutingPolicy = *request.RoutingPolicy
-			updated.DeliveryDefaults = *request.DeliveryDefaults
+			updated.DeliveryDefaults = json.RawMessage(*request.DeliveryDefaults)
 			return updated, nil
 		},
 	})

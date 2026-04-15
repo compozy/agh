@@ -1930,11 +1930,26 @@ func schemaCustomizer(_ string, t reflect.Type, _ reflect.StructTag, schema *ope
 	case reflect.TypeOf(bridgepkg.Scope("")):
 		setStringEnum(schema, bridgeScopeValues())
 		return nil
+	case reflect.TypeOf(bridgepkg.BridgeInstanceSource("")):
+		setStringEnum(schema, bridgeInstanceSourceValues())
+		return nil
 	case reflect.TypeOf(bridgepkg.BridgeStatus("")):
 		setStringEnum(schema, bridgeStatusValues())
 		return nil
+	case reflect.TypeOf(bridgepkg.BridgeDMPolicy("")):
+		setStringEnum(schema, bridgeDMPolicyValues())
+		return nil
+	case reflect.TypeOf(bridgepkg.BridgeDegradationReason("")):
+		setStringEnum(schema, bridgeDegradationReasonValues())
+		return nil
 	case reflect.TypeOf(bridgepkg.DeliveryMode("")):
 		setStringEnum(schema, deliveryModeValues())
+		return nil
+	case reflect.TypeOf(contract.BridgeProviderConfigPayload{}):
+		*schema = *bridgeProviderConfigSchema()
+		return nil
+	case reflect.TypeOf(contract.BridgeDeliveryDefaultsPayload{}):
+		*schema = *bridgeDeliveryDefaultsSchema()
 		return nil
 	case reflect.TypeOf(session.SessionState("")):
 		setStringEnum(schema, sessionStateValues())
@@ -2066,6 +2081,14 @@ func setStringEnum(schema *openapi3.Schema, values []string) {
 	for _, value := range values {
 		schema.Enum = append(schema.Enum, value)
 	}
+}
+
+func enumAsAny(values []string) []any {
+	converted := make([]any, 0, len(values))
+	for _, value := range values {
+		converted = append(converted, value)
+	}
+	return converted
 }
 
 func pathParam(name string, description string) ParameterSpec {
@@ -2323,6 +2346,13 @@ func bridgeScopeValues() []string {
 	return []string{string(bridgepkg.ScopeGlobal), string(bridgepkg.ScopeWorkspace)}
 }
 
+func bridgeInstanceSourceValues() []string {
+	return []string{
+		string(bridgepkg.BridgeInstanceSourceDynamic),
+		string(bridgepkg.BridgeInstanceSourcePackage),
+	}
+}
+
 func bridgeStatusValues() []string {
 	return []string{
 		string(bridgepkg.BridgeStatusAuthRequired),
@@ -2331,6 +2361,24 @@ func bridgeStatusValues() []string {
 		string(bridgepkg.BridgeStatusError),
 		string(bridgepkg.BridgeStatusReady),
 		string(bridgepkg.BridgeStatusStarting),
+	}
+}
+
+func bridgeDMPolicyValues() []string {
+	return []string{
+		string(bridgepkg.BridgeDMPolicyOpen),
+		string(bridgepkg.BridgeDMPolicyAllowlist),
+		string(bridgepkg.BridgeDMPolicyPairing),
+	}
+}
+
+func bridgeDegradationReasonValues() []string {
+	return []string{
+		string(bridgepkg.BridgeDegradationReasonAuthFailed),
+		string(bridgepkg.BridgeDegradationReasonRateLimited),
+		string(bridgepkg.BridgeDegradationReasonWebhookInvalid),
+		string(bridgepkg.BridgeDegradationReasonProviderTimeout),
+		string(bridgepkg.BridgeDegradationReasonTenantConfigInvalid),
 	}
 }
 
@@ -2363,6 +2411,22 @@ func stopReasonValues() []string {
 		string(store.StopHookStopped),
 		string(store.StopShutdown),
 	}
+}
+
+func bridgeProviderConfigSchema() *openapi3.Schema {
+	return openapi3.NewObjectSchema().
+		WithNullable().
+		WithAdditionalProperties(openapi3.NewSchema())
+}
+
+func bridgeDeliveryDefaultsSchema() *openapi3.Schema {
+	return openapi3.NewObjectSchema().
+		WithNullable().
+		WithProperty("peer_id", openapi3.NewStringSchema()).
+		WithProperty("thread_id", openapi3.NewStringSchema()).
+		WithProperty("group_id", openapi3.NewStringSchema()).
+		WithProperty("mode", openapi3.NewStringSchema().WithEnum(enumAsAny(deliveryModeValues())...)).
+		WithoutAdditionalProperties()
 }
 
 func toolSourceValues() []string {

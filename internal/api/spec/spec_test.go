@@ -155,9 +155,28 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				createBridge := operationFor(t, doc, "/api/bridges", "POST")
 				createBridgeSchema := jsonRequestSchema(t, createBridge)
 				assertRequired(t, createBridgeSchema, "scope", "platform", "extension_name", "display_name", "enabled", "status", "routing_policy")
-				assertNotRequired(t, createBridgeSchema, "workspace_id", "delivery_defaults")
+				assertNotRequired(t, createBridgeSchema, "workspace_id", "dm_policy", "provider_config", "delivery_defaults", "degradation")
 				assertEnumValues(t, propertySchema(t, createBridgeSchema, "scope"), "global", "workspace")
+				assertEnumValues(t, propertySchema(t, createBridgeSchema, "dm_policy"), "open", "allowlist", "pairing")
 				assertEnumValues(t, propertySchema(t, createBridgeSchema, "status"), "auth_required", "degraded", "disabled", "error", "ready", "starting")
+
+				providerConfigSchema := propertySchema(t, createBridgeSchema, "provider_config")
+				assertSchemaIncludesType(t, providerConfigSchema, openapi3.TypeObject)
+				assertSchemaHasAdditionalProperties(t, providerConfigSchema, true)
+
+				deliveryDefaultsSchema := propertySchema(t, createBridgeSchema, "delivery_defaults")
+				assertSchemaIncludesType(t, deliveryDefaultsSchema, openapi3.TypeObject)
+				assertSchemaHasAdditionalProperties(t, deliveryDefaultsSchema, false)
+				assertEnumValues(t, propertySchema(t, deliveryDefaultsSchema, "mode"), "direct-send", "reply")
+
+				degradationSchema := propertySchema(t, createBridgeSchema, "degradation")
+				assertEnumValues(t, propertySchema(t, degradationSchema, "reason"),
+					"auth_failed",
+					"rate_limited",
+					"webhook_invalid",
+					"provider_timeout",
+					"tenant_config_invalid",
+				)
 			},
 		},
 		{
@@ -193,12 +212,27 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				}
 				providerSchema := providerItems.Items.Value
 				assertRequired(t, providerSchema, "platform", "extension_name", "display_name", "enabled", "state", "health")
-				assertNotRequired(t, providerSchema, "description", "health_message")
+				assertNotRequired(t, providerSchema, "description", "health_message", "secret_slots", "config_schema")
 
 				getBridge := operationFor(t, doc, "/api/bridges/{id}", "GET")
 				getBridgeSchema := jsonResponseSchema(t, getBridge, 200)
+				bridgeSchema := propertySchema(t, getBridgeSchema, "bridge")
+				assertEnumValues(t, propertySchema(t, bridgeSchema, "dm_policy"), "open", "allowlist", "pairing")
+				assertEnumValues(t, propertySchema(t, bridgeSchema, "source"), "dynamic", "package")
+				assertSchemaIncludesType(t, propertySchema(t, bridgeSchema, "provider_config"), openapi3.TypeObject)
+				assertSchemaHasAdditionalProperties(t, propertySchema(t, bridgeSchema, "provider_config"), true)
+				assertSchemaIncludesType(t, propertySchema(t, bridgeSchema, "delivery_defaults"), openapi3.TypeObject)
+				assertSchemaHasAdditionalProperties(t, propertySchema(t, bridgeSchema, "delivery_defaults"), false)
+
 				healthSchema := propertySchema(t, getBridgeSchema, "health")
-				assertNotRequired(t, healthSchema, "last_success_at", "last_error", "last_error_at")
+				assertNotRequired(t, healthSchema, "last_success_at", "last_error", "last_error_at", "degradation")
+				assertEnumValues(t, propertySchema(t, propertySchema(t, healthSchema, "degradation"), "reason"),
+					"auth_failed",
+					"rate_limited",
+					"webhook_invalid",
+					"provider_timeout",
+					"tenant_config_invalid",
+				)
 			},
 		},
 		{
@@ -597,6 +631,31 @@ func assertEnumValues(t *testing.T, schema *openapi3.Schema, values ...string) {
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("expected enum values %v, got %v", want, got)
+	}
+}
+
+func assertSchemaIncludesType(t *testing.T, schema *openapi3.Schema, want string) {
+	t.Helper()
+
+	if schema.Type == nil || !schema.Type.Includes(want) {
+		t.Fatalf("expected schema types to include %q, got %#v", want, schema.Type)
+	}
+}
+
+func assertSchemaHasAdditionalProperties(t *testing.T, schema *openapi3.Schema, want bool) {
+	t.Helper()
+
+	if want {
+		if schema.AdditionalProperties.Schema == nil && (schema.AdditionalProperties.Has == nil || !*schema.AdditionalProperties.Has) {
+			t.Fatalf("expected additionalProperties to be allowed, got %#v", schema.AdditionalProperties)
+		}
+		return
+	}
+	if schema.AdditionalProperties.Has == nil {
+		t.Fatalf("expected additionalProperties=%v, got nil", want)
+	}
+	if got := *schema.AdditionalProperties.Has; got != want {
+		t.Fatalf("expected additionalProperties=%v, got %v", want, got)
 	}
 }
 

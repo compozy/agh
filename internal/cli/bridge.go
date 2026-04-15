@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/spf13/cobra"
 )
@@ -124,7 +125,7 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 			if raw, err := parseOptionalBridgeJSON(deliveryDefaults); err != nil {
 				return err
 			} else if raw != nil {
-				payload.DeliveryDefaults = *raw
+				payload.DeliveryDefaults = contract.BridgeDeliveryDefaultsPayload(*raw)
 			}
 			if err := validateBridgeCreatePayload(payload); err != nil {
 				return err
@@ -212,7 +213,8 @@ func newBridgeUpdateCommand(deps commandDeps) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				req.DeliveryDefaults = raw
+				value := contract.BridgeDeliveryDefaultsPayload(*raw)
+				req.DeliveryDefaults = &value
 			}
 
 			item, err := client.UpdateBridge(cmd.Context(), args[0], req)

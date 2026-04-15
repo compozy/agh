@@ -33,9 +33,18 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 						ExtensionName: "telegram-reference",
 						DisplayName:   "Telegram",
 						Description:   "Reference Telegram bridge adapter",
-						Enabled:       true,
-						State:         "active",
-						Health:        "healthy",
+						SecretSlots: []bridgepkg.BridgeSecretSlot{{
+							Name:        "bot_token",
+							Description: "Bot token",
+							Required:    true,
+						}},
+						ConfigSchema: &bridgepkg.BridgeProviderConfigSchema{
+							Schema:  "agh.bridge.telegram",
+							Version: "v1",
+						},
+						Enabled: true,
+						State:   "active",
+						Health:  "healthy",
 					}}, nil
 				},
 			},
@@ -53,13 +62,19 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 				if response.Providers[0].ExtensionName != "telegram-reference" {
 					t.Fatalf("provider = %#v", response.Providers[0])
 				}
+				if len(response.Providers[0].SecretSlots) != 1 || response.Providers[0].SecretSlots[0].Name != "bot_token" {
+					t.Fatalf("provider secret slots = %#v", response.Providers[0].SecretSlots)
+				}
+				if response.Providers[0].ConfigSchema == nil || response.Providers[0].ConfigSchema.Schema != "agh.bridge.telegram" {
+					t.Fatalf("provider config schema = %#v", response.Providers[0].ConfigSchema)
+				}
 			},
 		},
 		{
 			name:   "ShouldCreateBridgeInstance",
 			method: http.MethodPost,
 			path:   "/api/bridges",
-			body:   []byte(`{"scope":"workspace","workspace_id":"ws-alpha","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","routing_policy":{"include_peer":true}}`),
+			body:   []byte(`{"scope":"workspace","workspace_id":"ws-alpha","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"starting","dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`),
 			bridges: stubBridgeService{
 				CreateInstanceFn: func(_ context.Context, req bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
 					if req.Scope != bridgepkg.ScopeWorkspace || req.WorkspaceID != "ws-alpha" || req.Platform != "telegram" || req.ExtensionName != "ext-telegram" || req.DisplayName != "Support" {
@@ -67,6 +82,15 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 					}
 					if !req.Enabled || req.Status != bridgepkg.BridgeStatusStarting || !req.RoutingPolicy.IncludePeer {
 						t.Fatalf("CreateInstance() lifecycle = %#v", req)
+					}
+					if req.DMPolicy != bridgepkg.BridgeDMPolicyPairing {
+						t.Fatalf("CreateInstance().DMPolicy = %q, want %q", req.DMPolicy, bridgepkg.BridgeDMPolicyPairing)
+					}
+					if got, want := string(req.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
+						t.Fatalf("CreateInstance().ProviderConfig = %s, want %s", got, want)
+					}
+					if got, want := string(req.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+						t.Fatalf("CreateInstance().DeliveryDefaults = %s, want %s", got, want)
 					}
 					return &bridgepkg.BridgeInstance{
 						ID:               "brg-1",
@@ -77,8 +101,11 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 						DisplayName:      req.DisplayName,
 						Enabled:          req.Enabled,
 						Status:           req.Status,
+						DMPolicy:         req.DMPolicy,
 						RoutingPolicy:    req.RoutingPolicy,
+						ProviderConfig:   req.ProviderConfig,
 						DeliveryDefaults: req.DeliveryDefaults,
+						Degradation:      req.Degradation,
 						CreatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
 						UpdatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
 					}, nil
@@ -94,6 +121,9 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 				decodeJSONResponse(t, recorder, &response)
 				if response.Bridge.ID != "brg-1" || response.Bridge.WorkspaceID != "ws-alpha" || response.Bridge.Status != bridgepkg.BridgeStatusStarting {
 					t.Fatalf("response.Bridge = %#v", response.Bridge)
+				}
+				if got, want := string(response.Bridge.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
+					t.Fatalf("response.Bridge.ProviderConfig = %s, want %s", got, want)
 				}
 			},
 		},

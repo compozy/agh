@@ -3026,6 +3026,16 @@ export interface operations {
               [key: string]: {
                 auth_failures_total: number;
                 bridge_instance_id: string;
+                degradation?: {
+                  message?: string;
+                  /** @enum {string} */
+                  reason:
+                    | "auth_failed"
+                    | "rate_limited"
+                    | "webhook_invalid"
+                    | "provider_timeout"
+                    | "tenant_config_invalid";
+                } | null;
                 delivery_backlog: number;
                 delivery_dropped_by_reason?: {
                   [key: string]: number;
@@ -3047,16 +3057,31 @@ export interface operations {
               created_at: string;
               degradation?: {
                 message?: string;
-                reason: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: unknown;
+              delivery_defaults?: {
+                group_id?: string;
+                /** @enum {string} */
+                mode?: "direct-send" | "reply";
+                peer_id?: string;
+                thread_id?: string;
+              } | null;
               display_name: string;
-              dm_policy?: string;
+              /** @enum {string} */
+              dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
-              provider_config?: unknown;
+              provider_config?: {
+                [key: string]: unknown;
+              } | null;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3064,7 +3089,8 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
-              source?: string;
+              /** @enum {string} */
+              source?: "dynamic" | "package";
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3115,11 +3141,32 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          delivery_defaults?: unknown;
+          degradation?: {
+            message?: string;
+            /** @enum {string} */
+            reason:
+              | "auth_failed"
+              | "rate_limited"
+              | "webhook_invalid"
+              | "provider_timeout"
+              | "tenant_config_invalid";
+          } | null;
+          delivery_defaults?: {
+            group_id?: string;
+            /** @enum {string} */
+            mode?: "direct-send" | "reply";
+            peer_id?: string;
+            thread_id?: string;
+          } | null;
           display_name: string;
+          /** @enum {string} */
+          dm_policy?: "open" | "allowlist" | "pairing";
           enabled: boolean;
           extension_name: string;
           platform: string;
+          provider_config?: {
+            [key: string]: unknown;
+          } | null;
           routing_policy: {
             include_group: boolean;
             include_peer: boolean;
@@ -3146,16 +3193,31 @@ export interface operations {
               created_at: string;
               degradation?: {
                 message?: string;
-                reason: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: unknown;
+              delivery_defaults?: {
+                group_id?: string;
+                /** @enum {string} */
+                mode?: "direct-send" | "reply";
+                peer_id?: string;
+                thread_id?: string;
+              } | null;
               display_name: string;
-              dm_policy?: string;
+              /** @enum {string} */
+              dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
-              provider_config?: unknown;
+              provider_config?: {
+                [key: string]: unknown;
+              } | null;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3163,7 +3225,8 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
-              source?: string;
+              /** @enum {string} */
+              source?: "dynamic" | "package";
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3173,6 +3236,16 @@ export interface operations {
             health: {
               auth_failures_total: number;
               bridge_instance_id: string;
+              degradation?: {
+                message?: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+              } | null;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;
@@ -3335,16 +3408,31 @@ export interface operations {
               created_at: string;
               degradation?: {
                 message?: string;
-                reason: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: unknown;
+              delivery_defaults?: {
+                group_id?: string;
+                /** @enum {string} */
+                mode?: "direct-send" | "reply";
+                peer_id?: string;
+                thread_id?: string;
+              } | null;
               display_name: string;
-              dm_policy?: string;
+              /** @enum {string} */
+              dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
-              provider_config?: unknown;
+              provider_config?: {
+                [key: string]: unknown;
+              } | null;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3352,7 +3440,8 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
-              source?: string;
+              /** @enum {string} */
+              source?: "dynamic" | "package";
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3362,6 +3451,16 @@ export interface operations {
             health: {
               auth_failures_total: number;
               bridge_instance_id: string;
+              degradation?: {
+                message?: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+              } | null;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;
@@ -3435,8 +3534,30 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          delivery_defaults?: unknown;
+          clear_degradation?: boolean;
+          degradation?: {
+            message?: string;
+            /** @enum {string} */
+            reason:
+              | "auth_failed"
+              | "rate_limited"
+              | "webhook_invalid"
+              | "provider_timeout"
+              | "tenant_config_invalid";
+          } | null;
+          delivery_defaults?: {
+            group_id?: string;
+            /** @enum {string} */
+            mode?: "direct-send" | "reply";
+            peer_id?: string;
+            thread_id?: string;
+          } | null;
           display_name?: string | null;
+          /** @enum {string} */
+          dm_policy?: "open" | "allowlist" | "pairing";
+          provider_config?: {
+            [key: string]: unknown;
+          } | null;
           routing_policy?: {
             include_group: boolean;
             include_peer: boolean;
@@ -3458,16 +3579,31 @@ export interface operations {
               created_at: string;
               degradation?: {
                 message?: string;
-                reason: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: unknown;
+              delivery_defaults?: {
+                group_id?: string;
+                /** @enum {string} */
+                mode?: "direct-send" | "reply";
+                peer_id?: string;
+                thread_id?: string;
+              } | null;
               display_name: string;
-              dm_policy?: string;
+              /** @enum {string} */
+              dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
-              provider_config?: unknown;
+              provider_config?: {
+                [key: string]: unknown;
+              } | null;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3475,7 +3611,8 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
-              source?: string;
+              /** @enum {string} */
+              source?: "dynamic" | "package";
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3485,6 +3622,16 @@ export interface operations {
             health: {
               auth_failures_total: number;
               bridge_instance_id: string;
+              degradation?: {
+                message?: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+              } | null;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;
@@ -3579,16 +3726,31 @@ export interface operations {
               created_at: string;
               degradation?: {
                 message?: string;
-                reason: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: unknown;
+              delivery_defaults?: {
+                group_id?: string;
+                /** @enum {string} */
+                mode?: "direct-send" | "reply";
+                peer_id?: string;
+                thread_id?: string;
+              } | null;
               display_name: string;
-              dm_policy?: string;
+              /** @enum {string} */
+              dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
-              provider_config?: unknown;
+              provider_config?: {
+                [key: string]: unknown;
+              } | null;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3596,7 +3758,8 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
-              source?: string;
+              /** @enum {string} */
+              source?: "dynamic" | "package";
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3606,6 +3769,16 @@ export interface operations {
             health: {
               auth_failures_total: number;
               bridge_instance_id: string;
+              degradation?: {
+                message?: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+              } | null;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;
@@ -3700,16 +3873,31 @@ export interface operations {
               created_at: string;
               degradation?: {
                 message?: string;
-                reason: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: unknown;
+              delivery_defaults?: {
+                group_id?: string;
+                /** @enum {string} */
+                mode?: "direct-send" | "reply";
+                peer_id?: string;
+                thread_id?: string;
+              } | null;
               display_name: string;
-              dm_policy?: string;
+              /** @enum {string} */
+              dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
-              provider_config?: unknown;
+              provider_config?: {
+                [key: string]: unknown;
+              } | null;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3717,7 +3905,8 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
-              source?: string;
+              /** @enum {string} */
+              source?: "dynamic" | "package";
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3727,6 +3916,16 @@ export interface operations {
             health: {
               auth_failures_total: number;
               bridge_instance_id: string;
+              degradation?: {
+                message?: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+              } | null;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;
@@ -3821,16 +4020,31 @@ export interface operations {
               created_at: string;
               degradation?: {
                 message?: string;
-                reason: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: unknown;
+              delivery_defaults?: {
+                group_id?: string;
+                /** @enum {string} */
+                mode?: "direct-send" | "reply";
+                peer_id?: string;
+                thread_id?: string;
+              } | null;
               display_name: string;
-              dm_policy?: string;
+              /** @enum {string} */
+              dm_policy?: "open" | "allowlist" | "pairing";
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
-              provider_config?: unknown;
+              provider_config?: {
+                [key: string]: unknown;
+              } | null;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3838,7 +4052,8 @@ export interface operations {
               };
               /** @enum {string} */
               scope: "global" | "workspace";
-              source?: string;
+              /** @enum {string} */
+              source?: "dynamic" | "package";
               /** @enum {string} */
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
@@ -3848,6 +4063,16 @@ export interface operations {
             health: {
               auth_failures_total: number;
               bridge_instance_id: string;
+              degradation?: {
+                message?: string;
+                /** @enum {string} */
+                reason:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+              } | null;
               delivery_backlog: number;
               delivery_dropped_by_reason?: {
                 [key: string]: number;

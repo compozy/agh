@@ -10,6 +10,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	observepkg "github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -378,6 +379,55 @@ func BridgeHealthPayloadFromObserve(health observepkg.BridgeInstanceHealth) cont
 	}
 }
 
+// BridgePayloadFromBridgeInstance converts the daemon-owned bridge record into
+// the shared bridge-management payload exposed by transports and OpenAPI.
+func BridgePayloadFromBridgeInstance(instance bridgepkg.BridgeInstance) contract.BridgePayload {
+	return contract.BridgePayload{
+		ID:               instance.ID,
+		Scope:            instance.Scope,
+		WorkspaceID:      instance.WorkspaceID,
+		Platform:         instance.Platform,
+		ExtensionName:    instance.ExtensionName,
+		DisplayName:      instance.DisplayName,
+		Source:           instance.Source,
+		Enabled:          instance.Enabled,
+		Status:           instance.Status,
+		DMPolicy:         instance.DMPolicy,
+		RoutingPolicy:    instance.RoutingPolicy,
+		ProviderConfig:   contract.BridgeProviderConfigPayload(cloneRawMessage(instance.ProviderConfig)),
+		DeliveryDefaults: contract.BridgeDeliveryDefaultsPayload(cloneRawMessage(instance.DeliveryDefaults)),
+		Degradation:      cloneBridgeDegradation(instance.Degradation),
+		CreatedAt:        instance.CreatedAt,
+		UpdatedAt:        instance.UpdatedAt,
+	}
+}
+
+// BridgeProviderPayloadFromBridgeProvider converts installed provider metadata
+// into the shared bridge-management provider catalog payload.
+func BridgeProviderPayloadFromBridgeProvider(provider bridgepkg.BridgeProvider) contract.BridgeProviderPayload {
+	var configSchema *bridgepkg.BridgeProviderConfigSchema
+	if provider.ConfigSchema != nil {
+		cloned := *provider.ConfigSchema
+		configSchema = &cloned
+	}
+
+	secretSlots := make([]bridgepkg.BridgeSecretSlot, 0, len(provider.SecretSlots))
+	secretSlots = append(secretSlots, provider.SecretSlots...)
+
+	return contract.BridgeProviderPayload{
+		Platform:      provider.Platform,
+		ExtensionName: provider.ExtensionName,
+		DisplayName:   provider.DisplayName,
+		Description:   provider.Description,
+		SecretSlots:   secretSlots,
+		ConfigSchema:  configSchema,
+		Enabled:       provider.Enabled,
+		State:         provider.State,
+		Health:        provider.Health,
+		HealthMessage: provider.HealthMessage,
+	}
+}
+
 // WorkspacePayloadFromWorkspace converts a workspace into the shared payload.
 func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) contract.WorkspacePayload {
 	addDirs := make([]string, 0, len(workspace.AdditionalDirs))
@@ -422,6 +472,14 @@ func PayloadJSON(raw string) json.RawMessage {
 		return json.RawMessage("null")
 	}
 	return json.RawMessage(encoded)
+}
+
+func cloneBridgeDegradation(value *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 // SkillPayloadFromSkill converts a skills.Skill into the shared HTTP payload.
