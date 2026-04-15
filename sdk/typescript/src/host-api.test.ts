@@ -161,18 +161,37 @@ describe("HostAPI", () => {
         },
       };
     });
-    pair.host.handle("bridges/instances/get", async () => ({
-      id: "chan-1",
-      scope: "global",
-      platform: "telegram",
-      extension_name: "telegram-adapter",
-      display_name: "Telegram",
-      enabled: true,
-      status: "ready",
-      routing_policy: { include_peer: true, include_thread: false, include_group: false },
-    }));
+    pair.host.handle("bridges/instances/list", async () => [
+      {
+        id: "chan-1",
+        scope: "global",
+        platform: "telegram",
+        extension_name: "telegram-adapter",
+        display_name: "Telegram",
+        enabled: true,
+        status: "ready",
+        routing_policy: { include_peer: true, include_thread: false, include_group: false },
+      },
+    ]);
+    pair.host.handle("bridges/instances/get", async params => {
+      expect(params).toEqual({ bridge_instance_id: "chan-1" });
+      return {
+        id: "chan-1",
+        scope: "global",
+        platform: "telegram",
+        extension_name: "telegram-adapter",
+        display_name: "Telegram",
+        enabled: true,
+        status: "ready",
+        routing_policy: { include_peer: true, include_thread: false, include_group: false },
+      };
+    });
     pair.host.handle("bridges/instances/report_state", async params => {
-      expect(params).toEqual({ status: "auth_required" });
+      expect(params).toEqual({
+        bridge_instance_id: "chan-1",
+        status: "auth_required",
+        degradation: { reason: "auth_failed", message: "token expired" },
+      });
       return {
         id: "chan-1",
         scope: "global",
@@ -181,6 +200,7 @@ describe("HostAPI", () => {
         display_name: "Telegram",
         enabled: true,
         status: "auth_required",
+        degradation: { reason: "auth_failed", message: "token expired" },
         routing_policy: { include_peer: true, include_thread: false, include_group: false },
       };
     });
@@ -218,11 +238,23 @@ describe("HostAPI", () => {
       session_id: "sess-1",
       route_created: true,
     });
-    await expect(host.bridges.get()).resolves.toMatchObject({
+    await expect(host.bridges.list()).resolves.toEqual([
+      expect.objectContaining({
+        id: "chan-1",
+        status: "ready",
+      }),
+    ]);
+    await expect(host.bridges.get({ bridge_instance_id: "chan-1" })).resolves.toMatchObject({
       id: "chan-1",
       status: "ready",
     });
-    await expect(host.bridges.reportState({ status: "auth_required" })).resolves.toMatchObject({
+    await expect(
+      host.bridges.reportState({
+        bridge_instance_id: "chan-1",
+        status: "auth_required",
+        degradation: { reason: "auth_failed", message: "token expired" },
+      })
+    ).resolves.toMatchObject({
       id: "chan-1",
       status: "auth_required",
     });

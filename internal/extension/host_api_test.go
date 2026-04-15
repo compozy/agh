@@ -657,16 +657,91 @@ func TestHostAPIHandlerBridgesInstancesReportStateRejectsInvalidUpdates(t *testi
 	readyCtx := env.bridgeContext(t, ready)
 
 	_, err := env.callWithContext(t, readyCtx, "telegram-adapter", "bridges/instances/report_state", map[string]any{
-		"status": "disabled",
+		"bridge_instance_id": ready.ID,
+		"status":             "disabled",
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 	assertErrorContains(t, err, "operator-controlled")
 
 	_, err = env.callWithContext(t, readyCtx, "telegram-adapter", "bridges/instances/report_state", map[string]any{
-		"status": "bogus",
+		"bridge_instance_id": ready.ID,
+		"status":             "bogus",
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 	assertErrorContains(t, err, "unsupported bridge status")
+
+	_, err = env.callWithContext(t, readyCtx, "telegram-adapter", "bridges/instances/report_state", map[string]any{
+		"status": "ready",
+	})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	assertErrorContains(t, err, "bridge_instance_id is required")
+}
+
+func TestHostAPIHandlerBridgesInstancesReportStateRejectsConflictingDegradationControls(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"bridges/instances/report_state"}, []string{"bridge.write"})
+
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-report-state-conflict",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.bridgeContext(t, instance)
+
+	_, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/report_state", map[string]any{
+		"bridge_instance_id": instance.ID,
+		"status":             "degraded",
+		"clear_degradation":  true,
+		"degradation": map[string]any{
+			"reason": "rate_limited",
+		},
+	})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	assertErrorContains(t, err, "cannot be cleared and set together")
+}
+
+func TestHostAPIHandlerBridgesInstancesReportStateClearsDegradationOnRecovery(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"bridges/instances/report_state", "bridges/instances/get"}, []string{"bridge.write", "bridge.read"})
+
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-report-state-recovery",
+		Enabled:       true,
+		Status:        bridgepkg.BridgeStatusAuthRequired,
+		Degradation:   &bridgepkg.BridgeDegradation{Reason: bridgepkg.BridgeDegradationReasonAuthFailed, Message: "expired"},
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.bridgeContext(t, instance)
+
+	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/report_state", map[string]any{
+		"bridge_instance_id": instance.ID,
+		"status":             "starting",
+	})
+	if err != nil {
+		t.Fatalf("Handle(bridges/instances/report_state recovery) error = %v", err)
+	}
+
+	var updated hostAPIBridgeInstance
+	decodeResult(t, result, &updated)
+	if updated.Degradation != nil {
+		t.Fatalf("updated.Degradation = %#v, want nil", updated.Degradation)
+	}
+
+	fetched, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", map[string]any{
+		"bridge_instance_id": instance.ID,
+	})
+	if err != nil {
+		t.Fatalf("Handle(bridges/instances/get recovery) error = %v", err)
+	}
+
+	var loaded hostAPIBridgeInstance
+	decodeResult(t, fetched, &loaded)
+	if loaded.Degradation != nil {
+		t.Fatalf("loaded.Degradation = %#v, want nil", loaded.Degradation)
+	}
 }
 
 func TestHostAPIHandlerBridgesInstancesGetRejectsMismatchedRuntimeOwnership(t *testing.T) {
@@ -682,7 +757,9 @@ func TestHostAPIHandlerBridgesInstancesGetRejectsMismatchedRuntimeOwnership(t *t
 	})
 	ctx := env.bridgeContext(t, other)
 
-	_, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", nil)
+	_, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", map[string]any{
+		"bridge_instance_id": other.ID,
+	})
 	assertRPCErrorCode(t, err, HostAPINotFoundCode)
 }
 
@@ -704,7 +781,9 @@ func TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup(t *t
 	}
 
 	ctx := withHostAPIExtensionName(env.bridgeContext(t, instance), "telegram-adapter")
-	result, err := handler(ctx, nil)
+	result, err := handler(ctx, mustMarshalRawMessage(t, map[string]any{
+		"bridge_instance_id": instance.ID,
+	}))
 	if err != nil {
 		t.Fatalf("MethodHandlers()[bridges/instances/get]() error = %v", err)
 	}
@@ -713,6 +792,80 @@ func TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup(t *t
 	decodeResult(t, result, &loaded)
 	if loaded.ID != instance.ID {
 		t.Fatalf("loaded.ID = %q, want %q", loaded.ID, instance.ID)
+	}
+}
+
+func TestHostAPIHandlerBridgesInstancesListReturnsOwnedInstancesForProviderRuntime(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"bridges/instances/list", "bridges/instances/get"}, []string{"bridge.read"})
+
+	first := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-owned-a",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	second := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-owned-b",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	_ = env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-foreign",
+		ExtensionName: "discord-adapter",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+
+	ctx := env.bridgeContextForInstances(t, first, second)
+
+	listedResult, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/list", nil)
+	if err != nil {
+		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
+	}
+
+	var listed []hostAPIBridgeInstance
+	decodeResult(t, listedResult, &listed)
+	if got := len(listed); got != 2 {
+		t.Fatalf("len(listed) = %d, want 2", got)
+	}
+	if got, want := []string{listed[0].ID, listed[1].ID}, []string{first.ID, second.ID}; !slices.Equal(got, want) {
+		t.Fatalf("listed ids = %#v, want %#v", got, want)
+	}
+
+	fetchedResult, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", map[string]any{
+		"bridge_instance_id": second.ID,
+	})
+	if err != nil {
+		t.Fatalf("Handle(bridges/instances/get) error = %v", err)
+	}
+
+	var fetched hostAPIBridgeInstance
+	decodeResult(t, fetchedResult, &fetched)
+	if got, want := fetched.ID, second.ID; got != want {
+		t.Fatalf("fetched.ID = %q, want %q", got, want)
+	}
+}
+
+func TestHostAPIHandlerBridgesInstancesListAllowsZeroManagedInstances(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"bridges/instances/list"}, []string{"bridge.read"})
+
+	ctx := withHostAPIBridgeRuntime(testutil.Context(t), &subprocess.InitializeBridgeRuntime{
+		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+		Provider:       "telegram-adapter",
+		Platform:       "telegram",
+	})
+
+	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/list", nil)
+	if err != nil {
+		t.Fatalf("Handle(bridges/instances/list zero) error = %v", err)
+	}
+
+	var listed []hostAPIBridgeInstance
+	decodeResult(t, result, &listed)
+	if len(listed) != 0 {
+		t.Fatalf("len(listed) = %d, want 0", len(listed))
 	}
 }
 
@@ -1220,8 +1373,9 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 			"received_at":         env.currentTime().Format(time.RFC3339Nano),
 			"idempotency_key":     "idem-1",
 		}},
-		{method: "bridges/instances/get", params: nil},
-		{method: "bridges/instances/report_state", params: map[string]any{"status": "ready"}},
+		{method: "bridges/instances/list", params: nil},
+		{method: "bridges/instances/get", params: map[string]any{"bridge_instance_id": "brg-1"}},
+		{method: "bridges/instances/report_state", params: map[string]any{"bridge_instance_id": "brg-1", "status": "ready"}},
 	}
 
 	for _, tt := range tests {
@@ -3049,18 +3203,31 @@ func (e *hostAPITestEnv) callWithContext(t testing.TB, ctx context.Context, extN
 func (e *hostAPITestEnv) bridgeContext(t testing.TB, instance *bridgepkg.BridgeInstance) context.Context {
 	t.Helper()
 
-	if instance == nil {
-		t.Fatal("bridge instance = nil, want non-nil")
+	return e.bridgeContextForInstances(t, instance)
+}
+
+func (e *hostAPITestEnv) bridgeContextForInstances(t testing.TB, instances ...*bridgepkg.BridgeInstance) context.Context {
+	t.Helper()
+
+	if len(instances) == 0 {
+		t.Fatal("bridge instances = empty, want at least one")
 		return testutil.Context(t)
 	}
 
+	managed := make([]subprocess.InitializeBridgeManagedInstance, 0, len(instances))
+	for _, instance := range instances {
+		if instance == nil {
+			t.Fatal("bridge instance = nil, want non-nil")
+			return testutil.Context(t)
+		}
+		managed = append(managed, subprocess.InitializeBridgeManagedInstance{Instance: *instance})
+	}
+
 	return withHostAPIBridgeRuntime(testutil.Context(t), &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
-		Provider:       instance.ExtensionName,
-		Platform:       instance.Platform,
-		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
-			Instance: *instance,
-		}},
+		RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+		Provider:         instances[0].ExtensionName,
+		Platform:         instances[0].Platform,
+		ManagedInstances: managed,
 	})
 }
 
@@ -3434,6 +3601,16 @@ func marshalParams(params any) (json.RawMessage, error) {
 		return nil, err
 	}
 	return json.RawMessage(encoded), nil
+}
+
+func mustMarshalRawMessage(t testing.TB, params any) json.RawMessage {
+	t.Helper()
+
+	raw, err := marshalParams(params)
+	if err != nil {
+		t.Fatalf("marshalParams() error = %v", err)
+	}
+	return raw
 }
 
 func decodeResult(t testing.TB, result any, target any) {

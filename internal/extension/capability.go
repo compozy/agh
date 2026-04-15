@@ -44,6 +44,7 @@ var (
 		"tasks/runs/complete":            "task.write",
 		"tasks/runs/fail":                "task.write",
 		"tasks/runs/cancel":              "task.write",
+		"bridges/instances/list":         "bridge.read",
 		"bridges/instances/get":          "bridge.read",
 		"bridges/instances/report_state": "bridge.write",
 		"bridges/messages/ingest":        "bridge.write",

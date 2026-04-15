@@ -57,6 +57,7 @@ const (
 	HostAPIMethodTasksRunsComplete           = extensionprotocol.HostAPIMethodTasksRunsComplete
 	HostAPIMethodTasksRunsFail               = extensionprotocol.HostAPIMethodTasksRunsFail
 	HostAPIMethodTasksRunsCancel             = extensionprotocol.HostAPIMethodTasksRunsCancel
+	HostAPIMethodBridgesInstancesList        = extensionprotocol.HostAPIMethodBridgesInstancesList
 	HostAPIMethodBridgesMessagesIngest       = extensionprotocol.HostAPIMethodBridgesMessagesIngest
 	HostAPIMethodBridgesInstancesGet         = extensionprotocol.HostAPIMethodBridgesInstancesGet
 	HostAPIMethodBridgesInstancesReportState = extensionprotocol.HostAPIMethodBridgesInstancesReportState
@@ -299,9 +300,17 @@ type TaskRunCancelParams struct {
 // BridgesMessagesIngestParams carries one normalized inbound bridge message.
 type BridgesMessagesIngestParams = bridgepkg.InboundMessageEnvelope
 
+// BridgeInstanceTargetParams identifies one provider-owned bridge instance.
+type BridgeInstanceTargetParams struct {
+	BridgeInstanceID string `json:"bridge_instance_id"`
+}
+
 // BridgesInstancesReportStateParams reports one adapter-observed instance status update.
 type BridgesInstancesReportStateParams struct {
-	Status bridgepkg.BridgeStatus `json:"status"`
+	BridgeInstanceID string                       `json:"bridge_instance_id"`
+	Status           bridgepkg.BridgeStatus       `json:"status"`
+	Degradation      *bridgepkg.BridgeDegradation `json:"degradation,omitempty"`
+	ClearDegradation bool                         `json:"clear_degradation,omitempty"`
 }
 
 // SessionSummary is the lightweight host-visible session listing shape.
@@ -582,15 +591,20 @@ func HostAPIMethodSpecs() []HostAPIMethodSpec {
 			Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
 		},
 		{
+			Method:         HostAPIMethodBridgesInstancesList,
+			Params:         NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+			Result:         NamedType{Name: "BridgeInstance", Value: []bridgepkg.BridgeInstance{}},
+			OptionalParams: true,
+		},
+		{
 			Method: HostAPIMethodBridgesMessagesIngest,
 			Params: NamedType{Name: "InboundMessageEnvelope", Value: bridgepkg.InboundMessageEnvelope{}},
 			Result: NamedType{Name: "BridgesMessagesIngestResult", Value: BridgesMessagesIngestResult{}},
 		},
 		{
-			Method:         HostAPIMethodBridgesInstancesGet,
-			Params:         NamedType{Name: "EmptyResult", Value: EmptyResult{}},
-			Result:         NamedType{Name: "BridgeInstance", Value: bridgepkg.BridgeInstance{}},
-			OptionalParams: true,
+			Method: HostAPIMethodBridgesInstancesGet,
+			Params: NamedType{Name: "BridgeInstanceTargetParams", Value: BridgeInstanceTargetParams{}},
+			Result: NamedType{Name: "BridgeInstance", Value: bridgepkg.BridgeInstance{}},
 		},
 		{
 			Method: HostAPIMethodBridgesInstancesReportState,

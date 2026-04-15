@@ -18,6 +18,7 @@ export type HostAPIMethod =
   | "automation/triggers/runs"
   | "automation/triggers/update"
   | "bridges/instances/get"
+  | "bridges/instances/list"
   | "bridges/instances/report_state"
   | "bridges/messages/ingest"
   | "memory/forget"
@@ -482,8 +483,15 @@ export interface BridgeInstance {
   updated_at: ISODateTime;
 }
 
+export interface BridgeInstanceTargetParams {
+  bridge_instance_id: string;
+}
+
 export interface BridgesInstancesReportStateParams {
+  bridge_instance_id: string;
   status: BridgeStatus;
+  degradation?: BridgeDegradation;
+  clear_degradation?: boolean;
 }
 
 export interface RoutingKey {
@@ -2301,12 +2309,16 @@ export interface HostAPIMethodMap {
     params: TaskRunCancelParams;
     result: TaskRun;
   };
+  "bridges/instances/list": {
+    params: undefined;
+    result: BridgeInstance[];
+  };
   "bridges/messages/ingest": {
     params: InboundMessageEnvelope;
     result: BridgesMessagesIngestResult;
   };
   "bridges/instances/get": {
-    params: undefined;
+    params: BridgeInstanceTargetParams;
     result: BridgeInstance;
   };
   "bridges/instances/report_state": {

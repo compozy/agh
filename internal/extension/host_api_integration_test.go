@@ -313,6 +313,57 @@ func TestHostAPIIntegrationBridgesMessagesIngestCreatesRouteAndSession(t *testin
 	}
 }
 
+func TestHostAPIIntegrationBridgesMessagesIngestSupportsSiblingInstancesInOneRuntime(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
+
+	first := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-integration-multi-a",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	second := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-integration-multi-b",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.bridgeContextForInstances(t, first, second)
+
+	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+		"bridge_instance_id":  second.ID,
+		"scope":               second.Scope,
+		"workspace_id":        second.WorkspaceID,
+		"peer_id":             "peer-multi",
+		"platform_message_id": "msg-multi",
+		"received_at":         env.currentTime().Format(time.RFC3339Nano),
+		"idempotency_key":     "idem-multi",
+		"content":             map[string]any{"text": "hello from sibling runtime"},
+	})
+	if err != nil {
+		t.Fatalf("Handle(bridges/messages/ingest multi) error = %v", err)
+	}
+
+	var ingest hostAPIBridgesMessagesIngestResult
+	decodeResult(t, result, &ingest)
+	if !ingest.RouteCreated {
+		t.Fatal("bridges/messages/ingest multi route_created = false, want true")
+	}
+
+	route, err := env.bridges.ResolveRoute(testutil.Context(t), ingest.RoutingKey)
+	if err != nil {
+		t.Fatalf("bridges.ResolveRoute(multi) error = %v", err)
+	}
+	if got, want := route.BridgeInstanceID, second.ID; got != want {
+		t.Fatalf("route.BridgeInstanceID = %q, want %q", got, want)
+	}
+
+	firstRoutes, err := env.bridges.ListRoutes(testutil.Context(t), first.ID)
+	if err != nil {
+		t.Fatalf("bridges.ListRoutes(first) error = %v", err)
+	}
+	if got := len(firstRoutes); got != 0 {
+		t.Fatalf("len(first routes) = %d, want 0", got)
+	}
+}
+
 func TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
@@ -364,6 +415,35 @@ func TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed(t *te
 	}
 }
 
+func TestHostAPIIntegrationBridgesMessagesIngestRejectsNonOwnedInstance(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
+
+	owned := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-integration-owned",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	foreign := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-integration-non-owned",
+		ExtensionName: "discord-adapter",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.bridgeContext(t, owned)
+
+	_, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+		"bridge_instance_id":  foreign.ID,
+		"scope":               foreign.Scope,
+		"workspace_id":        foreign.WorkspaceID,
+		"peer_id":             "peer-foreign",
+		"platform_message_id": "msg-foreign",
+		"received_at":         env.currentTime().Format(time.RFC3339Nano),
+		"idempotency_key":     "idem-foreign",
+		"content":             map[string]any{"text": "hello"},
+	})
+	assertRPCErrorCode(t, err, HostAPINotFoundCode)
+	assertErrorContains(t, err, foreign.ID)
+}
+
 func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	env.grant("telegram-adapter", []string{"bridges/instances/report_state", "bridges/instances/get"}, []string{"bridge.write", "bridge.read"})
@@ -375,7 +455,12 @@ func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *t
 	ctx := env.bridgeContext(t, instance)
 
 	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/report_state", map[string]any{
-		"status": "auth_required",
+		"bridge_instance_id": instance.ID,
+		"status":             "auth_required",
+		"degradation": map[string]any{
+			"reason":  "auth_failed",
+			"message": "token expired",
+		},
 	})
 	if err != nil {
 		t.Fatalf("Handle(bridges/instances/report_state) error = %v", err)
@@ -386,8 +471,13 @@ func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *t
 	if updated.Status != bridgepkg.BridgeStatusAuthRequired {
 		t.Fatalf("bridges/instances/report_state status = %q, want %q", updated.Status, bridgepkg.BridgeStatusAuthRequired)
 	}
+	if updated.Degradation == nil || updated.Degradation.Reason != bridgepkg.BridgeDegradationReasonAuthFailed {
+		t.Fatalf("bridges/instances/report_state degradation = %#v, want auth_failed", updated.Degradation)
+	}
 
-	fetched, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", nil)
+	fetched, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", map[string]any{
+		"bridge_instance_id": instance.ID,
+	})
 	if err != nil {
 		t.Fatalf("Handle(bridges/instances/get) error = %v", err)
 	}
@@ -395,6 +485,57 @@ func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *t
 	decodeResult(t, fetched, &loaded)
 	if loaded.Status != bridgepkg.BridgeStatusAuthRequired {
 		t.Fatalf("bridges/instances/get status = %q, want %q", loaded.Status, bridgepkg.BridgeStatusAuthRequired)
+	}
+	if loaded.Degradation == nil || loaded.Degradation.Reason != bridgepkg.BridgeDegradationReasonAuthFailed {
+		t.Fatalf("bridges/instances/get degradation = %#v, want auth_failed", loaded.Degradation)
+	}
+}
+
+func TestHostAPIIntegrationBridgesInstancesListAndGetReturnOwnedInstances(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grant("telegram-adapter", []string{"bridges/instances/list", "bridges/instances/get"}, []string{"bridge.read"})
+
+	first := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-integration-owned-a",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	second := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-integration-owned-b",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	_ = env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-integration-foreign",
+		ExtensionName: "discord-adapter",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+
+	ctx := env.bridgeContextForInstances(t, first, second)
+
+	listedResult, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/list", nil)
+	if err != nil {
+		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
+	}
+
+	var listed []hostAPIBridgeInstance
+	decodeResult(t, listedResult, &listed)
+	if got := len(listed); got != 2 {
+		t.Fatalf("len(bridges/instances/list) = %d, want 2", got)
+	}
+	if got, want := []string{listed[0].ID, listed[1].ID}, []string{first.ID, second.ID}; got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("bridges/instances/list ids = %#v, want %#v", got, want)
+	}
+
+	fetchedResult, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", map[string]any{
+		"bridge_instance_id": second.ID,
+	})
+	if err != nil {
+		t.Fatalf("Handle(bridges/instances/get) error = %v", err)
+	}
+
+	var fetched hostAPIBridgeInstance
+	decodeResult(t, fetchedResult, &fetched)
+	if got, want := fetched.ID, second.ID; got != want {
+		t.Fatalf("bridges/instances/get id = %q, want %q", got, want)
 	}
 }
 
@@ -527,8 +668,9 @@ func TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod(t *testin
 			"received_at":         env.currentTime().Format(time.RFC3339Nano),
 			"idempotency_key":     "idem-1",
 		}},
-		{method: "bridges/instances/get", params: nil},
-		{method: "bridges/instances/report_state", params: map[string]any{"status": "ready"}},
+		{method: "bridges/instances/list", params: nil},
+		{method: "bridges/instances/get", params: map[string]any{"bridge_instance_id": "brg-1"}},
+		{method: "bridges/instances/report_state", params: map[string]any{"bridge_instance_id": "brg-1", "status": "ready"}},
 	}
 
 	for _, tt := range tests {

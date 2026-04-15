@@ -1,6 +1,7 @@
 import { NotInitializedError } from "./errors.js";
 import type {
   BridgeInstance,
+  BridgeInstanceTargetParams,
   BridgesInstancesReportStateParams,
   BridgesMessagesIngestResult,
   HostAPIMethod,
@@ -77,8 +78,9 @@ export class HostAPI {
   };
 
   public readonly bridges: {
+    list: () => Promise<BridgeInstance[]>;
     ingest: (params: InboundMessageEnvelope) => Promise<BridgesMessagesIngestResult>;
-    get: () => Promise<BridgeInstance>;
+    get: (params: BridgeInstanceTargetParams) => Promise<BridgeInstance>;
     reportState: (params: BridgesInstancesReportStateParams) => Promise<BridgeInstance>;
   };
 
@@ -113,8 +115,9 @@ export class HostAPI {
     };
 
     this.bridges = {
+      list: async () => await this.request("bridges/instances/list", undefined),
       ingest: async params => await this.request("bridges/messages/ingest", params),
-      get: async () => await this.request("bridges/instances/get", undefined),
+      get: async params => await this.request("bridges/instances/get", params),
       reportState: async params => await this.request("bridges/instances/report_state", params),
     };
   }

@@ -305,6 +305,7 @@ func NewHostAPIHandler(
 		"tasks/runs/complete":            handler.handleTasksRunsComplete,
 		"tasks/runs/fail":                handler.handleTasksRunsFail,
 		"tasks/runs/cancel":              handler.handleTasksRunsCancel,
+		"bridges/instances/list":         handler.handleBridgesInstancesList,
 		"bridges/instances/get":          handler.handleBridgesInstancesGet,
 		"bridges/instances/report_state": handler.handleBridgesInstancesReportState,
 		"bridges/messages/ingest":        handler.handleBridgesMessagesIngest,
@@ -461,6 +462,8 @@ type hostAPITaskRunCancelParams = extensioncontract.TaskRunCancelParams
 type hostAPIBridgesMessagesIngestParams = extensioncontract.BridgesMessagesIngestParams
 
 type hostAPIBridgesMessagesIngestResult = extensioncontract.BridgesMessagesIngestResult
+
+type hostAPIBridgeInstanceTargetParams = extensioncontract.BridgeInstanceTargetParams
 
 type hostAPIBridgesInstancesReportStateParams = extensioncontract.BridgesInstancesReportStateParams
 

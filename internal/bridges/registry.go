@@ -122,16 +122,26 @@ func (r UpdateInstanceRequest) Validate() error {
 
 // UpdateInstanceStateRequest captures one daemon-owned lifecycle transition.
 type UpdateInstanceStateRequest struct {
-	ID        string       `json:"id"`
-	Enabled   bool         `json:"enabled"`
-	Status    BridgeStatus `json:"status"`
-	UpdatedAt time.Time    `json:"updated_at,omitempty"`
+	ID               string             `json:"id"`
+	Enabled          bool               `json:"enabled"`
+	Status           BridgeStatus       `json:"status"`
+	Degradation      *BridgeDegradation `json:"degradation,omitempty"`
+	ClearDegradation bool               `json:"clear_degradation,omitempty"`
+	UpdatedAt        time.Time          `json:"updated_at,omitempty"`
 }
 
 // Validate reports whether the request contains the fields needed for a lifecycle update.
 func (r UpdateInstanceStateRequest) Validate() error {
 	if err := requireField(strings.TrimSpace(r.ID), "bridge instance id"); err != nil {
 		return err
+	}
+	if r.ClearDegradation && r.Degradation != nil && !r.Degradation.IsZero() {
+		return errors.New("bridges: bridge instance state update cannot clear and set degradation together")
+	}
+	if r.Degradation != nil {
+		if err := r.Degradation.Validate(); err != nil {
+			return err
+		}
 	}
 	return validateInstanceLifecycle(r.Enabled, r.Status.Normalize())
 }
@@ -308,9 +318,27 @@ func (s *Service) UpdateInstanceState(ctx context.Context, req UpdateInstanceSta
 
 	instance.Enabled = req.Enabled
 	instance.Status = req.Status.Normalize()
+	switch {
+	case req.ClearDegradation:
+		instance.Degradation = nil
+	case req.Degradation != nil:
+		degradation := req.Degradation.normalize()
+		if degradation.IsZero() {
+			instance.Degradation = nil
+		} else {
+			instance.Degradation = &degradation
+		}
+	case instance.Status.Normalize() != BridgeStatusDegraded &&
+		instance.Status.Normalize() != BridgeStatusAuthRequired &&
+		instance.Status.Normalize() != BridgeStatusError:
+		instance.Degradation = nil
+	}
 	instance.UpdatedAt = req.UpdatedAt
 	if instance.UpdatedAt.IsZero() {
 		instance.UpdatedAt = s.now()
+	}
+	if err := instance.Validate(); err != nil {
+		return nil, fmt.Errorf("bridges: update bridge instance state %q: validate updated state: %w", trimmedID, err)
 	}
 
 	if err := s.store.UpdateBridgeInstance(ctx, instance); err != nil {

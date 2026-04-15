@@ -36,13 +36,39 @@ type hostAPIBridgeDedupStore interface {
 
 const hostAPIBusyRetryAttempts = 3
 
-func (h *HostAPIHandler) handleBridgesInstancesGet(ctx context.Context, raw json.RawMessage) (any, error) {
+func (h *HostAPIHandler) handleBridgesInstancesList(ctx context.Context, raw json.RawMessage) (any, error) {
+	if h.bridges == nil {
+		return nil, unavailableRPCError(errors.New("bridge registry is not configured"))
+	}
+
 	var params struct{}
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
 
-	_, instance, err := h.authorizedBridgeInstance(ctx, "")
+	_, instances, err := h.authorizedBridgeInstances(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return instances, nil
+}
+
+func (h *HostAPIHandler) handleBridgesInstancesGet(ctx context.Context, raw json.RawMessage) (any, error) {
+	if h.bridges == nil {
+		return nil, unavailableRPCError(errors.New("bridge registry is not configured"))
+	}
+
+	var params hostAPIBridgeInstanceTargetParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	instanceID, err := requireBridgeInstanceID(params.BridgeInstanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	_, instance, err := h.authorizedBridgeInstance(ctx, instanceID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,23 +84,37 @@ func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, 
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
+	instanceID, err := requireBridgeInstanceID(params.BridgeInstanceID)
+	if err != nil {
+		return nil, err
+	}
 	if err := params.Status.Validate(); err != nil {
 		return nil, invalidParamsRPCError(err)
 	}
 	if params.Status.Normalize() == bridgepkg.BridgeStatusDisabled {
 		return nil, invalidParamsRPCError(errors.New("bridge status disabled is operator-controlled"))
 	}
+	if params.ClearDegradation && params.Degradation != nil && !params.Degradation.IsZero() {
+		return nil, invalidParamsRPCError(errors.New("bridge degradation cannot be cleared and set together"))
+	}
+	if params.Degradation != nil {
+		if err := params.Degradation.Validate(); err != nil {
+			return nil, invalidParamsRPCError(err)
+		}
+	}
 
-	_, instance, err := h.authorizedBridgeInstance(ctx, "")
+	_, instance, err := h.authorizedBridgeInstance(ctx, instanceID)
 	if err != nil {
 		return nil, err
 	}
 
 	updated, err := h.bridges.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
-		ID:        instance.ID,
-		Enabled:   instance.Enabled,
-		Status:    params.Status,
-		UpdatedAt: h.now(),
+		ID:               instance.ID,
+		Enabled:          instance.Enabled,
+		Status:           params.Status,
+		Degradation:      params.Degradation,
+		ClearDegradation: params.ClearDegradation,
+		UpdatedAt:        h.now(),
 	})
 	if err != nil {
 		return nil, mapBridgeStateUpdateError(instance.ID, err)
@@ -173,42 +213,76 @@ func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw js
 	}, nil
 }
 
+func (h *HostAPIHandler) authorizedBridgeInstances(
+	ctx context.Context,
+) (*subprocess.InitializeBridgeRuntime, []bridgepkg.BridgeInstance, error) {
+	runtime, extName, err := h.authorizedBridgeRuntime(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	managedIDs := runtime.ManagedBridgeInstanceIDs()
+	if len(managedIDs) == 0 {
+		return runtime, nil, nil
+	}
+
+	instances := make([]bridgepkg.BridgeInstance, 0, len(managedIDs))
+	for _, instanceID := range managedIDs {
+		managed, ok := runtime.ManagedInstance(instanceID)
+		if !ok {
+			return nil, nil, notFoundRPCError(
+				"bridge_instance",
+				instanceID,
+				fmt.Errorf("bridge instance %q is not assigned to this extension", instanceID),
+			)
+		}
+		if strings.TrimSpace(managed.Instance.ExtensionName) != extName {
+			return nil, nil, notFoundRPCError(
+				"bridge_instance",
+				instanceID,
+				fmt.Errorf("bridge runtime instance belongs to extension %q", strings.TrimSpace(managed.Instance.ExtensionName)),
+			)
+		}
+
+		instance, err := h.bridges.GetInstance(ctx, instanceID)
+		if err != nil {
+			return nil, nil, mapBridgeLookupError(instanceID, err)
+		}
+		if strings.TrimSpace(instance.ExtensionName) != extName {
+			return nil, nil, notFoundRPCError(
+				"bridge_instance",
+				instance.ID,
+				fmt.Errorf("bridge instance %q is not owned by extension %q", instance.ID, extName),
+			)
+		}
+
+		instances = append(instances, *instance)
+	}
+
+	return runtime, instances, nil
+}
+
 func (h *HostAPIHandler) authorizedBridgeInstance(
 	ctx context.Context,
 	bridgeInstanceID string,
 ) (*subprocess.InitializeBridgeRuntime, *bridgepkg.BridgeInstance, error) {
-	if h.bridges == nil {
-		return nil, nil, unavailableRPCError(errors.New("bridge registry is not configured"))
+	runtime, extName, err := h.authorizedBridgeRuntime(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	runtime := hostAPIBridgeRuntimeFromContext(ctx)
-	if runtime == nil {
-		return nil, nil, unavailableRPCError(errors.New("bridge runtime is not configured"))
+	trimmedID, err := requireBridgeInstanceID(bridgeInstanceID)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	extName := hostAPIExtensionNameFromContext(ctx)
-	if extName == "" {
-		return nil, nil, unavailableRPCError(errors.New("bridge extension name is not available"))
-	}
-
-	var managed *subprocess.InitializeBridgeManagedInstance
-	trimmedID := strings.TrimSpace(bridgeInstanceID)
-	if trimmedID != "" {
-		var ok bool
-		managed, ok = runtime.ManagedInstance(trimmedID)
-		if !ok {
-			return nil, nil, notFoundRPCError(
-				"bridge_instance",
-				trimmedID,
-				fmt.Errorf("bridge instance %q is not assigned to this extension", trimmedID),
-			)
-		}
-	} else {
-		selected, err := runtime.SingleManagedInstance()
-		if err != nil {
-			return nil, nil, unavailableRPCError(err)
-		}
-		managed = selected
+	managed, ok := runtime.ManagedInstance(trimmedID)
+	if !ok {
+		return nil, nil, notFoundRPCError(
+			"bridge_instance",
+			trimmedID,
+			fmt.Errorf("bridge instance %q is not assigned to this extension", trimmedID),
+		)
 	}
 
 	instanceID := strings.TrimSpace(managed.Instance.ID)
@@ -236,6 +310,34 @@ func (h *HostAPIHandler) authorizedBridgeInstance(
 	}
 
 	return runtime, instance, nil
+}
+
+func (h *HostAPIHandler) authorizedBridgeRuntime(
+	ctx context.Context,
+) (*subprocess.InitializeBridgeRuntime, string, error) {
+	if h.bridges == nil {
+		return nil, "", unavailableRPCError(errors.New("bridge registry is not configured"))
+	}
+
+	runtime := hostAPIBridgeRuntimeFromContext(ctx)
+	if runtime == nil {
+		return nil, "", unavailableRPCError(errors.New("bridge runtime is not configured"))
+	}
+
+	extName := hostAPIExtensionNameFromContext(ctx)
+	if extName == "" {
+		return nil, "", unavailableRPCError(errors.New("bridge extension name is not available"))
+	}
+
+	return runtime, extName, nil
+}
+
+func requireBridgeInstanceID(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", invalidParamsRPCError(errors.New("bridge_instance_id is required"))
+	}
+	return trimmed, nil
 }
 
 func (h *HostAPIHandler) maybeCleanupBridgeIngestDedup(ctx context.Context) error {

@@ -73,6 +73,12 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates(t *testing.T) {
 			method:   "sessions/list",
 		},
 		{
+			name:     "allows bridge list method with matching grant",
+			actions:  []string{"bridges/instances/list"},
+			security: []string{"bridge.read"},
+			method:   "bridges/instances/list",
+		},
+		{
 			name:     "allows bridge read method with matching grant",
 			actions:  []string{"bridges/instances/get"},
 			security: []string{"bridge.read"},
