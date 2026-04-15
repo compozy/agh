@@ -386,7 +386,7 @@ func TestHandleInteractionWebhookAcknowledgesImmediately(t *testing.T) {
 		managed:    testDiscordManagedInstance("brg-discord"),
 		dedup:      bridgesdk.NewDedupCache(time.Minute, 16),
 		dmPolicy:   bridgepkg.BridgeDMPolicyOpen,
-	}, bridgepkgToWebhookRequest(discordInteraction{
+	}, bridgepkgToWebhookRequest(t, discordInteraction{
 		ID:        "ixn-cmd-1",
 		Type:      discordInteractionTypeApplicationCommand,
 		Token:     "token-cmd-1",
@@ -641,7 +641,6 @@ func TestHandleInitializeAfterInitializeRetryAndShutdownHelpers(t *testing.T) {
 	if err := provider.handleInitialize(context.Background(), &bridgesdk.Session{}); err != nil {
 		t.Fatalf("handleInitialize() error = %v", err)
 	}
-	time.Sleep(20 * time.Millisecond)
 
 	attempts := 0
 	err = provider.retryHostCall(context.Background(), func(context.Context) error {
@@ -672,9 +671,15 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newDiscordProvider() error = %v", err)
 	}
+	defer func() {
+		provider.stop()
+		provider.wg.Wait()
+	}()
 	provider.apiFactory = func(resolvedInstanceConfig) discordAPI {
 		return &discordAPIFake{postedMessageID: "msg-1"}
 	}
+	var mu sync.Mutex
+	ingests := make([]bridgepkg.InboundMessageEnvelope, 0)
 	cfg := resolvedInstanceConfig{
 		instanceID: "brg-discord",
 		managed:    testDiscordManagedInstance("brg-discord"),
@@ -683,9 +688,12 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 		dmPolicy:   bridgepkg.BridgeDMPolicyOpen,
 	}
 	provider.mu.Lock()
-	provider.session = injectedDiscordSession(
+	provider.session = injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
 			if method == "bridges/messages/ingest" {
+				mu.Lock()
+				ingests = append(ingests, params.(bridgepkg.InboundMessageEnvelope))
+				mu.Unlock()
 				target := result.(*extensioncontract.BridgesMessagesIngestResult)
 				*target = extensioncontract.BridgesMessagesIngestResult{SessionID: "sess-1"}
 				return nil
@@ -703,7 +711,7 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 	provider.mu.Unlock()
 
 	recorder := httptest.NewRecorder()
-	if err := provider.handleEventWebhook(recorder, nil, cfg, bridgepkgToWebhookRequest(map[string]any{"type": 0}, time.Now().UTC())); err != nil {
+	if err := provider.handleEventWebhook(recorder, nil, cfg, bridgepkgToWebhookRequest(t, map[string]any{"type": 0}, time.Now().UTC())); err != nil {
 		t.Fatalf("handleEventWebhook(ping) error = %v", err)
 	}
 	if got, want := recorder.Code, http.StatusNoContent; got != want {
@@ -711,7 +719,7 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 	}
 
 	recorder = httptest.NewRecorder()
-	if err := provider.handleEventWebhook(recorder, nil, cfg, bridgepkgToWebhookRequest(map[string]any{
+	if err := provider.handleEventWebhook(recorder, nil, cfg, bridgepkgToWebhookRequest(t, map[string]any{
 		"type": 1,
 		"event": map[string]any{
 			"id":        "evt-reaction-1",
@@ -732,9 +740,47 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 	if got, want := recorder.Code, http.StatusNoContent; got != want {
 		t.Fatalf("reaction status = %d, want %d", got, want)
 	}
+	mu.Lock()
+	reactionIngests := len(ingests)
+	mu.Unlock()
+	if got, want := reactionIngests, 1; got != want {
+		t.Fatalf("reaction ingests = %d, want %d", got, want)
+	}
 
 	recorder = httptest.NewRecorder()
-	if err := provider.handleInteractionWebhook(recorder, cfg, bridgepkgToWebhookRequest(discordInteraction{ID: "ixn-ping", Type: discordInteractionTypePing}, time.Now().UTC())); err != nil {
+	blockedCfg := cfg
+	blockedCfg.dedup = bridgesdk.NewDedupCache(time.Minute, 16)
+	blockedCfg.dmPolicy = bridgepkg.BridgeDMPolicyAllowlist
+	if err := provider.handleEventWebhook(recorder, nil, blockedCfg, bridgepkgToWebhookRequest(t, map[string]any{
+		"type": 1,
+		"event": map[string]any{
+			"id":        "evt-reaction-blocked",
+			"type":      "MESSAGE_REACTION_ADD",
+			"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+			"data": map[string]any{
+				"channel_id": "dm-2",
+				"message_id": "msg-2",
+				"user_id":    "user-blocked",
+				"emoji": map[string]any{
+					"name": "thumbsup",
+				},
+			},
+		},
+	}, time.Now().UTC())); err != nil {
+		t.Fatalf("handleEventWebhook(blocked reaction) error = %v", err)
+	}
+	if got, want := recorder.Code, http.StatusNoContent; got != want {
+		t.Fatalf("blocked reaction status = %d, want %d", got, want)
+	}
+	mu.Lock()
+	blockedReactionIngests := len(ingests)
+	mu.Unlock()
+	if got, want := blockedReactionIngests, 1; got != want {
+		t.Fatalf("blocked reaction ingests = %d, want %d", got, want)
+	}
+
+	recorder = httptest.NewRecorder()
+	if err := provider.handleInteractionWebhook(recorder, cfg, bridgepkgToWebhookRequest(t, discordInteraction{ID: "ixn-ping", Type: discordInteractionTypePing}, time.Now().UTC())); err != nil {
 		t.Fatalf("handleInteractionWebhook(ping) error = %v", err)
 	}
 	if got, want := strings.TrimSpace(recorder.Body.String()), `{"type":1}`; got != want {
@@ -742,7 +788,7 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 	}
 
 	recorder = httptest.NewRecorder()
-	if err := provider.handleInteractionWebhook(recorder, cfg, bridgepkgToWebhookRequest(discordInteraction{
+	if err := provider.handleInteractionWebhook(recorder, cfg, bridgepkgToWebhookRequest(t, discordInteraction{
 		ID:        "ixn-action-1",
 		Type:      discordInteractionTypeMessageComponent,
 		Token:     "ixn-token-1",
@@ -811,7 +857,7 @@ func TestHandleBridgesDeliverFailureAndMainHelpers(t *testing.T) {
 	}
 	provider.mu.Unlock()
 
-	session := injectedDiscordSession(
+	session := injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
 			if method == "bridges/instances/report_state" {
 				target := result.(*bridgepkg.BridgeInstance)
@@ -894,7 +940,7 @@ func TestAfterInitializeSuccessAndParsingBranches(t *testing.T) {
 			{BindingName: "public_key", Value: hex.EncodeToString(pub)},
 		},
 	}
-	session := injectedDiscordSession(
+	session := injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
 			switch method {
 			case "bridges/instances/list":
@@ -1040,7 +1086,7 @@ func TestAdditionalDiscordProviderBranches(t *testing.T) {
 		managed:    testDiscordManagedInstance("brg-discord"),
 		dedup:      bridgesdk.NewDedupCache(time.Minute, 16),
 		dmPolicy:   bridgepkg.BridgeDMPolicyOpen,
-	}, bridgepkgToWebhookRequest(map[string]any{
+	}, bridgepkgToWebhookRequest(t, map[string]any{
 		"type":  2,
 		"token": "ixn-token-1",
 	}, time.Now().UTC())); err == nil {
@@ -1073,7 +1119,7 @@ func TestDiscordWebhookAndHelperErrorBranches(t *testing.T) {
 	}
 
 	recorder = httptest.NewRecorder()
-	err = provider.handleInteractionWebhook(recorder, cfg, bridgepkgToWebhookRequest(discordInteraction{
+	err = provider.handleInteractionWebhook(recorder, cfg, bridgepkgToWebhookRequest(t, discordInteraction{
 		ID:    "ixn-unsupported-1",
 		Type:  999,
 		Token: "ixn-token-1",
@@ -1083,7 +1129,7 @@ func TestDiscordWebhookAndHelperErrorBranches(t *testing.T) {
 	}
 
 	recorder = httptest.NewRecorder()
-	if err := provider.handleEventWebhook(recorder, nil, cfg, bridgepkgToWebhookRequest(map[string]any{"type": 1}, time.Now().UTC())); err != nil {
+	if err := provider.handleEventWebhook(recorder, nil, cfg, bridgepkgToWebhookRequest(t, map[string]any{"type": 1}, time.Now().UTC())); err != nil {
 		t.Fatalf("handleEventWebhook(missing event) error = %v", err)
 	}
 	if got, want := recorder.Code, http.StatusNoContent; got != want {
@@ -1144,7 +1190,7 @@ func TestHandleDiscordEventWebhookUsesRequestContext(t *testing.T) {
 		},
 	}
 	provider.mu.Lock()
-	provider.session = injectedDiscordSession(
+	provider.session = injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(ctx context.Context, method string, params any, result any) error {
 			if method != "bridges/messages/ingest" {
 				return fmt.Errorf("unexpected host api method %q", method)
@@ -1192,7 +1238,7 @@ func TestHandleDiscordEventWebhookUsesRequestContext(t *testing.T) {
 		recorder,
 		httptest.NewRequest(http.MethodPost, "http://discord.test/discord/brg-discord", nil).WithContext(ctx),
 		cfg,
-		bridgepkgToWebhookRequest(payload, now),
+		bridgepkgToWebhookRequest(t, payload, now),
 	)
 	var httpErr *bridgesdk.HTTPError
 	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
@@ -1328,7 +1374,7 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 	var mu sync.Mutex
 	ingests := make([]bridgepkg.InboundMessageEnvelope, 0)
 	reportedStates := make([]extensioncontract.BridgesInstancesReportStateParams, 0)
-	session := injectedDiscordSession(
+	session := injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
 			mu.Lock()
 			defer mu.Unlock()
@@ -1537,8 +1583,13 @@ func testDiscordManagedInstance(id string) subprocess.InitializeBridgeManagedIns
 	}
 }
 
-func bridgepkgToWebhookRequest(payload any, receivedAt time.Time) bridgesdk.WebhookRequest {
-	body, _ := json.Marshal(payload)
+func bridgepkgToWebhookRequest(t *testing.T, payload any, receivedAt time.Time) bridgesdk.WebhookRequest {
+	t.Helper()
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
 	return bridgesdk.WebhookRequest{
 		Body:       body,
 		ReceivedAt: receivedAt,
@@ -1577,15 +1628,26 @@ func (discordErrorReader) Read([]byte) (int, error) {
 	return 0, errors.New("read failed")
 }
 
-func injectedDiscordSession(host *bridgesdk.HostAPIClient, cache *bridgesdk.InstanceCache) *bridgesdk.Session {
+func injectedDiscordSession(t *testing.T, host *bridgesdk.HostAPIClient, cache *bridgesdk.InstanceCache) *bridgesdk.Session {
+	t.Helper()
+
 	session := &bridgesdk.Session{}
 	sessionValue := reflect.ValueOf(session).Elem()
-	setUnexportedField(sessionValue.FieldByName("host"), host)
-	setUnexportedField(sessionValue.FieldByName("cache"), cache)
-	setUnexportedField(sessionValue.FieldByName("now"), func() time.Time { return time.Now().UTC() })
+	setUnexportedField(t, sessionValue.FieldByName("host"), host)
+	setUnexportedField(t, sessionValue.FieldByName("cache"), cache)
+	setUnexportedField(t, sessionValue.FieldByName("now"), func() time.Time { return time.Now().UTC() })
 	return session
 }
 
-func setUnexportedField(field reflect.Value, value any) {
-	reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Set(reflect.ValueOf(value))
+func setUnexportedField(t *testing.T, field reflect.Value, value any) {
+	t.Helper()
+
+	if !field.IsValid() {
+		t.Fatal("setUnexportedField() received invalid field")
+	}
+	replacement := reflect.ValueOf(value)
+	if !replacement.Type().AssignableTo(field.Type()) {
+		t.Fatalf("setUnexportedField() type mismatch: got %s want %s", replacement.Type(), field.Type())
+	}
+	reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Set(replacement)
 }

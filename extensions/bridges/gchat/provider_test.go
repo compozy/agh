@@ -281,7 +281,7 @@ func TestVerifyGChatBearerTokens(t *testing.T) {
 	}
 
 	pubsubReq := httptest.NewRequest(http.MethodPost, "http://example.test/gchat", strings.NewReader(`{"message":{"data":"e30="},"subscription":"sub"}`))
-	pubsubReq.Header.Set("Authorization", "Bearer "+server.signPubSubToken(t, "https://example.test/pubsub", "push@example.iam.gserviceaccount.com"))
+	pubsubReq.Header.Set("Authorization", "Bearer "+server.signPubSubToken(t, "https://example.test/pubsub", "push@example.iam.gserviceaccount.com", true))
 	if err := verifyPubSubBearerToken(context.Background(), pubsubReq, resolvedInstanceConfig{
 		pubsubAudience:            "https://example.test/pubsub",
 		pubsubIssuer:              gchatDefaultPubSubIssuerURL,
@@ -297,6 +297,94 @@ func TestVerifyGChatBearerTokens(t *testing.T) {
 		pubsubServiceAccountEmail: "wrong@example.iam.gserviceaccount.com",
 	}); err == nil {
 		t.Fatal("verifyPubSubBearerToken(wrong email) error = nil, want non-nil")
+	}
+
+	unverifiedReq := httptest.NewRequest(http.MethodPost, "http://example.test/gchat", strings.NewReader(`{"message":{"data":"e30="},"subscription":"sub"}`))
+	unverifiedReq.Header.Set("Authorization", "Bearer "+server.signPubSubToken(t, "https://example.test/pubsub", "push@example.iam.gserviceaccount.com", false))
+	if err := verifyPubSubBearerToken(context.Background(), unverifiedReq, resolvedInstanceConfig{
+		pubsubAudience:            "https://example.test/pubsub",
+		pubsubIssuer:              gchatDefaultPubSubIssuerURL,
+		pubsubCertsURL:            server.PubSubCertsURL(),
+		pubsubServiceAccountEmail: "push@example.iam.gserviceaccount.com",
+	}); err == nil {
+		t.Fatal("verifyPubSubBearerToken(unverified email) error = nil, want non-nil")
+	}
+}
+
+func TestHandleBridgesDeliverKeepsLastErrorWhenReadyReportFails(t *testing.T) {
+	t.Setenv(gchatListenAddrEnv, reserveListenAddr(t))
+
+	runtime, hostPeer, cleanup := newRuntimePeerPair(t)
+	defer cleanup()
+
+	runtime.apiFactory = func(resolvedInstanceConfig) gchatAPI {
+		return &fakeGChatAPI{}
+	}
+
+	now := time.Date(2026, 4, 15, 20, 11, 0, 0, time.UTC)
+	managed := testBridgeRuntime(t, now, "brg-gchat")
+
+	var reportMu sync.Mutex
+	reportCalls := 0
+
+	mustHandle(t, hostPeer, string(extensionprotocol.HostAPIMethodBridgesInstancesList), func(context.Context, json.RawMessage) (any, error) {
+		return []bridgepkg.BridgeInstance{managed.Instance}, nil
+	})
+	mustHandle(t, hostPeer, string(extensionprotocol.HostAPIMethodBridgesInstancesGet), func(context.Context, json.RawMessage) (any, error) {
+		return managed.Instance, nil
+	})
+	mustHandle(t, hostPeer, string(extensionprotocol.HostAPIMethodBridgesInstancesReportState), func(_ context.Context, params json.RawMessage) (any, error) {
+		var payload extensioncontract.BridgesInstancesReportStateParams
+		if err := json.Unmarshal(params, &payload); err != nil {
+			return nil, err
+		}
+
+		reportMu.Lock()
+		reportCalls++
+		callNumber := reportCalls
+		reportMu.Unlock()
+
+		if callNumber > 1 {
+			return nil, subprocess.NewRPCError(-32099, "report ready failed", nil)
+		}
+
+		instance := managed.Instance
+		instance.Status = payload.Status
+		instance.Degradation = payload.Degradation
+		return instance, nil
+	})
+
+	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
+		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
+	}
+	if _, err := runtime.waitForInstanceConfig(managed.Instance.ID, time.Second); err != nil {
+		t.Fatalf("waitForInstanceConfig() error = %v", err)
+	}
+
+	waitForCondition(t, func() bool {
+		reportMu.Lock()
+		defer reportMu.Unlock()
+		return reportCalls >= 1
+	})
+
+	session := runtime.currentSession()
+	if session == nil {
+		t.Fatal("runtime.currentSession() = nil, want non-nil")
+	}
+
+	runtime.mu.Lock()
+	delete(runtime.reportedStatus, managed.Instance.ID)
+	runtime.mu.Unlock()
+
+	ack, err := runtime.handleBridgesDeliver(context.Background(), session, testDeliveryRequest(managed.Instance.ID, "delivery-ready-state", 1, bridgepkg.DeliveryEventTypeStart, false))
+	if err != nil {
+		t.Fatalf("handleBridgesDeliver() error = %v", err)
+	}
+	if got, want := ack.RemoteMessageID, "spaces/AAA/messages/msg-1"; got != want {
+		t.Fatalf("ack.RemoteMessageID = %q, want %q", got, want)
+	}
+	if err := runtime.healthCheck(); err == nil || !strings.Contains(err.Error(), "report ready failed") {
+		t.Fatalf("healthCheck() error = %v, want readiness report failure", err)
 	}
 }
 
@@ -411,7 +499,7 @@ func TestRuntimeInitializeWebhookAndDeliveryFlow(t *testing.T) {
 		t.Fatalf("http.NewRequest(pubsub) error = %v", err)
 	}
 	pubsubReq.Header.Set("Content-Type", "application/json")
-	pubsubReq.Header.Set("Authorization", "Bearer "+mockAPI.signPubSubToken(t, "https://example.test/pubsub", "push@example.iam.gserviceaccount.com"))
+	pubsubReq.Header.Set("Authorization", "Bearer "+mockAPI.signPubSubToken(t, "https://example.test/pubsub", "push@example.iam.gserviceaccount.com", true))
 	pubsubResp, err := http.DefaultClient.Do(pubsubReq)
 	if err != nil {
 		t.Fatalf("http.DefaultClient.Do(pubsub) error = %v", err)
@@ -1188,7 +1276,7 @@ func TestGChatPayloadAndRoutingHelpers(t *testing.T) {
 	}
 
 	pubsubReq := httptest.NewRequest(http.MethodPost, "http://example.test/gchat", strings.NewReader(`{"subscription":"sub","message":{"data":"e30="}}`))
-	pubsubReq.Header.Set("Authorization", "Bearer "+server.signPubSubToken(t, "https://example.test/pubsub", "push@example.iam.gserviceaccount.com"))
+	pubsubReq.Header.Set("Authorization", "Bearer "+server.signPubSubToken(t, "https://example.test/pubsub", "push@example.iam.gserviceaccount.com", true))
 	if err := verifyGChatWebhookBearer(context.Background(), pubsubReq, []byte(`{"subscription":"sub","message":{"data":"e30="}}`), resolvedInstanceConfig{
 		mode:                      gchatModePubSub,
 		pubsubAudience:            "https://example.test/pubsub",
@@ -1793,13 +1881,13 @@ func (s *gchatProviderTestServer) signDirectToken(t *testing.T, audience string)
 	return signed
 }
 
-func (s *gchatProviderTestServer) signPubSubToken(t *testing.T, audience string, email string) string {
+func (s *gchatProviderTestServer) signPubSubToken(t *testing.T, audience string, email string, emailVerified bool) string {
 	t.Helper()
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"iss":            gchatDefaultPubSubIssuerURL,
 		"aud":            audience,
 		"email":          email,
-		"email_verified": true,
+		"email_verified": emailVerified,
 		"iat":            time.Now().UTC().Add(-time.Minute).Unix(),
 		"exp":            time.Now().UTC().Add(time.Hour).Unix(),
 	})

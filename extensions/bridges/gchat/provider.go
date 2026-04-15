@@ -529,11 +529,14 @@ func (p *gchatProvider) handleBridgesDeliver(
 	}
 
 	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
-	p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
+	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
+		p.setLastError(err)
+	} else {
+		p.clearLastError()
+	}
 
 	marker.Ack = &ack
 	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-	p.clearLastError()
 	return ack, nil
 }
 
@@ -667,14 +670,16 @@ func (p *gchatProvider) reportState(
 	return result, nil
 }
 
-func (p *gchatProvider) reportReadyIfNeeded(ctx context.Context, session *bridgesdk.Session, bridgeInstanceID string) {
+func (p *gchatProvider) reportReadyIfNeeded(ctx context.Context, session *bridgesdk.Session, bridgeInstanceID string) error {
+	bridgeInstanceID = strings.TrimSpace(bridgeInstanceID)
 	p.mu.RLock()
-	status := p.reportedStatus[strings.TrimSpace(bridgeInstanceID)]
+	status := p.reportedStatus[bridgeInstanceID]
 	p.mu.RUnlock()
 	if status == bridgepkg.BridgeStatusReady {
-		return
+		return nil
 	}
-	_, _ = p.reportState(ctx, session, bridgeInstanceID, bridgepkg.BridgeStatusReady, nil)
+	_, err := p.reportState(ctx, session, bridgeInstanceID, bridgepkg.BridgeStatusReady, nil)
+	return err
 }
 
 func (p *gchatProvider) ingestBridgeMessage(
@@ -1244,7 +1249,11 @@ func (p *gchatProvider) dispatchInboundEnvelope(ctx context.Context, bridgeInsta
 		Envelope: envelope,
 		Result:   *result,
 	}))
-	p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
+	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
+		p.setLastError(err)
+	} else {
+		p.clearLastError()
+	}
 	return nil
 }
 
@@ -1837,6 +1846,9 @@ func verifyPubSubBearerToken(ctx context.Context, req *http.Request, cfg resolve
 	}
 	if !strings.EqualFold(strings.TrimSpace(claims.Email), strings.TrimSpace(cfg.pubsubServiceAccountEmail)) {
 		return fmt.Errorf("gchat: pubsub bearer email %q did not match expected service account %q", claims.Email, cfg.pubsubServiceAccountEmail)
+	}
+	if !claims.EmailVerified {
+		return fmt.Errorf("gchat: pubsub bearer email %q is not verified", strings.TrimSpace(claims.Email))
 	}
 	return nil
 }

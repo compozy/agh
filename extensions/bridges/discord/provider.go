@@ -1041,7 +1041,7 @@ func (p *discordProvider) handleEventWebhook(
 		if err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 		}
-		if cfg.dedup.Mark(mapped.Envelope.IdempotencyKey) {
+		if cfg.dedup.Mark(mapped.Envelope.IdempotencyKey) || !allowDiscordDirectMessage(cfg, mapped.User, mapped.Direct) {
 			return writeWebhookNoContent(w)
 		}
 		if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, mapped.Envelope); err != nil {
