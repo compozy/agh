@@ -1,0 +1,41 @@
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@import "@agh/ui/tokens.css";
+
+/*
+ * Override Fumadocs theme variables to match DESIGN.md tokens.
+ * Flat depth model: no box-shadows, depth via background lightness.
+ */
+:root {
+  /* Fumadocs background overrides */
+  --fd-background: var(--color-canvas);
+  --fd-background-fd: var(--color-canvas);
+  --fd-muted: var(--color-surface);
+  --fd-muted-foreground: var(--color-text-secondary);
+  --fd-foreground: var(--color-text-primary);
+  --fd-primary: var(--color-accent);
+  --fd-primary-foreground: #ffffff;
+  --fd-border: var(--color-divider);
+  --fd-ring: var(--color-accent);
+  --fd-accent: var(--color-surface-elevated);
+  --fd-accent-foreground: var(--color-text-primary);
+  --fd-popover: var(--color-surface-elevated);
+  --fd-popover-foreground: var(--color-text-primary);
+  --fd-card: var(--color-surface);
+  --fd-card-foreground: var(--color-text-primary);
+  --fd-secondary: var(--color-surface);
+  --fd-secondary-foreground: var(--color-text-primary);
+}
+
+/* Remove all box-shadows from Fumadocs — flat depth model */
+.fd-shadow-md,
+.fd-shadow-lg,
+.fd-shadow-xl,
+[class*="fd-shadow"] {
+  box-shadow: none !important;
+}
+
+/* Sidebar styling */
+:root {
+  --fd-sidebar-width: 260px;
+}

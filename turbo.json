@@ -18,6 +18,10 @@
             "outputs": ["dist/**"],
             "env": ["VITE_AGH_API_URL"]
         },
+        "@agh/site#build": {
+            "dependsOn": ["^build"],
+            "outputs": ["out/**", ".next/**"]
+        },
         "dev": {
             "cache": false,
             "persistent": true

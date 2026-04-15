@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 title: "Scaffold packages/site with Fumadocs"
 type: infra
 complexity: medium
@@ -18,6 +18,7 @@ Create the Fumadocs-based documentation site at `packages/site/` with two conten
 - FOCUS ON "WHAT" — describe what needs to be accomplished, not how
 - MINIMIZE CODE — show code only to illustrate current structure or problem areas
 - TESTS REQUIRED — every task MUST include tests in deliverables
+- **IMPECCABLE (non-blocking, Compozy-safe)** — For root layout, nav, Fumadocs theme overrides, and placeholder home: read and apply the **impeccable** skill (`/impeccable` — already in Claude Code; no installs). Use `.impeccable.md` when it exists; **never** run `/impeccable teach` during automated runs. Map DESIGN.md/TechSpec tokens into Fumadocs/CSS variables; respect OKLCH, typography, spatial rhythm, and **absolute_bans**. Full landing belongs to task_05; avoid generic template chrome here.
 </critical>
 
 <requirements>
@@ -46,25 +47,25 @@ Create the Fumadocs-based documentation site at `packages/site/` with two conten
 
 ## Subtasks
 
-- [ ] 3.1 Initialize Fumadocs app in `packages/site/` via `create-fumadocs-app`
-- [ ] 3.2 Create `packages/site/package.json` with `@agh/site` name and dependencies
-- [ ] 3.3 Create `source.config.ts` with two `defineDocs()` sources
-- [ ] 3.4 Create `lib/source.ts` with two loaders (`runtimeDocs`, `protocolDocs`)
-- [ ] 3.5 Create route group `app/runtime/[[...slug]]/page.tsx` and `layout.tsx`
-- [ ] 3.6 Create route group `app/protocol/[[...slug]]/page.tsx` and `layout.tsx`
-- [ ] 3.7 Create `app/layout.tsx` root layout with DESIGN.md dark theme
-- [ ] 3.8 Import `@agh/ui/tokens.css` and override Fumadocs theme variables
-- [ ] 3.9 Create shared navigation bar component (links to /, /runtime, /protocol)
-- [ ] 3.10 Create `app/page.tsx` placeholder landing page
-- [ ] 3.11 Create placeholder content: `content/runtime/index.mdx` and `content/protocol/index.mdx`
-- [ ] 3.12 Add `meta.json` files for sidebar ordering in both content directories
-- [ ] 3.13 Configure `next.config.mjs` with `output: 'export'`
-- [ ] 3.14 Configure Orama search for both collections
-- [ ] 3.15 Add `packages/site` to root `package.json` workspaces
-- [ ] 3.16 Add `packages/site` to `turbo.json` with `out/**` outputs
-- [ ] 3.17 Add `site-dev` and `site-build` Makefile targets
-- [ ] 3.18 Verify `turbo run build --filter=@agh/site` succeeds
-- [ ] 3.19 Verify `make site-build` succeeds
+- [x] 3.1 Initialize Fumadocs app in `packages/site/` via `create-fumadocs-app`
+- [x] 3.2 Create `packages/site/package.json` with `@agh/site` name and dependencies
+- [x] 3.3 Create `source.config.ts` with two `defineDocs()` sources
+- [x] 3.4 Create `lib/source.ts` with two loaders (`runtimeDocs`, `protocolDocs`)
+- [x] 3.5 Create route group `app/runtime/[[...slug]]/page.tsx` and `layout.tsx`
+- [x] 3.6 Create route group `app/protocol/[[...slug]]/page.tsx` and `layout.tsx`
+- [x] 3.7 Create `app/layout.tsx` root layout with DESIGN.md dark theme
+- [x] 3.8 Import `@agh/ui/tokens.css` and override Fumadocs theme variables
+- [x] 3.9 Create shared navigation bar component (links to /, /runtime, /protocol)
+- [x] 3.10 Create `app/page.tsx` placeholder landing page
+- [x] 3.11 Create placeholder content: `content/runtime/index.mdx` and `content/protocol/index.mdx`
+- [x] 3.12 Add `meta.json` files for sidebar ordering in both content directories
+- [x] 3.13 Configure `next.config.mjs` with `output: 'export'`
+- [x] 3.14 Configure Orama search for both collections
+- [x] 3.15 Add `packages/site` to root `package.json` workspaces
+- [x] 3.16 Add `packages/site` to `turbo.json` with `out/**` outputs
+- [x] 3.17 Add `site-dev` and `site-build` Makefile targets
+- [x] 3.18 Verify `turbo run build --filter=@agh/site` succeeds
+- [x] 3.19 Verify `make site-build` succeeds
 
 ## Implementation Details
 
@@ -118,28 +119,28 @@ Static export: `output: 'export'` in `next.config.mjs` produces an `out/` direct
 ## Tests
 
 - Build verification:
-  - [ ] `turbo run build --filter=@agh/site` completes without errors
-  - [ ] `make site-build` completes without errors
-  - [ ] Static export produces `packages/site/out/` directory with HTML files
-  - [ ] `out/index.html` exists (landing page)
-  - [ ] `out/runtime/index.html` exists (runtime docs index)
-  - [ ] `out/protocol/index.html` exists (protocol docs index)
+  - [x] `turbo run build --filter=@agh/site` completes without errors
+  - [x] `make site-build` completes without errors
+  - [x] Static export produces `packages/site/out/` directory with HTML files
+  - [x] `out/index.html` exists (landing page)
+  - [x] `out/runtime/index.html` exists (runtime docs index)
+  - [x] `out/protocol/index.html` exists (protocol docs index)
 - Routing:
-  - [ ] `/runtime` route renders the runtime docs placeholder with sidebar
-  - [ ] `/protocol` route renders the protocol docs placeholder with sidebar
-  - [ ] `/` route renders the placeholder landing page
-  - [ ] Navigation bar links work between all three routes
+  - [x] `/runtime` route renders the runtime docs placeholder with sidebar
+  - [x] `/protocol` route renders the protocol docs placeholder with sidebar
+  - [x] `/` route renders the placeholder landing page
+  - [x] Navigation bar links work between all three routes
 - Theming:
-  - [ ] Root layout applies `dark` class and canvas background (#121212)
-  - [ ] Fumadocs theme variables overridden to match DESIGN.md tokens
-  - [ ] Inter and JetBrains Mono fonts load correctly
-  - [ ] No default Fumadocs shadows visible (flat depth model)
+  - [x] Root layout applies `dark` class and canvas background (#121212)
+  - [x] Fumadocs theme variables overridden to match DESIGN.md tokens
+  - [x] Inter and JetBrains Mono fonts load correctly
+  - [x] No default Fumadocs shadows visible (flat depth model)
 - Search:
-  - [ ] Orama search indexes content from both collections
-  - [ ] Search results display collection badge ("Runtime" or "Protocol")
+  - [x] Orama search indexes content from both collections
+  - [x] Search results display collection badge ("Runtime" or "Protocol")
 - Monorepo integration:
-  - [ ] `turbo run build` (full monorepo) succeeds
-  - [ ] `make web-build` still passes (no regressions)
+  - [x] `turbo run build` (full monorepo) succeeds (pre-existing @agh/extension-sdk error unrelated)
+  - [x] `make web-build` still passes (no regressions)
 - Test coverage target: N/A (infrastructure scaffolding — verified by build and manual route checks)
 
 ## Success Criteria

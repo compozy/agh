@@ -6,7 +6,7 @@
 | --- | ------------------------------------------------------------------ | ------- | ---------- | ------------ |
 | 01  | Create packages/ui (design tokens + base components)               | done    | medium     | —            |
 | 02  | Update web/ to consume packages/ui                                 | done    | medium     | task_01      |
-| 03  | Scaffold packages/site with Fumadocs                               | pending | medium     | task_01      |
+| 03  | Scaffold packages/site with Fumadocs                               | done    | medium     | task_01      |
 | 04  | Implement CLI doc generation (Cobra GenMarkdownTree)               | pending | medium     | task_03      |
 | 05  | Build landing page                                                 | pending | high       | task_03      |
 | 06  | Docs: Overview (What is AGH, Architecture, Why AGH)                | pending | medium     | task_03      |

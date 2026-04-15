@@ -1,0 +1,29 @@
+{
+    "name": "@agh/site",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "typecheck": "tsgo --noEmit"
+    },
+    "dependencies": {
+        "@agh/ui": "workspace:*",
+        "@orama/orama": "^3.1.18",
+        "fumadocs-core": "^16.7.16",
+        "fumadocs-mdx": "^14.2.14",
+        "fumadocs-ui": "^16.7.16",
+        "lucide-react": "^1.7.0",
+        "next": "^16.2.4",
+        "react": "^19.2.5",
+        "react-dom": "^19.2.5"
+    },
+    "devDependencies": {
+        "@tailwindcss/postcss": "^4.2.2",
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "tailwindcss": "^4.2.2"
+    }
+}
