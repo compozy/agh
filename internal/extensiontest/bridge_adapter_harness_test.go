@@ -2,11 +2,14 @@ package extensiontest
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	observepkg "github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/subprocess"
@@ -195,6 +198,75 @@ func TestHarnessHelperUtilities(t *testing.T) {
 	}
 	if metrics := source.DeliveryMetrics(); metrics != nil {
 		t.Fatalf("harnessBridgeSource.DeliveryMetrics() = %#v, want nil", metrics)
+	}
+}
+
+func TestRecordHostStateTransitionCapturesReportedState(t *testing.T) {
+	path := t.TempDir() + "/states.jsonl"
+	params, err := json.Marshal(extensioncontract.BridgesInstancesReportStateParams{
+		BridgeInstanceID: "brg-1",
+		Status:           bridgepkg.BridgeStatusDegraded,
+		Degradation: &bridgepkg.BridgeDegradation{
+			Reason: bridgepkg.BridgeDegradationReasonRateLimited,
+		},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(params) error = %v", err)
+	}
+
+	recordHostStateTransition(t, path, params, &bridgepkg.BridgeInstance{
+		ID:     "brg-1",
+		Status: bridgepkg.BridgeStatusDegraded,
+		Degradation: &bridgepkg.BridgeDegradation{
+			Reason: bridgepkg.BridgeDegradationReasonRateLimited,
+		},
+	}, nil)
+
+	records, err := readJSONLinesFile[StateRecord](path)
+	if err != nil {
+		t.Fatalf("readJSONLinesFile(states) error = %v", err)
+	}
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("len(records) = %d, want %d", got, want)
+	}
+	if got, want := records[0].BridgeInstanceID, "brg-1"; got != want {
+		t.Fatalf("records[0].BridgeInstanceID = %q, want %q", got, want)
+	}
+	if got, want := records[0].Status.Normalize(), bridgepkg.BridgeStatusDegraded; got != want {
+		t.Fatalf("records[0].Status = %q, want %q", got, want)
+	}
+	if records[0].Instance.Degradation == nil || records[0].Instance.Degradation.Reason != bridgepkg.BridgeDegradationReasonRateLimited {
+		t.Fatalf("records[0].Instance.Degradation = %#v, want rate limited", records[0].Instance.Degradation)
+	}
+}
+
+func TestRecordHostStateTransitionCapturesHostErrors(t *testing.T) {
+	path := t.TempDir() + "/states.jsonl"
+	params, err := json.Marshal(extensioncontract.BridgesInstancesReportStateParams{
+		BridgeInstanceID: "brg-err",
+		Status:           bridgepkg.BridgeStatusAuthRequired,
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(params) error = %v", err)
+	}
+
+	recordHostStateTransition(t, path, params, nil, errors.New("host failed"))
+
+	records, err := readJSONLinesFile[StateRecord](path)
+	if err != nil {
+		t.Fatalf("readJSONLinesFile(states) error = %v", err)
+	}
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("len(records) = %d, want %d", got, want)
+	}
+	if got, want := records[0].BridgeInstanceID, "brg-err"; got != want {
+		t.Fatalf("records[0].BridgeInstanceID = %q, want %q", got, want)
+	}
+	if got, want := records[0].Status.Normalize(), bridgepkg.BridgeStatusAuthRequired; got != want {
+		t.Fatalf("records[0].Status = %q, want %q", got, want)
+	}
+	if got, want := records[0].Error, "host failed"; got != want {
+		t.Fatalf("records[0].Error = %q, want %q", got, want)
 	}
 }
 

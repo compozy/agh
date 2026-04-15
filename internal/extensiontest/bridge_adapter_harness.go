@@ -650,6 +650,7 @@ func (d *ScriptedPromptDriver) Stop(_ context.Context, proc *session.AgentProces
 type ManagedInstanceConfig struct {
 	ID             string
 	DisplayName    string
+	DMPolicy       bridgepkg.BridgeDMPolicy
 	RoutingPolicy  bridgepkg.RoutingPolicy
 	ProviderConfig map[string]any
 	BoundSecrets   []subprocess.InitializeBridgeBoundSecret
@@ -789,6 +790,7 @@ func NewHarness(t testing.TB, cfg HarnessConfig) *Harness {
 			DisplayName:    firstNonEmpty(managedCfg.DisplayName, cfg.DisplayName, "Telegram Reference"),
 			Enabled:        true,
 			Status:         bridgepkg.BridgeStatusStarting,
+			DMPolicy:       managedCfg.DMPolicy,
 			RoutingPolicy:  managedCfg.RoutingPolicy,
 			ProviderConfig: providerConfig,
 		}
@@ -816,7 +818,11 @@ func NewHarness(t testing.TB, cfg HarnessConfig) *Harness {
 			if hostHandler == nil {
 				return nil, errors.New("extensiontest: host api handler is not initialized")
 			}
-			return hostHandler.HandleMethod(method)(ctx, params)
+			result, err := hostHandler.HandleMethod(method)(ctx, params)
+			if method == "bridges/instances/report_state" {
+				recordHostStateTransition(t, markers.State, params, result, err)
+			}
+			return result, err
 		}
 	}
 
@@ -1231,6 +1237,66 @@ func appendJSONLine(t testing.TB, path string, value any) {
 	if err := encoder.Encode(value); err != nil {
 		t.Fatalf("encoder.Encode(%q) error = %v", target, err)
 	}
+}
+
+func recordHostStateTransition(
+	t testing.TB,
+	path string,
+	params json.RawMessage,
+	result any,
+	callErr error,
+) {
+	t.Helper()
+
+	record := StateRecord{}
+
+	var request extensioncontract.BridgesInstancesReportStateParams
+	if err := json.Unmarshal(params, &request); err == nil {
+		record.BridgeInstanceID = strings.TrimSpace(request.BridgeInstanceID)
+		record.Status = request.Status.Normalize()
+		record.Instance = bridgepkg.BridgeInstance{
+			ID:          record.BridgeInstanceID,
+			Status:      request.Status.Normalize(),
+			Degradation: cloneBridgeDegradation(request.Degradation),
+		}
+	}
+
+	switch typed := result.(type) {
+	case *bridgepkg.BridgeInstance:
+		if typed != nil {
+			record.Instance = copyBridgeInstance(*typed)
+		}
+	case bridgepkg.BridgeInstance:
+		record.Instance = copyBridgeInstance(typed)
+	}
+
+	if record.BridgeInstanceID == "" {
+		record.BridgeInstanceID = strings.TrimSpace(record.Instance.ID)
+	}
+	if record.Status == "" {
+		record.Status = record.Instance.Status.Normalize()
+	}
+	if callErr != nil {
+		record.Error = callErr.Error()
+	}
+
+	appendJSONLine(t, path, record)
+}
+
+func cloneBridgeDegradation(degradation *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {
+	if degradation == nil {
+		return nil
+	}
+	cloned := *degradation
+	return &cloned
+}
+
+func copyBridgeInstance(instance bridgepkg.BridgeInstance) bridgepkg.BridgeInstance {
+	copied := instance
+	copied.ProviderConfig = append([]byte(nil), instance.ProviderConfig...)
+	copied.DeliveryDefaults = append([]byte(nil), instance.DeliveryDefaults...)
+	copied.Degradation = cloneBridgeDegradation(instance.Degradation)
+	return copied
 }
 
 func waitForCondition(t testing.TB, timeout time.Duration, label string, fn func() bool) {
