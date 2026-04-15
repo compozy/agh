@@ -47,11 +47,17 @@ func TestTelegramReferenceAdapterLaunchNegotiatesBridgeRuntime(t *testing.T) {
 	report := harness.Report(t)
 
 	if err := extensiontest.ValidateConformance(report, extensiontest.ConformanceExpectation{
-		InstanceID:          harness.Instance.ID,
-		ExtensionName:       "telegram-reference",
-		BoundSecretNames:    []string{"bot_token"},
-		RequireStateReport:  true,
-		ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+		Provider:                  "telegram-reference",
+		Platform:                  "telegram",
+		RequireOwnedInstanceList:  true,
+		RequireOwnedInstanceFetch: true,
+		RequireStateReport:        true,
+		ManagedInstances: []extensiontest.ManagedInstanceExpectation{{
+			InstanceID:          harness.Instances[0].ID,
+			ExtensionName:       "telegram-reference",
+			BoundSecretNames:    []string{"bot_token"},
+			ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+		}},
 	}); err != nil {
 		t.Fatalf("ValidateConformance() error = %v", err)
 	}
@@ -59,11 +65,11 @@ func TestTelegramReferenceAdapterLaunchNegotiatesBridgeRuntime(t *testing.T) {
 	if handshake.Request.Runtime.Bridge == nil {
 		t.Fatal("initialize runtime.bridge = nil, want bound bridge launch metadata")
 	}
-	managed, err := handshake.Request.Runtime.Bridge.SingleManagedInstance()
-	if err != nil {
-		t.Fatalf("handshake.Request.Runtime.Bridge.SingleManagedInstance() error = %v", err)
+	managed, ok := handshake.Request.Runtime.Bridge.ManagedInstance(harness.Instances[0].ID)
+	if !ok || managed == nil {
+		t.Fatalf("handshake.Request.Runtime.Bridge.ManagedInstance(%q) missing", harness.Instances[0].ID)
 	}
-	if got, want := managed.Instance.ID, harness.Instance.ID; got != want {
+	if got, want := managed.Instance.ID, harness.Instances[0].ID; got != want {
 		t.Fatalf("initialize runtime bridge instance = %q, want %q", got, want)
 	}
 	if got, want := managed.Instance.ExtensionName, "telegram-reference"; got != want {
@@ -72,11 +78,14 @@ func TestTelegramReferenceAdapterLaunchNegotiatesBridgeRuntime(t *testing.T) {
 	if got, want := strings.TrimSpace(managed.BoundSecrets[0].Value), "telegram-bot-token"; got != want {
 		t.Fatalf("initialize bound bot token = %q, want %q", got, want)
 	}
-	if report.Instance == nil {
-		t.Fatal("instance marker = nil, want bridge instance metadata")
+	if report.Ownership == nil {
+		t.Fatal("ownership marker = nil, want provider ownership metadata")
 	}
-	if got, want := report.Instance.ID, harness.Instance.ID; got != want {
-		t.Fatalf("instance marker id = %q, want %q", got, want)
+	if got, want := len(report.Ownership.Fetched), 1; got != want {
+		t.Fatalf("len(report.Ownership.Fetched) = %d, want %d", got, want)
+	}
+	if got, want := report.Ownership.Fetched[0].ID, harness.Instances[0].ID; got != want {
+		t.Fatalf("ownership fetched id = %q, want %q", got, want)
 	}
 
 	row := waitForBridgeHealth(t, 10*time.Second, harness, func(health observepkg.BridgeInstanceHealth) bool {
@@ -128,12 +137,18 @@ func TestTelegramReferenceAdapterIngressAndDeliveryConformance(t *testing.T) {
 	report := harness.Report(t)
 
 	if err := extensiontest.ValidateConformance(report, extensiontest.ConformanceExpectation{
-		InstanceID:          harness.Instance.ID,
-		ExtensionName:       "telegram-reference",
-		BoundSecretNames:    []string{"bot_token"},
-		RequireStateReport:  true,
-		RequireDelivery:     true,
-		ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+		Provider:                  "telegram-reference",
+		Platform:                  "telegram",
+		RequireOwnedInstanceList:  true,
+		RequireOwnedInstanceFetch: true,
+		RequireStateReport:        true,
+		RequireDelivery:           true,
+		ManagedInstances: []extensiontest.ManagedInstanceExpectation{{
+			InstanceID:          harness.Instances[0].ID,
+			ExtensionName:       "telegram-reference",
+			BoundSecretNames:    []string{"bot_token"},
+			ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+		}},
 	}); err != nil {
 		t.Fatalf("ValidateConformance() error = %v", err)
 	}
@@ -203,13 +218,19 @@ func TestTelegramReferenceAdapterRestartResumesActiveDelivery(t *testing.T) {
 	report := harness.Report(t)
 
 	if err := extensiontest.ValidateConformance(report, extensiontest.ConformanceExpectation{
-		InstanceID:          harness.Instance.ID,
-		ExtensionName:       "telegram-reference",
-		BoundSecretNames:    []string{"bot_token"},
-		RequireStateReport:  true,
-		RequireDelivery:     true,
-		RequireResume:       true,
-		ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+		Provider:                  "telegram-reference",
+		Platform:                  "telegram",
+		RequireOwnedInstanceList:  true,
+		RequireOwnedInstanceFetch: true,
+		RequireStateReport:        true,
+		RequireDelivery:           true,
+		RequireResume:             true,
+		ManagedInstances: []extensiontest.ManagedInstanceExpectation{{
+			InstanceID:          harness.Instances[0].ID,
+			ExtensionName:       "telegram-reference",
+			BoundSecretNames:    []string{"bot_token"},
+			ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+		}},
 	}); err != nil {
 		t.Fatalf("ValidateConformance() error = %v", err)
 	}
@@ -246,10 +267,16 @@ func TestTelegramReferenceAdapterAuthRequiredHealthSurface(t *testing.T) {
 	report := harness.Report(t)
 
 	if err := extensiontest.ValidateConformance(report, extensiontest.ConformanceExpectation{
-		InstanceID:          harness.Instance.ID,
-		ExtensionName:       "telegram-reference",
-		RequireStateReport:  true,
-		ExpectedFinalStatus: bridgepkg.BridgeStatusAuthRequired,
+		Provider:                  "telegram-reference",
+		Platform:                  "telegram",
+		RequireOwnedInstanceList:  true,
+		RequireOwnedInstanceFetch: true,
+		RequireStateReport:        true,
+		ManagedInstances: []extensiontest.ManagedInstanceExpectation{{
+			InstanceID:          harness.Instances[0].ID,
+			ExtensionName:       "telegram-reference",
+			ExpectedFinalStatus: bridgepkg.BridgeStatusAuthRequired,
+		}},
 	}); err != nil {
 		t.Fatalf("ValidateConformance() error = %v", err)
 	}
@@ -345,13 +372,13 @@ func waitForBridgeHealth(
 	for time.Now().Before(deadline) {
 		rows := harness.QueryBridgeHealth(t)
 		for _, row := range rows {
-			if row.BridgeInstanceID == harness.Instance.ID && predicate(row) {
+			if row.BridgeInstanceID == harness.Instances[0].ID && predicate(row) {
 				return row
 			}
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatalf("bridge health for %q did not satisfy predicate before timeout", harness.Instance.ID)
+	t.Fatalf("bridge health for %q did not satisfy predicate before timeout", harness.Instances[0].ID)
 	return observepkg.BridgeInstanceHealth{}
 }
 

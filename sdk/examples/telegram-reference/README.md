@@ -1,14 +1,15 @@
-# Telegram Reference Adapter
+# Telegram Reference Conformance Runtime
 
-`telegram-reference` is the Go reference adapter for AGH's negotiated bridge runtime.
+`telegram-reference` is the provider-scoped bridge conformance runtime for AGH. It is not the production Telegram provider. Its job is to exercise the shared `internal/bridgesdk` runtime, Host API surface, and reusable harness contract that future provider binaries must satisfy.
 
 It demonstrates:
 
-- launch-time bridge metadata and bound secret injection through `initialize.runtime.bridge`
+- launch-time provider metadata and managed bridge instance grants through `initialize.runtime.bridge`
+- owned-instance Host API access through `bridges/instances/list` and explicit `bridges/instances/get`
 - inbound platform normalization through `bridges/messages/ingest`
 - outbound negotiated delivery through `bridges/deliver`
-- adapter-driven instance state reporting through `bridges/instances/report_state`
-- restart-safe delivery markers that the conformance harness can validate
+- adapter-driven per-instance state reporting through `bridges/instances/report_state`
+- restart-safe delivery markers that the provider-scoped conformance harness can validate
 
 This example is intentionally fake-platform and CI-safe. Instead of talking to the real Telegram API, it tails a JSONL file of Telegram-like updates and writes JSON/JSONL markers that the integration harness reads back.
 
@@ -38,7 +39,7 @@ agh extension install ./sdk/examples/telegram-reference
 ## Manifest Summary
 
 - Capability: `bridge.adapter`
-- Host API actions: `bridges/messages/ingest`, `bridges/instances/get`, `bridges/instances/report_state`
+- Host API actions: `bridges/instances/list`, `bridges/messages/ingest`, `bridges/instances/get`, `bridges/instances/report_state`
 - Security grants: `bridge.read`, `bridge.write`
 - Extension service: `bridges/deliver`
 
@@ -59,12 +60,12 @@ The runtime watches the file named by `AGH_BRIDGE_ADAPTER_UPDATES_PATH`. Each no
 }
 ```
 
-## Marker Environment
+## Conformance Markers
 
 The adapter reads these optional environment variables. They are used by the conformance harness and can also help extension authors debug runtime behavior:
 
 - `AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH`: writes the initialize request/response marker as JSON.
-- `AGH_BRIDGE_ADAPTER_INSTANCE_PATH`: writes the resolved `bridges/instances/get` result as JSON.
+- `AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH`: writes the provider-owned `bridges/instances/list` result plus explicit `bridges/instances/get` fetches as JSON.
 - `AGH_BRIDGE_ADAPTER_STATE_PATH`: appends one JSON line per reported bridge status.
 - `AGH_BRIDGE_ADAPTER_DELIVERY_PATH`: appends one JSON line per `bridges/deliver` request, including the returned ack when available.
 - `AGH_BRIDGE_ADAPTER_INGEST_PATH`: appends one JSON line per fake inbound update ingest attempt.
@@ -72,6 +73,8 @@ The adapter reads these optional environment variables. They are used by the con
 - `AGH_BRIDGE_ADAPTER_STARTS_PATH`: appends one line per runtime process start.
 - `AGH_BRIDGE_ADAPTER_SHUTDOWN_PATH`: appends one line when the daemon sends `shutdown`.
 - `AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH`: if set and the file does not exist yet, the runtime exits on its first outbound delivery after writing the request marker. The broker should then resume delivery after restart.
+
+When the provider runtime owns multiple bridge instances, fake inbound updates should include `bridge_instance_id` so the runtime can route them against the correct owned instance explicitly.
 
 ## Bound Credentials
 

@@ -1,7 +1,7 @@
 [extension]
 name = "telegram-reference"
 version = "0.1.0"
-description = "Reference Telegram bridge adapter for the negotiated bridge runtime"
+description = "Provider-scoped Telegram bridge conformance runtime built on internal/bridgesdk"
 min_agh_version = "0.5.0"
 
 [capabilities]
@@ -12,7 +12,7 @@ platform = "telegram"
 display_name = "Telegram"
 
 [actions]
-requires = ["bridges/messages/ingest", "bridges/instances/get", "bridges/instances/report_state"]
+requires = ["bridges/instances/list", "bridges/messages/ingest", "bridges/instances/get", "bridges/instances/report_state"]
 
 [subprocess]
 command = "./bin/telegram-reference"
@@ -20,7 +20,7 @@ args = ["serve"]
 
 [subprocess.env]
 AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH = "{{env:AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH}}"
-AGH_BRIDGE_ADAPTER_INSTANCE_PATH = "{{env:AGH_BRIDGE_ADAPTER_INSTANCE_PATH}}"
+AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH = "{{env:AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH}}"
 AGH_BRIDGE_ADAPTER_STATE_PATH = "{{env:AGH_BRIDGE_ADAPTER_STATE_PATH}}"
 AGH_BRIDGE_ADAPTER_DELIVERY_PATH = "{{env:AGH_BRIDGE_ADAPTER_DELIVERY_PATH}}"
 AGH_BRIDGE_ADAPTER_INGEST_PATH = "{{env:AGH_BRIDGE_ADAPTER_INGEST_PATH}}"

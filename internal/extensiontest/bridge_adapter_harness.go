@@ -31,7 +31,7 @@ import (
 
 const (
 	EnvHandshakePath = "AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH"
-	EnvInstancePath  = "AGH_BRIDGE_ADAPTER_INSTANCE_PATH"
+	EnvOwnershipPath = "AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH"
 	EnvStatePath     = "AGH_BRIDGE_ADAPTER_STATE_PATH"
 	EnvDeliveryPath  = "AGH_BRIDGE_ADAPTER_DELIVERY_PATH"
 	EnvIngestPath    = "AGH_BRIDGE_ADAPTER_INGEST_PATH"
@@ -45,7 +45,7 @@ const (
 // reference adapter and the conformance harness.
 type MarkerPaths struct {
 	Handshake string
-	Instance  string
+	Ownership string
 	State     string
 	Delivery  string
 	Ingest    string
@@ -59,7 +59,7 @@ type MarkerPaths struct {
 func (m MarkerPaths) Env() map[string]string {
 	return map[string]string{
 		EnvHandshakePath: m.Handshake,
-		EnvInstancePath:  m.Instance,
+		EnvOwnershipPath: m.Ownership,
 		EnvStatePath:     m.State,
 		EnvDeliveryPath:  m.Delivery,
 		EnvIngestPath:    m.Ingest,
@@ -75,7 +75,7 @@ func (m MarkerPaths) Env() map[string]string {
 func NewMarkerPaths(root string) MarkerPaths {
 	return MarkerPaths{
 		Handshake: filepath.Join(root, "adapter-handshake.json"),
-		Instance:  filepath.Join(root, "adapter-instance.json"),
+		Ownership: filepath.Join(root, "adapter-ownership.json"),
 		State:     filepath.Join(root, "adapter-states.jsonl"),
 		Delivery:  filepath.Join(root, "adapter-deliveries.jsonl"),
 		Ingest:    filepath.Join(root, "adapter-ingest.jsonl"),
@@ -92,6 +92,14 @@ type HandshakeRecord struct {
 	Response subprocess.InitializeResponse `json:"response"`
 }
 
+// OwnershipRecord captures the provider-owned instance list/get evidence
+// collected by the reference adapter during boot.
+type OwnershipRecord struct {
+	Listed  []bridgepkg.BridgeInstance `json:"listed,omitempty"`
+	Fetched []bridgepkg.BridgeInstance `json:"fetched,omitempty"`
+	Error   string                     `json:"error,omitempty"`
+}
+
 // DeliveryRecord captures one `bridges/deliver` request plus the adapter ack
 // when the subprocess remained alive long enough to return it.
 type DeliveryRecord struct {
@@ -104,9 +112,10 @@ type DeliveryRecord struct {
 // StateRecord captures one adapter-driven `bridges/instances/report_state`
 // result marker.
 type StateRecord struct {
-	Status   bridgepkg.BridgeStatus   `json:"status"`
-	Instance bridgepkg.BridgeInstance `json:"instance,omitempty"`
-	Error    string                   `json:"error,omitempty"`
+	BridgeInstanceID string                   `json:"bridge_instance_id,omitempty"`
+	Status           bridgepkg.BridgeStatus   `json:"status"`
+	Instance         bridgepkg.BridgeInstance `json:"instance,omitempty"`
+	Error            string                   `json:"error,omitempty"`
 }
 
 // IngestRecord captures one fake inbound update mapped into a normalized ingest.
@@ -119,21 +128,31 @@ type IngestRecord struct {
 // ConformanceReport is the collected adapter evidence used by the validator.
 type ConformanceReport struct {
 	Handshake  *HandshakeRecord
-	Instance   *bridgepkg.BridgeInstance
+	Ownership  *OwnershipRecord
 	States     []StateRecord
 	Deliveries []DeliveryRecord
 	Ingests    []IngestRecord
 }
 
-// ConformanceExpectation configures the reusable adapter validator.
-type ConformanceExpectation struct {
+// ManagedInstanceExpectation describes one provider-owned bridge instance that
+// must appear in the negotiated runtime and conformance evidence.
+type ManagedInstanceExpectation struct {
 	InstanceID          string
 	ExtensionName       string
 	BoundSecretNames    []string
-	RequireStateReport  bool
-	RequireDelivery     bool
-	RequireResume       bool
 	ExpectedFinalStatus bridgepkg.BridgeStatus
+}
+
+// ConformanceExpectation configures the reusable adapter validator.
+type ConformanceExpectation struct {
+	Provider                  string
+	Platform                  string
+	ManagedInstances          []ManagedInstanceExpectation
+	RequireOwnedInstanceList  bool
+	RequireOwnedInstanceFetch bool
+	RequireStateReport        bool
+	RequireDelivery           bool
+	RequireResume             bool
 }
 
 // ConformanceIssue reports one adapter contract failure.
@@ -162,6 +181,10 @@ func (e *ConformanceError) Error() string {
 // adapter contract enforced by the harness.
 func ValidateConformance(report ConformanceReport, expect ConformanceExpectation) error {
 	issues := make([]ConformanceIssue, 0)
+	expectedByID := make(map[string]ManagedInstanceExpectation, len(expect.ManagedInstances))
+	for _, managed := range expect.ManagedInstances {
+		expectedByID[strings.TrimSpace(managed.InstanceID)] = managed
+	}
 
 	if report.Handshake == nil {
 		issues = append(issues, ConformanceIssue{
@@ -182,39 +205,76 @@ func ValidateConformance(report ConformanceReport, expect ConformanceExpectation
 				Message: "initialize runtime.bridge was nil",
 			})
 		} else {
-			managed, managedOK := conformanceManagedInstance(*request.Runtime.Bridge, expect.InstanceID)
-			if !managedOK {
+			runtime := request.Runtime.Bridge
+			if got, want := strings.TrimSpace(runtime.RuntimeVersion), subprocess.InitializeBridgeRuntimeVersion1; got != want {
 				issues = append(issues, ConformanceIssue{
-					Code: "wrong_instance",
-					Message: fmt.Sprintf(
-						"initialize runtime bridge did not include managed instance %q",
-						expect.InstanceID,
-					),
+					Code:    "wrong_runtime_version",
+					Message: fmt.Sprintf("initialize runtime bridge version = %q, want %q", got, want),
 				})
-			} else if expect.ExtensionName != "" && strings.TrimSpace(managed.Instance.ExtensionName) != strings.TrimSpace(expect.ExtensionName) {
+			}
+			if expect.Provider != "" && strings.TrimSpace(runtime.Provider) != strings.TrimSpace(expect.Provider) {
 				issues = append(issues, ConformanceIssue{
-					Code: "wrong_extension",
-					Message: fmt.Sprintf(
-						"initialize runtime bridge extension = %q, want %q",
-						managed.Instance.ExtensionName,
-						expect.ExtensionName,
-					),
+					Code:    "wrong_provider",
+					Message: fmt.Sprintf("initialize runtime bridge provider = %q, want %q", runtime.Provider, expect.Provider),
 				})
-			} else if managedOK {
+			}
+			if expect.Platform != "" && strings.TrimSpace(runtime.Platform) != strings.TrimSpace(expect.Platform) {
+				issues = append(issues, ConformanceIssue{
+					Code:    "wrong_platform",
+					Message: fmt.Sprintf("initialize runtime bridge platform = %q, want %q", runtime.Platform, expect.Platform),
+				})
+			}
+			for _, managedExpect := range expect.ManagedInstances {
+				managed, managedOK := runtime.ManagedInstance(managedExpect.InstanceID)
+				if !managedOK {
+					issues = append(issues, ConformanceIssue{
+						Code: "missing_managed_instance",
+						Message: fmt.Sprintf(
+							"initialize runtime bridge did not include managed instance %q",
+							managedExpect.InstanceID,
+						),
+					})
+					continue
+				}
+				if managedExpect.ExtensionName != "" && strings.TrimSpace(managed.Instance.ExtensionName) != strings.TrimSpace(managedExpect.ExtensionName) {
+					issues = append(issues, ConformanceIssue{
+						Code: "wrong_extension",
+						Message: fmt.Sprintf(
+							"initialize runtime bridge instance %q extension = %q, want %q",
+							managedExpect.InstanceID,
+							managed.Instance.ExtensionName,
+							managedExpect.ExtensionName,
+						),
+					})
+				}
+
 				bound := make(map[string]struct{}, len(managed.BoundSecrets))
 				for _, secret := range managed.BoundSecrets {
 					bound[strings.TrimSpace(secret.BindingName)] = struct{}{}
 				}
-				for _, bindingName := range expect.BoundSecretNames {
+				for _, bindingName := range managedExpect.BoundSecretNames {
 					if _, ok := bound[strings.TrimSpace(bindingName)]; !ok {
 						issues = append(issues, ConformanceIssue{
 							Code: "missing_bound_secret",
 							Message: fmt.Sprintf(
-								"initialize runtime did not include bound secret %q",
+								"initialize runtime did not include bound secret %q for managed instance %q",
 								bindingName,
+								managedExpect.InstanceID,
 							),
 						})
 					}
+				}
+			}
+
+			for _, managed := range runtime.ManagedInstances {
+				if len(expectedByID) == 0 {
+					break
+				}
+				if _, ok := expectedByID[strings.TrimSpace(managed.Instance.ID)]; !ok {
+					issues = append(issues, ConformanceIssue{
+						Code:    "unexpected_managed_instance",
+						Message: fmt.Sprintf("initialize runtime included unexpected managed instance %q", managed.Instance.ID),
+					})
 				}
 			}
 		}
@@ -230,21 +290,120 @@ func ValidateConformance(report ConformanceReport, expect ConformanceExpectation
 		}
 	}
 
+	if expect.RequireOwnedInstanceList || expect.RequireOwnedInstanceFetch {
+		if report.Ownership == nil {
+			issues = append(issues, ConformanceIssue{
+				Code:    "missing_ownership_marker",
+				Message: "adapter did not write provider ownership markers",
+			})
+		} else if strings.TrimSpace(report.Ownership.Error) != "" {
+			issues = append(issues, ConformanceIssue{
+				Code:    "owned_instance_lookup_error",
+				Message: report.Ownership.Error,
+			})
+		}
+	}
+	if expect.RequireOwnedInstanceList && report.Ownership != nil {
+		if len(report.Ownership.Listed) == 0 {
+			issues = append(issues, ConformanceIssue{
+				Code:    "missing_owned_instance_list",
+				Message: "adapter did not list its owned bridge instances",
+			})
+		}
+		listed := make(map[string]struct{}, len(report.Ownership.Listed))
+		for _, instance := range report.Ownership.Listed {
+			instanceID := strings.TrimSpace(instance.ID)
+			listed[instanceID] = struct{}{}
+			if len(expectedByID) > 0 {
+				if _, ok := expectedByID[instanceID]; !ok {
+					issues = append(issues, ConformanceIssue{
+						Code:    "unexpected_owned_instance",
+						Message: fmt.Sprintf("ownership list included unexpected instance %q", instanceID),
+					})
+				}
+			}
+		}
+		for instanceID := range expectedByID {
+			if _, ok := listed[instanceID]; !ok {
+				issues = append(issues, ConformanceIssue{
+					Code:    "missing_owned_instance",
+					Message: fmt.Sprintf("ownership list omitted expected instance %q", instanceID),
+				})
+			}
+		}
+	}
+	if expect.RequireOwnedInstanceFetch && report.Ownership != nil {
+		if len(report.Ownership.Fetched) == 0 {
+			issues = append(issues, ConformanceIssue{
+				Code:    "missing_owned_instance_fetch",
+				Message: "adapter did not fetch owned bridge instances explicitly",
+			})
+		}
+		fetched := make(map[string]struct{}, len(report.Ownership.Fetched))
+		for _, instance := range report.Ownership.Fetched {
+			fetched[strings.TrimSpace(instance.ID)] = struct{}{}
+		}
+		for instanceID := range expectedByID {
+			if _, ok := fetched[instanceID]; !ok {
+				issues = append(issues, ConformanceIssue{
+					Code:    "missing_owned_instance_fetch",
+					Message: fmt.Sprintf("adapter did not fetch owned instance %q explicitly", instanceID),
+				})
+			}
+		}
+	}
+
 	if expect.RequireStateReport && len(report.States) == 0 {
 		issues = append(issues, ConformanceIssue{
 			Code:    "missing_state_report",
 			Message: "adapter did not report bridge state",
 		})
 	}
-	if expect.ExpectedFinalStatus != "" && len(report.States) > 0 {
-		last := report.States[len(report.States)-1]
-		if last.Status.Normalize() != expect.ExpectedFinalStatus.Normalize() {
+
+	lastStateByID := make(map[string]StateRecord)
+	for _, record := range report.States {
+		instanceID := strings.TrimSpace(record.BridgeInstanceID)
+		if instanceID == "" {
+			instanceID = strings.TrimSpace(record.Instance.ID)
+		}
+		if instanceID == "" {
+			issues = append(issues, ConformanceIssue{
+				Code:    "missing_state_instance_id",
+				Message: "adapter reported bridge state without bridge_instance_id",
+			})
+			continue
+		}
+		if len(expectedByID) > 0 {
+			if _, ok := expectedByID[instanceID]; !ok {
+				issues = append(issues, ConformanceIssue{
+					Code:    "unexpected_state_instance",
+					Message: fmt.Sprintf("state report targeted unexpected instance %q", instanceID),
+				})
+			}
+		}
+		record.BridgeInstanceID = instanceID
+		lastStateByID[instanceID] = record
+	}
+	for _, managedExpect := range expect.ManagedInstances {
+		if !expect.RequireStateReport && managedExpect.ExpectedFinalStatus == "" {
+			continue
+		}
+		last, ok := lastStateByID[strings.TrimSpace(managedExpect.InstanceID)]
+		if !ok {
+			issues = append(issues, ConformanceIssue{
+				Code:    "missing_managed_state",
+				Message: fmt.Sprintf("adapter did not report state for managed instance %q", managedExpect.InstanceID),
+			})
+			continue
+		}
+		if managedExpect.ExpectedFinalStatus != "" && last.Status.Normalize() != managedExpect.ExpectedFinalStatus.Normalize() {
 			issues = append(issues, ConformanceIssue{
 				Code: "wrong_final_status",
 				Message: fmt.Sprintf(
-					"last reported status = %q, want %q",
+					"managed instance %q last reported status = %q, want %q",
+					managedExpect.InstanceID,
 					last.Status,
-					expect.ExpectedFinalStatus,
+					managedExpect.ExpectedFinalStatus,
 				),
 			})
 		}
@@ -263,7 +422,22 @@ func ValidateConformance(report ConformanceReport, expect ConformanceExpectation
 	for _, record := range report.Deliveries {
 		event := record.Request.Event
 		deliveryID := strings.TrimSpace(event.DeliveryID)
+		instanceID := strings.TrimSpace(event.BridgeInstanceID)
 		eventType := normalizeEventType(event.EventType)
+		if len(expectedByID) > 0 {
+			if _, ok := expectedByID[instanceID]; !ok {
+				issues = append(issues, ConformanceIssue{
+					Code:    "unexpected_delivery_instance",
+					Message: fmt.Sprintf("delivery %q targeted unexpected instance %q", deliveryID, instanceID),
+				})
+			}
+		}
+		if targetID := strings.TrimSpace(event.DeliveryTarget.BridgeInstanceID); targetID != "" && targetID != instanceID {
+			issues = append(issues, ConformanceIssue{
+				Code:    "mismatched_delivery_target",
+				Message: fmt.Sprintf("delivery %q event instance %q did not match target instance %q", deliveryID, instanceID, targetID),
+			})
+		}
 		if eventType == bridgepkg.DeliveryEventTypeResume {
 			sawResume = true
 			if record.Request.Snapshot == nil {
@@ -308,6 +482,25 @@ func ValidateConformance(report ConformanceReport, expect ConformanceExpectation
 				Code:    "missing_replace_remote_message_id",
 				Message: fmt.Sprintf("delivery %q sequence %d did not return replace_remote_message_id", deliveryID, event.Seq),
 			})
+		}
+	}
+
+	for _, record := range report.Ingests {
+		instanceID := strings.TrimSpace(record.Envelope.BridgeInstanceID)
+		if instanceID == "" {
+			issues = append(issues, ConformanceIssue{
+				Code:    "missing_ingest_instance_id",
+				Message: "adapter ingested an inbound message without bridge_instance_id",
+			})
+			continue
+		}
+		if len(expectedByID) > 0 {
+			if _, ok := expectedByID[instanceID]; !ok {
+				issues = append(issues, ConformanceIssue{
+					Code:    "unexpected_ingest_instance",
+					Message: fmt.Sprintf("ingest targeted unexpected instance %q", instanceID),
+				})
+			}
 		}
 	}
 
@@ -453,15 +646,23 @@ func (d *ScriptedPromptDriver) Stop(_ context.Context, proc *session.AgentProces
 	return nil
 }
 
+// ManagedInstanceConfig configures one provider-owned bridge instance created by the harness.
+type ManagedInstanceConfig struct {
+	ID            string
+	DisplayName   string
+	RoutingPolicy bridgepkg.RoutingPolicy
+	BoundSecrets  []subprocess.InitializeBridgeBoundSecret
+}
+
 // HarnessConfig configures one subprocess-backed bridge adapter test harness.
 type HarnessConfig struct {
 	ExtensionDir             string
 	ExtensionName            string
-	BridgeInstanceID         string
 	DisplayName              string
 	Platform                 string
 	RoutingPolicy            bridgepkg.RoutingPolicy
 	BoundSecrets             []subprocess.InitializeBridgeBoundSecret
+	ManagedInstances         []ManagedInstanceConfig
 	Driver                   session.AgentDriver
 	StartTime                time.Time
 	CrashOnceOnFirstDelivery bool
@@ -480,7 +681,7 @@ type Harness struct {
 	Handler   *extensionpkg.HostAPIHandler
 	Manager   *extensionpkg.Manager
 	Sessions  *session.Manager
-	Instance  *bridgepkg.BridgeInstance
+	Instances []bridgepkg.BridgeInstance
 }
 
 // NewHarness starts the reusable adapter conformance harness.
@@ -553,23 +754,46 @@ func NewHarness(t testing.TB, cfg HarnessConfig) *Harness {
 	}
 
 	bridgeRegistry := bridgepkg.NewRegistry(globalDB, bridgepkg.WithNow(func() time.Time { return now }))
-	createReq := bridgepkg.CreateInstanceRequest{
-		ID:            firstNonEmpty(cfg.BridgeInstanceID, "brg-telegram-reference"),
-		Scope:         bridgepkg.ScopeWorkspace,
-		WorkspaceID:   workspace.ID,
-		Platform:      firstNonEmpty(cfg.Platform, "telegram"),
-		ExtensionName: extensionName,
-		DisplayName:   firstNonEmpty(cfg.DisplayName, "Telegram Reference"),
-		Enabled:       true,
-		Status:        bridgepkg.BridgeStatusStarting,
-		RoutingPolicy: cfg.RoutingPolicy,
+	managedConfigs := cfg.ManagedInstances
+	if len(managedConfigs) == 0 {
+		routingPolicy := cfg.RoutingPolicy
+		if routingPolicy == (bridgepkg.RoutingPolicy{}) {
+			routingPolicy = bridgepkg.RoutingPolicy{IncludePeer: true}
+		}
+		managedConfigs = []ManagedInstanceConfig{{
+			ID:            "brg-telegram-reference",
+			DisplayName:   firstNonEmpty(cfg.DisplayName, "Telegram Reference"),
+			RoutingPolicy: routingPolicy,
+			BoundSecrets:  cloneBoundSecrets(cfg.BoundSecrets),
+		}}
 	}
-	if createReq.RoutingPolicy == (bridgepkg.RoutingPolicy{}) {
-		createReq.RoutingPolicy = bridgepkg.RoutingPolicy{IncludePeer: true}
-	}
-	instance, err := bridgeRegistry.CreateInstance(aghtestutil.Context(t), createReq)
-	if err != nil {
-		t.Fatalf("bridgeRegistry.CreateInstance() error = %v", err)
+
+	instances := make([]bridgepkg.BridgeInstance, 0, len(managedConfigs))
+	managedRuntime := make([]subprocess.InitializeBridgeManagedInstance, 0, len(managedConfigs))
+	for _, managedCfg := range managedConfigs {
+		createReq := bridgepkg.CreateInstanceRequest{
+			ID:            firstNonEmpty(managedCfg.ID, fmt.Sprintf("brg-%d", len(instances)+1)),
+			Scope:         bridgepkg.ScopeWorkspace,
+			WorkspaceID:   workspace.ID,
+			Platform:      firstNonEmpty(cfg.Platform, "telegram"),
+			ExtensionName: extensionName,
+			DisplayName:   firstNonEmpty(managedCfg.DisplayName, cfg.DisplayName, "Telegram Reference"),
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusStarting,
+			RoutingPolicy: managedCfg.RoutingPolicy,
+		}
+		if createReq.RoutingPolicy == (bridgepkg.RoutingPolicy{}) {
+			createReq.RoutingPolicy = bridgepkg.RoutingPolicy{IncludePeer: true}
+		}
+		instance, err := bridgeRegistry.CreateInstance(aghtestutil.Context(t), createReq)
+		if err != nil {
+			t.Fatalf("bridgeRegistry.CreateInstance(%q) error = %v", createReq.ID, err)
+		}
+		instances = append(instances, *instance)
+		managedRuntime = append(managedRuntime, subprocess.InitializeBridgeManagedInstance{
+			Instance:     *instance,
+			BoundSecrets: cloneBoundSecrets(managedCfg.BoundSecrets),
+		})
 	}
 
 	checker := &extensionpkg.CapabilityChecker{}
@@ -592,17 +816,15 @@ func NewHarness(t testing.TB, cfg HarnessConfig) *Harness {
 		extensionpkg.WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
 			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
 				extensionName: {
-					RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
-					Provider:       extensionName,
-					Platform:       instance.Platform,
-					ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
-						Instance:     *instance,
-						BoundSecrets: cloneBoundSecrets(cfg.BoundSecrets),
-					}},
+					RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+					Provider:         extensionName,
+					Platform:         instances[0].Platform,
+					ManagedInstances: cloneManagedRuntime(managedRuntime),
 				},
 			},
 		}),
 		extensionpkg.WithBridgeTelemetrySink(telemetrySink),
+		extensionpkg.WithHostMethodHandler("bridges/instances/list", hostForwarder("bridges/instances/list")),
 		extensionpkg.WithHostMethodHandler("bridges/messages/ingest", hostForwarder("bridges/messages/ingest")),
 		extensionpkg.WithHostMethodHandler("bridges/instances/get", hostForwarder("bridges/instances/get")),
 		extensionpkg.WithHostMethodHandler("bridges/instances/report_state", hostForwarder("bridges/instances/report_state")),
@@ -677,7 +899,7 @@ func NewHarness(t testing.TB, cfg HarnessConfig) *Harness {
 		Handler:   hostHandler,
 		Manager:   manager,
 		Sessions:  sessions,
-		Instance:  instance,
+		Instances: append([]bridgepkg.BridgeInstance(nil), instances...),
 	}
 
 	t.Cleanup(func() {
@@ -785,8 +1007,8 @@ func (h *Harness) Report(t testing.TB) ConformanceReport {
 	if handshake, err := readJSONFile[HandshakeRecord](h.Markers.Handshake); err == nil {
 		report.Handshake = &handshake
 	}
-	if instance, err := readJSONFile[bridgepkg.BridgeInstance](h.Markers.Instance); err == nil {
-		report.Instance = &instance
+	if ownership, err := readJSONFile[OwnershipRecord](h.Markers.Ownership); err == nil {
+		report.Ownership = &ownership
 	}
 	if states, err := readJSONLinesFile[StateRecord](h.Markers.State); err == nil {
 		report.States = states
@@ -931,20 +1153,17 @@ func cloneBoundSecrets(src []subprocess.InitializeBridgeBoundSecret) []subproces
 	return append([]subprocess.InitializeBridgeBoundSecret(nil), src...)
 }
 
-func conformanceManagedInstance(
-	runtime subprocess.InitializeBridgeRuntime,
-	instanceID string,
-) (*subprocess.InitializeBridgeManagedInstance, bool) {
-	trimmedID := strings.TrimSpace(instanceID)
-	if trimmedID != "" {
-		return runtime.ManagedInstance(trimmedID)
+func cloneManagedRuntime(src []subprocess.InitializeBridgeManagedInstance) []subprocess.InitializeBridgeManagedInstance {
+	if len(src) == 0 {
+		return nil
 	}
-
-	managed, err := runtime.SingleManagedInstance()
-	if err != nil {
-		return nil, false
+	cloned := make([]subprocess.InitializeBridgeManagedInstance, 0, len(src))
+	for _, managed := range src {
+		item := managed
+		item.BoundSecrets = cloneBoundSecrets(item.BoundSecrets)
+		cloned = append(cloned, item)
 	}
-	return managed, true
+	return cloned
 }
 
 func sequentialIDGenerator(prefix string) session.IDGenerator {

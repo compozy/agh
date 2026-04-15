@@ -9,6 +9,7 @@ import (
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
@@ -158,5 +159,67 @@ func TestSessionAccessorsExposeConfiguredHelpers(t *testing.T) {
 	}
 	if session.Cache() != cache {
 		t.Fatal("session.Cache() did not return configured cache")
+	}
+}
+
+func TestSessionInitializeAccessorsReturnClones(t *testing.T) {
+	t.Parallel()
+
+	session := &Session{
+		request: subprocess.InitializeRequest{
+			Capabilities: subprocess.InitializeCapabilities{
+				Provides:        []string{"bridge.adapter"},
+				GrantedActions:  []extensionprotocol.HostAPIMethod{extensionprotocol.HostAPIMethodBridgesInstancesList},
+				GrantedSecurity: []string{"bridge.read"},
+			},
+			Methods: subprocess.InitializeMethods{
+				DaemonRequests:    []string{"ping"},
+				ExtensionServices: []string{"bridges/deliver"},
+			},
+			Runtime: subprocess.InitializeRuntime{
+				Bridge: testManagedRuntime("brg-1"),
+			},
+		},
+		response: subprocess.InitializeResponse{
+			AcceptedCapabilities: subprocess.AcceptedCapabilities{
+				Provides: []string{"bridge.adapter"},
+				Actions:  []extensionprotocol.HostAPIMethod{extensionprotocol.HostAPIMethodBridgesInstancesGet},
+				Security: []string{"bridge.write"},
+			},
+			ImplementedMethods:  []string{"bridges/deliver"},
+			SupportedHookEvents: []string{"hook"},
+		},
+	}
+
+	request := session.InitializeRequest()
+	response := session.InitializeResponse()
+
+	request.Capabilities.Provides[0] = "mutated"
+	request.Capabilities.GrantedActions[0] = extensionprotocol.HostAPIMethodBridgesInstancesGet
+	request.Capabilities.GrantedSecurity[0] = "mutated"
+	request.Methods.DaemonRequests[0] = "mutated"
+	request.Methods.ExtensionServices[0] = "mutated"
+	request.Runtime.Bridge.ManagedInstances[0].Instance.ID = "mutated"
+
+	response.AcceptedCapabilities.Provides[0] = "mutated"
+	response.AcceptedCapabilities.Actions[0] = extensionprotocol.HostAPIMethodBridgesMessagesIngest
+	response.AcceptedCapabilities.Security[0] = "mutated"
+	response.ImplementedMethods[0] = "mutated"
+	response.SupportedHookEvents[0] = "mutated"
+
+	if got, want := session.request.Capabilities.Provides[0], "bridge.adapter"; got != want {
+		t.Fatalf("session.request.Capabilities.Provides[0] = %q, want %q", got, want)
+	}
+	if got, want := session.request.Methods.DaemonRequests[0], "ping"; got != want {
+		t.Fatalf("session.request.Methods.DaemonRequests[0] = %q, want %q", got, want)
+	}
+	if got, want := session.request.Runtime.Bridge.ManagedInstances[0].Instance.ID, "brg-1"; got != want {
+		t.Fatalf("session.request.Runtime.Bridge.ManagedInstances[0].Instance.ID = %q, want %q", got, want)
+	}
+	if got, want := session.response.AcceptedCapabilities.Provides[0], "bridge.adapter"; got != want {
+		t.Fatalf("session.response.AcceptedCapabilities.Provides[0] = %q, want %q", got, want)
+	}
+	if got, want := session.response.ImplementedMethods[0], "bridges/deliver"; got != want {
+		t.Fatalf("session.response.ImplementedMethods[0] = %q, want %q", got, want)
 	}
 }

@@ -70,12 +70,18 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 
 		report := harness.Report(t)
 		if err := ValidateConformance(report, ConformanceExpectation{
-			InstanceID:          harness.Instance.ID,
-			ExtensionName:       "telegram-reference",
-			BoundSecretNames:    []string{"bot_token"},
-			RequireStateReport:  true,
-			RequireDelivery:     true,
-			ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+			Provider:                  "telegram-reference",
+			Platform:                  "telegram",
+			RequireOwnedInstanceList:  true,
+			RequireOwnedInstanceFetch: true,
+			RequireStateReport:        true,
+			RequireDelivery:           true,
+			ManagedInstances: []ManagedInstanceExpectation{{
+				InstanceID:          harness.Instances[0].ID,
+				ExtensionName:       "telegram-reference",
+				BoundSecretNames:    []string{"bot_token"},
+				ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+			}},
 		}); err != nil {
 			t.Fatalf("ValidateConformance() error = %v", err)
 		}
@@ -133,13 +139,19 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 		})
 		report := harness.Report(t)
 		if err := ValidateConformance(report, ConformanceExpectation{
-			InstanceID:          harness.Instance.ID,
-			ExtensionName:       "telegram-reference",
-			BoundSecretNames:    []string{"bot_token"},
-			RequireStateReport:  true,
-			RequireDelivery:     true,
-			RequireResume:       true,
-			ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+			Provider:                  "telegram-reference",
+			Platform:                  "telegram",
+			RequireOwnedInstanceList:  true,
+			RequireOwnedInstanceFetch: true,
+			RequireStateReport:        true,
+			RequireDelivery:           true,
+			RequireResume:             true,
+			ManagedInstances: []ManagedInstanceExpectation{{
+				InstanceID:          harness.Instances[0].ID,
+				ExtensionName:       "telegram-reference",
+				BoundSecretNames:    []string{"bot_token"},
+				ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+			}},
 		}); err != nil {
 			t.Fatalf("ValidateConformance() error = %v", err)
 		}
@@ -165,10 +177,16 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 
 		report := harness.Report(t)
 		if err := ValidateConformance(report, ConformanceExpectation{
-			InstanceID:          harness.Instance.ID,
-			ExtensionName:       "telegram-reference",
-			RequireStateReport:  true,
-			ExpectedFinalStatus: bridgepkg.BridgeStatusAuthRequired,
+			Provider:                  "telegram-reference",
+			Platform:                  "telegram",
+			RequireOwnedInstanceList:  true,
+			RequireOwnedInstanceFetch: true,
+			RequireStateReport:        true,
+			ManagedInstances: []ManagedInstanceExpectation{{
+				InstanceID:          harness.Instances[0].ID,
+				ExtensionName:       "telegram-reference",
+				ExpectedFinalStatus: bridgepkg.BridgeStatusAuthRequired,
+			}},
 		}); err != nil {
 			t.Fatalf("ValidateConformance() error = %v", err)
 		}
@@ -177,6 +195,101 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 		})
 		if got := harness.ObserveHealth(t).Bridges.StatusCounts.AuthRequired; got != 1 {
 			t.Fatalf("ObserveHealth().Bridges.StatusCounts.AuthRequired = %d, want 1", got)
+		}
+	})
+
+	t.Run("multi_instance_provider_scope", func(t *testing.T) {
+		startTime := time.Date(2026, 4, 11, 8, 15, 0, 0, time.UTC)
+		harness := NewHarness(t, HarnessConfig{
+			ExtensionDir: filepath.Join(repoRoot, "sdk", "examples", "telegram-reference"),
+			ManagedInstances: []ManagedInstanceConfig{
+				{
+					ID:           "brg-telegram-reference-a",
+					DisplayName:  "Telegram Reference A",
+					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{{BindingName: "bot_token", Kind: "token", Value: "token-a"}},
+				},
+				{
+					ID:           "brg-telegram-reference-b",
+					DisplayName:  "Telegram Reference B",
+					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{{BindingName: "bot_token", Kind: "token", Value: "token-b"}},
+				},
+			},
+			Driver: NewScriptedPromptDriver(startTime, []ScriptedPromptEvent{
+				{Type: acp.EventTypeAgentMessage, Text: "hello"},
+				{Type: acp.EventTypeDone},
+			}),
+			StartTime: startTime,
+		})
+
+		handshake := harness.WaitForHandshake(t, 10*time.Second)
+		harness.WaitForStates(t, 10*time.Second, func(states []StateRecord) bool {
+			seen := make(map[string]bridgepkg.BridgeStatus, len(states))
+			for _, state := range states {
+				seen[state.BridgeInstanceID] = state.Status.Normalize()
+			}
+			return seen["brg-telegram-reference-a"] == bridgepkg.BridgeStatusReady &&
+				seen["brg-telegram-reference-b"] == bridgepkg.BridgeStatusReady
+		})
+
+		harness.AppendInboundUpdate(t, map[string]any{
+			"bridge_instance_id": "brg-telegram-reference-a",
+			"update_id":          9101,
+			"message": map[string]any{
+				"message_id": 111,
+				"date":       startTime.Unix(),
+				"chat":       map[string]any{"id": 1001},
+				"from":       map[string]any{"id": 2001},
+				"text":       "route a",
+			},
+		})
+		harness.AppendInboundUpdate(t, map[string]any{
+			"bridge_instance_id": "brg-telegram-reference-b",
+			"update_id":          9102,
+			"message": map[string]any{
+				"message_id": 112,
+				"date":       startTime.Unix(),
+				"chat":       map[string]any{"id": 1002},
+				"from":       map[string]any{"id": 2002},
+				"text":       "route b",
+			},
+		})
+
+		harness.WaitForDeliveries(t, 10*time.Second, func(records []DeliveryRecord) bool {
+			seen := make(map[string]bool)
+			for _, record := range records {
+				seen[record.Request.Event.BridgeInstanceID] = true
+			}
+			return seen["brg-telegram-reference-a"] && seen["brg-telegram-reference-b"]
+		})
+
+		report := harness.Report(t)
+		if err := ValidateConformance(report, ConformanceExpectation{
+			Provider:                  "telegram-reference",
+			Platform:                  "telegram",
+			RequireOwnedInstanceList:  true,
+			RequireOwnedInstanceFetch: true,
+			RequireStateReport:        true,
+			RequireDelivery:           true,
+			ManagedInstances: []ManagedInstanceExpectation{
+				{
+					InstanceID:          "brg-telegram-reference-a",
+					ExtensionName:       "telegram-reference",
+					BoundSecretNames:    []string{"bot_token"},
+					ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+				},
+				{
+					InstanceID:          "brg-telegram-reference-b",
+					ExtensionName:       "telegram-reference",
+					BoundSecretNames:    []string{"bot_token"},
+					ExpectedFinalStatus: bridgepkg.BridgeStatusReady,
+				},
+			},
+		}); err != nil {
+			t.Fatalf("ValidateConformance() error = %v", err)
+		}
+
+		if _, err := handshake.Request.Runtime.Bridge.SingleManagedInstance(); err == nil {
+			t.Fatal("SingleManagedInstance() error = nil, want legacy single-instance expectation failure")
 		}
 	})
 }

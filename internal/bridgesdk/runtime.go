@@ -126,6 +126,46 @@ func (s *Session) BridgeRuntime() *subprocess.InitializeBridgeRuntime {
 	return s.cache.Snapshot()
 }
 
+// InitializeRequest returns a clone of the negotiated initialize request.
+func (s *Session) InitializeRequest() subprocess.InitializeRequest {
+	if s == nil {
+		return subprocess.InitializeRequest{}
+	}
+
+	request := s.request
+	request.Capabilities.Provides = append([]string(nil), request.Capabilities.Provides...)
+	request.Capabilities.GrantedActions = append(
+		[]extensionprotocol.HostAPIMethod(nil),
+		request.Capabilities.GrantedActions...,
+	)
+	request.Capabilities.GrantedSecurity = append([]string(nil), request.Capabilities.GrantedSecurity...)
+	request.Methods.DaemonRequests = append([]string(nil), request.Methods.DaemonRequests...)
+	request.Methods.ExtensionServices = append([]string(nil), request.Methods.ExtensionServices...)
+	request.Runtime.Bridge = subprocess.CloneInitializeBridgeRuntime(request.Runtime.Bridge)
+	return request
+}
+
+// InitializeResponse returns a copy of the initialize response sent by the runtime.
+func (s *Session) InitializeResponse() subprocess.InitializeResponse {
+	if s == nil {
+		return subprocess.InitializeResponse{}
+	}
+
+	response := s.response
+	response.AcceptedCapabilities.Provides = append([]string(nil), response.AcceptedCapabilities.Provides...)
+	response.AcceptedCapabilities.Actions = append(
+		[]extensionprotocol.HostAPIMethod(nil),
+		response.AcceptedCapabilities.Actions...,
+	)
+	response.AcceptedCapabilities.Security = append(
+		[]string(nil),
+		response.AcceptedCapabilities.Security...,
+	)
+	response.ImplementedMethods = append([]string(nil), response.ImplementedMethods...)
+	response.SupportedHookEvents = append([]string(nil), response.SupportedHookEvents...)
+	return response
+}
+
 // HostAPI returns the typed bridge Host API client.
 func (s *Session) HostAPI() *HostAPIClient {
 	if s == nil {
