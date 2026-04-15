@@ -8,11 +8,19 @@ vi.mock("@/lib/utils", () => ({
 import { CopyButton } from "./copy-button";
 
 describe("CopyButton", () => {
+  let clipboardDescriptorBeforeTest: PropertyDescriptor | undefined;
+
   beforeEach(() => {
     vi.useFakeTimers();
+    clipboardDescriptorBeforeTest = Object.getOwnPropertyDescriptor(navigator, "clipboard");
   });
 
   afterEach(() => {
+    if (clipboardDescriptorBeforeTest) {
+      Object.defineProperty(navigator, "clipboard", clipboardDescriptorBeforeTest);
+    } else {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
     vi.restoreAllMocks();
     vi.useRealTimers();
   });

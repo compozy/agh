@@ -98,7 +98,9 @@ export const MessageMarkdown = memo(
                     className={cn(
                       "absolute top-2 right-2 rounded-md p-1.5",
                       "border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)]",
-                      "opacity-0 transition-opacity duration-200 group-hover/codeblock:opacity-100",
+                      "opacity-0 transition-opacity duration-200",
+                      "group-hover/codeblock:opacity-100 group-focus-within/codeblock:opacity-100",
+                      "focus-visible:opacity-100",
                       "text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-text-primary)]"
                     )}
                   />
