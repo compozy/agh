@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PrismAsyncLight as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -14,9 +14,9 @@ import tsx from "react-syntax-highlighter/dist/esm/languages/prism/tsx";
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Check, Copy } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { CopyButton } from "./copy-button";
 
 SyntaxHighlighter.registerLanguage("bash", bash);
 SyntaxHighlighter.registerLanguage("diff", diff);
@@ -63,40 +63,6 @@ function normalizeCodeLanguage(className?: string): string {
   return SUPPORTED_CODE_LANGUAGES.has(normalizedLanguage) ? normalizedLanguage : "";
 }
 
-const COPY_RESET_MS = 1200;
-
-function CodeCopyButton({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  useEffect(() => {
-    return () => clearTimeout(timerRef.current);
-  }, []);
-
-  const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(code);
-    setCopied(true);
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setCopied(false), COPY_RESET_MS);
-  }, [code]);
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className={cn(
-        "absolute top-2 right-2 rounded-md p-1.5",
-        "bg-[color:var(--color-surface-elevated)] border border-[color:var(--color-divider)]",
-        "opacity-0 group-hover/codeblock:opacity-100 transition-opacity duration-200",
-        "text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-text-primary)]"
-      )}
-      aria-label="Copy code"
-    >
-      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-    </button>
-  );
-}
-
 export interface MessageMarkdownProps {
   content: string;
 }
@@ -126,7 +92,16 @@ export const MessageMarkdown = memo(
                   >
                     {codeString}
                   </SyntaxHighlighter>
-                  <CodeCopyButton code={codeString} />
+                  <CopyButton
+                    text={codeString}
+                    ariaLabel="Copy code"
+                    className={cn(
+                      "absolute top-2 right-2 rounded-md p-1.5",
+                      "border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)]",
+                      "opacity-0 transition-opacity duration-200 group-hover/codeblock:opacity-100",
+                      "text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-text-primary)]"
+                    )}
+                  />
                 </div>
               );
             }

@@ -8,6 +8,7 @@ import {
   getToolIcon,
   getToolLabel,
   getToolCompactSummary,
+  getToolFullSummary,
   getToolTone,
   toolToneClass,
 } from "../lib/tool-labels";
@@ -66,11 +67,9 @@ export const ToolCallCard = memo(
     const isError = !!message.toolError;
     const tone = getToolTone(message);
     const Icon = getToolIcon(message.toolName ?? "", message.toolInput);
+    const fullSummary = getToolFullSummary(message.toolName ?? "", message.toolInput);
     const summary = getToolCompactSummary(message.toolName ?? "", message.toolInput);
-
-    // For Bash tools, show full raw command in tooltip when it's truncated
-    const rawCommand = message.toolName === "Bash" ? String(message.toolInput?.command ?? "") : "";
-    const showCommandTooltip = rawCommand.length > 80;
+    const showSummaryTooltip = !!summary && !!fullSummary && fullSummary !== summary;
 
     // Track whether toolResult was present at mount (history → skip auto-expand)
     const initialHadResult = useRef(hasResult);
@@ -162,7 +161,7 @@ export const ToolCallCard = memo(
                 : getToolLabel(message.toolName ?? "", "past")}
           </span>
 
-          {summary && showCommandTooltip ? (
+          {summary && showSummaryTooltip ? (
             <Tooltip>
               <TooltipTrigger
                 className={cn("min-w-0 truncate cursor-default", toolToneClass(tone))}
@@ -174,7 +173,7 @@ export const ToolCallCard = memo(
                 className="max-w-[min(56rem,calc(100vw-2rem))] px-0 py-0"
               >
                 <div className="overflow-x-auto px-2 py-1.5 font-mono text-[11px] whitespace-nowrap">
-                  {rawCommand}
+                  {fullSummary}
                 </div>
               </TooltipContent>
             </Tooltip>

@@ -139,6 +139,11 @@ describe("MessageBubble", () => {
     expect(screen.getByText("...")).toBeInTheDocument();
   });
 
+  it("does not render a copy button for empty user messages", () => {
+    render(<MessageBubble message={makeMessage({ role: "user", content: "" })} />);
+    expect(screen.queryByRole("button", { name: "Copy message" })).not.toBeInTheDocument();
+  });
+
   it("does not re-render when content is unchanged (memo check)", async () => {
     const message = makeMessage({ content: "Hello" });
     const { rerender } = render(<MessageBubble message={message} />);

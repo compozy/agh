@@ -155,32 +155,43 @@ export function getToolCompactSummary(
   toolName: string,
   toolInput?: Record<string, unknown>
 ): string | undefined {
-  if (!toolInput) return undefined;
+  const fullSummary = getToolFullSummary(toolName, toolInput);
+  if (fullSummary === undefined) return undefined;
 
-  switch (toolName) {
-    case "Bash":
-      return truncate(String(toolInput.command ?? ""), 80);
-    case "Read":
-      return truncate(String(toolInput.file_path ?? toolInput.filePath ?? ""), 60);
-    case "Write":
-      return truncate(String(toolInput.file_path ?? toolInput.filePath ?? ""), 60);
-    case "Edit":
-      return truncate(String(toolInput.file_path ?? toolInput.filePath ?? ""), 60);
-    case "Grep":
-      return truncate(String(toolInput.pattern ?? ""), 60);
-    case "Glob":
-      return truncate(String(toolInput.pattern ?? ""), 60);
-    case "WebSearch":
-      return truncate(String(toolInput.query ?? ""), 60);
-    case "WebFetch":
-      return truncate(String(toolInput.url ?? ""), 60);
-    default:
-      return undefined;
-  }
+  return truncate(fullSummary, getToolSummaryMaxLength(toolName));
 }
 
 function truncate(str: string, maxLen: number): string {
   if (!str) return "";
   if (str.length <= maxLen) return str;
   return str.slice(0, maxLen - 1) + "\u2026";
+}
+
+export function getToolFullSummary(
+  toolName: string,
+  toolInput?: Record<string, unknown>
+): string | undefined {
+  if (!toolInput) return undefined;
+
+  switch (toolName) {
+    case "Bash":
+      return String(toolInput.command ?? "");
+    case "Read":
+    case "Write":
+    case "Edit":
+      return String(toolInput.file_path ?? toolInput.filePath ?? "");
+    case "Grep":
+    case "Glob":
+      return String(toolInput.pattern ?? "");
+    case "WebSearch":
+      return String(toolInput.query ?? "");
+    case "WebFetch":
+      return String(toolInput.url ?? "");
+    default:
+      return undefined;
+  }
+}
+
+function getToolSummaryMaxLength(toolName: string): number {
+  return toolName === "Bash" ? 80 : 60;
 }

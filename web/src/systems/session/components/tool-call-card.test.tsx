@@ -7,6 +7,22 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
+vi.mock("@/components/ui/tooltip", () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="tooltip">{children}</div>
+  ),
+  TooltipTrigger: ({ children, ...props }: Record<string, unknown>) => (
+    <div data-testid="tooltip-trigger" {...props}>
+      {children as React.ReactNode}
+    </div>
+  ),
+  TooltipContent: ({ children, ...props }: Record<string, unknown>) => (
+    <div data-testid="tooltip-content" {...props}>
+      {children as React.ReactNode}
+    </div>
+  ),
+}));
+
 import { ToolCallCard } from "./tool-call-card";
 
 function makeToolMessage(overrides: Partial<UIMessage> = {}): UIMessage {
@@ -108,6 +124,7 @@ describe("ToolCallCard", () => {
   it("shows compact summary from tool input", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
     expect(screen.getByText("/src/main.ts")).toBeInTheDocument();
+    expect(screen.queryByTestId("tooltip-content")).not.toBeInTheDocument();
   });
 
   it("auto-expands when toolResult arrives", () => {
@@ -179,6 +196,23 @@ describe("ToolCallCard", () => {
     );
     expect(screen.getByTestId("tool-card-executing")).toHaveTextContent("Running...");
     expect(screen.getByText("ls -la")).toBeInTheDocument();
+  });
+
+  it("shows the full tooltip content for truncated non-Bash summaries", () => {
+    const longPath =
+      "/very/long/project/path/with/many/segments/that/needs/a/tooltip/example-file.tsx";
+
+    render(
+      <ToolCallCard
+        message={makeToolMessage({
+          toolName: "Read",
+          toolInput: { file_path: longPath },
+        })}
+      />
+    );
+
+    expect(screen.getByTestId("tooltip-trigger")).toHaveTextContent("\u2026");
+    expect(screen.getByTestId("tooltip-content")).toHaveTextContent(longPath);
   });
 
   it("renders unknown tool with fallback labels", () => {

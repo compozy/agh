@@ -35,6 +35,16 @@ describe("getToolIcon", () => {
     expect(getToolIcon("SomeUnknownTool")).toBe(Wrench);
     expect(getToolIcon("")).toBe(Wrench);
   });
+
+  it("uses semantic fallbacks for unknown tools based on tool input", () => {
+    expect(getToolIcon("SomeUnknownTool", { command: "ls -la" })).toBe(Terminal);
+    expect(getToolIcon("SomeUnknownTool", { file_path: "/tmp/file.txt" })).toBe(FileText);
+    expect(getToolIcon("SomeUnknownTool", { filePath: "/tmp/file.txt" })).toBe(FileText);
+    expect(getToolIcon("SomeUnknownTool", { pattern: "TODO" })).toBe(Search);
+    expect(getToolIcon("SomeUnknownTool", { url: "https://example.com" })).toBe(Globe);
+    expect(getToolIcon("SomeUnknownTool", { query: "search term" })).toBe(Globe);
+    expect(getToolIcon("SomeUnknownTool", { other: true })).toBe(Wrench);
+  });
 });
 
 describe("getToolLabel", () => {

@@ -1,9 +1,9 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { memo } from "react";
 
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import type { UIMessage } from "../types";
+import { CopyButton } from "./copy-button";
 import { ThinkingBlock } from "./thinking-block";
 
 export interface MessageBubbleProps {
@@ -25,40 +25,6 @@ function formatTimestamp(ts: number): string {
   }
 
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-const COPY_RESET_MS = 1200;
-
-function MessageCopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  useEffect(() => {
-    return () => clearTimeout(timerRef.current);
-  }, []);
-
-  const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(text);
-    setCopied(true);
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setCopied(false), COPY_RESET_MS);
-  }, [text]);
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className={cn(
-        "rounded-md p-1",
-        "opacity-0 transition-opacity duration-200",
-        "group-hover/msgbubble:opacity-100",
-        "text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-text-primary)]"
-      )}
-      aria-label="Copy message"
-    >
-      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-    </button>
-  );
 }
 
 export const MessageBubble = memo(
@@ -90,14 +56,27 @@ export const MessageBubble = memo(
                 <MessageMarkdown content={message.content} />
               </div>
             )}
-            <div className="mt-1.5 flex items-center justify-end gap-2">
-              <MessageCopyButton text={message.content} />
-              {timestamp ? (
-                <span className="text-[10px] text-[color:var(--color-text-tertiary)]/50">
-                  {timestamp}
-                </span>
-              ) : null}
-            </div>
+            {(message.content || timestamp) && (
+              <div className="mt-1.5 flex items-center justify-end gap-2">
+                {message.content ? (
+                  <CopyButton
+                    text={message.content}
+                    ariaLabel="Copy message"
+                    className={cn(
+                      "rounded-md p-1",
+                      "opacity-0 transition-opacity duration-200",
+                      "group-hover/msgbubble:opacity-100",
+                      "text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-text-primary)]"
+                    )}
+                  />
+                ) : null}
+                {timestamp ? (
+                  <span className="text-[10px] text-[color:var(--color-text-tertiary)]/50">
+                    {timestamp}
+                  </span>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
       );
@@ -141,7 +120,16 @@ export const MessageBubble = memo(
 
         {message.content && (
           <div className="mt-1.5 flex items-center gap-2">
-            <MessageCopyButton text={message.content} />
+            <CopyButton
+              text={message.content}
+              ariaLabel="Copy message"
+              className={cn(
+                "rounded-md p-1",
+                "opacity-0 transition-opacity duration-200",
+                "group-hover/msgbubble:opacity-100",
+                "text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-text-primary)]"
+              )}
+            />
           </div>
         )}
       </div>
