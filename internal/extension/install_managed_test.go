@@ -20,14 +20,14 @@ func TestCopyInstallTreeMaterializesSymlinkTargets(t *testing.T) {
 		t.Fatalf("os.MkdirAll(source) error = %v", err)
 	}
 
-	externalDir := filepath.Join(t.TempDir(), "external-sdk")
-	if err := os.MkdirAll(filepath.Join(externalDir, "bin"), 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(external) error = %v", err)
+	internalDir := filepath.Join(sourceDir, "vendor", "extension-sdk")
+	if err := os.MkdirAll(filepath.Join(internalDir, "bin"), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(internal) error = %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(externalDir, "package.json"), []byte("{\"name\":\"@agh/extension-sdk\"}\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(internalDir, "package.json"), []byte("{\"name\":\"@agh/extension-sdk\"}\n"), 0o644); err != nil {
 		t.Fatalf("os.WriteFile(package.json) error = %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(externalDir, "bin", "tsc"), []byte("#!/usr/bin/env node\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(internalDir, "bin", "tsc"), []byte("#!/usr/bin/env node\n"), 0o755); err != nil {
 		t.Fatalf("os.WriteFile(tsc) error = %v", err)
 	}
 
@@ -37,10 +37,10 @@ func TestCopyInstallTreeMaterializesSymlinkTargets(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules", ".bin"), 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(node_modules/.bin) error = %v", err)
 	}
-	if err := os.Symlink(externalDir, filepath.Join(sourceDir, "node_modules", "@agh", "extension-sdk")); err != nil {
+	if err := os.Symlink(filepath.Join(sourceDir, "vendor", "extension-sdk"), filepath.Join(sourceDir, "node_modules", "@agh", "extension-sdk")); err != nil {
 		t.Skipf("os.Symlink(directory) unavailable: %v", err)
 	}
-	if err := os.Symlink(filepath.Join(externalDir, "bin", "tsc"), filepath.Join(sourceDir, "node_modules", ".bin", "tsc")); err != nil {
+	if err := os.Symlink(filepath.Join(sourceDir, "vendor", "extension-sdk", "bin", "tsc"), filepath.Join(sourceDir, "node_modules", ".bin", "tsc")); err != nil {
 		t.Skipf("os.Symlink(file) unavailable: %v", err)
 	}
 
@@ -92,11 +92,14 @@ func TestInstallLocalManagedUsesInstalledChecksumForMaterializedSymlinks(t *test
 		t.Fatalf("os.MkdirAll(source) error = %v", err)
 	}
 
-	externalFile := filepath.Join(t.TempDir(), "external.js")
-	if err := os.WriteFile(externalFile, []byte("export const value = 1;\n"), 0o644); err != nil {
-		t.Fatalf("os.WriteFile(external) error = %v", err)
+	internalFile := filepath.Join(sourceDir, "vendor", "external.js")
+	if err := os.MkdirAll(filepath.Dir(internalFile), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(vendor) error = %v", err)
 	}
-	if err := os.Symlink(externalFile, filepath.Join(sourceDir, "node_modules", "external.js")); err != nil {
+	if err := os.WriteFile(internalFile, []byte("export const value = 1;\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(internal) error = %v", err)
+	}
+	if err := os.Symlink(internalFile, filepath.Join(sourceDir, "node_modules", "external.js")); err != nil {
 		t.Skipf("os.Symlink(file) unavailable: %v", err)
 	}
 
@@ -129,6 +132,34 @@ func TestInstallLocalManagedUsesInstalledChecksumForMaterializedSymlinks(t *test
 	}
 }
 
+func TestInstallLocalManagedNormalizesProvidedChecksum(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := filepath.Join(t.TempDir(), "source")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(source) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "extension.toml"), []byte("name = \"checksum-ext\"\nversion = \"1.0.0\"\nmin_agh_version = \"0.1.0\"\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
+	}
+
+	sourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+	}
+
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	registry := &recordingManagedInstallRegistry{}
+	manifest := &Manifest{Name: "checksum-ext"}
+
+	if err := InstallLocalManaged(homePaths, registry, manifest, sourceDir, "  "+strings.ToUpper(sourceChecksum)+"  "); err != nil {
+		t.Fatalf("InstallLocalManaged(normalized checksum) error = %v", err)
+	}
+}
+
 func TestCopyInstallTreeRejectsSymlinkDirectoryCycles(t *testing.T) {
 	t.Parallel()
 
@@ -148,6 +179,60 @@ func TestCopyInstallTreeRejectsSymlinkDirectoryCycles(t *testing.T) {
 	if !strings.Contains(err.Error(), "symlink directory cycle detected") {
 		t.Fatalf("copyInstallTree() error = %v, want symlink cycle context", err)
 	}
+}
+
+func TestCopyInstallTreeRejectsSymlinkTargetsOutsideSourceRoot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldRejectExternalDirectoryTargets", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := filepath.Join(t.TempDir(), "source")
+		if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules"), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(source) error = %v", err)
+		}
+
+		externalDir := filepath.Join(t.TempDir(), "external-sdk")
+		if err := os.MkdirAll(externalDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(external) error = %v", err)
+		}
+		if err := os.Symlink(externalDir, filepath.Join(sourceDir, "node_modules", "sdk")); err != nil {
+			t.Skipf("os.Symlink(directory) unavailable: %v", err)
+		}
+
+		err := copyInstallTree(sourceDir, filepath.Join(t.TempDir(), "target"))
+		if err == nil {
+			t.Fatal("copyInstallTree() error = nil, want symlink escape failure")
+		}
+		if !strings.Contains(err.Error(), "escapes source root") {
+			t.Fatalf("copyInstallTree() error = %v, want escape context", err)
+		}
+	})
+
+	t.Run("ShouldRejectExternalFileTargets", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := filepath.Join(t.TempDir(), "source")
+		if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules"), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(source) error = %v", err)
+		}
+
+		externalFile := filepath.Join(t.TempDir(), "external.js")
+		if err := os.WriteFile(externalFile, []byte("export const value = 1;\n"), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(external) error = %v", err)
+		}
+		if err := os.Symlink(externalFile, filepath.Join(sourceDir, "node_modules", "external.js")); err != nil {
+			t.Skipf("os.Symlink(file) unavailable: %v", err)
+		}
+
+		err := copyInstallTree(sourceDir, filepath.Join(t.TempDir(), "target"))
+		if err == nil {
+			t.Fatal("copyInstallTree() error = nil, want symlink escape failure")
+		}
+		if !strings.Contains(err.Error(), "escapes source root") {
+			t.Fatalf("copyInstallTree() error = %v, want escape context", err)
+		}
+	})
 }
 
 func TestInstallLocalManagedWrapsPhaseErrors(t *testing.T) {

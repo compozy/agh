@@ -226,6 +226,20 @@ func TestManagedSyncerRejectsDuplicateDesiredIDs(t *testing.T) {
 	}
 }
 
+func TestManagedSyncerReturnsExplicitErrorForNilStoreConstruction(t *testing.T) {
+	t.Parallel()
+
+	syncer := bridgepkg.NewManagedSyncer(nil)
+	if syncer == nil {
+		t.Fatal("NewManagedSyncer(nil) = nil, want non-nil service")
+	}
+
+	_, err := syncer.SyncManagedInstances(testutil.Context(t), bridgepkg.BridgeInstanceSourcePackage, nil)
+	if err == nil || !containsText(err, "managed sync store is required") {
+		t.Fatalf("SyncManagedInstances(nil store) error = %v, want explicit missing-store failure", err)
+	}
+}
+
 func containsText(err error, text string) bool {
 	return err != nil && text != "" && strings.Contains(err.Error(), text)
 }

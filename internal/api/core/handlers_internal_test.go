@@ -2,12 +2,17 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/network"
@@ -357,5 +362,86 @@ func TestNetworkStatusPayloadWrapsBundleSettingsErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "api: load bundle network settings") {
 		t.Fatalf("networkStatusPayload() error = %q, want bundle settings context", err.Error())
+	}
+}
+
+func TestBundleHandlersRejectNilReceiverWithoutPanicking(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	var nilHandlers *BaseHandlers
+	testCases := []struct {
+		name   string
+		invoke func(*gin.Context)
+	}{
+		{
+			name: "ShouldRejectCatalogRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.ListBundleCatalog(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectPreviewRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.PreviewBundleActivation(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectActivationListRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.ListBundleActivations(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectActivationGetRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.GetBundleActivation(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectActivationUpdateRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.UpdateBundleActivation(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectActivationDeleteRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.DeleteBundleActivation(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectNetworkSettingsRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.BundleNetworkSettings(ctx)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			ctx.Params = gin.Params{{Key: "id", Value: "act-1"}}
+
+			tc.invoke(ctx)
+
+			if got, want := recorder.Code, http.StatusServiceUnavailable; got != want {
+				t.Fatalf("status = %d, want %d", got, want)
+			}
+
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(error payload) error = %v", err)
+			}
+			if got, want := payload.Error, "api: bundle service is not configured"; got != want {
+				t.Fatalf("error payload = %q, want %q", got, want)
+			}
+		})
 	}
 }

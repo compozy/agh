@@ -17,6 +17,8 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
+var errUnexpectedBridgeRuntimeStoreCall = errors.New("unexpected bridge runtime store stub call")
+
 type recordingBridgeSecretResolver struct {
 	values map[string]string
 	calls  []bridgepkg.BridgeSecretBinding
@@ -34,21 +36,21 @@ func (s bridgeRuntimeStoreStub) ListBridgeSecretBindings(ctx context.Context, br
 	if s.listBridgeSecretBindingsFn != nil {
 		return s.listBridgeSecretBindingsFn(ctx, bridgeInstanceID)
 	}
-	return nil, nil
+	return nil, fmt.Errorf("%w: ListBridgeSecretBindings(%q)", errUnexpectedBridgeRuntimeStoreCall, bridgeInstanceID)
 }
 
 func (s bridgeRuntimeStoreStub) PutBridgeSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error {
 	if s.putBridgeSecretBindingFn != nil {
 		return s.putBridgeSecretBindingFn(ctx, binding)
 	}
-	return nil
+	return fmt.Errorf("%w: PutBridgeSecretBinding(%q, %q)", errUnexpectedBridgeRuntimeStoreCall, binding.BridgeInstanceID, binding.BindingName)
 }
 
 func (s bridgeRuntimeStoreStub) DeleteBridgeSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error {
 	if s.deleteBridgeSecretBindingFn != nil {
 		return s.deleteBridgeSecretBindingFn(ctx, bridgeInstanceID, bindingName)
 	}
-	return nil
+	return fmt.Errorf("%w: DeleteBridgeSecretBinding(%q, %q)", errUnexpectedBridgeRuntimeStoreCall, bridgeInstanceID, bindingName)
 }
 
 func (r *recordingBridgeSecretResolver) ResolveBridgeSecret(_ context.Context, binding bridgepkg.BridgeSecretBinding) (string, error) {

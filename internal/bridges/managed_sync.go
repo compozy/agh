@@ -45,10 +45,6 @@ var _ ManagedSyncer = (*ManagedSyncService)(nil)
 
 // NewManagedSyncer constructs a managed bridge reconciler over the supplied store.
 func NewManagedSyncer(store ManagedSyncStore, opts ...ManagedSyncOption) *ManagedSyncService {
-	if store == nil {
-		return nil
-	}
-
 	service := &ManagedSyncService{
 		store: store,
 		now: func() time.Time {

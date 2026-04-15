@@ -56,7 +56,8 @@ func InstallLocalManaged(
 	if manifest == nil {
 		return errors.New("extension: manifest is required")
 	}
-	if strings.TrimSpace(checksum) == "" {
+	normalizedChecksum := strings.ToLower(strings.TrimSpace(checksum))
+	if normalizedChecksum == "" {
 		return errors.New("extension: checksum is required")
 	}
 
@@ -70,9 +71,9 @@ func InstallLocalManaged(
 	if err != nil {
 		return fmt.Errorf("extension: compute source checksum %q: %w", sourceDir, err)
 	}
-	if actualSourceChecksum != checksum {
+	if actualSourceChecksum != normalizedChecksum {
 		return &ExtensionChecksumMismatchError{
-			ExpectedChecksum: checksum,
+			ExpectedChecksum: normalizedChecksum,
 			ActualChecksum:   actualSourceChecksum,
 		}
 	}
@@ -131,6 +132,10 @@ func copyInstallTree(sourceDir string, targetDir string) error {
 	if err != nil {
 		return fmt.Errorf("extension: resolve source directory %q: %w", sourceDir, err)
 	}
+	canonicalSourceRoot, err := canonicalizeInstallPath(absSourceRoot)
+	if err != nil {
+		return fmt.Errorf("extension: canonicalize source directory %q: %w", absSourceRoot, err)
+	}
 
 	info, err := os.Stat(absSourceRoot)
 	if err != nil {
@@ -150,12 +155,12 @@ func copyInstallTree(sourceDir string, targetDir string) error {
 		return fmt.Errorf("extension: set target directory mode %q: %w", targetDir, err)
 	}
 
-	return copyInstallDirectoryContents(absSourceRoot, targetDir, map[string]struct{}{
-		absSourceRoot: {},
+	return copyInstallDirectoryContents(canonicalSourceRoot, absSourceRoot, targetDir, map[string]struct{}{
+		canonicalSourceRoot: {},
 	})
 }
 
-func copyInstallDirectoryContents(sourceDir string, targetDir string, activeDirs map[string]struct{}) error {
+func copyInstallDirectoryContents(sourceRoot string, sourceDir string, targetDir string, activeDirs map[string]struct{}) error {
 	entries, err := os.ReadDir(sourceDir)
 	if err != nil {
 		return fmt.Errorf("extension: read source directory %q: %w", sourceDir, err)
@@ -164,7 +169,7 @@ func copyInstallDirectoryContents(sourceDir string, targetDir string, activeDirs
 	for _, entry := range entries {
 		sourcePath := filepath.Join(sourceDir, entry.Name())
 		targetPath := filepath.Join(targetDir, entry.Name())
-		if err := copyInstallEntry(sourcePath, targetPath, activeDirs); err != nil {
+		if err := copyInstallEntry(sourceRoot, sourcePath, targetPath, activeDirs); err != nil {
 			return err
 		}
 	}
@@ -172,7 +177,7 @@ func copyInstallDirectoryContents(sourceDir string, targetDir string, activeDirs
 	return nil
 }
 
-func copyInstallEntry(sourcePath string, targetPath string, activeDirs map[string]struct{}) error {
+func copyInstallEntry(sourceRoot string, sourcePath string, targetPath string, activeDirs map[string]struct{}) error {
 	info, err := os.Lstat(sourcePath)
 	if err != nil {
 		return fmt.Errorf("extension: stat source path %q: %w", sourcePath, err)
@@ -190,11 +195,11 @@ func copyInstallEntry(sourcePath string, targetPath string, activeDirs map[strin
 		if err := os.Chmod(targetPath, info.Mode().Perm()); err != nil {
 			return fmt.Errorf("extension: set target directory mode %q: %w", targetPath, err)
 		}
-		return copyInstallDirectoryContents(sourcePath, targetPath, nextActiveDirs)
+		return copyInstallDirectoryContents(sourceRoot, sourcePath, targetPath, nextActiveDirs)
 	case info.Mode().IsRegular():
 		return copyInstallFile(sourcePath, targetPath, info.Mode().Perm())
 	case info.Mode()&os.ModeSymlink != 0:
-		return copyInstallSymlink(sourcePath, targetPath, activeDirs)
+		return copyInstallSymlink(sourceRoot, sourcePath, targetPath, activeDirs)
 	default:
 		return fmt.Errorf("extension: unsupported file type in extension payload %q", sourcePath)
 	}
@@ -235,10 +240,13 @@ func copyInstallFile(sourcePath string, targetPath string, perm os.FileMode) (er
 	return nil
 }
 
-func copyInstallSymlink(sourcePath string, targetPath string, activeDirs map[string]struct{}) error {
+func copyInstallSymlink(sourceRoot string, sourcePath string, targetPath string, activeDirs map[string]struct{}) error {
 	resolvedPath, err := filepath.EvalSymlinks(sourcePath)
 	if err != nil {
 		return fmt.Errorf("extension: resolve source symlink %q: %w", sourcePath, err)
+	}
+	if err := ensureInstallPathWithinRoot(sourceRoot, resolvedPath); err != nil {
+		return fmt.Errorf("extension: reject source symlink %q: %w", sourcePath, err)
 	}
 
 	info, err := os.Stat(resolvedPath)
@@ -258,7 +266,7 @@ func copyInstallSymlink(sourcePath string, targetPath string, activeDirs map[str
 		if err := os.Chmod(targetPath, info.Mode().Perm()); err != nil {
 			return fmt.Errorf("extension: set target directory mode %q for symlinked source %q: %w", targetPath, sourcePath, err)
 		}
-		return copyInstallDirectoryContents(resolvedPath, targetPath, nextActiveDirs)
+		return copyInstallDirectoryContents(sourceRoot, resolvedPath, targetPath, nextActiveDirs)
 	case info.Mode().IsRegular():
 		return copyInstallFile(resolvedPath, targetPath, info.Mode().Perm())
 	default:
@@ -267,7 +275,7 @@ func copyInstallSymlink(sourcePath string, targetPath string, activeDirs map[str
 }
 
 func pushInstallCopyDir(activeDirs map[string]struct{}, resolvedPath string, sourcePath string) (map[string]struct{}, error) {
-	canonicalPath, err := filepath.Abs(strings.TrimSpace(resolvedPath))
+	canonicalPath, err := canonicalizeInstallPath(resolvedPath)
 	if err != nil {
 		return nil, fmt.Errorf("extension: resolve directory %q: %w", resolvedPath, err)
 	}
@@ -281,4 +289,32 @@ func pushInstallCopyDir(activeDirs map[string]struct{}, resolvedPath string, sou
 	}
 	nextActiveDirs[canonicalPath] = struct{}{}
 	return nextActiveDirs, nil
+}
+
+func ensureInstallPathWithinRoot(sourceRoot string, resolvedPath string) error {
+	canonicalRoot, err := canonicalizeInstallPath(sourceRoot)
+	if err != nil {
+		return fmt.Errorf("resolve source root %q: %w", sourceRoot, err)
+	}
+	canonicalPath, err := canonicalizeInstallPath(resolvedPath)
+	if err != nil {
+		return fmt.Errorf("resolve source path %q: %w", resolvedPath, err)
+	}
+
+	relToRoot, err := filepath.Rel(canonicalRoot, canonicalPath)
+	if err != nil {
+		return fmt.Errorf("relate %q to source root %q: %w", canonicalPath, canonicalRoot, err)
+	}
+	if relToRoot == ".." || strings.HasPrefix(relToRoot, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("symlink target %q escapes source root %q", canonicalPath, canonicalRoot)
+	}
+	return nil
+}
+
+func canonicalizeInstallPath(path string) (string, error) {
+	absPath, err := filepath.Abs(strings.TrimSpace(path))
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(absPath)
 }

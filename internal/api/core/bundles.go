@@ -16,8 +16,7 @@ import (
 )
 
 func (h *BaseHandlers) ListBundleCatalog(c *gin.Context) {
-	if h == nil || h.Bundles == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: bundle service is not configured"))
+	if !bundleServiceRequired(c, h) {
 		return
 	}
 
@@ -44,8 +43,7 @@ func (h *BaseHandlers) PreviewBundleActivation(c *gin.Context) {
 }
 
 func (h *BaseHandlers) ListBundleActivations(c *gin.Context) {
-	if h == nil || h.Bundles == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: bundle service is not configured"))
+	if !bundleServiceRequired(c, h) {
 		return
 	}
 
@@ -76,8 +74,7 @@ func (h *BaseHandlers) ActivateBundle(c *gin.Context) {
 }
 
 func (h *BaseHandlers) GetBundleActivation(c *gin.Context) {
-	if h == nil || h.Bundles == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: bundle service is not configured"))
+	if !bundleServiceRequired(c, h) {
 		return
 	}
 
@@ -90,8 +87,7 @@ func (h *BaseHandlers) GetBundleActivation(c *gin.Context) {
 }
 
 func (h *BaseHandlers) UpdateBundleActivation(c *gin.Context) {
-	if h == nil || h.Bundles == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: bundle service is not configured"))
+	if !bundleServiceRequired(c, h) {
 		return
 	}
 
@@ -113,8 +109,7 @@ func (h *BaseHandlers) UpdateBundleActivation(c *gin.Context) {
 }
 
 func (h *BaseHandlers) DeleteBundleActivation(c *gin.Context) {
-	if h == nil || h.Bundles == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: bundle service is not configured"))
+	if !bundleServiceRequired(c, h) {
 		return
 	}
 
@@ -126,8 +121,7 @@ func (h *BaseHandlers) DeleteBundleActivation(c *gin.Context) {
 }
 
 func (h *BaseHandlers) BundleNetworkSettings(c *gin.Context) {
-	if h == nil || h.Bundles == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: bundle service is not configured"))
+	if !bundleServiceRequired(c, h) {
 		return
 	}
 
@@ -147,8 +141,7 @@ func (h *BaseHandlers) BundleNetworkSettings(c *gin.Context) {
 }
 
 func (h *BaseHandlers) bindBundleActivateRequest(c *gin.Context) (bundlepkg.ActivateRequest, bool) {
-	if h == nil || h.Bundles == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: bundle service is not configured"))
+	if !bundleServiceRequired(c, h) {
 		return bundlepkg.ActivateRequest{}, false
 	}
 
@@ -166,6 +159,19 @@ func (h *BaseHandlers) bindBundleActivateRequest(c *gin.Context) (bundlepkg.Acti
 		Workspace:                   strings.TrimSpace(req.Workspace),
 		BindPrimaryChannelAsDefault: req.BindPrimaryChannelAsDefault,
 	}, true
+}
+
+func bundleServiceRequired(c *gin.Context, h *BaseHandlers) bool {
+	err := errors.New("api: bundle service is not configured")
+	if h == nil {
+		RespondError(c, http.StatusServiceUnavailable, err, false)
+		return false
+	}
+	if h.Bundles == nil {
+		h.respondError(c, http.StatusServiceUnavailable, err)
+		return false
+	}
+	return true
 }
 
 func (h *BaseHandlers) defaultSessionChannel(ctx context.Context, explicit string) (string, error) {
