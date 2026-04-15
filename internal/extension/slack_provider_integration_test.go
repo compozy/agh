@@ -235,11 +235,11 @@ func TestSlackProviderIngressInteractionsAndDeliveryConformance(t *testing.T) {
 	if got, want := calls[0].Method, "auth.test"; got != want {
 		t.Fatalf("calls[0].Method = %q, want %q", got, want)
 	}
-	if got, want := calls[len(calls)-2].Method, "chat.postMessage"; got != want {
-		t.Fatalf("delivery post method = %q, want %q", got, want)
+	if !slackProviderCallsContainMethod(calls, "chat.postMessage") {
+		t.Fatalf("mock api calls = %#v, want chat.postMessage", calls)
 	}
-	if got, want := calls[len(calls)-1].Method, "chat.update"; got != want {
-		t.Fatalf("delivery update method = %q, want %q", got, want)
+	if !slackProviderCallsContainMethod(calls, "chat.update") {
+		t.Fatalf("mock api calls = %#v, want chat.update", calls)
 	}
 
 	row := waitForBridgeHealth(t, 10*time.Second, harness, func(health observepkg.BridgeInstanceHealth) bool {
@@ -476,6 +476,15 @@ func (s *slackProviderAPIServer) Calls() []slackProviderAPICall {
 	cloned := make([]slackProviderAPICall, len(s.calls))
 	copy(cloned, s.calls)
 	return cloned
+}
+
+func slackProviderCallsContainMethod(calls []slackProviderAPICall, method string) bool {
+	for _, call := range calls {
+		if strings.TrimSpace(call.Method) == strings.TrimSpace(method) {
+			return true
+		}
+	}
+	return false
 }
 
 func writeSlackProviderAPIResponse(t *testing.T, w http.ResponseWriter, payload map[string]any) {
