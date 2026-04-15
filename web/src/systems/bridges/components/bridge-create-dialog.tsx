@@ -1,5 +1,6 @@
 import { Loader2 } from "lucide-react";
 
+import { Pill } from "@/components/design-system";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,13 +20,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 import {
   buildBridgeProviderKey,
+  describeBridgeDmPolicy,
+  describeBridgeProviderConfigSchema,
   describeBridgeRoutingPolicy,
+  describeBridgeSecretSlot,
   findBridgeProviderByKey,
   isBridgeProviderSelectable,
 } from "../lib/bridge-formatters";
+import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
 import type { BridgeCreateDraft, BridgeProvider } from "../types";
 import { BridgeProviderCard } from "./bridge-provider-card";
 
@@ -53,10 +59,12 @@ export function BridgeCreateDialog({
   providers,
 }: BridgeCreateDialogProps) {
   const selectedProvider = findBridgeProviderByKey(providers, draft.selectedProviderKey);
+  const providerConfigError = parseBridgeProviderConfig(draft.providerConfigText).error;
   const canSubmit = Boolean(
     selectedProvider &&
     isBridgeProviderSelectable(selectedProvider) &&
     draft.displayName.trim() &&
+    !providerConfigError &&
     (draft.scope === "global" || activeWorkspaceId)
   );
 
@@ -77,8 +85,8 @@ export function BridgeCreateDialog({
           <DialogHeader className="space-y-2 px-6 pt-6">
             <DialogTitle>Create Bridge</DialogTitle>
             <DialogDescription className="text-[color:var(--color-text-secondary)]">
-              Select an installed provider, define routing defaults, and scope the bridge globally
-              or to the active workspace.
+              Select an installed provider, configure provider-owned runtime settings separately
+              from delivery defaults, and scope the bridge globally or to the active workspace.
             </DialogDescription>
           </DialogHeader>
 
@@ -124,6 +132,141 @@ export function BridgeCreateDialog({
                   </div>
                 )}
               </section>
+
+              {selectedProvider ? (
+                <section
+                  className="space-y-4 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-4"
+                  data-testid="bridge-provider-runtime-section"
+                >
+                  <div className="space-y-1">
+                    <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
+                      Provider runtime
+                    </p>
+                    <p className="text-sm text-[color:var(--color-text-secondary)]">
+                      Provider-owned runtime configuration, DM policy, and secret requirements stay
+                      separate from generic routing and delivery defaults.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
+                      <p className="font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                        Config schema
+                      </p>
+                      <p
+                        className="mt-2 text-sm text-[color:var(--color-text-primary)]"
+                        data-testid="bridge-provider-config-schema"
+                      >
+                        {describeBridgeProviderConfigSchema(selectedProvider.config_schema)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                          Secret slots
+                        </p>
+                        <Pill kind="tag" tone="neutral">
+                          {selectedProvider.secret_slots?.length ?? 0}
+                        </Pill>
+                      </div>
+                      {selectedProvider.secret_slots?.length ? (
+                        <ul className="mt-3 space-y-2" data-testid="bridge-provider-secret-slots">
+                          {selectedProvider.secret_slots.map(slot => (
+                            <li
+                              key={slot.name}
+                              className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-3 py-2"
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-mono text-[0.7rem] uppercase tracking-[0.12em] text-[color:var(--color-text-primary)]">
+                                  {slot.name}
+                                </span>
+                                <Pill
+                                  kind="tag"
+                                  tone={slot.required === false ? "neutral" : "amber"}
+                                >
+                                  {slot.required === false ? "optional" : "required"}
+                                </Pill>
+                              </div>
+                              <p className="mt-2 text-xs leading-relaxed text-[color:var(--color-text-secondary)]">
+                                {describeBridgeSecretSlot(slot)}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-3 text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+                          This provider does not declare secret slot requirements in its manifest.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <FieldGroup className="gap-4">
+                    <Field>
+                      <FieldContent>
+                        <FieldTitle>DM policy</FieldTitle>
+                        <FieldDescription>
+                          {describeBridgeDmPolicy(
+                            draft.dmPolicy === "" ? undefined : draft.dmPolicy
+                          )}
+                        </FieldDescription>
+                      </FieldContent>
+                      <NativeSelect
+                        data-testid="bridge-dm-policy-select"
+                        onChange={event =>
+                          onDraftChange({
+                            ...draft,
+                            dmPolicy: event.target.value as BridgeCreateDraft["dmPolicy"],
+                          })
+                        }
+                        value={draft.dmPolicy}
+                      >
+                        <NativeSelectOption value="">Use provider default</NativeSelectOption>
+                        <NativeSelectOption value="open">Open</NativeSelectOption>
+                        <NativeSelectOption value="allowlist">Allowlist</NativeSelectOption>
+                        <NativeSelectOption value="pairing">Pairing</NativeSelectOption>
+                      </NativeSelect>
+                    </Field>
+
+                    <Field>
+                      <FieldContent>
+                        <FieldTitle>Provider config</FieldTitle>
+                        <FieldDescription>
+                          Enter a JSON object for provider-specific runtime settings such as tenant
+                          identifiers, webhook URLs, or provider mode flags.
+                        </FieldDescription>
+                      </FieldContent>
+                      <Textarea
+                        aria-invalid={Boolean(providerConfigError)}
+                        className="min-h-32 font-mono text-xs"
+                        data-testid="bridge-provider-config-input"
+                        onChange={event =>
+                          onDraftChange({
+                            ...draft,
+                            providerConfigText: event.target.value,
+                          })
+                        }
+                        placeholder={`{\n  "mode": "bot"\n}`}
+                        spellCheck={false}
+                        value={draft.providerConfigText}
+                      />
+                      {providerConfigError ? (
+                        <p
+                          className="text-sm text-[color:var(--color-danger)]"
+                          data-testid="bridge-provider-config-error"
+                        >
+                          {providerConfigError}
+                        </p>
+                      ) : (
+                        <p className="text-xs leading-relaxed text-[color:var(--color-text-tertiary)]">
+                          Hint: {describeBridgeProviderConfigSchema(selectedProvider.config_schema)}
+                        </p>
+                      )}
+                    </Field>
+                  </FieldGroup>
+                </section>
+              ) : null}
 
               <FieldGroup className="grid gap-4 lg:grid-cols-2">
                 <Field>

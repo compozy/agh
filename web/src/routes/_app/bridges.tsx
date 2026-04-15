@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { PillButton } from "@/components/design-system";
 import { Button } from "@/components/ui/button";
 import {
+  buildBridgeCreateRequest,
   BridgeCreateDialog,
   BridgeDetailPanel,
   BridgeEmptyState,
@@ -140,6 +141,17 @@ function BridgesPage() {
   });
 
   const selectedBridge = bridgeDetailQuery.data?.bridge ?? selectedBridgeSummary;
+  const selectedBridgeProvider = useMemo(
+    () =>
+      selectedBridge
+        ? providers.find(
+            provider =>
+              provider.extension_name === selectedBridge.extension_name &&
+              provider.platform === selectedBridge.platform
+          )
+        : undefined,
+    [providers, selectedBridge]
+  );
   const selectedHealth =
     bridgeDetailQuery.data?.health ??
     (effectiveSelectedBridgeId ? bridgeHealth[effectiveSelectedBridgeId] : undefined);
@@ -205,20 +217,14 @@ function BridgesPage() {
       return;
     }
 
-    const scope = createDraft.scope;
+    const requestResult = buildBridgeCreateRequest(createDraft, provider, activeWorkspaceId);
+    if (!requestResult.ok) {
+      toast.error(requestResult.error);
+      return;
+    }
 
     try {
-      const result = await createBridgeMutation.mutateAsync({
-        delivery_defaults: compactBridgeDeliveryDefaults(createDraft.deliveryDefaults),
-        display_name: createDraft.displayName.trim(),
-        enabled: true,
-        extension_name: provider.extension_name,
-        platform: provider.platform,
-        routing_policy: createDraft.routingPolicy,
-        scope,
-        status: "starting",
-        workspace_id: scope === "workspace" ? (activeWorkspaceId ?? undefined) : undefined,
-      });
+      const result = await createBridgeMutation.mutateAsync(requestResult.data);
 
       startTransition(() => {
         setActiveScope(result.bridge.scope);
@@ -340,6 +346,7 @@ function BridgesPage() {
               isLoading={detailLoading}
               isRoutesLoading={bridgeRoutesQuery.isLoading && !bridgeRoutesQuery.data}
               onOpenTestDelivery={openTestDeliveryDialog}
+              provider={selectedBridgeProvider}
               routes={bridgeRoutesQuery.data ?? []}
               workspaceName={
                 selectedBridge?.scope === "workspace" &&

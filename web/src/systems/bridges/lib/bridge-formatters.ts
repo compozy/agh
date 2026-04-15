@@ -1,6 +1,10 @@
 import type {
   BridgeDeliveryDefaults,
+  BridgeDmPolicy,
+  BridgeProviderConfig,
   BridgeProvider,
+  BridgeProviderConfigSchemaHint,
+  BridgeProviderSecretSlot,
   BridgeRoute,
   BridgeScope,
   BridgeStatus,
@@ -155,6 +159,51 @@ export function describeBridgeDeliveryDefaults(value: unknown): string {
   }
 
   return parts.length > 0 ? parts.join(" · ") : "No delivery defaults configured";
+}
+
+export function describeBridgeDmPolicy(value?: BridgeDmPolicy | null): string {
+  switch (value) {
+    case "open":
+      return "Open direct messages";
+    case "allowlist":
+      return "Allowlisted direct messages only";
+    case "pairing":
+      return "Pairing required before direct messages";
+    default:
+      return "Provider default";
+  }
+}
+
+export function formatBridgeProviderConfig(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return "";
+  }
+
+  const providerConfig = value as BridgeProviderConfig;
+  if (Object.keys(providerConfig).length === 0) {
+    return "";
+  }
+
+  return JSON.stringify(providerConfig, null, 2);
+}
+
+export function describeBridgeProviderConfigSchema(
+  value?: BridgeProviderConfigSchemaHint | null
+): string {
+  if (!value?.schema && !value?.version) {
+    return "No structured config schema published";
+  }
+
+  if (value.schema && value.version) {
+    return `${value.schema} · v${value.version}`;
+  }
+
+  return value.schema ?? `v${value.version}`;
+}
+
+export function describeBridgeSecretSlot(slot: BridgeProviderSecretSlot): string {
+  const requirement = slot.required === false ? "Optional" : "Required";
+  return slot.description ? `${requirement} · ${slot.description}` : requirement;
 }
 
 export function formatBridgeDateTime(value?: string | null): string {

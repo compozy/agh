@@ -3,9 +3,13 @@ export type {
   BridgeDeliveryDefaults,
   BridgeDeliveryMode,
   BridgeDetailResponse,
+  BridgeDmPolicy,
   BridgeHealth,
   BridgeHealthMap,
   BridgeProvider,
+  BridgeProviderConfig,
+  BridgeProviderConfigSchemaHint,
+  BridgeProviderSecretSlot,
   BridgeRoute,
   BridgeRoutingPolicy,
   BridgesListResponse,
@@ -30,7 +34,13 @@ export {
   testBridgeDelivery,
 } from "./adapters/bridges-api";
 
-export { createBridgeCreateDraft, createBridgeTestDeliveryDraft } from "./lib/bridge-drafts";
+export {
+  buildBridgeCreateRequest,
+  createBridgeCreateDraft,
+  createBridgeTestDeliveryDraft,
+  parseBridgeDmPolicy,
+  parseBridgeProviderConfig,
+} from "./lib/bridge-drafts";
 export {
   bridgeProviderHealthTone,
   bridgeProviderStateTone,
@@ -39,11 +49,15 @@ export {
   bridgeStatusTone,
   buildBridgeProviderKey,
   compactBridgeDeliveryDefaults,
+  describeBridgeDmPolicy,
   describeBridgeDeliveryDefaults,
+  describeBridgeProviderConfigSchema,
   describeBridgeRouteTarget,
   describeBridgeRoutingPolicy,
+  describeBridgeSecretSlot,
   describeBridgeTestTarget,
   findBridgeProviderByKey,
+  formatBridgeProviderConfig,
   formatBridgeDateTime,
   formatBridgeRelativeTime,
   isBridgeProviderSelectable,

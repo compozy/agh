@@ -146,11 +146,16 @@ import { Route } from "./bridges";
 function makeBridge(overrides: Partial<BridgesListResponse["bridges"][number]> = {}) {
   return {
     created_at: "2026-04-13T12:00:00Z",
+    dm_policy: "open" as const,
     display_name: "Support",
     enabled: true,
     extension_name: "ext-telegram",
     id: "brg_support",
     platform: "telegram",
+    provider_config: {
+      mode: "bot",
+      webhook_url: "https://example.test/webhook",
+    },
     routing_policy: { include_group: true, include_peer: true, include_thread: true },
     scope: "workspace" as const,
     status: "ready" as const,
@@ -178,11 +183,29 @@ function makeHealth(
 
 function makeProvider(overrides: Partial<BridgeProvider> = {}): BridgeProvider {
   return {
+    config_schema: {
+      schema: "provider-config",
+      version: "2026-04-15",
+    },
+    description: "Provider-specific runtime settings",
     display_name: "Telegram",
     enabled: true,
     extension_name: "ext-telegram",
     health: "healthy",
+    health_message: "Webhook and token requirements are healthy.",
     platform: "telegram",
+    secret_slots: [
+      {
+        description: "Bot API token",
+        name: "bot_token",
+        required: true,
+      },
+      {
+        description: "Optional webhook secret",
+        name: "webhook_secret",
+        required: false,
+      },
+    ],
     state: "active",
     ...overrides,
   };
@@ -295,6 +318,13 @@ describe("BridgesPage", () => {
     expect(screen.getByTestId("bridge-item-brg_support")).toBeInTheDocument();
     expect(within(detailPanel).getByText("Support")).toBeInTheDocument();
     expect(within(detailPanel).getByText("support-agent")).toBeInTheDocument();
+    expect(within(detailPanel).getByText("Open direct messages")).toBeInTheDocument();
+    expect(within(detailPanel).getByTestId("bridge-detail-provider-config")).toHaveTextContent(
+      '"mode": "bot"'
+    );
+    expect(within(detailPanel).getByTestId("bridge-detail-secret-slots")).toHaveTextContent(
+      "bot_token"
+    );
     expect(screen.getByTestId("bridge-route-sess_123")).toBeInTheDocument();
   });
 
@@ -306,7 +336,8 @@ describe("BridgesPage", () => {
     expect(screen.getByTestId("bridge-routes-empty")).toHaveTextContent("No routes");
   });
 
-  it("opens the create bridge dialog and submits a workspace-scoped payload", async () => {
+  it("creates a bridge with provider config and shows the persisted values in the UI", async () => {
+    const user = userEvent.setup();
     mockBridgesData = {
       bridge_health: {},
       bridges: [],
@@ -314,26 +345,83 @@ describe("BridgesPage", () => {
 
     render(<BridgesPage />);
 
-    fireEvent.click(screen.getByTestId("bridge-empty-create-btn"));
+    await user.click(screen.getByTestId("bridge-empty-create-btn"));
 
     expect(screen.getByTestId("bridge-create-dialog")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("submit-bridge-create"));
+    await user.selectOptions(screen.getByTestId("bridge-dm-policy-select"), "allowlist");
+    fireEvent.change(screen.getByTestId("bridge-provider-config-input"), {
+      target: {
+        value: '{"mode":"bot","webhook_url":"https://example.test/webhook"}',
+      },
+    });
+
+    mockCreateBridgeMutateAsync.mockImplementationOnce(async payload => {
+      const createdBridge = makeBridge({
+        dm_policy: payload.dm_policy,
+        id: "brg_created",
+        provider_config: payload.provider_config,
+        status: "starting",
+      });
+
+      mockBridgesData = {
+        bridge_health: {
+          brg_created: makeHealth({
+            bridge_instance_id: "brg_created",
+            status: "starting",
+          }),
+        },
+        bridges: [createdBridge],
+      };
+      mockBridgeDetail = {
+        bridge: createdBridge,
+        health: makeHealth({
+          bridge_instance_id: "brg_created",
+          status: "starting",
+        }),
+      };
+      mockBridgeRoutes = [];
+
+      return {
+        bridge: createdBridge,
+        health: makeHealth({
+          bridge_instance_id: "brg_created",
+          status: "starting",
+        }),
+      } satisfies CreateBridgeResponse;
+    });
+
+    await user.click(screen.getByTestId("submit-bridge-create"));
 
     await waitFor(() => {
       expect(mockCreateBridgeMutateAsync).toHaveBeenCalledWith({
         delivery_defaults: undefined,
+        dm_policy: "allowlist",
         display_name: "Telegram",
         enabled: true,
         extension_name: "ext-telegram",
         platform: "telegram",
+        provider_config: {
+          mode: "bot",
+          webhook_url: "https://example.test/webhook",
+        },
         routing_policy: { include_group: true, include_peer: true, include_thread: true },
         scope: "workspace",
         status: "starting",
         workspace_id: "ws_test",
       });
-      expect(toast.success).toHaveBeenCalledWith("Created bridge Support.");
     });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("bridge-detail-panel")).toHaveTextContent(
+        "Allowlisted direct messages only"
+      );
+    });
+
+    expect(screen.getByTestId("bridge-detail-provider-config")).toHaveTextContent(
+      '"webhook_url": "https://example.test/webhook"'
+    );
+    expect(toast.success).toHaveBeenCalledWith("Created bridge Support.");
   });
 
   it("blocks workspace-scoped bridge creation when the active workspace disappears", async () => {

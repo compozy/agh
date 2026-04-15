@@ -13,11 +13,15 @@ import {
 
 const bridgeFixture = {
   created_at: "2026-04-13T12:00:00Z",
+  dm_policy: "open",
   display_name: "Support",
   enabled: true,
   extension_name: "ext-telegram",
   id: "brg_support",
   platform: "telegram",
+  provider_config: {
+    mode: "bot",
+  },
   routing_policy: {
     include_group: true,
     include_peer: true,
@@ -86,11 +90,22 @@ describe("listBridgeProviders", () => {
     mockJsonResponse({
       providers: [
         {
+          config_schema: {
+            schema: "provider-config",
+            version: "2026-04-15",
+          },
           display_name: "Telegram",
           enabled: true,
           extension_name: "ext-telegram",
           health: "healthy",
           platform: "telegram",
+          secret_slots: [
+            {
+              description: "Bot token",
+              name: "bot_token",
+              required: true,
+            },
+          ],
           state: "active",
         },
       ],
@@ -102,9 +117,23 @@ describe("listBridgeProviders", () => {
       expect.objectContaining({
         display_name: "Telegram",
         extension_name: "ext-telegram",
+        secret_slots: [
+          {
+            description: "Bot token",
+            name: "bot_token",
+            required: true,
+          },
+        ],
       }),
     ]);
     await expectFetchRequest({ path: "/api/bridges/providers" });
+  });
+
+  it("throws BridgesApiError when provider lookup fails", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 503 }));
+
+    await expect(listBridgeProviders()).rejects.toThrow(BridgesApiError);
+    await expect(listBridgeProviders()).rejects.toThrow("Failed to fetch bridge providers: 503");
   });
 });
 
@@ -134,6 +163,14 @@ describe("getBridge", () => {
 
     await expect(getBridge("missing")).rejects.toThrow("Bridge not found: missing");
   });
+
+  it("throws a typed error for non-404 bridge fetch failures", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
+    await expect(getBridge("brg_support")).rejects.toThrow(
+      'Failed to load bridge "brg_support": 500'
+    );
+  });
 });
 
 describe("listBridgeRoutes", () => {
@@ -160,6 +197,12 @@ describe("listBridgeRoutes", () => {
     expect(result).toHaveLength(1);
     await expectFetchRequest({ path: "/api/bridges/brg_support/routes" });
   });
+
+  it("throws a not found error for missing route sets", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
+    await expect(listBridgeRoutes("missing")).rejects.toThrow("Bridge not found: missing");
+  });
 });
 
 describe("createBridge", () => {
@@ -181,10 +224,14 @@ describe("createBridge", () => {
     );
 
     const payload = {
+      dm_policy: "open" as const,
       display_name: "Support",
       enabled: true,
       extension_name: "ext-telegram",
       platform: "telegram",
+      provider_config: {
+        mode: "bot",
+      },
       routing_policy: {
         include_group: true,
         include_peer: true,
@@ -203,6 +250,27 @@ describe("createBridge", () => {
       method: "POST",
       path: "/api/bridges",
     });
+  });
+
+  it("throws BridgesApiError when bridge creation fails", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 400 }));
+
+    await expect(
+      createBridge({
+        display_name: "Support",
+        enabled: true,
+        extension_name: "ext-telegram",
+        platform: "telegram",
+        routing_policy: {
+          include_group: true,
+          include_peer: true,
+          include_thread: true,
+        },
+        scope: "workspace",
+        status: "starting",
+        workspace_id: "ws_test",
+      })
+    ).rejects.toThrow("Failed to create bridge: 400");
   });
 });
 
@@ -248,5 +316,17 @@ describe("testBridgeDelivery", () => {
         },
       })
     ).rejects.toThrow('Bridge "brg_support" is unavailable: 409');
+  });
+
+  it("throws a generic typed error for other delivery failures", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
+    await expect(
+      testBridgeDelivery("brg_support", {
+        target: {
+          bridge_instance_id: "brg_support",
+        },
+      })
+    ).rejects.toThrow('Failed to test delivery for bridge "brg_support": 500');
   });
 });

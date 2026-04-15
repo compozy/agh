@@ -63,10 +63,14 @@ describe("useCreateBridge", () => {
 
     act(() => {
       result.current.mutate({
+        dm_policy: "allowlist",
         display_name: "Support",
         enabled: true,
         extension_name: "ext-telegram",
         platform: "telegram",
+        provider_config: {
+          mode: "bot",
+        },
         routing_policy: { include_group: true, include_peer: true, include_thread: true },
         scope: "workspace",
         status: "starting",
@@ -79,10 +83,14 @@ describe("useCreateBridge", () => {
     });
 
     expect(createBridge).toHaveBeenCalledWith({
+      dm_policy: "allowlist",
       display_name: "Support",
       enabled: true,
       extension_name: "ext-telegram",
       platform: "telegram",
+      provider_config: {
+        mode: "bot",
+      },
       routing_policy: { include_group: true, include_peer: true, include_thread: true },
       scope: "workspace",
       status: "starting",

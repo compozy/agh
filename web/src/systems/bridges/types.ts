@@ -17,6 +17,10 @@ export type BridgeScopeFilter = "all" | BridgeScope;
 export type BridgeStatus = BridgeSummary["status"];
 export type BridgeRoutingPolicy = BridgeSummary["routing_policy"];
 export type BridgeDeliveryMode = NonNullable<TestBridgeDeliveryRequest["target"]["mode"]>;
+export type BridgeDmPolicy = NonNullable<CreateBridgeRequest["dm_policy"]>;
+export type BridgeProviderConfig = NonNullable<CreateBridgeRequest["provider_config"]>;
+export type BridgeProviderSecretSlot = NonNullable<BridgeProvider["secret_slots"]>[number];
+export type BridgeProviderConfigSchemaHint = NonNullable<BridgeProvider["config_schema"]>;
 
 export interface BridgeDeliveryDefaults {
   group_id?: string;
@@ -27,7 +31,9 @@ export interface BridgeDeliveryDefaults {
 
 export interface BridgeCreateDraft {
   deliveryDefaults: BridgeDeliveryDefaults;
+  dmPolicy: BridgeDmPolicy | "";
   displayName: string;
+  providerConfigText: string;
   routingPolicy: BridgeRoutingPolicy;
   scope: BridgeScope;
   selectedProviderKey: string;

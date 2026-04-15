@@ -7,13 +7,17 @@ import { cn } from "@/lib/utils";
 import {
   bridgeScopeTone,
   bridgeStatusTone,
+  describeBridgeDmPolicy,
   describeBridgeDeliveryDefaults,
+  describeBridgeProviderConfigSchema,
   describeBridgeRouteTarget,
   describeBridgeRoutingPolicy,
+  describeBridgeSecretSlot,
+  formatBridgeProviderConfig,
   formatBridgeDateTime,
   formatBridgeRelativeTime,
 } from "../lib/bridge-formatters";
-import type { BridgeHealth, BridgeRoute, BridgeSummary } from "../types";
+import type { BridgeHealth, BridgeProvider, BridgeRoute, BridgeSummary } from "../types";
 
 interface BridgeDetailPanelProps {
   bridge: BridgeSummary | undefined;
@@ -23,6 +27,7 @@ interface BridgeDetailPanelProps {
   isLoading: boolean;
   isRoutesLoading: boolean;
   onOpenTestDelivery: () => void;
+  provider?: BridgeProvider;
   routes: BridgeRoute[];
   workspaceName?: string | null;
 }
@@ -96,9 +101,12 @@ export function BridgeDetailPanel({
   isLoading,
   isRoutesLoading,
   onOpenTestDelivery,
+  provider,
   routes,
   workspaceName,
 }: BridgeDetailPanelProps) {
+  const providerConfig = formatBridgeProviderConfig(bridge?.provider_config);
+
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center" data-testid="bridge-detail-loading">
@@ -173,8 +181,76 @@ export function BridgeDetailPanel({
               label="Delivery defaults"
               value={describeBridgeDeliveryDefaults(bridge.delivery_defaults)}
             />
+            <DetailFact label="DM policy" value={describeBridgeDmPolicy(bridge.dm_policy)} />
             <DetailFact label="Created" value={formatBridgeDateTime(bridge.created_at)} />
             <DetailFact label="Updated" value={formatBridgeDateTime(bridge.updated_at)} />
+          </div>
+        </DetailSection>
+
+        <DetailSection title="Provider runtime">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <DetailFact
+              label="Manifest schema"
+              value={describeBridgeProviderConfigSchema(provider?.config_schema)}
+            />
+            <DetailFact
+              label="Secret slots"
+              value={
+                provider?.secret_slots?.length ? provider.secret_slots.length : "None declared"
+              }
+            />
+          </div>
+
+          {provider?.description ? (
+            <div className="mt-4 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-4 py-3">
+              <p className="font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                Provider hint
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+                {provider.description}
+              </p>
+            </div>
+          ) : null}
+
+          {provider?.secret_slots?.length ? (
+            <div className="mt-4 space-y-3" data-testid="bridge-detail-secret-slots">
+              {provider.secret_slots.map(slot => (
+                <div
+                  key={slot.name}
+                  className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-4 py-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-mono text-[0.68rem] uppercase tracking-[0.14em] text-[color:var(--color-text-primary)]">
+                      {slot.name}
+                    </p>
+                    <Pill kind="tag" tone={slot.required === false ? "neutral" : "amber"}>
+                      {slot.required === false ? "optional" : "required"}
+                    </Pill>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+                    {describeBridgeSecretSlot(slot)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-4 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-4 py-3">
+            <p className="font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+              Provider config
+            </p>
+            {providerConfig ? (
+              <pre
+                className="mt-3 overflow-x-auto rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-3 font-mono text-xs leading-5 text-[color:var(--color-text-primary)]"
+                data-testid="bridge-detail-provider-config"
+              >
+                {providerConfig}
+              </pre>
+            ) : (
+              <p className="mt-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+                No provider runtime config stored for this bridge.
+              </p>
+            )}
           </div>
         </DetailSection>
 
