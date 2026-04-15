@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement the Discord provider extension"
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Implement Discord as another interaction-heavy provider with tighter timing cons
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Create the Discord provider runtime and manifest on top of `internal/bridgesdk`
-- [ ] 11.2 Implement Discord webhook or interaction verification and bridge-event mapping
-- [ ] 11.3 Implement Discord outbound delivery, edit or delete behavior, and provider state reporting
-- [ ] 11.4 Add conformance and interaction timing coverage for Discord
+- [x] 11.1 Create the Discord provider runtime and manifest on top of `internal/bridgesdk`
+- [x] 11.2 Implement Discord webhook or interaction verification and bridge-event mapping
+- [x] 11.3 Implement Discord outbound delivery, edit or delete behavior, and provider state reporting
+- [x] 11.4 Add conformance and interaction timing coverage for Discord
 
 ## Implementation Details
 
@@ -71,14 +71,14 @@ Follow the TechSpec sections "Provider Reference Notes", "Discord", "Typed Optio
 
 ## Tests
 - Unit tests:
-  - [ ] Discord interaction verification rejects invalid public-key signatures
-  - [ ] Discord interaction payloads map into typed bridge command or action events with stable target identity
-  - [ ] Discord reaction payloads map into typed bridge reaction events where the provider supports them
-  - [ ] Discord delivery mapping validates edit or delete operations against previously delivered message identifiers
+  - [x] Discord interaction verification rejects invalid public-key signatures
+  - [x] Discord interaction payloads map into typed bridge command or action events with stable target identity
+  - [x] Discord reaction payloads map into typed bridge reaction events where the provider supports them
+  - [x] Discord delivery mapping validates edit or delete operations against previously delivered message identifiers
 - Integration tests:
-  - [ ] a provider-scoped Discord runtime ingests interaction payloads within the required acknowledgment timing envelope
-  - [ ] Discord outbound delivery posts or edits bridge responses successfully for owned bridge instances
-  - [ ] Discord provider passes the shared conformance harness plus provider-specific interaction-timing scenarios
+  - [x] a provider-scoped Discord runtime ingests interaction payloads within the required acknowledgment timing envelope
+  - [x] Discord outbound delivery posts or edits bridge responses successfully for owned bridge instances
+  - [x] Discord provider passes the shared conformance harness plus provider-specific interaction-timing scenarios
 - Test coverage target: >=80%
 - All tests must pass
 

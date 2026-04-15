@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement the Slack provider extension"
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Implement Slack as the first provider that materially exercises the optional typ
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Create the Slack provider runtime and manifest on top of `internal/bridgesdk`
-- [ ] 10.2 Implement Slack event and interaction mapping into bridge v1 message, command, action, and reaction events
-- [ ] 10.3 Implement Slack outbound delivery, edit or delete behavior, and per-instance state reporting
-- [ ] 10.4 Add conformance and provider-specific interaction coverage for Slack
+- [x] 10.1 Create the Slack provider runtime and manifest on top of `internal/bridgesdk`
+- [x] 10.2 Implement Slack event and interaction mapping into bridge v1 message, command, action, and reaction events
+- [x] 10.3 Implement Slack outbound delivery, edit or delete behavior, and per-instance state reporting
+- [x] 10.4 Add conformance and provider-specific interaction coverage for Slack
 
 ## Implementation Details
 
@@ -70,14 +70,14 @@ Follow the TechSpec sections "Provider Reference Notes", "Slack", "Typed Optiona
 
 ## Tests
 - Unit tests:
-  - [ ] Slack command payloads map into typed bridge `command` events with stable target identity
-  - [ ] Slack action payloads map into typed bridge `action` events without losing provider-specific identifiers needed for follow-up delivery
-  - [ ] Slack reaction events map into typed bridge `reaction` events and reject malformed reaction payloads
-  - [ ] Slack request verification rejects invalid signing-secret signatures before event handling
+  - [x] Slack command payloads map into typed bridge `command` events with stable target identity
+  - [x] Slack action payloads map into typed bridge `action` events without losing provider-specific identifiers needed for follow-up delivery
+  - [x] Slack reaction events map into typed bridge `reaction` events and reject malformed reaction payloads
+  - [x] Slack request verification rejects invalid signing-secret signatures before event handling
 - Integration tests:
-  - [ ] a provider-scoped Slack runtime ingests both standard message events and command or action interactions for owned bridge instances
-  - [ ] Slack delivery posts or edits messages successfully under the bridge v1 contract
-  - [ ] Slack provider passes the shared conformance harness plus provider-specific interaction scenarios
+  - [x] a provider-scoped Slack runtime ingests both standard message events and command or action interactions for owned bridge instances
+  - [x] Slack delivery posts or edits messages successfully under the bridge v1 contract
+  - [x] Slack provider passes the shared conformance harness plus provider-specific interaction scenarios
 - Test coverage target: >=80%
 - All tests must pass
 

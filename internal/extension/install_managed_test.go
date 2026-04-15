@@ -12,6 +12,51 @@ import (
 
 var _ managedInstallRegistry = (*recordingManagedInstallRegistry)(nil)
 
+type managedInstallRegistryStub struct {
+	getFn     func(string) (*ExtensionInfo, error)
+	installFn func(*Manifest, string, string, ...InstallOption) error
+}
+
+func (s managedInstallRegistryStub) Get(name string) (*ExtensionInfo, error) {
+	if s.getFn != nil {
+		return s.getFn(name)
+	}
+	return nil, ErrExtensionNotFound
+}
+
+func (s managedInstallRegistryStub) Install(manifest *Manifest, path string, checksum string, opts ...InstallOption) error {
+	if s.installFn != nil {
+		return s.installFn(manifest, path, checksum, opts...)
+	}
+	return nil
+}
+
+func TestManagedInstallHelpers(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if got := ManagedInstallRoot(homePaths); got == "" {
+		t.Fatal("ManagedInstallRoot() returned empty path")
+	}
+	if got, want := ManagedInstallPath(homePaths, " test-ext "), filepath.Join(homePaths.HomeDir, managedInstallDirName, "test-ext"); got != want {
+		t.Fatalf("ManagedInstallPath() = %q, want %q", got, want)
+	}
+
+	stagingDir, err := NewManagedInstallStagingDir(homePaths)
+	if err != nil {
+		t.Fatalf("NewManagedInstallStagingDir() error = %v", err)
+	}
+	if _, err := os.Stat(stagingDir); err != nil {
+		t.Fatalf("os.Stat(stagingDir) error = %v", err)
+	}
+	if err := os.RemoveAll(stagingDir); err != nil {
+		t.Fatalf("os.RemoveAll(stagingDir) error = %v", err)
+	}
+}
+
 func TestCopyInstallTreeMaterializesSymlinkTargets(t *testing.T) {
 	t.Parallel()
 
@@ -157,6 +202,60 @@ func TestInstallLocalManagedNormalizesProvidedChecksum(t *testing.T) {
 
 	if err := InstallLocalManaged(homePaths, registry, manifest, sourceDir, "  "+strings.ToUpper(sourceChecksum)+"  "); err != nil {
 		t.Fatalf("InstallLocalManaged(normalized checksum) error = %v", err)
+	}
+}
+
+func TestInstallLocalManagedRejectsExistingOrFailedInstall(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	existingSourceDir := filepath.Join(t.TempDir(), "existing-source")
+	if err := os.MkdirAll(existingSourceDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(existing source) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(existingSourceDir, "extension.toml"), []byte("name = \"existing-ext\"\nversion = \"1.0.0\"\nmin_agh_version = \"0.1.0\"\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(existing extension.toml) error = %v", err)
+	}
+
+	err = InstallLocalManaged(homePaths, managedInstallRegistryStub{
+		getFn: func(string) (*ExtensionInfo, error) {
+			return &ExtensionInfo{Name: "existing-ext"}, nil
+		},
+	}, &Manifest{Name: "existing-ext"}, existingSourceDir, "checksum-ignored")
+	if err == nil {
+		t.Fatal("InstallLocalManaged(existing) error = nil, want non-nil")
+	}
+
+	failingSourceDir := filepath.Join(t.TempDir(), "failing-source")
+	if err := os.MkdirAll(failingSourceDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(failing source) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(failingSourceDir, "extension.toml"), []byte("name = \"failing-ext\"\nversion = \"1.0.0\"\nmin_agh_version = \"0.1.0\"\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(failing extension.toml) error = %v", err)
+	}
+	sourceChecksum, err := ComputeDirectoryChecksum(failingSourceDir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum(failing source) error = %v", err)
+	}
+
+	installErr := errors.New("install failed")
+	err = InstallLocalManaged(homePaths, managedInstallRegistryStub{
+		getFn: func(string) (*ExtensionInfo, error) {
+			return nil, ErrExtensionNotFound
+		},
+		installFn: func(*Manifest, string, string, ...InstallOption) error {
+			return installErr
+		},
+	}, &Manifest{Name: "failing-ext"}, failingSourceDir, sourceChecksum)
+	if !errors.Is(err, installErr) {
+		t.Fatalf("InstallLocalManaged(failing) error = %v, want %v", err, installErr)
+	}
+	if _, statErr := os.Stat(ManagedInstallPath(homePaths, "failing-ext")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("failed install path stat error = %v, want not exists", statErr)
 	}
 }
 

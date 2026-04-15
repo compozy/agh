@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement provider-scoped Host API instance management and authorization"
 type: backend
 complexity: critical
@@ -31,10 +31,10 @@ The current Host API trusts a single runtime-bound bridge instance and cannot se
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Add provider-scoped Host API methods and request/response types for owned-instance lookup and synchronization
-- [ ] 4.2 Refactor bridge Host API authorization to validate `bridge_instance_id` against provider ownership instead of one bound instance
-- [ ] 4.3 Update ingest, state-reporting, and routing flows to use provider-scoped authorization and the expanded bridge v1 contract
-- [ ] 4.4 Add integration coverage for owned-instance access, unauthorized access, and multi-instance ingestion
+- [x] 4.1 Add provider-scoped Host API methods and request/response types for owned-instance lookup and synchronization
+- [x] 4.2 Refactor bridge Host API authorization to validate `bridge_instance_id` against provider ownership instead of one bound instance
+- [x] 4.3 Update ingest, state-reporting, and routing flows to use provider-scoped authorization and the expanded bridge v1 contract
+- [x] 4.4 Add integration coverage for owned-instance access, unauthorized access, and multi-instance ingestion
 
 ## Implementation Details
 
@@ -69,13 +69,13 @@ Follow the TechSpec sections "Host API and Runtime Changes", "Required Host API 
 
 ## Tests
 - Unit tests:
-  - [ ] provider-scoped authorization accepts a bridge instance owned by the runtime's extension and rejects an instance owned by another extension
-  - [ ] Host API request validation rejects missing or mismatched `bridge_instance_id` values for provider-scoped methods
-  - [ ] per-instance state reporting rejects operator-controlled disabled transitions where the contract forbids them
+  - [x] provider-scoped authorization accepts a bridge instance owned by the runtime's extension and rejects an instance owned by another extension
+  - [x] Host API request validation rejects missing or mismatched `bridge_instance_id` values for provider-scoped methods
+  - [x] per-instance state reporting rejects operator-controlled disabled transitions where the contract forbids them
 - Integration tests:
-  - [ ] a provider runtime can fetch or list the bridge instances owned by its extension session
-  - [ ] an inbound event for an owned `bridge_instance_id` ingests successfully when a sibling instance shares the same provider runtime
-  - [ ] an inbound event for a non-owned `bridge_instance_id` fails with a stable authorization or not-found error
+  - [x] a provider runtime can fetch or list the bridge instances owned by its extension session
+  - [x] an inbound event for an owned `bridge_instance_id` ingests successfully when a sibling instance shares the same provider runtime
+  - [x] an inbound event for a non-owned `bridge_instance_id` fails with a stable authorization or not-found error
 - Test coverage target: >=80%
 - All tests must pass
 

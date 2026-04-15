@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Add cross-provider multi-instance recovery and conformance coverage"
 type: backend
 complexity: critical
@@ -36,10 +36,10 @@ Close the feature with system-level proof that the provider-scoped substrate beh
 </requirements>
 
 ## Subtasks
-- [ ] 17.1 Add multi-instance integration scenarios that exercise shared provider runtimes across representative providers
-- [ ] 17.2 Add restart and recovery scenarios covering owned-instance cache rehydration and delivery continuity
-- [ ] 17.3 Add DM policy, auth degradation, and classified retry scenarios across representative providers
-- [ ] 17.4 Consolidate shared conformance reporting and provider coverage documentation
+- [x] 17.1 Add multi-instance integration scenarios that exercise shared provider runtimes across representative providers
+- [x] 17.2 Add restart and recovery scenarios covering owned-instance cache rehydration and delivery continuity
+- [x] 17.3 Add DM policy, auth degradation, and classified retry scenarios across representative providers
+- [x] 17.4 Consolidate shared conformance reporting and provider coverage documentation
 
 ## Implementation Details
 
@@ -77,13 +77,13 @@ Follow the TechSpec sections "Testing Approach", "Integration Tests", and "Verif
 
 ## Tests
 - Unit tests:
-  - [ ] shared conformance reporting aggregates provider results consistently across multiple runtime instances
-  - [ ] classified retry and degradation expectations are asserted consistently across representative providers
+  - [x] shared conformance reporting aggregates provider results consistently across multiple runtime instances
+  - [x] classified retry and degradation expectations are asserted consistently across representative providers
 - Integration tests:
-  - [ ] one provider process owning multiple bridge instances can ingest and deliver for each instance without cross-instance leakage
-  - [ ] provider restart rehydrates owned-instance state and resumes delivery or ingest correctly for representative providers
-  - [ ] DM policy enforcement rejects unauthorized direct-message ingress and allows authorized ingress according to the configured policy
-  - [ ] auth failures and rate limits surface structured degradation reasons and the expected state transitions across representative providers
+  - [x] one provider process owning multiple bridge instances can ingest and deliver for each instance without cross-instance leakage
+  - [x] provider restart rehydrates owned-instance state and resumes delivery or ingest correctly for representative providers
+  - [x] DM policy enforcement rejects unauthorized direct-message ingress and allows authorized ingress according to the configured policy
+  - [x] auth failures and rate limits surface structured degradation reasons and the expected state transitions across representative providers
 - Test coverage target: >=80%
 - All tests must pass
 

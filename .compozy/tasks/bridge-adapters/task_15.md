@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement the GitHub provider extension"
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Implement the GitHub provider to validate provider-scoped multi-instance behavio
 </requirements>
 
 ## Subtasks
-- [ ] 15.1 Create the GitHub provider runtime and manifest on top of `internal/bridgesdk`
-- [ ] 15.2 Implement GitHub webhook mapping for comments and related bridge-event identities
-- [ ] 15.3 Implement GitHub outbound delivery, App or PAT mode behavior, and state reporting
-- [ ] 15.4 Add conformance and multi-installation coverage for GitHub
+- [x] 15.1 Create the GitHub provider runtime and manifest on top of `internal/bridgesdk`
+- [x] 15.2 Implement GitHub webhook mapping for comments and related bridge-event identities
+- [x] 15.3 Implement GitHub outbound delivery, App or PAT mode behavior, and state reporting
+- [x] 15.4 Add conformance and multi-installation coverage for GitHub
 
 ## Implementation Details
 
@@ -69,13 +69,13 @@ Follow the TechSpec sections "Provider Reference Notes", "GitHub", and "Operatio
 
 ## Tests
 - Unit tests:
-  - [ ] GitHub webhook payloads map issue or pull-request comment activity into the expected bridge routing identity
-  - [ ] GitHub provider config validation distinguishes App mode and PAT mode settings correctly
-  - [ ] GitHub outbound delivery mapping preserves the target context needed to post follow-up comments
+  - [x] GitHub webhook payloads map issue or pull-request comment activity into the expected bridge routing identity
+  - [x] GitHub provider config validation distinguishes App mode and PAT mode settings correctly
+  - [x] GitHub outbound delivery mapping preserves the target context needed to post follow-up comments
 - Integration tests:
-  - [ ] a provider-scoped GitHub runtime ingests webhook events for different owned bridge instances without process-level isolation
-  - [ ] GitHub outbound delivery posts comment-style responses and reports state transitions through the shared runtime path
-  - [ ] GitHub provider passes the shared conformance harness plus App-installation or multi-instance scenarios
+  - [x] a provider-scoped GitHub runtime ingests webhook events for different owned bridge instances without process-level isolation
+  - [x] GitHub outbound delivery posts comment-style responses and reports state transitions through the shared runtime path
+  - [x] GitHub provider passes the shared conformance harness plus App-installation or multi-instance scenarios
 - Test coverage target: >=80%
 - All tests must pass
 

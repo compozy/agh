@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Replace the Telegram reference path with a provider-scoped conformance harness"
 type: backend
 complexity: high
@@ -31,10 +31,10 @@ Retire the old instance-scoped reference assumptions before provider work fans o
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Refactor or replace `telegram-reference` to consume the provider-scoped runtime and Host API surface
-- [ ] 8.2 Update the bridge adapter harness marker contract and validation rules for provider-scoped runtimes
-- [ ] 8.3 Add shared conformance scenarios for owned-instance lookup, delivery, and state-reporting behavior
-- [ ] 8.4 Document the new conformance path and remove ambiguity around legacy reference behavior
+- [x] 8.1 Refactor or replace `telegram-reference` to consume the provider-scoped runtime and Host API surface
+- [x] 8.2 Update the bridge adapter harness marker contract and validation rules for provider-scoped runtimes
+- [x] 8.3 Add shared conformance scenarios for owned-instance lookup, delivery, and state-reporting behavior
+- [x] 8.4 Document the new conformance path and remove ambiguity around legacy reference behavior
 
 ## Implementation Details
 
@@ -68,13 +68,13 @@ Follow the TechSpec sections "Impact Analysis", "Testing Approach", and "Develop
 
 ## Tests
 - Unit tests:
-  - [ ] conformance validation rejects a runtime handshake that omits provider-scoped bridge context
-  - [ ] conformance validation rejects owned-instance access or delivery markers that do not match the provider-scoped contract
-  - [ ] helper cloning and marker parsing support many managed bridge instances without aliasing state
+  - [x] conformance validation rejects a runtime handshake that omits provider-scoped bridge context
+  - [x] conformance validation rejects owned-instance access or delivery markers that do not match the provider-scoped contract
+  - [x] helper cloning and marker parsing support many managed bridge instances without aliasing state
 - Integration tests:
-  - [ ] the updated reference path boots with a provider-scoped runtime and writes conformance markers that validate successfully
-  - [ ] the harness captures state reporting and delivery acknowledgments for a provider runtime that owns multiple bridge instances
-  - [ ] legacy single-instance handshake expectations no longer pass against the updated harness
+  - [x] the updated reference path boots with a provider-scoped runtime and writes conformance markers that validate successfully
+  - [x] the harness captures state reporting and delivery acknowledgments for a provider runtime that owns multiple bridge instances
+  - [x] legacy single-instance handshake expectations no longer pass against the updated harness
 - Test coverage target: >=80%
 - All tests must pass
 

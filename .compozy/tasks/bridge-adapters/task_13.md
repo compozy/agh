@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement the Microsoft Teams provider extension"
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Implement the Teams provider using the shared provider-scoped substrate and per-
 </requirements>
 
 ## Subtasks
-- [ ] 13.1 Create the Teams provider runtime and manifest on top of `internal/bridgesdk`
-- [ ] 13.2 Implement Teams activity ingestion, verification, and bridge-event mapping
-- [ ] 13.3 Implement Teams outbound delivery, service URL handling, and state reporting
-- [ ] 13.4 Add conformance and tenant-configuration coverage for Teams
+- [x] 13.1 Create the Teams provider runtime and manifest on top of `internal/bridgesdk`
+- [x] 13.2 Implement Teams activity ingestion, verification, and bridge-event mapping
+- [x] 13.3 Implement Teams outbound delivery, service URL handling, and state reporting
+- [x] 13.4 Add conformance and tenant-configuration coverage for Teams
 
 ## Implementation Details
 
@@ -69,13 +69,13 @@ Follow the TechSpec sections "Provider Reference Notes", "Teams", and "Operation
 
 ## Tests
 - Unit tests:
-  - [ ] Teams activity payloads map into bridge message or typed interaction events with stable routing identity
-  - [ ] Teams provider config validation accepts tenant pinning and rejects malformed service URL or tenant settings
-  - [ ] Teams outbound delivery mapping preserves the service URL or conversation identity needed for follow-up delivery
+  - [x] Teams activity payloads map into bridge message or typed interaction events with stable routing identity
+  - [x] Teams provider config validation accepts tenant pinning and rejects malformed service URL or tenant settings
+  - [x] Teams outbound delivery mapping preserves the service URL or conversation identity needed for follow-up delivery
 - Integration tests:
-  - [ ] a provider-scoped Teams runtime ingests Bot Framework activity payloads for owned bridge instances successfully
-  - [ ] Teams outbound delivery posts responses and reports state transitions through the shared runtime path
-  - [ ] Teams provider passes the shared conformance harness plus tenant-aware configuration scenarios
+  - [x] a provider-scoped Teams runtime ingests Bot Framework activity payloads for owned bridge instances successfully
+  - [x] Teams outbound delivery posts responses and reports state transitions through the shared runtime path
+  - [x] Teams provider passes the shared conformance harness plus tenant-aware configuration scenarios
 - Test coverage target: >=80%
 - All tests must pass
 

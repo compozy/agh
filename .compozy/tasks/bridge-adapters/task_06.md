@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Expose provider metadata and provider_config through shared bridge APIs and OpenAPI"
 type: backend
 complexity: high
@@ -29,10 +29,10 @@ The daemon API surface currently exposes only the old bridge shape and minimal p
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Extend shared bridge request and response contracts for provider config and provider metadata
-- [ ] 6.2 Update bridge HTTP and UDS handlers to read and return the expanded payloads
-- [ ] 6.3 Regenerate and validate the OpenAPI surface for the new bridge contract
-- [ ] 6.4 Add API-level tests for CRUD, provider listing, and health payload changes
+- [x] 6.1 Extend shared bridge request and response contracts for provider config and provider metadata
+- [x] 6.2 Update bridge HTTP and UDS handlers to read and return the expanded payloads
+- [x] 6.3 Regenerate and validate the OpenAPI surface for the new bridge contract
+- [x] 6.4 Add API-level tests for CRUD, provider listing, and health payload changes
 
 ## Implementation Details
 
@@ -66,13 +66,13 @@ Follow the TechSpec sections "Data Model Changes", "Provider Manifest", and "Imp
 
 ## Tests
 - Unit tests:
-  - [ ] create and update bridge payload mapping keeps `provider_config` distinct from `delivery_defaults`
-  - [ ] provider-listing payloads include declared secret slots and optional config schema hints when present
-  - [ ] bridge health payload mapping includes structured degradation fields without breaking existing counters
+  - [x] create and update bridge payload mapping keeps `provider_config` distinct from `delivery_defaults`
+  - [x] provider-listing payloads include declared secret slots and optional config schema hints when present
+  - [x] bridge health payload mapping includes structured degradation fields without breaking existing counters
 - Integration tests:
-  - [ ] POST and GET bridge APIs round-trip `provider_config` and delivery defaults independently
-  - [ ] bridge provider listing surfaces provider metadata needed by operators and the web client
-  - [ ] generated OpenAPI schema includes the new bridge fields and no longer treats provider config as unknown-only state
+  - [x] POST and GET bridge APIs round-trip `provider_config` and delivery defaults independently
+  - [x] bridge provider listing surfaces provider metadata needed by operators and the web client
+  - [x] generated OpenAPI schema includes the new bridge fields and no longer treats provider config as unknown-only state
 - Test coverage target: >=80%
 - All tests must pass
 

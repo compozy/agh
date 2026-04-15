@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Extend bridge core models, persistence, and provider manifests"
 type: backend
 complexity: critical
@@ -28,10 +28,10 @@ Bring the daemon-owned bridge model up to the shape approved in the TechSpec bef
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Add `provider_config`, DM policy, and structured degradation fields to the bridge core types and validators
-- [ ] 1.2 Update global DB schema and CRUD helpers for the new bridge-instance and provider metadata shape
-- [ ] 1.3 Extend manifest parsing and validation for bridge secret-slot declarations and config schema hints
-- [ ] 1.4 Add unit and persistence coverage for the new bridge model and manifest contract
+- [x] 1.1 Add `provider_config`, DM policy, and structured degradation fields to the bridge core types and validators
+- [x] 1.2 Update global DB schema and CRUD helpers for the new bridge-instance and provider metadata shape
+- [x] 1.3 Extend manifest parsing and validation for bridge secret-slot declarations and config schema hints
+- [x] 1.4 Add unit and persistence coverage for the new bridge model and manifest contract
 
 ## Implementation Details
 

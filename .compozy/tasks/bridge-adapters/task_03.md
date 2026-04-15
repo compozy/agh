@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Expand bridge v1 event and delivery contracts"
 type: backend
 complexity: high
@@ -29,10 +29,10 @@ Make the bridge protocol honest about the v1 scope approved in the ADRs. This ta
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Extend inbound bridge event types for typed interaction families and provider-owned metadata
-- [ ] 3.2 Extend outbound delivery event types for edit and delete semantics alongside textual streaming
-- [ ] 3.3 Update contract validation and mapping helpers to enforce the new bridge v1 event surface
-- [ ] 3.4 Add unit coverage for typed event validation and delivery serialization
+- [x] 3.1 Extend inbound bridge event types for typed interaction families and provider-owned metadata
+- [x] 3.2 Extend outbound delivery event types for edit and delete semantics alongside textual streaming
+- [x] 3.3 Update contract validation and mapping helpers to enforce the new bridge v1 event surface
+- [x] 3.4 Add unit coverage for typed event validation and delivery serialization
 
 ## Implementation Details
 
@@ -69,13 +69,13 @@ Follow the TechSpec sections "Bridge V1 Scope", "Required Conversational Contrac
 
 ## Tests
 - Unit tests:
-  - [ ] typed `command`, `action`, and `reaction` inbound events validate the required identity and payload fields
-  - [ ] edit and delete outbound delivery events validate previously delivered message identifiers correctly
-  - [ ] unsupported event-family combinations are rejected before transport mapping
-  - [ ] provider metadata round-trips without changing the typed bridge event family selection
+  - [x] typed `command`, `action`, and `reaction` inbound events validate the required identity and payload fields
+  - [x] edit and delete outbound delivery events validate previously delivered message identifiers correctly
+  - [x] unsupported event-family combinations are rejected before transport mapping
+  - [x] provider metadata round-trips without changing the typed bridge event family selection
 - Integration tests:
-  - [ ] an inbound typed interaction event survives transport mapping into the daemon-owned bridge contract unchanged
-  - [ ] a delivery request containing edit or delete semantics round-trips through the shared bridge contract without losing target information
+  - [x] an inbound typed interaction event survives transport mapping into the daemon-owned bridge contract unchanged
+  - [x] a delivery request containing edit or delete semantics round-trips through the shared bridge contract without losing target information
 - Test coverage target: >=80%
 - All tests must pass
 

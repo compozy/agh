@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Update web bridge management for provider config, secret slots, and DM policy"
 type: frontend
 complexity: high
@@ -29,10 +29,10 @@ Bring the bridge management UI in line with the new backend contract so operator
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Update bridge web types and API adapters for the expanded bridge-management payloads
-- [ ] 7.2 Redesign the create and detail panels to separate delivery defaults from provider configuration
-- [ ] 7.3 Surface provider secret-slot requirements, DM policy controls, and provider hints in the UI
-- [ ] 7.4 Add component and hook coverage for the updated bridge-management flows
+- [x] 7.1 Update bridge web types and API adapters for the expanded bridge-management payloads
+- [x] 7.2 Redesign the create and detail panels to separate delivery defaults from provider configuration
+- [x] 7.3 Surface provider secret-slot requirements, DM policy controls, and provider hints in the UI
+- [x] 7.4 Add component and hook coverage for the updated bridge-management flows
 
 ## Implementation Details
 

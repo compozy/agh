@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement the Google Chat provider extension"
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Implement the Google Chat provider on top of the shared runtime while keeping pr
 </requirements>
 
 ## Subtasks
-- [ ] 14.1 Create the Google Chat provider runtime and manifest on top of `internal/bridgesdk`
-- [ ] 14.2 Implement Google Chat ingress normalization and bridge-event mapping
-- [ ] 14.3 Implement Google Chat outbound delivery and state-reporting behavior
-- [ ] 14.4 Add conformance and event-shape normalization coverage for Google Chat
+- [x] 14.1 Create the Google Chat provider runtime and manifest on top of `internal/bridgesdk`
+- [x] 14.2 Implement Google Chat ingress normalization and bridge-event mapping
+- [x] 14.3 Implement Google Chat outbound delivery and state-reporting behavior
+- [x] 14.4 Add conformance and event-shape normalization coverage for Google Chat
 
 ## Implementation Details
 
@@ -68,13 +68,13 @@ Follow the TechSpec sections "Provider Reference Notes", "Google Chat", and "Ope
 
 ## Tests
 - Unit tests:
-  - [ ] Google Chat ingress payloads normalize into the expected bridge message or typed interaction events
-  - [ ] Google Chat provider config validation accepts the required credential and mode settings while rejecting malformed values
-  - [ ] Google Chat outbound delivery mapping preserves the target identity needed for follow-up messages
+  - [x] Google Chat ingress payloads normalize into the expected bridge message or typed interaction events
+  - [x] Google Chat provider config validation accepts the required credential and mode settings while rejecting malformed values
+  - [x] Google Chat outbound delivery mapping preserves the target identity needed for follow-up messages
 - Integration tests:
-  - [ ] a provider-scoped Google Chat runtime ingests supported event shapes for owned bridge instances successfully
-  - [ ] Google Chat outbound delivery posts responses and reports state transitions through the shared runtime path
-  - [ ] Google Chat provider passes the shared conformance harness plus ingress-normalization scenarios
+  - [x] a provider-scoped Google Chat runtime ingests supported event shapes for owned bridge instances successfully
+  - [x] Google Chat outbound delivery posts responses and reports state transitions through the shared runtime path
+  - [x] Google Chat provider passes the shared conformance harness plus ingress-normalization scenarios
 - Test coverage target: >=80%
 - All tests must pass
 

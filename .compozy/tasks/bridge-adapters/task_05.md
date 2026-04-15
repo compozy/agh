@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Build shared internal/bridgesdk runtime core and ingress hardening"
 type: backend
 complexity: critical
@@ -31,10 +31,10 @@ Create the shared substrate that every bridge provider will import instead of co
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Create the shared bridge SDK runtime scaffold and provider-owned instance cache
-- [ ] 5.2 Add reusable webhook server guards, dedup cache, and batching helpers
-- [ ] 5.3 Add provider error classification and retry or status-mapping helpers
-- [ ] 5.4 Add health, shutdown, and delivery-ack helpers plus conformance-friendly test seams
+- [x] 5.1 Create the shared bridge SDK runtime scaffold and provider-owned instance cache
+- [x] 5.2 Add reusable webhook server guards, dedup cache, and batching helpers
+- [x] 5.3 Add provider error classification and retry or status-mapping helpers
+- [x] 5.4 Add health, shutdown, and delivery-ack helpers plus conformance-friendly test seams
 
 ## Implementation Details
 
@@ -88,14 +88,14 @@ Follow the TechSpec sections "Shared SDK Requirements", "Operational Requirement
 
 ## Tests
 - Unit tests:
-  - [ ] webhook guards reject unsupported methods, oversized bodies, and invalid content types before reaching provider handlers
-  - [ ] adapter-local dedup suppresses repeated idempotency keys within TTL and releases them after expiry
-  - [ ] batching coalesces a short burst of messages under one routing identity while preserving ordering
-  - [ ] error classification maps representative provider errors into the expected recovery classes
+  - [x] webhook guards reject unsupported methods, oversized bodies, and invalid content types before reaching provider handlers
+  - [x] adapter-local dedup suppresses repeated idempotency keys within TTL and releases them after expiry
+  - [x] batching coalesces a short burst of messages under one routing identity while preserving ordering
+  - [x] error classification maps representative provider errors into the expected recovery classes
 - Integration tests:
-  - [ ] a provider runtime built on `internal/bridgesdk` boots against the provider-scoped handshake and can ingest through the Host API client
-  - [ ] ingress hardening rejects invalid requests without invoking downstream provider mapping
-  - [ ] classified auth and rate-limit failures produce the expected retry or status-transition behavior in the shared runtime helpers
+  - [x] a provider runtime built on `internal/bridgesdk` boots against the provider-scoped handshake and can ingest through the Host API client
+  - [x] ingress hardening rejects invalid requests without invoking downstream provider mapping
+  - [x] classified auth and rate-limit failures produce the expected retry or status-transition behavior in the shared runtime helpers
 - Test coverage target: >=80%
 - All tests must pass
 

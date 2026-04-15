@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement the WhatsApp provider extension"
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Implement the WhatsApp Cloud API provider on top of the shared provider runtime.
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Create the WhatsApp provider runtime and manifest on top of `internal/bridgesdk`
-- [ ] 12.2 Implement verify-challenge, webhook verification, and inbound bridge-event mapping for WhatsApp
-- [ ] 12.3 Implement WhatsApp outbound delivery, error classification, and state-reporting behavior
-- [ ] 12.4 Add conformance and retry or recovery coverage for WhatsApp
+- [x] 12.1 Create the WhatsApp provider runtime and manifest on top of `internal/bridgesdk`
+- [x] 12.2 Implement verify-challenge, webhook verification, and inbound bridge-event mapping for WhatsApp
+- [x] 12.3 Implement WhatsApp outbound delivery, error classification, and state-reporting behavior
+- [x] 12.4 Add conformance and retry or recovery coverage for WhatsApp
 
 ## Implementation Details
 
@@ -69,14 +69,14 @@ Follow the TechSpec sections "Provider Reference Notes", "WhatsApp", and "Operat
 
 ## Tests
 - Unit tests:
-  - [ ] WhatsApp verify-challenge requests succeed only when the configured verification token matches
-  - [ ] WhatsApp signature verification rejects invalid webhook signatures before event mapping
-  - [ ] WhatsApp inbound payloads map into the expected bridge routing identity and message envelope
-  - [ ] WhatsApp provider error mapping classifies representative rate-limit and auth failures into the expected shared runtime classes
+  - [x] WhatsApp verify-challenge requests succeed only when the configured verification token matches
+  - [x] WhatsApp signature verification rejects invalid webhook signatures before event mapping
+  - [x] WhatsApp inbound payloads map into the expected bridge routing identity and message envelope
+  - [x] WhatsApp provider error mapping classifies representative rate-limit and auth failures into the expected shared runtime classes
 - Integration tests:
-  - [ ] a provider-scoped WhatsApp runtime ingests verified webhook traffic for one owned bridge instance successfully
-  - [ ] WhatsApp outbound delivery posts responses and reports state transitions through the shared runtime path
-  - [ ] WhatsApp provider passes the shared conformance harness plus retry or rate-limit scenarios
+  - [x] a provider-scoped WhatsApp runtime ingests verified webhook traffic for one owned bridge instance successfully
+  - [x] WhatsApp outbound delivery posts responses and reports state transitions through the shared runtime path
+  - [x] WhatsApp provider passes the shared conformance harness plus retry or rate-limit scenarios
 - Test coverage target: >=80%
 - All tests must pass
 

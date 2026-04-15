@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement the Linear provider extension"
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Implement the Linear provider to validate provider-owned mode switches inside `p
 </requirements>
 
 ## Subtasks
-- [ ] 16.1 Create the Linear provider runtime and manifest on top of `internal/bridgesdk`
-- [ ] 16.2 Implement Linear ingress normalization and bridge-event mapping for supported provider modes
-- [ ] 16.3 Implement Linear outbound delivery, mode-aware behavior, and state reporting
-- [ ] 16.4 Add conformance and provider-mode coverage for Linear
+- [x] 16.1 Create the Linear provider runtime and manifest on top of `internal/bridgesdk`
+- [x] 16.2 Implement Linear ingress normalization and bridge-event mapping for supported provider modes
+- [x] 16.3 Implement Linear outbound delivery, mode-aware behavior, and state reporting
+- [x] 16.4 Add conformance and provider-mode coverage for Linear
 
 ## Implementation Details
 
@@ -69,15 +69,15 @@ Follow the TechSpec sections "Provider Reference Notes", "Linear", and "Operatio
 
 ## Tests
 - Unit tests:
-  - [ ] Linear provider config validation accepts supported mode combinations and rejects malformed or conflicting mode settings
-  - [ ] Linear ingress payloads map into the expected bridge routing identity for supported provider modes
-  - [ ] Linear outbound delivery mapping preserves the target context needed for follow-up comment or session responses
+  - [x] Linear provider config validation accepts supported mode combinations and rejects malformed or conflicting mode settings
+  - [x] Linear ingress payloads map into the expected bridge routing identity for supported provider modes
+  - [x] Linear outbound delivery mapping preserves the target context needed for follow-up comment or session responses
 - Integration tests:
-  - [ ] a provider-scoped Linear runtime ingests supported events for owned bridge instances successfully
-  - [ ] Linear outbound delivery posts responses and reports state transitions through the shared runtime path for each supported mode
-  - [ ] Linear provider passes the shared conformance harness plus provider-mode scenarios
-- Test coverage target: >=80%
-- All tests must pass
+  - [x] a provider-scoped Linear runtime ingests supported events for owned bridge instances successfully
+  - [x] Linear outbound delivery posts responses and reports state transitions through the shared runtime path for each supported mode
+  - [x] Linear provider passes the shared conformance harness plus provider-mode scenarios
+- Test coverage target: >=80% (`go test -count=1 ./extensions/bridges/linear -cover` => `80.2%`)
+- All tests pass (`go test -tags integration ./internal/extension -run 'TestLinearProvider' -count=1`, `make verify`)
 
 ## Success Criteria
 - All tests passing

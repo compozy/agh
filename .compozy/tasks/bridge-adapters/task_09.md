@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement the Telegram provider extension"
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Deliver the first production provider on top of the shared bridge substrate to v
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Create the Telegram provider runtime using the shared bridge SDK and provider-scoped configuration
-- [ ] 9.2 Implement Telegram webhook parsing, verification, and bridge-event mapping
-- [ ] 9.3 Implement Telegram delivery, edit or delete handling, and status-reporting behavior
-- [ ] 9.4 Add conformance, integration, and recovery coverage for Telegram
+- [x] 9.1 Create the Telegram provider runtime using the shared bridge SDK and provider-scoped configuration
+- [x] 9.2 Implement Telegram webhook parsing, verification, and bridge-event mapping
+- [x] 9.3 Implement Telegram delivery, edit or delete handling, and status-reporting behavior
+- [x] 9.4 Add conformance, integration, and recovery coverage for Telegram
 
 ## Implementation Details
 
@@ -70,13 +70,13 @@ Follow the TechSpec sections "Provider Reference Notes", "Telegram", "Operationa
 
 ## Tests
 - Unit tests:
-  - [ ] Telegram webhook mapping produces the expected bridge routing identity for direct chats and threaded or forum-style contexts
-  - [ ] Telegram webhook verification rejects invalid secret or signature state according to the provider config
-  - [ ] Telegram delivery mapping supports text, edit, and delete behavior within the platform's supported semantics
+  - [x] Telegram webhook mapping produces the expected bridge routing identity for direct chats and threaded or forum-style contexts
+  - [x] Telegram webhook verification rejects invalid secret or signature state according to the provider config
+  - [x] Telegram delivery mapping supports text, edit, and delete behavior within the platform's supported semantics
 - Integration tests:
-  - [ ] a provider-scoped Telegram runtime ingests inbound messages for one owned `bridge_instance_id` and routes them correctly
-  - [ ] Telegram delivery requests post or edit messages successfully and acknowledge completion through the shared runtime path
-  - [ ] Telegram provider restart recovers owned-instance state and continues delivery or ingest without violating conformance
+  - [x] a provider-scoped Telegram runtime ingests inbound messages for one owned `bridge_instance_id` and routes them correctly
+  - [x] Telegram delivery requests post or edit messages successfully and acknowledge completion through the shared runtime path
+  - [x] Telegram provider restart recovers owned-instance state and continues delivery or ingest without violating conformance
 - Test coverage target: >=80%
 - All tests must pass
 

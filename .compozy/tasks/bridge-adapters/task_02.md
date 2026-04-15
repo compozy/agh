@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Redesign provider-scoped bridge runtime handshake and daemon lifecycle"
 type: backend
 complexity: critical
@@ -29,10 +29,10 @@ Replace the old "one bridge instance per extension process" launch contract with
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Replace the instance-scoped handshake payload with provider-scoped runtime context and managed-instance snapshots
-- [ ] 2.2 Refactor daemon bridge runtime resolution to stop failing on multiple enabled instances for one provider
-- [ ] 2.3 Update extension manager runtime injection and restart paths for provider-scoped bridge sessions
-- [ ] 2.4 Add integration coverage for provider runtime launch, restart, and multi-instance ownership
+- [x] 2.1 Replace the instance-scoped handshake payload with provider-scoped runtime context and managed-instance snapshots
+- [x] 2.2 Refactor daemon bridge runtime resolution to stop failing on multiple enabled instances for one provider
+- [x] 2.3 Update extension manager runtime injection and restart paths for provider-scoped bridge sessions
+- [x] 2.4 Add integration coverage for provider runtime launch, restart, and multi-instance ownership
 
 ## Implementation Details
 
@@ -67,13 +67,13 @@ Follow the TechSpec sections "Approved Architecture", "Provider Runtime Model", 
 
 ## Tests
 - Unit tests:
-  - [ ] provider-scoped initialize payload validation rejects empty provider identity and invalid managed-instance snapshots
-  - [ ] cloned runtime contexts do not alias mutable slices or maps from the source runtime
-  - [ ] daemon bridge runtime resolution no longer errors when multiple enabled instances share one extension
+  - [x] provider-scoped initialize payload validation rejects empty provider identity and invalid managed-instance snapshots
+  - [x] cloned runtime contexts do not alias mutable slices or maps from the source runtime
+  - [x] daemon bridge runtime resolution no longer errors when multiple enabled instances share one extension
 - Integration tests:
-  - [ ] one bridge-capable extension launches successfully when two enabled bridge instances reference the same provider extension
-  - [ ] restarting a provider-scoped runtime preserves daemon-owned bridge state and rehydrates the runtime context
-  - [ ] provider-scoped runtime launch still fails cleanly when no enabled bridge instances exist for the extension
+  - [x] one bridge-capable extension launches successfully when two enabled bridge instances reference the same provider extension
+  - [x] restarting a provider-scoped runtime preserves daemon-owned bridge state and rehydrates the runtime context
+  - [x] provider-scoped runtime launch still fails cleanly when no enabled bridge instances exist for the extension
 - Test coverage target: >=80%
 - All tests must pass
 
