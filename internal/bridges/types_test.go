@@ -1,6 +1,7 @@
 package bridges
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -191,6 +192,81 @@ func TestBridgeInstanceValidateDeliveryDefaultsJSON(t *testing.T) {
 	instance.DeliveryDefaults = []byte(`{`)
 	if err := instance.Validate(); err == nil {
 		t.Fatal("BridgeInstance.Validate(invalid json) error = nil, want non-nil")
+	}
+}
+
+func TestBridgeInstanceValidateProviderConfigDMPolicyAndDegradation(t *testing.T) {
+	t.Parallel()
+
+	base := BridgeInstance{
+		ID:               "brg-provider",
+		Scope:            ScopeGlobal,
+		Platform:         "slack",
+		ExtensionName:    "slack-adapter",
+		DisplayName:      "Slack Provider",
+		Enabled:          true,
+		Status:           BridgeStatusReady,
+		RoutingPolicy:    RoutingPolicy{IncludePeer: true},
+		ProviderConfig:   json.RawMessage(`{"mode":"bot","tenant":"acme"}`),
+		DeliveryDefaults: json.RawMessage(`{"mode":"reply","thread_id":"thread-1"}`),
+	}
+
+	if err := base.Validate(); err != nil {
+		t.Fatalf("BridgeInstance.Validate(valid provider config) error = %v", err)
+	}
+
+	invalidProviderConfig := base
+	invalidProviderConfig.ProviderConfig = json.RawMessage(`{`)
+	if err := invalidProviderConfig.Validate(); err == nil {
+		t.Fatal("BridgeInstance.Validate(invalid provider config) error = nil, want non-nil")
+	}
+
+	invalidDMPolicy := base
+	invalidDMPolicy.DMPolicy = "disabled"
+	if err := invalidDMPolicy.Validate(); err == nil {
+		t.Fatal("BridgeInstance.Validate(invalid dm policy) error = nil, want non-nil")
+	}
+
+	validDegradation := base
+	validDegradation.Status = BridgeStatusDegraded
+	validDegradation.Degradation = &BridgeDegradation{
+		Reason:  BridgeDegradationReasonRateLimited,
+		Message: "provider API is throttling",
+	}
+	if err := validDegradation.Validate(); err != nil {
+		t.Fatalf("BridgeInstance.Validate(valid degradation) error = %v", err)
+	}
+
+	invalidDegradation := validDegradation
+	invalidDegradation.Degradation = &BridgeDegradation{Message: "missing reason"}
+	if err := invalidDegradation.Validate(); err == nil {
+		t.Fatal("BridgeInstance.Validate(missing degradation reason) error = nil, want non-nil")
+	}
+
+	readyWithDegradation := base
+	readyWithDegradation.Degradation = &BridgeDegradation{Reason: BridgeDegradationReasonAuthFailed}
+	if err := readyWithDegradation.Validate(); err == nil {
+		t.Fatal("BridgeInstance.Validate(ready with degradation) error = nil, want non-nil")
+	}
+}
+
+func TestBridgeSecretSlotAndConfigSchemaValidation(t *testing.T) {
+	t.Parallel()
+
+	slot := BridgeSecretSlot{Name: "bot_token", Description: "Bot token", Required: true}
+	if err := slot.Validate(); err != nil {
+		t.Fatalf("BridgeSecretSlot.Validate(valid) error = %v", err)
+	}
+	if err := (BridgeSecretSlot{}).Validate(); err == nil {
+		t.Fatal("BridgeSecretSlot.Validate(empty) error = nil, want non-nil")
+	}
+
+	schema := BridgeProviderConfigSchema{Schema: "agh.bridge.slack", Version: "v1"}
+	if err := schema.Validate(); err != nil {
+		t.Fatalf("BridgeProviderConfigSchema.Validate(valid) error = %v", err)
+	}
+	if err := (BridgeProviderConfigSchema{}).Validate(); err != nil {
+		t.Fatalf("BridgeProviderConfigSchema.Validate(zero) error = %v", err)
 	}
 }
 

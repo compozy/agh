@@ -448,10 +448,19 @@ export type BridgeInstanceSource = string;
 
 export type BridgeStatus = string;
 
+export type BridgeDMPolicy = string;
+
 export interface RoutingPolicy {
   include_peer: boolean;
   include_thread: boolean;
   include_group: boolean;
+}
+
+export type BridgeDegradationReason = string;
+
+export interface BridgeDegradation {
+  reason: BridgeDegradationReason;
+  message?: string;
 }
 
 export interface BridgeInstance {
@@ -464,8 +473,11 @@ export interface BridgeInstance {
   source?: BridgeInstanceSource;
   enabled: boolean;
   status: BridgeStatus;
+  dm_policy?: BridgeDMPolicy;
   routing_policy: RoutingPolicy;
+  provider_config?: JSONValue;
   delivery_defaults?: JSONValue;
+  degradation?: BridgeDegradation;
   created_at: ISODateTime;
   updated_at: ISODateTime;
 }

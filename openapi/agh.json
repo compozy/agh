@@ -3563,8 +3563,24 @@
                                                         "format": "date-time",
                                                         "type": "string"
                                                     },
+                                                    "degradation": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "message": {
+                                                                "type": "string"
+                                                            },
+                                                            "reason": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["reason"],
+                                                        "type": "object"
+                                                    },
                                                     "delivery_defaults": {},
                                                     "display_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "dm_policy": {
                                                         "type": "string"
                                                     },
                                                     "enabled": {
@@ -3579,6 +3595,7 @@
                                                     "platform": {
                                                         "type": "string"
                                                     },
+                                                    "provider_config": {},
                                                     "routing_policy": {
                                                         "properties": {
                                                             "include_group": {
@@ -3774,8 +3791,24 @@
                                                     "format": "date-time",
                                                     "type": "string"
                                                 },
+                                                "degradation": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "message": {
+                                                            "type": "string"
+                                                        },
+                                                        "reason": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["reason"],
+                                                    "type": "object"
+                                                },
                                                 "delivery_defaults": {},
                                                 "display_name": {
+                                                    "type": "string"
+                                                },
+                                                "dm_policy": {
                                                     "type": "string"
                                                 },
                                                 "enabled": {
@@ -3790,6 +3823,7 @@
                                                 "platform": {
                                                     "type": "string"
                                                 },
+                                                "provider_config": {},
                                                 "routing_policy": {
                                                     "properties": {
                                                         "include_group": {
@@ -4004,6 +4038,18 @@
                                         "providers": {
                                             "items": {
                                                 "properties": {
+                                                    "config_schema": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "schema": {
+                                                                "type": "string"
+                                                            },
+                                                            "version": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
                                                     "description": {
                                                         "type": "string"
                                                     },
@@ -4024,6 +4070,24 @@
                                                     },
                                                     "platform": {
                                                         "type": "string"
+                                                    },
+                                                    "secret_slots": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "description": {
+                                                                    "type": "string"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "required": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            },
+                                                            "required": ["name"],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
                                                     },
                                                     "state": {
                                                         "type": "string"
@@ -4116,8 +4180,24 @@
                                                     "format": "date-time",
                                                     "type": "string"
                                                 },
+                                                "degradation": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "message": {
+                                                            "type": "string"
+                                                        },
+                                                        "reason": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["reason"],
+                                                    "type": "object"
+                                                },
                                                 "delivery_defaults": {},
                                                 "display_name": {
+                                                    "type": "string"
+                                                },
+                                                "dm_policy": {
                                                     "type": "string"
                                                 },
                                                 "enabled": {
@@ -4132,6 +4212,7 @@
                                                 "platform": {
                                                     "type": "string"
                                                 },
+                                                "provider_config": {},
                                                 "routing_policy": {
                                                     "properties": {
                                                         "include_group": {
@@ -4380,8 +4461,24 @@
                                                     "format": "date-time",
                                                     "type": "string"
                                                 },
+                                                "degradation": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "message": {
+                                                            "type": "string"
+                                                        },
+                                                        "reason": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["reason"],
+                                                    "type": "object"
+                                                },
                                                 "delivery_defaults": {},
                                                 "display_name": {
+                                                    "type": "string"
+                                                },
+                                                "dm_policy": {
                                                     "type": "string"
                                                 },
                                                 "enabled": {
@@ -4396,6 +4493,7 @@
                                                 "platform": {
                                                     "type": "string"
                                                 },
+                                                "provider_config": {},
                                                 "routing_policy": {
                                                     "properties": {
                                                         "include_group": {
@@ -4624,8 +4722,24 @@
                                                     "format": "date-time",
                                                     "type": "string"
                                                 },
+                                                "degradation": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "message": {
+                                                            "type": "string"
+                                                        },
+                                                        "reason": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["reason"],
+                                                    "type": "object"
+                                                },
                                                 "delivery_defaults": {},
                                                 "display_name": {
+                                                    "type": "string"
+                                                },
+                                                "dm_policy": {
                                                     "type": "string"
                                                 },
                                                 "enabled": {
@@ -4640,6 +4754,7 @@
                                                 "platform": {
                                                     "type": "string"
                                                 },
+                                                "provider_config": {},
                                                 "routing_policy": {
                                                     "properties": {
                                                         "include_group": {
@@ -4868,8 +4983,24 @@
                                                     "format": "date-time",
                                                     "type": "string"
                                                 },
+                                                "degradation": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "message": {
+                                                            "type": "string"
+                                                        },
+                                                        "reason": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["reason"],
+                                                    "type": "object"
+                                                },
                                                 "delivery_defaults": {},
                                                 "display_name": {
+                                                    "type": "string"
+                                                },
+                                                "dm_policy": {
                                                     "type": "string"
                                                 },
                                                 "enabled": {
@@ -4884,6 +5015,7 @@
                                                 "platform": {
                                                     "type": "string"
                                                 },
+                                                "provider_config": {},
                                                 "routing_policy": {
                                                     "properties": {
                                                         "include_group": {
@@ -5112,8 +5244,24 @@
                                                     "format": "date-time",
                                                     "type": "string"
                                                 },
+                                                "degradation": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "message": {
+                                                            "type": "string"
+                                                        },
+                                                        "reason": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["reason"],
+                                                    "type": "object"
+                                                },
                                                 "delivery_defaults": {},
                                                 "display_name": {
+                                                    "type": "string"
+                                                },
+                                                "dm_policy": {
                                                     "type": "string"
                                                 },
                                                 "enabled": {
@@ -5128,6 +5276,7 @@
                                                 "platform": {
                                                     "type": "string"
                                                 },
+                                                "provider_config": {},
                                                 "routing_policy": {
                                                     "properties": {
                                                         "include_group": {

@@ -257,11 +257,26 @@ func (r *bridgeRuntime) ListProviders(ctx context.Context) ([]bridgepkg.BridgePr
 
 		description := strings.TrimSpace(ext.Manifest.Description)
 		status := extensionpkg.DescribeExtension(ext, extensions != nil, r.now())
+		secretSlots := make([]bridgepkg.BridgeSecretSlot, 0, len(ext.Manifest.Bridge.SecretSlots))
+		for _, slot := range ext.Manifest.Bridge.SecretSlots {
+			secretSlots = append(secretSlots, slot.Normalize())
+		}
+
+		var configSchema *bridgepkg.BridgeProviderConfigSchema
+		if ext.Manifest.Bridge.ConfigSchema != nil {
+			normalized := ext.Manifest.Bridge.ConfigSchema.Normalize()
+			if !normalized.IsZero() {
+				configSchema = &normalized
+			}
+		}
+
 		providers = append(providers, bridgepkg.BridgeProvider{
 			Platform:      platform,
 			ExtensionName: info.Name,
 			DisplayName:   displayName,
 			Description:   description,
+			SecretSlots:   secretSlots,
+			ConfigSchema:  configSchema,
 			Enabled:       info.Enabled,
 			State:         status.State,
 			Health:        status.Health,

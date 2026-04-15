@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -28,8 +29,12 @@ func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
 		"source",
 		"enabled",
 		"status",
+		"dm_policy",
 		"routing_policy",
+		"provider_config",
 		"delivery_defaults",
+		"degradation_reason",
+		"degradation_message",
 		"created_at",
 		"updated_at",
 	})
@@ -146,15 +151,17 @@ func TestGlobalDBBridgePersistenceHelpers(t *testing.T) {
 
 	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "bridge-workspace", filepath.Join(t.TempDir(), "bridge-workspace"))
 	instance := bridges.BridgeInstance{
-		ID:            "brg-workspace",
-		Scope:         bridges.ScopeWorkspace,
-		WorkspaceID:   workspaceID,
-		Platform:      "telegram",
-		ExtensionName: "telegram-adapter",
-		DisplayName:   "Workspace Telegram",
-		Enabled:       true,
-		Status:        bridges.BridgeStatusReady,
-		RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true, IncludeThread: true},
+		ID:             "brg-workspace",
+		Scope:          bridges.ScopeWorkspace,
+		WorkspaceID:    workspaceID,
+		Platform:       "telegram",
+		ExtensionName:  "telegram-adapter",
+		DisplayName:    "Workspace Telegram",
+		Enabled:        true,
+		Status:         bridges.BridgeStatusReady,
+		DMPolicy:       bridges.BridgeDMPolicyAllowlist,
+		RoutingPolicy:  bridges.RoutingPolicy{IncludePeer: true, IncludeThread: true},
+		ProviderConfig: []byte(`{"mode":"bot","tenant":"workspace-alpha"}`),
 	}
 	if err := globalDB.InsertBridgeInstance(testutil.Context(t), instance); err != nil {
 		t.Fatalf("InsertBridgeInstance() error = %v", err)
@@ -167,10 +174,18 @@ func TestGlobalDBBridgePersistenceHelpers(t *testing.T) {
 	if loaded.WorkspaceID != workspaceID || loaded.Status != bridges.BridgeStatusReady {
 		t.Fatalf("loaded bridge instance = %#v", loaded)
 	}
+	if got, want := loaded.DMPolicy, bridges.BridgeDMPolicyAllowlist; got != want {
+		t.Fatalf("loaded.DMPolicy = %q, want %q", got, want)
+	}
+	if got, want := string(loaded.ProviderConfig), `{"mode":"bot","tenant":"workspace-alpha"}`; got != want {
+		t.Fatalf("loaded.ProviderConfig = %s, want %s", got, want)
+	}
 
 	loaded.DisplayName = "Workspace Telegram Updated"
 	loaded.Enabled = false
 	loaded.Status = bridges.BridgeStatusDisabled
+	loaded.DMPolicy = bridges.BridgeDMPolicyOpen
+	loaded.ProviderConfig = []byte(`{"mode":"bot","tenant":"workspace-beta"}`)
 	if err := globalDB.UpdateBridgeInstance(testutil.Context(t), loaded); err != nil {
 		t.Fatalf("UpdateBridgeInstance() error = %v", err)
 	}
@@ -184,6 +199,9 @@ func TestGlobalDBBridgePersistenceHelpers(t *testing.T) {
 	}
 	if got, want := instances[0].DisplayName, "Workspace Telegram Updated"; got != want {
 		t.Fatalf("instances[0].DisplayName = %q, want %q", got, want)
+	}
+	if got, want := string(instances[0].ProviderConfig), `{"mode":"bot","tenant":"workspace-beta"}`; got != want {
+		t.Fatalf("instances[0].ProviderConfig = %s, want %s", got, want)
 	}
 
 	binding := bridges.BridgeSecretBinding{
@@ -329,6 +347,122 @@ func TestGlobalDBBridgeRouteCRUD(t *testing.T) {
 	}
 	if err := globalDB.DeleteBridgeRoute(testutil.Context(t), canonical.RoutingKeyHash); !errors.Is(err, bridges.ErrBridgeRouteNotFound) {
 		t.Fatalf("DeleteBridgeRoute(after delete) error = %v, want ErrBridgeRouteNotFound", err)
+	}
+}
+
+func TestMigrateBridgeInstanceColumnsAddsMissingColumns(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	if _, err := globalDB.db.ExecContext(testutil.Context(t), `DROP TABLE bridge_instances`); err != nil {
+		t.Fatalf("drop bridge_instances error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(testutil.Context(t), `CREATE TABLE bridge_instances (
+		id TEXT PRIMARY KEY,
+		scope TEXT NOT NULL,
+		workspace_id TEXT,
+		platform TEXT NOT NULL,
+		extension_name TEXT NOT NULL,
+		display_name TEXT NOT NULL,
+		enabled BOOLEAN NOT NULL DEFAULT 1,
+		status TEXT NOT NULL,
+		routing_policy TEXT NOT NULL,
+		delivery_defaults TEXT,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create legacy bridge_instances error = %v", err)
+	}
+
+	if err := migrateBridgeInstanceColumns(testutil.Context(t), globalDB.db); err != nil {
+		t.Fatalf("migrateBridgeInstanceColumns() error = %v", err)
+	}
+
+	assertTableColumns(t, globalDB.db, "bridge_instances", []string{
+		"id",
+		"scope",
+		"workspace_id",
+		"platform",
+		"extension_name",
+		"display_name",
+		"enabled",
+		"status",
+		"routing_policy",
+		"delivery_defaults",
+		"created_at",
+		"updated_at",
+		"dm_policy",
+		"provider_config",
+		"degradation_reason",
+		"degradation_message",
+	})
+}
+
+func TestNormalizeBridgeInstanceRecordEncodesProviderConfigAndDegradation(t *testing.T) {
+	t.Parallel()
+
+	instance := bridges.BridgeInstance{
+		ID:               "brg-encode",
+		Scope:            bridges.ScopeGlobal,
+		Platform:         "slack",
+		ExtensionName:    "slack-adapter",
+		DisplayName:      "Slack",
+		Enabled:          true,
+		Status:           bridges.BridgeStatusDegraded,
+		DMPolicy:         bridges.BridgeDMPolicyAllowlist,
+		RoutingPolicy:    bridges.RoutingPolicy{IncludePeer: true},
+		ProviderConfig:   json.RawMessage(`{"mode":"bot","tenant":"acme"}`),
+		DeliveryDefaults: json.RawMessage(`{"mode":"reply","peer_id":"peer-1"}`),
+		Degradation: &bridges.BridgeDegradation{
+			Reason:  bridges.BridgeDegradationReasonRateLimited,
+			Message: "provider throttled requests",
+		},
+	}
+
+	normalized, routingPolicyJSON, providerConfig, deliveryDefaults, degradationReason, degradationMessage, err := normalizeBridgeInstanceRecord(instance)
+	if err != nil {
+		t.Fatalf("normalizeBridgeInstanceRecord() error = %v", err)
+	}
+	if got, want := normalized.DMPolicy, bridges.BridgeDMPolicyAllowlist; got != want {
+		t.Fatalf("normalized.DMPolicy = %q, want %q", got, want)
+	}
+	if got, want := providerConfig, any(`{"mode":"bot","tenant":"acme"}`); got != want {
+		t.Fatalf("providerConfig = %#v, want %#v", got, want)
+	}
+	if got, want := deliveryDefaults, any(`{"mode":"reply","peer_id":"peer-1"}`); got != want {
+		t.Fatalf("deliveryDefaults = %#v, want %#v", got, want)
+	}
+	if got, want := degradationReason, any("rate_limited"); got != want {
+		t.Fatalf("degradationReason = %#v, want %#v", got, want)
+	}
+	if degradationMessage == nil {
+		t.Fatal("degradationMessage = nil, want value")
+	}
+	if routingPolicyJSON == "" {
+		t.Fatal("routingPolicyJSON = empty, want JSON")
+	}
+}
+
+func TestGlobalDBBridgeDeleteAndRouteLookupNotFound(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+
+	if err := globalDB.DeleteBridgeInstance(testutil.Context(t), "missing-bridge"); !errors.Is(err, bridges.ErrBridgeInstanceNotFound) {
+		t.Fatalf("DeleteBridgeInstance(missing) error = %v, want ErrBridgeInstanceNotFound", err)
+	}
+	if err := globalDB.DeleteBridgeSecretBinding(testutil.Context(t), "missing-bridge", "bot_token"); !errors.Is(err, bridges.ErrBridgeSecretBindingNotFound) {
+		t.Fatalf("DeleteBridgeSecretBinding(missing) error = %v, want ErrBridgeSecretBindingNotFound", err)
+	}
+	if _, err := globalDB.ResolveBridgeRoute(testutil.Context(t), bridges.RoutingKey{
+		Scope:            bridges.ScopeGlobal,
+		BridgeInstanceID: "missing-bridge",
+		PeerID:           "peer-1",
+	}); !errors.Is(err, bridges.ErrBridgeRouteNotFound) {
+		t.Fatalf("ResolveBridgeRoute(missing) error = %v, want ErrBridgeRouteNotFound", err)
+	}
+	if err := globalDB.DeleteBridgeRoute(testutil.Context(t), "missing-route"); !errors.Is(err, bridges.ErrBridgeRouteNotFound) {
+		t.Fatalf("DeleteBridgeRoute(missing) error = %v, want ErrBridgeRouteNotFound", err)
 	}
 }
 

@@ -2,6 +2,7 @@ package extension
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -674,6 +675,12 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 		if !errors.Is(mismatch, ErrExtensionChecksumMismatch) {
 			t.Fatalf("errors.Is(mismatch, ErrExtensionChecksumMismatch) = false")
 		}
+		if got := (&ExtensionNotFoundError{}).Error(); got != ErrExtensionNotFound.Error() {
+			t.Fatalf("ExtensionNotFoundError{}.Error() = %q, want %q", got, ErrExtensionNotFound.Error())
+		}
+		if got := (&ExtensionExistsError{}).Error(); got != ErrExtensionExists.Error() {
+			t.Fatalf("ExtensionExistsError{}.Error() = %q, want %q", got, ErrExtensionExists.Error())
+		}
 	})
 
 	t.Run("parse extension source", func(t *testing.T) {
@@ -819,6 +826,130 @@ func TestRegistryUtilityHelpers(t *testing.T) {
 			t.Fatalf("mapRegistryConstraintError(boom) = %v, want wrapped boom", err)
 		}
 	})
+
+	t.Run("string and json helpers normalize optional values", func(t *testing.T) {
+		t.Parallel()
+
+		if got := optionalInstallString("   "); got != nil {
+			t.Fatalf("optionalInstallString(blank) = %#v, want nil", got)
+		}
+
+		got := optionalInstallString(" extension ")
+		if got == nil || *got != "extension" {
+			t.Fatalf("optionalInstallString(non-blank) = %#v, want %q", got, "extension")
+		}
+
+		var decoded map[string]any
+		if err := decodeRegistryJSON("", &decoded); err != nil {
+			t.Fatalf("decodeRegistryJSON(blank) error = %v", err)
+		}
+		if len(decoded) != 0 {
+			t.Fatalf("decodeRegistryJSON(blank) = %#v, want empty map", decoded)
+		}
+		if err := decodeRegistryJSON("{", &decoded); err == nil {
+			t.Fatal("decodeRegistryJSON(invalid) error = nil, want non-nil")
+		}
+	})
+
+	t.Run("manifest resolution prefers toml and reports missing manifests", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		jsonPath := filepath.Join(dir, manifestJSONFileName)
+		tomlPath := filepath.Join(dir, manifestTOMLFileName)
+		writeFile(t, jsonPath, `{"extension":{"name":"json-only","version":"0.2.1","min_agh_version":"0.5.0"}}`)
+		writeFile(t, tomlPath, `[extension]
+name = "toml-first"
+version = "0.2.1"
+min_agh_version = "0.5.0"
+`)
+
+		gotPath, err := resolveManifestPath(dir)
+		if err != nil {
+			t.Fatalf("resolveManifestPath(toml+json) error = %v", err)
+		}
+		if gotPath != tomlPath {
+			t.Fatalf("resolveManifestPath(toml+json) = %q, want %q", gotPath, tomlPath)
+		}
+
+		trimmedName, err := normalizeExtensionName(" bridge ")
+		if err != nil {
+			t.Fatalf("normalizeExtensionName(valid) error = %v", err)
+		}
+		if trimmedName != "bridge" {
+			t.Fatalf("normalizeExtensionName(valid) = %q, want %q", trimmedName, "bridge")
+		}
+		if _, err := normalizeExtensionName("   "); err == nil {
+			t.Fatal("normalizeExtensionName(blank) error = nil, want non-nil")
+		}
+
+		missingDir := t.TempDir()
+		_, err = resolveManifestPath(missingDir)
+		if err == nil {
+			t.Fatal("resolveManifestPath(missing) error = nil, want non-nil")
+		}
+		var notFoundErr *ManifestNotFoundError
+		if !errors.As(err, &notFoundErr) {
+			t.Fatalf("resolveManifestPath(missing) error = %T, want *ManifestNotFoundError", err)
+		}
+	})
+
+	t.Run("rows affected helper and checksum string handle edge cases", func(t *testing.T) {
+		t.Parallel()
+
+		if err := rowsAffectedNotFound(registryTestResult{rowsAffected: 1}, "existing"); err != nil {
+			t.Fatalf("rowsAffectedNotFound(existing) error = %v, want nil", err)
+		}
+
+		err := rowsAffectedNotFound(registryTestResult{rowsAffected: 0}, "missing")
+		if err == nil {
+			t.Fatal("rowsAffectedNotFound(missing) error = nil, want non-nil")
+		}
+		var notFoundErr *ExtensionNotFoundError
+		if !errors.As(err, &notFoundErr) {
+			t.Fatalf("rowsAffectedNotFound(missing) error = %T, want *ExtensionNotFoundError", err)
+		}
+
+		boom := errors.New("boom")
+		if err := rowsAffectedNotFound(registryTestResult{err: boom}, "broken"); !errors.Is(err, boom) {
+			t.Fatalf("rowsAffectedNotFound(result error) = %v, want wrapped boom", err)
+		}
+
+		if err := writeChecksumString(sha256.New(), "payload"); err != nil {
+			t.Fatalf("writeChecksumString(valid) error = %v", err)
+		}
+		if err := writeChecksumString(failingHash{}, "payload"); err == nil {
+			t.Fatal("writeChecksumString(failing hash) error = nil, want non-nil")
+		}
+	})
+
+	t.Run("write checksum entry covers regular files symlinks and errors", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "payload.txt"), "payload")
+
+		if err := writeChecksumEntry(sha256.New(), dir, "payload.txt"); err != nil {
+			t.Fatalf("writeChecksumEntry(regular file) error = %v", err)
+		}
+		if err := writeChecksumEntry(failingHash{}, dir, "payload.txt"); err == nil {
+			t.Fatal("writeChecksumEntry(failing hash) error = nil, want non-nil")
+		}
+		if err := writeChecksumEntry(sha256.New(), dir, "missing.txt"); err == nil {
+			t.Fatal("writeChecksumEntry(missing) error = nil, want non-nil")
+		}
+		if err := writeChecksumEntry(sha256.New(), dir, "."); err == nil {
+			t.Fatal("writeChecksumEntry(directory) error = nil, want non-nil")
+		}
+
+		linkPath := filepath.Join(dir, "payload-link.txt")
+		if err := os.Symlink("payload.txt", linkPath); err != nil {
+			t.Skipf("os.Symlink() unavailable: %v", err)
+		}
+		if err := writeChecksumEntry(sha256.New(), dir, "payload-link.txt"); err != nil {
+			t.Fatalf("writeChecksumEntry(symlink) error = %v", err)
+		}
+	})
 }
 
 type registryTestEnv struct {
@@ -826,6 +957,30 @@ type registryTestEnv struct {
 	registry    *Registry
 	installedAt time.Time
 }
+
+type registryTestResult struct {
+	rowsAffected int64
+	err          error
+}
+
+func (r registryTestResult) LastInsertId() (int64, error) {
+	return 0, nil
+}
+
+func (r registryTestResult) RowsAffected() (int64, error) {
+	if r.err != nil {
+		return 0, r.err
+	}
+	return r.rowsAffected, nil
+}
+
+type failingHash struct{}
+
+func (failingHash) Write(_ []byte) (int, error) { return 0, errors.New("hash failed") }
+func (failingHash) Sum(b []byte) []byte         { return b }
+func (failingHash) Reset()                      {}
+func (failingHash) Size() int                   { return 0 }
+func (failingHash) BlockSize() int              { return 0 }
 
 type registryManifestOptions struct {
 	capabilities []string

@@ -14,6 +14,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/version"
 )
@@ -83,8 +84,10 @@ type SecurityConfig struct {
 
 // BridgeConfig declares provider metadata for bridge-capable extensions.
 type BridgeConfig struct {
-	Platform    string `toml:"platform,omitempty" json:"platform,omitempty"`
-	DisplayName string `toml:"display_name,omitempty" json:"display_name,omitempty"`
+	Platform     string                                `toml:"platform,omitempty" json:"platform,omitempty"`
+	DisplayName  string                                `toml:"display_name,omitempty" json:"display_name,omitempty"`
+	SecretSlots  []bridgepkg.BridgeSecretSlot          `toml:"secret_slots,omitempty" json:"secret_slots,omitempty"`
+	ConfigSchema *bridgepkg.BridgeProviderConfigSchema `toml:"config_schema,omitempty" json:"config_schema,omitempty"`
 }
 
 // HookConfig mirrors the hook declaration shape accepted from extension manifests.
@@ -246,6 +249,17 @@ func (m *Manifest) Validate() error {
 		}
 		if err := requireField("bridge.display_name", m.Bridge.DisplayName); err != nil {
 			return err
+		}
+		if err := validateBridgeSecretSlots(m.Bridge.SecretSlots); err != nil {
+			return err
+		}
+		if m.Bridge.ConfigSchema != nil {
+			if err := m.Bridge.ConfigSchema.Validate(); err != nil {
+				return &ManifestValidationError{
+					Field:   "bridge.config_schema",
+					Message: err.Error(),
+				}
+			}
 		}
 	}
 	return nil
@@ -494,10 +508,55 @@ func normalizeSecurityConfig(cfg SecurityConfig) SecurityConfig {
 }
 
 func normalizeBridgeConfig(cfg BridgeConfig) BridgeConfig {
-	return BridgeConfig{
-		Platform:    strings.TrimSpace(cfg.Platform),
-		DisplayName: strings.TrimSpace(cfg.DisplayName),
+	var configSchema *bridgepkg.BridgeProviderConfigSchema
+	if cfg.ConfigSchema != nil {
+		normalized := cfg.ConfigSchema.Normalize()
+		if !normalized.IsZero() {
+			configSchema = &normalized
+		}
 	}
+
+	return BridgeConfig{
+		Platform:     strings.TrimSpace(cfg.Platform),
+		DisplayName:  strings.TrimSpace(cfg.DisplayName),
+		SecretSlots:  normalizeBridgeSecretSlots(cfg.SecretSlots),
+		ConfigSchema: configSchema,
+	}
+}
+
+func normalizeBridgeSecretSlots(src []bridgepkg.BridgeSecretSlot) []bridgepkg.BridgeSecretSlot {
+	if len(src) == 0 {
+		return nil
+	}
+
+	dst := make([]bridgepkg.BridgeSecretSlot, 0, len(src))
+	for _, slot := range src {
+		dst = append(dst, slot.Normalize())
+	}
+	return dst
+}
+
+func validateBridgeSecretSlots(slots []bridgepkg.BridgeSecretSlot) error {
+	seen := make(map[string]struct{}, len(slots))
+	for idx, slot := range slots {
+		normalized := slot.Normalize()
+		if err := normalized.Validate(); err != nil {
+			return &ManifestValidationError{
+				Field:   fmt.Sprintf("bridge.secret_slots[%d]", idx),
+				Message: err.Error(),
+			}
+		}
+		key := normalized.Name
+		if _, ok := seen[key]; ok {
+			return &ManifestValidationError{
+				Field:   fmt.Sprintf("bridge.secret_slots[%d].name", idx),
+				Value:   key,
+				Message: "duplicate secret slot name",
+			}
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
 }
 
 func normalizeHooks(src []HookConfig) []HookConfig {

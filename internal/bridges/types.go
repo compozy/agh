@@ -143,6 +143,139 @@ func (s BridgeStatus) Validate() error {
 	}
 }
 
+// BridgeDMPolicy controls how direct messages from unpaired senders are handled.
+type BridgeDMPolicy string
+
+const (
+	// BridgeDMPolicyOpen accepts direct messages from any sender.
+	BridgeDMPolicyOpen BridgeDMPolicy = "open"
+	// BridgeDMPolicyAllowlist accepts direct messages only from approved senders.
+	BridgeDMPolicyAllowlist BridgeDMPolicy = "allowlist"
+	// BridgeDMPolicyPairing requires an explicit pairing flow before accepting direct messages.
+	BridgeDMPolicyPairing BridgeDMPolicy = "pairing"
+)
+
+// Normalize returns the normalized representation of the DM policy.
+func (p BridgeDMPolicy) Normalize() BridgeDMPolicy {
+	return BridgeDMPolicy(strings.ToLower(strings.TrimSpace(string(p))))
+}
+
+// Validate reports whether the DM policy belongs to the supported bridge v1 set.
+func (p BridgeDMPolicy) Validate() error {
+	switch p.Normalize() {
+	case "", BridgeDMPolicyOpen, BridgeDMPolicyAllowlist, BridgeDMPolicyPairing:
+		return nil
+	default:
+		return fmt.Errorf("bridges: unsupported dm policy %q", p)
+	}
+}
+
+// BridgeDegradationReason reports the structured operational cause for a degraded bridge instance.
+type BridgeDegradationReason string
+
+const (
+	BridgeDegradationReasonAuthFailed          BridgeDegradationReason = "auth_failed"
+	BridgeDegradationReasonRateLimited         BridgeDegradationReason = "rate_limited"
+	BridgeDegradationReasonWebhookInvalid      BridgeDegradationReason = "webhook_invalid"
+	BridgeDegradationReasonProviderTimeout     BridgeDegradationReason = "provider_timeout"
+	BridgeDegradationReasonTenantConfigInvalid BridgeDegradationReason = "tenant_config_invalid"
+)
+
+// Normalize returns the normalized representation of the degradation reason.
+func (r BridgeDegradationReason) Normalize() BridgeDegradationReason {
+	return BridgeDegradationReason(strings.ToLower(strings.TrimSpace(string(r))))
+}
+
+// Validate reports whether the degradation reason belongs to the supported bridge v1 set.
+func (r BridgeDegradationReason) Validate() error {
+	switch r.Normalize() {
+	case BridgeDegradationReasonAuthFailed,
+		BridgeDegradationReasonRateLimited,
+		BridgeDegradationReasonWebhookInvalid,
+		BridgeDegradationReasonProviderTimeout,
+		BridgeDegradationReasonTenantConfigInvalid:
+		return nil
+	case "":
+		return errors.New("bridges: bridge degradation reason is required")
+	default:
+		return fmt.Errorf("bridges: unsupported bridge degradation reason %q", r)
+	}
+}
+
+// BridgeDegradation captures the structured degradation metadata persisted for a bridge instance.
+type BridgeDegradation struct {
+	Reason  BridgeDegradationReason `toml:"reason" json:"reason"`
+	Message string                  `toml:"message,omitempty" json:"message,omitempty"`
+}
+
+// IsZero reports whether the degradation payload carries any values.
+func (d BridgeDegradation) IsZero() bool {
+	normalized := d.normalize()
+	return normalized.Reason == "" && normalized.Message == ""
+}
+
+// Validate reports whether the degradation payload is internally consistent.
+func (d BridgeDegradation) Validate() error {
+	normalized := d.normalize()
+	if normalized.IsZero() {
+		return nil
+	}
+	if err := normalized.Reason.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// BridgeSecretSlot describes one provider-declared secret requirement.
+type BridgeSecretSlot struct {
+	Name        string `toml:"name" json:"name"`
+	Description string `toml:"description,omitempty" json:"description,omitempty"`
+	Required    bool   `toml:"required,omitempty" json:"required,omitempty"`
+}
+
+// Normalize returns the normalized representation of the secret slot.
+func (s BridgeSecretSlot) Normalize() BridgeSecretSlot {
+	return s.normalize()
+}
+
+// Validate reports whether the secret slot metadata is complete.
+func (s BridgeSecretSlot) Validate() error {
+	normalized := s.normalize()
+	if err := requireField(normalized.Name, "bridge secret slot name"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// BridgeProviderConfigSchema captures static provider config schema hints from provider manifests.
+type BridgeProviderConfigSchema struct {
+	Schema  string `toml:"schema,omitempty" json:"schema,omitempty"`
+	Version string `toml:"version,omitempty" json:"version,omitempty"`
+}
+
+// Normalize returns the normalized representation of the config schema hint.
+func (h BridgeProviderConfigSchema) Normalize() BridgeProviderConfigSchema {
+	return h.normalize()
+}
+
+// IsZero reports whether the schema hint carries any values.
+func (h BridgeProviderConfigSchema) IsZero() bool {
+	normalized := h.normalize()
+	return normalized.Schema == "" && normalized.Version == ""
+}
+
+// Validate reports whether the config schema hint is internally consistent.
+func (h BridgeProviderConfigSchema) Validate() error {
+	normalized := h.normalize()
+	if normalized.IsZero() {
+		return nil
+	}
+	if normalized.Schema == "" && normalized.Version == "" {
+		return errors.New("bridges: bridge provider config schema hint requires schema or version")
+	}
+	return nil
+}
+
 // RoutingPolicy controls which platform identity dimensions participate in routing.
 type RoutingPolicy struct {
 	IncludePeer   bool `json:"include_peer"`
@@ -161,14 +294,16 @@ func (p RoutingPolicy) Validate() error {
 // BridgeProvider describes one installed bridge-capable extension that can be
 // selected when creating a bridge instance.
 type BridgeProvider struct {
-	Platform      string `json:"platform"`
-	ExtensionName string `json:"extension_name"`
-	DisplayName   string `json:"display_name"`
-	Description   string `json:"description,omitempty"`
-	Enabled       bool   `json:"enabled"`
-	State         string `json:"state"`
-	Health        string `json:"health"`
-	HealthMessage string `json:"health_message,omitempty"`
+	Platform      string                      `json:"platform"`
+	ExtensionName string                      `json:"extension_name"`
+	DisplayName   string                      `json:"display_name"`
+	Description   string                      `json:"description,omitempty"`
+	SecretSlots   []BridgeSecretSlot          `json:"secret_slots,omitempty"`
+	ConfigSchema  *BridgeProviderConfigSchema `json:"config_schema,omitempty"`
+	Enabled       bool                        `json:"enabled"`
+	State         string                      `json:"state"`
+	Health        string                      `json:"health"`
+	HealthMessage string                      `json:"health_message,omitempty"`
 }
 
 // BridgeInstance is the authoritative persisted configuration for one bridge adapter instance.
@@ -182,10 +317,18 @@ type BridgeInstance struct {
 	Source           BridgeInstanceSource `json:"source,omitempty"`
 	Enabled          bool                 `json:"enabled"`
 	Status           BridgeStatus         `json:"status"`
+	DMPolicy         BridgeDMPolicy       `json:"dm_policy,omitempty"`
 	RoutingPolicy    RoutingPolicy        `json:"routing_policy"`
+	ProviderConfig   json.RawMessage      `json:"provider_config,omitempty"`
 	DeliveryDefaults json.RawMessage      `json:"delivery_defaults,omitempty"`
+	Degradation      *BridgeDegradation   `json:"degradation,omitempty"`
 	CreatedAt        time.Time            `json:"created_at"`
 	UpdatedAt        time.Time            `json:"updated_at"`
+}
+
+// Normalized returns the canonical representation of the bridge instance.
+func (i BridgeInstance) Normalized() BridgeInstance {
+	return i.normalize()
 }
 
 // Validate reports whether the persisted bridge instance shape is complete and valid.
@@ -215,11 +358,27 @@ func (i BridgeInstance) Validate() error {
 	if err := validateInstanceLifecycle(normalized.Enabled, normalized.Status); err != nil {
 		return err
 	}
+	if err := normalized.DMPolicy.Validate(); err != nil {
+		return err
+	}
 	if err := normalized.RoutingPolicy.Validate(); err != nil {
+		return err
+	}
+	if _, err := normalizeRawJSON(normalized.ProviderConfig, "bridge instance provider config"); err != nil {
 		return err
 	}
 	if _, err := normalizeRawJSON(normalized.DeliveryDefaults, "bridge instance delivery defaults"); err != nil {
 		return err
+	}
+	if normalized.Degradation != nil {
+		if err := normalized.Degradation.Validate(); err != nil {
+			return err
+		}
+		if normalized.Status.Normalize() != BridgeStatusDegraded &&
+			normalized.Status.Normalize() != BridgeStatusAuthRequired &&
+			normalized.Status.Normalize() != BridgeStatusError {
+			return errors.New("bridges: bridge degradation requires degraded, auth_required, or error status")
+		}
 	}
 	return nil
 }
@@ -448,7 +607,41 @@ func (i BridgeInstance) normalize() BridgeInstance {
 		normalized.Source = BridgeInstanceSourceDynamic
 	}
 	normalized.Status = normalized.Status.Normalize()
+	normalized.DMPolicy = normalized.DMPolicy.Normalize()
+	if normalized.DMPolicy == "" {
+		normalized.DMPolicy = BridgeDMPolicyOpen
+	}
+	normalized.ProviderConfig = bytes.TrimSpace(normalized.ProviderConfig)
 	normalized.DeliveryDefaults = bytes.TrimSpace(normalized.DeliveryDefaults)
+	if normalized.Degradation != nil {
+		degradation := normalized.Degradation.normalize()
+		if degradation.IsZero() {
+			normalized.Degradation = nil
+		} else {
+			normalized.Degradation = &degradation
+		}
+	}
+	return normalized
+}
+
+func (d BridgeDegradation) normalize() BridgeDegradation {
+	normalized := d
+	normalized.Reason = normalized.Reason.Normalize()
+	normalized.Message = strings.TrimSpace(normalized.Message)
+	return normalized
+}
+
+func (s BridgeSecretSlot) normalize() BridgeSecretSlot {
+	normalized := s
+	normalized.Name = strings.TrimSpace(normalized.Name)
+	normalized.Description = strings.TrimSpace(normalized.Description)
+	return normalized
+}
+
+func (h BridgeProviderConfigSchema) normalize() BridgeProviderConfigSchema {
+	normalized := h
+	normalized.Schema = strings.TrimSpace(normalized.Schema)
+	normalized.Version = strings.TrimSpace(normalized.Version)
 	return normalized
 }
 

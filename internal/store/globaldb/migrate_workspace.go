@@ -60,6 +60,9 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 	if err := migrateBridgeColumns(ctx, db); err != nil {
 		return err
 	}
+	if err := migrateBridgeInstanceColumns(ctx, db); err != nil {
+		return err
+	}
 	if err := migrateBundleActivationColumns(ctx, db); err != nil {
 		return err
 	}
@@ -147,6 +150,44 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	return migrateNetworkAuditTable(ctx, db)
+}
+
+func migrateBridgeInstanceColumns(ctx context.Context, db *sql.DB) error {
+	exists, err := tableExists(ctx, db, "bridge_instances")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, db, "bridge_instances")
+	if err != nil {
+		return err
+	}
+
+	if _, ok := columns["dm_policy"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE bridge_instances ADD COLUMN dm_policy TEXT NOT NULL DEFAULT 'open'`); err != nil {
+			return fmt.Errorf("store: add bridge_instances.dm_policy column: %w", err)
+		}
+	}
+	if _, ok := columns["provider_config"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE bridge_instances ADD COLUMN provider_config TEXT`); err != nil {
+			return fmt.Errorf("store: add bridge_instances.provider_config column: %w", err)
+		}
+	}
+	if _, ok := columns["degradation_reason"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE bridge_instances ADD COLUMN degradation_reason TEXT`); err != nil {
+			return fmt.Errorf("store: add bridge_instances.degradation_reason column: %w", err)
+		}
+	}
+	if _, ok := columns["degradation_message"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE bridge_instances ADD COLUMN degradation_message TEXT`); err != nil {
+			return fmt.Errorf("store: add bridge_instances.degradation_message column: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func migrateExtensionColumns(ctx context.Context, db *sql.DB) error {

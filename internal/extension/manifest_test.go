@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/version"
 )
@@ -155,6 +156,55 @@ func TestNormalizeStringMapDropsBlankKeysAndUsesDeterministicCollisions(t *testi
 
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("normalizeStringMap() = %#v, want %#v", got, want)
+	}
+}
+
+func TestNormalizeBridgeConfigTrimsSecretSlotsAndSchemaHints(t *testing.T) {
+	t.Parallel()
+
+	cfg := normalizeBridgeConfig(BridgeConfig{
+		Platform:    " slack ",
+		DisplayName: " Slack ",
+		SecretSlots: []bridgepkg.BridgeSecretSlot{
+			{Name: " bot_token ", Description: " Bot token ", Required: true},
+		},
+		ConfigSchema: &bridgepkg.BridgeProviderConfigSchema{
+			Schema:  " agh.bridge.slack ",
+			Version: " v1 ",
+		},
+	})
+
+	if got, want := cfg.Platform, "slack"; got != want {
+		t.Fatalf("cfg.Platform = %q, want %q", got, want)
+	}
+	if got, want := cfg.DisplayName, "Slack"; got != want {
+		t.Fatalf("cfg.DisplayName = %q, want %q", got, want)
+	}
+	if got, want := cfg.SecretSlots[0].Name, "bot_token"; got != want {
+		t.Fatalf("cfg.SecretSlots[0].Name = %q, want %q", got, want)
+	}
+	if cfg.ConfigSchema == nil {
+		t.Fatal("cfg.ConfigSchema = nil, want value")
+	}
+	if got, want := cfg.ConfigSchema.Schema, "agh.bridge.slack"; got != want {
+		t.Fatalf("cfg.ConfigSchema.Schema = %q, want %q", got, want)
+	}
+}
+
+func TestCloneBoolPointer(t *testing.T) {
+	t.Parallel()
+
+	if cloneBoolPointer(nil) != nil {
+		t.Fatal("cloneBoolPointer(nil) = non-nil, want nil")
+	}
+
+	value := true
+	cloned := cloneBoolPointer(&value)
+	if cloned == nil || *cloned != value {
+		t.Fatalf("cloneBoolPointer(&value) = %#v, want %v", cloned, value)
+	}
+	if cloned == &value {
+		t.Fatal("cloneBoolPointer(&value) returned original pointer")
 	}
 }
 
@@ -515,6 +565,74 @@ func TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters(t *testing.T) 
 
 		if err := manifest.Validate(); err != nil {
 			t.Fatalf("Validate() with bridge metadata error = %v", err)
+		}
+	})
+}
+
+func TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	t.Run("Should reject bridge secret slots without names", func(t *testing.T) {
+		manifest := expectedManifest()
+		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
+		manifest.Bridge.Platform = "slack"
+		manifest.Bridge.DisplayName = "Slack"
+		manifest.Bridge.SecretSlots = []bridgepkg.BridgeSecretSlot{{Required: true}}
+
+		err := manifest.Validate()
+		if err == nil {
+			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
+		}
+
+		var validationErr *ManifestValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
+		}
+		if got, want := validationErr.Field, "bridge.secret_slots[0]"; got != want {
+			t.Fatalf("validation field = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject duplicate bridge secret slot names", func(t *testing.T) {
+		manifest := expectedManifest()
+		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
+		manifest.Bridge.Platform = "slack"
+		manifest.Bridge.DisplayName = "Slack"
+		manifest.Bridge.SecretSlots = []bridgepkg.BridgeSecretSlot{
+			{Name: "bot_token", Required: true},
+			{Name: " bot_token ", Required: true},
+		}
+
+		err := manifest.Validate()
+		if err == nil {
+			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
+		}
+
+		var validationErr *ManifestValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
+		}
+		if got, want := validationErr.Field, "bridge.secret_slots[1].name"; got != want {
+			t.Fatalf("validation field = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should accept bridge secret slots and config schema hints", func(t *testing.T) {
+		manifest := expectedManifest()
+		manifest.Capabilities.Provides = []string{extensionprotocol.CapabilityProvideBridgeAdapter}
+		manifest.Bridge.Platform = "slack"
+		manifest.Bridge.DisplayName = "Slack"
+		manifest.Bridge.SecretSlots = []bridgepkg.BridgeSecretSlot{
+			{Name: "bot_token", Description: "Bot OAuth token", Required: true},
+			{Name: "signing_secret", Description: "Request signing secret", Required: true},
+		}
+		manifest.Bridge.ConfigSchema = &bridgepkg.BridgeProviderConfigSchema{
+			Schema:  "agh.bridge.slack",
+			Version: "v1",
+		}
+
+		if err := manifest.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v", err)
 		}
 	})
 }

@@ -3045,12 +3045,18 @@ export interface operations {
             bridges: {
               /** Format: date-time */
               created_at: string;
+              degradation?: {
+                message?: string;
+                reason: string;
+              } | null;
               delivery_defaults?: unknown;
               display_name: string;
+              dm_policy?: string;
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
+              provider_config?: unknown;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3138,12 +3144,18 @@ export interface operations {
             bridge: {
               /** Format: date-time */
               created_at: string;
+              degradation?: {
+                message?: string;
+                reason: string;
+              } | null;
               delivery_defaults?: unknown;
               display_name: string;
+              dm_policy?: string;
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
+              provider_config?: unknown;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3248,6 +3260,10 @@ export interface operations {
         content: {
           "application/json": {
             providers: {
+              config_schema?: {
+                schema?: string;
+                version?: string;
+              } | null;
               description?: string;
               display_name: string;
               enabled: boolean;
@@ -3255,6 +3271,11 @@ export interface operations {
               health: string;
               health_message?: string;
               platform: string;
+              secret_slots?: {
+                description?: string;
+                name: string;
+                required?: boolean;
+              }[];
               state: string;
             }[];
           };
@@ -3312,12 +3333,18 @@ export interface operations {
             bridge: {
               /** Format: date-time */
               created_at: string;
+              degradation?: {
+                message?: string;
+                reason: string;
+              } | null;
               delivery_defaults?: unknown;
               display_name: string;
+              dm_policy?: string;
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
+              provider_config?: unknown;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3429,12 +3456,18 @@ export interface operations {
             bridge: {
               /** Format: date-time */
               created_at: string;
+              degradation?: {
+                message?: string;
+                reason: string;
+              } | null;
               delivery_defaults?: unknown;
               display_name: string;
+              dm_policy?: string;
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
+              provider_config?: unknown;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3544,12 +3577,18 @@ export interface operations {
             bridge: {
               /** Format: date-time */
               created_at: string;
+              degradation?: {
+                message?: string;
+                reason: string;
+              } | null;
               delivery_defaults?: unknown;
               display_name: string;
+              dm_policy?: string;
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
+              provider_config?: unknown;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3659,12 +3698,18 @@ export interface operations {
             bridge: {
               /** Format: date-time */
               created_at: string;
+              degradation?: {
+                message?: string;
+                reason: string;
+              } | null;
               delivery_defaults?: unknown;
               display_name: string;
+              dm_policy?: string;
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
+              provider_config?: unknown;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;
@@ -3774,12 +3819,18 @@ export interface operations {
             bridge: {
               /** Format: date-time */
               created_at: string;
+              degradation?: {
+                message?: string;
+                reason: string;
+              } | null;
               delivery_defaults?: unknown;
               display_name: string;
+              dm_policy?: string;
               enabled: boolean;
               extension_name: string;
               id: string;
               platform: string;
+              provider_config?: unknown;
               routing_policy: {
                 include_group: boolean;
                 include_peer: boolean;

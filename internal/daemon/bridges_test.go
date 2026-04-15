@@ -332,7 +332,15 @@ func TestBridgeRuntimeListProviders(t *testing.T) {
 			capabilities:      []string{"bridge.adapter"},
 			bridgePlatform:    "telegram",
 			bridgeDisplayName: "Telegram",
-			enabled:           true,
+			bridgeSecretSlots: `
+[[bridge.secret_slots]]
+name = "bot_token"
+description = "Bot API token"
+required = true
+`,
+			bridgeConfigSchema:  "agh.bridge.telegram",
+			bridgeConfigVersion: "v1",
+			enabled:             true,
 		})
 		mustInstallDaemonExtension(t, runtime.registry, daemonExtensionFixture{
 			name:         "memory-only",
@@ -370,6 +378,21 @@ func TestBridgeRuntimeListProviders(t *testing.T) {
 		}
 		if got, want := providers[0].DisplayName, "Telegram"; got != want {
 			t.Fatalf("provider display name = %q, want %q", got, want)
+		}
+		if got, want := len(providers[0].SecretSlots), 1; got != want {
+			t.Fatalf("len(provider secret slots) = %d, want %d", got, want)
+		}
+		if got, want := providers[0].SecretSlots[0].Name, "bot_token"; got != want {
+			t.Fatalf("provider secret slot name = %q, want %q", got, want)
+		}
+		if providers[0].ConfigSchema == nil {
+			t.Fatal("provider config schema = nil, want value")
+		}
+		if got, want := providers[0].ConfigSchema.Schema, "agh.bridge.telegram"; got != want {
+			t.Fatalf("provider config schema id = %q, want %q", got, want)
+		}
+		if got, want := providers[0].ConfigSchema.Version, "v1"; got != want {
+			t.Fatalf("provider config schema version = %q, want %q", got, want)
 		}
 		if got, want := providers[0].State, "active"; got != want {
 			t.Fatalf("provider state = %q, want %q", got, want)
@@ -1001,12 +1024,15 @@ func newBlockingReloadExtensionRuntime(reloadErr error) *blockingReloadExtension
 }
 
 type daemonExtensionFixture struct {
-	name              string
-	description       string
-	capabilities      []string
-	bridgePlatform    string
-	bridgeDisplayName string
-	enabled           bool
+	name                string
+	description         string
+	capabilities        []string
+	bridgePlatform      string
+	bridgeDisplayName   string
+	bridgeSecretSlots   string
+	bridgeConfigSchema  string
+	bridgeConfigVersion string
+	enabled             bool
 }
 
 func mustInstallDaemonExtension(
@@ -1055,6 +1081,12 @@ func daemonExtensionManifest(fixture daemonExtensionFixture) string {
 	}
 	if fixture.bridgePlatform != "" || fixture.bridgeDisplayName != "" {
 		fmt.Fprintf(&builder, "[bridge]\nplatform = %q\ndisplay_name = %q\n", fixture.bridgePlatform, fixture.bridgeDisplayName)
+		if fixture.bridgeSecretSlots != "" {
+			builder.WriteString(fixture.bridgeSecretSlots)
+		}
+		if fixture.bridgeConfigSchema != "" || fixture.bridgeConfigVersion != "" {
+			fmt.Fprintf(&builder, "\n[bridge.config_schema]\nschema = %q\nversion = %q\n", fixture.bridgeConfigSchema, fixture.bridgeConfigVersion)
+		}
 	}
 	return builder.String()
 }

@@ -311,8 +311,12 @@ var globalSchemaStatements = []string{
 		source            TEXT NOT NULL DEFAULT 'dynamic',
 		enabled           BOOLEAN NOT NULL DEFAULT 1,
 		status            TEXT NOT NULL,
+		dm_policy         TEXT NOT NULL DEFAULT 'open',
 		routing_policy    TEXT NOT NULL,
+		provider_config   TEXT,
 		delivery_defaults TEXT,
+		degradation_reason TEXT,
+		degradation_message TEXT,
 		created_at        TEXT NOT NULL,
 		updated_at        TEXT NOT NULL
 	);`,

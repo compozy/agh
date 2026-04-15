@@ -49,8 +49,11 @@ type CreateInstanceRequest struct {
 	Source           BridgeInstanceSource `json:"source,omitempty"`
 	Enabled          bool                 `json:"enabled"`
 	Status           BridgeStatus         `json:"status"`
+	DMPolicy         BridgeDMPolicy       `json:"dm_policy,omitempty"`
 	RoutingPolicy    RoutingPolicy        `json:"routing_policy"`
+	ProviderConfig   json.RawMessage      `json:"provider_config,omitempty"`
 	DeliveryDefaults json.RawMessage      `json:"delivery_defaults,omitempty"`
+	Degradation      *BridgeDegradation   `json:"degradation,omitempty"`
 	CreatedAt        time.Time            `json:"created_at,omitempty"`
 	UpdatedAt        time.Time            `json:"updated_at,omitempty"`
 }
@@ -64,11 +67,15 @@ func (r CreateInstanceRequest) Validate() error {
 // UpdateInstanceRequest captures one mutation of bridge-instance fields that
 // do not change the lifecycle state machine.
 type UpdateInstanceRequest struct {
-	ID               string           `json:"id"`
-	DisplayName      *string          `json:"display_name,omitempty"`
-	RoutingPolicy    *RoutingPolicy   `json:"routing_policy,omitempty"`
-	DeliveryDefaults *json.RawMessage `json:"delivery_defaults,omitempty"`
-	UpdatedAt        time.Time        `json:"updated_at,omitempty"`
+	ID               string             `json:"id"`
+	DisplayName      *string            `json:"display_name,omitempty"`
+	DMPolicy         *BridgeDMPolicy    `json:"dm_policy,omitempty"`
+	RoutingPolicy    *RoutingPolicy     `json:"routing_policy,omitempty"`
+	ProviderConfig   *json.RawMessage   `json:"provider_config,omitempty"`
+	DeliveryDefaults *json.RawMessage   `json:"delivery_defaults,omitempty"`
+	Degradation      *BridgeDegradation `json:"degradation,omitempty"`
+	ClearDegradation bool               `json:"clear_degradation,omitempty"`
+	UpdatedAt        time.Time          `json:"updated_at,omitempty"`
 }
 
 // Validate reports whether the request contains at least one mutable field and
@@ -77,11 +84,16 @@ func (r UpdateInstanceRequest) Validate() error {
 	if err := requireField(strings.TrimSpace(r.ID), "bridge instance id"); err != nil {
 		return err
 	}
-	if r.DisplayName == nil && r.RoutingPolicy == nil && r.DeliveryDefaults == nil {
+	if r.DisplayName == nil && r.DMPolicy == nil && r.RoutingPolicy == nil && r.ProviderConfig == nil && r.DeliveryDefaults == nil && r.Degradation == nil && !r.ClearDegradation {
 		return errors.New("bridges: bridge instance update requires at least one mutable field")
 	}
 	if r.DisplayName != nil {
 		if err := requireField(strings.TrimSpace(*r.DisplayName), "bridge instance display name"); err != nil {
+			return err
+		}
+	}
+	if r.DMPolicy != nil {
+		if err := r.DMPolicy.Validate(); err != nil {
 			return err
 		}
 	}
@@ -90,8 +102,18 @@ func (r UpdateInstanceRequest) Validate() error {
 			return err
 		}
 	}
+	if r.ProviderConfig != nil {
+		if _, err := normalizeRawJSON(*r.ProviderConfig, "bridge instance provider config"); err != nil {
+			return err
+		}
+	}
 	if r.DeliveryDefaults != nil {
 		if _, err := normalizeRawJSON(*r.DeliveryDefaults, "bridge instance delivery defaults"); err != nil {
+			return err
+		}
+	}
+	if r.Degradation != nil {
+		if err := r.Degradation.Validate(); err != nil {
 			return err
 		}
 	}
@@ -222,8 +244,18 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 	if req.DisplayName != nil {
 		instance.DisplayName = strings.TrimSpace(*req.DisplayName)
 	}
+	if req.DMPolicy != nil {
+		instance.DMPolicy = req.DMPolicy.Normalize()
+	}
 	if req.RoutingPolicy != nil {
 		instance.RoutingPolicy = *req.RoutingPolicy
+	}
+	if req.ProviderConfig != nil {
+		normalized, err := normalizeRawJSON(*req.ProviderConfig, "bridge instance provider config")
+		if err != nil {
+			return nil, fmt.Errorf("bridges: update bridge instance %q: normalize provider config: %w", trimmedID, err)
+		}
+		instance.ProviderConfig = normalized
 	}
 	if req.DeliveryDefaults != nil {
 		normalized, err := normalizeRawJSON(*req.DeliveryDefaults, "bridge instance delivery defaults")
@@ -231,6 +263,17 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 			return nil, fmt.Errorf("bridges: update bridge instance %q: normalize delivery defaults: %w", trimmedID, err)
 		}
 		instance.DeliveryDefaults = normalized
+	}
+	if req.ClearDegradation {
+		instance.Degradation = nil
+	}
+	if req.Degradation != nil {
+		degradation := req.Degradation.normalize()
+		if degradation.IsZero() {
+			instance.Degradation = nil
+		} else {
+			instance.Degradation = &degradation
+		}
 	}
 	instance.UpdatedAt = req.UpdatedAt
 	if instance.UpdatedAt.IsZero() {
@@ -482,8 +525,11 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 		Source:           r.Source.Normalize(),
 		Enabled:          r.Enabled,
 		Status:           r.Status.Normalize(),
+		DMPolicy:         r.DMPolicy.Normalize(),
 		RoutingPolicy:    r.RoutingPolicy,
+		ProviderConfig:   r.ProviderConfig,
 		DeliveryDefaults: r.DeliveryDefaults,
+		Degradation:      r.Degradation,
 		CreatedAt:        r.CreatedAt,
 		UpdatedAt:        r.UpdatedAt,
 	}
@@ -500,11 +546,18 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 		instance.UpdatedAt = instance.CreatedAt
 	}
 
+	providerConfig, err := normalizeRawJSON(instance.ProviderConfig, "bridge instance provider config")
+	if err != nil {
+		return BridgeInstance{}, err
+	}
+	instance.ProviderConfig = providerConfig
+
 	deliveryDefaults, err := normalizeRawJSON(instance.DeliveryDefaults, "bridge instance delivery defaults")
 	if err != nil {
 		return BridgeInstance{}, err
 	}
 	instance.DeliveryDefaults = deliveryDefaults
+	instance = instance.normalize()
 
 	if err := instance.Validate(); err != nil {
 		return BridgeInstance{}, err
@@ -515,8 +568,15 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 
 func cloneBridgeInstance(instance BridgeInstance) *BridgeInstance {
 	cloned := instance
+	if instance.ProviderConfig != nil {
+		cloned.ProviderConfig = append(json.RawMessage(nil), instance.ProviderConfig...)
+	}
 	if instance.DeliveryDefaults != nil {
 		cloned.DeliveryDefaults = append(json.RawMessage(nil), instance.DeliveryDefaults...)
+	}
+	if instance.Degradation != nil {
+		degradation := *instance.Degradation
+		cloned.Degradation = &degradation
 	}
 	return &cloned
 }

@@ -381,6 +381,151 @@ func TestGlobalDBMigrationHelpers(t *testing.T) {
 	}
 }
 
+func TestMigrateBridgeInstanceColumnsNoopAndIdempotent(t *testing.T) {
+	t.Parallel()
+
+	db, err := store.OpenSQLiteDatabase(testutil.Context(t), filepath.Join(t.TempDir(), "bridge-columns.db"), nil)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	if err := migrateBridgeInstanceColumns(testutil.Context(t), db); err != nil {
+		t.Fatalf("migrateBridgeInstanceColumns(no table) error = %v", err)
+	}
+
+	if _, err := db.ExecContext(testutil.Context(t), `CREATE TABLE bridge_instances (
+		id TEXT PRIMARY KEY,
+		scope TEXT NOT NULL,
+		workspace_id TEXT,
+		platform TEXT NOT NULL,
+		extension_name TEXT NOT NULL,
+		display_name TEXT NOT NULL,
+		enabled BOOLEAN NOT NULL DEFAULT 1,
+		status TEXT NOT NULL,
+		routing_policy TEXT NOT NULL,
+		delivery_defaults TEXT,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		dm_policy TEXT NOT NULL DEFAULT 'open',
+		provider_config TEXT,
+		degradation_reason TEXT,
+		degradation_message TEXT
+	)`); err != nil {
+		t.Fatalf("create bridge_instances error = %v", err)
+	}
+
+	if err := migrateBridgeInstanceColumns(testutil.Context(t), db); err != nil {
+		t.Fatalf("migrateBridgeInstanceColumns(existing columns) error = %v", err)
+	}
+
+	columns, err := tableColumns(testutil.Context(t), db, "bridge_instances")
+	if err != nil {
+		t.Fatalf("tableColumns(bridge_instances) error = %v", err)
+	}
+	for _, column := range []string{"dm_policy", "provider_config", "degradation_reason", "degradation_message"} {
+		if _, ok := columns[column]; !ok {
+			t.Fatalf("tableColumns(bridge_instances) missing %q in %#v", column, columns)
+		}
+	}
+}
+
+func TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables(t *testing.T) {
+	t.Parallel()
+
+	db, err := store.OpenSQLiteDatabase(testutil.Context(t), filepath.Join(t.TempDir(), "legacy-global.db"), nil)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	for _, statement := range []string{
+		`CREATE TABLE sessions (
+			id TEXT PRIMARY KEY,
+			name TEXT,
+			agent_name TEXT NOT NULL,
+			workspace_id TEXT NOT NULL,
+			session_type TEXT NOT NULL DEFAULT 'user',
+			state TEXT NOT NULL,
+			acp_session_id TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE extensions (
+			name TEXT PRIMARY KEY,
+			version TEXT NOT NULL,
+			source TEXT NOT NULL,
+			enabled BOOLEAN NOT NULL DEFAULT 1,
+			manifest_path TEXT NOT NULL,
+			installed_at TEXT NOT NULL,
+			capabilities TEXT NOT NULL DEFAULT '{}',
+			actions TEXT NOT NULL DEFAULT '{}',
+			checksum TEXT NOT NULL
+		)`,
+		`CREATE TABLE bridge_instances (
+			id TEXT PRIMARY KEY,
+			scope TEXT NOT NULL,
+			workspace_id TEXT,
+			platform TEXT NOT NULL,
+			extension_name TEXT NOT NULL,
+			display_name TEXT NOT NULL,
+			enabled BOOLEAN NOT NULL DEFAULT 1,
+			status TEXT NOT NULL,
+			routing_policy TEXT NOT NULL,
+			delivery_defaults TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE bundle_activations (
+			scope TEXT NOT NULL,
+			workspace_id TEXT,
+			bundle_name TEXT NOT NULL,
+			profile_name TEXT NOT NULL,
+			manifest_path TEXT NOT NULL,
+			installed_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE network_audit_log (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			direction TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			channel TEXT NOT NULL,
+			peer_from TEXT NOT NULL,
+			peer_to TEXT,
+			message_id TEXT NOT NULL,
+			reason TEXT,
+			size INTEGER NOT NULL,
+			timestamp TEXT NOT NULL
+		)`,
+	} {
+		if _, err := db.ExecContext(testutil.Context(t), statement); err != nil {
+			t.Fatalf("ExecContext(%q) error = %v", statement, err)
+		}
+	}
+
+	if err := migrateGlobalSchema(testutil.Context(t), db); err != nil {
+		t.Fatalf("migrateGlobalSchema() error = %v", err)
+	}
+
+	for table, expected := range map[string][]string{
+		"sessions":           {"stop_reason", "stop_detail", "channel"},
+		"extensions":         {"registry_slug", "registry_name", "remote_version"},
+		"bridge_instances":   {"source", "dm_policy", "provider_config", "degradation_reason", "degradation_message"},
+		"bundle_activations": {"spec_content_hash"},
+	} {
+		columns, err := tableColumns(testutil.Context(t), db, table)
+		if err != nil {
+			t.Fatalf("tableColumns(%s) error = %v", table, err)
+		}
+		for _, column := range expected {
+			if _, ok := columns[column]; !ok {
+				t.Fatalf("tableColumns(%s) missing %q in %#v", table, column, columns)
+			}
+		}
+	}
+}
+
 func TestGlobalDBLegacySessionMetaHelpers(t *testing.T) {
 	t.Parallel()
 

@@ -20,7 +20,7 @@ func (g *GlobalDB) InsertBridgeInstance(ctx context.Context, instance bridges.Br
 		return err
 	}
 
-	normalized, routingPolicyJSON, deliveryDefaults, err := normalizeBridgeInstanceRecord(instance)
+	normalized, routingPolicyJSON, providerConfig, deliveryDefaults, degradationReason, degradationMessage, err := normalizeBridgeInstanceRecord(instance)
 	if err != nil {
 		return err
 	}
@@ -34,8 +34,8 @@ func (g *GlobalDB) InsertBridgeInstance(ctx context.Context, instance bridges.Br
 	if _, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO bridge_instances (
-			id, scope, workspace_id, platform, extension_name, display_name, source, enabled, status, routing_policy, delivery_defaults, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, scope, workspace_id, platform, extension_name, display_name, source, enabled, status, dm_policy, routing_policy, provider_config, delivery_defaults, degradation_reason, degradation_message, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		string(normalized.Scope),
 		store.NullableString(normalized.WorkspaceID),
@@ -45,8 +45,12 @@ func (g *GlobalDB) InsertBridgeInstance(ctx context.Context, instance bridges.Br
 		string(normalized.Source),
 		normalized.Enabled,
 		string(normalized.Status),
+		string(normalized.DMPolicy),
 		routingPolicyJSON,
+		providerConfig,
 		deliveryDefaults,
+		degradationReason,
+		degradationMessage,
 		store.FormatTimestamp(normalized.CreatedAt),
 		store.FormatTimestamp(normalized.UpdatedAt),
 	); err != nil {
@@ -62,7 +66,7 @@ func (g *GlobalDB) UpdateBridgeInstance(ctx context.Context, instance bridges.Br
 		return err
 	}
 
-	normalized, routingPolicyJSON, deliveryDefaults, err := normalizeBridgeInstanceRecord(instance)
+	normalized, routingPolicyJSON, providerConfig, deliveryDefaults, degradationReason, degradationMessage, err := normalizeBridgeInstanceRecord(instance)
 	if err != nil {
 		return err
 	}
@@ -73,7 +77,7 @@ func (g *GlobalDB) UpdateBridgeInstance(ctx context.Context, instance bridges.Br
 	result, err := g.db.ExecContext(
 		ctx,
 		`UPDATE bridge_instances
-		 SET scope = ?, workspace_id = ?, platform = ?, extension_name = ?, display_name = ?, source = ?, enabled = ?, status = ?, routing_policy = ?, delivery_defaults = ?, updated_at = ?
+		 SET scope = ?, workspace_id = ?, platform = ?, extension_name = ?, display_name = ?, source = ?, enabled = ?, status = ?, dm_policy = ?, routing_policy = ?, provider_config = ?, delivery_defaults = ?, degradation_reason = ?, degradation_message = ?, updated_at = ?
 		 WHERE id = ?`,
 		string(normalized.Scope),
 		store.NullableString(normalized.WorkspaceID),
@@ -83,8 +87,12 @@ func (g *GlobalDB) UpdateBridgeInstance(ctx context.Context, instance bridges.Br
 		string(normalized.Source),
 		normalized.Enabled,
 		string(normalized.Status),
+		string(normalized.DMPolicy),
 		routingPolicyJSON,
+		providerConfig,
 		deliveryDefaults,
+		degradationReason,
+		degradationMessage,
 		store.FormatTimestamp(normalized.UpdatedAt),
 		normalized.ID,
 	)
@@ -143,7 +151,7 @@ func (g *GlobalDB) GetBridgeInstance(ctx context.Context, id string) (bridges.Br
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT id, scope, workspace_id, platform, extension_name, display_name, source, enabled, status, routing_policy, delivery_defaults, created_at, updated_at
+		`SELECT id, scope, workspace_id, platform, extension_name, display_name, source, enabled, status, dm_policy, routing_policy, provider_config, delivery_defaults, degradation_reason, degradation_message, created_at, updated_at
 		 FROM bridge_instances WHERE id = ?`,
 		trimmedID,
 	)
@@ -166,7 +174,7 @@ func (g *GlobalDB) ListBridgeInstances(ctx context.Context) ([]bridges.BridgeIns
 
 	rows, err := g.db.QueryContext(
 		ctx,
-		`SELECT id, scope, workspace_id, platform, extension_name, display_name, source, enabled, status, routing_policy, delivery_defaults, created_at, updated_at
+		`SELECT id, scope, workspace_id, platform, extension_name, display_name, source, enabled, status, dm_policy, routing_policy, provider_config, delivery_defaults, degradation_reason, degradation_message, created_at, updated_at
 		 FROM bridge_instances
 		 ORDER BY display_name ASC, created_at ASC, id ASC`,
 	)
@@ -595,23 +603,35 @@ func (g *GlobalDB) DeleteExpiredBridgeIngestDedup(ctx context.Context, now time.
 	return affected, nil
 }
 
-func normalizeBridgeInstanceRecord(instance bridges.BridgeInstance) (bridges.BridgeInstance, string, any, error) {
-	normalized := instance
+func normalizeBridgeInstanceRecord(instance bridges.BridgeInstance) (bridges.BridgeInstance, string, any, any, any, any, error) {
+	normalized := instance.Normalized()
 	if err := normalized.Validate(); err != nil {
-		return bridges.BridgeInstance{}, "", nil, err
+		return bridges.BridgeInstance{}, "", nil, nil, nil, nil, err
 	}
 
 	routingPolicyJSON, err := json.Marshal(normalized.RoutingPolicy)
 	if err != nil {
-		return bridges.BridgeInstance{}, "", nil, fmt.Errorf("store: encode bridge routing policy: %w", err)
+		return bridges.BridgeInstance{}, "", nil, nil, nil, nil, fmt.Errorf("store: encode bridge routing policy: %w", err)
+	}
+
+	providerConfig, err := normalizeOptionalRawJSON(normalized.ProviderConfig)
+	if err != nil {
+		return bridges.BridgeInstance{}, "", nil, nil, nil, nil, fmt.Errorf("store: encode bridge provider config: %w", err)
 	}
 
 	deliveryDefaults, err := normalizeOptionalRawJSON(normalized.DeliveryDefaults)
 	if err != nil {
-		return bridges.BridgeInstance{}, "", nil, fmt.Errorf("store: encode bridge delivery defaults: %w", err)
+		return bridges.BridgeInstance{}, "", nil, nil, nil, nil, fmt.Errorf("store: encode bridge delivery defaults: %w", err)
 	}
 
-	return normalized, string(routingPolicyJSON), deliveryDefaults, nil
+	var degradationReason any
+	var degradationMessage any
+	if normalized.Degradation != nil && !normalized.Degradation.IsZero() {
+		degradationReason = string(normalized.Degradation.Reason.Normalize())
+		degradationMessage = store.NullableString(normalized.Degradation.Message)
+	}
+
+	return normalized, string(routingPolicyJSON), providerConfig, deliveryDefaults, degradationReason, degradationMessage, nil
 }
 
 func normalizeOptionalRawJSON(value json.RawMessage) (any, error) {
@@ -633,8 +653,12 @@ func scanBridgeInstance(scanner rowScanner) (bridges.BridgeInstance, error) {
 		sourceRaw           string
 		enabled             bool
 		statusRaw           string
+		dmPolicyRaw         string
 		routingPolicyRaw    string
+		providerConfigRaw   sql.NullString
 		deliveryDefaultsRaw sql.NullString
+		degradationReason   sql.NullString
+		degradationMessage  sql.NullString
 		createdAtRaw        string
 		updatedAtRaw        string
 	)
@@ -648,8 +672,12 @@ func scanBridgeInstance(scanner rowScanner) (bridges.BridgeInstance, error) {
 		&sourceRaw,
 		&enabled,
 		&statusRaw,
+		&dmPolicyRaw,
 		&routingPolicyRaw,
+		&providerConfigRaw,
 		&deliveryDefaultsRaw,
+		&degradationReason,
+		&degradationMessage,
 		&createdAtRaw,
 		&updatedAtRaw,
 	); err != nil {
@@ -663,11 +691,21 @@ func scanBridgeInstance(scanner rowScanner) (bridges.BridgeInstance, error) {
 	instance.Source = bridges.BridgeInstanceSource(sourceRaw)
 	instance.Enabled = enabled
 	instance.Status = bridges.BridgeStatus(statusRaw)
+	instance.DMPolicy = bridges.BridgeDMPolicy(dmPolicyRaw)
 	if err := json.Unmarshal([]byte(routingPolicyRaw), &instance.RoutingPolicy); err != nil {
 		return bridges.BridgeInstance{}, fmt.Errorf("store: decode bridge routing policy: %w", err)
 	}
+	if providerConfigRaw.Valid {
+		instance.ProviderConfig = json.RawMessage(strings.TrimSpace(providerConfigRaw.String))
+	}
 	if deliveryDefaultsRaw.Valid {
 		instance.DeliveryDefaults = json.RawMessage(strings.TrimSpace(deliveryDefaultsRaw.String))
+	}
+	if degradationReason.Valid || degradationMessage.Valid {
+		instance.Degradation = &bridges.BridgeDegradation{
+			Reason:  bridges.BridgeDegradationReason(strings.TrimSpace(degradationReason.String)),
+			Message: strings.TrimSpace(degradationMessage.String),
+		}
 	}
 
 	createdAt, err := store.ParseTimestamp(createdAtRaw)
@@ -684,7 +722,7 @@ func scanBridgeInstance(scanner rowScanner) (bridges.BridgeInstance, error) {
 	if err := instance.Validate(); err != nil {
 		return bridges.BridgeInstance{}, err
 	}
-	return instance, nil
+	return instance.Normalized(), nil
 }
 
 func scanBridgeSecretBinding(scanner rowScanner) (bridges.BridgeSecretBinding, error) {
