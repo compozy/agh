@@ -2,6 +2,8 @@ package core_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,7 +15,9 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
+	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
@@ -157,6 +161,70 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			t.Fatalf("payload.DisplayName = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestBundleActivationPayloadUsesMaterializedStableIDs(t *testing.T) {
+	t.Parallel()
+
+	preview := bundlepkg.ActivationPreview{
+		Activation: bundlepkg.Activation{
+			ID:            "act_marketing",
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         bundlepkg.ScopeGlobal,
+		},
+		Bundle: extensionpkg.BundleSpec{
+			Name: "marketing",
+		},
+		Profile: extensionpkg.BundleProfile{
+			Name: "default",
+			Jobs: []extensionpkg.BundleJob{{
+				Name:      "daily-sync",
+				AgentName: "planner",
+			}},
+			Triggers: []extensionpkg.BundleTrigger{{
+				Name:      "session-opened",
+				AgentName: "planner",
+				Event:     "session.created",
+			}},
+			Bridges: []extensionpkg.BundleBridgePreset{{
+				Name:        "telegram-main",
+				DisplayName: "Marketing Telegram",
+			}},
+		},
+	}
+
+	payload := core.BundleActivationPayload(preview)
+	if got, want := payload.Jobs[0].ID, bundleStableIDForTest("job", preview.Activation.ID, "daily-sync"); got != want {
+		t.Fatalf("payload.Jobs[0].ID = %q, want %q", got, want)
+	}
+	if got, want := payload.Triggers[0].ID, bundleStableIDForTest("trg", preview.Activation.ID, "session-opened"); got != want {
+		t.Fatalf("payload.Triggers[0].ID = %q, want %q", got, want)
+	}
+	if got, want := payload.Bridges[0].ID, bundleStableIDForTest("bri", preview.Activation.ID, "telegram-main"); got != want {
+		t.Fatalf("payload.Bridges[0].ID = %q, want %q", got, want)
+	}
+}
+
+func TestStatusForBundleErrorDefaultsToInternalServerError(t *testing.T) {
+	t.Parallel()
+
+	if got, want := core.StatusForBundleError(errors.New("store failed")), http.StatusInternalServerError; got != want {
+		t.Fatalf("StatusForBundleError(unknown) = %d, want %d", got, want)
+	}
+	if got, want := core.StatusForBundleError(bundlepkg.ErrActivationNotFound), http.StatusNotFound; got != want {
+		t.Fatalf("StatusForBundleError(ErrActivationNotFound) = %d, want %d", got, want)
+	}
+}
+
+func bundleStableIDForTest(prefix string, parts ...string) string {
+	normalized := make([]string, 0, len(parts))
+	for _, part := range parts {
+		normalized = append(normalized, strings.TrimSpace(part))
+	}
+	sum := sha256.Sum256([]byte(strings.Join(normalized, "\n")))
+	return prefix + "_" + hex.EncodeToString(sum[:8])
 }
 
 func TestBaseHandlersNetworkEndpoints(t *testing.T) {

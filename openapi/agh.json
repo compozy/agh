@@ -3602,6 +3602,9 @@
                                                         "enum": ["global", "workspace"],
                                                         "type": "string"
                                                     },
+                                                    "source": {
+                                                        "type": "string"
+                                                    },
                                                     "status": {
                                                         "enum": [
                                                             "auth_required",
@@ -3808,6 +3811,9 @@
                                                 },
                                                 "scope": {
                                                     "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "source": {
                                                     "type": "string"
                                                 },
                                                 "status": {
@@ -4149,6 +4155,9 @@
                                                     "enum": ["global", "workspace"],
                                                     "type": "string"
                                                 },
+                                                "source": {
+                                                    "type": "string"
+                                                },
                                                 "status": {
                                                     "enum": [
                                                         "auth_required",
@@ -4410,6 +4419,9 @@
                                                     "enum": ["global", "workspace"],
                                                     "type": "string"
                                                 },
+                                                "source": {
+                                                    "type": "string"
+                                                },
                                                 "status": {
                                                     "enum": [
                                                         "auth_required",
@@ -4649,6 +4661,9 @@
                                                 },
                                                 "scope": {
                                                     "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "source": {
                                                     "type": "string"
                                                 },
                                                 "status": {
@@ -4892,6 +4907,9 @@
                                                     "enum": ["global", "workspace"],
                                                     "type": "string"
                                                 },
+                                                "source": {
+                                                    "type": "string"
+                                                },
                                                 "status": {
                                                     "enum": [
                                                         "auth_required",
@@ -5131,6 +5149,9 @@
                                                 },
                                                 "scope": {
                                                     "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "source": {
                                                     "type": "string"
                                                 },
                                                 "status": {
@@ -5661,8 +5682,50 @@
                                                         "channels": {
                                                             "type": "integer"
                                                         },
+                                                        "configured_default_channel": {
+                                                            "type": "string"
+                                                        },
+                                                        "declared_channels": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "activation_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "bundle_name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "description": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "extension_name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "primary": {
+                                                                        "type": "boolean"
+                                                                    },
+                                                                    "profile_name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "workspace_id": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["name"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
                                                         "delivery_workers": {
                                                             "type": "integer"
+                                                        },
+                                                        "effective_default_channel": {
+                                                            "type": "string"
+                                                        },
+                                                        "effective_default_source": {
+                                                            "type": "string"
                                                         },
                                                         "enabled": {
                                                             "type": "boolean"
@@ -5834,6 +5897,27 @@
                                                         },
                                                         "type": "array"
                                                     },
+                                                    "bundles": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "description": {
+                                                                    "type": "string"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "profiles": {
+                                                                    "items": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": "array"
+                                                                }
+                                                            },
+                                                            "required": ["name"],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    },
                                                     "capabilities": {
                                                         "items": {
                                                             "type": "string"
@@ -5972,6 +6056,27 @@
                                                 "actions": {
                                                     "items": {
                                                         "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "bundles": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "profiles": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
                                                     },
                                                     "type": "array"
                                                 },
@@ -6123,6 +6228,27 @@
                                                     },
                                                     "type": "array"
                                                 },
+                                                "bundles": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "profiles": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
                                                 "capabilities": {
                                                     "items": {
                                                         "type": "string"
@@ -6271,6 +6397,27 @@
                                                     },
                                                     "type": "array"
                                                 },
+                                                "bundles": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "profiles": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
                                                 "capabilities": {
                                                     "items": {
                                                         "type": "string"
@@ -6416,6 +6563,27 @@
                                                 "actions": {
                                                     "items": {
                                                         "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "bundles": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "profiles": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
                                                     },
                                                     "type": "array"
                                                 },
@@ -9288,8 +9456,50 @@
                                                 "channels": {
                                                     "type": "integer"
                                                 },
+                                                "configured_default_channel": {
+                                                    "type": "string"
+                                                },
+                                                "declared_channels": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "activation_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "bundle_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "extension_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "primary": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "profile_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "workspace_id": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
                                                 "delivery_workers": {
                                                     "type": "integer"
+                                                },
+                                                "effective_default_channel": {
+                                                    "type": "string"
+                                                },
+                                                "effective_default_source": {
+                                                    "type": "string"
                                                 },
                                                 "enabled": {
                                                     "type": "boolean"

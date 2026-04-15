@@ -85,6 +85,7 @@ type RuntimeDeps struct {
 	SkillsRegistry    core.SkillsRegistry
 	DreamTrigger      DreamTrigger
 	Extensions        udsapi.ExtensionService
+	Bundles           core.BundleService
 	StartedAt         time.Time
 }
 
@@ -161,11 +162,22 @@ type extensionManagerDeps struct {
 type automationRuntime interface {
 	core.AutomationManager
 	extensionpkg.HostAPIAutomationManager
+	bundleSyncAutomation
 	Start(ctx context.Context) error
 	Shutdown(ctx context.Context) error
 	SessionObserver() session.Notifier
 	HookTelemetrySink() hookspkg.TelemetrySink
 	MemoryObserver() automationpkg.MemoryConsolidationObserver
+}
+
+type bundleSyncAutomation interface {
+	SyncManagedDefinitions(
+		ctx context.Context,
+		source automationpkg.JobSource,
+		desiredJobs []automationpkg.Job,
+		desiredTriggers []automationpkg.Trigger,
+		desiredTriggerSecrets map[string]string,
+	) (automationpkg.SyncStats, error)
 }
 
 type automationManagerDeps struct {
@@ -480,6 +492,7 @@ func (d *Daemon) applyDefaults() error {
 				httpapi.WithObserver(deps.Observer),
 				httpapi.WithAutomation(deps.Automation),
 				httpapi.WithBridgeService(deps.Bridges),
+				httpapi.WithBundleService(deps.Bundles),
 				httpapi.WithWorkspaceResolver(deps.WorkspaceService),
 				httpapi.WithSkillsRegistry(deps.SkillsRegistry),
 				httpapi.WithMemoryStore(deps.MemoryStore),
@@ -501,6 +514,7 @@ func (d *Daemon) applyDefaults() error {
 				udsapi.WithObserver(deps.Observer),
 				udsapi.WithAutomation(deps.Automation),
 				udsapi.WithBridgeService(deps.Bridges),
+				udsapi.WithBundleService(deps.Bundles),
 				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
 				udsapi.WithSkillsRegistry(deps.SkillsRegistry),
 				udsapi.WithMemoryStore(deps.MemoryStore),

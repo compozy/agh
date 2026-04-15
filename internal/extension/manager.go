@@ -149,6 +149,7 @@ type Extension struct {
 	RootDir          string
 	Hooks            []hookspkg.HookDecl
 	Agents           []aghconfig.AgentDef
+	Bundles          []BundleSpec
 	MCPServers       []aghconfig.MCPServer
 	Skills           []*skillspkg.Skill
 	GrantedActions   []string
@@ -163,6 +164,7 @@ type managedExtension struct {
 	manifest        *Manifest
 	hooks           []hookspkg.HookDecl
 	agents          []aghconfig.AgentDef
+	bundles         []BundleSpec
 	mcpServers      []aghconfig.MCPServer
 	skills          []*skillspkg.Skill
 	grantedActions  []string
@@ -880,6 +882,11 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 		m.setFailure(ext, ExtensionPhaseRegister, err)
 		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
 	}
+	bundles, err := m.loadBundleResources(ext)
+	if err != nil {
+		m.setFailure(ext, ExtensionPhaseRegister, err)
+		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
+	}
 	mcpServers, err := m.loadMCPResources(ext)
 	if err != nil {
 		m.setFailure(ext, ExtensionPhaseRegister, err)
@@ -902,6 +909,7 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 	ext.skills = skills
 	ext.agents = agents
 	ext.hooks = hooks
+	ext.bundles = bundles
 	ext.mcpServers = mcpServers
 	ext.registered = true
 	ext.phase = ExtensionPhaseRegister
@@ -1309,6 +1317,13 @@ func (m *Manager) loadHookResources(ext *managedExtension) ([]hookspkg.HookDecl,
 		decls = append(decls, decl)
 	}
 	return decls, nil
+}
+
+func (m *Manager) loadBundleResources(ext *managedExtension) ([]BundleSpec, error) {
+	if ext == nil || ext.manifest == nil {
+		return nil, nil
+	}
+	return LoadBundleSpecs(ext.rootDir, ext.manifest)
 }
 
 func (m *Manager) loadMCPResources(ext *managedExtension) ([]aghconfig.MCPServer, error) {
@@ -1726,6 +1741,7 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 	for _, agent := range ext.agents {
 		clone.Agents = append(clone.Agents, cloneAgentDef(agent))
 	}
+	clone.Bundles = cloneBundleSpecs(ext.bundles)
 	for _, server := range ext.mcpServers {
 		clone.MCPServers = append(clone.MCPServers, cloneMCPServer(server))
 	}
@@ -1739,6 +1755,39 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 		clone.InitializeResult = cloneInitializeResponse(ext.initialize)
 	}
 	return clone
+}
+
+func cloneBundleSpecs(values []BundleSpec) []BundleSpec {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]BundleSpec, 0, len(values))
+	for _, value := range values {
+		next := BundleSpec{
+			Name:        strings.TrimSpace(value.Name),
+			Description: strings.TrimSpace(value.Description),
+			Profiles:    make([]BundleProfile, 0, len(value.Profiles)),
+		}
+		for _, profile := range value.Profiles {
+			clonedProfile := BundleProfile{
+				Name:        strings.TrimSpace(profile.Name),
+				Description: strings.TrimSpace(profile.Description),
+				Channels: BundleChannelsConfig{
+					Primary: strings.TrimSpace(profile.Channels.Primary),
+					Items:   normalizeBundleChannels(profile.Channels.Items),
+				},
+				Jobs:     append([]BundleJob(nil), profile.Jobs...),
+				Triggers: append([]BundleTrigger(nil), profile.Triggers...),
+				Bridges:  normalizeBundleBridges(profile.Bridges),
+			}
+			for idx := range clonedProfile.Jobs {
+				clonedProfile.Jobs[idx].Task = cloneBundleTaskConfig(clonedProfile.Jobs[idx].Task)
+			}
+			next.Profiles = append(next.Profiles, clonedProfile)
+		}
+		cloned = append(cloned, next)
+	}
+	return cloned
 }
 
 func (m *Manager) reportBridgeRuntimeIssue(bridgeInstanceID string, status bridgepkg.BridgeStatus, reason error) {

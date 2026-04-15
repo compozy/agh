@@ -126,6 +126,8 @@ func extensionStatusCode(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, extensionpkg.ErrManifestNotFound):
 		return http.StatusBadRequest
+	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
+		return http.StatusConflict
 	case errors.Is(err, os.ErrNotExist):
 		return http.StatusBadRequest
 	default:

@@ -28,6 +28,9 @@ var (
 	// ErrExtensionChecksumMismatch reports that the provided checksum does not
 	// match the on-disk extension artifact.
 	ErrExtensionChecksumMismatch = errors.New("extension: checksum mismatch")
+	// ErrExtensionHasActiveBundles reports that the extension lifecycle is
+	// blocked by one or more active bundle activations.
+	ErrExtensionHasActiveBundles = errors.New("extension: extension has active bundle activations")
 )
 
 // Registry persists installed extension metadata in the global SQLite database.
@@ -131,6 +134,9 @@ func (r *Registry) Uninstall(name string) error {
 
 	trimmedName, err := normalizeExtensionName(name)
 	if err != nil {
+		return err
+	}
+	if err := r.ensureNoActiveBundles(trimmedName); err != nil {
 		return err
 	}
 
@@ -418,6 +424,11 @@ func (r *Registry) updateEnabled(name string, enabled bool) error {
 	if err != nil {
 		return err
 	}
+	if !enabled {
+		if err := r.ensureNoActiveBundles(trimmedName); err != nil {
+			return err
+		}
+	}
 
 	result, err := r.db.Exec(`UPDATE extensions SET enabled = ? WHERE name = ?`, enabled, trimmedName)
 	if err != nil {
@@ -433,6 +444,21 @@ func (r *Registry) checkReady(action string) error {
 	}
 	if r.db == nil {
 		return fmt.Errorf("extension: %s database is required", action)
+	}
+	return nil
+}
+
+func (r *Registry) ensureNoActiveBundles(extensionName string) error {
+	var count int
+	row := r.db.QueryRow(`SELECT COUNT(*) FROM bundle_activations WHERE extension_name = ?`, strings.TrimSpace(extensionName))
+	if err := row.Scan(&count); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			return nil
+		}
+		return fmt.Errorf("extension: count active bundle activations for %q: %w", extensionName, err)
+	}
+	if count > 0 {
+		return fmt.Errorf("%w: %q has %d active activation(s)", ErrExtensionHasActiveBundles, extensionName, count)
 	}
 	return nil
 }

@@ -48,6 +48,12 @@ type UpdateBridgeRequest struct {
 	DeliveryDefaults *json.RawMessage         `json:"delivery_defaults,omitempty"`
 }
 
+// PutBridgeSecretBindingRequest is the shared bridge secret binding upsert payload.
+type PutBridgeSecretBindingRequest struct {
+	VaultRef string `json:"vault_ref"`
+	Kind     string `json:"kind"`
+}
+
 // ToUpdateInstanceRequest validates and converts the transport patch payload
 // into the daemon-owned bridge update request for the supplied instance id.
 func (r UpdateBridgeRequest) ToUpdateInstanceRequest(id string) (bridgepkg.UpdateInstanceRequest, error) {
@@ -192,4 +198,28 @@ func cloneRawMessage(value json.RawMessage) json.RawMessage {
 		return nil
 	}
 	return append(json.RawMessage(nil), value...)
+}
+
+// ToBridgeSecretBinding validates and converts the transport payload into the daemon-owned binding request.
+func (r PutBridgeSecretBindingRequest) ToBridgeSecretBinding(bridgeInstanceID string, bindingName string) (bridgepkg.BridgeSecretBinding, error) {
+	binding := bridgepkg.BridgeSecretBinding{
+		BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
+		BindingName:      strings.TrimSpace(bindingName),
+		VaultRef:         strings.TrimSpace(r.VaultRef),
+		Kind:             strings.TrimSpace(r.Kind),
+	}
+	if err := binding.Validate(); err != nil {
+		return bridgepkg.BridgeSecretBinding{}, err
+	}
+	return binding, nil
+}
+
+// BridgeSecretBindingsResponse wraps one bridge-instance secret binding list.
+type BridgeSecretBindingsResponse struct {
+	Bindings []bridgepkg.BridgeSecretBinding `json:"bindings"`
+}
+
+// BridgeSecretBindingResponse wraps one bridge secret binding payload.
+type BridgeSecretBindingResponse struct {
+	Binding bridgepkg.BridgeSecretBinding `json:"binding"`
 }

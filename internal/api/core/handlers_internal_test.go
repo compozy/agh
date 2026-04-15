@@ -2,13 +2,20 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
+	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/transcript"
@@ -63,6 +70,72 @@ func (s sessionManagerStub) Prompt(context.Context, string, string) (<-chan acp.
 
 func (s sessionManagerStub) ApprovePermission(context.Context, string, acp.ApproveRequest) error {
 	return nil
+}
+
+type bundleServiceStub struct {
+	networkSettingsFn func(context.Context) (bundlepkg.NetworkSettings, error)
+}
+
+type networkServiceStub struct {
+	statusFn func(context.Context) (*network.NetworkStatus, error)
+}
+
+func (s networkServiceStub) Send(context.Context, network.SendRequest) (string, error) {
+	return "", nil
+}
+
+func (s networkServiceStub) ListPeers(context.Context, string) ([]network.PeerInfo, error) {
+	return nil, nil
+}
+
+func (s networkServiceStub) ListChannels(context.Context) ([]network.ChannelInfo, error) {
+	return nil, nil
+}
+
+func (s networkServiceStub) Status(ctx context.Context) (*network.NetworkStatus, error) {
+	if s.statusFn != nil {
+		return s.statusFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s networkServiceStub) Inbox(context.Context, string) ([]network.Envelope, error) {
+	return nil, nil
+}
+
+func (s bundleServiceStub) Catalog(context.Context) ([]bundlepkg.CatalogEntry, error) {
+	return nil, nil
+}
+
+func (s bundleServiceStub) PreviewActivation(context.Context, bundlepkg.ActivateRequest) (bundlepkg.ActivationPreview, error) {
+	return bundlepkg.ActivationPreview{}, nil
+}
+
+func (s bundleServiceStub) Activate(context.Context, bundlepkg.ActivateRequest) (bundlepkg.ActivationPreview, error) {
+	return bundlepkg.ActivationPreview{}, nil
+}
+
+func (s bundleServiceStub) ListActivations(context.Context) ([]bundlepkg.ActivationPreview, error) {
+	return nil, nil
+}
+
+func (s bundleServiceStub) GetActivation(context.Context, string) (bundlepkg.ActivationPreview, error) {
+	return bundlepkg.ActivationPreview{}, nil
+}
+
+func (s bundleServiceStub) UpdateActivation(context.Context, bundlepkg.UpdateActivationRequest) (bundlepkg.ActivationPreview, error) {
+	return bundlepkg.ActivationPreview{}, nil
+}
+
+func (s bundleServiceStub) Deactivate(context.Context, string) error {
+	return nil
+}
+
+func (s bundleServiceStub) NetworkSettings(ctx context.Context) (bundlepkg.NetworkSettings, error) {
+	if s.networkSettingsFn != nil {
+		return s.networkSettingsFn(ctx)
+	}
+	return bundlepkg.NetworkSettings{}, nil
 }
 
 func TestResolveUserHomeDir(t *testing.T) {
@@ -260,5 +333,115 @@ func TestBaseHandlersAccessorsAndSessionInfoHelpers(t *testing.T) {
 	}
 	if _, err := handlers.streamSessionInfo(context.Background(), "sess-1"); err == nil {
 		t.Fatal("streamSessionInfo(error) error = nil, want non-nil")
+	}
+}
+
+func TestNetworkStatusPayloadWrapsBundleSettingsErrors(t *testing.T) {
+	t.Parallel()
+
+	settingsErr := errors.New("settings boom")
+	handlers := &BaseHandlers{
+		Config: aghconfig.Config{
+			Network: aghconfig.NetworkConfig{Enabled: true},
+		},
+		Network: networkServiceStub{
+			statusFn: func(context.Context) (*network.NetworkStatus, error) {
+				return &network.NetworkStatus{}, nil
+			},
+		},
+		Bundles: bundleServiceStub{
+			networkSettingsFn: func(context.Context) (bundlepkg.NetworkSettings, error) {
+				return bundlepkg.NetworkSettings{}, settingsErr
+			},
+		},
+	}
+
+	_, err := handlers.networkStatusPayload(context.Background())
+	if !errors.Is(err, settingsErr) {
+		t.Fatalf("networkStatusPayload() error = %v, want wrapped settings error", err)
+	}
+	if !strings.Contains(err.Error(), "api: load bundle network settings") {
+		t.Fatalf("networkStatusPayload() error = %q, want bundle settings context", err.Error())
+	}
+}
+
+func TestBundleHandlersRejectNilReceiverWithoutPanicking(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	var nilHandlers *BaseHandlers
+	testCases := []struct {
+		name   string
+		invoke func(*gin.Context)
+	}{
+		{
+			name: "ShouldRejectCatalogRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.ListBundleCatalog(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectPreviewRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.PreviewBundleActivation(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectActivationListRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.ListBundleActivations(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectActivationGetRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.GetBundleActivation(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectActivationUpdateRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.UpdateBundleActivation(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectActivationDeleteRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.DeleteBundleActivation(ctx)
+			},
+		},
+		{
+			name: "ShouldRejectNetworkSettingsRequests",
+			invoke: func(ctx *gin.Context) {
+				nilHandlers.BundleNetworkSettings(ctx)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			ctx.Params = gin.Params{{Key: "id", Value: "act-1"}}
+
+			tc.invoke(ctx)
+
+			if got, want := recorder.Code, http.StatusServiceUnavailable; got != want {
+				t.Fatalf("status = %d, want %d", got, want)
+			}
+
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(error payload) error = %v", err)
+			}
+			if got, want := payload.Error, "api: bundle service is not configured"; got != want {
+				t.Fatalf("error payload = %q, want %q", got, want)
+			}
+		})
 	}
 }

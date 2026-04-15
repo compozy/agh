@@ -22,6 +22,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerMemoryRoutes(api, handlers)
 	registerDaemonRoutes(api, handlers)
 	registerNetworkRoutes(api, handlers)
+	registerBundleRoutes(api, handlers)
 	registerWebhookRoutes(api, handlers)
 
 	if engine, ok := router.(*gin.Engine); ok {
@@ -40,6 +41,9 @@ func registerBridgeRoutes(api gin.IRouter, handlers *Handlers) {
 	bridges.POST("/:id/disable", handlers.DisableBridge)
 	bridges.POST("/:id/restart", handlers.RestartBridge)
 	bridges.GET("/:id/routes", handlers.ListBridgeRoutes)
+	bridges.GET("/:id/secret-bindings", handlers.ListBridgeSecretBindings)
+	bridges.PUT("/:id/secret-bindings/:binding_name", handlers.PutBridgeSecretBinding)
+	bridges.DELETE("/:id/secret-bindings/:binding_name", handlers.DeleteBridgeSecretBinding)
 	bridges.POST("/:id/test-delivery", handlers.TestBridgeDelivery)
 }
 
@@ -169,6 +173,18 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 	networkGroup.GET("/channels/:channel/messages", handlers.NetworkChannelMessages)
 	networkGroup.POST("/send", handlers.NetworkSend)
 	networkGroup.GET("/inbox", handlers.NetworkInbox)
+}
+
+func registerBundleRoutes(api gin.IRouter, handlers *Handlers) {
+	bundles := api.Group("/bundles")
+	bundles.GET("/catalog", handlers.ListBundleCatalog)
+	bundles.POST("/preview", handlers.PreviewBundleActivation)
+	bundles.GET("/activations", handlers.ListBundleActivations)
+	bundles.POST("/activations", handlers.ActivateBundle)
+	bundles.GET("/activations/:id", handlers.GetBundleActivation)
+	bundles.PATCH("/activations/:id", handlers.UpdateBundleActivation)
+	bundles.DELETE("/activations/:id", handlers.DeleteBundleActivation)
+	bundles.GET("/network/settings", handlers.BundleNetworkSettings)
 }
 
 func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {

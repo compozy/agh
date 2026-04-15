@@ -18,8 +18,8 @@ var (
 	ErrTriggerNameTaken = errors.New("automation: trigger name already exists in scope")
 	// ErrTriggerWebhookIDTaken reports a duplicate stable webhook identifier.
 	ErrTriggerWebhookIDTaken = errors.New("automation: trigger webhook id already exists")
-	// ErrOverlayRequiresConfigSource reports that enabled overlays only apply to TOML-backed definitions.
-	ErrOverlayRequiresConfigSource = errors.New("automation: enabled overlays require config source")
+	// ErrOverlayRequiresConfigSource reports that enabled overlays only apply to config- or package-backed definitions.
+	ErrOverlayRequiresConfigSource = errors.New("automation: enabled overlays require config or package source")
 	// ErrJobOverlayNotFound reports that a job enabled overlay row does not exist.
 	ErrJobOverlayNotFound = errors.New("automation: job enabled overlay not found")
 	// ErrTriggerOverlayNotFound reports that a trigger enabled overlay row does not exist.

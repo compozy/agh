@@ -40,18 +40,19 @@ type Registry interface {
 
 // CreateInstanceRequest captures the persisted configuration for a new bridge instance.
 type CreateInstanceRequest struct {
-	ID               string          `json:"id,omitempty"`
-	Scope            Scope           `json:"scope"`
-	WorkspaceID      string          `json:"workspace_id,omitempty"`
-	Platform         string          `json:"platform"`
-	ExtensionName    string          `json:"extension_name"`
-	DisplayName      string          `json:"display_name"`
-	Enabled          bool            `json:"enabled"`
-	Status           BridgeStatus    `json:"status"`
-	RoutingPolicy    RoutingPolicy   `json:"routing_policy"`
-	DeliveryDefaults json.RawMessage `json:"delivery_defaults,omitempty"`
-	CreatedAt        time.Time       `json:"created_at,omitempty"`
-	UpdatedAt        time.Time       `json:"updated_at,omitempty"`
+	ID               string               `json:"id,omitempty"`
+	Scope            Scope                `json:"scope"`
+	WorkspaceID      string               `json:"workspace_id,omitempty"`
+	Platform         string               `json:"platform"`
+	ExtensionName    string               `json:"extension_name"`
+	DisplayName      string               `json:"display_name"`
+	Source           BridgeInstanceSource `json:"source,omitempty"`
+	Enabled          bool                 `json:"enabled"`
+	Status           BridgeStatus         `json:"status"`
+	RoutingPolicy    RoutingPolicy        `json:"routing_policy"`
+	DeliveryDefaults json.RawMessage      `json:"delivery_defaults,omitempty"`
+	CreatedAt        time.Time            `json:"created_at,omitempty"`
+	UpdatedAt        time.Time            `json:"updated_at,omitempty"`
 }
 
 // Validate reports whether the creation request contains a valid instance definition.
@@ -214,6 +215,9 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 	instance, err := s.store.GetBridgeInstance(ctx, trimmedID)
 	if err != nil {
 		return nil, fmt.Errorf("bridges: update bridge instance %q: load current state: %w", trimmedID, err)
+	}
+	if instance.Source == BridgeInstanceSourcePackage {
+		return nil, fmt.Errorf("bridges: update bridge instance %q: %w", trimmedID, ErrBridgeInstanceReadOnly)
 	}
 	if req.DisplayName != nil {
 		instance.DisplayName = strings.TrimSpace(*req.DisplayName)
@@ -475,6 +479,7 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 		Platform:         strings.TrimSpace(r.Platform),
 		ExtensionName:    strings.TrimSpace(r.ExtensionName),
 		DisplayName:      strings.TrimSpace(r.DisplayName),
+		Source:           r.Source.Normalize(),
 		Enabled:          r.Enabled,
 		Status:           r.Status.Normalize(),
 		RoutingPolicy:    r.RoutingPolicy,
@@ -484,6 +489,9 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 	}
 	if instance.ID == "" {
 		instance.ID = store.NewID("brg")
+	}
+	if instance.Source == "" {
+		instance.Source = BridgeInstanceSourceDynamic
 	}
 	if instance.CreatedAt.IsZero() {
 		instance.CreatedAt = clock()

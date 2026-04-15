@@ -1,0 +1,1 @@
+{"bundles":[{"extension_name":"live-bundle-ext","bundle_name":"team-bundle","description":"Live QA bundle","profiles":[{"name":"default","description":"Default live QA profile","primary_channel":"builders","channels":[{"name":"builders","description":"Primary builders channel","primary":true}],"job_count":1,"trigger_count":1,"bridge_count":1}]}]}

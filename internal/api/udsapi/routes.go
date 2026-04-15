@@ -17,6 +17,9 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		bridges.POST("/:id/disable", handlers.DisableBridge)
 		bridges.POST("/:id/restart", handlers.RestartBridge)
 		bridges.GET("/:id/routes", handlers.ListBridgeRoutes)
+		bridges.GET("/:id/secret-bindings", handlers.ListBridgeSecretBindings)
+		bridges.PUT("/:id/secret-bindings/:binding_name", handlers.PutBridgeSecretBinding)
+		bridges.DELETE("/:id/secret-bindings/:binding_name", handlers.DeleteBridgeSecretBinding)
 		bridges.POST("/:id/test-delivery", handlers.TestBridgeDelivery)
 	}
 
@@ -147,6 +150,18 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		network.GET("/channels/:channel/messages", handlers.NetworkChannelMessages)
 		network.POST("/send", handlers.NetworkSend)
 		network.GET("/inbox", handlers.NetworkInbox)
+	}
+
+	bundles := api.Group("/bundles")
+	{
+		bundles.GET("/catalog", handlers.ListBundleCatalog)
+		bundles.POST("/preview", handlers.PreviewBundleActivation)
+		bundles.GET("/activations", handlers.ListBundleActivations)
+		bundles.POST("/activations", handlers.ActivateBundle)
+		bundles.GET("/activations/:id", handlers.GetBundleActivation)
+		bundles.PATCH("/activations/:id", handlers.UpdateBundleActivation)
+		bundles.DELETE("/activations/:id", handlers.DeleteBundleActivation)
+		bundles.GET("/network/settings", handlers.BundleNetworkSettings)
 	}
 
 	extensions := api.Group("/extensions")

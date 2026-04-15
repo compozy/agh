@@ -28,6 +28,8 @@ type JobSource string
 const (
 	// JobSourceConfig identifies a TOML-backed automation definition.
 	JobSourceConfig JobSource = "config"
+	// JobSourcePackage identifies a daemon-managed extension bundle definition.
+	JobSourcePackage JobSource = "package"
 	// JobSourceDynamic identifies a runtime-created automation definition.
 	JobSourceDynamic JobSource = "dynamic"
 )

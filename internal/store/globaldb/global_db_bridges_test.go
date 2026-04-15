@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/bridges"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
@@ -24,6 +25,7 @@ func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
 		"platform",
 		"extension_name",
 		"display_name",
+		"source",
 		"enabled",
 		"status",
 		"routing_policy",
@@ -59,6 +61,38 @@ func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
 		"received_at",
 		"expires_at",
 	})
+
+	now := time.Date(2026, 4, 15, 10, 0, 0, 0, time.UTC)
+	if _, err := globalDB.db.ExecContext(
+		testutil.Context(t),
+		`INSERT INTO bridge_instances (
+			id, scope, workspace_id, platform, extension_name, display_name, enabled, status, routing_policy, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"brg-default-source",
+		string(bridges.ScopeGlobal),
+		nil,
+		"telegram",
+		"telegram-adapter",
+		"Default Source Bridge",
+		true,
+		string(bridges.BridgeStatusReady),
+		`{"include_peer":true}`,
+		store.FormatTimestamp(now),
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("ExecContext(insert legacy bridge row without source) error = %v", err)
+	}
+
+	loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), "brg-default-source")
+	if err != nil {
+		t.Fatalf("GetBridgeInstance() error = %v", err)
+	}
+	if got, want := loaded.Source, bridges.BridgeInstanceSourceDynamic; got != want {
+		t.Fatalf("loaded.Source = %q, want %q", got, want)
+	}
+	if loaded.Source == "" {
+		t.Fatal("loaded.Source = empty, want default source value")
+	}
 }
 
 func TestGlobalDBBridgeGuardClauses(t *testing.T) {

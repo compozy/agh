@@ -34,14 +34,15 @@ func (g *GlobalDB) InsertBridgeInstance(ctx context.Context, instance bridges.Br
 	if _, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO bridge_instances (
-			id, scope, workspace_id, platform, extension_name, display_name, enabled, status, routing_policy, delivery_defaults, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, scope, workspace_id, platform, extension_name, display_name, source, enabled, status, routing_policy, delivery_defaults, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		string(normalized.Scope),
 		store.NullableString(normalized.WorkspaceID),
 		normalized.Platform,
 		normalized.ExtensionName,
 		normalized.DisplayName,
+		string(normalized.Source),
 		normalized.Enabled,
 		string(normalized.Status),
 		routingPolicyJSON,
@@ -72,13 +73,14 @@ func (g *GlobalDB) UpdateBridgeInstance(ctx context.Context, instance bridges.Br
 	result, err := g.db.ExecContext(
 		ctx,
 		`UPDATE bridge_instances
-		 SET scope = ?, workspace_id = ?, platform = ?, extension_name = ?, display_name = ?, enabled = ?, status = ?, routing_policy = ?, delivery_defaults = ?, updated_at = ?
+		 SET scope = ?, workspace_id = ?, platform = ?, extension_name = ?, display_name = ?, source = ?, enabled = ?, status = ?, routing_policy = ?, delivery_defaults = ?, updated_at = ?
 		 WHERE id = ?`,
 		string(normalized.Scope),
 		store.NullableString(normalized.WorkspaceID),
 		normalized.Platform,
 		normalized.ExtensionName,
 		normalized.DisplayName,
+		string(normalized.Source),
 		normalized.Enabled,
 		string(normalized.Status),
 		routingPolicyJSON,
@@ -141,7 +143,7 @@ func (g *GlobalDB) GetBridgeInstance(ctx context.Context, id string) (bridges.Br
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT id, scope, workspace_id, platform, extension_name, display_name, enabled, status, routing_policy, delivery_defaults, created_at, updated_at
+		`SELECT id, scope, workspace_id, platform, extension_name, display_name, source, enabled, status, routing_policy, delivery_defaults, created_at, updated_at
 		 FROM bridge_instances WHERE id = ?`,
 		trimmedID,
 	)
@@ -164,7 +166,7 @@ func (g *GlobalDB) ListBridgeInstances(ctx context.Context) ([]bridges.BridgeIns
 
 	rows, err := g.db.QueryContext(
 		ctx,
-		`SELECT id, scope, workspace_id, platform, extension_name, display_name, enabled, status, routing_policy, delivery_defaults, created_at, updated_at
+		`SELECT id, scope, workspace_id, platform, extension_name, display_name, source, enabled, status, routing_policy, delivery_defaults, created_at, updated_at
 		 FROM bridge_instances
 		 ORDER BY display_name ASC, created_at ASC, id ASC`,
 	)
@@ -628,6 +630,7 @@ func scanBridgeInstance(scanner rowScanner) (bridges.BridgeInstance, error) {
 		instance            bridges.BridgeInstance
 		scopeRaw            string
 		workspaceID         sql.NullString
+		sourceRaw           string
 		enabled             bool
 		statusRaw           string
 		routingPolicyRaw    string
@@ -642,6 +645,7 @@ func scanBridgeInstance(scanner rowScanner) (bridges.BridgeInstance, error) {
 		&instance.Platform,
 		&instance.ExtensionName,
 		&instance.DisplayName,
+		&sourceRaw,
 		&enabled,
 		&statusRaw,
 		&routingPolicyRaw,
@@ -656,6 +660,7 @@ func scanBridgeInstance(scanner rowScanner) (bridges.BridgeInstance, error) {
 	if value := store.NullString(workspaceID); value != nil {
 		instance.WorkspaceID = *value
 	}
+	instance.Source = bridges.BridgeInstanceSource(sourceRaw)
 	instance.Enabled = enabled
 	instance.Status = bridges.BridgeStatus(statusRaw)
 	if err := json.Unmarshal([]byte(routingPolicyRaw), &instance.RoutingPolicy); err != nil {

@@ -18,6 +18,7 @@ type daemonExtensionService struct {
 	registry  *extensionpkg.Registry
 	runtime   extensionRuntime
 	hooks     hookRuntime
+	bundles   interface{ Reconcile(context.Context) error }
 	homePaths aghconfig.HomePaths
 	logger    *slog.Logger
 	now       func() time.Time
@@ -29,6 +30,7 @@ func newDaemonExtensionService(
 	registry *extensionpkg.Registry,
 	runtime extensionRuntime,
 	hooks hookRuntime,
+	bundles interface{ Reconcile(context.Context) error },
 	homePaths aghconfig.HomePaths,
 	logger *slog.Logger,
 	now func() time.Time,
@@ -48,6 +50,7 @@ func newDaemonExtensionService(
 		registry:  registry,
 		runtime:   runtime,
 		hooks:     hooks,
+		bundles:   bundles,
 		homePaths: homePaths,
 		logger:    logger,
 		now:       now,
@@ -138,11 +141,17 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 
 	reloadErr := s.runtime.Reload(ctx)
 	if s.hooks == nil {
-		return reloadErr
+		if s.bundles == nil {
+			return reloadErr
+		}
+		return errors.Join(reloadErr, s.bundles.Reconcile(ctx))
 	}
 
 	rebuildErr := s.hooks.Rebuild(ctx)
-	return errors.Join(reloadErr, rebuildErr)
+	if s.bundles == nil {
+		return errors.Join(reloadErr, rebuildErr)
+	}
+	return errors.Join(reloadErr, rebuildErr, s.bundles.Reconcile(ctx))
 }
 
 func (s *daemonExtensionService) lookup(name string) (*extensionpkg.Extension, error) {
@@ -206,6 +215,11 @@ func populateExtensionManifest(logger *slog.Logger, ext *extensionpkg.Extension)
 		return
 	}
 	ext.Manifest = manifest
+	if bundles, err := extensionpkg.LoadBundleSpecs(filepath.Dir(ext.Info.ManifestPath), manifest); err == nil {
+		ext.Bundles = bundles
+	} else if logger != nil {
+		logger.Debug("daemon: load extension bundles for status failed", "path", ext.Info.ManifestPath, "error", err)
+	}
 }
 
 func (s *daemonExtensionService) payloadFromExtension(ext *extensionpkg.Extension) contract.ExtensionPayload {

@@ -8,6 +8,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/network"
@@ -56,9 +57,25 @@ type BridgeService interface {
 	bridgepkg.Registry
 	bridgepkg.TargetResolver
 	ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error)
+	ListSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error)
+	PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error
+	DeleteSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error
 	StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
 	StopInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
 	RestartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
+}
+
+// BundleService exposes extension bundle catalog, activation, and effective
+// network-default state to API transports.
+type BundleService interface {
+	Catalog(ctx context.Context) ([]bundlepkg.CatalogEntry, error)
+	PreviewActivation(ctx context.Context, req bundlepkg.ActivateRequest) (bundlepkg.ActivationPreview, error)
+	Activate(ctx context.Context, req bundlepkg.ActivateRequest) (bundlepkg.ActivationPreview, error)
+	ListActivations(ctx context.Context) ([]bundlepkg.ActivationPreview, error)
+	GetActivation(ctx context.Context, id string) (bundlepkg.ActivationPreview, error)
+	UpdateActivation(ctx context.Context, req bundlepkg.UpdateActivationRequest) (bundlepkg.ActivationPreview, error)
+	Deactivate(ctx context.Context, id string) error
+	NetworkSettings(ctx context.Context) (bundlepkg.NetworkSettings, error)
 }
 
 // NetworkService is the runtime network surface exposed to daemon transports.
