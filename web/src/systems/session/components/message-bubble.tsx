@@ -1,4 +1,5 @@
-import { memo } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Check, Copy } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
@@ -26,6 +27,40 @@ function formatTimestamp(ts: number): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+const COPY_RESET_MS = 1200;
+
+function MessageCopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    return () => clearTimeout(timerRef.current);
+  }, []);
+
+  const handleCopy = useCallback(() => {
+    void navigator.clipboard.writeText(text);
+    setCopied(true);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopied(false), COPY_RESET_MS);
+  }, [text]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className={cn(
+        "rounded-md p-1",
+        "opacity-0 transition-opacity duration-200",
+        "group-hover/msgbubble:opacity-100",
+        "text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-text-primary)]"
+      )}
+      aria-label="Copy message"
+    >
+      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+    </button>
+  );
+}
+
 export const MessageBubble = memo(
   function MessageBubble({ message, agentName }: MessageBubbleProps) {
     const isUser = message.role === "user";
@@ -40,8 +75,8 @@ export const MessageBubble = memo(
         >
           <div
             className={cn(
-              "max-w-[85%] rounded-xl px-5 py-4",
-              "bg-[color:var(--color-surface-elevated)]"
+              "group/msgbubble relative max-w-[85%] rounded-2xl rounded-br-sm px-5 py-4",
+              "border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)]"
             )}
             data-testid="user-bubble"
           >
@@ -55,6 +90,14 @@ export const MessageBubble = memo(
                 <MessageMarkdown content={message.content} />
               </div>
             )}
+            <div className="mt-1.5 flex items-center justify-end gap-2">
+              <MessageCopyButton text={message.content} />
+              {timestamp ? (
+                <span className="text-[10px] text-[color:var(--color-text-tertiary)]/50">
+                  {timestamp}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
       );
@@ -62,7 +105,7 @@ export const MessageBubble = memo(
 
     return (
       <div
-        className="px-4 py-2"
+        className="group/msgbubble px-4 py-2"
         data-testid="message-bubble-assistant"
         data-message-id={message.id}
       >
@@ -94,6 +137,12 @@ export const MessageBubble = memo(
 
         {!message.content && message.isStreaming && (
           <span className="text-xs italic text-[color:var(--color-text-tertiary)]">...</span>
+        )}
+
+        {message.content && (
+          <div className="mt-1.5 flex items-center gap-2">
+            <MessageCopyButton text={message.content} />
+          </div>
         )}
       </div>
     );

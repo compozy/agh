@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { UIMessage } from "../types";
 import { MessageBubble } from "./message-bubble";
 import { ProcessingIndicator } from "./processing-indicator";
-import { ToolCallCard } from "./tool-call-card";
+import { ToolGroupSection } from "./tool-group-section";
 
 // ── Row model ──
 
@@ -123,13 +123,7 @@ const ChatMessageRow = memo(
 
     if (row.kind === "tool_group") {
       const cards = mergeToolPairs(row.tools);
-      return (
-        <div className="space-y-1 px-4 py-1" data-testid="tool-group">
-          {cards.map(tool => (
-            <ToolCallCard key={tool.id} message={tool} />
-          ))}
-        </div>
-      );
+      return <ToolGroupSection tools={cards} />;
     }
 
     return <MessageBubble message={row.msg} agentName={agentName} />;
@@ -166,13 +160,58 @@ export const ChatView = memo(function ChatView({
   return <ChatViewContent messages={messages} isStreaming={isStreaming} agentName={agentName} />;
 });
 
+/**
+ * Structural sharing: preserves row references when content is unchanged,
+ * preventing unnecessary virtualizer re-renders during streaming.
+ */
+function isRowUnchanged(a: RowDescriptor, b: RowDescriptor): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "processing") return true;
+  if (a.kind === "tool_group" && b.kind === "tool_group") {
+    return (
+      a.tools === b.tools ||
+      (a.tools.length === b.tools.length && a.tools.every((t, i) => t === b.tools[i]))
+    );
+  }
+  if (a.kind === "message" && b.kind === "message") {
+    return a.msg === b.msg;
+  }
+  return false;
+}
+
+function computeStableRows(prev: RowDescriptor[], next: RowDescriptor[]): RowDescriptor[] {
+  if (prev.length === 0) return next;
+
+  let changed = false;
+  const stable = next.map((row, i) => {
+    if (i < prev.length && isRowUnchanged(prev[i], row)) {
+      return prev[i];
+    }
+    changed = true;
+    return row;
+  });
+
+  if (!changed && prev.length === next.length) return prev;
+  return stable;
+}
+
+function useStableRows(messages: UIMessage[], isStreaming: boolean): RowDescriptor[] {
+  const prevRef = useRef<RowDescriptor[]>([]);
+  return useMemo(() => {
+    const next = buildRows(messages, isStreaming);
+    const stable = computeStableRows(prevRef.current, next);
+    prevRef.current = stable;
+    return stable;
+  }, [messages, isStreaming]);
+}
+
 function ChatViewContent({ messages, isStreaming, agentName }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomLockedRef = useRef(true);
   const userScrollIntentRef = useRef(0);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  const rows = useMemo(() => buildRows(messages, isStreaming), [messages, isStreaming]);
+  const rows = useStableRows(messages, isStreaming);
 
   const virtualizer = useVirtualizer({
     count: rows.length,

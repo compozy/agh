@@ -5,7 +5,6 @@ import {
   Search,
   FolderSearch,
   Globe,
-  Bot,
   Wrench,
   ListChecks,
   Lightbulb,
@@ -14,8 +13,38 @@ import {
   PackageSearch,
   Sparkles,
   NotebookPen,
+  Hammer,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { UIMessage } from "../types";
+
+// --- Tool Tone System ---
+
+export type ToolTone = "tool" | "error" | "thinking" | "info";
+
+const THINKING_TOOLS = new Set(["Think", "Agent", "Task"]);
+const INFO_TOOLS = new Set(["EnterPlanMode", "ExitPlanMode", "TodoWrite", "ToolSearch", "Skill"]);
+
+export function getToolTone(message: UIMessage): ToolTone {
+  if (message.toolError) return "error";
+  const name = message.toolName ?? "";
+  if (THINKING_TOOLS.has(name)) return "thinking";
+  if (INFO_TOOLS.has(name)) return "info";
+  return "tool";
+}
+
+export function toolToneClass(tone: ToolTone): string {
+  switch (tone) {
+    case "error":
+      return "text-[color:var(--color-danger)]/50";
+    case "tool":
+      return "text-[color:var(--color-text-tertiary)]/70";
+    case "thinking":
+      return "text-[color:var(--color-text-tertiary)]/50";
+    case "info":
+      return "text-[color:var(--color-text-tertiary)]/40";
+  }
+}
 
 // --- Tool Icons ---
 
@@ -28,8 +57,8 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
   Glob: FolderSearch,
   WebSearch: Globe,
   WebFetch: Globe,
-  Task: Bot,
-  Agent: Bot,
+  Task: Hammer,
+  Agent: Hammer,
   Think: Lightbulb,
   TodoWrite: ListChecks,
   NotebookEdit: NotebookPen,
@@ -40,8 +69,22 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
   Skill: Sparkles,
 };
 
-export function getToolIcon(toolName: string): LucideIcon {
-  return TOOL_ICONS[toolName] ?? Wrench;
+/**
+ * Resolve tool icon by name, with semantic fallbacks for unknown/MCP tools.
+ */
+export function getToolIcon(toolName: string, toolInput?: Record<string, unknown>): LucideIcon {
+  const direct = TOOL_ICONS[toolName];
+  if (direct) return direct;
+
+  // Semantic fallbacks for unknown tools (MCP, dynamic, etc.)
+  if (toolInput) {
+    if ("command" in toolInput) return Terminal;
+    if ("file_path" in toolInput || "filePath" in toolInput) return FileText;
+    if ("pattern" in toolInput) return Search;
+    if ("url" in toolInput || "query" in toolInput) return Globe;
+  }
+
+  return Wrench;
 }
 
 // --- Tool Labels ---

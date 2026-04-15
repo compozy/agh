@@ -2,8 +2,15 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { UIMessage } from "../types";
-import { getToolIcon, getToolLabel, getToolCompactSummary } from "../lib/tool-labels";
+import {
+  getToolIcon,
+  getToolLabel,
+  getToolCompactSummary,
+  getToolTone,
+  toolToneClass,
+} from "../lib/tool-labels";
 import { ExpandedToolContent } from "./tool-renderers/expanded-tool-content";
 
 // ── localStorage persistence ──
@@ -57,8 +64,13 @@ export const ToolCallCard = memo(
     const hasResult = !!message.toolResult;
     const isRunning = !hasResult;
     const isError = !!message.toolError;
-    const Icon = getToolIcon(message.toolName ?? "");
+    const tone = getToolTone(message);
+    const Icon = getToolIcon(message.toolName ?? "", message.toolInput);
     const summary = getToolCompactSummary(message.toolName ?? "", message.toolInput);
+
+    // For Bash tools, show full raw command in tooltip when it's truncated
+    const rawCommand = message.toolName === "Bash" ? String(message.toolInput?.command ?? "") : "";
+    const showCommandTooltip = rawCommand.length > 80;
 
     // Track whether toolResult was present at mount (history → skip auto-expand)
     const initialHadResult = useRef(hasResult);
@@ -150,11 +162,25 @@ export const ToolCallCard = memo(
                 : getToolLabel(message.toolName ?? "", "past")}
           </span>
 
-          {summary && (
-            <span className="min-w-0 truncate text-[color:var(--color-text-tertiary)]">
-              {summary}
-            </span>
-          )}
+          {summary && showCommandTooltip ? (
+            <Tooltip>
+              <TooltipTrigger
+                className={cn("min-w-0 truncate cursor-default", toolToneClass(tone))}
+              >
+                {summary}
+              </TooltipTrigger>
+              <TooltipContent
+                side="bottom"
+                className="max-w-[min(56rem,calc(100vw-2rem))] px-0 py-0"
+              >
+                <div className="overflow-x-auto px-2 py-1.5 font-mono text-[11px] whitespace-nowrap">
+                  {rawCommand}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          ) : summary ? (
+            <span className={cn("min-w-0 truncate", toolToneClass(tone))}>{summary}</span>
+          ) : null}
 
           <div className="ml-auto flex items-center gap-2">
             {statusBadge}

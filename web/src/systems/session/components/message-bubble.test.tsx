@@ -57,7 +57,7 @@ describe("MessageBubble", () => {
 
     const bubble = screen.getByTestId("user-bubble");
     expect(bubble.className).toMatch(/bg-\[color:var\(--color-surface-elevated\)\]/);
-    expect(bubble.className).toContain("rounded-xl");
+    expect(bubble.className).toContain("rounded-2xl");
     expect(await screen.findByText("Hello")).toBeInTheDocument();
   });
 
