@@ -72,7 +72,7 @@ export function ExtensibilitySection() {
         description="The daemon is extensible at every seam you actually need. No plugins to write — contracts are plain files."
       />
 
-      <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-[repeat(5,minmax(0,1fr))]">
+      <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         {FEATURES.map(feature => (
           <FeatureCard
             key={feature.eyebrow}
@@ -85,11 +85,13 @@ export function ExtensibilitySection() {
         ))}
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_minmax(0,520px)] lg:items-center">
+      <div className="mt-20 grid gap-6 lg:grid-cols-[1fr_minmax(0,520px)] lg:items-start">
         <div className="max-w-[56ch] text-sm leading-relaxed text-(--color-text-secondary)">
+          <h3 className="font-display text-2xl mb-2 mt-8 text-white">
+            A skill is a Markdown file with frontmatter.
+          </h3>
           <p>
-            A skill is a Markdown file with frontmatter. A hook is a TOML block in your config.
-            Everything the daemon loads is inspectable with{" "}
+            A hook is a TOML block in your config. Everything the daemon loads is inspectable with{" "}
             <code className="font-mono text-(--color-text-primary)">agh skill view</code>,{" "}
             <code className="font-mono text-(--color-text-primary)">agh hooks list</code>, and{" "}
             <code className="font-mono text-(--color-text-primary)">agh extension list</code>.

@@ -612,9 +612,9 @@
             "computedHash": "7554393d8a4e3e103f13f244fd754b503b305afea1957ca84edf2e9ed846ea37"
         },
         "remotion-best-practices": {
-            "source": "pedronauck/skills",
+            "source": "remotion-dev/skills",
             "sourceType": "github",
-            "computedHash": "9851afb52e1b892c43b2af973bda1776ce01fedfdfe704e0cfd70069a3a9c300"
+            "computedHash": "df654933e451556147e384078c3fbdbac997cb0fe4d2f2db7642000c239304c5"
         },
         "requirements-clarity": {
             "source": "pedronauck/skills",

@@ -57,7 +57,7 @@ export function CodeBlock({
               aria-label={copied ? "Copied" : "Copy to clipboard"}
               className="text-(--color-text-tertiary) hover:text-(--color-accent)"
             >
-              {copied ? <Check /> : <Copy />}
+              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
             </Button>
           ) : null}
         </div>

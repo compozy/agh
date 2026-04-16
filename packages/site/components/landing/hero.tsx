@@ -1,4 +1,4 @@
-import { HeroVisual } from "./hero-visual";
+import { HeroPlayer } from "./hero-player";
 import { CtaButton } from "./primitives/cta-button";
 
 const signalItems = [
@@ -61,7 +61,7 @@ export function Hero() {
 
           {/* Visual comes after copy on desktop (and on mobile flows under). */}
           <div className="order-1 lg:order-0">
-            <HeroVisual />
+            <HeroPlayer />
           </div>
         </div>
         <dl className="mt-10 grid grid-cols-2 gap-3 md:grid-cols-4">
