@@ -1,6 +1,6 @@
 import { runtimeDocs } from "@/lib/source";
 import { DocsBody, DocsPage } from "fumadocs-ui/page";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { DocPageMasthead } from "@/components/docs/doc-page-masthead";
 import { getMDXComponents } from "@/mdx-components";
@@ -11,10 +11,8 @@ interface PageProps {
 
 export default async function Page(props: PageProps) {
   const params = await props.params;
-  if (!params.slug || params.slug.length === 0) {
-    redirect("/runtime/core/");
-  }
-  const page = runtimeDocs.getPage(params.slug);
+  const slug = params.slug ?? [];
+  const page = runtimeDocs.getPage(slug);
   if (!page) notFound();
 
   const MDX = page.data.body;
@@ -27,7 +25,7 @@ export default async function Page(props: PageProps) {
     >
       <DocPageMasthead
         kind="runtime"
-        slug={params.slug}
+        slug={slug}
         title={page.data.title}
         description={page.data.description}
       />
@@ -44,7 +42,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata(props: PageProps): Promise<Metadata> {
   const params = await props.params;
-  const page = runtimeDocs.getPage(params.slug);
+  const page = runtimeDocs.getPage(params.slug ?? []);
   if (!page) notFound();
 
   return {

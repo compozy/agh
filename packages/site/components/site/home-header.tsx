@@ -27,8 +27,8 @@ function HeaderLink({ href, label, pathname }: { href: string; label: string; pa
     <Link
       href={href}
       className={cn(
-        "inline-flex items-center rounded-full px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]",
-        isActive(pathname, href) && "bg-[rgba(232,87,42,0.12)] text-[var(--color-accent)]"
+        "inline-flex items-center rounded-full px-3 py-1.5 text-sm text-(--color-text-secondary) transition-colors hover:text-(--color-text-primary)",
+        isActive(pathname, href) && "bg-[rgba(232,87,42,0.12)] text-(--color-accent)"
       )}
     >
       {label}
@@ -44,11 +44,11 @@ export function HomeHeader(props: ComponentProps<"header">) {
     <header
       {...props}
       className={cn(
-        "sticky top-0 z-40 border-b border-[var(--color-divider)] bg-[rgba(18,18,18,0.92)] px-4 backdrop-blur-xl",
+        "sticky top-0 z-40 border-b border-(--color-divider) bg-[rgba(18,18,18,0.92)] px-4 backdrop-blur-xl",
         props.className
       )}
     >
-      <div className="mx-auto flex h-14 w-full max-w-[var(--site-layout-width)] items-center gap-3 lg:gap-5">
+      <div className="mx-auto flex h-14 w-full max-w-(--site-layout-width) items-center gap-3 lg:gap-5">
         <Link href="/" className="shrink-0">
           <Logo />
         </Link>
@@ -64,7 +64,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
             <>
               <slots.searchTrigger.full
                 hideIfDisabled
-                className="hidden min-w-[220px] rounded-full border border-[var(--color-divider)] bg-[rgba(28,28,30,0.92)] ps-2.5 lg:flex"
+                className="hidden min-w-[220px] rounded-full border border-(--color-divider) bg-[rgba(28,28,30,0.92)] ps-2.5 lg:flex"
               />
               <slots.searchTrigger.sm
                 hideIfDisabled
@@ -73,7 +73,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
                     variant: "ghost",
                     size: "icon-sm",
                     className:
-                      "rounded-full text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)] lg:hidden",
+                      "rounded-full text-(--color-text-secondary) hover:bg-(--color-hover) hover:text-(--color-text-primary) lg:hidden",
                   })
                 )}
               />
@@ -91,7 +91,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
                   variant: "ghost",
                   size: "icon-sm",
                   className:
-                    "rounded-full text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]",
+                    "rounded-full text-(--color-text-secondary) hover:bg-(--color-hover) hover:text-(--color-text-primary)",
                 })
               )}
             >
@@ -103,8 +103,8 @@ export function HomeHeader(props: ComponentProps<"header">) {
         </div>
       </div>
 
-      <div className="border-t border-[var(--color-divider)] md:hidden">
-        <nav className="mx-auto flex w-full max-w-[var(--site-layout-width)] items-center gap-1 overflow-x-auto px-4 py-2">
+      <div className="border-t border-(--color-divider) md:hidden">
+        <nav className="mx-auto flex w-full max-w-(--site-layout-width) items-center gap-1 overflow-x-auto px-4 py-2">
           {primaryLinks.map(link => (
             <HeaderLink key={link.href} href={link.href} label={link.label} pathname={pathname} />
           ))}

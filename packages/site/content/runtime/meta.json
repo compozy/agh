@@ -1,18 +1,3 @@
 {
-    "pages": [
-        "core",
-        "sessions",
-        "agents",
-        "memory",
-        "skills",
-        "workspaces",
-        "automation",
-        "bridges",
-        "hooks",
-        "extensions",
-        "operations",
-        "reference",
-        "cli-reference",
-        "api-reference"
-    ]
+    "pages": ["core", "cli-reference", "api-reference"]
 }

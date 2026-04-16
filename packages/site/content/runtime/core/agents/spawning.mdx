@@ -1,0 +1,204 @@
+---
+title: Spawning
+description: How AGH resolves an agent definition into an ACP subprocess, negotiates a session, injects environment, and stops the process.
+---
+
+# Spawning
+
+Spawning is the handoff from an AGH agent definition to a live ACP subprocess. It starts when a
+session is created or resumed, and it ends when the subprocess has completed ACP initialization and
+the AGH session becomes active.
+
+<Mermaid
+  chart={`sequenceDiagram
+participant Client
+participant Daemon
+participant Workspace
+participant Config
+participant ACP
+participant Agent
+
+Client->>Daemon: Create or resume session
+Daemon->>Workspace: Resolve workspace snapshot
+Workspace-->>Daemon: Agents, config, additional dirs
+Daemon->>Config: Resolve AGENT.md and provider
+Config-->>Daemon: command, prompt, permissions, MCP servers
+Daemon->>ACP: Start subprocess
+ACP->>Agent: initialize
+Agent-->>ACP: capabilities
+ACP->>Agent: session/new or session/load
+Agent-->>ACP: ACP session id, modes, models
+ACP->>Agent: session/set_mode when supported
+ACP-->>Daemon: running process
+Daemon-->>Client: active AGH session`}
+caption="AGH resolves workspace and provider configuration before launching an ACP-compatible process over stdio."
+/>
+
+## Spawn inputs
+
+The session manager builds `acp.StartOpts` from the resolved workspace and agent:
+
+| Start option      | Source                                                                   |
+| ----------------- | ------------------------------------------------------------------------ |
+| `AgentName`       | resolved `AGENT.md` name                                                 |
+| `Command`         | `agent.command` or provider `command`                                    |
+| `Cwd`             | primary workspace root                                                   |
+| `AdditionalDirs`  | registered workspace additional roots                                    |
+| `Env`             | daemon environment plus AGH session variables                            |
+| `MCPServers`      | resolved config/provider/agent/skill MCP server list                     |
+| `Permissions`     | resolved agent or global permission mode                                 |
+| `SystemPrompt`    | assembled startup prompt built from `AGENT.md` body plus runtime context |
+| `ResumeSessionID` | stored ACP session ID when resuming                                      |
+
+The ACP driver validates these before launch:
+
+- `AgentName`, `Command`, and `Cwd` are required.
+- `Cwd` must resolve to an existing directory.
+- Each non-empty additional dir must be absolute and resolve to an existing directory.
+- Duplicate additional dirs are removed after symlink resolution.
+- An additional dir equal to the primary workspace root is skipped.
+- Permissions must be `deny-all`, `approve-reads`, or `approve-all`.
+
+## Launch
+
+AGH parses the provider command with shell-style quoting:
+
+```text
+npx -y @agentclientprotocol/claude-agent-acp@0.24.2
+```
+
+The parsed executable and arguments are launched directly, not through a shell. The subprocess runs
+with `cwd` set to the workspace root, and AGH connects JSON-RPC to the subprocess over stdio.
+
+On Unix systems, managed ACP subprocesses start in their own process group. Stop can therefore
+terminate wrapper processes and their children, which matters for commands such as `npx ...` that
+start a Node wrapper before the actual ACP runtime.
+
+## Environment
+
+The subprocess inherits the daemon environment with these AGH additions:
+
+| Variable              | When set                                                         | Value                           |
+| --------------------- | ---------------------------------------------------------------- | ------------------------------- |
+| `AGH_SESSION_ID`      | every spawned session                                            | AGH session ID                  |
+| `AGH_SESSION_CHANNEL` | sessions created with a channel                                  | channel name                    |
+| `AGH_PEER_ID`         | sessions created with a channel                                  | `<agentName>.<sessionID>`       |
+| `AGH_BIN`             | every spawned session when the daemon executable can be resolved | absolute path to the AGH binary |
+
+AGH also prepends the AGH binary directory to `PATH`, removing a duplicate entry if it already
+exists. Before setting channel values, stale `AGH_SESSION_CHANNEL` and `AGH_PEER_ID` values are
+cleared from the inherited environment.
+
+Provider API keys are not loaded from `api_key_env`. If a provider needs `ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`, `GEMINI_API_KEY`, or a custom variable, start the daemon with that variable in
+the environment.
+
+## ACP negotiation
+
+After the process starts, AGH sends `initialize`.
+
+AGH advertises:
+
+- filesystem read text support
+- filesystem write text support
+- terminal support
+- client name `agh`
+- client version `dev`
+
+The initialize response tells AGH whether the agent supports `session/load`.
+
+### New session
+
+For a new session, AGH sends `session/new`:
+
+```json
+{
+  "cwd": "/workspace/root",
+  "mcpServers": [],
+  "additional_dirs": ["/workspace/other-root"]
+}
+```
+
+`additional_dirs` is an AGH extension field. It is top-level snake_case because the upstream ACP
+SDK does not model it yet.
+
+The response provides the ACP `sessionId`, supported modes, and supported models. AGH stores the
+ACP session ID separately from the durable AGH session ID.
+
+### Resume
+
+For resume, AGH sends `session/load`:
+
+```json
+{
+  "cwd": "/workspace/root",
+  "mcpServers": [],
+  "additional_dirs": ["/workspace/other-root"],
+  "sessionId": "provider-session-id"
+}
+```
+
+Resume requires the agent to advertise `loadSession` during initialize. If it does not, startup
+fails with an unsupported load-session error. If the upstream runtime says the stored session no
+longer exists, AGH can recognize the ACP resource-not-found shape and repair resume behavior at the
+session layer.
+
+## Permission mode mapping
+
+AGH applies its static permission mode to ACP session modes when the provider reports a compatible
+mode.
+
+| AGH permission  | ACP mode names AGH tries                                                                       |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| `approve-all`   | `full-access`, `full_access`, `bypassPermissions`, `bypass_permissions`, `auto`, `acceptEdits` |
+| `approve-reads` | `read-only`, `read_only`, `readOnly`, `plan`, `ask`                                            |
+| `deny-all`      | `read-only`, `read_only`, `readOnly`, `plan`, `ask`                                            |
+
+If no reported mode matches, AGH skips `session/set_mode` and still keeps its own inbound
+permission policy. Filesystem permission checks use the primary workspace root as the sandbox.
+
+## Prompt startup behavior
+
+The `AGENT.md` body becomes part of the startup system prompt. The current prompt path sends that
+startup prompt together with the first user prompt, then sends only user prompt text on later turns.
+
+That means:
+
+- the body should contain durable role and operating instructions
+- per-turn details belong in the user prompt
+- changing `AGENT.md` affects new processes, not a process that is already running
+
+## Stop behavior
+
+Stopping is cooperative first:
+
+1. Mark the process as stop-requested.
+2. Send ACP `session/cancel` when an ACP session ID exists.
+3. Ask the managed subprocess to shut down.
+4. Wait for process exit.
+5. Escalate through the process-tree shutdown path when needed.
+6. Close managed terminals and suppress expected wait errors for requested stops.
+
+Failed startup uses the same cleanup path. If initialize, `session/new`, or `session/load` fails
+after the process was launched, AGH stops the process before returning the startup error.
+
+## Edge cases
+
+| Case                                           | Behavior                                                                                     |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Command cannot be parsed                       | Startup fails before launch.                                                                 |
+| Executable is missing from `PATH`              | Startup fails from subprocess launch.                                                        |
+| Workspace root is missing                      | Startup fails during `Cwd` normalization.                                                    |
+| Additional dir is relative                     | Startup validation fails.                                                                    |
+| Additional dir is missing                      | Startup normalization fails.                                                                 |
+| Provider omits supported modes                 | AGH skips `session/set_mode`.                                                                |
+| Provider omits default model                   | Resolved model may be empty.                                                                 |
+| Provider lacks `session/load`                  | Resume fails.                                                                                |
+| Stored ACP session is missing upstream         | AGH clears the stale ACP session ID and starts a fresh ACP session for the same AGH session. |
+| Agent requests a filesystem or terminal action | AGH evaluates the inbound permission policy before serving the request.                      |
+
+## Related pages
+
+- [Agent Definitions](/runtime/core/agents/definitions) shows how the launch inputs are declared.
+- [Providers](/runtime/core/agents/providers) lists the built-in provider commands.
+- [Session Lifecycle](/runtime/core/sessions/lifecycle) explains how the spawned process is wrapped by a durable AGH session.

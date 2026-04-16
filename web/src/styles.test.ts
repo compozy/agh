@@ -81,20 +81,20 @@ describe("Design Token System — styles.css", () => {
     expect(tokens).not.toMatch(/radial-gradient/);
   });
 
-  it("defines --color-canvas: #121212", () => {
-    expect(tokens).toMatch(/--color-canvas:\s*#121212/);
+  it("defines --color-canvas: #141312", () => {
+    expect(tokens).toMatch(/--color-canvas:\s*#141312/i);
   });
 
   it("defines --color-accent: #E8572A", () => {
     expect(tokens).toMatch(/--color-accent:\s*#E8572A/i);
   });
 
-  it("defines --color-surface: #1C1C1E", () => {
-    expect(tokens).toMatch(/--color-surface:\s*#1C1C1E/i);
+  it("defines --color-surface: #1E1C1B", () => {
+    expect(tokens).toMatch(/--color-surface:\s*#1E1C1B/i);
   });
 
-  it("defines --color-surface-elevated: #2C2C2E", () => {
-    expect(tokens).toMatch(/--color-surface-elevated:\s*#2C2C2E/i);
+  it("defines --color-surface-elevated: #2E2C2B", () => {
+    expect(tokens).toMatch(/--color-surface-elevated:\s*#2E2C2B/i);
   });
 
   it("defines --color-text-primary: #E5E5E7", () => {

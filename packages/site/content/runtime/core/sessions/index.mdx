@@ -1,0 +1,45 @@
+---
+title: Sessions
+description: The durable runtime unit AGH creates, resumes, audits, and governs.
+---
+
+A session is the unit AGH actually manages. It binds one agent subprocess to a workspace,
+permission policy, event store, and resume record under one stable AGH session ID.
+
+<OperatorNote>
+  Reach for this section when you need the operational contract around one live session: how it
+  starts, what gets stored, how replay works, and how approvals are enforced while the agent runs.
+</OperatorNote>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/sessions/lifecycle"
+    label="Lifecycle"
+    title="Create, activate, stop, and classify sessions"
+    description="Use this page for the state machine, stop behavior, timeout boundaries, and what AGH persists across the session lifetime."
+    meta="State model"
+  />
+  <RouteRow
+    href="/runtime/core/sessions/resume"
+    label="Resume"
+    title="Resume stopped sessions and replay stored work"
+    description="Use this page to understand ACP `session/load`, fresh-start fallback, transcript reconstruction, and when resume will fail."
+    meta="Recovery"
+  />
+  <RouteRow
+    href="/runtime/core/sessions/events"
+    label="Events"
+    title="Query, stream, and persist session events"
+    description="Use this page for the event catalog, SSE behavior, SQLite storage, and the difference between persisted streams and prompt streams."
+    meta="Observability"
+  />
+  <RouteRow
+    href="/runtime/core/sessions/permissions"
+    label="Permissions"
+    title="Static modes, workspace boundaries, and approval flow"
+    description="Use this page to understand what `deny-all`, `approve-reads`, and `approve-all` actually permit and how interactive approvals work."
+    meta="Governance"
+  />
+</RouteList>

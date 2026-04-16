@@ -41,6 +41,16 @@ type memoryMutationView struct {
 	Reason   string       `json:"reason,omitempty"`
 }
 
+var memoryWriteExample = strings.Join([]string{
+	"  # Write workspace-scoped project memory from a flag",
+	`  agh memory write runtime-notes.md --type project --description "Runtime docs live in the site package" ` +
+		`--content "Runtime docs are authored under packages/site/content/runtime."`,
+	"",
+	"  # Write global user memory from stdin",
+	`  printf "Prefer concise PR summaries.\n" | agh memory write review-style.md --type user ` +
+		`--description "User wants concise PR summaries"`,
+}, "\n")
+
 type memoryLocation struct {
 	Scope     memory.Scope
 	Workspace string
@@ -138,14 +148,10 @@ func newMemoryWriteCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "write <filename> --type <type> --description <description>",
-		Short: "Write or update a persistent memory file",
-		Example: `  # Write workspace-scoped project memory from a flag
-  agh memory write runtime-notes.md --type project --description "Runtime docs live in the site package" --content "Runtime docs are authored under packages/site/content/runtime."
-
-  # Write global user memory from stdin
-  printf "Prefer concise PR summaries.\n" | agh memory write review-style.md --type user --description "User wants concise PR summaries"`,
-		Args: cobra.ExactArgs(1),
+		Use:     "write <filename> --type <type> --description <description>",
+		Short:   "Write or update a persistent memory file",
+		Example: memoryWriteExample,
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

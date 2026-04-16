@@ -48,7 +48,7 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
   }, [chart, diagramId]);
 
   return (
-    <figure className="not-prose my-6 overflow-x-auto rounded-lg border border-[var(--color-divider)] bg-[var(--color-surface)] p-4">
+    <figure className="not-prose my-6 overflow-x-auto rounded-lg border border-(--color-divider) bg-(--color-surface) p-4">
       {svg ? (
         <div
           aria-label="Mermaid diagram"
@@ -57,23 +57,23 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
         />
       ) : error ? (
         <div>
-          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-accent)]">
+          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-(--color-accent)">
             Diagram source
           </p>
-          <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
+          <p className="mt-2 text-sm leading-6 text-(--color-text-secondary)">
             Mermaid could not render this diagram in the current browser session.
           </p>
-          <pre className="mt-4 overflow-x-auto rounded-md border border-[var(--color-divider)] bg-[rgba(255,255,255,0.03)] p-3 text-xs leading-6 text-[var(--color-text-secondary)]">
+          <pre className="mt-4 overflow-x-auto rounded-md border border-(--color-divider) bg-[rgba(255,255,255,0.03)] p-3 text-xs leading-6 text-(--color-text-secondary)">
             <code>{chart}</code>
           </pre>
-          <p className="mt-3 text-sm leading-6 text-[var(--color-text-tertiary)]">{error}</p>
+          <p className="mt-3 text-sm leading-6 text-(--color-text-tertiary)">{error}</p>
         </div>
       ) : (
-        <p className="text-sm leading-6 text-[var(--color-text-secondary)]">Rendering diagram...</p>
+        <p className="text-sm leading-6 text-(--color-text-secondary)">Rendering diagram...</p>
       )}
 
       {caption ? (
-        <figcaption className="mt-3 text-sm leading-6 text-[var(--color-text-secondary)]">
+        <figcaption className="mt-3 text-sm leading-6 text-(--color-text-secondary)">
           {caption}
         </figcaption>
       ) : null}

@@ -1,0 +1,213 @@
+---
+title: Permissions
+description: How AGH applies static permission modes, workspace boundaries, and interactive approvals during session execution.
+---
+
+# Permissions
+
+AGH applies permissions in two layers:
+
+1. a daemon-side static policy for built-in ACP tool surfaces
+2. an interactive approval flow for ACP `session/request_permission`
+
+Both layers are scoped to the session workspace. `approve-all` never means "full machine access".
+
+## Permission modes
+
+AGH supports three static modes:
+
+| Mode            | Static behavior                                                                   |
+| --------------- | --------------------------------------------------------------------------------- |
+| `deny-all`      | AGH auto-allows none of the built-in file or terminal operations.                 |
+| `approve-reads` | AGH auto-allows `fs/read_text_file` only.                                         |
+| `approve-all`   | AGH auto-allows `fs/read_text_file`, `fs/write_text_file`, and `terminal/create`. |
+
+### Defaults and overrides
+
+The current built-in default configuration is:
+
+```toml
+[permissions]
+mode = "approve-all"
+```
+
+That global mode can be overridden by an agent definition. Dream sessions are forced to
+`approve-all` regardless of the configured mode.
+
+If a session somehow reaches startup with no resolved permission string at all, the session manager
+falls back to `approve-reads` instead of launching with an empty policy.
+
+## What the static policy actually covers
+
+These are the built-in operations AGH checks directly:
+
+| Operation            | `deny-all` | `approve-reads` | `approve-all` |
+| -------------------- | ---------- | --------------- | ------------- |
+| `fs/read_text_file`  | blocked    | allowed         | allowed       |
+| `fs/write_text_file` | blocked    | blocked         | allowed       |
+| `terminal/create`    | blocked    | blocked         | allowed       |
+
+Static auto-allow is only one part of the full story. AGH still enforces workspace scoping and
+network-turn restrictions after the mode check passes.
+
+## Workspace boundaries
+
+Every permission decision is evaluated relative to the session workspace root.
+
+AGH resolves paths carefully:
+
+- absolute paths are checked directly
+- relative paths are resolved under the workspace root
+- existing paths are resolved through symlinks
+- missing paths are resolved through the first existing ancestor
+
+If the final path escapes the workspace root, AGH rejects it with a path-outside-workspace error.
+
+## Network-originated turn restrictions
+
+Network-originated turns are stricter than normal user turns, even under `approve-all`.
+
+Current daemon-side restrictions:
+
+- `fs/write_text_file` is blocked for network turns
+- `terminal/create` is only allowed for a narrow allowlist of `agh network ...` commands
+
+This is enforced after the normal mode check.
+
+## Interactive approval flow
+
+Agents can also ask for permission explicitly with ACP `session/request_permission`.
+
+That flow behaves like this:
+
+1. the agent sends a permission request with one or more offered outcomes
+2. AGH checks the workspace boundary first
+3. AGH either auto-selects an outcome or records a pending permission event
+4. a client approves or rejects it
+5. AGH returns the selected ACP outcome to the agent
+
+### Auto decisions vs pending decisions
+
+| Session mode    | Request kind                   | Immediate result |
+| --------------- | ------------------------------ | ---------------- |
+| `approve-all`   | any valid in-workspace request | `allow-once`     |
+| `approve-reads` | ACP read request               | `allow-once`     |
+| `approve-reads` | non-read ACP request           | pending approval |
+| `deny-all`      | any ACP request                | pending approval |
+
+Outside-workspace requests are rejected immediately instead of becoming pending.
+
+### Decisions clients can send
+
+The approval request body accepts these decisions:
+
+- `allow-once`
+- `allow-always`
+- `reject-once`
+- `reject-always`
+
+Example HTTP approval:
+
+```bash
+curl -X POST http://localhost:2123/api/sessions/sess-1234/approve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "request_id": "req-42",
+    "turn_id": "turn-9abc",
+    "decision": "allow-always"
+  }'
+```
+
+Success response:
+
+```json
+{
+  "status": "approved"
+}
+```
+
+### Approval timeout
+
+Pending interactive permission requests wait up to 5 minutes by default. If no approval arrives,
+AGH resolves the request as `reject-once`.
+
+### What `allow-always` and `reject-always` mean
+
+AGH does not maintain its own daemon-side allowlist for those decisions. It picks the closest ACP
+option offered by the agent and returns that selected option. The agent runtime owns the long-lived
+meaning of "always".
+
+## Permission events
+
+Permission requests and resolutions are visible in both prompt streams and persisted session
+history.
+
+Example canonical permission payload:
+
+```json
+{
+  "schema": "agh.session.event.v1",
+  "type": "permission",
+  "session_id": "acp-session-77",
+  "turn_id": "turn-9abc",
+  "request_id": "req-42",
+  "timestamp": "2026-04-16T01:22:00Z",
+  "action": "session/request_permission",
+  "resource": "/absolute/path/to/repo/internal/session/manager.go",
+  "decision": "allow-always",
+  "title": "Write file",
+  "tool_call_id": "tool-call-7",
+  "raw": {
+    "tool_call": {
+      "kind": "edit",
+      "title": "Write file"
+    }
+  }
+}
+```
+
+If a request is still pending, the initial permission event is recorded with no final `decision`
+yet. The resolved decision appears when approval completes.
+
+## Current transport status
+
+Interactive approval is exposed differently across AGH transports today:
+
+| Transport | Status                                                    |
+| --------- | --------------------------------------------------------- |
+| HTTP      | implemented at `POST /api/sessions/:id/approve`           |
+| UDS       | route exists, but currently returns `501 Not Implemented` |
+| CLI       | no dedicated approval command yet                         |
+
+That means custom clients and the browser-facing HTTP transport can approve requests today, but the
+local UDS transport does not yet provide the same capability.
+
+## Practical configuration example
+
+Global default in `~/.agh/config.toml`:
+
+```toml
+[permissions]
+mode = "approve-reads"
+```
+
+Per-agent override in an `AGENT.md` definition:
+
+```md
+---
+name: reviewer
+provider: codex
+permissions: deny-all
+---
+
+Review code changes and explain the risk.
+```
+
+Use the global default for the team baseline, then override individual agents only when they need a
+different safety envelope. There is no `agh session new --permissions` flag today, and the session
+create HTTP payload does not currently accept a permissions override either.
+
+## Next steps
+
+- Use [Session Lifecycle](/runtime/core/sessions/lifecycle) to see where approvals fit into create, active, and stop behavior.
+- Use [Event Streaming](/runtime/core/sessions/events) to follow `permission` events and audit what happened in one session.

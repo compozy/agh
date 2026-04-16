@@ -1,0 +1,83 @@
+"use client";
+
+import { useState } from "react";
+import { Check, Copy } from "lucide-react";
+import { Button } from "@agh/ui";
+import { cn } from "@agh/ui/utils";
+
+interface CodeBlockProps {
+  code: string;
+  language?: string;
+  copyable?: boolean;
+  caption?: string;
+  className?: string;
+  /** Prefix each line with a shell prompt. */
+  shell?: boolean;
+}
+
+export function CodeBlock({
+  code,
+  language,
+  copyable = true,
+  caption,
+  className,
+  shell = false,
+}: CodeBlockProps) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard blocked — drop silently
+    }
+  }
+
+  const lines = code.split("\n");
+
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas-deep)",
+        className
+      )}
+    >
+      {(caption || language || copyable) && (
+        <div className="flex items-center justify-between border-b border-(--color-divider) px-4 py-2.5">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
+            {caption ?? language ?? "shell"}
+          </span>
+          {copyable ? (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={handleCopy}
+              aria-label={copied ? "Copied" : "Copy to clipboard"}
+              className="text-(--color-text-tertiary) hover:text-(--color-accent)"
+            >
+              {copied ? <Check /> : <Copy />}
+            </Button>
+          ) : null}
+        </div>
+      )}
+      <pre className="overflow-x-auto px-4 py-4 font-mono text-[13px] leading-[1.7] text-(--color-text-primary)">
+        <code>
+          {lines.map((line, i) => (
+            <div key={i} className={line === "" ? "h-[1.1em]" : undefined}>
+              {shell && line !== "" && !line.startsWith("#") ? (
+                <span className="select-none text-(--color-accent)">$ </span>
+              ) : null}
+              {line.startsWith("#") ? (
+                <span className="text-(--color-text-tertiary)">{line}</span>
+              ) : (
+                line
+              )}
+            </div>
+          ))}
+        </code>
+      </pre>
+    </div>
+  );
+}

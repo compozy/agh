@@ -1,124 +1,84 @@
-import Link from "next/link";
-
-const terminalLines = [
-  { prompt: true, text: "agh daemon start" },
-  { prompt: false, text: "daemon  pid=42871  status=online  uptime=0s" },
-  { prompt: false, text: "" },
-  { prompt: true, text: "agh session new --agent coder" },
-  { prompt: false, text: "session  id=s_7kx9  agent=coder  driver=claude-code" },
-  { prompt: false, text: "memory   workspace=/projects/api  skills=3 loaded" },
-  { prompt: false, text: "" },
-  { prompt: true, text: "agh network peers" },
-  { prompt: false, text: "AGENT         DRIVER       CAPABILITIES" },
-  { prompt: false, text: "deployer      codex-cli    deploy, infra, rollback" },
-  { prompt: false, text: "analyst       gemini-cli   analysis, transforms" },
-  { prompt: false, text: "reviewer      claude-code  review, architecture" },
-  { prompt: false, text: "" },
-  { prompt: true, text: "agh network delegate deployer --task 'deploy staging'" },
-  { prompt: false, text: "delegate  agent=deployer  task=t_3mp1  status=accepted" },
-];
+import { HeroVisual } from "./hero-visual";
+import { CtaButton } from "./primitives/cta-button";
 
 const signalItems = [
-  { label: "RUNTIME", value: "Local-first control plane" },
-  { label: "NETWORK", value: "Open agent coordination" },
-  { label: "STATE", value: "Sessions that survive restarts" },
-  { label: "EDGE", value: "Cross-runtime delegation" },
+  {
+    label: "Complete agent runtime",
+    detail: "Sessions, memory, skills, workspaces, automation, bridges — one binary.",
+  },
+  {
+    label: "Built-in agent network",
+    detail: "Agents discover peers, delegate work, and collect receipts across machines.",
+  },
+  {
+    label: "Local-first, self-hosted",
+    detail: "No Docker. No Postgres. Start with agh daemon start.",
+  },
+  {
+    label: "Open protocol, open source",
+    detail: "agh-network/v0 is an open wire spec. Bring any agent you like.",
+  },
 ];
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden border-b border-[var(--color-divider)] px-4 pt-8 pb-16 md:pt-12 md:pb-24">
-      {/* Background mesh */}
+    <section className="relative overflow-hidden border-b border-(--color-divider) px-4 pt-8 pb-16 md:pt-12 md:pb-20">
+      {/* Background mesh — restored and faded so it textures the whole hero. */}
       <div
-        className="pointer-events-none absolute inset-0 bg-[length:100%_auto] bg-[position:0%_0%] bg-no-repeat opacity-20 mix-blend-screen"
+        className="pointer-events-none absolute inset-0 bg-size-[100%_auto] bg-position-[0%_0%] bg-no-repeat opacity-20 mix-blend-screen"
         style={{ backgroundImage: "url('/hero-bg.png')" }}
+        aria-hidden="true"
       />
-      <div className="relative mx-auto max-w-[var(--site-layout-width)]">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(340px,480px)] lg:items-start lg:gap-14">
-          <div className="pt-4">
-            <div className="flex items-center gap-3 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-text-tertiary)]">
-              <span className="text-[var(--color-accent)]">AGH</span>
-              <span className="h-px w-10 bg-[var(--color-divider)]" />
-              <span>Artificial General Hivemind</span>
+
+      <div className="relative mx-auto max-w-(--site-layout-width)">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)] lg:items-center lg:gap-14">
+          <div className="order-2 lg:order-0 lg:pr-2">
+            <div className="flex items-center gap-3 font-mono text-[11px] font-medium uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
+              <span className="text-(--color-accent)">AGH</span>
+              <span className="h-px w-10 bg-(--color-divider)" />
+              <span>Agent Operating System</span>
             </div>
 
-            <h1 className="mt-6 max-w-[14ch] text-[clamp(3.2rem,8vw,7rem)] leading-[0.88] font-normal tracking-[-0.04em] text-(--color-text-primary)">
-              Your agents can finally talk to each other
+            <h1 className="mt-6 max-w-[18ch] text-[clamp(2.8rem,6.5vw,5.4rem)] leading-[0.96] font-normal tracking-[-0.035em] text-(--color-text-primary)">
+              An agent runtime with a network built in.
             </h1>
 
-            <p className="mt-6 max-w-[54ch] text-base md:text-lg leading-relaxed text-[var(--color-text-secondary)]">
-              Run your agents as sessions you can inspect, resume, and govern. When one needs
-              another, AGH Network lets them discover peers, delegate work, and exchange results
-              across runtimes.
+            <p className="mt-6 max-w-[58ch] text-base leading-relaxed text-(--color-text-secondary) md:text-lg">
+              Sessions, memory, skills, workspaces, automation, bridges — the whole runtime in a
+              single local binary. Then the part nobody else ships: an open protocol so your agents
+              discover peers, delegate work, and collect receipts across machines.
             </p>
 
             <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap">
-              <Link
-                href="/docs/getting-started"
-                className="inline-flex h-9 items-center justify-center rounded-[8px] bg-[var(--color-accent)] px-5 text-sm font-medium text-(--color-accent-ink) transition-colors hover:bg-[var(--color-accent-hover)]"
-              >
-                Get Started
-              </Link>
-              <Link
-                href="/protocol"
-                className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[var(--color-divider)] bg-[var(--color-surface)] px-5 text-sm font-medium text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
-              >
-                Explore AGH Network
-              </Link>
+              <CtaButton href="/runtime/core/getting-started/installation" variant="primary">
+                Install the runtime
+              </CtaButton>
+              <CtaButton href="/protocol" variant="ghost">
+                See the network
+              </CtaButton>
             </div>
-
-            <dl className="mt-10 grid gap-4 border-t border-[var(--color-divider)] pt-5 sm:grid-cols-2 xl:grid-cols-4">
-              {signalItems.map(item => (
-                <div key={item.label} className="min-w-0">
-                  <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-text-tertiary)]">
-                    {item.label}
-                  </dt>
-                  <dd className="mt-2 text-sm font-medium text-[var(--color-text-primary)]">
-                    {item.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
           </div>
 
-          <div className="relative pt-20">
-            <div className="overflow-hidden rounded-[12px] border border-[var(--color-divider)] bg-[var(--color-canvas)]">
-              <div className="flex items-center gap-2 border-b border-[var(--color-divider)] px-4 py-3">
-                <span className="h-3 w-3 rounded-full bg-[var(--color-danger)] opacity-60" />
-                <span className="h-3 w-3 rounded-full bg-[var(--color-warning)] opacity-60" />
-                <span className="h-3 w-3 rounded-full bg-[var(--color-success)] opacity-60" />
-                <span className="ml-3 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-text-tertiary)]">
-                  terminal
-                </span>
-              </div>
-              <div className="p-4 md:p-5">
-                <pre className="font-mono text-[13px] leading-[1.7]">
-                  {terminalLines.map((line, i) => (
-                    <div key={i} className={line.text === "" ? "h-2" : ""}>
-                      {line.prompt && <span className="text-[var(--color-accent)]">$ </span>}
-                      <span
-                        className={
-                          line.prompt
-                            ? "text-[var(--color-text-primary)]"
-                            : "text-[var(--color-text-secondary)]"
-                        }
-                      >
-                        {line.text}
-                      </span>
-                    </div>
-                  ))}
-                </pre>
-              </div>
-            </div>
-
-            <div className="mt-4 pl-4 sm:pl-6">
-              <p className="text-sm leading-relaxed text-[var(--color-text-tertiary)]">
-                One daemon. Sessions, memory, skills, and a network of peers — all from the CLI you
-                already use.
-              </p>
-            </div>
+          {/* Visual comes after copy on desktop (and on mobile flows under). */}
+          <div className="order-1 lg:order-0">
+            <HeroVisual />
           </div>
         </div>
+        <dl className="mt-10 grid grid-cols-2 gap-3 md:grid-cols-4">
+          {signalItems.map(item => (
+            <div
+              key={item.label}
+              className="rounded-(--radius-diagram) border border-white/10 p-4 backdrop-blur-sm"
+            >
+              <dt className="font-mono text-[12px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
+                {item.label}
+              </dt>
+              <dd className="mt-1.5 text-[12px] leading-relaxed text-(--color-text-secondary)">
+                {item.detail}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </div>
     </section>
   );

@@ -1,6 +1,21 @@
 {
-    "title": "Core",
+    "title": "Core Concepts",
     "icon": "Layers",
     "root": true,
-    "pages": ["index", "overview", "getting-started", "configuration"]
+    "pages": [
+        "index",
+        "overview",
+        "getting-started",
+        "sessions",
+        "agents",
+        "memory",
+        "skills",
+        "workspaces",
+        "automation",
+        "bridges",
+        "hooks",
+        "extensions",
+        "operations",
+        "configuration"
+    ]
 }

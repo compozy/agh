@@ -1,16 +1,15 @@
 ---
-title: Core
-description: Concepts, workflows, and operating model for AGH Runtime — from installation to day-two operations.
+title: Core Concepts
+description: The AGH Runtime operating model, from first install through sessions, memory, automation, extensions, and day-two operations.
 ---
 
-Core is the fastest path to understanding how AGH works in practice: install it, launch durable
-sessions, learn how replay and memory behave, and understand the operating model behind the
-runtime.
+Core Concepts is the fastest path to understanding how AGH works in practice: install it, launch
+durable sessions, learn how replay and memory behave, and then move through the runtime
+capabilities that matter once AGH is part of normal work.
 
 <OperatorNote>
-  Treat Core as the place to build operator intuition. It is intentionally ordered from mental
-  model, to first-run setup, to the concepts and settings that matter once AGH is part of normal
-  work.
+  Treat Core Concepts as the place to build operator intuition. It is ordered from mental model, to
+  first-run setup, to the runtime systems you manage after AGH becomes part of day-to-day work.
 </OperatorNote>
 
 ## Sections
@@ -19,8 +18,8 @@ runtime.
   <RouteRow
     href="/runtime/core/overview/what-is-agh"
     label="Overview"
-    title="What AGH is and how it fits"
-    description="Use the overview pages for positioning, architecture, and the specific runtime shape AGH chooses."
+    title="What AGH is and the runtime shape it chooses"
+    description="Use the overview pages for positioning, architecture, and the specific operational model behind AGH Runtime."
     meta="Mental model"
   />
   <RouteRow
@@ -31,16 +30,79 @@ runtime.
     meta="First run"
   />
   <RouteRow
-    href="/runtime/sessions/lifecycle"
+    href="/runtime/core/sessions/lifecycle"
     label="Sessions"
-    title="Session lifecycle, replay, events, and permissions"
-    description="Understand the practical model operators work with every day once sessions are in use."
+    title="Lifecycle, replay, events, and approvals"
+    description="Understand the durable unit AGH actually creates, stores, resumes, and audits."
     meta="Runtime contract"
+  />
+  <RouteRow
+    href="/runtime/core/agents/definitions"
+    label="Agents"
+    title="Definitions, providers, and spawning behavior"
+    description="Use this section when you need to understand how AGH resolves agent configuration and turns it into running ACP sessions."
+    meta="Execution model"
+  />
+  <RouteRow
+    href="/runtime/core/memory/system"
+    label="Memory"
+    title="Files, scopes, consolidation, and hygiene"
+    description="Use this section for persistent context, prompt injection, workspace scoping, and dream consolidation."
+    meta="Durable context"
+  />
+  <RouteRow
+    href="/runtime/core/skills/overview"
+    label="Skills"
+    title="Catalog behavior, SKILL.md, bundled skills, and marketplace flow"
+    description="Reach for this when you need the runtime rules for skill discovery, registration, precedence, and packaging."
+    meta="Capabilities"
+  />
+  <RouteRow
+    href="/runtime/core/workspaces/resolver"
+    label="Workspaces"
+    title="Resolver, overlays, and multi-root behavior"
+    description="Use this section when AGH needs to understand a project root, workspace config, or additional directories."
+    meta="Project context"
+  />
+  <RouteRow
+    href="/runtime/core/automation/jobs"
+    label="Automation"
+    title="Jobs, triggers, and webhooks"
+    description="Read this when you are shaping scheduled or event-driven work around AGH Runtime."
+    meta="Operational flow"
+  />
+  <RouteRow
+    href="/runtime/core/bridges/overview"
+    label="Bridges"
+    title="Inbound and outbound platform integrations"
+    description="Use the bridges section for routing, provider setup, and delivery behavior across external systems."
+    meta="Integrations"
+  />
+  <RouteRow
+    href="/runtime/core/hooks/declaration"
+    label="Hooks"
+    title="Hook format, events, and runtime patching"
+    description="Use this section for event-driven interception, validation, and runtime policy layers."
+    meta="Lifecycle controls"
+  />
+  <RouteRow
+    href="/runtime/core/extensions/install"
+    label="Extensions"
+    title="Installable runtime packages and their operating model"
+    description="Read this when you need packaged runtime capabilities that add hooks, skills, or bridge providers."
+    meta="Extensibility"
+  />
+  <RouteRow
+    href="/runtime/core/operations/daemon"
+    label="Operations"
+    title="Daemon behavior, backups, troubleshooting, and production readiness"
+    description="Use this section for day-two operation of the runtime on real machines and environments."
+    meta="Day two"
   />
   <RouteRow
     href="/runtime/core/configuration"
     label="Configuration"
-    title="`config.toml`, agents, environment, and path resolution"
+    title="Config files, agent and skill formats, environment, and file locations"
     description="Use this section when the runtime needs to be shaped for a machine, workspace, or team default."
     meta="System setup"
   />

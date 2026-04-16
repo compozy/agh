@@ -24,148 +24,180 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { Hero } from "../hero";
-import { TwoPillars } from "../two-pillars";
-import { HowItWorks } from "../how-it-works";
-import { RuntimeFeatures } from "../runtime-features";
-import { ProtocolSection } from "../protocol-section";
-import { Architecture } from "../architecture";
+import { FeaturesSection } from "../features-section";
+import { SupportedAgents } from "../supported-agents";
+import { RuntimeSection } from "../runtime-section";
+import { BridgesSection } from "../bridges-section";
+import { ExtensibilitySection } from "../extensibility-section";
+import { NetworkSection } from "../network-section";
+import { InstallSection } from "../install-section";
 import { Comparison } from "../comparison";
 import { FinalCta } from "../final-cta";
+import { KindChip, KIND_MEANING, type NetworkKind } from "../primitives/kind-chip";
 
 describe("Hero", () => {
-  it("renders headline and both CTA buttons", () => {
+  it("leads with the runtime + network headline and drops ACP from the fold", () => {
     render(<Hero />);
-    expect(screen.getByText("Durable runtime for real agent work.")).toBeDefined();
-    const runtimeLink = screen.getByText("Enter Runtime Docs");
-    expect(runtimeLink.closest("a")?.getAttribute("href")).toBe("/runtime");
-    const networkLink = screen.getByText("Explore AGH Network");
-    expect(networkLink.closest("a")?.getAttribute("href")).toBe("/protocol");
+    expect(screen.getByText("An agent runtime with a network built in.")).toBeDefined();
+    const install = screen.getByText("Install the runtime");
+    expect(install.closest("a")?.getAttribute("href")).toBe(
+      "/runtime/core/getting-started/installation"
+    );
+    const network = screen.getByText("See the network");
+    expect(network.closest("a")?.getAttribute("href")).toBe("/protocol");
   });
 
-  it("matches snapshot", () => {
-    const { container } = render(<Hero />);
-    expect(container).toMatchSnapshot();
-  });
-});
-
-describe("TwoPillars", () => {
-  it("renders Runtime and Protocol pillars with links", () => {
-    render(<TwoPillars />);
-    expect(screen.getByText("Local-first control plane")).toBeDefined();
-    expect(screen.getByText("Open coordination layer")).toBeDefined();
-    expect(screen.getByText("Get Started with Runtime")).toBeDefined();
-    expect(screen.getByText("Explore AGH Network")).toBeDefined();
-  });
-
-  it("matches snapshot", () => {
-    const { container } = render(<TwoPillars />);
-    expect(container).toMatchSnapshot();
+  it("renders four outcome-framed signal tiles", () => {
+    render(<Hero />);
+    expect(screen.getByText("Complete agent runtime")).toBeDefined();
+    expect(screen.getByText("Built-in agent network")).toBeDefined();
+    expect(screen.getByText("Local-first, self-hosted")).toBeDefined();
+    expect(screen.getByText("Open protocol, open source")).toBeDefined();
   });
 });
 
-describe("HowItWorks", () => {
-  it("renders 3 steps with code snippets", () => {
-    render(<HowItWorks />);
-    expect(screen.getByText("Install the runtime")).toBeDefined();
-    expect(screen.getByText("Start the control plane")).toBeDefined();
-    expect(screen.getByText("Launch durable work")).toBeDefined();
-    expect(screen.getByText(/curl -fsSL/)).toBeDefined();
-    expect(screen.getByText("agh daemon start")).toBeDefined();
-    expect(screen.getByText("agh session new")).toBeDefined();
-  });
-
-  it("matches snapshot", () => {
-    const { container } = render(<HowItWorks />);
-    expect(container).toMatchSnapshot();
-  });
-});
-
-describe("RuntimeFeatures", () => {
-  it("renders 8 feature cards", () => {
-    render(<RuntimeFeatures />);
-    const expectedTitles = [
-      "Durable Sessions",
-      "Replayable History",
-      "Memory That Sticks",
-      "Skills Without Glue Code",
-      "Workspace-Aware Defaults",
-      "Automation and Triggers",
-      "Bridges to Real Work",
-      "One Operator Surface",
+describe("FeaturesSection", () => {
+  it("renders the eight runtime capabilities", () => {
+    render(<FeaturesSection />);
+    const eyebrows = [
+      "Sessions",
+      "Memory",
+      "Skills",
+      "Workspaces",
+      "Automation",
+      "Observability",
+      "Hooks",
+      "Bridges",
     ];
-    for (const title of expectedTitles) {
+    for (const label of eyebrows) {
+      expect(screen.getByText(label)).toBeDefined();
+    }
+    expect(screen.getByText("Everything a modern agent runtime should have.")).toBeDefined();
+  });
+});
+
+describe("SupportedAgents", () => {
+  it("renders as a compact support strip, not a hero section", () => {
+    render(<SupportedAgents />);
+    const expected = ["claude", "codex", "gemini", "opencode", "copilot", "cursor", "kiro", "pi"];
+    for (const id of expected) {
+      expect(screen.getByText(id)).toBeDefined();
+    }
+    expect(screen.getByText("Works with your agent CLIs")).toBeDefined();
+  });
+});
+
+describe("RuntimeSection", () => {
+  it("renders the four runtime feature cards", () => {
+    render(<RuntimeSection />);
+    const expected = [
+      "Durable sessions in SQLite",
+      "Replayable event stream",
+      "Three operator surfaces, one daemon",
+      "Permissioned tools per agent",
+    ];
+    for (const title of expected) {
       expect(screen.getByText(title)).toBeDefined();
     }
   });
+});
 
-  it("matches snapshot", () => {
-    const { container } = render(<RuntimeFeatures />);
-    expect(container).toMatchSnapshot();
+describe("BridgesSection", () => {
+  it("renders the live bridges with brand logos and the catalogued set", () => {
+    render(<BridgesSection />);
+    const expected = [
+      "Slack",
+      "Discord",
+      "Telegram",
+      "WhatsApp",
+      "Microsoft Teams",
+      "Google Chat",
+      "GitHub",
+      "Linear",
+    ];
+    for (const name of expected) {
+      expect(screen.getByText(name)).toBeDefined();
+    }
+    expect(screen.getByText("Your users live on these. Now so do your agents.")).toBeDefined();
+  });
+
+  it("marks the three live bridges separately from the next batch", () => {
+    render(<BridgesSection />);
+    expect(screen.getAllByText("live").length).toBe(3);
+    expect(screen.getAllByText("next").length).toBe(5);
   });
 });
 
-describe("ProtocolSection", () => {
-  it("renders protocol outcomes and adoption path", () => {
-    render(<ProtocolSection />);
-    expect(screen.getByText("Coordinated agent work without runtime lock-in.")).toBeDefined();
-    expect(screen.getByText("Discover the right specialist")).toBeDefined();
-    expect(screen.getByText("Delegate work cleanly")).toBeDefined();
-    expect(screen.getByText("Move updates across runtimes")).toBeDefined();
-    expect(screen.getAllByText("Keep your runtime")).toHaveLength(2);
-    expect(screen.getByText("Map your agents")).toBeDefined();
-    expect(screen.getByText("Add deeper profiles later")).toBeDefined();
-    expect(screen.getByText("Read the AGH Network docs")).toBeDefined();
-  });
-
-  it("matches snapshot", () => {
-    const { container } = render(<ProtocolSection />);
-    expect(container).toMatchSnapshot();
+describe("ExtensibilitySection", () => {
+  it("renders five extensibility cards", () => {
+    render(<ExtensibilitySection />);
+    const eyebrows = ["Hooks", "Skills", "Memory", "Automation", "Extensions"];
+    for (const label of eyebrows) {
+      expect(screen.getByText(label)).toBeDefined();
+    }
   });
 });
 
-describe("Architecture", () => {
-  it("renders architecture diagram", () => {
-    render(<Architecture />);
-    expect(
-      screen.getByText("One runtime for operator control and open coordination.")
-    ).toBeDefined();
-    expect(screen.getByLabelText(/AGH runtime diagram/)).toBeDefined();
+describe("NetworkSection", () => {
+  it("renders the protocol walkthrough and supporting cards", () => {
+    render(<NetworkSection />);
+    expect(screen.getByText("Real commands, not docs-ware")).toBeDefined();
+    expect(screen.getByText("NATS under the hood, JSON over the wire")).toBeDefined();
+    expect(screen.getByText("Receipts are first-class")).toBeDefined();
+    expect(screen.getByLabelText(/Pause walkthrough|Play walkthrough/)).toBeDefined();
   });
+});
 
-  it("matches snapshot", () => {
-    const { container } = render(<Architecture />);
-    expect(container).toMatchSnapshot();
+describe("InstallSection", () => {
+  it("renders three install tabs and the three CLI steps", () => {
+    render(<InstallSection />);
+    expect(screen.getByRole("tab", { name: "Homebrew" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "go install" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Binary" })).toBeDefined();
+    expect(screen.getByText("Start the daemon")).toBeDefined();
+    expect(screen.getByText("Launch a session")).toBeDefined();
+    expect(screen.getByText("Discover peers")).toBeDefined();
   });
 });
 
 describe("Comparison", () => {
-  it("renders named market comparison cards", () => {
+  it("renders the four approaches and the Agents today column", () => {
     render(<Comparison />);
-    expect(screen.getByText("Where AGH fits in the landscape.")).toBeDefined();
-    const expectedCards = ["OpenClaw", "OpenFang", "GoClaw", "AGH"];
-    for (const name of expectedCards) {
+    expect(screen.getByText("Other tools stop at the runtime boundary.")).toBeDefined();
+    for (const name of [
+      "Assistant gateway",
+      "All-in-one agent OS",
+      "Multi-tenant gateway",
+      "AGH",
+    ]) {
       expect(screen.getByText(name)).toBeDefined();
     }
-  });
-
-  it("matches snapshot", () => {
-    const { container } = render(<Comparison />);
-    expect(container).toMatchSnapshot();
+    expect(screen.getByText("8 ACP CLIs")).toBeDefined();
   });
 });
 
 describe("FinalCta", () => {
-  it("renders dual CTA buttons", () => {
+  it("renders the final CTAs and drops the old hedge copy", () => {
     render(<FinalCta />);
-    expect(screen.getByText("Start with the runtime. Grow into AGH Network.")).toBeDefined();
-    const runtimeLink = screen.getByText("Enter Runtime Docs");
-    expect(runtimeLink.closest("a")?.getAttribute("href")).toBe("/runtime");
-    const networkLink = screen.getByText("Explore AGH Network");
-    expect(networkLink.closest("a")?.getAttribute("href")).toBe("/protocol");
+    expect(screen.getByText("Install AGH. Run a session. Join the network.")).toBeDefined();
+    const install = screen.getByText("Install AGH");
+    expect(install.closest("a")?.getAttribute("href")).toBe(
+      "/runtime/core/getting-started/installation"
+    );
+    const spec = screen.getByText("Read agh-network/v0 spec");
+    expect(spec.closest("a")?.getAttribute("href")).toBe("/protocol");
+    const star = screen.getByText("Star on GitHub");
+    expect(star.closest("a")?.getAttribute("href")).toBe("https://github.com/compozy/agh");
   });
+});
 
-  it("matches snapshot", () => {
-    const { container } = render(<FinalCta />);
-    expect(container).toMatchSnapshot();
+describe("KindChip", () => {
+  it("has a meaning string for every NetworkKind", () => {
+    const kinds: NetworkKind[] = ["greet", "whois", "say", "direct", "recipe", "receipt", "trace"];
+    for (const kind of kinds) {
+      expect(KIND_MEANING[kind]).toBeDefined();
+      render(<KindChip kind={kind} />);
+      expect(screen.getAllByText(kind)).toBeDefined();
+    }
   });
 });

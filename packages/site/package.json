@@ -4,6 +4,11 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "source:generate": "fumadocs-mdx source.config.ts .source",
+        "predev": "bun run source:generate",
+        "prebuild": "bun run source:generate",
+        "pretypecheck": "bun run source:generate",
+        "pretest": "bun run source:generate",
         "dev": "next dev",
         "build": "next build",
         "start": "next start",

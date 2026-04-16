@@ -1,0 +1,146 @@
+"use client";
+
+import { useState } from "react";
+import { buttonVariants } from "@agh/ui";
+import { cn } from "@agh/ui/utils";
+import { CodeBlock } from "./primitives/code-block";
+import { SectionFrame } from "./primitives/section-frame";
+import { SectionHeader } from "./primitives/section-header";
+
+type TabId = "brew" | "go" | "binary";
+
+const INSTALL_TABS: { id: TabId; label: string; command: string; note: string }[] = [
+  {
+    id: "brew",
+    label: "Homebrew",
+    command: "brew install compozy/tap/agh",
+    note: "macOS · recommended",
+  },
+  {
+    id: "go",
+    label: "go install",
+    command: "go install github.com/compozy/agh/cmd/agh@latest",
+    note: "Linux + macOS · Go 1.25+",
+  },
+  {
+    id: "binary",
+    label: "Binary",
+    command: "curl -fsSL https://get.agh.compozy.com | sh",
+    note: "Linux + macOS · prebuilt",
+  },
+];
+
+const STEPS = [
+  {
+    step: "01",
+    title: "Start the daemon",
+    description: "One local process, detaches to background, logs to $AGH_HOME/logs/agh.log.",
+    code: "agh daemon start",
+  },
+  {
+    step: "02",
+    title: "Launch a session",
+    description: "Spawn an ACP agent as a managed subprocess. Events start streaming immediately.",
+    code: "agh session new --agent coder --provider claude",
+  },
+  {
+    step: "03",
+    title: "Discover peers",
+    description:
+      "The network runtime starts alongside the daemon. Other AGH peers on the same channel appear here.",
+    code: "agh network peers",
+    live: true,
+  },
+];
+
+export function InstallSection() {
+  const [tab, setTab] = useState<TabId>("brew");
+  const active = INSTALL_TABS.find(t => t.id === tab) ?? INSTALL_TABS[0];
+
+  return (
+    <SectionFrame background="surface" padY="lg">
+      <SectionHeader
+        align="center"
+        eyebrow="Getting started"
+        title="Three commands. First session in under a minute."
+        description="macOS and Linux today. Homebrew, go install, or a prebuilt binary — pick one."
+      />
+
+      <div className="mx-auto mt-10 w-full max-w-[760px]">
+        <div
+          role="tablist"
+          aria-label="Install methods"
+          className="flex flex-wrap gap-1 rounded-[8px] border border-(--color-divider) bg-(--color-canvas) p-1"
+        >
+          {INSTALL_TABS.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={t.id === tab}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                buttonVariants({
+                  variant: t.id === tab ? "secondary" : "ghost",
+                  size: "sm",
+                }),
+                "flex-1 font-mono text-[12px] tracking-[0.02em]",
+                t.id === tab &&
+                  "bg-(--color-accent-tint) text-(--color-accent) hover:bg-(--color-accent-tint)"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4">
+          <CodeBlock code={active.command} caption={active.note} shell />
+        </div>
+      </div>
+
+      <div className="mx-auto mt-14 max-w-[760px]">
+        <div className="flex flex-col gap-5">
+          {STEPS.map(item => (
+            <div
+              key={item.step}
+              className="flex flex-col gap-4 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas) p-6"
+            >
+              <div className="flex items-start gap-4">
+                <span className="mt-0.5 font-mono text-lg font-medium text-(--color-accent)">
+                  {item.step}
+                </span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-medium text-(--color-text-primary)">
+                      {item.title}
+                    </h3>
+                    {item.live ? <OnlinePulse /> : null}
+                  </div>
+                  <p className="mt-2 max-w-[52ch] text-sm leading-relaxed text-(--color-text-secondary)">
+                    {item.description}
+                  </p>
+                </div>
+              </div>
+              <div className="ml-[2.75rem]">
+                <CodeBlock code={item.code} copyable caption="shell" shell />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </SectionFrame>
+  );
+}
+
+function OnlinePulse() {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-[6px] bg-(--color-success-tint) px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-success)">
+      <span className="relative inline-flex h-1.5 w-1.5">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--color-success) opacity-60" />
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-(--color-success)" />
+      </span>
+      online
+    </span>
+  );
+}

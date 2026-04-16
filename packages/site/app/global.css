@@ -3,6 +3,14 @@
 @import "fumadocs-ui/css/neutral.css";
 @import "@agh/ui/tokens.css";
 
+/*
+ * Tailwind v4 JIT scans source files relative to this stylesheet and ignores
+ * node_modules by default. The @agh/ui workspace package contains components
+ * (Button, Badge, etc.) that use utilities like `bg-primary` — register its
+ * sources explicitly so those classes get emitted in this app's CSS.
+ */
+@source "../../ui/src/**/*.{ts,tsx}";
+
 @font-face {
   font-family: "NuixyberNext";
   src: url("/fonts/NuixyberNext-Regular.ttf") format("truetype");

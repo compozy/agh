@@ -1,0 +1,208 @@
+---
+title: Database Operations
+description: Back up, inspect, and clean up AGH's SQLite databases.
+---
+
+# Database Operations
+
+Use this guide when you need to back up AGH state, inspect stored sessions, or retire old session
+directories.
+
+<OperatorNote>
+  AGH uses SQLite in WAL mode. A live filesystem copy must include the database file and its `-wal`
+  and `-shm` sidecar files, or use SQLite's backup command. The simplest safe backup is a cold
+  backup while the daemon is stopped.
+</OperatorNote>
+
+## Find the databases
+
+Set the home path used by the commands below:
+
+```bash
+export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+```
+
+| Path                                        | Purpose                                                                                                                                                     |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$AGH_HOME/agh.db`                          | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, and network audit records. |
+| `$AGH_HOME/sessions/<session-id>/events.db` | Full event store for one AGH session.                                                                                                                       |
+| `$AGH_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                 |
+
+The global database is an index and catalog. The per-session `events.db` files hold the detailed
+session timeline.
+
+<Mermaid
+  chart={`flowchart TD
+  Home["$AGH_HOME"] --> Global["agh.db global catalog"]
+  Home --> Sessions["sessions/"]
+  Sessions --> One["<session-id>/"]
+  One --> Events["events.db event stream"]
+  One --> Meta["meta.json session metadata"]
+  Global --> Summary["session rows and summaries"]
+  Events --> Replay["events, token usage, hook runs"]`}
+  caption="AGH separates global catalog state from per-session event history."
+/>
+
+## Back up while the daemon is stopped
+
+Use this for scheduled maintenance windows and before upgrades:
+
+```bash
+export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+backup="$HOME/agh-backups/$(date +%Y%m%d-%H%M%S)"
+
+agh daemon stop
+mkdir -p "$backup"
+cp -a "$AGH_HOME"/agh.db* "$backup"/
+cp -a "$AGH_HOME/sessions" "$backup"/sessions
+agh daemon start
+```
+
+This captures the global database, any WAL sidecars, every per-session event database, and each
+session metadata file.
+
+## Back up a live daemon with SQLite
+
+Use SQLite's backup command when you cannot stop the daemon:
+
+```bash
+export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+backup="$HOME/agh-backups/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$backup/sessions"
+
+sqlite3 "$AGH_HOME/agh.db" ".backup '$backup/agh.db'"
+
+find "$AGH_HOME/sessions" -mindepth 2 -maxdepth 2 -name events.db -type f -print0 |
+while IFS= read -r -d '' db; do
+  session_dir="$(basename "$(dirname "$db")")"
+  mkdir -p "$backup/sessions/$session_dir"
+  sqlite3 "$db" ".backup '$backup/sessions/$session_dir/events.db'"
+  cp -a "$(dirname "$db")/meta.json" "$backup/sessions/$session_dir/meta.json"
+done
+```
+
+This reads each database through SQLite instead of copying the main file without its WAL state.
+
+## Inspect the global catalog
+
+Open the global database directly:
+
+```bash
+sqlite3 "$AGH_HOME/agh.db"
+```
+
+List recent sessions:
+
+```sql
+select id, name, agent_name, state, stop_reason, updated_at
+from sessions
+order by updated_at desc
+limit 20;
+```
+
+List registered workspaces:
+
+```sql
+select id, root_dir, name, updated_at
+from workspaces
+order by updated_at desc;
+```
+
+The global catalog records summaries and indexes. Use the session event database when you need the
+ordered event stream for one session.
+
+## Inspect a session event database
+
+Set the session ID and query its event store:
+
+```bash
+session_id="sess_1234"
+sqlite3 "$AGH_HOME/sessions/$session_id/events.db"
+```
+
+Show recent events:
+
+```sql
+select sequence, type, agent_name, timestamp
+from events
+order by sequence desc
+limit 20;
+```
+
+Show token usage:
+
+```sql
+select turn_id, total_tokens, cost_amount, cost_currency, timestamp
+from token_usage
+order by timestamp desc
+limit 20;
+```
+
+Show hook runs:
+
+```sql
+select hook_name, event, outcome, required, recorded_at
+from hook_runs
+order by recorded_at desc
+limit 20;
+```
+
+## Clean up old session directories
+
+AGH does not currently expose a prune command for old session directories. Use a conservative
+archive flow instead of deleting files in place.
+
+1. List stopped sessions:
+
+   ```bash
+   agh session list --all
+   ```
+
+2. Stop the daemon:
+
+   ```bash
+   agh daemon stop
+   ```
+
+3. Back up `AGH_HOME` using the cold backup procedure above.
+
+4. Move the old stopped session directory into an archive location:
+
+   ```bash
+   export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+   session_id="sess_1234"
+   mkdir -p "$AGH_HOME/session-archive"
+   mv "$AGH_HOME/sessions/$session_id" "$AGH_HOME/session-archive/$session_id"
+   ```
+
+5. Start the daemon and confirm current sessions still list correctly:
+
+   ```bash
+   agh daemon start
+   agh session list --all
+   ```
+
+At boot, AGH reconciles the global catalog with the session directories on disk. Sessions missing
+from disk are marked `orphaned` in the global catalog; AGH does not physically purge the global
+session row.
+
+## Handle corrupt database files
+
+When AGH opens a SQLite database and sees a recoverable corruption marker, it moves the database and
+its `-wal` and `-shm` sidecars to files ending in `.corrupt.<timestamp>`, then retries opening a
+fresh database once.
+
+If this happens:
+
+1. Preserve the `.corrupt.<timestamp>` files.
+2. Stop the daemon.
+3. Restore the affected database from the latest known-good backup.
+4. Start the daemon and run `agh observe health`.
+
+The `.corrupt.<timestamp>` files are evidence for diagnosis. They are not a backup strategy.
+
+## Related pages
+
+- [Daemon Operations](/runtime/core/operations/daemon) covers the runtime files that point to these databases.
+- [Session Events](/runtime/core/sessions/events) explains the session event stream stored in `events.db`.
+- [File Locations](/runtime/core/configuration/file-locations) lists the full `AGH_HOME` layout.

@@ -1,4 +1,7 @@
-@import "tailwindcss";
+/*
+ * Shared design tokens. Consumers (packages/site, web/) own the single
+ * `@import "tailwindcss"` call — this file must not re-import Tailwind.
+ */
 @import "tw-animate-css";
 @import "@fontsource-variable/inter";
 @import "@fontsource/jetbrains-mono/500.css";
@@ -28,10 +31,20 @@
   --color-accent: #e8572a;
   --color-accent-ink: #17110f;
   --color-accent-hover: #d14e25;
+  --color-accent-strong: #f6874f;
+  --color-accent-dim: #e8572a59;
   --color-success: #30d158;
   --color-danger: #ff453a;
   --color-warning: #ffd60a;
   --color-info: #bf5af2;
+
+  /* Landing diagram backgrounds */
+  --color-canvas-deep: #0e0e0f;
+  --color-line: #3c3a39;
+
+  /* Shared mono/diagram constants */
+  --tracking-mono: 0.06em;
+  --radius-diagram: 12px;
 
   /* Badge tints (15% opacity) */
   --color-accent-tint: #e8572a26;
@@ -49,7 +62,7 @@
   --popover: var(--color-surface-elevated);
   --popover-foreground: var(--color-text-primary);
   --primary: var(--color-accent);
-  --primary-foreground: #ffffff;
+  --primary-foreground: var(--color-accent-ink);
   --secondary: transparent;
   --secondary-foreground: var(--color-text-primary);
   --muted: var(--color-surface-elevated);
@@ -66,7 +79,7 @@
   --chart-3: var(--color-info);
   --chart-4: var(--color-warning);
   --chart-5: var(--color-danger);
-  --radius: 0.5rem;
+  --radius: 0.7rem;
 
   --sidebar: var(--color-surface);
   --sidebar-foreground: var(--color-text-primary);

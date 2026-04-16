@@ -1,5 +1,5 @@
 import { DocsLayout } from "fumadocs-ui/layouts/notebook";
-import { runtimeDocs } from "@/lib/source";
+import { runtimeLayoutTree, runtimeTabs } from "@/lib/source";
 import { baseOptions } from "@/lib/layout.shared";
 import type { ReactNode } from "react";
 
@@ -11,7 +11,8 @@ export default function RuntimeDocsLayout({ children }: { children: ReactNode })
         ...baseOptions.nav,
         mode: "auto",
       }}
-      tree={runtimeDocs.pageTree}
+      tree={runtimeLayoutTree}
+      tabs={runtimeTabs}
       tabMode="navbar"
     >
       {children}

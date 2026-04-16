@@ -8,8 +8,8 @@ Codex, Gemini CLI, and other agent CLIs as durable sessions with replayable hist
 workspace-aware memory, automation, and observability.
 
 <OperatorNote>
-  Runtime docs are organized by operator job, not by internal package boundary. Start in Core for
-  the operating model, then use Sessions, CLI Reference, or API Reference when you need the exact
+  Runtime docs are organized by operator job, not by internal package boundary. Start in Core
+  Concepts for the operating model, then use CLI Reference or API Reference when you need the exact
   live contract for one surface.
 </OperatorNote>
 
@@ -18,17 +18,10 @@ workspace-aware memory, automation, and observability.
 <RouteList>
   <RouteRow
     href="/runtime/core"
-    label="Core"
-    title="Concepts, installation, and day-two operations"
-    description="Use this when you need to understand durability, replay, memory, permissions, and the operating model behind AGH Runtime."
+    label="Core Concepts"
+    title="Operating model, setup flow, and runtime capabilities"
+    description="Use this when you need to understand durability, replay, memory, permissions, automation, extensions, and the day-two model behind AGH Runtime."
     meta="Recommended first"
-  />
-  <RouteRow
-    href="/runtime/sessions/lifecycle"
-    label="Sessions"
-    title="Lifecycle, resume, events, and permissions"
-    description="Use this when you need the exact runtime contract for one durable agent session, from creation and stop behavior to replay and approvals."
-    meta="Core runtime unit"
   />
   <RouteRow
     href="/runtime/cli-reference"
@@ -48,9 +41,9 @@ workspace-aware memory, automation, and observability.
 
 ## Working model
 
-- **Core** explains how AGH behaves as a runtime you operate.
-- **Sessions** explains the durable unit AGH actually runs, stores, resumes, and audits.
+- **Core Concepts** explains how AGH behaves as a runtime you operate.
 - **CLI Reference** tells you exactly what the command surface looks like.
 - **API Reference** mirrors the machine-facing contract behind the same control plane.
 
-The intended flow is simple: learn the model once, then use whichever runtime surface fits the job.
+The intended flow is simple: learn the model once in Core Concepts, then use whichever runtime
+surface fits the job.

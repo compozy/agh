@@ -7,6 +7,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL(".", import.meta.url)),
+      "@agh/ui/utils": fileURLToPath(new URL("../ui/src/lib/utils.ts", import.meta.url)),
+      "@agh/ui/tokens.css": fileURLToPath(new URL("../ui/src/tokens.css", import.meta.url)),
       "@agh/ui": fileURLToPath(new URL("../ui/src", import.meta.url)),
     },
   },

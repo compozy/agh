@@ -1,0 +1,214 @@
+---
+title: Memory System
+description: How AGH stores persistent memory, injects memory indexes into prompts, and exposes memory files through CLI and API surfaces.
+---
+
+# Memory System
+
+AGH memory is persistent Markdown that survives across sessions. It is designed for durable facts
+that future agents should be able to discover without replaying every old transcript.
+
+The current implementation is intentionally small:
+
+- memory is file-based, not stored in SQLite
+- there are two scopes: global and workspace
+- each scope has a `MEMORY.md` index
+- only indexes are injected into startup prompts
+- full memory files are read on demand with `agh memory read`
+
+<OperatorNote>
+  RFC 001 describes future agent-scoped memory fields in `AGENT.md`. The current runtime does not
+  support those fields. Use global and workspace memory today.
+</OperatorNote>
+
+## Runtime Flow
+
+<Mermaid
+  chart={`flowchart TD
+SessionStart[Session starts] --> PromptAssembly[Prompt assembly]
+PromptAssembly --> GlobalIndex[Load global MEMORY.md]
+PromptAssembly --> WorkspaceIndex[Load workspace MEMORY.md]
+GlobalIndex --> StartupPrompt[Startup system prompt]
+WorkspaceIndex --> StartupPrompt
+StartupPrompt --> Agent[Agent works]
+Agent --> WriteMemory[agh memory write]
+WriteMemory --> MemoryFiles[Markdown memory files]
+MemoryFiles --> Dream[Dream consolidation]
+Dream --> Indexes[Updated memory files and indexes]
+Indexes --> NextSession[Next session sees refreshed indexes]`}
+  caption="AGH gives each new session a frozen memory snapshot by loading prompt-safe indexes at startup. Later writes affect future sessions."
+/>
+
+Memory is not streamed into an already-running process. When a session starts, AGH loads the global
+and workspace indexes, prepends them to the agent prompt, and hands that assembled prompt to the ACP
+subprocess. New memory written during the session becomes visible to the next session.
+
+## Four Memory Types
+
+Every memory file has one of four types. The type also determines the default write scope when you
+do not pass `--scope`.
+
+| Type        | Default scope | Use it for                                                                         | Example                                                                   |
+| ----------- | ------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `user`      | global        | Stable user preferences, working style, or recurring personal context.             | "Prefer concise PR summaries with risk and test notes."                   |
+| `feedback`  | global        | Repeated corrections, review guidance, and quality signals that apply across work. | "Do not weaken tests to match broken behavior."                           |
+| `project`   | workspace     | Decisions, constraints, active architecture, and local project facts.              | "This repo keeps docs site pages under `packages/site/content/runtime/`." |
+| `reference` | workspace     | External references, runbooks, links, or system facts worth re-reading on demand.  | "Production logs live in the hosted provider console, not local files."   |
+
+The taxonomy is closed. Unsupported types are rejected.
+
+## Memory File Format
+
+Memory files are Markdown files with strict YAML frontmatter.
+
+Required fields:
+
+| Field         | Required                                     | Meaning                                                                |
+| ------------- | -------------------------------------------- | ---------------------------------------------------------------------- |
+| `name`        | yes                                          | Human-readable title shown in list output and useful in index entries. |
+| `type`        | yes                                          | One of `user`, `feedback`, `project`, or `reference`.                  |
+| `description` | no for the store, required by the CLI writer | One concise discovery sentence.                                        |
+| `agent_name`  | no                                           | Optional producer hint for team memory and audits.                     |
+
+Example `user` memory:
+
+```markdown
+---
+name: Review Style
+description: User wants concise review findings with file references first
+type: user
+---
+
+When reviewing code, put blocking findings first and cite the file path and symbol. Keep summaries
+short unless the user asks for deeper explanation.
+```
+
+Example `feedback` memory:
+
+```markdown
+---
+name: Test Integrity
+description: Production bugs must be fixed instead of weakening tests
+type: feedback
+---
+
+If a test reveals incorrect behavior, fix the production code. Do not relax assertions just to make
+the suite green.
+```
+
+Example `project` memory:
+
+```markdown
+---
+name: Runtime Docs Location
+description: Runtime documentation pages live in the Fumadocs runtime collection
+type: project
+agent_name: codex
+---
+
+AGH runtime docs are authored under `packages/site/content/runtime/` and build to `/runtime/*`.
+Protocol pages live in a separate `/protocol/*` collection.
+```
+
+Example `reference` memory:
+
+```markdown
+---
+name: Session Events API
+description: Stored session events are available through the stream endpoint
+type: reference
+---
+
+Use `GET /api/sessions/:id/stream` for persisted SSE replay. Use `agh session events <id>` when
+working from the CLI.
+```
+
+## MEMORY.md Indexes
+
+Each scope can include a `MEMORY.md` file next to the memory documents:
+
+```text
+~/.agh/memory/
+  MEMORY.md
+  review-style.md
+  test-integrity.md
+
+<workspace>/.agh/memory/
+  MEMORY.md
+  runtime-docs-location.md
+  session-events-api.md
+```
+
+The index is the prompt-safe table of contents. AGH reads it at session start and injects it into
+the prompt. A useful index entry is short and points to one file:
+
+```markdown
+- [Review Style](review-style.md) - User wants concise review findings with file references first.
+- [Runtime Docs Location](runtime-docs-location.md) - Runtime docs live under `packages/site/content/runtime/`.
+```
+
+Index behavior:
+
+| Behavior            | Current implementation                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------- |
+| Missing `MEMORY.md` | Treated as empty; no memory section is injected for that scope.                                          |
+| Prompt limits       | Loaded indexes are capped at 200 lines and 25 KB before injection.                                       |
+| Write behavior      | `agh memory write` validates and writes the memory file. It does not automatically add a new index line. |
+| Delete behavior     | Deleting a memory file also removes index lines that link to that filename.                              |
+| Full file content   | Not injected. Agents read full files on demand with `agh memory read <filename>`.                        |
+
+Dream consolidation is the normal way to tighten memory files and rebuild indexes over time.
+
+## Prompt Injection
+
+When memory is enabled, AGH prepends a `# Persistent Memory` section to the startup prompt. That
+section can include:
+
+1. Global `MEMORY.md` index
+2. Workspace `MEMORY.md` index
+3. The four-type taxonomy
+4. A short command guide for `agh memory list`, `agh memory read`, and `agh memory write`
+5. A staleness warning policy
+
+This memory block is assembled before the agent's `AGENT.md` body. The skills catalog is appended
+after the base prompt when skills are enabled, so memory gives the agent durable context before it
+starts applying reusable skills.
+
+## Basic Workflow
+
+Write a global preference:
+
+```bash
+agh memory write review-style.md \
+  --type user \
+  --description "User wants concise review findings with file references first" \
+  --content "Put blocking findings first. Cite file paths and symbols."
+```
+
+Write a workspace decision:
+
+```bash
+agh memory write runtime-docs-location.md \
+  --type project \
+  --description "Runtime docs live in the Fumadocs runtime collection" \
+  --content 'Runtime docs are authored under `packages/site/content/runtime/` and build to `/runtime/*`.'
+```
+
+List memories:
+
+```bash
+agh memory list
+```
+
+Read the full file when an index entry looks relevant:
+
+```bash
+agh memory read runtime-docs-location.md --scope workspace
+```
+
+## Related Pages
+
+- [Scopes](/runtime/core/memory/scopes) explains global and workspace storage rules.
+- [Dream Consolidation](/runtime/core/memory/dream) explains automatic cleanup and index tightening.
+- [Memory Best Practices](/runtime/core/memory/best-practices) gives concrete writing and hygiene guidance.
+- [Memory CLI Reference](/runtime/cli-reference/memory) lists every generated memory command.

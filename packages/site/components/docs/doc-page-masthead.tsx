@@ -16,16 +16,38 @@ function toLabel(value?: string) {
     .join(" ");
 }
 
-function resolveMeta(kind: "runtime" | "protocol", slug: string[]) {
-  const family = slug[0];
+function resolveRuntimeSection(slug: string[]) {
+  if (slug.length === 0) {
+    return "Runtime Overview";
+  }
 
+  const [root, section] = slug;
+
+  if (root === "core") {
+    return section ? toLabel(section) : "Core Concepts";
+  }
+
+  if (root === "cli-reference") {
+    return section ? toLabel(section) : "CLI Reference";
+  }
+
+  if (root === "api-reference") {
+    return "API Reference";
+  }
+
+  return toLabel(root);
+}
+
+function resolveMeta(kind: "runtime" | "protocol", slug: string[]) {
   if (kind === "runtime") {
     return {
       eyebrow: "AGH Runtime",
       audience: "Operators running durable agent work",
-      section: toLabel(family ?? "core"),
+      section: resolveRuntimeSection(slug),
     };
   }
+
+  const family = slug[0];
 
   return {
     eyebrow: family === "specification" ? "AGH Network Protocol" : "AGH Network",
@@ -38,37 +60,35 @@ export function DocPageMasthead({ kind, slug, title, description }: DocPageMasth
   const meta = resolveMeta(kind, slug);
 
   return (
-    <header className="not-prose border-b border-[var(--color-divider)] pb-8">
-      <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
-        <span className="text-[var(--color-accent)]">{meta.eyebrow}</span>
-        <span className="h-px w-8 bg-[var(--color-divider)]" />
+    <header className="not-prose border-b border-(--color-divider) pb-8">
+      <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-text-tertiary)">
+        <span className="text-(--color-accent)">{meta.eyebrow}</span>
+        <span className="h-px w-8 bg-(--color-divider)" />
         <span>{meta.section}</span>
       </div>
 
-      <h1 className="mt-5 max-w-[12ch] text-[clamp(2.55rem,4.7vw,4rem)] leading-[0.94] font-semibold tracking-[-0.05em] text-[var(--color-text-primary)]">
+      <h1 className="mt-5 max-w-[12ch] text-[clamp(2.55rem,4.7vw,4rem)] leading-[0.94] font-semibold tracking-[-0.05em] text-(--color-text-primary)">
         {title}
       </h1>
 
       {description && (
-        <p className="mt-4 max-w-[68ch] text-[1.02rem] leading-8 text-[var(--color-text-secondary)]">
+        <p className="mt-4 max-w-[68ch] text-[1.02rem] leading-8 text-(--color-text-secondary)">
           {description}
         </p>
       )}
 
-      <dl className="mt-6 grid gap-5 border-t border-[var(--color-divider)] pt-4 md:grid-cols-2 xl:max-w-[48rem]">
+      <dl className="mt-6 grid gap-5 border-t border-(--color-divider) pt-4 md:grid-cols-2 xl:max-w-3xl">
         <div>
-          <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-tertiary)]">
+          <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-(--color-text-tertiary)">
             Audience
           </dt>
-          <dd className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
-            {meta.audience}
-          </dd>
+          <dd className="mt-2 text-sm leading-6 text-(--color-text-secondary)">{meta.audience}</dd>
         </div>
         <div>
-          <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-tertiary)]">
+          <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-(--color-text-tertiary)">
             Focus
           </dt>
-          <dd className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
+          <dd className="mt-2 text-sm leading-6 text-(--color-text-secondary)">
             {meta.section} guidance shaped for scanability, day-two clarity, and operator context.
           </dd>
         </div>
