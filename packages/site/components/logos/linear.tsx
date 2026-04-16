@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 interface LinearLogoProps {
   className?: string;
   variant?: "icon" | "logo" | "wordmark";
@@ -24,6 +26,8 @@ const COLORS = {
  */
 export function LinearLogo({ className, variant = "logo", mode = "dark" }: LinearLogoProps) {
   const color = COLORS[mode];
+  const idPrefix = `linear-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const iconId = (suffix: string) => `${idPrefix}-${suffix}`;
 
   if (variant === "icon") {
     return (
@@ -36,8 +40,8 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
         viewBox="0 0 512 512"
       >
         <title>Linear Icon</title>
-        <path fill="url(#a)" d="M0 0h512v512H0z" />
-        <g filter="url(#b)" opacity=".8">
+        <path fill={`url(#${iconId("a")})`} d="M0 0h512v512H0z" />
+        <g filter={`url(#${iconId("b")})`} opacity=".8">
           <path
             fill="#fff"
             d="M346.112 342.268c1.674 1.674 4.369 1.77 6.112.168 58.502-53.763 61.2-148.753 4.505-205.448-56.694-56.695-151.684-53.996-205.447 4.505-1.602 1.743-1.506 4.439.168 6.113l194.662 194.662Z"
@@ -45,48 +49,48 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
             style={{ mixBlendMode: "multiply" }}
           />
         </g>
-        <g filter="url(#c)" opacity=".3">
+        <g filter={`url(#${iconId("c")})`} opacity=".3">
           <path
-            fill="url(#d)"
+            fill={`url(#${iconId("d")})`}
             d="M346.112 342.268c1.674 1.674 4.369 1.77 6.112.168 58.502-53.763 61.2-148.753 4.505-205.448-56.694-56.695-151.684-53.996-205.447 4.505-1.602 1.743-1.506 4.439.168 6.113l194.662 194.662Z"
           />
         </g>
-        <g filter="url(#e)" opacity=".3">
+        <g filter={`url(#${iconId("e")})`} opacity=".3">
           <path
-            fill="url(#f)"
+            fill={`url(#${iconId("f")})`}
             d="M261.607 324.792c2.441-1.434 2.844-4.786.912-6.855L126.121 171.95c-2.018-2.16-5.535-1.831-7.017.727a148.996 148.996 0 0 0-6.49 12.537c-.774 1.688-.389 3.673.926 4.984l137.088 136.598a4.513 4.513 0 0 0 4.985.944c2.702-1.176 4.021-1.79 5.994-2.948Z"
           />
         </g>
         <path
-          fill="url(#g)"
+          fill={`url(#${iconId("g")})`}
           d="M357.358 374.306c1.758 1.758 4.581 1.866 6.416.189a163.595 163.595 0 0 0 5.316-5.081c62.547-62.547 62.547-163.956 0-226.504-62.548-62.547-163.957-62.547-226.504 0a163.595 163.595 0 0 0-5.081 5.316c-1.677 1.835-1.569 4.658.189 6.416l219.664 219.664Z"
         />
         <path
-          fill="url(#h)"
+          fill={`url(#${iconId("h")})`}
           d="M357.358 374.306c1.758 1.758 4.581 1.866 6.416.189a163.595 163.595 0 0 0 5.316-5.081c62.547-62.547 62.547-163.956 0-226.504-62.548-62.547-163.957-62.547-226.504 0a163.595 163.595 0 0 0-5.081 5.316c-1.677 1.835-1.569 4.658.189 6.416l219.664 219.664Z"
         />
         <path
-          fill="url(#i)"
+          fill={`url(#${iconId("i")})`}
           d="M336.333 394.672c2.627-1.528 3.024-5.118.875-7.267L124.595 174.792c-2.149-2.149-5.739-1.752-7.267.875a158.87 158.87 0 0 0-7.119 13.725c-.811 1.771-.41 3.852.968 5.229l206.201 206.202c1.378 1.378 3.459 1.779 5.23.968a158.87 158.87 0 0 0 13.725-7.119Z"
         />
         <path
-          fill="url(#j)"
+          fill={`url(#${iconId("j")})`}
           d="M336.333 394.672c2.627-1.528 3.024-5.118.875-7.267L124.595 174.792c-2.149-2.149-5.739-1.752-7.267.875a158.87 158.87 0 0 0-7.119 13.725c-.811 1.771-.41 3.852.968 5.229l206.201 206.202c1.378 1.378 3.459 1.779 5.23.968a158.87 158.87 0 0 0 13.725-7.119Z"
         />
         <path
-          fill="url(#k)"
+          fill={`url(#${iconId("k")})`}
           d="M286.659 413.348c3.619-.707 4.86-5.136 2.253-7.743L106.395 223.088c-2.607-2.607-7.036-1.366-7.743 2.253a160.813 160.813 0 0 0-2.502 18.462 4.666 4.666 0 0 0 1.366 3.654l167.027 167.027a4.667 4.667 0 0 0 3.654 1.366 160.834 160.834 0 0 0 18.462-2.502Z"
         />
         <path
-          fill="url(#l)"
+          fill={`url(#${iconId("l")})`}
           d="M286.659 413.348c3.619-.707 4.86-5.136 2.253-7.743L106.395 223.088c-2.607-2.607-7.036-1.366-7.743 2.253a160.813 160.813 0 0 0-2.502 18.462 4.666 4.666 0 0 0 1.366 3.654l167.027 167.027a4.667 4.667 0 0 0 3.654 1.366 160.834 160.834 0 0 0 18.462-2.502Z"
         />
         <path
-          fill="url(#m)"
+          fill={`url(#${iconId("m")})`}
           d="M217.031 411.577c4.45 1.107 7.201-4.155 3.959-7.398L107.821 291.01c-3.243-3.242-8.504-.491-7.398 3.959 6.784 27.279 20.838 53.121 42.163 74.445 21.324 21.324 47.166 35.379 74.445 42.163Z"
         />
         <path
-          fill="url(#n)"
+          fill={`url(#${iconId("n")})`}
           d="M217.031 411.577c4.45 1.107 7.201-4.155 3.959-7.398L107.821 291.01c-3.243-3.242-8.504-.491-7.398 3.959 6.784 27.279 20.838 53.121 42.163 74.445 21.324 21.324 47.166 35.379 74.445 42.163Z"
         />
         <path
@@ -97,12 +101,19 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
           style={{ mixBlendMode: "soft-light" }}
         />
         <defs>
-          <linearGradient id="a" x1="256" x2="256" y1="0" y2="512" gradientUnits="userSpaceOnUse">
+          <linearGradient
+            id={iconId("a")}
+            x1="256"
+            x2="256"
+            y1="0"
+            y2="512"
+            gradientUnits="userSpaceOnUse"
+          >
             <stop stopColor="#2D2E31" />
             <stop offset="1" stopColor="#0F1012" />
           </linearGradient>
           <linearGradient
-            id="d"
+            id={iconId("d")}
             x1="256.306"
             x2="256.306"
             y1="95.332"
@@ -113,7 +124,7 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
             <stop offset="1" stopColor="#C5C5C5" />
           </linearGradient>
           <linearGradient
-            id="f"
+            id={iconId("f")}
             x1="178.365"
             x2="178.365"
             y1="167.248"
@@ -123,24 +134,52 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
             <stop stopColor="#fff" />
             <stop offset="1" stopColor="#C5C5C5" />
           </linearGradient>
-          <linearGradient id="g" x1="256" x2="256" y1="96" y2="416" gradientUnits="userSpaceOnUse">
+          <linearGradient
+            id={iconId("g")}
+            x1="256"
+            x2="256"
+            y1="96"
+            y2="416"
+            gradientUnits="userSpaceOnUse"
+          >
             <stop stopColor="#fff" />
             <stop offset="1" stopColor="#CCC" />
           </linearGradient>
-          <linearGradient id="i" x1="256" x2="256" y1="96" y2="416" gradientUnits="userSpaceOnUse">
+          <linearGradient
+            id={iconId("i")}
+            x1="256"
+            x2="256"
+            y1="96"
+            y2="416"
+            gradientUnits="userSpaceOnUse"
+          >
             <stop stopColor="#fff" />
             <stop offset="1" stopColor="#CCC" />
           </linearGradient>
-          <linearGradient id="k" x1="256" x2="256" y1="96" y2="416" gradientUnits="userSpaceOnUse">
+          <linearGradient
+            id={iconId("k")}
+            x1="256"
+            x2="256"
+            y1="96"
+            y2="416"
+            gradientUnits="userSpaceOnUse"
+          >
             <stop stopColor="#fff" />
             <stop offset="1" stopColor="#CCC" />
           </linearGradient>
-          <linearGradient id="m" x1="256" x2="256" y1="96" y2="416" gradientUnits="userSpaceOnUse">
+          <linearGradient
+            id={iconId("m")}
+            x1="256"
+            x2="256"
+            y1="96"
+            y2="416"
+            gradientUnits="userSpaceOnUse"
+          >
             <stop stopColor="#fff" />
             <stop offset="1" stopColor="#CCC" />
           </linearGradient>
           <radialGradient
-            id="h"
+            id={iconId("h")}
             cx="0"
             cy="0"
             r="1"
@@ -151,7 +190,7 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
             <stop offset=".598" stopColor="#fff" stopOpacity="0" />
           </radialGradient>
           <radialGradient
-            id="j"
+            id={iconId("j")}
             cx="0"
             cy="0"
             r="1"
@@ -162,7 +201,7 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
             <stop offset=".598" stopColor="#fff" stopOpacity="0" />
           </radialGradient>
           <radialGradient
-            id="l"
+            id={iconId("l")}
             cx="0"
             cy="0"
             r="1"
@@ -173,7 +212,7 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
             <stop offset=".598" stopColor="#fff" stopOpacity="0" />
           </radialGradient>
           <radialGradient
-            id="n"
+            id={iconId("n")}
             cx="0"
             cy="0"
             r="1"
@@ -184,7 +223,7 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
             <stop offset=".598" stopColor="#fff" stopOpacity="0" />
           </radialGradient>
           <filter
-            id="b"
+            id={iconId("b")}
             width="295.583"
             height="295.582"
             x="126.135"
@@ -210,7 +249,7 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
             <feBlend in="SourceGraphic" in2="effect1_dropShadow_14134_4654" result="shape" />
           </filter>
           <filter
-            id="c"
+            id={iconId("c")}
             width="267.583"
             height="267.582"
             x="140.135"
@@ -223,7 +262,7 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
             <feGaussianBlur result="effect1_foregroundBlur_14134_4654" stdDeviation="5" />
           </filter>
           <filter
-            id="e"
+            id={iconId("e")}
             width="171.522"
             height="177.592"
             x="102.218"

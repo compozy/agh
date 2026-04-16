@@ -79,7 +79,7 @@
   --chart-3: var(--color-info);
   --chart-4: var(--color-warning);
   --chart-5: var(--color-danger);
-  --radius: 0.7rem;
+  --radius: 0.5rem;
 
   --sidebar: var(--color-surface);
   --sidebar-foreground: var(--color-text-primary);

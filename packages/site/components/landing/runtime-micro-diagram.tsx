@@ -127,6 +127,11 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
             animation-iteration-count: infinite;
             animation-timing-function: ease-in-out;
           }
+          @media (prefers-reduced-motion: reduce) {
+            .agh-subsystem {
+              animation: none !important;
+            }
+          }
           @keyframes agh-subsystem-pulse {
             0%, 100% {
               fill: var(--color-surface);

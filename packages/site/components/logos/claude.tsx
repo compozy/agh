@@ -10,7 +10,7 @@ export function ClaudeLogo({ className, ...props }: ClaudeLogoProps) {
       height="257"
       preserveAspectRatio="xMidYMid"
       viewBox="0 0 256 257"
-      className={cn("", className)}
+      className={cn(className)}
       {...props}
     >
       <title>Claude</title>

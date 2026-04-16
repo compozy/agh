@@ -51,7 +51,7 @@ export function RuntimeSection() {
   return (
     <SectionFrame background="canvas" padY="lg">
       <div className="grid gap-12 lg:grid-cols-[minmax(0,260px)_1fr] lg:items-start lg:gap-16">
-        <div className="h-full flex flex-col justify-between lg:sticky">
+        <div className="h-full flex flex-col justify-between lg:sticky lg:top-24">
           <div>
             <p className="font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
               Runtime

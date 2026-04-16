@@ -27,6 +27,7 @@ vi.mock("next/navigation", () => ({
 import { Hero } from "../hero";
 import { FeaturesSection } from "../features-section";
 import { SupportedAgents } from "../supported-agents";
+import { RuntimeMicroDiagram } from "../runtime-micro-diagram";
 import { RuntimeSection } from "../runtime-section";
 import { BridgesSection } from "../bridges-section";
 import { ExtensibilitySection } from "../extensibility-section";
@@ -100,6 +101,24 @@ describe("RuntimeSection", () => {
     for (const title of expected) {
       expect(screen.getByText(title)).toBeDefined();
     }
+  });
+
+  it("gives the sticky runtime rail a large-screen top inset", () => {
+    const { container } = render(<RuntimeSection />);
+    const stickyRail = container.querySelector('div[class*="lg:sticky"]');
+
+    expect(stickyRail).toBeTruthy();
+    expect(stickyRail?.getAttribute("class")).toContain("lg:top-24");
+  });
+});
+
+describe("RuntimeMicroDiagram", () => {
+  it("injects a prefers-reduced-motion CSS guard for pre-hydration renders", () => {
+    const { container } = render(<RuntimeMicroDiagram />);
+    const styleText = container.querySelector("style")?.textContent ?? "";
+
+    expect(styleText).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(styleText).toContain("animation: none !important;");
   });
 });
 
