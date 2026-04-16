@@ -1,0 +1,159 @@
+---
+title: Quick Start
+description: Start the AGH daemon, create your first agent session, send a prompt, and watch events stream back — all in under five minutes.
+---
+
+# Quick Start
+
+This tutorial takes you from a fresh AGH install to a running agent session in under five minutes. You will start the daemon, create a session, send a prompt, and observe the events it generates.
+
+**Before you begin:** Make sure you have completed the [Installation](/runtime/getting-started/installation) page, including running `agh install` to bootstrap your configuration.
+
+## Start the daemon
+
+AGH runs as a background daemon. Start it with:
+
+```bash
+agh daemon start
+```
+
+The daemon detaches to the background and prints a confirmation:
+
+```
+daemon started (pid 48201)
+http server listening on localhost:2123
+```
+
+> **Tip:** If you want to see the daemon logs in your terminal instead of running in the background, use `agh daemon start --foreground`. Press `Ctrl+C` to stop it.
+
+Verify the daemon is running:
+
+```bash
+agh daemon status
+```
+
+```
+daemon: running (pid 48201)
+uptime: 12s
+http:   localhost:2123
+socket: ~/.agh/daemon.sock
+```
+
+## Create a session
+
+A session is an active agent conversation managed by AGH. Create one using the default `general` agent:
+
+```bash
+agh session new
+```
+
+AGH spawns the agent subprocess, establishes a JSON-RPC connection, and returns the session details:
+
+```
+session created
+  id:        a1b2c3d4
+  agent:     general
+  workspace: ~/projects/myapp
+  state:     active
+```
+
+The session is now `active` and waiting for input.
+
+## Send a prompt
+
+Send a message to your session:
+
+```bash
+agh session prompt a1b2c3d4 "What is 2 + 2?"
+```
+
+Replace `a1b2c3d4` with the session ID from the previous step. The agent processes your prompt and AGH records every event — your message, the agent's response, any tool calls, and token usage.
+
+```
+[user_message] What is 2 + 2?
+[agent_message] 2 + 2 equals 4.
+[usage] tokens: 24 input, 12 output
+```
+
+## Stream events in real time
+
+For longer-running interactions, you can follow events as they happen:
+
+```bash
+agh session events a1b2c3d4 --follow
+```
+
+This opens a live stream. As the agent works — thinking, calling tools, generating responses — each event appears in your terminal. Press `Ctrl+C` to stop following.
+
+You can also query past events without following:
+
+```bash
+# Show the last 20 events
+agh session events a1b2c3d4 --last 20
+
+# Show events since a specific time
+agh session events a1b2c3d4 --since 5m
+```
+
+## Check your sessions
+
+List all active sessions:
+
+```bash
+agh session list
+```
+
+```
+ID        AGENT    STATE   WORKSPACE          AGE
+a1b2c3d4  general  active  ~/projects/myapp   3m
+```
+
+Get details about a specific session:
+
+```bash
+agh session status a1b2c3d4
+```
+
+## Stop the session
+
+When you are done, stop the session:
+
+```bash
+agh session stop a1b2c3d4
+```
+
+```
+session a1b2c3d4 stopped
+```
+
+The session's events are preserved in its SQLite database at `~/.agh/sessions/a1b2c3d4/events.db`. You can resume it later with `agh session resume a1b2c3d4`.
+
+## Stop the daemon
+
+When you are finished for the day:
+
+```bash
+agh daemon stop
+```
+
+```
+daemon stopped
+```
+
+This gracefully shuts down all active sessions, persists state, and releases the daemon lock.
+
+## What just happened
+
+In the steps above, you:
+
+1. Started the AGH daemon as a background process
+2. Created a session that spawned an agent subprocess via ACP
+3. Sent a prompt through AGH to the agent and received a response
+4. Observed events recorded by AGH's persistence layer
+5. Stopped the session (preserving its history) and the daemon
+
+Every event — messages, tool calls, token usage, permission decisions — was recorded in a per-session SQLite database. The daemon tracked it all through its global catalog.
+
+## Next steps
+
+You used the built-in `general` agent. In the next tutorial, you will [create a custom agent](/runtime/getting-started/first-agent) with its own system prompt, provider, and tool configuration.

@@ -1,0 +1,111 @@
+---
+title: Web UI
+description: Open the AGH web interface, navigate sessions, view real-time events, and understand the dashboard — all from your browser.
+---
+
+# Web UI
+
+AGH includes a web interface that lets you manage sessions and watch agent activity in real time. The web UI connects to the same daemon as the CLI — everything you see in the browser reflects the same state as `agh session list` and `agh session events`.
+
+**Before you begin:** Make sure the daemon is running (`agh daemon start`).
+
+## Open the web UI
+
+The daemon serves the web UI on port **2123** by default. Open your browser and go to:
+
+```
+http://localhost:2123
+```
+
+If you changed the port in your configuration (`[http]` section of `~/.agh/config.toml`), use that port instead.
+
+> **Tip:** You can check which port the daemon is using with `agh daemon status`. The `http` line shows the address.
+
+## The dashboard
+
+When you open the web UI, you see the main dashboard. It shows:
+
+- **Active sessions** — Each running session with its agent name, workspace, state, and how long it has been active.
+- **Session history** — Past sessions that have been stopped, with their duration and event count.
+- **Daemon health** — The daemon's uptime, resource usage, and connected clients.
+
+## View a session
+
+Click on any session to open its detail view. This page shows:
+
+- **Session metadata** — Agent name, workspace, state, creation time, and session ID.
+- **Event stream** — A chronological list of every event in the session: user messages, agent responses, tool calls, tool results, permission decisions, and token usage.
+- **Turn grouping** — Events are grouped by conversation turn, making it easy to follow the back-and-forth between you and the agent.
+
+## Watch events in real time
+
+When a session is `active`, the event stream updates in real time via SSE (Server-Sent Events). As the agent works — reading files, calling tools, generating responses — each event appears immediately in the browser without refreshing.
+
+This is especially useful for long-running agent tasks where you want to monitor progress without blocking your terminal.
+
+## Event types
+
+The web UI displays events with visual indicators for each type:
+
+| Event type | What it represents |
+|-----------|-------------------|
+| `user_message` | A prompt you sent to the agent |
+| `agent_message` | The agent's text response |
+| `thought` | The agent's internal reasoning (when supported by the provider) |
+| `tool_call` | A tool invocation requested by the agent |
+| `tool_result` | The output returned from a tool call |
+| `permission_request` | The agent asked for permission to perform an action |
+| `permission_response` | Your approval or denial of a permission request |
+| `usage` | Token count and cost for a turn |
+| `error` | An error that occurred during processing |
+
+## Manage sessions from the browser
+
+The web UI supports the same session operations as the CLI:
+
+- **Create a session** — Start a new session with a selected agent and workspace.
+- **Send prompts** — Type messages directly in the browser and see responses in real time.
+- **Stop a session** — Gracefully stop a running session.
+- **Resume a session** — Restart a previously stopped session from where it left off.
+
+## Customize the HTTP address
+
+By default, the web UI listens on `localhost:2123`. To change this, edit your `~/.agh/config.toml`:
+
+```toml
+[http]
+host = "localhost"
+port = 8080
+```
+
+Restart the daemon for the change to take effect:
+
+```bash
+agh daemon stop
+agh daemon start
+```
+
+> **Note:** Binding to `0.0.0.0` exposes the web UI to your local network. Only do this on trusted networks — AGH does not currently require authentication for the web UI.
+
+## CLI equivalents
+
+Everything in the web UI maps to a CLI command. If you prefer the terminal:
+
+| Web UI action | CLI equivalent |
+|--------------|---------------|
+| View sessions | `agh session list` |
+| Session details | `agh session status \<id\>` |
+| Watch events | `agh session events \<id\> --follow` |
+| Send prompt | `agh session prompt \<id\> "message"` |
+| Stop session | `agh session stop \<id\>` |
+| Resume session | `agh session resume \<id\>` |
+| Daemon health | `agh observe health` |
+
+## Next steps
+
+You have now completed the Getting Started tutorials. You can:
+
+- Learn about [sessions](/runtime/sessions) in depth — lifecycle, resume, events, and permissions
+- Explore [agent definitions](/runtime/agents) — providers, tools, MCP servers, and workspace scoping
+- Read the [configuration reference](/runtime/configuration) for the full TOML schema
+- Browse the [CLI reference](/runtime/reference/cli) for every command and flag

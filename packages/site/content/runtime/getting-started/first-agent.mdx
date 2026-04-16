@@ -1,0 +1,188 @@
+---
+title: Your First Custom Agent
+description: Create a custom agent with its own system prompt, provider configuration, and tool permissions using an AGENT.md definition file.
+---
+
+# Your First Custom Agent
+
+In the [Quick Start](/runtime/getting-started/quick-start), you used the built-in `general` agent. In this tutorial, you will create a custom agent with a focused system prompt, specific tools, and its own provider settings. By the end, you will have a working `code-reviewer` agent that you can use in any session.
+
+**Before you begin:** Make sure the daemon is running (`agh daemon start`).
+
+## How agents work in AGH
+
+An agent in AGH is a directory containing an `AGENT.md` file. The file has YAML frontmatter that declares the agent's configuration, and a Markdown body that becomes the agent's system prompt. AGH reads this definition when you create a session and uses it to spawn and configure the agent subprocess.
+
+Agents are stored in two locations:
+
+| Location | Scope | Example |
+|----------|-------|---------|
+| `~/.agh/agents/<name>/` | Global — available everywhere | User-wide agents |
+| `.agents/<name>/` | Workspace — available in this project only | Project-specific agents |
+
+## Create the agent directory
+
+Create a new agent called `code-reviewer`:
+
+```bash
+mkdir -p ~/.agh/agents/code-reviewer
+```
+
+## Write the AGENT.md file
+
+Create `~/.agh/agents/code-reviewer/AGENT.md` with the following content:
+
+```yaml
+---
+name: code-reviewer
+provider: claude
+model: claude-sonnet-4-20250514
+tools: [read, glob, grep]
+permissions: approve-reads
+---
+
+You are a senior code reviewer. When given a file or directory, you:
+
+1. Read the code carefully
+2. Identify bugs, security issues, and style problems
+3. Suggest concrete improvements with code examples
+4. Prioritize issues by severity (critical, warning, suggestion)
+
+Be direct. Skip praise. Focus on what needs to change.
+```
+
+The frontmatter fields:
+
+| Field | Value | Purpose |
+|-------|-------|---------|
+| `name` | `code-reviewer` | Unique identifier for this agent |
+| `provider` | `claude` | Which provider to use (must match a `[providers.*]` section in your config) |
+| `model` | `claude-sonnet-4-20250514` | Model to use for this agent |
+| `tools` | `[read, glob, grep]` | Restrict the agent to read-only file tools — no writes, no bash |
+| `permissions` | `approve-reads` | Automatically approve read operations, prompt for anything else |
+
+The Markdown body after the `---` becomes the system prompt that shapes the agent's behavior.
+
+> **Tip:** If you want the agent to use whatever provider and model you configured during `agh install`, omit the `provider` and `model` fields. AGH falls back to your defaults in `~/.agh/config.toml`.
+
+## Verify the agent is registered
+
+Check that AGH can see your new agent:
+
+```bash
+agh agent list
+```
+
+```
+NAME            PROVIDER  MODEL
+general         claude    claude-sonnet-4-20250514
+code-reviewer   claude    claude-sonnet-4-20250514
+```
+
+Get the full details:
+
+```bash
+agh agent info code-reviewer
+```
+
+```
+name:        code-reviewer
+provider:    claude
+model:       claude-sonnet-4-20250514
+tools:       read, glob, grep
+permissions: approve-reads
+prompt:      You are a senior code reviewer. When given a file...
+```
+
+## Run a session with the custom agent
+
+Create a session that uses your new agent:
+
+```bash
+agh session new --agent code-reviewer
+```
+
+```
+session created
+  id:        e5f6g7h8
+  agent:     code-reviewer
+  workspace: ~/projects/myapp
+  state:     active
+```
+
+Send it a review task:
+
+```bash
+agh session prompt e5f6g7h8 "Review the main.go file in this project"
+```
+
+The agent reads the file using its allowed tools (`read`, `glob`, `grep`) and responds with a code review. Because `permissions` is set to `approve-reads`, file reads happen automatically without prompting you for approval.
+
+## Add MCP servers to an agent
+
+Agents can declare MCP (Model Context Protocol) servers that provide additional tools. For example, to give your code-reviewer access to a GitHub server:
+
+```yaml
+---
+name: code-reviewer
+provider: claude
+model: claude-sonnet-4-20250514
+tools: [read, glob, grep]
+permissions: approve-reads
+mcp_servers:
+  - name: github
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "${GITHUB_TOKEN}"
+---
+
+You are a senior code reviewer...
+```
+
+AGH spawns the MCP server alongside the agent session and makes its tools available.
+
+You can also place an `mcp.json` file in the agent directory instead of declaring servers inline:
+
+```
+~/.agh/agents/code-reviewer/
+├── AGENT.md
+└── mcp.json
+```
+
+## Create a workspace-scoped agent
+
+For agents specific to a single project, use the `.agents/` directory in your project root:
+
+```bash
+mkdir -p .agents/my-project-helper
+```
+
+Create `.agents/my-project-helper/AGENT.md`:
+
+```yaml
+---
+name: my-project-helper
+provider: claude
+tools: ["*"]
+permissions: approve-all
+---
+
+You are a development assistant for this project.
+You have full access to read, write, and execute code.
+Always run tests after making changes.
+```
+
+This agent only appears when you create sessions within this workspace.
+
+## Stop the session
+
+When you are done:
+
+```bash
+agh session stop e5f6g7h8
+```
+
+## Next steps
+
+You now have a custom agent tailored to a specific task. Next, explore the [Web UI](/runtime/getting-started/web-ui) to manage your sessions and watch agent activity in real time through a browser interface.
