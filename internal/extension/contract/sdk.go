@@ -6,6 +6,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/tools"
 )
@@ -29,6 +30,18 @@ var sdkRootTypes = []NamedType{
 	{Name: "InitializeExtensionInfo", Value: subprocess.InitializeExtensionInfo{}},
 	{Name: "AcceptedCapabilities", Value: subprocess.AcceptedCapabilities{}},
 	{Name: "InitializeSupports", Value: subprocess.InitializeSupports{}},
+	{Name: "ResourceKind", Value: resources.ResourceKind("")},
+	{Name: "ResourceScopeKind", Value: resources.ResourceScopeKind("")},
+	{Name: "ResourceScope", Value: resources.ResourceScope{}},
+	{Name: "ResourceSourceKind", Value: resources.ResourceSourceKind("")},
+	{Name: "ResourceSource", Value: resources.ResourceSource{}},
+	{Name: "ResourceOwnerKind", Value: resources.ResourceOwnerKind("")},
+	{Name: "ResourceOwner", Value: resources.ResourceOwner{}},
+	{Name: "ResourceRecord", Value: ResourceRecord{}},
+	{Name: "ResourceGetParams", Value: ResourceGetParams{}},
+	{Name: "ResourcesListParams", Value: ResourcesListParams{}},
+	{Name: "ResourceSnapshotRecord", Value: ResourceSnapshotRecord{}},
+	{Name: "ResourcesSnapshotParams", Value: ResourcesSnapshotParams{}},
 	{Name: "ShutdownRequest", Value: subprocess.ShutdownRequest{}},
 	{Name: "ShutdownResponse", Value: subprocess.ShutdownResponse{}},
 	{Name: "BridgeInstance", Value: bridgepkg.BridgeInstance{}},

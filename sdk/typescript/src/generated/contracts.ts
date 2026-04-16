@@ -26,6 +26,9 @@ export type HostAPIMethod =
   | "memory/store"
   | "observe/events"
   | "observe/health"
+  | "resources/get"
+  | "resources/list"
+  | "resources/snapshot"
   | "sessions/create"
   | "sessions/events"
   | "sessions/list"
@@ -884,10 +887,16 @@ export interface InitializeBridgeRuntime {
   managed_instances?: InitializeBridgeManagedInstance[];
 }
 
+export type ResourceKind = string;
+
+export type ResourceScopeKind = string;
+
 export interface InitializeCapabilities {
   provides: string[];
   granted_actions: HostAPIMethod[];
   granted_security: string[];
+  granted_resource_kinds: ResourceKind[];
+  granted_resource_scopes: ResourceScopeKind[];
 }
 
 export interface InitializeExtension {
@@ -920,6 +929,7 @@ export interface InitializeRequest {
   protocol_version: string;
   supported_protocol_versions: string[];
   agh_version: string;
+  session_nonce: string;
   extension: InitializeExtension;
   capabilities: InitializeCapabilities;
   methods: InitializeMethods;
@@ -1388,6 +1398,60 @@ export interface PromptPayload {
   input_class?: string;
   prompt?: string;
   context_blocks?: ContextBlock[];
+}
+
+export interface ResourceGetParams {
+  kind: ResourceKind;
+  id: string;
+}
+
+export type ResourceOwnerKind = string;
+
+export interface ResourceOwner {
+  kind: ResourceOwnerKind;
+  id: string;
+}
+
+export interface ResourceScope {
+  kind: ResourceScopeKind;
+  id?: string;
+}
+
+export type ResourceSourceKind = string;
+
+export interface ResourceSource {
+  kind: ResourceSourceKind;
+  id: string;
+}
+
+export interface ResourceRecord {
+  kind: ResourceKind;
+  id: string;
+  version: number;
+  scope: ResourceScope;
+  owner: ResourceOwner;
+  source: ResourceSource;
+  spec: JSONValue;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+}
+
+export interface ResourceSnapshotRecord {
+  kind: ResourceKind;
+  id: string;
+  scope: ResourceScope;
+  spec: JSONValue;
+}
+
+export interface ResourcesListParams {
+  kind?: ResourceKind;
+  scope?: ResourceScope;
+  limit?: number;
+}
+
+export interface ResourcesSnapshotParams {
+  source_version: number;
+  records: ResourceSnapshotRecord[];
 }
 
 export interface Run {
@@ -2304,6 +2368,18 @@ export interface HostAPIMethodMap {
   "tasks/runs/cancel": {
     params: TaskRunCancelParams;
     result: TaskRun;
+  };
+  "resources/list": {
+    params: ResourcesListParams | undefined;
+    result: ResourceRecord[];
+  };
+  "resources/get": {
+    params: ResourceGetParams;
+    result: ResourceRecord;
+  };
+  "resources/snapshot": {
+    params: ResourcesSnapshotParams;
+    result: EmptyResult;
   };
   "bridges/instances/list": {
     params: undefined;

@@ -148,6 +148,15 @@ func NewRegistry(db *sql.DB) *Registry {
 	}
 }
 
+// DB exposes the backing SQLite handle for composition-root integrations that
+// need to build additional stores over the same registry database.
+func (r *Registry) DB() *sql.DB {
+	if r == nil {
+		return nil
+	}
+	return r.db
+}
+
 // Install verifies the extension artifact checksum and persists the install as
 // a user-sourced extension.
 func (r *Registry) Install(manifest *Manifest, path string, checksum string, opts ...InstallOption) error {

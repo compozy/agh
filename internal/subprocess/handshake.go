@@ -10,6 +10,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/bridges"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
+	"github.com/pedronauck/agh/internal/resources"
 )
 
 // InitializeRequest is the AGH -> extension session contract request.
@@ -17,6 +18,7 @@ type InitializeRequest struct {
 	ProtocolVersion          string                 `json:"protocol_version"`
 	SupportedProtocolVersion []string               `json:"supported_protocol_versions"`
 	AGHVersion               string                 `json:"agh_version"`
+	SessionNonce             string                 `json:"session_nonce"`
 	Extension                InitializeExtension    `json:"extension"`
 	Capabilities             InitializeCapabilities `json:"capabilities"`
 	Methods                  InitializeMethods      `json:"methods"`
@@ -32,9 +34,11 @@ type InitializeExtension struct {
 
 // InitializeCapabilities carries runtime-granted capabilities.
 type InitializeCapabilities struct {
-	Provides        []string                          `json:"provides"`
-	GrantedActions  []extensionprotocol.HostAPIMethod `json:"granted_actions"`
-	GrantedSecurity []string                          `json:"granted_security"`
+	Provides              []string                          `json:"provides"`
+	GrantedActions        []extensionprotocol.HostAPIMethod `json:"granted_actions"`
+	GrantedSecurity       []string                          `json:"granted_security"`
+	GrantedResourceKinds  []resources.ResourceKind          `json:"granted_resource_kinds"`
+	GrantedResourceScopes []resources.ResourceScopeKind     `json:"granted_resource_scopes"`
 }
 
 // InitializeMethods lists callable method families for the session.
@@ -154,6 +158,9 @@ func (p *Process) Initialize(ctx context.Context, request InitializeRequest) (In
 func (r InitializeRequest) Validate() error {
 	if strings.TrimSpace(r.ProtocolVersion) == "" {
 		return errors.New("subprocess: initialize protocol_version is required")
+	}
+	if strings.TrimSpace(r.SessionNonce) == "" {
+		return errors.New("subprocess: initialize session_nonce is required")
 	}
 	if len(r.SupportedProtocolVersion) == 0 {
 		return errors.New("subprocess: initialize supported_protocol_versions is required")

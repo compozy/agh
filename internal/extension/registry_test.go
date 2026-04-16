@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -1033,7 +1034,8 @@ func newRegistryTestEnv(t *testing.T) registryTestEnv {
 
 	dbPath := filepath.Join(t.TempDir(), "agh-registry.db")
 	db, err := store.OpenSQLiteDatabase(testutil.Context(t), dbPath, func(ctx context.Context, db *sql.DB) error {
-		return store.EnsureSchema(ctx, db, []string{registryTestExtensionsTableSchema})
+		schema := append([]string{registryTestExtensionsTableSchema}, resources.SchemaStatements()...)
+		return store.EnsureSchema(ctx, db, schema)
 	})
 	if err != nil {
 		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
@@ -1052,6 +1054,20 @@ func newRegistryTestEnv(t *testing.T) registryTestEnv {
 		db:          db,
 		registry:    registry,
 		installedAt: installedAt,
+	}
+}
+
+func TestRegistryDBReturnsBackingHandleAndNilSafe(t *testing.T) {
+	t.Parallel()
+
+	var nilRegistry *Registry
+	if got := nilRegistry.DB(); got != nil {
+		t.Fatalf("(*Registry)(nil).DB() = %#v, want nil", got)
+	}
+
+	env := newRegistryTestEnv(t)
+	if got, want := env.registry.DB(), env.db; got != want {
+		t.Fatalf("registry.DB() = %#v, want %#v", got, want)
 	}
 }
 

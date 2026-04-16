@@ -488,6 +488,14 @@ func (d *Daemon) applyExtensionManagerFactoryDefault() {
 			return nil
 		}
 
+		resourceKernel, err := resources.NewKernel(deps.Registry.DB())
+		if err != nil {
+			if deps.Logger != nil {
+				deps.Logger.Error("daemon: build extension resource kernel", "error", err)
+			}
+			return nil
+		}
+
 		capChecker := &extensionpkg.CapabilityChecker{}
 		capChecker.SetResourcePolicy(deps.Extensions.Resources)
 		hostAPI := extensionpkg.NewHostAPIHandler(
@@ -495,22 +503,27 @@ func (d *Daemon) applyExtensionManagerFactoryDefault() {
 			deps.MemoryStore,
 			deps.Observer,
 			deps.SkillsRegistry,
-			buildHostAPIOptions(deps, capChecker)...,
+			buildHostAPIOptions(deps, capChecker, resourceKernel)...,
 		)
 
-		return extensionpkg.NewManager(deps.Registry, buildExtensionManagerOptions(deps, capChecker, hostAPI)...)
+		return extensionpkg.NewManager(
+			deps.Registry,
+			buildExtensionManagerOptions(deps, capChecker, hostAPI, resourceKernel)...,
+		)
 	}
 }
 
 func buildHostAPIOptions(
 	deps extensionManagerDeps,
 	capChecker *extensionpkg.CapabilityChecker,
+	resourceStore resources.RawStore,
 ) []extensionpkg.HostAPIOption {
 	opts := []extensionpkg.HostAPIOption{
 		extensionpkg.WithHostAPIAutomationGetter(deps.Automation),
 		extensionpkg.WithHostAPITaskManager(deps.Tasks),
 		extensionpkg.WithHostAPICapabilityChecker(capChecker),
 		extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
+		extensionpkg.WithHostAPIResourceStore(resourceStore),
 	}
 	if deps.BridgeRegistry != nil {
 		opts = append(opts, extensionpkg.WithHostAPIBridgeRegistry(deps.BridgeRegistry))
@@ -528,11 +541,13 @@ func buildExtensionManagerOptions(
 	deps extensionManagerDeps,
 	capChecker *extensionpkg.CapabilityChecker,
 	hostAPI *extensionpkg.HostAPIHandler,
+	sourceSessions resources.SourceSessionManager,
 ) []extensionpkg.Option {
 	opts := []extensionpkg.Option{
 		extensionpkg.WithCapabilityChecker(capChecker),
 		extensionpkg.WithSkillsRegistry(deps.SkillsRegistry),
 		extensionpkg.WithLogger(deps.Logger),
+		extensionpkg.WithSourceSessionManager(sourceSessions),
 	}
 	if sink, ok := deps.Observer.(extensionpkg.BridgeTelemetrySink); ok {
 		opts = append(opts, extensionpkg.WithBridgeTelemetrySink(sink))

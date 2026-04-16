@@ -127,6 +127,9 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	if request.ProtocolVersion != defaultProtocolVersion {
 		t.Fatalf("initialize protocol version = %q, want %q", request.ProtocolVersion, defaultProtocolVersion)
 	}
+	if strings.TrimSpace(request.SessionNonce) == "" {
+		t.Fatal("initialize session nonce = empty, want daemon-issued nonce")
+	}
 	if !slices.Equal(request.Capabilities.GrantedActions, []extensionprotocol.HostAPIMethod{
 		extensionprotocol.HostAPIMethodSessionsList,
 	}) {
@@ -1428,6 +1431,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 		"ext-host",
 		"sessions/list",
 		nil,
+		nil,
 		func(_ context.Context, _ json.RawMessage) (any, error) {
 			return "ok", nil
 		},
@@ -1436,9 +1440,66 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	if err != nil || result != "ok" {
 		t.Fatalf("wrapHostHandler allowed call = (%v, %v), want (ok, nil)", result, err)
 	}
+
+	resourceSession := &hostAPIResourceSession{
+		Actor: resources.MutationActor{
+			Kind:         resources.MutationActorKindExtension,
+			ID:           "ext-host",
+			SessionNonce: "nonce-wrap",
+			Source: resources.ResourceSource{
+				Kind: resources.ResourceSourceKind("extension"),
+				ID:   "ext-host",
+			},
+			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			GrantedKinds:  []resources.ResourceKind{"tool.definition"},
+			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindGlobal},
+		},
+	}
+	bridgeRuntime := &subprocess.InitializeBridgeRuntime{
+		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
+			{
+				Instance: bridgepkg.BridgeInstance{
+					ID:            "brg-wrap",
+					ExtensionName: "ext-host",
+				},
+			},
+		},
+	}
+	injected := manager.wrapHostHandler(
+		"ext-host",
+		"sessions/list",
+		bridgeRuntime,
+		resourceSession,
+		func(ctx context.Context, _ json.RawMessage) (any, error) {
+			if got := hostAPIExtensionNameFromContext(ctx); got != "ext-host" {
+				t.Fatalf("hostAPIExtensionNameFromContext(ctx) = %q, want ext-host", got)
+			}
+			runtime := hostAPIBridgeRuntimeFromContext(ctx)
+			if runtime == nil {
+				t.Fatal("hostAPIBridgeRuntimeFromContext(ctx) = nil, want runtime")
+			}
+			if got := runtime.ManagedInstances[0].Instance.ID; got != "brg-wrap" {
+				t.Fatalf("runtime.ManagedInstances[0].Instance.ID = %q, want brg-wrap", got)
+			}
+			session, ok := hostAPIResourceSessionFromContext(ctx)
+			if !ok {
+				t.Fatal("hostAPIResourceSessionFromContext(ctx) = false, want true")
+			}
+			if got := session.Actor.SessionNonce; got != "nonce-wrap" {
+				t.Fatalf("session.Actor.SessionNonce = %q, want nonce-wrap", got)
+			}
+			return "injected", nil
+		},
+	)
+	result, err = injected(context.Background(), json.RawMessage(`{}`))
+	if err != nil || result != "injected" {
+		t.Fatalf("wrapHostHandler injected call = (%v, %v), want (injected, nil)", result, err)
+	}
+
 	denied := manager.wrapHostHandler(
 		"ext-denied",
 		"sessions/list",
+		nil,
 		nil,
 		func(_ context.Context, _ json.RawMessage) (any, error) {
 			return "never", nil

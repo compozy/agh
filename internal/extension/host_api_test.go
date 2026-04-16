@@ -25,6 +25,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	observepkg "github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
@@ -276,6 +277,195 @@ func TestHostAPIHandlerSessionsMethodsRequireConfiguredManager(t *testing.T) {
 			assertErrorContains(t, err, "session manager is not configured")
 		})
 	}
+}
+
+func TestHostAPIHandlerResourcesListAndGetEnforceSameSourceAndGrantedKinds(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grantWithResources(
+		t,
+		"ext-resources",
+		[]string{"resources/list", "resources/get", "resources/snapshot"},
+		[]string{"resource.read", "resource.write"},
+		[]string{"tools"},
+		resources.ResourceScopeKindWorkspace,
+	)
+
+	sessionNonce := "nonce-resources"
+	env.activateResourceSession(t, "ext-resources", sessionNonce)
+
+	if _, err := env.callResource(t, "ext-resources", sessionNonce, "resources/snapshot", map[string]any{
+		"source_version": 1,
+		"records": []map[string]any{
+			{
+				"kind":  "tool",
+				"id":    "grep",
+				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+				"spec":  map[string]any{"command": "rg"},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Handle(resources/snapshot) error = %v", err)
+	}
+
+	if _, err := env.resources.PutRaw(testutil.Context(t), resources.MutationActor{
+		Kind: resources.MutationActorKindDaemon,
+		ID:   "host-api-tests",
+		Source: resources.ResourceSource{
+			Kind: resources.ResourceSourceKind("daemon"),
+			ID:   "host-api-tests",
+		},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+	}, resources.RawDraft{
+		Kind:  resources.ResourceKind("tool"),
+		ID:    "foreign",
+		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: env.workspaceID},
+		SpecJSON: mustMarshalJSON(t, map[string]any{
+			"command": "foreign",
+		}),
+	}); err != nil {
+		t.Fatalf("PutRaw(foreign) error = %v", err)
+	}
+
+	listResult, err := env.callResource(t, "ext-resources", sessionNonce, "resources/list", map[string]any{
+		"kind": "tool",
+	})
+	if err != nil {
+		t.Fatalf("Handle(resources/list) error = %v", err)
+	}
+
+	var listed []hostAPIResourceRecord
+	decodeResult(t, listResult, &listed)
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(resources/list) = %d, want %d", got, want)
+	}
+	if got, want := listed[0].ID, "grep"; got != want {
+		t.Fatalf("resources/list[0].id = %q, want %q", got, want)
+	}
+
+	getResult, err := env.callResource(t, "ext-resources", sessionNonce, "resources/get", map[string]any{
+		"kind": "tool",
+		"id":   "grep",
+	})
+	if err != nil {
+		t.Fatalf("Handle(resources/get own) error = %v", err)
+	}
+
+	var own hostAPIResourceRecord
+	decodeResult(t, getResult, &own)
+	if got, want := own.ID, "grep"; got != want {
+		t.Fatalf("resources/get own id = %q, want %q", got, want)
+	}
+
+	_, err = env.callResource(t, "ext-resources", sessionNonce, "resources/get", map[string]any{
+		"kind": "tool",
+		"id":   "foreign",
+	})
+	assertRPCErrorCode(t, err, 403)
+
+	_, err = env.callResource(t, "ext-resources", sessionNonce, "resources/list", map[string]any{
+		"kind": "mcp_server",
+	})
+	assertRPCErrorCode(t, err, 403)
+}
+
+func TestHostAPIHandlerResourcesSnapshotRejectsStaleVersionAndInactiveNonce(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grantWithResources(
+		t,
+		"ext-snapshot",
+		[]string{"resources/snapshot"},
+		[]string{"resource.write"},
+		[]string{"tools"},
+		resources.ResourceScopeKindWorkspace,
+	)
+
+	sessionNonce := "nonce-active"
+	env.activateResourceSession(t, "ext-snapshot", sessionNonce)
+
+	params := map[string]any{
+		"source_version": 1,
+		"records": []map[string]any{
+			{
+				"kind":  "tool",
+				"id":    "grep",
+				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+				"spec":  map[string]any{"command": "rg"},
+			},
+		},
+	}
+	if _, err := env.callResource(t, "ext-snapshot", sessionNonce, "resources/snapshot", params); err != nil {
+		t.Fatalf("first Handle(resources/snapshot) error = %v", err)
+	}
+
+	_, err := env.callResource(t, "ext-snapshot", sessionNonce, "resources/snapshot", params)
+	assertRPCErrorCode(t, err, 409)
+
+	env.activateResourceSession(t, "ext-snapshot", "nonce-next")
+
+	_, err = env.callResource(t, "ext-snapshot", sessionNonce, "resources/snapshot", map[string]any{
+		"source_version": 2,
+		"records":        params["records"],
+	})
+	assertRPCErrorCode(t, err, 409)
+}
+
+func TestHostAPIHandlerResourcesMethodsCoexistWithBridgeOperationalMethods(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grantWithResources(
+		t,
+		"telegram-adapter",
+		[]string{"resources/list", "bridges/instances/list", "bridges/instances/get"},
+		[]string{"resource.read", "bridge.read"},
+		[]string{"tools"},
+		resources.ResourceScopeKindWorkspace,
+	)
+
+	sessionNonce := "nonce-bridge"
+	env.activateResourceSession(t, "telegram-adapter", sessionNonce)
+	if _, err := env.callResource(t, "telegram-adapter", sessionNonce, "resources/snapshot", map[string]any{
+		"source_version": 1,
+		"records": []map[string]any{
+			{
+				"kind":  "tool",
+				"id":    "grep",
+				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+				"spec":  map[string]any{"command": "rg"},
+			},
+		},
+	}); err == nil {
+		t.Fatal("Handle(resources/snapshot) error = nil, want capability denial without resources/snapshot action")
+	} else {
+		assertRPCErrorCode(t, err, 403)
+	}
+
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-coexist",
+		ExtensionName: "telegram-adapter",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.bridgeContext(t, instance)
+
+	listedResult, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/list", nil)
+	if err != nil {
+		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
+	}
+
+	var listed []hostAPIBridgeInstance
+	decodeResult(t, listedResult, &listed)
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(bridges/instances/list) = %d, want %d", got, want)
+	}
+
+	_, err = env.callResource(t, "telegram-adapter", sessionNonce, "resources/list", map[string]any{
+		"kind": "bridge.instance",
+	})
+	assertRPCErrorCode(t, err, 403)
 }
 
 func TestHostAPIHandlerMemoryStorePersistsContentWithTags(t *testing.T) {
@@ -1418,7 +1608,13 @@ func TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler(t *testing.
 	env.grant("ext-wrapped", []string{"observe/health"}, []string{"observe.read"})
 
 	manager := NewManager(nil, WithCapabilityChecker(env.checker))
-	wrapped := manager.wrapHostHandler("ext-wrapped", "observe/health", nil, env.handler.HandleMethod("observe/health"))
+	wrapped := manager.wrapHostHandler(
+		"ext-wrapped",
+		"observe/health",
+		nil,
+		nil,
+		env.handler.HandleMethod("observe/health"),
+	)
 
 	result, err := wrapped(testutil.Context(t), nil)
 	if err != nil {
@@ -1430,6 +1626,231 @@ func TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler(t *testing.
 	if health.Status != "ok" {
 		t.Fatalf("wrapped observe/health status = %q, want ok", health.Status)
 	}
+}
+
+func TestNormalizeHostAPIHandlerDefaultsFillsZeroValues(t *testing.T) {
+	t.Parallel()
+
+	normalizeHostAPIHandlerDefaults(nil)
+
+	handler := &HostAPIHandler{}
+	normalizeHostAPIHandlerDefaults(handler)
+
+	if handler.now == nil {
+		t.Fatal("normalizeHostAPIHandlerDefaults() left now nil")
+	}
+	if handler.capChecker == nil {
+		t.Fatal("normalizeHostAPIHandlerDefaults() left capChecker nil")
+	}
+	if handler.bridgeIngestDedupTTL != defaultHostAPIBridgeIngestDedupTTL {
+		t.Fatalf(
+			"bridgeIngestDedupTTL = %v, want %v",
+			handler.bridgeIngestDedupTTL,
+			defaultHostAPIBridgeIngestDedupTTL,
+		)
+	}
+	if handler.bridgeCleanupInterval != defaultHostAPIBridgeCleanupInterval {
+		t.Fatalf(
+			"bridgeCleanupInterval = %v, want %v",
+			handler.bridgeCleanupInterval,
+			defaultHostAPIBridgeCleanupInterval,
+		)
+	}
+	if handler.bridgeLocks == nil {
+		t.Fatal("normalizeHostAPIHandlerDefaults() left bridgeLocks nil")
+	}
+}
+
+func TestHostAPIContextHelpersCloneBridgeAndResourceSession(t *testing.T) {
+	t.Parallel()
+
+	baseCtx := context.Background()
+	if got := withHostAPIBridgeRuntime(baseCtx, nil); got != baseCtx {
+		t.Fatalf("withHostAPIBridgeRuntime(background, nil) = %#v, want background context", got)
+	}
+	if got := withHostAPIResourceSession(baseCtx, nil); got != baseCtx {
+		t.Fatalf("withHostAPIResourceSession(background, nil) = %#v, want background context", got)
+	}
+	if _, ok := hostAPIResourceSessionFromContext(baseCtx); ok {
+		t.Fatal("hostAPIResourceSessionFromContext(background) = ok, want false")
+	}
+	if runtime := hostAPIBridgeRuntimeFromContext(baseCtx); runtime != nil {
+		t.Fatalf("hostAPIBridgeRuntimeFromContext(background) = %#v, want nil", runtime)
+	}
+
+	runtime := &subprocess.InitializeBridgeRuntime{
+		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
+			{
+				Instance: bridgepkg.BridgeInstance{
+					ID:            "brg-1",
+					ExtensionName: "ext-runtime",
+				},
+			},
+		},
+	}
+	session := &hostAPIResourceSession{
+		Actor: resources.MutationActor{
+			Kind:         resources.MutationActorKindExtension,
+			ID:           "ext-runtime",
+			SessionNonce: "nonce-1",
+			Source: resources.ResourceSource{
+				Kind: resources.ResourceSourceKind("extension"),
+				ID:   "ext-runtime",
+			},
+			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			GrantedKinds:  []resources.ResourceKind{"tool.definition"},
+			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindGlobal},
+		},
+	}
+
+	ctx := withHostAPIBridgeRuntime(withHostAPIResourceSession(baseCtx, session), runtime)
+
+	session.Actor.GrantedKinds[0] = "tool.call"
+	runtime.ManagedInstances[0].Instance.ID = "mutated"
+
+	storedSession, ok := hostAPIResourceSessionFromContext(ctx)
+	if !ok {
+		t.Fatal("hostAPIResourceSessionFromContext(ctx) = false, want true")
+	}
+	if got, want := storedSession.Actor.GrantedKinds, []resources.ResourceKind{
+		"tool.definition",
+	}; !slices.Equal(
+		got,
+		want,
+	) {
+		t.Fatalf("storedSession.Actor.GrantedKinds = %#v, want %#v", got, want)
+	}
+	storedSession.Actor.GrantedKinds[0] = "tool.call"
+	reloadedSession, ok := hostAPIResourceSessionFromContext(ctx)
+	if !ok {
+		t.Fatal("hostAPIResourceSessionFromContext(ctx) after mutation = false, want true")
+	}
+	if got, want := reloadedSession.Actor.GrantedKinds, []resources.ResourceKind{
+		"tool.definition",
+	}; !slices.Equal(
+		got,
+		want,
+	) {
+		t.Fatalf("reloadedSession.Actor.GrantedKinds = %#v, want %#v", got, want)
+	}
+
+	storedRuntime := hostAPIBridgeRuntimeFromContext(ctx)
+	if storedRuntime == nil {
+		t.Fatal("hostAPIBridgeRuntimeFromContext(ctx) = nil, want runtime")
+	}
+	if got, want := storedRuntime.ManagedInstances[0].Instance.ID, "brg-1"; got != want {
+		t.Fatalf("storedRuntime.ManagedInstances[0].Instance.ID = %q, want %q", got, want)
+	}
+}
+
+func TestNormalizeHostAPIRPCErrorMapsResourceStatuses(t *testing.T) {
+	t.Parallel()
+
+	sameRPC := subprocess.NewRPCError(499, "unchanged", map[string]string{"error": "keep"})
+	sameErr := errors.New("boom")
+
+	tests := []struct {
+		name        string
+		method      string
+		err         error
+		wantCode    int
+		wantMessage string
+		wantSame    bool
+	}{
+		{name: "nil", method: "resources/list", err: nil},
+		{name: "non resource", method: "observe/health", err: sameErr, wantSame: true},
+		{name: "rpc passthrough", method: "resources/list", err: sameRPC, wantSame: true},
+		{
+			name:   "rate limited",
+			method: "resources/list",
+			err: subprocess.NewRPCError(
+				HostAPIRateLimitedCode,
+				"slow down",
+				map[string]string{"error": "slow"},
+			),
+			wantCode:    429,
+			wantMessage: "Rate limited",
+		},
+		{
+			name:        "forbidden",
+			method:      "resources/get",
+			err:         resources.ErrPermissionDenied,
+			wantCode:    403,
+			wantMessage: "Forbidden",
+		},
+		{
+			name:        "conflict",
+			method:      "resources/snapshot",
+			err:         resources.ErrSessionNotActive,
+			wantCode:    409,
+			wantMessage: "Conflict",
+		},
+		{
+			name:        "payload too large",
+			method:      "resources/snapshot",
+			err:         resources.ErrPayloadTooLarge,
+			wantCode:    413,
+			wantMessage: "Payload too large",
+		},
+		{
+			name:        "not found",
+			method:      "resources/get",
+			err:         resources.ErrNotFound,
+			wantCode:    HostAPINotFoundCode,
+			wantMessage: "Not found",
+		},
+		{
+			name:        "invalid params",
+			method:      "resources/list",
+			err:         resources.ErrValidation,
+			wantCode:    HostAPIInvalidParamsCode,
+			wantMessage: "Invalid params",
+		},
+		{name: "default passthrough", method: "resources/list", err: sameErr, wantSame: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeHostAPIRPCError(tt.method, tt.err)
+			if tt.err == nil {
+				if got != nil {
+					t.Fatalf("normalizeHostAPIRPCError() = %v, want nil", got)
+				}
+				return
+			}
+			if tt.wantSame {
+				if got != tt.err {
+					t.Fatalf("normalizeHostAPIRPCError() = %#v, want original %#v", got, tt.err)
+				}
+				return
+			}
+
+			var rpcErr *subprocess.RPCError
+			if !errors.As(got, &rpcErr) {
+				t.Fatalf("normalizeHostAPIRPCError() type = %T, want *subprocess.RPCError", got)
+			}
+			if rpcErr.Code != tt.wantCode {
+				t.Fatalf("rpcErr.Code = %d, want %d", rpcErr.Code, tt.wantCode)
+			}
+			if rpcErr.Message != tt.wantMessage {
+				t.Fatalf("rpcErr.Message = %q, want %q", rpcErr.Message, tt.wantMessage)
+			}
+		})
+	}
+}
+
+func TestRPCCapabilityDeniedUsesHTTPStatusForResourceMethods(t *testing.T) {
+	t.Parallel()
+
+	resourceErr := rpcCapabilityDenied(newCapabilityDeniedError("resources/get", []string{"resource.read"}, nil))
+	assertRPCErrorCode(t, resourceErr, 403)
+	data := decodeRPCData(t, resourceErr)
+	if got := data["method"]; got != "resources/get" {
+		t.Fatalf("rpc data method = %#v, want resources/get", got)
+	}
+
+	observeErr := rpcCapabilityDenied(newCapabilityDeniedError("observe/health", []string{"observe.read"}, nil))
+	assertRPCErrorCode(t, observeErr, CapabilityDeniedCode)
 }
 
 func TestHostAPIHandlerAutomationTriggerFireRejectsNonExtensionEvent(t *testing.T) {
@@ -3037,6 +3458,7 @@ type hostAPITestEnv struct {
 	skills      *skillspkg.Registry
 	workspaces  *hostAPIFakeWorkspaceResolver
 	driver      *hostAPIFakeDriver
+	resources   *resources.Kernel
 	checker     *CapabilityChecker
 	handler     *HostAPIHandler
 }
@@ -3240,6 +3662,13 @@ Review the workspace changes carefully.
 		t.Fatalf("registry.InsertWorkspace() error = %v", err)
 	}
 	bridgeRegistry := bridgepkg.NewRegistry(registry, bridgepkg.WithNow(func() time.Time { return env.currentTime() }))
+	resourceKernel, err := resources.NewKernel(
+		registry.DB(),
+		resources.WithNow(func() time.Time { return env.currentTime() }),
+	)
+	if err != nil {
+		t.Fatalf("resources.NewKernel() error = %v", err)
+	}
 
 	observer, err := observepkg.New(testutil.Context(t),
 		observepkg.WithRegistry(registry),
@@ -3336,6 +3765,7 @@ Review the workspace changes carefully.
 		WithHostAPIWorkspaceResolver(workspaces),
 		WithHostAPIBridgeRegistry(bridgeRegistry),
 		WithHostAPIBridgeDedupStore(registry),
+		WithHostAPIResourceStore(resourceKernel),
 		WithHostAPINow(func() time.Time { return env.currentTime() }),
 		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
 		WithHostAPIRateLimit(1000, 1000),
@@ -3353,6 +3783,7 @@ Review the workspace changes carefully.
 	env.skills = skillsRegistry
 	env.workspaces = workspaces
 	env.driver = driver
+	env.resources = resourceKernel
 	env.checker = checker
 	env.handler = handler
 	return env
@@ -3363,6 +3794,31 @@ func (e *hostAPITestEnv) grant(extName string, actions []string, security []stri
 		Actions:  ActionsConfig{Requires: append([]string(nil), actions...)},
 		Security: SecurityConfig{Capabilities: append([]string(nil), security...)},
 	})
+}
+
+func (e *hostAPITestEnv) grantWithResources(
+	t testing.TB,
+	extName string,
+	actions []string,
+	security []string,
+	resourceFamilies []string,
+	maxScope resources.ResourceScopeKind,
+) {
+	t.Helper()
+
+	_, err := e.checker.RegisterForSession(extName, SourceUser, &Manifest{
+		Actions:  ActionsConfig{Requires: append([]string(nil), actions...)},
+		Security: SecurityConfig{Capabilities: append([]string(nil), security...)},
+		Resources: ResourcesConfig{
+			Publish: ResourceGrantRequest{
+				Families: append([]string(nil), resourceFamilies...),
+				MaxScope: maxScope,
+			},
+		},
+	}, resources.ResourceScopeKindGlobal)
+	if err != nil {
+		t.Fatalf("RegisterForSession(%q) error = %v", extName, err)
+	}
 }
 
 func (e *hostAPITestEnv) currentTime() time.Time {
@@ -3402,6 +3858,59 @@ func (e *hostAPITestEnv) callWithContext(
 		return nil, err
 	}
 	return e.handler.Handle(ctx, extName, method, eRaw)
+}
+
+func (e *hostAPITestEnv) resourceContext(t testing.TB, extName string, sessionNonce string) context.Context {
+	t.Helper()
+
+	grant := e.checker.Grant(extName)
+	return withHostAPIResourceSession(testutil.Context(t), &hostAPIResourceSession{
+		Actor: resources.MutationActor{
+			Kind:         resources.MutationActorKindExtension,
+			ID:           extName,
+			SessionNonce: sessionNonce,
+			Source: resources.ResourceSource{
+				Kind: resources.ResourceSourceKind("extension"),
+				ID:   extName,
+			},
+			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			GrantedKinds:  append([]resources.ResourceKind(nil), grant.ResourceKinds...),
+			GrantedScopes: append([]resources.ResourceScopeKind(nil), grant.ResourceScopes...),
+		},
+	})
+}
+
+func (e *hostAPITestEnv) activateResourceSession(t testing.TB, extName string, sessionNonce string) {
+	t.Helper()
+
+	if e.resources == nil {
+		t.Fatal("resource kernel is not configured")
+	}
+	if err := e.resources.ActivateSourceSession(testutil.Context(t), resources.MutationActor{
+		Kind: resources.MutationActorKindDaemon,
+		ID:   "host-api-tests",
+		Source: resources.ResourceSource{
+			Kind: resources.ResourceSourceKind("daemon"),
+			ID:   "host-api-tests",
+		},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+	}, resources.ResourceSource{
+		Kind: resources.ResourceSourceKind("extension"),
+		ID:   extName,
+	}, sessionNonce); err != nil {
+		t.Fatalf("ActivateSourceSession(%q) error = %v", extName, err)
+	}
+}
+
+func (e *hostAPITestEnv) callResource(
+	t testing.TB,
+	extName string,
+	sessionNonce string,
+	method string,
+	params any,
+) (any, error) {
+	t.Helper()
+	return e.callWithContext(e.resourceContext(t, extName, sessionNonce), t, extName, method, params)
 }
 
 func (e *hostAPITestEnv) bridgeContext(t testing.TB, instance *bridgepkg.BridgeInstance) context.Context {
@@ -3551,6 +4060,7 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 		WithHostAPIWorkspaceResolver(e.workspaces),
 		WithHostAPIBridgeRegistry(e.bridges),
 		WithHostAPIBridgeDedupStore(e.registry),
+		WithHostAPIResourceStore(e.resources),
 		WithHostAPINow(func() time.Time { return e.currentTime() }),
 		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
 		WithHostAPIRateLimit(1000, 1000),
@@ -3841,6 +4351,16 @@ func mustMarshalRawMessage(t testing.TB, params any) json.RawMessage {
 		t.Fatalf("marshalParams() error = %v", err)
 	}
 	return raw
+}
+
+func mustMarshalJSON(t testing.TB, value any) []byte {
+	t.Helper()
+
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	return encoded
 }
 
 func decodeResult(t testing.TB, result any, target any) {

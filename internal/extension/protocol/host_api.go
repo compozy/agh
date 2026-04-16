@@ -66,6 +66,9 @@ const (
 	HostAPIMethodTasksRunsComplete           HostAPIMethod = "tasks/runs/complete"
 	HostAPIMethodTasksRunsFail               HostAPIMethod = "tasks/runs/fail"
 	HostAPIMethodTasksRunsCancel             HostAPIMethod = "tasks/runs/cancel"
+	HostAPIMethodResourcesList               HostAPIMethod = "resources/list"
+	HostAPIMethodResourcesGet                HostAPIMethod = "resources/get"
+	HostAPIMethodResourcesSnapshot           HostAPIMethod = "resources/snapshot"
 	HostAPIMethodBridgesInstancesList        HostAPIMethod = "bridges/instances/list"
 	HostAPIMethodBridgesMessagesIngest       HostAPIMethod = "bridges/messages/ingest"
 	HostAPIMethodBridgesInstancesGet         HostAPIMethod = "bridges/instances/get"
@@ -115,6 +118,9 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodTasksRunsComplete,
 		HostAPIMethodTasksRunsFail,
 		HostAPIMethodTasksRunsCancel,
+		HostAPIMethodResourcesList,
+		HostAPIMethodResourcesGet,
+		HostAPIMethodResourcesSnapshot,
 		HostAPIMethodBridgesInstancesList,
 		HostAPIMethodBridgesMessagesIngest,
 		HostAPIMethodBridgesInstancesGet,

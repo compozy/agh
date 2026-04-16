@@ -92,8 +92,8 @@ func (k ResourceScopeKind) Validate(path string) error {
 
 // ResourceScope describes the persistence scope for one record.
 type ResourceScope struct {
-	Kind ResourceScopeKind
-	ID   string
+	Kind ResourceScopeKind `json:"kind"`
+	ID   string            `json:"id,omitempty"`
 }
 
 // Normalize returns a trimmed scope value.
@@ -148,8 +148,8 @@ func (k ResourceSourceKind) Normalize() ResourceSourceKind {
 
 // ResourceSource identifies the stamped canonical source for a record.
 type ResourceSource struct {
-	Kind ResourceSourceKind
-	ID   string
+	Kind ResourceSourceKind `json:"kind"`
+	ID   string             `json:"id"`
 }
 
 // Normalize returns a trimmed source value.
@@ -181,8 +181,8 @@ func (k ResourceOwnerKind) Normalize() ResourceOwnerKind {
 
 // ResourceOwner identifies the stamped owner for a record.
 type ResourceOwner struct {
-	Kind ResourceOwnerKind
-	ID   string
+	Kind ResourceOwnerKind `json:"kind"`
+	ID   string            `json:"id"`
 }
 
 // Normalize returns a trimmed owner value.
@@ -206,13 +206,13 @@ func (o ResourceOwner) Validate(path string) error {
 
 // MutationActor describes the authoritative caller boundary for one mutation or read.
 type MutationActor struct {
-	Kind          MutationActorKind
-	ID            string
-	SessionNonce  string
-	Source        ResourceSource
-	MaxScope      ResourceScope
-	GrantedKinds  []ResourceKind
-	GrantedScopes []ResourceScopeKind
+	Kind          MutationActorKind   `json:"kind"`
+	ID            string              `json:"id"`
+	SessionNonce  string              `json:"session_nonce,omitempty"`
+	Source        ResourceSource      `json:"source"`
+	MaxScope      ResourceScope       `json:"max_scope"`
+	GrantedKinds  []ResourceKind      `json:"granted_kinds,omitempty"`
+	GrantedScopes []ResourceScopeKind `json:"granted_scopes,omitempty"`
 }
 
 // RawDraft carries one raw desired-state mutation at the persistence boundary.

@@ -2,6 +2,8 @@ package extensionpkg
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -182,6 +184,7 @@ type managedExtension struct {
 	runtime               subprocess.InitializeRuntime
 	healthInterval        time.Duration
 	generation            int64
+	sessionNonce          string
 
 	phase               ExtensionPhase
 	registered          bool
@@ -205,6 +208,7 @@ type Manager struct {
 	bridgeRuntimeResolver BridgeRuntimeResolver
 	bridgeTelemetrySink   BridgeTelemetrySink
 	skillsRegistry        skillRegistry
+	sourceSessions        resources.SourceSessionManager
 	logger                *slog.Logger
 	now                   func() time.Time
 	getenv                func(string) string
@@ -260,6 +264,14 @@ func WithBridgeTelemetrySink(sink BridgeTelemetrySink) Option {
 func WithSkillsRegistry(registry skillRegistry) Option {
 	return func(manager *Manager) {
 		manager.skillsRegistry = registry
+	}
+}
+
+// WithSourceSessionManager injects the resource source-session manager used to
+// activate extension nonces for snapshot publication.
+func WithSourceSessionManager(manager resources.SourceSessionManager) Option {
+	return func(mgr *Manager) {
+		mgr.sourceSessions = manager
 	}
 }
 
@@ -1190,35 +1202,118 @@ func (m *Manager) launchRuntime(
 		)
 	}
 
+	resourceSession, err := m.prepareExtensionResourceSession(ctx, ext)
+	if err != nil {
+		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			process,
+			err,
+		)
+	}
+	if err := m.registerRuntimeHostMethods(process, ext, runtime, resourceSession); err != nil {
+		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			process,
+			err,
+		)
+	}
+
+	response, err := m.initializeRuntimeProcess(ctx, process, ext, runtime, resourceSession)
+	if err != nil {
+		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			process,
+			err,
+		)
+	}
+	if err := validateSupportedHookEvents(response.SupportedHookEvents); err != nil {
+		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			process,
+			err,
+		)
+	}
+
+	ext.sessionNonce = resourceSession.Actor.SessionNonce
+
+	return process, response, runtime, healthInterval, nil
+}
+
+func (m *Manager) cleanupLaunchedProcess(process processHandle, err error) error {
+	if process == nil {
+		return err
+	}
+	if shutdownErr := shutdownProcessWithTimeout(process, m.defaultShutdownTimeout); shutdownErr != nil {
+		return errors.Join(err, shutdownErr)
+	}
+	return err
+}
+
+func (m *Manager) prepareExtensionResourceSession(
+	ctx context.Context,
+	ext *managedExtension,
+) (*hostAPIResourceSession, error) {
+	resourceSession, err := m.newHostAPIResourceSession(ext)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.activateExtensionSourceSession(ctx, resourceSession.Actor); err != nil {
+		return nil, err
+	}
+	return resourceSession, nil
+}
+
+func (m *Manager) registerRuntimeHostMethods(
+	process processHandle,
+	ext *managedExtension,
+	runtime subprocess.InitializeRuntime,
+	resourceSession *hostAPIResourceSession,
+) error {
 	for method, handler := range m.hostMethods {
 		if err := process.HandleMethod(
 			method,
-			m.wrapHostHandler(ext.info.Name, method, runtime.Bridge, handler),
+			m.wrapHostHandler(ext.info.Name, method, runtime.Bridge, resourceSession, handler),
 		); err != nil {
-			if shutdownErr := shutdownProcessWithTimeout(process, m.defaultShutdownTimeout); shutdownErr != nil {
-				err = errors.Join(err, shutdownErr)
-			}
-			return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, fmt.Errorf(
-				"register host method %q: %w",
-				method,
-				err,
-			)
+			return fmt.Errorf("register host method %q: %w", method, err)
 		}
 	}
+	return nil
+}
 
-	request := subprocess.InitializeRequest{
+func (m *Manager) initializeRuntimeProcess(
+	ctx context.Context,
+	process processHandle,
+	ext *managedExtension,
+	runtime subprocess.InitializeRuntime,
+	resourceSession *hostAPIResourceSession,
+) (subprocess.InitializeResponse, error) {
+	initCtx, cancel := context.WithTimeout(ctx, m.initializeTimeout)
+	defer cancel()
+
+	response, err := process.Initialize(initCtx, m.initializeRuntimeRequest(ext, runtime, resourceSession))
+	if err != nil {
+		return subprocess.InitializeResponse{}, fmt.Errorf("initialize subprocess: %w", err)
+	}
+	return response, nil
+}
+
+func (m *Manager) initializeRuntimeRequest(
+	ext *managedExtension,
+	runtime subprocess.InitializeRuntime,
+	resourceSession *hostAPIResourceSession,
+) subprocess.InitializeRequest {
+	return subprocess.InitializeRequest{
 		ProtocolVersion:          m.protocolVersion,
 		SupportedProtocolVersion: slices.Clone(m.supportedProtocolVersions),
 		AGHVersion:               version.Current().Version,
+		SessionNonce:             resourceSession.Actor.SessionNonce,
 		Extension: subprocess.InitializeExtension{
 			Name:       ext.manifest.Name,
 			Version:    ext.manifest.Version,
 			SourceTier: ext.info.Source.String(),
 		},
 		Capabilities: subprocess.InitializeCapabilities{
-			Provides:        normalizeUniqueStrings(ext.manifest.Capabilities.Provides),
-			GrantedActions:  hostAPIMethodsFromStrings(ext.grantedActions),
-			GrantedSecurity: normalizeUniqueStrings(ext.grantedSecurity),
+			Provides:              normalizeUniqueStrings(ext.manifest.Capabilities.Provides),
+			GrantedActions:        hostAPIMethodsFromStrings(ext.grantedActions),
+			GrantedSecurity:       normalizeUniqueStrings(ext.grantedSecurity),
+			GrantedResourceKinds:  append([]resources.ResourceKind{}, ext.grantedResourceKinds...),
+			GrantedResourceScopes: append([]resources.ResourceScopeKind{}, ext.grantedResourceScopes...),
 		},
 		Methods: subprocess.InitializeMethods{
 			DaemonRequests:    daemonRequestMethods(),
@@ -1226,28 +1321,6 @@ func (m *Manager) launchRuntime(
 		},
 		Runtime: runtime,
 	}
-
-	initCtx, cancel := context.WithTimeout(ctx, m.initializeTimeout)
-	defer cancel()
-
-	response, err := process.Initialize(initCtx, request)
-	if err != nil {
-		if shutdownErr := shutdownProcessWithTimeout(process, m.defaultShutdownTimeout); shutdownErr != nil {
-			err = errors.Join(err, shutdownErr)
-		}
-		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, fmt.Errorf(
-			"initialize subprocess: %w",
-			err,
-		)
-	}
-	if err := validateSupportedHookEvents(response.SupportedHookEvents); err != nil {
-		if shutdownErr := shutdownProcessWithTimeout(process, m.defaultShutdownTimeout); shutdownErr != nil {
-			err = errors.Join(err, shutdownErr)
-		}
-		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, err
-	}
-
-	return process, response, runtime, healthInterval, nil
 }
 
 func (m *Manager) launchConfigFor(
@@ -1301,6 +1374,7 @@ func (m *Manager) wrapHostHandler(
 	extName string,
 	method string,
 	bridgeRuntime *subprocess.InitializeBridgeRuntime,
+	resourceSession *hostAPIResourceSession,
 	handler subprocess.HandlerFunc,
 ) subprocess.HandlerFunc {
 	return func(ctx context.Context, params json.RawMessage) (any, error) {
@@ -1312,8 +1386,73 @@ func (m *Manager) wrapHostHandler(
 		if bridgeRuntime != nil {
 			hostCtx = withHostAPIBridgeRuntime(hostCtx, bridgeRuntime)
 		}
+		if resourceSession != nil {
+			hostCtx = withHostAPIResourceSession(hostCtx, resourceSession)
+		}
 		return handler(hostCtx, params)
 	}
+}
+
+func (m *Manager) newHostAPIResourceSession(ext *managedExtension) (*hostAPIResourceSession, error) {
+	if ext == nil {
+		return nil, errors.New("extension: managed extension is required")
+	}
+
+	sessionNonce, err := newExtensionSessionNonce()
+	if err != nil {
+		return nil, fmt.Errorf("extension: generate session nonce for %q: %w", ext.info.Name, err)
+	}
+
+	return &hostAPIResourceSession{
+		Actor: resources.MutationActor{
+			Kind:         resources.MutationActorKindExtension,
+			ID:           ext.info.Name,
+			SessionNonce: sessionNonce,
+			Source: resources.ResourceSource{
+				Kind: resources.ResourceSourceKind("extension"),
+				ID:   ext.info.Name,
+			},
+			// Workspace binding is not yet carried on extension sessions, so v1
+			// relies on granted scope kinds for narrowing and keeps the max scope
+			// ceiling global here.
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			GrantedKinds: append(
+				[]resources.ResourceKind(nil),
+				ext.grantedResourceKinds...,
+			),
+			GrantedScopes: append(
+				[]resources.ResourceScopeKind(nil),
+				ext.grantedResourceScopes...,
+			),
+		},
+	}, nil
+}
+
+func (m *Manager) activateExtensionSourceSession(ctx context.Context, actor resources.MutationActor) error {
+	if m == nil || m.sourceSessions == nil {
+		return nil
+	}
+
+	if err := m.sourceSessions.ActivateSourceSession(ctx, resources.MutationActor{
+		Kind: resources.MutationActorKindDaemon,
+		ID:   "extension-manager",
+		Source: resources.ResourceSource{
+			Kind: resources.ResourceSourceKind("daemon"),
+			ID:   "extension-manager",
+		},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+	}, actor.Source, actor.SessionNonce); err != nil {
+		return fmt.Errorf("extension: activate source session for %q: %w", actor.Source.ID, err)
+	}
+	return nil
+}
+
+func newExtensionSessionNonce() (string, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw[:]), nil
 }
 
 func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill, error) {

@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"encoding/json"
 	"time"
 
 	apicontract "github.com/pedronauck/agh/internal/api/contract"
@@ -9,6 +10,7 @@ import (
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/memory"
 	observepkg "github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -57,6 +59,9 @@ const (
 	HostAPIMethodTasksRunsComplete           = extensionprotocol.HostAPIMethodTasksRunsComplete
 	HostAPIMethodTasksRunsFail               = extensionprotocol.HostAPIMethodTasksRunsFail
 	HostAPIMethodTasksRunsCancel             = extensionprotocol.HostAPIMethodTasksRunsCancel
+	HostAPIMethodResourcesList               = extensionprotocol.HostAPIMethodResourcesList
+	HostAPIMethodResourcesGet                = extensionprotocol.HostAPIMethodResourcesGet
+	HostAPIMethodResourcesSnapshot           = extensionprotocol.HostAPIMethodResourcesSnapshot
 	HostAPIMethodBridgesInstancesList        = extensionprotocol.HostAPIMethodBridgesInstancesList
 	HostAPIMethodBridgesMessagesIngest       = extensionprotocol.HostAPIMethodBridgesMessagesIngest
 	HostAPIMethodBridgesInstancesGet         = extensionprotocol.HostAPIMethodBridgesInstancesGet
@@ -297,6 +302,33 @@ type TaskRunCancelParams struct {
 	apicontract.CancelTaskRunRequest
 }
 
+// ResourcesListParams filters same-source resource visibility for one extension actor.
+type ResourcesListParams struct {
+	Kind  resources.ResourceKind   `json:"kind,omitempty"`
+	Scope *resources.ResourceScope `json:"scope,omitempty"`
+	Limit int                      `json:"limit,omitempty"`
+}
+
+// ResourceGetParams identifies one canonical resource record by kind and id.
+type ResourceGetParams struct {
+	Kind resources.ResourceKind `json:"kind"`
+	ID   string                 `json:"id"`
+}
+
+// ResourceSnapshotRecord carries one snapshot-authored resource definition.
+type ResourceSnapshotRecord struct {
+	Kind  resources.ResourceKind  `json:"kind"`
+	ID    string                  `json:"id"`
+	Scope resources.ResourceScope `json:"scope"`
+	Spec  json.RawMessage         `json:"spec"`
+}
+
+// ResourcesSnapshotParams replaces one extension source snapshot.
+type ResourcesSnapshotParams struct {
+	SourceVersion int64                    `json:"source_version"`
+	Records       []ResourceSnapshotRecord `json:"records"`
+}
+
 // BridgesMessagesIngestParams carries one normalized inbound bridge message.
 type BridgesMessagesIngestParams = bridgepkg.InboundMessageEnvelope
 
@@ -371,6 +403,19 @@ type SkillSummary struct {
 
 // ObserveHealth is the host-visible daemon health payload.
 type ObserveHealth = observepkg.Health
+
+// ResourceRecord is the generic Host API desired-state shape exposed to extensions.
+type ResourceRecord struct {
+	Kind      resources.ResourceKind   `json:"kind"`
+	ID        string                   `json:"id"`
+	Version   int64                    `json:"version"`
+	Scope     resources.ResourceScope  `json:"scope"`
+	Owner     resources.ResourceOwner  `json:"owner"`
+	Source    resources.ResourceSource `json:"source"`
+	Spec      json.RawMessage          `json:"spec"`
+	CreatedAt time.Time                `json:"created_at"`
+	UpdatedAt time.Time                `json:"updated_at"`
+}
 
 // BridgesMessagesIngestResult reports the resolved session association for one inbound message.
 type BridgesMessagesIngestResult struct {
@@ -587,6 +632,22 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Method: HostAPIMethodTasksRunsCancel,
 		Params: NamedType{Name: "TaskRunCancelParams", Value: TaskRunCancelParams{}},
 		Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+	},
+	{
+		Method:         HostAPIMethodResourcesList,
+		Params:         NamedType{Name: "ResourcesListParams", Value: ResourcesListParams{}},
+		Result:         NamedType{Name: "ResourceRecord", Value: []ResourceRecord{}},
+		OptionalParams: true,
+	},
+	{
+		Method: HostAPIMethodResourcesGet,
+		Params: NamedType{Name: "ResourceGetParams", Value: ResourceGetParams{}},
+		Result: NamedType{Name: "ResourceRecord", Value: ResourceRecord{}},
+	},
+	{
+		Method: HostAPIMethodResourcesSnapshot,
+		Params: NamedType{Name: "ResourcesSnapshotParams", Value: ResourcesSnapshotParams{}},
+		Result: NamedType{Name: "EmptyResult", Value: EmptyResult{}},
 	},
 	{
 		Method:         HostAPIMethodBridgesInstancesList,

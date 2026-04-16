@@ -97,11 +97,14 @@ describe("SDK integration", () => {
           protocol_version: "1",
           supported_protocol_versions: ["1"],
           agh_version: "0.5.0",
+          session_nonce: "integration-nonce",
           extension: { name: "integration-ext", version: "0.1.0", source_tier: "user" },
           capabilities: {
             provides: ["memory.backend"],
             granted_actions: ["sessions/list"],
             granted_security: ["memory.read", "memory.write", "session.read"],
+            granted_resource_kinds: [],
+            granted_resource_scopes: [],
           },
           methods: {
             daemon_requests: ["health_check", "shutdown"],

@@ -1990,6 +1990,7 @@ func testInitializeRequest(
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
 		AGHVersion:               "0.5.0",
+		SessionNonce:             "nonce-test",
 		Extension: subprocess.InitializeExtension{
 			Name:       "slack",
 			Version:    "0.1.0",

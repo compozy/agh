@@ -153,7 +153,6 @@ export type {
   SessionPreStopPatch,
   SessionPreStopPayload,
   SessionPromptResult,
-  SessionState,
   SessionStatus,
   SessionSummary,
   SessionTargetParams,
@@ -184,3 +183,4 @@ export type {
   TurnStartPatch,
   TurnStartPayload,
 } from "./types.js";
+export type { State as SessionState } from "./types.js";

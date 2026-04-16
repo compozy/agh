@@ -388,6 +388,9 @@ export class Extension {
     if (!request.protocol_version) {
       throw new InvalidParamsError("protocol_version is required");
     }
+    if (typeof request.session_nonce !== "string" || request.session_nonce.trim() === "") {
+      throw new InvalidParamsError("session_nonce is required");
+    }
     if (
       !Array.isArray(request.supported_protocol_versions) ||
       request.supported_protocol_versions.length === 0
@@ -396,6 +399,24 @@ export class Extension {
     }
     if (!request.extension?.name || !request.extension?.version) {
       throw new InvalidParamsError("extension identity is required");
+    }
+    if (!request.capabilities || typeof request.capabilities !== "object") {
+      throw new InvalidParamsError("capabilities are required");
+    }
+    if (!Array.isArray(request.capabilities.provides)) {
+      throw new InvalidParamsError("capabilities.provides must be an array");
+    }
+    if (!Array.isArray(request.capabilities.granted_actions)) {
+      throw new InvalidParamsError("capabilities.granted_actions must be an array");
+    }
+    if (!Array.isArray(request.capabilities.granted_security)) {
+      throw new InvalidParamsError("capabilities.granted_security must be an array");
+    }
+    if (!Array.isArray(request.capabilities.granted_resource_kinds)) {
+      throw new InvalidParamsError("capabilities.granted_resource_kinds must be an array");
+    }
+    if (!Array.isArray(request.capabilities.granted_resource_scopes)) {
+      throw new InvalidParamsError("capabilities.granted_resource_scopes must be an array");
     }
     if (!request.runtime) {
       throw new InvalidParamsError("runtime is required");

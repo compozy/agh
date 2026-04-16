@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { CapabilityDeniedError, NotInitializedError, RateLimitedError } from "./errors.js";
+import {
+  CapabilityDeniedError,
+  InvalidParamsError,
+  NotInitializedError,
+  RateLimitedError,
+  RPCError,
+} from "./errors.js";
 import { HostAPI } from "./host-api.js";
 import { createMockTransportPair } from "./testing/mock-transport.js";
 
@@ -257,6 +263,162 @@ describe("HostAPI", () => {
     ).resolves.toMatchObject({
       id: "chan-1",
       status: "auth_required",
+    });
+  });
+
+  it("resources helpers validate payload shape and send snapshot requests", async () => {
+    const pair = createMockTransportPair();
+    const host = new HostAPI(pair.extension, { isReady: () => true });
+
+    pair.host.handle("resources/list", async params => {
+      expect(params).toEqual({
+        kind: "tool",
+        scope: { kind: "workspace", id: "ws-1" },
+        limit: 5,
+      });
+      return [
+        {
+          kind: "tool",
+          id: "grep",
+          version: 2,
+          scope: { kind: "workspace", id: "ws-1" },
+          owner: { kind: "extension", id: "resource-ext" },
+          source: { kind: "extension", id: "resource-ext" },
+          spec: { command: "rg" },
+          created_at: "2026-04-15T12:00:00.000Z",
+          updated_at: "2026-04-15T12:01:00.000Z",
+        },
+      ];
+    });
+    pair.host.handle("resources/get", async params => {
+      expect(params).toEqual({ kind: "tool", id: "grep" });
+      return {
+        kind: "tool",
+        id: "grep",
+        version: 2,
+        scope: { kind: "workspace", id: "ws-1" },
+        owner: { kind: "extension", id: "resource-ext" },
+        source: { kind: "extension", id: "resource-ext" },
+        spec: { command: "rg" },
+        created_at: "2026-04-15T12:00:00.000Z",
+        updated_at: "2026-04-15T12:01:00.000Z",
+      };
+    });
+    pair.host.handle("resources/snapshot", async params => {
+      expect(params).toEqual({
+        source_version: 3,
+        records: [
+          {
+            kind: "tool",
+            id: "grep",
+            scope: { kind: "workspace", id: "ws-1" },
+            spec: { command: "rg" },
+          },
+        ],
+      });
+      return {};
+    });
+
+    await expect(
+      host.resources.list({
+        kind: "tool",
+        scope: { kind: "workspace", id: "ws-1" },
+        limit: 5,
+      })
+    ).resolves.toHaveLength(1);
+    await expect(host.resources.get({ kind: "tool", id: "grep" })).resolves.toMatchObject({
+      id: "grep",
+      version: 2,
+    });
+    await expect(
+      host.resources.snapshot({
+        source_version: 3,
+        records: [
+          {
+            kind: "tool",
+            id: "grep",
+            scope: { kind: "workspace", id: "ws-1" },
+            spec: { command: "rg" },
+          },
+        ],
+      })
+    ).resolves.toEqual({});
+
+    await expect(
+      host.resources.list({ scope: { kind: "workspace", id: "" } })
+    ).rejects.toBeInstanceOf(InvalidParamsError);
+    await expect(host.resources.get({ kind: "", id: "grep" })).rejects.toBeInstanceOf(
+      InvalidParamsError
+    );
+    await expect(
+      host.resources.snapshot({
+        source_version: 0,
+        records: [],
+      })
+    ).rejects.toBeInstanceOf(InvalidParamsError);
+  });
+
+  it("resources helpers surface 403, 409, 413, and 429 protocol errors", async () => {
+    const pair = createMockTransportPair();
+    const host = new HostAPI(pair.extension, { isReady: () => true });
+
+    pair.host.handle("resources/get", async () => {
+      throw new RPCError(403, "Forbidden", { error: "same-source only" });
+    });
+    pair.host.handle("resources/list", async () => {
+      throw new RPCError(409, "Conflict", { error: "stale source_version" });
+    });
+    pair.host.handle("resources/snapshot", async params => {
+      const request = params as { source_version: number };
+      switch (request.source_version) {
+        case 4:
+          throw new RPCError(413, "Payload too large", { error: "snapshot too large" });
+        case 5:
+          throw new RPCError(429, "Rate limited", { error: "snapshot queued" });
+        default:
+          return {};
+      }
+    });
+
+    await expect(host.resources.get({ kind: "tool", id: "grep" })).rejects.toMatchObject({
+      code: 403,
+      message: "Forbidden",
+    });
+    await expect(host.resources.list()).rejects.toMatchObject({
+      code: 409,
+      message: "Conflict",
+    });
+    await expect(
+      host.resources.snapshot({
+        source_version: 4,
+        records: [
+          {
+            kind: "tool",
+            id: "grep",
+            scope: { kind: "workspace", id: "ws-1" },
+            spec: { command: "rg" },
+          },
+        ],
+      })
+    ).rejects.toMatchObject({
+      code: 413,
+      message: "Payload too large",
+    });
+    await expect(
+      host.resources.snapshot({
+        source_version: 5,
+        records: [
+          {
+            kind: "tool",
+            id: "grep",
+            scope: { kind: "workspace", id: "ws-1" },
+            spec: { command: "rg" },
+          },
+        ],
+      })
+    ).rejects.toMatchObject({
+      code: 429,
+      message: "Rate limited",
     });
   });
 

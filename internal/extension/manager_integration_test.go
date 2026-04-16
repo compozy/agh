@@ -319,6 +319,77 @@ func TestManagerIntegrationResourceGrantsComeFromDaemonPolicy(t *testing.T) {
 	}
 }
 
+func TestManagerIntegrationInitializeIncludesSessionNonceAndResourceGrants(t *testing.T) {
+	withDaemonVersion(t, "0.5.0")
+
+	env := newRegistryTestEnv(t)
+	markerPath := filepath.Join(t.TempDir(), "resource-init.jsonl")
+	checker := &CapabilityChecker{}
+	checker.SetResourcePolicy(aghconfig.ExtensionsResourcesConfig{
+		AllowedKinds: []resources.ResourceKind{resources.ResourceKind("tool")},
+		MaxScope:     resources.ResourceScopeKindWorkspace,
+	})
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-resource-init", managerManifestOptions{
+		command:          helperCommand(t),
+		args:             helperArgs(),
+		withEnv:          helperEnv("record_initialize", markerPath),
+		resourceFamilies: []string{"tools", "mcp_servers"},
+		resourceMaxScope: "global",
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+	resourceKernel, err := resources.NewKernel(env.registry.DB())
+	if err != nil {
+		t.Fatalf("resources.NewKernel() error = %v", err)
+	}
+
+	manager := NewManager(
+		env.registry,
+		WithCapabilityChecker(checker),
+		WithSourceSessionManager(resourceKernel),
+		WithHealthCheckTimeout(20*time.Millisecond),
+		WithSubprocessSignalGrace(15*time.Millisecond),
+	)
+
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	waitForManagerCondition(t, time.Second, func() bool {
+		lines, err := readFileLines(markerPath)
+		return err == nil && len(lines) >= 1
+	})
+
+	markers := readInitializeMarkers(t, markerPath)
+	if len(markers) == 0 {
+		t.Fatal("initialize markers = empty, want resource initialize handshake")
+	}
+	request := markers[0].Request
+	if strings.TrimSpace(request.SessionNonce) == "" {
+		t.Fatal("initialize session_nonce = empty, want daemon-issued nonce")
+	}
+	if !slicesEqualResourceKinds(request.Capabilities.GrantedResourceKinds, []resources.ResourceKind{resources.ResourceKind("tool")}) {
+		t.Fatalf(
+			"initialize granted_resource_kinds = %#v, want [tool]",
+			request.Capabilities.GrantedResourceKinds,
+		)
+	}
+	if !slicesEqualResourceScopes(
+		request.Capabilities.GrantedResourceScopes,
+		[]resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace},
+	) {
+		t.Fatalf(
+			"initialize granted_resource_scopes = %#v, want [workspace]",
+			request.Capabilities.GrantedResourceScopes,
+		)
+	}
+}
+
 func TestManagerIntegrationNonBridgeExtensionStartsWithoutBridgeNegotiation(t *testing.T) {
 	withDaemonVersion(t, "0.5.0")
 
