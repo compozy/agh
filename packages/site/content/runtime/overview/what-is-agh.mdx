@@ -1,0 +1,94 @@
+---
+title: What is AGH
+description: AGH is an Agent Operating System — a single-binary daemon that manages AI agent sessions through a standardized protocol, enabling agents to run, persist, and communicate.
+---
+
+# What is AGH
+
+AGH is an **Agent Operating System** — a Go single-binary daemon that manages AI agent sessions through the [Agent Client Protocol (ACP)](https://github.com/coder/acp-go-sdk). It spawns ACP-compatible agents (Claude Code, Codex, Gemini CLI, and others) as subprocesses, communicates with them via JSON-RPC over stdio, persists every event in SQLite, and exposes interfaces through HTTP/SSE for a web UI and Unix domain sockets for the CLI.
+
+Single binary. No sidecars. No external services.
+
+## Why an "operating system" for agents
+
+Today's AI agents are powerful in isolation, but they lack the infrastructure that traditional software takes for granted: process management, persistent state, structured communication, and observability. Each agent CLI runs in its own terminal, loses context when you close it, and has no way to discover or coordinate with other agents.
+
+AGH fills this gap the same way an OS fills it for processes. It provides a **runtime layer** that manages agent lifecycles, a **persistence layer** that captures every event, and a **network protocol** that lets agents discover and message each other — all without requiring agents to be rewritten or wrapped in custom code.
+
+## Key concepts
+
+### Sessions
+
+A **session** is the fundamental unit of work. When you create a session, AGH spawns an agent subprocess, establishes a JSON-RPC connection, and manages the agent through a well-defined state machine:
+
+`starting` &rarr; `active` &rarr; `stopping` &rarr; `stopped`
+
+Sessions can be resumed from where they left off. Every event — user messages, agent responses, tool calls, permission decisions, token usage — is recorded in a per-session SQLite database, giving you a complete audit trail and the ability to replay any conversation.
+
+### Agents
+
+An **agent** is defined by an `AGENT.md` file with YAML frontmatter. This file declares which provider and model to use, which tools the agent has access to, its permission policy, and any MCP servers it needs. AGH ships with a default `general` agent and lets you define as many custom agents as you need.
+
+```yaml
+name: my-researcher
+provider: claude
+model: claude-sonnet-4-20250514
+tools: [read, glob, grep, bash]
+permissions: approve-reads
+```
+
+AGH orchestrates **real agent CLIs** — it doesn't reimplement agent logic or wrap API calls. Claude Code remains Claude Code; Codex remains Codex. AGH manages the process, feeds it context, and records what happens.
+
+### Memory
+
+AGH provides a **dual-scope persistent memory** system. Global memories (user preferences, cross-project knowledge) live in `~/.agh/memory/`. Workspace memories (project-specific context) live alongside the project in `.agh/memory/`. Both scopes use Markdown files with YAML frontmatter, organized into four types: `user`, `feedback`, `project`, and `reference`.
+
+A **dream consolidation** system periodically synthesizes accumulated memories, distilling patterns and pruning stale entries — similar to how biological memory consolidation works during sleep.
+
+### Skills
+
+**Skills** extend what agents can do. Each skill is a self-contained directory with a `SKILL.md` file that describes its capabilities and instructions. Skills are loaded from multiple locations with a defined precedence order: bundled skills, user-global skills, workspace skills, and marketplace skills. Agents receive skill instructions as part of their system prompt.
+
+### Workspaces
+
+A **workspace** maps to a project directory. AGH resolves workspaces automatically and layers configuration: global defaults from `~/.agh/config.toml` are merged with workspace-specific overrides from `.agh/config.toml`. This means each project can have its own agents, memory, skills, and permission policies.
+
+### The network protocol
+
+This is what sets AGH apart. The **AGH Network Protocol** defines an open wire format for agent-to-agent communication. Agents within the same AGH instance — or across different instances — can discover each other, exchange typed messages, and coordinate work through structured interactions.
+
+MCP connects agents to tools. **AGH connects agents to agents.**
+
+The protocol is transport-agnostic and designed so that any agent harness can implement it. You keep your runtime, map to AGH envelopes, and start with the smallest core.
+
+## How it fits together
+
+AGH runs as a background daemon on your machine. The CLI (`agh`) communicates with the daemon over a Unix domain socket. The web UI connects via HTTP/SSE. Both interfaces talk to the same daemon, which manages the same sessions, agents, and state.
+
+```
+You
+ ├── CLI (agh) ──── Unix socket ────┐
+ └── Web UI ─────── HTTP/SSE ───────┤
+                                    ▼
+                               AGH Daemon
+                          ┌─────────────────┐
+                          │  Session Manager │
+                          │  Memory Store    │
+                          │  Skills Catalog  │
+                          │  Observer        │
+                          │  Network Manager │
+                          └────────┬────────┘
+                                   │ JSON-RPC / stdio
+                          ┌────────┴────────┐
+                          │    Agent CLIs    │
+                          │  (subprocesses)  │
+                          └─────────────────┘
+```
+
+The daemon is the **sole composition root** — it wires together all internal packages at startup and tears them down cleanly on shutdown. No package knows about the daemon; dependencies flow strictly downward.
+
+## What AGH is not
+
+- **Not an agent framework.** AGH doesn't provide prompt templates, chains, or graph abstractions. It manages real agent processes.
+- **Not an API wrapper.** Agents run as actual CLI subprocesses with their own tool access, not as thin API call proxies.
+- **Not a cloud service.** AGH is local-first. The binary runs on your machine, data stays on your disk, and there are no external dependencies beyond the agents themselves.

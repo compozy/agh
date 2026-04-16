@@ -1,0 +1,176 @@
+---
+title: Architecture
+description: How AGH is structured internally — the daemon composition root, package boundaries, data flow, and the principles that keep the system extensible.
+---
+
+# Architecture
+
+AGH follows a **pragmatic flat architecture** with strict dependency boundaries. A single `daemon` package acts as the composition root, wiring together independent packages that never import each other. This design keeps the system easy to reason about while enabling incremental extension — new capabilities arrive as new packages, not as modifications to existing ones.
+
+## System overview
+
+```
+┌──────────┐     ┌──────────┐
+│  Web UI  │     │   CLI    │
+│ (React)  │     │ (Cobra)  │
+└────┬─────┘     └────┬─────┘
+     │ HTTP/SSE       │ UDS
+     ▼                ▼
+┌──────────────────────────────────────┐
+│           AGH Daemon                 │
+│      (composition root)              │
+├──────────────────────────────────────┤
+│  HTTP/SSE Server │  UDS Server       │
+│                  └── Shared Core     │
+├──────────┬───────────────────────────┤
+│ Session  │  Observer  │  Memory      │
+│ Manager  │  (metrics) │  (dual-scope)│
+├──────────┼────────────┴──────────────┤
+│  ACP     │  Store     │  Workspace   │
+│ (Driver) │ (SQLite)   │  Skills      │
+├──────────┼────────────┤  Hooks       │
+│ Network  │ Automation │  Extensions  │
+├──────────┴────────────┴──────────────┤
+│         Persistence Layer            │
+│  Global DB (agh.db)                  │
+│  Per-session DBs (events.db)         │
+└──────────────┬───────────────────────┘
+               │
+          JSON-RPC / stdio
+               │
+      ┌────────┴────────┐
+      │ Agent CLIs       │
+      │ Claude Code      │
+      │ Codex            │
+      │ Gemini CLI       │
+      │ ...              │
+      └─────────────────┘
+```
+
+## Architectural principles
+
+### Composition root pattern
+
+The `daemon` package is the **only package that imports all others**. It constructs every service, injects dependencies, and manages the boot/shutdown lifecycle. No other package imports `daemon`, and no package imports `api` or `cli` — dependencies flow strictly downward.
+
+This means you can understand any package in isolation. `session` doesn't know about HTTP routing. `acp` doesn't know about memory. Each package defines the interfaces it needs (Go-style, at the consumer), and `daemon` wires the implementations at startup.
+
+### Strict import boundaries
+
+```
+daemon/           ← imports everything, imported by nothing
+├── api/httpapi   ← imports core, session, observe (never daemon)
+├── api/udsapi    ← imports core, session, observe (never daemon)
+├── session/      ← imports acp, store (never api, daemon)
+├── acp/          ← imports nothing internal (subprocess boundary)
+├── observe/      ← imports store (never session directly)
+├── memory/       ← imports config, workspace (never session)
+├── store/        ← imports nothing internal (data layer)
+└── config/       ← imports nothing internal (leaf package)
+```
+
+The rule is enforced by convention and CI: `grep` rules prevent import cycles. If package A needs something from package B, it defines a local interface and `daemon` injects the implementation.
+
+### Interfaces defined where consumed
+
+Following Go convention, interfaces live in the package that **uses** them, not the package that implements them. For example, `session` defines the `AgentDriver` interface; `acp` implements it. This keeps packages decoupled — `session` never imports `acp` directly.
+
+Key interfaces:
+
+| Interface | Defined in | Implemented by | Purpose |
+|-----------|-----------|----------------|---------|
+| `AgentDriver` | `session` | `acp` | Spawn and communicate with agent subprocesses |
+| `Notifier` | `session` | `observe` | Fan-out session lifecycle events for observability |
+| `SessionCatalog` | `store` | `globaldb` | Persist and query session metadata |
+| `EventStore` | `store` | `sessiondb` | Record and replay per-session events |
+| `Registry` | `daemon` | `globaldb` | Global database aggregate interface |
+
+### Direct calls, not event buses
+
+AGH uses **direct function calls through typed interfaces** for all internal communication. There is no event bus, no NATS, no reflection-based routing. When the session manager needs to notify observers, it calls a typed `Notifier` interface — not a generic `Publish("event", payload)`.
+
+This makes the system deterministic and easy to trace. Every call path is visible in the type system and debuggable with standard Go tooling.
+
+## Boot sequence
+
+The daemon starts in a strictly ordered sequence of phases. Each phase initializes a group of related services, and later phases can depend on services from earlier ones.
+
+1. **Config** — Load TOML configuration, validate, ensure home directory layout, initialize structured logger
+2. **Prompt Providers** — Wire memory assembler and skills catalog for session prompt construction
+3. **Runtime** — Acquire daemon lock and socket, open global database (registry), create session manager
+4. **Tasks** — Initialize task runtime
+5. **Network** — Start network manager (if enabled), bind to session manager
+6. **Hooks** — Build hook catalog, attach lifecycle observers, start skills watcher
+7. **Extensions** — Load extension manager and plugins
+8. **Automation** — Start automation manager (cron, triggers), attach observability
+9. **Bundles** — Activate extension bundles from catalog
+10. **Servers** — Start HTTP and UDS servers, persist daemon info (PID, port)
+11. **Finalize** — Reconcile observer state, verify package boundaries
+
+Shutdown reverses this order: automation and extensions stop first, then servers, network, hooks, and finally the registry and lock are released.
+
+## Package layout
+
+| Package | Responsibility |
+|---------|---------------|
+| `cmd/agh` | CLI entry point — parses commands and delegates to `daemon` or direct CLI actions |
+| `internal/daemon` | Composition root — boot, lock, shutdown, wiring |
+| `internal/session` | Session lifecycle, state machine (`starting` &rarr; `active` &rarr; `stopping` &rarr; `stopped`), manager |
+| `internal/acp` | ACP client — subprocess spawn, JSON-RPC over stdio, event streaming, permission handling |
+| `internal/config` | TOML loading, validation, merge (global + workspace), home directory paths, agent definition parsing |
+| `internal/store` | SQLite shared helpers, schema definitions, validation |
+| `internal/store/globaldb` | Global catalog (`agh.db`) — sessions, event summaries, token stats, permission log |
+| `internal/store/sessiondb` | Per-session event store (`events.db`) — events, turns, hook runs |
+| `internal/observe` | Event recording, health metrics, reconciliation, query engine |
+| `internal/memory` | Dual-scope persistent memory (global + workspace), memory types and store |
+| `internal/memory/consolidation` | Dream consolidation runtime — periodic memory synthesis |
+| `internal/skills` | Skills catalog, loader, precedence resolution |
+| `internal/workspace` | Workspace resolver, entity management, config overlay |
+| `internal/transcript` | Canonical replay message assembly from persisted events |
+| `internal/api/contract` | Shared types used across daemon, CLI, and HTTP layers |
+| `internal/api/core` | Handler types, error mapping, SSE helpers |
+| `internal/api/httpapi` | HTTP/SSE server (Gin) — serves web UI and streaming endpoints |
+| `internal/api/udsapi` | Unix domain socket server — serves CLI IPC |
+| `internal/cli` | Cobra command tree — all `agh` subcommands |
+| `internal/logger` | Structured logging via `log/slog` |
+
+## Data flow
+
+### Session lifecycle
+
+When you run `agh session new`, the following happens:
+
+1. The CLI sends a **create session** request over the Unix domain socket
+2. The UDS server handler calls `SessionManager.Create()`
+3. The session manager resolves the agent definition, creates a session directory, and opens a per-session SQLite database
+4. The ACP driver spawns the agent CLI as a subprocess and establishes a JSON-RPC connection over stdin/stdout
+5. The session transitions to `active` and the `Notifier` broadcasts `OnSessionActive` to all observers
+6. The global database records the session in the catalog
+
+When you send a prompt:
+
+1. The prompt reaches `SessionManager.Prompt()` via CLI or web UI
+2. The manager calls `AgentDriver.Prompt()`, which sends a JSON-RPC `prompt` call to the agent subprocess
+3. Events stream back on a Go channel — `user_message`, `agent_message`, `thought`, `tool_call`, `tool_result`, `usage`, `done`
+4. Each event is recorded in the per-session `events.db` and summarized in the global `agh.db`
+5. If the session is connected to the web UI via SSE, events are forwarded in real time
+
+### Persistence model
+
+AGH uses a **dual-database design**:
+
+- **Global database** (`~/.agh/agh.db`) — One per daemon. Stores the session catalog, aggregated event summaries, token usage stats, permission audit log, network audit, and automation state. This is the daemon's view of everything that has happened.
+
+- **Per-session databases** (`~/.agh/sessions/<id>/events.db`) — One per session. Stores the full event stream at turn-level granularity. This is the source of truth for replaying any individual conversation.
+
+This separation means the global database stays fast (it only stores summaries) while per-session databases capture complete detail. Sessions that are no longer needed can be cleaned up independently.
+
+## Concurrency model
+
+Every goroutine in AGH has explicit ownership and shutdown via `context.Context` cancellation. There are no fire-and-forget goroutines.
+
+- Long-running goroutines use `select` with `ctx.Done()` and are tracked with `sync.WaitGroup`
+- Read-heavy shared state (session map, observer state) uses `sync.RWMutex`
+- Write-heavy paths use `sync.Mutex`
+- Event streaming uses Go channels with bounded buffers and drain timeouts
+- No `time.Sleep()` in orchestration — proper synchronization primitives throughout

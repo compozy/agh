@@ -1,0 +1,94 @@
+---
+title: Why AGH
+description: How AGH compares to other agent management approaches — LangChain, CrewAI, raw MCP, and typical harnesses — and when it's the right choice.
+---
+
+# Why AGH
+
+The AI agent ecosystem offers many ways to run and orchestrate agents. This page explains where AGH sits in that landscape, what makes it different, and when you should (or shouldn't) reach for it.
+
+## The core difference
+
+Most agent frameworks **reimplement** agent logic: they provide their own prompt chains, tool abstractions, and execution loops, then call LLM APIs directly. AGH takes the opposite approach — it **orchestrates real agent CLIs** as subprocesses. Claude Code remains Claude Code, with its own tools, context management, and interaction model. AGH manages the process, feeds it context, and records everything that happens.
+
+This means you get the full power of each agent's native implementation without being locked into a framework's abstraction layer.
+
+## Feature comparison
+
+| Capability | AGH | Typical harness | LangChain / LangGraph | CrewAI | Raw MCP |
+|---|---|---|---|---|---|
+| **Agent execution** | Real CLI subprocesses via ACP | Reimplemented wrappers | Custom chains and graphs | Task-based delegation | N/A (tool protocol only) |
+| **Multi-agent support** | Native — multiple concurrent sessions | Often single-agent | Graph-based orchestration | Role-based crews | Not an agent runtime |
+| **Agent-to-agent communication** | Built-in network protocol | Not available | Custom edges in graphs | Implicit via crew tasks | Not available |
+| **Session persistence** | Per-session SQLite with full event replay | Varies (often in-memory) | Checkpointer (optional) | Limited | N/A |
+| **Memory system** | Dual-scope (global + workspace) with consolidation | Varies | Vector store integration | Long/short-term memory | N/A |
+| **Observability** | Built-in event recording, health metrics, token tracking | Callback-based | LangSmith (external service) | Limited logging | N/A |
+| **CLI** | Full Cobra command tree with multiple output formats | Varies | Python SDK | Python SDK | N/A |
+| **Web UI** | Built-in React SPA with real-time streaming | Usually separate | LangSmith UI | None built-in | N/A |
+| **Deployment** | Single binary, no external dependencies | Python environment + deps | Python + vector DB + tracing service | Python + deps | Depends on host |
+| **Configuration** | TOML with global + workspace overlay | Code-based | Code-based | YAML/code | JSON manifest |
+| **Permission control** | Configurable policies per agent | Framework-dependent | No built-in system | No built-in system | Tool-level approval |
+| **Skills / extensions** | Markdown-based skill system with precedence | Plugin systems vary | Tool/retriever abstractions | Tool abstractions | Server-based tools |
+
+## Where AGH fits
+
+### AGH vs. agent frameworks (LangChain, CrewAI)
+
+Agent frameworks give you building blocks to **construct** agents: prompt templates, chain composition, tool abstractions, and execution loops. They're ideal when you need fine-grained control over the agent's reasoning process or want to build custom agent architectures.
+
+AGH is not a framework — it's a **runtime**. It manages agents that already exist as standalone CLIs. If you're using Claude Code, Codex, or Gemini CLI and want to run multiple instances, persist their sessions, observe their behavior, and eventually let them communicate, AGH handles the infrastructure so you don't have to.
+
+The two approaches aren't mutually exclusive. An agent built with LangChain could expose an ACP-compatible interface and be managed by AGH.
+
+### AGH vs. raw MCP
+
+MCP (Model Context Protocol) connects agents to **tools** — file systems, databases, APIs, and other external capabilities. It's a tool protocol, not an agent management system.
+
+AGH uses MCP servers within agent sessions (agents can have MCP servers configured in their definitions). But AGH adds the layers that MCP doesn't address: process lifecycle management, session persistence, multi-agent coordination, memory, and observability.
+
+**MCP connects agents to tools. AGH connects agents to agents.**
+
+### AGH vs. building it yourself
+
+Many teams end up building ad-hoc agent management: shell scripts that spawn agents, log files for debugging, manual process management. This works for a single agent, but breaks down when you need:
+
+- Multiple concurrent agent sessions
+- Persistent conversation history across restarts
+- Token usage tracking and cost visibility
+- A web interface for non-terminal users
+- Workspace-scoped configuration per project
+- Agent-to-agent communication
+
+AGH provides all of this in a single binary that takes minutes to set up.
+
+## When to use AGH
+
+AGH is a good fit when you:
+
+- **Run real agent CLIs** (Claude Code, Codex, Gemini CLI) and want structured management around them
+- **Need session persistence** — resume conversations, replay events, audit what happened
+- **Manage multiple agents** simultaneously with different configurations per project
+- **Want observability** — token usage, event timelines, health metrics — without bolting on external services
+- **Plan for agent-to-agent communication** via the network protocol
+- **Prefer local-first** — your data stays on your machine, no cloud dependencies
+
+## When to look elsewhere
+
+AGH may not be the right choice when you:
+
+- **Need to build custom agent logic** from scratch — use a framework like LangChain or LangGraph
+- **Only use LLM APIs directly** without agent CLIs — AGH manages subprocesses, not API calls
+- **Need a hosted service** — AGH is a local daemon, not a cloud platform
+- **Want a single quick script** — if you just need to run one agent once, `claude` or `codex` directly is simpler
+
+## Design philosophy
+
+AGH is built on a few convictions about how agent infrastructure should work:
+
+**Orchestrate, don't reimplement.** Agent CLIs like Claude Code represent years of engineering — tool integration, context management, safety systems. Wrapping them in thin API proxies loses most of that value. AGH spawns real agent processes and lets them do what they do best.
+
+**Persist everything.** Agent interactions are too valuable and too expensive to lose. Every event, every tool call, every token count is recorded in SQLite. You can replay any session, audit any decision, and track costs over time.
+
+**Local-first, single binary.** Copy the binary, run it. No Docker, no Kubernetes, no external databases, no API keys for the runtime itself. The agents need their own API keys, but AGH adds zero infrastructure dependencies.
+
+**Protocol-first networking.** Agent-to-agent communication shouldn't be locked to one runtime. The AGH Network Protocol defines an open wire format that any harness can implement. Keep your runtime, map to AGH envelopes, implement the smallest core first.
