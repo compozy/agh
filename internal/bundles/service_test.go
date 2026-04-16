@@ -3,6 +3,9 @@ package bundles
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
+	"maps"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,14 +14,21 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+func discardBundleTestLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
 type memoryStore struct {
 	activations map[string]Activation
 	inventory   map[string][]InventoryItem
-	bridges     map[string]bridgepkg.BridgeInstance
+	bundles     []resources.Record[BundleResourceSpec]
+	applied     []BundleActivationResourcePlan
+	applyErr    error
 
 	createBundleActivationHook func(Activation) error
 	updateBundleActivationHook func(Activation) error
@@ -29,8 +39,16 @@ func newMemoryStore() *memoryStore {
 	return &memoryStore{
 		activations: make(map[string]Activation),
 		inventory:   make(map[string][]InventoryItem),
-		bridges:     make(map[string]bridgepkg.BridgeInstance),
 	}
+}
+
+func copyStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	next := make(map[string]string, len(values))
+	maps.Copy(next, values)
+	return next
 }
 
 func (s *memoryStore) CreateBundleActivation(_ context.Context, activation Activation) error {
@@ -89,68 +107,62 @@ func (s *memoryStore) ListBundleActivations(_ context.Context) ([]Activation, er
 	return items, nil
 }
 
-func (s *memoryStore) ReplaceBundleActivationInventory(
-	_ context.Context,
-	activationID string,
-	items []InventoryItem,
-) error {
-	s.inventory[activationID] = append([]InventoryItem(nil), items...)
-	return nil
-}
-
 func (s *memoryStore) ListBundleActivationInventory(_ context.Context, activationID string) ([]InventoryItem, error) {
 	return append([]InventoryItem(nil), s.inventory[activationID]...), nil
 }
 
-func (s *memoryStore) ListBridgeInstances(_ context.Context) ([]bridgepkg.BridgeInstance, error) {
-	items := make([]bridgepkg.BridgeInstance, 0, len(s.bridges))
-	for _, instance := range s.bridges {
-		items = append(items, instance)
-	}
-	return items, nil
-}
-
-func (s *memoryStore) InsertBridgeInstance(_ context.Context, instance bridgepkg.BridgeInstance) error {
-	s.bridges[instance.ID] = instance
-	return nil
-}
-
-func (s *memoryStore) UpdateBridgeInstance(_ context.Context, instance bridgepkg.BridgeInstance) error {
-	s.bridges[instance.ID] = instance
-	return nil
-}
-
-func (s *memoryStore) DeleteBridgeInstance(_ context.Context, id string) error {
-	delete(s.bridges, id)
-	return nil
-}
-
-type recordingAutomationSyncer struct {
-	source   automationpkg.JobSource
-	jobs     []automationpkg.Job
-	triggers []automationpkg.Trigger
-	calls    int
-	err      error
-}
-
-func (s *recordingAutomationSyncer) SyncManagedDefinitions(
+func (s *memoryStore) ListBundleResources(
 	_ context.Context,
-	source automationpkg.JobSource,
-	desiredJobs []automationpkg.Job,
-	desiredTriggers []automationpkg.Trigger,
-	_ map[string]string,
-) (automationpkg.SyncStats, error) {
-	s.calls++
-	s.source = source
-	s.jobs = append([]automationpkg.Job(nil), desiredJobs...)
-	s.triggers = append([]automationpkg.Trigger(nil), desiredTriggers...)
-	if s.err != nil {
-		return automationpkg.SyncStats{}, s.err
+) ([]resources.Record[BundleResourceSpec], error) {
+	return append([]resources.Record[BundleResourceSpec](nil), s.bundles...), nil
+}
+
+func (s *memoryStore) ApplyBundleActivationResources(
+	_ context.Context,
+	plan BundleActivationResourcePlan,
+) error {
+	if s.applyErr != nil {
+		return s.applyErr
 	}
-	return automationpkg.SyncStats{
-		JobsSynced:     len(desiredJobs),
-		TriggersSynced: len(desiredTriggers),
-	}, nil
+	next := plan
+	next.activeActivationIDs = cloneStringSet(plan.activeActivationIDs)
+	next.desiredJobs = cloneJobsForBundle(plan.desiredJobs)
+	next.desiredTriggers = cloneTriggersForBundle(plan.desiredTriggers)
+	next.desiredBridges = cloneBridgeInstancesForBundle(plan.desiredBridges)
+	next.jobOwners = copyStringMap(plan.jobOwners)
+	next.triggerOwners = copyStringMap(plan.triggerOwners)
+	next.bridgeOwners = copyStringMap(plan.bridgeOwners)
+	next.declaredChannels = append([]DeclaredChannel(nil), plan.declaredChannels...)
+	s.applied = append(s.applied, next)
+	s.inventory = make(map[string][]InventoryItem)
+	for _, job := range plan.desiredJobs {
+		activationID := strings.TrimSpace(plan.jobOwners[strings.TrimSpace(job.ID)])
+		s.inventory[activationID] = append(s.inventory[activationID], InventoryItem{
+			ActivationID: activationID,
+			ResourceKind: string(automationpkg.JobResourceKind),
+			ResourceID:   job.ID,
+			ResourceName: job.Name,
+		})
+	}
+	for _, trigger := range plan.desiredTriggers {
+		activationID := strings.TrimSpace(plan.triggerOwners[strings.TrimSpace(trigger.ID)])
+		s.inventory[activationID] = append(s.inventory[activationID], InventoryItem{
+			ActivationID: activationID,
+			ResourceKind: string(automationpkg.TriggerResourceKind),
+			ResourceID:   trigger.ID,
+			ResourceName: trigger.Name,
+		})
+	}
+	for _, instance := range plan.desiredBridges {
+		activationID := strings.TrimSpace(plan.bridgeOwners[strings.TrimSpace(instance.ID)])
+		s.inventory[activationID] = append(s.inventory[activationID], InventoryItem{
+			ActivationID: activationID,
+			ResourceKind: string(bridgepkg.BridgeInstanceResourceKind),
+			ResourceID:   instance.ID,
+			ResourceName: instance.DisplayName,
+		})
+	}
+	return nil
 }
 
 type staticExtensionLister struct {
@@ -239,13 +251,20 @@ func newMarketingExtension() *extensionpkg.Extension {
 	}
 }
 
-func newMarketingService(store *memoryStore, automation *recordingAutomationSyncer, opts ...Option) *Service {
+func newMarketingService(store *memoryStore, opts ...Option) *Service {
 	ext := newMarketingExtension()
+	store.bundles = []resources.Record[BundleResourceSpec]{{
+		Kind:  BundleResourceKind,
+		ID:    BundleResourceID(ext.Info.Name, ext.Bundles[0].Name),
+		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Spec: BundleResourceSpec{
+			ExtensionName:              ext.Info.Name,
+			Bundle:                     ext.Bundles[0],
+			OwnerBridgePlatform:        ext.Manifest.Bridge.Platform,
+			OwnerProvidesBridgeAdapter: true,
+		},
+	}}
 	options := []Option{
-		WithAutomation(automation),
-		WithBridges(bridgepkg.NewManagedSyncer(store, bridgepkg.WithManagedSyncNow(func() time.Time {
-			return time.Date(2026, 4, 14, 22, 0, 0, 0, time.UTC)
-		}))),
 		WithConfiguredDefaultChannel("default"),
 		WithNow(func() time.Time {
 			return time.Date(2026, 4, 14, 22, 0, 0, 0, time.UTC)
@@ -269,8 +288,7 @@ func TestServiceActivateMaterializesManagedResources(t *testing.T) {
 	t.Parallel()
 
 	store := newMemoryStore()
-	automation := &recordingAutomationSyncer{}
-	service := newMarketingService(store, automation)
+	service := newMarketingService(store)
 
 	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
 		ExtensionName:               "marketing-team",
@@ -286,17 +304,21 @@ func TestServiceActivateMaterializesManagedResources(t *testing.T) {
 	if got, want := len(preview.Inventory), 3; got != want {
 		t.Fatalf("len(preview.Inventory) = %d, want %d", got, want)
 	}
-	if got, want := automation.source, automationpkg.JobSourcePackage; got != want {
-		t.Fatalf("automation source = %q, want %q", got, want)
+	if got, want := len(store.applied), 1; got != want {
+		t.Fatalf("len(applied plans) = %d, want %d", got, want)
 	}
-	if got, want := len(automation.jobs), 1; got != want {
-		t.Fatalf("len(automation.jobs) = %d, want %d", got, want)
+	plan := store.applied[0]
+	if got, want := len(plan.desiredJobs), 1; got != want {
+		t.Fatalf("len(plan.desiredJobs) = %d, want %d", got, want)
 	}
-	if got, want := len(automation.triggers), 1; got != want {
-		t.Fatalf("len(automation.triggers) = %d, want %d", got, want)
+	if got, want := plan.desiredJobs[0].Source, automationpkg.JobSourcePackage; got != want {
+		t.Fatalf("plan.desiredJobs[0].Source = %q, want %q", got, want)
 	}
-	if got, want := len(store.bridges), 1; got != want {
-		t.Fatalf("len(store.bridges) = %d, want %d", got, want)
+	if got, want := len(plan.desiredTriggers), 1; got != want {
+		t.Fatalf("len(plan.desiredTriggers) = %d, want %d", got, want)
+	}
+	if got, want := len(plan.desiredBridges), 1; got != want {
+		t.Fatalf("len(plan.desiredBridges) = %d, want %d", got, want)
 	}
 	if strings.TrimSpace(preview.Activation.SpecContentHash) == "" {
 		t.Fatal("preview.Activation.SpecContentHash = empty, want persisted hash")
@@ -314,6 +336,76 @@ func TestServiceActivateMaterializesManagedResources(t *testing.T) {
 	}
 	if !settings.DeclaredChannels[0].Primary {
 		t.Fatal("DeclaredChannels[0].Primary = false, want true")
+	}
+}
+
+func TestServiceCatalogPreviewListAndGetUseCanonicalResources(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryStore()
+	service := newMarketingService(store, WithLogger(discardBundleTestLogger()))
+
+	catalog, err := service.Catalog(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("Catalog() error = %v", err)
+	}
+	if got, want := len(catalog), 1; got != want {
+		t.Fatalf("len(Catalog()) = %d, want %d", got, want)
+	}
+	preview, err := service.PreviewActivation(testutil.Context(t), ActivateRequest{
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
+	})
+	if err != nil {
+		t.Fatalf("PreviewActivation() error = %v", err)
+	}
+	if got, want := len(preview.Inventory), 3; got != want {
+		t.Fatalf("len(preview.Inventory) = %d, want %d", got, want)
+	}
+	activated, err := service.Activate(testutil.Context(t), ActivateRequest{
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
+	})
+	if err != nil {
+		t.Fatalf("Activate() error = %v", err)
+	}
+	listed, err := service.ListActivations(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ListActivations() error = %v", err)
+	}
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(ListActivations()) = %d, want %d", got, want)
+	}
+	loaded, err := service.GetActivation(testutil.Context(t), activated.Activation.ID)
+	if err != nil {
+		t.Fatalf("GetActivation() error = %v", err)
+	}
+	if got, want := len(loaded.Inventory), 3; got != want {
+		t.Fatalf("len(GetActivation().Inventory) = %d, want %d", got, want)
+	}
+}
+
+func TestServiceReadMethodsValidateInputs(t *testing.T) {
+	t.Parallel()
+
+	var nilService *Service
+	if _, err := nilService.NetworkSettings(testutil.Context(t)); err == nil {
+		t.Fatal("nil NetworkSettings() error = nil, want failure")
+	}
+	service := newMarketingService(newMemoryStore())
+	var nilCtx context.Context
+	if _, err := service.NetworkSettings(nilCtx); err == nil {
+		t.Fatal("NetworkSettings(nil) error = nil, want failure")
+	}
+	if _, err := service.GetActivation(testutil.Context(t), ""); err == nil {
+		t.Fatal("GetActivation(empty) error = nil, want failure")
+	}
+	if _, err := service.ListActivations(nilCtx); err == nil {
+		t.Fatal("ListActivations(nil) error = nil, want failure")
 	}
 }
 
@@ -343,6 +435,15 @@ func TestServiceRejectsMultipleDefaultChannelClaims(t *testing.T) {
 			},
 		}},
 	}
+	store.bundles = []resources.Record[BundleResourceSpec]{{
+		Kind:  BundleResourceKind,
+		ID:    BundleResourceID(ext.Info.Name, ext.Bundles[0].Name),
+		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Spec: BundleResourceSpec{
+			ExtensionName: ext.Info.Name,
+			Bundle:        ext.Bundles[0],
+		},
+	}}
 
 	service := NewService(
 		store,
@@ -381,8 +482,7 @@ func TestServiceDeactivateCleansUpManagedResources(t *testing.T) {
 	t.Parallel()
 
 	store := newMemoryStore()
-	automation := &recordingAutomationSyncer{}
-	service := newMarketingService(store, automation)
+	service := newMarketingService(store)
 
 	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
 		ExtensionName:               "marketing-team",
@@ -405,17 +505,21 @@ func TestServiceDeactivateCleansUpManagedResources(t *testing.T) {
 	if got := len(store.inventory); got != 0 {
 		t.Fatalf("len(store.inventory) = %d, want 0", got)
 	}
-	if got := len(store.bridges); got != 0 {
-		t.Fatalf("len(store.bridges) = %d, want 0", got)
+	if got, want := len(store.applied), 2; got != want {
+		t.Fatalf("len(applied plans) = %d, want %d", got, want)
 	}
-	if got, want := automation.calls, 2; got != want {
-		t.Fatalf("automation calls = %d, want %d", got, want)
+	last := store.applied[len(store.applied)-1]
+	if got := len(last.activeActivationIDs); got != 0 {
+		t.Fatalf("len(last.activeActivationIDs) = %d, want 0", got)
 	}
-	if got := len(automation.jobs); got != 0 {
-		t.Fatalf("len(automation.jobs) after deactivate = %d, want 0", got)
+	if got := len(last.desiredJobs); got != 0 {
+		t.Fatalf("len(last.desiredJobs) after deactivate = %d, want 0", got)
 	}
-	if got := len(automation.triggers); got != 0 {
-		t.Fatalf("len(automation.triggers) after deactivate = %d, want 0", got)
+	if got := len(last.desiredTriggers); got != 0 {
+		t.Fatalf("len(last.desiredTriggers) after deactivate = %d, want 0", got)
+	}
+	if got := len(last.desiredBridges); got != 0 {
+		t.Fatalf("len(last.desiredBridges) after deactivate = %d, want 0", got)
 	}
 }
 
@@ -423,8 +527,7 @@ func TestServiceUpdateActivationRestoresRecordOnReconcileFailure(t *testing.T) {
 	t.Parallel()
 
 	store := newMemoryStore()
-	automation := &recordingAutomationSyncer{}
-	service := newMarketingService(store, automation)
+	service := newMarketingService(store)
 
 	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
 		ExtensionName:               "marketing-team",
@@ -438,7 +541,7 @@ func TestServiceUpdateActivationRestoresRecordOnReconcileFailure(t *testing.T) {
 	}
 
 	syncErr := errors.New("sync failed")
-	automation.err = syncErr
+	store.applyErr = syncErr
 	_, err = service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
 		ID:                          preview.Activation.ID,
 		BindPrimaryChannelAsDefault: true,
@@ -460,8 +563,7 @@ func TestServiceDeactivateReturnsRollbackFailureWhenRestoreFails(t *testing.T) {
 	t.Parallel()
 
 	store := newMemoryStore()
-	automation := &recordingAutomationSyncer{}
-	service := newMarketingService(store, automation)
+	service := newMarketingService(store)
 
 	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
 		ExtensionName:               "marketing-team",
@@ -476,7 +578,7 @@ func TestServiceDeactivateReturnsRollbackFailureWhenRestoreFails(t *testing.T) {
 
 	syncErr := errors.New("sync failed")
 	recreateErr := errors.New("recreate failed")
-	automation.err = syncErr
+	store.applyErr = syncErr
 	store.createBundleActivationHook = func(activation Activation) error {
 		if activation.ID == preview.Activation.ID {
 			return recreateErr
@@ -516,48 +618,161 @@ func TestServiceReconcileReturnsBeforeSyncWhenActivationResolutionFails(t *testi
 	}
 	store.activations[goodActivation.ID] = goodActivation
 	store.activations[badActivation.ID] = badActivation
-	store.bridges[stableID("bri", badActivation.ID, "telegram-main")] = bridgepkg.BridgeInstance{
-		ID:            stableID("bri", badActivation.ID, "telegram-main"),
-		Scope:         bridgepkg.ScopeGlobal,
-		Platform:      "telegram",
-		ExtensionName: "broken-team",
-		DisplayName:   "Broken Bridge",
-		Source:        bridgepkg.BridgeInstanceSourcePackage,
-		Status:        bridgepkg.BridgeStatusDisabled,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	}
-
-	loadErr := errors.New("load failed")
-	automation := &recordingAutomationSyncer{}
+	marketing := newMarketingExtension()
+	store.bundles = []resources.Record[BundleResourceSpec]{{
+		Kind:  BundleResourceKind,
+		ID:    BundleResourceID(marketing.Info.Name, marketing.Bundles[0].Name),
+		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Spec: BundleResourceSpec{
+			ExtensionName:              marketing.Info.Name,
+			Bundle:                     marketing.Bundles[0],
+			OwnerBridgePlatform:        marketing.Manifest.Bridge.Platform,
+			OwnerProvidesBridgeAdapter: true,
+		},
+	}}
 	service := NewService(
 		store,
 		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: "marketing-team"}, {Name: "broken-team"}}},
 		func(name string) (*extensionpkg.Extension, error) {
 			switch name {
 			case "marketing-team":
-				return newMarketingExtension(), nil
-			case "broken-team":
-				return nil, loadErr
+				return marketing, nil
 			default:
 				return nil, extensionpkg.ErrExtensionNotFound
 			}
 		},
-		WithAutomation(automation),
-		WithBridges(bridgepkg.NewManagedSyncer(store)),
 	)
 
 	err := service.Reconcile(testutil.Context(t))
-	if !errors.Is(err, loadErr) {
-		t.Fatalf("Reconcile() error = %v, want load failure", err)
+	if !errors.Is(err, ErrBundleNotFound) {
+		t.Fatalf("Reconcile() error = %v, want ErrBundleNotFound", err)
 	}
-	if got, want := automation.calls, 0; got != want {
-		t.Fatalf("automation calls = %d, want %d", got, want)
+	if got := len(store.applied); got != 0 {
+		t.Fatalf("len(applied plans) = %d, want 0 after failed resolve", got)
 	}
-	if got, want := len(store.bridges), 1; got != want {
-		t.Fatalf("len(store.bridges) = %d, want %d", got, want)
+}
+
+func TestServicePreviewRejectsWebhookTriggers(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryStore()
+	ext := &extensionpkg.Extension{
+		Info: extensionpkg.ExtensionInfo{Name: "webhook-team"},
+		Bundles: []extensionpkg.BundleSpec{{
+			Name: "webhook",
+			Profiles: []extensionpkg.BundleProfile{{
+				Name: "default",
+				Triggers: []extensionpkg.BundleTrigger{{
+					Name:      "webhook",
+					AgentName: "planner",
+					Prompt:    "Handle webhook",
+					Event:     "webhook",
+					Enabled:   true,
+					Retry:     automationpkg.DefaultRetryConfig(),
+					FireLimit: automationpkg.DefaultFireLimitConfig(),
+				}},
+			}},
+		}},
 	}
-	if _, ok := store.bridges[stableID("bri", badActivation.ID, "telegram-main")]; !ok {
-		t.Fatal("managed bridge for unresolved activation was removed, want preserved state after failed reconcile")
+	store.bundles = []resources.Record[BundleResourceSpec]{{
+		Kind:  BundleResourceKind,
+		ID:    BundleResourceID(ext.Info.Name, ext.Bundles[0].Name),
+		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Spec: BundleResourceSpec{
+			ExtensionName: ext.Info.Name,
+			Bundle:        ext.Bundles[0],
+		},
+	}}
+	service := NewService(
+		store,
+		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: ext.Info.Name}}},
+		func(name string) (*extensionpkg.Extension, error) {
+			if name != ext.Info.Name {
+				return nil, extensionpkg.ErrExtensionNotFound
+			}
+			return ext, nil
+		},
+	)
+
+	_, err := service.PreviewActivation(testutil.Context(t), ActivateRequest{
+		ExtensionName: ext.Info.Name,
+		BundleName:    "webhook",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
+	})
+	if !errors.Is(err, ErrWebhookUnsupported) {
+		t.Fatalf("PreviewActivation() error = %v, want ErrWebhookUnsupported", err)
+	}
+}
+
+func TestServiceMaterializesExternalBridgeProviderPlatform(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryStore()
+	consumer := &extensionpkg.Extension{
+		Info: extensionpkg.ExtensionInfo{Name: "consumer-team"},
+		Bundles: []extensionpkg.BundleSpec{{
+			Name: "consumer",
+			Profiles: []extensionpkg.BundleProfile{{
+				Name: "default",
+				Bridges: []extensionpkg.BundleBridgePreset{{
+					Name:          "external",
+					ExtensionName: "provider-team",
+					DisplayName:   "Provider Bridge",
+					RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+				}},
+			}},
+		}},
+	}
+	provider := &extensionpkg.Extension{
+		Info: extensionpkg.ExtensionInfo{Name: "provider-team"},
+		Manifest: &extensionpkg.Manifest{
+			Name: "provider-team",
+			Bridge: extensionpkg.BridgeConfig{
+				Platform:    "slack",
+				DisplayName: "Slack",
+			},
+		},
+	}
+	store.bundles = []resources.Record[BundleResourceSpec]{{
+		Kind:  BundleResourceKind,
+		ID:    BundleResourceID(consumer.Info.Name, consumer.Bundles[0].Name),
+		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Spec: BundleResourceSpec{
+			ExtensionName: consumer.Info.Name,
+			Bundle:        consumer.Bundles[0],
+		},
+	}}
+	service := NewService(
+		store,
+		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: consumer.Info.Name}}},
+		func(name string) (*extensionpkg.Extension, error) {
+			switch name {
+			case consumer.Info.Name:
+				return consumer, nil
+			case provider.Info.Name:
+				return provider, nil
+			default:
+				return nil, extensionpkg.ErrExtensionNotFound
+			}
+		},
+	)
+
+	preview, err := service.PreviewActivation(testutil.Context(t), ActivateRequest{
+		ExtensionName: consumer.Info.Name,
+		BundleName:    "consumer",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
+	})
+	if err != nil {
+		t.Fatalf("PreviewActivation() error = %v", err)
+	}
+	if got, want := len(preview.Inventory), 1; got != want {
+		t.Fatalf("len(preview.Inventory) = %d, want %d", got, want)
+	}
+	plan := store.applied
+	if len(plan) != 0 {
+		t.Fatalf("preview applied plans = %d, want 0", len(plan))
 	}
 }
 
@@ -565,7 +780,6 @@ func TestServiceActivateWorkspaceScopedResources(t *testing.T) {
 	t.Parallel()
 
 	store := newMemoryStore()
-	automation := &recordingAutomationSyncer{}
 	resolver := memoryWorkspaceResolver{
 		resolveFn: func(_ context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspacepkg.ResolvedWorkspace{
@@ -577,7 +791,7 @@ func TestServiceActivateWorkspaceScopedResources(t *testing.T) {
 			}, nil
 		},
 	}
-	service := newMarketingService(store, automation, WithWorkspaceResolver(resolver))
+	service := newMarketingService(store, WithWorkspaceResolver(resolver))
 
 	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
 		ExtensionName:               "marketing-team",
@@ -594,21 +808,56 @@ func TestServiceActivateWorkspaceScopedResources(t *testing.T) {
 	if got, want := preview.Activation.WorkspaceID, "ws-marketing"; got != want {
 		t.Fatalf("Activation.WorkspaceID = %q, want %q", got, want)
 	}
-	if got, want := automation.jobs[0].Scope, automationpkg.AutomationScopeWorkspace; got != want {
+	plan := store.applied[0]
+	if got, want := plan.desiredJobs[0].Scope, automationpkg.AutomationScopeWorkspace; got != want {
 		t.Fatalf("job scope = %q, want %q", got, want)
 	}
-	if got, want := automation.jobs[0].WorkspaceID, "ws-marketing"; got != want {
+	if got, want := plan.desiredJobs[0].WorkspaceID, "ws-marketing"; got != want {
 		t.Fatalf("job workspace = %q, want %q", got, want)
 	}
 
-	var storedBridge bridgepkg.BridgeInstance
-	for _, instance := range store.bridges {
-		storedBridge = instance
-	}
+	storedBridge := plan.desiredBridges[0]
 	if got, want := storedBridge.Scope, bridgepkg.ScopeWorkspace; got != want {
 		t.Fatalf("bridge scope = %q, want %q", got, want)
 	}
 	if got, want := storedBridge.WorkspaceID, "ws-marketing"; got != want {
 		t.Fatalf("bridge workspace = %q, want %q", got, want)
+	}
+}
+
+func TestServiceActivateWorkspacePathUsesResolveOrRegister(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryStore()
+	called := false
+	resolver := memoryWorkspaceResolver{
+		resolveOrRegisterFn: func(_ context.Context, path string) (workspacepkg.ResolvedWorkspace, error) {
+			called = true
+			return workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{
+					ID:      "ws-path",
+					RootDir: path,
+					Name:    "path-workspace",
+				},
+			}, nil
+		},
+	}
+	service := newMarketingService(store, WithWorkspaceResolver(resolver))
+
+	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeWorkspace,
+		Workspace:     filepath.Join(t.TempDir(), "workspace"),
+	})
+	if err != nil {
+		t.Fatalf("Activate(path workspace) error = %v", err)
+	}
+	if !called {
+		t.Fatal("ResolveOrRegister was not called for path-like workspace ref")
+	}
+	if got, want := preview.Activation.WorkspaceID, "ws-path"; got != want {
+		t.Fatalf("WorkspaceID = %q, want %q", got, want)
 	}
 }

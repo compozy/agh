@@ -209,6 +209,7 @@ type MutationActor struct {
 	Kind          MutationActorKind   `json:"kind"`
 	ID            string              `json:"id"`
 	SessionNonce  string              `json:"session_nonce,omitempty"`
+	Owner         ResourceOwner       `json:"owner"`
 	Source        ResourceSource      `json:"source"`
 	MaxScope      ResourceScope       `json:"max_scope"`
 	GrantedKinds  []ResourceKind      `json:"granted_kinds,omitempty"`

@@ -62,6 +62,7 @@ type bootState struct {
 	mcpServerCatalog    *resourceCatalog[aghconfig.MCPServer]
 	agentSkillResources agentSkillPublisher
 	toolMCPResources    toolMCPPublisher
+	bundleResources     bundleResourcePublisher
 	extMu               sync.RWMutex
 	extensions          extensionRuntime
 	resourceReconcile   resources.ReconcileDriver
@@ -155,13 +156,13 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	if err := d.bootAutomation(ctx, state, cleanup); err != nil {
 		return err
 	}
+	if err := d.bootBundles(ctx, state); err != nil {
+		return err
+	}
 	if err := d.bootResourceReconcile(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootExtensions(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootBundles(ctx, state); err != nil {
 		return err
 	}
 	if err := d.bootServers(ctx, state, cleanup); err != nil {
@@ -537,63 +538,69 @@ func (d *Daemon) buildResourceKernel(registry Registry) (*resources.Kernel, erro
 
 func (d *Daemon) buildResourceCodecs(bridges *bridgeRuntime) (*resources.CodecRegistry, error) {
 	registry := resources.NewCodecRegistry()
-	hookCodec, err := newHookBindingCodec()
-	if err != nil {
-		return nil, fmt.Errorf("daemon: build hook binding codec: %w", err)
-	}
-	if err := resources.RegisterCodec(registry, hookCodec); err != nil {
-		return nil, fmt.Errorf("daemon: register hook binding codec: %w", err)
-	}
-	toolCodec, err := toolspkg.NewResourceCodec()
-	if err != nil {
-		return nil, fmt.Errorf("daemon: build tool codec: %w", err)
-	}
-	if err := resources.RegisterCodec(registry, toolCodec); err != nil {
-		return nil, fmt.Errorf("daemon: register tool codec: %w", err)
-	}
-	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
-	if err != nil {
-		return nil, fmt.Errorf("daemon: build mcp server codec: %w", err)
-	}
-	if err := resources.RegisterCodec(registry, mcpCodec); err != nil {
-		return nil, fmt.Errorf("daemon: register mcp server codec: %w", err)
-	}
-	agentCodec, err := aghconfig.NewAgentResourceCodec()
-	if err != nil {
-		return nil, fmt.Errorf("daemon: build agent codec: %w", err)
-	}
-	if err := resources.RegisterCodec(registry, agentCodec); err != nil {
-		return nil, fmt.Errorf("daemon: register agent codec: %w", err)
-	}
-	skillCodec, err := skills.NewResourceCodec()
-	if err != nil {
-		return nil, fmt.Errorf("daemon: build skill codec: %w", err)
-	}
-	if err := resources.RegisterCodec(registry, skillCodec); err != nil {
-		return nil, fmt.Errorf("daemon: register skill codec: %w", err)
-	}
-	automationJobCodec, err := automationpkg.NewJobResourceCodec()
-	if err != nil {
-		return nil, fmt.Errorf("daemon: build automation job codec: %w", err)
-	}
-	if err := resources.RegisterCodec(registry, automationJobCodec); err != nil {
-		return nil, fmt.Errorf("daemon: register automation job codec: %w", err)
-	}
-	automationTriggerCodec, err := automationpkg.NewTriggerResourceCodec()
-	if err != nil {
-		return nil, fmt.Errorf("daemon: build automation trigger codec: %w", err)
-	}
-	if err := resources.RegisterCodec(registry, automationTriggerCodec); err != nil {
-		return nil, fmt.Errorf("daemon: register automation trigger codec: %w", err)
-	}
-	bridgeCodec, err := bridgepkg.NewBridgeInstanceResourceCodec(bridgeProviderLookup(bridges))
-	if err != nil {
-		return nil, fmt.Errorf("daemon: build bridge instance codec: %w", err)
-	}
-	if err := resources.RegisterCodec(registry, bridgeCodec); err != nil {
-		return nil, fmt.Errorf("daemon: register bridge instance codec: %w", err)
+	if err := registerDaemonResourceCodecs(registry, bridges); err != nil {
+		return nil, err
 	}
 	return registry, nil
+}
+
+func registerDaemonResourceCodecs(registry *resources.CodecRegistry, bridges *bridgeRuntime) error {
+	if err := registerDaemonResourceCodec(registry, "hook binding", newHookBindingCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "tool", toolspkg.NewResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "mcp server", aghconfig.NewMCPServerResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "agent", aghconfig.NewAgentResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "skill", skills.NewResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "automation job", automationpkg.NewJobResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(
+		registry,
+		"automation trigger",
+		automationpkg.NewTriggerResourceCodec,
+	); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "bridge instance", func() (
+		resources.KindCodec[bridgepkg.BridgeInstanceSpec],
+		error,
+	) {
+		return bridgepkg.NewBridgeInstanceResourceCodec(bridgeProviderLookup(bridges))
+	}); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "bundle", bundlepkg.NewBundleResourceCodec); err != nil {
+		return err
+	}
+	return registerDaemonResourceCodec(
+		registry,
+		"bundle activation",
+		bundlepkg.NewActivationResourceCodec,
+	)
+}
+
+func registerDaemonResourceCodec[T any](
+	registry *resources.CodecRegistry,
+	label string,
+	build func() (resources.KindCodec[T], error),
+) error {
+	codec, err := build()
+	if err != nil {
+		return fmt.Errorf("daemon: build %s codec: %w", label, err)
+	}
+	if err := resources.RegisterCodec(registry, codec); err != nil {
+		return fmt.Errorf("daemon: register %s codec: %w", label, err)
+	}
+	return nil
 }
 
 func (d *Daemon) buildResourceService(state *bootState) (core.ResourceService, error) {
@@ -661,6 +668,7 @@ func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cl
 		SkillsRegistry:   state.skillsRegistry,
 		Automation:       automationResourceTarget(state.automation),
 		Bridges:          bridgeResourceTarget(state.bridges),
+		Bundles:          state.bundles,
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create resource reconcile driver: %w", err)
@@ -924,14 +932,12 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 	return nil
 }
 
-func (d *Daemon) bootBundles(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootBundles(_ context.Context, state *bootState) error {
 	if state == nil {
 		return errors.New("daemon: boot bundle state is required")
 	}
 
 	dbSource, ok := state.registry.(interface {
-		bundlepkg.Store
-		bridgepkg.ManagedSyncStore
 		extensionDBSource
 	})
 	if !ok {
@@ -939,33 +945,19 @@ func (d *Daemon) bootBundles(ctx context.Context, state *bootState) error {
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
-	bridgeSyncer := bridgepkg.ManagedSyncer(bridgepkg.NewManagedSyncer(dbSource, bridgepkg.WithManagedSyncNow(d.now)))
-	if bridgeStore, err := bridgeInstanceResourceStore(
-		resourceRawStore(state.resourceKernel),
-		state.resourceCodecs,
-	); err != nil {
+	resourceStore, err := newBundleResourceStore(state, d.now)
+	if err != nil {
 		return err
-	} else if bridgeStore != nil {
-		bridgeSyncer = bridgepkg.NewManagedResourceSyncer(
-			bridgeStore,
-			resourceReconcileActor(),
-			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				if state.resourceReconcile == nil {
-					return nil
-				}
-				return state.resourceReconcile.Trigger(ctx, kind, reason)
-			},
-			bridgepkg.WithManagedResourceSyncNow(d.now),
-		)
+	}
+	if resourceStore == nil {
+		return nil
 	}
 	service := bundlepkg.NewService(
-		dbSource,
+		resourceStore,
 		extRegistry,
 		func(name string) (*extensionpkg.Extension, error) {
 			return loadExtensionSnapshot(extRegistry, state.currentExtensionRuntime(), state.logger, name)
 		},
-		bundlepkg.WithAutomation(state.automation),
-		bundlepkg.WithBridges(bridgeSyncer),
 		bundlepkg.WithWorkspaceResolver(state.workspaceResolver),
 		bundlepkg.WithConfiguredDefaultChannel(state.cfg.Network.DefaultChannel),
 		bundlepkg.WithLogger(state.logger),
@@ -974,14 +966,8 @@ func (d *Daemon) bootBundles(ctx context.Context, state *bootState) error {
 	if service == nil {
 		return nil
 	}
-	if err := service.Reconcile(ctx); err != nil {
-		return fmt.Errorf("daemon: reconcile bundle activations: %w", err)
-	}
 	state.bundles = service
 	state.deps.Bundles = service
-	if extRegistry, ok := any(state.deps.Extensions).(*daemonExtensionService); ok {
-		extRegistry.bundles = service
-	}
 	return nil
 }
 
@@ -997,35 +983,13 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
-	agentSkillResources, err := d.newAgentSkillPublisher(state, extRegistry)
-	if err != nil {
+	if err := d.configureExtensionResourcePublishers(state, extRegistry); err != nil {
 		return err
 	}
-	state.agentSkillResources = agentSkillResources
-	toolMCPResources, err := d.newToolMCPPublisher(state, extRegistry)
-	if err != nil {
-		return err
-	}
-	state.toolMCPResources = toolMCPResources
 	manager := d.newExtensionManager(d.extensionManagerDeps(state, extRegistry))
 	if manager == nil {
 		state.logger.Warn("daemon: extension manager factory returned nil; skipping extensions")
-		if state.agentSkillResources != nil {
-			if err := state.agentSkillResources.Sync(ctx); err != nil {
-				return err
-			}
-		}
-		if state.hookBindings != nil {
-			if err := state.hookBindings.Sync(ctx); err != nil {
-				return err
-			}
-		}
-		if state.toolMCPResources != nil {
-			if err := state.toolMCPResources.Sync(ctx); err != nil {
-				return err
-			}
-		}
-		return nil
+		return syncExtensionResourcePublishers(ctx, state)
 	}
 
 	cleanup.add(func(ctx context.Context) error {
@@ -1053,6 +1017,52 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	state.setExtensionRuntime(manager)
 	d.attachExtensionRuntime(ctx, state, extRegistry, manager)
 
+	return nil
+}
+
+func (d *Daemon) configureExtensionResourcePublishers(
+	state *bootState,
+	extRegistry *extensionpkg.Registry,
+) error {
+	agentSkillResources, err := d.newAgentSkillPublisher(state, extRegistry)
+	if err != nil {
+		return err
+	}
+	state.agentSkillResources = agentSkillResources
+	toolMCPResources, err := d.newToolMCPPublisher(state, extRegistry)
+	if err != nil {
+		return err
+	}
+	state.toolMCPResources = toolMCPResources
+	bundleResources, err := d.newBundlePublisher(state, extRegistry)
+	if err != nil {
+		return err
+	}
+	state.bundleResources = bundleResources
+	return nil
+}
+
+func syncExtensionResourcePublishers(ctx context.Context, state *bootState) error {
+	if state.agentSkillResources != nil {
+		if err := state.agentSkillResources.Sync(ctx); err != nil {
+			return err
+		}
+	}
+	if state.hookBindings != nil {
+		if err := state.hookBindings.Sync(ctx); err != nil {
+			return err
+		}
+	}
+	if state.toolMCPResources != nil {
+		if err := state.toolMCPResources.Sync(ctx); err != nil {
+			return err
+		}
+	}
+	if state.bundleResources != nil {
+		if err := state.bundleResources.Sync(ctx); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -1101,7 +1111,7 @@ func (d *Daemon) attachExtensionRuntime(
 		state.hookBindings,
 		state.agentSkillResources,
 		state.toolMCPResources,
-		state.bundles,
+		state.bundleResources,
 		d.homePaths,
 		state.logger,
 		d.now,
@@ -1119,6 +1129,11 @@ func (d *Daemon) attachExtensionRuntime(
 	if state.toolMCPResources != nil {
 		if err := state.toolMCPResources.Sync(ctx); err != nil {
 			state.logger.Error("daemon: sync tool/mcp resources after extension boot failed", "error", err)
+		}
+	}
+	if state.bundleResources != nil {
+		if err := state.bundleResources.Sync(ctx); err != nil {
+			state.logger.Error("daemon: sync bundle resources after extension boot failed", "error", err)
 		}
 	}
 	if state.hookBindings != nil {

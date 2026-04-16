@@ -219,7 +219,7 @@ func finalizeManagerOptions(options *managerOptions) error {
 	return nil
 }
 
-func managerDispatcherOptions(options managerOptions) []DispatcherOption {
+func managerDispatcherOptions(options *managerOptions) []DispatcherOption {
 	dispatcherOpts := []DispatcherOption{
 		WithDispatcherLogger(options.logger),
 		WithDispatcherGlobalWorkspacePath(options.globalWorkspacePath),
@@ -393,7 +393,7 @@ func New(opts ...Option) (*Manager, error) {
 		return nil, err
 	}
 
-	dispatcherOpts := managerDispatcherOptions(options)
+	dispatcherOpts := managerDispatcherOptions(&options)
 	dispatcher, err := NewDispatcher(options.sessions, options.store, dispatcherOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("automation: construct dispatcher: %w", err)

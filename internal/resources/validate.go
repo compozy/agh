@@ -13,6 +13,7 @@ func normalizeActor(actor MutationActor) (MutationActor, error) {
 	normalized.Kind = actor.Kind.Normalize()
 	normalized.ID = strings.TrimSpace(actor.ID)
 	normalized.SessionNonce = strings.TrimSpace(actor.SessionNonce)
+	normalized.Owner = actor.Owner.Normalize()
 	normalized.Source = actor.Source.Normalize()
 	normalized.MaxScope = actor.MaxScope.Normalize()
 	normalized.GrantedKinds = normalizeKinds(actor.GrantedKinds)
@@ -29,6 +30,17 @@ func normalizeActor(actor MutationActor) (MutationActor, error) {
 	}
 	if normalized.Kind == MutationActorKindExtension {
 		if err := normalized.Source.Validate("actor.source"); err != nil {
+			return MutationActor{}, err
+		}
+	}
+	if actorOwnerProvided(normalized.Owner) {
+		if normalized.Kind == MutationActorKindExtension {
+			return MutationActor{}, fmt.Errorf(
+				"%w: extension actors cannot override resource owner",
+				ErrPermissionDenied,
+			)
+		}
+		if err := normalized.Owner.Validate("actor.owner"); err != nil {
 			return MutationActor{}, err
 		}
 	}
@@ -171,6 +183,9 @@ func actorAllowsScope(actor MutationActor, target ResourceScope) bool {
 }
 
 func ownerFromActor(actor MutationActor) ResourceOwner {
+	if actorOwnerProvided(actor.Owner) {
+		return actor.Owner.Normalize()
+	}
 	if actor.Kind == MutationActorKindExtension {
 		return ResourceOwner{
 			Kind: ResourceOwnerKind(actor.Source.Kind),
@@ -181,6 +196,10 @@ func ownerFromActor(actor MutationActor) ResourceOwner {
 		Kind: ResourceOwnerKind(actor.Kind),
 		ID:   actor.ID,
 	}
+}
+
+func actorOwnerProvided(owner ResourceOwner) bool {
+	return strings.TrimSpace(string(owner.Kind)) != "" || strings.TrimSpace(owner.ID) != ""
 }
 
 func normalizeKinds(values []ResourceKind) []ResourceKind {

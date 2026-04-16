@@ -20,7 +20,7 @@ type daemonExtensionService struct {
 	hookBinds  hookBindingPublisher
 	agentSkill agentSkillPublisher
 	toolMCP    toolMCPPublisher
-	bundles    interface{ Reconcile(context.Context) error }
+	bundles    bundleResourcePublisher
 	homePaths  aghconfig.HomePaths
 	logger     *slog.Logger
 	now        func() time.Time
@@ -34,7 +34,7 @@ func newDaemonExtensionService(
 	hookBinds hookBindingPublisher,
 	agentSkill agentSkillPublisher,
 	toolMCP toolMCPPublisher,
-	bundles interface{ Reconcile(context.Context) error },
+	bundles bundleResourcePublisher,
 	homePaths aghconfig.HomePaths,
 	logger *slog.Logger,
 	now func() time.Time,
@@ -159,10 +159,10 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 	if s.toolMCP != nil {
 		syncErr = errors.Join(syncErr, s.toolMCP.Sync(ctx))
 	}
-	if s.bundles == nil {
-		return errors.Join(reloadErr, syncErr)
+	if s.bundles != nil {
+		syncErr = errors.Join(syncErr, s.bundles.Sync(ctx))
 	}
-	return errors.Join(reloadErr, syncErr, s.bundles.Reconcile(ctx))
+	return errors.Join(reloadErr, syncErr)
 }
 
 func (s *daemonExtensionService) lookup(name string) (*extensionpkg.Extension, error) {

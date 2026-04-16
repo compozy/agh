@@ -530,17 +530,40 @@ func (r *Registry) checkReady(action string) error {
 }
 
 func (r *Registry) ensureNoActiveBundles(extensionName string) error {
-	var count int
-	row := r.db.QueryRowContext(
+	rows, err := r.db.QueryContext(
 		registryContext(),
-		`SELECT COUNT(*) FROM bundle_activations WHERE extension_name = ?`,
-		strings.TrimSpace(extensionName),
+		`SELECT spec_json FROM resource_records WHERE kind = ?`,
+		"bundle.activation",
 	)
-	if err := row.Scan(&count); err != nil {
+	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
 			return nil
 		}
 		return fmt.Errorf("extension: count active bundle activations for %q: %w", extensionName, err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	count := 0
+	trimmedName := strings.TrimSpace(extensionName)
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return fmt.Errorf("extension: scan active bundle activation for %q: %w", extensionName, err)
+		}
+		var spec struct {
+			ExtensionName string `json:"extension_name"`
+		}
+		if err := json.Unmarshal([]byte(raw), &spec); err != nil {
+			return fmt.Errorf("extension: decode active bundle activation for %q: %w", extensionName, err)
+		}
+		if strings.TrimSpace(spec.ExtensionName) == trimmedName {
+			count++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("extension: iterate active bundle activations for %q: %w", extensionName, err)
 	}
 	if count > 0 {
 		return fmt.Errorf("%w: %q has %d active activation(s)", ErrExtensionHasActiveBundles, extensionName, count)

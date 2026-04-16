@@ -489,15 +489,6 @@ func TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables(t *testing.T)
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
 		)`,
-		`CREATE TABLE bundle_activations (
-			scope TEXT NOT NULL,
-			workspace_id TEXT,
-			bundle_name TEXT NOT NULL,
-			profile_name TEXT NOT NULL,
-			manifest_path TEXT NOT NULL,
-			installed_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		)`,
 		`CREATE TABLE network_audit_log (
 			id TEXT PRIMARY KEY,
 			session_id TEXT NOT NULL,
@@ -522,10 +513,9 @@ func TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables(t *testing.T)
 	}
 
 	for table, expected := range map[string][]string{
-		"sessions":           {"stop_reason", "stop_detail", "channel"},
-		"extensions":         {"registry_slug", "registry_name", "remote_version"},
-		"bridge_instances":   {"source", "dm_policy", "provider_config", "degradation_reason", "degradation_message"},
-		"bundle_activations": {"spec_content_hash"},
+		"sessions":         {"stop_reason", "stop_detail", "channel"},
+		"extensions":       {"registry_slug", "registry_name", "remote_version"},
+		"bridge_instances": {"source", "dm_policy", "provider_config", "degradation_reason", "degradation_message"},
 	} {
 		columns, err := tableColumns(testutil.Context(t), db, table)
 		if err != nil {

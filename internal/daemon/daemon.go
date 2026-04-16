@@ -18,6 +18,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/udsapi"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -150,6 +151,7 @@ type resourceReconcileDriverDeps struct {
 	SkillsRegistry   *skills.Registry
 	Automation       automationResourceProjectorTarget
 	Bridges          bridgeResourceProjectorTarget
+	Bundles          resources.BundleActivationProjector[bundlepkg.ActivationResourceSpec, bundlepkg.BundleResourceSpec]
 }
 
 type extensionRuntime interface {
@@ -195,22 +197,11 @@ type extensionManagerDeps struct {
 type automationRuntime interface {
 	core.AutomationManager
 	extensionpkg.HostAPIAutomationManager
-	bundleSyncAutomation
 	Start(ctx context.Context) error
 	Shutdown(ctx context.Context) error
 	SessionObserver() session.Notifier
 	HookTelemetrySink() hookspkg.TelemetrySink
 	MemoryObserver() automationpkg.MemoryConsolidationObserver
-}
-
-type bundleSyncAutomation interface {
-	SyncManagedDefinitions(
-		ctx context.Context,
-		source automationpkg.JobSource,
-		desiredJobs []automationpkg.Job,
-		desiredTriggers []automationpkg.Trigger,
-		desiredTriggerSecrets map[string]string,
-	) (automationpkg.SyncStats, error)
 }
 
 type automationManagerDeps struct {
@@ -652,6 +643,36 @@ func buildResourceProjectorRegistrations(
 	deps *resourceReconcileDriverDeps,
 ) ([]resources.ProjectorRegistration, error) {
 	var registrations []resources.ProjectorRegistration
+	var err error
+	registrations, err = appendCoreProjectorRegistrations(registrations, deps)
+	if err != nil {
+		return nil, err
+	}
+	if deps.Automation != nil {
+		registrations, err = appendAutomationProjectorRegistrations(registrations, deps)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if deps.Bridges != nil {
+		registrations, err = appendBridgeProjectorRegistration(registrations, deps)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if deps.Bundles != nil {
+		registrations, err = appendBundleProjectorRegistrations(registrations, deps)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return registrations, nil
+}
+
+func appendCoreProjectorRegistrations(
+	registrations []resources.ProjectorRegistration,
+	deps *resourceReconcileDriverDeps,
+) ([]resources.ProjectorRegistration, error) {
 	if deps.Hooks != nil {
 		codec, err := resources.ResolveCodec[hookspkg.HookDecl](deps.CodecRegistry, hookBindingResourceKind)
 		if err != nil {
@@ -712,20 +733,6 @@ func buildResourceProjectorRegistrations(
 			return nil, err
 		}
 		registrations = append(registrations, registration)
-	}
-	if deps.Automation != nil {
-		var err error
-		registrations, err = appendAutomationProjectorRegistrations(registrations, deps)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if deps.Bridges != nil {
-		var err error
-		registrations, err = appendBridgeProjectorRegistration(registrations, deps)
-		if err != nil {
-			return nil, err
-		}
 	}
 	return registrations, nil
 }

@@ -1,0 +1,434 @@
+//go:build integration
+
+package bundles
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"path/filepath"
+	"slices"
+	"testing"
+	"time"
+
+	automationpkg "github.com/pedronauck/agh/internal/automation"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/resources"
+	storepkg "github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/testutil"
+)
+
+type bundleResourceIntegrationHarness struct {
+	ctx            context.Context
+	db             *sql.DB
+	kernel         *resources.Kernel
+	codecs         *resources.CodecRegistry
+	actor          resources.MutationActor
+	resourceStore  *ResourceStore
+	service        *Service
+	bundles        resources.Store[BundleResourceSpec]
+	activations    resources.Store[ActivationResourceSpec]
+	jobs           resources.Store[automationpkg.Job]
+	triggers       resources.Store[automationpkg.Trigger]
+	bridges        resources.Store[bridgepkg.BridgeInstanceSpec]
+	triggeredKinds []resources.ResourceKind
+}
+
+func TestBundleResourceIntegrationActivationFanoutWritesCanonicalOwnedRecords(t *testing.T) {
+	t.Parallel()
+
+	h := newBundleResourceIntegrationHarness(t)
+	h.putMarketingBundle(t)
+
+	preview, err := h.service.Activate(h.ctx, ActivateRequest{
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
+	})
+	if err != nil {
+		t.Fatalf("Activate() error = %v", err)
+	}
+
+	owner := ownerForActivation(preview.Activation.ID)
+	jobs := h.listOwnedJobs(t, owner)
+	if got, want := len(jobs), 1; got != want {
+		t.Fatalf("len(owned jobs) = %d, want %d", got, want)
+	}
+	if jobs[0].Owner != owner {
+		t.Fatalf("job owner = %#v, want %#v", jobs[0].Owner, owner)
+	}
+	triggers := h.listOwnedTriggers(t, owner)
+	if got, want := len(triggers), 1; got != want {
+		t.Fatalf("len(owned triggers) = %d, want %d", got, want)
+	}
+	bridges := h.listOwnedBridges(t, owner)
+	if got, want := len(bridges), 1; got != want {
+		t.Fatalf("len(owned bridges) = %d, want %d", got, want)
+	}
+	for _, kind := range []resources.ResourceKind{
+		automationpkg.JobResourceKind,
+		automationpkg.TriggerResourceKind,
+		bridgepkg.BridgeInstanceResourceKind,
+	} {
+		if !slices.Contains(h.triggeredKinds, kind) {
+			t.Fatalf("triggered kinds = %#v, want %q", h.triggeredKinds, kind)
+		}
+	}
+}
+
+func TestBundleResourceIntegrationCleanupIsActivationScoped(t *testing.T) {
+	t.Parallel()
+
+	h := newBundleResourceIntegrationHarness(t)
+	removeJob := integrationJob("job-remove", "remove")
+	keepJob := integrationJob("job-keep", "keep")
+	unownedJob := integrationJob("job-unowned", "unowned")
+
+	h.putJob(t, activationResourceActor(h.actor, "act-remove"), removeJob)
+	h.putJob(t, activationResourceActor(h.actor, "act-keep"), keepJob)
+	h.putJob(t, h.actor, unownedJob)
+
+	err := h.resourceStore.ApplyBundleActivationResources(h.ctx, BundleActivationResourcePlan{
+		activeActivationIDs: map[string]struct{}{"act-keep": {}},
+		desiredJobs:         []automationpkg.Job{keepJob},
+		jobOwners:           map[string]string{keepJob.ID: "act-keep"},
+	})
+	if err != nil {
+		t.Fatalf("ApplyBundleActivationResources() error = %v", err)
+	}
+
+	if _, err := h.jobs.Get(h.ctx, h.actor, removeJob.ID); !errors.Is(err, resources.ErrNotFound) {
+		t.Fatalf("Get(removeJob) error = %v, want ErrNotFound", err)
+	}
+	if _, err := h.jobs.Get(h.ctx, h.actor, keepJob.ID); err != nil {
+		t.Fatalf("Get(keepJob) error = %v", err)
+	}
+	if _, err := h.jobs.Get(h.ctx, h.actor, unownedJob.ID); err != nil {
+		t.Fatalf("Get(unownedJob) error = %v", err)
+	}
+}
+
+func TestBundleResourceIntegrationBootRebuildUsesResourcesWithoutInventoryTable(t *testing.T) {
+	t.Parallel()
+
+	h := newBundleResourceIntegrationHarness(t)
+	h.putMarketingBundle(t)
+	activation := Activation{
+		ID:            ActivationResourceID("marketing-team", "marketing", "default", ScopeGlobal, ""),
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
+	}
+	if err := h.resourceStore.CreateBundleActivation(h.ctx, activation); err != nil {
+		t.Fatalf("CreateBundleActivation() error = %v", err)
+	}
+
+	registration, err := resources.NewBundleActivationProjectorRegistration[
+		ActivationResourceSpec,
+		BundleResourceSpec,
+	](h.codecs, h.service)
+	if err != nil {
+		t.Fatalf("NewBundleActivationProjectorRegistration() error = %v", err)
+	}
+	driver, err := resources.NewReconcileDriver(h.kernel, h.actor, []resources.ProjectorRegistration{registration})
+	if err != nil {
+		t.Fatalf("NewReconcileDriver() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := driver.Close(h.ctx); err != nil {
+			t.Fatalf("driver.Close() error = %v", err)
+		}
+	})
+
+	if err := driver.RunBoot(h.ctx); err != nil {
+		t.Fatalf("RunBoot() error = %v", err)
+	}
+	owner := ownerForActivation(activation.ID)
+	if got, want := len(h.listOwnedJobs(t, owner)), 1; got != want {
+		t.Fatalf("len(boot rebuilt owned jobs) = %d, want %d", got, want)
+	}
+	assertNoLegacyBundleActivationTable(t, h.db)
+}
+
+func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegrationHarness {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	db, err := storepkg.OpenSQLiteDatabase(
+		ctx,
+		filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName),
+		func(ctx context.Context, db *sql.DB) error {
+			return storepkg.EnsureSchema(ctx, db, resources.SchemaStatements())
+		},
+	)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("db.Close() error = %v", err)
+		}
+	})
+	kernel, err := resources.NewKernel(db, resources.WithNow(func() time.Time {
+		return time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC)
+	}))
+	if err != nil {
+		t.Fatalf("NewKernel() error = %v", err)
+	}
+	actor := bundleIntegrationActor()
+	codecs := resources.NewCodecRegistry()
+	bundleCodec, err := NewBundleResourceCodec()
+	if err != nil {
+		t.Fatalf("NewBundleResourceCodec() error = %v", err)
+	}
+	activationCodec, err := NewActivationResourceCodec()
+	if err != nil {
+		t.Fatalf("NewActivationResourceCodec() error = %v", err)
+	}
+	jobCodec, err := automationpkg.NewJobResourceCodec()
+	if err != nil {
+		t.Fatalf("NewJobResourceCodec() error = %v", err)
+	}
+	triggerCodec, err := automationpkg.NewTriggerResourceCodec()
+	if err != nil {
+		t.Fatalf("NewTriggerResourceCodec() error = %v", err)
+	}
+	bridgeCodec, err := bridgepkg.NewBridgeInstanceResourceCodec(marketingBridgeProviderLookup)
+	if err != nil {
+		t.Fatalf("NewBridgeInstanceResourceCodec() error = %v", err)
+	}
+	for _, register := range []func(*resources.CodecRegistry) error{
+		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, bundleCodec) },
+		func(registry *resources.CodecRegistry) error {
+			return resources.RegisterCodec(registry, activationCodec)
+		},
+		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, jobCodec) },
+		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, triggerCodec) },
+		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, bridgeCodec) },
+	} {
+		if err := register(codecs); err != nil {
+			t.Fatalf("RegisterCodec() error = %v", err)
+		}
+	}
+
+	bundleStore := mustNewTypedStore(t, kernel, bundleCodec)
+	activationStore := mustNewTypedStore(t, kernel, activationCodec)
+	jobStore := mustNewTypedStore(t, kernel, jobCodec)
+	triggerStore := mustNewTypedStore(t, kernel, triggerCodec)
+	bridgeStore := mustNewTypedStore(t, kernel, bridgeCodec)
+
+	h := &bundleResourceIntegrationHarness{
+		ctx:         ctx,
+		db:          db,
+		kernel:      kernel,
+		codecs:      codecs,
+		actor:       actor,
+		bundles:     bundleStore,
+		activations: activationStore,
+		jobs:        jobStore,
+		triggers:    triggerStore,
+		bridges:     bridgeStore,
+	}
+	resourceStore, err := NewResourceStore(ResourceStoreConfig{
+		Bundles:         bundleStore,
+		BundleCodec:     bundleCodec,
+		Activations:     activationStore,
+		ActivationCodec: activationCodec,
+		Jobs:            jobStore,
+		JobCodec:        jobCodec,
+		Triggers:        triggerStore,
+		TriggerCodec:    triggerCodec,
+		Bridges:         bridgeStore,
+		BridgeCodec:     bridgeCodec,
+		Actor:           actor,
+		Trigger: func(_ context.Context, kind resources.ResourceKind, _ resources.ReconcileReason) error {
+			h.triggeredKinds = append(h.triggeredKinds, kind)
+			return nil
+		},
+		Now: func() time.Time {
+			return time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewResourceStore() error = %v", err)
+	}
+	h.resourceStore = resourceStore
+	h.service = NewService(
+		resourceStore,
+		staticExtensionLister{},
+		func(name string) (*extensionpkg.Extension, error) {
+			if name != "marketing-team" {
+				return nil, extensionpkg.ErrExtensionNotFound
+			}
+			return newMarketingExtension(), nil
+		},
+		WithConfiguredDefaultChannel("default"),
+		WithNow(func() time.Time {
+			return time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC)
+		}),
+	)
+	if h.service == nil {
+		t.Fatal("NewService() = nil, want service")
+	}
+	return h
+}
+
+func mustNewTypedStore[T any](
+	t *testing.T,
+	raw resources.RawStore,
+	codec resources.KindCodec[T],
+) resources.Store[T] {
+	t.Helper()
+
+	store, err := resources.NewStore(raw, codec)
+	if err != nil {
+		t.Fatalf("NewStore(%q) error = %v", codec.Kind(), err)
+	}
+	return store
+}
+
+func (h *bundleResourceIntegrationHarness) putMarketingBundle(t *testing.T) {
+	t.Helper()
+
+	ext := newMarketingExtension()
+	_, err := h.bundles.Put(h.ctx, h.actor, resources.Draft[BundleResourceSpec]{
+		ID:    BundleResourceID(ext.Info.Name, ext.Bundles[0].Name),
+		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Spec: BundleResourceSpec{
+			ExtensionName:              ext.Info.Name,
+			Bundle:                     ext.Bundles[0],
+			OwnerBridgePlatform:        ext.Manifest.Bridge.Platform,
+			OwnerProvidesBridgeAdapter: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Put(bundle) error = %v", err)
+	}
+}
+
+func (h *bundleResourceIntegrationHarness) putJob(
+	t *testing.T,
+	actor resources.MutationActor,
+	job automationpkg.Job,
+) {
+	t.Helper()
+
+	_, err := h.jobs.Put(h.ctx, actor, resources.Draft[automationpkg.Job]{
+		ID:    job.ID,
+		Scope: automationpkg.ResourceScopeForAutomation(job.Scope, job.WorkspaceID),
+		Spec:  job,
+	})
+	if err != nil {
+		t.Fatalf("Put(job %s) error = %v", job.ID, err)
+	}
+}
+
+func (h *bundleResourceIntegrationHarness) listOwnedJobs(
+	t *testing.T,
+	owner resources.ResourceOwner,
+) []resources.Record[automationpkg.Job] {
+	t.Helper()
+
+	records, err := h.jobs.List(h.ctx, h.actor, resources.ResourceFilter{
+		Kind:  automationpkg.JobResourceKind,
+		Owner: &owner,
+	})
+	if err != nil {
+		t.Fatalf("List(owned jobs) error = %v", err)
+	}
+	return records
+}
+
+func (h *bundleResourceIntegrationHarness) listOwnedTriggers(
+	t *testing.T,
+	owner resources.ResourceOwner,
+) []resources.Record[automationpkg.Trigger] {
+	t.Helper()
+
+	records, err := h.triggers.List(h.ctx, h.actor, resources.ResourceFilter{
+		Kind:  automationpkg.TriggerResourceKind,
+		Owner: &owner,
+	})
+	if err != nil {
+		t.Fatalf("List(owned triggers) error = %v", err)
+	}
+	return records
+}
+
+func (h *bundleResourceIntegrationHarness) listOwnedBridges(
+	t *testing.T,
+	owner resources.ResourceOwner,
+) []resources.Record[bridgepkg.BridgeInstanceSpec] {
+	t.Helper()
+
+	records, err := h.bridges.List(h.ctx, h.actor, resources.ResourceFilter{
+		Kind:  bridgepkg.BridgeInstanceResourceKind,
+		Owner: &owner,
+	})
+	if err != nil {
+		t.Fatalf("List(owned bridges) error = %v", err)
+	}
+	return records
+}
+
+func bundleIntegrationActor() resources.MutationActor {
+	return resources.MutationActor{
+		Kind:     resources.MutationActorKindDaemon,
+		ID:       "bundle-integration",
+		Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "bundle-integration"},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+	}
+}
+
+func marketingBridgeProviderLookup(
+	_ context.Context,
+	extensionName string,
+) (bridgepkg.BridgeProvider, bool, error) {
+	if extensionName != "marketing-team" {
+		return bridgepkg.BridgeProvider{}, false, nil
+	}
+	return bridgepkg.BridgeProvider{
+		Platform:      "telegram",
+		ExtensionName: "marketing-team",
+		DisplayName:   "Telegram",
+		Enabled:       true,
+	}, true, nil
+}
+
+func integrationJob(id string, name string) automationpkg.Job {
+	return automationpkg.Job{
+		ID:        id,
+		Scope:     automationpkg.AutomationScopeGlobal,
+		Name:      name,
+		AgentName: "planner",
+		Prompt:    "Run " + name,
+		Schedule:  &automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeEvery, Interval: "1h"},
+		Enabled:   true,
+		Retry:     automationpkg.DefaultRetryConfig(),
+		FireLimit: automationpkg.DefaultFireLimitConfig(),
+		Source:    automationpkg.JobSourcePackage,
+		CreatedAt: time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),
+	}
+}
+
+func assertNoLegacyBundleActivationTable(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	for _, table := range []string{"bundle_activations", "bundle_activation_inventory"} {
+		var count int
+		if err := db.QueryRowContext(
+			testutil.Context(t),
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`,
+			table,
+		).Scan(&count); err != nil {
+			t.Fatalf("query sqlite_master for %s error = %v", table, err)
+		}
+		if count != 0 {
+			t.Fatalf("legacy table %s exists, want absent", table)
+		}
+	}
+}

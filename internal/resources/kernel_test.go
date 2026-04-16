@@ -94,6 +94,56 @@ func TestKernelPutRawUpdateDeleteAndNotFound(t *testing.T) {
 	}
 }
 
+func TestKernelPutRawStampsDaemonOwnerOverride(t *testing.T) {
+	t.Parallel()
+
+	kernel, _ := openTestKernel(t)
+	ctx := testutil.Context(t)
+	actor := testDaemonActor()
+	actor.Owner = ResourceOwner{Kind: ResourceOwnerKind("bundle.activation"), ID: "act-owner"}
+
+	record, err := kernel.PutRaw(ctx, actor, RawDraft{
+		Kind:            testResourceKind,
+		ID:              "owned-tool",
+		Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+		ExpectedVersion: 0,
+		SpecJSON:        []byte(`{"name":"owned"}`),
+	})
+	if err != nil {
+		t.Fatalf("PutRaw() error = %v", err)
+	}
+	if got, want := record.Owner, actor.Owner; got != want {
+		t.Fatalf("record.Owner = %#v, want %#v", got, want)
+	}
+}
+
+func TestKernelPutRawRejectsExtensionOwnerOverride(t *testing.T) {
+	t.Parallel()
+
+	kernel, _ := openTestKernel(t)
+	ctx := testutil.Context(t)
+	source := ResourceSource{Kind: ResourceSourceKind("extension"), ID: "ext-owned"}
+	if err := kernel.ActivateSourceSession(ctx, testDaemonActor(), source, "nonce-owned"); err != nil {
+		t.Fatalf("ActivateSourceSession() error = %v", err)
+	}
+	actor := testExtensionActor("session-owned", source.ID, "nonce-owned")
+	actor.Owner = ResourceOwner{Kind: ResourceOwnerKind("bundle.activation"), ID: "act-owner"}
+
+	err := kernel.ApplySourceSnapshotRaw(ctx, actor, SourceSnapshot{
+		SourceVersion: 1,
+		Records: []RawDraft{{
+			Kind:            testResourceKind,
+			ID:              "extension-owned-tool",
+			Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+			ExpectedVersion: 0,
+			SpecJSON:        []byte(`{"name":"owned"}`),
+		}},
+	})
+	if !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("ApplySourceSnapshotRaw() error = %v, want ErrPermissionDenied", err)
+	}
+}
+
 func TestKernelPutRawRejectsInvalidScopeBinding(t *testing.T) {
 	t.Parallel()
 
