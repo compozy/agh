@@ -77,12 +77,26 @@ func (h *HostAPIHandler) handleResourcesSnapshot(ctx context.Context, raw json.R
 
 	drafts := make([]resources.RawDraft, 0, len(params.Records))
 	for _, record := range params.Records {
+		spec := append([]byte(nil), record.Spec...)
+		if h.resourceCodecs != nil {
+			canonical, _, err := resources.ValidateAndCanonicalizeIfRegistered(
+				ctx,
+				h.resourceCodecs,
+				record.Kind,
+				record.Scope,
+				spec,
+			)
+			if err != nil {
+				return nil, err
+			}
+			spec = canonical
+		}
 		drafts = append(drafts, resources.RawDraft{
 			Kind:            record.Kind,
 			ID:              record.ID,
 			Scope:           record.Scope,
 			ExpectedVersion: 0,
-			SpecJSON:        append([]byte(nil), record.Spec...),
+			SpecJSON:        spec,
 		})
 	}
 
@@ -91,6 +105,17 @@ func (h *HostAPIHandler) handleResourcesSnapshot(ctx context.Context, raw json.R
 		Records:       drafts,
 	}); err != nil {
 		return nil, err
+	}
+	if h.resourceTrigger != nil {
+		for _, grantedKind := range actor.GrantedKinds {
+			kind := grantedKind.Normalize()
+			if kind == "" {
+				continue
+			}
+			if err := h.resourceTrigger(ctx, kind, resources.ReconcileReasonWrite); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return extensioncontract.EmptyResult{}, nil

@@ -155,9 +155,7 @@ func (m *Manager) recordPromptInputEvent(
 	if err := m.recordEvent(ctx, session, userEvent); err != nil {
 		return fmt.Errorf("session: persist prompt message for %q: %w", target, err)
 	}
-	if m.notifier != nil {
-		m.notifier.OnAgentEvent(ctx, session.ID, userEvent)
-	}
+	m.notifyAgentEvent(ctx, session, userEvent)
 	return nil
 }
 
@@ -239,9 +237,7 @@ func (m *Manager) pumpPrompt(
 			m.sessionLogger(session).
 				Warn("session: record prompt event failed", "turn_id", turnState.turnID, "error", err)
 		}
-		if m.notifier != nil {
-			m.notifier.OnAgentEvent(ctx, session.ID, normalized)
-		}
+		m.notifyAgentEvent(ctx, session, normalized)
 
 		select {
 		case out <- normalized:

@@ -266,42 +266,11 @@ func (h *Hooks) Rebuild(ctx context.Context) error {
 		return err
 	}
 
-	resolved, err := NormalizeHookDecls(decls, h.resolveExecutor)
+	state, err := h.BuildBindingState(decls)
 	if err != nil {
 		return err
 	}
-
-	snapshot := buildHookSnapshot(resolved)
-	fingerprint, err := fingerprintHookSnapshot(snapshot)
-	if err != nil {
-		return err
-	}
-
-	reloadStarted := h.now()
-	newHookCount := countResolvedHooks(snapshot)
-
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if fingerprint == h.fingerprint {
-		return nil
-	}
-
-	oldHookCount := countResolvedHooks(h.snapshot)
-	h.snapshot = snapshot
-	h.fingerprint = fingerprint
-	version := h.version.Add(1)
-	reloadDuration := h.now().Sub(reloadStarted)
-	h.metrics.observeRegistryReload(reloadDuration, newHookCount-oldHookCount)
-	h.logger.Info(
-		"hook.registry.reloaded",
-		"version", version,
-		"hook_count", newHookCount,
-		"hook_count_delta", newHookCount-oldHookCount,
-		"duration_ms", reloadDuration.Milliseconds(),
-	)
-
-	return nil
+	return h.ApplyBindingState(state, 0)
 }
 
 func (h *Hooks) collectDeclarations(ctx context.Context) ([]HookDecl, error) {

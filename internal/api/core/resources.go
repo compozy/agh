@@ -20,12 +20,14 @@ type ResourceServiceConfig struct {
 	RawStore      resources.RawStore
 	CodecRegistry *resources.CodecRegistry
 	Actor         resources.MutationActor
+	Trigger       func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 }
 
 type operatorResourceService struct {
 	rawStore      resources.RawStore
 	codecRegistry *resources.CodecRegistry
 	actor         resources.MutationActor
+	trigger       func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 }
 
 // NewOperatorResourceService constructs the shared desired-state CRUD service
@@ -49,6 +51,7 @@ func NewOperatorResourceService(cfg *ResourceServiceConfig) (ResourceService, er
 		rawStore:      cfg.RawStore,
 		codecRegistry: cfg.CodecRegistry,
 		actor:         actor,
+		trigger:       cfg.Trigger,
 	}, nil
 }
 
@@ -100,7 +103,16 @@ func (s *operatorResourceService) Put(
 
 	next := draft
 	next.SpecJSON = specJSON
-	return s.rawStore.PutRaw(ctx, s.actor, next)
+	record, err := s.rawStore.PutRaw(ctx, s.actor, next)
+	if err != nil {
+		return resources.RawRecord{}, err
+	}
+	if s.trigger != nil {
+		if err := s.trigger(ctx, next.Kind, resources.ReconcileReasonWrite); err != nil {
+			return resources.RawRecord{}, err
+		}
+	}
+	return record, nil
 }
 
 func (s *operatorResourceService) Delete(
@@ -109,7 +121,15 @@ func (s *operatorResourceService) Delete(
 	id string,
 	expectedVersion int64,
 ) error {
-	return s.rawStore.DeleteRaw(ctx, s.actor, kind, id, expectedVersion)
+	if err := s.rawStore.DeleteRaw(ctx, s.actor, kind, id, expectedVersion); err != nil {
+		return err
+	}
+	if s.trigger != nil {
+		if err := s.trigger(ctx, kind, resources.ReconcileReasonWrite); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ListResources lists desired-state resources under the shared operator service.

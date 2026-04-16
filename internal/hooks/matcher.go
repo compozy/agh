@@ -49,11 +49,17 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"input_class":    {},
 	},
 	HookEventFamilyTool: {
+		"agent_name":     {},
+		"workspace_id":   {},
+		"workspace_root": {},
 		"tool_name":      {},
 		"tool_namespace": {},
 		"tool_read_only": {},
 	},
 	HookEventFamilyPermission: {
+		"agent_name":     {},
+		"workspace_id":   {},
+		"workspace_root": {},
 		"tool_name":      {},
 		"decision_class": {},
 	},
@@ -149,27 +155,32 @@ func (m HookMatcher) MatchesMessage(payload MessagePayload) bool {
 
 // MatchesToolPreCall matches tool pre-call hooks.
 func (m HookMatcher) MatchesToolPreCall(payload ToolPreCallPayload) bool {
-	return m.matchToolCall(payload.ToolCallRef)
+	return m.matchSessionContext(payload.SessionContext, false) &&
+		m.matchToolCall(payload.ToolCallRef)
 }
 
 // MatchesToolPostCall matches tool post-call hooks.
 func (m HookMatcher) MatchesToolPostCall(payload ToolPostCallPayload) bool {
-	return m.matchToolCall(payload.ToolCallRef)
+	return m.matchSessionContext(payload.SessionContext, false) &&
+		m.matchToolCall(payload.ToolCallRef)
 }
 
 // MatchesToolPostError matches tool post-error hooks.
 func (m HookMatcher) MatchesToolPostError(payload ToolPostErrorPayload) bool {
-	return m.matchToolCall(payload.ToolCallRef)
+	return m.matchSessionContext(payload.SessionContext, false) &&
+		m.matchToolCall(payload.ToolCallRef)
 }
 
 // MatchesPermissionRequest matches permission-request hooks.
 func (m HookMatcher) MatchesPermissionRequest(payload PermissionRequestPayload) bool {
-	return m.matchPermission(payload.ToolCall.Kind, payload.DecisionClass)
+	return m.matchSessionContext(payload.SessionContext, false) &&
+		m.matchPermission(payload.ToolCall.Kind, payload.DecisionClass)
 }
 
 // MatchesPermissionResolution matches resolved and denied permission hooks.
 func (m HookMatcher) MatchesPermissionResolution(payload PermissionResolutionPayload) bool {
-	return m.matchPermission(payload.ToolCall.Kind, payload.DecisionClass)
+	return m.matchSessionContext(payload.SessionContext, false) &&
+		m.matchPermission(payload.ToolCall.Kind, payload.DecisionClass)
 }
 
 // MatchesContextCompact matches context-compaction hooks.

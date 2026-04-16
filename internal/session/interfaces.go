@@ -208,6 +208,12 @@ type Notifier interface {
 	OnAgentEvent(ctx context.Context, sessionID string, event any)
 }
 
+// AgentEventNotifier is an optional notifier extension that receives the
+// active session alongside streamed agent events.
+type AgentEventNotifier interface {
+	OnAgentEventForSession(ctx context.Context, session *Session, event any)
+}
+
 // PromptAssembler assembles the prompt context for a new session start.
 type PromptAssembler interface {
 	Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error)

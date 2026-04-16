@@ -258,9 +258,7 @@ func (m *Manager) recordProcessExitEvent(ctx context.Context, session *Session, 
 	if err := m.recordEvent(ctx, session, normalized); err != nil {
 		return err
 	}
-	if m.notifier != nil {
-		m.notifier.OnAgentEvent(ctx, session.ID, normalized)
-	}
+	m.notifyAgentEvent(ctx, session, normalized)
 	return nil
 }
 
@@ -286,9 +284,7 @@ func (m *Manager) recordSessionStoppedEvent(ctx context.Context, session *Sessio
 	if err := m.recordEvent(ctx, session, normalizedStop); err != nil {
 		return err
 	}
-	if m.notifier != nil {
-		m.notifier.OnAgentEvent(ctx, session.ID, normalizedStop)
-	}
+	m.notifyAgentEvent(ctx, session, normalizedStop)
 	return nil
 }
 

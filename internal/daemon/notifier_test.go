@@ -2,12 +2,13 @@ package daemon
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/acp"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
@@ -21,10 +22,6 @@ func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 	fixedNow := time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC)
 	var order []string
 	runtime := &fakeHookRuntime{
-		onRebuild: func(context.Context) error {
-			order = append(order, "rebuild")
-			return nil
-		},
 		onDispatchCreate: func(_ context.Context, payload hookspkg.SessionPostCreatePayload) error {
 			order = append(order, "create")
 			if payload.Event != hookspkg.HookSessionPostCreate {
@@ -97,8 +94,15 @@ func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 			}
 			return nil
 		},
-		onAgentEvent: func(context.Context, string, any) {
-			order = append(order, "hook-agent")
+		onToolPreCall: func(_ context.Context, payload hookspkg.ToolPreCallPayload) error {
+			order = append(order, "tool-pre")
+			if payload.SessionID != "sess-created" || payload.WorkspaceID != "ws-1" {
+				t.Fatalf("payload session context = %#v, want session metadata", payload.SessionContext)
+			}
+			if payload.ToolName != "Read" {
+				t.Fatalf("payload.ToolName = %q, want %q", payload.ToolName, "Read")
+			}
+			return nil
 		},
 	}
 	agentEvents := &recordingNotifier{}
@@ -181,12 +185,32 @@ func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("DispatchContextPostCompact() error = %v", err)
 	}
-	notifier.OnAgentEvent(testutil.Context(t), "sess-created", struct{ Type string }{Type: "done"})
+	rawToolEvent, err := json.Marshal(map[string]any{
+		"sessionUpdate": "tool_call",
+		"toolCallId":    "tool-1",
+		"kind":          "read",
+		"rawInput": map[string]any{
+			"path": "/tmp/demo.txt",
+		},
+		"_meta": map[string]any{
+			"claudeCode": map[string]any{
+				"toolName": "Read",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(tool event) error = %v", err)
+	}
+	notifier.OnAgentEventForSession(testutil.Context(t), sess, acp.AgentEvent{
+		Type:       acp.EventTypeToolCall,
+		SessionID:  "acp-session-1",
+		TurnID:     "turn-1",
+		ToolCallID: "tool-1",
+		Raw:        rawToolEvent,
+	})
 
 	wantOrder := []string{
-		"rebuild",
 		"create",
-		"rebuild",
 		"stop",
 		"turn-start",
 		"message-start",
@@ -195,7 +219,7 @@ func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 		"turn-end",
 		"context-pre",
 		"context-post",
-		"hook-agent",
+		"tool-pre",
 	}
 	if !testutil.EqualStringSlices(order, wantOrder) {
 		t.Fatalf("dispatch order = %#v, want %#v", order, wantOrder)
@@ -203,6 +227,55 @@ func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 	if got, want := agentEvents.events, []string{"agent"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("agent event notifier events = %#v, want %#v", got, want)
 	}
+}
+
+func TestHooksNotifierOnAgentEventUsesProvidedSessionIDAndLifecycleNoops(t *testing.T) {
+	t.Parallel()
+
+	var gotSessionID string
+	runtime := &fakeHookRuntime{
+		onToolPreCall: func(_ context.Context, payload hookspkg.ToolPreCallPayload) error {
+			gotSessionID = payload.SessionID
+			return nil
+		},
+	}
+	notifier := newHooksNotifier(discardLogger(), func() time.Time {
+		return time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
+	})
+	notifier.setRuntime(runtime, &recordingNotifier{})
+
+	notifier.OnSessionCreated(testutil.Context(t), nil)
+	notifier.OnSessionStopped(testutil.Context(t), nil)
+	notifier.OnAgentEvent(testutil.Context(t), "sess-direct", acp.AgentEvent{
+		Type:       acp.EventTypeToolCall,
+		SessionID:  "acp-session-1",
+		TurnID:     "turn-1",
+		ToolCallID: "tool-1",
+		Raw: mustJSON(t, map[string]any{
+			"sessionUpdate": "tool_call",
+			"toolCallId":    "tool-1",
+			"kind":          "read",
+			"_meta": map[string]any{
+				"claudeCode": map[string]any{
+					"toolName": "Read",
+				},
+			},
+		}),
+	})
+
+	if gotSessionID != "sess-direct" {
+		t.Fatalf("tool hook SessionID = %q, want %q", gotSessionID, "sess-direct")
+	}
+}
+
+func mustJSON(t *testing.T, value any) json.RawMessage {
+	t.Helper()
+
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	return raw
 }
 
 func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
@@ -364,7 +437,6 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 		notifier,
 		hookspkg.HookSessionPostCreate,
 		"seed",
-		false,
 		func(_ hookRuntime, _ context.Context, item string) (string, error) {
 			return item + "-unused", nil
 		},
@@ -376,13 +448,7 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 		t.Fatalf("dispatchRuntime(nil runtime) payload = %q, want %q", payload, "seed")
 	}
 
-	var rebuildCalls int
-	runtime := &fakeHookRuntime{
-		onRebuild: func(context.Context) error {
-			rebuildCalls++
-			return errors.New("rebuild failed")
-		},
-	}
+	runtime := &fakeHookRuntime{}
 	notifier.setRuntime(runtime, nil)
 
 	result, err := dispatchRuntime(
@@ -390,7 +456,6 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 		notifier,
 		hookspkg.HookEventPreRecord,
 		"seed",
-		false,
 		func(_ hookRuntime, _ context.Context, item string) (string, error) {
 			return item + "-ok", nil
 		},
@@ -401,28 +466,21 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 	if result != "seed-ok" {
 		t.Fatalf("dispatchRuntime(rebuild false) result = %q, want %q", result, "seed-ok")
 	}
-	if rebuildCalls != 0 {
-		t.Fatalf("rebuildCalls = %d, want 0 when rebuild=false", rebuildCalls)
-	}
 
 	result, err = dispatchRuntime(
 		context.Background(),
 		notifier,
 		hookspkg.HookSessionPostCreate,
 		"seed",
-		true,
 		func(_ hookRuntime, _ context.Context, item string) (string, error) {
-			return item + "-after-rebuild", nil
+			return item + "-dispatched", nil
 		},
 	)
 	if err != nil {
-		t.Fatalf("dispatchRuntime(rebuild true) error = %v, want nil", err)
+		t.Fatalf("dispatchRuntime() error = %v, want nil", err)
 	}
-	if result != "seed-after-rebuild" {
-		t.Fatalf("dispatchRuntime(rebuild true) result = %q, want %q", result, "seed-after-rebuild")
-	}
-	if rebuildCalls != 1 {
-		t.Fatalf("rebuildCalls = %d, want 1", rebuildCalls)
+	if result != "seed-dispatched" {
+		t.Fatalf("dispatchRuntime() result = %q, want %q", result, "seed-dispatched")
 	}
 
 	_, err = dispatchRuntime(
@@ -430,7 +488,6 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 		notifier,
 		hookspkg.HookSessionPostCreate,
 		"seed",
-		false,
 		func(_ hookRuntime, _ context.Context, item string) (string, error) {
 			return item, nil
 		},

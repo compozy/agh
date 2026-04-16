@@ -294,8 +294,8 @@ func TestManagerIntegrationResumeClassifiesCrashAndActivates(t *testing.T) {
 	if got := resumed.Info().StopReason; got != store.StopAgentCrashed {
 		t.Fatalf("resumed stop reason = %q, want %q", got, store.StopAgentCrashed)
 	}
-	if got := resumed.Info().StopDetail; got != "daemon crashed while session active" {
-		t.Fatalf("resumed stop detail = %q, want %q", got, "daemon crashed while session active")
+	if got := resumed.Info().StopDetail; got != resumeStopDetailAgentCrashed {
+		t.Fatalf("resumed stop detail = %q, want %q", got, resumeStopDetailAgentCrashed)
 	}
 
 	meta = readMeta(t, resumed.MetaPath())

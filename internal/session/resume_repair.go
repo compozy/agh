@@ -18,6 +18,8 @@ const (
 	resumeValidationCheckWorkspace  = "workspace_dir"
 	resumeValidationCheckAgent      = "agent"
 	resumeValidationCheckEventStore = "event_store"
+	resumeStopDetailAgentCrashed    = "daemon crashed while session active"
+	resumeStopDetailStartIncomplete = "start did not complete"
 )
 
 type resumeValidationError struct {
@@ -47,7 +49,7 @@ func classifyPreviousStop(meta store.SessionMeta) (store.SessionMeta, bool) {
 	case string(StateActive):
 		next.State = string(StateStopped)
 		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
-		next.StopDetail = "daemon crashed while session active"
+		next.StopDetail = resumeStopDetailAgentCrashed
 		return next, true
 	case string(StateStopping):
 		next.State = string(StateStopped)
@@ -57,11 +59,11 @@ func classifyPreviousStop(meta store.SessionMeta) (store.SessionMeta, bool) {
 	case string(StateStarting):
 		next.State = string(StateStopped)
 		next.StopReason = resumeStopReasonPointer(store.StopError)
-		next.StopDetail = "start did not complete"
+		next.StopDetail = resumeStopDetailStartIncomplete
 		next.ACPSessionID = nil
 		return next, true
 	case string(StateStopped):
-		if strings.TrimSpace(meta.StopDetail) == "start did not complete" && meta.ACPSessionID != nil {
+		if strings.TrimSpace(meta.StopDetail) == resumeStopDetailStartIncomplete && meta.ACPSessionID != nil {
 			next.ACPSessionID = nil
 			return next, true
 		}
@@ -88,7 +90,7 @@ func (m *Manager) restoreFailedResumeStart(
 	restored.State = string(StateStopped)
 	if clearACP {
 		restored.StopReason = resumeStopReasonPointer(store.StopError)
-		restored.StopDetail = "start did not complete"
+		restored.StopDetail = resumeStopDetailStartIncomplete
 		restored.ACPSessionID = nil
 	}
 	restored.UpdatedAt = m.now()

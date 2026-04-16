@@ -1588,7 +1588,7 @@ func TestNewHooksAppliesOptionsAndDefaultResolver(t *testing.T) {
 		t.Fatal("defaultExecutorResolver(native) error = nil, want non-nil")
 	}
 
-	hooks.OnAgentEvent(t.Context(), "session-id", struct{ Type string }{Type: "done"})
+	hooks.OnAgentEvent(t.Context(), SessionContext{SessionID: "session-id"}, struct{ Type string }{Type: "done"})
 }
 
 func newTestHooks(t *testing.T, opts ...Option) *Hooks {

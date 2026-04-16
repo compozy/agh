@@ -32,7 +32,7 @@ func TestClassifyPreviousStop(t *testing.T) {
 			wantChanged: true,
 			wantState:   string(StateStopped),
 			wantReason:  stopReasonPointer(store.StopAgentCrashed),
-			wantDetail:  "daemon crashed while session active",
+			wantDetail:  resumeStopDetailAgentCrashed,
 		},
 		{
 			name:        "stopping session classified as crashed",
@@ -48,7 +48,7 @@ func TestClassifyPreviousStop(t *testing.T) {
 			wantChanged: true,
 			wantState:   string(StateStopped),
 			wantReason:  stopReasonPointer(store.StopError),
-			wantDetail:  "start did not complete",
+			wantDetail:  resumeStopDetailStartIncomplete,
 			wantACP:     nil,
 		},
 		{
@@ -76,13 +76,13 @@ func TestClassifyPreviousStop(t *testing.T) {
 			meta: store.SessionMeta{
 				State:        string(StateStopped),
 				StopReason:   stopReasonPointer(store.StopError),
-				StopDetail:   "start did not complete",
+				StopDetail:   resumeStopDetailStartIncomplete,
 				ACPSessionID: stringPointer("acp-stale"),
 			},
 			wantChanged: true,
 			wantState:   string(StateStopped),
 			wantReason:  stopReasonPointer(store.StopError),
-			wantDetail:  "start did not complete",
+			wantDetail:  resumeStopDetailStartIncomplete,
 			wantACP:     nil,
 		},
 	}

@@ -17,7 +17,7 @@ import (
 type daemonExtensionService struct {
 	registry  *extensionpkg.Registry
 	runtime   extensionRuntime
-	hooks     hookRuntime
+	hookBinds hookBindingPublisher
 	bundles   interface{ Reconcile(context.Context) error }
 	homePaths aghconfig.HomePaths
 	logger    *slog.Logger
@@ -29,7 +29,7 @@ var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
 func newDaemonExtensionService(
 	registry *extensionpkg.Registry,
 	runtime extensionRuntime,
-	hooks hookRuntime,
+	hookBinds hookBindingPublisher,
 	bundles interface{ Reconcile(context.Context) error },
 	homePaths aghconfig.HomePaths,
 	logger *slog.Logger,
@@ -49,7 +49,7 @@ func newDaemonExtensionService(
 	return &daemonExtensionService{
 		registry:  registry,
 		runtime:   runtime,
-		hooks:     hooks,
+		hookBinds: hookBinds,
 		bundles:   bundles,
 		homePaths: homePaths,
 		logger:    logger,
@@ -143,18 +143,18 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 	}
 
 	reloadErr := s.runtime.Reload(ctx)
-	if s.hooks == nil {
+	if s.hookBinds == nil {
 		if s.bundles == nil {
 			return reloadErr
 		}
 		return errors.Join(reloadErr, s.bundles.Reconcile(ctx))
 	}
 
-	rebuildErr := s.hooks.Rebuild(ctx)
+	syncErr := s.hookBinds.Sync(ctx)
 	if s.bundles == nil {
-		return errors.Join(reloadErr, rebuildErr)
+		return errors.Join(reloadErr, syncErr)
 	}
-	return errors.Join(reloadErr, rebuildErr, s.bundles.Reconcile(ctx))
+	return errors.Join(reloadErr, syncErr, s.bundles.Reconcile(ctx))
 }
 
 func (s *daemonExtensionService) lookup(name string) (*extensionpkg.Extension, error) {

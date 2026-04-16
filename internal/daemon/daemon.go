@@ -136,9 +136,12 @@ type extensionDBSource interface {
 }
 
 type resourceReconcileDriverDeps struct {
-	Config   aghconfig.Config
-	Logger   *slog.Logger
-	Registry Registry
+	Config        aghconfig.Config
+	Logger        *slog.Logger
+	Registry      Registry
+	ResourceStore resources.RawStore
+	CodecRegistry *resources.CodecRegistry
+	Hooks         *hookspkg.Hooks
 }
 
 type extensionRuntime interface {
@@ -175,6 +178,10 @@ type extensionManagerDeps struct {
 	BridgeDedupStore  bridgeDedupStore
 	BridgeBroker      *bridgepkg.Broker
 	BridgeRuntime     extensionpkg.BridgeRuntimeResolver
+	ResourceStore     resources.RawStore
+	SourceSessions    resources.SourceSessionManager
+	ResourceCodecs    *resources.CodecRegistry
+	ResourceTrigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 }
 
 type automationRuntime interface {
@@ -485,15 +492,7 @@ func (d *Daemon) applyExtensionManagerFactoryDefault() {
 		return
 	}
 	d.newExtensionManager = func(deps extensionManagerDeps) extensionRuntime {
-		if deps.Registry == nil {
-			return nil
-		}
-
-		resourceKernel, err := resources.NewKernel(deps.Registry.DB())
-		if err != nil {
-			if deps.Logger != nil {
-				deps.Logger.Error("daemon: build extension resource kernel", "error", err)
-			}
+		if deps.Registry == nil || deps.ResourceStore == nil || deps.SourceSessions == nil {
 			return nil
 		}
 
@@ -504,12 +503,12 @@ func (d *Daemon) applyExtensionManagerFactoryDefault() {
 			deps.MemoryStore,
 			deps.Observer,
 			deps.SkillsRegistry,
-			buildHostAPIOptions(deps, capChecker, resourceKernel)...,
+			buildHostAPIOptions(deps, capChecker, deps.ResourceStore)...,
 		)
 
 		return extensionpkg.NewManager(
 			deps.Registry,
-			buildExtensionManagerOptions(deps, capChecker, hostAPI, resourceKernel)...,
+			buildExtensionManagerOptions(deps, capChecker, hostAPI, deps.SourceSessions)...,
 		)
 	}
 }
@@ -525,6 +524,8 @@ func buildHostAPIOptions(
 		extensionpkg.WithHostAPICapabilityChecker(capChecker),
 		extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
 		extensionpkg.WithHostAPIResourceStore(resourceStore),
+		extensionpkg.WithHostAPIResourceCodecRegistry(deps.ResourceCodecs),
+		extensionpkg.WithHostAPIResourceTrigger(deps.ResourceTrigger),
 	}
 	if deps.BridgeRegistry != nil {
 		opts = append(opts, extensionpkg.WithHostAPIBridgeRegistry(deps.BridgeRegistry))
@@ -592,15 +593,33 @@ func (d *Daemon) applyResourceReconcileDriverFactoryDefault() {
 		_ context.Context,
 		deps resourceReconcileDriverDeps,
 	) (resources.ReconcileDriver, error) {
+		if deps.ResourceStore == nil || deps.CodecRegistry == nil || deps.Hooks == nil {
+			return resources.NewReconcileDriver(
+				nil,
+				resources.MutationActor{},
+				nil,
+				resources.WithReconcileLogger(deps.Logger),
+			)
+		}
+
+		codec, err := resources.ResolveCodec[hookspkg.HookDecl](deps.CodecRegistry, hookBindingResourceKind)
+		if err != nil {
+			return nil, err
+		}
+		registration, err := resources.NewTypedProjectorRegistration(codec, newHookBindingProjector(deps.Hooks))
+		if err != nil {
+			return nil, err
+		}
+
 		return resources.NewReconcileDriver(
-			nil,
+			deps.ResourceStore,
 			resources.MutationActor{
 				Kind:     resources.MutationActorKindDaemon,
 				ID:       "daemon-control",
 				Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "system"},
 				MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			},
-			nil,
+			[]resources.ProjectorRegistration{registration},
 			resources.WithReconcileLogger(deps.Logger),
 		)
 	}

@@ -76,9 +76,11 @@ type HostAPIHandler struct {
 	dedupStore       hostAPIBridgeDedupStore
 	deliveryBroker   hostAPIDeliveryBroker
 	resourceStore    resources.RawStore
+	resourceCodecs   *resources.CodecRegistry
 	capChecker       *CapabilityChecker
 	limiter          *hostAPIRateLimiter
 	automationGetter func() HostAPIAutomationManager
+	resourceTrigger  func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 	now              func() time.Time
 	rateLimit        int
 	rateBurst        int
@@ -273,6 +275,24 @@ func WithHostAPIDeliveryBroker(broker hostAPIDeliveryBroker) HostAPIOption {
 func WithHostAPIResourceStore(store resources.RawStore) HostAPIOption {
 	return func(handler *HostAPIHandler) {
 		handler.resourceStore = store
+	}
+}
+
+// WithHostAPIResourceCodecRegistry injects resource codecs used to validate
+// and canonicalize snapshot specs before persistence.
+func WithHostAPIResourceCodecRegistry(registry *resources.CodecRegistry) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.resourceCodecs = registry
+	}
+}
+
+// WithHostAPIResourceTrigger injects the reconcile trigger used after
+// successful snapshot writes.
+func WithHostAPIResourceTrigger(
+	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
+) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.resourceTrigger = trigger
 	}
 }
 

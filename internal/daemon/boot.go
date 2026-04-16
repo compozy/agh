@@ -52,6 +52,10 @@ type bootState struct {
 	lifecycleObservers *sessionLifecycleFanout
 	hookTelemetrySinks *hookTelemetryFanout
 	hooks              hookRuntime
+	hookDispatcher     *hookspkg.Hooks
+	hookBindings       hookBindingPublisher
+	resourceKernel     *resources.Kernel
+	resourceCodecs     *resources.CodecRegistry
 	extMu              sync.RWMutex
 	extensions         extensionRuntime
 	resourceReconcile  resources.ReconcileDriver
@@ -140,6 +144,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return err
 	}
 	if err := d.bootHooks(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootResourceReconcile(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootExtensions(ctx, state, cleanup); err != nil {
@@ -276,7 +283,7 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 	if err := d.attachRuntimeObserver(ctx, state); err != nil {
 		return err
 	}
-	return d.bootResourceReconcile(ctx, state, cleanup)
+	return nil
 }
 
 func (d *Daemon) bootLockAndSocket(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -368,13 +375,24 @@ func (d *Daemon) bootRuntimeServices(
 	state.startedAt = d.now().UTC()
 	state.notifier = newHooksNotifier(state.logger, d.now)
 	state.bridges = d.composeBridgeRuntime(state, cleanup)
+
+	resourceKernel, err := d.buildResourceKernel(state.registry)
+	if err != nil {
+		return err
+	}
+	state.resourceKernel = resourceKernel
+	state.resourceCodecs, err = d.buildResourceCodecs()
+	if err != nil {
+		return err
+	}
+
 	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))
 	if err != nil {
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 	state.sessions = sessions
 	state.deps = d.runtimeDeps(state, sessions)
-	resourceService, err := d.buildResourceService(state.registry)
+	resourceService, err := d.buildResourceService(state)
 	if err != nil {
 		return err
 	}
@@ -478,16 +496,13 @@ func dreamTriggerFromRuntime(runtime *consolidation.Runtime) DreamTrigger {
 	return runtime
 }
 
-func (d *Daemon) buildResourceService(registry Registry) (core.ResourceService, error) {
+func (d *Daemon) buildResourceKernel(registry Registry) (*resources.Kernel, error) {
 	if registry == nil {
 		return nil, errors.New("daemon: resource service registry is required")
 	}
 
 	dbSource, ok := registry.(extensionDBSource)
-	if !ok {
-		return nil, nil
-	}
-	if dbSource.DB() == nil {
+	if !ok || dbSource.DB() == nil {
 		return nil, nil
 	}
 
@@ -495,9 +510,39 @@ func (d *Daemon) buildResourceService(registry Registry) (core.ResourceService, 
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create resource kernel: %w", err)
 	}
+	return kernel, nil
+}
+
+func (d *Daemon) buildResourceCodecs() (*resources.CodecRegistry, error) {
+	registry := resources.NewCodecRegistry()
+	hookCodec, err := newHookBindingCodec()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: build hook binding codec: %w", err)
+	}
+	if err := resources.RegisterCodec(registry, hookCodec); err != nil {
+		return nil, fmt.Errorf("daemon: register hook binding codec: %w", err)
+	}
+	return registry, nil
+}
+
+func (d *Daemon) buildResourceService(state *bootState) (core.ResourceService, error) {
+	if state == nil {
+		return nil, nil
+	}
+	rawStore := resourceRawStore(state.resourceKernel)
+	if rawStore == nil {
+		return nil, nil
+	}
 
 	service, err := core.NewOperatorResourceService(&core.ResourceServiceConfig{
-		RawStore: kernel,
+		RawStore:      rawStore,
+		CodecRegistry: state.resourceCodecs,
+		Trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+			if state == nil || state.resourceReconcile == nil {
+				return nil
+			}
+			return state.resourceReconcile.Trigger(ctx, kind, reason)
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create resource service: %w", err)
@@ -524,9 +569,12 @@ func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cl
 	}
 
 	driver, err := d.newResourceReconcile(ctx, resourceReconcileDriverDeps{
-		Config:   state.cfg,
-		Logger:   state.logger,
-		Registry: state.registry,
+		Config:        state.cfg,
+		Logger:        state.logger,
+		Registry:      state.registry,
+		ResourceStore: resourceRawStore(state.resourceKernel),
+		CodecRegistry: state.resourceCodecs,
+		Hooks:         state.hookDispatcher,
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create resource reconcile driver: %w", err)
@@ -583,45 +631,21 @@ func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *boo
 }
 
 func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
-	state.lifecycleObservers = newSessionLifecycleFanout()
-	if state.observer != nil {
-		state.lifecycleObservers.Add(state.observer)
-	}
-	state.hookTelemetrySinks = newHookTelemetryFanout()
-	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {
-		state.hookTelemetrySinks.Add(sink)
+	if state == nil {
+		return errors.New("daemon: hook boot state is required")
 	}
 
-	nativeDecls, nativeExecutors := daemonNativeHooks(state.lifecycleObservers, state.dreamRuntime)
-	hookOptions := []hookspkg.Option{
-		hookspkg.WithLogger(state.logger),
-		hookspkg.WithNow(d.now),
-		hookspkg.WithDebugPatchAudit(strings.EqualFold(state.cfg.Log.Level, "debug")),
-		hookspkg.WithExecutorResolver(daemonExecutorResolver(nativeExecutors)),
-		hookspkg.WithNativeDeclarations(nativeDecls),
-		hookspkg.WithConfigDeclarationProvider(chainDeclarationProviders(
-			configDeclarationProvider(state.registry, state.workspaceResolver, state.logger),
-			extensionDeclarationProvider(state.currentExtensionRuntime),
-		)),
-		hookspkg.WithAgentDeclarationProvider(
-			agentDeclarationProvider(state.registry, state.workspaceResolver, state.logger),
-		),
-		hookspkg.WithSkillDeclarationProvider(
-			skillDeclarationProvider(
-				state.skillsRegistry,
-				state.registry,
-				state.workspaceResolver,
-				state.cfg.Skills.AllowedMarketplaceHooks,
-				state.logger,
-			),
-		),
-		hookspkg.WithTelemetrySink(state.hookTelemetrySinks),
-	}
-
-	hooks := hookspkg.NewHooks(hookOptions...)
-	if err := hooks.Rebuild(ctx); err != nil {
+	nativeDecls, nativeExecutors := d.initializeHookObservers(state)
+	providers := d.hookBindingProviders(state, nativeDecls)
+	hooks := hookspkg.NewHooks(d.hookRuntimeOptions(state, nativeExecutors)...)
+	hookBindings, err := d.newHookBindingPublisher(state, hooks, providers)
+	if err != nil {
 		hooks.Close()
-		return fmt.Errorf("daemon: rebuild hooks: %w", err)
+		return err
+	}
+	if err := hookBindings.Sync(ctx); err != nil {
+		hooks.Close()
+		return fmt.Errorf("daemon: sync hook bindings: %w", err)
 	}
 	if hookAwareObserver, ok := state.observer.(interface {
 		AttachHooks(observe.HookCatalogSource)
@@ -640,7 +664,7 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 			state.skillsRegistry,
 			state.cfg.Skills.PollInterval,
 			func(refreshCtx context.Context) error {
-				return hooks.Rebuild(refreshCtx)
+				return hookBindings.Sync(refreshCtx)
 			},
 		)
 		cleanup.add(func(context.Context) error {
@@ -650,7 +674,98 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	}
 
 	state.hooks = hooks
+	state.hookDispatcher = hooks
+	state.hookBindings = hookBindings
 	return nil
+}
+
+func (d *Daemon) initializeHookObservers(state *bootState) ([]hookspkg.HookDecl, map[string]hookspkg.Executor) {
+	state.lifecycleObservers = newSessionLifecycleFanout()
+	if state.observer != nil {
+		state.lifecycleObservers.Add(state.observer)
+	}
+	state.hookTelemetrySinks = newHookTelemetryFanout()
+	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {
+		state.hookTelemetrySinks.Add(sink)
+	}
+	return daemonNativeHooks(state.lifecycleObservers, state.dreamRuntime)
+}
+
+func (d *Daemon) hookBindingProviders(
+	state *bootState,
+	nativeDecls []hookspkg.HookDecl,
+) []hookBindingDeclarationProvider {
+	return []hookBindingDeclarationProvider{
+		func(context.Context) ([]hookspkg.HookDecl, error) {
+			return hookCloneDeclarations(nativeDecls), nil
+		},
+		configDeclarationProvider(state.registry, state.workspaceResolver, state.logger),
+		agentDeclarationProvider(state.registry, state.workspaceResolver, state.logger),
+		skillDeclarationProvider(
+			state.skillsRegistry,
+			state.registry,
+			state.workspaceResolver,
+			state.cfg.Skills.AllowedMarketplaceHooks,
+			state.logger,
+		),
+		extensionDeclarationProvider(state.currentExtensionRuntime),
+	}
+}
+
+func (d *Daemon) hookRuntimeOptions(
+	state *bootState,
+	nativeExecutors map[string]hookspkg.Executor,
+) []hookspkg.Option {
+	return []hookspkg.Option{
+		hookspkg.WithLogger(state.logger),
+		hookspkg.WithNow(d.now),
+		hookspkg.WithDebugPatchAudit(strings.EqualFold(state.cfg.Log.Level, "debug")),
+		hookspkg.WithExecutorResolver(daemonExecutorResolver(nativeExecutors)),
+		hookspkg.WithTelemetrySink(state.hookTelemetrySinks),
+	}
+}
+
+func (d *Daemon) newHookBindingPublisher(
+	state *bootState,
+	hooks *hookspkg.Hooks,
+	providers []hookBindingDeclarationProvider,
+) (hookBindingPublisher, error) {
+	hookBindings := hookBindingPublisher(hookBindingPublisherFunc(func(reloadCtx context.Context) error {
+		decls, err := chainDeclarationProviders(providers...)(reloadCtx)
+		if err != nil {
+			return err
+		}
+		nextState, err := hooks.BuildBindingState(decls)
+		if err != nil {
+			return err
+		}
+		return hooks.ApplyBindingState(nextState, 0)
+	}))
+	if state.resourceKernel == nil || state.resourceCodecs == nil {
+		return hookBindings, nil
+	}
+
+	hookCodec, err := resources.ResolveCodec[hookspkg.HookDecl](state.resourceCodecs, hookBindingResourceKind)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: resolve hook binding codec: %w", err)
+	}
+	hookStore, err := newHookBindingStore(state.resourceKernel, hookCodec)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create hook binding store: %w", err)
+	}
+	return newHookBindingSourceSyncer(
+		hookStore,
+		hookCodec,
+		hookBindingSyncActor(),
+		state.logger,
+		func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+			if state.resourceReconcile == nil {
+				return nil
+			}
+			return state.resourceReconcile.Trigger(ctx, kind, reason)
+		},
+		providers...,
+	), nil
 }
 
 func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -765,24 +880,7 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
-	manager := d.newExtensionManager(extensionManagerDeps{
-		Registry:   extRegistry,
-		Extensions: state.cfg.Extensions,
-		Sessions:   state.sessions,
-		Automation: func() extensionpkg.HostAPIAutomationManager {
-			return state.automation
-		},
-		Tasks:             state.deps.Tasks,
-		MemoryStore:       state.memoryStore,
-		Observer:          state.observer,
-		SkillsRegistry:    state.skillsRegistry,
-		WorkspaceResolver: state.workspaceResolver,
-		Logger:            state.logger,
-		BridgeRegistry:    state.bridges,
-		BridgeDedupStore:  bridgeRuntimeDedupStore(state.bridges),
-		BridgeBroker:      bridgeRuntimeBroker(state.bridges),
-		BridgeRuntime:     state.bridges,
-	})
+	manager := d.newExtensionManager(d.extensionManagerDeps(state, extRegistry))
 	if manager == nil {
 		state.logger.Warn("daemon: extension manager factory returned nil; skipping extensions")
 		return nil
@@ -811,26 +909,86 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		state.bridges.setExtensionRuntime(manager)
 	}
 	state.setExtensionRuntime(manager)
+	d.attachExtensionRuntime(ctx, state, extRegistry, manager)
+
+	return nil
+}
+
+func (d *Daemon) extensionManagerDeps(
+	state *bootState,
+	extRegistry *extensionpkg.Registry,
+) extensionManagerDeps {
+	return extensionManagerDeps{
+		Registry:   extRegistry,
+		Extensions: state.cfg.Extensions,
+		Sessions:   state.sessions,
+		Automation: func() extensionpkg.HostAPIAutomationManager {
+			return state.automation
+		},
+		Tasks:             state.deps.Tasks,
+		MemoryStore:       state.memoryStore,
+		Observer:          state.observer,
+		SkillsRegistry:    state.skillsRegistry,
+		WorkspaceResolver: state.workspaceResolver,
+		Logger:            state.logger,
+		BridgeRegistry:    state.bridges,
+		BridgeDedupStore:  bridgeRuntimeDedupStore(state.bridges),
+		BridgeBroker:      bridgeRuntimeBroker(state.bridges),
+		BridgeRuntime:     state.bridges,
+		ResourceStore:     resourceRawStore(state.resourceKernel),
+		SourceSessions:    resourceSourceSessions(state.resourceKernel),
+		ResourceCodecs:    state.resourceCodecs,
+		ResourceTrigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+			if state.resourceReconcile == nil {
+				return nil
+			}
+			return state.resourceReconcile.Trigger(ctx, kind, reason)
+		},
+	}
+}
+
+func (d *Daemon) attachExtensionRuntime(
+	ctx context.Context,
+	state *bootState,
+	extRegistry *extensionpkg.Registry,
+	manager extensionRuntime,
+) {
 	state.deps.Extensions = newDaemonExtensionService(
 		extRegistry,
 		manager,
-		state.hooks,
+		state.hookBindings,
 		state.bundles,
 		d.homePaths,
 		state.logger,
 		d.now,
 	)
-	if state.hooks != nil {
-		if err := state.hooks.Rebuild(ctx); err != nil {
-			state.logger.Error(
-				"daemon: rebuild hooks after extension boot failed; continuing without extension hooks",
-				"error",
-				err,
-			)
+	if state.hookBindings != nil {
+		if err := state.hookBindings.Sync(ctx); err != nil {
+			state.logger.Error("daemon: sync hook bindings after extension boot failed", "error", err)
+		}
+		return
+	}
+	if rebuildable, ok := state.hooks.(interface {
+		Rebuild(context.Context) error
+	}); ok {
+		if err := rebuildable.Rebuild(ctx); err != nil {
+			state.logger.Error("daemon: rebuild hooks after extension boot failed", "error", err)
 		}
 	}
+}
 
-	return nil
+func resourceRawStore(kernel *resources.Kernel) resources.RawStore {
+	if kernel == nil {
+		return nil
+	}
+	return kernel
+}
+
+func resourceSourceSessions(kernel *resources.Kernel) resources.SourceSessionManager {
+	if kernel == nil {
+		return nil
+	}
+	return kernel
 }
 
 func extensionRuntimeHasRegisteredEntries(
