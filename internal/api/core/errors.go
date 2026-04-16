@@ -13,6 +13,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -62,6 +63,34 @@ func StatusForMemoryError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, memory.ErrValidation):
 		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// StatusForResourceError maps desired-state resource failures to transport statuses.
+func StatusForResourceError(err error) int {
+	switch {
+	case err == nil:
+		return http.StatusOK
+	case errors.Is(err, resources.ErrPermissionDenied),
+		errors.Is(err, resources.ErrDirectMutationNotAllowed):
+		return http.StatusForbidden
+	case errors.Is(err, resources.ErrConflict),
+		errors.Is(err, resources.ErrSessionNotActive),
+		errors.Is(err, resources.ErrStaleSourceVersion):
+		return http.StatusConflict
+	case errors.Is(err, resources.ErrPayloadTooLarge):
+		return http.StatusRequestEntityTooLarge
+	case errors.Is(err, resources.ErrRateLimited):
+		return http.StatusTooManyRequests
+	case errors.Is(err, resources.ErrNotFound), errors.Is(err, os.ErrNotExist):
+		return http.StatusNotFound
+	case errors.Is(err, resources.ErrValidation),
+		errors.Is(err, resources.ErrInvalidScopeBinding),
+		errors.Is(err, resources.ErrCodecNotFound),
+		errors.Is(err, resources.ErrCodecTypeMismatch):
+		return http.StatusUnprocessableEntity
 	default:
 		return http.StatusInternalServerError
 	}

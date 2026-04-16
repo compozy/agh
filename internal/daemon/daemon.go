@@ -89,6 +89,7 @@ type RuntimeDeps struct {
 	DreamTrigger      DreamTrigger
 	Extensions        udsapi.ExtensionService
 	Bundles           core.BundleService
+	Resources         core.ResourceService
 	StartedAt         time.Time
 }
 
@@ -621,6 +622,7 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				httpapi.WithAutomation(deps.Automation),
 				httpapi.WithBridgeService(deps.Bridges),
 				httpapi.WithBundleService(deps.Bundles),
+				httpapi.WithResourceService(deps.Resources),
 				httpapi.WithWorkspaceResolver(deps.WorkspaceService),
 				httpapi.WithSkillsRegistry(deps.SkillsRegistry),
 				httpapi.WithMemoryStore(deps.MemoryStore),
@@ -643,6 +645,7 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				udsapi.WithAutomation(deps.Automation),
 				udsapi.WithBridgeService(deps.Bridges),
 				udsapi.WithBundleService(deps.Bundles),
+				udsapi.WithResourceService(deps.Resources),
 				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
 				udsapi.WithSkillsRegistry(deps.SkillsRegistry),
 				udsapi.WithMemoryStore(deps.MemoryStore),

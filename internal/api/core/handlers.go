@@ -36,6 +36,7 @@ type BaseHandlerConfig struct {
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
 	Observer                     Observer
+	Resources                    ResourceService
 	Automation                   AutomationManager
 	Tasks                        TaskService
 	Bridges                      BridgeService
@@ -66,6 +67,7 @@ type BaseHandlers struct {
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
 	Observer                     Observer
+	Resources                    ResourceService
 	Automation                   AutomationManager
 	Tasks                        TaskService
 	Bridges                      BridgeService
@@ -136,6 +138,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Network:                      cfg.Network,
 		NetworkStore:                 cfg.NetworkStore,
 		Observer:                     cfg.Observer,
+		Resources:                    cfg.Resources,
 		Automation:                   cfg.Automation,
 		Tasks:                        cfg.Tasks,
 		Bridges:                      cfg.Bridges,

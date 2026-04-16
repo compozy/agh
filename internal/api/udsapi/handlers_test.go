@@ -85,6 +85,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/bridges/:id/secret-bindings/:binding_name",
 		"DELETE /api/bundles/activations/:id",
 		"DELETE /api/memory/:filename",
+		"DELETE /api/resources/:kind/:id",
 		"DELETE /api/sessions/:id",
 		"DELETE /api/tasks/:id/dependencies/:depends_on_id",
 		"DELETE /api/workspaces/:id",
@@ -126,6 +127,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/observe/events",
 		"GET /api/observe/events/stream",
 		"GET /api/observe/health",
+		"GET /api/resources",
+		"GET /api/resources/:kind",
+		"GET /api/resources/:kind/:id",
 		"GET /api/sessions",
 		"GET /api/sessions/:id",
 		"GET /api/sessions/:id/events",
@@ -183,6 +187,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/workspaces/resolve",
 		"PUT /api/bridges/:id/secret-bindings/:binding_name",
 		"PUT /api/memory/:filename",
+		"PUT /api/resources/:kind/:id",
 	}
 	sort.Strings(want)
 

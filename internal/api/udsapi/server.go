@@ -62,6 +62,7 @@ type Server struct {
 	network        core.NetworkService
 	networkStore   core.NetworkStore
 	observer       core.Observer
+	resources      core.ResourceService
 	automation     core.AutomationManager
 	bridges        core.BridgeService
 	bundles        core.BundleService
@@ -88,6 +89,7 @@ type handlerConfig struct {
 	network        core.NetworkService
 	networkStore   core.NetworkStore
 	observer       core.Observer
+	resources      core.ResourceService
 	automation     core.AutomationManager
 	bridges        core.BridgeService
 	bundles        core.BundleService
@@ -194,6 +196,13 @@ func WithNetworkStore(store core.NetworkStore) Option {
 func WithObserver(observer core.Observer) Option {
 	return func(server *Server) {
 		server.observer = observer
+	}
+}
+
+// WithResourceService injects the shared operator-facing desired-state resource service.
+func WithResourceService(service core.ResourceService) Option {
+	return func(server *Server) {
+		server.resources = service
 	}
 }
 
@@ -380,6 +389,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		network:        s.network,
 		networkStore:   s.networkStore,
 		observer:       s.observer,
+		resources:      s.resources,
 		automation:     s.automation,
 		bridges:        s.bridges,
 		bundles:        s.bundles,
@@ -598,6 +608,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Network:                      cfg.network,
 			NetworkStore:                 cfg.networkStore,
 			Observer:                     cfg.observer,
+			Resources:                    cfg.resources,
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,
 			Bundles:                      cfg.bundles,

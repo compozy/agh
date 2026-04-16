@@ -374,6 +374,11 @@ func (d *Daemon) bootRuntimeServices(
 	}
 	state.sessions = sessions
 	state.deps = d.runtimeDeps(state, sessions)
+	resourceService, err := d.buildResourceService(state.registry)
+	if err != nil {
+		return err
+	}
+	state.deps.Resources = resourceService
 	return nil
 }
 
@@ -471,6 +476,33 @@ func dreamTriggerFromRuntime(runtime *consolidation.Runtime) DreamTrigger {
 		return nil
 	}
 	return runtime
+}
+
+func (d *Daemon) buildResourceService(registry Registry) (core.ResourceService, error) {
+	if registry == nil {
+		return nil, errors.New("daemon: resource service registry is required")
+	}
+
+	dbSource, ok := registry.(extensionDBSource)
+	if !ok {
+		return nil, nil
+	}
+	if dbSource.DB() == nil {
+		return nil, nil
+	}
+
+	kernel, err := resources.NewKernel(dbSource.DB())
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create resource kernel: %w", err)
+	}
+
+	service, err := core.NewOperatorResourceService(&core.ResourceServiceConfig{
+		RawStore: kernel,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create resource service: %w", err)
+	}
+	return service, nil
 }
 
 func (d *Daemon) attachRuntimeObserver(ctx context.Context, state *bootState) error {

@@ -54,6 +54,8 @@ type Server struct {
 	memoryStore    *memory.Store
 	dreamTrigger   core.DreamTrigger
 	agentLoader    core.AgentLoader
+	resources      core.ResourceService
+	resourceAuth   []gin.HandlerFunc
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -215,6 +217,20 @@ func WithAgentLoader(loader core.AgentLoader) Option {
 	}
 }
 
+// WithResourceService injects the shared operator-facing desired-state resource service.
+func WithResourceService(service core.ResourceService) Option {
+	return func(server *Server) {
+		server.resources = service
+	}
+}
+
+// WithResourceOperatorAuth gates HTTP resource routes behind explicit operator auth middleware.
+func WithResourceOperatorAuth(middleware ...gin.HandlerFunc) Option {
+	return func(server *Server) {
+		server.resourceAuth = append([]gin.HandlerFunc(nil), middleware...)
+	}
+}
+
 // WithEngine overrides the Gin engine used by the server, mainly for tests.
 func WithEngine(engine *gin.Engine) Option {
 	return func(server *Server) {
@@ -345,6 +361,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		network:        s.network,
 		networkStore:   s.networkStore,
 		observer:       s.observer,
+		resources:      s.resources,
 		automation:     s.automation,
 		bridges:        s.bridges,
 		bundles:        s.bundles,
@@ -361,6 +378,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		pollInterval:   s.pollInterval,
 		agentLoader:    s.agentLoader,
 		httpPort:       s.port,
+		resourceAuth:   append([]gin.HandlerFunc(nil), s.resourceAuth...),
 	}
 }
 

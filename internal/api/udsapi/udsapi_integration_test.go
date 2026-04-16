@@ -24,6 +24,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -147,6 +148,158 @@ func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
 	decodeHTTPJSON(t, resp, &payload)
 	if !payload.Triggered || runtime.dream.calls != 1 {
 		t.Fatalf("payload = %#v dream.calls=%d, want triggered once", payload, runtime.dream.calls)
+	}
+}
+
+func TestUDSResourceCRUDRoundTrip(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	createResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPut,
+		"http://unix/api/resources/bundle.activation/demo",
+		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+		nil,
+	)
+	if createResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(createResp.Body)
+		_ = createResp.Body.Close()
+		t.Fatalf("create resource status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
+	}
+	var created contract.ResourceResponse
+	decodeHTTPJSON(t, createResp, &created)
+	if created.Record.Version != 1 {
+		t.Fatalf("created version = %d, want 1", created.Record.Version)
+	}
+	if strings.TrimSpace(string(created.Record.Spec)) != `{"enabled":true}` {
+		t.Fatalf("created spec = %s, want enabled true", string(created.Record.Spec))
+	}
+
+	updateResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPut,
+		"http://unix/api/resources/bundle.activation/demo",
+		[]byte(fmt.Sprintf(`{"scope":{"kind":"global"},"expected_version":%d,"spec":{"enabled":false}}`, created.Record.Version)),
+		nil,
+	)
+	if updateResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateResp.Body)
+		_ = updateResp.Body.Close()
+		t.Fatalf("update resource status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
+	}
+	var updated contract.ResourceResponse
+	decodeHTTPJSON(t, updateResp, &updated)
+	if updated.Record.Version != 2 {
+		t.Fatalf("updated version = %d, want 2", updated.Record.Version)
+	}
+	if strings.TrimSpace(string(updated.Record.Spec)) != `{"enabled":false}` {
+		t.Fatalf("updated spec = %s, want enabled false", string(updated.Record.Spec))
+	}
+
+	getResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/resources/bundle.activation/demo", nil, nil)
+	if getResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(getResp.Body)
+		_ = getResp.Body.Close()
+		t.Fatalf("get resource status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
+	}
+	var fetched contract.ResourceResponse
+	decodeHTTPJSON(t, getResp, &fetched)
+	if fetched.Record.Version != updated.Record.Version {
+		t.Fatalf("fetched version = %d, want %d", fetched.Record.Version, updated.Record.Version)
+	}
+
+	listResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		"http://unix/api/resources/bundle.activation?scope_kind=global",
+		nil,
+		nil,
+	)
+	if listResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(listResp.Body)
+		_ = listResp.Body.Close()
+		t.Fatalf("list resources status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
+	}
+	var listed contract.ResourcesResponse
+	decodeHTTPJSON(t, listResp, &listed)
+	if len(listed.Records) != 1 || listed.Records[0].ID != "demo" || listed.Records[0].Version != updated.Record.Version {
+		t.Fatalf("listed records = %#v, want updated demo record", listed.Records)
+	}
+}
+
+func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	createResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPut,
+		"http://unix/api/resources/bundle.activation/demo",
+		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+		nil,
+	)
+	if createResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(createResp.Body)
+		_ = createResp.Body.Close()
+		t.Fatalf("create resource status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
+	}
+	var created contract.ResourceResponse
+	decodeHTTPJSON(t, createResp, &created)
+
+	updateResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPut,
+		"http://unix/api/resources/bundle.activation/demo",
+		[]byte(fmt.Sprintf(`{"scope":{"kind":"global"},"expected_version":%d,"spec":{"enabled":false}}`, created.Record.Version)),
+		nil,
+	)
+	if updateResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateResp.Body)
+		_ = updateResp.Body.Close()
+		t.Fatalf("update resource status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
+	}
+	var updated contract.ResourceResponse
+	decodeHTTPJSON(t, updateResp, &updated)
+
+	staleDelete := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodDelete,
+		"http://unix/api/resources/bundle.activation/demo",
+		[]byte(fmt.Sprintf(`{"expected_version":%d}`, created.Record.Version)),
+		nil,
+	)
+	if staleDelete.StatusCode != http.StatusConflict {
+		body, _ := io.ReadAll(staleDelete.Body)
+		_ = staleDelete.Body.Close()
+		t.Fatalf("stale delete status = %d, want %d; body=%s", staleDelete.StatusCode, http.StatusConflict, string(body))
+	}
+	_ = staleDelete.Body.Close()
+
+	deleteResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodDelete,
+		"http://unix/api/resources/bundle.activation/demo",
+		[]byte(fmt.Sprintf(`{"expected_version":%d}`, updated.Record.Version)),
+		nil,
+	)
+	if deleteResp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(deleteResp.Body)
+		_ = deleteResp.Body.Close()
+		t.Fatalf("delete resource status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusNoContent, string(body))
+	}
+	_ = deleteResp.Body.Close()
+
+	getResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/resources/bundle.activation/demo", nil, nil)
+	if getResp.StatusCode != http.StatusNotFound {
+		body, _ := io.ReadAll(getResp.Body)
+		_ = getResp.Body.Close()
+		t.Fatalf("get deleted resource status = %d, want %d; body=%s", getResp.StatusCode, http.StatusNotFound, string(body))
 	}
 }
 
@@ -1098,6 +1251,15 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
 
+	resourceKernel, err := resources.NewKernel(registry.DB())
+	if err != nil {
+		t.Fatalf("resources.NewKernel() error = %v", err)
+	}
+	resourceService, err := core.NewOperatorResourceService(&core.ResourceServiceConfig{RawStore: resourceKernel})
+	if err != nil {
+		t.Fatalf("core.NewOperatorResourceService() error = %v", err)
+	}
+
 	server, err := New(
 		WithHomePaths(homePaths),
 		WithConfig(&cfg),
@@ -1106,6 +1268,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		WithSessionManager(manager),
 		WithTaskService(taskManager),
 		WithObserver(observer),
+		WithResourceService(resourceService),
 		WithAutomation(automationManager),
 		WithBridgeService(bridgeService),
 		WithWorkspaceResolver(resolver),

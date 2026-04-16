@@ -198,6 +198,50 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	}
 }
 
+func TestBootWithRegistryMissingResourceDBLeavesResourceServiceUnavailable(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = false
+
+	var httpSawNilResources bool
+	var udsSawNilResources bool
+
+	d := newTestDaemon(t, homePaths, &cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+		httpSawNilResources = deps.Resources == nil
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+		udsSawNilResources = deps.Resources == nil
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if !httpSawNilResources {
+		t.Fatal("httpFactory() received non-nil resource service, want nil when registry has no SQL handle")
+	}
+	if !udsSawNilResources {
+		t.Fatal("udsFactory() received non-nil resource service, want nil when registry has no SQL handle")
+	}
+}
+
 func TestBootRunsResourceReconcileBeforeObserverReconcile(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)

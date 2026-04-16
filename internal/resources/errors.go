@@ -17,6 +17,8 @@ var (
 	ErrConflict = errors.New("resources: conflict")
 	// ErrPayloadTooLarge reports that a record or snapshot exceeded configured limits.
 	ErrPayloadTooLarge = errors.New("resources: payload too large")
+	// ErrRateLimited reports that the caller exceeded a configured resource rate limit.
+	ErrRateLimited = errors.New("resources: rate limited")
 	// ErrSessionNotActive reports that the provided session nonce is not the active nonce for the source.
 	ErrSessionNotActive = errors.New("resources: session nonce not active")
 	// ErrStaleSourceVersion reports that the snapshot source version is stale or out of sequence.

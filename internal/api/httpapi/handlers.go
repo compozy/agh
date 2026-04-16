@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
@@ -16,6 +17,7 @@ type handlerConfig struct {
 	network        core.NetworkService
 	networkStore   core.NetworkStore
 	observer       core.Observer
+	resources      core.ResourceService
 	automation     core.AutomationManager
 	bridges        core.BridgeService
 	bundles        core.BundleService
@@ -32,12 +34,14 @@ type handlerConfig struct {
 	pollInterval   time.Duration
 	agentLoader    core.AgentLoader
 	httpPort       int
+	resourceAuth   []gin.HandlerFunc
 }
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
 type Handlers struct {
 	*core.BaseHandlers
-	staticFS fs.FS
+	staticFS     fs.FS
+	resourceAuth []gin.HandlerFunc
 }
 
 func newHandlers(cfg *handlerConfig) *Handlers {
@@ -62,6 +66,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Network:                      cfg.network,
 			NetworkStore:                 cfg.networkStore,
 			Observer:                     cfg.observer,
+			Resources:                    cfg.resources,
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,
 			Bundles:                      cfg.bundles,
@@ -78,7 +83,8 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			AgentLoader:                  cfg.agentLoader,
 			HTTPPort:                     cfg.httpPort,
 		}),
-		staticFS: cfg.staticFS,
+		staticFS:     cfg.staticFS,
+		resourceAuth: append([]gin.HandlerFunc(nil), cfg.resourceAuth...),
 	}
 }
 
@@ -92,4 +98,11 @@ func (h *Handlers) setHTTPPort(port int) {
 	if h != nil && h.BaseHandlers != nil {
 		h.SetHTTPPort(port)
 	}
+}
+
+func (h *Handlers) resourceAuthMiddleware() []gin.HandlerFunc {
+	if h == nil || len(h.resourceAuth) == 0 {
+		return nil
+	}
+	return append([]gin.HandlerFunc(nil), h.resourceAuth...)
 }
