@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	exec "os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -218,46 +217,25 @@ func handleInboundRequestNoContext[Req any, Resp any](
 }
 
 func (p *AgentProcess) handleReadTextFile(
-	_ context.Context,
+	ctx context.Context,
 	request acpsdk.ReadTextFileRequest,
 ) (acpsdk.ReadTextFileResponse, error) {
-	if err := p.permissions.authorize(permissionReadTextFile); err != nil {
-		return acpsdk.ReadTextFileResponse{}, err
-	}
-	resolvedPath, err := p.permissions.resolvePath(request.Path)
+	content, err := p.toolHostOrDefault().ReadTextFile(ctx, request.Path)
 	if err != nil {
 		return acpsdk.ReadTextFileResponse{}, err
 	}
-	content, err := os.ReadFile(resolvedPath)
-	if err != nil {
-		return acpsdk.ReadTextFileResponse{}, fmt.Errorf("acp: read %q: %w", resolvedPath, err)
-	}
-	return acpsdk.ReadTextFileResponse{Content: sliceLines(string(content), request.Line, request.Limit)}, nil
+	return acpsdk.ReadTextFileResponse{Content: sliceLines(content, request.Line, request.Limit)}, nil
 }
 
 func (p *AgentProcess) handleWriteTextFile(
-	_ context.Context,
+	ctx context.Context,
 	request acpsdk.WriteTextFileRequest,
 ) (acpsdk.WriteTextFileResponse, error) {
-	if err := p.permissions.authorize(permissionWriteTextFile); err != nil {
-		return acpsdk.WriteTextFileResponse{}, err
-	}
 	if p.isNetworkTurn() {
 		return acpsdk.WriteTextFileResponse{}, ErrToolBlockedForNetworkTurn
 	}
-	resolvedPath, err := p.permissions.resolvePath(request.Path)
-	if err != nil {
+	if err := p.toolHostOrDefault().WriteTextFile(ctx, request.Path, request.Content); err != nil {
 		return acpsdk.WriteTextFileResponse{}, err
-	}
-	if err := os.MkdirAll(filepath.Dir(resolvedPath), 0o755); err != nil {
-		return acpsdk.WriteTextFileResponse{}, fmt.Errorf(
-			"acp: create parent directories for %q: %w",
-			resolvedPath,
-			err,
-		)
-	}
-	if err := os.WriteFile(resolvedPath, []byte(request.Content), 0o600); err != nil {
-		return acpsdk.WriteTextFileResponse{}, fmt.Errorf("acp: write %q: %w", resolvedPath, err)
 	}
 	return acpsdk.WriteTextFileResponse{}, nil
 }
@@ -279,7 +257,7 @@ func (p *AgentProcess) handleRequestPermission(
 		title = *request.ToolCall.Title
 	}
 
-	decision, interactive := p.permissions.permissionDecision(request)
+	decision, interactive := p.toolHostOrDefault().PermissionDecision(request)
 	sessionID := string(request.SessionId)
 	toolCallID := strings.TrimSpace(string(request.ToolCall.ToolCallId))
 
@@ -385,9 +363,6 @@ func (p *AgentProcess) emitPermissionEvent(
 func (p *AgentProcess) handleCreateTerminal(
 	request acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalResponse, error) {
-	if err := p.permissions.authorize(permissionCreateTerminal); err != nil {
-		return acpsdk.CreateTerminalResponse{}, err
-	}
 	ownership := terminalOwnership{}
 	if p.isNetworkTurn() {
 		argv, err := terminalArgv(request)
@@ -403,16 +378,29 @@ func (p *AgentProcess) handleCreateTerminal(
 		}
 	}
 
-	cwd := p.Cwd
-	if request.Cwd != nil {
-		cwd = *request.Cwd
+	host := p.toolHostOrDefault()
+	if localHost, ok := host.(*localToolHost); ok {
+		return localHost.createTerminal(context.Background(), request, ownership)
 	}
-	resolvedCwd, err := p.permissions.resolvePath(cwd)
+	response, err := host.CreateTerminal(context.Background(), request)
 	if err != nil {
 		return acpsdk.CreateTerminalResponse{}, err
 	}
+	p.recordTerminalOwnership(response.TerminalId, ownership)
+	return response, nil
+}
 
-	return p.terminals.create(resolvedCwd, request, ownership)
+func (p *AgentProcess) recordTerminalOwnership(id string, ownership terminalOwnership) {
+	if strings.TrimSpace(id) == "" || !ownership.networkOwned {
+		return
+	}
+
+	p.terminalOwnershipMu.Lock()
+	defer p.terminalOwnershipMu.Unlock()
+	if p.terminalOwnership == nil {
+		p.terminalOwnership = make(map[string]terminalOwnership)
+	}
+	p.terminalOwnership[id] = ownership
 }
 
 func (p *AgentProcess) handleKillTerminal(
@@ -421,7 +409,7 @@ func (p *AgentProcess) handleKillTerminal(
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
 		return acpsdk.KillTerminalCommandResponse{}, err
 	}
-	if err := p.terminals.kill(request.TerminalId); err != nil {
+	if err := p.toolHostOrDefault().KillTerminal(request.TerminalId); err != nil {
 		return acpsdk.KillTerminalCommandResponse{}, err
 	}
 	return acpsdk.KillTerminalCommandResponse{}, nil
@@ -433,14 +421,24 @@ func (p *AgentProcess) handleTerminalOutput(
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, true); err != nil {
 		return acpsdk.TerminalOutputResponse{}, err
 	}
-	output, truncated, exitStatus, err := p.terminals.output(request.TerminalId)
+	host := p.toolHostOrDefault()
+	if localHost, ok := host.(*localToolHost); ok {
+		output, truncated, exitStatus, err := localHost.terminalOutputStatus(request.TerminalId)
+		if err != nil {
+			return acpsdk.TerminalOutputResponse{}, err
+		}
+		return acpsdk.TerminalOutputResponse{
+			Output:     output,
+			Truncated:  truncated,
+			ExitStatus: exitStatus,
+		}, nil
+	}
+	output, err := host.TerminalOutput(request.TerminalId)
 	if err != nil {
 		return acpsdk.TerminalOutputResponse{}, err
 	}
 	return acpsdk.TerminalOutputResponse{
-		Output:     output,
-		Truncated:  truncated,
-		ExitStatus: exitStatus,
+		Output: output,
 	}, nil
 }
 
@@ -451,16 +449,26 @@ func (p *AgentProcess) handleWaitForTerminalExit(
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, true); err != nil {
 		return acpsdk.WaitForTerminalExitResponse{}, err
 	}
-	exitStatus, err := p.terminals.wait(ctx, request.TerminalId)
+	host := p.toolHostOrDefault()
+	if localHost, ok := host.(*localToolHost); ok {
+		exitStatus, err := localHost.waitForTerminalExitStatus(ctx, request.TerminalId)
+		if err != nil {
+			return acpsdk.WaitForTerminalExitResponse{}, err
+		}
+		if exitStatus == nil {
+			return acpsdk.WaitForTerminalExitResponse{}, nil
+		}
+		return acpsdk.WaitForTerminalExitResponse{
+			ExitCode: exitStatus.ExitCode,
+			Signal:   exitStatus.Signal,
+		}, nil
+	}
+	exitCode, err := host.WaitForTerminalExit(ctx, request.TerminalId)
 	if err != nil {
 		return acpsdk.WaitForTerminalExitResponse{}, err
 	}
-	if exitStatus == nil {
-		return acpsdk.WaitForTerminalExitResponse{}, nil
-	}
 	return acpsdk.WaitForTerminalExitResponse{
-		ExitCode: exitStatus.ExitCode,
-		Signal:   exitStatus.Signal,
+		ExitCode: acpsdk.Ptr(exitCode),
 	}, nil
 }
 
@@ -470,10 +478,27 @@ func (p *AgentProcess) handleReleaseTerminal(
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
-	if err := p.terminals.release(request.TerminalId); err != nil {
+	if err := p.toolHostOrDefault().ReleaseTerminal(request.TerminalId); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
 	return acpsdk.ReleaseTerminalResponse{}, nil
+}
+
+func (p *AgentProcess) toolHostOrDefault() ToolHost {
+	p.toolHostMu.Lock()
+	defer p.toolHostMu.Unlock()
+
+	if p.toolHost != nil {
+		return p.toolHost
+	}
+	host := newLocalToolHostFromPolicy(context.Background(), p.Cwd, p.permissions, slog.Default())
+	if p.terminals != nil {
+		host.terminals = p.terminals
+	} else {
+		p.terminals = host.terminals
+	}
+	p.toolHost = host
+	return host
 }
 
 func newTerminalManager(ctx context.Context, logger *slog.Logger) *terminalManager {
@@ -816,17 +841,32 @@ func (p *AgentProcess) ensureNetworkTurnTerminalAccess(id string, requireSameTur
 		return nil
 	}
 
-	term, err := p.terminals.lookup(id)
+	ownership, err := p.lookupTerminalOwnership(id)
 	if err != nil {
 		return err
 	}
-	if !term.networkOwned {
+	if !ownership.networkOwned {
 		return ErrToolBlockedForNetworkTurn
 	}
-	if requireSameTurn && strings.TrimSpace(term.ownerTurnID) != p.activeTurnID() {
+	if requireSameTurn && strings.TrimSpace(ownership.ownerTurnID) != p.activeTurnID() {
 		return ErrToolBlockedForNetworkTurn
 	}
 	return nil
+}
+
+func (p *AgentProcess) lookupTerminalOwnership(id string) (terminalOwnership, error) {
+	host := p.toolHostOrDefault()
+	if localHost, ok := host.(*localToolHost); ok {
+		return localHost.terminalOwnership(id)
+	}
+
+	p.terminalOwnershipMu.RLock()
+	ownership, ok := p.terminalOwnership[id]
+	p.terminalOwnershipMu.RUnlock()
+	if !ok {
+		return terminalOwnership{}, ErrToolBlockedForNetworkTurn
+	}
+	return ownership, nil
 }
 
 func mergeCommandEnv(base []string, variables []acpsdk.EnvVariable) []string {

@@ -930,6 +930,8 @@ func newNativeHookDispatcher(
 
 	hooks := hookspkg.NewHooks(
 		hookspkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		hookspkg.WithAsyncWorkerCount(1),
+		hookspkg.WithAsyncQueueCapacity(16),
 		hookspkg.WithNativeDeclarations(decls),
 		hookspkg.WithExecutorResolver(func(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
 			executor := executors[strings.TrimSpace(decl.Name)]

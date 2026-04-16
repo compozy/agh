@@ -43,6 +43,15 @@ func TestGlobalDBTaskDependencyRoundTripAndDelete(t *testing.T) {
 	}
 	assertTaskDependencyEqual(t, dependencies[0], rootDependsOnMiddle)
 
+	dependents, err := globalDB.ListDependents(testutil.Context(t), middleTask.ID)
+	if err != nil {
+		t.Fatalf("ListDependents() error = %v", err)
+	}
+	if got, want := len(dependents), 1; got != want {
+		t.Fatalf("len(ListDependents()) = %d, want %d", got, want)
+	}
+	assertTaskDependencyEqual(t, dependents[0], rootDependsOnMiddle)
+
 	count, err := globalDB.CountDependencies(testutil.Context(t), rootTask.ID)
 	if err != nil {
 		t.Fatalf("CountDependencies() error = %v", err)

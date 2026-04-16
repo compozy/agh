@@ -405,6 +405,56 @@ func TestDispatchMethodsSmokeNoHooks(t *testing.T) {
 			},
 		},
 		{
+			name: "Should dispatch environment.prepare without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchEnvironmentPrepare(
+					ctx,
+					EnvironmentPreparePayload{PayloadBase: PayloadBase{Event: HookEnvironmentPrepare}},
+				)
+				return err
+			},
+		},
+		{
+			name: "Should dispatch environment.ready without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchEnvironmentReady(
+					ctx,
+					EnvironmentReadyPayload{PayloadBase: PayloadBase{Event: HookEnvironmentReady}},
+				)
+				return err
+			},
+		},
+		{
+			name: "Should dispatch environment.sync.before without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchEnvironmentSyncBefore(
+					ctx,
+					EnvironmentSyncBeforePayload{PayloadBase: PayloadBase{Event: HookEnvironmentSyncBefore}},
+				)
+				return err
+			},
+		},
+		{
+			name: "Should dispatch environment.sync.after without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchEnvironmentSyncAfter(
+					ctx,
+					EnvironmentSyncAfterPayload{PayloadBase: PayloadBase{Event: HookEnvironmentSyncAfter}},
+				)
+				return err
+			},
+		},
+		{
+			name: "Should dispatch environment.stop without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchEnvironmentStop(
+					ctx,
+					EnvironmentStopPayload{PayloadBase: PayloadBase{Event: HookEnvironmentStop}},
+				)
+				return err
+			},
+		},
+		{
 			name: "Should dispatch input.pre_submit without hooks",
 			run: func(ctx context.Context, hooks *Hooks) error {
 				_, err := hooks.DispatchInputPreSubmit(
@@ -734,6 +784,145 @@ func TestDispatchSessionPreCreateAppliesPatch(t *testing.T) {
 	}
 	if result.Workspace != "/tmp/next" {
 		t.Fatalf("result.Workspace = %q, want %q", result.Workspace, "/tmp/next")
+	}
+}
+
+func TestDispatchEnvironmentPrepareAppliesEnvOverridesAndDeny(t *testing.T) {
+	t.Parallel()
+
+	hooks := newTestHooks(
+		t,
+		WithNativeDeclarations([]HookDecl{{
+			Name:         "environment-pre",
+			Event:        HookEnvironmentPrepare,
+			Mode:         HookModeSync,
+			ExecutorKind: HookExecutorNative,
+			Matcher: HookMatcher{
+				EnvironmentID: "env-1",
+				AgentName:     "codex",
+			},
+		}}),
+		WithExecutorResolver(testExecutorResolver(map[string]Executor{
+			"environment-pre": NewTypedNativeExecutor(
+				func(_ context.Context, _ RegisteredHook, payload EnvironmentPreparePayload) (EnvironmentPreparePatch, error) {
+					if payload.EnvironmentID != "env-1" {
+						t.Fatalf("payload.EnvironmentID = %q, want env-1", payload.EnvironmentID)
+					}
+					return EnvironmentPreparePatch{
+						ControlPatch: ControlPatch{Deny: true, DenyReason: "policy"},
+						EnvOverrides: map[string]string{"SECRET_TOKEN": "redacted"},
+					}, nil
+				},
+			),
+		})),
+	)
+	if err := hooks.Rebuild(t.Context()); err != nil {
+		t.Fatalf("Rebuild() error = %v, want nil", err)
+	}
+
+	result, err := hooks.DispatchEnvironmentPrepare(t.Context(), EnvironmentPreparePayload{
+		PayloadBase: PayloadBase{Event: HookEnvironmentPrepare},
+		SessionContext: SessionContext{
+			AgentName: "codex",
+		},
+		EnvironmentID: "env-1",
+	})
+	if err == nil {
+		t.Fatal("DispatchEnvironmentPrepare() error = nil, want deny error")
+	}
+	if !result.Denied || result.DenyReason != "policy" {
+		t.Fatalf("result deny fields = (%v, %q), want policy denial", result.Denied, result.DenyReason)
+	}
+	if got := result.EnvOverrides["SECRET_TOKEN"]; got != "redacted" {
+		t.Fatalf("result.EnvOverrides[SECRET_TOKEN] = %q, want redacted", got)
+	}
+}
+
+func TestDispatchEnvironmentSyncBeforeAppliesExcludePatternsAndDeny(t *testing.T) {
+	t.Parallel()
+
+	hooks := newTestHooks(
+		t,
+		WithNativeDeclarations([]HookDecl{{
+			Name:         "environment-sync-before",
+			Event:        HookEnvironmentSyncBefore,
+			Mode:         HookModeSync,
+			ExecutorKind: HookExecutorNative,
+			Matcher: HookMatcher{
+				EnvironmentBackend: "daytona",
+				SyncDirection:      "to_runtime",
+			},
+		}}),
+		WithExecutorResolver(testExecutorResolver(map[string]Executor{
+			"environment-sync-before": NewTypedNativeExecutor(
+				func(_ context.Context, _ RegisteredHook, _ EnvironmentSyncBeforePayload) (EnvironmentSyncBeforePatch, error) {
+					return EnvironmentSyncBeforePatch{
+						ControlPatch:    ControlPatch{Deny: true, DenyReason: "maintenance"},
+						ExcludePatterns: []string{"node_modules/**", "*.log"},
+					}, nil
+				},
+			),
+		})),
+	)
+	if err := hooks.Rebuild(t.Context()); err != nil {
+		t.Fatalf("Rebuild() error = %v, want nil", err)
+	}
+
+	result, err := hooks.DispatchEnvironmentSyncBefore(t.Context(), EnvironmentSyncBeforePayload{
+		PayloadBase: PayloadBase{Event: HookEnvironmentSyncBefore},
+		Backend:     "daytona",
+		Direction:   "to_runtime",
+	})
+	if err != nil {
+		t.Fatalf("DispatchEnvironmentSyncBefore() error = %v, want nil", err)
+	}
+	if !result.Denied || result.DenyReason != "maintenance" {
+		t.Fatalf("result deny fields = (%v, %q), want maintenance denial", result.Denied, result.DenyReason)
+	}
+	wantPatterns := []string{"node_modules/**", "*.log"}
+	if !reflect.DeepEqual(result.ExcludePatterns, wantPatterns) {
+		t.Fatalf("result.ExcludePatterns = %#v, want %#v", result.ExcludePatterns, wantPatterns)
+	}
+}
+
+func TestDispatchEnvironmentStopAppliesDeny(t *testing.T) {
+	t.Parallel()
+
+	hooks := newTestHooks(
+		t,
+		WithNativeDeclarations([]HookDecl{{
+			Name:         "environment-stop",
+			Event:        HookEnvironmentStop,
+			Mode:         HookModeSync,
+			ExecutorKind: HookExecutorNative,
+			Matcher: HookMatcher{
+				EnvironmentID: "env-1",
+			},
+		}}),
+		WithExecutorResolver(testExecutorResolver(map[string]Executor{
+			"environment-stop": NewTypedNativeExecutor(
+				func(_ context.Context, _ RegisteredHook, _ EnvironmentStopPayload) (EnvironmentStopPatch, error) {
+					return EnvironmentStopPatch{
+						ControlPatch: ControlPatch{Deny: true, DenyReason: "retain for audit"},
+					}, nil
+				},
+			),
+		})),
+	)
+	if err := hooks.Rebuild(t.Context()); err != nil {
+		t.Fatalf("Rebuild() error = %v, want nil", err)
+	}
+
+	result, err := hooks.DispatchEnvironmentStop(t.Context(), EnvironmentStopPayload{
+		PayloadBase:   PayloadBase{Event: HookEnvironmentStop},
+		EnvironmentID: "env-1",
+		WillDestroy:   true,
+	})
+	if err != nil {
+		t.Fatalf("DispatchEnvironmentStop() error = %v, want nil", err)
+	}
+	if !result.Denied || result.DenyReason != "retain for audit" {
+		t.Fatalf("result deny fields = (%v, %q), want retain denial", result.Denied, result.DenyReason)
 	}
 }
 

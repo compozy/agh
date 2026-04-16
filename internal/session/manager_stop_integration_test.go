@@ -20,6 +20,7 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment/local"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -208,11 +209,16 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 	}
 
 	driver := acp.New(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	environmentRegistry, err := local.NewRegistry(local.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	if err != nil {
+		t.Fatalf("local.NewRegistry() error = %v", err)
+	}
 	manager, err := NewManager(
 		WithHomePaths(homePaths),
 		WithWorkspaceResolver(resolver),
 		WithDriver(NewACPDriverAdapter(driver)),
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		WithEnvironmentRegistry(environmentRegistry),
 	)
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
@@ -233,6 +239,11 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 	if got, want := session.Info().Workspace, canonicalWorkspaceRoot; got != want {
 		t.Fatalf("Create() workspace root = %q, want %q", got, want)
 	}
+	events, err := manager.Prompt(testutil.Context(t), session.ID, "integration prompt")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	_ = collectEvents(t, events)
 
 	if err := manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)

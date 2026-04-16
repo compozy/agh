@@ -103,6 +103,7 @@ type hostAPISessionManager interface {
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	Stop(ctx context.Context, id string) error
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
+	ExecEnvironment(ctx context.Context, req session.EnvironmentExecRequest) (session.EnvironmentExecResult, error)
 }
 
 type hostAPIObserver interface {
@@ -425,6 +426,9 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		"bridges/instances/get":          handler.handleBridgesInstancesGet,
 		"bridges/instances/report_state": handler.handleBridgesInstancesReportState,
 		"bridges/messages/ingest":        handler.handleBridgesMessagesIngest,
+		"environment/exec":               handler.handleEnvironmentExec,
+		"environment/info":               handler.handleEnvironmentInfo,
+		"environment/list":               handler.handleEnvironmentList,
 		"memory/forget":                  handler.handleMemoryForget,
 		"memory/recall":                  handler.handleMemoryRecall,
 		"memory/store":                   handler.handleMemoryStore,
@@ -547,6 +551,12 @@ type hostAPISessionTargetParams = extensioncontract.SessionTargetParams
 
 type hostAPISessionEventsParams = extensioncontract.SessionEventsParams
 
+type hostAPIEnvironmentListParams = extensioncontract.EnvironmentListParams
+
+type hostAPIEnvironmentInfoParams = extensioncontract.EnvironmentInfoParams
+
+type hostAPIEnvironmentExecParams = extensioncontract.EnvironmentExecParams
+
 type hostAPIMemoryStoreParams = extensioncontract.MemoryStoreParams
 
 type hostAPIMemoryRecallParams = extensioncontract.MemoryRecallParams
@@ -566,6 +576,14 @@ type hostAPISessionEvent = extensioncontract.SessionEvent
 type hostAPISessionCreateResult = extensioncontract.SessionCreateResult
 
 type hostAPISessionPromptResult = extensioncontract.SessionPromptResult
+
+type hostAPIEnvironmentListResult = extensioncontract.EnvironmentListResult
+
+type hostAPIEnvironmentSummary = extensioncontract.EnvironmentSummary
+
+type hostAPIEnvironmentInfoResult = extensioncontract.EnvironmentInfoResult
+
+type hostAPIEnvironmentExecResult = extensioncontract.EnvironmentExecResult
 
 type hostAPIMemoryRecallEntry = extensioncontract.MemoryRecallEntry
 
@@ -813,6 +831,155 @@ func (h *HostAPIHandler) handleSessionsEvents(ctx context.Context, raw json.RawM
 		})
 	}
 	return result, nil
+}
+
+func (h *HostAPIHandler) handleEnvironmentList(ctx context.Context, raw json.RawMessage) (any, error) {
+	if h.sessions == nil {
+		return nil, errors.New("extension: session manager is not configured")
+	}
+
+	var params hostAPIEnvironmentListParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	filterWorkspaceID, filterWorkspaceRoot, err := h.resolveEnvironmentWorkspaceFilter(ctx, params.Workspace)
+	if err != nil {
+		return nil, err
+	}
+
+	infos, err := h.sessions.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := hostAPIEnvironmentListResult{
+		Environments: make([]hostAPIEnvironmentSummary, 0, len(infos)),
+	}
+	for _, info := range infos {
+		if info == nil || info.Environment == nil || info.State == session.StateStopped {
+			continue
+		}
+		if filterWorkspaceID != "" || filterWorkspaceRoot != "" {
+			if info.WorkspaceID != filterWorkspaceID && info.Workspace != filterWorkspaceRoot {
+				continue
+			}
+		}
+		result.Environments = append(result.Environments, hostAPIEnvironmentSummary{
+			SessionID:     info.ID,
+			EnvironmentID: strings.TrimSpace(info.Environment.EnvironmentID),
+			Backend:       strings.TrimSpace(info.Environment.Backend),
+			Profile:       strings.TrimSpace(info.Environment.Profile),
+			InstanceID:    strings.TrimSpace(info.Environment.InstanceID),
+			State:         strings.TrimSpace(info.Environment.State),
+			SyncState:     hostAPIEnvironmentSyncState(info.Environment),
+		})
+	}
+	return result, nil
+}
+
+func (h *HostAPIHandler) handleEnvironmentInfo(ctx context.Context, raw json.RawMessage) (any, error) {
+	if h.sessions == nil {
+		return nil, errors.New("extension: session manager is not configured")
+	}
+	var params hostAPIEnvironmentInfoParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	sessionID := strings.TrimSpace(params.SessionID)
+	if sessionID == "" {
+		return nil, invalidParamsRPCError(errors.New("session_id is required"))
+	}
+	info, err := h.sessions.Status(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, session.ErrSessionNotFound) {
+			return nil, notFoundRPCError("session", sessionID, err)
+		}
+		return nil, err
+	}
+	if info == nil || info.Environment == nil {
+		return nil, notFoundRPCError("environment", sessionID, errors.New("environment is not configured"))
+	}
+	return hostAPIEnvironmentInfoResult{
+		EnvironmentID: strings.TrimSpace(info.Environment.EnvironmentID),
+		Backend:       strings.TrimSpace(info.Environment.Backend),
+		Profile:       strings.TrimSpace(info.Environment.Profile),
+		InstanceID:    strings.TrimSpace(info.Environment.InstanceID),
+		RuntimeRoot:   strings.TrimSpace(info.Environment.RuntimeRootDir),
+		SyncState:     hostAPIEnvironmentSyncState(info.Environment),
+		CreatedAt:     info.CreatedAt,
+		LastSyncError: strings.TrimSpace(info.Environment.LastSyncError),
+	}, nil
+}
+
+func (h *HostAPIHandler) handleEnvironmentExec(ctx context.Context, raw json.RawMessage) (any, error) {
+	if h.sessions == nil {
+		return nil, errors.New("extension: session manager is not configured")
+	}
+	var params hostAPIEnvironmentExecParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	sessionID := strings.TrimSpace(params.SessionID)
+	if sessionID == "" {
+		return nil, invalidParamsRPCError(errors.New("session_id is required"))
+	}
+	command := strings.TrimSpace(params.Command)
+	if command == "" {
+		return nil, invalidParamsRPCError(errors.New("command is required"))
+	}
+	if params.Timeout < 0 {
+		return nil, invalidParamsRPCError(errors.New("timeout must be non-negative"))
+	}
+	result, err := h.sessions.ExecEnvironment(ctx, session.EnvironmentExecRequest{
+		SessionID: sessionID,
+		Command:   command,
+		Timeout:   time.Duration(params.Timeout) * time.Second,
+	})
+	if err != nil {
+		if errors.Is(err, session.ErrSessionNotFound) {
+			return nil, notFoundRPCError("session", sessionID, err)
+		}
+		if errors.Is(err, session.ErrSessionNotActive) {
+			return nil, unavailableRPCError(err)
+		}
+		return nil, err
+	}
+	return hostAPIEnvironmentExecResult{
+		ExitCode: result.ExitCode,
+		Stdout:   result.Stdout,
+		Stderr:   result.Stderr,
+	}, nil
+}
+
+func (h *HostAPIHandler) resolveEnvironmentWorkspaceFilter(
+	ctx context.Context,
+	workspace string,
+) (string, string, error) {
+	workspace = strings.TrimSpace(workspace)
+	if workspace == "" {
+		return "", "", nil
+	}
+	if h.workspaces == nil {
+		return workspace, workspace, nil
+	}
+	resolved, err := h.workspaces.Resolve(ctx, workspace)
+	if err != nil {
+		return "", "", err
+	}
+	return strings.TrimSpace(resolved.ID), strings.TrimSpace(resolved.RootDir), nil
+}
+
+func hostAPIEnvironmentSyncState(meta *store.SessionEnvironmentMeta) string {
+	if meta == nil {
+		return ""
+	}
+	if strings.TrimSpace(meta.LastSyncError) != "" {
+		return extensionStateError
+	}
+	if meta.LastSyncAt != nil {
+		return "synced"
+	}
+	return "pending"
 }
 
 func (h *HostAPIHandler) handleMemoryStore(ctx context.Context, raw json.RawMessage) (any, error) {

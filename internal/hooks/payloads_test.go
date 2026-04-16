@@ -102,6 +102,95 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Workspace: &workspace,
 	})
 
+	assertJSONRoundTrip(t, "EnvironmentPreparePayload", EnvironmentPreparePayload{
+		PayloadBase:    samplePayloadBase(HookEnvironmentPrepare),
+		SessionContext: sampleSession,
+		EnvironmentID:  "env-1",
+		Backend:        "daytona",
+		Profile: EnvironmentProfilePayload{
+			Profile:        "daytona-dev",
+			Backend:        "daytona",
+			SyncMode:       "session-bidirectional",
+			Persistence:    "transient",
+			RuntimeRootDir: "/workspace",
+			DestroyOnStop:  true,
+			Env:            map[string]string{"BASE": "1"},
+		},
+		LocalRootDir:        "/local",
+		LocalAdditionalDirs: []string{"/local-extra"},
+		AgentCommand:        "codex",
+		AgentEnv:            []string{"BASE=1"},
+		Permissions:         "approve-all",
+		ResumeACPState:      "acp-1",
+		EnvOverrides:        map[string]string{"SECRET": "token"},
+		Denied:              true,
+		DenyReason:          "policy",
+	})
+	assertJSONRoundTrip(t, "EnvironmentReadyPayload", EnvironmentReadyPayload{
+		PayloadBase:           samplePayloadBase(HookEnvironmentReady),
+		SessionContext:        sampleSession,
+		EnvironmentID:         "env-1",
+		Backend:               "daytona",
+		Profile:               "daytona-dev",
+		InstanceID:            "instance-1",
+		RuntimeRootDir:        "/runtime",
+		RuntimeAdditionalDirs: []string{"/runtime-extra"},
+	})
+	assertJSONRoundTrip(t, "EnvironmentSyncBeforePayload", EnvironmentSyncBeforePayload{
+		PayloadBase:     samplePayloadBase(HookEnvironmentSyncBefore),
+		SessionContext:  sampleSession,
+		EnvironmentID:   "env-1",
+		Backend:         "daytona",
+		Profile:         "daytona-dev",
+		InstanceID:      "instance-1",
+		RuntimeRootDir:  "/runtime",
+		Direction:       "to_runtime",
+		Reason:          "start",
+		FileCount:       3,
+		ExcludePatterns: []string{"node_modules/**"},
+		Denied:          true,
+		DenyReason:      "blocked",
+	})
+	assertJSONRoundTrip(t, "EnvironmentSyncAfterPayload", EnvironmentSyncAfterPayload{
+		PayloadBase:      samplePayloadBase(HookEnvironmentSyncAfter),
+		SessionContext:   sampleSession,
+		EnvironmentID:    "env-1",
+		Backend:          "daytona",
+		Profile:          "daytona-dev",
+		InstanceID:       "instance-1",
+		RuntimeRootDir:   "/runtime",
+		Direction:        "from_runtime",
+		Reason:           "stop",
+		FilesSynced:      5,
+		BytesTransferred: 4096,
+		DurationMS:       37,
+		Errors:           []string{"retryable warning"},
+	})
+	assertJSONRoundTrip(t, "EnvironmentStopPayload", EnvironmentStopPayload{
+		PayloadBase:    samplePayloadBase(HookEnvironmentStop),
+		SessionContext: sampleSession,
+		EnvironmentID:  "env-1",
+		Backend:        "daytona",
+		Profile:        "daytona-dev",
+		InstanceID:     "instance-1",
+		RuntimeRootDir: "/runtime",
+		StopReason:     "user_requested",
+		WillDestroy:    true,
+		Denied:         true,
+		DenyReason:     "retain",
+	})
+	assertJSONRoundTrip(t, "EnvironmentPreparePatch", EnvironmentPreparePatch{
+		ControlPatch: ControlPatch{Deny: true, DenyReason: "policy"},
+		EnvOverrides: map[string]string{"SECRET": "token"},
+	})
+	assertJSONRoundTrip(t, "EnvironmentSyncBeforePatch", EnvironmentSyncBeforePatch{
+		ControlPatch:    ControlPatch{Deny: true, DenyReason: "sync blocked"},
+		ExcludePatterns: []string{"tmp/**"},
+	})
+	assertJSONRoundTrip(t, "EnvironmentStopPatch", EnvironmentStopPatch{
+		ControlPatch: ControlPatch{Deny: true, DenyReason: "retain"},
+	})
+
 	assertJSONRoundTrip(t, "InputPreSubmitPayload", InputPreSubmitPayload{
 		PayloadBase:    samplePayloadBase(HookInputPreSubmit),
 		SessionContext: sampleSession,

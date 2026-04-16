@@ -16,6 +16,15 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"workspace_root": {},
 		"session_type":   {},
 	},
+	HookEventFamilyEnvironment: {
+		"agent_name":          {},
+		"workspace_id":        {},
+		"workspace_root":      {},
+		"environment_id":      {},
+		"environment_backend": {},
+		"environment_profile": {},
+		"sync_direction":      {},
+	},
 	HookEventFamilyInput: {
 		"agent_name":     {},
 		"workspace_id":   {},
@@ -104,6 +113,49 @@ func ValidateMatcherForEvent(event HookEvent, matcher HookMatcher) error {
 // MatchesSession matches session-family hooks.
 func (m HookMatcher) MatchesSession(payload SessionContext) bool {
 	return m.matchSessionContext(payload, true)
+}
+
+// MatchesEnvironmentPrepare matches environment prepare hooks.
+func (m HookMatcher) MatchesEnvironmentPrepare(payload EnvironmentPreparePayload) bool {
+	return m.matchEnvironment(
+		payload.SessionContext,
+		payload.EnvironmentID,
+		payload.Backend,
+		payload.Profile.Profile,
+		"",
+	)
+}
+
+// MatchesEnvironmentReady matches environment ready hooks.
+func (m HookMatcher) MatchesEnvironmentReady(payload EnvironmentReadyPayload) bool {
+	return m.matchEnvironment(payload.SessionContext, payload.EnvironmentID, payload.Backend, payload.Profile, "")
+}
+
+// MatchesEnvironmentSyncBefore matches environment pre-sync hooks.
+func (m HookMatcher) MatchesEnvironmentSyncBefore(payload EnvironmentSyncBeforePayload) bool {
+	return m.matchEnvironment(
+		payload.SessionContext,
+		payload.EnvironmentID,
+		payload.Backend,
+		payload.Profile,
+		payload.Direction,
+	)
+}
+
+// MatchesEnvironmentSyncAfter matches environment post-sync hooks.
+func (m HookMatcher) MatchesEnvironmentSyncAfter(payload EnvironmentSyncAfterPayload) bool {
+	return m.matchEnvironment(
+		payload.SessionContext,
+		payload.EnvironmentID,
+		payload.Backend,
+		payload.Profile,
+		payload.Direction,
+	)
+}
+
+// MatchesEnvironmentStop matches environment stop hooks.
+func (m HookMatcher) MatchesEnvironmentStop(payload EnvironmentStopPayload) bool {
+	return m.matchEnvironment(payload.SessionContext, payload.EnvironmentID, payload.Backend, payload.Profile, "")
 }
 
 // MatchesInput matches input-family hooks.
@@ -223,6 +275,26 @@ func matchSessionLifecycle(matcher HookMatcher, payload SessionLifecyclePayload)
 	return matcher.MatchesSession(payload.SessionContext)
 }
 
+func matchEnvironmentPrepare(matcher HookMatcher, payload EnvironmentPreparePayload) bool {
+	return matcher.MatchesEnvironmentPrepare(payload)
+}
+
+func matchEnvironmentReady(matcher HookMatcher, payload EnvironmentReadyPayload) bool {
+	return matcher.MatchesEnvironmentReady(payload)
+}
+
+func matchEnvironmentSyncBefore(matcher HookMatcher, payload EnvironmentSyncBeforePayload) bool {
+	return matcher.MatchesEnvironmentSyncBefore(payload)
+}
+
+func matchEnvironmentSyncAfter(matcher HookMatcher, payload EnvironmentSyncAfterPayload) bool {
+	return matcher.MatchesEnvironmentSyncAfter(payload)
+}
+
+func matchEnvironmentStop(matcher HookMatcher, payload EnvironmentStopPayload) bool {
+	return matcher.MatchesEnvironmentStop(payload)
+}
+
 func matchInputPreSubmit(matcher HookMatcher, payload InputPreSubmitPayload) bool {
 	return matcher.MatchesInput(payload)
 }
@@ -315,6 +387,20 @@ func (m HookMatcher) matchSessionContext(payload SessionContext, includeSessionT
 	return true
 }
 
+func (m HookMatcher) matchEnvironment(
+	session SessionContext,
+	environmentID string,
+	backend string,
+	profile string,
+	direction string,
+) bool {
+	return m.matchSessionContext(session, false) &&
+		matchStringField(m.EnvironmentID, environmentID) &&
+		matchStringField(m.EnvironmentBackend, backend) &&
+		matchStringField(m.EnvironmentProfile, profile) &&
+		matchStringField(m.SyncDirection, direction)
+}
+
 func (m HookMatcher) matchToolCall(payload ToolCallRef) bool {
 	if !matchStringField(m.ToolName, payload.ToolName) {
 		return false
@@ -340,6 +426,10 @@ func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 		WorkspaceID:        strings.TrimSpace(matcher.WorkspaceID),
 		WorkspaceRoot:      strings.TrimSpace(matcher.WorkspaceRoot),
 		SessionType:        strings.TrimSpace(matcher.SessionType),
+		EnvironmentID:      strings.TrimSpace(matcher.EnvironmentID),
+		EnvironmentBackend: strings.TrimSpace(matcher.EnvironmentBackend),
+		EnvironmentProfile: strings.TrimSpace(matcher.EnvironmentProfile),
+		SyncDirection:      strings.TrimSpace(matcher.SyncDirection),
 		InputClass:         strings.TrimSpace(matcher.InputClass),
 		ACPEventType:       strings.TrimSpace(matcher.ACPEventType),
 		TurnID:             strings.TrimSpace(matcher.TurnID),
@@ -372,6 +462,10 @@ func matcherFieldNames(matcher HookMatcher) []string {
 	appendIf("workspace_id", matcher.WorkspaceID != "")
 	appendIf("workspace_root", matcher.WorkspaceRoot != "")
 	appendIf("session_type", matcher.SessionType != "")
+	appendIf("environment_id", matcher.EnvironmentID != "")
+	appendIf("environment_backend", matcher.EnvironmentBackend != "")
+	appendIf("environment_profile", matcher.EnvironmentProfile != "")
+	appendIf("sync_direction", matcher.SyncDirection != "")
 	appendIf("input_class", matcher.InputClass != "")
 	appendIf("acp_event_type", matcher.ACPEventType != "")
 	appendIf("turn_id", matcher.TurnID != "")
@@ -397,6 +491,10 @@ func validateMatcherPatterns(matcher HookMatcher) error {
 		{field: "workspace_id", pattern: matcher.WorkspaceID},
 		{field: "workspace_root", pattern: matcher.WorkspaceRoot},
 		{field: "session_type", pattern: matcher.SessionType},
+		{field: "environment_id", pattern: matcher.EnvironmentID},
+		{field: "environment_backend", pattern: matcher.EnvironmentBackend},
+		{field: "environment_profile", pattern: matcher.EnvironmentProfile},
+		{field: "sync_direction", pattern: matcher.SyncDirection},
 		{field: "input_class", pattern: matcher.InputClass},
 		{field: "acp_event_type", pattern: matcher.ACPEventType},
 		{field: "turn_id", pattern: matcher.TurnID},

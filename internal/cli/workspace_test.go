@@ -30,13 +30,15 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 				"--add-dir", "/workspace/shared-a",
 				"--add-dir", "/workspace/shared-b",
 				"--default-agent", "coder",
+				"--environment", "daytona-dev",
 				"-o", "json",
 			},
 			request: WorkspaceCreateRequest{
-				RootDir:      "/workspace/project",
-				Name:         "alpha",
-				AddDirs:      []string{"/workspace/shared-a", "/workspace/shared-b"},
-				DefaultAgent: "coder",
+				RootDir:        "/workspace/project",
+				Name:           "alpha",
+				AddDirs:        []string{"/workspace/shared-a", "/workspace/shared-b"},
+				DefaultAgent:   "coder",
+				EnvironmentRef: "daytona-dev",
 			},
 		},
 	}
@@ -48,20 +50,22 @@ func TestWorkspaceAddBuildsRequest(t *testing.T) {
 			deps := newTestDeps(t, &stubClient{
 				createWorkspaceFn: func(_ context.Context, request WorkspaceCreateRequest) (WorkspaceRecord, error) {
 					if request.RootDir != tt.request.RootDir || request.Name != tt.request.Name ||
-						request.DefaultAgent != tt.request.DefaultAgent {
+						request.DefaultAgent != tt.request.DefaultAgent ||
+						request.EnvironmentRef != tt.request.EnvironmentRef {
 						t.Fatalf("CreateWorkspace() request = %#v, want %#v", request, tt.request)
 					}
 					if strings.Join(request.AddDirs, ",") != strings.Join(tt.request.AddDirs, ",") {
 						t.Fatalf("CreateWorkspace() AddDirs = %#v, want %#v", request.AddDirs, tt.request.AddDirs)
 					}
 					return WorkspaceRecord{
-						ID:           "ws_alpha",
-						RootDir:      request.RootDir,
-						AddDirs:      request.AddDirs,
-						Name:         firstNonEmpty(request.Name, "alpha"),
-						DefaultAgent: request.DefaultAgent,
-						CreatedAt:    fixedTestNow,
-						UpdatedAt:    fixedTestNow,
+						ID:             "ws_alpha",
+						RootDir:        request.RootDir,
+						AddDirs:        request.AddDirs,
+						Name:           firstNonEmpty(request.Name, "alpha"),
+						DefaultAgent:   request.DefaultAgent,
+						EnvironmentRef: request.EnvironmentRef,
+						CreatedAt:      fixedTestNow,
+						UpdatedAt:      fixedTestNow,
 					}, nil
 				},
 			})
@@ -105,13 +109,14 @@ func TestWorkspaceEditBuildsRequest(t *testing.T) {
 			seenRef = ref
 			seenRequest = request
 			return WorkspaceRecord{
-				ID:           "ws_alpha",
-				RootDir:      "/workspace/project",
-				AddDirs:      derefStringSlice(request.AddDirs),
-				Name:         derefString(request.Name),
-				DefaultAgent: derefString(request.DefaultAgent),
-				CreatedAt:    fixedTestNow,
-				UpdatedAt:    fixedTestNow,
+				ID:             "ws_alpha",
+				RootDir:        "/workspace/project",
+				AddDirs:        derefStringSlice(request.AddDirs),
+				Name:           derefString(request.Name),
+				DefaultAgent:   derefString(request.DefaultAgent),
+				EnvironmentRef: derefString(request.EnvironmentRef),
+				CreatedAt:      fixedTestNow,
+				UpdatedAt:      fixedTestNow,
 			}, nil
 		},
 	})
@@ -122,6 +127,7 @@ func TestWorkspaceEditBuildsRequest(t *testing.T) {
 		"--add-dir", "/workspace/shared-c",
 		"--remove-dir", "/workspace/shared-a",
 		"--default-agent", "reviewer",
+		"--environment", "local-dev",
 		"-o", "json",
 	)
 	if err != nil {
@@ -139,6 +145,9 @@ func TestWorkspaceEditBuildsRequest(t *testing.T) {
 	}
 	if seenRequest.DefaultAgent == nil || *seenRequest.DefaultAgent != "reviewer" {
 		t.Fatalf("UpdateWorkspace() DefaultAgent = %#v, want reviewer", seenRequest.DefaultAgent)
+	}
+	if seenRequest.EnvironmentRef == nil || *seenRequest.EnvironmentRef != "local-dev" {
+		t.Fatalf("UpdateWorkspace() EnvironmentRef = %#v, want local-dev", seenRequest.EnvironmentRef)
 	}
 
 	var decoded WorkspaceRecord
@@ -331,7 +340,10 @@ func TestWorkspaceOutputFormats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("executeRootCommand(workspace list toon) error = %v", err)
 	}
-	if !strings.Contains(listToon, "workspaces[1]{id,name,root_dir,add_dir_count,default_agent,updated_at}:") {
+	if !strings.Contains(
+		listToon,
+		"workspaces[1]{id,name,root_dir,add_dir_count,default_agent,environment_ref,updated_at}:",
+	) {
 		t.Fatalf("list toon output = %q, want TOON header", listToon)
 	}
 

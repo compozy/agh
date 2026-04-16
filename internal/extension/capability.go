@@ -60,6 +60,9 @@ var (
 		"memory/store":                   "memory.write",
 		"observe/events":                 "observe.read",
 		"observe/health":                 "observe.read",
+		"environment/list":               "",
+		"environment/info":               "",
+		"environment/exec":               "environment.exec",
 		"sessions/create":                "session.write",
 		"sessions/events":                "session.read",
 		"sessions/list":                  "session.read",
@@ -290,6 +293,9 @@ func (c *CapabilityChecker) CheckHostAPI(extName, method string) error {
 	grant := c.lookup(extName)
 	if !slices.Contains(grant.actions, method) {
 		return newCapabilityDeniedError(method, []string{method}, grant.actions)
+	}
+	if strings.TrimSpace(requiredSecurity) == "" {
+		return nil
 	}
 	if !capabilityGranted(grant.security, requiredSecurity) {
 		return newCapabilityDeniedError(method, []string{requiredSecurity}, grant.security)

@@ -385,6 +385,7 @@ func (o *Observer) OnSessionStopped(ctx context.Context, sess *session.Session) 
 		StopReasonSet: true,
 		StopReason:    stringPointer(string(info.StopReason)),
 		StopDetail:    info.StopDetail,
+		Environment:   cloneSessionEnvironmentMeta(info.Environment),
 		UpdatedAt:     info.UpdatedAt,
 	}); err != nil {
 		o.logger.Warn(
@@ -709,9 +710,31 @@ func sessionInfoFromSession(info *session.Info) store.SessionInfo {
 		ACPSessionID: stringPointer(info.ACPSessionID),
 		StopReason:   info.StopReason,
 		StopDetail:   info.StopDetail,
+		Environment:  cloneSessionEnvironmentMeta(info.Environment),
 		CreatedAt:    info.CreatedAt,
 		UpdatedAt:    info.UpdatedAt,
 	}
+}
+
+// OnEnvironmentLifecycleEvent receives optional environment lifecycle spans from session orchestration.
+func (o *Observer) OnEnvironmentLifecycleEvent(_ context.Context, event session.EnvironmentLifecycleEvent) {
+	if o == nil || o.logger == nil {
+		return
+	}
+	o.logger.Debug(
+		"observe: environment lifecycle",
+		"name", event.Name,
+		"span", event.Span,
+		"session_id", event.SessionID,
+		"workspace_id", event.WorkspaceID,
+		"environment_id", event.EnvironmentID,
+		"backend", event.Backend,
+		"profile", event.Profile,
+		"instance_id", event.InstanceID,
+		"duration_ms", event.Duration.Milliseconds(),
+		"error_kind", event.ErrorKind,
+		"error", event.Error,
+	)
 }
 
 func summarizeEvent(event acp.AgentEvent) string {
@@ -757,6 +780,26 @@ func truncateSummary(summary string) string {
 	}
 
 	return string(runes[:maxRunes-3]) + "..."
+}
+
+func cloneSessionEnvironmentMeta(meta *store.SessionEnvironmentMeta) *store.SessionEnvironmentMeta {
+	if meta == nil {
+		return nil
+	}
+	cloned := *meta
+	cloned.RuntimeAdditionalDirs = append([]string(nil), meta.RuntimeAdditionalDirs...)
+	if meta.ProviderState != nil {
+		cloned.ProviderState = append([]byte(nil), meta.ProviderState...)
+	}
+	if meta.SSHAccessExpiresAt != nil {
+		expiresAt := *meta.SSHAccessExpiresAt
+		cloned.SSHAccessExpiresAt = &expiresAt
+	}
+	if meta.LastSyncAt != nil {
+		lastSyncAt := *meta.LastSyncAt
+		cloned.LastSyncAt = &lastSyncAt
+	}
+	return &cloned
 }
 
 func shouldAggregateUsage(event acp.AgentEvent) bool {

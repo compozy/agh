@@ -21,6 +21,7 @@ var globalSchemaStatements = append([]string{
 		add_dirs      TEXT NOT NULL DEFAULT '[]',
 		name          TEXT NOT NULL UNIQUE,
 		default_agent TEXT DEFAULT '',
+		environment_ref TEXT NOT NULL DEFAULT '',
 		created_at    TEXT NOT NULL,
 		updated_at    TEXT NOT NULL
 	);`,
@@ -36,6 +37,14 @@ var globalSchemaStatements = append([]string{
 		acp_session_id TEXT,
 		stop_reason    TEXT,
 		stop_detail    TEXT,
+		environment_id TEXT NOT NULL DEFAULT '',
+		environment_backend TEXT NOT NULL DEFAULT 'local',
+		environment_profile TEXT NOT NULL DEFAULT '',
+		environment_instance_id TEXT NOT NULL DEFAULT '',
+		environment_state TEXT NOT NULL DEFAULT '',
+		environment_provider_state_json TEXT NOT NULL DEFAULT '',
+		environment_last_sync_at TEXT,
+		environment_last_sync_error TEXT NOT NULL DEFAULT '',
 		created_at     TEXT NOT NULL,
 		updated_at     TEXT NOT NULL
 	);`,

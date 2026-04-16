@@ -19,6 +19,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
@@ -1112,7 +1113,7 @@ func TestStopWaitsForProcessDoneAfterSuccessfulDriverStop(t *testing.T) {
 		return nil
 	}
 
-	stopCtx, cancel := context.WithTimeout(testutil.Context(t), time.Second)
+	stopCtx, cancel := context.WithTimeout(testutil.Context(t), defaultLifecycleTimeout)
 	defer cancel()
 
 	stopDone := make(chan error, 1)
@@ -1855,6 +1856,7 @@ type harness struct {
 	driver        *fakeDriver
 	notifier      *fakeNotifier
 	resolver      *fakeWorkspaceResolver
+	environment   *environment.Registry
 	cfg           aghconfig.Config
 	homePaths     aghconfig.HomePaths
 	workspace     string
@@ -1881,11 +1883,16 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 	h := &harness{
 		driver:        newFakeDriver(),
 		notifier:      newFakeNotifier(),
+		environment:   newFakeEnvironmentRegistry(t),
 		cfg:           aghconfig.DefaultWithHome(homePaths),
 		homePaths:     homePaths,
 		workspace:     workspace,
 		workspaceID:   "ws-primary",
 		workspaceName: "workspace",
+	}
+	resolvedEnvironment, err := h.cfg.ResolveEnvironment(h.cfg.Defaults.Environment)
+	if err != nil {
+		t.Fatalf("ResolveEnvironment() error = %v", err)
 	}
 	h.resolver = newFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
@@ -1906,6 +1913,7 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 				Prompt:   "You are a coding assistant.",
 			},
 		},
+		Environment: resolvedEnvironment,
 	})
 	h.manager = newManagerWithHarness(t, h, extraOpts...)
 	return h
@@ -1925,6 +1933,8 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithSessionIDGenerator(sequentialIDGenerator("sess")),
 		WithTurnIDGenerator(sequentialIDGenerator("turn")),
+		WithEnvironmentRegistry(h.environment),
+		WithEnvironmentIDGenerator(sequentialIDGenerator("env")),
 	}
 	opts = append(opts, extraOpts...)
 
@@ -2265,6 +2275,70 @@ func newFakeSkillRegistry() *fakeSkillRegistry {
 	}
 }
 
+func newFakeEnvironmentRegistry(t *testing.T) *environment.Registry {
+	t.Helper()
+
+	registry, err := environment.NewRegistry(fakeEnvironmentProvider{})
+	if err != nil {
+		t.Fatalf("NewRegistry(fake environment) error = %v", err)
+	}
+	return registry
+}
+
+type fakeEnvironmentProvider struct{}
+
+func (fakeEnvironmentProvider) Backend() environment.Backend {
+	return environment.BackendLocal
+}
+
+func (fakeEnvironmentProvider) Prepare(
+	_ context.Context,
+	req environment.PrepareRequest,
+) (environment.Prepared, error) {
+	state := environment.SessionState{
+		EnvironmentID:         req.EnvironmentID,
+		Backend:               environment.BackendLocal,
+		Profile:               req.Environment.Profile,
+		InstanceID:            strings.TrimSpace(req.InstanceID),
+		State:                 "prepared",
+		RuntimeRootDir:        req.LocalRootDir,
+		RuntimeAdditionalDirs: append([]string(nil), req.LocalAdditionalDirs...),
+		ProviderState:         append(json.RawMessage(nil), req.ProviderState...),
+		PreparedAt:            time.Now().UTC(),
+	}
+	return environment.Prepared{
+		State:                 state,
+		RuntimeRootDir:        req.LocalRootDir,
+		RuntimeAdditionalDirs: append([]string(nil), req.LocalAdditionalDirs...),
+		Launch: environment.LaunchSpec{
+			Command:        req.AgentCommand,
+			Cwd:            req.LocalRootDir,
+			AdditionalDirs: append([]string(nil), req.LocalAdditionalDirs...),
+			Env:            append([]string(nil), req.AgentEnv...),
+		},
+	}, nil
+}
+
+func (fakeEnvironmentProvider) SyncToRuntime(
+	context.Context,
+	environment.SessionState,
+	environment.SyncOptions,
+) (environment.SyncResult, error) {
+	return environment.SyncResult{}, nil
+}
+
+func (fakeEnvironmentProvider) SyncFromRuntime(
+	context.Context,
+	environment.SessionState,
+	environment.SyncOptions,
+) (environment.SyncResult, error) {
+	return environment.SyncResult{}, nil
+}
+
+func (fakeEnvironmentProvider) Destroy(context.Context, environment.SessionState) error {
+	return nil
+}
+
 func (r *fakeSkillRegistry) ForWorkspace(
 	_ context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
@@ -2430,6 +2504,7 @@ func (d *fakeDriver) Start(_ context.Context, opts acp.StartOpts) (*AgentProcess
 		return nil, err
 	}
 
+	proc.handle.toolHost = copied.ToolHost
 	proc.handle.approvePermissionFn = func(ctx context.Context, req acp.ApproveRequest) error {
 		if err := ctx.Err(); err != nil {
 			return err

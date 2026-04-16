@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Session environment integration and daemon wiring"
 type: backend
 complexity: high
@@ -46,13 +46,13 @@ Integrate the environment system into session lifecycle: inject the provider reg
 
 ## Subtasks
 
-- [ ] 4.1 Add `WithEnvironmentRegistry()` option to session manager
-- [ ] 4.2 Integrate `allocate EnvironmentID → persist creating meta → Prepare → SyncToRuntime → Launch` sequence in `startSession`
-- [ ] 4.3 Integrate `SyncFromRuntime → Destroy` in session stop/crash paths
-- [ ] 4.4 Persist and restore `SessionEnvironmentMeta` across session lifecycle
-- [ ] 4.5 Add environment columns and provider-state JSON to sessions DB schema
-- [ ] 4.6 Add environment info to session contract types and API responses
-- [ ] 4.7 Wire environment registry in daemon composition root
+- [x] 4.1 Add `WithEnvironmentRegistry()` option to session manager
+- [x] 4.2 Integrate `allocate EnvironmentID → persist creating meta → Prepare → SyncToRuntime → Launch` sequence in `startSession`
+- [x] 4.3 Integrate `SyncFromRuntime → Destroy` in session stop/crash paths
+- [x] 4.4 Persist and restore `SessionEnvironmentMeta` across session lifecycle
+- [x] 4.5 Add environment columns and provider-state JSON to sessions DB schema
+- [x] 4.6 Add environment info to session contract types and API responses
+- [x] 4.7 Wire environment registry in daemon composition root
 
 ## Implementation Details
 
@@ -98,25 +98,25 @@ The authoritative lifecycle sequence is: `environment.prepare hook → allocate/
 ## Tests
 
 - Unit tests:
-  - [ ] Session start allocates an `EnvironmentID` before provider `Prepare`
-  - [ ] Session start persists `SessionEnvironmentMeta` in `creating` state before provider `Prepare`
-  - [ ] Session start calls `Provider.Prepare()` with correct `PrepareRequest` fields
-  - [ ] Session start calls `SyncToRuntime(SyncReasonStart)` after Prepare
-  - [ ] Session start uses `RuntimeRootDir` from Prepared in `StartOpts.Cwd`
-  - [ ] Session start uses `RuntimeAdditionalDirs` from Prepared in `StartOpts.AdditionalDirs`
-  - [ ] Session stop calls `SyncFromRuntime(SyncReasonStop)` before store close
-  - [ ] Session crash calls `SyncFromRuntime(SyncReasonCrash)` best-effort
-  - [ ] Session stop calls `Destroy()` when `DestroyOnStop` is true
-  - [ ] Session stop skips `Destroy()` when `DestroyOnStop` is false
-  - [ ] `SessionEnvironmentMeta` persists correctly in session metadata
-  - [ ] Session resume restores `SessionEnvironmentMeta` and passes `EnvironmentID`, `InstanceID`, and `ProviderState` to Prepare
-  - [ ] Session list API includes `environment` field in response
-  - [ ] `SessionInfo` includes environment ID, backend, profile, state, instance ID, and last sync error
-  - [ ] Environment lifecycle logs/spans include session ID, workspace ID, environment ID, backend, profile, duration, and error kind
+  - [x] Session start allocates an `EnvironmentID` before provider `Prepare`
+  - [x] Session start persists `SessionEnvironmentMeta` in `creating` state before provider `Prepare`
+  - [x] Session start calls `Provider.Prepare()` with correct `PrepareRequest` fields
+  - [x] Session start calls `SyncToRuntime(SyncReasonStart)` after Prepare
+  - [x] Session start uses `RuntimeRootDir` from Prepared in `StartOpts.Cwd`
+  - [x] Session start uses `RuntimeAdditionalDirs` from Prepared in `StartOpts.AdditionalDirs`
+  - [x] Session stop calls `SyncFromRuntime(SyncReasonStop)` before store close
+  - [x] Session crash calls `SyncFromRuntime(SyncReasonCrash)` best-effort
+  - [x] Session stop calls `Destroy()` when `DestroyOnStop` is true
+  - [x] Session stop skips `Destroy()` when `DestroyOnStop` is false
+  - [x] `SessionEnvironmentMeta` persists correctly in session metadata
+  - [x] Session resume restores `SessionEnvironmentMeta` and passes `EnvironmentID`, `InstanceID`, and `ProviderState` to Prepare
+  - [x] Session list API includes `environment` field in response
+  - [x] `SessionInfo` includes environment ID, backend, profile, state, instance ID, and last sync error
+  - [x] Environment lifecycle logs/spans include session ID, workspace ID, environment ID, backend, profile, duration, and error kind
 - Integration tests:
-  - [ ] Full session create → prompt → stop lifecycle with local provider preserves current behavior
-  - [ ] Session resume with local provider works correctly
-  - [ ] Concurrent sessions on same workspace both complete without error (local provider)
+  - [x] Full session create → prompt → stop lifecycle with local provider preserves current behavior
+  - [x] Session resume with local provider works correctly
+  - [x] Concurrent sessions on same workspace both complete without error (local provider)
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -5193,6 +5193,11 @@ export interface operations {
           | "session.post_resume"
           | "session.pre_stop"
           | "session.post_stop"
+          | "environment.prepare"
+          | "environment.ready"
+          | "environment.sync.before"
+          | "environment.sync.after"
+          | "environment.stop"
           | "input.pre_submit"
           | "prompt.post_assemble"
           | "event.pre_record"
@@ -5248,10 +5253,14 @@ export interface operations {
                 compaction_reason?: string;
                 compaction_strategy?: string;
                 decision_class?: string;
+                environment_backend?: string;
+                environment_id?: string;
+                environment_profile?: string;
                 input_class?: string;
                 message_delta_type?: string;
                 message_role?: string;
                 session_type?: string;
+                sync_direction?: string;
                 tool_name?: string;
                 tool_namespace?: string;
                 tool_read_only?: boolean | null;
@@ -5400,6 +5409,11 @@ export interface operations {
           | "session.post_resume"
           | "session.pre_stop"
           | "session.post_stop"
+          | "environment.prepare"
+          | "environment.ready"
+          | "environment.sync.before"
+          | "environment.sync.after"
+          | "environment.stop"
           | "input.pre_submit"
           | "prompt.post_assemble"
           | "event.pre_record"
@@ -5987,6 +6001,15 @@ export interface operations {
                 channel?: string;
                 /** Format: date-time */
                 created_at: string;
+                environment?: {
+                  backend?: string;
+                  environment_id?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  state?: string;
+                } | null;
                 id: string;
                 name?: string;
                 /** @enum {string} */
@@ -6128,6 +6151,15 @@ export interface operations {
                 channel?: string;
                 /** Format: date-time */
                 created_at: string;
+                environment?: {
+                  backend?: string;
+                  environment_id?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  state?: string;
+                } | null;
                 id: string;
                 name?: string;
                 /** @enum {string} */
@@ -7533,6 +7565,15 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
+              environment?: {
+                backend?: string;
+                environment_id?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                state?: string;
+              } | null;
               id: string;
               name?: string;
               /** @enum {string} */
@@ -7626,6 +7667,15 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
+              environment?: {
+                backend?: string;
+                environment_id?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                state?: string;
+              } | null;
               id: string;
               name?: string;
               /** @enum {string} */
@@ -7733,6 +7783,15 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
+              environment?: {
+                backend?: string;
+                environment_id?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                state?: string;
+              } | null;
               id: string;
               name?: string;
               /** @enum {string} */
@@ -8123,6 +8182,15 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
+              environment?: {
+                backend?: string;
+                environment_id?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                state?: string;
+              } | null;
               id: string;
               name?: string;
               /** @enum {string} */
@@ -11797,6 +11865,7 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
+              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
@@ -11838,6 +11907,7 @@ export interface operations {
         "application/json": {
           add_dirs?: string[];
           default_agent?: string;
+          environment_ref?: string;
           name?: string;
           root_dir: string;
         };
@@ -11856,6 +11926,7 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
+              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
@@ -11934,6 +12005,7 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
+              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
@@ -12031,6 +12103,15 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
+              environment?: {
+                backend?: string;
+                environment_id?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                state?: string;
+              } | null;
               id: string;
               name?: string;
               /** @enum {string} */
@@ -12063,6 +12144,7 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
+              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
@@ -12167,6 +12249,7 @@ export interface operations {
         "application/json": {
           add_dirs: string[] | null;
           default_agent: string | null;
+          environment_ref: string | null;
           name: string | null;
         };
       };
@@ -12184,6 +12267,7 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
+              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;

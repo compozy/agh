@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Extract ACP Launcher and ToolHost interfaces"
 type: refactor
 complexity: critical
@@ -35,12 +35,12 @@ Refactor the ACP package to replace hardcoded local subprocess spawning and file
 
 ## Subtasks
 
-- [ ] 2.1 Create `localLauncher` implementing `Launcher` by extracting `spawnProcess` logic
-- [ ] 2.2 Add `WithLauncher()` option to `acp.Driver` constructor, defaulting to `localLauncher`
-- [ ] 2.3 Create `localToolHost` implementing `ToolHost` by extracting file IO, permission, and terminal handlers
-- [ ] 2.4 Inject `ToolHost` into `AgentProcess` handler dispatch, replacing direct `os.*` calls
-- [ ] 2.5 Verify all existing ACP tests pass with zero modification
-- [ ] 2.6 Add tests for `localLauncher` and `localToolHost` interface compliance
+- [x] 2.1 Create `localLauncher` implementing `Launcher` by extracting `spawnProcess` logic
+- [x] 2.2 Add `WithLauncher()` option to `acp.Driver` constructor, defaulting to `localLauncher`
+- [x] 2.3 Create `localToolHost` implementing `ToolHost` by extracting file IO, permission, and terminal handlers
+- [x] 2.4 Inject `ToolHost` into `AgentProcess` handler dispatch, replacing direct `os.*` calls
+- [x] 2.5 Verify all existing ACP tests pass with zero modification
+- [x] 2.6 Add tests for `localLauncher` and `localToolHost` interface compliance
 
 ## Implementation Details
 
@@ -84,22 +84,22 @@ The `localLauncher` wraps the existing `subprocess.Launch` call. The `localToolH
 ## Tests
 
 - Unit tests:
-  - [ ] `localLauncher.Launch` spawns subprocess and returns valid `Handle` with working Stdin/Stdout
-  - [ ] `localLauncher.Launch` with invalid command returns error
-  - [ ] `localToolHost.ReadTextFile` reads existing file content correctly
-  - [ ] `localToolHost.ReadTextFile` with non-existent file returns error
-  - [ ] `localToolHost.WriteTextFile` creates file with correct content and permissions
-  - [ ] `localToolHost.WriteTextFile` creates parent directories
-  - [ ] `localToolHost.ResolvePath` resolves relative path against root
-  - [ ] `localToolHost.ResolvePath` rejects path outside workspace root
-  - [ ] `localToolHost.Authorize` with `approve-all` mode permits all operations
-  - [ ] `localToolHost.Authorize` with `deny-all` mode rejects all operations
-  - [ ] `localToolHost.CreateTerminal` spawns terminal process with correct cwd
-  - [ ] `Handle.Stop` sends SIGTERM and waits for exit
-  - [ ] `Handle.Done` channel closes when process exits
+  - [x] `localLauncher.Launch` spawns subprocess and returns valid `Handle` with working Stdin/Stdout
+  - [x] `localLauncher.Launch` with invalid command returns error
+  - [x] `localToolHost.ReadTextFile` reads existing file content correctly
+  - [x] `localToolHost.ReadTextFile` with non-existent file returns error
+  - [x] `localToolHost.WriteTextFile` creates file with correct content and permissions
+  - [x] `localToolHost.WriteTextFile` creates parent directories
+  - [x] `localToolHost.ResolvePath` resolves relative path against root
+  - [x] `localToolHost.ResolvePath` rejects path outside workspace root
+  - [x] `localToolHost.Authorize` with `approve-all` mode permits all operations
+  - [x] `localToolHost.Authorize` with `deny-all` mode rejects all operations
+  - [x] `localToolHost.CreateTerminal` spawns terminal process with correct cwd
+  - [x] `Handle.Stop` sends SIGTERM and waits for exit
+  - [x] `Handle.Done` channel closes when process exits
 - Integration tests:
-  - [ ] Full ACP session create → prompt → file read/write → terminal → stop works through new interfaces
-  - [ ] Existing `client_integration_test.go` passes without modification (regression gate)
+  - [x] Full ACP session create → prompt → file read/write → terminal → stop works through new interfaces
+  - [x] Existing `client_integration_test.go` passes without modification (regression gate)
 - Test coverage target: >=80%
 - All tests must pass
 

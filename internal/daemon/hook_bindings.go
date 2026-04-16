@@ -147,8 +147,8 @@ type desiredHookBinding struct {
 	spec  hookspkg.HookDecl
 }
 
-func (s *hookBindingSourceSyncer) desiredBindings(ctx context.Context) (map[string]desiredHookBinding, error) {
-	bindings := make(map[string]desiredHookBinding)
+func (s *hookBindingSourceSyncer) desiredBindings(ctx context.Context) (map[string]*desiredHookBinding, error) {
+	bindings := make(map[string]*desiredHookBinding)
 	for _, provider := range s.providers {
 		if provider == nil {
 			continue
@@ -167,7 +167,7 @@ func (s *hookBindingSourceSyncer) desiredBindings(ctx context.Context) (map[stri
 			if err != nil {
 				return nil, err
 			}
-			bindings[id] = desiredHookBinding{
+			bindings[id] = &desiredHookBinding{
 				id:    id,
 				scope: scope,
 				spec:  spec,

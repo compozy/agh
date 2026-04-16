@@ -259,6 +259,95 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			wantError: true,
 		},
 		{
+			name: "token usage valid",
+			validate: func() error {
+				return (TokenUsage{TurnID: "turn-1"}).Validate()
+			},
+		},
+		{
+			name: "token usage invalid",
+			validate: func() error {
+				return (TokenUsage{}).Validate()
+			},
+			wantError: true,
+		},
+		{
+			name: "network audit entry valid",
+			validate: func() error {
+				return (NetworkAuditEntry{
+					SessionID: "sess-1",
+					Direction: "rejected",
+					Kind:      "message",
+					Channel:   "builders",
+					PeerFrom:  "peer-a",
+					MessageID: "msg-1",
+					Reason:    "policy",
+					Size:      0,
+				}).Validate()
+			},
+		},
+		{
+			name: "network audit entry invalid direction",
+			validate: func() error {
+				return (NetworkAuditEntry{
+					SessionID: "sess-1",
+					Direction: "replayed",
+					Kind:      "message",
+					Channel:   "builders",
+					PeerFrom:  "peer-a",
+					MessageID: "msg-1",
+				}).Validate()
+			},
+			wantError: true,
+		},
+		{
+			name: "network audit entry rejected requires reason",
+			validate: func() error {
+				return (NetworkAuditEntry{
+					SessionID: "sess-1",
+					Direction: "rejected",
+					Kind:      "message",
+					Channel:   "builders",
+					PeerFrom:  "peer-a",
+					MessageID: "msg-1",
+				}).Validate()
+			},
+			wantError: true,
+		},
+		{
+			name: "network audit query invalid",
+			validate: func() error {
+				return (NetworkAuditQuery{Limit: -1}).Validate()
+			},
+			wantError: true,
+		},
+		{
+			name: "network message entry valid",
+			validate: func() error {
+				return (NetworkMessageEntry{
+					MessageID: "msg-1",
+					Channel:   "builders",
+					PeerFrom:  "peer-a",
+					Kind:      "agent.message",
+					Text:      "hello",
+				}).Validate()
+			},
+		},
+		{
+			name: "network message entry invalid",
+			validate: func() error {
+				return (NetworkMessageEntry{MessageID: "msg-1"}).Validate()
+			},
+			wantError: true,
+		},
+		{
+			name: "network message query invalid",
+			validate: func() error {
+				return (NetworkMessageQuery{Limit: -1}).Validate()
+			},
+			wantError: true,
+		},
+		{
 			name: "session meta valid",
 			validate: func() error {
 				return (SessionMeta{

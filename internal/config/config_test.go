@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/environment"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 )
@@ -234,6 +235,180 @@ max_queue_depth = 250
 	}
 	if len(claude.MCPServers) != 1 || claude.MCPServers[0].Name != "github" {
 		t.Fatalf("ResolveProvider() MCPServers = %#v", claude.MCPServers)
+	}
+}
+
+func TestLoadEnvironmentProfilesFromTOML(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[defaults]
+environment = "daytona-dev"
+
+[environments.local]
+backend = "local"
+
+[environments.daytona-dev]
+backend = "daytona"
+sync_mode = "session-bidirectional"
+persistence = "reuse"
+runtime_root = "/home/daytona/workspace"
+
+[environments.daytona-dev.env]
+NODE_ENV = "development"
+AGH_PROFILE = "daytona"
+
+[environments.daytona-dev.network]
+allow_public_ingress = false
+allow_outbound = true
+allow_list = ["api.example.test"]
+deny_list = ["metadata.google.internal"]
+
+[environments.daytona-dev.daytona]
+api_url = "https://app.daytona.io/api"
+target = "team-default"
+image = "ubuntu:24.04"
+snapshot = "snap-agent-base"
+class = "cpu-2"
+auto_stop = "30m"
+auto_archive = "24h"
+`)
+
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got, want := cfg.Defaults.Environment, "daytona-dev"; got != want {
+		t.Fatalf("Defaults.Environment = %q, want %q", got, want)
+	}
+	profile := cfg.Environments["daytona-dev"]
+	if profile.Backend != "daytona" || profile.Daytona.Snapshot != "snap-agent-base" {
+		t.Fatalf("daytona profile = %#v, want parsed profile", profile)
+	}
+	if got, want := profile.Env["NODE_ENV"], "development"; got != want {
+		t.Fatalf("profile Env[NODE_ENV] = %q, want %q", got, want)
+	}
+
+	resolved, err := cfg.ResolveEnvironment(cfg.Defaults.Environment)
+	if err != nil {
+		t.Fatalf("ResolveEnvironment() error = %v", err)
+	}
+	if resolved.Backend != environment.BackendDaytona {
+		t.Fatalf("resolved.Backend = %q, want %q", resolved.Backend, environment.BackendDaytona)
+	}
+	if resolved.SyncMode != environment.SyncModeSessionBidirectional ||
+		resolved.Persistence != environment.PersistenceReuse {
+		t.Fatalf("resolved sync/persistence = %q/%q", resolved.SyncMode, resolved.Persistence)
+	}
+	if resolved.Daytona == nil {
+		t.Fatal("resolved.Daytona = nil, want profile")
+	}
+	if got, want := resolved.Daytona.StartupSource, environment.DaytonaStartupSourceSnapshot; got != want {
+		t.Fatalf("resolved Daytona startup source = %q, want %q", got, want)
+	}
+	if got, want := resolved.Daytona.StartupRef, "snap-agent-base"; got != want {
+		t.Fatalf("resolved Daytona startup ref = %q, want %q", got, want)
+	}
+}
+
+func TestDaytonaSnapshotWinsOverImageInResolvedProfile(t *testing.T) {
+	t.Parallel()
+
+	resolved, err := (EnvironmentProfile{
+		Backend: "daytona",
+		Daytona: DaytonaProfile{
+			Image:    "ubuntu:24.04",
+			Snapshot: "snap-prebuilt",
+		},
+	}).Resolve("daytona-dev")
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if resolved.Daytona == nil {
+		t.Fatal("resolved.Daytona = nil, want profile")
+	}
+	if got, want := resolved.Daytona.StartupSource, environment.DaytonaStartupSourceSnapshot; got != want {
+		t.Fatalf("StartupSource = %q, want %q", got, want)
+	}
+	if got, want := resolved.Daytona.StartupRef, "snap-prebuilt"; got != want {
+		t.Fatalf("StartupRef = %q, want %q", got, want)
+	}
+	if got, want := resolved.Daytona.Image, "ubuntu:24.04"; got != want {
+		t.Fatalf("Image = %q, want preserved fallback %q", got, want)
+	}
+}
+
+func TestEnvironmentProfileValidationRejectsInvalidBackend(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := DefaultWithHome(homePaths)
+	cfg.Environments["bad"] = EnvironmentProfile{Backend: "docker"}
+
+	err = cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want invalid backend")
+	}
+	if !strings.Contains(err.Error(), "environments.bad.backend") {
+		t.Fatalf("Validate() error = %v, want environments.bad.backend", err)
+	}
+}
+
+func TestEnvironmentProfileValidationRejectsInvalidSyncMode(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := DefaultWithHome(homePaths)
+	cfg.Environments["bad"] = EnvironmentProfile{
+		Backend:  "daytona",
+		SyncMode: "continuous",
+	}
+
+	err = cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want invalid sync_mode")
+	}
+	if !strings.Contains(err.Error(), "environments.bad.sync_mode") {
+		t.Fatalf("Validate() error = %v, want environments.bad.sync_mode", err)
+	}
+}
+
+func TestEnvironmentProfileValidationRejectsInvalidPersistence(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := DefaultWithHome(homePaths)
+	cfg.Environments["bad"] = EnvironmentProfile{
+		Backend:     "daytona",
+		Persistence: "forever",
+	}
+
+	err = cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want invalid persistence")
+	}
+	if !strings.Contains(err.Error(), "environments.bad.persistence") {
+		t.Fatalf("Validate() error = %v, want environments.bad.persistence", err)
 	}
 }
 

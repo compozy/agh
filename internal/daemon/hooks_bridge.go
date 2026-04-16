@@ -39,6 +39,23 @@ type hookRuntime interface {
 	) (hookspkg.SessionPostResumePayload, error)
 	DispatchSessionPreStop(context.Context, hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error)
 	DispatchSessionPostStop(context.Context, hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error)
+	DispatchEnvironmentPrepare(
+		context.Context,
+		hookspkg.EnvironmentPreparePayload,
+	) (hookspkg.EnvironmentPreparePayload, error)
+	DispatchEnvironmentReady(
+		context.Context,
+		hookspkg.EnvironmentReadyPayload,
+	) (hookspkg.EnvironmentReadyPayload, error)
+	DispatchEnvironmentSyncBefore(
+		context.Context,
+		hookspkg.EnvironmentSyncBeforePayload,
+	) (hookspkg.EnvironmentSyncBeforePayload, error)
+	DispatchEnvironmentSyncAfter(
+		context.Context,
+		hookspkg.EnvironmentSyncAfterPayload,
+	) (hookspkg.EnvironmentSyncAfterPayload, error)
+	DispatchEnvironmentStop(context.Context, hookspkg.EnvironmentStopPayload) (hookspkg.EnvironmentStopPayload, error)
 	DispatchInputPreSubmit(context.Context, hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error)
 	DispatchPromptPostAssemble(context.Context, hookspkg.PromptPayload) (hookspkg.PromptPayload, error)
 	DispatchEventPreRecord(context.Context, hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error)
@@ -209,12 +226,14 @@ type hooksNotifier struct {
 
 var _ session.Notifier = (*hooksNotifier)(nil)
 var _ session.LifecycleHooks = (*hooksNotifier)(nil)
+var _ session.EnvironmentHooks = (*hooksNotifier)(nil)
 var _ session.PromptHooks = (*hooksNotifier)(nil)
 var _ session.EventHooks = (*hooksNotifier)(nil)
 var _ session.AgentHooks = (*hooksNotifier)(nil)
 var _ session.ConversationHooks = (*hooksNotifier)(nil)
 var _ session.CompactionHooks = (*hooksNotifier)(nil)
 var _ session.AgentEventNotifier = (*hooksNotifier)(nil)
+var _ session.EnvironmentLifecycleNotifier = (*hooksNotifier)(nil)
 
 func newHooksNotifier(logger *slog.Logger, now func() time.Time) *hooksNotifier {
 	if logger == nil {
@@ -321,6 +340,71 @@ func (n *hooksNotifier) DispatchSessionPostStop(
 		hookspkg.HookSessionPostStop,
 		payload,
 		hookRuntime.DispatchSessionPostStop,
+	)
+}
+
+func (n *hooksNotifier) DispatchEnvironmentPrepare(
+	ctx context.Context,
+	payload hookspkg.EnvironmentPreparePayload,
+) (hookspkg.EnvironmentPreparePayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookEnvironmentPrepare,
+		payload,
+		hookRuntime.DispatchEnvironmentPrepare,
+	)
+}
+
+func (n *hooksNotifier) DispatchEnvironmentReady(
+	ctx context.Context,
+	payload hookspkg.EnvironmentReadyPayload,
+) (hookspkg.EnvironmentReadyPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookEnvironmentReady,
+		payload,
+		hookRuntime.DispatchEnvironmentReady,
+	)
+}
+
+func (n *hooksNotifier) DispatchEnvironmentSyncBefore(
+	ctx context.Context,
+	payload hookspkg.EnvironmentSyncBeforePayload,
+) (hookspkg.EnvironmentSyncBeforePayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookEnvironmentSyncBefore,
+		payload,
+		hookRuntime.DispatchEnvironmentSyncBefore,
+	)
+}
+
+func (n *hooksNotifier) DispatchEnvironmentSyncAfter(
+	ctx context.Context,
+	payload hookspkg.EnvironmentSyncAfterPayload,
+) (hookspkg.EnvironmentSyncAfterPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookEnvironmentSyncAfter,
+		payload,
+		hookRuntime.DispatchEnvironmentSyncAfter,
+	)
+}
+
+func (n *hooksNotifier) DispatchEnvironmentStop(
+	ctx context.Context,
+	payload hookspkg.EnvironmentStopPayload,
+) (hookspkg.EnvironmentStopPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookEnvironmentStop,
+		payload,
+		hookRuntime.DispatchEnvironmentStop,
 	)
 }
 
@@ -525,6 +609,13 @@ func (n *hooksNotifier) OnAgentEvent(ctx context.Context, sessionID string, even
 
 func (n *hooksNotifier) OnAgentEventForSession(ctx context.Context, sess *session.Session, event any) {
 	n.dispatchAgentEvent(ctx, hookSessionContext(sess), event)
+}
+
+func (n *hooksNotifier) OnEnvironmentLifecycleEvent(ctx context.Context, event session.EnvironmentLifecycleEvent) {
+	_, agentEventNotify := n.runtime()
+	if notifier, ok := agentEventNotify.(session.EnvironmentLifecycleNotifier); ok {
+		notifier.OnEnvironmentLifecycleEvent(ctx, event)
+	}
 }
 
 func (n *hooksNotifier) dispatchAgentEvent(ctx context.Context, sessionCtx hookspkg.SessionContext, event any) {

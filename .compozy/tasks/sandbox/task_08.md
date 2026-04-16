@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Environment extension hooks and Host API"
 type: backend
 complexity: high
@@ -41,12 +41,12 @@ Register 5 environment lifecycle hooks and 3 Host API methods in AGH's extension
 
 ## Subtasks
 
-- [ ] 8.1 Define 5 environment hook events in `hooks/events.go`
-- [ ] 8.2 Create payload and patch types in `hooks/payloads.go`
-- [ ] 8.3 Add dispatch methods and matchers in `hooks/dispatch.go` and `hooks/matcher.go`
-- [ ] 8.4 Dispatch hooks from session environment lifecycle in `session/manager_start.go` and `session/manager_lifecycle.go`
-- [ ] 8.5 Register 3 Host API methods in extension Host API contract
-- [ ] 8.6 Implement Host API handlers for `environment/list`, `environment/info`, `environment/exec`
+- [x] 8.1 Define 5 environment hook events in `hooks/events.go`
+- [x] 8.2 Create payload and patch types in `hooks/payloads.go`
+- [x] 8.3 Add dispatch methods and matchers in `hooks/dispatch.go` and `hooks/matcher.go`
+- [x] 8.4 Dispatch hooks from session environment lifecycle in `session/manager_start.go` and `session/manager_lifecycle.go`
+- [x] 8.5 Register 3 Host API methods in extension Host API contract
+- [x] 8.6 Implement Host API handlers for `environment/list`, `environment/info`, `environment/exec`
 
 ## Implementation Details
 
@@ -89,23 +89,23 @@ Adding a new hook event requires changes across: `events.go` (event definition),
 ## Tests
 
 - Unit tests:
-  - [ ] `environment.prepare` event fires during session start with correct payload fields
-  - [ ] `environment.prepare` hook deny aborts session creation with error
-  - [ ] `environment.prepare` hook patch `env_overrides` merges into environment config
-  - [ ] `environment.ready` event fires after Prepare succeeds with environment ID and instance ID
-  - [ ] `environment.sync.before` event fires before sync with correct direction and reason
-  - [ ] `environment.sync.before` deny skips sync operation
-  - [ ] `environment.sync.before` patch `exclude_patterns` passes to sync
-  - [ ] `environment.sync.after` event fires with files synced, bytes transferred, duration, and errors
-  - [ ] `environment.stop` event fires before sandbox teardown with environment ID
-  - [ ] `environment.stop` deny prevents destroy but still stops session
-  - [ ] Host API `environment/list` returns active environment instances
-  - [ ] Host API `environment/info` returns environment ID, runtime root, sync state, and last sync error for valid session
-  - [ ] Host API `environment/info` returns error for invalid session
-  - [ ] Host API `environment/exec` requires `environment.exec` capability
-  - [ ] Host API `environment/exec` executes command and returns exit code + output
+  - [x] `environment.prepare` event fires during session start with correct payload fields
+  - [x] `environment.prepare` hook deny aborts session creation with error
+  - [x] `environment.prepare` hook patch `env_overrides` merges into environment config
+  - [x] `environment.ready` event fires after Prepare succeeds with environment ID and instance ID
+  - [x] `environment.sync.before` event fires before sync with correct direction and reason
+  - [x] `environment.sync.before` deny skips sync operation
+  - [x] `environment.sync.before` patch `exclude_patterns` passes to sync
+  - [x] `environment.sync.after` event fires with files synced, bytes transferred, duration, and errors
+  - [x] `environment.stop` event fires before sandbox teardown with environment ID
+  - [x] `environment.stop` deny prevents destroy but still stops session
+  - [x] Host API `environment/list` returns active environment instances
+  - [x] Host API `environment/info` returns environment ID, runtime root, sync state, and last sync error for valid session
+  - [x] Host API `environment/info` returns error for invalid session
+  - [x] Host API `environment/exec` requires `environment.exec` capability
+  - [x] Host API `environment/exec` executes command and returns exit code + output
 - Integration tests:
-  - [ ] Session lifecycle with native hook registered fires all environment events in correct order
+  - [x] Session lifecycle with native hook registered fires all environment events in correct order
 - Test coverage target: >=80%
 - All tests must pass
 

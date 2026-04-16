@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Core environment types, config profiles, and workspace resolution"
 type: backend
 complexity: high
@@ -41,13 +41,13 @@ Create the foundational `internal/environment/` package with core type definitio
 
 ## Subtasks
 
-- [ ] 1.1 Create `internal/environment/` package with core types and interfaces
-- [ ] 1.2 Add environment profile types and validation to config package
-- [ ] 1.3 Add environment overlay merge logic to config merge system
-- [ ] 1.4 Extend workspace domain types with `EnvironmentRef` and `ResolvedWorkspace.Environment`
-- [ ] 1.5 Add `environment_ref` column to workspace DB schema and persistence
-- [ ] 1.6 Extend workspace CRUD contract types and CLI flags
-- [ ] 1.7 Add `SessionEnvironmentMeta` to store types
+- [x] 1.1 Create `internal/environment/` package with core types and interfaces
+- [x] 1.2 Add environment profile types and validation to config package
+- [x] 1.3 Add environment overlay merge logic to config merge system
+- [x] 1.4 Extend workspace domain types with `EnvironmentRef` and `ResolvedWorkspace.Environment`
+- [x] 1.5 Add `environment_ref` column to workspace DB schema and persistence
+- [x] 1.6 Extend workspace CRUD contract types and CLI flags
+- [x] 1.7 Add `SessionEnvironmentMeta` to store types
 
 ## Implementation Details
 
@@ -95,22 +95,22 @@ See TechSpec sections: "Core Interfaces", "Data Models", "API Endpoints — Work
 ## Tests
 
 - Unit tests:
-  - [ ] Config: valid environment profile parses correctly from TOML
-  - [ ] Config: `DaytonaProfile.Snapshot` parses correctly and wins over `Image` in resolved profile policy
-  - [ ] Config: invalid backend in profile returns validation error
-  - [ ] Config: invalid sync_mode in profile returns validation error
-  - [ ] Config: environment overlay merge preserves provider-specific fields
-  - [ ] Config: `EnvironmentProfile.Env` map parses and preserves key-value pairs
-  - [ ] Store: `SessionEnvironmentMeta` preserves `EnvironmentID`, `ProviderState`, SSH expiry, and sync status fields through JSON round-trip
-  - [ ] Config: `Defaults.Environment` cascade resolves to profile
-  - [ ] Workspace: `EnvironmentRef` persists through register/update/load cycle
-  - [ ] Workspace: resolution cascade `EnvironmentRef` → `Defaults.Environment` → `local`
-  - [ ] Workspace: missing `EnvironmentRef` with no default resolves to `local`
-  - [ ] Contract: `CreateWorkspaceRequest` with `environment_ref` serializes correctly
-  - [ ] Contract: `WorkspacePayload` includes `environment_ref` in JSON
+  - [x] Config: valid environment profile parses correctly from TOML
+  - [x] Config: `DaytonaProfile.Snapshot` parses correctly and wins over `Image` in resolved profile policy
+  - [x] Config: invalid backend in profile returns validation error
+  - [x] Config: invalid sync_mode in profile returns validation error
+  - [x] Config: environment overlay merge preserves provider-specific fields
+  - [x] Config: `EnvironmentProfile.Env` map parses and preserves key-value pairs
+  - [x] Store: `SessionEnvironmentMeta` preserves `EnvironmentID`, `ProviderState`, SSH expiry, and sync status fields through JSON round-trip
+  - [x] Config: `Defaults.Environment` cascade resolves to profile
+  - [x] Workspace: `EnvironmentRef` persists through register/update/load cycle
+  - [x] Workspace: resolution cascade `EnvironmentRef` → `Defaults.Environment` → `local`
+  - [x] Workspace: missing `EnvironmentRef` with no default resolves to `local`
+  - [x] Contract: `CreateWorkspaceRequest` with `environment_ref` serializes correctly
+  - [x] Contract: `WorkspacePayload` includes `environment_ref` in JSON
 - Integration tests:
-  - [ ] Full TOML config with `[environments.daytona-dev]` section loads and validates
-  - [ ] Workspace register with `EnvironmentRef` persists to DB and resolves correctly
+  - [x] Full TOML config with `[environments.daytona-dev]` section loads and validates
+  - [x] Workspace register with `EnvironmentRef` persists to DB and resolves correctly
 - Test coverage target: >=80%
 - All tests must pass
 

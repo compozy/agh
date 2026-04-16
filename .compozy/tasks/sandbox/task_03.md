@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Local provider implementation"
 type: backend
 complexity: medium
@@ -35,10 +35,10 @@ Implement the `local` provider in `internal/environment/local/` that wraps the e
 
 ## Subtasks
 
-- [ ] 3.1 Create `internal/environment/local/provider.go` implementing `Provider`
-- [ ] 3.2 Create provider registry in `internal/environment/registry.go`
-- [ ] 3.3 Register `local` as default provider
-- [ ] 3.4 Add shared provider test suite for interface compliance
+- [x] 3.1 Create `internal/environment/local/provider.go` implementing `Provider`
+- [x] 3.2 Create provider registry in `internal/environment/registry.go`
+- [x] 3.3 Register `local` as default provider
+- [x] 3.4 Add shared provider test suite for interface compliance
 
 ## Implementation Details
 
@@ -72,16 +72,16 @@ The local provider is intentionally trivial. `Prepare` returns the same local pa
 ## Tests
 
 - Unit tests:
-  - [ ] `localProvider.Backend()` returns `BackendLocal`
-  - [ ] `localProvider.Prepare()` returns `Prepared` with unchanged local paths
-  - [ ] `localProvider.Prepare()` returns `Prepared` with `RuntimeRootDir` == input `LocalRootDir`
-  - [ ] `localProvider.Prepare()` returns `Prepared` with `RuntimeAdditionalDirs` == input `LocalAdditionalDirs`
-  - [ ] `localProvider.SyncToRuntime()` returns nil (no-op)
-  - [ ] `localProvider.SyncFromRuntime()` returns nil (no-op)
-  - [ ] `localProvider.Destroy()` returns nil (no-op)
-  - [ ] Provider registry returns `local` provider for `BackendLocal`
-  - [ ] Provider registry returns error for unregistered backend
-  - [ ] Shared compliance suite: `Prepare` → `SyncToRuntime` → `SyncFromRuntime` → `Destroy` lifecycle
+  - [x] `localProvider.Backend()` returns `BackendLocal`
+  - [x] `localProvider.Prepare()` returns `Prepared` with unchanged local paths
+  - [x] `localProvider.Prepare()` returns `Prepared` with `RuntimeRootDir` == input `LocalRootDir`
+  - [x] `localProvider.Prepare()` returns `Prepared` with `RuntimeAdditionalDirs` == input `LocalAdditionalDirs`
+  - [x] `localProvider.SyncToRuntime()` returns nil (no-op)
+  - [x] `localProvider.SyncFromRuntime()` returns nil (no-op)
+  - [x] `localProvider.Destroy()` returns nil (no-op)
+  - [x] Provider registry returns `local` provider for `BackendLocal`
+  - [x] Provider registry returns error for unregistered backend
+  - [x] Shared compliance suite: `Prepare` → `SyncToRuntime` → `SyncFromRuntime` → `Destroy` lifecycle
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Validate Daytona SSH non-PTY transport"
 type: infra
 complexity: low

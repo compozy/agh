@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Daemon restart environment cleanup"
 type: backend
 complexity: medium
@@ -35,11 +35,11 @@ Add environment reconciliation to the daemon boot sequence so that orphaned or p
 
 ## Subtasks
 
-- [ ] 7.1 Add environment reconciliation function to daemon boot
-- [ ] 7.2 Load session environment metadata for non-local backends during boot
-- [ ] 7.3 Attempt reattach for recoverable sessions, including partial creates found by `agh_environment_id`
-- [ ] 7.4 Destroy unrecoverable or orphaned environments and log cleanup
-- [ ] 7.5 Add structured logging for all cleanup actions and errors
+- [x] 7.1 Add environment reconciliation function to daemon boot
+- [x] 7.2 Load session environment metadata for non-local backends during boot
+- [x] 7.3 Attempt reattach for recoverable sessions, including partial creates found by `agh_environment_id`
+- [x] 7.4 Destroy unrecoverable or orphaned environments and log cleanup
+- [x] 7.5 Add structured logging for all cleanup actions and errors
 
 ## Implementation Details
 
@@ -74,20 +74,20 @@ The reconciliation plugs into `bootRuntime` in `daemon/boot.go` after the existi
 ## Tests
 
 - Unit tests:
-  - [ ] Reconciliation with no remote sessions is a no-op
-  - [ ] Reconciliation with recoverable remote session calls `Prepare` with `EnvironmentID`, `InstanceID`, and `ProviderState`
-  - [ ] Reconciliation with partial create and no local `InstanceID` finds remote sandbox by `agh_environment_id`
-  - [ ] Reconciliation with recoverable partial create attaches sandbox to session and persists returned `InstanceID`/`ProviderState`
-  - [ ] Reconciliation with unrecoverable partial create calls `Destroy` and logs cleanup
-  - [ ] Reconciliation with unrecoverable session calls `Destroy` and logs
-  - [ ] Reconciliation with unavailable provider (no API key) logs warning and continues
-  - [ ] Reconciliation failure does not block daemon boot (returns nil, logs error)
-  - [ ] Reconciliation skips sessions with `backend=local`
+  - [x] Reconciliation with no remote sessions is a no-op
+  - [x] Reconciliation with recoverable remote session calls `Prepare` with `EnvironmentID`, `InstanceID`, and `ProviderState`
+  - [x] Reconciliation with partial create and no local `InstanceID` finds remote sandbox by `agh_environment_id`
+  - [x] Reconciliation with recoverable partial create attaches sandbox to session and persists returned `InstanceID`/`ProviderState`
+  - [x] Reconciliation with unrecoverable partial create calls `Destroy` and logs cleanup
+  - [x] Reconciliation with unrecoverable session calls `Destroy` and logs
+  - [x] Reconciliation with unavailable provider (no API key) logs warning and continues
+  - [x] Reconciliation failure does not block daemon boot (returns nil, logs error)
+  - [x] Reconciliation skips sessions with `backend=local`
 - Integration tests:
-  - [ ] Simulate daemon restart with persisted `SessionEnvironmentMeta` for crashed active session — verify reattach via `Prepare` with `EnvironmentID`, `InstanceID`, and `ProviderState` is attempted
-  - [ ] Simulate provider create succeeds remotely but times out locally — verify restart reconciliation finds sandbox by `agh_environment_id`
-  - [ ] Simulate daemon restart with unrecoverable sandbox (provider returns error) — verify `Destroy` is called and cleanup logged
-  - [ ] Simulate daemon restart with stopped session that has remote backend — verify no reattach attempted (terminal state)
+  - [x] Simulate daemon restart with persisted `SessionEnvironmentMeta` for crashed active session — verify reattach via `Prepare` with `EnvironmentID`, `InstanceID`, and `ProviderState` is attempted
+  - [x] Simulate provider create succeeds remotely but times out locally — verify restart reconciliation finds sandbox by `agh_environment_id`
+  - [x] Simulate daemon restart with unrecoverable sandbox (provider returns error) — verify `Destroy` is called and cleanup logged
+  - [x] Simulate daemon restart with stopped session that has remote backend — verify no reattach attempted (terminal state)
 - Test coverage target: >=80%
 - All tests must pass
 

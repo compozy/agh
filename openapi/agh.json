@@ -7733,6 +7733,11 @@
                                 "session.post_resume",
                                 "session.pre_stop",
                                 "session.post_stop",
+                                "environment.prepare",
+                                "environment.ready",
+                                "environment.sync.before",
+                                "environment.sync.after",
+                                "environment.stop",
                                 "input.pre_submit",
                                 "prompt.post_assemble",
                                 "event.pre_record",
@@ -7818,6 +7823,15 @@
                                                             "decision_class": {
                                                                 "type": "string"
                                                             },
+                                                            "environment_backend": {
+                                                                "type": "string"
+                                                            },
+                                                            "environment_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "environment_profile": {
+                                                                "type": "string"
+                                                            },
                                                             "input_class": {
                                                                 "type": "string"
                                                             },
@@ -7828,6 +7842,9 @@
                                                                 "type": "string"
                                                             },
                                                             "session_type": {
+                                                                "type": "string"
+                                                            },
+                                                            "sync_direction": {
                                                                 "type": "string"
                                                             },
                                                             "tool_name": {
@@ -8105,6 +8122,11 @@
                                 "session.post_resume",
                                 "session.pre_stop",
                                 "session.post_stop",
+                                "environment.prepare",
+                                "environment.ready",
+                                "environment.sync.before",
+                                "environment.sync.after",
+                                "environment.stop",
                                 "input.pre_submit",
                                 "prompt.post_assemble",
                                 "event.pre_record",
@@ -9107,6 +9129,31 @@
                                                                 "format": "date-time",
                                                                 "type": "string"
                                                             },
+                                                            "environment": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "backend": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "environment_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "instance_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "last_sync_error": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "profile": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider_state_json": {},
+                                                                    "state": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
                                                             "id": {
                                                                 "type": "string"
                                                             },
@@ -9423,6 +9470,31 @@
                                                             "created_at": {
                                                                 "format": "date-time",
                                                                 "type": "string"
+                                                            },
+                                                            "environment": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "backend": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "environment_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "instance_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "last_sync_error": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "profile": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider_state_json": {},
+                                                                    "state": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
                                                             },
                                                             "id": {
                                                                 "type": "string"
@@ -12114,6 +12186,31 @@
                                                         "format": "date-time",
                                                         "type": "string"
                                                     },
+                                                    "environment": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "backend": {
+                                                                "type": "string"
+                                                            },
+                                                            "environment_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "instance_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_sync_error": {
+                                                                "type": "string"
+                                                            },
+                                                            "profile": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider_state_json": {},
+                                                            "state": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
                                                     "id": {
                                                         "type": "string"
                                                     },
@@ -12289,6 +12386,31 @@
                                                 "created_at": {
                                                     "format": "date-time",
                                                     "type": "string"
+                                                },
+                                                "environment": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "backend": {
+                                                            "type": "string"
+                                                        },
+                                                        "environment_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "instance_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_sync_error": {
+                                                            "type": "string"
+                                                        },
+                                                        "profile": {
+                                                            "type": "string"
+                                                        },
+                                                        "provider_state_json": {},
+                                                        "state": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
                                                 },
                                                 "id": {
                                                     "type": "string"
@@ -12537,6 +12659,31 @@
                                                 "created_at": {
                                                     "format": "date-time",
                                                     "type": "string"
+                                                },
+                                                "environment": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "backend": {
+                                                            "type": "string"
+                                                        },
+                                                        "environment_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "instance_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_sync_error": {
+                                                            "type": "string"
+                                                        },
+                                                        "profile": {
+                                                            "type": "string"
+                                                        },
+                                                        "provider_state_json": {},
+                                                        "state": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
                                                 },
                                                 "id": {
                                                     "type": "string"
@@ -13187,6 +13334,31 @@
                                                 "created_at": {
                                                     "format": "date-time",
                                                     "type": "string"
+                                                },
+                                                "environment": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "backend": {
+                                                            "type": "string"
+                                                        },
+                                                        "environment_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "instance_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_sync_error": {
+                                                            "type": "string"
+                                                        },
+                                                        "profile": {
+                                                            "type": "string"
+                                                        },
+                                                        "provider_state_json": {},
+                                                        "state": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
                                                 },
                                                 "id": {
                                                     "type": "string"
@@ -19752,6 +19924,9 @@
                                                     "default_agent": {
                                                         "type": "string"
                                                     },
+                                                    "environment_ref": {
+                                                        "type": "string"
+                                                    },
                                                     "id": {
                                                         "type": "string"
                                                     },
@@ -19826,6 +20001,9 @@
                                     "default_agent": {
                                         "type": "string"
                                     },
+                                    "environment_ref": {
+                                        "type": "string"
+                                    },
                                     "name": {
                                         "type": "string"
                                     },
@@ -19860,6 +20038,9 @@
                                                     "type": "string"
                                                 },
                                                 "default_agent": {
+                                                    "type": "string"
+                                                },
+                                                "environment_ref": {
                                                     "type": "string"
                                                 },
                                                 "id": {
@@ -19990,6 +20171,9 @@
                                                     "type": "string"
                                                 },
                                                 "default_agent": {
+                                                    "type": "string"
+                                                },
+                                                "environment_ref": {
                                                     "type": "string"
                                                 },
                                                 "id": {
@@ -20256,6 +20440,31 @@
                                                         "format": "date-time",
                                                         "type": "string"
                                                     },
+                                                    "environment": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "backend": {
+                                                                "type": "string"
+                                                            },
+                                                            "environment_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "instance_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_sync_error": {
+                                                                "type": "string"
+                                                            },
+                                                            "profile": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider_state_json": {},
+                                                            "state": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
                                                     "id": {
                                                         "type": "string"
                                                     },
@@ -20342,6 +20551,9 @@
                                                     "type": "string"
                                                 },
                                                 "default_agent": {
+                                                    "type": "string"
+                                                },
+                                                "environment_ref": {
                                                     "type": "string"
                                                 },
                                                 "id": {
@@ -20445,12 +20657,21 @@
                                         "nullable": true,
                                         "type": "string"
                                     },
+                                    "environment_ref": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
                                     "name": {
                                         "nullable": true,
                                         "type": "string"
                                     }
                                 },
-                                "required": ["add_dirs", "default_agent", "name"],
+                                "required": [
+                                    "add_dirs",
+                                    "default_agent",
+                                    "environment_ref",
+                                    "name"
+                                ],
                                 "type": "object"
                             }
                         }
@@ -20477,6 +20698,9 @@
                                                     "type": "string"
                                                 },
                                                 "default_agent": {
+                                                    "type": "string"
+                                                },
+                                                "environment_ref": {
                                                     "type": "string"
                                                 },
                                                 "id": {

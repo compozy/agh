@@ -95,6 +95,9 @@ func (r *Resolver) Update(ctx context.Context, id string, opts UpdateOptions) er
 	if opts.DefaultAgent != nil {
 		ws.DefaultAgent = strings.TrimSpace(*opts.DefaultAgent)
 	}
+	if opts.EnvironmentRef != nil {
+		ws.EnvironmentRef = strings.TrimSpace(*opts.EnvironmentRef)
+	}
 
 	ws.UpdatedAt = r.now()
 	if err := r.store.UpdateWorkspace(ctx, ws); err != nil {
@@ -159,6 +162,7 @@ func (r *Resolver) createWorkspaceRegistration(ctx context.Context, opts Registe
 		AdditionalDirs: additionalDirs,
 		Name:           name,
 		DefaultAgent:   strings.TrimSpace(opts.DefaultAgent),
+		EnvironmentRef: strings.TrimSpace(opts.EnvironmentRef),
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}

@@ -4,6 +4,7 @@ import (
 	"maps"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/filesnap"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
@@ -14,11 +15,12 @@ func cloneSnapshots(snapshots map[string]filesnap.Snapshot) map[string]filesnap.
 
 func cloneResolvedWorkspace(src *ResolvedWorkspace) ResolvedWorkspace {
 	return ResolvedWorkspace{
-		Workspace:  cloneWorkspace(src.Workspace),
-		Config:     cloneConfig(&src.Config),
-		Agents:     cloneAgentDefs(src.Agents),
-		Skills:     cloneSkillPaths(src.Skills),
-		ResolvedAt: src.ResolvedAt,
+		Workspace:   cloneWorkspace(src.Workspace),
+		Config:      cloneConfig(&src.Config),
+		Agents:      cloneAgentDefs(src.Agents),
+		Skills:      cloneSkillPaths(src.Skills),
+		Environment: cloneEnvironmentResolved(src.Environment),
+		ResolvedAt:  src.ResolvedAt,
 	}
 }
 
@@ -29,6 +31,7 @@ func cloneWorkspace(src Workspace) Workspace {
 		AdditionalDirs: append([]string(nil), src.AdditionalDirs...),
 		Name:           src.Name,
 		DefaultAgent:   src.DefaultAgent,
+		EnvironmentRef: src.EnvironmentRef,
 		CreatedAt:      src.CreatedAt,
 		UpdatedAt:      src.UpdatedAt,
 	}
@@ -56,6 +59,7 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 		Permissions:   src.Permissions,
 		MCPServers:    cloneMCPServers(src.MCPServers),
 		Providers:     cloneProviders(src.Providers),
+		Environments:  cloneEnvironmentProfiles(src.Environments),
 		Observability: src.Observability,
 		Log:           src.Log,
 		Memory:        src.Memory,
@@ -67,10 +71,54 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 			AllowedMarketplaceHooks: append([]string(nil), src.Skills.AllowedMarketplaceHooks...),
 			Marketplace:             src.Skills.Marketplace,
 		},
+		Extensions: src.Extensions,
+		Automation: src.Automation,
 		Hooks: aghconfig.HooksConfig{
 			Declarations: cloneHookDecls(src.Hooks.Declarations),
 		},
+		Network: src.Network,
 	}
+}
+
+func cloneEnvironmentProfiles(src map[string]aghconfig.EnvironmentProfile) map[string]aghconfig.EnvironmentProfile {
+	if len(src) == 0 {
+		return map[string]aghconfig.EnvironmentProfile{}
+	}
+
+	cloned := make(map[string]aghconfig.EnvironmentProfile, len(src))
+	for name, profile := range src {
+		cloned[name] = cloneEnvironmentProfile(profile)
+	}
+	return cloned
+}
+
+func cloneEnvironmentProfile(src aghconfig.EnvironmentProfile) aghconfig.EnvironmentProfile {
+	return aghconfig.EnvironmentProfile{
+		Backend:     src.Backend,
+		SyncMode:    src.SyncMode,
+		Persistence: src.Persistence,
+		RuntimeRoot: src.RuntimeRoot,
+		Env:         cloneStringMap(src.Env),
+		Network: aghconfig.NetworkProfile{
+			AllowPublicIngress: src.Network.AllowPublicIngress,
+			AllowOutbound:      src.Network.AllowOutbound,
+			AllowList:          append([]string(nil), src.Network.AllowList...),
+			DenyList:           append([]string(nil), src.Network.DenyList...),
+		},
+		Daytona: src.Daytona,
+	}
+}
+
+func cloneEnvironmentResolved(src environment.Resolved) environment.Resolved {
+	cloned := src
+	cloned.Env = cloneStringMap(src.Env)
+	cloned.Network.AllowList = append([]string(nil), src.Network.AllowList...)
+	cloned.Network.DenyList = append([]string(nil), src.Network.DenyList...)
+	if src.Daytona != nil {
+		daytona := *src.Daytona
+		cloned.Daytona = &daytona
+	}
+	return cloned
 }
 
 func cloneProviders(src map[string]aghconfig.ProviderConfig) map[string]aghconfig.ProviderConfig {

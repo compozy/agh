@@ -15,6 +15,9 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/environment/daytona"
+	"github.com/pedronauck/agh/internal/environment/local"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	aghlogger "github.com/pedronauck/agh/internal/logger"
@@ -45,6 +48,7 @@ type bootState struct {
 	promptAssembler     session.PromptAssembler
 	notifier            *hooksNotifier
 	registry            Registry
+	environmentRegistry *environment.Registry
 	workspaceResolver   *workspacepkg.Resolver
 	sessions            SessionManager
 	tasks               *taskRuntime
@@ -378,6 +382,11 @@ func (d *Daemon) bootRuntimeServices(
 
 	state.startedAt = d.now().UTC()
 	state.notifier = newHooksNotifier(state.logger, d.now)
+	environmentRegistry, err := d.buildEnvironmentRegistry(state)
+	if err != nil {
+		return err
+	}
+	state.environmentRegistry = environmentRegistry
 	state.bridges = d.composeBridgeRuntime(state, cleanup)
 
 	resourceKernel, err := d.buildResourceKernel(state.registry)
@@ -428,18 +437,34 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		Notifier:  d.sessionNotifier(state),
 		Hooks: session.HookSet{
 			Session:      state.notifier,
+			Environment:  state.notifier,
 			Prompt:       state.notifier,
 			Events:       state.notifier,
 			Agent:        state.notifier,
 			Conversation: state.notifier,
 			Compaction:   state.notifier,
 		},
-		PromptAssembler:   state.promptAssembler,
-		AgentResolver:     agentCatalogDependency(state.agentCatalog),
-		SkillRegistry:     skillRegistryDependency(state.skillsRegistry),
-		MCPResolver:       mcpResolverDependency(state.mcpResolver),
-		WorkspaceResolver: state.workspaceResolver,
+		PromptAssembler:     state.promptAssembler,
+		AgentResolver:       agentCatalogDependency(state.agentCatalog),
+		SkillRegistry:       skillRegistryDependency(state.skillsRegistry),
+		MCPResolver:         mcpResolverDependency(state.mcpResolver),
+		WorkspaceResolver:   state.workspaceResolver,
+		EnvironmentRegistry: state.environmentRegistry,
 	}
+}
+
+func (d *Daemon) buildEnvironmentRegistry(state *bootState) (*environment.Registry, error) {
+	if state == nil {
+		return nil, errors.New("daemon: environment registry state is required")
+	}
+	registry, err := local.NewRegistry(local.WithLogger(state.logger))
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create environment registry: %w", err)
+	}
+	if err := registry.Register(daytona.NewProvider(daytona.WithLogger(state.logger))); err != nil {
+		return nil, fmt.Errorf("daemon: register daytona environment provider: %w", err)
+	}
+	return registry, nil
 }
 
 func (d *Daemon) sessionNotifier(state *bootState) session.Notifier {
@@ -1280,6 +1305,8 @@ func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
 		}
 	}
 
+	d.reconcileDaemonEnvironments(ctx, state)
+
 	reconcileResult, err := state.observer.Reconcile(ctx)
 	if err != nil {
 		return fmt.Errorf("daemon: reconcile sessions: %w", err)
@@ -1325,6 +1352,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.udsServer = state.udsServer
 	d.dreamRuntime = state.dreamRuntime
 	d.workspaceResolver = state.workspaceResolver
+	d.environmentRegistry = state.environmentRegistry
 	d.skillsRegistry = state.skillsRegistry
 	d.skillsCancel = state.skillsCancel
 	d.skillsDone = state.skillsDone

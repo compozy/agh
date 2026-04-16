@@ -20,6 +20,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
@@ -50,6 +51,33 @@ type ConfigLoader func() (aghconfig.Config, error)
 
 // SessionManager is the shared transport-facing session surface consumed by daemon/.
 type SessionManager = core.SessionManager
+
+type environmentExecSessionManager interface {
+	ExecEnvironment(context.Context, session.EnvironmentExecRequest) (session.EnvironmentExecResult, error)
+}
+
+type hostAPISessionManagerAdapter struct {
+	core.SessionManager
+	exec environmentExecSessionManager
+}
+
+func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPISessionManagerAdapter {
+	adapter := hostAPISessionManagerAdapter{SessionManager: sessions}
+	if exec, ok := sessions.(environmentExecSessionManager); ok {
+		adapter.exec = exec
+	}
+	return adapter
+}
+
+func (a hostAPISessionManagerAdapter) ExecEnvironment(
+	ctx context.Context,
+	req session.EnvironmentExecRequest,
+) (session.EnvironmentExecResult, error) {
+	if a.exec == nil {
+		return session.EnvironmentExecResult{}, session.ErrSessionNotActive
+	}
+	return a.exec.ExecEnvironment(ctx, req)
+}
 
 // Observer is the daemon observer surface used for transport wiring and reconciliation.
 type Observer interface {
@@ -220,15 +248,16 @@ type automationManagerDeps struct {
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
 type SessionManagerDeps struct {
-	HomePaths         aghconfig.HomePaths
-	Logger            *slog.Logger
-	Notifier          session.Notifier
-	Hooks             session.HookSet
-	PromptAssembler   session.PromptAssembler
-	AgentResolver     session.AgentResolver
-	SkillRegistry     session.SkillRegistry
-	MCPResolver       session.MCPResolver
-	WorkspaceResolver workspacepkg.RuntimeResolver
+	HomePaths           aghconfig.HomePaths
+	Logger              *slog.Logger
+	Notifier            session.Notifier
+	Hooks               session.HookSet
+	PromptAssembler     session.PromptAssembler
+	AgentResolver       session.AgentResolver
+	SkillRegistry       session.SkillRegistry
+	MCPResolver         session.MCPResolver
+	WorkspaceResolver   workspacepkg.RuntimeResolver
+	EnvironmentRegistry *environment.Registry
 }
 
 // Daemon is the sole AGH composition root.
@@ -286,6 +315,7 @@ type Daemon struct {
 	udsServer            Server
 	dreamRuntime         *consolidation.Runtime
 	workspaceResolver    workspacepkg.RuntimeResolver
+	environmentRegistry  *environment.Registry
 	skillsRegistry       *skills.Registry
 	skillsCancel         context.CancelFunc
 	skillsDone           chan struct{}
@@ -468,6 +498,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSkillRegistry(deps.SkillRegistry),
 			session.WithMCPResolver(deps.MCPResolver),
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
+			session.WithEnvironmentRegistry(deps.EnvironmentRegistry),
 		)
 	}
 }
@@ -506,7 +537,7 @@ func (d *Daemon) applyExtensionManagerFactoryDefault() {
 		capChecker := &extensionpkg.CapabilityChecker{}
 		capChecker.SetResourcePolicy(deps.Extensions.Resources)
 		hostAPI := extensionpkg.NewHostAPIHandler(
-			deps.Sessions,
+			newHostAPISessionManagerAdapter(deps.Sessions),
 			deps.MemoryStore,
 			deps.Observer,
 			deps.SkillsRegistry,
@@ -952,6 +983,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.closeLogger = func() error { return nil }
 	d.dreamRuntime = nil
 	d.workspaceResolver = nil
+	d.environmentRegistry = nil
 	d.skillsCancel = nil
 	d.skillsDone = nil
 	d.bridges = nil

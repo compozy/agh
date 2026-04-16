@@ -41,6 +41,7 @@ func (h *BaseHandlers) CreateWorkspace(c *gin.Context) {
 		Name:           strings.TrimSpace(req.Name),
 		AdditionalDirs: addDirs,
 		DefaultAgent:   strings.TrimSpace(req.DefaultAgent),
+		EnvironmentRef: strings.TrimSpace(req.EnvironmentRef),
 	})
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
@@ -128,6 +129,10 @@ func (h *BaseHandlers) UpdateWorkspace(c *gin.Context) {
 	if req.DefaultAgent != nil {
 		defaultAgent := strings.TrimSpace(*req.DefaultAgent)
 		opts.DefaultAgent = &defaultAgent
+	}
+	if req.EnvironmentRef != nil {
+		environmentRef := strings.TrimSpace(*req.EnvironmentRef)
+		opts.EnvironmentRef = &environmentRef
 	}
 
 	if err := h.Workspaces.Update(c.Request.Context(), workspace.ID, opts); err != nil {

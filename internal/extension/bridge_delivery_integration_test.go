@@ -319,6 +319,7 @@ func newDeliveryIntegrationEnv(
 		session.WithStore(func(ctx context.Context, sessionID string, path string) (session.EventRecorder, error) {
 			return storeSessionDB(ctx, sessionID, path)
 		}),
+		session.WithEnvironmentRegistry(mustLocalEnvironmentRegistry(t)),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		session.WithNow(func() time.Time { return baseNow }),
 		session.WithSessionIDGenerator(sequentialSessionIDGenerator("sess")),

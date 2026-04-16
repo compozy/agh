@@ -88,6 +88,31 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates(t *testing.T) {
 			method:   "bridges/instances/get",
 		},
 		{
+			name:    "allows environment list with action grant only",
+			actions: []string{"environment/list"},
+			method:  "environment/list",
+		},
+		{
+			name:    "allows environment info with action grant only",
+			actions: []string{"environment/info"},
+			method:  "environment/info",
+		},
+		{
+			name:     "allows environment exec with action and exec capability",
+			actions:  []string{"environment/exec"},
+			security: []string{"environment.exec"},
+			method:   "environment/exec",
+		},
+		{
+			name:         "rejects environment exec without exec capability",
+			actions:      []string{"environment/exec"},
+			security:     []string{"session.read"},
+			method:       "environment/exec",
+			wantRequired: []string{"environment.exec"},
+			wantGranted:  []string{"session.read"},
+			wantErr:      true,
+		},
+		{
 			name:     "ShouldAllowBridgeStateReportWithWriteGrant",
 			actions:  []string{"bridges/instances/report_state"},
 			security: []string{"bridge.write"},

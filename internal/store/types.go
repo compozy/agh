@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -148,6 +149,7 @@ type SessionInfo struct {
 	ACPSessionID *string
 	StopReason   StopReason
 	StopDetail   string
+	Environment  *SessionEnvironmentMeta
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -189,6 +191,7 @@ type SessionStateUpdate struct {
 	StopReasonSet bool
 	StopReason    *string
 	StopDetail    string
+	Environment   *SessionEnvironmentMeta
 	UpdatedAt     time.Time
 }
 
@@ -470,20 +473,36 @@ type ReconcileResult struct {
 	Orphaned []string
 }
 
+// SessionEnvironmentMeta is the persisted runtime environment state for a session.
+type SessionEnvironmentMeta struct {
+	EnvironmentID         string          `json:"environment_id,omitempty"`
+	Backend               string          `json:"backend"`
+	Profile               string          `json:"profile,omitempty"`
+	State                 string          `json:"state,omitempty"`
+	InstanceID            string          `json:"instance_id,omitempty"`
+	RuntimeRootDir        string          `json:"runtime_root_dir,omitempty"`
+	RuntimeAdditionalDirs []string        `json:"runtime_additional_dirs,omitempty"`
+	ProviderState         json.RawMessage `json:"provider_state,omitempty"`
+	SSHAccessExpiresAt    *time.Time      `json:"ssh_access_expires_at,omitempty"`
+	LastSyncAt            *time.Time      `json:"last_sync_at,omitempty"`
+	LastSyncError         string          `json:"last_sync_error,omitempty"`
+}
+
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
-	ID           string      `json:"id"`
-	Name         string      `json:"name,omitempty"`
-	AgentName    string      `json:"agent_name"`
-	WorkspaceID  string      `json:"workspace_id,omitempty"`
-	Channel      string      `json:"channel,omitempty"`
-	SessionType  string      `json:"session_type,omitempty"`
-	State        string      `json:"state"`
-	StopReason   *StopReason `json:"stop_reason,omitempty"`
-	StopDetail   string      `json:"stop_detail,omitempty"`
-	ACPSessionID *string     `json:"acp_session_id,omitempty"`
-	CreatedAt    time.Time   `json:"created_at"`
-	UpdatedAt    time.Time   `json:"updated_at"`
+	ID           string                  `json:"id"`
+	Name         string                  `json:"name,omitempty"`
+	AgentName    string                  `json:"agent_name"`
+	WorkspaceID  string                  `json:"workspace_id,omitempty"`
+	Channel      string                  `json:"channel,omitempty"`
+	SessionType  string                  `json:"session_type,omitempty"`
+	State        string                  `json:"state"`
+	StopReason   *StopReason             `json:"stop_reason,omitempty"`
+	StopDetail   string                  `json:"stop_detail,omitempty"`
+	ACPSessionID *string                 `json:"acp_session_id,omitempty"`
+	Environment  *SessionEnvironmentMeta `json:"environment,omitempty"`
+	CreatedAt    time.Time               `json:"created_at"`
+	UpdatedAt    time.Time               `json:"updated_at"`
 }
 
 // Validate ensures the metadata file remains aligned with the session index schema.

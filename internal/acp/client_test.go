@@ -1134,6 +1134,60 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 		}); sendErr != nil {
 			return acpsdk.PromptResponse{}, sendErr
 		}
+	case "fs_write_terminal":
+		if _, err := a.conn.WriteTextFile(ctx, acpsdk.WriteTextFileRequest{
+			SessionId: params.SessionId,
+			Path:      a.filePath,
+			Content:   "from-write",
+		}); err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		readResponse, err := a.conn.ReadTextFile(ctx, acpsdk.ReadTextFileRequest{
+			SessionId: params.SessionId,
+			Path:      a.filePath,
+		})
+		if err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText(readResponse.Content),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
+
+		cwd, err := os.Getwd()
+		if err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		createResp, err := a.conn.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+			SessionId: params.SessionId,
+			Command:   "sh",
+			Args:      []string{"-c", "printf terminal-ok"},
+			Cwd:       acpsdk.Ptr(cwd),
+		})
+		if err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		if _, err := a.conn.WaitForTerminalExit(ctx, acpsdk.WaitForTerminalExitRequest{
+			SessionId:  params.SessionId,
+			TerminalId: createResp.TerminalId,
+		}); err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		outputResp, err := a.conn.TerminalOutput(ctx, acpsdk.TerminalOutputRequest{
+			SessionId:  params.SessionId,
+			TerminalId: createResp.TerminalId,
+		})
+		if err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText(outputResp.Output),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
 	case "permission":
 		title := "permission request"
 		locationPath := a.filePath

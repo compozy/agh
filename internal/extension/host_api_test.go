@@ -21,6 +21,8 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
+	environmentlocal "github.com/pedronauck/agh/internal/environment/local"
 	"github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
@@ -187,6 +189,291 @@ func TestHostAPIHandlerSessionsStatusReturnsAuthorizedState(t *testing.T) {
 	}
 	if status.State != session.StateActive {
 		t.Fatalf("sessions/status state = %q, want %q", status.State, session.StateActive)
+	}
+}
+
+func TestHostAPIHandlerEnvironmentListReturnsActiveEnvironmentInstances(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-env-list", []string{"environment/list"}, nil)
+	sess := env.createSession(t)
+
+	result, err := env.call(t, "ext-env-list", "environment/list", nil)
+	if err != nil {
+		t.Fatalf("Handle(environment/list) error = %v", err)
+	}
+
+	var listed hostAPIEnvironmentListResult
+	decodeResult(t, result, &listed)
+	if len(listed.Environments) != 1 {
+		t.Fatalf("len(environment/list) = %d, want 1", len(listed.Environments))
+	}
+	got := listed.Environments[0]
+	if got.SessionID != sess.ID {
+		t.Fatalf("environment/list session_id = %q, want %q", got.SessionID, sess.ID)
+	}
+	if got.EnvironmentID == "" {
+		t.Fatal("environment/list environment_id = empty, want allocated id")
+	}
+	if got.Backend != string(environment.BackendLocal) {
+		t.Fatalf("environment/list backend = %q, want local", got.Backend)
+	}
+	if got.SyncState != "synced" {
+		t.Fatalf("environment/list sync_state = %q, want synced", got.SyncState)
+	}
+}
+
+func TestHostAPIHandlerEnvironmentListFiltersWorkspaceAndSkipsStopped(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-env-list-filtered", []string{"environment/list"}, nil)
+	stopped := env.createSession(t)
+	active := env.createSession(t)
+	if err := env.sessions.Stop(testutil.Context(t), stopped.ID); err != nil {
+		t.Fatalf("sessions.Stop(%q) error = %v", stopped.ID, err)
+	}
+
+	result, err := env.call(
+		t,
+		"ext-env-list-filtered",
+		"environment/list",
+		map[string]string{"workspace": env.workspace.Name},
+	)
+	if err != nil {
+		t.Fatalf("Handle(environment/list filtered) error = %v", err)
+	}
+
+	var listed hostAPIEnvironmentListResult
+	decodeResult(t, result, &listed)
+	if len(listed.Environments) != 1 {
+		t.Fatalf("len(environment/list filtered) = %d, want 1", len(listed.Environments))
+	}
+	if got := listed.Environments[0].SessionID; got != active.ID {
+		t.Fatalf("environment/list filtered session_id = %q, want active session %q", got, active.ID)
+	}
+}
+
+func TestHostAPIHandlerEnvironmentInfoReturnsRuntimeState(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-env-info", []string{"environment/info"}, nil)
+	sess := env.createSession(t)
+
+	meta := sess.Info().Environment
+	if meta == nil {
+		t.Fatal("session environment = nil, want prepared environment")
+	}
+
+	result, err := env.call(t, "ext-env-info", "environment/info", map[string]string{"session_id": sess.ID})
+	if err != nil {
+		t.Fatalf("Handle(environment/info) error = %v", err)
+	}
+
+	var info hostAPIEnvironmentInfoResult
+	decodeResult(t, result, &info)
+	if info.EnvironmentID != meta.EnvironmentID {
+		t.Fatalf("environment/info environment_id = %q, want %q", info.EnvironmentID, meta.EnvironmentID)
+	}
+	if info.RuntimeRoot != meta.RuntimeRootDir {
+		t.Fatalf("environment/info runtime_root = %q, want %q", info.RuntimeRoot, meta.RuntimeRootDir)
+	}
+	if info.SyncState != "synced" {
+		t.Fatalf("environment/info sync_state = %q, want synced", info.SyncState)
+	}
+	if info.LastSyncError != "" {
+		t.Fatalf("environment/info last_sync_error = %q, want empty", info.LastSyncError)
+	}
+	var raw map[string]any
+	decodeResult(t, result, &raw)
+	if _, ok := raw["last_sync_error"]; !ok {
+		t.Fatalf("environment/info result keys = %#v, want last_sync_error key", raw)
+	}
+}
+
+func TestHostAPIHandlerEnvironmentInfoReturnsNotFoundForInvalidSession(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-env-info", []string{"environment/info"}, nil)
+
+	_, err := env.call(t, "ext-env-info", "environment/info", map[string]string{"session_id": "missing"})
+	assertRPCErrorCode(t, err, HostAPINotFoundCode)
+}
+
+func TestHostAPIHandlerEnvironmentInfoValidatesSessionID(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-env-info-invalid", []string{"environment/info"}, nil)
+
+	_, err := env.call(t, "ext-env-info-invalid", "environment/info", map[string]string{"session_id": " "})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+}
+
+func TestHostAPIEnvironmentSyncStateValues(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	tests := []struct {
+		name string
+		meta *store.SessionEnvironmentMeta
+		want string
+	}{
+		{name: "nil", want: ""},
+		{name: "pending", meta: &store.SessionEnvironmentMeta{}, want: "pending"},
+		{name: "synced", meta: &store.SessionEnvironmentMeta{LastSyncAt: &now}, want: "synced"},
+		{name: "error", meta: &store.SessionEnvironmentMeta{LastSyncError: "failed"}, want: extensionStateError},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := hostAPIEnvironmentSyncState(tc.meta); got != tc.want {
+				t.Fatalf("hostAPIEnvironmentSyncState() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestHostAPIHandlerResolveEnvironmentWorkspaceFilter(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	handler := &HostAPIHandler{}
+	id, root, err := handler.resolveEnvironmentWorkspaceFilter(ctx, " workspace-raw ")
+	if err != nil {
+		t.Fatalf("resolveEnvironmentWorkspaceFilter(raw) error = %v", err)
+	}
+	if id != "workspace-raw" || root != "workspace-raw" {
+		t.Fatalf("resolveEnvironmentWorkspaceFilter(raw) = (%q, %q), want raw fallback", id, root)
+	}
+
+	workspace := &workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      "ws-id",
+			Name:    "workspace-name",
+			RootDir: filepath.Join(t.TempDir(), "workspace"),
+		},
+	}
+	handler.workspaces = newHostAPIFakeWorkspaceResolver(workspace)
+	id, root, err = handler.resolveEnvironmentWorkspaceFilter(ctx, "workspace-name")
+	if err != nil {
+		t.Fatalf("resolveEnvironmentWorkspaceFilter(resolved) error = %v", err)
+	}
+	if id != workspace.ID || root != workspace.RootDir {
+		t.Fatalf("resolveEnvironmentWorkspaceFilter(resolved) = (%q, %q), want (%q, %q)",
+			id,
+			root,
+			workspace.ID,
+			workspace.RootDir,
+		)
+	}
+
+	if _, _, err := handler.resolveEnvironmentWorkspaceFilter(ctx, "missing"); err == nil {
+		t.Fatal("resolveEnvironmentWorkspaceFilter(missing) error = nil, want error")
+	}
+}
+
+func TestHostAPIHandlerEnvironmentMethodsRequireSessionManager(t *testing.T) {
+	t.Parallel()
+
+	handler := &HostAPIHandler{}
+	ctx := testutil.Context(t)
+	for _, method := range []struct {
+		name string
+		call func(context.Context, json.RawMessage) (any, error)
+	}{
+		{name: "list", call: handler.handleEnvironmentList},
+		{name: "info", call: handler.handleEnvironmentInfo},
+		{name: "exec", call: handler.handleEnvironmentExec},
+	} {
+		t.Run(method.name, func(t *testing.T) {
+			if _, err := method.call(ctx, nil); err == nil {
+				t.Fatal("environment Host API handler error = nil, want missing session manager error")
+			}
+		})
+	}
+}
+
+func TestHostAPIHandlerEnvironmentExecRequiresExecCapability(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-env-exec-denied", []string{"environment/exec"}, nil)
+	sess := env.createSession(t)
+
+	_, err := env.call(t, "ext-env-exec-denied", "environment/exec", map[string]any{
+		"session_id": sess.ID,
+		"command":    "printf denied",
+		"timeout":    1,
+	})
+	assertCapabilityDenied(t, err, "environment/exec")
+}
+
+func TestHostAPIHandlerEnvironmentExecRunsCommandInEnvironment(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-env-exec", []string{"environment/exec"}, []string{"environment.exec"})
+	sess := env.createSession(t)
+
+	result, err := env.call(t, "ext-env-exec", "environment/exec", map[string]any{
+		"session_id": sess.ID,
+		"command":    "printf host-api-env",
+		"timeout":    5,
+	})
+	if err != nil {
+		t.Fatalf("Handle(environment/exec) error = %v", err)
+	}
+
+	var execResult hostAPIEnvironmentExecResult
+	decodeResult(t, result, &execResult)
+	if execResult.ExitCode != 0 {
+		t.Fatalf("environment/exec exit_code = %d, want 0", execResult.ExitCode)
+	}
+	if strings.TrimSpace(execResult.Stdout) != "host-api-env" {
+		t.Fatalf("environment/exec stdout = %q, want host-api-env", execResult.Stdout)
+	}
+	if execResult.Stderr != "" {
+		t.Fatalf("environment/exec stderr = %q, want empty", execResult.Stderr)
+	}
+}
+
+func TestHostAPIHandlerEnvironmentExecValidatesParams(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-env-exec-invalid", []string{"environment/exec"}, []string{"environment.exec"})
+
+	tests := []struct {
+		name   string
+		params map[string]any
+	}{
+		{
+			name:   "missing session id",
+			params: map[string]any{"command": "pwd"},
+		},
+		{
+			name:   "missing command",
+			params: map[string]any{"session_id": "sess-1"},
+		},
+		{
+			name: "negative timeout",
+			params: map[string]any{
+				"session_id": "sess-1",
+				"command":    "pwd",
+				"timeout":    -1,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := env.call(t, "ext-env-exec-invalid", "environment/exec", tc.params)
+			assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+		})
 	}
 }
 
@@ -3485,6 +3772,16 @@ func mustExtensionTaskActorContext(t testing.TB, extensionName string) taskpkg.A
 	return actor
 }
 
+func mustLocalEnvironmentRegistry(t testing.TB) *environment.Registry {
+	t.Helper()
+
+	registry, err := environmentlocal.NewRegistry()
+	if err != nil {
+		t.Fatalf("local.NewRegistry() error = %v", err)
+	}
+	return registry
+}
+
 func (e *hostAPITestTaskSessionExecutor) StartTaskSession(
 	ctx context.Context,
 	spec *taskpkg.StartTaskSession,
@@ -3710,6 +4007,7 @@ Review the workspace changes carefully.
 		session.WithNotifier(observer),
 		session.WithWorkspaceResolver(workspaces),
 		session.WithStore(storeSessionDB),
+		session.WithEnvironmentRegistry(mustLocalEnvironmentRegistry(t)),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		session.WithNow(func() time.Time { return env.currentTime() }),
 		session.WithSessionIDGenerator(sequentialSessionIDGenerator("sess")),
@@ -4054,6 +4352,7 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 		session.WithDriver(e.driver),
 		session.WithWorkspaceResolver(e.workspaces),
 		session.WithStore(storeSessionDB),
+		session.WithEnvironmentRegistry(mustLocalEnvironmentRegistry(t)),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		session.WithNow(func() time.Time { return e.currentTime() }),
 		session.WithSessionIDGenerator(sequentialSessionIDGenerator("sess")),
@@ -4277,6 +4576,7 @@ func (d *hostAPIFakeDriver) Start(_ context.Context, opts acp.StartOpts) (*sessi
 		AgentName: opts.AgentName,
 		Command:   opts.Command,
 		Cwd:       opts.Cwd,
+		ToolHost:  opts.ToolHost,
 		SessionID: fmt.Sprintf("acp-%d", seq),
 		StartedAt: d.now.Add(time.Duration(seq) * time.Millisecond),
 		Done:      procState.ch,

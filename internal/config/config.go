@@ -14,6 +14,7 @@ import (
 
 	"github.com/joho/godotenv"
 	automationpkg "github.com/pedronauck/agh/internal/automation/model"
+	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/extension/surfaces"
 	"github.com/pedronauck/agh/internal/resources"
 )
@@ -40,8 +41,9 @@ type HTTPConfig struct {
 
 // DefaultsConfig holds global runtime defaults.
 type DefaultsConfig struct {
-	Agent    string `toml:"agent"`
-	Provider string `toml:"provider,omitempty"`
+	Agent       string `toml:"agent"`
+	Provider    string `toml:"provider,omitempty"`
+	Environment string `toml:"environment,omitempty"`
 }
 
 // LimitsConfig defines runtime safety bounds.
@@ -166,24 +168,56 @@ type NetworkConfig struct {
 	MaxQueueDepth  int    `toml:"max_queue_depth"`
 }
 
+// EnvironmentProfile defines one reusable execution environment profile.
+type EnvironmentProfile struct {
+	Backend     string            `toml:"backend"`
+	SyncMode    string            `toml:"sync_mode,omitempty"`
+	Persistence string            `toml:"persistence,omitempty"`
+	RuntimeRoot string            `toml:"runtime_root,omitempty"`
+	Env         map[string]string `toml:"env,omitempty"`
+	Network     NetworkProfile    `toml:"network,omitempty"`
+	Daytona     DaytonaProfile    `toml:"daytona,omitempty"`
+}
+
+// NetworkProfile defines provider-neutral network policy intent.
+type NetworkProfile struct {
+	AllowPublicIngress bool     `toml:"allow_public_ingress,omitempty"`
+	AllowOutbound      bool     `toml:"allow_outbound,omitempty"`
+	AllowList          []string `toml:"allow_list,omitempty"`
+	DenyList           []string `toml:"deny_list,omitempty"`
+	Required           bool     `toml:"required,omitempty"`
+}
+
+// DaytonaProfile defines Daytona-specific execution environment settings.
+type DaytonaProfile struct {
+	APIURL      string `toml:"api_url,omitempty"`
+	Target      string `toml:"target,omitempty"`
+	Image       string `toml:"image,omitempty"`
+	Snapshot    string `toml:"snapshot,omitempty"`
+	Class       string `toml:"class,omitempty"`
+	AutoStop    string `toml:"auto_stop,omitempty"`
+	AutoArchive string `toml:"auto_archive,omitempty"`
+}
+
 // Config is the fully merged AGH configuration.
 type Config struct {
-	Daemon        DaemonConfig              `toml:"daemon"`
-	HTTP          HTTPConfig                `toml:"http"`
-	Defaults      DefaultsConfig            `toml:"defaults"`
-	Limits        LimitsConfig              `toml:"limits"`
-	Session       SessionConfig             `toml:"session"`
-	Permissions   PermissionsConfig         `toml:"permissions"`
-	MCPServers    []MCPServer               `toml:"mcp_servers,omitempty"`
-	Providers     map[string]ProviderConfig `toml:"providers"`
-	Observability ObservabilityConfig       `toml:"observability"`
-	Log           LogConfig                 `toml:"log"`
-	Memory        MemoryConfig              `toml:"memory"`
-	Skills        SkillsConfig              `toml:"skills"`
-	Extensions    ExtensionsConfig          `toml:"extensions"`
-	Automation    AutomationConfig          `toml:"automation"`
-	Hooks         HooksConfig               `toml:"hooks"`
-	Network       NetworkConfig             `toml:"network"`
+	Daemon        DaemonConfig                  `toml:"daemon"`
+	HTTP          HTTPConfig                    `toml:"http"`
+	Defaults      DefaultsConfig                `toml:"defaults"`
+	Limits        LimitsConfig                  `toml:"limits"`
+	Session       SessionConfig                 `toml:"session"`
+	Permissions   PermissionsConfig             `toml:"permissions"`
+	MCPServers    []MCPServer                   `toml:"mcp_servers,omitempty"`
+	Providers     map[string]ProviderConfig     `toml:"providers"`
+	Environments  map[string]EnvironmentProfile `toml:"environments"`
+	Observability ObservabilityConfig           `toml:"observability"`
+	Log           LogConfig                     `toml:"log"`
+	Memory        MemoryConfig                  `toml:"memory"`
+	Skills        SkillsConfig                  `toml:"skills"`
+	Extensions    ExtensionsConfig              `toml:"extensions"`
+	Automation    AutomationConfig              `toml:"automation"`
+	Hooks         HooksConfig                   `toml:"hooks"`
+	Network       NetworkConfig                 `toml:"network"`
 }
 
 type loadOptions struct {
@@ -329,7 +363,8 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Permissions: PermissionsConfig{
 			Mode: PermissionModeApproveAll,
 		},
-		Providers: map[string]ProviderConfig{},
+		Providers:    map[string]ProviderConfig{},
+		Environments: map[string]EnvironmentProfile{},
 		Observability: ObservabilityConfig{
 			Enabled:        true,
 			RetentionDays:  7,
@@ -389,6 +424,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.validateProviders(); err != nil {
+		return err
+	}
+	if err := c.validateEnvironments(); err != nil {
 		return err
 	}
 	return nil
@@ -462,6 +500,171 @@ func (c *Config) validateProviders() error {
 	}
 
 	return nil
+}
+
+func (c *Config) validateEnvironments() error {
+	for name, profile := range c.Environments {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" {
+			return errors.New("environments: profile name is required")
+		}
+		if err := profile.Validate(fmt.Sprintf("environments.%s", trimmedName)); err != nil {
+			return err
+		}
+	}
+	if ref := strings.TrimSpace(c.Defaults.Environment); ref != "" {
+		if _, err := c.ResolveEnvironment(ref); err != nil {
+			return fmt.Errorf("defaults.environment: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// ResolveEnvironment resolves a named environment profile into runtime policy.
+func (c *Config) ResolveEnvironment(ref string) (environment.Resolved, error) {
+	profileName := strings.TrimSpace(ref)
+	if profileName == "" {
+		profileName = string(environment.BackendLocal)
+	}
+
+	profile, ok := c.Environments[profileName]
+	if !ok {
+		if profileName == string(environment.BackendLocal) {
+			return defaultLocalEnvironment(), nil
+		}
+		return environment.Resolved{}, fmt.Errorf("environment profile %q not found", profileName)
+	}
+
+	resolved, err := profile.Resolve(profileName)
+	if err != nil {
+		return environment.Resolved{}, err
+	}
+	return resolved, nil
+}
+
+func defaultLocalEnvironment() environment.Resolved {
+	return environment.Resolved{
+		Profile:       string(environment.BackendLocal),
+		Backend:       environment.BackendLocal,
+		SyncMode:      environment.SyncModeNone,
+		Persistence:   environment.PersistenceTransient,
+		DestroyOnStop: false,
+	}
+}
+
+// Validate ensures the environment profile is internally consistent.
+func (p EnvironmentProfile) Validate(path string) error {
+	backend := environment.Backend(strings.TrimSpace(p.Backend))
+	if !backend.Valid() {
+		return fmt.Errorf(
+			"%s.backend must be one of %q, %q, %q: %q",
+			path,
+			environment.BackendLocal,
+			environment.BackendDaytona,
+			environment.BackendE2B,
+			p.Backend,
+		)
+	}
+
+	if syncMode := strings.TrimSpace(p.SyncMode); syncMode != "" {
+		mode := environment.SyncMode(syncMode)
+		if !mode.Valid() {
+			return fmt.Errorf(
+				"%s.sync_mode must be one of %q, %q, %q: %q",
+				path,
+				environment.SyncModeNone,
+				environment.SyncModeSessionBidirectional,
+				environment.SyncModeTurnBidirectional,
+				p.SyncMode,
+			)
+		}
+	}
+
+	if persistenceMode := strings.TrimSpace(p.Persistence); persistenceMode != "" {
+		mode := environment.PersistenceMode(persistenceMode)
+		if !mode.Valid() {
+			return fmt.Errorf(
+				"%s.persistence must be one of %q, %q, %q: %q",
+				path,
+				environment.PersistenceTransient,
+				environment.PersistenceReuse,
+				environment.PersistenceArchive,
+				p.Persistence,
+			)
+		}
+	}
+
+	return nil
+}
+
+// Resolve converts one validated config profile into runtime environment policy.
+func (p EnvironmentProfile) Resolve(profileName string) (environment.Resolved, error) {
+	if err := p.Validate("environment profile " + profileName); err != nil {
+		return environment.Resolved{}, err
+	}
+
+	backend := environment.Backend(strings.TrimSpace(p.Backend))
+	syncMode := environment.SyncMode(strings.TrimSpace(p.SyncMode))
+	if syncMode == "" {
+		syncMode = defaultSyncModeForBackend(backend)
+	}
+	persistence := environment.PersistenceMode(strings.TrimSpace(p.Persistence))
+	if persistence == "" {
+		persistence = environment.PersistenceTransient
+	}
+
+	resolved := environment.Resolved{
+		Profile:        strings.TrimSpace(profileName),
+		Backend:        backend,
+		SyncMode:       syncMode,
+		Persistence:    persistence,
+		RuntimeRootDir: strings.TrimSpace(p.RuntimeRoot),
+		DestroyOnStop:  persistence != environment.PersistenceReuse,
+		Env:            mergeStringMaps(nil, p.Env),
+		Network: environment.NetworkPolicy{
+			AllowPublicIngress: p.Network.AllowPublicIngress,
+			AllowOutbound:      p.Network.AllowOutbound,
+			AllowList:          cloneStrings(p.Network.AllowList),
+			DenyList:           cloneStrings(p.Network.DenyList),
+			Required:           p.Network.Required,
+		},
+	}
+	if backend == environment.BackendDaytona {
+		daytona := p.Daytona.Resolve()
+		resolved.Daytona = &daytona
+	}
+
+	return resolved, nil
+}
+
+func defaultSyncModeForBackend(backend environment.Backend) environment.SyncMode {
+	if backend == environment.BackendLocal {
+		return environment.SyncModeNone
+	}
+	return environment.SyncModeSessionBidirectional
+}
+
+// Resolve converts Daytona profile inputs into provider startup policy.
+func (p DaytonaProfile) Resolve() environment.DaytonaConfig {
+	resolved := environment.DaytonaConfig{
+		APIURL:      strings.TrimSpace(p.APIURL),
+		Target:      strings.TrimSpace(p.Target),
+		Image:       strings.TrimSpace(p.Image),
+		Snapshot:    strings.TrimSpace(p.Snapshot),
+		Class:       strings.TrimSpace(p.Class),
+		AutoStop:    strings.TrimSpace(p.AutoStop),
+		AutoArchive: strings.TrimSpace(p.AutoArchive),
+	}
+	switch {
+	case resolved.Snapshot != "":
+		resolved.StartupSource = environment.DaytonaStartupSourceSnapshot
+		resolved.StartupRef = resolved.Snapshot
+	case resolved.Image != "":
+		resolved.StartupSource = environment.DaytonaStartupSourceImage
+		resolved.StartupRef = resolved.Image
+	}
+	return resolved
 }
 
 // Validate ensures the daemon config contains a socket path.

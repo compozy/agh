@@ -2503,6 +2503,12 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	if capturedDeps.WorkspaceResolver == nil {
 		t.Fatal("boot() did not inject the session manager workspace resolver")
 	}
+	if capturedDeps.EnvironmentRegistry == nil {
+		t.Fatal("boot() did not inject the session manager environment registry")
+	}
+	if d.environmentRegistry == nil {
+		t.Fatal("boot() did not retain the daemon environment registry")
+	}
 	if capturedUDSDeps.WorkspaceService == nil {
 		t.Fatal("boot() did not inject the uds workspace service")
 	}
@@ -4621,6 +4627,41 @@ func (f *fakeHookRuntime) DispatchContextPostCompact(
 	if f.onPostCompact != nil {
 		return payload, f.onPostCompact(ctx, payload)
 	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchEnvironmentPrepare(
+	_ context.Context,
+	payload hookspkg.EnvironmentPreparePayload,
+) (hookspkg.EnvironmentPreparePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchEnvironmentReady(
+	_ context.Context,
+	payload hookspkg.EnvironmentReadyPayload,
+) (hookspkg.EnvironmentReadyPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchEnvironmentSyncBefore(
+	_ context.Context,
+	payload hookspkg.EnvironmentSyncBeforePayload,
+) (hookspkg.EnvironmentSyncBeforePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchEnvironmentSyncAfter(
+	_ context.Context,
+	payload hookspkg.EnvironmentSyncAfterPayload,
+) (hookspkg.EnvironmentSyncAfterPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchEnvironmentStop(
+	_ context.Context,
+	payload hookspkg.EnvironmentStopPayload,
+) (hookspkg.EnvironmentStopPayload, error) {
 	return payload, nil
 }
 

@@ -55,6 +55,7 @@ type Info struct {
 	StopDetail   string
 	ACPSessionID string
 	ACPCaps      acp.Caps
+	Environment  *store.SessionEnvironmentMeta
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -76,6 +77,7 @@ type Session struct {
 	stopDetail   string
 	ACPSessionID string
 	ACPCaps      acp.Caps
+	Environment  *store.SessionEnvironmentMeta
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 
@@ -85,9 +87,10 @@ type Session struct {
 	recorder   EventRecorder
 	process    *AgentProcess
 
-	promptSetupCount  int
-	promptSetupDone   chan struct{}
-	currentTurnSource TurnSource
+	environmentDestroyOnStop bool
+	promptSetupCount         int
+	promptSetupDone          chan struct{}
+	currentTurnSource        TurnSource
 }
 
 // Info returns a consistent snapshot of the current session state.
@@ -112,6 +115,7 @@ func (s *Session) Info() *Info {
 		StopDetail:   s.stopDetail,
 		ACPSessionID: s.ACPSessionID,
 		ACPCaps:      cloneCaps(s.ACPCaps),
+		Environment:  cloneSessionEnvironmentMeta(s.Environment),
 		CreatedAt:    s.CreatedAt,
 		UpdatedAt:    s.UpdatedAt,
 	}
@@ -417,6 +421,29 @@ func (s *Session) setStopClassification(reason store.StopReason, detail string) 
 	s.stopDetail = strings.TrimSpace(detail)
 }
 
+func (s *Session) setEnvironment(environment *store.SessionEnvironmentMeta, now time.Time) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Environment = cloneSessionEnvironmentMeta(environment)
+	if !now.IsZero() {
+		s.UpdatedAt = now
+	}
+}
+
+func (s *Session) environmentShouldDestroy() bool {
+	if s == nil {
+		return false
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.environmentDestroyOnStop
+}
+
 func (s *Session) activate(now time.Time, preserveStopReason bool) error {
 	if err := s.transition(StateActive, now); err != nil {
 		return err
@@ -512,6 +539,7 @@ func (s *Session) Meta() store.SessionMeta {
 		StopReason:   stopReasonPointer(s.stopReason),
 		StopDetail:   s.stopDetail,
 		ACPSessionID: stringPointer(s.ACPSessionID),
+		Environment:  cloneSessionEnvironmentMeta(s.Environment),
 		CreatedAt:    s.CreatedAt,
 		UpdatedAt:    s.UpdatedAt,
 	}
