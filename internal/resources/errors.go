@@ -21,4 +21,8 @@ var (
 	ErrSessionNotActive = errors.New("resources: session nonce not active")
 	// ErrStaleSourceVersion reports that the snapshot source version is stale or out of sequence.
 	ErrStaleSourceVersion = errors.New("resources: stale source version")
+	// ErrCodecNotFound reports that no typed codec is registered for a resource kind.
+	ErrCodecNotFound = errors.New("resources: codec not found")
+	// ErrCodecTypeMismatch reports that a registered codec kind was resolved with the wrong spec type.
+	ErrCodecTypeMismatch = errors.New("resources: codec type mismatch")
 )
