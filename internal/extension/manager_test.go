@@ -93,11 +93,9 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 
 	fakeProc := newFakeProcess(101)
 	launcher := &fakeLauncher{queue: []*fakeProcess{fakeProc}}
-	skillsRegistry := skillspkg.NewRegistry(skillspkg.RegistryConfig{})
 
 	manager := NewManager(
 		env.registry,
-		WithSkillsRegistry(skillsRegistry),
 		WithHostMethodHandler("sessions/list", func(_ context.Context, _ json.RawMessage) (any, error) {
 			return []map[string]string{{"id": "sess-1"}}, nil
 		}),
@@ -161,14 +159,12 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 		t.Fatalf("AgentDefinitions() = %#v, want ext-agent", agents)
 	}
 
-	skills := skillsRegistry.List()
-	if len(skills) != 1 || skills[0].Meta.Name != "ext-review" {
-		t.Fatalf("skills registry List() = %#v, want ext-review", skills)
-	}
-
 	loaded, err := manager.Get("ext-runtime")
 	if err != nil {
 		t.Fatalf("Get(ext-runtime) error = %v", err)
+	}
+	if len(loaded.Skills) != 1 || loaded.Skills[0].Meta.Name != "ext-review" {
+		t.Fatalf("Get(ext-runtime).Skills = %#v, want ext-review extension snapshot", loaded.Skills)
 	}
 	if !loaded.Status.Active {
 		t.Fatalf("Get(ext-runtime).Status.Active = false, want true")
@@ -1420,8 +1416,11 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			},
 		},
 	}
-	if err := manager.registerExtension(context.Background(), skillExt); err == nil {
-		t.Fatal("registerExtension(skills without registry) error = nil, want registry-required error")
+	if err := manager.registerExtension(context.Background(), skillExt); err != nil {
+		t.Fatalf("registerExtension(skills) error = %v", err)
+	}
+	if len(skillExt.skills) != 1 || skillExt.skills[0].Meta.Name != "missing-registry" {
+		t.Fatalf("registerExtension(skills).skills = %#v, want loaded extension skill snapshot", skillExt.skills)
 	}
 
 	manager.capChecker.Register("ext-host", SourceUser, &Manifest{

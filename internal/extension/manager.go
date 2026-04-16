@@ -95,11 +95,6 @@ type processHandle interface {
 
 type processLauncher func(context.Context, subprocess.LaunchConfig) (processHandle, error)
 
-type skillRegistry interface {
-	RegisterExternal(owner string, skills []*skillspkg.Skill) error
-	RemoveExternal(owner string)
-}
-
 // BridgeRuntimeResolver resolves one provider-scoped bridge launch payload
 // for a bridge-capable extension session.
 type BridgeRuntimeResolver interface {
@@ -205,7 +200,6 @@ type Manager struct {
 	capChecker            *CapabilityChecker
 	bridgeRuntimeResolver BridgeRuntimeResolver
 	bridgeTelemetrySink   BridgeTelemetrySink
-	skillsRegistry        skillRegistry
 	sourceSessions        resources.SourceSessionManager
 	logger                *slog.Logger
 	now                   func() time.Time
@@ -255,13 +249,6 @@ func WithBridgeRuntimeResolver(resolver BridgeRuntimeResolver) Option {
 func WithBridgeTelemetrySink(sink BridgeTelemetrySink) Option {
 	return func(manager *Manager) {
 		manager.bridgeTelemetrySink = sink
-	}
-}
-
-// WithSkillsRegistry injects the skills registry used for extension skill registration.
-func WithSkillsRegistry(registry skillRegistry) Option {
-	return func(manager *Manager) {
-		manager.skillsRegistry = registry
 	}
 }
 
@@ -917,18 +904,6 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 		m.setFailure(ext, ExtensionPhaseRegister, err)
 		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
 	}
-	if len(skills) > 0 {
-		if m.skillsRegistry == nil {
-			err := errors.New("skills registry is required for extension skill resources")
-			m.setFailure(ext, ExtensionPhaseRegister, err)
-			return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-		}
-		if err := m.skillsRegistry.RegisterExternal(ext.info.Name, skills); err != nil {
-			m.setFailure(ext, ExtensionPhaseRegister, err)
-			return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-		}
-	}
-
 	m.mu.Lock()
 	ext.skills = skills
 	ext.agents = agents
@@ -1758,9 +1733,6 @@ func (m *Manager) disableExtension(name string, reason error) {
 func (m *Manager) unregisterResources(ext *managedExtension) {
 	if ext == nil {
 		return
-	}
-	if len(ext.skills) > 0 && m.skillsRegistry != nil {
-		m.skillsRegistry.RemoveExternal(ext.info.Name)
 	}
 	m.capChecker.Unregister(ext.info.Name)
 

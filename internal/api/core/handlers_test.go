@@ -2,8 +2,10 @@ package core_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -306,6 +308,82 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 	if missingResp.Code != http.StatusInternalServerError {
 		t.Fatalf("missing agent status = %d, want %d", missingResp.Code, http.StatusInternalServerError)
 	}
+}
+
+func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
+	t.Parallel()
+
+	fixture := newHandlerFixture(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
+	fixture.Handlers.AgentCatalog = stubAgentCatalog{
+		agents: []aghconfig.AgentDef{
+			{Name: "zeta", Prompt: "Zeta prompt"},
+			{Name: "alpha", Prompt: "Alpha prompt"},
+		},
+		get: map[string]aghconfig.AgentDef{
+			"alpha": {Name: "alpha", Prompt: "Alpha prompt"},
+		},
+	}
+
+	listResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list agent catalog status = %d, want %d", listResp.Code, http.StatusOK)
+	}
+	var listed contract.AgentsResponse
+	if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
+		t.Fatalf("json.Unmarshal(list agents) error = %v", err)
+	}
+	if len(listed.Agents) != 2 || listed.Agents[0].Name != "alpha" || listed.Agents[1].Name != "zeta" {
+		t.Fatalf("listed agents = %#v, want alpha then zeta", listed.Agents)
+	}
+
+	getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/alpha", nil)
+	if getResp.Code != http.StatusOK {
+		t.Fatalf("get agent catalog status = %d, want %d", getResp.Code, http.StatusOK)
+	}
+
+	fixture.Handlers.AgentCatalog = stubAgentCatalog{getErr: os.ErrNotExist}
+	missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
+	if missingResp.Code != http.StatusNotFound {
+		t.Fatalf("get missing catalog agent status = %d, want %d", missingResp.Code, http.StatusNotFound)
+	}
+
+	fixture.Handlers.AgentCatalog = stubAgentCatalog{listErr: errors.New("catalog unavailable")}
+	errorResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
+	if errorResp.Code != http.StatusInternalServerError {
+		t.Fatalf("list catalog error status = %d, want %d", errorResp.Code, http.StatusInternalServerError)
+	}
+}
+
+type stubAgentCatalog struct {
+	agents  []aghconfig.AgentDef
+	get     map[string]aghconfig.AgentDef
+	listErr error
+	getErr  error
+}
+
+func (s stubAgentCatalog) ListAgents(context.Context) ([]aghconfig.AgentDef, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	return append([]aghconfig.AgentDef(nil), s.agents...), nil
+}
+
+func (s stubAgentCatalog) GetAgent(_ context.Context, name string) (aghconfig.AgentDef, error) {
+	if s.getErr != nil {
+		return aghconfig.AgentDef{}, s.getErr
+	}
+	agent, ok := s.get[name]
+	if !ok {
+		return aghconfig.AgentDef{}, os.ErrNotExist
+	}
+	return agent, nil
 }
 
 func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) {

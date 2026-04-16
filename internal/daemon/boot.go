@@ -32,47 +32,49 @@ import (
 )
 
 type bootState struct {
-	cfg                aghconfig.Config
-	logger             *slog.Logger
-	closeLogger        func() error
-	lock               *Lock
-	memoryStore        *memory.Store
-	skillsRegistry     *skills.Registry
-	mcpResolver        *skills.MCPResolver
-	dreamSvc           consolidation.Service
-	dreamRuntime       *consolidation.Runtime
-	globalMemoryDir    string
-	promptAssembler    session.PromptAssembler
-	notifier           *hooksNotifier
-	registry           Registry
-	workspaceResolver  *workspacepkg.Resolver
-	sessions           SessionManager
-	tasks              *taskRuntime
-	network            networkRuntime
-	observer           Observer
-	lifecycleObservers *sessionLifecycleFanout
-	hookTelemetrySinks *hookTelemetryFanout
-	hooks              hookRuntime
-	hookDispatcher     *hookspkg.Hooks
-	hookBindings       hookBindingPublisher
-	resourceKernel     *resources.Kernel
-	resourceCodecs     *resources.CodecRegistry
-	toolCatalog        *resourceCatalog[toolspkg.Tool]
-	mcpServerCatalog   *resourceCatalog[aghconfig.MCPServer]
-	toolMCPResources   toolMCPPublisher
-	extMu              sync.RWMutex
-	extensions         extensionRuntime
-	resourceReconcile  resources.ReconcileDriver
-	automation         automationRuntime
-	bridges            *bridgeRuntime
-	bundles            *bundlepkg.Service
-	httpServer         Server
-	udsServer          Server
-	skillsCancel       context.CancelFunc
-	skillsDone         chan struct{}
-	startedAt          time.Time
-	info               Info
-	deps               RuntimeDeps
+	cfg                 aghconfig.Config
+	logger              *slog.Logger
+	closeLogger         func() error
+	lock                *Lock
+	memoryStore         *memory.Store
+	skillsRegistry      *skills.Registry
+	mcpResolver         *skills.MCPResolver
+	dreamSvc            consolidation.Service
+	dreamRuntime        *consolidation.Runtime
+	globalMemoryDir     string
+	promptAssembler     session.PromptAssembler
+	notifier            *hooksNotifier
+	registry            Registry
+	workspaceResolver   *workspacepkg.Resolver
+	sessions            SessionManager
+	tasks               *taskRuntime
+	network             networkRuntime
+	observer            Observer
+	lifecycleObservers  *sessionLifecycleFanout
+	hookTelemetrySinks  *hookTelemetryFanout
+	hooks               hookRuntime
+	hookDispatcher      *hookspkg.Hooks
+	hookBindings        hookBindingPublisher
+	resourceKernel      *resources.Kernel
+	resourceCodecs      *resources.CodecRegistry
+	agentCatalog        *resourceCatalog[aghconfig.AgentDef]
+	toolCatalog         *resourceCatalog[toolspkg.Tool]
+	mcpServerCatalog    *resourceCatalog[aghconfig.MCPServer]
+	agentSkillResources agentSkillPublisher
+	toolMCPResources    toolMCPPublisher
+	extMu               sync.RWMutex
+	extensions          extensionRuntime
+	resourceReconcile   resources.ReconcileDriver
+	automation          automationRuntime
+	bridges             *bridgeRuntime
+	bundles             *bundlepkg.Service
+	httpServer          Server
+	udsServer           Server
+	skillsCancel        context.CancelFunc
+	skillsDone          chan struct{}
+	startedAt           time.Time
+	info                Info
+	deps                RuntimeDeps
 }
 
 func (s *bootState) currentExtensionRuntime() extensionRuntime {
@@ -237,7 +239,7 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 	return nil
 }
 
-func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error {
 	var prependProviders []session.PromptProvider
 	var appendProviders []session.PromptProvider
 
@@ -260,9 +262,6 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		}
 
 		state.skillsRegistry = skills.NewRegistry(skillsCfg, skills.WithLogger(state.logger))
-		if err := state.skillsRegistry.LoadAll(ctx); err != nil {
-			return fmt.Errorf("daemon: load skills registry: %w", err)
-		}
 		state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
 		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))
 	}
@@ -389,6 +388,7 @@ func (d *Daemon) bootRuntimeServices(
 	if err != nil {
 		return err
 	}
+	state.agentCatalog = newResourceCatalog(cloneAgentDef)
 
 	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))
 	if err != nil {
@@ -418,6 +418,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 			Compaction:   state.notifier,
 		},
 		PromptAssembler:   state.promptAssembler,
+		AgentResolver:     agentCatalogDependency(state.agentCatalog),
 		SkillRegistry:     skillRegistryDependency(state.skillsRegistry),
 		MCPResolver:       mcpResolverDependency(state.mcpResolver),
 		WorkspaceResolver: state.workspaceResolver,
@@ -480,6 +481,7 @@ func (d *Daemon) runtimeDeps(state *bootState, sessions SessionManager) RuntimeD
 		MemoryStore:       state.memoryStore,
 		WorkspaceResolver: state.workspaceResolver,
 		WorkspaceService:  state.workspaceResolver,
+		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
 		SkillsRegistry:    skillsRegistryAPI(state.skillsRegistry),
 		DreamTrigger:      dreamTriggerFromRuntime(state.dreamRuntime),
 		StartedAt:         state.startedAt,
@@ -540,6 +542,20 @@ func (d *Daemon) buildResourceCodecs() (*resources.CodecRegistry, error) {
 	if err := resources.RegisterCodec(registry, mcpCodec); err != nil {
 		return nil, fmt.Errorf("daemon: register mcp server codec: %w", err)
 	}
+	agentCodec, err := aghconfig.NewAgentResourceCodec()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: build agent codec: %w", err)
+	}
+	if err := resources.RegisterCodec(registry, agentCodec); err != nil {
+		return nil, fmt.Errorf("daemon: register agent codec: %w", err)
+	}
+	skillCodec, err := skills.NewResourceCodec()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: build skill codec: %w", err)
+	}
+	if err := resources.RegisterCodec(registry, skillCodec); err != nil {
+		return nil, fmt.Errorf("daemon: register skill codec: %w", err)
+	}
 	return registry, nil
 }
 
@@ -585,8 +601,15 @@ func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cl
 	if d.newResourceReconcile == nil {
 		return errors.New("daemon: resource reconcile driver factory is required")
 	}
-	state.toolCatalog = newResourceCatalog(cloneToolSpec)
-	state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
+	if state.agentCatalog == nil {
+		state.agentCatalog = newResourceCatalog(cloneAgentDef)
+	}
+	if state.toolCatalog == nil {
+		state.toolCatalog = newResourceCatalog(cloneToolSpec)
+	}
+	if state.mcpServerCatalog == nil {
+		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
+	}
 
 	driver, err := d.newResourceReconcile(ctx, resourceReconcileDriverDeps{
 		Config:           state.cfg,
@@ -595,8 +618,10 @@ func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cl
 		ResourceStore:    resourceRawStore(state.resourceKernel),
 		CodecRegistry:    state.resourceCodecs,
 		Hooks:            state.hookDispatcher,
+		AgentCatalog:     state.agentCatalog,
 		ToolCatalog:      state.toolCatalog,
 		MCPServerCatalog: state.mcpServerCatalog,
+		SkillsRegistry:   state.skillsRegistry,
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create resource reconcile driver: %w", err)
@@ -686,6 +711,11 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 			state.skillsRegistry,
 			state.cfg.Skills.PollInterval,
 			func(refreshCtx context.Context) error {
+				if state.agentSkillResources != nil {
+					if err := state.agentSkillResources.Sync(refreshCtx); err != nil {
+						return err
+					}
+				}
 				return hookBindings.Sync(refreshCtx)
 			},
 		)
@@ -902,6 +932,11 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
+	agentSkillResources, err := d.newAgentSkillPublisher(state, extRegistry)
+	if err != nil {
+		return err
+	}
+	state.agentSkillResources = agentSkillResources
 	toolMCPResources, err := d.newToolMCPPublisher(state, extRegistry)
 	if err != nil {
 		return err
@@ -910,6 +945,16 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	manager := d.newExtensionManager(d.extensionManagerDeps(state, extRegistry))
 	if manager == nil {
 		state.logger.Warn("daemon: extension manager factory returned nil; skipping extensions")
+		if state.agentSkillResources != nil {
+			if err := state.agentSkillResources.Sync(ctx); err != nil {
+				return err
+			}
+		}
+		if state.hookBindings != nil {
+			if err := state.hookBindings.Sync(ctx); err != nil {
+				return err
+			}
+		}
 		if state.toolMCPResources != nil {
 			if err := state.toolMCPResources.Sync(ctx); err != nil {
 				return err
@@ -989,12 +1034,18 @@ func (d *Daemon) attachExtensionRuntime(
 		extRegistry,
 		manager,
 		state.hookBindings,
+		state.agentSkillResources,
 		state.toolMCPResources,
 		state.bundles,
 		d.homePaths,
 		state.logger,
 		d.now,
 	)
+	if state.agentSkillResources != nil {
+		if err := state.agentSkillResources.Sync(ctx); err != nil {
+			state.logger.Error("daemon: sync agent/skill resources after extension boot failed", "error", err)
+		}
+	}
 	if state.hookBindings != nil {
 		if err := state.hookBindings.Sync(ctx); err != nil {
 			state.logger.Error("daemon: sync hook bindings after extension boot failed", "error", err)
@@ -1186,6 +1237,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.bridges = state.bridges
 	d.observer = state.observer
 	d.resourceReconcile = state.resourceReconcile
+	d.agentCatalog = state.agentCatalog
 	d.toolCatalog = state.toolCatalog
 	d.mcpServerCatalog = state.mcpServerCatalog
 	d.automation = state.automation

@@ -147,7 +147,7 @@ func (m *Manager) validateInfrastructure(ctx context.Context, meta store.Session
 				})
 			}
 
-			if agentErr := validateResumeAgent(meta.AgentName, &resolvedWorkspace); agentErr != nil {
+			if agentErr := m.validateResumeAgent(meta.AgentName, &resolvedWorkspace); agentErr != nil {
 				errs = append(errs, resumeValidationError{
 					check: resumeValidationCheckAgent,
 					err: fmt.Errorf(
@@ -187,8 +187,8 @@ func validateWorkspaceRoot(path string) error {
 	return nil
 }
 
-func validateResumeAgent(agentName string, resolvedWorkspace *workspacepkg.ResolvedWorkspace) error {
-	agentDef, err := resolveWorkspaceAgent(agentName, resolvedWorkspace)
+func (m *Manager) validateResumeAgent(agentName string, resolvedWorkspace *workspacepkg.ResolvedWorkspace) error {
+	agentDef, err := m.resolveWorkspaceAgent(agentName, resolvedWorkspace)
 	if err != nil {
 		return err
 	}

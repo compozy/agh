@@ -22,6 +22,7 @@ type handlerConfig struct {
 	bridges        core.BridgeService
 	bundles        core.BundleService
 	workspaces     core.WorkspaceService
+	agentCatalog   core.AgentCatalog
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
 	dreamTrigger   core.DreamTrigger
@@ -71,6 +72,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Bridges:                      cfg.bridges,
 			Bundles:                      cfg.bundles,
 			Workspaces:                   cfg.workspaces,
+			AgentCatalog:                 cfg.agentCatalog,
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,
 			DreamTrigger:                 cfg.dreamTrigger,

@@ -201,7 +201,7 @@ func (m *Manager) prepareSessionStartRuntime(
 	spec *sessionStartSpec,
 	updatedAt time.Time,
 ) (sessionStartRuntime, error) {
-	agentDef, err := resolveWorkspaceAgent(spec.agentName, &spec.workspace)
+	agentDef, err := m.resolveWorkspaceAgent(spec.agentName, &spec.workspace)
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}

@@ -50,6 +50,7 @@ type Server struct {
 	bridges        core.BridgeService
 	bundles        core.BundleService
 	workspaces     core.WorkspaceService
+	agentCatalog   core.AgentCatalog
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
 	dreamTrigger   core.DreamTrigger
@@ -200,6 +201,13 @@ func WithMemoryStore(store *memory.Store) Option {
 func WithSkillsRegistry(registry core.SkillsRegistry) Option {
 	return func(server *Server) {
 		server.skillsRegistry = registry
+	}
+}
+
+// WithAgentCatalog injects the projected resource-backed agent catalog.
+func WithAgentCatalog(catalog core.AgentCatalog) Option {
+	return func(server *Server) {
+		server.agentCatalog = catalog
 	}
 }
 
@@ -366,6 +374,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		bridges:        s.bridges,
 		bundles:        s.bundles,
 		workspaces:     s.workspaces,
+		agentCatalog:   s.agentCatalog,
 		skillsRegistry: s.skillsRegistry,
 		memoryStore:    s.memoryStore,
 		dreamTrigger:   s.dreamTrigger,

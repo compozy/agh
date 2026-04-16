@@ -86,6 +86,7 @@ type RuntimeDeps struct {
 	MemoryStore       *memory.Store
 	WorkspaceResolver workspacepkg.RuntimeResolver
 	WorkspaceService  core.WorkspaceService
+	AgentCatalog      core.AgentCatalog
 	SkillsRegistry    core.SkillsRegistry
 	DreamTrigger      DreamTrigger
 	Extensions        udsapi.ExtensionService
@@ -143,8 +144,10 @@ type resourceReconcileDriverDeps struct {
 	ResourceStore    resources.RawStore
 	CodecRegistry    *resources.CodecRegistry
 	Hooks            *hookspkg.Hooks
+	AgentCatalog     *resourceCatalog[aghconfig.AgentDef]
 	ToolCatalog      *resourceCatalog[toolspkg.Tool]
 	MCPServerCatalog *resourceCatalog[aghconfig.MCPServer]
+	SkillsRegistry   *skills.Registry
 }
 
 type extensionRuntime interface {
@@ -226,6 +229,7 @@ type SessionManagerDeps struct {
 	Notifier          session.Notifier
 	Hooks             session.HookSet
 	PromptAssembler   session.PromptAssembler
+	AgentResolver     session.AgentResolver
 	SkillRegistry     session.SkillRegistry
 	MCPResolver       session.MCPResolver
 	WorkspaceResolver workspacepkg.RuntimeResolver
@@ -277,6 +281,7 @@ type Daemon struct {
 	extensions           extensionRuntime
 	observer             Observer
 	resourceReconcile    resources.ReconcileDriver
+	agentCatalog         *resourceCatalog[aghconfig.AgentDef]
 	toolCatalog          *resourceCatalog[toolspkg.Tool]
 	mcpServerCatalog     *resourceCatalog[aghconfig.MCPServer]
 	automation           automationRuntime
@@ -463,6 +468,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithNotifier(deps.Notifier),
 			session.WithHookSet(deps.Hooks),
 			session.WithPromptAssembler(deps.PromptAssembler),
+			session.WithAgentResolver(deps.AgentResolver),
 			session.WithSkillRegistry(deps.SkillRegistry),
 			session.WithMCPResolver(deps.MCPResolver),
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
@@ -552,7 +558,6 @@ func buildExtensionManagerOptions(
 ) []extensionpkg.Option {
 	opts := []extensionpkg.Option{
 		extensionpkg.WithCapabilityChecker(capChecker),
-		extensionpkg.WithSkillsRegistry(deps.SkillsRegistry),
 		extensionpkg.WithLogger(deps.Logger),
 		extensionpkg.WithSourceSessionManager(sourceSessions),
 	}
@@ -607,58 +612,94 @@ func (d *Daemon) applyResourceReconcileDriverFactoryDefault() {
 			)
 		}
 
-		var registrations []resources.ProjectorRegistration
-		if deps.Hooks != nil {
-			codec, err := resources.ResolveCodec[hookspkg.HookDecl](deps.CodecRegistry, hookBindingResourceKind)
-			if err != nil {
-				return nil, err
-			}
-			registration, err := resources.NewTypedProjectorRegistration(codec, newHookBindingProjector(deps.Hooks))
-			if err != nil {
-				return nil, err
-			}
-			registrations = append(registrations, registration)
-		}
-		if deps.ToolCatalog != nil {
-			codec, err := resources.ResolveCodec[toolspkg.Tool](deps.CodecRegistry, toolspkg.ToolResourceKind)
-			if err != nil {
-				return nil, err
-			}
-			registration, err := resources.NewTypedProjectorRegistration(codec, newToolProjector(deps.ToolCatalog))
-			if err != nil {
-				return nil, err
-			}
-			registrations = append(registrations, registration)
-		}
-		if deps.MCPServerCatalog != nil {
-			codec, err := resources.ResolveCodec[aghconfig.MCPServer](
-				deps.CodecRegistry,
-				aghconfig.MCPServerResourceKind,
-			)
-			if err != nil {
-				return nil, err
-			}
-			registration, err := resources.NewTypedProjectorRegistration(
-				codec,
-				newMCPServerProjector(deps.MCPServerCatalog),
-			)
-			if err != nil {
-				return nil, err
-			}
-			registrations = append(registrations, registration)
+		registrations, err := buildResourceProjectorRegistrations(&deps)
+		if err != nil {
+			return nil, err
 		}
 
 		return resources.NewReconcileDriver(
 			deps.ResourceStore,
-			resources.MutationActor{
-				Kind:     resources.MutationActorKindDaemon,
-				ID:       "daemon-control",
-				Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "system"},
-				MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			},
+			resourceReconcileActor(),
 			registrations,
 			resources.WithReconcileLogger(deps.Logger),
 		)
+	}
+}
+
+func buildResourceProjectorRegistrations(
+	deps *resourceReconcileDriverDeps,
+) ([]resources.ProjectorRegistration, error) {
+	var registrations []resources.ProjectorRegistration
+	if deps.Hooks != nil {
+		codec, err := resources.ResolveCodec[hookspkg.HookDecl](deps.CodecRegistry, hookBindingResourceKind)
+		if err != nil {
+			return nil, err
+		}
+		registration, err := resources.NewTypedProjectorRegistration(codec, newHookBindingProjector(deps.Hooks))
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, registration)
+	}
+	if deps.AgentCatalog != nil {
+		codec, err := resources.ResolveCodec[aghconfig.AgentDef](deps.CodecRegistry, aghconfig.AgentResourceKind)
+		if err != nil {
+			return nil, err
+		}
+		registration, err := resources.NewTypedProjectorRegistration(codec, newAgentProjector(deps.AgentCatalog))
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, registration)
+	}
+	if deps.ToolCatalog != nil {
+		codec, err := resources.ResolveCodec[toolspkg.Tool](deps.CodecRegistry, toolspkg.ToolResourceKind)
+		if err != nil {
+			return nil, err
+		}
+		registration, err := resources.NewTypedProjectorRegistration(codec, newToolProjector(deps.ToolCatalog))
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, registration)
+	}
+	if deps.MCPServerCatalog != nil {
+		codec, err := resources.ResolveCodec[aghconfig.MCPServer](
+			deps.CodecRegistry,
+			aghconfig.MCPServerResourceKind,
+		)
+		if err != nil {
+			return nil, err
+		}
+		registration, err := resources.NewTypedProjectorRegistration(
+			codec,
+			newMCPServerProjector(deps.MCPServerCatalog),
+		)
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, registration)
+	}
+	if deps.SkillsRegistry != nil {
+		codec, err := resources.ResolveCodec[skills.SkillResourceSpec](deps.CodecRegistry, skills.SkillResourceKind)
+		if err != nil {
+			return nil, err
+		}
+		registration, err := resources.NewTypedProjectorRegistration(codec, newSkillProjector(deps.SkillsRegistry))
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, registration)
+	}
+	return registrations, nil
+}
+
+func resourceReconcileActor() resources.MutationActor {
+	return resources.MutationActor{
+		Kind:     resources.MutationActorKindDaemon,
+		ID:       "daemon-control",
+		Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "system"},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 	}
 }
 
@@ -680,6 +721,7 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				httpapi.WithBundleService(deps.Bundles),
 				httpapi.WithResourceService(deps.Resources),
 				httpapi.WithWorkspaceResolver(deps.WorkspaceService),
+				httpapi.WithAgentCatalog(deps.AgentCatalog),
 				httpapi.WithSkillsRegistry(deps.SkillsRegistry),
 				httpapi.WithMemoryStore(deps.MemoryStore),
 				httpapi.WithDreamTrigger(deps.DreamTrigger),
@@ -703,6 +745,7 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				udsapi.WithBundleService(deps.Bundles),
 				udsapi.WithResourceService(deps.Resources),
 				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
+				udsapi.WithAgentCatalog(deps.AgentCatalog),
 				udsapi.WithSkillsRegistry(deps.SkillsRegistry),
 				udsapi.WithMemoryStore(deps.MemoryStore),
 				udsapi.WithDreamTrigger(deps.DreamTrigger),

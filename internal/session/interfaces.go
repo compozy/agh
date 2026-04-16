@@ -219,6 +219,11 @@ type PromptAssembler interface {
 	Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error)
 }
 
+// AgentResolver resolves agent definitions from the daemon-authoritative catalog.
+type AgentResolver interface {
+	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error)
+}
+
 // SkillRegistry resolves the active skill set for a workspace during session start.
 type SkillRegistry interface {
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)

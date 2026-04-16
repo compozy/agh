@@ -15,14 +15,15 @@ import (
 )
 
 type daemonExtensionService struct {
-	registry  *extensionpkg.Registry
-	runtime   extensionRuntime
-	hookBinds hookBindingPublisher
-	toolMCP   toolMCPPublisher
-	bundles   interface{ Reconcile(context.Context) error }
-	homePaths aghconfig.HomePaths
-	logger    *slog.Logger
-	now       func() time.Time
+	registry   *extensionpkg.Registry
+	runtime    extensionRuntime
+	hookBinds  hookBindingPublisher
+	agentSkill agentSkillPublisher
+	toolMCP    toolMCPPublisher
+	bundles    interface{ Reconcile(context.Context) error }
+	homePaths  aghconfig.HomePaths
+	logger     *slog.Logger
+	now        func() time.Time
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
@@ -31,6 +32,7 @@ func newDaemonExtensionService(
 	registry *extensionpkg.Registry,
 	runtime extensionRuntime,
 	hookBinds hookBindingPublisher,
+	agentSkill agentSkillPublisher,
 	toolMCP toolMCPPublisher,
 	bundles interface{ Reconcile(context.Context) error },
 	homePaths aghconfig.HomePaths,
@@ -49,19 +51,20 @@ func newDaemonExtensionService(
 		}
 	}
 	return &daemonExtensionService{
-		registry:  registry,
-		runtime:   runtime,
-		hookBinds: hookBinds,
-		toolMCP:   toolMCP,
-		bundles:   bundles,
-		homePaths: homePaths,
-		logger:    logger,
-		now:       now,
+		registry:   registry,
+		runtime:    runtime,
+		hookBinds:  hookBinds,
+		agentSkill: agentSkill,
+		toolMCP:    toolMCP,
+		bundles:    bundles,
+		homePaths:  homePaths,
+		logger:     logger,
+		now:        now,
 	}
 }
 
 func (s *daemonExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
-	if err := s.checkReady(ctx); err != nil {
+	if err := s.checkReady(); err != nil {
 		return nil, err
 	}
 
@@ -85,7 +88,7 @@ func (s *daemonExtensionService) Install(
 	ctx context.Context,
 	req contract.InstallExtensionRequest,
 ) (contract.ExtensionPayload, error) {
-	if err := s.checkReady(ctx); err != nil {
+	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 
@@ -103,7 +106,7 @@ func (s *daemonExtensionService) Install(
 }
 
 func (s *daemonExtensionService) Enable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
-	if err := s.checkReady(ctx); err != nil {
+	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.registry.Enable(name); err != nil {
@@ -116,7 +119,7 @@ func (s *daemonExtensionService) Enable(ctx context.Context, name string) (contr
 }
 
 func (s *daemonExtensionService) Disable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
-	if err := s.checkReady(ctx); err != nil {
+	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.registry.Disable(name); err != nil {
@@ -128,8 +131,8 @@ func (s *daemonExtensionService) Disable(ctx context.Context, name string) (cont
 	return s.Status(ctx, name)
 }
 
-func (s *daemonExtensionService) Status(ctx context.Context, name string) (contract.ExtensionPayload, error) {
-	if err := s.checkReady(ctx); err != nil {
+func (s *daemonExtensionService) Status(_ context.Context, name string) (contract.ExtensionPayload, error) {
+	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 
@@ -147,6 +150,9 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 
 	reloadErr := s.runtime.Reload(ctx)
 	var syncErr error
+	if s.agentSkill != nil {
+		syncErr = errors.Join(syncErr, s.agentSkill.Sync(ctx))
+	}
 	if s.hookBinds != nil {
 		syncErr = errors.Join(syncErr, s.hookBinds.Sync(ctx))
 	}
@@ -237,12 +243,9 @@ func (s *daemonExtensionService) payloadFromExtension(ext *extensionpkg.Extensio
 	return extensionpkg.DescribeExtension(ext, s.runtime != nil, s.now())
 }
 
-func (s *daemonExtensionService) checkReady(ctx context.Context) error {
+func (s *daemonExtensionService) checkReady() error {
 	if s == nil {
 		return errors.New("daemon: extension service is required")
-	}
-	if ctx == nil {
-		return errors.New("daemon: extension service context is required")
 	}
 	if s.registry == nil {
 		return errors.New("daemon: extension registry is required")

@@ -14,7 +14,6 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/resources"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -116,7 +115,6 @@ func TestManagerIntegrationResourceRegistration(t *testing.T) {
 	withDaemonVersion(t, "0.5.0")
 
 	env := newRegistryTestEnv(t)
-	skillsRegistry := skillspkg.NewRegistry(skillspkg.RegistryConfig{})
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-resources", managerManifestOptions{
 		command:      helperCommand(t),
 		args:         helperArgs(),
@@ -136,7 +134,6 @@ func TestManagerIntegrationResourceRegistration(t *testing.T) {
 
 	manager := NewManager(
 		env.registry,
-		WithSkillsRegistry(skillsRegistry),
 		WithHealthCheckTimeout(20*time.Millisecond),
 		WithSubprocessSignalGrace(15*time.Millisecond),
 	)
@@ -150,11 +147,15 @@ func TestManagerIntegrationResourceRegistration(t *testing.T) {
 		}
 	})
 
-	if skills := skillsRegistry.List(); len(skills) != 1 || skills[0].Meta.Name != "resource-skill" {
-		t.Fatalf("skills registry List() = %#v, want resource-skill", skills)
-	}
 	if agents := manager.AgentDefinitions(); len(agents) != 1 || agents[0].Name != "resource-agent" {
 		t.Fatalf("AgentDefinitions() = %#v, want resource-agent", agents)
+	}
+	loaded, err := manager.Get("ext-resources")
+	if err != nil {
+		t.Fatalf("Get(ext-resources) error = %v", err)
+	}
+	if len(loaded.Skills) != 1 || loaded.Skills[0].Meta.Name != "resource-skill" {
+		t.Fatalf("Get(ext-resources).Skills = %#v, want resource-skill extension snapshot", loaded.Skills)
 	}
 	if decls, err := manager.HookDeclarations(testutil.Context(t)); err != nil {
 		t.Fatalf("HookDeclarations() error = %v", err)

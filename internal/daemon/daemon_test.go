@@ -1041,13 +1041,23 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
 	t.Parallel()
 
-	if svc := newDaemonExtensionService(nil, nil, nil, nil, nil, aghconfig.HomePaths{}, nil, nil); svc != nil {
+	if svc := newDaemonExtensionService(nil, nil, nil, nil, nil, nil, aghconfig.HomePaths{}, nil, nil); svc != nil {
 		t.Fatalf("newDaemonExtensionService(nil) = %#v, want nil", svc)
 	}
 
 	db := openDaemonTestGlobalDB(t)
 	registry := extensionpkg.NewRegistry(db.DB())
-	if svc := newDaemonExtensionService(registry, nil, nil, nil, nil, aghconfig.HomePaths{}, nil, nil); svc == nil {
+	if svc := newDaemonExtensionService(
+		registry,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		aghconfig.HomePaths{},
+		nil,
+		nil,
+	); svc == nil {
 		t.Fatal("newDaemonExtensionService(defaults) = nil, want service")
 	}
 }
@@ -1468,6 +1478,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		}),
 		nil,
 		nil,
+		nil,
 		homePaths,
 		discardLogger(),
 		func() time.Time { return fixedNow },
@@ -1532,6 +1543,22 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		t.Fatalf("disabled extension = %#v, want disabled extension", disabled)
 	}
 
+	enabled, err := service.Enable(testutil.Context(t), "service-ext")
+	if err != nil {
+		t.Fatalf("service.Enable() error = %v", err)
+	}
+	if enabled.State != "active" || !enabled.Enabled {
+		t.Fatalf("enabled extension = %#v, want active enabled extension", enabled)
+	}
+
+	disabled, err = service.Disable(testutil.Context(t), "service-ext")
+	if err != nil {
+		t.Fatalf("service.Disable(second) error = %v", err)
+	}
+	if disabled.State != "disabled" || disabled.Enabled {
+		t.Fatalf("disabled extension after second disable = %#v, want disabled extension", disabled)
+	}
+
 	listed, err := service.List(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("service.List() error = %v", err)
@@ -1539,8 +1566,22 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 	if len(listed) != 1 || listed[0].State != "disabled" {
 		t.Fatalf("listed extensions = %#v, want one disabled extension", listed)
 	}
-	if syncs != 2 {
-		t.Fatalf("hook binding sync count = %d, want 2", syncs)
+	if syncs != 4 {
+		t.Fatalf("hook binding sync count = %d, want 4", syncs)
+	}
+}
+
+func TestDaemonExtensionServiceCheckReadyErrors(t *testing.T) {
+	t.Parallel()
+
+	var nilService *daemonExtensionService
+	if err := nilService.checkReady(); err == nil {
+		t.Fatal("nil service checkReady() error = nil, want error")
+	}
+
+	service := &daemonExtensionService{homePaths: testHomePaths(t), logger: discardLogger(), now: time.Now}
+	if _, err := service.List(testutil.Context(t)); err == nil {
+		t.Fatal("List() without registry error = nil, want error")
 	}
 }
 

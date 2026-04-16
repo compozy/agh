@@ -25,6 +25,12 @@ import (
 // AgentLoader loads one parsed AGENT.md definition.
 type AgentLoader func(name string, homePaths aghconfig.HomePaths) (aghconfig.AgentDef, error)
 
+// AgentCatalog exposes projected resource-backed agent definitions.
+type AgentCatalog interface {
+	ListAgents(ctx context.Context) ([]aghconfig.AgentDef, error)
+	GetAgent(ctx context.Context, name string) (aghconfig.AgentDef, error)
+}
+
 // SessionManager is the runtime session surface exposed by API transports.
 // List returns the current in-memory session snapshot without performing I/O.
 // ListAll may perform I/O to return the authoritative session set, so it accepts a context.

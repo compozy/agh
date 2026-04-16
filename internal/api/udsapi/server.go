@@ -67,6 +67,7 @@ type Server struct {
 	bridges        core.BridgeService
 	bundles        core.BundleService
 	workspaces     core.WorkspaceService
+	agentCatalog   core.AgentCatalog
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
 	dreamTrigger   core.DreamTrigger
@@ -94,6 +95,7 @@ type handlerConfig struct {
 	bridges        core.BridgeService
 	bundles        core.BundleService
 	workspaces     core.WorkspaceService
+	agentCatalog   core.AgentCatalog
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
 	dreamTrigger   core.DreamTrigger
@@ -248,6 +250,13 @@ func WithSkillsRegistry(registry core.SkillsRegistry) Option {
 	}
 }
 
+// WithAgentCatalog injects the projected resource-backed agent catalog.
+func WithAgentCatalog(catalog core.AgentCatalog) Option {
+	return func(server *Server) {
+		server.agentCatalog = catalog
+	}
+}
+
 // WithDreamTrigger injects the dream-consolidation trigger surfaced by the daemon.
 func WithDreamTrigger(trigger core.DreamTrigger) Option {
 	return func(server *Server) {
@@ -394,6 +403,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		bridges:        s.bridges,
 		bundles:        s.bundles,
 		workspaces:     s.workspaces,
+		agentCatalog:   s.agentCatalog,
 		skillsRegistry: s.skillsRegistry,
 		memoryStore:    s.memoryStore,
 		dreamTrigger:   s.dreamTrigger,
@@ -613,6 +623,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Bridges:                      cfg.bridges,
 			Bundles:                      cfg.bundles,
 			Workspaces:                   cfg.workspaces,
+			AgentCatalog:                 cfg.agentCatalog,
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,
 			DreamTrigger:                 cfg.dreamTrigger,

@@ -66,6 +66,7 @@ type Manager struct {
 	networkPeers    NetworkPeerLifecycle
 	turnEndNotifier TurnEndNotifier
 	hooks           HookSet
+	agentResolver   AgentResolver
 	skillRegistry   SkillRegistry
 	mcpResolver     MCPResolver
 	homePaths       aghconfig.HomePaths
@@ -127,6 +128,13 @@ func WithHookSet(hooks HookSet) Option {
 func WithSkillRegistry(registry SkillRegistry) Option {
 	return func(manager *Manager) {
 		manager.skillRegistry = registry
+	}
+}
+
+// WithAgentResolver injects the daemon-authoritative agent definition resolver.
+func WithAgentResolver(resolver AgentResolver) Option {
+	return func(manager *Manager) {
+		manager.agentResolver = resolver
 	}
 }
 

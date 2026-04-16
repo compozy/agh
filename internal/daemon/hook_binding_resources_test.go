@@ -192,7 +192,7 @@ func TestDispatchACPAgentHookEventDefaultsAndIgnoresUnsupportedInputs(t *testing
 	}
 
 	dispatchACPAgentHookEvent(
-		nil,
+		testutil.Context(t),
 		nil,
 		runtime,
 		hookspkg.SessionContext{},
