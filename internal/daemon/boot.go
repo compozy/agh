@@ -152,13 +152,13 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	if err := d.bootHooks(ctx, state, cleanup); err != nil {
 		return err
 	}
+	if err := d.bootAutomation(ctx, state, cleanup); err != nil {
+		return err
+	}
 	if err := d.bootResourceReconcile(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootExtensions(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootAutomation(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootBundles(ctx, state); err != nil {
@@ -556,6 +556,20 @@ func (d *Daemon) buildResourceCodecs() (*resources.CodecRegistry, error) {
 	if err := resources.RegisterCodec(registry, skillCodec); err != nil {
 		return nil, fmt.Errorf("daemon: register skill codec: %w", err)
 	}
+	automationJobCodec, err := automationpkg.NewJobResourceCodec()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: build automation job codec: %w", err)
+	}
+	if err := resources.RegisterCodec(registry, automationJobCodec); err != nil {
+		return nil, fmt.Errorf("daemon: register automation job codec: %w", err)
+	}
+	automationTriggerCodec, err := automationpkg.NewTriggerResourceCodec()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: build automation trigger codec: %w", err)
+	}
+	if err := resources.RegisterCodec(registry, automationTriggerCodec); err != nil {
+		return nil, fmt.Errorf("daemon: register automation trigger codec: %w", err)
+	}
 	return registry, nil
 }
 
@@ -622,6 +636,7 @@ func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cl
 		ToolCatalog:      state.toolCatalog,
 		MCPServerCatalog: state.mcpServerCatalog,
 		SkillsRegistry:   state.skillsRegistry,
+		Automation:       automationResourceTarget(state.automation),
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create resource reconcile driver: %w", err)
@@ -851,6 +866,14 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 		Hooks:               state.hooks,
 		Logger:              state.logger.With("component", "automation"),
 		GlobalWorkspacePath: d.homePaths.HomeDir,
+		ResourceStore:       resourceRawStore(state.resourceKernel),
+		ResourceCodecs:      state.resourceCodecs,
+		ResourceTrigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+			if state.resourceReconcile == nil {
+				return nil
+			}
+			return state.resourceReconcile.Trigger(ctx, kind, reason)
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create automation manager: %w", err)

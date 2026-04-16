@@ -314,23 +314,11 @@ func TestGlobalDBJobEnabledOverlayDoesNotMutateDefinition(t *testing.T) {
 		t.Fatalf("len(ListJobEnabledOverlays()) = %d, want %d", got, want)
 	}
 
-	dynamicJob, err := globalDB.CreateJob(
-		testutil.Context(t),
-		automationJobForTest(
-			automation.AutomationScopeWorkspace,
-			"dynamic-job",
-			workspaceID,
-			automation.JobSourceDynamic,
-		),
-	)
-	if err != nil {
-		t.Fatalf("CreateJob(dynamic) error = %v", err)
-	}
 	if _, err := globalDB.SetJobEnabledOverlay(testutil.Context(t), JobEnabledOverlay{
-		JobID:           dynamicJob.ID,
+		JobID:           "resource-backed-job",
 		EnabledOverride: false,
-	}); !errors.Is(err, automation.ErrOverlayRequiresConfigSource) {
-		t.Fatalf("SetJobEnabledOverlay(dynamic) error = %v, want ErrOverlayRequiresConfigSource", err)
+	}); err != nil {
+		t.Fatalf("SetJobEnabledOverlay(resource-backed) error = %v", err)
 	}
 
 	if err := globalDB.DeleteJobEnabledOverlay(testutil.Context(t), created.ID); err != nil {
@@ -396,23 +384,11 @@ func TestGlobalDBTriggerEnabledOverlayDoesNotMutateDefinition(t *testing.T) {
 		t.Fatalf("len(ListTriggerEnabledOverlays()) = %d, want %d", got, want)
 	}
 
-	dynamicTriggerDef := automationWebhookTriggerForTest(
-		automation.AutomationScopeWorkspace,
-		"dynamic-trigger",
-		workspaceID,
-		automation.JobSourceDynamic,
-	)
-	dynamicTriggerDef.WebhookID = "wbh_dynamic-trigger-webhook"
-	dynamicTriggerDef.EndpointSlug = "dynamic-trigger-endpoint"
-	dynamicTrigger, err := globalDB.CreateTrigger(testutil.Context(t), dynamicTriggerDef)
-	if err != nil {
-		t.Fatalf("CreateTrigger(dynamic) error = %v", err)
-	}
 	if _, err := globalDB.SetTriggerEnabledOverlay(testutil.Context(t), TriggerEnabledOverlay{
-		TriggerID:       dynamicTrigger.ID,
+		TriggerID:       "resource-backed-trigger",
 		EnabledOverride: false,
-	}); !errors.Is(err, automation.ErrOverlayRequiresConfigSource) {
-		t.Fatalf("SetTriggerEnabledOverlay(dynamic) error = %v, want ErrOverlayRequiresConfigSource", err)
+	}); err != nil {
+		t.Fatalf("SetTriggerEnabledOverlay(resource-backed) error = %v", err)
 	}
 
 	if err := globalDB.DeleteTriggerEnabledOverlay(testutil.Context(t), created.ID); err != nil {
@@ -852,7 +828,7 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 	}
 }
 
-func TestGlobalDBLookupAutomationSources(t *testing.T) {
+func TestGlobalDBAutomationDefinitionsExposeSourceForLegacyRows(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
@@ -882,38 +858,38 @@ func TestGlobalDBLookupAutomationSources(t *testing.T) {
 		t.Fatalf("CreateTrigger() error = %v", err)
 	}
 
-	jobSource, err := globalDB.lookupJobSource(testutil.Context(t), job.ID)
+	storedJob, err := globalDB.GetJob(testutil.Context(t), job.ID)
 	if err != nil {
-		t.Fatalf("lookupJobSource() error = %v", err)
+		t.Fatalf("GetJob() error = %v", err)
 	}
-	if got, want := jobSource, automation.JobSourceConfig; got != want {
-		t.Fatalf("lookupJobSource() = %q, want %q", got, want)
+	if got, want := storedJob.Source, automation.JobSourceConfig; got != want {
+		t.Fatalf("GetJob().Source = %q, want %q", got, want)
 	}
-	triggerSource, err := globalDB.lookupTriggerSource(testutil.Context(t), trigger.ID)
+	storedTrigger, err := globalDB.GetTrigger(testutil.Context(t), trigger.ID)
 	if err != nil {
-		t.Fatalf("lookupTriggerSource() error = %v", err)
+		t.Fatalf("GetTrigger() error = %v", err)
 	}
-	if got, want := triggerSource, automation.JobSourceConfig; got != want {
-		t.Fatalf("lookupTriggerSource() = %q, want %q", got, want)
+	if got, want := storedTrigger.Source, automation.JobSourceConfig; got != want {
+		t.Fatalf("GetTrigger().Source = %q, want %q", got, want)
 	}
 
-	if _, err := globalDB.lookupJobSource(
+	if _, err := globalDB.GetJob(
 		testutil.Context(t),
 		"missing-job",
 	); !errors.Is(
 		err,
 		automation.ErrJobNotFound,
 	) {
-		t.Fatalf("lookupJobSource(missing) error = %v, want ErrJobNotFound", err)
+		t.Fatalf("GetJob(missing) error = %v, want ErrJobNotFound", err)
 	}
-	if _, err := globalDB.lookupTriggerSource(
+	if _, err := globalDB.GetTrigger(
 		testutil.Context(t),
 		"missing-trigger",
 	); !errors.Is(
 		err,
 		automation.ErrTriggerNotFound,
 	) {
-		t.Fatalf("lookupTriggerSource(missing) error = %v, want ErrTriggerNotFound", err)
+		t.Fatalf("GetTrigger(missing) error = %v, want ErrTriggerNotFound", err)
 	}
 }
 

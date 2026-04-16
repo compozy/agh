@@ -169,27 +169,22 @@ var globalSchemaStatements = append([]string{
 		attempt    INTEGER NOT NULL DEFAULT 1,
 		started_at TEXT,
 		ended_at   TEXT,
-		error      TEXT,
-		FOREIGN KEY(job_id) REFERENCES automation_jobs(id) ON DELETE SET NULL,
-		FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE SET NULL
+		error      TEXT
 	);`,
 	`CREATE TABLE IF NOT EXISTS automation_job_overlays (
 		job_id            TEXT PRIMARY KEY,
 		enabled_override  BOOLEAN NOT NULL,
-		updated_at        TEXT NOT NULL,
-		FOREIGN KEY(job_id) REFERENCES automation_jobs(id) ON DELETE CASCADE
+		updated_at        TEXT NOT NULL
 	);`,
 	`CREATE TABLE IF NOT EXISTS automation_trigger_overlays (
 		trigger_id        TEXT PRIMARY KEY,
 		enabled_override  BOOLEAN NOT NULL,
-		updated_at        TEXT NOT NULL,
-		FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE CASCADE
+		updated_at        TEXT NOT NULL
 	);`,
 	`CREATE TABLE IF NOT EXISTS automation_trigger_webhook_secrets (
 		trigger_id  TEXT PRIMARY KEY,
 		secret      TEXT NOT NULL,
-		updated_at  TEXT NOT NULL,
-		FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE CASCADE
+		updated_at  TEXT NOT NULL
 	);`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_global_name ON automation_jobs(name) WHERE scope = 'global';`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_workspace_name ON automation_jobs(workspace_id, name) WHERE scope = 'workspace';`,

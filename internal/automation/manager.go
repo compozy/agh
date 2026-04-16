@@ -17,6 +17,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -139,6 +140,10 @@ type managerOptions struct {
 	dispatcherOptions   []DispatcherOption
 	schedulerOptions    []SchedulerOption
 	triggerOptions      []TriggerEngineOption
+	jobResources        resources.Store[Job]
+	triggerResources    resources.Store[Trigger]
+	resourceActor       resources.MutationActor
+	resourceTrigger     func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 	now                 func() time.Time
 }
 
@@ -194,6 +199,20 @@ func finalizeManagerOptions(options *managerOptions) error {
 	if options.webhookSecrets == nil {
 		options.webhookSecrets = storeWebhookSecretResolver{store: options.store}
 	}
+	if options.jobResources != nil || options.triggerResources != nil {
+		if options.jobResources == nil {
+			return errors.New("automation: job resource store is required when resource definitions are enabled")
+		}
+		if options.triggerResources == nil {
+			return errors.New("automation: trigger resource store is required when resource definitions are enabled")
+		}
+		if options.resourceActor.Kind == "" {
+			options.resourceActor = defaultAutomationResourceActor()
+		}
+		if err := options.resourceActor.Kind.Normalize().Validate("automation.resource_actor.kind"); err != nil {
+			return err
+		}
+	}
 	if strings.TrimSpace(options.globalWorkspacePath) == "" {
 		return errors.New("automation: global workspace path is required")
 	}
@@ -226,15 +245,23 @@ type Manager struct {
 	dispatcher          *Dispatcher
 	schedulerOptions    []SchedulerOption
 	triggerOptions      []TriggerEngineOption
+	jobResources        resources.Store[Job]
+	triggerResources    resources.Store[Trigger]
+	resourceActor       resources.MutationActor
+	resourceTrigger     func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 	now                 func() time.Time
 
-	mu            sync.RWMutex
-	running       bool
-	runtimeCtx    context.Context
-	runtimeCancel context.CancelFunc
-	scheduler     *Scheduler
-	triggers      *TriggerEngine
-	lastSync      SyncStats
+	mu                sync.RWMutex
+	running           bool
+	runtimeCtx        context.Context
+	runtimeCancel     context.CancelFunc
+	scheduler         *Scheduler
+	triggers          *TriggerEngine
+	lastSync          SyncStats
+	projectedJobs     map[string]Job
+	projectedTriggers map[string]Trigger
+	jobRevision       int64
+	triggerRevision   int64
 
 	taskActorMu       sync.RWMutex
 	sessionTaskActors map[string]taskpkg.ActorContext
@@ -342,6 +369,22 @@ func WithManagerNow(now func() time.Time) Option {
 	}
 }
 
+// WithResourceDefinitions switches desired-state automation definitions to the
+// shared resource runtime while keeping operational run state on Store.
+func WithResourceDefinitions(
+	jobStore resources.Store[Job],
+	triggerStore resources.Store[Trigger],
+	actor resources.MutationActor,
+	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
+) Option {
+	return func(opts *managerOptions) {
+		opts.jobResources = jobStore
+		opts.triggerResources = triggerStore
+		opts.resourceActor = actor
+		opts.resourceTrigger = trigger
+	}
+}
+
 // New constructs the composed automation manager.
 func New(opts ...Option) (*Manager, error) {
 	options := defaultManagerOptions()
@@ -368,7 +411,13 @@ func New(opts ...Option) (*Manager, error) {
 		dispatcher:          dispatcher,
 		schedulerOptions:    append([]SchedulerOption(nil), options.schedulerOptions...),
 		triggerOptions:      append([]TriggerEngineOption(nil), options.triggerOptions...),
+		jobResources:        options.jobResources,
+		triggerResources:    options.triggerResources,
+		resourceActor:       options.resourceActor,
+		resourceTrigger:     options.resourceTrigger,
 		now:                 options.now,
+		projectedJobs:       make(map[string]Job),
+		projectedTriggers:   make(map[string]Trigger),
 		sessionTaskActors:   make(map[string]taskpkg.ActorContext),
 	}
 	if manager.tasks != nil {
@@ -397,13 +446,19 @@ func (m *Manager) Start(ctx context.Context) error {
 		return fmt.Errorf("automation: sync config definitions: %w", err)
 	}
 
-	jobs, err := m.loadEffectiveJobs(ctx, JobListQuery{})
-	if err != nil {
-		return fmt.Errorf("automation: load effective jobs: %w", err)
-	}
-	triggers, err := m.loadEffectiveTriggers(ctx, TriggerListQuery{})
-	if err != nil {
-		return fmt.Errorf("automation: load effective triggers: %w", err)
+	var (
+		jobs     []Job
+		triggers []Trigger
+	)
+	if !m.resourceDefinitionsEnabled() {
+		jobs, err = m.loadEffectiveJobs(ctx, JobListQuery{})
+		if err != nil {
+			return fmt.Errorf("automation: load effective jobs: %w", err)
+		}
+		triggers, err = m.loadEffectiveTriggers(ctx, TriggerListQuery{})
+		if err != nil {
+			return fmt.Errorf("automation: load effective triggers: %w", err)
+		}
 	}
 
 	runtimeCtx, runtimeCancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -527,6 +582,9 @@ func (m *Manager) CreateJob(ctx context.Context, job Job) (Job, error) {
 	if ctx == nil {
 		return Job{}, errors.New("automation: create job context is required")
 	}
+	if m.resourceDefinitionsEnabled() {
+		return m.createJobResource(ctx, job)
+	}
 
 	next := cloneJob(job)
 	if next.Source == "" {
@@ -556,6 +614,9 @@ func (m *Manager) CreateJob(ctx context.Context, job Job) (Job, error) {
 func (m *Manager) UpdateJob(ctx context.Context, job Job) (Job, error) {
 	if ctx == nil {
 		return Job{}, errors.New("automation: update job context is required")
+	}
+	if m.resourceDefinitionsEnabled() {
+		return m.updateJobResource(ctx, job)
 	}
 
 	currentStored, err := m.store.GetJob(ctx, strings.TrimSpace(job.ID))
@@ -609,6 +670,9 @@ func (m *Manager) UpdateJob(ctx context.Context, job Job) (Job, error) {
 func (m *Manager) DeleteJob(ctx context.Context, id string) error {
 	if ctx == nil {
 		return errors.New("automation: delete job context is required")
+	}
+	if m.resourceDefinitionsEnabled() {
+		return m.deleteJobResource(ctx, id)
 	}
 
 	currentStored, err := m.store.GetJob(ctx, strings.TrimSpace(id))
@@ -697,6 +761,9 @@ func (m *Manager) CreateTrigger(ctx context.Context, trigger Trigger, webhookSec
 	if ctx == nil {
 		return Trigger{}, errors.New("automation: create trigger context is required")
 	}
+	if m.resourceDefinitionsEnabled() {
+		return m.createTriggerResource(ctx, trigger, webhookSecret)
+	}
 
 	next := cloneTrigger(trigger)
 	if next.Source == "" {
@@ -733,6 +800,9 @@ func (m *Manager) CreateTrigger(ctx context.Context, trigger Trigger, webhookSec
 func (m *Manager) UpdateTrigger(ctx context.Context, trigger Trigger, webhookSecret *string) (Trigger, error) {
 	if ctx == nil {
 		return Trigger{}, errors.New("automation: update trigger context is required")
+	}
+	if m.resourceDefinitionsEnabled() {
+		return m.updateTriggerResource(ctx, trigger, webhookSecret)
 	}
 
 	currentStored, err := m.store.GetTrigger(ctx, strings.TrimSpace(trigger.ID))
@@ -809,6 +879,9 @@ func (m *Manager) UpdateTrigger(ctx context.Context, trigger Trigger, webhookSec
 func (m *Manager) DeleteTrigger(ctx context.Context, id string) error {
 	if ctx == nil {
 		return errors.New("automation: delete trigger context is required")
+	}
+	if m.resourceDefinitionsEnabled() {
+		return m.deleteTriggerResource(ctx, id)
 	}
 
 	currentStored, err := m.store.GetTrigger(ctx, strings.TrimSpace(id))
@@ -919,6 +992,9 @@ func (m *Manager) SetJobEnabled(ctx context.Context, id string, enabled bool) (J
 	if ctx == nil {
 		return Job{}, errors.New("automation: set job enabled context is required")
 	}
+	if m.resourceDefinitionsEnabled() {
+		return m.setJobResourceEnabled(ctx, id, enabled)
+	}
 
 	stored, err := m.store.GetJob(ctx, strings.TrimSpace(id))
 	if err != nil {
@@ -960,6 +1036,9 @@ func (m *Manager) SetJobEnabled(ctx context.Context, id string, enabled bool) (J
 func (m *Manager) SetTriggerEnabled(ctx context.Context, id string, enabled bool) (Trigger, error) {
 	if ctx == nil {
 		return Trigger{}, errors.New("automation: set trigger enabled context is required")
+	}
+	if m.resourceDefinitionsEnabled() {
+		return m.setTriggerResourceEnabled(ctx, id, enabled)
 	}
 
 	stored, err := m.store.GetTrigger(ctx, strings.TrimSpace(id))
@@ -1110,6 +1189,11 @@ func (m *Manager) DeleteAutomationSessionTaskActor(sessionID string) {
 }
 
 func (m *Manager) loadEffectiveJobs(ctx context.Context, query JobListQuery) ([]Job, error) {
+	if m.resourceDefinitionsEnabled() {
+		jobs := m.projectedJobDefinitions()
+		return m.applyJobQueryAndOverlays(ctx, jobs, query)
+	}
+
 	jobs, err := m.store.ListJobs(ctx, query)
 	if err != nil {
 		return nil, err
@@ -1139,6 +1223,11 @@ func (m *Manager) loadEffectiveJobs(ctx context.Context, query JobListQuery) ([]
 }
 
 func (m *Manager) loadEffectiveTriggers(ctx context.Context, query TriggerListQuery) ([]Trigger, error) {
+	if m.resourceDefinitionsEnabled() {
+		triggers := m.projectedTriggerDefinitions()
+		return m.applyTriggerQueryAndOverlays(ctx, triggers, query)
+	}
+
 	triggers, err := m.store.ListTriggers(ctx, query)
 	if err != nil {
 		return nil, err
@@ -1168,6 +1257,14 @@ func (m *Manager) loadEffectiveTriggers(ctx context.Context, query TriggerListQu
 }
 
 func (m *Manager) effectiveJob(ctx context.Context, id string) (Job, error) {
+	if m.resourceDefinitionsEnabled() {
+		job, err := m.projectedJobDefinition(id)
+		if err != nil {
+			return Job{}, err
+		}
+		return m.effectiveJobFromStored(ctx, job)
+	}
+
 	job, err := m.store.GetJob(ctx, id)
 	if err != nil {
 		return Job{}, err
@@ -1194,6 +1291,14 @@ func (m *Manager) effectiveJobFromStored(ctx context.Context, job Job) (Job, err
 }
 
 func (m *Manager) effectiveTrigger(ctx context.Context, id string) (Trigger, error) {
+	if m.resourceDefinitionsEnabled() {
+		trigger, err := m.projectedTriggerDefinition(id)
+		if err != nil {
+			return Trigger{}, err
+		}
+		return m.effectiveTriggerFromStored(ctx, trigger)
+	}
+
 	trigger, err := m.store.GetTrigger(ctx, id)
 	if err != nil {
 		return Trigger{}, err
@@ -1220,9 +1325,26 @@ func (m *Manager) effectiveTriggerFromStored(ctx context.Context, trigger Trigge
 }
 
 func (m *Manager) buildRuntimes(ctx context.Context) (*Scheduler, *TriggerEngine, error) {
+	scheduler, err := m.buildSchedulerRuntime(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	triggerEngine, err := m.buildTriggerRuntime(ctx)
+	if err != nil {
+		return nil, nil, errors.Join(
+			err,
+			m.shutdownRuntimeComponent(ctx, "scheduler", scheduler),
+		)
+	}
+
+	return scheduler, triggerEngine, nil
+}
+
+func (m *Manager) buildSchedulerRuntime(_ context.Context) (*Scheduler, error) {
 	location, err := time.LoadLocation(strings.TrimSpace(m.config.Timezone))
 	if err != nil {
-		return nil, nil, fmt.Errorf("automation: load manager timezone %q: %w", m.config.Timezone, err)
+		return nil, fmt.Errorf("automation: load manager timezone %q: %w", m.config.Timezone, err)
 	}
 
 	schedulerOpts := []SchedulerOption{
@@ -1232,9 +1354,12 @@ func (m *Manager) buildRuntimes(ctx context.Context) (*Scheduler, *TriggerEngine
 	schedulerOpts = append(schedulerOpts, m.schedulerOptions...)
 	scheduler, err := NewScheduler(m.dispatcher, schedulerOpts...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("automation: construct scheduler: %w", err)
+		return nil, fmt.Errorf("automation: construct scheduler: %w", err)
 	}
+	return scheduler, nil
+}
 
+func (m *Manager) buildTriggerRuntime(_ context.Context) (*TriggerEngine, error) {
 	triggerOpts := []TriggerEngineOption{
 		WithTriggerEngineLogger(m.logger),
 		WithTriggerEngineHookSessionResolver(m.sessions),
@@ -1242,13 +1367,9 @@ func (m *Manager) buildRuntimes(ctx context.Context) (*Scheduler, *TriggerEngine
 	triggerOpts = append(triggerOpts, m.triggerOptions...)
 	triggerEngine, err := NewTriggerEngine(m.dispatcher, triggerOpts...)
 	if err != nil {
-		return nil, nil, errors.Join(
-			fmt.Errorf("automation: construct trigger engine: %w", err),
-			m.shutdownRuntimeComponent(ctx, "scheduler", scheduler),
-		)
+		return nil, fmt.Errorf("automation: construct trigger engine: %w", err)
 	}
-
-	return scheduler, triggerEngine, nil
+	return triggerEngine, nil
 }
 
 func (m *Manager) loadSchedulerRegistrations(jobs []Job, scheduler *Scheduler) error {
@@ -1352,6 +1473,10 @@ func (m *Manager) SyncManagedDefinitions(
 	secrets := make(map[string]string, len(desiredTriggerSecrets))
 	for id, secret := range desiredTriggerSecrets {
 		secrets[strings.TrimSpace(id)] = strings.TrimSpace(secret)
+	}
+
+	if m.resourceDefinitionsEnabled() {
+		return m.syncManagedResourceDefinitions(ctx, source, jobs, triggers, secrets)
 	}
 
 	jobsSynced, jobsRemoved, err := m.syncJobsForSource(ctx, source, jobs)

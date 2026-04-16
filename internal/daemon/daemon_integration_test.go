@@ -27,6 +27,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
@@ -565,12 +566,33 @@ func TestBootPreservesAutomationEnabledOverlaysAcrossRestart(t *testing.T) {
 		}
 	}()
 
-	storedJob, err := db.GetJob(testutil.Context(t), job.ID)
+	kernel, err := resources.NewKernel(db.DB())
 	if err != nil {
-		t.Fatalf("GetJob() error = %v", err)
+		t.Fatalf("NewKernel() error = %v", err)
 	}
-	if !storedJob.Enabled {
-		t.Fatal("stored config job enabled default = false, want true")
+	jobCodec, err := automationpkg.NewJobResourceCodec()
+	if err != nil {
+		t.Fatalf("NewJobResourceCodec() error = %v", err)
+	}
+	jobStore, err := resources.NewStore(kernel, jobCodec)
+	if err != nil {
+		t.Fatalf("NewStore(job) error = %v", err)
+	}
+	triggerCodec, err := automationpkg.NewTriggerResourceCodec()
+	if err != nil {
+		t.Fatalf("NewTriggerResourceCodec() error = %v", err)
+	}
+	triggerStore, err := resources.NewStore(kernel, triggerCodec)
+	if err != nil {
+		t.Fatalf("NewStore(trigger) error = %v", err)
+	}
+
+	storedJob, err := jobStore.Get(testutil.Context(t), resourceReconcileActor(), job.ID)
+	if err != nil {
+		t.Fatalf("jobStore.Get() error = %v", err)
+	}
+	if !storedJob.Spec.Enabled {
+		t.Fatal("stored resource job enabled default = false, want true")
 	}
 	jobOverlay, err := db.GetJobEnabledOverlay(testutil.Context(t), job.ID)
 	if err != nil {
@@ -580,12 +602,12 @@ func TestBootPreservesAutomationEnabledOverlaysAcrossRestart(t *testing.T) {
 		t.Fatal("job overlay enabled_override = true, want false")
 	}
 
-	storedTrigger, err := db.GetTrigger(testutil.Context(t), trigger.ID)
+	storedTrigger, err := triggerStore.Get(testutil.Context(t), resourceReconcileActor(), trigger.ID)
 	if err != nil {
-		t.Fatalf("GetTrigger() error = %v", err)
+		t.Fatalf("triggerStore.Get() error = %v", err)
 	}
-	if !storedTrigger.Enabled {
-		t.Fatal("stored config trigger enabled default = false, want true")
+	if !storedTrigger.Spec.Enabled {
+		t.Fatal("stored resource trigger enabled default = false, want true")
 	}
 	triggerOverlay, err := db.GetTriggerEnabledOverlay(testutil.Context(t), trigger.ID)
 	if err != nil {

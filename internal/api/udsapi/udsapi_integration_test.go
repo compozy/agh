@@ -434,6 +434,160 @@ func TestUDSAutomationJobsRoundTrip(t *testing.T) {
 	_ = deleteResp.Body.Close()
 }
 
+func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	jobID := "resource-job"
+	createJobResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPut,
+		"http://unix/api/resources/automation.job/"+jobID,
+		[]byte(`{"scope":{"kind":"global"},"spec":{"scope":"global","name":"resource-job","agent_name":"coder","prompt":"review from resource","schedule":{"mode":"every","interval":"1h"},"enabled":true,"source":"dynamic"}}`),
+		nil,
+	)
+	if createJobResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(createJobResp.Body)
+		_ = createJobResp.Body.Close()
+		t.Fatalf("create automation.job resource status = %d, want %d; body=%s", createJobResp.StatusCode, http.StatusCreated, string(body))
+	}
+	var createdJobResource contract.ResourceResponse
+	decodeHTTPJSON(t, createJobResp, &createdJobResource)
+	projectedJob := waitForAutomationJobPrompt(t, runtime, jobID, "review from resource")
+	if projectedJob.Source != automationpkg.JobSourceDynamic {
+		t.Fatalf("projected job source = %q, want %q", projectedJob.Source, automationpkg.JobSourceDynamic)
+	}
+
+	triggerRunResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/automation/jobs/"+jobID+"/trigger", nil, nil)
+	if triggerRunResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(triggerRunResp.Body)
+		_ = triggerRunResp.Body.Close()
+		t.Fatalf("trigger resource job status = %d, want %d; body=%s", triggerRunResp.StatusCode, http.StatusOK, string(body))
+	}
+	var jobRun contract.RunResponse
+	decodeHTTPJSON(t, triggerRunResp, &jobRun)
+	if jobRun.Run.JobID != jobID {
+		t.Fatalf("resource job run = %#v, want job_id %q", jobRun.Run, jobID)
+	}
+
+	updateJobResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPut,
+		"http://unix/api/resources/automation.job/"+jobID,
+		[]byte(fmt.Sprintf(
+			`{"scope":{"kind":"global"},"expected_version":%d,"spec":{"scope":"global","name":"resource-job","agent_name":"coder","prompt":"review after resource update","schedule":{"mode":"every","interval":"1h"},"enabled":true,"source":"dynamic"}}`,
+			createdJobResource.Record.Version,
+		)),
+		nil,
+	)
+	if updateJobResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateJobResp.Body)
+		_ = updateJobResp.Body.Close()
+		t.Fatalf("update automation.job resource status = %d, want %d; body=%s", updateJobResp.StatusCode, http.StatusOK, string(body))
+	}
+	var updatedJobResource contract.ResourceResponse
+	decodeHTTPJSON(t, updateJobResp, &updatedJobResource)
+	waitForAutomationJobPrompt(t, runtime, jobID, "review after resource update")
+
+	runResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/runs/"+jobRun.Run.ID, nil, nil)
+	if runResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(runResp.Body)
+		_ = runResp.Body.Close()
+		t.Fatalf("get resource job run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
+	}
+	var fetchedRun contract.RunResponse
+	decodeHTTPJSON(t, runResp, &fetchedRun)
+	if fetchedRun.Run.ID != jobRun.Run.ID || fetchedRun.Run.JobID != jobID {
+		t.Fatalf("fetched resource job run = %#v, want run %q for job %q", fetchedRun.Run, jobRun.Run.ID, jobID)
+	}
+
+	triggerID := "resource-trigger"
+	createTriggerResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPut,
+		"http://unix/api/resources/automation.trigger/"+triggerID,
+		[]byte(`{"scope":{"kind":"global"},"spec":{"scope":"global","name":"resource-trigger","agent_name":"coder","prompt":"inspect {{ index .Data \"session_id\" }}","event":"session.stopped","enabled":true,"source":"dynamic"}}`),
+		nil,
+	)
+	if createTriggerResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(createTriggerResp.Body)
+		_ = createTriggerResp.Body.Close()
+		t.Fatalf("create automation.trigger resource status = %d, want %d; body=%s", createTriggerResp.StatusCode, http.StatusCreated, string(body))
+	}
+	var createdTriggerResource contract.ResourceResponse
+	decodeHTTPJSON(t, createTriggerResp, &createdTriggerResource)
+	projectedTrigger := waitForAutomationTriggerPrompt(t, runtime, triggerID, `inspect {{ index .Data "session_id" }}`)
+	if projectedTrigger.Source != automationpkg.JobSourceDynamic {
+		t.Fatalf("projected trigger source = %q, want %q", projectedTrigger.Source, automationpkg.JobSourceDynamic)
+	}
+
+	updateTriggerResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPut,
+		"http://unix/api/resources/automation.trigger/"+triggerID,
+		[]byte(fmt.Sprintf(
+			`{"scope":{"kind":"global"},"expected_version":%d,"spec":{"scope":"global","name":"resource-trigger","agent_name":"coder","prompt":"inspect resource {{ index .Data \"session_id\" }}","event":"session.stopped","enabled":true,"source":"dynamic"}}`,
+			createdTriggerResource.Record.Version,
+		)),
+		nil,
+	)
+	if updateTriggerResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateTriggerResp.Body)
+		_ = updateTriggerResp.Body.Close()
+		t.Fatalf("update automation.trigger resource status = %d, want %d; body=%s", updateTriggerResp.StatusCode, http.StatusOK, string(body))
+	}
+	var updatedTriggerResource contract.ResourceResponse
+	decodeHTTPJSON(t, updateTriggerResp, &updatedTriggerResource)
+	waitForAutomationTriggerPrompt(t, runtime, triggerID, `inspect resource {{ index .Data "session_id" }}`)
+
+	deleteTriggerResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodDelete,
+		"http://unix/api/resources/automation.trigger/"+triggerID,
+		[]byte(fmt.Sprintf(`{"expected_version":%d}`, updatedTriggerResource.Record.Version)),
+		nil,
+	)
+	if deleteTriggerResp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(deleteTriggerResp.Body)
+		_ = deleteTriggerResp.Body.Close()
+		t.Fatalf("delete automation.trigger resource status = %d, want %d; body=%s", deleteTriggerResp.StatusCode, http.StatusNoContent, string(body))
+	}
+	_ = deleteTriggerResp.Body.Close()
+	waitForAutomationTriggerMissing(t, runtime, triggerID)
+
+	deleteJobResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodDelete,
+		"http://unix/api/resources/automation.job/"+jobID,
+		[]byte(fmt.Sprintf(`{"expected_version":%d}`, updatedJobResource.Record.Version)),
+		nil,
+	)
+	if deleteJobResp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(deleteJobResp.Body)
+		_ = deleteJobResp.Body.Close()
+		t.Fatalf("delete automation.job resource status = %d, want %d; body=%s", deleteJobResp.StatusCode, http.StatusNoContent, string(body))
+	}
+	_ = deleteJobResp.Body.Close()
+	waitForAutomationJobMissing(t, runtime, jobID)
+
+	runAfterDeleteResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/runs/"+jobRun.Run.ID, nil, nil)
+	if runAfterDeleteResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(runAfterDeleteResp.Body)
+		_ = runAfterDeleteResp.Body.Close()
+		t.Fatalf("get run after resource delete status = %d, want %d; body=%s", runAfterDeleteResp.StatusCode, http.StatusOK, string(body))
+	}
+	var runAfterDelete contract.RunResponse
+	decodeHTTPJSON(t, runAfterDeleteResp, &runAfterDelete)
+	if runAfterDelete.Run.ID != jobRun.Run.ID || runAfterDelete.Run.JobID != jobID {
+		t.Fatalf("run after resource delete = %#v, want run %q for job %q", runAfterDelete.Run, jobRun.Run.ID, jobID)
+	}
+}
+
 func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
@@ -1027,6 +1181,52 @@ func (p *integrationToolProjector) Apply(_ context.Context, plan resources.Proje
 	return nil
 }
 
+type integrationAutomationJobProjector struct {
+	manager *automationpkg.Manager
+}
+
+func (p *integrationAutomationJobProjector) Kind() resources.ResourceKind {
+	return automationpkg.JobResourceKind
+}
+
+func (p *integrationAutomationJobProjector) DependsOn() []resources.ResourceKind {
+	return nil
+}
+
+func (p *integrationAutomationJobProjector) Build(
+	ctx context.Context,
+	records []resources.Record[automationpkg.Job],
+) (resources.ProjectionPlan, error) {
+	return p.manager.BuildJobResourceState(ctx, records)
+}
+
+func (p *integrationAutomationJobProjector) Apply(ctx context.Context, plan resources.ProjectionPlan) error {
+	return p.manager.ApplyJobResourceState(ctx, plan)
+}
+
+type integrationAutomationTriggerProjector struct {
+	manager *automationpkg.Manager
+}
+
+func (p *integrationAutomationTriggerProjector) Kind() resources.ResourceKind {
+	return automationpkg.TriggerResourceKind
+}
+
+func (p *integrationAutomationTriggerProjector) DependsOn() []resources.ResourceKind {
+	return nil
+}
+
+func (p *integrationAutomationTriggerProjector) Build(
+	ctx context.Context,
+	records []resources.Record[automationpkg.Trigger],
+) (resources.ProjectionPlan, error) {
+	return p.manager.BuildTriggerResourceState(ctx, records)
+}
+
+func (p *integrationAutomationTriggerProjector) Apply(ctx context.Context, plan resources.ProjectionPlan) error {
+	return p.manager.ApplyTriggerResourceState(ctx, plan)
+}
+
 func (c *integrationToolCatalog) replace(revision int64, records []resources.Record[toolspkg.Tool]) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -1059,6 +1259,122 @@ func cloneIntegrationTool(spec toolspkg.Tool) toolspkg.Tool {
 		cloned.InputSchema = append([]byte(nil), spec.InputSchema...)
 	}
 	return cloned
+}
+
+func waitForAutomationJobPrompt(
+	t *testing.T,
+	runtime integrationRuntime,
+	jobID string,
+	wantPrompt string,
+) contract.JobPayload {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	var last contract.JobResponse
+	var lastStatus int
+	for time.Now().Before(deadline) {
+		resp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/jobs/"+jobID, nil, nil)
+		lastStatus = resp.StatusCode
+		if resp.StatusCode == http.StatusOK {
+			last = contract.JobResponse{}
+			decodeHTTPJSON(t, resp, &last)
+			if last.Job.Prompt == wantPrompt {
+				return last.Job
+			}
+		} else {
+			_ = resp.Body.Close()
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf("timed out waiting for automation job %q prompt %q (status=%d, last=%#v)", jobID, wantPrompt, lastStatus, last.Job)
+	return contract.JobPayload{}
+}
+
+func waitForAutomationJobMissing(t *testing.T, runtime integrationRuntime, jobID string) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	var lastStatus int
+	for time.Now().Before(deadline) {
+		resp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/jobs/"+jobID, nil, nil)
+		lastStatus = resp.StatusCode
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusNotFound {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf("timed out waiting for automation job %q to be deleted (last status=%d)", jobID, lastStatus)
+}
+
+func waitForAutomationTriggerPrompt(
+	t *testing.T,
+	runtime integrationRuntime,
+	triggerID string,
+	wantPrompt string,
+) contract.TriggerPayload {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	var last contract.TriggerResponse
+	var lastStatus int
+	for time.Now().Before(deadline) {
+		resp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			"http://unix/api/automation/triggers/"+triggerID,
+			nil,
+			nil,
+		)
+		lastStatus = resp.StatusCode
+		if resp.StatusCode == http.StatusOK {
+			last = contract.TriggerResponse{}
+			decodeHTTPJSON(t, resp, &last)
+			if last.Trigger.Prompt == wantPrompt {
+				return last.Trigger
+			}
+		} else {
+			_ = resp.Body.Close()
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf(
+		"timed out waiting for automation trigger %q prompt %q (status=%d, last=%#v)",
+		triggerID,
+		wantPrompt,
+		lastStatus,
+		last.Trigger,
+	)
+	return contract.TriggerPayload{}
+}
+
+func waitForAutomationTriggerMissing(t *testing.T, runtime integrationRuntime, triggerID string) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	var lastStatus int
+	for time.Now().Before(deadline) {
+		resp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			"http://unix/api/automation/triggers/"+triggerID,
+			nil,
+			nil,
+		)
+		lastStatus = resp.StatusCode
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusNotFound {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf("timed out waiting for automation trigger %q to be deleted (last status=%d)", triggerID, lastStatus)
 }
 
 func waitForProjectedToolRevision(t *testing.T, runtime integrationRuntime, want int64) {
@@ -1354,6 +1670,61 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 			t.Fatalf("registry.Close() error = %v", err)
 		}
 	})
+	resourceKernel, err := resources.NewKernel(registry.DB())
+	if err != nil {
+		t.Fatalf("resources.NewKernel() error = %v", err)
+	}
+	resourceActor := resources.MutationActor{
+		Kind: resources.MutationActorKindDaemon,
+		ID:   "uds-integration",
+		Source: resources.ResourceSource{
+			Kind: resources.ResourceSourceKind("daemon"),
+			ID:   "uds-integration",
+		},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+	}
+	resourceCodecs := resources.NewCodecRegistry()
+	toolCodec, err := toolspkg.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
+	}
+	if err := resources.RegisterCodec(resourceCodecs, toolCodec); err != nil {
+		t.Fatalf("resources.RegisterCodec(tool) error = %v", err)
+	}
+	jobCodec, err := automationpkg.NewJobResourceCodec()
+	if err != nil {
+		t.Fatalf("automation.NewJobResourceCodec() error = %v", err)
+	}
+	if err := resources.RegisterCodec(resourceCodecs, jobCodec); err != nil {
+		t.Fatalf("resources.RegisterCodec(automation.job) error = %v", err)
+	}
+	jobResourceStore, err := resources.NewStore(resourceKernel, jobCodec)
+	if err != nil {
+		t.Fatalf("resources.NewStore(automation.job) error = %v", err)
+	}
+	triggerCodec, err := automationpkg.NewTriggerResourceCodec()
+	if err != nil {
+		t.Fatalf("automation.NewTriggerResourceCodec() error = %v", err)
+	}
+	if err := resources.RegisterCodec(resourceCodecs, triggerCodec); err != nil {
+		t.Fatalf("resources.RegisterCodec(automation.trigger) error = %v", err)
+	}
+	triggerResourceStore, err := resources.NewStore(resourceKernel, triggerCodec)
+	if err != nil {
+		t.Fatalf("resources.NewStore(automation.trigger) error = %v", err)
+	}
+	var resourceDriver resources.ReconcileDriver
+	resourceTrigger := func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+		switch kind.Normalize() {
+		case toolspkg.ToolResourceKind, automationpkg.JobResourceKind, automationpkg.TriggerResourceKind:
+		default:
+			return nil
+		}
+		if resourceDriver == nil {
+			return nil
+		}
+		return resourceDriver.Trigger(ctx, kind, reason)
+	}
 
 	fanout := &integrationNotifierFanout{}
 	resolver, err := workspacepkg.NewResolver(
@@ -1406,6 +1777,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		automationpkg.WithConfig(cfg.Automation),
 		automationpkg.WithLogger(discardLogger()),
 		automationpkg.WithGlobalWorkspacePath(homePaths.HomeDir),
+		automationpkg.WithResourceDefinitions(jobResourceStore, triggerResourceStore, resourceActor, resourceTrigger),
 	)
 	if err != nil {
 		t.Fatalf("automation.New() error = %v", err)
@@ -1431,35 +1803,29 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
 
-	resourceKernel, err := resources.NewKernel(registry.DB())
-	if err != nil {
-		t.Fatalf("resources.NewKernel() error = %v", err)
-	}
-	resourceCodecs := resources.NewCodecRegistry()
-	toolCodec, err := toolspkg.NewResourceCodec()
-	if err != nil {
-		t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
-	}
-	if err := resources.RegisterCodec(resourceCodecs, toolCodec); err != nil {
-		t.Fatalf("resources.RegisterCodec(tool) error = %v", err)
-	}
 	toolCatalog := &integrationToolCatalog{}
 	toolRegistration, err := resources.NewTypedProjectorRegistration(toolCodec, &integrationToolProjector{catalog: toolCatalog})
 	if err != nil {
 		t.Fatalf("resources.NewTypedProjectorRegistration(tool) error = %v", err)
 	}
-	resourceDriver, err := resources.NewReconcileDriver(
+	jobRegistration, err := resources.NewTypedProjectorRegistration(
+		jobCodec,
+		&integrationAutomationJobProjector{manager: automationManager},
+	)
+	if err != nil {
+		t.Fatalf("resources.NewTypedProjectorRegistration(automation.job) error = %v", err)
+	}
+	triggerRegistration, err := resources.NewTypedProjectorRegistration(
+		triggerCodec,
+		&integrationAutomationTriggerProjector{manager: automationManager},
+	)
+	if err != nil {
+		t.Fatalf("resources.NewTypedProjectorRegistration(automation.trigger) error = %v", err)
+	}
+	resourceDriver, err = resources.NewReconcileDriver(
 		resourceKernel,
-		resources.MutationActor{
-			Kind: resources.MutationActorKindDaemon,
-			ID:   "uds-integration",
-			Source: resources.ResourceSource{
-				Kind: resources.ResourceSourceKind("daemon"),
-				ID:   "uds-integration",
-			},
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-		},
-		[]resources.ProjectorRegistration{toolRegistration},
+		resourceActor,
+		[]resources.ProjectorRegistration{toolRegistration, jobRegistration, triggerRegistration},
 		resources.WithReconcileLogger(discardLogger()),
 	)
 	if err != nil {
@@ -1473,12 +1839,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	resourceService, err := core.NewOperatorResourceService(&core.ResourceServiceConfig{
 		RawStore:      resourceKernel,
 		CodecRegistry: resourceCodecs,
-		Trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-			if kind.Normalize() != toolspkg.ToolResourceKind {
-				return nil
-			}
-			return resourceDriver.Trigger(ctx, kind, reason)
-		},
+		Trigger:       resourceTrigger,
 	})
 	if err != nil {
 		t.Fatalf("core.NewOperatorResourceService() error = %v", err)

@@ -148,6 +148,7 @@ type resourceReconcileDriverDeps struct {
 	ToolCatalog      *resourceCatalog[toolspkg.Tool]
 	MCPServerCatalog *resourceCatalog[aghconfig.MCPServer]
 	SkillsRegistry   *skills.Registry
+	Automation       automationResourceProjectorTarget
 }
 
 type extensionRuntime interface {
@@ -220,6 +221,9 @@ type automationManagerDeps struct {
 	Hooks               automationpkg.HookDispatcher
 	Logger              *slog.Logger
 	GlobalWorkspacePath string
+	ResourceStore       resources.RawStore
+	ResourceCodecs      *resources.CodecRegistry
+	ResourceTrigger     func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 }
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
@@ -578,7 +582,21 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 		return
 	}
 	d.newAutomationManager = func(deps automationManagerDeps) (automationRuntime, error) {
-		manager, err := automationpkg.New(
+		jobStore, triggerStore, err := automationResourceStores(deps.ResourceStore, deps.ResourceCodecs)
+		if err != nil {
+			return nil, err
+		}
+		resourceOpts := []automationpkg.Option(nil)
+		if jobStore != nil && triggerStore != nil {
+			resourceOpts = append(resourceOpts, automationpkg.WithResourceDefinitions(
+				jobStore,
+				triggerStore,
+				resourceReconcileActor(),
+				deps.ResourceTrigger,
+			))
+		}
+
+		managerOpts := []automationpkg.Option{
 			automationpkg.WithStore(deps.Store),
 			automationpkg.WithSessions(deps.Sessions),
 			automationpkg.WithTasks(deps.Tasks),
@@ -587,7 +605,10 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 			automationpkg.WithHooks(deps.Hooks),
 			automationpkg.WithLogger(deps.Logger),
 			automationpkg.WithGlobalWorkspacePath(deps.GlobalWorkspacePath),
-		)
+		}
+		managerOpts = append(managerOpts, resourceOpts...)
+
+		manager, err := automationpkg.New(managerOpts...)
 		if err != nil {
 			return nil, err
 		}
@@ -691,6 +712,48 @@ func buildResourceProjectorRegistrations(
 		}
 		registrations = append(registrations, registration)
 	}
+	if deps.Automation != nil {
+		var err error
+		registrations, err = appendAutomationProjectorRegistrations(registrations, deps)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return registrations, nil
+}
+
+func appendAutomationProjectorRegistrations(
+	registrations []resources.ProjectorRegistration,
+	deps *resourceReconcileDriverDeps,
+) ([]resources.ProjectorRegistration, error) {
+	jobCodec, err := resources.ResolveCodec[automationpkg.Job](deps.CodecRegistry, automationpkg.JobResourceKind)
+	if err != nil {
+		return nil, err
+	}
+	jobRegistration, err := resources.NewTypedProjectorRegistration(
+		jobCodec,
+		newAutomationJobProjector(deps.Automation),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	triggerCodec, err := resources.ResolveCodec[automationpkg.Trigger](
+		deps.CodecRegistry,
+		automationpkg.TriggerResourceKind,
+	)
+	if err != nil {
+		return nil, err
+	}
+	triggerRegistration, err := resources.NewTypedProjectorRegistration(
+		triggerCodec,
+		newAutomationTriggerProjector(deps.Automation),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	registrations = append(registrations, jobRegistration, triggerRegistration)
 	return registrations, nil
 }
 

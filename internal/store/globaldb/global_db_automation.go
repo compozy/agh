@@ -555,10 +555,6 @@ func (g *GlobalDB) SetJobEnabledOverlay(
 	if err != nil {
 		return automation.JobEnabledOverlay{}, err
 	}
-	if err := g.ensureConfigJob(ctx, normalized.JobID); err != nil {
-		return automation.JobEnabledOverlay{}, err
-	}
-
 	if _, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO automation_job_overlays (job_id, enabled_override, updated_at)
@@ -674,10 +670,6 @@ func (g *GlobalDB) SetTriggerEnabledOverlay(
 	if err != nil {
 		return automation.TriggerEnabledOverlay{}, err
 	}
-	if err := g.ensureConfigTrigger(ctx, normalized.TriggerID); err != nil {
-		return automation.TriggerEnabledOverlay{}, err
-	}
-
 	if _, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO automation_trigger_overlays (trigger_id, enabled_override, updated_at)
@@ -800,14 +792,6 @@ func (g *GlobalDB) SetTriggerWebhookSecret(ctx context.Context, triggerID string
 	trimmedSecret := strings.TrimSpace(secret)
 	if trimmedSecret == "" {
 		return errors.New("store: automation trigger webhook secret is required")
-	}
-
-	trigger, err := g.GetTrigger(ctx, trimmedID)
-	if err != nil {
-		return err
-	}
-	if !strings.EqualFold(strings.TrimSpace(trigger.Event), "webhook") {
-		return errors.New("store: automation trigger webhook secret requires a webhook trigger")
 	}
 
 	if _, err := g.db.ExecContext(
@@ -1064,62 +1048,6 @@ func (g *GlobalDB) normalizeRunForUpdate(run automation.Run) (automation.Run, er
 		return automation.Run{}, err
 	}
 	return normalized, nil
-}
-
-func (g *GlobalDB) ensureConfigJob(ctx context.Context, jobID string) error {
-	source, err := g.lookupJobSource(ctx, jobID)
-	if err != nil {
-		return err
-	}
-	if source != automation.JobSourceConfig {
-		return automation.ErrOverlayRequiresConfigSource
-	}
-	return nil
-}
-
-func (g *GlobalDB) ensureConfigTrigger(ctx context.Context, triggerID string) error {
-	source, err := g.lookupTriggerSource(ctx, triggerID)
-	if err != nil {
-		return err
-	}
-	if source != automation.JobSourceConfig {
-		return automation.ErrOverlayRequiresConfigSource
-	}
-	return nil
-}
-
-func (g *GlobalDB) lookupJobSource(ctx context.Context, jobID string) (automation.JobSource, error) {
-	var raw string
-	if err := g.db.QueryRowContext(ctx, `SELECT source FROM automation_jobs WHERE id = ?`, jobID).
-		Scan(&raw); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", automation.ErrJobNotFound
-		}
-		return "", fmt.Errorf("store: query automation job %q source: %w", jobID, err)
-	}
-
-	source := automation.JobSource(strings.TrimSpace(raw))
-	if err := source.Validate("job.source"); err != nil {
-		return "", err
-	}
-	return source, nil
-}
-
-func (g *GlobalDB) lookupTriggerSource(ctx context.Context, triggerID string) (automation.JobSource, error) {
-	var raw string
-	if err := g.db.QueryRowContext(ctx, `SELECT source FROM automation_triggers WHERE id = ?`, triggerID).
-		Scan(&raw); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", automation.ErrTriggerNotFound
-		}
-		return "", fmt.Errorf("store: query automation trigger %q source: %w", triggerID, err)
-	}
-
-	source := automation.JobSource(strings.TrimSpace(raw))
-	if err := source.Validate("trigger.source"); err != nil {
-		return "", err
-	}
-	return source, nil
 }
 
 func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
