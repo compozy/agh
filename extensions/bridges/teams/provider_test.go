@@ -1254,7 +1254,7 @@ func TestHandleBridgesDeliverCoverageAndRunCommand(t *testing.T) {
 	}
 	waitForCondition(t, func() bool {
 		_, err := runtime.configForInstance("brg-1")
-		return err == nil
+		return err == nil && runtime.currentSession() != nil
 	})
 
 	api := &fakeTeamsAPI{nextActivityID: 800}

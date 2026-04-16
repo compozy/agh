@@ -1459,6 +1459,8 @@ func (m *Manager) syncTriggersForSource(
 				return 0, 0, err
 			}
 		}
+		// Managed webhook secrets can rotate independently from the trigger body,
+		// so we reconcile them even when the stored definition is unchanged.
 		if err := m.syncManagedTriggerWebhookSecret(ctx, current, trigger, desiredSecrets[trigger.ID]); err != nil {
 			return 0, 0, err
 		}
@@ -1521,7 +1523,7 @@ func (m *Manager) resolveConfigJob(ctx context.Context, raw aghconfig.Automation
 		Source:      JobSourceConfig,
 	}
 	if err := job.Validate("job"); err != nil {
-		return Job{}, err
+		return Job{}, fmt.Errorf("automation: resolve config job %q: %w", strings.TrimSpace(raw.Name), err)
 	}
 	return job, nil
 }
@@ -1564,7 +1566,7 @@ func (m *Manager) resolveConfigTrigger(ctx context.Context, raw aghconfig.Automa
 		trigger.WebhookID = configWebhookID(raw.Scope, workspaceID, raw.Name)
 	}
 	if err := trigger.Validate("trigger"); err != nil {
-		return Trigger{}, err
+		return Trigger{}, fmt.Errorf("automation: resolve config trigger %q: %w", strings.TrimSpace(raw.Name), err)
 	}
 	return trigger, nil
 }
@@ -1688,7 +1690,7 @@ func (m *Manager) syncTriggerWebhookSecret(
 	webhookSecret *string,
 ) error {
 	if !strings.EqualFold(strings.TrimSpace(current.Event), "webhook") {
-		return m.store.DeleteTriggerWebhookSecret(ctx, current.ID)
+		return m.deleteTriggerWebhookSecretIfPresent(ctx, current.ID)
 	}
 
 	secret, err := m.desiredWebhookSecret(ctx, previous, current, webhookSecret)
@@ -1708,12 +1710,20 @@ func (m *Manager) syncManagedTriggerWebhookSecret(
 	secret string,
 ) error {
 	if !strings.EqualFold(strings.TrimSpace(current.Event), "webhook") {
-		return m.store.DeleteTriggerWebhookSecret(ctx, current.ID)
+		return m.deleteTriggerWebhookSecretIfPresent(ctx, current.ID)
 	}
 	if strings.TrimSpace(secret) == "" {
 		return ErrWebhookSecretRequired
 	}
 	return m.store.SetTriggerWebhookSecret(ctx, current.ID, strings.TrimSpace(secret))
+}
+
+func (m *Manager) deleteTriggerWebhookSecretIfPresent(ctx context.Context, triggerID string) error {
+	if err := m.store.DeleteTriggerWebhookSecret(ctx, triggerID); err != nil &&
+		!errors.Is(err, ErrTriggerWebhookSecretNotFound) {
+		return err
+	}
+	return nil
 }
 
 func (m *Manager) ensureTriggerWebhookID(ctx context.Context, trigger Trigger) (Trigger, error) {
@@ -1781,10 +1791,10 @@ func (m *Manager) currentWebhookSecret(ctx context.Context, trigger Trigger) (st
 
 func (m *Manager) restoreWebhookSecret(ctx context.Context, trigger Trigger, secret string) error {
 	if !strings.EqualFold(strings.TrimSpace(trigger.Event), "webhook") {
-		return m.store.DeleteTriggerWebhookSecret(ctx, trigger.ID)
+		return m.deleteTriggerWebhookSecretIfPresent(ctx, trigger.ID)
 	}
 	if strings.TrimSpace(secret) == "" {
-		return m.store.DeleteTriggerWebhookSecret(ctx, trigger.ID)
+		return m.deleteTriggerWebhookSecretIfPresent(ctx, trigger.ID)
 	}
 	return m.store.SetTriggerWebhookSecret(ctx, trigger.ID, secret)
 }

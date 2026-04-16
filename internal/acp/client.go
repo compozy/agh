@@ -163,7 +163,12 @@ func (d *Driver) spawnProcess(normalized StartOpts) (*AgentProcess, error) {
 		ShutdownTimeout:  d.stopTimeout,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("acp: start subprocess %q: %w", normalized.Command, err)
+		return nil, fmt.Errorf(
+			"acp: start agent %q subprocess %q: %w",
+			normalized.AgentName,
+			normalized.Command,
+			err,
+		)
 	}
 	procCtx, cancelProcess := context.WithCancel(context.Background())
 

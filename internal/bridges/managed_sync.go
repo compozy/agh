@@ -123,7 +123,7 @@ func (s *ManagedSyncService) validateSyncInputs(
 	}
 	normalizedSource := source.Normalize()
 	if err := normalizedSource.Validate(); err != nil {
-		return "", err
+		return "", fmt.Errorf("bridges: validate managed sync source %q: %w", normalizedSource, err)
 	}
 	if s.store == nil {
 		return "", errors.New("bridges: managed sync store is required")

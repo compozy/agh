@@ -1476,6 +1476,79 @@ func TestManagerUpdateTriggerTransitionsWebhookSecretLifecycle(t *testing.T) {
 	}
 }
 
+func TestResolveConfigDefinitionsWrapValidationErrors(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	})
+
+	invalidJob := aghconfig.AutomationJob{
+		Scope:   AutomationScopeGlobal,
+		Name:    "invalid-job",
+		Enabled: true,
+		Schedule: ScheduleSpec{
+			Mode: ScheduleModeEvery,
+		},
+	}
+	if _, err := manager.resolveConfigJob(h.ctx, invalidJob); err == nil ||
+		!strings.Contains(err.Error(), `automation: resolve config job "invalid-job":`) ||
+		!strings.Contains(err.Error(), "job.agent_name is required") {
+		t.Fatalf("resolveConfigJob(invalid) error = %v, want wrapped validation context", err)
+	}
+
+	invalidTrigger := aghconfig.AutomationTrigger{
+		Scope:   AutomationScopeGlobal,
+		Name:    "invalid-trigger",
+		Enabled: true,
+	}
+	if _, err := manager.resolveConfigTrigger(h.ctx, invalidTrigger); err == nil ||
+		!strings.Contains(err.Error(), `automation: resolve config trigger "invalid-trigger":`) ||
+		!strings.Contains(err.Error(), "trigger.agent_name is required") {
+		t.Fatalf("resolveConfigTrigger(invalid) error = %v, want wrapped validation context", err)
+	}
+}
+
+func TestSyncManagedTriggerWebhookSecretIgnoresMissingSecretForNonWebhookTriggers(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	store := &deleteTriggerWebhookSecretStore{
+		Store:     h.db,
+		deleteErr: ErrTriggerWebhookSecretNotFound,
+	}
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	}, WithStore(store))
+
+	trigger := Trigger{
+		ID:          "trigger-managed-extension",
+		Scope:       AutomationScopeWorkspace,
+		Name:        "managed-extension",
+		AgentName:   "reviewer",
+		WorkspaceID: h.workspace.ID,
+		Prompt:      `Review {{ index .Data "repo" }}`,
+		Event:       "ext.github.push",
+		Enabled:     true,
+		Retry:       DefaultRetryConfig(),
+		FireLimit:   DefaultFireLimitConfig(),
+		Source:      JobSourceConfig,
+	}
+	if err := manager.syncManagedTriggerWebhookSecret(h.ctx, Trigger{}, trigger, ""); err != nil {
+		t.Fatalf("syncManagedTriggerWebhookSecret(non-webhook) error = %v, want nil", err)
+	}
+	if got, want := store.deleteCalls, 1; got != want {
+		t.Fatalf("delete webhook secret calls = %d, want %d", got, want)
+	}
+}
+
 func TestManagerDynamicCRUDHandlesBlankSourcesAndDuplicateNames(t *testing.T) {
 	t.Parallel()
 
@@ -1908,6 +1981,20 @@ type managerHarness struct {
 	workspaceRoot string
 	workspace     workspacepkg.ResolvedWorkspace
 	sessions      *managerSessionStub
+}
+
+type deleteTriggerWebhookSecretStore struct {
+	Store
+	deleteErr   error
+	deleteCalls int
+}
+
+func (s *deleteTriggerWebhookSecretStore) DeleteTriggerWebhookSecret(ctx context.Context, triggerID string) error {
+	s.deleteCalls++
+	if s.deleteErr != nil {
+		return s.deleteErr
+	}
+	return s.Store.DeleteTriggerWebhookSecret(ctx, triggerID)
 }
 
 func newManagerHarness(t *testing.T) *managerHarness {

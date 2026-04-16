@@ -251,6 +251,17 @@ func TestManagedSyncerReturnsExplicitErrorForNilStoreConstruction(t *testing.T) 
 	}
 }
 
+func TestManagedSyncerWrapsSourceValidationErrors(t *testing.T) {
+	t.Parallel()
+
+	syncer := bridgepkg.NewManagedSyncer(stubRegistryStore{})
+	_, err := syncer.SyncManagedInstances(testutil.Context(t), "", nil)
+	if err == nil ||
+		!containsText(err, `bridges: validate managed sync source "": bridges: bridge instance source is required`) {
+		t.Fatalf("SyncManagedInstances(invalid source) error = %v, want wrapped source validation failure", err)
+	}
+}
+
 func containsText(err error, text string) bool {
 	return err != nil && text != "" && strings.Contains(err.Error(), text)
 }

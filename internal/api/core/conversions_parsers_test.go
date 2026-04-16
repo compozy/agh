@@ -46,6 +46,9 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		payload.Channel != "builders" {
 		t.Fatalf("payload = %#v", payload)
 	}
+	if payload.State != session.StateActive || payload.ACPSessionID != "acp-123" {
+		t.Fatalf("payload session fields = %#v", payload)
+	}
 	if payload.StopReason != store.StopTimeout || payload.StopDetail != "deadline exceeded" {
 		t.Fatalf("payload stop fields = %#v", payload)
 	}

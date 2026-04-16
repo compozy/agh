@@ -683,6 +683,7 @@ func TestTerminalLifecycleHandlers(t *testing.T) {
 }
 
 func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
+	// This test mutates PATH with t.Setenv, so it must stay process-serial.
 	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
 	turnSource := ""
 	proc.SetTurnSourceProvider(func() string { return turnSource })

@@ -393,10 +393,14 @@ func TestBrokerAckTracksRemoteAndReplacementIDs(t *testing.T) {
 
 	waitForAcks(t, transport, 2)
 
-	snapshot, err := broker.Snapshot(ctx, reg.DeliveryID)
-	if err != nil {
-		t.Fatalf("Snapshot() error = %v", err)
-	}
+	snapshot := waitForSnapshot(t, broker, reg.DeliveryID, func(snapshot *DeliverySnapshot) bool {
+		if snapshot == nil {
+			return false
+		}
+		return snapshot.LastAckedSeq == 2 &&
+			snapshot.RemoteMessageID == "remote-2" &&
+			snapshot.ReplaceRemoteMessageID == "remote-1"
+	})
 	if got, want := snapshot.DeliveryID, reg.DeliveryID; got != want {
 		t.Fatalf("snapshot.DeliveryID = %q, want %q", got, want)
 	}

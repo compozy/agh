@@ -604,6 +604,24 @@ func TestStartResumeReturnsSentinelErrors(t *testing.T) {
 	}
 }
 
+func TestStartIncludesAgentContextInLaunchErrors(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	_, err := driver.Start(testutil.Context(t), StartOpts{
+		AgentName:   "missing-helper",
+		Command:     "/definitely/missing-binary",
+		Cwd:         t.TempDir(),
+		Permissions: aghconfig.PermissionModeApproveAll,
+	})
+	if err == nil {
+		t.Fatal("Start() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), `start agent "missing-helper" subprocess "/definitely/missing-binary"`) {
+		t.Fatalf("Start() error = %q, want agent and command context", err)
+	}
+}
+
 func TestIsLoadSessionResourceMissing(t *testing.T) {
 	t.Parallel()
 
