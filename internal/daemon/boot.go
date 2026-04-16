@@ -22,6 +22,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
@@ -53,6 +54,7 @@ type bootState struct {
 	hooks              hookRuntime
 	extMu              sync.RWMutex
 	extensions         extensionRuntime
+	resourceReconcile  resources.ReconcileDriver
 	automation         automationRuntime
 	bridges            *bridgeRuntime
 	bundles            *bundlepkg.Service
@@ -170,6 +172,7 @@ func (d *Daemon) beginBoot() error {
 		d.sessions != nil ||
 		d.network != nil ||
 		d.observer != nil ||
+		d.resourceReconcile != nil ||
 		d.automation != nil ||
 		d.bridges != nil {
 		return errors.New("daemon: already booted")
@@ -270,7 +273,10 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 	if err := d.bootRuntimeServices(ctx, state, cleanup); err != nil {
 		return err
 	}
-	return d.attachRuntimeObserver(ctx, state)
+	if err := d.attachRuntimeObserver(ctx, state); err != nil {
+		return err
+	}
+	return d.bootResourceReconcile(ctx, state, cleanup)
 }
 
 func (d *Daemon) bootLockAndSocket(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -474,6 +480,33 @@ func (d *Daemon) attachRuntimeObserver(ctx context.Context, state *bootState) er
 	}
 	state.observer = observer
 	state.deps.Observer = observer
+	return nil
+}
+
+func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	if state == nil {
+		return errors.New("daemon: reconcile boot state is required")
+	}
+	if d.newResourceReconcile == nil {
+		return errors.New("daemon: resource reconcile driver factory is required")
+	}
+
+	driver, err := d.newResourceReconcile(ctx, resourceReconcileDriverDeps{
+		Config:   state.cfg,
+		Logger:   state.logger,
+		Registry: state.registry,
+	})
+	if err != nil {
+		return fmt.Errorf("daemon: create resource reconcile driver: %w", err)
+	}
+	if driver == nil {
+		return errors.New("daemon: resource reconcile driver factory returned nil")
+	}
+
+	state.resourceReconcile = driver
+	cleanup.add(func(ctx context.Context) error {
+		return driver.Close(ctx)
+	})
 	return nil
 }
 
@@ -879,6 +912,12 @@ func daemonNetworkInfo(
 }
 
 func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
+	if state.resourceReconcile != nil {
+		if err := state.resourceReconcile.RunBoot(ctx); err != nil {
+			return fmt.Errorf("daemon: boot resource reconcile: %w", err)
+		}
+	}
+
 	reconcileResult, err := state.observer.Reconcile(ctx)
 	if err != nil {
 		return fmt.Errorf("daemon: reconcile sessions: %w", err)
@@ -915,6 +954,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.extensions = state.currentExtensionRuntime()
 	d.bridges = state.bridges
 	d.observer = state.observer
+	d.resourceReconcile = state.resourceReconcile
 	d.automation = state.automation
 	d.httpServer = state.httpServer
 	d.udsServer = state.udsServer

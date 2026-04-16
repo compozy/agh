@@ -25,6 +25,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/procutil"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
@@ -102,6 +103,10 @@ type sessionManagerFactory func(ctx context.Context, deps SessionManagerDeps) (S
 type observerFactory func(ctx context.Context, deps RuntimeDeps) (Observer, error)
 type extensionManagerFactory func(deps extensionManagerDeps) extensionRuntime
 type automationManagerFactory func(deps automationManagerDeps) (automationRuntime, error)
+type resourceReconcileDriverFactory func(
+	ctx context.Context,
+	deps resourceReconcileDriverDeps,
+) (resources.ReconcileDriver, error)
 
 type networkRuntime interface {
 	core.NetworkService
@@ -127,6 +132,12 @@ type finalizationWaiter interface {
 
 type extensionDBSource interface {
 	DB() *sql.DB
+}
+
+type resourceReconcileDriverDeps struct {
+	Config   aghconfig.Config
+	Logger   *slog.Logger
+	Registry Registry
 }
 
 type extensionRuntime interface {
@@ -225,6 +236,7 @@ type Daemon struct {
 	newObserver          observerFactory
 	newExtensionManager  extensionManagerFactory
 	newAutomationManager automationManagerFactory
+	newResourceReconcile resourceReconcileDriverFactory
 	httpFactory          ServerFactory
 	udsFactory           ServerFactory
 	listProcesses        func(context.Context) ([]processInfo, error)
@@ -252,6 +264,7 @@ type Daemon struct {
 	hooks                hookRuntime
 	extensions           extensionRuntime
 	observer             Observer
+	resourceReconcile    resources.ReconcileDriver
 	automation           automationRuntime
 	bridges              *bridgeRuntime
 	httpServer           Server
@@ -264,21 +277,22 @@ type Daemon struct {
 }
 
 type shutdownTargets struct {
-	sessions     SessionManager
-	network      networkRuntime
-	hooks        hookRuntime
-	extensions   extensionRuntime
-	automation   automationRuntime
-	bridges      *bridgeRuntime
-	httpServer   Server
-	udsServer    Server
-	registry     Registry
-	lock         *Lock
-	closeLogger  func() error
-	infoPath     string
-	dreamRuntime *consolidation.Runtime
-	skillsCancel context.CancelFunc
-	skillsDone   chan struct{}
+	sessions          SessionManager
+	network           networkRuntime
+	hooks             hookRuntime
+	extensions        extensionRuntime
+	automation        automationRuntime
+	resourceReconcile resources.ReconcileDriver
+	bridges           *bridgeRuntime
+	httpServer        Server
+	udsServer         Server
+	registry          Registry
+	lock              *Lock
+	closeLogger       func() error
+	infoPath          string
+	dreamRuntime      *consolidation.Runtime
+	skillsCancel      context.CancelFunc
+	skillsDone        chan struct{}
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -420,6 +434,7 @@ func (d *Daemon) applyRuntimeFactoryDefaults() {
 	d.applyObserverFactoryDefault()
 	d.applyExtensionManagerFactoryDefault()
 	d.applyAutomationManagerFactoryDefault()
+	d.applyResourceReconcileDriverFactoryDefault()
 }
 
 func (d *Daemon) applySessionManagerFactoryDefault() {
@@ -551,6 +566,28 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 	}
 }
 
+func (d *Daemon) applyResourceReconcileDriverFactoryDefault() {
+	if d.newResourceReconcile != nil {
+		return
+	}
+	d.newResourceReconcile = func(
+		_ context.Context,
+		deps resourceReconcileDriverDeps,
+	) (resources.ReconcileDriver, error) {
+		return resources.NewReconcileDriver(
+			nil,
+			resources.MutationActor{
+				Kind:     resources.MutationActorKindDaemon,
+				ID:       "daemon-control",
+				Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "system"},
+				MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			},
+			nil,
+			resources.WithReconcileLogger(deps.Logger),
+		)
+	}
+}
+
 func (d *Daemon) applyServerFactoryDefaults() {
 	if d.httpFactory == nil {
 		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
@@ -676,21 +713,22 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 	defer d.mu.Unlock()
 
 	targets := shutdownTargets{
-		sessions:     d.sessions,
-		network:      d.network,
-		hooks:        d.hooks,
-		extensions:   d.extensions,
-		automation:   d.automation,
-		bridges:      d.bridges,
-		httpServer:   d.httpServer,
-		udsServer:    d.udsServer,
-		registry:     d.registry,
-		lock:         d.lock,
-		closeLogger:  d.closeLogger,
-		infoPath:     d.homePaths.DaemonInfo,
-		dreamRuntime: d.dreamRuntime,
-		skillsCancel: d.skillsCancel,
-		skillsDone:   d.skillsDone,
+		sessions:          d.sessions,
+		network:           d.network,
+		hooks:             d.hooks,
+		extensions:        d.extensions,
+		automation:        d.automation,
+		resourceReconcile: d.resourceReconcile,
+		bridges:           d.bridges,
+		httpServer:        d.httpServer,
+		udsServer:         d.udsServer,
+		registry:          d.registry,
+		lock:              d.lock,
+		closeLogger:       d.closeLogger,
+		infoPath:          d.homePaths.DaemonInfo,
+		dreamRuntime:      d.dreamRuntime,
+		skillsCancel:      d.skillsCancel,
+		skillsDone:        d.skillsDone,
 	}
 
 	d.resetRuntimeStateLocked()
@@ -703,6 +741,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.hooks = nil
 	d.extensions = nil
 	d.automation = nil
+	d.resourceReconcile = nil
 	d.httpServer = nil
 	d.udsServer = nil
 	d.observer = nil
@@ -735,6 +774,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 		targets.dreamRuntime.Shutdown()
 	}
 	stopSkillsWatcher(targets.skillsCancel, targets.skillsDone)
+	if targets.resourceReconcile != nil {
+		appendWrappedError(errs, "daemon: close resource reconcile driver", targets.resourceReconcile.Close(ctx))
+	}
 	if targets.extensions != nil {
 		appendWrappedError(errs, "daemon: stop extensions", targets.extensions.Stop(ctx))
 	}

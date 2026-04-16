@@ -34,6 +34,7 @@ import (
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/procutil"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
@@ -194,6 +195,105 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	}
 	if got, want := d.info.Network.Status, network.StatusDisabled; got != want {
 		t.Fatalf("boot() daemon info network status = %q, want %q", got, want)
+	}
+}
+
+func TestBootRunsResourceReconcileBeforeObserverReconcile(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = false
+
+	var mu sync.Mutex
+	var order []string
+	appendOrder := func(step string) {
+		mu.Lock()
+		defer mu.Unlock()
+		order = append(order, step)
+	}
+
+	driver := &fakeResourceReconcileDriver{
+		onRunBoot: func() {
+			appendOrder("driver")
+		},
+	}
+
+	d := newTestDaemon(t, homePaths, &cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{
+			onReconcile: func() {
+				appendOrder("observer")
+			},
+		}, nil
+	}
+	d.newResourceReconcile = func(context.Context, resourceReconcileDriverDeps) (resources.ReconcileDriver, error) {
+		return driver, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	mu.Lock()
+	gotOrder := append([]string(nil), order...)
+	mu.Unlock()
+	wantOrder := []string{"driver", "observer"}
+	if !slices.Equal(gotOrder, wantOrder) {
+		t.Fatalf("boot order = %#v, want %#v", gotOrder, wantOrder)
+	}
+}
+
+func TestShutdownClosesResourceReconcileDriver(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = false
+
+	driver := &fakeResourceReconcileDriver{}
+	d := newTestDaemon(t, homePaths, &cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.newResourceReconcile = func(context.Context, resourceReconcileDriverDeps) (resources.ReconcileDriver, error) {
+		return driver, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if got, want := driver.closeCalls, 1; got != want {
+		t.Fatalf("resource reconcile Close() calls = %d, want %d", got, want)
 	}
 }
 
@@ -3230,9 +3330,10 @@ func (f *fakeNetworkRuntime) Shutdown(context.Context) error {
 }
 
 type fakeObserver struct {
-	reconciled bool
-	result     store.ReconcileResult
-	err        error
+	reconciled  bool
+	result      store.ReconcileResult
+	err         error
+	onReconcile func()
 }
 
 func (f *fakeObserver) QueryEvents(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
@@ -3260,6 +3361,9 @@ func (f *fakeObserver) Health(context.Context) (observe.Health, error) {
 }
 
 func (f *fakeObserver) Reconcile(context.Context) (store.ReconcileResult, error) {
+	if f.onReconcile != nil {
+		f.onReconcile()
+	}
 	f.reconciled = true
 	return f.result, f.err
 }
@@ -3282,6 +3386,37 @@ func (f *fakeServer) Start(context.Context) error {
 func (f *fakeServer) Shutdown(context.Context) error {
 	if f.onShutdown != nil {
 		f.onShutdown()
+	}
+	return nil
+}
+
+type fakeResourceReconcileDriver struct {
+	runBootCalls int
+	closeCalls   int
+	onRunBoot    func()
+	onClose      func()
+}
+
+func (f *fakeResourceReconcileDriver) Trigger(
+	context.Context,
+	resources.ResourceKind,
+	resources.ReconcileReason,
+) error {
+	return nil
+}
+
+func (f *fakeResourceReconcileDriver) RunBoot(context.Context) error {
+	f.runBootCalls++
+	if f.onRunBoot != nil {
+		f.onRunBoot()
+	}
+	return nil
+}
+
+func (f *fakeResourceReconcileDriver) Close(context.Context) error {
+	f.closeCalls++
+	if f.onClose != nil {
+		f.onClose()
 	}
 	return nil
 }
