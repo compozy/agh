@@ -39,13 +39,16 @@ help:
 	@$(MAGE_RUN) -l
 
 # Documentation Site
-.PHONY: site-dev site-build
+.PHONY: site-dev site-build cli-docs
 
 site-dev:
 	@cd packages/site && bun run dev
 
 site-build:
 	@cd packages/site && bun run build
+
+cli-docs:
+	@go run ./cmd/agh doc --output-dir packages/site/content/runtime/reference/cli
 
 # Web UI
 .PHONY: web-dev web-build web-lint web-fmt web-typecheck web-test

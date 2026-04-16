@@ -1,0 +1,28 @@
+---
+title: "agh memory write"
+description: "Write or update a persistent memory file"
+---
+
+## agh memory write
+
+Write or update a persistent memory file
+
+```
+agh memory write <filename> --type <type> --description <description> [flags]
+```
+
+### Options
+
+```
+      --content string       Memory body content (alternative to stdin)
+      --description string   One-line durable memory description
+  -h, --help                 help for write
+      --scope string         Memory scope: global or workspace
+      --type string          Memory type: user, feedback, project, or reference
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```

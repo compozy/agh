@@ -1,0 +1,32 @@
+---
+title: "agh automation jobs create"
+description: "Create an automation job"
+---
+
+## agh automation jobs create
+
+Create an automation job
+
+```
+agh automation jobs create [flags]
+```
+
+### Options
+
+```
+      --agent string       Agent definition name
+      --enabled            Create the job enabled or disabled
+  -h, --help               help for create
+      --name string        Job name
+      --prompt string      Prompt body to dispatch
+      --retry string       Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"
+      --schedule string    Schedule spec: <cron-expr>, every:<duration>, or at:<timestamp>
+      --scope string       Job scope: global or workspace
+      --workspace string   Workspace path, name, or ID (required when --scope=workspace)
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```

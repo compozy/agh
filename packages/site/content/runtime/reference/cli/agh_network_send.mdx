@@ -1,0 +1,36 @@
+---
+title: "agh network send"
+description: "Send one envelope through the daemon-owned network runtime"
+---
+
+## agh network send
+
+Send one envelope through the daemon-owned network runtime
+
+```
+agh network send [flags]
+```
+
+### Options
+
+```
+      --body string             Raw JSON object for the envelope body
+      --causation-id string     Optional causation id
+      --channel string          Target channel
+      --expires-at string       Optional expiry as unix seconds or RFC3339
+      --ext string              Optional JSON object of extension metadata
+  -h, --help                    help for send
+      --id string               Optional explicit message id
+      --interaction-id string   Optional interaction id
+      --kind string             Envelope kind
+      --reply-to string         Optional reply-to message id
+      --session string          Local source session id
+      --to string               Directed target peer id
+      --trace-id string         Optional trace id
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```

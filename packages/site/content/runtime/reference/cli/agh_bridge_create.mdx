@@ -1,0 +1,35 @@
+---
+title: "agh bridge create"
+description: "Create a bridge instance"
+---
+
+## agh bridge create
+
+Create a bridge instance
+
+```
+agh bridge create [flags]
+```
+
+### Options
+
+```
+      --delivery-defaults string   JSON object or null for delivery target defaults
+      --display-name string        Operator-facing bridge display name
+      --enabled                    Whether the instance starts enabled (default true)
+      --extension string           Owning extension name
+  -h, --help                       help for create
+      --include-group              Include group identity in routing
+      --include-peer               Include peer identity in routing
+      --include-thread             Include thread identity in routing
+      --platform string            Messaging platform name
+      --scope string               Bridge scope: global or workspace (default "global")
+      --status string              Lifecycle status (defaults to starting when enabled, disabled otherwise)
+      --workspace-id string        Owning workspace ID for workspace-scoped bridges
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```

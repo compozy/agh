@@ -1,0 +1,34 @@
+---
+title: "agh task child create"
+description: "Create a child task beneath a parent"
+---
+
+## agh task child create
+
+Create a child task beneath a parent
+
+```
+agh task child create <parent-id> [flags]
+```
+
+### Options
+
+```
+      --channel string       Optional network channel binding
+      --description string   Child task description
+  -h, --help                 help for create
+      --id string            Explicit child task ID
+      --identifier string    Human-friendly child task identifier
+      --metadata string      Optional child metadata JSON
+      --owner-kind string    Optional child owner kind
+      --owner-ref string     Optional child owner reference
+      --scope string         Child task scope: global or workspace
+      --title string         Child task title
+      --workspace string     Workspace path, name, or ID (required when --scope=workspace)
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```

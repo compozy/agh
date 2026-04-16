@@ -95,6 +95,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newMemoryCommand(deps))
 	cmd.AddCommand(newObserveCommand(deps))
 	cmd.AddCommand(newWhoamiCommand(deps))
+	cmd.AddCommand(newDocCommand())
 
 	return cmd
 }

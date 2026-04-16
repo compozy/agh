@@ -1,0 +1,35 @@
+---
+title: "agh automation triggers update"
+description: "Update an automation trigger"
+---
+
+## agh automation triggers update
+
+Update an automation trigger
+
+```
+agh automation triggers update <id> [flags]
+```
+
+### Options
+
+```
+      --agent string            Update the agent definition
+      --enabled                 Update the enabled state
+      --endpoint-slug string    Update the webhook endpoint slug
+      --event string            Update the trigger event
+      --filter stringArray      Replace filters with key=value entries
+  -h, --help                    help for update
+      --name string             Update the trigger name
+      --prompt string           Update the prompt template body
+      --retry string            Update retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"
+      --webhook-id string       Update the stable webhook identifier
+      --webhook-secret string   Update the webhook secret
+      --workspace string        Update the workspace path, name, or ID
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```
