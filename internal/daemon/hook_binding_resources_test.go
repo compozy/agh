@@ -580,6 +580,68 @@ func TestHookBindingProjectorPreservesPermissionEscalationGuard(t *testing.T) {
 	}
 }
 
+func TestHookBindingCodecPreservesInternalDeclarationFields(t *testing.T) {
+	t.Parallel()
+
+	codec, err := newHookBindingCodec()
+	if err != nil {
+		t.Fatalf("newHookBindingCodec() error = %v", err)
+	}
+
+	spec := hookspkg.HookDecl{
+		Name:         "workspace-context",
+		Event:        hookspkg.HookPromptPostAssemble,
+		Source:       hookspkg.HookSourceSkill,
+		Mode:         hookspkg.HookModeSync,
+		Priority:     0,
+		PrioritySet:  true,
+		Timeout:      2 * time.Second,
+		ExecutorKind: hookspkg.HookExecutorSubprocess,
+		Command:      "node",
+		Args:         []string{"dist/index.js", "hook", "prompt_post_assemble"},
+		WorkingDir:   "/tmp/extensions/prompt-enhancer",
+		Env:          map[string]string{"AGH_TEST_MARKER": "1"},
+		Metadata:     map[string]string{"extension": "prompt-enhancer"},
+		SkillSource:  hookspkg.HookSkillSourceUser,
+	}
+
+	encoded, err := codec.Encode(spec)
+	if err != nil {
+		t.Fatalf("codec.Encode() error = %v", err)
+	}
+
+	decoded, err := codec.DecodeAndValidate(
+		testutil.Context(t),
+		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		encoded,
+	)
+	if err != nil {
+		t.Fatalf("codec.DecodeAndValidate() error = %v", err)
+	}
+
+	if decoded.Priority != 0 {
+		t.Fatalf("decoded.Priority = %d, want explicit zero", decoded.Priority)
+	}
+	if !decoded.PrioritySet {
+		t.Fatal("decoded.PrioritySet = false, want true")
+	}
+	if got, want := decoded.WorkingDir, spec.WorkingDir; got != want {
+		t.Fatalf("decoded.WorkingDir = %q, want %q", got, want)
+	}
+	if got, want := decoded.SkillSource, spec.SkillSource; got != want {
+		t.Fatalf("decoded.SkillSource = %q, want %q", got, want)
+	}
+	if !testutil.EqualStringSlices(decoded.Args, spec.Args) {
+		t.Fatalf("decoded.Args = %#v, want %#v", decoded.Args, spec.Args)
+	}
+	if got, want := decoded.Metadata["extension"], spec.Metadata["extension"]; got != want {
+		t.Fatalf("decoded.Metadata[extension] = %q, want %q", got, want)
+	}
+	if got, want := decoded.Env["AGH_TEST_MARKER"], spec.Env["AGH_TEST_MARKER"]; got != want {
+		t.Fatalf("decoded.Env[AGH_TEST_MARKER] = %q, want %q", got, want)
+	}
+}
+
 func TestHookBindingReconcileFiresToolHookThroughNotifierUnit(t *testing.T) {
 	t.Parallel()
 

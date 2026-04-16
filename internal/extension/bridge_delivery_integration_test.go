@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -238,6 +239,9 @@ func newDeliveryIntegrationEnv(
 	}
 
 	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", workspaceRoot, err)
+	}
 	baseNow := time.Date(2026, 4, 11, 3, 0, 0, 0, time.UTC)
 	resolvedWorkspace := workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{

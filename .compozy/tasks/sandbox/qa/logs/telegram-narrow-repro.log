@@ -1,0 +1,4 @@
+=== RUN   TestRuntimeDeliveriesCallTelegramBotAPI
+--- PASS: TestRuntimeDeliveriesCallTelegramBotAPI (0.01s)
+PASS
+ok  	github.com/pedronauck/agh/extensions/bridges/telegram	0.026s

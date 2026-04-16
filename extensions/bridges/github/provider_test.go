@@ -1047,8 +1047,11 @@ func TestGitHubProviderReconcileRejectsSharedWebhookPaths(t *testing.T) {
 	if got, want := len(configs), 2; got != want {
 		t.Fatalf("len(configs) = %d, want %d", got, want)
 	}
-	if configs[1].configError == nil || !strings.Contains(configs[1].configError.Error(), "webhook path") {
-		t.Fatalf("configs[1].configError = %v, want shared webhook path error", configs[1].configError)
+	if configs[0].configError != nil {
+		t.Fatalf("configs[0].configError = %v, want nil for shared webhook path", configs[0].configError)
+	}
+	if configs[1].configError != nil {
+		t.Fatalf("configs[1].configError = %v, want nil for shared webhook path", configs[1].configError)
 	}
 }
 

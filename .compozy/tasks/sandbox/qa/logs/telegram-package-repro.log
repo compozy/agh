@@ -1,0 +1,46 @@
+=== RUN   TestMapTelegramUpdateDirectAndForumRouting
+=== PAUSE TestMapTelegramUpdateDirectAndForumRouting
+=== RUN   TestAllowDirectMessagePolicies
+=== PAUSE TestAllowDirectMessagePolicies
+=== RUN   TestExecuteDeliveryPostEditDeleteAndResume
+=== PAUSE TestExecuteDeliveryPostEditDeleteAndResume
+=== RUN   TestVerifyWebhookSecret
+=== PAUSE TestVerifyWebhookSecret
+=== RUN   TestRuntimeInitializeStartsWebhookServerAndWritesMarkers
+--- PASS: TestRuntimeInitializeStartsWebhookServerAndWritesMarkers (0.01s)
+=== RUN   TestWebhookIngressRejectsInvalidSecretAndIngestsMessage
+--- PASS: TestWebhookIngressRejectsInvalidSecretAndIngestsMessage (0.01s)
+=== RUN   TestRuntimeDeliveriesCallTelegramBotAPI
+--- PASS: TestRuntimeDeliveriesCallTelegramBotAPI (0.01s)
+=== RUN   TestHandleShutdownWritesMarker
+--- PASS: TestHandleShutdownWritesMarker (0.00s)
+=== RUN   TestResolveInstanceConfigAndHelperNormalization
+--- PASS: TestResolveInstanceConfigAndHelperNormalization (0.00s)
+=== RUN   TestDetermineInitialStateRetryAndHealthHelpers
+=== PAUSE TestDetermineInitialStateRetryAndHealthHelpers
+=== RUN   TestTelegramBotClientAndClassificationHelpers
+=== PAUSE TestTelegramBotClientAndClassificationHelpers
+=== RUN   TestWebhookShortCircuitsAndBatchDispatch
+--- PASS: TestWebhookShortCircuitsAndBatchDispatch (0.00s)
+=== RUN   TestRunRejectsUnsupportedCommand
+=== PAUSE TestRunRejectsUnsupportedCommand
+=== RUN   TestRunServeReturnsOnEOF
+=== PAUSE TestRunServeReturnsOnEOF
+=== CONT  TestMapTelegramUpdateDirectAndForumRouting
+=== CONT  TestDetermineInitialStateRetryAndHealthHelpers
+--- PASS: TestMapTelegramUpdateDirectAndForumRouting (0.00s)
+=== CONT  TestExecuteDeliveryPostEditDeleteAndResume
+=== CONT  TestVerifyWebhookSecret
+=== CONT  TestRunServeReturnsOnEOF
+--- PASS: TestVerifyWebhookSecret (0.00s)
+=== CONT  TestAllowDirectMessagePolicies
+--- PASS: TestAllowDirectMessagePolicies (0.00s)
+=== CONT  TestRunRejectsUnsupportedCommand
+=== CONT  TestTelegramBotClientAndClassificationHelpers
+--- PASS: TestRunServeReturnsOnEOF (0.00s)
+--- PASS: TestExecuteDeliveryPostEditDeleteAndResume (0.00s)
+--- PASS: TestRunRejectsUnsupportedCommand (0.00s)
+--- PASS: TestTelegramBotClientAndClassificationHelpers (0.00s)
+--- PASS: TestDetermineInitialStateRetryAndHealthHelpers (0.05s)
+PASS
+ok  	github.com/pedronauck/agh/extensions/bridges/telegram	0.109s

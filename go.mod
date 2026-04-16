@@ -7,11 +7,13 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/coder/acp-go-sdk v0.6.3
+	github.com/daytonaio/daytona/libs/sdk-go v0.166.0
 	github.com/getkin/kin-openapi v0.135.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-co-op/gocron/v2 v2.20.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gofrs/flock v0.13.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/joho/godotenv v1.5.1
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
@@ -20,6 +22,8 @@ require (
 	github.com/nats-io/nats.go v1.50.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.1
+	golang.org/x/crypto v0.49.0
+	golang.org/x/sys v0.43.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.48.0
 )
@@ -55,7 +59,6 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.5.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/daytonaio/daytona/libs/api-client-go v0.166.0 // indirect
-	github.com/daytonaio/daytona/libs/sdk-go v0.166.0 // indirect
 	github.com/daytonaio/daytona/libs/toolbox-api-client-go v0.166.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
@@ -69,7 +72,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.30.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
@@ -121,9 +123,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	golang.org/x/arch v0.22.0 // indirect
-	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect

@@ -1,0 +1,78 @@
+✓  internal/api/contract (1.087s)
+✓  extensions/bridges/discord (1.12s)
+✓  cmd/agh (1.152s)
+∅  internal/automation/model
+✓  extensions/bridges/telegram (1.206s)
+✓  extensions/bridges/linear (1.207s)
+✓  cmd/agh-codegen (1.22s)
+∅  internal/bundles/model
+✓  extensions/bridges/whatsapp (1.244s)
+✓  extensions/bridges/github (1.303s)
+✓  internal/api/core (1.399s)
+✓  extensions/bridges/slack (1.795s)
+✓  internal/api/spec (1.218s)
+✓  internal/api/testutil (1.039s)
+✓  internal/bridges (1.078s)
+∅  internal/codegen/sdkts
+✓  internal/bundles (1.148s)
+✓  extensions/bridges/teams (2.365s)
+✓  internal/bridgesdk (1.565s)
+✓  internal/environment/providertest (1.039s)
+✓  internal/environment (1.045s)
+✓  internal/environment/local (1.073s)
+✓  internal/environment/daytona (1.314s)
+✓  extensions/bridges/gchat (3.701s)
+✓  internal/extension/protocol (1.022s)
+✓  internal/extension/contract (1.037s)
+✓  internal/extension/surfaces (1.034s)
+✓  internal/config (1.564s)
+✓  internal/filesnap (1.096s)
+∅  internal/network/rules
+✓  internal/fileutil (1.099s)
+✓  internal/frontmatter (1.038s)
+✓  internal/logger (1.08s)
+✓  internal/memory/consolidation (1.216s)
+✓  internal/hooks (1.661s)
+✓  internal/procutil (1.057s)
+✓  internal/registry/clawhub (1.208s)
+✓  internal/registry (1.49s)
+✓  internal/registry/github (1.112s)
+✓  internal/sse (1.102s)
+✓  internal/skills/bundled (1.294s)
+✓  internal/network (4.549s)
+✓  internal/store (1.548s)
+✓  internal/resources (3.56s)
+✓  internal/automation (8.46s)
+✓  internal/memory (5.878s)
+✓  internal/testutil (1.046s)
+✓  internal/tools (1.057s)
+✓  internal/store/sessiondb (3.027s)
+✓  internal/acp (11.428s)
+∅  internal/workref
+∅  sdk/examples/secret-guard
+✓  internal/skills (5.318s)
+∅  web
+✓  internal/transcript (1.075s)
+✓  internal/task (2.827s)
+✓  internal/version (1.028s)
+✓  internal/api/udsapi (11.352s)
+✓  sdk/examples/telegram-reference (1.476s)
+✓  internal/workspace (3.316s)
+✓  internal/subprocess (7.399s)
+✓  internal/api/httpapi (16.078s)
+✓  internal/cli (14.316s)
+✓  internal/observe (12.384s)
+✓  internal/extensiontest (14.56s)
+✓  internal/store/globaldb (19.108s)
+✓  internal/session (25.336s)
+✓  internal/daemon (42.557s)
+✓  internal/extension (59.535s)
+
+=== Skipped
+=== SKIP: internal/environment/daytona TestDaytonaProviderIntegrationFullLifecycle (0.00s)
+    provider_integration_test.go:20: DAYTONA_API_KEY is required for Daytona provider integration tests
+
+=== SKIP: internal/environment/daytona TestDaytonaSSHNonPTYValidation (0.00s)
+    ssh_validation_test.go:42: DAYTONA_API_KEY is required for Daytona SSH validation
+
+DONE 4664 tests, 2 skipped in 62.309s

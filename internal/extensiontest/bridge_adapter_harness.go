@@ -17,6 +17,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	environmentlocal "github.com/pedronauck/agh/internal/environment/local"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
@@ -867,6 +868,9 @@ func NewHarness(t testing.TB, cfg HarnessConfig) *Harness {
 	markers := NewMarkerPaths(filepath.Join(t.TempDir(), "markers"))
 	configureHarnessMarkers(t, markers, cfg)
 	workspace := defaultResolvedWorkspace(filepath.Join(t.TempDir(), "workspace"), now)
+	if err := os.MkdirAll(workspace.RootDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", workspace.RootDir, err)
+	}
 	workspaces := &staticWorkspaceResolver{resolved: workspace}
 
 	globalDB := openHarnessGlobalDB(t, homePaths, &workspace)
@@ -1252,6 +1256,10 @@ func newHarnessSessions(
 ) *session.Manager {
 	t.Helper()
 
+	environmentRegistry, err := environmentlocal.NewRegistry()
+	if err != nil {
+		t.Fatalf("local.NewRegistry() error = %v", err)
+	}
 	sessions, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithDriver(driver),
@@ -1263,6 +1271,7 @@ func newHarnessSessions(
 		session.WithNow(func() time.Time { return now }),
 		session.WithSessionIDGenerator(sequentialIDGenerator("sess")),
 		session.WithTurnIDGenerator(sequentialIDGenerator("turn")),
+		session.WithEnvironmentRegistry(environmentRegistry),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)

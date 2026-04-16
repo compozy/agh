@@ -1252,10 +1252,14 @@ func TestHandleBridgesDeliverCoverageAndRunCommand(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	waitForCondition(t, func() bool {
-		_, err := runtime.configForInstance("brg-1")
-		return err == nil
-	})
+	states := waitForJSONLinesFile[stateMarker](
+		t,
+		env.statePath,
+		func(items []stateMarker) bool { return len(items) >= 1 },
+	)
+	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
+		t.Fatalf("states[last].Status = %q, want %q", got, want)
+	}
 
 	api := &fakeTeamsAPI{nextActivityID: 800}
 	runtime.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }

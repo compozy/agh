@@ -502,7 +502,7 @@ func (p *slackProvider) handleShutdown(
 func (p *slackProvider) stop() {
 	p.stopOnce.Do(func() {
 		close(p.stopCh)
-		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{}, len(p.routes))
+		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
 		p.mu.Lock()
 		for id, cfg := range p.routes {
 			if cfg.batcher != nil {
@@ -667,7 +667,7 @@ func (p *slackProvider) reconcileInstanceConfigs(
 	managed []subprocess.InitializeBridgeManagedInstance,
 ) []resolvedInstanceConfig {
 	if len(managed) == 0 {
-		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{}, len(p.routes))
+		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
 		p.mu.Lock()
 		for _, cfg := range p.routes {
 			if cfg.batcher != nil {

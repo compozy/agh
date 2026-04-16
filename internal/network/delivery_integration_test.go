@@ -16,6 +16,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	environmentlocal "github.com/pedronauck/agh/internal/environment/local"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -201,11 +202,16 @@ func newDeliveryIntegrationHarness(t *testing.T) (*session.Manager, *integration
 	}
 
 	driver := newIntegrationPromptDriver()
+	environmentRegistry, err := environmentlocal.NewRegistry()
+	if err != nil {
+		t.Fatalf("local.NewRegistry() error = %v", err)
+	}
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithWorkspaceResolver(resolver),
 		session.WithDriver(driver),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		session.WithEnvironmentRegistry(environmentRegistry),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)

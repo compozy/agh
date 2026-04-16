@@ -568,6 +568,14 @@ func TestRuntimeDeliveriesCallTelegramBotAPI(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
+	states := waitForJSONLinesFile[stateMarker](
+		t,
+		env.statePath,
+		func(items []stateMarker) bool { return len(items) >= 1 },
+	)
+	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
+		t.Fatalf("states[last].Status = %q, want %q", got, want)
+	}
 
 	var ack bridgepkg.DeliveryAck
 	if err := hostPeer.Call(

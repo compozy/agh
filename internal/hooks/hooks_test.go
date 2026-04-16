@@ -1776,6 +1776,23 @@ func TestNewHooksAppliesOptionsAndDefaultResolver(t *testing.T) {
 	}); err == nil {
 		t.Fatal("defaultExecutorResolver(native) error = nil, want non-nil")
 	}
+	subprocessExecutor, err := defaultExecutorResolver(HookDecl{
+		Name:         "subprocess-cwd",
+		ExecutorKind: HookExecutorSubprocess,
+		Command:      "/bin/sh",
+		Args:         []string{"-c", "true"},
+		WorkingDir:   "/tmp/hook-cwd",
+	})
+	if err != nil {
+		t.Fatalf("defaultExecutorResolver(subprocess) error = %v, want nil", err)
+	}
+	resolvedSubprocess, ok := subprocessExecutor.(*SubprocessExecutor)
+	if !ok {
+		t.Fatalf("defaultExecutorResolver(subprocess) = %T, want *SubprocessExecutor", subprocessExecutor)
+	}
+	if got, want := resolvedSubprocess.dir, "/tmp/hook-cwd"; got != want {
+		t.Fatalf("subprocess executor dir = %q, want %q", got, want)
+	}
 
 	hooks.OnAgentEvent(t.Context(), SessionContext{SessionID: "session-id"}, struct{ Type string }{Type: "done"})
 }

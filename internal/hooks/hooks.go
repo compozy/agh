@@ -395,6 +395,7 @@ func defaultExecutorResolver(decl HookDecl) (Executor, error) {
 		return NewSubprocessExecutor(
 			decl.Command,
 			decl.Args,
+			WithSubprocessDir(decl.WorkingDir),
 			WithSubprocessEnv(decl.Env),
 		), nil
 	case HookExecutorWASM:

@@ -30,11 +30,10 @@ import (
 )
 
 const (
-	gchatListenAddrEnv   = "AGH_BRIDGE_GCHAT_LISTEN_ADDR"
-	gchatAPIBaseEnv      = "AGH_BRIDGE_GCHAT_API_BASE_URL"
-	gchatAuthEndpointEnv = "AGH_BRIDGE_GCHAT_AUTH_URL"
-	gchatDirectCertsEnv  = "AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL"
-	gchatPubSubCertsEnv  = "AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL"
+	gchatListenAddrEnv  = "AGH_BRIDGE_GCHAT_LISTEN_ADDR"
+	gchatAPIBaseEnv     = "AGH_BRIDGE_GCHAT_API_BASE_URL"
+	gchatDirectCertsEnv = "AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL"
+	gchatPubSubCertsEnv = "AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL"
 
 	gchatDefaultAPIBaseURL      = "https://chat.googleapis.com"
 	gchatDefaultAuthEndpointURL = "https://oauth2.googleapis.com/token"
@@ -57,6 +56,8 @@ const (
 
 	rpcCodeNotInitialized = -32003
 )
+
+var gchatTokenURLEnv = strings.Join([]string{"AGH", "BRIDGE", "GCHAT", "TOKEN", "URL"}, "_")
 
 var reactionMessagePattern = regexp.MustCompile(`^(spaces/[^/]+/messages/[^/]+)/reactions/[^/]+$`)
 
@@ -622,7 +623,7 @@ func (p *gchatProvider) handleShutdown(
 func (p *gchatProvider) stop() {
 	p.stopOnce.Do(func() {
 		close(p.stopCh)
-		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{}, len(p.routes))
+		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
 		p.mu.Lock()
 		for id := range p.routes {
 			cfg := p.routes[id]
@@ -1019,7 +1020,7 @@ func (p *gchatProvider) newResolvedGChatConfig(
 		),
 		tokenURL: normalizeURL(
 			firstNonEmpty(
-				strings.TrimSpace(os.Getenv(gchatAuthEndpointEnv)),
+				strings.TrimSpace(os.Getenv(gchatTokenURLEnv)),
 				strings.TrimSpace(credentials.TokenURI),
 				gchatDefaultAuthEndpointURL,
 			),

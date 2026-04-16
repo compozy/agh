@@ -22,6 +22,7 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	environmentlocal "github.com/pedronauck/agh/internal/environment/local"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
@@ -1719,12 +1720,17 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		t.Fatalf("workspace.NewResolver() error = %v", err)
 	}
 	driver := newIntegrationDriver(permissionWait)
+	environmentRegistry, err := environmentlocal.NewRegistry()
+	if err != nil {
+		t.Fatalf("local.NewRegistry() error = %v", err)
+	}
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
 		session.WithDriver(driver),
 		session.WithNotifier(fanout),
+		session.WithEnvironmentRegistry(environmentRegistry),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)

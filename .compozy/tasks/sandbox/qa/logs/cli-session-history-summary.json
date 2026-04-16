@@ -1,0 +1,30 @@
+[
+  {
+    "sequence": 1,
+    "type": "user_message",
+    "timestamp": "2026-04-16T15:41:19.762135Z",
+    "text": "Reply with the single token QA_OK and nothing else.",
+    "stop_reason": null
+  },
+  {
+    "sequence": 82,
+    "type": "agent_message",
+    "timestamp": "2026-04-16T15:41:55.39449Z",
+    "text": "QA",
+    "stop_reason": null
+  },
+  {
+    "sequence": 83,
+    "type": "agent_message",
+    "timestamp": "2026-04-16T15:41:55.395434Z",
+    "text": "_OK",
+    "stop_reason": null
+  },
+  {
+    "sequence": 85,
+    "type": "done",
+    "timestamp": "2026-04-16T15:41:55.556786Z",
+    "text": null,
+    "stop_reason": "end_turn"
+  }
+]
