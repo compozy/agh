@@ -15,6 +15,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -1213,6 +1214,70 @@ func TestBridgeRuntimeRestartInstance(t *testing.T) {
 }
 
 func TestBridgeRuntimeTransition(t *testing.T) {
+	t.Run("ShouldRollBackResourceProjectionWhenReloadFails", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+		previous := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-resource-rollback",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-resource-rollback",
+			DisplayName:   "Before",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			DMPolicy:      bridgepkg.BridgeDMPolicyOpen,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+
+		reloadErr := errors.New("reload boom")
+		extensions := &fakeExtensionRuntime{reloadErr: reloadErr}
+		runtime.setExtensionRuntime(extensions)
+		plan, err := runtime.BuildBridgeResourceState(
+			testutil.Context(t),
+			[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
+				ID:      previous.ID,
+				Version: 2,
+				Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Spec: bridgepkg.BridgeInstanceSpec{
+					Scope:         bridgepkg.ScopeGlobal,
+					Platform:      "slack",
+					ExtensionName: "ext-resource-rollback",
+					DisplayName:   "After",
+					Source:        bridgepkg.BridgeInstanceSourceDynamic,
+					Enabled:       true,
+					DMPolicy:      bridgepkg.BridgeDMPolicyOpen,
+					RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+				},
+				CreatedAt: previous.CreatedAt,
+				UpdatedAt: now,
+			}},
+		)
+		if err != nil {
+			t.Fatalf("BuildBridgeResourceState() error = %v", err)
+		}
+
+		err = runtime.ApplyBridgeResourceState(testutil.Context(t), plan)
+		if !errors.Is(err, reloadErr) {
+			t.Fatalf("ApplyBridgeResourceState() error = %v, want reload failure", err)
+		}
+		if got, want := extensions.reloadCount, 1; got != want {
+			t.Fatalf("extension reload count = %d, want %d", got, want)
+		}
+		current, err := runtime.GetInstance(testutil.Context(t), previous.ID)
+		if err != nil {
+			t.Fatalf("GetInstance() error = %v", err)
+		}
+		if got, want := current.DisplayName, "Before"; got != want {
+			t.Fatalf("GetInstance().DisplayName = %q, want %q", got, want)
+		}
+		if got, want := current.Status, bridgepkg.BridgeStatusReady; got != want {
+			t.Fatalf("GetInstance().Status = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("ShouldRestorePreviousStateWhenReloadFails", func(t *testing.T) {
 		t.Parallel()
 

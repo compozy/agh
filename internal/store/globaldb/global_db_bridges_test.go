@@ -304,6 +304,77 @@ func TestGlobalDBBridgePersistenceHelpers(t *testing.T) {
 	}
 }
 
+func TestGlobalDBReplaceBridgeInstancesAtomicallySwapsProjection(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	now := time.Date(2026, 4, 16, 13, 0, 0, 0, time.UTC)
+	stale := bridges.BridgeInstance{
+		ID:            "brg-stale",
+		Scope:         bridges.ScopeGlobal,
+		Platform:      "telegram",
+		ExtensionName: "ext-telegram",
+		DisplayName:   "Stale Bridge",
+		Source:        bridges.BridgeInstanceSourceDynamic,
+		Enabled:       true,
+		Status:        bridges.BridgeStatusReady,
+		DMPolicy:      bridges.BridgeDMPolicyOpen,
+		RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+		CreatedAt:     now.Add(-time.Hour),
+		UpdatedAt:     now.Add(-time.Hour),
+	}
+	keep := stale
+	keep.ID = "brg-keep"
+	keep.DisplayName = "Keep Bridge"
+	if err := globalDB.InsertBridgeInstance(testutil.Context(t), stale); err != nil {
+		t.Fatalf("InsertBridgeInstance(stale) error = %v", err)
+	}
+	if err := globalDB.InsertBridgeInstance(testutil.Context(t), keep); err != nil {
+		t.Fatalf("InsertBridgeInstance(keep) error = %v", err)
+	}
+
+	keep.DisplayName = "Projected Bridge"
+	keep.UpdatedAt = now
+	added := bridges.BridgeInstance{
+		ID:            "brg-added",
+		Scope:         bridges.ScopeGlobal,
+		Platform:      "slack",
+		ExtensionName: "ext-slack",
+		DisplayName:   "Added Bridge",
+		Source:        bridges.BridgeInstanceSourceDynamic,
+		Enabled:       false,
+		Status:        bridges.BridgeStatusDisabled,
+		DMPolicy:      bridges.BridgeDMPolicyPairing,
+		RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := globalDB.ReplaceBridgeInstances(testutil.Context(t), []bridges.BridgeInstance{keep, added}); err != nil {
+		t.Fatalf("ReplaceBridgeInstances() error = %v", err)
+	}
+
+	if _, err := globalDB.GetBridgeInstance(testutil.Context(t), stale.ID); !errors.Is(
+		err,
+		bridges.ErrBridgeInstanceNotFound,
+	) {
+		t.Fatalf("GetBridgeInstance(stale) error = %v, want ErrBridgeInstanceNotFound", err)
+	}
+	loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), keep.ID)
+	if err != nil {
+		t.Fatalf("GetBridgeInstance(keep) error = %v", err)
+	}
+	if got, want := loaded.DisplayName, "Projected Bridge"; got != want {
+		t.Fatalf("loaded.DisplayName = %q, want %q", got, want)
+	}
+	instances, err := globalDB.ListBridgeInstances(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ListBridgeInstances() error = %v", err)
+	}
+	if got, want := len(instances), 2; got != want {
+		t.Fatalf("len(ListBridgeInstances()) = %d, want %d", got, want)
+	}
+}
+
 func TestGlobalDBBridgeRouteCRUD(t *testing.T) {
 	t.Parallel()
 

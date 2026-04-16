@@ -149,6 +149,7 @@ type resourceReconcileDriverDeps struct {
 	MCPServerCatalog *resourceCatalog[aghconfig.MCPServer]
 	SkillsRegistry   *skills.Registry
 	Automation       automationResourceProjectorTarget
+	Bridges          bridgeResourceProjectorTarget
 }
 
 type extensionRuntime interface {
@@ -715,6 +716,13 @@ func buildResourceProjectorRegistrations(
 	if deps.Automation != nil {
 		var err error
 		registrations, err = appendAutomationProjectorRegistrations(registrations, deps)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if deps.Bridges != nil {
+		var err error
+		registrations, err = appendBridgeProjectorRegistration(registrations, deps)
 		if err != nil {
 			return nil, err
 		}

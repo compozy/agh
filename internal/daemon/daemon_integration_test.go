@@ -618,6 +618,154 @@ func TestBootPreservesAutomationEnabledOverlaysAcrossRestart(t *testing.T) {
 	}
 }
 
+func TestBridgeResourceProjectionReconcilesWritesAndBootRebuild(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Automation.Enabled = false
+	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, "ext-bridge", daemonTestExtensionOptions{
+		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		bridgePlatform:    "telegram",
+		bridgeDisplayName: "Telegram",
+	}, true)
+
+	newDaemon := func() *Daemon {
+		d, err := New(
+			WithHomePaths(homePaths),
+			WithConfig(&cfg),
+			WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+			return nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+		return d
+	}
+
+	first := newDaemon()
+	if err := first.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("first boot() error = %v", err)
+	}
+	dbSource, ok := first.registry.(extensionDBSource)
+	if !ok || dbSource.DB() == nil {
+		t.Fatal("first registry does not expose database handle")
+	}
+	kernel, err := resources.NewKernel(dbSource.DB())
+	if err != nil {
+		t.Fatalf("resources.NewKernel() error = %v", err)
+	}
+	bridgeCodec, err := bridgepkg.NewBridgeInstanceResourceCodec(bridgeProviderLookup(first.bridges))
+	if err != nil {
+		t.Fatalf("NewBridgeInstanceResourceCodec() error = %v", err)
+	}
+	bridgeStore, err := resources.NewStore(kernel, bridgeCodec)
+	if err != nil {
+		t.Fatalf("resources.NewStore(bridge.instance) error = %v", err)
+	}
+
+	operator := resourceReconcileActor()
+	spec := bridgeResourceIntegrationSpec("Projected Bridge", true)
+	record, err := bridgeStore.Put(testutil.Context(t), operator, resources.Draft[bridgepkg.BridgeInstanceSpec]{
+		ID:              "brg-resource",
+		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		ExpectedVersion: 0,
+		Spec:            spec,
+	})
+	if err != nil {
+		t.Fatalf("bridgeStore.Put(create) error = %v", err)
+	}
+	if err := first.resourceReconcile.Trigger(
+		testutil.Context(t),
+		bridgepkg.BridgeInstanceResourceKind,
+		resources.ReconcileReasonWrite,
+	); err != nil {
+		t.Fatalf("resourceReconcile.Trigger(create) error = %v", err)
+	}
+	waitForDaemonBridgeInstance(t, first.bridges, "brg-resource", "Projected Bridge")
+
+	spec.DisplayName = "Updated Bridge"
+	record, err = bridgeStore.Put(testutil.Context(t), operator, resources.Draft[bridgepkg.BridgeInstanceSpec]{
+		ID:              record.ID,
+		Scope:           record.Scope,
+		ExpectedVersion: record.Version,
+		Spec:            spec,
+	})
+	if err != nil {
+		t.Fatalf("bridgeStore.Put(update) error = %v", err)
+	}
+	if err := first.resourceReconcile.Trigger(
+		testutil.Context(t),
+		bridgepkg.BridgeInstanceResourceKind,
+		resources.ReconcileReasonWrite,
+	); err != nil {
+		t.Fatalf("resourceReconcile.Trigger(update) error = %v", err)
+	}
+	waitForDaemonBridgeInstance(t, first.bridges, "brg-resource", "Updated Bridge")
+
+	if err := bridgeStore.Delete(testutil.Context(t), operator, record.ID, record.Version); err != nil {
+		t.Fatalf("bridgeStore.Delete() error = %v", err)
+	}
+	if err := first.resourceReconcile.Trigger(
+		testutil.Context(t),
+		bridgepkg.BridgeInstanceResourceKind,
+		resources.ReconcileReasonWrite,
+	); err != nil {
+		t.Fatalf("resourceReconcile.Trigger(delete) error = %v", err)
+	}
+	waitForDaemonBridgeMissing(t, first.bridges, "brg-resource")
+
+	bootRecord, err := bridgeStore.Put(testutil.Context(t), operator, resources.Draft[bridgepkg.BridgeInstanceSpec]{
+		ID:              "brg-boot",
+		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		ExpectedVersion: 0,
+		Spec:            bridgeResourceIntegrationSpec("Boot Bridge", true),
+	})
+	if err != nil {
+		t.Fatalf("bridgeStore.Put(boot) error = %v", err)
+	}
+	if err := first.resourceReconcile.Trigger(
+		testutil.Context(t),
+		bridgepkg.BridgeInstanceResourceKind,
+		resources.ReconcileReasonWrite,
+	); err != nil {
+		t.Fatalf("resourceReconcile.Trigger(boot) error = %v", err)
+	}
+	waitForDaemonBridgeInstance(t, first.bridges, bootRecord.ID, "Boot Bridge")
+	if err := first.registry.(interface {
+		DeleteBridgeInstance(context.Context, string) error
+	}).DeleteBridgeInstance(testutil.Context(t), bootRecord.ID); err != nil {
+		t.Fatalf("DeleteBridgeInstance(cache) error = %v", err)
+	}
+	waitForDaemonBridgeMissing(t, first.bridges, bootRecord.ID)
+	if err := first.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("first Shutdown() error = %v", err)
+	}
+
+	second := newDaemon()
+	if err := second.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("second boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := second.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("second Shutdown() error = %v", err)
+		}
+	})
+	waitForDaemonBridgeInstance(t, second.bridges, bootRecord.ID, "Boot Bridge")
+}
+
 func TestShutdownCancelsActiveAutomationPrompt(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
@@ -2491,6 +2639,58 @@ func findAutomationTriggerByName(triggers []automationpkg.Trigger, name string) 
 		}
 	}
 	return nil
+}
+
+func bridgeResourceIntegrationSpec(displayName string, enabled bool) bridgepkg.BridgeInstanceSpec {
+	return bridgepkg.BridgeInstanceSpec{
+		Scope:            bridgepkg.ScopeGlobal,
+		Platform:         "telegram",
+		ExtensionName:    "ext-bridge",
+		DisplayName:      displayName,
+		Source:           bridgepkg.BridgeInstanceSourceDynamic,
+		Enabled:          enabled,
+		DMPolicy:         bridgepkg.BridgeDMPolicyPairing,
+		RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+		ProviderConfig:   []byte(`{"tenant":"acme"}`),
+		DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
+	}
+}
+
+func waitForDaemonBridgeInstance(t *testing.T, runtime *bridgeRuntime, id string, displayName string) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		instance, err := runtime.GetInstance(testutil.Context(t), id)
+		if err == nil && instance.DisplayName == displayName {
+			return
+		}
+		if time.Now().After(deadline) {
+			if err != nil {
+				t.Fatalf("GetInstance(%q) did not become available: %v", id, err)
+			}
+			t.Fatalf("GetInstance(%q).DisplayName did not become %q", id, displayName)
+		}
+		timer := time.NewTimer(10 * time.Millisecond)
+		<-timer.C
+	}
+}
+
+func waitForDaemonBridgeMissing(t *testing.T, runtime *bridgeRuntime, id string) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		_, err := runtime.GetInstance(testutil.Context(t), id)
+		if errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("GetInstance(%q) still exists or failed unexpectedly: %v", id, err)
+		}
+		timer := time.NewTimer(10 * time.Millisecond)
+		<-timer.C
+	}
 }
 
 func writeDaemonHookScript(t *testing.T, dir string, name string, contents string) string {

@@ -384,9 +384,25 @@ func (d *Daemon) bootRuntimeServices(
 		return err
 	}
 	state.resourceKernel = resourceKernel
-	state.resourceCodecs, err = d.buildResourceCodecs()
+	state.resourceCodecs, err = d.buildResourceCodecs(state.bridges)
 	if err != nil {
 		return err
+	}
+	bridgeResources, err := bridgeInstanceResourceStore(resourceRawStore(resourceKernel), state.resourceCodecs)
+	if err != nil {
+		return err
+	}
+	if state.bridges != nil && bridgeResources != nil {
+		state.bridges.setResourceDefinitions(
+			bridgeResources,
+			resourceReconcileActor(),
+			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+				if state.resourceReconcile == nil {
+					return nil
+				}
+				return state.resourceReconcile.Trigger(ctx, kind, reason)
+			},
+		)
 	}
 	state.agentCatalog = newResourceCatalog(cloneAgentDef)
 
@@ -519,7 +535,7 @@ func (d *Daemon) buildResourceKernel(registry Registry) (*resources.Kernel, erro
 	return kernel, nil
 }
 
-func (d *Daemon) buildResourceCodecs() (*resources.CodecRegistry, error) {
+func (d *Daemon) buildResourceCodecs(bridges *bridgeRuntime) (*resources.CodecRegistry, error) {
 	registry := resources.NewCodecRegistry()
 	hookCodec, err := newHookBindingCodec()
 	if err != nil {
@@ -569,6 +585,13 @@ func (d *Daemon) buildResourceCodecs() (*resources.CodecRegistry, error) {
 	}
 	if err := resources.RegisterCodec(registry, automationTriggerCodec); err != nil {
 		return nil, fmt.Errorf("daemon: register automation trigger codec: %w", err)
+	}
+	bridgeCodec, err := bridgepkg.NewBridgeInstanceResourceCodec(bridgeProviderLookup(bridges))
+	if err != nil {
+		return nil, fmt.Errorf("daemon: build bridge instance codec: %w", err)
+	}
+	if err := resources.RegisterCodec(registry, bridgeCodec); err != nil {
+		return nil, fmt.Errorf("daemon: register bridge instance codec: %w", err)
 	}
 	return registry, nil
 }
@@ -637,6 +660,7 @@ func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cl
 		MCPServerCatalog: state.mcpServerCatalog,
 		SkillsRegistry:   state.skillsRegistry,
 		Automation:       automationResourceTarget(state.automation),
+		Bridges:          bridgeResourceTarget(state.bridges),
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create resource reconcile driver: %w", err)
@@ -915,7 +939,25 @@ func (d *Daemon) bootBundles(ctx context.Context, state *bootState) error {
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
-	bridgeSyncer := bridgepkg.NewManagedSyncer(dbSource, bridgepkg.WithManagedSyncNow(d.now))
+	bridgeSyncer := bridgepkg.ManagedSyncer(bridgepkg.NewManagedSyncer(dbSource, bridgepkg.WithManagedSyncNow(d.now)))
+	if bridgeStore, err := bridgeInstanceResourceStore(
+		resourceRawStore(state.resourceKernel),
+		state.resourceCodecs,
+	); err != nil {
+		return err
+	} else if bridgeStore != nil {
+		bridgeSyncer = bridgepkg.NewManagedResourceSyncer(
+			bridgeStore,
+			resourceReconcileActor(),
+			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+				if state.resourceReconcile == nil {
+					return nil
+				}
+				return state.resourceReconcile.Trigger(ctx, kind, reason)
+			},
+			bridgepkg.WithManagedResourceSyncNow(d.now),
+		)
+	}
 	service := bundlepkg.NewService(
 		dbSource,
 		extRegistry,
