@@ -1,0 +1,21 @@
+import react from "@vitejs/plugin-react";
+import { fileURLToPath, URL } from "node:url";
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL(".", import.meta.url)),
+      "@agh/ui": fileURLToPath(new URL("../ui/src", import.meta.url)),
+    },
+  },
+  test: {
+    name: "site",
+    environment: "jsdom",
+    globals: true,
+    include: ["**/*.{test,spec}.{ts,tsx}"],
+    exclude: ["**/node_modules/**", "**/out/**", "**/.next/**"],
+    passWithNoTests: true,
+  },
+});

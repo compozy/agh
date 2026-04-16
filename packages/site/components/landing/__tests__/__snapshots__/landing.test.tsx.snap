@@ -1,0 +1,2732 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Architecture > matches snapshot 1`] = `
+<div>
+  <section
+    class="bg-[var(--color-surface)] px-4 py-16 md:py-24"
+  >
+    <div
+      class="mx-auto max-w-5xl"
+    >
+      <p
+        class="text-center font-mono text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+      >
+        ARCHITECTURE
+      </p>
+      <h2
+        class="mt-3 text-center text-3xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-4xl"
+      >
+        How it all fits together
+      </h2>
+      <div
+        class="mt-12 overflow-x-auto"
+      >
+        <svg
+          aria-label="AGH architecture diagram showing CLI, HTTP, and UDS clients connecting to the daemon, which manages sessions, memory, skills, and the agent network protocol"
+          class="mx-auto w-full max-w-3xl"
+          role="img"
+          viewBox="0 0 800 480"
+        >
+          <defs>
+            <marker
+              id="arrowhead"
+              markerHeight="6"
+              markerWidth="8"
+              orient="auto"
+              refX="8"
+              refY="3"
+            >
+              <path
+                d="M0,0 L8,3 L0,6"
+                fill="#3A3A3C"
+              />
+            </marker>
+          </defs>
+          <g>
+            <text
+              fill="#636366"
+              font-family="JetBrains Mono, monospace"
+              font-size="10"
+              letter-spacing="0.08em"
+              text-anchor="middle"
+              x="400"
+              y="24"
+            >
+              CLIENTS
+            </text>
+            <g>
+              <rect
+                fill="#2C2C2E"
+                height="36"
+                rx="8"
+                width="120"
+                x="100"
+                y="36"
+              />
+              <text
+                fill="#E5E5E7"
+                font-family="Inter, sans-serif"
+                font-size="13"
+                font-weight="500"
+                text-anchor="middle"
+                x="160"
+                y="58"
+              >
+                CLI
+              </text>
+            </g>
+            <g>
+              <rect
+                fill="#2C2C2E"
+                height="36"
+                rx="8"
+                width="120"
+                x="340"
+                y="36"
+              />
+              <text
+                fill="#E5E5E7"
+                font-family="Inter, sans-serif"
+                font-size="13"
+                font-weight="500"
+                text-anchor="middle"
+                x="400"
+                y="58"
+              >
+                Web UI
+              </text>
+            </g>
+            <g>
+              <rect
+                fill="#2C2C2E"
+                height="36"
+                rx="8"
+                width="120"
+                x="580"
+                y="36"
+              />
+              <text
+                fill="#E5E5E7"
+                font-family="Inter, sans-serif"
+                font-size="13"
+                font-weight="500"
+                text-anchor="middle"
+                x="640"
+                y="58"
+              >
+                Agents
+              </text>
+            </g>
+          </g>
+          <line
+            marker-end="url(#arrowhead)"
+            stroke="#3A3A3C"
+            stroke-width="1"
+            x1="160"
+            x2="160"
+            y1="72"
+            y2="108"
+          />
+          <line
+            marker-end="url(#arrowhead)"
+            stroke="#3A3A3C"
+            stroke-width="1"
+            x1="400"
+            x2="400"
+            y1="72"
+            y2="108"
+          />
+          <line
+            marker-end="url(#arrowhead)"
+            stroke="#3A3A3C"
+            stroke-width="1"
+            x1="640"
+            x2="640"
+            y1="72"
+            y2="108"
+          />
+          <text
+            fill="#636366"
+            font-family="JetBrains Mono, monospace"
+            font-size="9"
+            letter-spacing="0.06em"
+            text-anchor="middle"
+            x="160"
+            y="96"
+          >
+            UDS
+          </text>
+          <text
+            fill="#636366"
+            font-family="JetBrains Mono, monospace"
+            font-size="9"
+            letter-spacing="0.06em"
+            text-anchor="middle"
+            x="400"
+            y="96"
+          >
+            HTTP/SSE
+          </text>
+          <text
+            fill="#636366"
+            font-family="JetBrains Mono, monospace"
+            font-size="9"
+            letter-spacing="0.06em"
+            text-anchor="middle"
+            x="640"
+            y="96"
+          >
+            JSON-RPC
+          </text>
+          <rect
+            fill="none"
+            height="240"
+            rx="12"
+            stroke="#3A3A3C"
+            stroke-width="1"
+            width="680"
+            x="60"
+            y="110"
+          />
+          <text
+            fill="#E8572A"
+            font-family="JetBrains Mono, monospace"
+            font-size="11"
+            font-weight="600"
+            letter-spacing="0.06em"
+            x="80"
+            y="134"
+          >
+            AGH DAEMON
+          </text>
+          <rect
+            fill="#2C2C2E"
+            height="36"
+            rx="8"
+            width="300"
+            x="80"
+            y="148"
+          />
+          <text
+            fill="#E5E5E7"
+            font-family="Inter, sans-serif"
+            font-size="12"
+            font-weight="500"
+            text-anchor="middle"
+            x="230"
+            y="170"
+          >
+            API Layer (HTTP + UDS)
+          </text>
+          <rect
+            fill="#2C2C2E"
+            height="36"
+            rx="8"
+            width="300"
+            x="420"
+            y="148"
+          />
+          <text
+            fill="#E5E5E7"
+            font-family="Inter, sans-serif"
+            font-size="12"
+            font-weight="500"
+            text-anchor="middle"
+            x="570"
+            y="170"
+          >
+            ACP Client (JSON-RPC / stdio)
+          </text>
+          <line
+            marker-end="url(#arrowhead)"
+            stroke="#3A3A3C"
+            stroke-width="1"
+            x1="230"
+            x2="230"
+            y1="184"
+            y2="210"
+          />
+          <line
+            marker-end="url(#arrowhead)"
+            stroke="#3A3A3C"
+            stroke-width="1"
+            x1="570"
+            x2="570"
+            y1="184"
+            y2="210"
+          />
+          <rect
+            fill="#1C1C1E"
+            height="40"
+            rx="8"
+            stroke="#3A3A3C"
+            stroke-width="1"
+            width="640"
+            x="80"
+            y="212"
+          />
+          <text
+            fill="#E5E5E7"
+            font-family="Inter, sans-serif"
+            font-size="13"
+            font-weight="600"
+            text-anchor="middle"
+            x="400"
+            y="236"
+          >
+            Session Manager
+          </text>
+          <g>
+            <line
+              marker-end="url(#arrowhead)"
+              stroke="#3A3A3C"
+              stroke-width="1"
+              x1="120"
+              x2="120"
+              y1="252"
+              y2="276"
+            />
+            <rect
+              fill="#2C2C2E"
+              height="32"
+              rx="6"
+              width="112"
+              x="64"
+              y="278"
+            />
+            <text
+              fill="#8E8E93"
+              font-family="Inter, sans-serif"
+              font-size="12"
+              font-weight="500"
+              text-anchor="middle"
+              x="120"
+              y="298"
+            >
+              Memory
+            </text>
+          </g>
+          <g>
+            <line
+              marker-end="url(#arrowhead)"
+              stroke="#3A3A3C"
+              stroke-width="1"
+              x1="268"
+              x2="268"
+              y1="252"
+              y2="276"
+            />
+            <rect
+              fill="#2C2C2E"
+              height="32"
+              rx="6"
+              width="112"
+              x="212"
+              y="278"
+            />
+            <text
+              fill="#8E8E93"
+              font-family="Inter, sans-serif"
+              font-size="12"
+              font-weight="500"
+              text-anchor="middle"
+              x="268"
+              y="298"
+            >
+              Skills
+            </text>
+          </g>
+          <g>
+            <line
+              marker-end="url(#arrowhead)"
+              stroke="#3A3A3C"
+              stroke-width="1"
+              x1="400"
+              x2="400"
+              y1="252"
+              y2="276"
+            />
+            <rect
+              fill="#2C2C2E"
+              height="32"
+              rx="6"
+              width="112"
+              x="344"
+              y="278"
+            />
+            <text
+              fill="#8E8E93"
+              font-family="Inter, sans-serif"
+              font-size="12"
+              font-weight="500"
+              text-anchor="middle"
+              x="400"
+              y="298"
+            >
+              Store
+            </text>
+          </g>
+          <g>
+            <line
+              marker-end="url(#arrowhead)"
+              stroke="#3A3A3C"
+              stroke-width="1"
+              x1="532"
+              x2="532"
+              y1="252"
+              y2="276"
+            />
+            <rect
+              fill="#2C2C2E"
+              height="32"
+              rx="6"
+              width="112"
+              x="476"
+              y="278"
+            />
+            <text
+              fill="#8E8E93"
+              font-family="Inter, sans-serif"
+              font-size="12"
+              font-weight="500"
+              text-anchor="middle"
+              x="532"
+              y="298"
+            >
+              Observe
+            </text>
+          </g>
+          <g>
+            <line
+              marker-end="url(#arrowhead)"
+              stroke="#3A3A3C"
+              stroke-width="1"
+              x1="680"
+              x2="680"
+              y1="252"
+              y2="276"
+            />
+            <rect
+              fill="#2C2C2E"
+              height="32"
+              rx="6"
+              width="112"
+              x="624"
+              y="278"
+            />
+            <text
+              fill="#8E8E93"
+              font-family="Inter, sans-serif"
+              font-size="12"
+              font-weight="500"
+              text-anchor="middle"
+              x="680"
+              y="298"
+            >
+              Config
+            </text>
+          </g>
+          <text
+            fill="#636366"
+            font-family="JetBrains Mono, monospace"
+            font-size="10"
+            letter-spacing="0.08em"
+            text-anchor="middle"
+            x="400"
+            y="370"
+          >
+            AGENT NETWORK
+          </text>
+          <line
+            marker-end="url(#arrowhead)"
+            stroke="#3A3A3C"
+            stroke-width="1"
+            x1="400"
+            x2="400"
+            y1="350"
+            y2="362"
+          />
+          <rect
+            fill="none"
+            height="44"
+            rx="8"
+            stroke="#E8572A"
+            stroke-dasharray="4 3"
+            stroke-width="1"
+            width="520"
+            x="140"
+            y="380"
+          />
+          <text
+            fill="#E8572A"
+            font-family="Inter, sans-serif"
+            font-size="13"
+            font-weight="600"
+            text-anchor="middle"
+            x="400"
+            y="406"
+          >
+            AGH Network Protocol (Envelopes over NATS)
+          </text>
+          <g>
+            <line
+              marker-end="url(#arrowhead)"
+              stroke="#3A3A3C"
+              stroke-width="1"
+              x1="200"
+              x2="200"
+              y1="424"
+              y2="444"
+            />
+            <rect
+              fill="#2C2C2E"
+              height="28"
+              rx="6"
+              width="96"
+              x="152"
+              y="446"
+            />
+            <text
+              fill="#8E8E93"
+              font-family="Inter, sans-serif"
+              font-size="11"
+              font-weight="500"
+              text-anchor="middle"
+              x="200"
+              y="464"
+            >
+              Peer A
+            </text>
+          </g>
+          <g>
+            <line
+              marker-end="url(#arrowhead)"
+              stroke="#3A3A3C"
+              stroke-width="1"
+              x1="400"
+              x2="400"
+              y1="424"
+              y2="444"
+            />
+            <rect
+              fill="#2C2C2E"
+              height="28"
+              rx="6"
+              width="96"
+              x="352"
+              y="446"
+            />
+            <text
+              fill="#8E8E93"
+              font-family="Inter, sans-serif"
+              font-size="11"
+              font-weight="500"
+              text-anchor="middle"
+              x="400"
+              y="464"
+            >
+              Peer B
+            </text>
+          </g>
+          <g>
+            <line
+              marker-end="url(#arrowhead)"
+              stroke="#3A3A3C"
+              stroke-width="1"
+              x1="600"
+              x2="600"
+              y1="424"
+              y2="444"
+            />
+            <rect
+              fill="#2C2C2E"
+              height="28"
+              rx="6"
+              width="96"
+              x="552"
+              y="446"
+            />
+            <text
+              fill="#8E8E93"
+              font-family="Inter, sans-serif"
+              font-size="11"
+              font-weight="500"
+              text-anchor="middle"
+              x="600"
+              y="464"
+            >
+              Peer C
+            </text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+</div>
+`;
+
+exports[`Comparison > matches snapshot 1`] = `
+<div>
+  <section
+    class="px-4 py-16 md:py-24"
+  >
+    <div
+      class="mx-auto max-w-5xl"
+    >
+      <p
+        class="text-center font-mono text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+      >
+        COMPARISON
+      </p>
+      <h2
+        class="mt-3 text-center text-3xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-4xl"
+      >
+        AGH vs typical agent harness
+      </h2>
+      <div
+        class="mt-12 hidden overflow-hidden rounded-xl border border-[var(--color-divider)] md:block"
+      >
+        <table
+          class="w-full text-left text-sm"
+        >
+          <thead>
+            <tr
+              class="border-b border-[var(--color-divider)] bg-[var(--color-surface)]"
+            >
+              <th
+                class="px-5 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+              >
+                Feature
+              </th>
+              <th
+                class="px-5 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+              >
+                Typical Harness
+              </th>
+              <th
+                class="px-5 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-accent)]"
+              >
+                AGH
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              class="bg-transparent"
+            >
+              <td
+                class="px-5 py-3 font-medium text-[var(--color-text-primary)]"
+              >
+                Agent execution
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-tertiary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-minus h-3.5 w-3.5 text-[var(--color-text-tertiary)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M5 12h14"
+                    />
+                  </svg>
+                  API wrapper calls
+                </span>
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-primary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-check h-3.5 w-3.5 text-[var(--color-success)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 6 9 17l-5-5"
+                    />
+                  </svg>
+                  Real CLI subprocesses via ACP
+                </span>
+              </td>
+            </tr>
+            <tr
+              class="bg-[var(--color-surface)]"
+            >
+              <td
+                class="px-5 py-3 font-medium text-[var(--color-text-primary)]"
+              >
+                Agent-to-agent communication
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-tertiary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-minus h-3.5 w-3.5 text-[var(--color-text-tertiary)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M5 12h14"
+                    />
+                  </svg>
+                  None / custom glue
+                </span>
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-primary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-check h-3.5 w-3.5 text-[var(--color-success)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 6 9 17l-5-5"
+                    />
+                  </svg>
+                  Built-in network protocol
+                </span>
+              </td>
+            </tr>
+            <tr
+              class="bg-transparent"
+            >
+              <td
+                class="px-5 py-3 font-medium text-[var(--color-text-primary)]"
+              >
+                Session persistence
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-tertiary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-minus h-3.5 w-3.5 text-[var(--color-text-tertiary)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M5 12h14"
+                    />
+                  </svg>
+                  In-memory or external DB
+                </span>
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-primary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-check h-3.5 w-3.5 text-[var(--color-success)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 6 9 17l-5-5"
+                    />
+                  </svg>
+                  SQLite per-session event store
+                </span>
+              </td>
+            </tr>
+            <tr
+              class="bg-[var(--color-surface)]"
+            >
+              <td
+                class="px-5 py-3 font-medium text-[var(--color-text-primary)]"
+              >
+                Memory system
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-tertiary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-minus h-3.5 w-3.5 text-[var(--color-text-tertiary)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M5 12h14"
+                    />
+                  </svg>
+                  None or basic RAG
+                </span>
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-primary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-check h-3.5 w-3.5 text-[var(--color-success)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 6 9 17l-5-5"
+                    />
+                  </svg>
+                  Dual-scope with dream consolidation
+                </span>
+              </td>
+            </tr>
+            <tr
+              class="bg-transparent"
+            >
+              <td
+                class="px-5 py-3 font-medium text-[var(--color-text-primary)]"
+              >
+                Deployment
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-tertiary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-minus h-3.5 w-3.5 text-[var(--color-text-tertiary)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M5 12h14"
+                    />
+                  </svg>
+                  Docker + sidecars + services
+                </span>
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-primary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-check h-3.5 w-3.5 text-[var(--color-success)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 6 9 17l-5-5"
+                    />
+                  </svg>
+                  Single binary, zero dependencies
+                </span>
+              </td>
+            </tr>
+            <tr
+              class="bg-[var(--color-surface)]"
+            >
+              <td
+                class="px-5 py-3 font-medium text-[var(--color-text-primary)]"
+              >
+                Configuration
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-tertiary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-minus h-3.5 w-3.5 text-[var(--color-text-tertiary)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M5 12h14"
+                    />
+                  </svg>
+                  Environment variables
+                </span>
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-primary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-check h-3.5 w-3.5 text-[var(--color-success)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 6 9 17l-5-5"
+                    />
+                  </svg>
+                  TOML + AGENT.md + workspace overlays
+                </span>
+              </td>
+            </tr>
+            <tr
+              class="bg-transparent"
+            >
+              <td
+                class="px-5 py-3 font-medium text-[var(--color-text-primary)]"
+              >
+                Extensibility
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-tertiary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-minus h-3.5 w-3.5 text-[var(--color-text-tertiary)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M5 12h14"
+                    />
+                  </svg>
+                  Fork or monkey-patch
+                </span>
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-primary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-check h-3.5 w-3.5 text-[var(--color-success)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 6 9 17l-5-5"
+                    />
+                  </svg>
+                  Skills, hooks, extensions, bridges
+                </span>
+              </td>
+            </tr>
+            <tr
+              class="bg-[var(--color-surface)]"
+            >
+              <td
+                class="px-5 py-3 font-medium text-[var(--color-text-primary)]"
+              >
+                Observability
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-tertiary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-minus h-3.5 w-3.5 text-[var(--color-text-tertiary)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M5 12h14"
+                    />
+                  </svg>
+                  Logs to stdout
+                </span>
+              </td>
+              <td
+                class="px-5 py-3 text-[var(--color-text-primary)]"
+              >
+                <span
+                  class="flex items-center gap-2"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-check h-3.5 w-3.5 text-[var(--color-success)]"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 6 9 17l-5-5"
+                    />
+                  </svg>
+                  Structured events, SSE streaming, health metrics
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div
+        class="mt-12 flex flex-col gap-4 md:hidden"
+      >
+        <div
+          class="rounded-xl border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+        >
+          <p
+            class="text-sm font-medium text-[var(--color-text-primary)]"
+          >
+            Agent execution
+          </p>
+          <div
+            class="mt-3 flex flex-col gap-2"
+          >
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-minus mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 12h14"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-tertiary)]"
+              >
+                API wrapper calls
+              </span>
+            </div>
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-check mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-success)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 6 9 17l-5-5"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-primary)]"
+              >
+                Real CLI subprocesses via ACP
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          class="rounded-xl border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+        >
+          <p
+            class="text-sm font-medium text-[var(--color-text-primary)]"
+          >
+            Agent-to-agent communication
+          </p>
+          <div
+            class="mt-3 flex flex-col gap-2"
+          >
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-minus mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 12h14"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-tertiary)]"
+              >
+                None / custom glue
+              </span>
+            </div>
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-check mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-success)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 6 9 17l-5-5"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-primary)]"
+              >
+                Built-in network protocol
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          class="rounded-xl border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+        >
+          <p
+            class="text-sm font-medium text-[var(--color-text-primary)]"
+          >
+            Session persistence
+          </p>
+          <div
+            class="mt-3 flex flex-col gap-2"
+          >
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-minus mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 12h14"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-tertiary)]"
+              >
+                In-memory or external DB
+              </span>
+            </div>
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-check mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-success)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 6 9 17l-5-5"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-primary)]"
+              >
+                SQLite per-session event store
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          class="rounded-xl border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+        >
+          <p
+            class="text-sm font-medium text-[var(--color-text-primary)]"
+          >
+            Memory system
+          </p>
+          <div
+            class="mt-3 flex flex-col gap-2"
+          >
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-minus mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 12h14"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-tertiary)]"
+              >
+                None or basic RAG
+              </span>
+            </div>
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-check mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-success)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 6 9 17l-5-5"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-primary)]"
+              >
+                Dual-scope with dream consolidation
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          class="rounded-xl border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+        >
+          <p
+            class="text-sm font-medium text-[var(--color-text-primary)]"
+          >
+            Deployment
+          </p>
+          <div
+            class="mt-3 flex flex-col gap-2"
+          >
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-minus mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 12h14"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-tertiary)]"
+              >
+                Docker + sidecars + services
+              </span>
+            </div>
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-check mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-success)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 6 9 17l-5-5"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-primary)]"
+              >
+                Single binary, zero dependencies
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          class="rounded-xl border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+        >
+          <p
+            class="text-sm font-medium text-[var(--color-text-primary)]"
+          >
+            Configuration
+          </p>
+          <div
+            class="mt-3 flex flex-col gap-2"
+          >
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-minus mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 12h14"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-tertiary)]"
+              >
+                Environment variables
+              </span>
+            </div>
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-check mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-success)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 6 9 17l-5-5"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-primary)]"
+              >
+                TOML + AGENT.md + workspace overlays
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          class="rounded-xl border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+        >
+          <p
+            class="text-sm font-medium text-[var(--color-text-primary)]"
+          >
+            Extensibility
+          </p>
+          <div
+            class="mt-3 flex flex-col gap-2"
+          >
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-minus mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 12h14"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-tertiary)]"
+              >
+                Fork or monkey-patch
+              </span>
+            </div>
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-check mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-success)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 6 9 17l-5-5"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-primary)]"
+              >
+                Skills, hooks, extensions, bridges
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          class="rounded-xl border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+        >
+          <p
+            class="text-sm font-medium text-[var(--color-text-primary)]"
+          >
+            Observability
+          </p>
+          <div
+            class="mt-3 flex flex-col gap-2"
+          >
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-minus mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 12h14"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-tertiary)]"
+              >
+                Logs to stdout
+              </span>
+            </div>
+            <div
+              class="flex items-start gap-2"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-check mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-success)]"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M20 6 9 17l-5-5"
+                />
+              </svg>
+              <span
+                class="text-xs text-[var(--color-text-primary)]"
+              >
+                Structured events, SSE streaming, health metrics
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+`;
+
+exports[`FinalCta > matches snapshot 1`] = `
+<div>
+  <section
+    class="bg-[var(--color-surface)] px-4 py-16 md:py-24"
+  >
+    <div
+      class="mx-auto max-w-3xl text-center"
+    >
+      <h2
+        class="text-3xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-4xl"
+      >
+        Ready to connect your agents?
+      </h2>
+      <p
+        class="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-[var(--color-text-secondary)]"
+      >
+        Single binary. No sidecars. No external services. Install AGH and give your agents a runtime they can share.
+      </p>
+      <div
+        class="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center"
+      >
+        <a
+          class="group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground [a]:hover:bg-primary/80 h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 h-11 px-6 text-base font-medium"
+          href="/protocol"
+        >
+          Read the Protocol Spec
+        </a>
+        <a
+          class="group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50 h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 h-11 px-6 text-base font-medium"
+          href="/runtime"
+        >
+          Get Started
+        </a>
+      </div>
+    </div>
+  </section>
+</div>
+`;
+
+exports[`Hero > matches snapshot 1`] = `
+<div>
+  <section
+    class="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center px-4 py-24 text-center"
+  >
+    <div
+      class="mx-auto max-w-4xl"
+    >
+      <h1
+        class="text-5xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-6xl lg:text-7xl"
+      >
+        Your agents can finally talk to each other.
+      </h1>
+      <p
+        class="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[var(--color-text-secondary)] md:text-xl"
+      >
+        AGH is an agent runtime with a built-in network protocol. Spawn Claude Code, Codex, or Gemini CLI as managed sessions — then let them discover, message, and coordinate through an open wire format any harness can implement.
+      </p>
+      <div
+        class="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center"
+      >
+        <a
+          class="group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground [a]:hover:bg-primary/80 h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 h-11 px-6 text-base font-medium"
+          href="/protocol"
+        >
+          Read the Protocol Spec
+        </a>
+        <a
+          class="group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50 h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 h-11 px-6 text-base font-medium"
+          href="/runtime"
+        >
+          Get Started
+        </a>
+      </div>
+    </div>
+  </section>
+</div>
+`;
+
+exports[`HowItWorks > matches snapshot 1`] = `
+<div>
+  <section
+    class="px-4 py-16 md:py-24"
+  >
+    <div
+      class="mx-auto max-w-5xl"
+    >
+      <p
+        class="text-center font-mono text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+      >
+        GETTING STARTED
+      </p>
+      <h2
+        class="mt-3 text-center text-3xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-4xl"
+      >
+        Up and running in three steps
+      </h2>
+      <div
+        class="mt-12 flex flex-col gap-8"
+      >
+        <div
+          class="flex flex-col gap-4 md:flex-row md:items-start md:gap-8"
+        >
+          <div
+            class="flex shrink-0 items-start gap-4 md:w-64"
+          >
+            <span
+              class="font-mono text-sm font-semibold text-[var(--color-accent)]"
+            >
+              01
+            </span>
+            <div>
+              <h3
+                class="text-lg font-semibold text-[var(--color-text-primary)]"
+              >
+                Install AGH
+              </h3>
+              <p
+                class="mt-1 text-sm leading-relaxed text-[var(--color-text-secondary)]"
+              >
+                Single binary, no dependencies. Download and run.
+              </p>
+            </div>
+          </div>
+          <div
+            class="flex-1 overflow-x-auto rounded-lg border border-[var(--color-divider)] bg-[var(--color-surface-elevated)] p-4"
+          >
+            <pre
+              class="font-mono text-sm leading-relaxed text-[var(--color-text-primary)]"
+            >
+              <code>
+                curl -fsSL https://get.agh.compozy.com | sh
+              </code>
+            </pre>
+          </div>
+        </div>
+        <div
+          class="flex flex-col gap-4 md:flex-row md:items-start md:gap-8"
+        >
+          <div
+            class="flex shrink-0 items-start gap-4 md:w-64"
+          >
+            <span
+              class="font-mono text-sm font-semibold text-[var(--color-accent)]"
+            >
+              02
+            </span>
+            <div>
+              <h3
+                class="text-lg font-semibold text-[var(--color-text-primary)]"
+              >
+                Start the daemon
+              </h3>
+              <p
+                class="mt-1 text-sm leading-relaxed text-[var(--color-text-secondary)]"
+              >
+                AGH runs as a background daemon managing all your agent sessions.
+              </p>
+            </div>
+          </div>
+          <div
+            class="flex-1 overflow-x-auto rounded-lg border border-[var(--color-divider)] bg-[var(--color-surface-elevated)] p-4"
+          >
+            <pre
+              class="font-mono text-sm leading-relaxed text-[var(--color-text-primary)]"
+            >
+              <code>
+                agh daemon start
+              </code>
+            </pre>
+          </div>
+        </div>
+        <div
+          class="flex flex-col gap-4 md:flex-row md:items-start md:gap-8"
+        >
+          <div
+            class="flex shrink-0 items-start gap-4 md:w-64"
+          >
+            <span
+              class="font-mono text-sm font-semibold text-[var(--color-accent)]"
+            >
+              03
+            </span>
+            <div>
+              <h3
+                class="text-lg font-semibold text-[var(--color-text-primary)]"
+              >
+                Create your first session
+              </h3>
+              <p
+                class="mt-1 text-sm leading-relaxed text-[var(--color-text-secondary)]"
+              >
+                Spawn an agent CLI as a managed session with memory, skills, and workspace context.
+              </p>
+            </div>
+          </div>
+          <div
+            class="flex-1 overflow-x-auto rounded-lg border border-[var(--color-divider)] bg-[var(--color-surface-elevated)] p-4"
+          >
+            <pre
+              class="font-mono text-sm leading-relaxed text-[var(--color-text-primary)]"
+            >
+              <code>
+                agh session create --agent claude-code \\
+  --workspace ~/my-project
+              </code>
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+`;
+
+exports[`ProtocolSection > matches snapshot 1`] = `
+<div>
+  <section
+    class="px-4 py-16 md:py-24"
+  >
+    <div
+      class="mx-auto max-w-5xl"
+    >
+      <p
+        class="text-center font-mono text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+      >
+        PROTOCOL
+      </p>
+      <h2
+        class="mt-3 text-center text-3xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-4xl"
+      >
+        An open wire format for agent coordination
+      </h2>
+      <p
+        class="mx-auto mt-4 max-w-2xl text-center text-sm leading-relaxed text-[var(--color-text-secondary)]"
+      >
+        Keep your runtime, map to AGH envelopes, implement the smallest core first. Seven message kinds cover the full interaction lifecycle.
+      </p>
+      <div
+        class="mt-12"
+      >
+        <h3
+          class="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+        >
+          MESSAGE KINDS
+        </h3>
+        <div
+          class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        >
+          <div
+            class="rounded-lg border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+          >
+            <span
+              class="font-mono text-sm font-semibold text-[var(--color-accent)]"
+            >
+              request
+            </span>
+            <p
+              class="mt-1.5 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+            >
+              Ask a peer to perform work and expect a response.
+            </p>
+          </div>
+          <div
+            class="rounded-lg border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+          >
+            <span
+              class="font-mono text-sm font-semibold text-[var(--color-accent)]"
+            >
+              response
+            </span>
+            <p
+              class="mt-1.5 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+            >
+              Return the result of a completed request.
+            </p>
+          </div>
+          <div
+            class="rounded-lg border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+          >
+            <span
+              class="font-mono text-sm font-semibold text-[var(--color-accent)]"
+            >
+              notify
+            </span>
+            <p
+              class="mt-1.5 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+            >
+              Fire-and-forget event broadcast to interested peers.
+            </p>
+          </div>
+          <div
+            class="rounded-lg border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+          >
+            <span
+              class="font-mono text-sm font-semibold text-[var(--color-accent)]"
+            >
+              discover
+            </span>
+            <p
+              class="mt-1.5 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+            >
+              Announce capabilities and find peers on the network.
+            </p>
+          </div>
+          <div
+            class="rounded-lg border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+          >
+            <span
+              class="font-mono text-sm font-semibold text-[var(--color-accent)]"
+            >
+              subscribe
+            </span>
+            <p
+              class="mt-1.5 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+            >
+              Register interest in a topic or event stream.
+            </p>
+          </div>
+          <div
+            class="rounded-lg border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+          >
+            <span
+              class="font-mono text-sm font-semibold text-[var(--color-accent)]"
+            >
+              cancel
+            </span>
+            <p
+              class="mt-1.5 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+            >
+              Abort an in-flight request or interaction.
+            </p>
+          </div>
+          <div
+            class="rounded-lg border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+          >
+            <span
+              class="font-mono text-sm font-semibold text-[var(--color-accent)]"
+            >
+              error
+            </span>
+            <p
+              class="mt-1.5 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+            >
+              Signal failure with structured error metadata.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div
+        class="mt-12"
+      >
+        <h3
+          class="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+        >
+          INTERACTION LIFECYCLE
+        </h3>
+        <div
+          class="mt-4 flex flex-col gap-0 sm:flex-row sm:items-start sm:gap-0"
+        >
+          <div
+            class="flex flex-1 items-start gap-3 sm:flex-col sm:items-center sm:text-center"
+          >
+            <div
+              class="flex shrink-0 items-center gap-3 sm:flex-col sm:gap-2"
+            >
+              <div
+                class="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)] font-mono text-sm font-semibold text-[var(--color-text-primary)]"
+              >
+                1
+              </div>
+              <div
+                class="hidden h-px w-full bg-[var(--color-divider)] sm:block"
+              />
+            </div>
+            <div
+              class="sm:mt-3"
+            >
+              <p
+                class="text-sm font-semibold text-[var(--color-text-primary)]"
+              >
+                Discover
+              </p>
+              <p
+                class="mt-0.5 text-xs text-[var(--color-text-secondary)]"
+              >
+                Peers announce capabilities
+              </p>
+            </div>
+          </div>
+          <div
+            class="flex flex-1 items-start gap-3 sm:flex-col sm:items-center sm:text-center"
+          >
+            <div
+              class="flex shrink-0 items-center gap-3 sm:flex-col sm:gap-2"
+            >
+              <div
+                class="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)] font-mono text-sm font-semibold text-[var(--color-text-primary)]"
+              >
+                2
+              </div>
+              <div
+                class="hidden h-px w-full bg-[var(--color-divider)] sm:block"
+              />
+            </div>
+            <div
+              class="sm:mt-3"
+            >
+              <p
+                class="text-sm font-semibold text-[var(--color-text-primary)]"
+              >
+                Request
+              </p>
+              <p
+                class="mt-0.5 text-xs text-[var(--color-text-secondary)]"
+              >
+                Sender issues a request envelope
+              </p>
+            </div>
+          </div>
+          <div
+            class="flex flex-1 items-start gap-3 sm:flex-col sm:items-center sm:text-center"
+          >
+            <div
+              class="flex shrink-0 items-center gap-3 sm:flex-col sm:gap-2"
+            >
+              <div
+                class="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)] font-mono text-sm font-semibold text-[var(--color-text-primary)]"
+              >
+                3
+              </div>
+              <div
+                class="hidden h-px w-full bg-[var(--color-divider)] sm:block"
+              />
+            </div>
+            <div
+              class="sm:mt-3"
+            >
+              <p
+                class="text-sm font-semibold text-[var(--color-text-primary)]"
+              >
+                Process
+              </p>
+              <p
+                class="mt-0.5 text-xs text-[var(--color-text-secondary)]"
+              >
+                Receiver handles the request
+              </p>
+            </div>
+          </div>
+          <div
+            class="flex flex-1 items-start gap-3 sm:flex-col sm:items-center sm:text-center"
+          >
+            <div
+              class="flex shrink-0 items-center gap-3 sm:flex-col sm:gap-2"
+            >
+              <div
+                class="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)] font-mono text-sm font-semibold text-[var(--color-text-primary)]"
+              >
+                4
+              </div>
+            </div>
+            <div
+              class="sm:mt-3"
+            >
+              <p
+                class="text-sm font-semibold text-[var(--color-text-primary)]"
+              >
+                Respond
+              </p>
+              <p
+                class="mt-0.5 text-xs text-[var(--color-text-secondary)]"
+              >
+                Result returned to sender
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+`;
+
+exports[`RuntimeFeatures > matches snapshot 1`] = `
+<div>
+  <section
+    class="bg-[var(--color-surface)] px-4 py-16 md:py-24"
+  >
+    <div
+      class="mx-auto max-w-5xl"
+    >
+      <p
+        class="text-center font-mono text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+      >
+        RUNTIME
+      </p>
+      <h2
+        class="mt-3 text-center text-3xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-4xl"
+      >
+        Orchestrates real agent CLIs, not API wrappers
+      </h2>
+      <p
+        class="mx-auto mt-4 max-w-2xl text-center text-sm leading-relaxed text-[var(--color-text-secondary)]"
+      >
+        Single binary. No sidecars. No external services. Everything your agents need to operate, built into one daemon.
+      </p>
+      <div
+        class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        <div
+          class="flex flex-col rounded-xl bg-[var(--color-canvas)] p-5"
+        >
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)]"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-play h-4 w-4 text-[var(--color-accent)]"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
+              />
+            </svg>
+          </div>
+          <span
+            class="mt-4 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+          >
+            SESSIONS
+          </span>
+          <h3
+            class="mt-1 text-sm font-semibold text-[var(--color-text-primary)]"
+          >
+            Session Lifecycle
+          </h3>
+          <p
+            class="mt-2 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+          >
+            Spawn, pause, resume, and replay agent sessions. Full event persistence with SQLite — nothing is lost.
+          </p>
+        </div>
+        <div
+          class="flex flex-col rounded-xl bg-[var(--color-canvas)] p-5"
+        >
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)]"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-brain h-4 w-4 text-[var(--color-accent)]"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M12 18V5"
+              />
+              <path
+                d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"
+              />
+              <path
+                d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"
+              />
+              <path
+                d="M17.997 5.125a4 4 0 0 1 2.526 5.77"
+              />
+              <path
+                d="M18 18a4 4 0 0 0 2-7.464"
+              />
+              <path
+                d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"
+              />
+              <path
+                d="M6 18a4 4 0 0 1-2-7.464"
+              />
+              <path
+                d="M6.003 5.125a4 4 0 0 0-2.526 5.77"
+              />
+            </svg>
+          </div>
+          <span
+            class="mt-4 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+          >
+            MEMORY
+          </span>
+          <h3
+            class="mt-1 text-sm font-semibold text-[var(--color-text-primary)]"
+          >
+            Persistent Memory
+          </h3>
+          <p
+            class="mt-2 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+          >
+            Dual-scope memory — global knowledge and workspace-specific context. Dream consolidation distills insights automatically.
+          </p>
+        </div>
+        <div
+          class="flex flex-col rounded-xl bg-[var(--color-canvas)] p-5"
+        >
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)]"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-sparkles h-4 w-4 text-[var(--color-accent)]"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"
+              />
+              <path
+                d="M20 2v4"
+              />
+              <path
+                d="M22 4h-4"
+              />
+              <circle
+                cx="4"
+                cy="20"
+                r="2"
+              />
+            </svg>
+          </div>
+          <span
+            class="mt-4 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+          >
+            SKILLS
+          </span>
+          <h3
+            class="mt-1 text-sm font-semibold text-[var(--color-text-primary)]"
+          >
+            Skills System
+          </h3>
+          <p
+            class="mt-2 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+          >
+            Declarative SKILL.md format. Bundled skills, marketplace discovery, workspace-scoped activation.
+          </p>
+        </div>
+        <div
+          class="flex flex-col rounded-xl bg-[var(--color-canvas)] p-5"
+        >
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)]"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-folder-open h-4 w-4 text-[var(--color-accent)]"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"
+              />
+            </svg>
+          </div>
+          <span
+            class="mt-4 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+          >
+            WORKSPACES
+          </span>
+          <h3
+            class="mt-1 text-sm font-semibold text-[var(--color-text-primary)]"
+          >
+            Workspace Isolation
+          </h3>
+          <p
+            class="mt-2 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+          >
+            Copy the directory, and the agent works. Config overlays, multi-root support, portable by default.
+          </p>
+        </div>
+        <div
+          class="flex flex-col rounded-xl bg-[var(--color-canvas)] p-5"
+        >
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)]"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-timer h-4 w-4 text-[var(--color-accent)]"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <line
+                x1="10"
+                x2="14"
+                y1="2"
+                y2="2"
+              />
+              <line
+                x1="12"
+                x2="15"
+                y1="14"
+                y2="11"
+              />
+              <circle
+                cx="12"
+                cy="14"
+                r="8"
+              />
+            </svg>
+          </div>
+          <span
+            class="mt-4 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+          >
+            AUTOMATION
+          </span>
+          <h3
+            class="mt-1 text-sm font-semibold text-[var(--color-text-primary)]"
+          >
+            Jobs & Triggers
+          </h3>
+          <p
+            class="mt-2 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+          >
+            Cron schedules, event triggers, webhook endpoints. Automate agent work without manual intervention.
+          </p>
+        </div>
+        <div
+          class="flex flex-col rounded-xl bg-[var(--color-canvas)] p-5"
+        >
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)]"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-network h-4 w-4 text-[var(--color-accent)]"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect
+                height="6"
+                rx="1"
+                width="6"
+                x="16"
+                y="16"
+              />
+              <rect
+                height="6"
+                rx="1"
+                width="6"
+                x="2"
+                y="16"
+              />
+              <rect
+                height="6"
+                rx="1"
+                width="6"
+                x="9"
+                y="2"
+              />
+              <path
+                d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"
+              />
+              <path
+                d="M12 12V8"
+              />
+            </svg>
+          </div>
+          <span
+            class="mt-4 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+          >
+            BRIDGES
+          </span>
+          <h3
+            class="mt-1 text-sm font-semibold text-[var(--color-text-primary)]"
+          >
+            Platform Bridges
+          </h3>
+          <p
+            class="mt-2 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+          >
+            Route agent interactions to Slack, Discord, Telegram. Platform adapters with bidirectional message flow.
+          </p>
+        </div>
+        <div
+          class="flex flex-col rounded-xl bg-[var(--color-canvas)] p-5"
+        >
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)]"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-webhook h-4 w-4 text-[var(--color-accent)]"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"
+              />
+              <path
+                d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"
+              />
+              <path
+                d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"
+              />
+            </svg>
+          </div>
+          <span
+            class="mt-4 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+          >
+            HOOKS
+          </span>
+          <h3
+            class="mt-1 text-sm font-semibold text-[var(--color-text-primary)]"
+          >
+            Event Hooks
+          </h3>
+          <p
+            class="mt-2 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+          >
+            Declare matchers and executors for any event in the system. Extend behavior without modifying core code.
+          </p>
+        </div>
+        <div
+          class="flex flex-col rounded-xl bg-[var(--color-canvas)] p-5"
+        >
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-elevated)]"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-puzzle h-4 w-4 text-[var(--color-accent)]"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"
+              />
+            </svg>
+          </div>
+          <span
+            class="mt-4 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+          >
+            EXTENSIONS
+          </span>
+          <h3
+            class="mt-1 text-sm font-semibold text-[var(--color-text-primary)]"
+          >
+            Extension System
+          </h3>
+          <p
+            class="mt-2 text-xs leading-relaxed text-[var(--color-text-secondary)]"
+          >
+            Install, develop, and share extensions via the marketplace. First-class plugin architecture.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+`;
+
+exports[`TwoPillars > matches snapshot 1`] = `
+<div>
+  <section
+    class="bg-[var(--color-surface)] px-4 py-16 md:py-24"
+  >
+    <div
+      class="mx-auto max-w-5xl"
+    >
+      <p
+        class="text-center font-mono text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]"
+      >
+        TWO PRODUCTS, ONE BINARY
+      </p>
+      <h2
+        class="mt-3 text-center text-3xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-4xl"
+      >
+        Runtime + Protocol
+      </h2>
+      <div
+        class="mt-12 grid gap-6 md:grid-cols-2"
+      >
+        <div
+          class="flex flex-col rounded-xl border border-[var(--color-divider)] bg-[var(--color-canvas)] p-6 md:p-8"
+        >
+          <span
+            class="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-accent)]"
+          >
+            RUNTIME
+          </span>
+          <h3
+            class="mt-2 text-xl font-semibold text-[var(--color-text-primary)]"
+          >
+            Agent Operating System
+          </h3>
+          <p
+            class="mt-3 text-sm leading-relaxed text-[var(--color-text-secondary)]"
+          >
+            Single binary. No sidecars. No external services. AGH spawns and manages agent CLIs as first-class sessions with memory, skills, and workspace isolation.
+          </p>
+          <ul
+            class="mt-6 flex flex-col gap-2"
+          >
+            <li
+              class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]"
+            >
+              <span
+                class="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]"
+              />
+              Session lifecycle management
+            </li>
+            <li
+              class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]"
+            >
+              <span
+                class="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]"
+              />
+              Persistent dual-scope memory
+            </li>
+            <li
+              class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]"
+            >
+              <span
+                class="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]"
+              />
+              Skills and extension marketplace
+            </li>
+            <li
+              class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]"
+            >
+              <span
+                class="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]"
+              />
+              Workspace-aware configuration
+            </li>
+          </ul>
+          <a
+            class="mt-auto flex items-center gap-1.5 pt-6 text-sm font-medium text-[var(--color-accent)] transition-colors hover:text-[var(--color-accent-hover)]"
+            href="/runtime"
+          >
+            Explore the Runtime
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-arrow-right h-4 w-4"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M5 12h14"
+              />
+              <path
+                d="m12 5 7 7-7 7"
+              />
+            </svg>
+          </a>
+        </div>
+        <div
+          class="flex flex-col rounded-xl border border-[var(--color-divider)] bg-[var(--color-canvas)] p-6 md:p-8"
+        >
+          <span
+            class="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-accent)]"
+          >
+            PROTOCOL
+          </span>
+          <h3
+            class="mt-2 text-xl font-semibold text-[var(--color-text-primary)]"
+          >
+            Agent Network Protocol
+          </h3>
+          <p
+            class="mt-3 text-sm leading-relaxed text-[var(--color-text-secondary)]"
+          >
+            MCP connects agents to tools. AGH connects agents to agents. An open wire format that any harness can implement — discover peers, exchange messages, coordinate work.
+          </p>
+          <ul
+            class="mt-6 flex flex-col gap-2"
+          >
+            <li
+              class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]"
+            >
+              <span
+                class="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]"
+              />
+              7 message kinds
+            </li>
+            <li
+              class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]"
+            >
+              <span
+                class="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]"
+              />
+              Interaction lifecycle
+            </li>
+            <li
+              class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]"
+            >
+              <span
+                class="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]"
+              />
+              Peer discovery
+            </li>
+            <li
+              class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]"
+            >
+              <span
+                class="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]"
+              />
+              Transport-agnostic
+            </li>
+          </ul>
+          <a
+            class="mt-auto flex items-center gap-1.5 pt-6 text-sm font-medium text-[var(--color-accent)] transition-colors hover:text-[var(--color-accent-hover)]"
+            href="/protocol"
+          >
+            Read the Protocol Spec
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-arrow-right h-4 w-4"
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M5 12h14"
+              />
+              <path
+                d="m12 5 7 7-7 7"
+              />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+`;
