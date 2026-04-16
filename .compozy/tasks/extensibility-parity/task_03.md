@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement the reconcile driver runtime"
 type: backend
 complexity: high
@@ -31,10 +31,10 @@ Create the named control-plane scheduler that drives boot rebuilds and post-comm
 
 ## Subtasks
 
-- [ ] 3.1 Implement the named reconcile driver and projector registration topology
-- [ ] 3.2 Add single-flight, coalescing, timeout, and degraded-circuit behavior per resource kind
-- [ ] 3.3 Wire boot-time `RunBoot()` ordering and post-commit reverse-dependency scheduling
-- [ ] 3.4 Add contract coverage for retries, shutdown, and topology correctness
+- [x] 3.1 Implement the named reconcile driver and projector registration topology
+- [x] 3.2 Add single-flight, coalescing, timeout, and degraded-circuit behavior per resource kind
+- [x] 3.3 Wire boot-time `RunBoot()` ordering and post-commit reverse-dependency scheduling
+- [x] 3.4 Add contract coverage for retries, shutdown, and topology correctness
 
 ## Implementation Details
 
@@ -71,14 +71,14 @@ Follow the TechSpec sections "Core Interfaces", "Integration Points", "Developme
 ## Tests
 
 - Unit tests:
-  - [ ] concurrent triggers for the same kind produce at most one in-flight pass plus one queued rerun
-  - [ ] projector contexts inherit the configured timeout and cancel when the deadline elapses
-  - [ ] repeated projector failures open a degraded circuit and suppress busy-loop reruns until backoff or a new write arrives
-  - [ ] reverse dependencies are scheduled after the written kind without conflating `DependsOn()` with ownership fan-out
+  - [x] concurrent triggers for the same kind produce at most one in-flight pass plus one queued rerun
+  - [x] projector contexts inherit the configured timeout and cancel when the deadline elapses
+  - [x] repeated projector failures open a degraded circuit and suppress busy-loop reruns until backoff or a new write arrives
+  - [x] reverse dependencies are scheduled after the written kind without conflating `DependsOn()` with ownership fan-out
 - Integration tests:
-  - [ ] `RunBoot()` rebuilds registered kinds in topological order and refuses an invalid dependency graph
-  - [ ] a write storm against one kind coalesces work within the bounded window instead of growing an unbounded queue
-  - [ ] `Close(ctx)` stops new triggers and drains or cancels in-flight work within the caller deadline
+  - [x] `RunBoot()` rebuilds registered kinds in topological order and refuses an invalid dependency graph
+  - [x] a write storm against one kind coalesces work within the bounded window instead of growing an unbounded queue
+  - [x] `Close(ctx)` stops new triggers and drains or cancels in-flight work within the caller deadline
 - Test coverage target: >=80%
 - All tests must pass
 

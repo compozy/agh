@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Expose UDS-first resource CRUD APIs"
 type: backend
 complexity: high
@@ -32,10 +32,10 @@ Add the canonical operator-facing CRUD surface for desired-state resources using
 
 ## Subtasks
 
-- [ ] 6.1 Add shared resource DTOs and error mapping in the API contract and core layers
-- [ ] 6.2 Add UDS route wiring and handler support for list, get, put, and delete resource operations
-- [ ] 6.3 Gate HTTP mutation routes behind explicit operator-auth availability and keep them disabled otherwise
-- [ ] 6.4 Add transport coverage for CRUD success paths, conflict paths, and disabled HTTP mutation behavior
+- [x] 6.1 Add shared resource DTOs and error mapping in the API contract and core layers
+- [x] 6.2 Add UDS route wiring and handler support for list, get, put, and delete resource operations
+- [x] 6.3 Gate HTTP mutation routes behind explicit operator-auth availability and keep them disabled otherwise
+- [x] 6.4 Add transport coverage for CRUD success paths, conflict paths, and disabled HTTP mutation behavior
 
 ## Implementation Details
 
@@ -72,14 +72,14 @@ Follow the TechSpec sections "API Endpoints", "Authority and Validation Rules", 
 ## Tests
 
 - Unit tests:
-  - [ ] invalid scope, invalid kind-specific spec, stale `expected_version`, oversized payload, and rate-limit failures map to 422, 409, 413, and 429 consistently
-  - [ ] handler parsing preserves `expected_version`, scope, and filter semantics for list, get, put, and delete
-  - [ ] HTTP route registration refuses to expose mutating resource handlers when operator auth middleware is absent
-  - [ ] operational runtime endpoints remain family-specific and are not routed through generic resource CRUD handlers
+  - [x] invalid scope, invalid kind-specific spec, stale `expected_version`, oversized payload, and rate-limit failures map to 422, 409, 413, and 429 consistently
+  - [x] handler parsing preserves `expected_version`, scope, and filter semantics for list, get, put, and delete
+  - [x] HTTP route registration refuses to expose mutating resource handlers when operator auth middleware is absent
+  - [x] operational runtime endpoints remain family-specific and are not routed through generic resource CRUD handlers
 - Integration tests:
-  - [ ] UDS `PUT /api/resources/:kind/:id` creates and updates records with correct 200 or 201 semantics
-  - [ ] UDS `DELETE /api/resources/:kind/:id` rejects stale versions and succeeds only with the current version
-  - [ ] HTTP `/api/resources` mutation routes stay unavailable when the server is started without operator auth middleware
+  - [x] UDS `PUT /api/resources/:kind/:id` creates and updates records with correct 200 or 201 semantics
+  - [x] UDS `DELETE /api/resources/:kind/:id` rejects stale versions and succeeds only with the current version
+  - [x] HTTP `/api/resources` mutation routes stay unavailable when the server is started without operator auth middleware
 - Test coverage target: >=80%
 - All tests must pass
 

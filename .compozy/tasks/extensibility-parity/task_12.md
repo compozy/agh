@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Migrate bundles and activation fan-out"
 type: refactor
 complexity: high
@@ -31,10 +31,10 @@ Move bundles and bundle activations onto the shared runtime after automation and
 
 ## Subtasks
 
-- [ ] 12.1 Add codecs and typed store usage for `bundle` and `bundle.activation`
-- [ ] 12.2 Replace activation inventory with owner-indexed owned-resource composition
-- [ ] 12.3 Implement mixed-kind activation fan-out into automation and bridge records through package-local projector adapters
-- [ ] 12.4 Add cutover coverage for allowlists, owned-resource cleanup, and cycle-free activation behavior
+- [x] 12.1 Add codecs and typed store usage for `bundle` and `bundle.activation`
+- [x] 12.2 Replace activation inventory with owner-indexed owned-resource composition
+- [x] 12.3 Implement mixed-kind activation fan-out into automation and bridge records through package-local projector adapters
+- [x] 12.4 Add cutover coverage for allowlists, owned-resource cleanup, and cycle-free activation behavior
 
 ## Implementation Details
 
@@ -75,14 +75,14 @@ Follow the TechSpec sections "Data Models", "Authority and Validation Rules", "D
 ## Tests
 
 - Unit tests:
-  - [ ] `bundle.activation` expansion rejects owned kinds outside the bundle allowlist
-  - [ ] owner-indexed cleanup deletes only records owned by the specific activation being removed
-  - [ ] mixed-kind bundle adapter decodes dependency kinds explicitly without exposing raw JSON to domain code
-  - [ ] activation fan-out does not register a reverse dependency cycle back to `bundle.activation`
+  - [x] `bundle.activation` expansion rejects owned kinds outside the bundle allowlist
+  - [x] owner-indexed cleanup deletes only records owned by the specific activation being removed
+  - [x] mixed-kind bundle adapter decodes dependency kinds explicitly without exposing raw JSON to domain code
+  - [x] activation fan-out does not register a reverse dependency cycle back to `bundle.activation`
 - Integration tests:
-  - [ ] activating a bundle creates owned automation and bridge resource records through the canonical store
-  - [ ] deleting or deactivating an activation removes only the owned records for that activation and leaves unrelated resources untouched
-  - [ ] daemon boot rebuild rehydrates bundle and activation state from canonical resource records without any activation inventory table
+  - [x] activating a bundle creates owned automation and bridge resource records through the canonical store
+  - [x] deleting or deactivating an activation removes only the owned records for that activation and leaves unrelated resources untouched
+  - [x] daemon boot rebuild rehydrates bundle and activation state from canonical resource records without any activation inventory table
 - Test coverage target: >=80%
 - All tests must pass
 

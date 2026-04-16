@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Add extension resource protocol and SDK support"
 type: backend
 complexity: high
@@ -31,10 +31,10 @@ Extend the extension handshake and Host API so extensions can read back their ow
 
 ## Subtasks
 
-- [ ] 5.1 Extend handshake payloads with resource grants and session nonce
-- [ ] 5.2 Add Host API request and response contracts for resource reads and snapshots
-- [ ] 5.3 Add SDK helpers, generated contract updates, test harness plumbing, and fixture support for the new resource protocol
-- [ ] 5.4 Add coverage for nonce enforcement, same-source reads, and stale snapshot rejection
+- [x] 5.1 Extend handshake payloads with resource grants and session nonce
+- [x] 5.2 Add Host API request and response contracts for resource reads and snapshots
+- [x] 5.3 Add SDK helpers, generated contract updates, test harness plumbing, and fixture support for the new resource protocol
+- [x] 5.4 Add coverage for nonce enforcement, same-source reads, and stale snapshot rejection
 
 ## Implementation Details
 
@@ -73,16 +73,16 @@ Follow the TechSpec sections "API Endpoints", "Authority and Validation Rules", 
 ## Tests
 
 - Unit tests:
-  - [ ] initialize responses include only daemon-computed resource grants rather than manifest self-declaration
-  - [ ] `resources/list` and `resources/get` deny records outside the caller source, granted kinds, or max scope
-  - [ ] `resources/snapshot` rejects stale `source_version` and non-active `session_nonce` values
-  - [ ] bridge-family operational Host API contracts continue to coexist with `resources/*` without being reinterpreted as generic same-source reads
-  - [ ] SDK helpers validate payload shape and surface protocol errors for 403, 409, 413, and 429 responses
+  - [x] initialize responses include only daemon-computed resource grants rather than manifest self-declaration
+  - [x] `resources/list` and `resources/get` deny records outside the caller source, granted kinds, or max scope
+  - [x] `resources/snapshot` rejects stale `source_version` and non-active `session_nonce` values
+  - [x] bridge-family operational Host API contracts continue to coexist with `resources/*` without being reinterpreted as generic same-source reads
+  - [x] SDK helpers validate payload shape and surface protocol errors for 403, 409, 413, and 429 responses
 - Integration tests:
-  - [ ] an extension fixture receives `session_nonce`, granted kinds, and granted scopes during initialize
-  - [ ] an extension snapshot publishes records for its own source and can read them back through `resources/list` and `resources/get`
-  - [ ] a managed bridge-provider fixture still reads daemon-assigned instances through `bridges/instances/list|get` while generic `resources/get|list` remain same-source-only
-  - [ ] a second live session for the same extension source invalidates the older nonce and causes stale snapshot calls to fail
+  - [x] an extension fixture receives `session_nonce`, granted kinds, and granted scopes during initialize
+  - [x] an extension snapshot publishes records for its own source and can read them back through `resources/list` and `resources/get`
+  - [x] a managed bridge-provider fixture still reads daemon-assigned instances through `bridges/instances/list|get` while generic `resources/get|list` remain same-source-only
+  - [x] a second live session for the same extension source invalidates the older nonce and causes stale snapshot calls to fail
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -92,3 +92,15 @@ Follow the TechSpec sections "API Endpoints", "Authority and Validation Rules", 
 - Test coverage >=80%
 - Extensions can publish and inspect their own desired-state records through one negotiated resource protocol
 - Same-source filtering, snapshot sequencing, and nonce enforcement are proven before family cutovers begin
+
+## Verification Evidence
+
+- `bun run test` in `sdk/typescript`
+- `go test ./internal/extension ./internal/subprocess`
+- `go test -cover ./internal/extension`
+  - `internal/extension`: `80.1%`
+- `go test -cover ./internal/subprocess`
+  - `internal/subprocess`: `82.8%`
+- `go test ./internal/bridgesdk ./internal/extension/protocol ./extensions/bridges/gchat ./extensions/bridges/linear ./extensions/bridges/slack ./extensions/bridges/teams ./extensions/bridges/telegram ./extensions/bridges/whatsapp ./sdk/examples/telegram-reference`
+- `go test -tags integration ./internal/extension -run 'TestManagerIntegrationInitializeIncludesSessionNonceAndResourceGrants|TestHostAPIIntegrationResourcesSnapshotPublishesAndReadsBack|TestHostAPIIntegrationBridgeProviderKeepsOperationalMethodsAlongsideGenericResourceReads|TestHostAPIIntegrationSecondResourceSessionInvalidatesOlderNonce'`
+- `make verify`

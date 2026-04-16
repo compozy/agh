@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Add typed codecs, stores, and projector adapters"
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Build the typed boundary that keeps raw bytes inside the persistence kernel whil
 
 ## Subtasks
 
-- [ ] 2.1 Add typed draft and record façades over the raw resource kernel
-- [ ] 2.2 Add a codec registry pattern for kind-specific decode, encode, and max-bytes enforcement
-- [ ] 2.3 Add typed projector adapter seams for single-kind projectors and the explicit `bundle.activation` mixed-kind adapter escape hatch
-- [ ] 2.4 Add contract tests proving typed store reads and projections do not leak raw JSON
+- [x] 2.1 Add typed draft and record façades over the raw resource kernel
+- [x] 2.2 Add a codec registry pattern for kind-specific decode, encode, and max-bytes enforcement
+- [x] 2.3 Add typed projector adapter seams for single-kind projectors and the explicit `bundle.activation` mixed-kind adapter escape hatch
+- [x] 2.4 Add contract tests proving typed store reads and projections do not leak raw JSON
 
 ## Implementation Details
 
@@ -68,14 +68,14 @@ Follow the TechSpec sections "Core Interfaces", "Authority and Validation Rules"
 ## Tests
 
 - Unit tests:
-  - [ ] a typed store `Get` and `List` path still rejects records outside the actor source, granted kinds, or scope boundary
-  - [ ] a codec decode failure rejects invalid raw payloads before typed records are returned to domain code
-  - [ ] encode and decode round-trip through the same codec without losing version, scope, owner, or source metadata
-  - [ ] a typed projector adapter decodes its primary kind once per reconcile input and does not expose raw bytes to the domain projector
+  - [x] a typed store `Get` and `List` path still rejects records outside the actor source, granted kinds, or scope boundary
+  - [x] a codec decode failure rejects invalid raw payloads before typed records are returned to domain code
+  - [x] encode and decode round-trip through the same codec without losing version, scope, owner, or source metadata
+  - [x] a typed projector adapter decodes its primary kind once per reconcile input and does not expose raw bytes to the domain projector
 - Integration tests:
-  - [ ] a fake codec plus SQLite-backed typed store can persist, load, and list typed records using the raw kernel from task 01
-  - [ ] a mixed-kind adapter can decode dependency bags explicitly without forcing `TypedProjector[T]` to accept heterogeneous raw payloads
-  - [ ] contract tests fail if a validator or projector tries to depend on `json.RawMessage` directly
+  - [x] a fake codec plus SQLite-backed typed store can persist, load, and list typed records using the raw kernel from task 01
+  - [x] a mixed-kind adapter can decode dependency bags explicitly without forcing `TypedProjector[T]` to accept heterogeneous raw payloads
+  - [x] contract tests fail if a validator or projector tries to depend on `json.RawMessage` directly
 - Test coverage target: >=80%
 - All tests must pass
 

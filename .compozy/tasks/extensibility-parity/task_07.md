@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Migrate hook bindings and wire tool/permission hooks"
 type: refactor
 complexity: critical
@@ -32,10 +32,10 @@ Move hook binding authority into the shared resource runtime and close the curre
 
 ## Subtasks
 
-- [ ] 7.1 Add hook-binding codecs, typed store usage, and projector wiring on top of the shared resource runtime
-- [ ] 7.2 Replace the manual hook runtime bridge and session wiring with taxonomy-driven registration
-- [ ] 7.3 Wire `tool.*` and `permission.*` events end to end through the migrated hook runtime
-- [ ] 7.4 Add tranche-1 coverage for hook dispatch, atomic swap behavior, and legacy-authority removal
+- [x] 7.1 Add hook-binding codecs, typed store usage, and projector wiring on top of the shared resource runtime
+- [x] 7.2 Replace the manual hook runtime bridge and session wiring with taxonomy-driven registration
+- [x] 7.3 Wire `tool.*` and `permission.*` events end to end through the migrated hook runtime
+- [x] 7.4 Add tranche-1 coverage for hook dispatch, atomic swap behavior, and legacy-authority removal
 
 ## Implementation Details
 
@@ -75,14 +75,14 @@ Follow the TechSpec sections "Data Models", "Development Sequencing", "Testing A
 ## Tests
 
 - Unit tests:
-  - [ ] taxonomy-driven runtime wiring includes `tool.pre_call`, `tool.post_call`, `tool.post_error`, `permission.request`, `permission.resolved`, and `permission.denied`
-  - [ ] hook projector `Build` computes the next dispatch table without mutating the live runtime and `Apply` swaps it atomically
-  - [ ] permission request patch guards still block escalation after the binding source moves to resources
-  - [ ] no legacy hand-enumerated hook-family path remains authoritative once resource-backed bindings are enabled
+  - [x] taxonomy-driven runtime wiring includes `tool.pre_call`, `tool.post_call`, `tool.post_error`, `permission.request`, `permission.resolved`, and `permission.denied`
+  - [x] hook projector `Build` computes the next dispatch table without mutating the live runtime and `Apply` swaps it atomically
+  - [x] permission request patch guards still block escalation after the binding source moves to resources
+  - [x] no legacy hand-enumerated hook-family path remains authoritative once resource-backed bindings are enabled
 - Integration tests:
-  - [ ] a resource-backed hook binding fires on a real `tool.pre_call` or `tool.post_call` path through the session runtime
-  - [ ] a resource-backed permission hook fires on `permission.request`, `permission.resolved`, and `permission.denied` end to end
-  - [ ] projector failure preserves the previously applied hook dispatch table rather than leaving a partially updated runtime
+  - [x] a resource-backed hook binding fires on a real `tool.pre_call` or `tool.post_call` path through the session runtime
+  - [x] a resource-backed permission hook fires on `permission.request`, `permission.resolved`, and `permission.denied` end to end
+  - [x] projector failure preserves the previously applied hook dispatch table rather than leaving a partially updated runtime
 - Test coverage target: >=80%
 - All tests must pass
 

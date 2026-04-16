@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Migrate bridge instances to resource projection"
 type: refactor
 complexity: high
@@ -33,10 +33,10 @@ Move bridge instance desired state into the shared runtime without collapsing br
 
 ## Subtasks
 
-- [ ] 11.1 Add codec and typed record support for `bridge.instance`, including richer bridge desired-state fields and provider-manifest validation
-- [ ] 11.2 Replace legacy bridge-definition authority with resource-backed projection into the bridge runtime registry
-- [ ] 11.3 Preserve assigned-instance visibility, status reporting, delivery, route, and health read models as operational bridge-owned state
-- [ ] 11.4 Add external-state projector coverage for rollback, degraded state, and boot rebuild
+- [x] 11.1 Add codec and typed record support for `bridge.instance`, including richer bridge desired-state fields and provider-manifest validation
+- [x] 11.2 Replace legacy bridge-definition authority with resource-backed projection into the bridge runtime registry
+- [x] 11.3 Preserve assigned-instance visibility, status reporting, delivery, route, and health read models as operational bridge-owned state
+- [x] 11.4 Add external-state projector coverage for rollback, degraded state, and boot rebuild
 
 ## Implementation Details
 
@@ -78,16 +78,16 @@ Follow the TechSpec sections "Core Interfaces", "Impact Analysis", "Testing Appr
 ## Tests
 
 - Unit tests:
-  - [ ] `bridge.instance` codec rejects invalid scope, malformed `provider_config`, invalid `dm_policy`, or illegal desired-state payloads before persistence
-  - [ ] provider-manifest `bridge.config_schema` and `bridge.secret_slots` metadata are enforced when validating resource-backed bridge desired state
-  - [ ] bridge projector `Build` computes the next desired bridge delta without opening speculative live connections
-  - [ ] bridge projector `Apply` degrades or rolls back cleanly when a live side effect fails after the daemon-visible registry swap
-  - [ ] legacy bridge-definition writes are no longer authoritative after resource-backed cutover
+  - [x] `bridge.instance` codec rejects invalid scope, malformed `provider_config`, invalid `dm_policy`, or illegal desired-state payloads before persistence
+  - [x] provider-manifest `bridge.config_schema` and `bridge.secret_slots` metadata are enforced when validating resource-backed bridge desired state
+  - [x] bridge projector `Build` computes the next desired bridge delta without opening speculative live connections
+  - [x] bridge projector `Apply` degrades or rolls back cleanly when a live side effect fails after the daemon-visible registry swap
+  - [x] legacy bridge-definition writes are no longer authoritative after resource-backed cutover
 - Integration tests:
-  - [ ] an operator resource write adds, updates, and removes bridge instances through reconcile rather than legacy bridge-definition storage
-  - [ ] daemon boot rebuild reconstructs bridge desired state from persisted resource records
-  - [ ] managed bridge providers continue reading assigned instances through `bridges/instances/list|get` and reporting runtime state through `bridges/instances/report_state` after desired-state cutover
-  - [ ] bridge delivery, route, health, and degradation endpoints continue to work with operational state stored outside the generic resource runtime
+  - [x] an operator resource write adds, updates, and removes bridge instances through reconcile rather than legacy bridge-definition storage
+  - [x] daemon boot rebuild reconstructs bridge desired state from persisted resource records
+  - [x] managed bridge providers continue reading assigned instances through `bridges/instances/list|get` and reporting runtime state through `bridges/instances/report_state` after desired-state cutover
+  - [x] bridge delivery, route, health, and degradation endpoints continue to work with operational state stored outside the generic resource runtime
 - Test coverage target: >=80%
 - All tests must pass
 

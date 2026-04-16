@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Add extension surface registry and resource grant config"
 type: backend
 complexity: high
@@ -30,10 +30,10 @@ Create the static policy table and operator-config surface that make resource pu
 
 ## Subtasks
 
-- [ ] 4.1 Create the static extension surface registry for first-wave resource kinds
-- [ ] 4.2 Add `[extensions.resources]` config parsing, merge behavior, and validation
-- [ ] 4.3 Update capability computation to derive granted kinds and scopes from the shared policy chain
-- [ ] 4.4 Add coverage for manifest requests, source-tier ceilings, and operator policy precedence
+- [x] 4.1 Create the static extension surface registry for first-wave resource kinds
+- [x] 4.2 Add `[extensions.resources]` config parsing, merge behavior, and validation
+- [x] 4.3 Update capability computation to derive granted kinds and scopes from the shared policy chain
+- [x] 4.4 Add coverage for manifest requests, source-tier ceilings, and operator policy precedence
 
 ## Implementation Details
 
@@ -70,14 +70,14 @@ Follow the TechSpec sections "Data Models", "Authority and Validation Rules", "I
 ## Tests
 
 - Unit tests:
-  - [ ] a manifest request for an illegal kind or illegal scope is rejected by the surface registry before handshake time
-  - [ ] operator config narrowing removes kinds or scopes that the manifest requested but policy does not allow
-  - [ ] source-tier ceilings prevent lower-trust extensions from receiving grants above their maximum allowed scope
-  - [ ] config merge keeps explicit precedence for surface legality, source-tier ceilings, operator config, manifest request, and session mode
+  - [x] a manifest request for an illegal kind or illegal scope is rejected by the surface registry before handshake time
+  - [x] operator config narrowing removes kinds or scopes that the manifest requested but policy does not allow
+  - [x] source-tier ceilings prevent lower-trust extensions from receiving grants above their maximum allowed scope
+  - [x] config merge keeps explicit precedence for surface legality, source-tier ceilings, operator config, manifest request, and session mode
 - Integration tests:
-  - [ ] a workspace-scoped extension cannot obtain global publication scope even if its manifest requests it
-  - [ ] the effective grant set exposed to extension startup is derived from daemon policy rather than manifest self-assertion
-  - [ ] rate-limit policy under `[extensions.resources]` round-trips through config load and merge paths
+  - [x] a workspace-scoped extension cannot obtain global publication scope even if its manifest requests it
+  - [x] the effective grant set exposed to extension startup is derived from daemon policy rather than manifest self-assertion
+  - [x] rate-limit policy under `[extensions.resources]` round-trips through config load and merge paths
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -87,3 +87,13 @@ Follow the TechSpec sections "Data Models", "Authority and Validation Rules", "I
 - Test coverage >=80%
 - The daemon computes one authoritative grant set for extension resource publication and reads
 - Manifest, config, and capability policy stop drifting across separate extension call sites
+
+## Verification Evidence
+
+- `go test ./internal/extension/surfaces ./internal/extension ./internal/config`
+- `go test -cover ./internal/extension/surfaces ./internal/extension ./internal/config`
+  - `internal/extension/surfaces`: `83.6%`
+  - `internal/extension`: `80.0%`
+  - `internal/config`: `83.0%`
+- `go test -tags integration ./internal/extension -run 'TestManagerIntegration(WorkspaceExtensionCannotReceiveGlobalResourceScope|ResourceGrantsComeFromDaemonPolicy)$'`
+- `make verify`

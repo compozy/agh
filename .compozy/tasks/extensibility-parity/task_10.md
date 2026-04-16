@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Migrate automation definitions to resource projection"
 type: refactor
 complexity: high
@@ -31,10 +31,10 @@ Move automation desired state into the shared resource runtime while keeping run
 
 ## Subtasks
 
-- [ ] 10.1 Add codecs and typed store usage for `automation.job` and `automation.trigger`
-- [ ] 10.2 Replace legacy definition authority with a projector that rebuilds automation desired state from canonical records
-- [ ] 10.3 Keep runs, history, and other operational automation state on the existing automation runtime tables and APIs
-- [ ] 10.4 Add cutover coverage for projector safety, boot rebuild, and runtime-state preservation
+- [x] 10.1 Add codecs and typed store usage for `automation.job` and `automation.trigger`
+- [x] 10.2 Replace legacy definition authority with a projector that rebuilds automation desired state from canonical records
+- [x] 10.3 Keep runs, history, and other operational automation state on the existing automation runtime tables and APIs
+- [x] 10.4 Add cutover coverage for projector safety, boot rebuild, and runtime-state preservation
 
 ## Implementation Details
 
@@ -74,14 +74,14 @@ Follow the TechSpec sections "Data Models", "Impact Analysis", "Testing Approach
 ## Tests
 
 - Unit tests:
-  - [ ] `automation.job` and `automation.trigger` codecs reject invalid scope, malformed filters, and other invalid specs before persistence
-  - [ ] automation projector `Build` computes the next scheduler and trigger plan without mutating the live runtime
-  - [ ] failed projector `Apply` preserves the previously applied automation runtime state
-  - [ ] legacy automation definition writes are no longer authoritative after the resource-backed cutover
+  - [x] `automation.job` and `automation.trigger` codecs reject invalid scope, malformed filters, and other invalid specs before persistence
+  - [x] automation projector `Build` computes the next scheduler and trigger plan without mutating the live runtime
+  - [x] failed projector `Apply` preserves the previously applied automation runtime state
+  - [x] legacy automation definition writes are no longer authoritative after the resource-backed cutover
 - Integration tests:
-  - [ ] an operator resource write creates, updates, and deletes automation jobs and triggers through reconcile rather than through legacy definition storage
-  - [ ] daemon boot rebuild reconstructs automation desired state from persisted resource records
-  - [ ] automation runs and history remain readable and intact after desired-state definitions move to resources
+  - [x] an operator resource write creates, updates, and deletes automation jobs and triggers through reconcile rather than through legacy definition storage
+  - [x] daemon boot rebuild reconstructs automation desired state from persisted resource records
+  - [x] automation runs and history remain readable and intact after desired-state definitions move to resources
 - Test coverage target: >=80%
 - All tests must pass
 

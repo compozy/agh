@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Build resource persistence kernel"
 type: backend
 complexity: critical
@@ -29,10 +29,10 @@ Create the canonical persistence layer for the shared extensibility runtime befo
 
 ## Subtasks
 
-- [ ] 1.1 Create the `internal/resources` raw persistence types and actor-aware store boundary
-- [ ] 1.2 Add `resource_records` and `resource_source_state` schema support to `globaldb`
-- [ ] 1.3 Implement scope validation, authority stamping, CAS, and source-scoped snapshot semantics
-- [ ] 1.4 Add contract coverage for write conflicts, source reset, and snapshot serialization
+- [x] 1.1 Create the `internal/resources` raw persistence types and actor-aware store boundary
+- [x] 1.2 Add `resource_records` and `resource_source_state` schema support to `globaldb`
+- [x] 1.3 Implement scope validation, authority stamping, CAS, and source-scoped snapshot semantics
+- [x] 1.4 Add contract coverage for write conflicts, source reset, and snapshot serialization
 
 ## Implementation Details
 
@@ -70,14 +70,14 @@ Follow the TechSpec sections "Core Interfaces", "Data Models", "Authority and Va
 ## Tests
 
 - Unit tests:
-  - [ ] creating a record with `ExpectedVersion=0` succeeds, while updating or deleting with a stale version returns a conflict
-  - [ ] omitted scope, `global` plus non-empty `scope_id`, and `workspace` plus empty `scope_id` are all rejected before persistence
-  - [ ] snapshot apply rejects a non-active `session_nonce`, a stale `source_version`, and a payload that exceeds per-record or per-call limits
-  - [ ] owner and source fields are stamped from `MutationActor` rather than accepted from user payload
+  - [x] creating a record with `ExpectedVersion=0` succeeds, while updating or deleting with a stale version returns a conflict
+  - [x] omitted scope, `global` plus non-empty `scope_id`, and `workspace` plus empty `scope_id` are all rejected before persistence
+  - [x] snapshot apply rejects a non-active `session_nonce`, a stale `source_version`, and a payload that exceeds per-record or per-call limits
+  - [x] owner and source fields are stamped from `MutationActor` rather than accepted from user payload
 - Integration tests:
-  - [ ] a snapshot for one `(source_kind, source_id)` serializes correctly and cannot overwrite a daemon-owned or foreign-source record with the same `(kind, id)`
-  - [ ] operator-driven source reset removes both source-owned records and the matching `resource_source_state` row in the same transaction
-  - [ ] bootstrapping a fresh database creates the new tables and indexes deterministically in SQLite
+  - [x] a snapshot for one `(source_kind, source_id)` serializes correctly and cannot overwrite a daemon-owned or foreign-source record with the same `(kind, id)`
+  - [x] operator-driven source reset removes both source-owned records and the matching `resource_source_state` row in the same transaction
+  - [x] bootstrapping a fresh database creates the new tables and indexes deterministically in SQLite
 - Test coverage target: >=80%
 - All tests must pass
 

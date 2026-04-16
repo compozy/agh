@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Migrate agents and skills to resources"
 type: refactor
 complexity: high
@@ -30,10 +30,10 @@ Move agent and skill definitions into the canonical resource runtime after tool 
 
 ## Subtasks
 
-- [ ] 9.1 Add codecs and typed store usage for `agent` and `skill`
-- [ ] 9.2 Move config, discovery, and extension publication flows for agents and skills onto canonical resource records
-- [ ] 9.3 Keep skill content, provenance, and MCP sidecar merge in the skills subsystem while moving definition authority to the shared runtime
-- [ ] 9.4 Add cutover coverage for canonical reference resolution, publication rebuild, and legacy-authority removal
+- [x] 9.1 Add codecs and typed store usage for `agent` and `skill`
+- [x] 9.2 Move config, discovery, and extension publication flows for agents and skills onto canonical resource records
+- [x] 9.3 Keep skill content, provenance, and MCP sidecar merge in the skills subsystem while moving definition authority to the shared runtime
+- [x] 9.4 Add cutover coverage for canonical reference resolution, publication rebuild, and legacy-authority removal
 
 ## Implementation Details
 
@@ -72,14 +72,14 @@ Follow the TechSpec sections "Data Models", "Impact Analysis", "Testing Approach
 ## Tests
 
 - Unit tests:
-  - [ ] `agent` and `skill` codecs reject invalid specs before persistence and expose typed records to domain consumers
-  - [ ] agent definitions keep tool and MCP references aligned with the canonical tool and MCP records from task 08
-  - [ ] skill publication preserves provenance metadata and sidecar-derived MCP attachments without leaving the resource runtime responsible for file parsing
-  - [ ] legacy agent and skill definition sources are no longer authoritative after the resource-backed cutover
+  - [x] `agent` and `skill` codecs reject invalid specs before persistence and expose typed records to domain consumers
+  - [x] agent definitions keep tool and MCP references aligned with the canonical tool and MCP records from task 08
+  - [x] skill publication preserves provenance metadata and sidecar-derived MCP attachments without leaving the resource runtime responsible for file parsing
+  - [x] legacy agent and skill definition sources are no longer authoritative after the resource-backed cutover
 - Integration tests:
-  - [ ] daemon boot rebuild reconstructs agent and skill publication from persisted resource records
-  - [ ] an extension or workspace discovery path publishes agent and skill definitions into the canonical resource store
-  - [ ] canonical agent records continue to resolve tool and MCP references against the migrated catalogs from task 08
+  - [x] daemon boot rebuild reconstructs agent and skill publication from persisted resource records
+  - [x] an extension or workspace discovery path publishes agent and skill definitions into the canonical resource store
+  - [x] canonical agent records continue to resolve tool and MCP references against the migrated catalogs from task 08
 - Test coverage target: >=80%
 - All tests must pass
 

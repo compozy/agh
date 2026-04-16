@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Migrate tools and MCP servers to resources"
 type: refactor
 complexity: high
@@ -33,10 +33,10 @@ Move the static and dynamic publication paths for tools and MCP servers into the
 
 ## Subtasks
 
-- [ ] 8.1 Add codecs and projectors for `tool` and `mcp_server` resource kinds
-- [ ] 8.2 Move manifest, config, and extension-manager publication flows for tools and MCP servers onto the canonical resource store
-- [ ] 8.3 Remove `provide_tools` as the authoritative dynamic tool path once tool resources are live
-- [ ] 8.4 Add tranche-1 coverage for static publication, dynamic snapshots, UDS CRUD smoke, and boot rebuild behavior
+- [x] 8.1 Add codecs and projectors for `tool` and `mcp_server` resource kinds
+- [x] 8.2 Move manifest, config, and extension-manager publication flows for tools and MCP servers onto the canonical resource store
+- [x] 8.3 Remove `provide_tools` as the authoritative dynamic tool path once tool resources are live
+- [x] 8.4 Add tranche-1 coverage for static publication, dynamic snapshots, UDS CRUD smoke, and boot rebuild behavior
 
 ## Implementation Details
 
@@ -76,15 +76,15 @@ Follow the TechSpec sections "Data Models", "API Endpoints", "Development Sequen
 ## Tests
 
 - Unit tests:
-  - [ ] manifest tool declarations normalize into the same canonical record shape as dynamic extension snapshots
-  - [ ] MCP server codecs reject invalid specs before persistence and expose typed records to domain consumers
-  - [ ] the extension manager no longer remains the authoritative catalog owner for migrated tool and MCP definitions
-  - [ ] `provide_tools` is no longer advertised or required once tool records are published through `resources/snapshot`
+  - [x] manifest tool declarations normalize into the same canonical record shape as dynamic extension snapshots
+  - [x] MCP server codecs reject invalid specs before persistence and expose typed records to domain consumers
+  - [x] the extension manager no longer remains the authoritative catalog owner for migrated tool and MCP definitions
+  - [x] `provide_tools` is no longer advertised or required once tool records are published through `resources/snapshot`
 - Integration tests:
-  - [ ] a static extension manifest publishes tool or MCP definitions into the canonical resource store
-  - [ ] an extension snapshot adds, updates, and removes tool records through `resources/snapshot` without using `provide_tools`
-  - [ ] UDS resource CRUD can create or update a migrated tool or MCP record and the canonical publication path rehydrates it correctly
-  - [ ] daemon boot rebuild rehydrates migrated tool and MCP state from persisted resource records
+  - [x] a static extension manifest publishes tool or MCP definitions into the canonical resource store
+  - [x] an extension snapshot adds, updates, and removes tool records through `resources/snapshot` without using `provide_tools`
+  - [x] UDS resource CRUD can create or update a migrated tool or MCP record and the canonical publication path rehydrates it correctly
+  - [x] daemon boot rebuild rehydrates migrated tool and MCP state from persisted resource records
 - Test coverage target: >=80%
 - All tests must pass
 
