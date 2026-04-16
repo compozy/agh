@@ -129,7 +129,10 @@ func TestMergeMCPServersSameNameOverlaysFields(t *testing.T) {
 	if merged[0].Command != "npx" {
 		t.Fatalf("MergeMCPServers() Command = %q, want %q", merged[0].Command, "npx")
 	}
-	if len(merged[0].Args) != 1 || merged[0].Args[0] != "-y" {
+	if got, want := len(merged[0].Args), 1; got != want {
+		t.Fatalf("MergeMCPServers() Args len = %d, want %d (%#v)", got, want, merged[0].Args)
+	}
+	if got, want := merged[0].Args[0], "-y"; got != want {
 		t.Fatalf("MergeMCPServers() Args = %#v", merged[0].Args)
 	}
 	if merged[0].Env["TOKEN"] != "base" || merged[0].Env["OTHER"] != "1" {
@@ -150,6 +153,9 @@ func TestMergeMCPServersTrimmedNamesCollide(t *testing.T) {
 	}
 	if got, want := merged[0].Command, "npx"; got != want {
 		t.Fatalf("MergeMCPServers() Command = %q, want %q", got, want)
+	}
+	if got, want := len(merged[0].Args), 1; got != want {
+		t.Fatalf("MergeMCPServers() Args len = %d, want %d (%#v)", got, want, merged[0].Args)
 	}
 	if got, want := merged[0].Args[0], "-y"; got != want {
 		t.Fatalf("MergeMCPServers() Args[0] = %q, want %q", got, want)

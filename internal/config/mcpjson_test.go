@@ -57,6 +57,8 @@ func TestParseMCPServersJSONRejectsInvalidEntries(t *testing.T) {
 		"broken.json",
 	); err == nil {
 		t.Fatal("ParseMCPServersJSON() error = nil, want missing command failure")
+	} else if !strings.Contains(err.Error(), `mcp.json "broken.json"[0].command is required`) {
+		t.Fatalf("ParseMCPServersJSON() error = %q, want missing command validation context", err.Error())
 	}
 }
 

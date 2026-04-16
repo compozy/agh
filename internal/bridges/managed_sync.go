@@ -1,6 +1,7 @@
 package bridges
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -269,5 +270,10 @@ func sameManagedInstance(left BridgeInstance, right BridgeInstance) bool {
 }
 
 func managedSyncJSONEqual(left json.RawMessage, right json.RawMessage) bool {
-	return strings.TrimSpace(string(left)) == strings.TrimSpace(string(right))
+	leftNormalized, leftErr := normalizeRawJSON(left, "bridge instance delivery defaults")
+	rightNormalized, rightErr := normalizeRawJSON(right, "bridge instance delivery defaults")
+	if leftErr != nil || rightErr != nil {
+		return strings.TrimSpace(string(left)) == strings.TrimSpace(string(right))
+	}
+	return bytes.Equal(leftNormalized, rightNormalized)
 }

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/BurntSushi/toml"
+	"github.com/goccy/go-yaml"
 	"github.com/pedronauck/agh/internal/frontmatter"
 )
 
@@ -93,12 +95,14 @@ You write reliable code.
 }
 
 func TestParseAgentDefMissingRequiredFields(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		content string
 	}{
 		{
-			name: "missing name",
+			name: "ShouldRejectMissingName",
 			content: `---
 provider: claude
 ---
@@ -106,7 +110,7 @@ provider: claude
 prompt`,
 		},
 		{
-			name: "missing prompt",
+			name: "ShouldRejectMissingPrompt",
 			content: `---
 name: coder
 provider: claude
@@ -139,16 +143,18 @@ You are the default agent.
 }
 
 func TestParseAgentDefFrontmatterErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		content string
 	}{
 		{
-			name:    "missing frontmatter",
+			name:    "ShouldRejectMissingFrontmatter",
 			content: "plain markdown",
 		},
 		{
-			name: "unterminated frontmatter",
+			name: "ShouldRejectUnterminatedFrontmatter",
 			content: `---
 name: coder
 provider: claude`,
@@ -161,6 +167,30 @@ provider: claude`,
 				t.Fatal("ParseAgentDef() error = nil, want non-nil")
 			}
 		})
+	}
+}
+
+func TestParseAgentDefPreservesParserErrorsInDecodeChain(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseAgentDef([]byte(`---
+name: [
+---
+
+Prompt.
+`))
+	if err == nil {
+		t.Fatal("ParseAgentDef() error = nil, want decode failure")
+	}
+
+	var yamlErr *yaml.SyntaxError
+	if !errors.As(err, &yamlErr) {
+		t.Fatalf("ParseAgentDef() error = %v, want yaml syntax error in unwrap chain", err)
+	}
+
+	var tomlErr toml.ParseError
+	if !errors.As(err, &tomlErr) {
+		t.Fatalf("ParseAgentDef() error = %v, want TOML parse error in unwrap chain", err)
 	}
 }
 

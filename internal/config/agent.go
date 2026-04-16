@@ -293,7 +293,13 @@ func decodeAgentFrontmatter(data []byte, parsed *parsedAgentDef) error {
 	var parsedTOML parsedAgentDef
 	meta, tomlErr := toml.Decode(string(data), &parsedTOML)
 	if tomlErr != nil {
-		return fmt.Errorf("decode agent frontmatter: yaml: %w; toml: %v", yamlErr, tomlErr)
+		return fmt.Errorf(
+			"decode agent frontmatter: %w",
+			errors.Join(
+				fmt.Errorf("yaml: %w", yamlErr),
+				fmt.Errorf("toml: %w", tomlErr),
+			),
+		)
 	}
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
 		return fmt.Errorf("decode agent frontmatter: unknown field %q", undecoded[0].String())
