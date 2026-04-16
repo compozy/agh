@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,12 +41,16 @@ func TestAutomationResourceCodecsRejectInvalidSpecs(t *testing.T) {
 		resources.ErrInvalidScopeBinding,
 	) {
 		t.Fatalf("job scope mismatch error = %v, want ErrInvalidScopeBinding", err)
+	} else if !strings.Contains(err.Error(), "automation: bind job resource scope") {
+		t.Fatalf("job scope mismatch error = %v, want bind job resource scope context", err)
 	}
 
 	malformedJob := validJob
 	malformedJob.Schedule = &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "0s"}
 	if _, err := jobCodec.DecodeAndValidate(ctx, workspaceScope, mustAutomationJSON(t, malformedJob)); err == nil {
 		t.Fatal("job codec accepted malformed schedule")
+	} else if !strings.Contains(err.Error(), "automation: validate job resource spec") {
+		t.Fatalf("malformed job error = %v, want validate job resource spec context", err)
 	}
 
 	validTrigger := Trigger{
@@ -68,6 +73,8 @@ func TestAutomationResourceCodecsRejectInvalidSpecs(t *testing.T) {
 		mustAutomationJSON(t, triggerWithBadFilter),
 	); err == nil {
 		t.Fatal("trigger codec accepted malformed filter")
+	} else if !strings.Contains(err.Error(), "automation: validate trigger resource spec") {
+		t.Fatalf("trigger filter error = %v, want validate trigger resource spec context", err)
 	}
 
 	webhookWithoutEndpoint := validTrigger
@@ -78,6 +85,50 @@ func TestAutomationResourceCodecsRejectInvalidSpecs(t *testing.T) {
 		mustAutomationJSON(t, webhookWithoutEndpoint),
 	); err == nil {
 		t.Fatal("trigger codec accepted webhook without endpoint_slug or webhook_id")
+	} else if !strings.Contains(err.Error(), "automation: validate trigger resource spec") {
+		t.Fatalf("webhook trigger error = %v, want validate trigger resource spec context", err)
+	}
+}
+
+func TestManagerStartRegistersResourceDefinitionsAtStartup(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerResourceHarness(t)
+	jobRecord := h.putJobResource(t, "job-startup", "startup-job")
+	triggerRecord := h.putTriggerResource(t, "trigger-startup", "startup-trigger")
+	manager := h.newResourceManager(t)
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	jobs, err := manager.Jobs(h.ctx)
+	if err != nil {
+		t.Fatalf("manager.Jobs() error = %v", err)
+	}
+	if got := findJobByID(jobs, jobRecord.ID); got == nil {
+		t.Fatalf("jobs missing resource-backed job %q after Start", jobRecord.ID)
+	}
+	if got, want := len(manager.scheduler.States()), 1; got != want {
+		t.Fatalf("len(manager.scheduler.States()) = %d, want %d", got, want)
+	}
+
+	triggers, err := manager.Triggers(h.ctx)
+	if err != nil {
+		t.Fatalf("manager.Triggers() error = %v", err)
+	}
+	if got := findTriggerByID(triggers, triggerRecord.ID); got == nil {
+		t.Fatalf("triggers missing resource-backed trigger %q after Start", triggerRecord.ID)
+	}
+	manager.triggers.mu.RLock()
+	registered := len(manager.triggers.registrations)
+	manager.triggers.mu.RUnlock()
+	if got, want := registered, 1; got != want {
+		t.Fatalf("len(manager.triggers.registrations) = %d, want %d", got, want)
 	}
 }
 

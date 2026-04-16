@@ -2,7 +2,7 @@ package config
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/pedronauck/agh/internal/resources"
@@ -46,7 +46,7 @@ func validateAgentResourceSpec(
 	}
 
 	if err := normalized.Validate(); err != nil {
-		return AgentDef{}, fmt.Errorf("%w: %v", resources.ErrValidation, err)
+		return AgentDef{}, errors.Join(resources.ErrValidation, err)
 	}
 	return normalized, nil
 }

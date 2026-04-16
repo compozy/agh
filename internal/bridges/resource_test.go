@@ -21,13 +21,17 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 	}
 
 	tests := []struct {
-		name  string
-		scope resources.ResourceScope
-		raw   []byte
+		name      string
+		scope     resources.ResourceScope
+		raw       []byte
+		wantIs    error
+		wantError string
 	}{
 		{
-			name:  "invalid scope binding",
-			scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
+			name:      "invalid scope binding",
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
+			wantIs:    resources.ErrInvalidScopeBinding,
+			wantError: `bridge.scope "global" does not match resource scope "workspace"`,
 			raw: []byte(`{
 				"scope":"global",
 				"platform":"telegram",
@@ -39,8 +43,9 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 			}`),
 		},
 		{
-			name:  "malformed provider config",
-			scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			name:      "malformed provider config",
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			wantError: "bridge instance provider config must be a JSON object or null",
 			raw: []byte(`{
 				"scope":"global",
 				"platform":"telegram",
@@ -53,8 +58,9 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 			}`),
 		},
 		{
-			name:  "invalid dm policy",
-			scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			name:      "invalid dm policy",
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			wantError: `unsupported dm policy "invite-everyone"`,
 			raw: []byte(`{
 				"scope":"global",
 				"platform":"telegram",
@@ -66,8 +72,9 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 			}`),
 		},
 		{
-			name:  "illegal delivery defaults",
-			scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			name:      "illegal delivery defaults",
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			wantError: "thread_id requires peer_id or group_id",
 			raw: []byte(`{
 				"scope":"global",
 				"platform":"telegram",
@@ -85,8 +92,15 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := codec.DecodeAndValidate(testutil.Context(t), tt.scope, tt.raw); err == nil {
+			_, err := codec.DecodeAndValidate(testutil.Context(t), tt.scope, tt.raw)
+			if err == nil {
 				t.Fatalf("DecodeAndValidate() error = nil, want validation failure")
+			}
+			if tt.wantIs != nil && !errors.Is(err, tt.wantIs) {
+				t.Fatalf("DecodeAndValidate() error = %v, want errors.Is(..., %v)", err, tt.wantIs)
+			}
+			if tt.wantError != "" && !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("DecodeAndValidate() error = %v, want substring %q", err, tt.wantError)
 			}
 		})
 	}
@@ -144,8 +158,14 @@ func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.
 		t.Fatalf("spec.ProviderConfig = %s, want %s", got, want)
 	}
 
-	for name, raw := range map[string][]byte{
-		"platform mismatch": []byte(`{
+	for _, tc := range []struct {
+		name      string
+		raw       []byte
+		wantError string
+	}{
+		{
+			name: "platform mismatch",
+			raw: []byte(`{
 			"scope":"global",
 			"platform":"slack",
 			"extension_name":"ext-telegram",
@@ -154,7 +174,11 @@ func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.
 			"dm_policy":"pairing",
 			"routing_policy":{"include_peer":true}
 		}`),
-		"secret slot mismatch": []byte(`{
+			wantError: `bridge provider "ext-telegram" platform "telegram" does not match resource platform "slack"`,
+		},
+		{
+			name: "secret slot mismatch",
+			raw: []byte(`{
 			"scope":"global",
 			"platform":"telegram",
 			"extension_name":"ext-telegram",
@@ -164,7 +188,11 @@ func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.
 			"routing_policy":{"include_peer":true},
 			"secret_slots":[{"name":"wrong"}]
 		}`),
-		"config schema mismatch": []byte(`{
+			wantError: "secret_slots metadata does not match manifest",
+		},
+		{
+			name: "config schema mismatch",
+			raw: []byte(`{
 			"scope":"global",
 			"platform":"telegram",
 			"extension_name":"ext-telegram",
@@ -174,7 +202,11 @@ func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.
 			"routing_policy":{"include_peer":true},
 			"config_schema":{"schema":"different","version":"v1"}
 		}`),
-		"unknown provider": []byte(`{
+			wantError: "config_schema metadata does not match manifest",
+		},
+		{
+			name: "unknown provider",
+			raw: []byte(`{
 			"scope":"global",
 			"platform":"telegram",
 			"extension_name":"missing-provider",
@@ -183,11 +215,17 @@ func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.
 			"dm_policy":"pairing",
 			"routing_policy":{"include_peer":true}
 		}`),
+			wantError: `bridge provider "missing-provider" is not installed`,
+		},
 	} {
-		t.Run(name, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := codec.DecodeAndValidate(scopeContext(t), scope, raw); err == nil {
-				t.Fatalf("DecodeAndValidate(%s) error = nil, want validation failure", name)
+			_, err := codec.DecodeAndValidate(scopeContext(t), scope, tc.raw)
+			if err == nil {
+				t.Fatalf("DecodeAndValidate(%s) error = nil, want validation failure", tc.name)
+			}
+			if !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("DecodeAndValidate(%s) error = %v, want substring %q", tc.name, err, tc.wantError)
 			}
 		})
 	}
@@ -379,6 +417,56 @@ func TestBridgeResourceProjectionPlanAccessorsAndRollback(t *testing.T) {
 	next := rollback.NextInstances()
 	if len(next) != 1 || next[0].DisplayName != "Before" || next[0].ExtensionName != "ext-old" {
 		t.Fatalf("rollback.NextInstances() = %#v, want previous bridge state", next)
+	}
+}
+
+func TestBridgeResourceProjectionIgnoresSemanticallyEquivalentJSON(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
+	store := &projectionStore{
+		instances: []bridgepkg.BridgeInstance{{
+			ID:               "brg-json",
+			Scope:            bridgepkg.ScopeGlobal,
+			Platform:         "telegram",
+			ExtensionName:    "ext-telegram",
+			DisplayName:      "JSON Bridge",
+			Source:           bridgepkg.BridgeInstanceSourceDynamic,
+			Enabled:          true,
+			Status:           bridgepkg.BridgeStatusReady,
+			DMPolicy:         bridgepkg.BridgeDMPolicyOpen,
+			RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+			ProviderConfig:   []byte(`{"tenant":"acme","features":{"beta":true}}`),
+			DeliveryDefaults: []byte(`{"peer_id":"peer-1","mode":"reply"}`),
+			CreatedAt:        now.Add(-time.Hour),
+			UpdatedAt:        now.Add(-time.Minute),
+		}},
+	}
+
+	spec := resourceSpec("JSON Bridge", true)
+	spec.ProviderConfig = []byte("{\n  \"features\": {\"beta\": true},\n  \"tenant\": \"acme\"\n}")
+	spec.DeliveryDefaults = []byte(`{"mode":"reply","peer_id":"peer-1"}`)
+	plan, err := bridgepkg.BuildResourceState(
+		testutil.Context(t),
+		store,
+		[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
+			ID:        "brg-json",
+			Version:   9,
+			Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Spec:      spec,
+			CreatedAt: now.Add(-time.Hour),
+			UpdatedAt: now,
+		}},
+		func() time.Time { return now },
+	)
+	if err != nil {
+		t.Fatalf("BuildResourceState() error = %v", err)
+	}
+	if got, want := plan.OperationCount(), 0; got != want {
+		t.Fatalf("plan.OperationCount() = %d, want %d", got, want)
+	}
+	if got := plan.ChangedExtensions(); len(got) != 0 {
+		t.Fatalf("plan.ChangedExtensions() = %#v, want no changed extensions", got)
 	}
 }
 

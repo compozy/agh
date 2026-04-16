@@ -2,6 +2,8 @@ package config
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/pedronauck/agh/internal/resources"
@@ -25,7 +27,7 @@ func validateMCPServerSpec(
 ) (MCPServer, error) {
 	normalizedScope := scope.Normalize()
 	if err := normalizedScope.Validate("scope"); err != nil {
-		return MCPServer{}, err
+		return MCPServer{}, fmt.Errorf("config: validate mcp resource scope: %w", err)
 	}
 
 	normalized := cloneMCPServer(spec)
@@ -35,21 +37,28 @@ func validateMCPServerSpec(
 		normalized.Args[idx] = strings.TrimSpace(arg)
 	}
 	if len(normalized.Env) > 0 {
-		for key, value := range normalized.Env {
+		keys := make([]string, 0, len(normalized.Env))
+		for key := range normalized.Env {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		canonicalEnv := make(map[string]string, len(keys))
+		for _, key := range keys {
 			trimmedKey := strings.TrimSpace(key)
-			delete(normalized.Env, key)
 			if trimmedKey == "" {
 				continue
 			}
-			normalized.Env[trimmedKey] = strings.TrimSpace(value)
+			canonicalEnv[trimmedKey] = strings.TrimSpace(normalized.Env[key])
 		}
-		if len(normalized.Env) == 0 {
+		if len(canonicalEnv) == 0 {
 			normalized.Env = nil
+		} else {
+			normalized.Env = canonicalEnv
 		}
 	}
 
 	if err := normalized.Validate("mcp_server"); err != nil {
-		return MCPServer{}, err
+		return MCPServer{}, fmt.Errorf("config: validate mcp resource spec: %w", err)
 	}
 	return normalized, nil
 }

@@ -43,15 +43,15 @@ func ResourceScopeForAutomation(scope Scope, workspaceID string) resources.Resou
 func validateJobResourceSpec(_ context.Context, scope resources.ResourceScope, spec Job) (Job, error) {
 	normalizedScope := scope.Normalize()
 	if err := normalizedScope.Validate("scope"); err != nil {
-		return Job{}, err
+		return Job{}, fmt.Errorf("automation: validate job resource scope: %w", err)
 	}
 
 	next := normalizeJobResourceSpec(spec)
 	if err := bindAutomationScope(&next.Scope, &next.WorkspaceID, normalizedScope, "job"); err != nil {
-		return Job{}, err
+		return Job{}, fmt.Errorf("automation: bind job resource scope: %w", err)
 	}
 	if err := next.Validate("job"); err != nil {
-		return Job{}, err
+		return Job{}, fmt.Errorf("automation: validate job resource spec: %w", err)
 	}
 	return next, nil
 }
@@ -59,15 +59,15 @@ func validateJobResourceSpec(_ context.Context, scope resources.ResourceScope, s
 func validateTriggerResourceSpec(_ context.Context, scope resources.ResourceScope, spec Trigger) (Trigger, error) {
 	normalizedScope := scope.Normalize()
 	if err := normalizedScope.Validate("scope"); err != nil {
-		return Trigger{}, err
+		return Trigger{}, fmt.Errorf("automation: validate trigger resource scope: %w", err)
 	}
 
 	next := normalizeTriggerResourceSpec(spec)
 	if err := bindAutomationScope(&next.Scope, &next.WorkspaceID, normalizedScope, "trigger"); err != nil {
-		return Trigger{}, err
+		return Trigger{}, fmt.Errorf("automation: bind trigger resource scope: %w", err)
 	}
 	if err := next.Validate("trigger"); err != nil {
-		return Trigger{}, err
+		return Trigger{}, fmt.Errorf("automation: validate trigger resource spec: %w", err)
 	}
 	return next, nil
 }

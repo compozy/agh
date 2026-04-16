@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -23,21 +24,21 @@ func TestAgentResourceCodecRejectsInvalidSpecs(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "missing name",
+			name: "ShouldRejectMissingName",
 			spec: AgentDef{
 				Prompt: "You are helpful.",
 			},
 			wantErr: "agent name is required",
 		},
 		{
-			name: "missing prompt",
+			name: "ShouldRejectMissingPrompt",
 			spec: AgentDef{
 				Name: "coder",
 			},
 			wantErr: "agent prompt is required",
 		},
 		{
-			name: "invalid permissions",
+			name: "ShouldRejectInvalidPermissions",
 			spec: AgentDef{
 				Name:        "coder",
 				Prompt:      "You are helpful.",
@@ -46,7 +47,7 @@ func TestAgentResourceCodecRejectsInvalidSpecs(t *testing.T) {
 			wantErr: "agent.permissions",
 		},
 		{
-			name: "invalid mcp",
+			name: "ShouldRejectInvalidMCPServer",
 			spec: AgentDef{
 				Name:   "coder",
 				Prompt: "You are helpful.",
@@ -69,6 +70,9 @@ func TestAgentResourceCodecRejectsInvalidSpecs(t *testing.T) {
 			_, err = codec.DecodeAndValidate(context.Background(), scope, raw)
 			if err == nil {
 				t.Fatal("DecodeAndValidate() error = nil, want validation error")
+			}
+			if !errors.Is(err, resources.ErrValidation) {
+				t.Fatalf("DecodeAndValidate() error = %v, want resources.ErrValidation", err)
 			}
 			if !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("DecodeAndValidate() error = %v, want %q", err, tt.wantErr)
@@ -111,6 +115,9 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 	}
 	if want := []string{"github.search", "*"}; strings.Join(got.Tools, ",") != strings.Join(want, ",") {
 		t.Fatalf("Tools = %#v, want %#v", got.Tools, want)
+	}
+	if gotCount, wantCount := len(got.MCPServers), 1; gotCount != wantCount {
+		t.Fatalf("len(MCPServers) = %d, want %d", gotCount, wantCount)
 	}
 	if got.MCPServers[0].Name != "github" || got.MCPServers[0].Command != "npx" {
 		t.Fatalf("MCPServers = %#v, want trimmed name/command", got.MCPServers)

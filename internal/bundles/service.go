@@ -557,6 +557,11 @@ func (s *Service) resolveActivation(ctx context.Context, activation Activation) 
 }
 
 func (s *Service) collectDesiredState(ctx context.Context, activations []Activation) (reconcileState, error) {
+	bundleRecords, err := s.store.ListBundleResources(ctx)
+	if err != nil {
+		return reconcileState{}, err
+	}
+
 	state := reconcileState{
 		activeActivationIDs:   make(map[string]struct{}, len(activations)),
 		desiredJobs:           make([]automationpkg.Job, 0),
@@ -572,7 +577,7 @@ func (s *Service) collectDesiredState(ctx context.Context, activations []Activat
 	errs := make([]error, 0)
 	for _, activation := range activations {
 		state.activeActivationIDs[strings.TrimSpace(activation.ID)] = struct{}{}
-		resolved, resolveErr := s.resolveActivation(ctx, activation)
+		resolved, resolveErr := s.resolveActivationFromBundleRecords(activation, bundleRecords)
 		if resolveErr != nil {
 			errs = append(errs, resolveErr)
 			state.inventoryByActivation[activation.ID] = nil

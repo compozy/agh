@@ -446,19 +446,9 @@ func (m *Manager) Start(ctx context.Context) error {
 		return fmt.Errorf("automation: sync config definitions: %w", err)
 	}
 
-	var (
-		jobs     []Job
-		triggers []Trigger
-	)
-	if !m.resourceDefinitionsEnabled() {
-		jobs, err = m.loadEffectiveJobs(ctx, JobListQuery{})
-		if err != nil {
-			return fmt.Errorf("automation: load effective jobs: %w", err)
-		}
-		triggers, err = m.loadEffectiveTriggers(ctx, TriggerListQuery{})
-		if err != nil {
-			return fmt.Errorf("automation: load effective triggers: %w", err)
-		}
+	jobs, triggers, err := m.loadStartupDefinitionsLocked(ctx)
+	if err != nil {
+		return err
 	}
 
 	runtimeCtx, runtimeCancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -510,6 +500,43 @@ func (m *Manager) Start(ctx context.Context) error {
 		"triggers_loaded", len(triggers),
 	)
 	return nil
+}
+
+func (m *Manager) loadStartupDefinitionsLocked(ctx context.Context) ([]Job, []Trigger, error) {
+	if m.resourceDefinitionsEnabled() {
+		projectedJobs, jobRevision, err := m.loadProjectedJobDefinitionsFromStore(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("automation: load projected job resources: %w", err)
+		}
+		projectedTriggers, triggerRevision, err := m.loadProjectedTriggerDefinitionsFromStore(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("automation: load projected trigger resources: %w", err)
+		}
+		m.projectedJobs = jobMapFromSlice(projectedJobs)
+		m.jobRevision = jobRevision
+		m.projectedTriggers = triggerMapFromSlice(projectedTriggers)
+		m.triggerRevision = triggerRevision
+
+		jobs, err := m.applyJobQueryAndOverlays(ctx, m.projectedJobDefinitionsLocked(), JobListQuery{})
+		if err != nil {
+			return nil, nil, fmt.Errorf("automation: load effective jobs: %w", err)
+		}
+		triggers, err := m.applyTriggerQueryAndOverlays(ctx, m.projectedTriggerDefinitionsLocked(), TriggerListQuery{})
+		if err != nil {
+			return nil, nil, fmt.Errorf("automation: load effective triggers: %w", err)
+		}
+		return jobs, triggers, nil
+	}
+
+	jobs, err := m.loadEffectiveJobs(ctx, JobListQuery{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("automation: load effective jobs: %w", err)
+	}
+	triggers, err := m.loadEffectiveTriggers(ctx, TriggerListQuery{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("automation: load effective triggers: %w", err)
+	}
+	return jobs, triggers, nil
 }
 
 // Shutdown stops trigger ingestion, cancels in-flight work, and shuts down the

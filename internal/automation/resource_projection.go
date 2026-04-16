@@ -733,6 +733,54 @@ func (m *Manager) applyTriggerResourcesFromStore(ctx context.Context) error {
 	return m.ApplyTriggerResourceState(ctx, plan)
 }
 
+func (m *Manager) loadProjectedJobDefinitionsFromStore(ctx context.Context) ([]Job, int64, error) {
+	records, err := m.jobResources.List(ctx, m.resourceActor, resources.ResourceFilter{Kind: JobResourceKind})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	jobs := make([]Job, 0, len(records))
+	var revision int64
+	for _, record := range records {
+		if record.Version > revision {
+			revision = record.Version
+		}
+		job := cloneJob(record.Spec)
+		job.ID = strings.TrimSpace(record.ID)
+		job.CreatedAt = record.CreatedAt.UTC()
+		job.UpdatedAt = record.UpdatedAt.UTC()
+		jobs = append(jobs, job)
+	}
+	sortJobs(jobs)
+	return jobs, revision, nil
+}
+
+func (m *Manager) loadProjectedTriggerDefinitionsFromStore(ctx context.Context) ([]Trigger, int64, error) {
+	records, err := m.triggerResources.List(ctx, m.resourceActor, resources.ResourceFilter{Kind: TriggerResourceKind})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	triggers := make([]Trigger, 0, len(records))
+	var revision int64
+	for _, record := range records {
+		if record.Version > revision {
+			revision = record.Version
+		}
+		trigger := cloneTrigger(record.Spec)
+		trigger.ID = strings.TrimSpace(record.ID)
+		trigger.CreatedAt = record.CreatedAt.UTC()
+		trigger.UpdatedAt = record.UpdatedAt.UTC()
+		if strings.EqualFold(strings.TrimSpace(trigger.Event), "webhook") &&
+			strings.TrimSpace(trigger.WebhookID) == "" {
+			trigger.WebhookID = stableConfigID("wbh", trigger.ID)
+		}
+		triggers = append(triggers, trigger)
+	}
+	sortTriggers(triggers)
+	return triggers, revision, nil
+}
+
 func (m *Manager) triggerResourceReconcile(ctx context.Context, kind resources.ResourceKind) error {
 	if m == nil || m.resourceTrigger == nil {
 		return nil
@@ -756,6 +804,10 @@ func currentResourceActor(source resources.ResourceSource, fallback resources.Mu
 func (m *Manager) projectedJobDefinitions() []Job {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	return m.projectedJobDefinitionsLocked()
+}
+
+func (m *Manager) projectedJobDefinitionsLocked() []Job {
 	jobs := make([]Job, 0, len(m.projectedJobs))
 	for _, job := range m.projectedJobs {
 		jobs = append(jobs, cloneJob(job))
@@ -767,6 +819,10 @@ func (m *Manager) projectedJobDefinitions() []Job {
 func (m *Manager) projectedTriggerDefinitions() []Trigger {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	return m.projectedTriggerDefinitionsLocked()
+}
+
+func (m *Manager) projectedTriggerDefinitionsLocked() []Trigger {
 	triggers := make([]Trigger, 0, len(m.projectedTriggers))
 	for _, trigger := range m.projectedTriggers {
 		triggers = append(triggers, cloneTrigger(trigger))

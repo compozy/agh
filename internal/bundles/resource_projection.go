@@ -68,6 +68,11 @@ func (s *Service) Build(
 		}
 		activations = append(activations, activationFromResourceRecord(record))
 	}
+	for _, record := range bundleRecords {
+		if record.Version > revision {
+			revision = record.Version
+		}
+	}
 
 	state, err := s.collectDesiredStateFromBundleRecords(ctx, activations, bundleRecords)
 	if err != nil {

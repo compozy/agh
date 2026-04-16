@@ -2,11 +2,15 @@ package bundles
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"time"
 
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestBundleActivationOwnedKindAllowlist(t *testing.T) {
@@ -39,6 +43,8 @@ func TestBundleActivationBuildComposesTypedBundleDependency(t *testing.T) {
 		Scope:         ScopeGlobal,
 	}
 
+	bundleRecords := append([]resources.Record[BundleResourceSpec](nil), store.bundles...)
+	bundleRecords[0].Version = 9
 	plan, err := service.Build(
 		context.Background(),
 		[]resources.Record[ActivationResourceSpec]{{
@@ -48,7 +54,7 @@ func TestBundleActivationBuildComposesTypedBundleDependency(t *testing.T) {
 			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			Spec:    activationResourceSpecFromActivation(activation),
 		}},
-		store.bundles,
+		bundleRecords,
 	)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
@@ -56,7 +62,7 @@ func TestBundleActivationBuildComposesTypedBundleDependency(t *testing.T) {
 	if got, want := plan.Kind(), BundleActivationResourceKind; got != want {
 		t.Fatalf("plan.Kind() = %q, want %q", got, want)
 	}
-	if got, want := plan.Revision(), int64(3); got != want {
+	if got, want := plan.Revision(), int64(9); got != want {
 		t.Fatalf("plan.Revision() = %d, want %d", got, want)
 	}
 	if got, want := plan.OperationCount(), 3; got != want {
@@ -70,6 +76,63 @@ func TestBundleActivationBuildComposesTypedBundleDependency(t *testing.T) {
 	}
 	if err := service.Apply(context.Background(), nonBundleActivationPlan{}); err == nil {
 		t.Fatal("Apply(wrong plan type) error = nil, want failure")
+	} else if !strings.Contains(err.Error(), "activation resource plan has type") {
+		t.Fatalf("Apply(wrong plan type) error = %v, want wrong-plan-type context", err)
+	}
+}
+
+func TestBundleServiceReconcileLoadsBundleResourcesOncePerRun(t *testing.T) {
+	t.Parallel()
+
+	ext := newMarketingExtension()
+	store := &countingBundleStore{memoryStore: newMemoryStore()}
+	store.bundles = []resources.Record[BundleResourceSpec]{{
+		Kind:    BundleResourceKind,
+		ID:      BundleResourceID(ext.Info.Name, ext.Bundles[0].Name),
+		Version: 11,
+		Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Spec: BundleResourceSpec{
+			ExtensionName:              ext.Info.Name,
+			Bundle:                     ext.Bundles[0],
+			OwnerBridgePlatform:        ext.Manifest.Bridge.Platform,
+			OwnerProvidesBridgeAdapter: true,
+		},
+	}}
+	store.activations[ActivationResourceID("marketing-team", "marketing", "default", ScopeGlobal, "")] = Activation{
+		ID:            ActivationResourceID("marketing-team", "marketing", "default", ScopeGlobal, ""),
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
+	}
+	store.activations[ActivationResourceID("marketing-team", "marketing", "default", ScopeWorkspace, "ws-1")] = Activation{
+		ID:            ActivationResourceID("marketing-team", "marketing", "default", ScopeWorkspace, "ws-1"),
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeWorkspace,
+		WorkspaceID:   "ws-1",
+	}
+
+	service := NewService(
+		store,
+		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: "marketing-team"}}},
+		func(name string) (*extensionpkg.Extension, error) {
+			if name != "marketing-team" {
+				return nil, extensionpkg.ErrExtensionNotFound
+			}
+			return ext, nil
+		},
+		WithConfiguredDefaultChannel("default"),
+		WithNow(func() time.Time {
+			return time.Date(2026, 4, 14, 22, 0, 0, 0, time.UTC)
+		}),
+	)
+	if err := service.Reconcile(testutil.Context(t)); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if got, want := store.listBundleResourcesCalls, 1; got != want {
+		t.Fatalf("ListBundleResources() calls = %d, want %d", got, want)
 	}
 }
 
@@ -85,4 +148,16 @@ func (nonBundleActivationPlan) Revision() int64 {
 
 func (nonBundleActivationPlan) OperationCount() int {
 	return 0
+}
+
+type countingBundleStore struct {
+	*memoryStore
+	listBundleResourcesCalls int
+}
+
+func (s *countingBundleStore) ListBundleResources(
+	ctx context.Context,
+) ([]resources.Record[BundleResourceSpec], error) {
+	s.listBundleResourcesCalls++
+	return s.memoryStore.ListBundleResources(ctx)
 }

@@ -1,9 +1,12 @@
 package bridges
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -262,7 +265,34 @@ func sameBridgeDegradation(left *BridgeDegradation, right *BridgeDegradation) bo
 }
 
 func rawJSONEqual(left []byte, right []byte) bool {
-	return strings.TrimSpace(string(left)) == strings.TrimSpace(string(right))
+	return semanticJSONEqual(left, right)
+}
+
+func semanticJSONEqual(left []byte, right []byte) bool {
+	left = bytes.TrimSpace(left)
+	right = bytes.TrimSpace(right)
+	if len(left) == 0 || bytes.Equal(left, []byte("null")) {
+		left = nil
+	}
+	if len(right) == 0 || bytes.Equal(right, []byte("null")) {
+		right = nil
+	}
+	switch {
+	case len(left) == 0 && len(right) == 0:
+		return true
+	case len(left) == 0 || len(right) == 0:
+		return false
+	}
+
+	var leftValue any
+	if err := json.Unmarshal(left, &leftValue); err != nil {
+		return false
+	}
+	var rightValue any
+	if err := json.Unmarshal(right, &rightValue); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
 }
 
 func cloneBridgeInstances(instances []BridgeInstance) []BridgeInstance {

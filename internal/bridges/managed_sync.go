@@ -1,7 +1,6 @@
 package bridges
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -537,10 +536,5 @@ func slicesEqualBridgeSecretSlots(left []BridgeSecretSlot, right []BridgeSecretS
 }
 
 func managedSyncJSONEqual(left json.RawMessage, right json.RawMessage) bool {
-	leftNormalized, leftErr := normalizeRawJSON(left, "bridge instance delivery defaults")
-	rightNormalized, rightErr := normalizeRawJSON(right, "bridge instance delivery defaults")
-	if leftErr != nil || rightErr != nil {
-		return strings.TrimSpace(string(left)) == strings.TrimSpace(string(right))
-	}
-	return bytes.Equal(leftNormalized, rightNormalized)
+	return semanticJSONEqual(left, right)
 }

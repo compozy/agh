@@ -23,7 +23,7 @@ func automationResourceTarget(runtime automationRuntime) automationResourceProje
 	if runtime == nil {
 		return nil
 	}
-	target, ok := any(runtime).(automationResourceProjectorTarget)
+	target, ok := runtime.(automationResourceProjectorTarget)
 	if !ok {
 		return nil
 	}
@@ -116,8 +116,18 @@ func automationResourceStores(
 	resources.Store[automationpkg.Trigger],
 	error,
 ) {
-	if raw == nil || codecs == nil {
+	if raw == nil && codecs == nil {
 		return nil, nil, nil
+	}
+	if raw == nil {
+		return nil, nil, errors.New(
+			"daemon: automation resource raw store is required when codec registry is configured",
+		)
+	}
+	if codecs == nil {
+		return nil, nil, errors.New(
+			"daemon: automation resource codec registry is required when raw store is configured",
+		)
 	}
 
 	jobCodec, err := resources.ResolveCodec[automationpkg.Job](codecs, automationpkg.JobResourceKind)
