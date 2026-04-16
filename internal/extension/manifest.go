@@ -57,6 +57,7 @@ type ResourcesConfig struct {
 	Agents     []string                   `toml:"agents,omitempty"      json:"agents,omitempty"`
 	Bundles    []string                   `toml:"bundles,omitempty"     json:"bundles,omitempty"`
 	Hooks      []HookConfig               `toml:"hooks,omitempty"       json:"hooks,omitempty"`
+	Tools      map[string]ToolConfig      `toml:"tools,omitempty"       json:"tools,omitempty"`
 	MCPServers map[string]MCPServerConfig `toml:"mcp_servers,omitempty" json:"mcp_servers,omitempty"`
 	Publish    ResourceGrantRequest       `toml:"publish,omitempty"     json:"publish"`
 }
@@ -147,6 +148,13 @@ type MCPServerConfig struct {
 	Command string            `toml:"command"        json:"command"`
 	Args    []string          `toml:"args,omitempty" json:"args,omitempty"`
 	Env     map[string]string `toml:"env,omitempty"  json:"env,omitempty"`
+}
+
+// ToolConfig declares one static tool bundled by the extension.
+type ToolConfig struct {
+	Description string          `toml:"description,omitempty"  json:"description,omitempty"`
+	InputSchema json.RawMessage `toml:"input_schema,omitempty" json:"input_schema,omitempty"`
+	ReadOnly    bool            `toml:"read_only,omitempty"    json:"read_only,omitempty"`
 }
 
 // Duration stores time.Duration values while decoding TOML strings and JSON
@@ -498,6 +506,7 @@ func normalizeResourcesConfig(cfg ResourcesConfig) ResourcesConfig {
 		Agents:     normalizeStrings(cfg.Agents),
 		Bundles:    normalizeStrings(cfg.Bundles),
 		Hooks:      normalizeHooks(cfg.Hooks),
+		Tools:      normalizeTools(cfg.Tools),
 		MCPServers: normalizeMCPServers(cfg.MCPServers),
 		Publish:    normalizeResourceGrantRequest(cfg.Publish),
 	}
@@ -662,6 +671,31 @@ func normalizeMCPServers(src map[string]MCPServerConfig) map[string]MCPServerCon
 	return dst
 }
 
+func normalizeTools(src map[string]ToolConfig) map[string]ToolConfig {
+	if len(src) == 0 {
+		return nil
+	}
+
+	dst := make(map[string]ToolConfig, len(src))
+	for _, name := range sortedMapKeys(src) {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" {
+			continue
+		}
+
+		tool := src[name]
+		dst[trimmedName] = ToolConfig{
+			Description: strings.TrimSpace(tool.Description),
+			InputSchema: cloneManifestRawMessage(tool.InputSchema),
+			ReadOnly:    tool.ReadOnly,
+		}
+	}
+	if len(dst) == 0 {
+		return nil
+	}
+	return dst
+}
+
 func normalizeStrings(src []string) []string {
 	if len(src) == 0 {
 		return nil
@@ -723,6 +757,13 @@ func cloneBoolPointer(value *bool) *bool {
 	}
 	cloned := *value
 	return &cloned
+}
+
+func cloneManifestRawMessage(src json.RawMessage) json.RawMessage {
+	if len(src) == 0 {
+		return nil
+	}
+	return append(json.RawMessage(nil), src...)
 }
 
 func requireField(field, value string) error {

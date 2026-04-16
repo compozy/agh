@@ -161,11 +161,6 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 		t.Fatalf("AgentDefinitions() = %#v, want ext-agent", agents)
 	}
 
-	servers := manager.MCPServers()
-	if len(servers) != 1 || servers[0].Name != "kubectl" {
-		t.Fatalf("MCPServers() = %#v, want kubectl server", servers)
-	}
-
 	skills := skillsRegistry.List()
 	if len(skills) != 1 || skills[0].Meta.Name != "ext-review" {
 		t.Fatalf("skills registry List() = %#v, want ext-review", skills)
@@ -177,6 +172,12 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	}
 	if !loaded.Status.Active {
 		t.Fatalf("Get(ext-runtime).Status.Active = false, want true")
+	}
+	if loaded.Manifest == nil || loaded.Manifest.Resources.MCPServers["kubectl"].Command == "" {
+		t.Fatalf(
+			"Get(ext-runtime).Manifest.Resources.MCPServers = %#v, want kubectl manifest declaration",
+			loaded.Manifest,
+		)
 	}
 	if got, want := loaded.Status.Phase, ExtensionPhaseActivate; got != want {
 		t.Fatalf("Get(ext-runtime).Status.Phase = %q, want %q", got, want)

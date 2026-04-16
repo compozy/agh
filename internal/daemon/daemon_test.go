@@ -1041,13 +1041,13 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
 	t.Parallel()
 
-	if svc := newDaemonExtensionService(nil, nil, nil, nil, aghconfig.HomePaths{}, nil, nil); svc != nil {
+	if svc := newDaemonExtensionService(nil, nil, nil, nil, nil, aghconfig.HomePaths{}, nil, nil); svc != nil {
 		t.Fatalf("newDaemonExtensionService(nil) = %#v, want nil", svc)
 	}
 
 	db := openDaemonTestGlobalDB(t)
 	registry := extensionpkg.NewRegistry(db.DB())
-	if svc := newDaemonExtensionService(registry, nil, nil, nil, aghconfig.HomePaths{}, nil, nil); svc == nil {
+	if svc := newDaemonExtensionService(registry, nil, nil, nil, nil, aghconfig.HomePaths{}, nil, nil); svc == nil {
 		t.Fatal("newDaemonExtensionService(defaults) = nil, want service")
 	}
 }
@@ -1466,6 +1466,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 			syncs++
 			return nil
 		}),
+		nil,
 		nil,
 		homePaths,
 		discardLogger(),

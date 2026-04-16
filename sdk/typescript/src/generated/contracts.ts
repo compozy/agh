@@ -938,7 +938,6 @@ export interface InitializeRequest {
 
 export interface InitializeSupports {
   health_check: boolean;
-  provide_tools: boolean;
 }
 
 export interface InitializeResponse {

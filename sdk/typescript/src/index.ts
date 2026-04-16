@@ -130,7 +130,6 @@ export type {
   PromptPatch,
   PromptPayload,
   ProtocolVersion,
-  ProvideToolsResult,
   RoutingKey,
   RoutingPolicy,
   ResourcesConfig,

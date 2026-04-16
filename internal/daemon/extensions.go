@@ -18,6 +18,7 @@ type daemonExtensionService struct {
 	registry  *extensionpkg.Registry
 	runtime   extensionRuntime
 	hookBinds hookBindingPublisher
+	toolMCP   toolMCPPublisher
 	bundles   interface{ Reconcile(context.Context) error }
 	homePaths aghconfig.HomePaths
 	logger    *slog.Logger
@@ -30,6 +31,7 @@ func newDaemonExtensionService(
 	registry *extensionpkg.Registry,
 	runtime extensionRuntime,
 	hookBinds hookBindingPublisher,
+	toolMCP toolMCPPublisher,
 	bundles interface{ Reconcile(context.Context) error },
 	homePaths aghconfig.HomePaths,
 	logger *slog.Logger,
@@ -50,6 +52,7 @@ func newDaemonExtensionService(
 		registry:  registry,
 		runtime:   runtime,
 		hookBinds: hookBinds,
+		toolMCP:   toolMCP,
 		bundles:   bundles,
 		homePaths: homePaths,
 		logger:    logger,
@@ -143,14 +146,13 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 	}
 
 	reloadErr := s.runtime.Reload(ctx)
-	if s.hookBinds == nil {
-		if s.bundles == nil {
-			return reloadErr
-		}
-		return errors.Join(reloadErr, s.bundles.Reconcile(ctx))
+	var syncErr error
+	if s.hookBinds != nil {
+		syncErr = errors.Join(syncErr, s.hookBinds.Sync(ctx))
 	}
-
-	syncErr := s.hookBinds.Sync(ctx)
+	if s.toolMCP != nil {
+		syncErr = errors.Join(syncErr, s.toolMCP.Sync(ctx))
+	}
 	if s.bundles == nil {
 		return errors.Join(reloadErr, syncErr)
 	}

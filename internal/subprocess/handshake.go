@@ -112,8 +112,7 @@ type AcceptedCapabilities struct {
 
 // InitializeSupports advertises optional protocol features.
 type InitializeSupports struct {
-	HealthCheck  bool `json:"health_check"`
-	ProvideTools bool `json:"provide_tools"`
+	HealthCheck bool `json:"health_check"`
 }
 
 // ShutdownRequest is the cooperative drain request sent before signal escalation.

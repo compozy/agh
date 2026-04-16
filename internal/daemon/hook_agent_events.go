@@ -30,6 +30,8 @@ type hookAgentPermissionPayload struct {
 	ToolCall  hookspkg.PermissionToolCall `json:"tool_call"`
 }
 
+const hookPermissionDecisionDenied = "denied"
+
 func dispatchACPAgentHookEvent(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -258,7 +260,7 @@ func hookPermissionDecisionClass(decision string) string {
 		return "interactive"
 	}
 	if hookPermissionDenied(decision) {
-		return "denied"
+		return hookPermissionDecisionDenied
 	}
 	return "resolved"
 }
@@ -270,7 +272,7 @@ func hookPermissionDenied(decision string) bool {
 		return false
 	case clean == "block", clean == "blocked":
 		return true
-	case clean == "deny", clean == "denied", clean == "reject", clean == "rejected":
+	case clean == "deny", clean == hookPermissionDecisionDenied, clean == "reject", clean == "rejected":
 		return true
 	case strings.HasPrefix(clean, "block-"):
 		return true

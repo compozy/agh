@@ -32,10 +32,10 @@ function initializeFor(extension: Extension): InitializeRequest {
     },
     methods: {
       daemon_requests: methods.filter(method =>
-        ["execute_hook", "health_check", "shutdown", "provide_tools"].includes(method)
+        ["execute_hook", "health_check", "shutdown"].includes(method)
       ),
       extension_services: methods.filter(
-        method => !["execute_hook", "health_check", "shutdown", "provide_tools"].includes(method)
+        method => !["execute_hook", "health_check", "shutdown"].includes(method)
       ),
     },
     runtime: {
@@ -137,32 +137,17 @@ describe("Extension", () => {
     ).rejects.toBeInstanceOf(CapabilityDeniedError);
   });
 
-  it("serves provide_tools and default health checks", async () => {
+  it("serves default health checks", async () => {
     const harness = new TestHarness();
     const extension = new Extension({
       name: "tools",
       version: "0.1.0",
     });
 
-    extension.handle("provide_tools", async () => ({
-      tools: [
-        {
-          name: "lookup",
-          description: "finds things",
-          input_schema: { type: "object" },
-          read_only: true,
-          source: "extension",
-        },
-      ],
-    }));
-
     await harness.loadExtension(extension, {
-      daemonRequests: ["health_check", "shutdown", "provide_tools"],
+      daemonRequests: ["health_check", "shutdown"],
     });
     await expect(harness.call("health_check", {})).resolves.toMatchObject({ healthy: true });
-    await expect(harness.call("provide_tools", {})).resolves.toMatchObject({
-      tools: [expect.objectContaining({ name: "lookup" })],
-    });
   });
 
   it("negotiates bridges/deliver for bridge adapters and exposes scoped runtime data", async () => {

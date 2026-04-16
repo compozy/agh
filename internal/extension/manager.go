@@ -156,7 +156,6 @@ type Extension struct {
 	Hooks                 []hookspkg.HookDecl
 	Agents                []aghconfig.AgentDef
 	Bundles               []BundleSpec
-	MCPServers            []aghconfig.MCPServer
 	Skills                []*skillspkg.Skill
 	GrantedActions        []string
 	GrantedSecurity       []string
@@ -173,7 +172,6 @@ type managedExtension struct {
 	hooks                 []hookspkg.HookDecl
 	agents                []aghconfig.AgentDef
 	bundles               []BundleSpec
-	mcpServers            []aghconfig.MCPServer
 	skills                []*skillspkg.Skill
 	grantedActions        []string
 	grantedSecurity       []string
@@ -797,33 +795,6 @@ func (m *Manager) AgentDefinitions() []aghconfig.AgentDef {
 	return agents
 }
 
-// MCPServers returns the currently registered extension MCP server declarations.
-func (m *Manager) MCPServers() []aghconfig.MCPServer {
-	if m == nil {
-		return nil
-	}
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var servers []aghconfig.MCPServer
-	names := make([]string, 0, len(m.extensions))
-	for name := range m.extensions {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	for _, name := range names {
-		ext := m.extensions[name]
-		if !ext.registered {
-			continue
-		}
-		for _, server := range ext.mcpServers {
-			servers = append(servers, cloneMCPServer(server))
-		}
-	}
-	return servers
-}
-
 func (m *Manager) startOne(ctx context.Context, ext *managedExtension) error {
 	if err := m.discoverExtension(ext); err != nil {
 		return err
@@ -946,12 +917,6 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 		m.setFailure(ext, ExtensionPhaseRegister, err)
 		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
 	}
-	mcpServers, err := m.loadMCPResources(ext)
-	if err != nil {
-		m.setFailure(ext, ExtensionPhaseRegister, err)
-		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-	}
-
 	if len(skills) > 0 {
 		if m.skillsRegistry == nil {
 			err := errors.New("skills registry is required for extension skill resources")
@@ -969,7 +934,6 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 	ext.agents = agents
 	ext.hooks = hooks
 	ext.bundles = bundles
-	ext.mcpServers = mcpServers
 	ext.registered = true
 	ext.phase = ExtensionPhaseRegister
 	m.mu.Unlock()
@@ -1039,7 +1003,6 @@ func (m *Manager) activateExtension(ext *managedExtension) {
 	skillCount := len(ext.skills)
 	agentCount := len(ext.agents)
 	hookCount := len(ext.hooks)
-	mcpServerCount := len(ext.mcpServers)
 	m.mu.Unlock()
 
 	m.logger.Info(
@@ -1050,7 +1013,6 @@ func (m *Manager) activateExtension(ext *managedExtension) {
 		"skill_count", skillCount,
 		"agent_count", agentCount,
 		"hook_count", hookCount,
-		"mcp_server_count", mcpServerCount,
 	)
 }
 
@@ -1541,46 +1503,6 @@ func (m *Manager) loadBundleResources(ext *managedExtension) ([]BundleSpec, erro
 	return LoadBundleSpecs(ext.rootDir, ext.manifest)
 }
 
-func (m *Manager) loadMCPResources(ext *managedExtension) ([]aghconfig.MCPServer, error) {
-	if ext.manifest == nil || len(ext.manifest.Resources.MCPServers) == 0 {
-		return nil, nil
-	}
-
-	names := make([]string, 0, len(ext.manifest.Resources.MCPServers))
-	for name := range ext.manifest.Resources.MCPServers {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-
-	servers := make([]aghconfig.MCPServer, 0, len(names))
-	for _, name := range names {
-		decl := ext.manifest.Resources.MCPServers[name]
-		command, err := m.resolveCommand(ext.rootDir, decl.Command)
-		if err != nil {
-			return nil, err
-		}
-		args, err := m.resolveStringSlice(ext.rootDir, decl.Args)
-		if err != nil {
-			return nil, err
-		}
-		env, err := m.resolveStringMap(ext.rootDir, decl.Env)
-		if err != nil {
-			return nil, err
-		}
-		server := aghconfig.MCPServer{
-			Name:    strings.TrimSpace(name),
-			Command: command,
-			Args:    args,
-			Env:     env,
-		}
-		if err := server.Validate("extension.resources.mcp_servers[" + name + "]"); err != nil {
-			return nil, err
-		}
-		servers = append(servers, server)
-	}
-	return servers, nil
-}
-
 func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg HookConfig) (hookspkg.HookDecl, error) {
 	command := strings.TrimSpace(cfg.Command)
 	args := slices.Clone(cfg.Args)
@@ -1665,52 +1587,15 @@ func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg HookConfig) (hooks
 }
 
 func (m *Manager) resolveCommand(rootDir string, value string) (string, error) {
-	resolved, err := m.resolveString(rootDir, value)
-	if err != nil {
-		return "", err
-	}
-	if resolved == "" {
-		return "", nil
-	}
-	if filepath.IsAbs(resolved) {
-		return filepath.Clean(resolved), nil
-	}
-	if strings.ContainsRune(resolved, filepath.Separator) || strings.HasPrefix(resolved, ".") {
-		return resolvePathWithinRoot(rootDir, resolved)
-	}
-	return resolved, nil
+	return resolveManifestCommand(rootDir, value, m.getenv)
 }
 
 func (m *Manager) resolveStringSlice(rootDir string, values []string) ([]string, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-
-	resolved := make([]string, 0, len(values))
-	for _, value := range values {
-		item, err := m.resolveString(rootDir, value)
-		if err != nil {
-			return nil, err
-		}
-		resolved = append(resolved, item)
-	}
-	return resolved, nil
+	return resolveManifestStringSlice(rootDir, values, m.getenv)
 }
 
 func (m *Manager) resolveStringMap(rootDir string, env map[string]string) (map[string]string, error) {
-	if len(env) == 0 {
-		return nil, nil
-	}
-
-	resolved := make(map[string]string, len(env))
-	for key, value := range env {
-		item, err := m.resolveString(rootDir, value)
-		if err != nil {
-			return nil, err
-		}
-		resolved[key] = item
-	}
-	return resolved, nil
+	return resolveManifestStringMap(rootDir, env, m.getenv)
 }
 
 func (m *Manager) resolveEnvMap(rootDir string, env map[string]string) ([]string, error) {
@@ -1750,26 +1635,7 @@ func (m *Manager) resolveEnvMap(rootDir string, env map[string]string) ([]string
 }
 
 func (m *Manager) resolveString(rootDir string, value string) (string, error) {
-	resolved := strings.TrimSpace(value)
-	if resolved == "" {
-		return "", nil
-	}
-
-	resolved = strings.ReplaceAll(resolved, "{{config_dir}}", rootDir)
-	for {
-		start := strings.Index(resolved, "{{env:")
-		if start < 0 {
-			break
-		}
-		end := strings.Index(resolved[start:], "}}")
-		if end < 0 {
-			return "", fmt.Errorf("invalid env template %q", value)
-		}
-		end += start
-		key := strings.TrimSpace(strings.TrimPrefix(resolved[start:end], "{{env:"))
-		resolved = resolved[:start] + m.getenv(key) + resolved[end+2:]
-	}
-	return resolved, nil
+	return resolveManifestString(rootDir, value, m.getenv)
 }
 
 func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err error) {
@@ -1972,9 +1838,6 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 		clone.Agents = append(clone.Agents, cloneAgentDef(agent))
 	}
 	clone.Bundles = cloneBundleSpecs(ext.bundles)
-	for _, server := range ext.mcpServers {
-		clone.MCPServers = append(clone.MCPServers, cloneMCPServer(server))
-	}
 	if len(ext.skills) > 0 {
 		clone.Skills = make([]*skillspkg.Skill, 0, len(ext.skills))
 		for _, skill := range ext.skills {

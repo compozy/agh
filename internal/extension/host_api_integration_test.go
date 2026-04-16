@@ -138,7 +138,7 @@ func TestHostAPIIntegrationResourcesSnapshotPublishesAndReadsBack(t *testing.T) 
 				"kind":  "tool",
 				"id":    "grep",
 				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
-				"spec":  map[string]any{"command": "rg"},
+				"spec":  hostAPITestToolSpec("grep", "search workspace", "extension"),
 			},
 		},
 	}); err != nil {
@@ -268,7 +268,7 @@ func TestHostAPIIntegrationSecondResourceSessionInvalidatesOlderNonce(t *testing
 				"kind":  "tool",
 				"id":    "grep",
 				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
-				"spec":  map[string]any{"command": "rg"},
+				"spec":  hostAPITestToolSpec("grep", "search workspace", "extension"),
 			},
 		},
 	}); err != nil {
@@ -285,7 +285,7 @@ func TestHostAPIIntegrationSecondResourceSessionInvalidatesOlderNonce(t *testing
 				"kind":  "tool",
 				"id":    "grep",
 				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
-				"spec":  map[string]any{"command": "rg-v2"},
+				"spec":  hostAPITestToolSpec("grep", "search workspace v2", "extension"),
 			},
 		},
 	}); err != nil {
@@ -299,11 +299,70 @@ func TestHostAPIIntegrationSecondResourceSessionInvalidatesOlderNonce(t *testing
 				"kind":  "tool",
 				"id":    "grep",
 				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
-				"spec":  map[string]any{"command": "stale"},
+				"spec":  hostAPITestToolSpec("grep", "stale workspace search", "extension"),
 			},
 		},
 	})
 	assertRPCErrorCode(t, err, 409)
+}
+
+func TestHostAPIIntegrationResourceSnapshotReplacesToolSetAndRemovesStaleTools(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grantWithResources(
+		t,
+		"ext-resources",
+		[]string{"resources/list", "resources/snapshot"},
+		[]string{"resource.read", "resource.write"},
+		[]string{"tools"},
+		resources.ResourceScopeKindWorkspace,
+	)
+
+	sessionNonce := "nonce-replace"
+	env.activateResourceSession(t, "ext-resources", sessionNonce)
+
+	if _, err := env.callResource(t, "ext-resources", sessionNonce, "resources/snapshot", map[string]any{
+		"source_version": 1,
+		"records": []map[string]any{
+			{
+				"kind":  "tool",
+				"id":    "grep",
+				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+				"spec":  hostAPITestToolSpec("grep", "search workspace", "extension"),
+			},
+		},
+	}); err != nil {
+		t.Fatalf("first Handle(resources/snapshot) error = %v", err)
+	}
+
+	if _, err := env.callResource(t, "ext-resources", sessionNonce, "resources/snapshot", map[string]any{
+		"source_version": 2,
+		"records": []map[string]any{
+			{
+				"kind":  "tool",
+				"id":    "lookup",
+				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+				"spec":  hostAPITestToolSpec("lookup", "lookup workspace", "extension"),
+			},
+		},
+	}); err != nil {
+		t.Fatalf("second Handle(resources/snapshot) error = %v", err)
+	}
+
+	listResult, err := env.callResource(t, "ext-resources", sessionNonce, "resources/list", map[string]any{
+		"kind": "tool",
+	})
+	if err != nil {
+		t.Fatalf("Handle(resources/list) error = %v", err)
+	}
+
+	var listed []hostAPIResourceRecord
+	decodeResult(t, listResult, &listed)
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(resources/list) = %d, want %d", got, want)
+	}
+	if got, want := listed[0].ID, "lookup"; got != want {
+		t.Fatalf("resources/list[0].ID = %q, want %q", got, want)
+	}
 }
 
 func TestHostAPIIntegrationExtensionCanCreateTaskAndEnqueueRun(t *testing.T) {

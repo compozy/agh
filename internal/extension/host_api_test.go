@@ -34,6 +34,7 @@ import (
 	"github.com/pedronauck/agh/internal/subprocess"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -302,7 +303,7 @@ func TestHostAPIHandlerResourcesListAndGetEnforceSameSourceAndGrantedKinds(t *te
 				"kind":  "tool",
 				"id":    "grep",
 				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
-				"spec":  map[string]any{"command": "rg"},
+				"spec":  hostAPITestToolSpec("grep", "search workspace", toolspkg.ToolSourceExtension.String()),
 			},
 		},
 	}); err != nil {
@@ -393,7 +394,7 @@ func TestHostAPIHandlerResourcesSnapshotRejectsStaleVersionAndInactiveNonce(t *t
 				"kind":  "tool",
 				"id":    "grep",
 				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
-				"spec":  map[string]any{"command": "rg"},
+				"spec":  hostAPITestToolSpec("grep", "search workspace", toolspkg.ToolSourceExtension.String()),
 			},
 		},
 	}
@@ -435,7 +436,7 @@ func TestHostAPIHandlerResourcesMethodsCoexistWithBridgeOperationalMethods(t *te
 				"kind":  "tool",
 				"id":    "grep",
 				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
-				"spec":  map[string]any{"command": "rg"},
+				"spec":  hostAPITestToolSpec("grep", "search workspace", toolspkg.ToolSourceExtension.String()),
 			},
 		},
 	}); err == nil {
@@ -3669,6 +3670,21 @@ Review the workspace changes carefully.
 	if err != nil {
 		t.Fatalf("resources.NewKernel() error = %v", err)
 	}
+	resourceCodecs := resources.NewCodecRegistry()
+	toolCodec, err := toolspkg.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
+	}
+	if err := resources.RegisterCodec(resourceCodecs, toolCodec); err != nil {
+		t.Fatalf("resources.RegisterCodec(tool) error = %v", err)
+	}
+	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+	if err != nil {
+		t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+	}
+	if err := resources.RegisterCodec(resourceCodecs, mcpCodec); err != nil {
+		t.Fatalf("resources.RegisterCodec(mcp) error = %v", err)
+	}
 
 	observer, err := observepkg.New(testutil.Context(t),
 		observepkg.WithRegistry(registry),
@@ -3766,6 +3782,7 @@ Review the workspace changes carefully.
 		WithHostAPIBridgeRegistry(bridgeRegistry),
 		WithHostAPIBridgeDedupStore(registry),
 		WithHostAPIResourceStore(resourceKernel),
+		WithHostAPIResourceCodecRegistry(resourceCodecs),
 		WithHostAPINow(func() time.Time { return env.currentTime() }),
 		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
 		WithHostAPIRateLimit(1000, 1000),
@@ -3825,6 +3842,16 @@ func (e *hostAPITestEnv) currentTime() time.Time {
 	e.nowMu.RLock()
 	defer e.nowMu.RUnlock()
 	return e.now
+}
+
+func hostAPITestToolSpec(name string, description string, source string) map[string]any {
+	return map[string]any{
+		"name":         name,
+		"description":  description,
+		"input_schema": map[string]any{"type": "object"},
+		"read_only":    true,
+		"source":       source,
+	}
 }
 
 func (e *hostAPITestEnv) advanceTime(delta time.Duration) time.Time {

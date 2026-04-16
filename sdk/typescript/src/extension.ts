@@ -20,7 +20,6 @@ import type {
   InitializeResponse,
   InitializeRuntime,
   JSONRPCRequestEnvelope,
-  ProvideToolsResult,
   ShutdownRequest,
   ShutdownResponse,
 } from "./types.js";
@@ -155,9 +154,6 @@ export class Extension {
     for (const method of this.handlers.keys()) {
       methods.add(method);
     }
-    if (this.handlers.has("provide_tools")) {
-      methods.add("provide_tools");
-    }
     return Array.from(methods).sort();
   }
 
@@ -169,7 +165,6 @@ export class Extension {
     this.bindMethod("initialize");
     this.bindMethod("health_check");
     this.bindMethod("shutdown");
-    this.bindMethod("provide_tools");
     for (const method of this.handlers.keys()) {
       this.bindMethod(method);
     }
@@ -212,8 +207,6 @@ export class Extension {
         return await this.handleHealthCheck(request, params);
       case "shutdown":
         return await this.handleShutdown(request, params);
-      case "provide_tools":
-        return await this.handleProvideTools(request, params);
       default:
         return await this.handleUserMethod(method, request, params);
     }
@@ -255,7 +248,6 @@ export class Extension {
       supported_hook_events: this.getSupportedHookEvents(),
       supports: {
         health_check: true,
-        provide_tools: this.handlers.has("provide_tools"),
       },
     };
 
@@ -329,24 +321,6 @@ export class Extension {
       return result ?? { acknowledged: true };
     }
     return { acknowledged: true };
-  }
-
-  private async handleProvideTools(
-    request: JSONRPCRequestEnvelope,
-    params: unknown
-  ): Promise<ProvideToolsResult> {
-    const customHandler = this.handlers.get("provide_tools");
-    if (!customHandler) {
-      throw new MethodNotFoundError("provide_tools");
-    }
-    const result = (await customHandler(
-      this.makeContext(request),
-      params as never
-    )) as ProvideToolsResult;
-    if (!Array.isArray(result?.tools)) {
-      throw new InvalidParamsError("provide_tools must return a tools array");
-    }
-    return result;
   }
 
   private async handleUserMethod(

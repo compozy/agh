@@ -28,6 +28,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -227,6 +228,76 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 	decodeHTTPJSON(t, listResp, &listed)
 	if len(listed.Records) != 1 || listed.Records[0].ID != "demo" || listed.Records[0].Version != updated.Record.Version {
 		t.Fatalf("listed records = %#v, want updated demo record", listed.Records)
+	}
+}
+
+func TestUDSToolResourceCRUDRoundTripTriggersProjection(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	createResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPut,
+		"http://unix/api/resources/tool/lookup",
+		[]byte(`{
+			"scope":{"kind":"global"},
+			"spec":{
+				"name":" lookup ",
+				"description":" search workspace ",
+				"input_schema":{"type":"object"},
+				"read_only":true,
+				"source":"dynamic"
+			}
+		}`),
+		nil,
+	)
+	if createResp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(createResp.Body)
+		_ = createResp.Body.Close()
+		t.Fatalf("create tool resource status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
+	}
+	var created contract.ResourceResponse
+	decodeHTTPJSON(t, createResp, &created)
+	if got, want := strings.TrimSpace(string(created.Record.Spec)), `{"name":"lookup","description":"search workspace","input_schema":{"type":"object"},"read_only":true,"source":"dynamic"}`; got != want {
+		t.Fatalf("created tool spec = %s, want %s", got, want)
+	}
+
+	waitForProjectedToolRevision(t, runtime, 1)
+	revision, records := runtime.toolCatalog.snapshot()
+	if revision != 1 || len(records) != 1 || records[0].Spec.Name != "lookup" {
+		t.Fatalf("tool projection after create = revision:%d records:%#v, want lookup@1", revision, records)
+	}
+
+	updateResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPut,
+		"http://unix/api/resources/tool/lookup",
+		[]byte(fmt.Sprintf(`{
+			"scope":{"kind":"global"},
+			"expected_version":%d,
+			"spec":{
+				"name":"lookup",
+				"description":"search workspace v2",
+				"input_schema":{"type":"object"},
+				"read_only":true,
+				"source":"dynamic"
+			}
+		}`, created.Record.Version)),
+		nil,
+	)
+	if updateResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateResp.Body)
+		_ = updateResp.Body.Close()
+		t.Fatalf("update tool resource status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
+	}
+	var updated contract.ResourceResponse
+	decodeHTTPJSON(t, updateResp, &updated)
+	waitForProjectedToolRevision(t, runtime, 2)
+
+	_, records = runtime.toolCatalog.snapshot()
+	if got, want := records[0].Spec.Description, "search workspace v2"; got != want {
+		t.Fatalf("projected tool description = %q, want %q", got, want)
 	}
 }
 
@@ -883,17 +954,126 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 }
 
 type integrationRuntime struct {
-	client    *http.Client
-	server    *Server
-	manager   *session.Manager
-	tasks     *taskpkg.Service
-	observer  *observe.Observer
-	registry  *globaldb.GlobalDB
-	bridges   *integrationBridgeService
-	memory    *memory.Store
-	dream     *integrationDreamTrigger
-	socket    string
-	workspace string
+	client         *http.Client
+	server         *Server
+	manager        *session.Manager
+	tasks          *taskpkg.Service
+	observer       *observe.Observer
+	registry       *globaldb.GlobalDB
+	bridges        *integrationBridgeService
+	memory         *memory.Store
+	dream          *integrationDreamTrigger
+	resourceDriver resources.ReconcileDriver
+	toolCatalog    *integrationToolCatalog
+	socket         string
+	workspace      string
+}
+
+type integrationToolCatalog struct {
+	mu       sync.Mutex
+	revision int64
+	records  []resources.Record[toolspkg.Tool]
+}
+
+type integrationToolPlan struct {
+	revision   int64
+	operations int
+	records    []resources.Record[toolspkg.Tool]
+}
+
+func (p *integrationToolPlan) Kind() resources.ResourceKind { return toolspkg.ToolResourceKind }
+func (p *integrationToolPlan) Revision() int64              { return p.revision }
+func (p *integrationToolPlan) OperationCount() int          { return p.operations }
+
+type integrationToolProjector struct {
+	catalog *integrationToolCatalog
+}
+
+func (p *integrationToolProjector) Kind() resources.ResourceKind {
+	return toolspkg.ToolResourceKind
+}
+
+func (p *integrationToolProjector) DependsOn() []resources.ResourceKind {
+	return nil
+}
+
+func (p *integrationToolProjector) Build(
+	_ context.Context,
+	records []resources.Record[toolspkg.Tool],
+) (resources.ProjectionPlan, error) {
+	var revision int64
+	cloned := make([]resources.Record[toolspkg.Tool], 0, len(records))
+	for _, record := range records {
+		if record.Version > revision {
+			revision = record.Version
+		}
+		next := record
+		next.Spec = cloneIntegrationTool(record.Spec)
+		cloned = append(cloned, next)
+	}
+	return &integrationToolPlan{
+		revision:   revision,
+		operations: len(records),
+		records:    cloned,
+	}, nil
+}
+
+func (p *integrationToolProjector) Apply(_ context.Context, plan resources.ProjectionPlan) error {
+	typed, ok := plan.(*integrationToolPlan)
+	if !ok {
+		return fmt.Errorf("integration tool plan type = %T, want *integrationToolPlan", plan)
+	}
+	p.catalog.replace(typed.revision, typed.records)
+	return nil
+}
+
+func (c *integrationToolCatalog) replace(revision int64, records []resources.Record[toolspkg.Tool]) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.revision = revision
+	c.records = cloneIntegrationToolRecords(records)
+}
+
+func (c *integrationToolCatalog) snapshot() (int64, []resources.Record[toolspkg.Tool]) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.revision, cloneIntegrationToolRecords(c.records)
+}
+
+func cloneIntegrationToolRecords(records []resources.Record[toolspkg.Tool]) []resources.Record[toolspkg.Tool] {
+	if len(records) == 0 {
+		return nil
+	}
+	cloned := make([]resources.Record[toolspkg.Tool], 0, len(records))
+	for _, record := range records {
+		next := record
+		next.Spec = cloneIntegrationTool(record.Spec)
+		cloned = append(cloned, next)
+	}
+	return cloned
+}
+
+func cloneIntegrationTool(spec toolspkg.Tool) toolspkg.Tool {
+	cloned := spec
+	if len(spec.InputSchema) > 0 {
+		cloned.InputSchema = append([]byte(nil), spec.InputSchema...)
+	}
+	return cloned
+}
+
+func waitForProjectedToolRevision(t *testing.T, runtime integrationRuntime, want int64) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		revision, _ := runtime.toolCatalog.snapshot()
+		if revision >= want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	revision, records := runtime.toolCatalog.snapshot()
+	t.Fatalf("timed out waiting for projected tool revision %d (got %d, records=%#v)", want, revision, records)
 }
 
 type integrationTaskSessionExecutor struct {
@@ -1255,7 +1435,51 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("resources.NewKernel() error = %v", err)
 	}
-	resourceService, err := core.NewOperatorResourceService(&core.ResourceServiceConfig{RawStore: resourceKernel})
+	resourceCodecs := resources.NewCodecRegistry()
+	toolCodec, err := toolspkg.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
+	}
+	if err := resources.RegisterCodec(resourceCodecs, toolCodec); err != nil {
+		t.Fatalf("resources.RegisterCodec(tool) error = %v", err)
+	}
+	toolCatalog := &integrationToolCatalog{}
+	toolRegistration, err := resources.NewTypedProjectorRegistration(toolCodec, &integrationToolProjector{catalog: toolCatalog})
+	if err != nil {
+		t.Fatalf("resources.NewTypedProjectorRegistration(tool) error = %v", err)
+	}
+	resourceDriver, err := resources.NewReconcileDriver(
+		resourceKernel,
+		resources.MutationActor{
+			Kind: resources.MutationActorKindDaemon,
+			ID:   "uds-integration",
+			Source: resources.ResourceSource{
+				Kind: resources.ResourceSourceKind("daemon"),
+				ID:   "uds-integration",
+			},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		},
+		[]resources.ProjectorRegistration{toolRegistration},
+		resources.WithReconcileLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("resources.NewReconcileDriver() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := resourceDriver.Close(context.Background()); err != nil {
+			t.Fatalf("resourceDriver.Close() error = %v", err)
+		}
+	})
+	resourceService, err := core.NewOperatorResourceService(&core.ResourceServiceConfig{
+		RawStore:      resourceKernel,
+		CodecRegistry: resourceCodecs,
+		Trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+			if kind.Normalize() != toolspkg.ToolResourceKind {
+				return nil
+			}
+			return resourceDriver.Trigger(ctx, kind, reason)
+		},
+	})
 	if err != nil {
 		t.Fatalf("core.NewOperatorResourceService() error = %v", err)
 	}
@@ -1291,17 +1515,19 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	})
 
 	return integrationRuntime{
-		client:    newUnixClient(t, socketPath),
-		server:    server,
-		manager:   manager,
-		tasks:     taskManager,
-		observer:  observer,
-		registry:  registry,
-		bridges:   bridgeService,
-		memory:    memoryStore,
-		dream:     dreamTrigger,
-		socket:    socketPath,
-		workspace: workspace,
+		client:         newUnixClient(t, socketPath),
+		server:         server,
+		manager:        manager,
+		tasks:          taskManager,
+		observer:       observer,
+		registry:       registry,
+		bridges:        bridgeService,
+		memory:         memoryStore,
+		dream:          dreamTrigger,
+		resourceDriver: resourceDriver,
+		toolCatalog:    toolCatalog,
+		socket:         socketPath,
+		workspace:      workspace,
 	}
 }
 

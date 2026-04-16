@@ -141,6 +141,37 @@ func TestNormalizeMCPServersDropsBlankKeysAndUsesDeterministicCollisions(t *test
 	}
 }
 
+func TestNormalizeToolsDropsBlankKeysAndUsesDeterministicCollisions(t *testing.T) {
+	t.Parallel()
+
+	got := normalizeTools(map[string]ToolConfig{
+		" ": {
+			Description: "ignored",
+		},
+		" lookup ": {
+			Description: " first ",
+			InputSchema: json.RawMessage(`{"type":"object","title":"First"}`),
+		},
+		"lookup": {
+			Description: " second ",
+			InputSchema: json.RawMessage(`{"type":"object","title":"Second"}`),
+			ReadOnly:    true,
+		},
+	})
+
+	want := map[string]ToolConfig{
+		"lookup": {
+			Description: "second",
+			InputSchema: json.RawMessage(`{"type":"object","title":"Second"}`),
+			ReadOnly:    true,
+		},
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("normalizeTools() = %#v, want %#v", got, want)
+	}
+}
+
 func TestLoadManifest_ParsesResourcePublishRequest(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
@@ -876,6 +907,12 @@ func expectedManifest() Manifest {
 					},
 				},
 			},
+			Tools: map[string]ToolConfig{
+				"lookup": {
+					Description: "Search workspace content",
+					ReadOnly:    true,
+				},
+			},
 			MCPServers: map[string]MCPServerConfig{
 				"kubectl": {
 					Command: "mcp-kubectl",
@@ -916,6 +953,10 @@ min_agh_version = "0.5.0"
 [resources]
 skills = ["skills/"]
 agents = ["agents/"]
+
+[resources.tools.lookup]
+description = "Search workspace content"
+read_only = true
 
 [[resources.hooks]]
 name = "workspace-context"
@@ -969,6 +1010,12 @@ const validManifestJSON = `{
   "resources": {
     "skills": ["skills/"],
     "agents": ["agents/"],
+    "tools": {
+      "lookup": {
+        "description": "Search workspace content",
+        "read_only": true
+      }
+    },
     "hooks": [
       {
         "name": "workspace-context",

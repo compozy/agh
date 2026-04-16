@@ -27,6 +27,7 @@ import (
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -56,6 +57,9 @@ type bootState struct {
 	hookBindings       hookBindingPublisher
 	resourceKernel     *resources.Kernel
 	resourceCodecs     *resources.CodecRegistry
+	toolCatalog        *resourceCatalog[toolspkg.Tool]
+	mcpServerCatalog   *resourceCatalog[aghconfig.MCPServer]
+	toolMCPResources   toolMCPPublisher
 	extMu              sync.RWMutex
 	extensions         extensionRuntime
 	resourceReconcile  resources.ReconcileDriver
@@ -522,6 +526,20 @@ func (d *Daemon) buildResourceCodecs() (*resources.CodecRegistry, error) {
 	if err := resources.RegisterCodec(registry, hookCodec); err != nil {
 		return nil, fmt.Errorf("daemon: register hook binding codec: %w", err)
 	}
+	toolCodec, err := toolspkg.NewResourceCodec()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: build tool codec: %w", err)
+	}
+	if err := resources.RegisterCodec(registry, toolCodec); err != nil {
+		return nil, fmt.Errorf("daemon: register tool codec: %w", err)
+	}
+	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: build mcp server codec: %w", err)
+	}
+	if err := resources.RegisterCodec(registry, mcpCodec); err != nil {
+		return nil, fmt.Errorf("daemon: register mcp server codec: %w", err)
+	}
 	return registry, nil
 }
 
@@ -567,14 +585,18 @@ func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cl
 	if d.newResourceReconcile == nil {
 		return errors.New("daemon: resource reconcile driver factory is required")
 	}
+	state.toolCatalog = newResourceCatalog(cloneToolSpec)
+	state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
 
 	driver, err := d.newResourceReconcile(ctx, resourceReconcileDriverDeps{
-		Config:        state.cfg,
-		Logger:        state.logger,
-		Registry:      state.registry,
-		ResourceStore: resourceRawStore(state.resourceKernel),
-		CodecRegistry: state.resourceCodecs,
-		Hooks:         state.hookDispatcher,
+		Config:           state.cfg,
+		Logger:           state.logger,
+		Registry:         state.registry,
+		ResourceStore:    resourceRawStore(state.resourceKernel),
+		CodecRegistry:    state.resourceCodecs,
+		Hooks:            state.hookDispatcher,
+		ToolCatalog:      state.toolCatalog,
+		MCPServerCatalog: state.mcpServerCatalog,
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create resource reconcile driver: %w", err)
@@ -880,9 +902,19 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
+	toolMCPResources, err := d.newToolMCPPublisher(state, extRegistry)
+	if err != nil {
+		return err
+	}
+	state.toolMCPResources = toolMCPResources
 	manager := d.newExtensionManager(d.extensionManagerDeps(state, extRegistry))
 	if manager == nil {
 		state.logger.Warn("daemon: extension manager factory returned nil; skipping extensions")
+		if state.toolMCPResources != nil {
+			if err := state.toolMCPResources.Sync(ctx); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 
@@ -957,6 +989,7 @@ func (d *Daemon) attachExtensionRuntime(
 		extRegistry,
 		manager,
 		state.hookBindings,
+		state.toolMCPResources,
 		state.bundles,
 		d.homePaths,
 		state.logger,
@@ -966,6 +999,13 @@ func (d *Daemon) attachExtensionRuntime(
 		if err := state.hookBindings.Sync(ctx); err != nil {
 			state.logger.Error("daemon: sync hook bindings after extension boot failed", "error", err)
 		}
+	}
+	if state.toolMCPResources != nil {
+		if err := state.toolMCPResources.Sync(ctx); err != nil {
+			state.logger.Error("daemon: sync tool/mcp resources after extension boot failed", "error", err)
+		}
+	}
+	if state.hookBindings != nil {
 		return
 	}
 	if rebuildable, ok := state.hooks.(interface {
@@ -1146,6 +1186,8 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.bridges = state.bridges
 	d.observer = state.observer
 	d.resourceReconcile = state.resourceReconcile
+	d.toolCatalog = state.toolCatalog
+	d.mcpServerCatalog = state.mcpServerCatalog
 	d.automation = state.automation
 	d.httpServer = state.httpServer
 	d.udsServer = state.udsServer

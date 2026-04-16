@@ -31,6 +31,7 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -136,12 +137,14 @@ type extensionDBSource interface {
 }
 
 type resourceReconcileDriverDeps struct {
-	Config        aghconfig.Config
-	Logger        *slog.Logger
-	Registry      Registry
-	ResourceStore resources.RawStore
-	CodecRegistry *resources.CodecRegistry
-	Hooks         *hookspkg.Hooks
+	Config           aghconfig.Config
+	Logger           *slog.Logger
+	Registry         Registry
+	ResourceStore    resources.RawStore
+	CodecRegistry    *resources.CodecRegistry
+	Hooks            *hookspkg.Hooks
+	ToolCatalog      *resourceCatalog[toolspkg.Tool]
+	MCPServerCatalog *resourceCatalog[aghconfig.MCPServer]
 }
 
 type extensionRuntime interface {
@@ -274,6 +277,8 @@ type Daemon struct {
 	extensions           extensionRuntime
 	observer             Observer
 	resourceReconcile    resources.ReconcileDriver
+	toolCatalog          *resourceCatalog[toolspkg.Tool]
+	mcpServerCatalog     *resourceCatalog[aghconfig.MCPServer]
 	automation           automationRuntime
 	bridges              *bridgeRuntime
 	httpServer           Server
@@ -593,7 +598,7 @@ func (d *Daemon) applyResourceReconcileDriverFactoryDefault() {
 		_ context.Context,
 		deps resourceReconcileDriverDeps,
 	) (resources.ReconcileDriver, error) {
-		if deps.ResourceStore == nil || deps.CodecRegistry == nil || deps.Hooks == nil {
+		if deps.ResourceStore == nil || deps.CodecRegistry == nil {
 			return resources.NewReconcileDriver(
 				nil,
 				resources.MutationActor{},
@@ -602,13 +607,45 @@ func (d *Daemon) applyResourceReconcileDriverFactoryDefault() {
 			)
 		}
 
-		codec, err := resources.ResolveCodec[hookspkg.HookDecl](deps.CodecRegistry, hookBindingResourceKind)
-		if err != nil {
-			return nil, err
+		var registrations []resources.ProjectorRegistration
+		if deps.Hooks != nil {
+			codec, err := resources.ResolveCodec[hookspkg.HookDecl](deps.CodecRegistry, hookBindingResourceKind)
+			if err != nil {
+				return nil, err
+			}
+			registration, err := resources.NewTypedProjectorRegistration(codec, newHookBindingProjector(deps.Hooks))
+			if err != nil {
+				return nil, err
+			}
+			registrations = append(registrations, registration)
 		}
-		registration, err := resources.NewTypedProjectorRegistration(codec, newHookBindingProjector(deps.Hooks))
-		if err != nil {
-			return nil, err
+		if deps.ToolCatalog != nil {
+			codec, err := resources.ResolveCodec[toolspkg.Tool](deps.CodecRegistry, toolspkg.ToolResourceKind)
+			if err != nil {
+				return nil, err
+			}
+			registration, err := resources.NewTypedProjectorRegistration(codec, newToolProjector(deps.ToolCatalog))
+			if err != nil {
+				return nil, err
+			}
+			registrations = append(registrations, registration)
+		}
+		if deps.MCPServerCatalog != nil {
+			codec, err := resources.ResolveCodec[aghconfig.MCPServer](
+				deps.CodecRegistry,
+				aghconfig.MCPServerResourceKind,
+			)
+			if err != nil {
+				return nil, err
+			}
+			registration, err := resources.NewTypedProjectorRegistration(
+				codec,
+				newMCPServerProjector(deps.MCPServerCatalog),
+			)
+			if err != nil {
+				return nil, err
+			}
+			registrations = append(registrations, registration)
 		}
 
 		return resources.NewReconcileDriver(
@@ -619,7 +656,7 @@ func (d *Daemon) applyResourceReconcileDriverFactoryDefault() {
 				Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "system"},
 				MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			},
-			[]resources.ProjectorRegistration{registration},
+			registrations,
 			resources.WithReconcileLogger(deps.Logger),
 		)
 	}
