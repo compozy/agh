@@ -27,7 +27,7 @@ func (l *daytonaLauncher) Launch(
 	}
 	session, err := l.transport.Dial(ctx, l.sandbox, remoteLaunchCommand(spec))
 	if err != nil {
-		return nil, fmt.Errorf("environment/daytona: launch agent over SSH: %w", err)
+		return nil, fmt.Errorf("environment/daytona: launch agent in sandbox: %w", err)
 	}
 	return &daytonaHandle{
 		session: session,

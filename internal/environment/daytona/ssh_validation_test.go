@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -23,6 +24,7 @@ const (
 	daytonaAPIURLEnv       = "DAYTONA_API_URL"
 	daytonaOrganizationEnv = "DAYTONA_ORGANIZATION_ID"
 	daytonaSSHHostEnv      = "DAYTONA_SSH_HOST"
+	daytonaValidateSSHEnv  = "DAYTONA_VALIDATE_SSH_GATEWAY"
 	defaultDaytonaAPIURL   = "https://app.daytona.io/api"
 	defaultDaytonaSSHHost  = "ssh.app.daytona.io"
 	sshAccessExpiryMinutes = "60"
@@ -30,6 +32,9 @@ const (
 	testTimeout            = 5 * time.Minute
 	cleanupTimeout         = time.Minute
 	sshCommandTimeout      = 45 * time.Second
+	sshReadyTimeout        = 30 * time.Second
+	sshReadyRetryInterval  = 500 * time.Millisecond
+	sshCloseTimeout        = 3 * time.Second
 	latencyThreshold       = 100 * time.Millisecond
 	maxResponseBodyBytes   = 1 << 20
 )
@@ -41,12 +46,18 @@ func TestDaytonaSSHNonPTYValidation(t *testing.T) {
 	if apiKey == "" {
 		t.Skipf("%s is required for Daytona SSH validation", daytonaAPIKeyEnv)
 	}
+	if strings.TrimSpace(os.Getenv(daytonaValidateSSHEnv)) == "" {
+		t.Skipf(
+			"%s is diagnostic-only now that the launcher uses the sidecar transport",
+			daytonaValidateSSHEnv,
+		)
+	}
 	if _, err := exec.LookPath("ssh"); err != nil {
 		t.Skipf("OpenSSH client is required for Daytona SSH validation: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	client := newDaytonaValidationClient(apiKey)
 	sandboxID, err := client.createSandbox(ctx)
@@ -68,8 +79,31 @@ func TestDaytonaSSHNonPTYValidation(t *testing.T) {
 	}
 	target := sshAccess.Token + "@" + daytonaSSHHost()
 
-	runPayloadChecks(ctx, t, target)
-	runLatencyCheck(ctx, t, target)
+	session, attempts, err := openSSHCatSession(ctx, target)
+	if err != nil {
+		t.Fatalf("open Daytona SSH validation session: %v", err)
+	}
+	if attempts > 1 {
+		t.Logf("Daytona SSH gateway became ready after %d attempts", attempts)
+	}
+	t.Cleanup(func() {
+		trailing, timedOut, cleanupErr := session.Close()
+		if timedOut {
+			t.Logf("Daytona SSH validation session did not exit after stdin close within %s; terminated local client", sshCloseTimeout)
+		}
+		if cleanupErr != nil {
+			t.Errorf("close Daytona SSH validation session: %v", cleanupErr)
+		}
+		if len(trailing) != 0 {
+			t.Errorf("SSH stdout included trailing bytes after session close: %s", previewBytes(trailing))
+		}
+		if containsTerminalArtifact(trailing) {
+			t.Errorf("SSH stdout trailing bytes contain terminal artifact bytes: %s", previewBytes(trailing))
+		}
+	})
+
+	runPayloadChecks(t, session)
+	runLatencyCheck(t, session)
 }
 
 type daytonaValidationClient struct {
@@ -85,8 +119,31 @@ type sshAccessResponse struct {
 
 type sshRoundTripResult struct {
 	output  []byte
-	extra   []byte
 	latency time.Duration
+}
+
+type sshCatSession struct {
+	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	stdout io.ReadCloser
+	stderr *lockedBuffer
+}
+
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(data []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(data)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 func newDaytonaValidationClient(apiKey string) daytonaValidationClient {
@@ -213,7 +270,7 @@ func (c daytonaValidationClient) endpoint(pathParts []string, query url.Values) 
 	return endpoint.String(), nil
 }
 
-func runPayloadChecks(ctx context.Context, t *testing.T, target string) {
+func runPayloadChecks(t *testing.T, session *sshCatSession) {
 	t.Helper()
 
 	cases := []struct {
@@ -228,7 +285,7 @@ func runPayloadChecks(ctx context.Context, t *testing.T, target string) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := sshCatRoundTrip(ctx, target, tc.payload)
+			result, err := session.roundTrip(tc.payload)
 			if err != nil {
 				t.Fatalf("SSH non-PTY cat round trip failed: %v", err)
 			}
@@ -238,11 +295,11 @@ func runPayloadChecks(ctx context.Context, t *testing.T, target string) {
 	}
 }
 
-func runLatencyCheck(ctx context.Context, t *testing.T, target string) {
+func runLatencyCheck(t *testing.T, session *sshCatSession) {
 	t.Helper()
 
 	payload := mustJSONPayload(t, 1024)
-	result, err := sshCatRoundTrip(ctx, target, payload)
+	result, err := session.roundTrip(payload)
 	if err != nil {
 		t.Fatalf("SSH non-PTY latency check failed: %v", err)
 	}
@@ -253,61 +310,119 @@ func runLatencyCheck(ctx context.Context, t *testing.T, target string) {
 	t.Logf("payload=latency-1KB bytes=%d latency=%s threshold=%s", len(payload), result.latency, latencyThreshold)
 }
 
-func sshCatRoundTrip(ctx context.Context, target string, payload []byte) (sshRoundTripResult, error) {
-	runCtx, cancel := context.WithTimeout(ctx, sshCommandTimeout)
-	defer cancel()
+func openSSHCatSession(ctx context.Context, target string) (*sshCatSession, int, error) {
+	deadline := time.Now().Add(sshReadyTimeout)
+	attempts := 0
+	var lastErr error
+	for {
+		attempts++
+		session, err := openSSHCatSessionAttempt(ctx, target)
+		if err == nil {
+			return session, attempts, nil
+		}
+		lastErr = err
+		if ctx.Err() != nil {
+			return nil, attempts, fmt.Errorf("wait for Daytona SSH readiness: %w", ctx.Err())
+		}
+		if time.Now().After(deadline) {
+			return nil, attempts, fmt.Errorf("wait for Daytona SSH readiness: %w", lastErr)
+		}
+		timer := time.NewTimer(sshReadyRetryInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, attempts, fmt.Errorf("wait for Daytona SSH readiness: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
+}
 
-	cmd := exec.CommandContext(runCtx, "ssh", sshCommandArgs(target)...)
+func openSSHCatSessionAttempt(ctx context.Context, target string) (*sshCatSession, error) {
+	cmd := exec.CommandContext(ctx, "ssh", sshCommandArgs(target)...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return sshRoundTripResult{}, fmt.Errorf("open ssh stdin pipe: %w", err)
+		return nil, fmt.Errorf("open ssh stdin pipe: %w", err)
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return sshRoundTripResult{}, fmt.Errorf("open ssh stdout pipe: %w", err)
+		return nil, fmt.Errorf("open ssh stdout pipe: %w", err)
 	}
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
+	stderr := &lockedBuffer{}
+	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
-		return sshRoundTripResult{}, fmt.Errorf("start ssh non-PTY cat session: %w", err)
+		return nil, fmt.Errorf("start ssh non-PTY cat session: %w", err)
 	}
 	if err := readReadyMarker(stdout); err != nil {
 		closeErr := stdin.Close()
-		return sshRoundTripResult{}, waitWithSSHError(cmd, errors.Join(err, closeErr), stderr.String())
+		return nil, waitWithSSHError(cmd, errors.Join(err, closeErr), stderr.String())
 	}
+	return &sshCatSession{cmd: cmd, stdin: stdin, stdout: stdout, stderr: stderr}, nil
+}
 
+func (s *sshCatSession) roundTrip(payload []byte) (sshRoundTripResult, error) {
 	started := time.Now()
 	writeErrCh := make(chan error, 1)
 	go func() {
-		writeErr := writeAll(stdin, payload)
-		closeErr := stdin.Close()
-		writeErrCh <- errors.Join(writeErr, closeErr)
+		writeErrCh <- writeAll(s.stdin, payload)
 	}()
 
 	output := make([]byte, len(payload))
-	_, readErr := io.ReadFull(stdout, output)
+	_, readErr := io.ReadFull(s.stdout, output)
 	latency := time.Since(started)
-	extra, extraErr := io.ReadAll(stdout)
-	waitErr := cmd.Wait()
 	writeErr := <-writeErrCh
 
-	if err := errors.Join(writeErr, readErr, extraErr, waitErr); err != nil {
-		return sshRoundTripResult{}, sshError(err, stderr.String())
+	if err := errors.Join(writeErr, readErr); err != nil {
+		return sshRoundTripResult{}, sshError(err, s.stderr.String())
 	}
-	return sshRoundTripResult{output: output, extra: extra, latency: latency}, nil
+	return sshRoundTripResult{output: output, latency: latency}, nil
+}
+
+func (s *sshCatSession) Close() ([]byte, bool, error) {
+	if s == nil {
+		return nil, false, nil
+	}
+	closeErr := s.stdin.Close()
+	type closeResult struct {
+		trailing []byte
+		err      error
+	}
+	done := make(chan closeResult, 1)
+	go func() {
+		trailing, readErr := io.ReadAll(s.stdout)
+		waitErr := s.cmd.Wait()
+		if err := errors.Join(closeErr, readErr, waitErr); err != nil {
+			done <- closeResult{trailing: trailing, err: sshError(err, s.stderr.String())}
+			return
+		}
+		done <- closeResult{trailing: trailing}
+	}()
+
+	timer := time.NewTimer(sshCloseTimeout)
+	defer timer.Stop()
+
+	select {
+	case result := <-done:
+		return result.trailing, false, result.err
+	case <-timer.C:
+		if s.cmd.Process != nil {
+			_ = s.cmd.Process.Kill()
+		}
+		result := <-done
+		return result.trailing, true, nil
+	}
 }
 
 func sshCommandArgs(target string) []string {
 	return []string{
 		"-o", "BatchMode=yes",
+		"-o", "ConnectTimeout=10",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"-o", "LogLevel=ERROR",
 		"-o", "RequestTTY=no",
 		"-T",
 		target,
-		"sh -c 'printf " + string(sshReadyMarker) + "; cat'",
+		fmt.Sprintf("sh -c 'printf %s; exec cat'", string(sshReadyMarker)),
 	}
 }
 
@@ -351,9 +466,6 @@ func writeAll(writer io.Writer, payload []byte) error {
 func assertCleanRoundTrip(t *testing.T, want []byte, result sshRoundTripResult) {
 	t.Helper()
 
-	if len(result.extra) != 0 {
-		t.Fatalf("SSH stdout included extra bytes after payload: %s", previewBytes(result.extra))
-	}
 	if containsTerminalArtifact(result.output) {
 		t.Fatalf("SSH stdout contains terminal artifact bytes: %s", previewBytes(result.output))
 	}

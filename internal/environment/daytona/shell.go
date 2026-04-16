@@ -60,8 +60,13 @@ func remoteTerminalCommand(root string, req acpsdk.CreateTerminalRequest) string
 	return strings.Join(parts, " ")
 }
 
-func remoteExtractCommand(dest string) string {
-	return "mkdir -p " + shellquote.Join(dest) + " && tar -xpf - -C " + shellquote.Join(dest)
+func remoteExtractCommand(dest string, payloadBytes int64) string {
+	return fmt.Sprintf(
+		"mkdir -p %s && head -c %d | tar -xpf - -C %s",
+		shellquote.Join(dest),
+		payloadBytes,
+		shellquote.Join(dest),
+	)
 }
 
 func remoteArchiveCommand(src string) string {

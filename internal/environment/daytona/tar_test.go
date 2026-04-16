@@ -101,6 +101,36 @@ func TestWriteAndExtractTarRoundTripWithSymlinkAndExclusions(t *testing.T) {
 	}
 }
 
+func TestExtractTarIgnoresRootEntry(t *testing.T) {
+	t.Parallel()
+
+	var archive bytes.Buffer
+	writer := tar.NewWriter(&archive)
+	if err := writer.WriteHeader(&tar.Header{Name: ".", Typeflag: tar.TypeDir, Mode: 0o755}); err != nil {
+		t.Fatalf("WriteHeader(root) error = %v", err)
+	}
+	body := "content"
+	if err := writer.WriteHeader(&tar.Header{Name: "./file.txt", Mode: 0o600, Size: int64(len(body))}); err != nil {
+		t.Fatalf("WriteHeader(file) error = %v", err)
+	}
+	if _, err := writer.Write([]byte(body)); err != nil {
+		t.Fatalf("Write(file) error = %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	dest := t.TempDir()
+	stats, err := extractTar(dest, bytes.NewReader(archive.Bytes()))
+	if err != nil {
+		t.Fatalf("extractTar() error = %v", err)
+	}
+	if stats.Files != 1 || stats.Bytes != int64(len(body)) {
+		t.Fatalf("extractTar() stats = %+v, want one regular file", stats)
+	}
+	assertFileContent(t, filepath.Join(dest, "file.txt"), body)
+}
+
 func tarArchiveWithHeader(t *testing.T, header tar.Header, body string) []byte {
 	t.Helper()
 	var buf bytes.Buffer

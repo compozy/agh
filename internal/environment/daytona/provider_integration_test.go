@@ -4,8 +4,10 @@ package daytona
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -23,6 +25,9 @@ func TestDaytonaProviderIntegrationFullLifecycle(t *testing.T) {
 	image := os.Getenv("DAYTONA_IMAGE")
 	if snapshot == "" && image == "" {
 		t.Skip("DAYTONA_SNAPSHOT or DAYTONA_IMAGE is required for Daytona provider integration tests")
+	}
+	if err := seedKnownHosts(t, daytonaSSHHost()); err != nil {
+		t.Fatalf("seedKnownHosts() error = %v", err)
 	}
 
 	root := t.TempDir()
@@ -96,9 +101,12 @@ func TestDaytonaProviderIntegrationFullLifecycle(t *testing.T) {
 	if err := handle.Stdin().Close(); err != nil {
 		t.Fatalf("handle.Stdin().Close() error = %v", err)
 	}
-	output, err := io.ReadAll(handle.Stdout())
-	if err != nil {
-		t.Fatalf("ReadAll(handle.Stdout()) error = %v", err)
+	output := make([]byte, len("echo test"))
+	if _, err := io.ReadFull(handle.Stdout(), output); err != nil {
+		t.Fatalf("ReadFull(handle.Stdout()) error = %v", err)
+	}
+	if err := handle.Stop(ctx); err != nil {
+		t.Fatalf("handle.Stop() error = %v", err)
 	}
 	if string(output) != "echo test" {
 		t.Fatalf("SSH cat output = %q, want echo test", string(output))
@@ -112,4 +120,32 @@ func TestDaytonaProviderIntegrationFullLifecycle(t *testing.T) {
 		t.Fatalf("SyncFromRuntime() error = %v", err)
 	}
 	assertFileContent(t, filepath.Join(root, "output.txt"), "hello from runtime")
+}
+
+func seedKnownHosts(t *testing.T, host string) error {
+	t.Helper()
+
+	if _, err := exec.LookPath("ssh-keyscan"); err != nil {
+		t.Skipf("ssh-keyscan is required for Daytona provider integration tests: %v", err)
+	}
+
+	home := t.TempDir()
+	sshDir := filepath.Join(home, ".ssh")
+	if err := os.MkdirAll(sshDir, 0o700); err != nil {
+		return fmt.Errorf("create ssh dir: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "ssh-keyscan", "-t", "ed25519", host)
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("ssh-keyscan %q: %w", host, err)
+	}
+	if err := os.WriteFile(filepath.Join(sshDir, "known_hosts"), output, 0o600); err != nil {
+		return fmt.Errorf("write known_hosts: %w", err)
+	}
+	t.Setenv("HOME", home)
+	return nil
 }

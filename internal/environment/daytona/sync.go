@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/pedronauck/agh/internal/environment"
@@ -114,7 +116,29 @@ func (p *daytonaProvider) syncOneToRuntime(
 	root syncRoot,
 	opts environment.SyncOptions,
 ) (environment.SyncResult, error) {
-	session, err := p.transport.Dial(ctx, sandbox, remoteExtractCommand(root.runtime))
+	archive, stats, err := buildTarArchive(ctx, filepath.Clean(root.local), opts.ExcludePatterns)
+	if err != nil {
+		result := environment.SyncResult{}
+		result.Errors = append(result.Errors, err.Error())
+		return result, err
+	}
+	defer func() {
+		if closeErr := archive.Close(); closeErr != nil {
+			p.logger.Warn("environment/daytona: close tar archive temp file failed", "error", closeErr)
+		}
+		if removeErr := os.Remove(archive.Name()); removeErr != nil {
+			p.logger.Warn("environment/daytona: remove tar archive temp file failed", "error", removeErr)
+		}
+	}()
+	info, err := archive.Stat()
+	if err != nil {
+		result := environment.SyncResult{}
+		err = fmt.Errorf("environment/daytona: stat tar archive temp file: %w", err)
+		result.Errors = append(result.Errors, err.Error())
+		return result, err
+	}
+
+	session, err := p.shellTransport.Dial(ctx, sandbox, remoteExtractCommand(root.runtime, info.Size()))
 	if err != nil {
 		return environment.SyncResult{}, fmt.Errorf(
 			"environment/daytona: open sync-to-runtime SSH stream for %q: %w",
@@ -122,12 +146,8 @@ func (p *daytonaProvider) syncOneToRuntime(
 			err,
 		)
 	}
-	stats, writeErr := writeTar(ctx, filepath.Clean(root.local), session, opts.ExcludePatterns)
-	closeErr := session.CloseWrite()
+	_, writeErr := io.Copy(session, archive)
 	waitErr := session.Wait()
-	if closeErr != nil {
-		closeErr = fmt.Errorf("environment/daytona: close sync-to-runtime stream for %q: %w", root.runtime, closeErr)
-	}
 	if waitErr != nil {
 		waitErr = fmt.Errorf(
 			"environment/daytona: remote extract %q failed: %w stderr=%q",
@@ -140,7 +160,7 @@ func (p *daytonaProvider) syncOneToRuntime(
 		p.logger.Warn("environment/daytona: close sync-to-runtime SSH session failed", "error", err)
 	}
 	result := environment.SyncResult{FilesSynced: stats.Files, BytesTransferred: stats.Bytes}
-	if err := joinSyncErrors(writeErr, closeErr, waitErr); err != nil {
+	if err := joinSyncErrors(writeErr, waitErr); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		return result, err
 	}
@@ -166,7 +186,7 @@ func (p *daytonaProvider) syncOneFromRuntime(
 	root syncRoot,
 	opts environment.SyncOptions,
 ) (environment.SyncResult, error) {
-	session, err := p.transport.Dial(ctx, sandbox, remoteArchiveCommand(root.runtime))
+	session, err := p.shellTransport.Dial(ctx, sandbox, remoteArchiveCommand(root.runtime))
 	if err != nil {
 		return environment.SyncResult{}, fmt.Errorf(
 			"environment/daytona: open sync-from-runtime SSH stream for %q: %w",

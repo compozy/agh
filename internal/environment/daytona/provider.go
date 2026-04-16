@@ -25,14 +25,15 @@ var _ environment.Finder = (*daytonaProvider)(nil)
 type Option func(*daytonaProvider)
 
 type daytonaProvider struct {
-	logger        *slog.Logger
-	newClient     sandboxClientFactory
-	tokenManager  *sshTokenManager
-	transport     transport
-	now           func() time.Time
-	sdkTimeout    time.Duration
-	createTimeout time.Duration
-	sshHost       string
+	logger            *slog.Logger
+	newClient         sandboxClientFactory
+	tokenManager      *sshTokenManager
+	shellTransport    transport
+	launcherTransport transport
+	now               func() time.Time
+	sdkTimeout        time.Duration
+	createTimeout     time.Duration
+	sshHost           string
 }
 
 // NewProvider returns the Daytona execution environment provider.
@@ -40,15 +41,15 @@ func NewProvider(opts ...Option) environment.Provider {
 	now := time.Now
 	tokenManager := newSSHTokenManager(newRESTSSHTokenSource(now), now)
 	provider := &daytonaProvider{
-		logger:        slog.Default(),
-		newClient:     newSDKClient,
-		tokenManager:  tokenManager,
-		now:           now,
-		sdkTimeout:    defaultSDKTimeout,
-		createTimeout: defaultCreateTimeout,
-		sshHost:       defaultSSHHost,
+		logger:         slog.Default(),
+		newClient:      newSDKClient,
+		tokenManager:   tokenManager,
+		now:            now,
+		sdkTimeout:     defaultSDKTimeout,
+		createTimeout:  defaultCreateTimeout,
+		sshHost:        defaultSSHHost,
+		shellTransport: newSSHTransport(tokenManager),
 	}
-	provider.transport = newSSHTransport(tokenManager)
 	for _, opt := range opts {
 		if opt != nil {
 			opt(provider)
@@ -72,8 +73,15 @@ func NewProvider(opts ...Option) environment.Provider {
 	if provider.tokenManager == nil {
 		provider.tokenManager = newSSHTokenManager(newRESTSSHTokenSource(provider.now), provider.now)
 	}
-	if provider.transport == nil {
-		provider.transport = newSSHTransport(provider.tokenManager)
+	if provider.shellTransport == nil {
+		provider.shellTransport = newSSHTransport(provider.tokenManager)
+	}
+	if provider.launcherTransport == nil {
+		provider.launcherTransport = newSidecarTransport(
+			provider.logger,
+			provider.newClient,
+			provider.shellTransport,
+		)
 	}
 	if provider.sshHost == "" {
 		provider.sshHost = defaultSSHHost
@@ -95,7 +103,8 @@ func withSandboxClientFactory(factory sandboxClientFactory) Option {
 
 func withTransport(transport transport) Option {
 	return func(provider *daytonaProvider) {
-		provider.transport = transport
+		provider.shellTransport = transport
+		provider.launcherTransport = transport
 	}
 }
 
@@ -346,7 +355,7 @@ func (p *daytonaProvider) buildPrepared(
 	}
 
 	permission := config.PermissionMode(strings.TrimSpace(req.Permissions))
-	toolHost, err := newDaytonaToolHost(sandbox, p.transport, info, runtimeRoot, permission)
+	toolHost, err := newDaytonaToolHost(sandbox, p.shellTransport, info, runtimeRoot, permission)
 	if err != nil {
 		return environment.Prepared{}, err
 	}
@@ -366,7 +375,7 @@ func (p *daytonaProvider) buildPrepared(
 		State:                 state,
 		RuntimeRootDir:        runtimeRoot,
 		RuntimeAdditionalDirs: cloneStrings(runtimeAdditional),
-		Launcher:              &daytonaLauncher{transport: p.transport, sandbox: info},
+		Launcher:              &daytonaLauncher{transport: p.launcherTransport, sandbox: info},
 		Launch: environment.LaunchSpec{
 			Command:        req.AgentCommand,
 			Cwd:            runtimeRoot,

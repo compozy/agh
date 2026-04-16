@@ -603,8 +603,11 @@ func TestDaytonaProviderDefaultOptionsAndBackend(t *testing.T) {
 	if provider.tokenManager == nil {
 		t.Fatal("tokenManager = nil")
 	}
-	if provider.transport == nil {
-		t.Fatal("transport = nil")
+	if provider.shellTransport == nil {
+		t.Fatal("shellTransport = nil")
+	}
+	if provider.launcherTransport == nil {
+		t.Fatal("launcherTransport = nil")
 	}
 	if provider.now == nil {
 		t.Fatal("now = nil")
@@ -858,10 +861,11 @@ func newTestProvider(
 
 func newTestProviderWithTransport(transport transport) *daytonaProvider {
 	return &daytonaProvider{
-		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
-		transport:  transport,
-		sdkTimeout: time.Second,
-		now:        time.Now,
+		logger:            slog.New(slog.NewTextHandler(io.Discard, nil)),
+		shellTransport:    transport,
+		launcherTransport: transport,
+		sdkTimeout:        time.Second,
+		now:               time.Now,
 	}
 }
 
