@@ -993,9 +993,6 @@ func (d *Daemon) bootBundles(_ context.Context, state *bootState) error {
 	}
 	state.bundles = service
 	state.deps.Bundles = service
-	if extRegistry, ok := state.deps.Extensions.(*daemonExtensionService); ok {
-		extRegistry.bundles = service
-	}
 	return nil
 }
 

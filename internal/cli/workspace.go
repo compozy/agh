@@ -119,6 +119,14 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
+func workspaceEditFlagsChanged(cmd *cobra.Command) bool {
+	return cmd.Flags().Changed("name") ||
+		cmd.Flags().Changed("add-dir") ||
+		cmd.Flags().Changed("remove-dir") ||
+		cmd.Flags().Changed("default-agent") ||
+		cmd.Flags().Changed("environment")
+}
+
 func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 	var (
 		name           string
@@ -143,12 +151,7 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			nameChanged := cmd.Flags().Changed("name")
-			addChanged := cmd.Flags().Changed("add-dir")
-			removeChanged := cmd.Flags().Changed("remove-dir")
-			defaultAgentChanged := cmd.Flags().Changed("default-agent")
-			environmentChanged := cmd.Flags().Changed("environment")
-			if !nameChanged && !addChanged && !removeChanged && !defaultAgentChanged && !environmentChanged {
+			if !workspaceEditFlagsChanged(cmd) {
 				return errors.New("cli: at least one edit flag is required")
 			}
 
@@ -158,14 +161,14 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 			}
 
 			request := WorkspaceUpdateRequest{}
-			if nameChanged {
+			if cmd.Flags().Changed("name") {
 				trimmedName := strings.TrimSpace(name)
 				if trimmedName == "" {
 					return errors.New("cli: --name cannot be empty")
 				}
 				request.Name = &trimmedName
 			}
-			if addChanged || removeChanged {
+			if cmd.Flags().Changed("add-dir") || cmd.Flags().Changed("remove-dir") {
 				mergedDirs, err := mergeWorkspaceAddDirs(
 					detail.Workspace.AddDirs,
 					addDirs,
@@ -176,11 +179,11 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 				}
 				request.AddDirs = &mergedDirs
 			}
-			if defaultAgentChanged {
+			if cmd.Flags().Changed("default-agent") {
 				trimmedDefaultAgent := strings.TrimSpace(defaultAgent)
 				request.DefaultAgent = &trimmedDefaultAgent
 			}
-			if environmentChanged {
+			if cmd.Flags().Changed("environment") {
 				trimmedEnvironment := strings.TrimSpace(environmentRef)
 				request.EnvironmentRef = &trimmedEnvironment
 			}
