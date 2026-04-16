@@ -1,0 +1,290 @@
+---
+title: Hook Event Catalog
+description: Complete reference for AGH hook events, payload schemas, patch schemas, sync eligibility, and example payloads.
+---
+
+# Hook Event Catalog
+
+AGH hooks fire at named runtime points such as session creation, prompt assembly, tool execution,
+permission decisions, automation runs, and context compaction. Each event has a fixed payload type
+and a fixed patch type. A hook reads the payload from stdin, decides whether it applies, and writes a
+JSON patch to stdout.
+
+<OperatorNote>
+  The catalog below is generated from the same event taxonomy used by `GET /api/hooks/events` and
+  `agh hooks events`. Use the CLI when you need the daemon's active view: `agh hooks events --family
+  tool --sync-only`.
+</OperatorNote>
+
+## Runtime Placement
+
+<Mermaid
+  chart={`flowchart LR
+  Session["Session lifecycle"] --> Input["Input and prompt"]
+  Input --> Turn["Turn and messages"]
+  Turn --> Tools["Tools and permissions"]
+  Tools --> Events["Event persistence"]
+  Events --> Automation["Automation observations"]
+  Turn --> Context["Context compaction"]`}
+  caption="Hook events sit on the runtime path where AGH can either control an operation or observe it."
+/>
+
+## Reading This Catalog
+
+| Column     | Meaning                                                                                               |
+| ---------- | ----------------------------------------------------------------------------------------------------- |
+| Event      | The exact value used in a hook declaration.                                                           |
+| Sync       | `yes` means a declaration may set `mode = "sync"`. `async only` means sync declarations are rejected. |
+| Payload    | The JSON object type delivered to the executor.                                                       |
+| Patch      | The JSON object type the executor may write to stdout. Empty stdout means an empty patch.             |
+| Fires when | The runtime point that dispatches the event.                                                          |
+
+Most session-scoped payloads include common session fields:
+
+| Field                                        | Meaning                                             |
+| -------------------------------------------- | --------------------------------------------------- |
+| `event`                                      | Current event name.                                 |
+| `timestamp`                                  | Dispatch timestamp.                                 |
+| `session_id`, `session_name`, `session_type` | Session identity and kind when available.           |
+| `agent_name`                                 | Agent attached to the session or runtime operation. |
+| `workspace_id`, `workspace`                  | Workspace identity and root path when available.    |
+| `turn_id`                                    | Current turn when the event is turn-scoped.         |
+
+Control patches use `deny` and `deny_reason`. A deny patch stops the sync hook chain. For
+pre-operation control points, AGH returns the event-specific denial error to the caller.
+
+## Session Events
+
+| Event                 | Sync | Payload                    | Patch                    | Fires when                              |
+| --------------------- | ---- | -------------------------- | ------------------------ | --------------------------------------- |
+| `session.pre_create`  | yes  | `SessionPreCreatePayload`  | `SessionCreatePatch`     | Before AGH creates a session record.    |
+| `session.post_create` | yes  | `SessionPostCreatePayload` | `SessionPostCreatePatch` | After AGH creates a session record.     |
+| `session.pre_resume`  | yes  | `SessionPreResumePayload`  | `SessionPreResumePatch`  | Before AGH resumes an existing session. |
+| `session.post_resume` | yes  | `SessionPostResumePayload` | `SessionPostResumePatch` | After AGH resumes an existing session.  |
+| `session.pre_stop`    | yes  | `SessionPreStopPayload`    | `SessionPreStopPatch`    | Before AGH stops a session.             |
+| `session.post_stop`   | yes  | `SessionPostStopPayload`   | `SessionPostStopPatch`   | After AGH stops a session.              |
+
+Session lifecycle patches can set `session_name`, `session_type`, `agent_name`, `workspace_id`,
+or `workspace`. Pre-create, pre-resume, and pre-stop hooks can also deny the operation.
+
+## Input And Prompt Events
+
+| Event                  | Sync | Payload                 | Patch                 | Fires when                                                            |
+| ---------------------- | ---- | ----------------------- | --------------------- | --------------------------------------------------------------------- |
+| `input.pre_submit`     | yes  | `InputPreSubmitPayload` | `InputPreSubmitPatch` | Before a user message is submitted to the agent turn.                 |
+| `prompt.post_assemble` | yes  | `PromptPayload`         | `PromptPatch`         | After AGH assembles the final prompt and before it reaches the agent. |
+
+`input.pre_submit` patches can replace `message`, append or replace `context_blocks`, or deny the
+submission. `prompt.post_assemble` patches can replace `prompt`, adjust `context_blocks`, or deny
+the assembled prompt.
+
+## Event Persistence Events
+
+| Event               | Sync       | Payload                  | Patch                  | Fires when                                |
+| ------------------- | ---------- | ------------------------ | ---------------------- | ----------------------------------------- |
+| `event.pre_record`  | async only | `EventPreRecordPayload`  | `EventPreRecordPatch`  | Before an ACP/runtime event is persisted. |
+| `event.post_record` | async only | `EventPostRecordPayload` | `EventPostRecordPatch` | After an ACP/runtime event is persisted.  |
+
+Event-record hooks are observation hooks. Their payload includes `record_type`, `sequence`, and raw
+`content`. Their patch type accepts `labels`, but the current dispatch path does not mutate the
+stored event record from that patch.
+
+## Automation Events
+
+| Event                          | Sync       | Payload                            | Patch                        | Fires when                                               |
+| ------------------------------ | ---------- | ---------------------------------- | ---------------------------- | -------------------------------------------------------- |
+| `automation.job.pre_fire`      | yes        | `AutomationJobPreFirePayload`      | `AutomationFirePatch`        | Before a scheduled or manually triggered job dispatches. |
+| `automation.job.post_fire`     | async only | `AutomationJobPostFirePayload`     | `AutomationObservationPatch` | After a job hands work to a session or run.              |
+| `automation.trigger.pre_fire`  | yes        | `AutomationTriggerPreFirePayload`  | `AutomationFirePatch`        | Before a trigger dispatches an automation run.           |
+| `automation.trigger.post_fire` | async only | `AutomationTriggerPostFirePayload` | `AutomationObservationPatch` | After a trigger hands work to a session or run.          |
+| `automation.run.completed`     | async only | `AutomationRunCompletedPayload`    | `AutomationObservationPatch` | After an automation run completes successfully.          |
+| `automation.run.failed`        | async only | `AutomationRunFailedPayload`       | `AutomationObservationPatch` | After an automation run fails.                           |
+
+Automation pre-fire patches can replace `prompt` or set `cancel = true`. Observation patches are
+empty structs and are used only to record hook execution.
+
+## Agent Process Events
+
+| Event             | Sync | Payload                | Patch               | Fires when                                 |
+| ----------------- | ---- | ---------------------- | ------------------- | ------------------------------------------ |
+| `agent.pre_start` | yes  | `AgentPreStartPayload` | `AgentStartPatch`   | Before AGH starts the ACP agent process.   |
+| `agent.spawned`   | yes  | `AgentSpawnedPayload`  | `AgentSpawnedPatch` | After the agent process is spawned.        |
+| `agent.crashed`   | yes  | `AgentCrashedPayload`  | `AgentCrashedPatch` | When the agent process exits unexpectedly. |
+| `agent.stopped`   | yes  | `AgentStoppedPayload`  | `AgentStoppedPatch` | After the agent process stops.             |
+
+`agent.pre_start` patches can replace `command`, `args`, or `cwd`, or deny process startup. The
+post-start lifecycle patches accept `labels` for observation.
+
+## Turn And Message Events
+
+| Event           | Sync       | Payload               | Patch               | Fires when                        |
+| --------------- | ---------- | --------------------- | ------------------- | --------------------------------- |
+| `turn.start`    | yes        | `TurnStartPayload`    | `TurnStartPatch`    | When an agent turn starts.        |
+| `turn.end`      | yes        | `TurnEndPayload`      | `TurnEndPatch`      | When an agent turn ends.          |
+| `message.start` | yes        | `MessageStartPayload` | `MessageStartPatch` | When a streamed message begins.   |
+| `message.delta` | async only | `MessageDeltaPayload` | `MessageDeltaPatch` | For streaming message deltas.     |
+| `message.end`   | yes        | `MessageEndPayload`   | `MessageEndPatch`   | When a streamed message finishes. |
+
+Turn patches can set `labels` and include the common deny fields. A turn deny stops the hook chain;
+the current turn events do not return a user-visible denial error. Message patches can replace
+`role`, `delta_type`, or `text`; only `message.start` and `message.end` can run sync hooks.
+
+## Tool Events
+
+| Event             | Sync | Payload                | Patch                | Fires when                   |
+| ----------------- | ---- | ---------------------- | -------------------- | ---------------------------- |
+| `tool.pre_call`   | yes  | `ToolPreCallPayload`   | `ToolCallPatch`      | Before a tool call executes. |
+| `tool.post_call`  | yes  | `ToolPostCallPayload`  | `ToolResultPatch`    | After a tool call succeeds.  |
+| `tool.post_error` | yes  | `ToolPostErrorPayload` | `ToolPostErrorPatch` | After a tool call fails.     |
+
+Tool payloads include `tool_call_id`, `tool_name`, `tool_namespace`, `read_only`, and `tool_input`.
+Pre-call patches can replace the tool name, namespace, read-only flag, or input, and can deny the
+tool call. Post-call and post-error patches can replace `title`, `tool_result`, or `error`; deny
+fields on post events stop the hook chain but do not undo an already completed tool result.
+
+## Permission Events
+
+| Event                 | Sync       | Payload                     | Patch                     | Fires when                             |
+| --------------------- | ---------- | --------------------------- | ------------------------- | -------------------------------------- |
+| `permission.request`  | yes        | `PermissionRequestPayload`  | `PermissionRequestPatch`  | Before a permission decision resolves. |
+| `permission.resolved` | async only | `PermissionResolvedPayload` | `PermissionResolvedPatch` | After a permission decision resolves.  |
+| `permission.denied`   | async only | `PermissionDeniedPayload`   | `PermissionDeniedPatch`   | After a permission denial resolves.    |
+
+`permission.request` patches can set `decision`, `decision_class`, and `reason`, or deny the
+request. AGH rejects escalation patches that try to turn a blocked, denied, or rejected decision
+into an allow decision; those hook runs are recorded as `rejected`.
+
+## Context Events
+
+| Event                  | Sync | Payload                     | Patch                     | Fires when                                |
+| ---------------------- | ---- | --------------------------- | ------------------------- | ----------------------------------------- |
+| `context.pre_compact`  | yes  | `ContextPreCompactPayload`  | `ContextPreCompactPatch`  | Before AGH compacts conversation context. |
+| `context.post_compact` | yes  | `ContextPostCompactPayload` | `ContextPostCompactPatch` | After AGH compacts conversation context.  |
+
+Context compaction payloads include `reason`, `strategy`, `summary`, and `context_blocks`. Patches
+can replace `reason`, `strategy`, or `context_blocks`. A pre-compact deny blocks compaction; a
+post-compact deny only stops the remaining hook chain because compaction has already happened.
+
+## Example Payloads And Patches
+
+### Deny a risky permission request
+
+`permission.request` payload:
+
+```json
+{
+  "event": "permission.request",
+  "timestamp": "2026-04-16T15:04:05Z",
+  "session_id": "sess_9f4a",
+  "agent_name": "coder",
+  "workspace_id": "ws_checkout",
+  "turn_id": "turn_42",
+  "request_id": "perm_123",
+  "action": "write",
+  "resource": "/Users/you/src/checkout/.env",
+  "decision": "ask",
+  "decision_class": "write",
+  "tool_input": {
+    "path": "/Users/you/src/checkout/.env"
+  },
+  "tool_call": {
+    "id": "toolu_123",
+    "kind": "edit_file",
+    "title": "Edit .env"
+  }
+}
+```
+
+`PermissionRequestPatch` denying the operation:
+
+```json
+{
+  "deny": true,
+  "deny_reason": "Secrets files require manual review.",
+  "decision": "deny",
+  "decision_class": "write",
+  "reason": "Protected file pattern matched."
+}
+```
+
+### Add workspace context to a prompt
+
+`prompt.post_assemble` payload:
+
+```json
+{
+  "event": "prompt.post_assemble",
+  "timestamp": "2026-04-16T15:04:05Z",
+  "session_id": "sess_9f4a",
+  "agent_name": "coder",
+  "workspace_id": "ws_checkout",
+  "workspace": "/Users/you/src/checkout",
+  "turn_id": "turn_42",
+  "input_class": "user",
+  "prompt": "Review the current diff.",
+  "context_blocks": [
+    {
+      "kind": "workspace",
+      "text": "Repository: checkout"
+    }
+  ]
+}
+```
+
+`PromptPatch` replacing the assembled prompt:
+
+```json
+{
+  "prompt": "[Workspace: checkout]\n\nReview the current diff."
+}
+```
+
+### Cancel an automation fire
+
+`automation.job.pre_fire` payload:
+
+```json
+{
+  "job_id": "job_daily_review",
+  "job_name": "weekday-review",
+  "agent_name": "reviewer",
+  "workspace_id": "ws_checkout",
+  "prompt": "Review the repository.",
+  "schedule": {
+    "mode": "cron",
+    "expr": "0 9 * * 1-5"
+  },
+  "attempt": 1
+}
+```
+
+`AutomationFirePatch` canceling dispatch:
+
+```json
+{
+  "cancel": true
+}
+```
+
+## Introspection Surfaces
+
+Use the CLI for local inspection:
+
+```bash
+agh hooks events --family permission
+agh hooks events --sync-only -o json
+```
+
+Use the API when building tooling:
+
+```http
+GET /api/hooks/events?family=permission&sync_only=true
+GET /api/hooks/catalog?workspace=checkout&event=permission.request
+GET /api/hooks/runs?session=sess_9f4a&event=permission.request&last=20
+```
+
+Related references:
+
+- [Hook Declaration Format](/runtime/hooks/declaration)
+- [Hooks CLI Reference](/runtime/cli-reference/hooks)
+- [Automation Triggers](/runtime/automation/triggers)

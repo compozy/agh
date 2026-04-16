@@ -1,0 +1,271 @@
+---
+title: Testing Your Implementation
+description: Test an AGH Network participant with fixtures, a local echo peer, NATS integration checks, and conformance evidence.
+---
+
+This tutorial turns the sender, transport, and trust code into repeatable tests. You will start with
+fixture tests, add a tiny local echo peer, and collect enough evidence to make a clear conformance
+claim.
+
+Normative requirements live in [conformance levels](/protocol/conformance/). Current AGH source has
+package tests for its v0 runtime, but it does not yet ship a standalone third-party conformance
+runner or built-in echo peer.
+
+## What you'll build
+
+By the end, you will have a test harness that:
+
+- validates envelope fixtures before transport is involved
+- checks v0 NATS route-token and subject mapping
+- exercises a local echo peer over JSON envelopes
+- verifies a baseline Ed25519 proof fixture
+- records what is covered and what is still out of scope
+
+<OperatorNote label="Current test surface">
+  Use AGH package tests as implementation evidence, not as a public conformance runner. For
+  third-party implementations, keep your own fixture tests until AGH publishes a standalone runner.
+</OperatorNote>
+
+## Start with fixture tests
+
+Keep core protocol tests transport-agnostic. A receiver should reject malformed JSON before it
+opens subscriptions, trust stores, or work queues.
+
+```go
+package aghnetwork_test
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"testing"
+)
+
+type Envelope struct {
+	Protocol      string          `json:"protocol"`
+	ID            string          `json:"id"`
+	Kind          string          `json:"kind"`
+	Channel       string          `json:"channel"`
+	From          string          `json:"from"`
+	To            *string         `json:"to"`
+	InteractionID *string         `json:"interaction_id,omitempty"`
+	ReplyTo       *string         `json:"reply_to,omitempty"`
+	TS            int64           `json:"ts"`
+	Body          json.RawMessage `json:"body"`
+	Proof         map[string]any  `json:"proof"`
+}
+
+func TestCoreSenderFixture(t *testing.T) {
+	raw := []byte(`{
+		"protocol": "agh-network/v0",
+		"id": "msg_fixture_01",
+		"kind": "say",
+		"channel": "builders",
+		"from": "sender.demo",
+		"to": null,
+		"ts": 1775606300,
+		"body": {"text": "fixture hello"},
+		"proof": null
+	}`)
+
+	var env Envelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+
+	if env.Protocol != "agh-network/v0" {
+		t.Fatalf("protocol = %q", env.Protocol)
+	}
+	if env.Kind != "say" {
+		t.Fatalf("kind = %q", env.Kind)
+	}
+	if env.To != nil {
+		t.Fatalf("say fixture should broadcast, got to=%q", *env.To)
+	}
+
+	var body struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(env.Body, &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Text == "" {
+		t.Fatal("body.text is required")
+	}
+}
+
+func TestNATSSubjectMapping(t *testing.T) {
+	if got, want := broadcastSubject("builders"), "agh.network.v0.builders.broadcast"; got != want {
+		t.Fatalf("broadcast subject = %q, want %q", got, want)
+	}
+	if got, want := directSubject("builders", "echo.demo"), "agh.network.v0.builders.peer.96b61db360703e491489caf5fbbd45bc"; got != want {
+		t.Fatalf("direct subject = %q, want %q", got, want)
+	}
+}
+
+func TestLocalEchoPeer(t *testing.T) {
+	to := "echo.demo"
+	request := Envelope{
+		Protocol:      "agh-network/v0",
+		ID:            "msg_direct_01",
+		Kind:          "direct",
+		Channel:       "builders",
+		From:          "sender.demo",
+		To:            &to,
+		InteractionID: ptr("int_echo_01"),
+		TS:            1775606300,
+		Body:          json.RawMessage(`{"text":"ping"}`),
+		Proof:         nil,
+	}
+
+	response, err := echoPeer(request)
+	if err != nil {
+		t.Fatalf("echo peer: %v", err)
+	}
+	if response.Kind != "receipt" {
+		t.Fatalf("response kind = %q", response.Kind)
+	}
+	if response.ReplyTo == nil || *response.ReplyTo != request.ID {
+		t.Fatalf("response reply_to = %v", response.ReplyTo)
+	}
+	if response.InteractionID == nil || *response.InteractionID != "int_echo_01" {
+		t.Fatalf("response interaction_id = %v", response.InteractionID)
+	}
+}
+
+func echoPeer(request Envelope) (Envelope, error) {
+	body := map[string]any{
+		"for_id": request.ID,
+		"status": "accepted",
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return Envelope{}, err
+	}
+	return Envelope{
+		Protocol:      "agh-network/v0",
+		ID:            "msg_receipt_01",
+		Kind:          "receipt",
+		Channel:       request.Channel,
+		From:          "echo.demo",
+		To:            &request.From,
+		InteractionID: request.InteractionID,
+		ReplyTo:       &request.ID,
+		TS:            request.TS + 1,
+		Body:          encoded,
+		Proof:         nil,
+	}, nil
+}
+
+func broadcastSubject(channel string) string {
+	return "agh.network.v0." + channel + ".broadcast"
+}
+
+func directSubject(channel string, peerID string) string {
+	return "agh.network.v0." + channel + ".peer." + routeToken(peerID)
+}
+
+func routeToken(peerID string) string {
+	sum := sha256.Sum256([]byte(peerID))
+	return hex.EncodeToString(sum[:16])
+}
+
+func ptr(value string) *string {
+	return &value
+}
+```
+
+Language-agnostic pseudocode:
+
+```text
+test core sender fixture:
+  decode envelope JSON
+  require protocol == "agh-network/v0"
+  require kind == "say"
+  require to == null
+  require body.text is not blank
+
+test nats subject mapping:
+  broadcast_subject("builders") must equal "agh.network.v0.builders.broadcast"
+  direct_subject("builders", "echo.demo") must use sha256(peer_id)[0:32]
+
+test local echo peer:
+  build direct request with interaction_id
+  pass request to echo_peer
+  require response.kind == "receipt"
+  require response.reply_to == request.id
+  require response.interaction_id == request.interaction_id
+```
+
+## Add integration tests after fixtures pass
+
+Once fixture tests are stable, add integration checks in this order:
+
+| Layer           | What to test                                                  | Failure to catch                                                     |
+| --------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- |
+| JSON fixtures   | Required fields, kind-specific bodies, malformed body shapes. | Accepting invalid envelopes.                                         |
+| Subject mapping | Broadcast and direct subject derivation.                      | Routing to an alias or display name instead of canonical peer ID.    |
+| NATS loopback   | Publish, subscribe, request-reply, disconnect/reconnect.      | Confusing transport acknowledgement with protocol acceptance.        |
+| Trust fixture   | Known public key, fingerprint, signature, and tamper case.    | Verifying non-canonical bytes or skipping `from` fingerprint checks. |
+| Lifecycle       | `direct`, `receipt`, and `trace` transitions.                 | Closing interactions too early or accepting late terminal updates.   |
+
+Use the [worked Ed25519 example](/protocol/ed25519-jcs/#worked-example) as a golden trust fixture.
+It is deterministic and should fail if your verifier signs or verifies the wrong bytes.
+
+## Compare with AGH's current runtime tests
+
+When you are working inside the AGH repository, these commands exercise the current v0 implementation:
+
+```bash
+go test ./internal/network
+```
+
+```bash
+go test ./internal/cli -run 'TestCLINetwork'
+```
+
+Those tests are useful implementation evidence. They do not replace a public third-party
+conformance runner, because they import AGH internals and assume the daemon-owned runtime.
+
+## Prepare conformance evidence
+
+Before you claim support, write down the level you are testing against:
+
+| Claim         | Evidence to collect                                                             |
+| ------------- | ------------------------------------------------------------------------------- |
+| Core Sender   | Valid envelope fixtures for every kind you emit.                                |
+| Core Receiver | Rejection fixtures for malformed, expired, duplicate, and unsupported messages. |
+| NATS Peer     | Subject mapping tests plus live NATS loopback tests.                            |
+| Trust         | Golden signed envelope, tamper rejection, proof-stripping rejection.            |
+| Full          | Core, NATS, and Trust evidence together.                                        |
+
+Publish the fixtures, command output, implementation version, and known gaps with the claim. If a
+feature is intentionally missing, say so explicitly instead of widening the claim.
+
+## Verify it works
+
+Run the fixture tests:
+
+```bash
+go test ./...
+```
+
+Expected result:
+
+```text
+ok  	example.com/agh-network-guide	...
+```
+
+Then run your NATS loopback program from the previous tutorial and your trust verifier:
+
+```bash
+go run ./nats-transport.go
+go run ./trust-verification.go
+```
+
+At this point you have a complete tutorial implementation path:
+
+1. [Minimal sender](/protocol/guide/minimal-sender/) proves the envelope shape.
+2. [NATS transport](/protocol/guide/nats-transport/) proves message exchange.
+3. [Trust verification](/protocol/guide/trust-verification/) proves cryptographic identity.
+4. This page turns the behavior into repeatable evidence.

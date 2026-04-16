@@ -2,13 +2,5 @@
     "title": "Core",
     "icon": "Layers",
     "root": true,
-    "pages": [
-        "index",
-        "overview",
-        "getting-started",
-        "---Core Concepts---",
-        "sessions",
-        "---Reference---",
-        "configuration"
-    ]
+    "pages": ["index", "overview", "getting-started", "configuration"]
 }

@@ -1,0 +1,182 @@
+---
+title: Providers
+description: Built-in provider IDs, launch commands, config overrides, and custom provider setup for AGH agents.
+---
+
+# Providers
+
+A provider is the ACP-compatible command AGH launches for an agent. The provider owns the actual
+LLM integration. AGH owns definition resolution, process lifecycle, workspace boundaries,
+permissions, MCP server wiring, and event persistence.
+
+Provider IDs appear in `AGENT.md`:
+
+```yaml
+---
+name: implementation
+provider: codex
+---
+You implement scoped changes and verify them before handoff.
+```
+
+Or they can be selected globally:
+
+```toml
+[defaults]
+agent = "general"
+provider = "claude"
+```
+
+## Built-in providers
+
+The built-in registry lives in `internal/config/provider.go`.
+
+| Provider ID | Runtime                     | Command                                               | Default model              | API key env         |
+| ----------- | --------------------------- | ----------------------------------------------------- | -------------------------- | ------------------- |
+| `claude`    | Claude Code via ACP adapter | `npx -y @agentclientprotocol/claude-agent-acp@0.24.2` | `claude-sonnet-4-20250514` | `ANTHROPIC_API_KEY` |
+| `codex`     | Codex ACP adapter           | `npx @zed-industries/codex-acp@0.10.0`                | `gpt-4o`                   | `OPENAI_API_KEY`    |
+| `gemini`    | Gemini CLI                  | `gemini --acp`                                        | `gemini-2.5-pro`           | `GEMINI_API_KEY`    |
+| `opencode`  | OpenCode                    | `npx -y opencode-ai acp`                              | none                       | none                |
+| `copilot`   | GitHub Copilot CLI          | `copilot --acp --stdio`                               | none                       | none                |
+| `cursor`    | Cursor Agent                | `cursor-agent acp`                                    | none                       | none                |
+| `kiro`      | Kiro CLI                    | `kiro-cli-chat acp`                                   | none                       | none                |
+| `pi`        | Pi ACP adapter              | `npx pi-acp@0.0.22`                                   | none                       | none                |
+
+<OperatorNote>
+  `api_key_env` names the environment variable a provider normally expects. AGH does not read a
+  secret store or inject that value for you in the current spawn flow. Start the daemon with the
+  needed environment already present.
+</OperatorNote>
+
+## Provider config fields
+
+Provider overrides and custom providers are configured in `config.toml`.
+
+| Field           | Type   | Required                 | Runtime behavior                                                                                           |
+| --------------- | ------ | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `command`       | string | yes for custom providers | Launch command for the ACP subprocess. Overrides a built-in command when set.                              |
+| `default_model` | string | no                       | Used when an `AGENT.md` omits `model`. Empty is allowed.                                                   |
+| `api_key_env`   | string | no                       | Metadata for the provider's expected environment variable. The subprocess inherits the daemon environment. |
+| `mcp_servers`   | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                          |
+
+AGH overlays provider config on top of a built-in provider when the name matches. Unknown provider
+names are accepted only when they have a `[providers.<name>]` entry.
+
+## Override a built-in provider
+
+Use this when you need to pin a different adapter command or change the default model used by
+agents that omit `model`.
+
+```toml
+[providers.claude]
+default_model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+
+[[providers.claude.mcp_servers]]
+name = "github"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+env = { GITHUB_TOKEN = "replace-with-token" }
+```
+
+Only non-empty scalar fields replace the built-in values. MCP servers merge by `name`.
+
+## Add a custom provider
+
+A custom provider needs an ACP-compatible command. AGH will launch it the same way it launches the
+built-ins.
+
+```toml
+[providers.local-agent]
+command = "local-agent --acp --stdio"
+default_model = "local-default"
+api_key_env = "LOCAL_AGENT_API_KEY"
+
+[[providers.local-agent.mcp_servers]]
+name = "filesystem-index"
+command = "local-index-mcp"
+args = ["serve"]
+```
+
+Then point an agent at the custom provider:
+
+```yaml
+---
+name: local-operator
+provider: local-agent
+permissions: approve-reads
+---
+You inspect this repository with the local agent runtime.
+Report risks and cite exact files.
+```
+
+## Command parsing
+
+Provider commands are parsed with shell-style quoting, then launched without a shell. That means:
+
+- quoted arguments are preserved
+- shell expansion is not performed
+- the executable must be available on the daemon process `PATH`
+- `npx`-based built-ins can download and run their adapter package through the local Node toolchain
+
+For example, this is valid:
+
+```toml
+[providers.reviewer]
+command = "reviewer-acp --profile \"team default\""
+```
+
+But shell-only behavior is not applied:
+
+```toml
+[providers.bad-example]
+command = "MY_FLAG=1 reviewer-acp"
+```
+
+Set environment variables before starting the daemon instead.
+
+## Models and API keys
+
+`model` and `default_model` are resolved and exposed as runtime metadata. The current ACP startup
+payload does not send a model field to `session/new` or `session/load`.
+
+The practical rule is:
+
+- use `model` in `AGENT.md` when you want AGH metadata and provider-specific wrappers to agree on
+  the intended model
+- use provider-specific environment/config files when that ACP runtime requires model selection
+  outside the AGH contract
+- start the daemon with API key environment variables already set
+
+## MCP server merge order
+
+MCP servers can be declared at several levels. Startup uses this order:
+
+1. Top-level `mcp_servers` from resolved config
+2. Provider `mcp_servers`
+3. Agent `mcp_servers`
+4. Active skill MCP servers
+
+Config/provider/agent merges are field overlays by server name. Agent-local `mcp.json` sidecars
+replace same-name inline servers as whole objects before that cross-scope merge happens.
+Configured MCP `env` values are passed through as literal strings.
+
+## Choosing a provider
+
+Use the provider that already owns your credentials and preferred workflow:
+
+| If you use                  | Start with        |
+| --------------------------- | ----------------- |
+| Claude Code                 | `claude`          |
+| Codex                       | `codex`           |
+| Gemini CLI                  | `gemini`          |
+| A local or team ACP wrapper | a custom provider |
+
+Then keep provider-specific behavior in the provider command or provider config, and keep the
+agent's role, permissions, MCP servers, and startup prompt in `AGENT.md`.
+
+## Related pages
+
+- [Agent Definitions](/runtime/agents/definitions) explains the `AGENT.md` fields that reference providers.
+- [Spawning](/runtime/agents/spawning) shows exactly how the resolved provider command becomes a running ACP process.
+- [CLI agent reference](/runtime/cli-reference/agent) lists the current `agh agent` inspection commands.

@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Automation (Jobs, Triggers, Webhooks, Runs)"
 type: docs
 complexity: medium
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 13: Docs: Automation (Jobs, Triggers, Webhooks, Runs)

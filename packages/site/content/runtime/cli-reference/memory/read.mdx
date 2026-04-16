@@ -11,6 +11,16 @@ Read a persistent memory file
 agh memory read <filename> [flags]
 ```
 
+### Examples
+
+```
+  # Read a workspace memory file
+  agh memory read runtime-notes.md --scope workspace
+
+  # Read a global memory file as JSON
+  agh memory read review-style.md --scope global -o json
+```
+
 ### Options
 
 ```

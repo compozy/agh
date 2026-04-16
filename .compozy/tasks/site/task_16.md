@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: CLI Reference (auto-generated + editorial)"
 type: docs
 complexity: low
 dependencies:
-  - task_04
+    - task_04
 ---
 
 # Task 16: Docs: CLI Reference (auto-generated + editorial)

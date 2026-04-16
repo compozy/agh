@@ -39,7 +39,7 @@ export function Hero() {
             <div className="flex items-center gap-3 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-text-tertiary)]">
               <span className="text-[var(--color-accent)]">AGH</span>
               <span className="h-px w-10 bg-[var(--color-divider)]" />
-              <span>Agent Operating System</span>
+              <span>Artificial General Hivemind</span>
             </div>
 
             <h1 className="mt-6 max-w-[14ch] text-[clamp(3.2rem,8vw,7rem)] leading-[0.88] font-normal tracking-[-0.04em] text-(--color-text-primary)">

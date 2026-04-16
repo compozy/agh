@@ -1,0 +1,232 @@
+---
+title: NATS Transport Binding
+description: Reference for the AGH Network v1 NATS binding, subject hierarchy, route tokens, connection settings, delivery semantics, request-reply, and JetStream persistence guidance.
+---
+
+The NATS binding maps AGH Network envelopes onto NATS subjects. It preserves the core semantics
+defined by [envelopes](/protocol/envelope/), [message kinds](/protocol/message-kinds/), and
+[delivery guarantees](/protocol/delivery/).
+
+This page is normative unless a section is marked as an example.
+
+<OperatorNote label="Implementation status">
+  The current AGH Runtime embeds NATS Core for v0 with subject prefix `agh.network.v0`. It does not
+  currently expose the v1 prefix, verified route tokens, external NATS configuration, or JetStream
+  persistence as a public interoperability surface.
+</OperatorNote>
+
+## Binding scope
+
+The baseline binding uses NATS Core subjects and JSON envelope payloads.
+
+| Topic             | Requirement                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| Payload           | MUST be one complete AGH Network envelope encoded as UTF-8 JSON.                        |
+| Subject prefix    | MUST be `agh.network.v1` for v1 peers.                                                  |
+| Broadcast routing | MUST use a channel broadcast subject.                                                   |
+| Directed routing  | MUST use a peer direct subject.                                                         |
+| Persistence       | Not required by the baseline binding. JetStream MAY be added as an operational profile. |
+| Request-reply     | MAY be used, but MUST NOT replace core correlation fields.                              |
+
+Peers that support both v0 and v1 MUST subscribe to both `agh.network.v0` and `agh.network.v1`
+prefixes for the channels they join.
+
+## Subject grammar
+
+Subjects use this hierarchy:
+
+```text
+agh.network.v1.<channel>.broadcast
+agh.network.v1.<channel>.peer.<route_token>
+```
+
+| Segment          | Rule                                                                             |
+| ---------------- | -------------------------------------------------------------------------------- |
+| `agh.network.v1` | Fixed protocol binding prefix.                                                   |
+| `<channel>`      | MUST match `[a-z0-9][a-z0-9_-]{0,63}`. Dots, spaces, `*`, and `>` are forbidden. |
+| `broadcast`      | Receives channel-wide messages.                                                  |
+| `peer`           | Direct routing namespace.                                                        |
+| `<route_token>`  | MUST be subject-safe and derived as described below.                             |
+
+<Mermaid
+  chart={`flowchart LR
+    Root[agh.network.v1] --> Channel[channel]
+    Channel --> Broadcast[broadcast]
+    Channel --> Peer[peer]
+    Peer --> Token[route_token]
+    Broadcast --> BMsg[Broadcast envelopes]
+    Token --> DMsg[Directed envelopes]`}
+  caption="NATS subjects separate channel broadcast traffic from peer-directed traffic."
+/>
+
+## Route tokens
+
+Each NATS peer MUST derive a route token for direct subjects.
+
+| Peer mode                                          | Route token rule                                                                  |
+| -------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Baseline verified mode with `nickname@fingerprint` | MUST use the fingerprint suffix from `from`.                                      |
+| Unverified or non-baseline mode                    | MUST use the first 32 lowercase hex characters of `SHA-256(peer_id UTF-8 bytes)`. |
+
+For a verified sender:
+
+```text
+from: patch-worker@56475aa75463474c0285df5dbf2bcab7
+route token: 56475aa75463474c0285df5dbf2bcab7
+direct subject: agh.network.v1.builders.peer.56475aa75463474c0285df5dbf2bcab7
+```
+
+For an unverified v0-style peer:
+
+```text
+peer_id: reviewer.sess-xyz
+route token: 790dd5515558f7784877abcbca51c5ba
+direct subject: agh.network.v1.builders.peer.790dd5515558f7784877abcbca51c5ba
+```
+
+The `to` field in a directed envelope MUST still contain the target peer identity, not the route
+token. The subject token is transport metadata; the envelope remains authoritative.
+
+## Subject mapping
+
+| Envelope condition | NATS subject                                  | Notes                                                                  |
+| ------------------ | --------------------------------------------- | ---------------------------------------------------------------------- |
+| `to = null`        | `agh.network.v1.<channel>.broadcast`          | Used for `greet`, broadcast `whois`, `say`, and broadcast `recipe`.    |
+| `to != null`       | `agh.network.v1.<channel>.peer.<route_token>` | Used for targeted `whois`, `direct`, `recipe`, `receipt`, and `trace`. |
+
+Sending rules:
+
+- A sender MUST publish broadcast envelopes to the channel broadcast subject.
+- A sender MUST publish directed envelopes to the target peer direct subject.
+- A sender SHOULD broadcast `greet`.
+- A sender SHOULD use direct subjects for targeted `whois`, `direct`, `receipt`, and `trace`.
+- A sender MUST preserve the envelope `to` field when publishing to a direct subject.
+
+## Joining a channel
+
+A NATS Peer joins a channel by subscribing to the required subjects and announcing presence:
+
+1. Subscribe to `agh.network.v1.<channel>.broadcast`.
+2. Subscribe to `agh.network.v1.<channel>.peer.<own_route_token>`.
+3. SHOULD publish a `greet` envelope to the broadcast subject.
+4. SHOULD publish `greet` again after reconnecting.
+
+Periodic `greet` acts as a presence heartbeat. A receiver SHOULD expire cached peer entries that
+have not refreshed within two expected greet intervals.
+
+## Connection configuration
+
+The protocol binding does not standardize a configuration file format. A NATS Peer needs these
+effective settings:
+
+| Setting         | Requirement                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------------------- |
+| Server URLs     | MUST identify one or more NATS servers.                                                                   |
+| Authentication  | SHOULD use NATS credentials, token auth, or mutually authenticated TLS when the broker is not local-only. |
+| TLS             | SHOULD be enabled for networked brokers.                                                                  |
+| Subject prefix  | MUST be `agh.network.v1` for v1 traffic.                                                                  |
+| Joined channels | MUST be known before subscriptions are created.                                                           |
+| Peer identity   | MUST be the same identity used in envelope `from`.                                                        |
+| Maximum payload | MUST support at least 1 MiB serialized envelopes.                                                         |
+
+The current AGH Runtime local configuration uses these fields:
+
+```toml
+[network]
+enabled = true
+default_channel = "default"
+port = -1
+max_payload = 1048576
+greet_interval = 30
+max_replay_age = 300
+max_queue_depth = 100
+```
+
+| Field             | Current AGH Runtime behavior                         |
+| ----------------- | ---------------------------------------------------- |
+| `enabled`         | Starts the embedded network runtime when true.       |
+| `default_channel` | Default channel for network-enabled sessions.        |
+| `port`            | `-1` auto-selects a local NATS port.                 |
+| `max_payload`     | Defaults to 1 MiB and must be positive.              |
+| `greet_interval`  | Defaults to 30 seconds.                              |
+| `max_replay_age`  | Defaults to 300 seconds for replay-window freshness. |
+| `max_queue_depth` | Defaults to 100 local inbox messages per session.    |
+
+## NATS delivery semantics
+
+The NATS binding inherits the core protocol delivery posture:
+
+| Behavior               | Baseline NATS binding                                                |
+| ---------------------- | -------------------------------------------------------------------- |
+| Broker delivery        | Best effort with NATS Core.                                          |
+| Duplicate delivery     | Possible. Receivers SHOULD deduplicate by envelope `id`.             |
+| Ordering               | No total ordering guarantee across peers or subjects.                |
+| Expiration             | Receivers MUST reject expired envelopes after delivery.              |
+| Application acceptance | Expressed with AGH Network `receipt`, not with NATS publish success. |
+| Replay                 | Not provided by baseline NATS Core.                                  |
+
+NATS publish success means the broker accepted the payload. It does not mean a target peer accepted
+the work, verified the proof, or completed the interaction.
+
+## Request-reply
+
+Implementations MAY use NATS request-reply mechanics for local convenience. Core protocol
+correlation remains authoritative.
+
+If NATS request-reply is used:
+
+- The envelope still MUST include `reply_to` when it is replying to another envelope.
+- Directed lifecycle messages still MUST include `interaction_id` when the message kind requires it.
+- `trace_id` and `causation_id` MUST remain inside the envelope when used.
+- NATS reply subjects MUST NOT be treated as a replacement for AGH Network correlation fields.
+
+## JetStream persistence profile
+
+JetStream is optional. A deployment MAY add JetStream for persistence, replay, or at-least-once
+delivery, but doing so MUST NOT change AGH Network core semantics.
+
+Recommended stream shape:
+
+```text
+stream name: AGH_NETWORK_V1
+subjects: agh.network.v1.>
+retention: limits or workqueue, according to deployment policy
+max message size: at least 1048576 bytes
+discard policy: deployment-defined
+```
+
+JetStream-specific requirements:
+
+- A JetStream publish acknowledgement means the broker persisted the envelope; it does not mean the
+  receiver accepted the work.
+- A JetStream consumer acknowledgement means the consumer processed the broker delivery; it does not
+  replace AGH Network `receipt`.
+- Replayed messages MUST pass the same envelope validation, freshness checks, trust evaluation, and
+  deduplication as live messages.
+- Redelivery MUST preserve the original envelope `id`.
+- Consumers SHOULD use durable names that include the peer identity and channel.
+- Dead-letter subjects, if used, MUST be deployment-specific and MUST NOT become part of the core
+  subject hierarchy.
+
+## Version interop
+
+| Peer capability | Required subscriptions                                          |
+| --------------- | --------------------------------------------------------------- |
+| v0 only         | `agh.network.v0.<channel>.broadcast` and its v0 direct subject. |
+| v1 only         | `agh.network.v1.<channel>.broadcast` and its v1 direct subject. |
+| v0 plus v1      | Both prefixes for each joined channel.                          |
+
+The v1 NATS prefix prevents ambiguous routing between untrusted v0 identities and verified-mode v1
+identities. A bridge between prefixes MUST preserve envelope semantics and MUST NOT rewrite proofs
+unless it re-signs as a new sender.
+
+## Security notes
+
+Transport security and message verification solve different problems.
+
+- NATS TLS or credentials authenticate a connection to the broker.
+- The Ed25519 trust profile verifies the envelope and sender handle.
+- Neither one by itself grants application authorization.
+
+Receivers MUST verify v1 proofs according to [signature verification](/protocol/verification/)
+before treating an envelope as `verified`, even if the message arrived over authenticated NATS.

@@ -11,6 +11,16 @@ Read session events
 agh session events <id> [flags]
 ```
 
+### Examples
+
+```
+  # Read the latest stored events
+  agh session events sess_1234 --last 20
+
+  # Follow new events until interrupted
+  agh session events sess_1234 --follow
+```
+
 ### Options
 
 ```

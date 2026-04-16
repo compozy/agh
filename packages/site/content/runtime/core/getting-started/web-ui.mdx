@@ -47,17 +47,17 @@ This is especially useful for long-running agent tasks where you want to monitor
 
 The web UI displays events with visual indicators for each type:
 
-| Event type | What it represents |
-|-----------|-------------------|
-| `user_message` | A prompt you sent to the agent |
-| `agent_message` | The agent's text response |
-| `thought` | The agent's internal reasoning (when supported by the provider) |
-| `tool_call` | A tool invocation requested by the agent |
-| `tool_result` | The output returned from a tool call |
-| `permission_request` | The agent asked for permission to perform an action |
-| `permission_response` | Your approval or denial of a permission request |
-| `usage` | Token count and cost for a turn |
-| `error` | An error that occurred during processing |
+| Event type            | What it represents                                              |
+| --------------------- | --------------------------------------------------------------- |
+| `user_message`        | A prompt you sent to the agent                                  |
+| `agent_message`       | The agent's text response                                       |
+| `thought`             | The agent's internal reasoning (when supported by the provider) |
+| `tool_call`           | A tool invocation requested by the agent                        |
+| `tool_result`         | The output returned from a tool call                            |
+| `permission_request`  | The agent asked for permission to perform an action             |
+| `permission_response` | Your approval or denial of a permission request                 |
+| `usage`               | Token count and cost for a turn                                 |
+| `error`               | An error that occurred during processing                        |
 
 ## Manage sessions from the browser
 
@@ -91,21 +91,21 @@ agh daemon start
 
 Everything in the web UI maps to a CLI command. If you prefer the terminal:
 
-| Web UI action | CLI equivalent |
-|--------------|---------------|
-| View sessions | `agh session list` |
-| Session details | `agh session status \<id\>` |
-| Watch events | `agh session events \<id\> --follow` |
-| Send prompt | `agh session prompt \<id\> "message"` |
-| Stop session | `agh session stop \<id\>` |
-| Resume session | `agh session resume \<id\>` |
-| Daemon health | `agh observe health` |
+| Web UI action   | CLI equivalent                        |
+| --------------- | ------------------------------------- |
+| View sessions   | `agh session list`                    |
+| Session details | `agh session status \<id\>`           |
+| Watch events    | `agh session events \<id\> --follow`  |
+| Send prompt     | `agh session prompt \<id\> "message"` |
+| Stop session    | `agh session stop \<id\>`             |
+| Resume session  | `agh session resume \<id\>`           |
+| Daemon health   | `agh observe health`                  |
 
 ## Next steps
 
 You have now completed the Getting Started tutorials. You can:
 
-- Learn about [sessions](/runtime/sessions) in depth — lifecycle, resume, events, and permissions
-- Explore [agent definitions](/runtime/agents) — providers, tools, MCP servers, and workspace scoping
-- Read the [configuration reference](/runtime/configuration) for the full TOML schema
-- Browse the [CLI reference](/runtime/reference/cli) for every command and flag
+- Learn about [sessions](/runtime/sessions/lifecycle) in depth — lifecycle, resume, events, and permissions
+- Read the [configuration reference](/runtime/core/configuration) for the runtime TOML schema and path model
+- Browse the [Session CLI reference](/runtime/cli-reference/session) for exact commands and flags
+- Browse the full [CLI reference](/runtime/cli-reference) for the rest of the daemon surface

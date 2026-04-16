@@ -1,0 +1,246 @@
+---
+title: Daemon Operations
+description: Start, stop, restart, inspect, and supervise the AGH daemon.
+---
+
+# Daemon Operations
+
+Use this guide when you need to run AGH as a long-lived daemon, inspect whether it is healthy, or
+install it under a service manager.
+
+<OperatorNote>
+  The daemon is the singleton runtime for one `AGH_HOME`. By default `AGH_HOME` is `~/.agh`; set the
+  environment variable before running `agh` when you want a different home directory.
+</OperatorNote>
+
+## Start the daemon
+
+Start AGH in the background:
+
+```bash
+agh daemon start
+```
+
+The CLI starts a detached child process, redirects the child stdout and stderr to
+`$AGH_HOME/logs/agh.log`, and waits for daemon readiness. Readiness is checked by polling the daemon
+status API every 100 ms for up to 15 seconds.
+
+Use foreground mode when you are debugging startup or when a service manager should own the process:
+
+```bash
+agh daemon start --foreground
+```
+
+Foreground mode keeps the daemon attached to the terminal. It exits when the process receives
+`SIGINT`, `SIGTERM`, or when its parent context is cancelled.
+
+## Check status and health
+
+Use `agh daemon status` for the process-level status:
+
+```bash
+agh daemon status
+agh daemon status --output json
+```
+
+The command first calls `/api/daemon/status` over the Unix domain socket. If the socket is not
+available, it falls back to `$AGH_HOME/daemon.json` and verifies whether the recorded PID is alive.
+
+Use `agh observe health` for the runtime health snapshot:
+
+```bash
+agh observe health
+agh observe health --output json
+```
+
+The health command reports active session counts, active agent counts, global database size,
+session database size, uptime, and version.
+
+If HTTP is enabled on the default host and port, the same data is available over HTTP:
+
+```bash
+curl -s http://localhost:2123/api/daemon/status | jq '.daemon'
+curl -s http://localhost:2123/api/observe/health | jq '.health'
+```
+
+<Mermaid
+  chart={`flowchart LR
+  CLI["agh daemon status"] --> UDS["$AGH_HOME/daemon.sock"]
+  UDS --> Status["/api/daemon/status"]
+  CLI --> Fallback["daemon.json + PID check"]
+  Health["agh observe health"] --> Observe["/api/observe/health"]
+  HTTP["curl localhost:2123"] --> Status
+  HTTP --> Observe`}
+  caption="Status is process discovery; health is the deeper runtime snapshot."
+/>
+
+## Stop and restart the daemon
+
+Stop the daemon cleanly:
+
+```bash
+agh daemon stop
+```
+
+The CLI reads `$AGH_HOME/daemon.json`, verifies that the PID is alive, sends `SIGTERM`, and waits up
+to 15 seconds for the daemon to disappear.
+
+Restart by stopping and starting:
+
+```bash
+agh daemon stop
+agh daemon start
+```
+
+During daemon shutdown, AGH stops runtime workers, extensions, automation, active sessions, HTTP,
+UDS, bridges, network runtime, hooks, and then closes persistent resources. The default daemon
+shutdown context is 10 seconds.
+
+## Know the runtime files
+
+| File                     | Purpose                                                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `$AGH_HOME/daemon.lock`  | Advisory flock used to prevent two daemons from managing the same home directory.                      |
+| `$AGH_HOME/daemon.json`  | Discovery file with PID, HTTP port, start time, and optional network diagnostics.                      |
+| `$AGH_HOME/daemon.sock`  | Unix domain socket for local CLI and API traffic.                                                      |
+| `$AGH_HOME/logs/agh.log` | Structured daemon log file and detached child stdout/stderr target.                                    |
+| `$AGH_HOME/agh.db`       | Global SQLite catalog for sessions, workspaces, automation, bridges, extensions, tasks, and summaries. |
+| `$AGH_HOME/sessions/`    | Per-session directories with event databases and metadata.                                             |
+
+See [File Locations](/runtime/reference/file-locations) for the full home directory map.
+
+## Understand the lock file
+
+AGH acquires `$AGH_HOME/daemon.lock` before opening the global database or starting servers. The lock
+uses an operating-system advisory file lock and stores the daemon PID in the lock file.
+
+When another process already owns the lock, startup fails with a singleton error such as:
+
+```text
+daemon: already running with pid 12345
+```
+
+When the prior PID is stale, boot records that stale PID, removes the stale socket path, and tries to
+clean up orphan child processes whose parent was the old daemon PID. Do not delete `daemon.lock`
+while a daemon is alive; use `agh daemon stop` so AGH can shut down sessions and release the lock.
+
+## Manage logs
+
+Tail the daemon log:
+
+```bash
+export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+tail -f "$AGH_HOME/logs/agh.log"
+```
+
+The default log level is `info`. Supported levels are `debug`, `info`, `warn`, and `error`; configure
+them in [config.toml](/runtime/reference/config-toml).
+
+Detached startup appends child stdout and stderr to the same file. If the detached child exits before
+readiness, the CLI returns the recent log text and prefers a recent line beginning with `error:`.
+
+## Manage the Unix socket
+
+The default socket is `$AGH_HOME/daemon.sock`. You can override it with `[daemon].socket` in
+`config.toml`; `~` is expanded during config loading.
+
+The UDS server:
+
+- creates the socket parent directory when needed
+- removes an existing stale Unix socket before listening
+- refuses to replace an existing non-socket file at the same path
+- chmods the live socket to `0600`
+- removes the socket during shutdown
+
+The CLI must run as a user that can access the configured socket. In normal installations, run the
+daemon and CLI as the same OS user.
+
+## Run under systemd
+
+Use foreground mode under systemd so systemd owns the daemon process directly:
+
+```ini
+[Unit]
+Description=AGH daemon
+After=network.target
+
+[Service]
+Type=simple
+User=agh
+Group=agh
+Environment=AGH_HOME=/var/lib/agh
+EnvironmentFile=-/etc/agh/agh.env
+ExecStart=/usr/local/bin/agh daemon start --foreground
+ExecStop=/usr/local/bin/agh daemon stop
+Restart=on-failure
+RestartSec=3
+WorkingDirectory=/var/lib/agh
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Install and start it:
+
+```bash
+sudo install -d -o agh -g agh -m 0750 /var/lib/agh /etc/agh
+sudo systemctl daemon-reload
+sudo systemctl enable --now agh
+sudo systemctl status agh
+```
+
+Put provider API keys, path overrides, and other daemon environment variables in
+`/etc/agh/agh.env`. Agent subprocesses inherit the daemon environment.
+
+## Run under launchd
+
+On macOS, run the foreground command from a user LaunchAgent:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.agh.daemon</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/agh</string>
+    <string>daemon</string>
+    <string>start</string>
+    <string>--foreground</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>AGH_HOME</key>
+    <string>/Users/you/.agh</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/you/.agh/logs/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/you/.agh/logs/launchd.err.log</string>
+</dict>
+</plist>
+```
+
+Load it:
+
+```bash
+mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.agh/logs"
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/dev.agh.daemon.plist"
+launchctl print "gui/$(id -u)/dev.agh.daemon"
+```
+
+## Related pages
+
+- [Database Operations](/runtime/operations/database) covers the SQLite files under `AGH_HOME`.
+- [Troubleshooting](/runtime/operations/troubleshooting) lists common daemon startup and socket failures.
+- [CLI Daemon Reference](/runtime/cli-reference/daemon) lists the exact daemon command surface.

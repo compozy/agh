@@ -35,7 +35,12 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List locally available skills",
-		Args:  cobra.NoArgs,
+		Example: `  # List every skill visible in the current workspace
+  agh skill list
+
+  # Show only bundled skills
+  agh skill list --source bundled`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, err := loadSkillCommandContext(cmd.Context(), deps)
 			if err != nil {
@@ -65,7 +70,12 @@ func newSkillViewCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "view <name>",
 		Short: "Read a skill or one of its resource files",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Render a skill as the XML block injected into agents
+  agh skill view code-review
+
+  # Read a resource file inside a skill directory
+  agh skill view code-review --file references/checklist.md`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := loadSkillCommandContext(cmd.Context(), deps)
 			if err != nil {
@@ -126,7 +136,9 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "info <name>",
 		Short: "Show detailed metadata for one skill",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Inspect a skill's metadata and resource list
+  agh skill info code-review`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, err := loadSkillCommandContext(cmd.Context(), deps)
 			if err != nil {
@@ -163,7 +175,9 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "create [name]",
 		Short: "Scaffold a new workspace skill",
-		Args:  cobra.MaximumNArgs(1),
+		Example: `  # Create .agh/skills/api-review/SKILL.md in the current workspace
+  agh skill create api-review`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := defaultSkillName
 			if len(args) == 1 {
@@ -218,7 +232,12 @@ func newSkillSearchCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "search <query>",
 		Short: "Search marketplace skills",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Search the configured marketplace
+  agh skill search "code review"
+
+  # Limit marketplace results
+  agh skill search testing --limit 5`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			results, err := searchMarketplaceSkills(cmd.Context(), deps, args[0], limit)
 			if err != nil {
@@ -235,7 +254,9 @@ func newSkillInstallCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install <slug>",
 		Short: "Install a marketplace skill",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Install the latest marketplace version of a skill
+  agh skill install @acme/code-review`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			slug, err := normalizeSkillSlug(args[0])
 			if err != nil {
@@ -264,7 +285,9 @@ func newSkillRemoveCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <name>",
 		Short: "Remove an installed marketplace skill",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Remove a marketplace-installed skill by local name
+  agh skill remove code-review`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, err := normalizeSkillName(args[0])
 			if err != nil {
@@ -293,6 +316,11 @@ func newSkillUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update [name]",
 		Short: "Check for or install updates for marketplace skills",
+		Example: `  # Check whether one installed skill has an update
+  agh skill update code-review --check
+
+  # Update every marketplace-installed skill
+  agh skill update --all`,
 		Args: func(_ *cobra.Command, args []string) error {
 			if updateAll && len(args) > 0 {
 				return errors.New("cli: update accepts either a skill name or --all, not both")

@@ -1,0 +1,5 @@
+{
+    "title": "Automation",
+    "icon": "Activity",
+    "pages": ["jobs", "triggers", "webhooks"]
+}

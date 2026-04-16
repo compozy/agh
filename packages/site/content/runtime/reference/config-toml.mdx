@@ -1,0 +1,497 @@
+---
+title: config.toml Reference
+description: Complete AGH config.toml schema, defaults, valid values, merge behavior, and annotated examples.
+icon: Settings
+---
+
+# config.toml Reference
+
+`config.toml` is the main AGH runtime configuration file. AGH loads the built-in defaults, then
+overlays global and workspace files when they exist.
+
+| File                           | Scope                 | Loaded when                                                        |
+| ------------------------------ | --------------------- | ------------------------------------------------------------------ |
+| `$AGH_HOME/config.toml`        | Global                | Every config load. Defaults to `~/.agh/config.toml`.               |
+| `$AGH_HOME/mcp.json`           | Global MCP sidecar    | After global TOML.                                                 |
+| `<workspace>/.agh/config.toml` | Workspace overlay     | Only when a workspace root is resolved for the session or command. |
+| `<workspace>/.agh/mcp.json`    | Workspace MCP sidecar | After workspace TOML.                                              |
+
+Unknown TOML keys are errors. There is no implemented `[environments.*]` section today; adding one
+will fail config loading as an unknown key.
+
+<OperatorNote>
+  Workspace `.env` files are loaded before AGH resolves `$AGH_HOME`. This means
+  `<workspace>/.env` can set `AGH_HOME` for that workspace before the global config file path is
+  chosen.
+</OperatorNote>
+
+## Quick Reference
+
+| Section                       | Purpose                                                              | Default                                                    |
+| ----------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `[daemon]`                    | Unix domain socket path for CLI and UDS API traffic.                 | `socket = "$AGH_HOME/daemon.sock"`                         |
+| `[http]`                      | HTTP and SSE bind address.                                           | `host = "localhost"`, `port = 2123`                        |
+| `[defaults]`                  | Default agent and provider resolution.                               | `agent = "general"`, `provider = ""`                       |
+| `[limits]`                    | Daemon-level session and agent caps.                                 | `max_sessions = 10`, `max_concurrent_agents = 20`          |
+| `[session.limits]`            | Session-scoped timeout.                                              | `timeout = "0s"`                                           |
+| `[permissions]`               | Default permission mode.                                             | `mode = "approve-all"`                                     |
+| `[[mcp_servers]]`             | Top-level MCP servers passed to agents.                              | empty list                                                 |
+| `[providers.<name>]`          | Built-in provider override or custom provider definition.            | empty map plus built-ins                                   |
+| `[observability]`             | Event summary retention and global byte cap.                         | enabled, 7 days, 1 GiB                                     |
+| `[observability.transcripts]` | Transcript segment sizing and per-session cap.                       | enabled, 1 MiB segments, 256 MiB per session               |
+| `[log]`                       | Structured log level.                                                | `level = "info"`                                           |
+| `[memory]`                    | Persistent memory runtime and global memory directory.               | enabled, `$AGH_HOME/memory`                                |
+| `[memory.dream]`              | Background memory consolidation.                                     | enabled, agent `general`, 24 hours, 3 sessions, 30 minutes |
+| `[skills]`                    | Skill discovery, polling, disable list, and marketplace trust gates. | enabled, poll every 3 seconds                              |
+| `[skills.marketplace]`        | Skill registry override.                                             | unset                                                      |
+| `[extensions.marketplace]`    | Extension registry override.                                         | unset                                                      |
+| `[automation]`                | Automation scheduler defaults.                                       | enabled, UTC, 5 concurrent jobs                            |
+| `[[automation.jobs]]`         | Scheduled automation jobs.                                           | empty list                                                 |
+| `[[automation.triggers]]`     | Event-driven automation triggers.                                    | empty list                                                 |
+| `[[hooks.declarations]]`      | Config-defined runtime hooks.                                        | empty list                                                 |
+| `[network]`                   | Experimental AGH network runtime.                                    | disabled, channel `default`                                |
+
+## Load And Merge Order
+
+| Order | Source                            | Merge behavior                                                                            |
+| ----- | --------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1     | Built-in defaults                 | Base config.                                                                              |
+| 2     | `$AGH_HOME/config.toml`           | Scalar fields replace defaults. TOML MCP and provider MCP entries merge by `name`.        |
+| 3     | `$AGH_HOME/mcp.json`              | Same-name MCP servers replace the whole server object.                                    |
+| 4     | `<workspace>/.agh/config.toml`    | Workspace overlay applies over global config.                                             |
+| 5     | `<workspace>/.agh/mcp.json`       | Same-name MCP servers replace the whole server object after workspace TOML.               |
+| 6     | Path normalization and validation | `~` is expanded for `daemon.socket` and `memory.global_dir`; invalid values fail startup. |
+
+TOML `[[mcp_servers]]` entries merge fields by `name`: non-empty `command`, non-empty `args`, and
+new `env` keys overlay the existing server. JSON sidecars replace same-name servers as whole
+objects.
+
+Daemon boot uses the home config for boot-time daemon settings. The general config loader applies
+global and workspace MCP sidecars for session and runtime resolution.
+
+## Complete Annotated Example
+
+```toml
+# ~/.agh/config.toml
+
+[daemon]
+# Path to the Unix domain socket used by AGH CLI commands.
+socket = "~/.agh/daemon.sock"
+
+[http]
+# HTTP/SSE API bind address.
+host = "localhost"
+port = 2123
+
+[defaults]
+# Agent name used when a command or API request does not specify one.
+agent = "general"
+# Provider used by AGENT.md files that omit provider.
+provider = "claude"
+
+[limits]
+# Positive daemon-wide limits.
+max_sessions = 10
+max_concurrent_agents = 20
+
+[session.limits]
+# 0 means no configured timeout. Use Go durations such as "30m" or "2h".
+timeout = "0s"
+
+[permissions]
+# Valid values: deny-all, approve-reads, approve-all.
+mode = "approve-all"
+
+[[mcp_servers]]
+name = "filesystem"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/Users/you/work"]
+env = { LOG_LEVEL = "info" }
+
+[providers.claude]
+# Overrides the built-in Claude provider command/model/key environment variable.
+command = "npx -y @agentclientprotocol/claude-agent-acp@0.24.2"
+default_model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+
+[[providers.claude.mcp_servers]]
+name = "github"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+env = { GITHUB_TOKEN = "replace-with-real-token" }
+
+[observability]
+enabled = true
+retention_days = 7
+max_global_bytes = 1073741824
+
+[observability.transcripts]
+enabled = true
+segment_bytes = 1048576
+max_bytes_per_session = 268435456
+
+[log]
+level = "info"
+
+[memory]
+enabled = true
+global_dir = "~/.agh/memory"
+
+[memory.dream]
+enabled = true
+agent = "general"
+min_hours = 24
+min_sessions = 3
+check_interval = "30m"
+
+[skills]
+enabled = true
+disabled_skills = ["experimental-skill"]
+poll_interval = "3s"
+allowed_marketplace_mcp = ["clawhub:@team/search-skill"]
+allowed_marketplace_hooks = ["clawhub:@team/format-hook"]
+
+[skills.marketplace]
+registry = "clawhub"
+base_url = "https://registry.example.com"
+
+[extensions.marketplace]
+registry = "github"
+base_url = "https://api.github.com"
+
+[automation]
+enabled = true
+timezone = "UTC"
+max_concurrent_jobs = 5
+default_fire_limit = { max = 12, window = "1h" }
+
+[[automation.jobs]]
+scope = "workspace"
+name = "daily-doc-check"
+agent = "docs"
+workspace = "workspace-id-or-path"
+prompt = "Review changed docs and report stale links."
+enabled = true
+fire_limit = { max = 2, window = "24h" }
+
+[automation.jobs.schedule]
+mode = "cron"
+expr = "0 9 * * 1-5"
+
+[automation.jobs.retry]
+strategy = "backoff"
+max_retries = 3
+base_delay = "2s"
+
+[[automation.triggers]]
+scope = "global"
+name = "permission-audit"
+agent = "general"
+prompt = "Summarize permission decisions from {{ .Kind }}."
+event = "permission.resolved"
+enabled = true
+
+[automation.triggers.filter]
+kind = "permission"
+
+[[hooks.declarations]]
+name = "record-session-start"
+event = "session.post_create"
+mode = "async"
+required = false
+priority = 500
+timeout = "5s"
+command = "printf"
+args = ["session started\n"]
+env = { HOOK_LOG = "1" }
+
+[hooks.declarations.matcher]
+agent_name = "general"
+
+[network]
+enabled = false
+default_channel = "default"
+port = -1
+max_payload = 1048576
+greet_interval = 30
+max_replay_age = 300
+max_queue_depth = 100
+```
+
+## `[daemon]`
+
+| Field    | Type        | Default                 | Valid values                     | Description                                                |
+| -------- | ----------- | ----------------------- | -------------------------------- | ---------------------------------------------------------- |
+| `socket` | string path | `$AGH_HOME/daemon.sock` | Non-empty path. `~` is expanded. | Unix domain socket used by CLI IPC and the UDS API server. |
+
+## `[http]`
+
+| Field  | Type    | Default     | Valid values                    | Description           |
+| ------ | ------- | ----------- | ------------------------------- | --------------------- |
+| `host` | string  | `localhost` | Non-empty host or bind address. | HTTP/SSE server host. |
+| `port` | integer | `2123`      | `1` through `65535`             | HTTP/SSE server port. |
+
+## `[defaults]`
+
+| Field      | Type   | Default   | Valid values                                       | Description                                                                                                        |
+| ---------- | ------ | --------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `agent`    | string | `general` | Non-empty agent name.                              | Agent selected when a command or API request omits an agent.                                                       |
+| `provider` | string | empty     | Built-in provider name or configured provider key. | Provider selected when an `AGENT.md` omits `provider`. Empty is valid until an agent without provider is resolved. |
+
+## `[limits]`
+
+| Field                   | Type    | Default | Valid values      | Description                                                    |
+| ----------------------- | ------- | ------- | ----------------- | -------------------------------------------------------------- |
+| `max_sessions`          | integer | `10`    | Positive integer. | Daemon-wide cap for sessions retained in active runtime state. |
+| `max_concurrent_agents` | integer | `20`    | Positive integer. | Daemon-wide cap for concurrently running agent subprocesses.   |
+
+## `[session.limits]`
+
+| Field     | Type     | Default | Valid values                  | Description                                              |
+| --------- | -------- | ------- | ----------------------------- | -------------------------------------------------------- |
+| `timeout` | duration | `0s`    | Zero or positive Go duration. | Session-level timeout. Zero means no configured timeout. |
+
+## `[permissions]`
+
+| Field  | Type   | Default       | Valid values                               | Description                                                                              |
+| ------ | ------ | ------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `mode` | string | `approve-all` | `deny-all`, `approve-reads`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`. |
+
+## `[[mcp_servers]]`
+
+Top-level MCP servers are merged with provider, agent, and skill MCP servers during session startup.
+
+| Field     | Type         | Default  | Valid values              | Description                                                                                |
+| --------- | ------------ | -------- | ------------------------- | ------------------------------------------------------------------------------------------ |
+| `name`    | string       | required | Non-empty after trimming. | Stable server key used for merge and replacement.                                          |
+| `command` | string       | required | Non-empty command.        | Executable command for the MCP server.                                                     |
+| `args`    | string array | empty    | Strings.                  | Process arguments passed to the command.                                                   |
+| `env`     | string map   | empty    | String keys and values.   | Literal environment values passed to the MCP server. AGH does not perform shell expansion. |
+
+## `[providers.<name>]`
+
+Provider keys override built-ins with the same name or create a custom provider. Built-ins are:
+`claude`, `codex`, `gemini`, `opencode`, `copilot`, `cursor`, `kiro`, and `pi`.
+
+| Field           | Type                        | Default                                                            | Valid values                                      | Description                                                                                      |
+| --------------- | --------------------------- | ------------------------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `command`       | string                      | Built-in command or empty for custom providers.                    | Required after built-in plus override resolution. | ACP launch command for this provider.                                                            |
+| `default_model` | string                      | Built-in model or empty.                                           | Any string.                                       | Model used when an agent omits `model`.                                                          |
+| `api_key_env`   | string                      | Built-in key env for `claude`, `codex`, `gemini`; empty otherwise. | Environment variable name.                        | Metadata naming the API key variable the provider expects. AGH does not validate that it is set. |
+| `mcp_servers`   | array of MCP server objects | empty                                                              | Same shape as `[[mcp_servers]]`.                  | Provider-specific MCP servers merged after top-level config and before agent MCP servers.        |
+
+| Built-in   | Command                                               | Default model              | API key env         |
+| ---------- | ----------------------------------------------------- | -------------------------- | ------------------- |
+| `claude`   | `npx -y @agentclientprotocol/claude-agent-acp@0.24.2` | `claude-sonnet-4-20250514` | `ANTHROPIC_API_KEY` |
+| `codex`    | `npx @zed-industries/codex-acp@0.10.0`                | `gpt-4o`                   | `OPENAI_API_KEY`    |
+| `gemini`   | `gemini --acp`                                        | `gemini-2.5-pro`           | `GEMINI_API_KEY`    |
+| `opencode` | `npx -y opencode-ai acp`                              | empty                      | empty               |
+| `copilot`  | `copilot --acp --stdio`                               | empty                      | empty               |
+| `cursor`   | `cursor-agent acp`                                    | empty                      | empty               |
+| `kiro`     | `kiro-cli-chat acp`                                   | empty                      | empty               |
+| `pi`       | `npx pi-acp@0.0.22`                                   | empty                      | empty               |
+
+## `[observability]`
+
+| Field              | Type    | Default      | Valid values      | Description                                                |
+| ------------------ | ------- | ------------ | ----------------- | ---------------------------------------------------------- |
+| `enabled`          | boolean | `true`       | `true` or `false` | Enables global event summary and health observation paths. |
+| `retention_days`   | integer | `7`          | Positive integer. | Retention window for global event summaries.               |
+| `max_global_bytes` | integer | `1073741824` | Positive integer. | Size cap for global observability storage.                 |
+
+## `[observability.transcripts]`
+
+| Field                   | Type    | Default     | Valid values      | Description                                               |
+| ----------------------- | ------- | ----------- | ----------------- | --------------------------------------------------------- |
+| `enabled`               | boolean | `true`      | `true` or `false` | Enables transcript capture from persisted session events. |
+| `segment_bytes`         | integer | `1048576`   | Positive integer. | Segment size for transcript retention.                    |
+| `max_bytes_per_session` | integer | `268435456` | Positive integer. | Per-session transcript byte cap.                          |
+
+## `[log]`
+
+| Field   | Type   | Default | Valid values                     | Description                  |
+| ------- | ------ | ------- | -------------------------------- | ---------------------------- |
+| `level` | string | `info`  | `debug`, `info`, `warn`, `error` | Structured daemon log level. |
+
+## `[memory]`
+
+| Field        | Type        | Default            | Valid values                              | Description                                                                      |
+| ------------ | ----------- | ------------------ | ----------------------------------------- | -------------------------------------------------------------------------------- |
+| `enabled`    | boolean     | `true`             | `true` or `false`                         | Enables memory assembly and consolidation runtime paths.                         |
+| `global_dir` | string path | `$AGH_HOME/memory` | Non-empty path when set. `~` is expanded. | Global memory directory. Blank overlays are ignored and keep the previous value. |
+
+## `[memory.dream]`
+
+If `enabled = false`, the remaining dream validation is skipped.
+
+| Field            | Type     | Default   | Valid values            | Description                                           |
+| ---------------- | -------- | --------- | ----------------------- | ----------------------------------------------------- |
+| `enabled`        | boolean  | `true`    | `true` or `false`       | Enables background dream consolidation.               |
+| `agent`          | string   | `general` | Non-empty when enabled. | Agent used for consolidation sessions.                |
+| `min_hours`      | float    | `24`      | Positive number.        | Minimum age threshold before consolidation.           |
+| `min_sessions`   | integer  | `3`       | Positive integer.       | Minimum session count threshold before consolidation. |
+| `check_interval` | duration | `30m`     | Positive Go duration.   | Background check interval.                            |
+
+## `[skills]`
+
+If `enabled = false`, skill polling and marketplace validation are skipped.
+
+| Field                       | Type         | Default | Valid values                                         | Description                                                     |
+| --------------------------- | ------------ | ------- | ---------------------------------------------------- | --------------------------------------------------------------- |
+| `enabled`                   | boolean      | `true`  | `true` or `false`                                    | Enables skill catalog discovery and polling.                    |
+| `disabled_skills`           | string array | empty   | Skill names.                                         | Replaces the disabled-skill list in overlays.                   |
+| `poll_interval`             | duration     | `3s`    | Positive Go duration.                                | Filesystem poll interval for skill catalog refresh.             |
+| `allowed_marketplace_mcp`   | string array | empty   | Marketplace slug, `registry:slug`, or verified hash. | Trust allowlist for MCP servers declared by marketplace skills. |
+| `allowed_marketplace_hooks` | string array | empty   | Marketplace slug, `registry:slug`, or verified hash. | Trust allowlist for hooks declared by marketplace skills.       |
+
+## `[skills.marketplace]`
+
+| Field      | Type       | Default | Valid values                                         | Description                         |
+| ---------- | ---------- | ------- | ---------------------------------------------------- | ----------------------------------- |
+| `registry` | string     | empty   | Empty or `clawhub`. Required when `base_url` is set. | Skill marketplace registry adapter. |
+| `base_url` | string URL | empty   | Empty or `http` or `https` URL with host.            | Registry base URL override.         |
+
+## `[extensions.marketplace]`
+
+| Field      | Type       | Default | Valid values                                        | Description                                                        |
+| ---------- | ---------- | ------- | --------------------------------------------------- | ------------------------------------------------------------------ |
+| `registry` | string     | empty   | Empty or `github`. Required when `base_url` is set. | Extension marketplace registry adapter.                            |
+| `base_url` | string URL | empty   | Empty or `http` or `https` URL with host.           | Registry base URL override. `http` is accepted but logs a warning. |
+
+## `[automation]`
+
+| Field                 | Type    | Default                       | Valid values                                                        | Description                                                                         |
+| --------------------- | ------- | ----------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `enabled`             | boolean | `true`                        | `true` or `false`                                                   | Enables config-defined automation jobs and triggers.                                |
+| `timezone`            | string  | `UTC`                         | IANA timezone loadable by Go, such as `UTC` or `America/Sao_Paulo`. | Schedule timezone for automation.                                                   |
+| `max_concurrent_jobs` | integer | `5`                           | Positive integer.                                                   | Global automation concurrency cap.                                                  |
+| `default_fire_limit`  | object  | `{ max = 12, window = "1h" }` | `max` positive, `window` positive Go duration.                      | Default rolling fire limit copied into jobs and triggers that omit their own limit. |
+
+## `[[automation.jobs]]`
+
+Jobs are appended by overlays; they do not replace earlier jobs with the same name.
+
+| Field                  | Type    | Default                                                            | Valid values                                              | Description                                                                       |
+| ---------------------- | ------- | ------------------------------------------------------------------ | --------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `scope`                | string  | required                                                           | `global` or `workspace`                                   | Binding scope.                                                                    |
+| `name`                 | string  | required                                                           | Non-empty.                                                | Job name.                                                                         |
+| `agent`                | string  | required unless `task` is configured                               | Non-empty.                                                | Agent that handles the scheduled prompt.                                          |
+| `workspace`            | string  | required when `scope = "workspace"`, empty when `scope = "global"` | Workspace ID or root accepted by the automation resolver. | Workspace binding.                                                                |
+| `prompt`               | string  | required unless `task` is configured                               | Non-empty.                                                | Prompt submitted when the job fires.                                              |
+| `schedule.mode`        | string  | required                                                           | `cron`, `every`, `at`                                     | Schedule mode.                                                                    |
+| `schedule.expr`        | string  | empty                                                              | Required only for `cron`; standard five-field cron.       | Cron expression.                                                                  |
+| `schedule.interval`    | string  | empty                                                              | Required only for `every`; positive Go duration.          | Repeating interval.                                                               |
+| `schedule.time`        | string  | empty                                                              | Required only for `at`; RFC3339 timestamp.                | One-shot fire time.                                                               |
+| `task.title`           | string  | empty                                                              | Any string.                                               | Task title when the job materializes a task instead of starting an agent session. |
+| `task.description`     | string  | empty                                                              | Any string.                                               | Task description.                                                                 |
+| `task.owner`           | object  | empty                                                              | Task ownership object.                                    | Owner metadata validated by the task package.                                     |
+| `task.network_channel` | string  | empty                                                              | Valid network channel.                                    | Network channel attached to generated tasks.                                      |
+| `enabled`              | boolean | `true`                                                             | `true` or `false`                                         | Enables this job.                                                                 |
+| `retry.strategy`       | string  | `none`                                                             | `none` or `backoff`                                       | Retry behavior. Must be `none` when `task` is configured.                         |
+| `retry.max_retries`    | integer | `0`                                                                | `0` for `none`; positive for `backoff`.                   | Maximum retry count.                                                              |
+| `retry.base_delay`     | string  | empty                                                              | Empty for `none`; positive Go duration for `backoff`.     | Base backoff delay.                                                               |
+| `fire_limit`           | object  | `[automation].default_fire_limit`                                  | `max` positive, `window` positive Go duration.            | Per-job fire limit.                                                               |
+
+## `[[automation.triggers]]`
+
+Triggers are appended by overlays; they do not replace earlier triggers with the same name.
+
+| Field                | Type       | Default                                                            | Valid values                                                                                       | Description                                         |
+| -------------------- | ---------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `scope`              | string     | required                                                           | `global` or `workspace`                                                                            | Binding scope.                                      |
+| `name`               | string     | required                                                           | Non-empty.                                                                                         | Trigger name.                                       |
+| `agent`              | string     | required                                                           | Non-empty.                                                                                         | Agent that handles the trigger prompt.              |
+| `workspace`          | string     | required when `scope = "workspace"`, empty when `scope = "global"` | Workspace ID or root accepted by the automation resolver.                                          | Workspace binding.                                  |
+| `prompt`             | string     | required                                                           | Valid Go template over the activation envelope.                                                    | Prompt submitted when the trigger fires.            |
+| `event`              | string     | required                                                           | Non-empty; `webhook` has extra requirements.                                                       | Event name.                                         |
+| `filter`             | string map | empty                                                              | Keys `kind`, `scope`, `workspace_id`, `source`, or `data.<field>`; values non-empty.               | Activation-envelope filter.                         |
+| `enabled`            | boolean    | `true`                                                             | `true` or `false`                                                                                  | Enables this trigger.                               |
+| `retry.strategy`     | string     | `none`                                                             | `none` or `backoff`                                                                                | Retry behavior.                                     |
+| `retry.max_retries`  | integer    | `0`                                                                | `0` for `none`; positive for `backoff`.                                                            | Maximum retry count.                                |
+| `retry.base_delay`   | string     | empty                                                              | Empty for `none`; positive Go duration for `backoff`.                                              | Base backoff delay.                                 |
+| `fire_limit`         | object     | `[automation].default_fire_limit`                                  | `max` positive, `window` positive Go duration.                                                     | Per-trigger fire limit.                             |
+| `endpoint_slug`      | string     | empty                                                              | Required when `event = "webhook"`; empty otherwise.                                                | Webhook endpoint slug.                              |
+| `webhook_secret_env` | string     | empty                                                              | Required when `event = "webhook"` and must name a non-empty environment variable; empty otherwise. | Environment variable that holds the webhook secret. |
+
+## `[[hooks.declarations]]`
+
+Config hooks merge by `name`; a later overlay replaces the whole hook declaration with the same
+name.
+
+| Field              | Type         | Default                                             | Valid values                                                          | Description                                                           |
+| ------------------ | ------------ | --------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `name`             | string       | required                                            | Non-empty.                                                            | Hook declaration name.                                                |
+| `event`            | string       | required                                            | Current dot-form hook event.                                          | Event that triggers the hook.                                         |
+| `mode`             | string       | `async`                                             | `sync` or `async`; `sync` only for sync-eligible events.              | Dispatch mode.                                                        |
+| `required`         | boolean      | `false`                                             | `true` or `false`; required hooks must be `sync`.                     | Whether a hook failure blocks the source operation.                   |
+| `priority`         | integer      | Config source default `500` when omitted.           | Integer.                                                              | Ordering priority.                                                    |
+| `timeout`          | duration     | `0s`; subprocess executor uses 5 seconds when zero. | Non-negative Go duration.                                             | Hook timeout.                                                         |
+| `matcher`          | object       | empty                                               | Supported matcher fields listed below.                                | Narrows hook eligibility.                                             |
+| `command`          | string       | empty                                               | Required for subprocess hooks unless nested executor fields are used. | Subprocess command.                                                   |
+| `args`             | string array | empty                                               | Strings.                                                              | Subprocess arguments.                                                 |
+| `env`              | string map   | empty                                               | String keys and values.                                               | Explicit hook environment values.                                     |
+| `executor.kind`    | string       | `subprocess` when a command is present.             | `subprocess` or `wasm` for user config. `native` is internal only.    | Executor kind.                                                        |
+| `executor.command` | string       | empty                                               | Same as `command`.                                                    | Nested command form. Cannot be mixed with top-level command/args/env. |
+| `executor.args`    | string array | empty                                               | Strings.                                                              | Nested args form.                                                     |
+| `executor.env`     | string map   | empty                                               | String keys and values.                                               | Nested env form.                                                      |
+
+Supported matcher fields are `agent_name`, `agent_type`, `workspace_id`, `workspace_root`,
+`session_type`, `input_class`, `acp_event_type`, `turn_id`, `tool_name`, `tool_namespace`,
+`tool_read_only`, `decision_class`, `message_role`, `message_delta_type`, `compaction_reason`, and
+`compaction_strategy`.
+
+Current hook events are:
+
+```text
+session.pre_create
+session.post_create
+session.pre_resume
+session.post_resume
+session.pre_stop
+session.post_stop
+input.pre_submit
+prompt.post_assemble
+event.pre_record
+event.post_record
+automation.job.pre_fire
+automation.job.post_fire
+automation.trigger.pre_fire
+automation.trigger.post_fire
+automation.run.completed
+automation.run.failed
+agent.pre_start
+agent.spawned
+agent.crashed
+agent.stopped
+turn.start
+turn.end
+message.start
+message.delta
+message.end
+tool.pre_call
+tool.post_call
+tool.post_error
+permission.request
+permission.resolved
+permission.denied
+context.pre_compact
+context.post_compact
+```
+
+## `[network]`
+
+| Field             | Type            | Default   | Valid values                                   | Description                                          |
+| ----------------- | --------------- | --------- | ---------------------------------------------- | ---------------------------------------------------- |
+| `enabled`         | boolean         | `false`   | `true` or `false`                              | Enables the embedded AGH network runtime.            |
+| `default_channel` | string          | `default` | Regex `^[a-z0-9][a-z0-9_-]{0,63}$`             | Default network channel for sessions.                |
+| `port`            | integer         | `-1`      | `-1` or `1` through `65535`                    | Network listener port. `-1` lets the runtime choose. |
+| `max_payload`     | integer bytes   | `1048576` | Positive integer no greater than `2147483647`. | Maximum network payload size.                        |
+| `greet_interval`  | integer seconds | `30`      | Positive integer seconds.                      | Peer greeting interval.                              |
+| `max_replay_age`  | integer seconds | `300`     | Positive integer seconds.                      | Maximum replay window for network messages.          |
+| `max_queue_depth` | integer         | `100`     | Positive integer.                              | Maximum queued network messages.                     |
+
+## Related Pages
+
+- [mcp.json Reference](/runtime/reference/mcp-json) documents JSON sidecars and whole-object replacement.
+- [AGENT.md Reference](/runtime/reference/agent-md) documents agent-local `mcp_servers` and hooks.
+- [File Locations](/runtime/reference/file-locations) lists the exact global and workspace paths.

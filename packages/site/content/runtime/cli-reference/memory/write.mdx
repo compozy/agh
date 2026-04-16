@@ -11,6 +11,16 @@ Write or update a persistent memory file
 agh memory write <filename> --type <type> --description <description> [flags]
 ```
 
+### Examples
+
+```
+  # Write workspace-scoped project memory from a flag
+  agh memory write runtime-notes.md --type project --description "Runtime docs live in the site package" --content "Runtime docs are authored under packages/site/content/runtime."
+
+  # Write global user memory from stdin
+  printf "Prefer concise PR summaries.\n" | agh memory write review-style.md --type user --description "User wants concise PR summaries"
+```
+
 ### Options
 
 ```

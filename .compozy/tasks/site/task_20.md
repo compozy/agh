@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Trust Profile v1, Transport Bindings & Conformance"
 type: docs
 complexity: medium
 dependencies:
-  - task_19
+    - task_19
 ---
 
 # Task 20: Docs: Trust Profile v1, Transport Bindings & Conformance

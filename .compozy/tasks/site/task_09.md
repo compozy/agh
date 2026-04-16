@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Agents (Definitions, Providers, Spawning)"
 type: docs
 complexity: medium
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 09: Docs: Agents (Definitions, Providers, Spawning)

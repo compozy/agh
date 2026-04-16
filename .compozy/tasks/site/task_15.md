@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Hooks & Extensions (Event Catalog, Matchers, Marketplace)"
 type: docs
 complexity: medium
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 15: Docs: Hooks & Extensions (Event Catalog, Matchers, Marketplace)

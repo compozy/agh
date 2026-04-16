@@ -61,6 +61,8 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install",
 		Short: "Bootstrap AGH and create the default general agent",
+		Example: `  # Create ~/.agh/config.toml and ~/.agh/agents/general/AGENT.md
+  agh install`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			homePaths, err := deps.resolveHome()
 			if err != nil {

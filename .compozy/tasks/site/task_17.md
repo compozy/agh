@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Configuration Reference (TOML, AGENT.md, SKILL.md, env vars)"
 type: docs
 complexity: medium
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 17: Docs: Configuration Reference (TOML, AGENT.md, SKILL.md, env vars)

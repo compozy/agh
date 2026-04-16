@@ -1,0 +1,153 @@
+---
+title: Delivery Guarantees
+description: Reference for AGH Network v0 delivery expectations, ordering, deduplication, expiry, transport independence, and the NATS profile.
+---
+
+AGH Network v0 defines message semantics, not exactly-once transport guarantees. Implementations
+must assume that distributed delivery can duplicate, reorder, expire, or fail.
+
+This page is normative unless a section is marked as an example.
+
+## Core guarantees
+
+The core protocol guarantees only what is inside the envelope and lifecycle rules. It does not
+guarantee broker durability or global ordering.
+
+| Topic                  | v0 behavior                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| Exactly-once delivery  | Not guaranteed.                                                                                         |
+| At-most-once delivery  | Not guaranteed by the core protocol. A transport profile MAY provide best-effort at-most-once behavior. |
+| At-least-once delivery | Not guaranteed by the core protocol. Senders MAY retry according to local policy.                       |
+| Durable replay         | Not guaranteed.                                                                                         |
+| Total ordering         | Not guaranteed.                                                                                         |
+| Per-peer FIFO          | Transport or runtime profile-specific.                                                                  |
+| Deduplication          | Receivers SHOULD deduplicate by envelope `id` inside a replay window.                                   |
+| Expiration             | Receivers MUST reject messages whose `expires_at` has passed.                                           |
+| Receipts               | Receivers SHOULD emit receipts for directed work when acceptance or rejection matters.                  |
+
+## Receiver responsibilities
+
+A receiver SHOULD:
+
+- Validate the envelope before routing.
+- Reject expired messages before side effects.
+- Deduplicate by `id` within a bounded replay window.
+- Treat invalid lifecycle transitions as application errors.
+- Avoid changing terminal interactions back to active states.
+- Use `receipt` for directed acceptance, rejection, duplicate detection, expiration, unsupported
+  messages, and cancellation when the sender needs visible state.
+- Ignore unknown `ext` keys.
+
+A receiver MUST NOT treat a Peer Card capability as proof of trust or authorization.
+
+## Retry semantics
+
+Senders MAY retry when local policy says a message may not have been delivered. Retries SHOULD
+preserve the original `id` when the retry is the same logical envelope. Preserving `id` lets
+receivers deduplicate instead of running the same work twice.
+
+If a sender changes the content or intent, it SHOULD issue a new envelope ID.
+
+## Ordering
+
+Implementations MUST NOT rely on total ordering across peers or channels. A receiver MAY observe
+`trace(completed)` before a delayed intermediate progress trace. Terminal lifecycle rules protect
+against state regression: once an interaction is terminal, later non-terminal updates MUST NOT
+reopen it.
+
+Within one runtime queue, an implementation MAY preserve FIFO order as a local behavior. That is not
+a cross-runtime protocol guarantee.
+
+## NATS v0 transport profile
+
+The AGH reference implementation binds the core protocol to NATS Core.
+
+| Setting                   | Value                                                                                    |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| Subject prefix            | `agh.network.v0`                                                                         |
+| Broadcast subject         | `agh.network.v0.<channel>.broadcast`                                                     |
+| Direct subject            | `agh.network.v0.<channel>.peer.<route_token>`                                            |
+| Route token               | First 16 bytes of SHA-256 over the UTF-8 Peer ID, hex encoded as 32 lowercase characters |
+| Listener host             | `127.0.0.1`                                                                              |
+| Default port              | `-1`, meaning auto-select a local port                                                   |
+| Default max payload       | 1 MiB                                                                                    |
+| Default greet interval    | 30 seconds                                                                               |
+| Default max replay age    | 300 seconds                                                                              |
+| Default local inbox depth | 100 messages                                                                             |
+
+The route token is derived from the canonical Peer ID, not the display name.
+
+### Route token example
+
+```text
+peer_id: reviewer.sess-xyz
+sha256 first 16 bytes as hex: 790dd5515558f7784877abcbca51c5ba
+direct subject: agh.network.v0.builders.peer.790dd5515558f7784877abcbca51c5ba
+```
+
+### Broadcast subject example
+
+```text
+agh.network.v0.builders.broadcast
+```
+
+## Local delivery queues
+
+AGH Runtime delivers inbound protocol envelopes to network-enabled sessions through a local session
+inbox. This is a reference implementation behavior, not a cross-runtime wire requirement.
+
+In the AGH reference implementation:
+
+- Local queues are per session.
+- Default depth is 100 messages.
+- Overflow drops the oldest queued item.
+- A session that is currently prompting receives queued network messages after the turn.
+- A delivered prompt includes the envelope and reply guidance for the local agent.
+
+Other runtimes MAY expose inbound messages differently as long as they preserve the protocol
+semantics.
+
+## Receipt statuses and reason codes
+
+Receipts make delivery outcomes visible at the protocol level.
+
+| Status        | Meaning                                                           | `reason_code`   |
+| ------------- | ----------------------------------------------------------------- | --------------- |
+| `accepted`    | Receiver accepted responsibility.                                 | MUST be absent. |
+| `rejected`    | Receiver refused the message or interaction.                      | REQUIRED.       |
+| `duplicate`   | Receiver already processed the message ID.                        | REQUIRED.       |
+| `expired`     | Message failed freshness checks.                                  | REQUIRED.       |
+| `unsupported` | Receiver cannot support the kind, profile, or requested behavior. | REQUIRED.       |
+| `canceled`    | Sender or receiver canceled the interaction.                      | Optional.       |
+
+Valid reason codes are:
+
+```text
+malformed
+expired
+duplicate
+unsupported_kind
+unsupported_profile
+verification_failed
+not_target
+not_found
+busy
+internal
+interaction_closed
+```
+
+## Transport independence
+
+The core protocol is transport-independent. A different transport profile MUST preserve:
+
+- Envelope field semantics.
+- Kind-specific body rules.
+- Channel scoping.
+- Directed vs broadcast routing behavior.
+- Interaction lifecycle rules.
+- Freshness and deduplication expectations.
+- Extension and proof compatibility.
+
+A transport profile MAY add operational details such as subject names, authentication, TLS,
+persistence, or broker-specific limits. Those details MUST NOT change the core meaning of the seven
+message kinds.

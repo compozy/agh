@@ -11,6 +11,16 @@ Register a workspace
 agh workspace add <path> [flags]
 ```
 
+### Examples
+
+```
+  # Register a workspace with a stable name
+  agh workspace add "$PWD" --name checkout-api
+
+  # Include an additional directory and set a workspace default agent
+  agh workspace add "$PWD" --name platform --add-dir "$PWD/docs" --default-agent architect
+```
+
 ### Options
 
 ```

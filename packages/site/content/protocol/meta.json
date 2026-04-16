@@ -1,3 +1,17 @@
 {
-    "pages": ["overview", "specification"]
+    "pages": [
+        "overview",
+        "envelope",
+        "message-kinds",
+        "interactions",
+        "peer-discovery",
+        "recipes",
+        "delivery",
+        "examples",
+        "ed25519-jcs",
+        "verification",
+        "nats",
+        "conformance",
+        "guide"
+    ]
 }

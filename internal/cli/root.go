@@ -68,8 +68,14 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	deps = deps.withDefaults()
 
 	cmd := &cobra.Command{
-		Use:           "agh",
-		Short:         "AGH agent operating system",
+		Use:   "agh",
+		Short: "AGH agent operating system",
+		Example: `  # Start the daemon and create a session in the current workspace
+  agh daemon start
+  agh session new --agent general
+
+  # Print machine-readable output for automation
+  agh session list -o json`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {

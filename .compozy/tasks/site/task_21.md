@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Protocol Implementation Guide"
 type: docs
 complexity: medium
 dependencies:
-  - task_19
+    - task_19
 ---
 
 # Task 21: Docs: Protocol Implementation Guide

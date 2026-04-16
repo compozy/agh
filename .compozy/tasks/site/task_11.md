@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Skills (Overview, SKILL.md, Marketplace, Bundled)"
 type: docs
 complexity: medium
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 11: Docs: Skills (Overview, SKILL.md, Marketplace, Bundled)

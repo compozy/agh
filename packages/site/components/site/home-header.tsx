@@ -44,11 +44,11 @@ export function HomeHeader(props: ComponentProps<"header">) {
     <header
       {...props}
       className={cn(
-        "sticky top-0 z-40 border-b border-[var(--color-divider)] bg-[rgba(18,18,18,0.92)] backdrop-blur-xl",
+        "sticky top-0 z-40 border-b border-[var(--color-divider)] bg-[rgba(18,18,18,0.92)] px-4 backdrop-blur-xl",
         props.className
       )}
     >
-      <div className="mx-auto flex h-14 w-full max-w-[var(--site-layout-width)] items-center gap-3 px-4 sm:px-6 lg:gap-5">
+      <div className="mx-auto flex h-14 w-full max-w-[var(--site-layout-width)] items-center gap-3 lg:gap-5">
         <Link href="/" className="shrink-0">
           <Logo />
         </Link>

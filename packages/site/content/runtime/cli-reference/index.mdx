@@ -1,19 +1,358 @@
 ---
-title: "agh"
-description: "AGH agent operating system"
+title: CLI Reference
+description: Command tree, global options, configuration inputs, and common AGH CLI workflows.
 ---
 
-## agh
+# CLI Reference
 
-AGH agent operating system
+The `agh` CLI is the operator surface for the local AGH daemon. Use it to bootstrap the home
+directory, start the daemon, create durable sessions, inspect workspaces, manage skills and
+extensions, and query runtime state over the daemon socket.
 
-```
-agh [flags]
+<OperatorNote>
+  The command pages in this section are generated from the Cobra command tree by `make cli-docs`.
+  This overview is hand-authored and is preserved when the generated reference is refreshed.
+</OperatorNote>
+
+<Mermaid
+  chart={`flowchart TD
+  agh[agh]
+  runtime[Runtime process]
+  work[Durable work]
+  config[Project context]
+  capabilities[Capabilities]
+  observability[Observability]
+  system[System setup]
+
+agh --> runtime
+runtime --> daemon[daemon]
+runtime --> network[network]
+runtime --> bridge[bridge]
+
+agh --> work
+work --> session[session]
+work --> task[task]
+work --> automation[automation]
+
+agh --> config
+config --> workspace[workspace]
+config --> agent[agent]
+
+agh --> capabilities
+capabilities --> skill[skill]
+capabilities --> extension[extension]
+capabilities --> hooks[hooks]
+capabilities --> memory[memory]
+
+agh --> observability
+observability --> observe[observe]
+
+agh --> system
+system --> install[install]
+system --> completion[completion]
+system --> whoami[whoami]
+system --> version[version]`}
+caption="The CLI groups commands by the runtime surface they operate: daemon process, durable work, project context, capabilities, observability, and local setup."
+/>
+
+## Command Groups
+
+<RouteList>
+  <RouteRow
+    href="/runtime/cli-reference/session"
+    label="Sessions"
+    title="Create, resume, prompt, wait on, and inspect sessions"
+    description="Use this group for durable agent work: `new`, `list`, `resume`, `events`, `history`, `status`, `prompt`, `wait`, and `stop`."
+    meta="Core workflow"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/workspace"
+    label="Workspaces"
+    title="Register workspace roots and defaults"
+    description="Use this group to add, list, inspect, edit, or remove workspace registrations."
+    meta="Project scope"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/daemon"
+    label="Daemon"
+    title="Start, stop, and inspect the background runtime"
+    description="Use this group for daemon lifecycle and socket-level health checks."
+    meta="Runtime process"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/automation"
+    label="Automation"
+    title="Manage jobs, triggers, and runs"
+    description="Use this group for scheduled work, event-triggered work, and run history."
+    meta="Queued work"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/bridge"
+    label="Bridges"
+    title="Manage platform bridge instances"
+    description="Use this group for bridge instance creation, routing, lifecycle, and delivery tests."
+    meta="External channels"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/skill"
+    label="Skills"
+    title="Create, inspect, install, update, and remove skills"
+    description="Use this group for local AgentSkills and marketplace-installed skill directories."
+    meta="Agent capability"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/extension"
+    label="Extensions"
+    title="Install, enable, disable, update, and inspect extensions"
+    description="Use this group for the extension marketplace and installed extension state."
+    meta="Runtime plugins"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/completion"
+    label="Completion"
+    title="Generate shell completion scripts"
+    description="Use this group to install Bash, Zsh, Fish, or PowerShell completion for `agh`."
+    meta="Shell setup"
+  />
+</RouteList>
+
+## Global Options
+
+The current CLI has one persistent flag inherited by every user-facing command.
+
+| Flag                  | Default | Values                  | Behavior                                                                                       |
+| --------------------- | ------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `-o, --output string` | `human` | `human`, `json`, `toon` | Selects output rendering. Use `json` for scripts and `toon` for compact agent-readable output. |
+| `-h, --help`          | n/a     | n/a                     | Added by Cobra for every command. Prints command usage and exits.                              |
+
+There is no global `--config`, `--log-level`, or `--socket` flag today. These settings come from
+the AGH home directory and `config.toml`.
+
+| Input                                | Default                                    | Effect                                                                                                                                                       |
+| ------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AGH_HOME`                           | `~/.agh`                                   | Overrides the global AGH home directory. This changes the default config path, socket path, log path, session store, skill store, and memory store together. |
+| `~/.agh/config.toml`                 | created by `agh install`                   | Global configuration loaded by the daemon and most CLI commands before they contact the socket.                                                              |
+| `[daemon].socket`                    | `$AGH_HOME/daemon.sock`                    | Overrides the Unix domain socket path used by daemon clients. Empty values fall back to the AGH home socket.                                                 |
+| `[log].level`                        | `info`                                     | Controls daemon structured logging. Accepted values are `debug`, `info`, `warn`, and `error`.                                                                |
+| `[http].host`, `[http].port`         | `localhost`, `2123`                        | Controls the daemon HTTP/SSE bind address exposed behind the runtime.                                                                                        |
+| `AGH_SESSION_ID`                     | injected into managed agent sessions       | Identifies the current AGH session for agent-side CLI calls and `agh whoami`.                                                                                |
+| `AGH_SESSION_CHANNEL`, `AGH_PEER_ID` | injected only for network-enabled sessions | Identify the joined network channel and daemon-owned peer identity for agent-side `agh network` calls.                                                       |
+| `AGH_AGENT`, `AGH_AGENT_NAME`        | caller-provided when present               | Read by `agh whoami`; current session launch code does not synthesize these values.                                                                          |
+
+Example: run a separate AGH home for a demo without touching your normal daemon.
+
+```bash
+AGH_HOME="$PWD/.agh-demo" agh install
+AGH_HOME="$PWD/.agh-demo" agh daemon start
+AGH_HOME="$PWD/.agh-demo" agh daemon status --output json
 ```
 
-### Options
+Example: set the daemon socket and log level in `~/.agh/config.toml`.
 
+```toml
+[daemon]
+socket = "~/.agh/custom-daemon.sock"
+
+[log]
+level = "debug"
 ```
-  -h, --help            help for agh
-  -o, --output string   Output format: human, json, or toon (default "human")
+
+## Common Workflows
+
+### Start Daemon and Create a Session
+
+Use this sequence after `agh install` has created a global config and a default `general` agent.
+
+```bash
+agh daemon start
+agh workspace add "$PWD" --name current
+agh session new --workspace current --agent general --name first-run
 ```
+
+Then inspect the session and follow its event stream.
+
+```bash
+agh session list
+agh session events sess_1234 --follow
+```
+
+The daemon start command waits until the socket responds. If a daemon is already running, it returns
+an error instead of starting a second process.
+
+### Resume a Session
+
+Stopped sessions remain in the session store. List them with `--all`, resume by ID, and then inspect
+the new active state.
+
+```bash
+agh session list --all
+agh session resume sess_1234
+agh session status sess_1234
+```
+
+Resume succeeds only when the daemon can reconstruct the stored session state and the agent provider
+can load the previous ACP session. If the provider cannot resume, AGH reports the error rather than
+silently starting unrelated work.
+
+### Manage Workspaces
+
+Register a workspace when you want stable names, additional directories, or a workspace default
+agent.
+
+```bash
+agh workspace add "$PWD" --name checkout-api --default-agent reviewer
+agh workspace list
+agh workspace info checkout-api
+```
+
+Edit the registration when the project moves or its default agent changes.
+
+```bash
+agh workspace edit checkout-api --name checkout
+agh workspace edit checkout --default-agent ""
+agh workspace remove checkout
+```
+
+`agh session new --workspace <name-or-id>` uses a registered workspace. `agh session new --cwd <absolute-path>` asks the daemon to use an absolute path directly and auto-register it when needed.
+
+## Shell Completion
+
+Cobra generates completion scripts from the same command tree used for the reference pages.
+
+| Shell      | Setup                                                                   |
+| ---------- | ----------------------------------------------------------------------- |
+| Bash       | `agh completion bash > "$(brew --prefix)/etc/bash_completion.d/agh"`    |
+| Zsh        | `agh completion zsh > "$(brew --prefix)/share/zsh/site-functions/_agh"` |
+| Fish       | `agh completion fish > ~/.config/fish/completions/agh.fish`             |
+| PowerShell | `agh completion powershell > agh.ps1`                                   |
+
+See the generated completion pages for shell-specific notes:
+
+- [Bash completion](/runtime/cli-reference/completion/bash)
+- [Zsh completion](/runtime/cli-reference/completion/zsh)
+- [Fish completion](/runtime/cli-reference/completion/fish)
+- [PowerShell completion](/runtime/cli-reference/completion/powershell)
+
+## Full Command Tree
+
+```text
+agh
+|-- agent
+|   |-- info <name>
+|   `-- list
+|-- automation
+|   |-- jobs
+|   |   |-- create
+|   |   |-- delete <id>
+|   |   |-- get <id>
+|   |   |-- history <id>
+|   |   |-- trigger <id>
+|   |   `-- update <id>
+|   |-- runs
+|   |   `-- get <id>
+|   `-- triggers
+|       |-- create
+|       |-- delete <id>
+|       |-- get <id>
+|       |-- history <id>
+|       `-- update <id>
+|-- bridge
+|   |-- create
+|   |-- disable <id>
+|   |-- enable <id>
+|   |-- get <id>
+|   |-- list
+|   |-- restart <id>
+|   |-- routes <id>
+|   |-- test-delivery <id>
+|   `-- update <id>
+|-- completion
+|   |-- bash
+|   |-- fish
+|   |-- powershell
+|   `-- zsh
+|-- daemon
+|   |-- start
+|   |-- status
+|   `-- stop
+|-- extension
+|   |-- disable <name>
+|   |-- enable <name>
+|   |-- install <path-or-slug>
+|   |-- list
+|   |-- remove <name>
+|   |-- search <query>
+|   |-- status <name>
+|   `-- update [name]
+|-- hooks
+|   |-- events
+|   |-- info <name>
+|   |-- list
+|   `-- runs
+|-- install
+|-- memory
+|   |-- consolidate
+|   |-- delete <filename>
+|   |-- list
+|   |-- read <filename>
+|   `-- write <filename>
+|-- network
+|   |-- channels
+|   |-- inbox
+|   |-- peers [channel]
+|   |-- send
+|   `-- status
+|-- observe
+|   |-- events
+|   `-- health
+|-- session
+|   |-- events <id>
+|   |-- history <id>
+|   |-- list
+|   |-- new
+|   |-- prompt <id> <message>
+|   |-- resume <id>
+|   |-- status <id>
+|   |-- stop <id>
+|   `-- wait <id>
+|-- skill
+|   |-- create [name]
+|   |-- info <name>
+|   |-- install <slug>
+|   |-- list
+|   |-- remove <name>
+|   |-- search <query>
+|   |-- update [name]
+|   `-- view <name>
+|-- task
+|   |-- cancel <id>
+|   |-- child
+|   |   `-- create <parent-id>
+|   |-- create
+|   |-- dependency
+|   |   |-- add <task-id> --depends-on <depends-on-id>
+|   |   `-- remove <task-id> <depends-on-id>
+|   |-- get <id>
+|   |-- list
+|   |-- run
+|   |   |-- attach-session <run-id>
+|   |   |-- cancel <run-id>
+|   |   |-- claim <run-id>
+|   |   |-- complete <run-id>
+|   |   |-- enqueue <task-id>
+|   |   |-- fail <run-id>
+|   |   |-- list <task-id>
+|   |   `-- start <run-id>
+|   `-- update <id>
+|-- version
+|-- whoami
+`-- workspace
+    |-- add <path>
+    |-- edit <name-or-id>
+    |-- info <name-or-id>
+    |-- list
+    `-- remove <name-or-id>
+```
+
+The hidden `agh doc` command is intentionally excluded from the user-facing tree. It exists only so
+the repository can regenerate these reference pages.

@@ -15,10 +15,10 @@ An agent in AGH is a directory containing an `AGENT.md` file. The file has YAML 
 
 Agents are stored in two locations:
 
-| Location | Scope | Example |
-|----------|-------|---------|
-| `~/.agh/agents/<name>/` | Global — available everywhere | User-wide agents |
-| `.agents/<name>/` | Workspace — available in this project only | Project-specific agents |
+| Location                | Scope                                      | Example                 |
+| ----------------------- | ------------------------------------------ | ----------------------- |
+| `~/.agh/agents/<name>/` | Global — available everywhere              | User-wide agents        |
+| `.agents/<name>/`       | Workspace — available in this project only | Project-specific agents |
 
 ## Create the agent directory
 
@@ -53,13 +53,13 @@ Be direct. Skip praise. Focus on what needs to change.
 
 The frontmatter fields:
 
-| Field | Value | Purpose |
-|-------|-------|---------|
-| `name` | `code-reviewer` | Unique identifier for this agent |
-| `provider` | `claude` | Which provider to use (must match a `[providers.*]` section in your config) |
-| `model` | `claude-sonnet-4-20250514` | Model to use for this agent |
-| `tools` | `[read, glob, grep]` | Restrict the agent to read-only file tools — no writes, no bash |
-| `permissions` | `approve-reads` | Automatically approve read operations, prompt for anything else |
+| Field         | Value                      | Purpose                                                                     |
+| ------------- | -------------------------- | --------------------------------------------------------------------------- |
+| `name`        | `code-reviewer`            | Unique identifier for this agent                                            |
+| `provider`    | `claude`                   | Which provider to use (must match a `[providers.*]` section in your config) |
+| `model`       | `claude-sonnet-4-20250514` | Model to use for this agent                                                 |
+| `tools`       | `[read, glob, grep]`       | Restrict the agent to read-only file tools — no writes, no bash             |
+| `permissions` | `approve-reads`            | Automatically approve read operations, prompt for anything else             |
 
 The Markdown body after the `---` becomes the system prompt that shapes the agent's behavior.
 
@@ -136,7 +136,6 @@ mcp_servers:
     env:
       GITHUB_TOKEN: "${GITHUB_TOKEN}"
 ---
-
 You are a senior code reviewer...
 ```
 
@@ -167,7 +166,6 @@ provider: claude
 tools: ["*"]
 permissions: approve-all
 ---
-
 You are a development assistant for this project.
 You have full access to read, write, and execute code.
 Always run tests after making changes.

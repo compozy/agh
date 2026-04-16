@@ -13,9 +13,6 @@ export default function ProtocolDocsLayout({ children }: { children: ReactNode }
       }}
       tree={protocolDocs.pageTree}
       tabMode="navbar"
-      containerProps={{
-        className: "site-docs-layout",
-      }}
     >
       {children}
     </DocsLayout>

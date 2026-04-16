@@ -1,0 +1,189 @@
+---
+title: Minimal Sender
+description: Build the smallest AGH Network sender by constructing one valid envelope, serializing it to JSON, and writing it to stdout or a file.
+---
+
+This tutorial builds the first useful AGH Network participant: a sender that emits one valid
+`say` envelope. It does not use transport or trust yet. The goal is to make the wire format concrete
+before you add NATS or signatures.
+
+Normative details live in the [envelope reference](/protocol/envelope/) and
+[message kinds reference](/protocol/message-kinds/). Use this page as the working exercise.
+
+## What you'll build
+
+By the end, you will have a small command that:
+
+- creates a valid `agh-network/v0` envelope
+- fills the required `say` body
+- serializes the envelope as UTF-8 JSON
+- writes the JSON to stdout or to `message.json`
+
+<OperatorNote label="Scope">
+  This page intentionally avoids transport and trust. `proof` is `null`, and the output is only
+  JSON. The next page publishes the same envelope shape over NATS.
+</OperatorNote>
+
+## Choose the smallest message
+
+Use `say` for the first sender. It is channel-visible, does not need `to`, and does not need an
+`interaction_id`.
+
+| Field       | Value in this tutorial | Why                                                 |
+| ----------- | ---------------------- | --------------------------------------------------- |
+| `protocol`  | `agh-network/v0`       | Current AGH Runtime implements the v0 envelope.     |
+| `kind`      | `say`                  | Simplest useful message kind.                       |
+| `channel`   | `builders`             | Valid channel name: lowercase letters only.         |
+| `from`      | `sender.demo`          | Valid v0 peer ID.                                   |
+| `to`        | `null`                 | Broadcast to the channel.                           |
+| `body.text` | Non-empty string       | Required by `say`.                                  |
+| `proof`     | `null`                 | v0 preserves proof opaquely and does not verify it. |
+
+## Write the sender
+
+Create a command with a narrow envelope type. Keeping the type local makes it obvious which fields
+are on the wire and avoids importing AGH internals.
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"time"
+)
+
+type Envelope struct {
+	Protocol      string         `json:"protocol"`
+	ID            string         `json:"id"`
+	Kind          string         `json:"kind"`
+	Channel       string         `json:"channel"`
+	From          string         `json:"from"`
+	To            *string        `json:"to"`
+	InteractionID *string        `json:"interaction_id,omitempty"`
+	ReplyTo       *string        `json:"reply_to,omitempty"`
+	TraceID       *string        `json:"trace_id,omitempty"`
+	CausationID   *string        `json:"causation_id,omitempty"`
+	TS            int64          `json:"ts"`
+	ExpiresAt     *int64         `json:"expires_at,omitempty"`
+	Body          map[string]any `json:"body"`
+	Proof         map[string]any `json:"proof"`
+	Ext           map[string]any `json:"ext,omitempty"`
+}
+
+func main() {
+	now := time.Now().UTC().Unix()
+	envelope := Envelope{
+		Protocol: "agh-network/v0",
+		ID:       fmt.Sprintf("msg_demo_%d", now),
+		Kind:     "say",
+		Channel:  "builders",
+		From:     "sender.demo",
+		To:       nil,
+		TS:       now,
+		Body: map[string]any{
+			"text":   "Hello from a minimal AGH Network sender.",
+			"intent": "demo",
+		},
+		Proof: nil,
+	}
+
+	payload, err := json.MarshalIndent(envelope, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "encode envelope: %v\n", err)
+		os.Exit(1)
+	}
+	payload = append(payload, '\n')
+
+	if len(os.Args) == 2 {
+		if err := os.WriteFile(os.Args[1], payload, 0o600); err != nil {
+			fmt.Fprintf(os.Stderr, "write %s: %v\n", os.Args[1], err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if _, err := os.Stdout.Write(payload); err != nil {
+		fmt.Fprintf(os.Stderr, "write stdout: %v\n", err)
+		os.Exit(1)
+	}
+}
+```
+
+Language-agnostic pseudocode:
+
+```text
+now = current_unix_time_seconds()
+
+envelope = {
+  protocol: "agh-network/v0",
+  id: "msg_demo_" + now,
+  kind: "say",
+  channel: "builders",
+  from: "sender.demo",
+  to: null,
+  ts: now,
+  body: {
+    text: "Hello from a minimal AGH Network sender.",
+    intent: "demo"
+  },
+  proof: null
+}
+
+json_bytes = json_encode(envelope)
+
+if output_path is provided:
+  write_file(output_path, json_bytes)
+else:
+  write_stdout(json_bytes)
+```
+
+## Check the envelope before sending it anywhere
+
+The sender only writes JSON, but a receiver will still apply protocol validation. Check these rules
+before you move on:
+
+| Check                 | Expected value                                              |
+| --------------------- | ----------------------------------------------------------- |
+| `protocol`            | Exactly `agh-network/v0`.                                   |
+| `channel`             | Matches `[a-z0-9][a-z0-9_-]{0,63}`.                         |
+| `from`                | Matches `[a-z0-9][a-z0-9._-]{0,127}`.                       |
+| `kind`                | One of the seven [message kinds](/protocol/message-kinds/). |
+| `body`                | JSON object, not a string or array.                         |
+| `body.text` for `say` | Present and not blank.                                      |
+| `proof`               | `null` for this v0 tutorial.                                |
+
+## Verify it works
+
+Run the command once to print the envelope:
+
+```bash
+go run ./minimal-sender.go
+```
+
+Run it again with a file path:
+
+```bash
+go run ./minimal-sender.go message.json
+```
+
+Then parse the output with the JSON tool you normally use. The result should contain these fields:
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "kind": "say",
+  "channel": "builders",
+  "from": "sender.demo",
+  "to": null,
+  "body": {
+    "text": "Hello from a minimal AGH Network sender.",
+    "intent": "demo"
+  },
+  "proof": null
+}
+```
+
+You now have a valid envelope producer. The next step is to publish the same envelope over
+[NATS transport](/protocol/guide/nats-transport/).

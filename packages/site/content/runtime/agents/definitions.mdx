@@ -1,0 +1,217 @@
+---
+title: Agent Definitions
+description: The current AGENT.md format, discovery order, runtime defaults, and parser edge cases used by AGH.
+---
+
+# Agent Definitions
+
+An agent definition tells AGH which agent to start and what startup prompt to give it. The
+definition is a directory with an `AGENT.md` file:
+
+```text
+~/.agh/agents/code-reviewer/
+  AGENT.md
+  mcp.json
+```
+
+`AGENT.md` is a Markdown file with required frontmatter and a required body. AGH parses the
+frontmatter into runtime configuration, then uses the Markdown body as the startup system prompt.
+
+<OperatorNote>
+  RFC 001 is a draft and is ahead of the current parser. This page documents what the current
+  runtime accepts today. Proposed RFC fields that the parser rejects are listed separately so you
+  can avoid writing definitions that fail at startup.
+</OperatorNote>
+
+## Minimal valid file
+
+```yaml
+---
+name: code-reviewer
+provider: claude
+model: claude-sonnet-4-20250514
+permissions: approve-reads
+---
+You are a senior code reviewer.
+
+Review code for correctness, security, and maintainability. Be direct, cite the relevant file or
+symbol, and separate blocking defects from suggestions.
+```
+
+The body after the second `---` is trimmed and stored as the agent prompt. An empty body is a
+validation error.
+
+## Discovery paths
+
+AGH resolves agents from the workspace snapshot attached to the session.
+
+| Scope           | Directory AGH scans                                                   | Applies when                                     |
+| --------------- | --------------------------------------------------------------------- | ------------------------------------------------ |
+| Workspace root  | `<workspace>/.agh/agents/<name>/AGENT.md`                             | The session is created in that workspace.        |
+| Additional root | `<additional-dir>/.agh/agents/<name>/AGENT.md`                        | The workspace has additional roots registered.   |
+| Global home     | `~/.agh/agents/<name>/AGENT.md` or `$AGH_HOME/agents/<name>/AGENT.md` | The agent should be available across workspaces. |
+
+Discovery order is first-wins:
+
+1. Workspace root
+2. Additional roots, in the registered order
+3. Global AGH home
+
+If two definitions use the same `name`, AGH keeps the first one it found. It does not merge or
+inherit from the lower-precedence definition.
+
+## Resolution cascade
+
+Session creation first resolves the agent name, then resolves the provider and runtime fields.
+
+| Value       | Resolution order                                           | Failure mode                                                                                |
+| ----------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Agent name  | explicit `--agent` or API `agent_name` -> `defaults.agent` | `agent name is required`; run `agh install` or set `defaults.agent`                         |
+| Provider    | `agent.provider` -> `defaults.provider`                    | `agent provider is required`; run `agh install` or set `agent.provider`/`defaults.provider` |
+| Command     | `agent.command` -> provider `command`                      | `provider "<name>" command is required`                                                     |
+| Model       | `agent.model` -> provider `default_model`                  | Empty is allowed when the provider has no default.                                          |
+| Tools       | `agent.tools` -> `["*"]`                                   | No validation of individual names today.                                                    |
+| Permissions | `agent.permissions` -> `[permissions].mode`                | Must be one of the supported permission modes.                                              |
+
+The bootstrap `general` agent created by `agh install` intentionally contains only `name: general`
+and a prompt. Its provider and model come from `~/.agh/config.toml`.
+
+## Frontmatter reference
+
+These are the frontmatter fields accepted by the current `internal/config` parser.
+
+| Field         | Type                        | Required | Default or resolution               | Valid values and notes                                                                                                                                         |
+| ------------- | --------------------------- | -------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | string                      | yes      | none                                | Must be non-empty. `LoadAgentDef(name)` also requires the parsed name to match the requested directory/name. No lowercase or hyphen pattern is enforced today. |
+| `provider`    | string                      | no       | `defaults.provider`                 | Provider ID such as `claude`, `codex`, or a custom configured provider. Required at resolution time unless `defaults.provider` is set.                         |
+| `command`     | string                      | no       | provider `command`                  | Overrides the provider launch command for this agent. Parsed with shell-style quoting, but launched without a shell.                                           |
+| `model`       | string                      | no       | provider `default_model`            | Stored as the resolved model metadata. The current ACP `session/new` and `session/load` payloads do not send this field.                                       |
+| `tools`       | string array                | no       | `["*"]`                             | Parsed and exposed through CLI/API. The current ACP start flow does not send a tool allowlist, so permissions are the enforced control plane today.            |
+| `permissions` | string                      | no       | `[permissions].mode`                | `deny-all`, `approve-reads`, or `approve-all`.                                                                                                                 |
+| `mcp_servers` | array of MCP server objects | no       | merged with config/provider servers | Each server requires `name` and `command`; `args` and `env` are optional.                                                                                      |
+| `hooks`       | array of hook declarations  | no       | none                                | Agent-scoped hooks validated with the same hook declaration rules as runtime hooks.                                                                            |
+
+The parser accepts YAML frontmatter first. If YAML parsing fails, it tries TOML frontmatter. In
+both formats, unknown fields fail validation.
+
+## MCP servers
+
+Inline MCP servers are useful when a tool belongs to one agent:
+
+```yaml
+---
+name: pr-reviewer
+provider: claude
+mcp_servers:
+  - name: github
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "replace-with-token"
+---
+You review pull requests and use GitHub context when it is available.
+```
+
+You can also place an `mcp.json` sidecar next to `AGENT.md`:
+
+```json
+{
+  "mcp_servers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "replace-with-token"
+      }
+    }
+  }
+}
+```
+
+Sidecar behavior is precise:
+
+- `mcp.json` may use either `mcp_servers` or `mcpServers`.
+- Server names are map keys in `mcp.json`.
+- `env` values are sent as literal strings; AGH does not expand shell placeholders inside MCP
+  server definitions.
+- When an inline server and sidecar server have the same name, the sidecar replaces the whole
+  server object.
+- Across runtime scopes, MCP servers merge in this order: top-level config, provider, agent,
+  then active skills.
+
+## Complete examples
+
+### Claude Code reviewer
+
+```yaml
+---
+name: code-reviewer
+provider: claude
+model: claude-sonnet-4-20250514
+tools: ["*"]
+permissions: approve-reads
+mcp_servers:
+  - name: github
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "replace-with-token"
+---
+
+You are a senior code reviewer.
+
+Focus on defects that can change runtime behavior: incorrect error handling, security boundaries,
+data loss, races, and missing tests. Put blocking findings first. Use short, direct comments with
+file and symbol references.
+```
+
+### Codex implementation agent
+
+```yaml
+---
+name: implementation
+provider: codex
+model: gpt-4o
+permissions: approve-all
+---
+You implement scoped software changes end to end.
+
+Read the task, inspect the repository before editing, keep changes limited to the requested
+surface, run the relevant verification commands, and summarize the exact files changed.
+```
+
+## Draft RFC fields not accepted today
+
+RFC 001 proposes a larger portable agent format. The current parser is strict, so these fields
+must not be used in a live `AGENT.md` yet.
+
+| RFC field                 | Proposed type | Current behavior              |
+| ------------------------- | ------------- | ----------------------------- |
+| `description`             | string        | Rejected as an unknown field. |
+| `skills.inherit`          | boolean       | Rejected as an unknown field. |
+| `skills.disabled`         | string array  | Rejected as an unknown field. |
+| `skills.extra_sources`    | string array  | Rejected as an unknown field. |
+| `memory.inherit`          | boolean       | Rejected as an unknown field. |
+| `memory.scope`            | string        | Rejected as an unknown field. |
+| `memory.auto_consolidate` | boolean       | Rejected as an unknown field. |
+
+Agent-scoped skills and memory are still part of the design direction, but today skills and memory
+are resolved by the runtime systems, not by agent frontmatter.
+
+## Common validation failures
+
+| Failure                                 | Cause                                                              | Fix                                                               |
+| --------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `config: missing YAML frontmatter`      | The file starts with plain Markdown instead of `---`.              | Add a frontmatter block.                                          |
+| `config: unterminated YAML frontmatter` | The opening `---` has no closing delimiter.                        | Close the frontmatter before the prompt body.                     |
+| `unknown field`                         | The frontmatter includes a field the current parser does not know. | Remove draft RFC fields or move data into supported config files. |
+| `agent prompt is required`              | The Markdown body is empty after trimming.                         | Add a prompt body after the closing frontmatter delimiter.        |
+| `agent.permissions must be one of ...`  | The permission value is not supported.                             | Use `deny-all`, `approve-reads`, or `approve-all`.                |
+
+## Related pages
+
+- [Providers](/runtime/agents/providers) lists every built-in provider and the provider config
+  shape.
+- [Spawning](/runtime/agents/spawning) follows the ACP subprocess startup path.
+- [Session Lifecycle](/runtime/sessions/lifecycle) explains the durable session that wraps each
+  spawned agent.

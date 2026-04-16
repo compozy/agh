@@ -22,6 +22,11 @@ func newAgentListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List installed agent definitions",
+		Example: `  # Show every agent definition available to the daemon
+  agh agent list
+
+  # Emit the same list as JSON
+  agh agent list -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -41,7 +46,12 @@ func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "info <name>",
 		Short: "Show one agent definition",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Inspect the default bootstrap agent
+  agh agent info general
+
+  # Inspect an agent definition as JSON
+  agh agent info reviewer -o json`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

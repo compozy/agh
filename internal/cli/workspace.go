@@ -33,7 +33,12 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <path>",
 		Short: "Register a workspace",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Register a workspace with a stable name
+  agh workspace add "$PWD" --name checkout-api
+
+  # Include an additional directory and set a workspace default agent
+  agh workspace add "$PWD" --name platform --add-dir "$PWD/docs" --default-agent architect`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -65,6 +70,11 @@ func newWorkspaceListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List registered workspaces",
+		Example: `  # Show every registered workspace
+  agh workspace list
+
+  # Return workspace records as JSON
+  agh workspace list --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -84,7 +94,12 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "info <name-or-id>",
 		Short: "Show one workspace with resolved details",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Show workspace paths, agents, and skills by name
+  agh workspace info checkout-api
+
+  # Emit resolved workspace details as JSON
+  agh workspace info ws_1234 -o json`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -111,7 +126,12 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "edit <name-or-id>",
 		Short: "Edit a registered workspace",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Rename a workspace
+  agh workspace edit checkout-api --name checkout
+
+  # Clear the workspace default agent
+  agh workspace edit checkout-api --default-agent ""`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -177,7 +197,9 @@ func newWorkspaceRemoveCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <name-or-id>",
 		Short: "Remove a workspace registration",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Remove a workspace registration by name
+  agh workspace remove checkout-api`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

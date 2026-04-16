@@ -1,0 +1,376 @@
+---
+title: Develop Extensions
+description: Build custom AGH extensions with manifests, bundled resources, subprocess lifecycle, Host API permissions, and package examples.
+---
+
+# Develop Extensions
+
+An AGH extension is a directory with a manifest and optional runtime code. Resource-only extensions
+package files AGH already knows how to load. Subprocess extensions run code over JSON-RPC and can
+call the daemon through the Host API after capability checks.
+
+Use extensions when a capability should be installed, versioned, enabled, disabled, and inspected as
+one package.
+
+## Extension Directory
+
+```text
+prompt-enhancer/
+  extension.toml
+  package.json
+  dist/
+    index.js
+  skills/
+    review-context/
+      SKILL.md
+```
+
+AGH looks for `extension.toml` first and `extension.json` second. TOML is the common format. A
+manifest may put core metadata at the root or inside `[extension]`; do not define the same core
+field in both places with conflicting values.
+
+## Manifest Core
+
+```toml
+[extension]
+name = "prompt-enhancer"
+version = "0.1.0"
+description = "Adds workspace context to assembled prompts"
+min_agh_version = "0.5.0"
+```
+
+| Field             | Required | Notes                                                                     |
+| ----------------- | -------- | ------------------------------------------------------------------------- |
+| `name`            | yes      | Registry identity. Must match the installed registry row on daemon start. |
+| `version`         | yes      | Semantic version.                                                         |
+| `description`     | no       | Shown in extension metadata.                                              |
+| `min_agh_version` | yes      | Semantic version compared against the current daemon version.             |
+
+## Resource-Only Extensions
+
+Resource-only extensions do not need a persistent subprocess. They become active after AGH loads and
+registers their resources.
+
+```toml
+[extension]
+name = "review-pack"
+version = "0.1.0"
+description = "Review skills, hooks, and MCP helpers"
+min_agh_version = "0.5.0"
+
+[resources]
+skills = ["skills"]
+agents = ["agents"]
+bundles = ["bundles"]
+
+[[resources.hooks]]
+name = "review-session-ready"
+event = "session.post_create"
+mode = "async"
+command = "/usr/bin/env"
+args = ["bash", "{{config_dir}}/hooks/session-ready.sh"]
+
+[resources.mcp_servers.git]
+command = "uvx"
+args = ["mcp-server-git"]
+env = { REPO_ROOT = "{{env:REPO_ROOT}}" }
+```
+
+Resource paths are resolved inside the extension root. `{{config_dir}}` expands to that root.
+`{{env:NAME}}` expands from the daemon process environment.
+
+| Resource    | Manifest field          | Loaded as                                                               |
+| ----------- | ----------------------- | ----------------------------------------------------------------------- |
+| Skills      | `resources.skills`      | Markdown skill files parsed like normal `SKILL.md` files.               |
+| Agents      | `resources.agents`      | Agent definition markdown files.                                        |
+| Hooks       | `resources.hooks`       | Hook declarations with extension metadata.                              |
+| Bundles     | `resources.bundles`     | Bundle specs that can package channels, automation, and bridge presets. |
+| MCP servers | `resources.mcp_servers` | Named MCP server declarations.                                          |
+
+## Subprocess Extensions
+
+A manifest requires a subprocess when it declares `[subprocess].command`, `capabilities.provides`,
+or `actions.requires`.
+
+```toml
+[capabilities]
+provides = ["prompt.provider"]
+
+[actions]
+requires = ["sessions/list"]
+
+[subprocess]
+command = "node"
+args = ["dist/index.js", "serve"]
+health_check_interval = "30s"
+shutdown_timeout = "10s"
+
+[subprocess.env]
+LOG_LEVEL = "info"
+
+[security]
+capabilities = ["session.read"]
+```
+
+When AGH starts an enabled subprocess extension, it runs this lifecycle:
+
+1. Discover the extension root from the stored manifest path.
+2. Parse `extension.toml` or `extension.json`.
+3. Validate manifest identity, versions, capabilities, actions, security grants, and bridge metadata.
+4. Register static resources: skills, agents, hooks, bundles, and MCP servers.
+5. Launch the subprocess when one is required.
+6. Send an `initialize` JSON-RPC request over stdio.
+7. Start health monitoring.
+8. Mark the extension `active` after successful activation.
+
+The extension process must implement `health_check` and `shutdown`. The daemon also advertises
+`execute_hook` as a daemon request method. The TypeScript SDK binds `initialize`, `health_check`,
+`shutdown`, and `provide_tools`, and lets you register custom handlers.
+
+## Host API Permissions
+
+Host API access is controlled by both method grants and security capabilities.
+
+```toml
+[actions]
+requires = ["sessions/list", "memory/recall"]
+
+[security]
+capabilities = ["session.read", "memory.read"]
+```
+
+| Manifest section        | Purpose                                                                            |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| `capabilities.provides` | Interfaces the extension implements, such as `memory.backend` or `bridge.adapter`. |
+| `actions.requires`      | Host API methods the extension wants to call, such as `sessions/list`.             |
+| `security.capabilities` | Capability grants needed by those methods, such as `session.read`.                 |
+
+Important current provide surfaces:
+
+| Provide surface  | AGH calls into the extension with                |
+| ---------------- | ------------------------------------------------ |
+| `memory.backend` | `memory/store`, `memory/recall`, `memory/forget` |
+| `bridge.adapter` | `bridges/deliver`                                |
+
+`bridge.adapter` extensions must also declare bridge metadata:
+
+```toml
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "slack"
+display_name = "Slack"
+```
+
+Marketplace extensions run under a stricter policy. They are constrained to read-oriented grants:
+`memory.read`, `observe.read`, `session.read`, `skills.read`, and `tool.read`.
+
+## Practical Example: Prompt Enhancer
+
+This example mirrors the repository's `sdk/examples/prompt-enhancer` pattern. It packages a
+`prompt.post_assemble` hook and a persistent subprocess. The hook command is intentionally a
+one-shot process: it reads payload JSON from stdin and writes a `PromptPatch` to stdout. The
+persistent process handles JSON-RPC lifecycle and Host API calls.
+
+`extension.toml`:
+
+```toml
+[extension]
+name = "prompt-enhancer"
+version = "0.1.0"
+description = "Adds workspace context to assembled prompts"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["prompt.provider"]
+
+[actions]
+requires = ["sessions/list"]
+
+[[resources.hooks]]
+name = "workspace-context"
+event = "prompt.post_assemble"
+mode = "sync"
+executor.kind = "subprocess"
+executor.command = "node"
+executor.args = ["dist/index.js", "hook", "prompt_post_assemble"]
+
+[subprocess]
+command = "node"
+args = ["dist/index.js", "serve"]
+
+[security]
+capabilities = ["session.read"]
+```
+
+`src/index.ts`:
+
+```ts
+import { pathToFileURL } from "node:url";
+import {
+  Extension,
+  type ExecuteHookParams,
+  type ExtensionOptions,
+  type PromptPatch,
+} from "@agh/extension-sdk";
+
+function enhance(prompt: string, workspace?: string, workspaceID?: string): PromptPatch {
+  const label = workspace?.trim() || workspaceID?.trim() || "unknown";
+  return {
+    prompt: `[Workspace: ${label}]\n\n${prompt}`,
+  };
+}
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function runHook(name: string): Promise<void> {
+  if (name !== "prompt_post_assemble") {
+    throw new Error(`unsupported hook ${name}`);
+  }
+
+  const payload = JSON.parse(await readStdin()) as {
+    prompt?: string;
+    workspace?: string;
+    workspace_id?: string;
+  };
+
+  process.stdout.write(
+    JSON.stringify(enhance(payload.prompt ?? "", payload.workspace, payload.workspace_id)) + "\n"
+  );
+}
+
+export function createExtension(options: ExtensionOptions = {}): Extension {
+  const extension = new Extension(
+    {
+      name: "prompt-enhancer",
+      version: "0.1.0",
+      capabilities: { provides: ["prompt.provider"] },
+      actions: { requires: ["sessions/list"] },
+      security: { capabilities: ["session.read"] },
+      supported_hook_events: ["prompt.post_assemble"],
+    },
+    options
+  );
+
+  extension.handle(
+    "execute_hook",
+    async (_ctx, params: ExecuteHookParams<"prompt.post_assemble">) => {
+      return enhance(
+        params.payload.prompt ?? "",
+        params.payload.workspace,
+        params.payload.workspace_id
+      );
+    }
+  );
+
+  extension.onReady(async host => {
+    await host.sessions.list({});
+  });
+
+  return extension;
+}
+
+async function main(): Promise<void> {
+  const [mode = "serve", hookName = ""] = process.argv.slice(2);
+  if (mode === "hook") {
+    await runHook(hookName);
+    return;
+  }
+  await createExtension().start();
+}
+
+const entryPoint = process.argv[1];
+if (entryPoint && import.meta.url === pathToFileURL(entryPoint).href) {
+  void main().catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
+```
+
+The important split is:
+
+| Mode                 | Command                                        | Contract                                               |
+| -------------------- | ---------------------------------------------- | ------------------------------------------------------ |
+| One-shot hook        | `node dist/index.js hook prompt_post_assemble` | stdin payload, stdout patch.                           |
+| Persistent extension | `node dist/index.js serve`                     | JSON-RPC initialize, health check, shutdown, Host API. |
+
+Do not point a hook declaration at a long-running server mode unless that process still reads one
+payload from stdin and exits with a patch on stdout.
+
+## Package And Install Locally
+
+Build the extension with your package manager, then install the extension directory:
+
+```bash
+bun install
+bun run build
+agh extension install .
+agh extension status prompt-enhancer
+```
+
+The install path must be a directory containing the manifest. If `package.json` is present, AGH
+copies runtime `dependencies` and `optionalDependencies` under `node_modules`; development
+dependencies are not copied into the managed install.
+
+## Publish To A Registry
+
+Marketplace installation expects an archive with `extension.toml` at the archive root or under one
+top-level directory:
+
+```text
+prompt-enhancer-0.1.0.tar.gz
+  prompt-enhancer/
+    extension.toml
+    package.json
+    dist/
+      index.js
+```
+
+The installer rejects ambiguous packages, including archive roots that look like both a skill package
+and an extension package. Keep extension packages centered on `extension.toml`.
+
+For GitHub-backed registries, AGH reads release metadata, downloads the selected release asset or
+tarball, computes the install checksum, stores registry metadata, and can later run
+`agh extension update`.
+
+## Runtime Failure And Recovery
+
+The extension supervisor monitors health checks and process exits. On failure, AGH records the
+failure, applies exponential restart backoff, and relaunches the subprocess. After repeated
+consecutive failures, AGH disables the extension, unregisters resources, marks it inactive, and
+stores the last error for `agh extension status`.
+
+Stop and reload behavior:
+
+- `agh extension enable <name>` and `agh extension disable <name>` reload the manager when the
+  daemon is running.
+- Daemon shutdown sends cooperative `shutdown` first, then escalates through the subprocess layer if
+  needed.
+- `Manager.Reload` is a stop followed by a fresh start from registry state.
+
+## Development Checklist
+
+1. Decide whether the extension is resource-only or needs a subprocess.
+2. Write `extension.toml` with `name`, `version`, and `min_agh_version`.
+3. Add resources under `resources.*` and keep paths inside the extension directory.
+4. If using Host API, declare both `actions.requires` and `security.capabilities`.
+5. If providing `bridge.adapter`, declare `[bridge] platform` and `display_name`.
+6. If packaging hooks, make each hook command satisfy stdin payload to stdout patch.
+7. Install locally with `agh extension install .`.
+8. Inspect with `agh extension status <name>` and `agh hooks list --source config` when hooks are
+   included.
+
+Related references:
+
+- [Install Extensions](/runtime/extensions/install)
+- [Hook Declaration Format](/runtime/hooks/declaration)
+- [Bridges Overview](/runtime/bridges/overview)
+- [Extension CLI Reference](/runtime/cli-reference/extension)

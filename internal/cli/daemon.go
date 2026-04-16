@@ -64,6 +64,11 @@ func newDaemonStartCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start the AGH daemon",
+		Example: `  # Start AGH in the background and wait for readiness
+  agh daemon start
+
+  # Keep logs attached to the current terminal
+  agh daemon start --foreground`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if foreground || internalChild {
 				return runDaemonForeground(cmd.Context(), deps)
@@ -85,6 +90,11 @@ func newDaemonStatusCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show daemon status",
+		Example: `  # Show daemon health and socket details
+  agh daemon status
+
+  # Return machine-readable daemon status
+  agh daemon status --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			runtime, err := loadRuntimeContext(deps)
 			if err != nil {
@@ -104,6 +114,8 @@ func newDaemonStopCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
 		Short: "Stop the AGH daemon",
+		Example: `  # Ask the running daemon to stop
+  agh daemon stop`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			runtime, err := loadRuntimeContext(deps)
 			if err != nil {

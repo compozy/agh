@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Protocol Overview & Specification v0"
 type: docs
 complexity: high
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 19: Docs: Protocol Overview & Specification v0

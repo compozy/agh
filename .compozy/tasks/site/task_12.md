@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Workspaces (Resolver, Config Overlays, Multi-Root)"
 type: docs
 complexity: medium
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 12: Docs: Workspaces (Resolver, Config Overlays, Multi-Root)

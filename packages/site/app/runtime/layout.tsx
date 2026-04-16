@@ -13,9 +13,6 @@ export default function RuntimeDocsLayout({ children }: { children: ReactNode })
       }}
       tree={runtimeDocs.pageTree}
       tabMode="navbar"
-      containerProps={{
-        className: "site-docs-layout",
-      }}
     >
       {children}
     </DocsLayout>

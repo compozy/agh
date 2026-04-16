@@ -29,9 +29,26 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - MDX requires escaping `<` and `{` in non-code text (`\<`, `\{`). Tab-indented blocks must be converted to fenced code blocks for MDX compatibility.
 - `@agh/site` has vitest configured (`packages/site/vitest.config.ts`) with jsdom environment and `@testing-library/react`. Added to root vitest workspace projects.
 - Fumadocs does not render `mermaid` code blocks natively — use ASCII art in plain code blocks for architecture diagrams, or add a rehype-mermaid plugin.
+- Fumadocs `root: true` changes navigation grouping but does not remove the directory segment from exported URLs. Content under `packages/site/content/runtime/core/*` still builds to `/runtime/core/*`.
+- Agent-level permission overrides are part of `AGENT.md` frontmatter (`permissions` on `internal/config.AgentDef`), while global defaults live under `[permissions]` in `config.toml`.
+- The docs package is named `@agh/site`; use `bunx turbo run build --filter=@agh/site` for filtered site builds. Task specs that say `--filter=packages/site` are using a stale selector.
+- Current memory runtime docs must distinguish implementation from RFC 001: implemented memory is only global/workspace scoped, while RFC 001 agent-scoped memory fields and `.agents/<name>/memory/` are draft/future behavior.
+- Current skills runtime maps only `name`, `description`, `version`, and `metadata` from top-level `SKILL.md` frontmatter; AgentSkills/Claude-style fields such as `allowed-tools`, `user-invocable`, and `argument-hint` currently warn and are ignored by AGH.
+- Current skills marketplace CLI installs latest only: provenance stores `version`, but there is no user-facing `agh skill install --version` flag and version suffixes are not accepted in slugs.
+- Current skills implementation treats `metadata.agh.memory_tags` as RFC-only; `metadata.agh.mcp_servers` and `metadata.agh.hooks` are implemented.
+- Current bridge instances are runtime records managed through bridge API/CLI surfaces, not static `config.toml` blocks. Provider config and delivery defaults are JSON fields on the instance.
+- Current stock bridge secret resolver supports only `env:NAME` refs with non-empty environment variables in the daemon process.
+- Current bridge routing requires every enabled routing dimension to be present on the inbound event. Direct-message traffic usually uses `peer_id`, while shared channel/group traffic usually uses `group_id`; separate bridge instances may be needed for different conversation shapes.
+- Current CLI reference docs live under `packages/site/content/runtime/cli-reference/` and route to `/runtime/cli-reference`; older task specs that mention `runtime/reference/cli` are stale.
+- `make cli-docs` preserves the hand-authored CLI overview `cli-reference/index.mdx`; the generated root command reference is `cli-reference/agh.mdx`.
+- Protocol docs use flat files under `packages/site/content/protocol/` and route to `/protocol/<slug>/`; nested `protocol/overview/index.mdx` conflicts with required flat `protocol/overview.mdx`.
+- Current AGH Network v0 envelope fields are `protocol`, `id`, `kind`, `channel`, `from`, `to`, `interaction_id`, `reply_to`, `trace_id`, `causation_id`, `ts`, `expires_at`, `body`, `proof`, and `ext`; task/RFC shorthand such as `version`, `source`, or `target` is not the implemented wire shape.
+- Current AGH Network `whois.query` is a string matched against peer ID, display name, capabilities, profiles, artifact support, or trust modes; do not document it as a structured query object.
+- Current AGH Network implementation is still v0-only for trust/transport: it preserves `proof` opaquely, has no Ed25519/JCS verifier or conformance runner, uses `agh.network.v0` NATS subjects, and routes direct messages by SHA-256(peer ID) route tokens rather than v1 `nickname@fingerprint` identities.
 
 ## Open Risks
 
 - Pre-existing `@agh/extension-sdk` build error (SessionState → SessionStatus rename) causes full monorepo `turbo run build` to fail — unrelated to site work.
+- Current branch/worktree also has a design-token mismatch: `packages/ui/src/tokens.css` uses `#141312/#1e1c1b/#2e2c2b`, while `web/src/styles.test.ts` still asserts the older DESIGN.md palette `#121212/#1C1C1E/#2C2C2E`, so `make verify` fails before docs tasks can claim a clean full-repo gate.
 
 ## Handoffs

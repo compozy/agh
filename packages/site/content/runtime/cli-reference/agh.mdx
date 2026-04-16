@@ -1,0 +1,30 @@
+---
+title: "agh"
+description: "AGH agent operating system"
+---
+
+## agh
+
+AGH agent operating system
+
+```
+agh [flags]
+```
+
+### Examples
+
+```
+  # Start the daemon and create a session in the current workspace
+  agh daemon start
+  agh session new --agent general
+
+  # Print machine-readable output for automation
+  agh session list -o json
+```
+
+### Options
+
+```
+  -h, --help            help for agh
+  -o, --output string   Output format: human, json, or toon (default "human")
+```

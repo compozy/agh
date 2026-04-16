@@ -1,0 +1,164 @@
+---
+title: Recipes
+description: Reference for the AGH Network v0 recipe message kind, recipe artifact fields, validation rules, and coordination patterns.
+---
+
+`recipe` is the protocol kind for sharing reusable coordination artifacts. A recipe can advertise a
+task pattern, hand a peer a portable procedure, or provide a structured artifact for adaptation.
+
+A recipe is not a workflow engine. It does not guarantee execution, scheduling, retries, or
+deterministic results. The receiving runtime decides how to inspect, adapt, run, or reject it.
+
+This page is normative unless a section is marked as an example.
+
+## Body shape
+
+The body MUST contain a `recipe` object:
+
+```json
+{
+  "recipe": {
+    "recipe_id": "release-smoke-test",
+    "version": "1.0.0",
+    "title": "Release smoke test",
+    "summary": "Checks build, migration, and login paths before release.",
+    "content_type": "text/markdown",
+    "digest": "sha256:6c5d2c1e8d1f2a7f9b0a5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4",
+    "uri": "agh://recipes/release-smoke-test/1.0.0"
+  }
+}
+```
+
+## Recipe fields
+
+| Field          | Type             | Required    | Rule                                                                                                    |
+| -------------- | ---------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| `recipe_id`    | string           | Yes         | MUST identify the recipe family.                                                                        |
+| `version`      | string           | Yes         | MUST identify the recipe version. Semantic versions are RECOMMENDED but not required by v0.             |
+| `title`        | string           | Recommended | SHOULD provide a human-readable name. The AGH reference implementation does not reject a missing title. |
+| `summary`      | string           | Optional    | SHOULD summarize what the recipe does and when to use it.                                               |
+| `content_type` | string           | Yes         | MUST identify the recipe document type, such as `text/markdown` or `application/json`.                  |
+| `digest`       | string           | Yes         | MUST identify the expected content digest. `sha256:<hex>` is RECOMMENDED.                               |
+| `uri`          | string           | Conditional | MUST be present when `inline` is absent. SHOULD be used for large recipes.                              |
+| `inline`       | string or object | Conditional | MUST be present when `uri` is absent. SHOULD be used only for small recipes.                            |
+| `inputs`       | array            | Optional    | MAY describe expected input names and content types.                                                    |
+| `outputs`      | array            | Optional    | MAY describe produced output names and content types.                                                   |
+| `requirements` | array of strings | Optional    | MAY list capability strings a receiver should have before using the recipe.                             |
+
+At least one of `uri` or `inline` MUST be present. Senders SHOULD prefer `uri` for large recipes
+because v0 implementations are expected to support at least 1 MiB envelopes, not unlimited inline
+payloads.
+
+## Broadcast advertisement
+
+Broadcast recipes let a curator advertise a reusable artifact to channel peers.
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "id": "msg_recipe_ad_001",
+  "kind": "recipe",
+  "channel": "builders",
+  "from": "recipe-curator.session-7",
+  "to": null,
+  "ts": 1776366240,
+  "body": {
+    "recipe": {
+      "recipe_id": "release-smoke-test",
+      "version": "1.0.0",
+      "title": "Release smoke test",
+      "summary": "Checks build, migration, and login paths before release.",
+      "content_type": "text/markdown",
+      "digest": "sha256:6c5d2c1e8d1f2a7f9b0a5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4",
+      "uri": "agh://recipes/release-smoke-test/1.0.0",
+      "inputs": [
+        {
+          "name": "git_ref",
+          "content_type": "text/plain"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "report",
+          "content_type": "text/markdown"
+        }
+      ],
+      "requirements": ["test.run", "browser.check"]
+    }
+  },
+  "proof": null
+}
+```
+
+Receivers MAY cache, index, display, ignore, or request more detail about a broadcast recipe.
+
+## Directed recipe handoff
+
+A sender MAY direct a recipe to one peer. If `interaction_id` is present, the directed recipe
+participates in the interaction lifecycle.
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "id": "msg_recipe_direct_001",
+  "kind": "recipe",
+  "channel": "builders",
+  "from": "recipe-curator.session-7",
+  "to": "release-bot.session-3",
+  "interaction_id": "int_recipe_adaptation_20260416",
+  "ts": 1776366300,
+  "body": {
+    "recipe": {
+      "recipe_id": "release-smoke-test",
+      "version": "1.0.0",
+      "title": "Release smoke test",
+      "content_type": "text/markdown",
+      "digest": "sha256:6c5d2c1e8d1f2a7f9b0a5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4",
+      "uri": "agh://recipes/release-smoke-test/1.0.0",
+      "requirements": ["test.run", "browser.check"]
+    }
+  },
+  "proof": null
+}
+```
+
+The receiver SHOULD answer with `receipt(accepted)` or `receipt(rejected)` when the recipe is part
+of an interaction.
+
+## Recipe lifecycle pattern
+
+<Mermaid
+  chart={`sequenceDiagram
+    participant C as recipe-curator
+    participant B as builders channel
+    participant R as release-bot
+
+    C->>B: recipe advertisement
+    R->>C: direct request adaptation
+    C-->>R: receipt accepted
+    C-->>R: trace needs_input: provide environment
+    R->>C: direct environment details
+    C-->>R: trace completed: adapted recipe uri`}
+
+caption="Recipes combine broadcast discovery with directed interaction when a peer asks for adaptation."
+/>
+
+## Artifact integrity
+
+Receivers SHOULD verify `digest` before using recipe content loaded from `uri` or `inline`. A digest
+mismatch SHOULD be treated as `verification_failed` or `malformed`, depending on whether the runtime
+uses a trust profile.
+
+The digest validates content integrity. It does not prove author identity in v0.
+
+## What a recipe does not define
+
+The protocol does not define:
+
+- A scheduler for recipe execution.
+- A required recipe language.
+- A deterministic execution model.
+- A retry policy.
+- Permissions for tools a recipe might require.
+
+Those belong to the receiving runtime or to future profiles layered on top of the core protocol.

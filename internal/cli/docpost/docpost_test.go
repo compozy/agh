@@ -336,7 +336,7 @@ func TestOutPath(t *testing.T) {
 		in   input
 		want string
 	}{
-		{input{baseName: "agh", segments: nil}, "index.mdx"},
+		{input{baseName: "agh", segments: nil}, "agh.mdx"},
 		{input{baseName: "agh_version", segments: []string{"version"}}, "version.mdx"},
 		{input{baseName: "agh_agent", segments: []string{"agent"}}, "agent/index.mdx"},
 		{input{baseName: "agh_agent_list", segments: []string{"agent", "list"}}, "agent/list.mdx"},
@@ -373,7 +373,7 @@ func TestBuildTargetMap(t *testing.T) {
 	targets := buildTargetMap(inputs, nil)
 
 	want := map[string]string{
-		"agh":                        "/runtime/cli-reference",
+		"agh":                        "/runtime/cli-reference/agh",
 		"agh_agent":                  "/runtime/cli-reference/agent",
 		"agh_agent_list":             "/runtime/cli-reference/agent/list",
 		"agh_automation_jobs_create": "/runtime/cli-reference/automation/jobs/create",
@@ -390,7 +390,7 @@ func TestRemapLinks(t *testing.T) {
 	t.Parallel()
 
 	targets := map[string]string{
-		"agh":            "/runtime/cli-reference",
+		"agh":            "/runtime/cli-reference/agh",
 		"agh_agent":      "/runtime/cli-reference/agent",
 		"agh_agent_list": "/runtime/cli-reference/agent/list",
 	}
@@ -408,7 +408,7 @@ func TestRemapLinks(t *testing.T) {
 		{
 			name: "remaps root",
 			raw:  "See [agh](agh) for the root command.",
-			want: "See [agh](/runtime/cli-reference) for the root command.",
+			want: "See [agh](/runtime/cli-reference/agh) for the root command.",
 		},
 		{
 			name: "leaves unknown targets alone",
@@ -457,14 +457,18 @@ func TestTitleCase(t *testing.T) {
 	}
 }
 
-func TestCleanOutput_PreservesRootMeta(t *testing.T) {
+func TestCleanOutput_PreservesRootEditorialFiles(t *testing.T) {
 	t.Parallel()
 
 	dstDir := t.TempDir()
 
-	// Seed with a hand-maintained root meta.json and some stale files/dirs.
+	// Seed with hand-maintained root files and some stale generated files/dirs.
 	rootMeta := []byte(`{"title":"CLI Reference","pages":["index","agent"]}`)
 	if err := os.WriteFile(filepath.Join(dstDir, "meta.json"), rootMeta, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rootIndex := []byte("---\ntitle: CLI Reference\n---\n\n# CLI Reference\n")
+	if err := os.WriteFile(filepath.Join(dstDir, "index.mdx"), rootIndex, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dstDir, "stale.mdx"), []byte("stale"), 0o600); err != nil {
@@ -481,13 +485,20 @@ func TestCleanOutput_PreservesRootMeta(t *testing.T) {
 		t.Fatalf("cleanOutput() error: %v", err)
 	}
 
-	// Root meta.json must survive.
+	// Root editorial files must survive.
 	got, err := os.ReadFile(filepath.Join(dstDir, "meta.json"))
 	if err != nil {
 		t.Fatalf("root meta.json should still exist: %v", err)
 	}
 	if !bytes.Equal(got, rootMeta) {
 		t.Errorf("root meta.json content changed, want %q, got %q", rootMeta, got)
+	}
+	got, err = os.ReadFile(filepath.Join(dstDir, "index.mdx"))
+	if err != nil {
+		t.Fatalf("root index.mdx should still exist: %v", err)
+	}
+	if !bytes.Equal(got, rootIndex) {
+		t.Errorf("root index.mdx content changed, want %q, got %q", rootIndex, got)
 	}
 
 	// Stale files must be gone.
@@ -505,9 +516,13 @@ func TestProcess_NestedLayout(t *testing.T) {
 	srcDir := t.TempDir()
 	dstDir := t.TempDir()
 
-	// Seed a hand-maintained root meta.json — Process must preserve it.
+	// Seed hand-maintained root files — Process must preserve them.
 	rootMeta := `{"title":"CLI Reference","root":true,"pages":["index","agent","automation","version"]}`
 	if err := os.WriteFile(filepath.Join(dstDir, "meta.json"), []byte(rootMeta), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rootIndex := "---\ntitle: CLI Reference\n---\n\n# Editorial overview\n"
+	if err := os.WriteFile(filepath.Join(dstDir, "index.mdx"), []byte(rootIndex), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -607,7 +622,8 @@ Print the version.
 
 	// Expected layout.
 	want := []string{
-		"index.mdx",                  // from agh.md
+		"agh.mdx",                    // generated root command page
+		"index.mdx",                  // hand-authored overview
 		"version.mdx",                // leaf, no children
 		"agent/index.mdx",            // parent (agh_agent has children)
 		"agent/info.mdx",             // leaf
@@ -632,6 +648,13 @@ Print the version.
 	}
 	if string(got) != rootMeta {
 		t.Errorf("root meta.json was modified. got=%q want=%q", got, rootMeta)
+	}
+	got, err = os.ReadFile(filepath.Join(dstDir, "index.mdx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != rootIndex {
+		t.Errorf("root index.mdx was modified. got=%q want=%q", got, rootIndex)
 	}
 
 	// Cross-links in agent/index.mdx must point to absolute URLs.
@@ -729,7 +752,9 @@ func TestProcess_CreatesOutputDir(t *testing.T) {
 	if _, err := os.Stat(dstDir); os.IsNotExist(err) {
 		t.Error("output directory should have been created")
 	}
-	if _, err := os.Stat(filepath.Join(dstDir, "index.mdx")); os.IsNotExist(err) {
-		t.Error("index.mdx should have been written (from agh.md)")
+	if _, err := os.Stat(filepath.Join(dstDir, "agh.mdx")); os.IsNotExist(err) {
+		t.Error("agh.mdx should have been written (from agh.md)")
+	} else if err != nil {
+		t.Fatalf("stat agh.mdx: %v", err)
 	}
 }

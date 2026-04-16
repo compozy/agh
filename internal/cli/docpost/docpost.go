@@ -1,7 +1,8 @@
 // Package docpost transforms raw Cobra-generated markdown into
 // Fumadocs-compatible MDX files with YAML frontmatter. Output is grouped
 // into a nested directory structure by command family so the Fumadocs
-// sidebar collapses the CLI reference.
+// sidebar collapses the CLI reference. The generated root command page is
+// written as agh.mdx so index.mdx can remain a hand-authored overview.
 package docpost
 
 import (
@@ -30,11 +31,12 @@ var (
 
 // Process reads all agh*.md files from srcDir, transforms them into
 // Fumadocs-compatible MDX, and writes them to dstDir using a nested
-// directory layout: `agh` → index.mdx, `agh_agent` → agent/index.mdx,
+// directory layout: `agh` → agh.mdx, `agh_agent` → agent/index.mdx,
 // `agh_agent_list` → agent/list.mdx, and so on.
 //
-// The root-level meta.json of dstDir is hand-maintained and never touched
-// by Process. Subdirectory meta.json files are regenerated on each run.
+// The root-level index.mdx and meta.json of dstDir are hand-maintained and
+// never touched by Process. Subdirectory meta.json files are regenerated on
+// each run.
 // Stale files from prior runs are removed before writing.
 func Process(srcDir, dstDir string) error {
 	if err := os.MkdirAll(dstDir, 0o755); err != nil {
@@ -132,7 +134,7 @@ func computeHasChildren(inputs []input) map[string]bool {
 // forward slashes.
 func outPath(in input, hasChildren map[string]bool) string {
 	if len(in.segments) == 0 {
-		return "index.mdx"
+		return "agh.mdx"
 	}
 	if hasChildren[in.baseName] {
 		return path.Join(in.segments...) + "/index.mdx"
@@ -145,13 +147,13 @@ func outPath(in input, hasChildren map[string]bool) string {
 }
 
 // buildTargetMap builds a baseName -> absolute URL map used by remapLinks.
-// The root command maps to linkBasePath itself; every other command maps to
-// linkBasePath + its segment path.
+// The root command maps to the generated agh page; every other command maps
+// to linkBasePath + its segment path.
 func buildTargetMap(inputs []input, _ map[string]bool) map[string]string {
 	targets := make(map[string]string, len(inputs))
 	for _, in := range inputs {
 		if len(in.segments) == 0 {
-			targets[in.baseName] = linkBasePath
+			targets[in.baseName] = linkBasePath + "/agh"
 			continue
 		}
 		targets[in.baseName] = linkBasePath + "/" + strings.Join(in.segments, "/")
@@ -176,8 +178,8 @@ func remapLinks(body string, targets map[string]string) string {
 	})
 }
 
-// cleanOutput removes everything in dstDir except the root meta.json so the
-// hand-maintained sidebar grouping survives regeneration.
+// cleanOutput removes generated files in dstDir while preserving the root
+// hand-maintained index.mdx and meta.json.
 func cleanOutput(dstDir string) error {
 	entries, err := os.ReadDir(dstDir)
 	if err != nil {
@@ -187,7 +189,7 @@ func cleanOutput(dstDir string) error {
 		return err
 	}
 	for _, e := range entries {
-		if e.Name() == "meta.json" {
+		if e.Name() == "index.mdx" || e.Name() == "meta.json" {
 			continue
 		}
 		if err := os.RemoveAll(filepath.Join(dstDir, e.Name())); err != nil {

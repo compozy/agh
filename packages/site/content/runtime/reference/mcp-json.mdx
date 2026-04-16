@@ -1,0 +1,188 @@
+---
+title: mcp.json Reference
+description: Complete AGH mcp.json sidecar schema, supported locations, validation, and merge precedence.
+icon: FileCode
+---
+
+# mcp.json Reference
+
+`mcp.json` is an optional JSON sidecar for MCP server declarations. AGH accepts it at global,
+workspace, agent, and skill scopes.
+
+## Quick Reference
+
+| Field              | Type         | Default  | Valid values                          | Description                          |
+| ------------------ | ------------ | -------- | ------------------------------------- | ------------------------------------ |
+| `mcpServers`       | object map   | empty    | Server-name keys with server objects. | Camel-case top-level MCP server map. |
+| `mcp_servers`      | object map   | empty    | Server-name keys with server objects. | Snake-case top-level MCP server map. |
+| `<server>.command` | string       | required | Non-empty after trimming.             | MCP server command.                  |
+| `<server>.args`    | string array | empty    | Strings.                              | Command arguments.                   |
+| `<server>.env`     | string map   | empty    | String keys and values.               | Literal environment values.          |
+
+Unknown JSON fields fail parsing. Trailing JSON values after the first document also fail parsing.
+Missing `mcp.json` files are treated as absent.
+
+There is no implemented `mcp.json` tool-mapping schema today. The current parser accepts MCP server
+definitions only.
+
+## Supported Locations
+
+| Location                    | Scope                   | Applies when                                                 |
+| --------------------------- | ----------------------- | ------------------------------------------------------------ |
+| `$AGH_HOME/mcp.json`        | Global top-level MCP    | General runtime config loads. Defaults to `~/.agh/mcp.json`. |
+| `<workspace>/.agh/mcp.json` | Workspace top-level MCP | A workspace root is resolved for the command or session.     |
+| `<agent-dir>/mcp.json`      | Agent-local MCP         | Next to `AGENT.md`.                                          |
+| `<skill-dir>/mcp.json`      | Skill-local MCP         | Next to `SKILL.md`.                                          |
+
+## Complete Example
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/you/work"],
+      "env": {
+        "LOG_LEVEL": "info"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "replace-with-real-token"
+      }
+    }
+  }
+}
+```
+
+The snake-case form is also accepted:
+
+```json
+{
+  "mcp_servers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    }
+  }
+}
+```
+
+## Top-Level Keys
+
+| Key           | Type       | Default | Valid values                                      | Description                                                          |
+| ------------- | ---------- | ------- | ------------------------------------------------- | -------------------------------------------------------------------- |
+| `mcpServers`  | object map | empty   | Keys are server names; values are server objects. | Primary JSON form.                                                   |
+| `mcp_servers` | object map | empty   | Keys are server names; values are server objects. | Alternate JSON form. Loaded after `mcpServers` inside the same file. |
+
+If both top-level keys are present in the same file and both define the same server name,
+`mcp_servers` replaces the whole server object from `mcpServers`.
+
+## Server Object
+
+| Field     | Type         | Default  | Valid values                                            | Description                                                                        |
+| --------- | ------------ | -------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Map key   | string       | required | Non-empty after trimming. Duplicate trimmed names fail. | Server `name`.                                                                     |
+| `command` | string       | required | Non-empty after trimming.                               | Executable command.                                                                |
+| `args`    | string array | empty    | Strings.                                                | Process arguments.                                                                 |
+| `env`     | string map   | empty    | String keys and values.                                 | Literal environment values. AGH does not expand `$VAR`, `~`, or shell syntax here. |
+
+## Merge And Override Rules
+
+`mcp.json` uses whole-object replacement. TOML uses field-level merging.
+
+| Situation                                                | Behavior                                                                                                 |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Same-name TOML `[[mcp_servers]]` overlay                 | Fields merge by name. Non-empty `command`, non-empty `args`, and `env` keys overlay the existing server. |
+| Same-name `mcp.json` sidecar overlay                     | The sidecar replaces the entire existing server object.                                                  |
+| Same-name inline `AGENT.md` and agent-local `mcp.json`   | Agent-local sidecar replaces the whole inline server object.                                             |
+| Same-name `SKILL.md` metadata and skill-local `mcp.json` | Skill-local sidecar replaces the whole frontmatter server object.                                        |
+| Duplicate names inside one JSON document after trimming  | Loading fails.                                                                                           |
+
+## Runtime Precedence
+
+Top-level configuration loads in this order:
+
+1. Built-in defaults.
+2. `$AGH_HOME/config.toml`.
+3. `$AGH_HOME/mcp.json`.
+4. `<workspace>/.agh/config.toml`.
+5. `<workspace>/.agh/mcp.json`.
+
+Daemon boot uses home config for boot-time daemon settings. MCP sidecars are applied by the general
+config loader used for session and runtime resolution.
+
+Session startup then resolves MCP servers in this order:
+
+1. Top-level config MCP servers.
+2. Provider MCP servers.
+3. Agent MCP servers.
+4. Active skill MCP servers.
+
+Provider and agent MCP servers use field-level merging when they come from TOML or YAML. Agent and
+skill sidecars replace same-name inline servers as whole objects.
+
+## Validation Errors
+
+| Error case                           | Result               |
+| ------------------------------------ | -------------------- |
+| Unknown top-level key                | Parse error.         |
+| Unknown server field                 | Parse error.         |
+| Trailing JSON value                  | Parse error.         |
+| Empty server name after trimming     | Validation error.    |
+| Duplicate trimmed server name        | Validation error.    |
+| Missing `command`                    | Validation error.    |
+| Non-string values in `args` or `env` | JSON decoding error. |
+| Missing file                         | Ignored.             |
+
+## Examples By Scope
+
+### Global MCP Server
+
+```text
+~/.agh/
+  config.toml
+  mcp.json
+```
+
+Use this for tools every workspace may use.
+
+### Workspace MCP Server
+
+```text
+my-project/
+  .agh/
+    config.toml
+    mcp.json
+```
+
+Use this for tools that only make sense inside one project.
+
+### Agent MCP Server
+
+```text
+~/.agh/agents/reviewer/
+  AGENT.md
+  mcp.json
+```
+
+Use this when the tool belongs to one agent.
+
+### Skill MCP Server
+
+```text
+~/.agh/skills/docs-search/
+  SKILL.md
+  mcp.json
+```
+
+Use this when the tool belongs to one skill. Marketplace skill MCP servers are blocked unless the
+skill is explicitly allowlisted in `[skills].allowed_marketplace_mcp`.
+
+## Related Pages
+
+- [config.toml Reference](/runtime/reference/config-toml) documents top-level and provider MCP fields.
+- [AGENT.md Reference](/runtime/reference/agent-md) documents agent-local MCP declarations.
+- [SKILL.md Reference](/runtime/reference/skill-md) documents skill-local MCP declarations.

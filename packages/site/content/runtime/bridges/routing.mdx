@@ -1,0 +1,228 @@
+---
+title: Bridge Routing
+description: How bridge routing policies map platform messages to AGH sessions and delivery targets.
+---
+
+# Bridge Routing
+
+Bridge routing is the boundary between platform identity and AGH session identity. An adapter sends
+AGH a normalized inbound envelope with platform dimensions such as peer, group, and thread. AGH then
+uses the bridge instance routing policy to decide which dimensions belong to the canonical route key.
+
+The result is a durable bridge route: one platform conversation identity mapped to one AGH session.
+
+## Routing policy
+
+Every bridge instance carries this policy:
+
+```json
+{
+  "include_peer": false,
+  "include_thread": true,
+  "include_group": true
+}
+```
+
+| Field            | Meaning                                                | Common use                                                                                            |
+| ---------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `include_peer`   | Include the platform peer identity in the route key.   | Direct conversations such as Slack DMs, Discord DMs, and Telegram private chats.                      |
+| `include_thread` | Include the platform thread identity in the route key. | Slack thread timestamp, Discord thread channel ID, Telegram forum topic ID.                           |
+| `include_group`  | Include the platform group identity in the route key.  | Shared containers such as Slack channels, Discord channels, Telegram groups, or Telegram supergroups. |
+
+`include_thread` cannot be the only enabled dimension. A thread must be anchored by either a peer or
+a group, otherwise AGH rejects the instance configuration with `bridges: routing policy cannot
+include thread without peer or group`.
+
+Every enabled routing dimension is required on inbound events. That means one bridge instance usually
+targets one conversation shape: direct messages use `peer_id`, shared channels use `group_id`, and
+threaded channel or forum flows use `group_id` plus `thread_id`. If you need both DMs and channel
+traffic, create separate bridge instances with different policies.
+
+## Route key construction
+
+When a provider calls `bridges/messages/ingest`, AGH builds a key from:
+
+- `scope`
+- `workspace_id`
+- `bridge_instance_id`
+- `peer_id`, if `include_peer` is true
+- `thread_id`, if `include_thread` is true
+- `group_id`, if `include_group` is true
+
+The key is serialized in a stable JSON shape and hashed with SHA-256. The hash is stored with the
+route and is what lets AGH reuse the same session for the next message in the same routed
+conversation.
+
+| Policy           | Message dimensions                     | Session behavior                            |
+| ---------------- | -------------------------------------- | ------------------------------------------- |
+| Peer only        | Telegram direct chat ID                | One session per direct conversation.        |
+| Group only       | Slack channel ID or Discord channel ID | One session per shared channel.             |
+| Group and thread | Slack channel ID plus thread timestamp | One session per thread in a shared channel. |
+| Group and thread | Telegram group ID plus forum topic ID  | One session per forum topic.                |
+
+Choose dimensions that the provider emits for the events you care about. For example, a policy that
+requires `thread_id` will reject inbound events that do not provide a thread identity, even when the
+same bridge is otherwise healthy.
+
+## Platform dimension mapping
+
+The adapters normalize platform-specific IDs into the same three fields:
+
+| Platform event                 | `peer_id`             | `group_id`         | `thread_id`                                                       |
+| ------------------------------ | --------------------- | ------------------ | ----------------------------------------------------------------- |
+| Slack direct message           | Slack conversation ID | empty              | Slack `thread_ts` when present.                                   |
+| Slack channel message          | empty                 | Slack channel ID   | `thread_ts`, or the message `ts` for a top-level channel message. |
+| Discord direct message         | Discord DM channel ID | empty              | empty                                                             |
+| Discord server channel message | empty                 | Discord channel ID | empty                                                             |
+| Discord thread message         | empty                 | Parent/channel ID  | Discord thread channel ID                                         |
+| Telegram private chat          | Telegram chat ID      | empty              | Telegram message thread ID when present.                          |
+| Telegram group or supergroup   | empty                 | Telegram chat ID   | Forum topic ID; forum general topic normalizes to `1`.            |
+
+There is no explicit channel-to-agent mapping field on a bridge instance. New route sessions use the
+workspace default agent, and route separation comes from these dimensions.
+
+## Session resolution
+
+After the route key is built, AGH follows one of three paths:
+
+1. If an active route already exists, AGH submits the inbound content to that route's session.
+2. If the route exists but the session is missing or inactive, AGH creates a replacement session and
+   updates the route.
+3. If no route exists, AGH creates a new workspace session, stores the route, and submits the inbound
+   content.
+
+New bridge sessions use the workspace default agent. Set the workspace default before enabling a
+bridge if the bridge should talk to a specific agent:
+
+```bash
+agh workspace add /Users/you/src/support-bot \
+  --name support-bot \
+  --default-agent support
+```
+
+The inbound session path requires a workspace ID on the bridge instance. A global bridge instance can
+exist, but it cannot currently create a new AGH session from inbound messages because there is no
+workspace to resolve.
+
+## Inbound envelope
+
+The provider sends AGH the normalized envelope, not the raw platform webhook payload.
+
+```json
+{
+  "bridge_instance_id": "brg_123",
+  "scope": "workspace",
+  "workspace_id": "ws_8f33a913d23c4fd1",
+  "group_id": "C0123456789",
+  "thread_id": "1713200000.000100",
+  "platform_message_id": "1713200000.000100",
+  "received_at": "2026-04-16T14:30:00Z",
+  "sender": {
+    "id": "U0123456789",
+    "username": "maya",
+    "display_name": "Maya"
+  },
+  "content": {
+    "text": "Check the failing deployment."
+  },
+  "event_family": "message",
+  "idempotency_key": "slack:brg_123:1713200000.000100"
+}
+```
+
+Supported event families are `message`, `command`, `action`, and `reaction`. Each family has its
+own typed payload when the platform event is not just text. Attachments are normalized as metadata
+with ID, name, MIME type, and URL.
+
+AGH renders the envelope into a prompt that includes the event family, platform message ID, sender,
+peer, thread, group, body text, and attachment list. That prompt is persisted in the session event
+store before it is handed to the agent.
+
+## Deduplication
+
+Providers must send an `idempotency_key`. AGH stores that key for 24 hours after the later of
+`received_at` and daemon time. If the provider retries the same inbound event during that window and
+the route still exists, AGH suppresses duplicate prompt submission and returns the existing session
+and routing key.
+
+Deduplication is scoped to the bridge instance and idempotency key. It protects AGH from repeated
+platform webhook delivery, but it is not a platform-wide exactly-once guarantee.
+
+## Delivery targets
+
+Inbound prompts register a delivery target with `mode: "reply"` so response events go back to the
+platform conversation that produced the prompt.
+
+For explicit outbound delivery checks, AGH can also resolve a target from bridge defaults plus
+request overrides:
+
+```json
+{
+  "delivery_defaults": {
+    "group_id": "C0123456789",
+    "thread_id": "1713200000.000100",
+    "mode": "direct-send"
+  }
+}
+```
+
+Allowed target fields are:
+
+| Field       | Notes                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| `peer_id`   | Platform direct conversation identity.                                                           |
+| `thread_id` | Optional thread identity; requires `peer_id` or `group_id`.                                      |
+| `group_id`  | Platform group, guild, or forum container identity.                                              |
+| `mode`      | `direct-send` or `reply`. Empty mode normalizes to `direct-send` for explicit target resolution. |
+
+Use `agh bridge test-delivery` to verify that a target resolves without sending a live message:
+
+```bash
+agh bridge test-delivery brg_123 \
+  --message "routing smoke test" \
+  --group-id C0123456789 \
+  --thread-id 1713200000.000100 \
+  --mode reply
+```
+
+The HTTP endpoint for the same dry run is `POST /api/bridges/:id/test-delivery`.
+
+## Delivery guarantees
+
+AGH preserves order per route. The delivery broker runs workers by route, projects session events
+into delivery events, and asks the adapter to acknowledge each delivery request.
+
+The event types are:
+
+| Event    | Purpose                                                                          |
+| -------- | -------------------------------------------------------------------------------- |
+| `start`  | Begin a response delivery stream.                                                |
+| `delta`  | Append streamed text.                                                            |
+| `final`  | Mark the response complete.                                                      |
+| `error`  | Mark the response failed.                                                        |
+| `resume` | Send a snapshot after a transport, adapter, or acknowledgement failure.          |
+| `delete` | Remove a previously delivered platform message when the agent output is deleted. |
+
+The broker retries failed delivery through `resume` snapshots. Slow adapters get coalesced deltas so
+the route stays bounded; under pressure, queued deltas may be dropped before a later resume/final
+snapshot catches the platform up. The default route queue capacity is small by design, and the
+request timeout is internal to the broker. These are not user-facing bridge configuration knobs.
+
+When a session stops with unfinished delivery work, AGH sends terminal `error` delivery events for
+the unfinished responses before the bridge notifier finishes the session stop path.
+
+## Error handling
+
+| Failure                                                                  | Runtime behavior                                                                                      |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Instance disabled                                                        | Ingest is rejected as unavailable.                                                                    |
+| Status `starting`, `auth_required`, or `error`                           | Ingest is rejected until the provider reports a usable state.                                         |
+| Status `ready` or `degraded`                                             | Ingest is accepted. Degradation metadata remains visible in health output.                            |
+| Secret binding is missing, invalid, or points to an empty env var        | The provider reports degraded, auth-required, or error state depending on the adapter classification. |
+| Webhook signature or token validation fails                              | The adapter rejects the platform request before calling AGH ingest.                                   |
+| Provider config has duplicate webhook paths for the same adapter process | The adapter marks the affected instance configuration invalid.                                        |
+| Delivery transport fails or returns an invalid acknowledgement           | The broker records the failure and retries with a resume snapshot.                                    |
+
+Bridge health fields are returned by `agh bridge list`, `agh bridge get`, and the HTTP bridge
+responses. For live monitoring, subscribe to `GET /api/bridges/health/stream`; it emits an initial
+snapshot and then changed health snapshots.

@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Sessions (Lifecycle, Resume, Events, Permissions)"
 type: docs
 complexity: medium
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 08: Docs: Sessions (Lifecycle, Resume, Events, Permissions)

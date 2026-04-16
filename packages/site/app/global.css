@@ -3,6 +3,14 @@
 @import "fumadocs-ui/css/neutral.css";
 @import "@agh/ui/tokens.css";
 
+@font-face {
+  font-family: "NuixyberNext";
+  src: url("/fonts/NuixyberNext-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /*
  * Wire Next.js font variables into Tailwind's font tokens.
  * `--font-inter` and `--font-jetbrains-mono` are injected by next/font/google
@@ -44,6 +52,12 @@
   --color-fd-accent: #2e2c2b;
   --color-fd-accent-foreground: #e5e5e7;
   --color-fd-ring: #e8572a;
+}
+
+/* Remove fumadocs banner wrapper padding on landing page only */
+body:has(.site-home) .bg-fd-secondary\/50.p-3 {
+  padding: 0;
+  background: transparent;
 }
 
 /* neutral.css ships a sidebar-specific override; realign it to DESIGN.md. */
@@ -92,6 +106,14 @@ a {
   background: transparent;
 }
 
+#nd-page > * {
+  max-width: 100% !important;
+}
+
+#nd-notebook-layout {
+  --fd-layout-width: 100vw !important;
+}
+
 #nd-toc {
   width: var(--site-doc-toc-width);
   border-inline-start: 1px solid var(--color-divider);
@@ -102,11 +124,6 @@ a {
 #nd-toc [data-active="true"],
 #nd-toc a:hover {
   color: var(--color-accent);
-}
-
-.site-docs-layout {
-  --fd-layout-width: var(--site-doc-layout-width);
-  --fd-sidebar-width: var(--site-doc-sidebar-width);
 }
 
 .site-doc-body {

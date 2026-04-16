@@ -1,0 +1,5 @@
+{
+    "title": "Skills",
+    "icon": "FileCode",
+    "pages": ["overview", "skill-md", "marketplace", "bundled"]
+}

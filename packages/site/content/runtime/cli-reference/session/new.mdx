@@ -11,6 +11,19 @@ Create a new session
 agh session new [flags]
 ```
 
+### Examples
+
+```
+  # Start a session in the current workspace using the configured default agent
+  agh session new
+
+  # Start a named session for a specific registered workspace and agent
+  agh session new --workspace checkout-api --agent reviewer --name review-api
+
+  # Auto-register an absolute workspace path before creating the session
+  agh session new --cwd "$PWD" --agent reviewer
+```
+
 ### Options
 
 ```

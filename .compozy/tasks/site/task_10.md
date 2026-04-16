@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Memory (System, Scopes, Dream Consolidation, Best Practices)"
 type: docs
 complexity: medium
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 10: Docs: Memory (System, Scopes, Dream Consolidation, Best Practices)

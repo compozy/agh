@@ -1,0 +1,237 @@
+---
+title: Conformance Levels
+description: Reference for AGH Network Core, Trust, and Full conformance levels, required capabilities, test coverage, and self-certification.
+---
+
+Conformance levels let an implementation describe which parts of AGH Network it supports. Claims are
+additive: a higher level includes the requirements below it.
+
+This page is normative unless a section is marked as an example.
+
+<OperatorNote label="Implementation status">
+  The current repository has package tests for the v0 AGH Runtime implementation, but it does not
+  yet ship a standalone third-party AGH Network conformance runner.
+</OperatorNote>
+
+## Levels
+
+| Level | Includes                                                                                                           | Intended implementer                                                               |
+| ----- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Core  | Core Sender plus Core Receiver behavior for envelopes, message kinds, lifecycle, delivery, and extension handling. | Any runtime, bridge, test harness, or library that exchanges AGH Network messages. |
+| Trust | Core plus the v1 baseline Ed25519 + JCS trust profile.                                                             | Implementations that claim cryptographic sender verification.                      |
+| Full  | Trust plus the NATS transport binding.                                                                             | Peers that interoperate over AGH Network v1 on NATS.                               |
+
+Implementations MAY make narrower role claims such as `Core Sender` or `Core Receiver` when they do
+not implement both directions.
+
+## Capability matrix
+
+| Capability                                                         | Core   | Trust  | Full   |
+| ------------------------------------------------------------------ | ------ | ------ | ------ |
+| Emit valid envelopes                                               | MUST   | MUST   | MUST   |
+| Receive and validate valid envelopes                               | MUST   | MUST   | MUST   |
+| Support all seven message kinds                                    | MUST   | MUST   | MUST   |
+| Enforce kind-specific required fields                              | MUST   | MUST   | MUST   |
+| Enforce `channel` grammar                                          | MUST   | MUST   | MUST   |
+| Enforce Peer ID or verified-handle grammar for the claimed profile | MUST   | MUST   | MUST   |
+| Honor `expires_at`                                                 | MUST   | MUST   | MUST   |
+| Deduplicate by `id` within a bounded replay window                 | SHOULD | SHOULD | SHOULD |
+| Preserve lifecycle terminal-state rules                            | MUST   | MUST   | MUST   |
+| Ignore unknown `ext` keys                                          | MUST   | MUST   | MUST   |
+| Require v1 namechannel-style `ext` keys                            | SHOULD | MUST   | MUST   |
+| Surface trust state as `verified`, `unverified`, or `rejected`     | MUST   | MUST   | MUST   |
+| Verify Ed25519 + JCS baseline proofs                               | MAY    | MUST   | MUST   |
+| Reject proof-stripped verified handles                             | MAY    | MUST   | MUST   |
+| Emit valid baseline proofs for messages expected to be verified    | MAY    | MUST   | MUST   |
+| Advertise trust support in Peer Cards                              | MAY    | MUST   | MUST   |
+| Implement NATS v1 subject mapping                                  | MAY    | MAY    | MUST   |
+| Subscribe to broadcast and direct NATS subjects                    | MAY    | MAY    | MUST   |
+| Preserve core correlation when using NATS request-reply            | MAY    | MAY    | MUST   |
+| Treat NATS and JetStream acknowledgements as transport-level only  | SHOULD | SHOULD | MUST   |
+
+## Core conformance
+
+Core conformance is split into sender and receiver roles.
+
+### Core Sender
+
+A Core Sender MUST:
+
+- produce valid core envelopes
+- emit only valid core message kinds and bodies
+- include required lifecycle and correlation fields when applicable
+- preserve stable sender identity formatting
+- honor expiration semantics when it sets `expires_at`
+- preserve unknown extension data it forwards
+
+### Core Receiver
+
+A Core Receiver MUST:
+
+- validate required envelope fields
+- reject malformed messages
+- validate kind-specific body shape
+- honor expiration semantics
+- tolerate duplicate delivery semantics at the application level
+- surface trust state as `verified`, `unverified`, or `rejected`
+- ignore unknown extension namechannels rather than failing the whole message
+- avoid applying extension-specific behavior before core validation succeeds
+
+### Core Peer
+
+A Core Peer MUST satisfy both Core Sender and Core Receiver.
+
+## Trust conformance
+
+A Trust-level implementation MUST satisfy Core Peer and the baseline trust profile in
+[Ed25519 + JCS Trust Profile](/protocol/ed25519-jcs/).
+
+A Trust-level sender MUST:
+
+- derive `from` as `nickname@fingerprint` when it expects verified handling
+- set `proof.profile` to `agh-network.trust.ed25519-jcs/v1`
+- set `proof.alg` to `Ed25519`
+- set `proof.key_id` from SHA-256 over the raw public key
+- set `proof.pubkey` as base64url without padding over the raw public key
+- JCS-canonicalize the envelope with only `proof.sig` omitted
+- sign the canonical UTF-8 bytes with Ed25519
+- include the base64url signature as `proof.sig`
+
+A Trust-level receiver MUST:
+
+- execute every verification step in [Signature Verification](/protocol/verification/)
+- classify valid baseline proofs as `verified`
+- classify normal unsigned messages as `unverified`
+- reject verified-format identities when proof is missing
+- reject malformed or invalid baseline proofs
+- apply local policy only after cryptographic verification
+
+## Full conformance
+
+A Full implementation MUST satisfy Trust conformance and the [NATS transport binding](/protocol/nats/).
+
+A Full NATS Peer MUST:
+
+- use the `agh.network.v1` subject prefix for v1 traffic
+- subscribe to `agh.network.v1.<channel>.broadcast` for each joined channel
+- subscribe to `agh.network.v1.<channel>.peer.<own_route_token>` for each joined channel
+- publish broadcast envelopes to the broadcast subject
+- publish directed envelopes to the target direct subject
+- derive verified-mode direct route tokens from the verified handle fingerprint
+- derive non-verified route tokens from SHA-256 over the target peer ID
+- preserve envelope `reply_to`, `interaction_id`, `trace_id`, and `causation_id` when using NATS
+  request-reply
+- keep JetStream persistence, consumer acknowledgements, and dead-letter handling outside core
+  acceptance semantics
+
+## Valid conformance claims
+
+An implementation MAY claim any of these combinations when it satisfies the corresponding
+requirements:
+
+| Claim           | Meaning                                                                    |
+| --------------- | -------------------------------------------------------------------------- |
+| `Core Sender`   | Can emit valid core messages but does not claim receiver behavior.         |
+| `Core Receiver` | Can validate and receive core messages but does not claim sender behavior. |
+| `Core Peer`     | Can send and receive core messages.                                        |
+| `Trust Peer`    | Can send and receive core messages and verify baseline trust proofs.       |
+| `NATS Peer`     | Can send and receive core messages over the NATS binding.                  |
+| `Full Peer`     | Can send and receive verified core messages over the NATS v1 binding.      |
+
+The RFC 004 role vocabulary also permits additive claims such as `Core Peer + NATS Peer` or
+`Core Peer + Verified Peer`. Public documentation SHOULD map those to `NATS Peer`, `Trust Peer`,
+or `Full Peer` where a shorter label is clearer.
+
+## Peer Card signaling
+
+A Peer Card SHOULD advertise conformance with explicit profile and trust-mode strings.
+
+Example:
+
+```json
+{
+  "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
+  "display_name": "Patch Worker",
+  "profiles_supported": [
+    "agh-network/v1",
+    "agh-network.nats/v1",
+    "agh-network.trust.ed25519-jcs/v1"
+  ],
+  "capabilities": ["code.patch", "test.run"],
+  "artifacts_supported": ["text/markdown", "application/json", "git.diff"],
+  "trust_modes_supported": ["verified", "unverified"]
+}
+```
+
+Capability strings are advisory. Receivers MUST NOT treat Peer Card claims as proof of behavior.
+Conformance is established by passing tests and by verifying actual message behavior.
+
+## Conformance test suite overview
+
+A conformance suite SHOULD be fixture-driven and transport-agnostic at the core layer.
+
+| Suite                 | Required coverage                                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Envelope fixtures     | Valid and invalid envelopes, required fields, unknown fields, nullable fields, timestamp rules.                              |
+| Message kind fixtures | All seven message kinds, required body fields, invalid body shapes, broadcast versus directed constraints.                   |
+| Lifecycle fixtures    | Opening interactions, receipts, traces, terminal states, invalid state regressions, actor ownership.                         |
+| Delivery fixtures     | Duplicate IDs, expired messages, unsupported kinds, reason codes, receipt behavior.                                          |
+| Extension fixtures    | Unknown extension keys, namechannel validation, extension processing after core validation.                                  |
+| Trust fixtures        | Valid Ed25519 + JCS example, malformed proofs, key mismatches, fingerprint mismatches, proof stripping.                      |
+| NATS fixtures         | Broadcast subjects, direct subjects, verified route tokens, unverified route tokens, request-reply correlation preservation. |
+| JetStream fixtures    | Optional replay and redelivery tests that prove core deduplication and receipts remain authoritative.                        |
+
+The suite SHOULD include at least one golden verified envelope from
+[the worked example](/protocol/ed25519-jcs/#worked-example) and MUST fail if the signature verifies
+against non-canonical bytes.
+
+## Self-certification
+
+Until a public conformance runner exists, an implementation that self-certifies SHOULD publish:
+
+1. The claimed level and role, such as `Trust Peer` or `Full Peer`.
+2. The AGH Network protocol version and profile identifiers tested.
+3. The exact test suite commit or fixture version.
+4. The list of passed fixture groups.
+5. Any optional behavior, such as JetStream persistence or local trust-policy extensions.
+6. Any known deviations.
+
+Self-certification MUST NOT claim a higher level when required behavior is delegated to deployment
+policy and not implemented by the peer.
+
+Example self-certification record:
+
+```json
+{
+  "implementation": "example-runtime",
+  "version": "0.4.0",
+  "claim": "Full Peer",
+  "protocol": "agh-network/v1",
+  "profiles": ["agh-network.trust.ed25519-jcs/v1", "agh-network.nats/v1"],
+  "fixture_suite": "agh-network-conformance@2026-04-16",
+  "passed": [
+    "core.envelope",
+    "core.message-kinds",
+    "core.lifecycle",
+    "core.delivery",
+    "trust.ed25519-jcs",
+    "transport.nats"
+  ],
+  "optional": ["transport.jetstream.persistence"],
+  "deviations": []
+}
+```
+
+## Failure handling
+
+A test runner MUST distinguish:
+
+- malformed envelopes
+- unsupported profile claims
+- verification failures
+- expired messages
+- duplicate messages
+- transport delivery failures
+- application-level rejection receipts
+
+Collapsing these cases into a generic failure makes interop debugging harder and SHOULD be avoided.

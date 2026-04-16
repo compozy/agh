@@ -1,0 +1,163 @@
+---
+title: Interaction Lifecycle
+description: Reference for AGH Network v0 request-response, fire-and-forget, progress streaming, lifecycle states, and timeout semantics.
+---
+
+An interaction is a correlated unit of directed work. It is scoped by `channel` and
+`interaction_id`, and it involves exactly the initiator and target established when the interaction
+opens.
+
+This page is normative unless a section is marked as an example.
+
+## Lifecycle states
+
+| State         | Meaning                                                                | Terminal |
+| ------------- | ---------------------------------------------------------------------- | -------- |
+| `submitted`   | The interaction has been opened and is waiting for acceptance or work. | No       |
+| `working`     | The target has accepted responsibility and is doing work.              | No       |
+| `needs_input` | The target needs more input from the initiator.                        | No       |
+| `completed`   | The target completed the work.                                         | Yes      |
+| `failed`      | The target or lifecycle rules marked the interaction failed.           | Yes      |
+| `canceled`    | The initiator or target canceled the interaction.                      | Yes      |
+
+Terminal states are authoritative. After an interaction reaches `completed`, `failed`, or
+`canceled`, later non-terminal updates MUST NOT move it back to an active state. A later `direct` or
+`recipe` in that interaction MAY be rejected with `interaction_closed`.
+
+<Mermaid
+  chart={`stateDiagram-v2
+    [*] --> submitted
+    submitted --> working: receipt accepted or trace working
+    submitted --> failed: receipt rejected or trace failed
+    submitted --> canceled: receipt canceled or trace canceled
+    working --> needs_input: trace needs_input
+    working --> completed: trace completed
+    working --> failed: trace failed
+    working --> canceled: receipt canceled or trace canceled
+    needs_input --> working: direct input
+    needs_input --> completed: trace completed
+    needs_input --> failed: trace failed
+    needs_input --> canceled: receipt canceled or trace canceled
+    completed --> [*]
+    failed --> [*]
+    canceled --> [*]`}
+  caption="Only active states can transition. Terminal states close the lifecycle."
+/>
+
+## Opening work with directed work
+
+A directed `direct` message with a new `interaction_id` opens an interaction between the sender and
+target. A directed `recipe` with `interaction_id` MAY also open an interaction when the sender is
+handing a portable artifact to one peer. The target SHOULD reply with a `receipt` when it accepts or
+rejects responsibility.
+
+<Mermaid
+  chart={`sequenceDiagram
+    participant A as ops-coordinator
+    participant B as patch-worker
+
+    A->>B: direct interaction_id=int-123
+    B-->>A: receipt accepted for direct
+    B-->>A: trace working
+    B-->>A: trace completed with result`}
+
+caption="A request-response interaction uses direct, receipt, and trace messages."
+/>
+
+### Rules
+
+- The first directed `direct` or directed `recipe` message establishes the initiator and target.
+- Only the initiator and target MAY emit lifecycle messages for that interaction.
+- A `direct` message MUST include `to` and `interaction_id`.
+- A `recipe` message MUST include `to` when it is meant to participate in a directed interaction.
+- A `receipt` or `trace` message MUST include `interaction_id`.
+- A receiver SHOULD emit `receipt(accepted)` when it accepts responsibility.
+- A receiver SHOULD emit `receipt(rejected)` with a reason code when it refuses responsibility.
+
+## Fire-and-forget broadcast
+
+Use `say` when a channel-visible message does not need lifecycle state.
+
+<Mermaid
+  chart={`sequenceDiagram
+    participant A as ops-coordinator
+    participant C as channel peers
+
+    A->>C: say release branch is ready
+    Note over C: Peers may read or ignore the broadcast`}
+
+caption="A say message is broadcast and does not create an interaction."
+/>
+
+### Rules
+
+- `say` MUST NOT require a response.
+- `say` MUST NOT create an interaction lifecycle by itself.
+- Receivers MAY record or display `say` messages according to local policy.
+
+## Progress streaming
+
+`trace` messages allow the target to stream progress without opening a separate channel. Each trace
+updates the same `interaction_id`.
+
+<Mermaid
+  chart={`sequenceDiagram
+    participant A as release-bot
+    participant B as migration-agent
+
+    A->>B: direct run migration check
+    B-->>A: receipt accepted
+    B-->>A: trace working: schema check started
+    B-->>A: trace needs_input: provide database snapshot
+    A->>B: direct snapshot uri
+    B-->>A: trace working: replaying migration
+    B-->>A: trace completed: report uri`}
+
+caption="Multiple trace messages can report progress and request input before completion."
+/>
+
+### Rules
+
+- `trace(working)` SHOULD mean work is active.
+- `trace(needs_input)` SHOULD include a `message` that explains the missing input.
+- The initiator MAY answer `needs_input` with another `direct` message in the same interaction.
+- `trace(completed)` SHOULD include result data or artifact references when the output is not fully
+  described by `message`.
+- `trace(failed)` SHOULD include a human-readable `message` and MAY include structured failure data
+  in `result`.
+
+## Cancellations
+
+Cancellation can come from either side, but the meaning differs:
+
+| Message                             | Typical sender | Meaning                                             |
+| ----------------------------------- | -------------- | --------------------------------------------------- |
+| `receipt` with `status: "canceled"` | Initiator      | The initiator no longer wants the work to continue. |
+| `trace` with `state: "canceled"`    | Target         | The worker has stopped the work.                    |
+
+Implementations SHOULD make cancellation idempotent. If both peers send cancellation, the interaction
+remains canceled.
+
+## Timeout and expiration semantics
+
+There are two timeout layers:
+
+| Layer               | Field or policy                            | Effect                                                                               |
+| ------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------ |
+| Envelope freshness  | `expires_at` or receiver replay-age policy | Stale messages are rejected before routing or lifecycle processing.                  |
+| Application timeout | Local runtime policy                       | A runtime may mark an interaction failed or canceled if no progress arrives in time. |
+
+Senders SHOULD set `expires_at` on time-sensitive requests. Receivers MUST reject expired
+messages. When `expires_at` is absent, receivers SHOULD enforce a bounded replay-age policy. The AGH
+reference implementation defaults to 300 seconds.
+
+The protocol does not define a global interaction timeout. Runtimes MAY apply local deadlines and
+report the result with `trace(failed)`, `trace(canceled)`, or `receipt(canceled)`.
+
+## Interaction scope
+
+An `interaction_id` is scoped to a channel. Implementations SHOULD treat `(channel, interaction_id)`
+as the lifecycle key. The same interaction ID in another channel is a different interaction.
+
+The first valid directed work message fixes the participants. A message from a non-participant MUST
+NOT change the lifecycle state.

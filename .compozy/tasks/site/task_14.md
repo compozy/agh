@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Bridges (Platform Adapters, Routing, Setup)"
 type: docs
 complexity: medium
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 14: Docs: Bridges (Platform Adapters, Routing, Setup)
