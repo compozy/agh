@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
+	"github.com/pedronauck/agh/internal/resources"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -231,6 +233,92 @@ func TestManagerIntegrationBridgeAdapterNegotiatesDeliveryRuntime(t *testing.T) 
 	}
 }
 
+func TestManagerIntegrationWorkspaceExtensionCannotReceiveGlobalResourceScope(t *testing.T) {
+	withDaemonVersion(t, "0.5.0")
+
+	env := newRegistryTestEnv(t)
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-workspace-grants", managerManifestOptions{
+		command:          helperCommand(t),
+		args:             helperArgs(),
+		withEnv:          helperEnv("default", ""),
+		resourceFamilies: []string{"tools"},
+		resourceMaxScope: "global",
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceWorkspace, true)
+
+	manager := NewManager(
+		env.registry,
+		WithHealthCheckTimeout(20*time.Millisecond),
+		WithSubprocessSignalGrace(15*time.Millisecond),
+	)
+
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	ext, err := manager.Get("ext-workspace-grants")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if !slicesEqualResourceKinds(ext.GrantedResourceKinds, []resources.ResourceKind{resources.ResourceKind("tool")}) {
+		t.Fatalf("GrantedResourceKinds = %#v, want [tool]", ext.GrantedResourceKinds)
+	}
+	if !slicesEqualResourceScopes(ext.GrantedResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
+		t.Fatalf("GrantedResourceScopes = %#v, want [workspace]", ext.GrantedResourceScopes)
+	}
+}
+
+func TestManagerIntegrationResourceGrantsComeFromDaemonPolicy(t *testing.T) {
+	withDaemonVersion(t, "0.5.0")
+
+	env := newRegistryTestEnv(t)
+	checker := &CapabilityChecker{}
+	checker.SetResourcePolicy(aghconfig.ExtensionsResourcesConfig{
+		AllowedKinds: []resources.ResourceKind{resources.ResourceKind("tool")},
+		MaxScope:     resources.ResourceScopeKindWorkspace,
+	})
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-daemon-policy", managerManifestOptions{
+		command:          helperCommand(t),
+		args:             helperArgs(),
+		withEnv:          helperEnv("default", ""),
+		resourceFamilies: []string{"tools", "mcp_servers"},
+		resourceMaxScope: "global",
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+	manager := NewManager(
+		env.registry,
+		WithCapabilityChecker(checker),
+		WithHealthCheckTimeout(20*time.Millisecond),
+		WithSubprocessSignalGrace(15*time.Millisecond),
+	)
+
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	ext, err := manager.Get("ext-daemon-policy")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if !slicesEqualResourceKinds(ext.GrantedResourceKinds, []resources.ResourceKind{resources.ResourceKind("tool")}) {
+		t.Fatalf("GrantedResourceKinds = %#v, want [tool]", ext.GrantedResourceKinds)
+	}
+	if !slicesEqualResourceScopes(ext.GrantedResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
+		t.Fatalf("GrantedResourceScopes = %#v, want [workspace]", ext.GrantedResourceScopes)
+	}
+}
+
 func TestManagerIntegrationNonBridgeExtensionStartsWithoutBridgeNegotiation(t *testing.T) {
 	withDaemonVersion(t, "0.5.0")
 
@@ -428,6 +516,36 @@ func readInitializeMarkers(t *testing.T, path string) []managerInitializeMarker 
 		markers = append(markers, marker)
 	}
 	return markers
+}
+
+func slicesEqualResourceKinds(left []resources.ResourceKind, right []resources.ResourceKind) bool {
+	return slicesEqualStrings(resourceKindsToStrings(left), resourceKindsToStrings(right))
+}
+
+func slicesEqualResourceScopes(left []resources.ResourceScopeKind, right []resources.ResourceScopeKind) bool {
+	return slicesEqualStrings(resourceScopesToStrings(left), resourceScopesToStrings(right))
+}
+
+func resourceKindsToStrings(values []resources.ResourceKind) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	dst := make([]string, 0, len(values))
+	for _, value := range values {
+		dst = append(dst, string(value))
+	}
+	return dst
+}
+
+func resourceScopesToStrings(values []resources.ResourceScopeKind) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	dst := make([]string, 0, len(values))
+	for _, value := range values {
+		dst = append(dst, string(value))
+	}
+	return dst
 }
 
 func readFileLines(path string) ([]string, error) {

@@ -18,6 +18,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/version"
@@ -147,36 +148,40 @@ type ExtensionStatus struct {
 
 // Extension is the manager-visible snapshot for one installed extension.
 type Extension struct {
-	Info             ExtensionInfo
-	Manifest         *Manifest
-	RootDir          string
-	Hooks            []hookspkg.HookDecl
-	Agents           []aghconfig.AgentDef
-	Bundles          []BundleSpec
-	MCPServers       []aghconfig.MCPServer
-	Skills           []*skillspkg.Skill
-	GrantedActions   []string
-	GrantedSecurity  []string
-	InitializeResult *subprocess.InitializeResponse
-	Status           ExtensionStatus
+	Info                  ExtensionInfo
+	Manifest              *Manifest
+	RootDir               string
+	Hooks                 []hookspkg.HookDecl
+	Agents                []aghconfig.AgentDef
+	Bundles               []BundleSpec
+	MCPServers            []aghconfig.MCPServer
+	Skills                []*skillspkg.Skill
+	GrantedActions        []string
+	GrantedSecurity       []string
+	GrantedResourceKinds  []resources.ResourceKind
+	GrantedResourceScopes []resources.ResourceScopeKind
+	InitializeResult      *subprocess.InitializeResponse
+	Status                ExtensionStatus
 }
 
 type managedExtension struct {
-	info            ExtensionInfo
-	rootDir         string
-	manifest        *Manifest
-	hooks           []hookspkg.HookDecl
-	agents          []aghconfig.AgentDef
-	bundles         []BundleSpec
-	mcpServers      []aghconfig.MCPServer
-	skills          []*skillspkg.Skill
-	grantedActions  []string
-	grantedSecurity []string
-	initialize      *subprocess.InitializeResponse
-	process         processHandle
-	runtime         subprocess.InitializeRuntime
-	healthInterval  time.Duration
-	generation      int64
+	info                  ExtensionInfo
+	rootDir               string
+	manifest              *Manifest
+	hooks                 []hookspkg.HookDecl
+	agents                []aghconfig.AgentDef
+	bundles               []BundleSpec
+	mcpServers            []aghconfig.MCPServer
+	skills                []*skillspkg.Skill
+	grantedActions        []string
+	grantedSecurity       []string
+	grantedResourceKinds  []resources.ResourceKind
+	grantedResourceScopes []resources.ResourceScopeKind
+	initialize            *subprocess.InitializeResponse
+	process               processHandle
+	runtime               subprocess.InitializeRuntime
+	healthInterval        time.Duration
+	generation            int64
 
 	phase               ExtensionPhase
 	registered          bool
@@ -885,9 +890,20 @@ func (m *Manager) validateExtension(ext *managedExtension) error {
 		return phaseError(ext.info.Name, ExtensionPhaseValidate, err)
 	}
 
-	ext.grantedActions = effectiveActionGrants(ext.info.Source, ext.manifest.Actions.Requires)
-	ext.grantedSecurity = effectiveSecurityGrants(ext.info.Source, ext.manifest.Security.Capabilities)
-	m.capChecker.Register(ext.info.Name, ext.info.Source, ext.manifest)
+	grant, err := m.capChecker.RegisterForSession(
+		ext.info.Name,
+		ext.info.Source,
+		ext.manifest,
+		resources.ResourceScopeKindGlobal,
+	)
+	if err != nil {
+		m.setFailure(ext, ExtensionPhaseValidate, err)
+		return phaseError(ext.info.Name, ExtensionPhaseValidate, err)
+	}
+	ext.grantedActions = grant.Actions
+	ext.grantedSecurity = grant.Security
+	ext.grantedResourceKinds = grant.ResourceKinds
+	ext.grantedResourceScopes = grant.ResourceScopes
 	ext.phase = ExtensionPhaseValidate
 	return nil
 }
@@ -1799,11 +1815,13 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 	defer m.mu.RUnlock()
 
 	clone := &Extension{
-		Info:            cloneExtensionInfo(ext.info),
-		RootDir:         ext.rootDir,
-		GrantedActions:  slices.Clone(ext.grantedActions),
-		GrantedSecurity: slices.Clone(ext.grantedSecurity),
-		Status:          m.statusLocked(ext),
+		Info:                  cloneExtensionInfo(ext.info),
+		RootDir:               ext.rootDir,
+		GrantedActions:        slices.Clone(ext.grantedActions),
+		GrantedSecurity:       slices.Clone(ext.grantedSecurity),
+		GrantedResourceKinds:  slices.Clone(ext.grantedResourceKinds),
+		GrantedResourceScopes: slices.Clone(ext.grantedResourceScopes),
+		Status:                m.statusLocked(ext),
 	}
 	if ext.manifest != nil {
 		clone.Manifest = cloneManifest(ext.manifest)
@@ -2009,7 +2027,9 @@ func requiresSubprocess(manifest *Manifest) bool {
 	if strings.TrimSpace(manifest.Subprocess.Command) != "" {
 		return true
 	}
-	return len(manifest.Capabilities.Provides) > 0 || len(manifest.Actions.Requires) > 0
+	return len(manifest.Capabilities.Provides) > 0 ||
+		len(manifest.Actions.Requires) > 0 ||
+		len(manifest.Resources.Publish.Families) > 0
 }
 
 func durationOr(value Duration, fallback time.Duration) time.Duration {

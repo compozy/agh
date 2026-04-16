@@ -734,8 +734,9 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
 	manager := d.newExtensionManager(extensionManagerDeps{
-		Registry: extRegistry,
-		Sessions: state.sessions,
+		Registry:   extRegistry,
+		Extensions: state.cfg.Extensions,
+		Sessions:   state.sessions,
 		Automation: func() extensionpkg.HostAPIAutomationManager {
 			return state.automation
 		},

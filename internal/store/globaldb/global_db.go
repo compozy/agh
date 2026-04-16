@@ -9,11 +9,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/store"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
-var globalSchemaStatements = []string{
+var globalSchemaStatements = append([]string{
 	`CREATE TABLE IF NOT EXISTS workspaces (
 		id            TEXT PRIMARY KEY,
 		root_dir      TEXT NOT NULL UNIQUE,
@@ -421,38 +422,7 @@ var globalSchemaStatements = []string{
 		PRIMARY KEY (activation_id, resource_kind, resource_id)
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_bundle_activation_inventory_kind ON bundle_activation_inventory(resource_kind, recorded_at DESC);`,
-	`CREATE TABLE IF NOT EXISTS resource_records (
-		kind        TEXT NOT NULL,
-		id          TEXT NOT NULL,
-		version     INTEGER NOT NULL,
-		scope_kind  TEXT NOT NULL CHECK (scope_kind IN ('global', 'workspace')),
-		scope_id    TEXT,
-		owner_kind  TEXT NOT NULL,
-		owner_id    TEXT NOT NULL,
-		source_kind TEXT NOT NULL,
-		source_id   TEXT NOT NULL,
-		spec_json   TEXT NOT NULL,
-		created_at  TEXT NOT NULL,
-		updated_at  TEXT NOT NULL,
-		PRIMARY KEY (kind, id),
-		CHECK (
-			(scope_kind = 'global' AND scope_id IS NULL) OR
-			(scope_kind = 'workspace' AND scope_id IS NOT NULL)
-		)
-	);`,
-	`CREATE INDEX IF NOT EXISTS idx_resource_kind ON resource_records(kind);`,
-	`CREATE INDEX IF NOT EXISTS idx_resource_scope ON resource_records(scope_kind, scope_id, kind);`,
-	`CREATE INDEX IF NOT EXISTS idx_resource_owner ON resource_records(owner_kind, owner_id, kind);`,
-	`CREATE INDEX IF NOT EXISTS idx_resource_source ON resource_records(source_kind, source_id, kind);`,
-	`CREATE TABLE IF NOT EXISTS resource_source_state (
-		source_kind           TEXT NOT NULL,
-		source_id             TEXT NOT NULL,
-		session_nonce         TEXT NOT NULL,
-		last_snapshot_version INTEGER NOT NULL,
-		updated_at            TEXT NOT NULL,
-		PRIMARY KEY (source_kind, source_id)
-	);`,
-}
+}, resources.SchemaStatements()...)
 
 // GlobalDB owns the global session index and observability database.
 type GlobalDB struct {

@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"path/filepath"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
@@ -301,7 +301,7 @@ func TestKernelStampsOwnerAndSourceFromActor(t *testing.T) {
 func TestKernelActivateSessionNoOpSnapshotAndReset(t *testing.T) {
 	t.Parallel()
 
-	kernel, globalDB := openTestKernel(t)
+	kernel, db := openTestKernel(t)
 	ctx := testutil.Context(t)
 	source := ResourceSource{Kind: ResourceSourceKind("extension"), ID: "ext-noop"}
 
@@ -339,7 +339,7 @@ func TestKernelActivateSessionNoOpSnapshotAndReset(t *testing.T) {
 	}
 
 	var lastSnapshotVersion int64
-	if err := globalDB.DB().QueryRowContext(
+	if err := db.QueryRowContext(
 		ctx,
 		`SELECT last_snapshot_version FROM resource_source_state WHERE source_kind = ? AND source_id = ?`,
 		source.Kind,
@@ -822,7 +822,7 @@ func TestKernelValidationAndAuthorityEdgeCases(t *testing.T) {
 func TestKernelHelperPathsAndMissingState(t *testing.T) {
 	t.Parallel()
 
-	kernel, globalDB := openTestKernel(t)
+	kernel, db := openTestKernel(t)
 	ctx := testutil.Context(t)
 
 	if err := kernel.DeleteRaw(
@@ -850,7 +850,7 @@ func TestKernelHelperPathsAndMissingState(t *testing.T) {
 		t.Fatalf("normalizeFilter(invalid source) error = %v, want ErrValidation", err)
 	}
 
-	state, found, err := lookupSourceState(ctx, globalDB.DB(), ResourceSource{
+	state, found, err := lookupSourceState(ctx, db, ResourceSource{
 		Kind: ResourceSourceKind("extension"),
 		ID:   "missing-source",
 	})
@@ -1011,16 +1011,22 @@ func TestKernelAdditionalValidationBranches(t *testing.T) {
 	})
 }
 
-func openTestKernel(t *testing.T, opts ...Option) (*Kernel, *globaldb.GlobalDB) {
+func openTestKernel(t *testing.T, opts ...Option) (*Kernel, *sql.DB) {
 	t.Helper()
 
-	db, err := globaldb.OpenGlobalDB(testutil.Context(t), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+	db, err := store.OpenSQLiteDatabase(
+		testutil.Context(t),
+		filepath.Join(t.TempDir(), store.GlobalDatabaseName),
+		func(ctx context.Context, db *sql.DB) error {
+			return store.EnsureSchema(ctx, db, SchemaStatements())
+		},
+	)
 	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
+		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if closeErr := db.Close(testutil.Context(t)); closeErr != nil {
-			t.Fatalf("Close() error = %v", closeErr)
+		if closeErr := db.Close(); closeErr != nil {
+			t.Fatalf("db.Close() error = %v", closeErr)
 		}
 	})
 
@@ -1029,7 +1035,7 @@ func openTestKernel(t *testing.T, opts ...Option) (*Kernel, *globaldb.GlobalDB) 
 			return time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
 		}),
 	}, opts...)
-	kernel, err := NewKernel(db.DB(), options...)
+	kernel, err := NewKernel(db, options...)
 	if err != nil {
 		t.Fatalf("NewKernel() error = %v", err)
 	}

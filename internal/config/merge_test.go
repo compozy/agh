@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pedronauck/agh/internal/resources"
 )
 
 func TestApplyConfigOverlayFileAppliesSkillsOverlay(t *testing.T) {
@@ -152,6 +154,61 @@ max_queue_depth = 12
 			t.Fatalf("ApplyConfigOverlayFile() Network.MaxQueueDepth = %d, want %d", got, want)
 		}
 	})
+}
+
+func TestApplyConfigOverlayFileAppliesExtensionsResourceOverlay(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg := DefaultWithHome(homePaths)
+	cfg.Extensions.Resources.OperatorWriteRateLimit = ExtensionsResourceRateLimitConfig{
+		Requests: 12,
+		Window:   time.Minute,
+		Queue:    0,
+	}
+
+	overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+	writeFile(t, overlayPath, `
+[extensions.resources]
+allowed_kinds = ["tool"]
+max_scope = "workspace"
+
+[extensions.resources.snapshot_rate_limit]
+requests = 2
+window = "8s"
+queue = 1
+`)
+
+	if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+		t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+	}
+	if got, want := cfg.Extensions.Resources.AllowedKinds, []resources.ResourceKind{
+		resources.ResourceKind("tool"),
+	}; !slices.Equal(
+		got,
+		want,
+	) {
+		t.Fatalf("ApplyConfigOverlayFile() AllowedKinds = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.MaxScope, resources.ResourceScopeKindWorkspace; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() MaxScope = %q, want %q", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.SnapshotRateLimit.Requests, 2; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() SnapshotRateLimit.Requests = %d, want %d", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.SnapshotRateLimit.Window, 8*time.Second; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() SnapshotRateLimit.Window = %s, want %s", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.OperatorWriteRateLimit.Requests, 12; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() OperatorWriteRateLimit.Requests = %d, want %d", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.OperatorWriteRateLimit.Window, time.Minute; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() OperatorWriteRateLimit.Window = %s, want %s", got, want)
+	}
 }
 
 func TestValidateWrapsNetworkErrorsWithConfigContext(t *testing.T) {

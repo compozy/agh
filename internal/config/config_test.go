@@ -11,6 +11,7 @@ import (
 	"time"
 
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 )
 
 func TestLoadValidTOMLConfigWithAllSections(t *testing.T) {
@@ -695,6 +696,12 @@ func TestDefaultWithHomeLeavesMarketplaceConfigEmpty(t *testing.T) {
 	if cfg.Extensions.Marketplace != (ExtensionsMarketplaceConfig{}) {
 		t.Fatalf("DefaultWithHome() Extensions.Marketplace = %#v, want zero value", cfg.Extensions.Marketplace)
 	}
+	if len(cfg.Extensions.Resources.AllowedKinds) != 0 ||
+		cfg.Extensions.Resources.MaxScope != "" ||
+		cfg.Extensions.Resources.SnapshotRateLimit != (ExtensionsResourceRateLimitConfig{}) ||
+		cfg.Extensions.Resources.OperatorWriteRateLimit != (ExtensionsResourceRateLimitConfig{}) {
+		t.Fatalf("DefaultWithHome() Extensions.Resources = %#v, want zero value", cfg.Extensions.Resources)
+	}
 }
 
 func TestSkillsConfigValidateMarketplaceConfig(t *testing.T) {
@@ -830,6 +837,156 @@ func TestExtensionsConfigValidateMarketplaceConfig(t *testing.T) {
 			t.Fatalf("ExtensionsConfig.Validate(http) logs = %q, want insecure http scheme warning", logs.String())
 		}
 	})
+}
+
+func TestExtensionsConfigValidateResourcesConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		cfg         ExtensionsConfig
+		wantErrPath string
+	}{
+		{
+			name: "ShouldAcceptValidResourcePolicy",
+			cfg: ExtensionsConfig{
+				Resources: ExtensionsResourcesConfig{
+					AllowedKinds: []resources.ResourceKind{
+						resources.ResourceKind("tool"),
+						resources.ResourceKind("mcp_server"),
+					},
+					MaxScope: resources.ResourceScopeKindWorkspace,
+					SnapshotRateLimit: ExtensionsResourceRateLimitConfig{
+						Requests: 2,
+						Window:   5 * time.Second,
+						Queue:    1,
+					},
+					OperatorWriteRateLimit: ExtensionsResourceRateLimitConfig{
+						Requests: 10,
+						Window:   time.Minute,
+						Queue:    0,
+					},
+				},
+			},
+		},
+		{
+			name: "ShouldRejectDaemonOnlyAllowedKind",
+			cfg: ExtensionsConfig{
+				Resources: ExtensionsResourcesConfig{
+					AllowedKinds: []resources.ResourceKind{resources.ResourceKind("bridge.instance")},
+				},
+			},
+			wantErrPath: "extensions.resources.allowed_kinds",
+		},
+		{
+			name: "ShouldRejectInvalidResourceMaxScope",
+			cfg: ExtensionsConfig{
+				Resources: ExtensionsResourcesConfig{
+					MaxScope: resources.ResourceScopeKind("session"),
+				},
+			},
+			wantErrPath: "extensions.resources.max_scope",
+		},
+		{
+			name: "ShouldRejectInvalidSnapshotRateLimit",
+			cfg: ExtensionsConfig{
+				Resources: ExtensionsResourcesConfig{
+					SnapshotRateLimit: ExtensionsResourceRateLimitConfig{
+						Requests: 0,
+						Window:   time.Second,
+					},
+				},
+			},
+			wantErrPath: "extensions.resources.snapshot_rate_limit",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+			if tt.wantErrPath == "" {
+				if err != nil {
+					t.Fatalf("ExtensionsConfig.Validate() error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("ExtensionsConfig.Validate() error = nil, want validation failure")
+			}
+			if !strings.Contains(err.Error(), tt.wantErrPath) {
+				t.Fatalf("ExtensionsConfig.Validate() error = %v, want %s context", err, tt.wantErrPath)
+			}
+		})
+	}
+}
+
+func TestLoadRoundTripsExtensionsResourcePolicy(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[extensions.resources]
+allowed_kinds = ["tool", "mcp_server"]
+max_scope = "global"
+
+[extensions.resources.snapshot_rate_limit]
+requests = 3
+window = "15s"
+queue = 1
+
+[extensions.resources.operator_write_rate_limit]
+requests = 12
+window = "1m"
+queue = 0
+`)
+
+	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[extensions.resources]
+allowed_kinds = ["tool"]
+max_scope = "workspace"
+
+[extensions.resources.snapshot_rate_limit]
+requests = 1
+window = "5s"
+queue = 1
+`)
+
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got, want := cfg.Extensions.Resources.AllowedKinds, []resources.ResourceKind{
+		resources.ResourceKind("tool"),
+	}; !slices.Equal(
+		got,
+		want,
+	) {
+		t.Fatalf("Load() AllowedKinds = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.MaxScope, resources.ResourceScopeKindWorkspace; got != want {
+		t.Fatalf("Load() MaxScope = %q, want %q", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.SnapshotRateLimit.Requests, 1; got != want {
+		t.Fatalf("Load() SnapshotRateLimit.Requests = %d, want %d", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.SnapshotRateLimit.Window, 5*time.Second; got != want {
+		t.Fatalf("Load() SnapshotRateLimit.Window = %s, want %s", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.OperatorWriteRateLimit.Requests, 12; got != want {
+		t.Fatalf("Load() OperatorWriteRateLimit.Requests = %d, want %d", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.OperatorWriteRateLimit.Window, time.Minute; got != want {
+		t.Fatalf("Load() OperatorWriteRateLimit.Window = %s, want %s", got, want)
+	}
 }
 
 func TestValidateRejectsInvalidPorts(t *testing.T) {

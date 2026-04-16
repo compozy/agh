@@ -161,6 +161,7 @@ func bridgeObserveSource(service core.BridgeService) observe.BridgeSource {
 
 type extensionManagerDeps struct {
 	Registry          *extensionpkg.Registry
+	Extensions        aghconfig.ExtensionsConfig
 	Sessions          SessionManager
 	Automation        func() extensionpkg.HostAPIAutomationManager
 	Tasks             taskpkg.Manager
@@ -488,6 +489,7 @@ func (d *Daemon) applyExtensionManagerFactoryDefault() {
 		}
 
 		capChecker := &extensionpkg.CapabilityChecker{}
+		capChecker.SetResourcePolicy(deps.Extensions.Resources)
 		hostAPI := extensionpkg.NewHostAPIHandler(
 			deps.Sessions,
 			deps.MemoryStore,

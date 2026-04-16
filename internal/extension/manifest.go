@@ -16,6 +16,8 @@ import (
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
+	"github.com/pedronauck/agh/internal/extension/surfaces"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/version"
 )
 
@@ -56,6 +58,13 @@ type ResourcesConfig struct {
 	Bundles    []string                   `toml:"bundles,omitempty"     json:"bundles,omitempty"`
 	Hooks      []HookConfig               `toml:"hooks,omitempty"       json:"hooks,omitempty"`
 	MCPServers map[string]MCPServerConfig `toml:"mcp_servers,omitempty" json:"mcp_servers,omitempty"`
+	Publish    ResourceGrantRequest       `toml:"publish,omitempty"     json:"publish"`
+}
+
+// ResourceGrantRequest declares the resource families and scope ceiling an extension requests.
+type ResourceGrantRequest struct {
+	Families []string                    `toml:"families,omitempty"  json:"families,omitempty"`
+	MaxScope resources.ResourceScopeKind `toml:"max_scope,omitempty" json:"max_scope,omitempty"`
 }
 
 // CapabilitiesConfig declares the runtime interfaces the extension provides.
@@ -260,6 +269,15 @@ func (m *Manifest) Validate() error {
 					Message: err.Error(),
 				}
 			}
+		}
+	}
+	if _, err := surfaces.ResolveManifestRequest(
+		m.Resources.Publish.Families,
+		m.Resources.Publish.MaxScope,
+	); err != nil {
+		return &ManifestValidationError{
+			Field:   "resources.publish",
+			Message: err.Error(),
 		}
 	}
 	return nil
@@ -481,6 +499,14 @@ func normalizeResourcesConfig(cfg ResourcesConfig) ResourcesConfig {
 		Bundles:    normalizeStrings(cfg.Bundles),
 		Hooks:      normalizeHooks(cfg.Hooks),
 		MCPServers: normalizeMCPServers(cfg.MCPServers),
+		Publish:    normalizeResourceGrantRequest(cfg.Publish),
+	}
+}
+
+func normalizeResourceGrantRequest(cfg ResourceGrantRequest) ResourceGrantRequest {
+	return ResourceGrantRequest{
+		Families: normalizeStrings(cfg.Families),
+		MaxScope: cfg.MaxScope.Normalize(),
 	}
 }
 

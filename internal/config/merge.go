@@ -10,6 +10,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 )
 
 type configOverlay struct {
@@ -111,6 +112,20 @@ type skillsOverlay struct {
 
 type extensionsOverlay struct {
 	Marketplace extensionsMarketplaceOverlay `toml:"marketplace"`
+	Resources   extensionsResourcesOverlay   `toml:"resources"`
+}
+
+type extensionsResourcesOverlay struct {
+	AllowedKinds           *[]resources.ResourceKind    `toml:"allowed_kinds"`
+	MaxScope               *resources.ResourceScopeKind `toml:"max_scope"`
+	SnapshotRateLimit      extensionsRateLimitOverlay   `toml:"snapshot_rate_limit"`
+	OperatorWriteRateLimit extensionsRateLimitOverlay   `toml:"operator_write_rate_limit"`
+}
+
+type extensionsRateLimitOverlay struct {
+	Requests *int           `toml:"requests"`
+	Window   *time.Duration `toml:"window"`
+	Queue    *int           `toml:"queue"`
 }
 
 type networkOverlay struct {
@@ -181,7 +196,7 @@ func loadConfigOverlayFile(path string) (configOverlay, error) {
 	return overlay, nil
 }
 
-func (o configOverlay) Apply(dst *Config) error {
+func (o *configOverlay) Apply(dst *Config) error {
 	o.Daemon.Apply(&dst.Daemon)
 	o.HTTP.Apply(&dst.HTTP)
 	o.Defaults.Apply(&dst.Defaults)
@@ -348,6 +363,30 @@ func (o skillsOverlay) Apply(dst *SkillsConfig) {
 
 func (o extensionsOverlay) Apply(dst *ExtensionsConfig) {
 	o.Marketplace.Apply(&dst.Marketplace)
+	o.Resources.Apply(&dst.Resources)
+}
+
+func (o extensionsResourcesOverlay) Apply(dst *ExtensionsResourcesConfig) {
+	if o.AllowedKinds != nil {
+		dst.AllowedKinds = append([]resources.ResourceKind(nil), (*o.AllowedKinds)...)
+	}
+	if o.MaxScope != nil {
+		dst.MaxScope = *o.MaxScope
+	}
+	o.SnapshotRateLimit.Apply(&dst.SnapshotRateLimit)
+	o.OperatorWriteRateLimit.Apply(&dst.OperatorWriteRateLimit)
+}
+
+func (o extensionsRateLimitOverlay) Apply(dst *ExtensionsResourceRateLimitConfig) {
+	if o.Requests != nil {
+		dst.Requests = *o.Requests
+	}
+	if o.Window != nil {
+		dst.Window = *o.Window
+	}
+	if o.Queue != nil {
+		dst.Queue = *o.Queue
+	}
 }
 
 func (o networkOverlay) Apply(dst *NetworkConfig) {

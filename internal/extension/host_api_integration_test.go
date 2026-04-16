@@ -280,7 +280,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestCreatesRouteAndSession(t *testin
 	})
 	ctx := env.bridgeContext(t, instance)
 
-	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+	result, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
 		"bridge_instance_id":  instance.ID,
 		"scope":               instance.Scope,
 		"workspace_id":        instance.WorkspaceID,
@@ -327,7 +327,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestSupportsSiblingInstancesInOneRun
 	})
 	ctx := env.bridgeContextForInstances(t, first, second)
 
-	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+	result, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
 		"bridge_instance_id":  second.ID,
 		"scope":               second.Scope,
 		"workspace_id":        second.WorkspaceID,
@@ -384,7 +384,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed(t *te
 		"content":             map[string]any{"text": "retry me"},
 	}
 
-	first, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", params)
+	first, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", params)
 	if err != nil {
 		t.Fatalf("first Handle(bridges/messages/ingest) error = %v", err)
 	}
@@ -393,7 +393,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed(t *te
 
 	env.advanceTime(2 * time.Minute)
 
-	second, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", params)
+	second, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", params)
 	if err != nil {
 		t.Fatalf("retry Handle(bridges/messages/ingest) error = %v", err)
 	}
@@ -430,7 +430,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestRejectsNonOwnedInstance(t *testi
 	})
 	ctx := env.bridgeContext(t, owned)
 
-	_, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+	_, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
 		"bridge_instance_id":  foreign.ID,
 		"scope":               foreign.Scope,
 		"workspace_id":        foreign.WorkspaceID,
@@ -454,7 +454,7 @@ func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *t
 	})
 	ctx := env.bridgeContext(t, instance)
 
-	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/report_state", map[string]any{
+	result, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/report_state", map[string]any{
 		"bridge_instance_id": instance.ID,
 		"status":             "auth_required",
 		"degradation": map[string]any{
@@ -475,7 +475,7 @@ func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *t
 		t.Fatalf("bridges/instances/report_state degradation = %#v, want auth_failed", updated.Degradation)
 	}
 
-	fetched, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", map[string]any{
+	fetched, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/get", map[string]any{
 		"bridge_instance_id": instance.ID,
 	})
 	if err != nil {
@@ -511,7 +511,7 @@ func TestHostAPIIntegrationBridgesInstancesListAndGetReturnOwnedInstances(t *tes
 
 	ctx := env.bridgeContextForInstances(t, first, second)
 
-	listedResult, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/list", nil)
+	listedResult, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/list", nil)
 	if err != nil {
 		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
 	}
@@ -525,7 +525,7 @@ func TestHostAPIIntegrationBridgesInstancesListAndGetReturnOwnedInstances(t *tes
 		t.Fatalf("bridges/instances/list ids = %#v, want %#v", got, want)
 	}
 
-	fetchedResult, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", map[string]any{
+	fetchedResult, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/get", map[string]any{
 		"bridge_instance_id": second.ID,
 	})
 	if err != nil {
@@ -561,7 +561,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestConcurrentSameRoutingKeyUsesOneR
 		idx := idx
 		go func() {
 			defer func() { done <- struct{}{} }()
-			result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+			result, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
 				"bridge_instance_id":  instance.ID,
 				"scope":               instance.Scope,
 				"workspace_id":        instance.WorkspaceID,

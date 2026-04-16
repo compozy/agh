@@ -81,7 +81,7 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 		return Config{}, fmt.Errorf("validate bootstrap config: %w", err)
 	}
 
-	if err := writeConfigOverlayFile(homePaths.ConfigFile, overlay); err != nil {
+	if err := writeConfigOverlayFile(homePaths.ConfigFile, &overlay); err != nil {
 		return Config{}, err
 	}
 	return finalCfg, nil
@@ -122,7 +122,7 @@ func bootstrapAgentContents() string {
 	}, "\n")
 }
 
-func writeConfigOverlayFile(path string, overlay configOverlay) error {
+func writeConfigOverlayFile(path string, overlay *configOverlay) error {
 	var buffer bytes.Buffer
 	if err := toml.NewEncoder(&buffer).Encode(overlay); err != nil {
 		return fmt.Errorf("encode config file %q: %w", path, err)

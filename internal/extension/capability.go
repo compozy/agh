@@ -6,6 +6,10 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/extension/surfaces"
+	"github.com/pedronauck/agh/internal/resources"
 )
 
 const (
@@ -142,39 +146,54 @@ func (e *ErrCapabilityDenied) Code() int {
 // CapabilityChecker tracks effective grants per extension and evaluates
 // capability checks for hook dispatch and Host API calls.
 type CapabilityChecker struct {
-	mu     sync.RWMutex
-	grants map[string]capabilityGrant
+	mu             sync.RWMutex
+	grants         map[string]capabilityGrant
+	resourcePolicy aghconfig.ExtensionsResourcesConfig
 }
 
 type capabilityGrant struct {
-	source   ExtensionSource
-	actions  []string
-	security []string
+	source         ExtensionSource
+	actions        []string
+	security       []string
+	resourceKinds  []resources.ResourceKind
+	resourceScopes []resources.ResourceScopeKind
+}
+
+// EffectiveGrant is the daemon-derived grant snapshot for one extension session.
+type EffectiveGrant struct {
+	Actions        []string
+	Security       []string
+	ResourceKinds  []resources.ResourceKind
+	ResourceScopes []resources.ResourceScopeKind
 }
 
 // Register records one extension's effective grants by applying the source-tier
 // ceiling before intersecting it with the manifest requests.
 func (c *CapabilityChecker) Register(extName string, source ExtensionSource, manifest *Manifest) {
-	if c == nil {
+	if _, err := c.RegisterForSession(extName, source, manifest, resources.ResourceScopeKindGlobal); err != nil {
 		return
+	}
+}
+
+// RegisterForSession records one extension's effective grants for the supplied session scope ceiling.
+func (c *CapabilityChecker) RegisterForSession(
+	extName string,
+	source ExtensionSource,
+	manifest *Manifest,
+	sessionMaxScope resources.ResourceScopeKind,
+) (EffectiveGrant, error) {
+	if c == nil {
+		return EffectiveGrant{}, nil
 	}
 
 	name := strings.TrimSpace(extName)
 	if name == "" {
-		return
+		return EffectiveGrant{}, nil
 	}
 
-	var requestedActions []string
-	var requestedSecurity []string
-	if manifest != nil {
-		requestedActions = normalizeUniqueStrings(manifest.Actions.Requires)
-		requestedSecurity = normalizeUniqueStrings(manifest.Security.Capabilities)
-	}
-
-	grant := capabilityGrant{
-		source:   source,
-		actions:  effectiveActionGrants(source, requestedActions),
-		security: effectiveSecurityGrants(source, requestedSecurity),
+	grant, err := c.resolve(source, manifest, sessionMaxScope)
+	if err != nil {
+		return EffectiveGrant{}, err
 	}
 
 	c.mu.Lock()
@@ -183,6 +202,40 @@ func (c *CapabilityChecker) Register(extName string, source ExtensionSource, man
 		c.grants = make(map[string]capabilityGrant)
 	}
 	c.grants[name] = grant
+	return grant.snapshot(), nil
+}
+
+// Resolve computes one daemon-derived grant snapshot without storing it.
+func (c *CapabilityChecker) Resolve(
+	source ExtensionSource,
+	manifest *Manifest,
+	sessionMaxScope resources.ResourceScopeKind,
+) (EffectiveGrant, error) {
+	if c == nil {
+		return EffectiveGrant{}, nil
+	}
+
+	grant, err := c.resolve(source, manifest, sessionMaxScope)
+	if err != nil {
+		return EffectiveGrant{}, err
+	}
+	return grant.snapshot(), nil
+}
+
+// Grant returns the stored effective grant snapshot for one extension.
+func (c *CapabilityChecker) Grant(extName string) EffectiveGrant {
+	return c.lookup(extName).snapshot()
+}
+
+// SetResourcePolicy installs the operator-configured extension resource policy.
+func (c *CapabilityChecker) SetResourcePolicy(policy aghconfig.ExtensionsResourcesConfig) {
+	if c == nil {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.resourcePolicy = cloneResourcePolicy(policy)
 }
 
 // Unregister removes any effective grants tracked for one extension.
@@ -252,6 +305,59 @@ func (c *CapabilityChecker) lookup(extName string) capabilityGrant {
 		return capabilityGrant{}
 	}
 	return c.grants[strings.TrimSpace(extName)]
+}
+
+func (c *CapabilityChecker) resolve(
+	source ExtensionSource,
+	manifest *Manifest,
+	sessionMaxScope resources.ResourceScopeKind,
+) (capabilityGrant, error) {
+	c.mu.RLock()
+	policy := cloneResourcePolicy(c.resourcePolicy)
+	c.mu.RUnlock()
+
+	var requestedActions []string
+	var requestedSecurity []string
+	var requestedResources surfaces.GrantRequest
+	var err error
+	if manifest != nil {
+		requestedActions = normalizeUniqueStrings(manifest.Actions.Requires)
+		requestedSecurity = normalizeUniqueStrings(manifest.Security.Capabilities)
+		requestedResources, err = surfaces.ResolveManifestRequest(
+			manifest.Resources.Publish.Families,
+			manifest.Resources.Publish.MaxScope,
+		)
+		if err != nil {
+			return capabilityGrant{}, err
+		}
+	}
+
+	resourceKinds, resourceScopes, err := effectiveResourceGrants(
+		source,
+		policy,
+		requestedResources,
+		sessionMaxScope,
+	)
+	if err != nil {
+		return capabilityGrant{}, err
+	}
+
+	return capabilityGrant{
+		source:         source,
+		actions:        effectiveActionGrants(source, requestedActions),
+		security:       effectiveSecurityGrants(source, requestedSecurity),
+		resourceKinds:  resourceKinds,
+		resourceScopes: resourceScopes,
+	}, nil
+}
+
+func (g capabilityGrant) snapshot() EffectiveGrant {
+	return EffectiveGrant{
+		Actions:        slices.Clone(g.actions),
+		Security:       slices.Clone(g.security),
+		ResourceKinds:  slices.Clone(g.resourceKinds),
+		ResourceScopes: slices.Clone(g.resourceScopes),
+	}
 }
 
 func newCapabilityDeniedError(method string, required []string, granted []string) error {
@@ -393,6 +499,7 @@ type sourceTierPolicy struct {
 	allowAllSecurity bool
 	allowedActions   []string
 	allowedSecurity  []string
+	maxResourceScope resources.ResourceScopeKind
 }
 
 func sourcePolicy(source ExtensionSource) sourceTierPolicy {
@@ -401,11 +508,13 @@ func sourcePolicy(source ExtensionSource) sourceTierPolicy {
 		return sourceTierPolicy{
 			allowAllActions:  true,
 			allowAllSecurity: true,
+			maxResourceScope: sourceTierMaxScope(source),
 		}
 	case SourceMarketplace:
 		return sourceTierPolicy{
-			allowedActions:  marketplaceActionCeiling(),
-			allowedSecurity: slices.Clone(marketplaceSecurityCeiling),
+			allowedActions:   marketplaceActionCeiling(),
+			allowedSecurity:  slices.Clone(marketplaceSecurityCeiling),
+			maxResourceScope: sourceTierMaxScope(source),
 		}
 	default:
 		return sourceTierPolicy{}
@@ -421,4 +530,177 @@ func marketplaceActionCeiling() []string {
 	}
 	slices.Sort(actions)
 	return actions
+}
+
+func effectiveResourceGrants(
+	source ExtensionSource,
+	operatorPolicy aghconfig.ExtensionsResourcesConfig,
+	requested surfaces.GrantRequest,
+	sessionMaxScope resources.ResourceScopeKind,
+) ([]resources.ResourceKind, []resources.ResourceScopeKind, error) {
+	if len(requested.Kinds) == 0 {
+		return nil, nil, nil
+	}
+
+	grantedKinds := slices.Clone(requested.Kinds)
+	if len(operatorPolicy.AllowedKinds) > 0 {
+		allowedKinds, err := surfaces.NormalizeAllowedKinds(operatorPolicy.AllowedKinds)
+		if err != nil {
+			return nil, nil, err
+		}
+		grantedKinds = intersectKinds(grantedKinds, allowedKinds)
+	}
+	if len(grantedKinds) == 0 {
+		return nil, nil, nil
+	}
+
+	finalMaxScope, err := narrowScopeCeiling(
+		requested.MaxScope,
+		sourceTierMaxScope(source),
+		operatorPolicy.MaxScope,
+		sessionMaxScope,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	grantedScopes := intersectScopes(requested.Scopes, scopesThrough(finalMaxScope))
+	if len(grantedScopes) == 0 {
+		return nil, nil, nil
+	}
+	return grantedKinds, grantedScopes, nil
+}
+
+func sourceTierMaxScope(source ExtensionSource) resources.ResourceScopeKind {
+	switch source {
+	case SourceWorkspace, SourceMarketplace:
+		return resources.ResourceScopeKindWorkspace
+	case SourceBundled, SourceUser:
+		return resources.ResourceScopeKindGlobal
+	default:
+		return ""
+	}
+}
+
+func narrowScopeCeiling(
+	requested resources.ResourceScopeKind,
+	sourceTier resources.ResourceScopeKind,
+	operator resources.ResourceScopeKind,
+	session resources.ResourceScopeKind,
+) (resources.ResourceScopeKind, error) {
+	candidates := []resources.ResourceScopeKind{
+		requested.Normalize(),
+		sourceTier.Normalize(),
+		operator.Normalize(),
+		session.Normalize(),
+	}
+	result := resources.ResourceScopeKindGlobal
+	seen := false
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		if err := candidate.Validate("resource scope"); err != nil {
+			return "", err
+		}
+		if !seen || scopeRank(candidate) < scopeRank(result) {
+			result = candidate
+			seen = true
+		}
+	}
+	if !seen {
+		return "", nil
+	}
+	return result, nil
+}
+
+func scopeRank(scope resources.ResourceScopeKind) int {
+	switch scope.Normalize() {
+	case resources.ResourceScopeKindWorkspace:
+		return 0
+	case resources.ResourceScopeKindGlobal:
+		return 1
+	default:
+		return 2
+	}
+}
+
+func scopesThrough(maxScope resources.ResourceScopeKind) []resources.ResourceScopeKind {
+	switch maxScope.Normalize() {
+	case resources.ResourceScopeKindGlobal:
+		return []resources.ResourceScopeKind{
+			resources.ResourceScopeKindGlobal,
+			resources.ResourceScopeKindWorkspace,
+		}
+	case resources.ResourceScopeKindWorkspace:
+		return []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}
+	default:
+		return nil
+	}
+}
+
+func intersectKinds(
+	left []resources.ResourceKind,
+	right []resources.ResourceKind,
+) []resources.ResourceKind {
+	if len(left) == 0 || len(right) == 0 {
+		return nil
+	}
+	index := make(map[resources.ResourceKind]struct{}, len(right))
+	for _, kind := range right {
+		index[kind.Normalize()] = struct{}{}
+	}
+	var kinds []resources.ResourceKind
+	for _, kind := range left {
+		normalized := kind.Normalize()
+		if _, ok := index[normalized]; ok {
+			kinds = append(kinds, normalized)
+		}
+	}
+	if len(kinds) == 0 {
+		return nil
+	}
+	slices.Sort(kinds)
+	return kinds
+}
+
+func intersectScopes(
+	left []resources.ResourceScopeKind,
+	right []resources.ResourceScopeKind,
+) []resources.ResourceScopeKind {
+	if len(left) == 0 || len(right) == 0 {
+		return nil
+	}
+	index := make(map[resources.ResourceScopeKind]struct{}, len(right))
+	for _, scope := range right {
+		index[scope.Normalize()] = struct{}{}
+	}
+	var scopes []resources.ResourceScopeKind
+	for _, scope := range left {
+		normalized := scope.Normalize()
+		if _, ok := index[normalized]; ok {
+			scopes = append(scopes, normalized)
+		}
+	}
+	if len(scopes) == 0 {
+		return nil
+	}
+	slices.Sort(scopes)
+	return scopes
+}
+
+func cloneResourcePolicy(policy aghconfig.ExtensionsResourcesConfig) aghconfig.ExtensionsResourcesConfig {
+	return aghconfig.ExtensionsResourcesConfig{
+		AllowedKinds: append([]resources.ResourceKind(nil), policy.AllowedKinds...),
+		MaxScope:     policy.MaxScope,
+		SnapshotRateLimit: aghconfig.ExtensionsResourceRateLimitConfig{
+			Requests: policy.SnapshotRateLimit.Requests,
+			Window:   policy.SnapshotRateLimit.Window,
+			Queue:    policy.SnapshotRateLimit.Queue,
+		},
+		OperatorWriteRateLimit: aghconfig.ExtensionsResourceRateLimitConfig{
+			Requests: policy.OperatorWriteRateLimit.Requests,
+			Window:   policy.OperatorWriteRateLimit.Window,
+			Queue:    policy.OperatorWriteRateLimit.Queue,
+		},
+	}
 }

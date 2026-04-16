@@ -12,7 +12,7 @@ import (
 func TestKernelSnapshotSequenceConflictAndResetIntegration(t *testing.T) {
 	t.Parallel()
 
-	kernel, globalDB := openTestKernel(t)
+	kernel, db := openTestKernel(t)
 	ctx := testutil.Context(t)
 
 	sourceAlpha := ResourceSource{Kind: ResourceSourceKind("extension"), ID: "ext-alpha"}
@@ -141,7 +141,7 @@ func TestKernelSnapshotSequenceConflictAndResetIntegration(t *testing.T) {
 	}
 
 	var sourceStateCount int
-	if err := globalDB.DB().QueryRowContext(
+	if err := db.QueryRowContext(
 		ctx,
 		`SELECT COUNT(*) FROM resource_source_state WHERE source_kind = ? AND source_id = ?`,
 		sourceAlpha.Kind,

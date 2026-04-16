@@ -14,6 +14,8 @@ import (
 
 	"github.com/joho/godotenv"
 	automationpkg "github.com/pedronauck/agh/internal/automation/model"
+	"github.com/pedronauck/agh/internal/extension/surfaces"
+	"github.com/pedronauck/agh/internal/resources"
 )
 
 const (
@@ -135,6 +137,22 @@ type SkillsConfig struct {
 // ExtensionsConfig controls extension marketplace discovery and install behavior.
 type ExtensionsConfig struct {
 	Marketplace ExtensionsMarketplaceConfig `toml:"marketplace,omitempty"`
+	Resources   ExtensionsResourcesConfig   `toml:"resources,omitempty"`
+}
+
+// ExtensionsResourcesConfig controls resource publication policy for extensions.
+type ExtensionsResourcesConfig struct {
+	AllowedKinds           []resources.ResourceKind          `toml:"allowed_kinds,omitempty"`
+	MaxScope               resources.ResourceScopeKind       `toml:"max_scope,omitempty"`
+	SnapshotRateLimit      ExtensionsResourceRateLimitConfig `toml:"snapshot_rate_limit,omitempty"`
+	OperatorWriteRateLimit ExtensionsResourceRateLimitConfig `toml:"operator_write_rate_limit,omitempty"`
+}
+
+// ExtensionsResourceRateLimitConfig controls one resource publication rate-limit bucket.
+type ExtensionsResourceRateLimitConfig struct {
+	Requests int           `toml:"requests"`
+	Window   time.Duration `toml:"window"`
+	Queue    int           `toml:"queue"`
 }
 
 // NetworkConfig controls the embedded AGH network runtime.
@@ -579,7 +597,46 @@ func (c SkillsConfig) Validate() error {
 
 // Validate ensures the extension marketplace configuration is internally consistent.
 func (c ExtensionsConfig) Validate() error {
-	return c.Marketplace.Validate()
+	if err := c.Marketplace.Validate(); err != nil {
+		return err
+	}
+	return c.Resources.Validate()
+}
+
+// Validate ensures the extension resource policy is internally consistent.
+func (c ExtensionsResourcesConfig) Validate() error {
+	if _, err := surfaces.NormalizeAllowedKinds(c.AllowedKinds); err != nil {
+		return fmt.Errorf("extensions.resources.allowed_kinds: %w", err)
+	}
+	if c.MaxScope != "" {
+		if err := c.MaxScope.Validate("extensions.resources.max_scope"); err != nil {
+			return err
+		}
+	}
+	if err := c.SnapshotRateLimit.Validate("extensions.resources.snapshot_rate_limit"); err != nil {
+		return err
+	}
+	if err := c.OperatorWriteRateLimit.Validate("extensions.resources.operator_write_rate_limit"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Validate ensures one configured resource rate-limit bucket is internally consistent.
+func (c ExtensionsResourceRateLimitConfig) Validate(path string) error {
+	if c.Requests == 0 && c.Window == 0 && c.Queue == 0 {
+		return nil
+	}
+	if c.Requests <= 0 {
+		return fmt.Errorf("%s.requests must be positive: %d", path, c.Requests)
+	}
+	if c.Window <= 0 {
+		return fmt.Errorf("%s.window must be positive: %s", path, c.Window)
+	}
+	if c.Queue < 0 {
+		return fmt.Errorf("%s.queue must be zero or positive: %d", path, c.Queue)
+	}
+	return nil
 }
 
 var networkChannelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
