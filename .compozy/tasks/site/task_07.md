@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Getting Started (Install, Quick Start, First Agent, Web UI)"
 type: docs
 complexity: medium
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 07: Docs: Getting Started (Install, Quick Start, First Agent, Web UI)
@@ -25,6 +25,7 @@ Write the four Getting Started tutorial pages that guide new users from zero to 
 - BE EXPLICIT and DELIVER REAL USER VALUE: document actual behavior (defaults, limits, errors, edge cases); prefer one verified, concrete walkthrough over generic marketing language
 - USE RICH MDX STRUCTURE: clear hierarchy, tables, and scannable lists; employ Fumadocs/UI components (Steps, Tabs, Cards, Callouts) when they clarify; add Mermaid diagrams when relationships are easier to see than to read
 - INCLUDE WORKED EXAMPLES whenever a command, configuration, payload, or sequence would be unclear without one — validate every snippet against the repository (CLI commands must run as written)
+- **MANDATORY DOCS QA (agent-browser)** — Before marking this task complete, use the **agent-browser** skill to exercise the documentation in a real browser: run the site locally (e.g. `make site-dev` from the repo root per Makefile), open every route touched by this task, follow representative internal links, and confirm MDX renders without runtime errors, broken navigation, or blank sections; fix issues before finishing. Required for all documentation tasks.
 </critical>
 
 <requirements>
@@ -42,14 +43,14 @@ Write the four Getting Started tutorial pages that guide new users from zero to 
 
 ## Subtasks
 
-- [ ] 7.1 Activate `/documentation-writer` and `/copywriting` for Diataxis compliance and reader-facing polish
-- [ ] 7.2 Read source files (README.md, internal/cli/\*.go, internal/daemon/) to gather accurate CLI commands and flags
-- [ ] 7.3 Write `installation.mdx` — prerequisites, install methods, verification
-- [ ] 7.4 Write `quick-start.mdx` — daemon start, first session, message, events
-- [ ] 7.5 Write `first-agent.mdx` — AGENT.md creation, provider config, custom session
-- [ ] 7.6 Write `web-ui.mdx` — open UI, navigate, view events
-- [ ] 7.7 Create `meta.json` for sidebar ordering: installation → quick-start → first-agent → web-ui
-- [ ] 7.8 Verify all pages build without errors
+- [x] 7.1 Activate `/documentation-writer` and `/copywriting` for Diataxis compliance and reader-facing polish
+- [x] 7.2 Read source files (README.md, internal/cli/\*.go, internal/daemon/) to gather accurate CLI commands and flags
+- [x] 7.3 Write `installation.mdx` — prerequisites, install methods, verification
+- [x] 7.4 Write `quick-start.mdx` — daemon start, first session, message, events
+- [x] 7.5 Write `first-agent.mdx` — AGENT.md creation, provider config, custom session
+- [x] 7.6 Write `web-ui.mdx` — open UI, navigate, view events
+- [x] 7.7 Create `meta.json` for sidebar ordering: installation → quick-start → first-agent → web-ui
+- [x] 7.8 Verify all pages build without errors
 
 ## Implementation Details
 

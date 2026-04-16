@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Implement CLI doc generation (Cobra GenMarkdownTree)"
 type: backend
 complexity: medium
@@ -18,6 +18,7 @@ Add a `doc` subcommand to the AGH CLI that uses Cobra's `doc.GenMarkdownTree()` 
 - FOCUS ON "WHAT" — describe what needs to be accomplished, not how
 - MINIMIZE CODE — show code only to illustrate current structure or problem areas
 - TESTS REQUIRED — every task MUST include tests in deliverables
+- **MANDATORY DOCS QA (agent-browser)** — Before marking this task complete, use the **agent-browser** skill to exercise the documentation in a real browser: run the site locally (e.g. `make site-dev` from the repo root per Makefile), open every route touched by this task, follow representative internal links, and confirm MDX renders without runtime errors, broken navigation, or blank sections; fix issues before finishing. Required for all documentation tasks.
 </critical>
 
 <requirements>

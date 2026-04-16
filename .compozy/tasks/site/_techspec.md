@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Build a documentation website for AGH at `agh.compozy.com` using Fumadocs (Next.js) as the framework. The site serves two distinct audiences through two content collections: **Runtime Documentation** for AGH users and **AGH Network Protocol Specification** for protocol implementers. The landing page is a custom Next.js page leading with the network protocol as AGH's key differentiator. The site lives in `packages/site/` alongside the existing `web/` (unchanged for alpha), sharing design tokens from `packages/ui`. CLI reference is auto-generated from Cobra; API reference is deferred to Wave 2.
+Build a documentation website for AGH at `agh.compozy.com` using Fumadocs (Next.js) as the framework. The site serves two linked audiences through two content collections: **AGH Runtime** for operators and **AGH Network Protocol** for implementers. The landing page is a custom Next.js page that presents a balanced runtime + network story, but keeps **Runtime / Get Started** as the primary conversion path for cold visitors. `AGH Network` is used as the public-facing marketing label; `AGH Network Protocol` is reserved for spec and reference contexts. The site lives in `packages/site/` alongside the existing `web/` (unchanged for alpha), sharing design tokens from `packages/ui`. CLI reference is auto-generated from Cobra; API reference is deferred to Wave 2.
 
 **Primary trade-off**: Fumadocs is younger than Astro Starlight or Docusaurus, with a smaller community and fewer examples. We accept this because it runs on Next.js/React — enabling component sharing from `packages/ui` and consistent DESIGN.md theming. Note: Astro Starlight can also render React components via its React integration, but the styling/theming layer still requires Astro-specific adaptation rather than native Tailwind CSS v4 preset sharing.
 
@@ -112,14 +112,14 @@ export const protocolDocs = loader({
 
 | Section          | Component              | Content Source                          |
 | ---------------- | ---------------------- | --------------------------------------- |
-| Hero             | `hero.tsx`             | Hardcoded copy (Hero A approved)        |
-| Two Pillars      | `two-pillars.tsx`      | Hardcoded: Runtime vs Protocol split    |
+| Hero             | `hero.tsx`             | Outcome-led runtime + network split     |
+| Two Pillars      | `two-pillars.tsx`      | Balanced AGH Runtime vs AGH Network     |
 | How It Works     | `how-it-works.tsx`     | 3 steps: install, start, create session |
 | Runtime Features | `runtime-features.tsx` | 8 feature cards with benefits           |
-| Protocol         | `protocol-section.tsx` | 7 message kinds, interaction lifecycle  |
-| Architecture     | `architecture.tsx`     | Architecture diagram                    |
-| Comparison       | `comparison.tsx`       | AGH vs typical harness table            |
-| Final CTA        | `final-cta.tsx`        | Dual CTA                                |
+| Protocol         | `protocol-section.tsx` | Coordination value + adoption path      |
+| Architecture     | `architecture.tsx`     | Runtime/control-plane proof             |
+| Comparison       | `comparison.tsx`       | Named comparison vs OpenClaw/OpenFang/GoClaw |
+| Final CTA        | `final-cta.tsx`        | Runtime-first CTA + AGH Network secondary |
 
 ### API Endpoints
 
@@ -180,7 +180,7 @@ Not applicable — the site is a static/SSG site with no API endpoints. The site
 1. **Create packages/ui** — extract design tokens (CSS vars, Tailwind preset) from web/src/styles.css into packages/ui. Update web/ to import from @agh/ui. Update turbo.json. No dependencies.
 2. **Scaffold packages/site** — `npx create-fumadocs-app`, configure source.config.ts with two doc sources (runtime + protocol), apply DESIGN.md theme from packages/ui. Depends on step 1.
 3. **Implement CLI codegen** — add `doc` subcommand to cmd/agh, post-processing script, `make cli-docs` target. Depends on step 2 (output goes to site content dir).
-4. **Build landing page** — implement hero (Option A), two-pillars, how-it-works, features, protocol section, architecture, comparison, final CTA. Depends on step 2.
+4. **Build landing page** — implement an outcome-led hero, balanced Runtime + AGH Network split, runtime proof, network proof, named comparison, architecture proof, and runtime-first final CTA. Depends on step 2.
 5. **Write Wave 1 content** — ~20 MDX pages: Overview (3), Getting Started (3), Core Concepts (3), CLI Reference (4 groups, from step 3 output), Config Reference (2), Protocol Overview + Spec v0 (adapted from RFCs). Depends on steps 2 and 3.
 6. **Deploy to Vercel** — configure agh.compozy.com, Vercel project, preview deployments, static export via `next build`. Depends on steps 4 and 5.
 7. **(Wave 2) API reference codegen** — add `api-spec` command or hand-maintain openapi.json, configure fumadocs-openapi. Deferred — not alpha-critical. Depends on step 2.
@@ -259,19 +259,20 @@ Not applicable — the site is a static/SSG site with no API endpoints. The site
 
 ## Appendix A: Landing Page Copy
 
-### Hero (Approved — Option A)
+### Hero (Accepted Positioning)
 
-**Headline**: "Your agents can finally talk to each other."
-**Subheadline**: "AGH is an agent runtime with a built-in network protocol. Spawn Claude Code, Codex, or Gemini CLI as managed sessions — then let them discover, message, and coordinate through an open wire format any harness can implement."
-**CTA**: "Read the Protocol Spec" | "Get Started"
+**Headline**: "Run AI agents as durable teammates, not disposable terminal tabs."
+**Subheadline**: "AGH gives Claude Code, Codex, Gemini CLI, and other agent CLIs a local-first runtime with replay, memory, automation, and observability. When work needs to move between specialists, AGH Network gives them an open way to discover peers, delegate work, and report back."
+**CTA**: "Get Started" | "Explore AGH Network"
 
 ### Key Copy Lines
 
-1. "Single binary. No sidecars. No external services."
+1. "Run real agent CLIs as durable work, not disposable terminal tabs."
 2. "Orchestrates real agent CLIs, not API wrappers."
-3. "Copy the directory, and the agent works."
-4. "MCP connects agents to tools. AGH connects agents to agents."
-5. "Keep your runtime, map to AGH envelopes, implement the smallest core first."
+3. "Resume, audit, and replay work instead of losing context."
+4. "Standardize agent behavior across projects without custom glue."
+5. "AGH Runtime for operators. AGH Network for interoperable agents."
+6. "Keep your runtime. Adopt the network boundary when coordinated work matters."
 
 ## Appendix B: Documentation Taxonomy
 

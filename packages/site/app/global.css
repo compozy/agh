@@ -1,41 +1,230 @@
-@import "fumadocs-ui/css/neutral.css";
+@import "tailwindcss";
 @import "fumadocs-ui/css/preset.css";
+@import "fumadocs-ui/css/neutral.css";
 @import "@agh/ui/tokens.css";
 
 /*
- * Override Fumadocs theme variables to match DESIGN.md tokens.
- * Flat depth model: no box-shadows, depth via background lightness.
+ * Wire Next.js font variables into Tailwind's font tokens.
+ * `--font-inter` and `--font-jetbrains-mono` are injected by next/font/google
+ * in app/layout.tsx via the html className.
  */
-:root {
-  /* Fumadocs background overrides */
-  --fd-background: var(--color-canvas);
-  --fd-background-fd: var(--color-canvas);
-  --fd-muted: var(--color-surface);
-  --fd-muted-foreground: var(--color-text-secondary);
-  --fd-foreground: var(--color-text-primary);
-  --fd-primary: var(--color-accent);
-  --fd-primary-foreground: #ffffff;
-  --fd-border: var(--color-divider);
-  --fd-ring: var(--color-accent);
-  --fd-accent: var(--color-surface-elevated);
-  --fd-accent-foreground: var(--color-text-primary);
-  --fd-popover: var(--color-surface-elevated);
-  --fd-popover-foreground: var(--color-text-primary);
-  --fd-card: var(--color-surface);
-  --fd-card-foreground: var(--color-text-primary);
-  --fd-secondary: var(--color-surface);
-  --fd-secondary-foreground: var(--color-text-primary);
+@theme inline {
+  --font-sans: var(--font-inter), "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: var(--font-display), "Playfair Display", serif;
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", "Courier New", monospace;
 }
 
-/* Remove all box-shadows from Fumadocs — flat depth model */
-.fd-shadow-md,
-.fd-shadow-lg,
-.fd-shadow-xl,
-[class*="fd-shadow"] {
+:root {
+  --site-layout-width: 1200px;
+  --site-doc-layout-width: 96rem;
+  --site-doc-sidebar-width: 16rem;
+  --site-doc-toc-width: 14rem;
+}
+
+/*
+ * Override Fumadocs UI tokens with the DESIGN.md dark operator palette.
+ * RootProvider forces the `.dark` class on <html>, so only these values
+ * are ever applied. Canvas (#121212) → Surface (#1C1C1E) → Elevated
+ * (#2C2C2E), single warm accent #E8572A.
+ */
+.dark {
+  --color-fd-background: #141312;
+  --color-fd-foreground: #e5e5e7;
+  --color-fd-muted: #1e1c1b;
+  --color-fd-muted-foreground: #8e8e93;
+  --color-fd-popover: #2e2c2b;
+  --color-fd-popover-foreground: #e5e5e7;
+  --color-fd-card: #1e1c1b;
+  --color-fd-card-foreground: #e5e5e7;
+  --color-fd-border: #3c3a39;
+  --color-fd-primary: #e8572a;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-secondary: #1e1c1b;
+  --color-fd-secondary-foreground: #e5e5e7;
+  --color-fd-accent: #2e2c2b;
+  --color-fd-accent-foreground: #e5e5e7;
+  --color-fd-ring: #e8572a;
+}
+
+/* neutral.css ships a sidebar-specific override; realign it to DESIGN.md. */
+.dark #nd-sidebar {
+  --color-fd-muted: #1e1c1b;
+  --color-fd-secondary: #1e1c1b;
+  --color-fd-muted-foreground: #8e8e93;
+}
+
+body {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)), var(--color-canvas);
+  color: var(--color-text-primary);
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  text-underline-offset: 0.24em;
+}
+
+::selection {
+  background: rgba(232, 87, 42, 0.28);
+  color: var(--color-text-primary);
+}
+
+#nd-sidebar {
+  border-inline-end: 1px solid var(--color-divider);
+  border-color: var(--color-divider);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-canvas)) !important;
+}
+
+#nd-sidebar [data-active="true"] {
+  background: rgba(232, 87, 42, 0.1);
+  color: var(--color-accent);
+}
+
+#nd-sidebar [data-active="true"]::before {
+  background: var(--color-accent);
+}
+
+#nd-sidebar [data-sidebar-body] {
+  background: transparent;
+}
+
+#nd-page {
+  background: transparent;
+}
+
+#nd-toc {
+  width: var(--site-doc-toc-width);
+  border-inline-start: 1px solid var(--color-divider);
+  padding-inline-start: 1rem;
+}
+
+#nd-toc [aria-current="true"],
+#nd-toc [data-active="true"],
+#nd-toc a:hover {
+  color: var(--color-accent);
+}
+
+.site-docs-layout {
+  --fd-layout-width: var(--site-doc-layout-width);
+  --fd-sidebar-width: var(--site-doc-sidebar-width);
+}
+
+.site-doc-body {
+  color: var(--color-text-secondary);
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.site-doc-body > :first-child {
+  margin-top: 0;
+}
+
+.site-doc-body h2 {
+  margin-top: 4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-divider);
+  font-size: clamp(1.7rem, 3vw, 2.45rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  color: var(--color-text-primary);
+}
+
+.site-doc-body h3 {
+  margin-top: 2.25rem;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+}
+
+.site-doc-body p,
+.site-doc-body ul,
+.site-doc-body ol,
+.site-doc-body blockquote {
+  max-width: 72ch;
+}
+
+.site-doc-body ul,
+.site-doc-body ol {
+  padding-inline-start: 1.3rem;
+}
+
+.site-doc-body li::marker {
+  color: var(--color-accent);
+}
+
+.site-doc-body strong {
+  color: var(--color-text-primary);
+}
+
+.site-doc-body code {
+  border: 1px solid var(--color-divider);
+  border-radius: 0.55rem;
+  background: rgba(44, 44, 46, 0.78);
+  padding-inline: 0.38rem;
+  padding-block: 0.12rem;
+  color: var(--color-text-primary);
+}
+
+.site-doc-body pre {
+  border: 1px solid var(--color-divider);
+  border-radius: 1rem;
+  background: var(--color-surface) !important;
+}
+
+.site-doc-body hr {
+  border-color: var(--color-divider);
+}
+
+.site-doc-body table {
+  border-color: var(--color-divider);
+}
+
+.site-doc-body a {
+  color: var(--color-text-primary);
+}
+
+.site-doc-body a:hover {
+  color: var(--color-accent);
+}
+
+.site-home h1,
+.site-home h2 {
+  font-family: var(--font-display), var(--font-sans);
+}
+
+@media (max-width: 1024px) {
+  #nd-toc {
+    width: 100%;
+    border-inline-start: 0;
+    padding-inline-start: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .site-doc-body {
+    font-size: 0.95rem;
+    line-height: 1.75;
+  }
+
+  .site-doc-body h2 {
+    margin-top: 3.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
+
+/* Flat depth model — DESIGN.md §6 — no shadows anywhere. */
+*,
+*::before,
+*::after {
   box-shadow: none !important;
-}
-
-/* Sidebar styling */
-:root {
-  --fd-sidebar-width: 260px;
 }

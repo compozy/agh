@@ -1,5 +1,5 @@
 ---
-status: done
+status: completed
 title: "Update web/ to consume packages/ui"
 type: refactor
 complexity: medium

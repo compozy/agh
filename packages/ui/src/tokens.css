@@ -10,13 +10,13 @@
   color-scheme: dark;
 
   /* Backgrounds */
-  --color-canvas: #121212;
-  --color-surface: #1c1c1e;
-  --color-surface-panel: #161618;
-  --color-surface-elevated: #2c2c2e;
-  --color-divider: #3a3a3c;
-  --color-hover: #333336;
-  --color-disabled: #48484a;
+  --color-canvas: #141312;
+  --color-surface: #1e1c1b;
+  --color-surface-panel: #181716;
+  --color-surface-elevated: #2e2c2b;
+  --color-divider: #3c3a39;
+  --color-hover: #353332;
+  --color-disabled: #4a4847;
 
   /* Text */
   --color-text-primary: #e5e5e7;

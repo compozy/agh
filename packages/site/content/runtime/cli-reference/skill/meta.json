@@ -1,0 +1,4 @@
+{
+    "title": "Skill",
+    "pages": ["index", "create", "info", "install", "list", "remove", "search", "update", "view"]
+}

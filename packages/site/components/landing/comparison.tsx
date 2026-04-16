@@ -1,135 +1,116 @@
-import { Check, Minus } from "lucide-react";
-
-interface ComparisonRow {
-  feature: string;
-  typical: string;
-  agh: string;
-  aghHighlight: boolean;
+interface Approach {
+  approach: string;
+  focus: string;
+  agentModel: string;
+  coordination: string;
+  deployment: string;
+  highlight?: boolean;
 }
 
-const rows: ComparisonRow[] = [
+const approaches: Approach[] = [
   {
-    feature: "Agent execution",
-    typical: "API wrapper calls",
-    agh: "Real CLI subprocesses via ACP",
-    aghHighlight: true,
+    approach: "Assistant gateway",
+    focus: "Personal AI assistant across chat channels",
+    agentModel: "Single assistant with tool plugins",
+    coordination: "None — one agent per user",
+    deployment: "Cloud-hosted",
   },
   {
-    feature: "Agent-to-agent communication",
-    typical: "None / custom glue",
-    agh: "Built-in network protocol",
-    aghHighlight: true,
+    approach: "All-in-one agent OS",
+    focus: "Broad built-in capabilities, one integrated experience",
+    agentModel: "Custom agents inside the platform",
+    coordination: "Internal only — within the platform",
+    deployment: "Cloud or self-hosted",
   },
   {
-    feature: "Session persistence",
-    typical: "In-memory or external DB",
-    agh: "SQLite per-session event store",
-    aghHighlight: true,
+    approach: "Multi-tenant gateway",
+    focus: "Enterprise AI platform with team management",
+    agentModel: "Managed agents behind an API",
+    coordination: "Centralized routing",
+    deployment: "Cloud-hosted",
   },
   {
-    feature: "Memory system",
-    typical: "None or basic RAG",
-    agh: "Dual-scope with dream consolidation",
-    aghHighlight: true,
+    approach: "AGH",
+    focus: "Orchestrate real agent CLIs with an open coordination protocol",
+    agentModel: "Your existing agents — any driver, any role",
+    coordination: "AGH Network — open, cross-runtime protocol",
+    deployment: "Local-first, single binary",
+    highlight: true,
   },
-  {
-    feature: "Deployment",
-    typical: "Docker + sidecars + services",
-    agh: "Single binary, zero dependencies",
-    aghHighlight: true,
-  },
-  {
-    feature: "Configuration",
-    typical: "Environment variables",
-    agh: "TOML + AGENT.md + workspace overlays",
-    aghHighlight: true,
-  },
-  {
-    feature: "Extensibility",
-    typical: "Fork or monkey-patch",
-    agh: "Skills, hooks, extensions, bridges",
-    aghHighlight: true,
-  },
-  {
-    feature: "Observability",
-    typical: "Logs to stdout",
-    agh: "Structured events, SSE streaming, health metrics",
-    aghHighlight: true,
-  },
+];
+
+const dimensions = [
+  { key: "focus" as const, label: "Primary focus" },
+  { key: "agentModel" as const, label: "Agent model" },
+  { key: "coordination" as const, label: "Coordination" },
+  { key: "deployment" as const, label: "Deployment" },
 ];
 
 export function Comparison() {
   return (
     <section className="px-4 py-16 md:py-24">
-      <div className="mx-auto max-w-5xl">
-        <p className="text-center font-mono text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]">
-          COMPARISON
-        </p>
-        <h2 className="mt-3 text-center text-3xl font-bold tracking-tight text-[var(--color-text-primary)] md:text-4xl">
-          AGH vs typical agent harness
-        </h2>
-
-        {/* Desktop table */}
-        <div className="mt-12 hidden overflow-hidden rounded-xl border border-[var(--color-divider)] md:block">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-[var(--color-divider)] bg-[var(--color-surface)]">
-                <th className="px-5 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]">
-                  Feature
-                </th>
-                <th className="px-5 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]">
-                  Typical Harness
-                </th>
-                <th className="px-5 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-accent)]">
-                  AGH
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr
-                  key={row.feature}
-                  className={i % 2 === 0 ? "bg-transparent" : "bg-[var(--color-surface)]"}
-                >
-                  <td className="px-5 py-3 font-medium text-[var(--color-text-primary)]">
-                    {row.feature}
-                  </td>
-                  <td className="px-5 py-3 text-[var(--color-text-tertiary)]">
-                    <span className="flex items-center gap-2">
-                      <Minus className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
-                      {row.typical}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-[var(--color-text-primary)]">
-                    <span className="flex items-center gap-2">
-                      <Check className="h-3.5 w-3.5 text-[var(--color-success)]" />
-                      {row.agh}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="mx-auto max-w-[var(--site-layout-width)]">
+        <div className="max-w-[600px]">
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-text-tertiary)]">
+            Positioning
+          </p>
+          <h2 className="mt-4 text-[clamp(2.3rem,4.6vw,3.6rem)] leading-[1.0] font-normal tracking-[-0.03em] text-[var(--color-text-primary)]">
+            Different approaches to agent infrastructure.
+          </h2>
+          <p className="mt-5 text-sm leading-7 text-[var(--color-text-secondary)]">
+            Agent tools take different positions on where control lives and how agents coordinate.
+            AGH is the only approach with an open cross-runtime coordination protocol built in.
+          </p>
         </div>
 
-        {/* Mobile cards */}
-        <div className="mt-12 flex flex-col gap-4 md:hidden">
-          {rows.map(row => (
+        <div className="mt-10 overflow-hidden rounded-[12px] border border-[var(--color-divider)] bg-[var(--color-surface)]">
+          {/* Header row */}
+          <div className="hidden border-b border-[var(--color-divider)] px-6 py-4 md:grid md:grid-cols-[180px_repeat(4,minmax(0,1fr))] md:gap-4">
+            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-text-tertiary)]">
+              Approach
+            </p>
+            {dimensions.map(d => (
+              <p
+                key={d.key}
+                className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-text-tertiary)]"
+              >
+                {d.label}
+              </p>
+            ))}
+          </div>
+
+          {approaches.map(row => (
             <div
-              key={row.feature}
-              className="rounded-xl border border-[var(--color-divider)] bg-[var(--color-surface)] p-4"
+              key={row.approach}
+              className={`grid gap-3 border-t border-[var(--color-divider)] px-5 py-5 first:border-t-0 md:grid-cols-[180px_repeat(4,minmax(0,1fr))] md:gap-4 md:px-6 ${
+                row.highlight
+                  ? "border-t-[var(--color-accent-tint)] bg-[var(--color-accent-tint)]"
+                  : ""
+              }`}
             >
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">{row.feature}</p>
-              <div className="mt-3 flex flex-col gap-2">
-                <div className="flex items-start gap-2">
-                  <Minus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-text-tertiary)]" />
-                  <span className="text-xs text-[var(--color-text-tertiary)]">{row.typical}</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-success)]" />
-                  <span className="text-xs text-[var(--color-text-primary)]">{row.agh}</span>
-                </div>
+              <div>
+                <h3
+                  className={`text-base font-semibold ${row.highlight ? "text-[var(--color-accent)]" : "text-[var(--color-text-primary)]"}`}
+                >
+                  {row.approach}
+                </h3>
               </div>
+              {dimensions.map(d => (
+                <div key={d.key}>
+                  <p className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-text-tertiary)] md:hidden">
+                    {d.label}
+                  </p>
+                  <p
+                    className={`text-sm leading-6 ${
+                      row.highlight && d.key === "coordination"
+                        ? "font-medium text-[var(--color-text-primary)]"
+                        : "text-[var(--color-text-secondary)]"
+                    }`}
+                  >
+                    {row[d.key]}
+                  </p>
+                </div>
+              ))}
             </div>
           ))}
         </div>

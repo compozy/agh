@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Build landing page"
 type: frontend
 complexity: high
@@ -18,7 +18,8 @@ Implement the custom landing page at `packages/site/app/page.tsx` with 7 section
 - FOCUS ON "WHAT" — describe what needs to be accomplished, not how
 - MINIMIZE CODE — show code only to illustrate current structure or problem areas
 - TESTS REQUIRED — every task MUST include tests in deliverables
-- ACTIVATE `/frontend-design` and `/copywriting` before building UI and writing marketing copy — distinctive, production-grade layout and motion per DESIGN.md and TechSpec; benefit-led copy aligned with Appendix A (headlines, CTAs, section intros); avoid generic “AI slop” UI patterns
+- **IMPECCABLE (non-blocking, Compozy-safe)** — Read and apply the **impeccable** skill (`/impeccable` — already in Claude Code; no installs). Use `.impeccable.md` when present. **Never** run `/impeccable teach` unattended (interactive; blocks `compozy start`). Treat this task + TechSpec Appendix A + DESIGN.md as the full brief — implement in one pass the same way **`/impeccable craft`** would, without slash flows that expect a live interview. After implementation, you **may** run **`/polish`** on the landing files for a non-interactive pass (alignment, spacing, typography). Obey typography, OKLCH discipline, spatial rules, motion constraints, UX writing, **AI Slop Test**, and **absolute_bans**. Appendix A copy and named AGH tokens stay authoritative.
+- **Frontend copy & layout** — Apply **frontend-design** and **copywriting** (skill names / slash commands as exposed by the harness — no installs); do not run interactive discovery — PRD, TechSpec Appendix A, and DESIGN.md are the source of truth.
 </critical>
 
 <requirements>
@@ -53,21 +54,21 @@ Implement the custom landing page at `packages/site/app/page.tsx` with 7 section
 
 ## Subtasks
 
-- [ ] 5.1 Create `packages/site/components/landing/` directory
-- [ ] 5.2 Implement `hero.tsx` with approved headline, subheadline, and dual CTA
-- [ ] 5.3 Implement `two-pillars.tsx` with Runtime vs Protocol split
-- [ ] 5.4 Implement `how-it-works.tsx` with 3-step install flow and code snippets
-- [ ] 5.5 Implement `runtime-features.tsx` with 8 feature cards
-- [ ] 5.6 Implement `protocol-section.tsx` with 7 message kinds and interaction lifecycle
-- [ ] 5.7 Implement `architecture.tsx` with text/SVG architecture diagram
-- [ ] 5.8 Implement `comparison.tsx` with AGH vs typical harness table
-- [ ] 5.9 Implement `final-cta.tsx` with closing dual CTA
-- [ ] 5.10 Create `packages/site/components/landing/index.ts` barrel export
-- [ ] 5.11 Update `packages/site/app/page.tsx` to compose all sections
-- [ ] 5.12 Apply DESIGN.md tokens: colors, fonts, spacing, flat depth
-- [ ] 5.13 Implement responsive layout: desktop-first, mobile stacking
-- [ ] 5.14 Verify all section links work (/runtime, /protocol)
-- [ ] 5.15 Verify `make site-build` succeeds with landing page
+- [x] 5.1 Create `packages/site/components/landing/` directory
+- [x] 5.2 Implement `hero.tsx` with approved headline, subheadline, and dual CTA
+- [x] 5.3 Implement `two-pillars.tsx` with Runtime vs Protocol split
+- [x] 5.4 Implement `how-it-works.tsx` with 3-step install flow and code snippets
+- [x] 5.5 Implement `runtime-features.tsx` with 8 feature cards
+- [x] 5.6 Implement `protocol-section.tsx` with 7 message kinds and interaction lifecycle
+- [x] 5.7 Implement `architecture.tsx` with text/SVG architecture diagram
+- [x] 5.8 Implement `comparison.tsx` with AGH vs typical harness table
+- [x] 5.9 Implement `final-cta.tsx` with closing dual CTA
+- [x] 5.10 Create `packages/site/components/landing/index.ts` barrel export
+- [x] 5.11 Update `packages/site/app/page.tsx` to compose all sections
+- [x] 5.12 Apply DESIGN.md tokens: colors, fonts, spacing, flat depth
+- [x] 5.13 Implement responsive layout: desktop-first, mobile stacking
+- [x] 5.14 Verify all section links work (/runtime, /protocol)
+- [x] 5.15 Verify `make site-build` succeeds with landing page
 
 ## Implementation Details
 

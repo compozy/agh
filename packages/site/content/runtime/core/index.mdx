@@ -1,0 +1,50 @@
+---
+title: Core
+description: Concepts, workflows, and operating model for AGH Runtime — from installation to day-two operations.
+---
+
+Core is the fastest path to understanding how AGH works in practice: install it, launch durable
+sessions, learn how replay and memory behave, and understand the operating model behind the
+runtime.
+
+<OperatorNote>
+  Treat Core as the place to build operator intuition. It is intentionally ordered from mental
+  model, to first-run setup, to the concepts and settings that matter once AGH is part of normal
+  work.
+</OperatorNote>
+
+## Sections
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/overview/what-is-agh"
+    label="Overview"
+    title="What AGH is and how it fits"
+    description="Use the overview pages for positioning, architecture, and the specific runtime shape AGH chooses."
+    meta="Mental model"
+  />
+  <RouteRow
+    href="/runtime/core/getting-started/installation"
+    label="Getting Started"
+    title="Install AGH and launch the first durable session"
+    description="Move from binary install, to daemon startup, to your first managed run and the web UI."
+    meta="First run"
+  />
+  <RouteRow
+    href="/runtime/core/sessions/lifecycle"
+    label="Core Concepts"
+    title="Session lifecycle, replay, events, and permissions"
+    description="Understand the practical model operators work with every day once sessions are in use."
+    meta="Day-two ops"
+  />
+  <RouteRow
+    href="/runtime/core/configuration"
+    label="Configuration"
+    title="`config.toml`, agents, environment, and path resolution"
+    description="Use this section when the runtime needs to be shaped for a machine, workspace, or team default."
+    meta="System setup"
+  />
+</RouteList>
+
+Looking for exact commands or payloads? Jump straight to the [CLI Reference](/runtime/cli-reference)
+or the [API Reference](/runtime/api-reference).

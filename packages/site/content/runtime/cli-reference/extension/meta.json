@@ -1,0 +1,14 @@
+{
+    "title": "Extension",
+    "pages": [
+        "index",
+        "disable",
+        "enable",
+        "install",
+        "list",
+        "remove",
+        "search",
+        "status",
+        "update"
+    ]
+}

@@ -1,4 +1,3 @@
 {
-    "title": "Runtime",
-    "pages": ["index", "...overview", "...getting-started", "...reference"]
+    "pages": ["core", "cli-reference", "api-reference"]
 }

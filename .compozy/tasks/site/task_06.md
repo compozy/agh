@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: "Docs: Overview (What is AGH, Architecture, Why AGH)"
 type: docs
 complexity: medium
 dependencies:
-  - task_03
+    - task_03
 ---
 
 # Task 06: Docs: Overview (What is AGH, Architecture, Why AGH)
@@ -25,6 +25,7 @@ Write the three foundational overview pages that introduce AGH to new users: wha
 - BE EXPLICIT and DELIVER REAL USER VALUE: document actual behavior (defaults, limits, errors, edge cases); prefer one verified, concrete walkthrough over generic marketing language
 - USE RICH MDX STRUCTURE: clear hierarchy, tables, and scannable lists; employ Fumadocs/UI components (Steps, Tabs, Cards, Callouts) when they clarify; add Mermaid diagrams when relationships are easier to see than to read
 - INCLUDE WORKED EXAMPLES whenever a command, configuration, payload, or sequence would be unclear without one — validate every snippet against the repository (CLI commands must run as written)
+- **MANDATORY DOCS QA (agent-browser)** — Before marking this task complete, use the **agent-browser** skill to exercise the documentation in a real browser: run the site locally (e.g. `make site-dev` from the repo root per Makefile), open every route touched by this task, follow representative internal links, and confirm MDX renders without runtime errors, broken navigation, or blank sections; fix issues before finishing. Required for all documentation tasks.
 </critical>
 
 <requirements>
@@ -42,13 +43,13 @@ Write the three foundational overview pages that introduce AGH to new users: wha
 
 ## Subtasks
 
-- [ ] 6.1 Activate `/documentation-writer` and `/copywriting` for Diataxis compliance and reader-facing polish
-- [ ] 6.2 Read source files (CLAUDE.md, README.md, internal/daemon/, internal/session/, internal/acp/) to gather accurate architectural details
-- [ ] 6.3 Write `what-is-agh.mdx` — identity, value proposition, key concepts introduction
-- [ ] 6.4 Write `architecture.mdx` — system architecture with Mermaid diagram, package layout, data flow
-- [ ] 6.5 Write `comparison.mdx` — competitive positioning, feature comparison table, "when to use AGH"
-- [ ] 6.6 Create `meta.json` for sidebar ordering: what-is-agh → architecture → comparison
-- [ ] 6.7 Verify all pages build without errors (`turbo run build --filter=packages/site`)
+- [x] 6.1 Activate `/documentation-writer` and `/copywriting` for Diataxis compliance and reader-facing polish
+- [x] 6.2 Read source files (CLAUDE.md, README.md, internal/daemon/, internal/session/, internal/acp/) to gather accurate architectural details
+- [x] 6.3 Write `what-is-agh.mdx` — identity, value proposition, key concepts introduction
+- [x] 6.4 Write `architecture.mdx` — system architecture with ASCII diagram, package layout, data flow
+- [x] 6.5 Write `comparison.mdx` — competitive positioning, feature comparison table, "when to use AGH"
+- [x] 6.6 Create `meta.json` for sidebar ordering: what-is-agh → architecture → comparison
+- [x] 6.7 Verify all pages build without errors (`turbo run build --filter=@agh/site`)
 
 ## Implementation Details
 

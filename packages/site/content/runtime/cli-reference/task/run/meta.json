@@ -1,0 +1,14 @@
+{
+    "title": "Run",
+    "pages": [
+        "index",
+        "attach-session",
+        "cancel",
+        "claim",
+        "complete",
+        "enqueue",
+        "fail",
+        "list",
+        "start"
+    ]
+}

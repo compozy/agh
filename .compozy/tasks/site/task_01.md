@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Create packages/ui (design tokens + base components)"
 type: refactor
 complexity: medium
@@ -18,6 +18,7 @@ Extract the shared design system from `web/src/styles.css` into a new `packages/
 - FOCUS ON "WHAT" — describe what needs to be accomplished, not how
 - MINIMIZE CODE — show code only to illustrate current structure or problem areas
 - TESTS REQUIRED — every task MUST include tests in deliverables
+- **IMPECCABLE (non-blocking, Compozy-safe)** — Read and apply the **impeccable** skill (`/impeccable` — already available in Claude Code; do not run any install or `npx` commands). **Read** `.impeccable.md` at repo root when it exists. **Never** run `/impeccable teach` during automated task execution — it is interactive and will stall `compozy start` loops. If `.impeccable.md` is missing, derive constraints only from DESIGN.md, TechSpec, and this task (no user prompts). Follow OKLCH/color and spatial principles, motion rules, and **absolute_bans** (e.g. no thick side-stripe borders on cards/lists/callouts; no gradient fill on text). When lifting patterns into `@agh/ui`, follow the skill’s extract guidance **without** interviews. Where DESIGN.md/TechSpec names concrete AGH tokens or stacks, those specs win.
 </critical>
 
 <requirements>
@@ -40,19 +41,19 @@ Extract the shared design system from `web/src/styles.css` into a new `packages/
 
 ## Subtasks
 
-- [ ] 1.1 Create `packages/ui/` directory structure: `src/`, `src/components/`, `src/lib/`
-- [ ] 1.2 Create `packages/ui/package.json` with `@agh/ui` name, exports map, peer dependencies
-- [ ] 1.3 Create `packages/ui/tsconfig.json` for TypeScript compilation
-- [ ] 1.4 Extract CSS tokens from `web/src/styles.css` into `packages/ui/src/tokens.css`
-- [ ] 1.5 Create `packages/ui/src/tailwind-preset.ts` encoding DESIGN.md scale and tokens
-- [ ] 1.6 Create `packages/ui/src/lib/utils.ts` with `cn()` utility
-- [ ] 1.7 Copy and adapt server-safe base components into `packages/ui/src/components/`
-- [ ] 1.8 Add `"use client"` directives to components that use React hooks
-- [ ] 1.9 Create `packages/ui/src/index.ts` barrel with explicit named exports
-- [ ] 1.10 Add `packages/ui` to root `package.json` workspaces and `turbo.json`
-- [ ] 1.11 Install package dependencies via `bun add`
-- [ ] 1.12 Verify `turbo run build --filter=@agh/ui` compiles successfully
-- [ ] 1.13 Verify `web/` still builds independently (no regressions)
+- [x] 1.1 Create `packages/ui/` directory structure: `src/`, `src/components/`, `src/lib/`
+- [x] 1.2 Create `packages/ui/package.json` with `@agh/ui` name, exports map, peer dependencies
+- [x] 1.3 Create `packages/ui/tsconfig.json` for TypeScript compilation
+- [x] 1.4 Extract CSS tokens from `web/src/styles.css` into `packages/ui/src/tokens.css`
+- [x] 1.5 Create `packages/ui/src/tailwind-preset.ts` encoding DESIGN.md scale and tokens
+- [x] 1.6 Create `packages/ui/src/lib/utils.ts` with `cn()` utility
+- [x] 1.7 Copy and adapt server-safe base components into `packages/ui/src/components/`
+- [x] 1.8 Add `"use client"` directives to components that use React hooks
+- [x] 1.9 Create `packages/ui/src/index.ts` barrel with explicit named exports
+- [x] 1.10 Add `packages/ui` to root `package.json` workspaces and `turbo.json`
+- [x] 1.11 Install package dependencies via `bun add`
+- [x] 1.12 Verify `turbo run build --filter=@agh/ui` compiles successfully
+- [x] 1.13 Verify `web/` still builds independently (no regressions)
 
 ## Implementation Details
 

@@ -1,0 +1,15 @@
+{
+    "title": "Session",
+    "pages": [
+        "index",
+        "events",
+        "history",
+        "list",
+        "new",
+        "prompt",
+        "resume",
+        "status",
+        "stop",
+        "wait"
+    ]
+}

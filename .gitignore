@@ -1,5 +1,7 @@
 .DS_Store
 .env
+.env.local
+.env.*.local
 .tmp/
 .cache/
 .turbo/
@@ -23,3 +25,15 @@ AGH_HOME
 ai-docs/
 .firecrawl
 .kodebase
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Fumadocs
+.source/
+
+# Vercel
+.vercel

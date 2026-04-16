@@ -1,8 +1,9 @@
 import { runtimeDocs } from "@/lib/source";
-import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/page";
-import { notFound } from "next/navigation";
-import defaultMdxComponents from "fumadocs-ui/mdx";
+import { DocsBody, DocsPage } from "fumadocs-ui/page";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { DocPageMasthead } from "@/components/docs/doc-page-masthead";
+import { getMDXComponents } from "@/mdx-components";
 
 interface PageProps {
   params: Promise<{ slug?: string[] }>;
@@ -10,17 +11,28 @@ interface PageProps {
 
 export default async function Page(props: PageProps) {
   const params = await props.params;
+  if (!params.slug || params.slug.length === 0) {
+    redirect("/runtime/core/");
+  }
   const page = runtimeDocs.getPage(params.slug);
   if (!page) notFound();
 
   const MDX = page.data.body;
 
   return (
-    <DocsPage toc={page.data.toc}>
-      <DocsTitle>{page.data.title}</DocsTitle>
-      <DocsDescription>{page.data.description}</DocsDescription>
-      <DocsBody>
-        <MDX components={{ ...defaultMdxComponents }} />
+    <DocsPage
+      toc={page.data.toc}
+      breadcrumb={{ enabled: false }}
+      className="px-4 pt-8 pb-12 md:px-6 xl:layout:[--fd-toc-width:14rem] xl:pt-10"
+    >
+      <DocPageMasthead
+        kind="runtime"
+        slug={params.slug}
+        title={page.data.title}
+        description={page.data.description}
+      />
+      <DocsBody className="site-doc-body mt-8 max-w-none">
+        <MDX components={getMDXComponents()} />
       </DocsBody>
     </DocsPage>
   );

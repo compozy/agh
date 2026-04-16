@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra/doc"
 )
 
-const defaultCLIDocsDir = "packages/site/content/runtime/reference/cli"
+const defaultCLIDocsDir = "packages/site/content/runtime/cli-reference"
 
 func newDocCommand() *cobra.Command {
 	var outputDir string

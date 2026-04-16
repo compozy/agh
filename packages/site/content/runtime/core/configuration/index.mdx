@@ -1,0 +1,15 @@
+---
+title: Configuration
+description: TOML config, agent definitions, environment variables, and path overrides for AGH.
+---
+
+Configuration reference is in progress. The daemon reads its config from `~/.agh/config.toml`, with
+workspace overrides layered on top and environment variables as the highest-precedence source.
+
+This section will expand into the full configuration reference. It will cover:
+
+- `config.toml` schema — every option, default, and typical override
+- `AGENT.md` frontmatter — agent definition fields
+- `SKILL.md` frontmatter — skill packaging
+- `mcp.json` — MCP server wiring
+- Environment variables and path resolution order

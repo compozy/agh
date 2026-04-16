@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,6 +40,30 @@ func TestNewDocCommand_DefaultOutputDir(t *testing.T) {
 	}
 }
 
+// findMDX walks outputDir and returns a set of relative mdx paths (using /).
+func findMDX(t *testing.T, outputDir string) map[string]bool {
+	t.Helper()
+	result := map[string]bool{}
+	err := filepath.WalkDir(outputDir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".mdx") {
+			return nil
+		}
+		rel, err := filepath.Rel(outputDir, p)
+		if err != nil {
+			return err
+		}
+		result[filepath.ToSlash(rel)] = true
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk output dir: %v", err)
+	}
+	return result
+}
+
 func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	t.Parallel()
 
@@ -51,60 +76,76 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 		t.Fatalf("doc command failed: %v", err)
 	}
 
-	// Verify output directory was created.
-	entries, err := os.ReadDir(outputDir)
+	// Verify output directory was created and contains mdx files.
+	mdxFiles := findMDX(t, outputDir)
+	if len(mdxFiles) == 0 {
+		t.Fatal("doc command should generate .mdx files")
+	}
+
+	// Verify index.mdx exists at the root (from agh.md).
+	indexMDX := filepath.Join(outputDir, "index.mdx")
+	data, err := os.ReadFile(indexMDX)
 	if err != nil {
-		t.Fatalf("could not read output dir: %v", err)
-	}
-
-	if len(entries) == 0 {
-		t.Fatal("doc command should generate files")
-	}
-
-	// Verify .mdx files exist.
-	var mdxCount int
-	for _, e := range entries {
-		if strings.HasSuffix(e.Name(), ".mdx") {
-			mdxCount++
-		}
-	}
-	if mdxCount == 0 {
-		t.Error("doc command should generate .mdx files")
-	}
-
-	// Verify meta.json exists.
-	if _, err := os.Stat(filepath.Join(outputDir, "meta.json")); err != nil {
-		t.Error("doc command should generate meta.json")
-	}
-
-	// Verify agh.mdx exists (root command).
-	aghMDX := filepath.Join(outputDir, "agh.mdx")
-	data, err := os.ReadFile(aghMDX)
-	if err != nil {
-		t.Fatalf("agh.mdx should exist: %v", err)
+		t.Fatalf("index.mdx should exist at root: %v", err)
 	}
 
 	content := string(data)
 	if !strings.Contains(content, "---") {
-		t.Error("agh.mdx should have YAML frontmatter")
+		t.Error("index.mdx should have YAML frontmatter")
 	}
 	if !strings.Contains(content, `title: "agh"`) {
-		t.Error("agh.mdx frontmatter should have title")
+		t.Error("index.mdx frontmatter should have title 'agh'")
+	}
+
+	// Per-subdirectory meta.json is auto-generated; walk and ensure at least
+	// one such file exists (root meta.json is hand-maintained and NOT written).
+	var subdirMetas int
+	err = filepath.WalkDir(outputDir, func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if d.Name() != "meta.json" {
+			return nil
+		}
+		rel, _ := filepath.Rel(outputDir, p)
+		if filepath.Dir(rel) == "." {
+			t.Errorf("doc command must not write root meta.json (hand-maintained)")
+			return nil
+		}
+		subdirMetas++
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk: %v", err)
+	}
+	if subdirMetas == 0 {
+		t.Error("doc command should generate at least one subdirectory meta.json")
 	}
 
 	// Verify no absolute paths in any generated file.
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
+	err = filepath.WalkDir(outputDir, func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-		fileData, err := os.ReadFile(filepath.Join(outputDir, e.Name()))
-		if err != nil {
-			continue
+		if d.IsDir() {
+			return nil
+		}
+		fileData, readErr := os.ReadFile(p)
+		if readErr != nil {
+			return nil
 		}
 		fileContent := string(fileData)
 		if strings.Contains(fileContent, "/Users/") || strings.Contains(fileContent, "/home/") {
-			t.Errorf("file %s contains absolute paths", e.Name())
+			rel, _ := filepath.Rel(outputDir, p)
+			t.Errorf("file %s contains absolute paths", rel)
 		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk: %v", err)
 	}
 }
 
@@ -137,16 +178,27 @@ func TestNewDocCommand_GeneratesAllCommands(t *testing.T) {
 		t.Fatalf("doc command failed: %v", err)
 	}
 
-	// Verify some expected command files exist.
-	expectedFiles := []string{
-		"agh.mdx",
-		"agh_session.mdx",
-		"agh_daemon.mdx",
-		"agh_version.mdx",
+	mdxFiles := findMDX(t, outputDir)
+
+	// Expected files in the nested layout: parents with children render as
+	// <segment>/index.mdx; leaves render as <segment>.mdx.
+	expected := []string{
+		"index.mdx",         // from agh
+		"session/index.mdx", // parent — has children
+		"daemon/index.mdx",  // parent — has children
+		"version.mdx",       // leaf — no children
 	}
-	for _, name := range expectedFiles {
-		if _, err := os.Stat(filepath.Join(outputDir, name)); err != nil {
-			t.Errorf("expected file %s to exist", name)
+	for _, want := range expected {
+		if !mdxFiles[want] {
+			t.Errorf("expected file %q to exist, got files: %v", want, sortedKeys(mdxFiles))
 		}
 	}
+}
+
+func sortedKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

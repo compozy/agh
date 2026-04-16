@@ -1,16 +1,48 @@
 ---
 title: Runtime Documentation
-description: Learn how to install, configure, and use AGH — the Agent Operating System.
+description: Install, run, and govern real agent CLIs with durable sessions, replayable history, and one operator surface.
 ---
 
-# AGH Runtime
+AGH Runtime is the local-first control plane for real agent work. It lets you run Claude Code,
+Codex, Gemini CLI, and other agent CLIs as durable sessions with replayable history,
+workspace-aware memory, automation, and observability.
 
-AGH is an Agent Operating System — a single-binary daemon that manages AI agent sessions via ACP (Agent Client Protocol).
+<OperatorNote>
+  Runtime docs are organized by operator job, not by internal package boundary. Start in Core to
+  understand the operating model, then jump to the CLI or API surface when you need exact command
+  or payload detail.
+</OperatorNote>
 
-## What you'll find here
+## Start by Job
 
-- **Getting Started** — Installation, quick start, and your first agent session
-- **Core Concepts** — Sessions, agents, memory, skills, and workspaces
-- **CLI Reference** — Complete command reference (auto-generated)
-- **Configuration** — TOML config, agent definitions, and environment variables
-- **Operations** — Daemon management, troubleshooting, and production checklist
+<RouteList>
+  <RouteRow
+    href="/runtime/core"
+    label="Core"
+    title="Concepts, installation, and day-two operations"
+    description="Use this when you need to understand durability, replay, memory, permissions, and the operating model behind AGH Runtime."
+    meta="Recommended first"
+  />
+  <RouteRow
+    href="/runtime/cli-reference"
+    label="CLI Reference"
+    title="Every `agh` command, grouped by operator workflow"
+    description="Reach for this when you need an exact command surface for sessions, automation, bridges, workspaces, extensions, skills, hooks, memory, and daemon control."
+    meta="Generated reference"
+  />
+  <RouteRow
+    href="/runtime/api-reference"
+    label="API Reference"
+    title="HTTP and SSE surfaces exposed by the daemon"
+    description="Use the API docs for automation, integrations, and any client that needs to talk to the runtime programmatically."
+    meta="Integration surface"
+  />
+</RouteList>
+
+## Working model
+
+- **Core** explains how AGH behaves as a runtime you operate.
+- **CLI Reference** tells you exactly what the command surface looks like.
+- **API Reference** mirrors the machine-facing contract behind the same control plane.
+
+The intended flow is simple: learn the model once, then use whichever surface fits the job.

@@ -1,0 +1,86 @@
+---
+title: What is AGH
+description: AGH Runtime is a local-first control plane for running real agent CLIs as durable work.
+---
+
+# What is AGH
+
+AGH is the runtime you reach for when one-off terminal sessions stop being enough. It takes the
+agent CLIs you already trust — Claude Code, Codex, Gemini CLI, and others — and turns them into
+durable work with replayable history, workspace-aware memory, automation, and one operator surface
+across the CLI, HTTP/SSE, and the web UI.
+
+You can call AGH an **Agent Operating System**, but the useful part of that label is not the
+metaphor. It is what the runtime actually gives you: agent work that stays alive, inspectable, and
+governable after the terminal window is gone.
+
+## The problem AGH solves
+
+Most agent CLIs are excellent at doing work inside one session, but weak at everything around the
+session:
+
+- the run disappears when the terminal closes
+- there is no clean replay or audit trail
+- each project needs its own context, defaults, and guardrails
+- coordinating multiple specialized agents turns into custom glue code
+- operators end up stitching together scripts, logs, and dashboards that never become a product
+
+AGH fills that gap with a local-first runtime that keeps work durable and observable without asking
+you to abandon the agent CLIs you already use.
+
+## What AGH Runtime adds
+
+### Run real agent CLIs as durable work
+
+AGH does not reimplement agent logic behind API wrappers. It orchestrates real agent CLIs as
+managed sessions, so Claude Code stays Claude Code, Codex stays Codex, and Gemini CLI stays Gemini
+CLI.
+
+That matters because you keep the native tools, context behavior, and interaction style of each
+agent instead of flattening everything into one abstraction layer.
+
+### Keep sessions durable, replayable, and auditable
+
+Each session becomes a durable unit of work. You can stop it, resume it, inspect the event history,
+and reconstruct what happened when a run needs review or recovery.
+
+Instead of losing the context after a crash, restart, or handoff, AGH keeps the operational record
+around the work itself.
+
+### Standardize behavior per workspace
+
+AGH layers configuration, memory, and skills around the workspace, so each project can carry its
+own defaults without forcing one global setup to fit every team and repository.
+
+That gives operators a cleaner way to keep agent behavior consistent without rebuilding prompts and
+context on every run.
+
+### Operate from one control surface
+
+The same runtime is available through the CLI, HTTP/SSE, and the web UI. Sessions, memory,
+automation, bridges, and observability live in one local control plane instead of a pile of
+separate tools.
+
+### Add AGH Network when agents need to coordinate
+
+AGH Runtime is only half the story. When you need specialized agents to discover peers, delegate
+work, exchange updates, and report results cleanly, AGH Network provides the open coordination
+layer behind the runtime.
+
+That layer is intentionally separate: AGH ships the reference implementation, but the network
+boundary is documented so other runtimes can adopt it too.
+
+## How AGH does it
+
+Under the hood, AGH runs as a single local daemon. It manages sessions, persists events, exposes
+operator surfaces, and talks to compatible agents through a standardized protocol layer.
+
+The deeper architecture, package boundaries, and transport details matter when you are integrating
+or extending AGH, but they are not the product promise. The product promise is durable runtime
+control for real agent work.
+
+## What AGH is not
+
+- **Not an agent framework.** AGH does not ask you to rebuild your agents as chains, graphs, or wrapper abstractions.
+- **Not an API wrapper.** The point is to keep real agent CLIs intact, not to flatten them into thin model calls.
+- **Not a hosted control plane.** AGH is local-first. The runtime lives on your machine and keeps data close to the workspace.

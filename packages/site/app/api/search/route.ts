@@ -19,7 +19,7 @@ const server = createSearchAPI("advanced", {
       structuredData: page.data.structuredData,
       id: page.url,
       url: page.url,
-      tag: "Protocol",
+      tag: "AGH Network",
     })),
   ],
 });

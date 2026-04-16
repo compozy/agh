@@ -1,0 +1,15 @@
+{
+    "title": "Bridge",
+    "pages": [
+        "index",
+        "create",
+        "disable",
+        "enable",
+        "get",
+        "list",
+        "restart",
+        "routes",
+        "test-delivery",
+        "update"
+    ]
+}

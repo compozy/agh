@@ -1,0 +1,4 @@
+{
+    "title": "Network",
+    "pages": ["index", "channels", "inbox", "peers", "send", "status"]
+}

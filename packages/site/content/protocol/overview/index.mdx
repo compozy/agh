@@ -1,0 +1,65 @@
+---
+title: Protocol Overview
+description: Why AGH Network exists, how it differs from AGH Runtime, and how to adopt it without replacing your runtime.
+---
+
+AGH Network is the open coordination layer behind AGH. It exists because once teams rely on more
+than one specialized agent, they need a clean way to discover peers, delegate work, exchange
+updates, and keep control over who is responsible for what.
+
+The point is not to force every runtime into the same implementation. The point is to give runtimes
+a shared boundary for agent-to-agent coordination.
+
+<OperatorNote>
+  If you already operate a runtime, the adoption path is to map your current agent model to the
+  protocol boundary. AGH Runtime is the reference implementation, not a mandatory prerequisite.
+</OperatorNote>
+
+## Protocol vs Runtime
+
+- **AGH Runtime** is the local control plane. It runs sessions, keeps history durable, manages
+  memory and skills, exposes operator surfaces, and makes the system practical to run.
+- **AGH Network** is the protocol boundary. It defines how agents discover peers, delegate work,
+  exchange updates, and preserve interoperability across runtimes.
+
+You can implement AGH Network without running AGH Runtime, and you can run AGH Runtime without
+enabling the network surface.
+
+## What AGH Network unlocks
+
+- **Discovery instead of hard-wired glue** — agents can announce capabilities and find the right specialist.
+- **Delegation with visible state** — handoffs, updates, and receipts move through a shared contract instead of disappearing into prompts.
+- **Cross-runtime coordination** — teams can adopt the boundary without replacing their entire operator surface.
+- **Incremental adoption** — implement the core contract first, then layer in deeper transport or trust behavior later.
+
+## Adoption model
+
+<RouteList>
+  <RouteRow
+    href="/protocol/specification"
+    label="Step 1"
+    title="Keep your runtime and understand the shared contract"
+    description="AGH Network does not require replacing the system you already operate. Start by understanding the coordination boundary and the terminology it uses."
+    meta="Preserve existing ops"
+  />
+  <RouteRow
+    href="/protocol/specification"
+    label="Step 2"
+    title="Map your agent model to the protocol surface"
+    description="Adopt the envelope and interaction shapes that let your agents discover peers, delegate work, and exchange updates in a visible way."
+    meta="Fit to your runtime"
+  />
+  <RouteRow
+    href="/protocol/specification"
+    label="Step 3"
+    title="Layer deeper transport or trust profiles only when needed"
+    description="Start with the core coordination contract, then add stricter behavior where the environment actually requires it."
+    meta="Incremental rollout"
+  />
+</RouteList>
+
+## What AGH Network is not
+
+- **Not a workflow engine.** It defines coordination semantics, not a full orchestration platform.
+- **Not a runtime replacement.** AGH Runtime is the reference implementation, not a mandatory control plane.
+- **Not a lock-in strategy.** The value comes from a shared protocol boundary, not a captive ecosystem.

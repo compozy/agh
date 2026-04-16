@@ -1,6 +1,7 @@
 package docpost
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -282,13 +283,234 @@ Print version info.
 	}
 }
 
-func TestProcess(t *testing.T) {
+func TestComputeHasChildren(t *testing.T) {
+	t.Parallel()
+
+	inputs := []input{
+		{baseName: "agh"},
+		{baseName: "agh_agent"},
+		{baseName: "agh_agent_list"},
+		{baseName: "agh_agent_info"},
+		{baseName: "agh_version"},
+		{baseName: "agh_automation"},
+		{baseName: "agh_automation_jobs"},
+		{baseName: "agh_automation_jobs_create"},
+	}
+
+	got := computeHasChildren(inputs)
+
+	want := map[string]bool{
+		"agh":                 true,
+		"agh_agent":           true,
+		"agh_automation":      true,
+		"agh_automation_jobs": true,
+	}
+
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("hasChildren[%q] = %v, want %v", k, got[k], v)
+		}
+	}
+
+	shouldNotHaveChildren := []string{"agh_agent_list", "agh_agent_info", "agh_version", "agh_automation_jobs_create"}
+	for _, k := range shouldNotHaveChildren {
+		if got[k] {
+			t.Errorf("hasChildren[%q] = true, want false", k)
+		}
+	}
+}
+
+func TestOutPath(t *testing.T) {
+	t.Parallel()
+
+	hasChildren := map[string]bool{
+		"agh":                 true,
+		"agh_agent":           true,
+		"agh_automation":      true,
+		"agh_automation_jobs": true,
+		"agh_task":            true,
+		"agh_task_run":        true,
+	}
+
+	tests := []struct {
+		in   input
+		want string
+	}{
+		{input{baseName: "agh", segments: nil}, "index.mdx"},
+		{input{baseName: "agh_version", segments: []string{"version"}}, "version.mdx"},
+		{input{baseName: "agh_agent", segments: []string{"agent"}}, "agent/index.mdx"},
+		{input{baseName: "agh_agent_list", segments: []string{"agent", "list"}}, "agent/list.mdx"},
+		{input{baseName: "agh_automation", segments: []string{"automation"}}, "automation/index.mdx"},
+		{input{baseName: "agh_automation_jobs", segments: []string{"automation", "jobs"}}, "automation/jobs/index.mdx"},
+		{
+			input{baseName: "agh_automation_jobs_create", segments: []string{"automation", "jobs", "create"}},
+			"automation/jobs/create.mdx",
+		},
+		{input{baseName: "agh_task_run_start", segments: []string{"task", "run", "start"}}, "task/run/start.mdx"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.in.baseName, func(t *testing.T) {
+			t.Parallel()
+			got := outPath(tt.in, hasChildren)
+			if got != tt.want {
+				t.Errorf("outPath(%q) = %q, want %q", tt.in.baseName, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildTargetMap(t *testing.T) {
+	t.Parallel()
+
+	inputs := []input{
+		{baseName: "agh"},
+		{baseName: "agh_agent", segments: []string{"agent"}},
+		{baseName: "agh_agent_list", segments: []string{"agent", "list"}},
+		{baseName: "agh_automation_jobs_create", segments: []string{"automation", "jobs", "create"}},
+	}
+
+	targets := buildTargetMap(inputs, nil)
+
+	want := map[string]string{
+		"agh":                        "/runtime/cli-reference",
+		"agh_agent":                  "/runtime/cli-reference/agent",
+		"agh_agent_list":             "/runtime/cli-reference/agent/list",
+		"agh_automation_jobs_create": "/runtime/cli-reference/automation/jobs/create",
+	}
+
+	for k, v := range want {
+		if targets[k] != v {
+			t.Errorf("targets[%q] = %q, want %q", k, targets[k], v)
+		}
+	}
+}
+
+func TestRemapLinks(t *testing.T) {
+	t.Parallel()
+
+	targets := map[string]string{
+		"agh":            "/runtime/cli-reference",
+		"agh_agent":      "/runtime/cli-reference/agent",
+		"agh_agent_list": "/runtime/cli-reference/agent/list",
+	}
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "remaps stripped cross link",
+			raw:  "* [agh agent list](agh_agent_list) - list agents",
+			want: "* [agh agent list](/runtime/cli-reference/agent/list) - list agents",
+		},
+		{
+			name: "remaps root",
+			raw:  "See [agh](agh) for the root command.",
+			want: "See [agh](/runtime/cli-reference) for the root command.",
+		},
+		{
+			name: "leaves unknown targets alone",
+			raw:  "See [external](agh_not_a_command) here",
+			want: "See [external](agh_not_a_command) here",
+		},
+		{
+			name: "leaves non-agh links untouched",
+			raw:  "See [docs](/docs/intro) here",
+			want: "See [docs](/docs/intro) here",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := remapLinks(tt.raw, targets)
+			if got != tt.want {
+				t.Errorf("remapLinks() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTitleCase(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		in, want string
+	}{
+		{"agent", "Agent"},
+		{"automation", "Automation"},
+		{"test-delivery", "Test Delivery"},
+		{"jobs", "Jobs"},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			t.Parallel()
+			got := titleCase(tt.in)
+			if got != tt.want {
+				t.Errorf("titleCase(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCleanOutput_PreservesRootMeta(t *testing.T) {
+	t.Parallel()
+
+	dstDir := t.TempDir()
+
+	// Seed with a hand-maintained root meta.json and some stale files/dirs.
+	rootMeta := []byte(`{"title":"CLI Reference","pages":["index","agent"]}`)
+	if err := os.WriteFile(filepath.Join(dstDir, "meta.json"), rootMeta, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dstDir, "stale.mdx"), []byte("stale"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dstDir, "agent"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dstDir, "agent", "list.mdx"), []byte("stale"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cleanOutput(dstDir); err != nil {
+		t.Fatalf("cleanOutput() error: %v", err)
+	}
+
+	// Root meta.json must survive.
+	got, err := os.ReadFile(filepath.Join(dstDir, "meta.json"))
+	if err != nil {
+		t.Fatalf("root meta.json should still exist: %v", err)
+	}
+	if !bytes.Equal(got, rootMeta) {
+		t.Errorf("root meta.json content changed, want %q, got %q", rootMeta, got)
+	}
+
+	// Stale files must be gone.
+	if _, err := os.Stat(filepath.Join(dstDir, "stale.mdx")); !os.IsNotExist(err) {
+		t.Error("stale.mdx should have been removed")
+	}
+	if _, err := os.Stat(filepath.Join(dstDir, "agent")); !os.IsNotExist(err) {
+		t.Error("agent/ subdir should have been removed")
+	}
+}
+
+func TestProcess_NestedLayout(t *testing.T) {
 	t.Parallel()
 
 	srcDir := t.TempDir()
-	dstDir := filepath.Join(t.TempDir(), "output")
+	dstDir := t.TempDir()
 
-	// Write sample Cobra markdown files.
+	// Seed a hand-maintained root meta.json — Process must preserve it.
+	rootMeta := `{"title":"CLI Reference","root":true,"pages":["index","agent","automation","version"]}`
+	if err := os.WriteFile(filepath.Join(dstDir, "meta.json"), []byte(rootMeta), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
 	files := map[string]string{
 		"agh.md": `## agh
 
@@ -298,27 +520,84 @@ AGH agent operating system
 
 AGH is the agent operating system.
 
-###### Auto generated by spf13/cobra on 15-Apr-2026
+###### Auto generated by spf13/cobra
 `,
-		"agh_session.md": `## agh session
+		"agh_agent.md": `## agh agent
 
-Manage agent sessions
+Manage agents
 
 ### Synopsis
 
-Manage agent sessions in AGH.
+Manage agents in AGH.
 
 ### SEE ALSO
 
 * [agh](agh.md) - parent
+* [agh agent list](agh_agent_list.md) - list agents
 
-###### Auto generated by spf13/cobra on 15-Apr-2026
+###### Auto generated by spf13/cobra
+`,
+		"agh_agent_list.md": `## agh agent list
+
+List registered agents
+
+### Synopsis
+
+List all registered agent definitions.
+
+### SEE ALSO
+
+* [agh agent](agh_agent.md) - parent
+
+###### Auto generated by spf13/cobra
+`,
+		"agh_agent_info.md": `## agh agent info
+
+Show agent info
+
+### Synopsis
+
+Show agent info.
+`,
+		"agh_automation.md": `## agh automation
+
+Automation commands
+
+### Synopsis
+
+Manage automation.
+`,
+		"agh_automation_jobs.md": `## agh automation jobs
+
+Manage jobs
+
+### Synopsis
+
+Manage automation jobs.
+`,
+		"agh_automation_jobs_create.md": `## agh automation jobs create
+
+Create a job
+
+### Synopsis
+
+Create a new automation job.
+
+See [agh automation jobs](agh_automation_jobs.md) for the parent command.
+`,
+		"agh_version.md": `## agh version
+
+Print the AGH version
+
+### Synopsis
+
+Print the version.
 `,
 	}
 
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(srcDir, name), []byte(content), 0o644); err != nil {
-			t.Fatalf("write test file %s: %v", name, err)
+			t.Fatalf("write %s: %v", name, err)
 		}
 	}
 
@@ -326,43 +605,108 @@ Manage agent sessions in AGH.
 		t.Fatalf("Process() error: %v", err)
 	}
 
-	// Verify .mdx files exist (not .md).
-	for name := range files {
-		mdxName := strings.TrimSuffix(name, ".md") + ".mdx"
-		mdPath := filepath.Join(dstDir, name)
-		mdxPath := filepath.Join(dstDir, mdxName)
-
-		if _, err := os.Stat(mdPath); err == nil {
-			t.Errorf("original .md file should not exist in output: %s", mdPath)
-		}
-		data, err := os.ReadFile(mdxPath)
-		if err != nil {
-			t.Fatalf("expected .mdx file %s: %v", mdxPath, err)
-		}
-		if !strings.HasPrefix(string(data), "---\n") {
-			t.Errorf("%s should have YAML frontmatter", mdxName)
+	// Expected layout.
+	want := []string{
+		"index.mdx",                  // from agh.md
+		"version.mdx",                // leaf, no children
+		"agent/index.mdx",            // parent (agh_agent has children)
+		"agent/info.mdx",             // leaf
+		"agent/list.mdx",             // leaf
+		"agent/meta.json",            // auto-generated
+		"automation/index.mdx",       // parent
+		"automation/jobs/index.mdx",  // parent
+		"automation/jobs/create.mdx", // leaf
+		"automation/meta.json",       // auto-generated
+		"automation/jobs/meta.json",  // auto-generated
+	}
+	for _, rel := range want {
+		if _, err := os.Stat(filepath.Join(dstDir, rel)); err != nil {
+			t.Errorf("expected output %s to exist: %v", rel, err)
 		}
 	}
 
-	// Verify meta.json exists and has correct structure.
-	metaData, err := os.ReadFile(filepath.Join(dstDir, "meta.json"))
+	// Root meta.json must be untouched.
+	got, err := os.ReadFile(filepath.Join(dstDir, "meta.json"))
 	if err != nil {
-		t.Fatal("meta.json should be generated")
+		t.Fatal(err)
+	}
+	if string(got) != rootMeta {
+		t.Errorf("root meta.json was modified. got=%q want=%q", got, rootMeta)
 	}
 
-	var meta struct {
+	// Cross-links in agent/index.mdx must point to absolute URLs.
+	agentIdx, err := os.ReadFile(filepath.Join(dstDir, "agent", "index.mdx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The SEE ALSO section is stripped by stripBoilerplate, so the
+	// remapped link only appears if the cross-link survives outside that
+	// section. For this test we verify that the link is NOT left in raw
+	// `agh_agent_list` form if it leaked through anywhere.
+	if strings.Contains(string(agentIdx), "](agh_agent_list)") {
+		t.Error("agent/index.mdx should not contain unresolved stripped cross-links")
+	}
+
+	// automation/jobs/create.mdx has an inline reference to the parent
+	// that lives OUTSIDE the SEE ALSO section — verify remapping worked.
+	createMDX, err := os.ReadFile(filepath.Join(dstDir, "automation", "jobs", "create.mdx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(createMDX), "(/runtime/cli-reference/automation/jobs)") {
+		t.Errorf("automation/jobs/create.mdx should contain absolute cross-link, got:\n%s", createMDX)
+	}
+	if strings.Contains(string(createMDX), "(agh_automation_jobs)") {
+		t.Error("automation/jobs/create.mdx should not contain raw base-name cross-links")
+	}
+
+	// Per-directory meta.json must list direct children with index first.
+	var agentMeta struct {
 		Title string   `json:"title"`
 		Pages []string `json:"pages"`
 	}
-	if err := json.Unmarshal(metaData, &meta); err != nil {
-		t.Fatalf("meta.json should be valid JSON: %v", err)
+	data, err := os.ReadFile(filepath.Join(dstDir, "agent", "meta.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &agentMeta); err != nil {
+		t.Fatal(err)
+	}
+	if agentMeta.Title != "Agent" {
+		t.Errorf("agent meta title = %q, want %q", agentMeta.Title, "Agent")
+	}
+	wantPages := []string{"index", "info", "list"}
+	if len(agentMeta.Pages) != len(wantPages) {
+		t.Errorf("agent meta pages = %v, want %v", agentMeta.Pages, wantPages)
+	} else {
+		for i, p := range wantPages {
+			if agentMeta.Pages[i] != p {
+				t.Errorf("agent meta pages[%d] = %q, want %q", i, agentMeta.Pages[i], p)
+			}
+		}
 	}
 
-	if meta.Title != "CLI Reference" {
-		t.Errorf("meta.Title = %q, want %q", meta.Title, "CLI Reference")
+	// automation/meta.json should list the jobs subdirectory.
+	data, err = os.ReadFile(filepath.Join(dstDir, "automation", "meta.json"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(meta.Pages) != 2 {
-		t.Errorf("meta.Pages should have 2 entries, got %d", len(meta.Pages))
+	var autoMeta struct {
+		Title string   `json:"title"`
+		Pages []string `json:"pages"`
+	}
+	if err := json.Unmarshal(data, &autoMeta); err != nil {
+		t.Fatal(err)
+	}
+	wantAutoPages := []string{"index", "jobs"}
+	if len(autoMeta.Pages) != len(wantAutoPages) {
+		t.Errorf("automation meta pages = %v, want %v", autoMeta.Pages, wantAutoPages)
+	} else {
+		for i, p := range wantAutoPages {
+			if autoMeta.Pages[i] != p {
+				t.Errorf("automation meta pages[%d] = %q, want %q", i, autoMeta.Pages[i], p)
+			}
+		}
 	}
 }
 
@@ -384,5 +728,8 @@ func TestProcess_CreatesOutputDir(t *testing.T) {
 
 	if _, err := os.Stat(dstDir); os.IsNotExist(err) {
 		t.Error("output directory should have been created")
+	}
+	if _, err := os.Stat(filepath.Join(dstDir, "index.mdx")); os.IsNotExist(err) {
+		t.Error("index.mdx should have been written (from agh.md)")
 	}
 }

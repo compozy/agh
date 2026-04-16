@@ -1,64 +1,282 @@
 // Package docpost transforms raw Cobra-generated markdown into
-// Fumadocs-compatible MDX files with YAML frontmatter.
+// Fumadocs-compatible MDX files with YAML frontmatter. Output is grouped
+// into a nested directory structure by command family so the Fumadocs
+// sidebar collapses the CLI reference.
 package docpost
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
-
-	"encoding/json"
 )
+
+// linkBasePath is the URL prefix the site router mounts the CLI reference at.
+// We rewrite inter-command links to use absolute paths under this prefix so
+// they resolve the same regardless of which nested page they live on.
+const linkBasePath = "/runtime/cli-reference"
 
 var (
-	autoGenLine = regexp.MustCompile(`(?m)^###### Auto generated.*$\n?`)
-	seeAlsoRe   = regexp.MustCompile(`(?ms)^### SEE ALSO\n.*`)
+	autoGenLine  = regexp.MustCompile(`(?m)^###### Auto generated.*$\n?`)
+	seeAlsoRe    = regexp.MustCompile(`(?ms)^### SEE ALSO\n.*`)
+	crossLinkRe  = regexp.MustCompile(`\[([^\]]+)\]\((agh[A-Za-z0-9_\-]*)\.md\)`)
+	strippedLink = regexp.MustCompile(`\]\((agh[A-Za-z0-9_\-]*)\)`)
 )
 
-// Process reads all .md files from srcDir, transforms them into
-// Fumadocs-compatible MDX, and writes the results to dstDir.
-// It also generates a meta.json for sidebar ordering.
+// Process reads all agh*.md files from srcDir, transforms them into
+// Fumadocs-compatible MDX, and writes them to dstDir using a nested
+// directory layout: `agh` → index.mdx, `agh_agent` → agent/index.mdx,
+// `agh_agent_list` → agent/list.mdx, and so on.
+//
+// The root-level meta.json of dstDir is hand-maintained and never touched
+// by Process. Subdirectory meta.json files are regenerated on each run.
+// Stale files from prior runs are removed before writing.
 func Process(srcDir, dstDir string) error {
 	if err := os.MkdirAll(dstDir, 0o755); err != nil {
 		return fmt.Errorf("docpost: create output dir: %w", err)
 	}
-
-	entries, err := os.ReadDir(srcDir)
-	if err != nil {
-		return fmt.Errorf("docpost: read source dir: %w", err)
+	if err := cleanOutput(dstDir); err != nil {
+		return fmt.Errorf("docpost: clean output: %w", err)
 	}
 
-	var commandNames []string
+	inputs, err := readInputs(srcDir)
+	if err != nil {
+		return err
+	}
 
+	hasChildren := computeHasChildren(inputs)
+	targets := buildTargetMap(inputs, hasChildren)
+
+	for _, in := range inputs {
+		cmdName := strings.ReplaceAll(in.baseName, "_", " ")
+		body := TransformMarkdown(in.raw, cmdName)
+		body = remapLinks(body, targets)
+
+		outRel := outPath(in, hasChildren)
+		dst := filepath.Join(dstDir, filepath.FromSlash(outRel))
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return fmt.Errorf("docpost: mkdir %s: %w", dst, err)
+		}
+		if err := os.WriteFile(dst, []byte(body), 0o600); err != nil {
+			return fmt.Errorf("docpost: write %s: %w", dst, err)
+		}
+	}
+
+	return writeSubdirMetas(dstDir)
+}
+
+type input struct {
+	fileName string
+	baseName string
+	segments []string
+	raw      string
+}
+
+func readInputs(srcDir string) ([]input, error) {
+	entries, err := os.ReadDir(srcDir)
+	if err != nil {
+		return nil, fmt.Errorf("docpost: read source dir: %w", err)
+	}
+
+	var inputs []input
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-
 		data, err := os.ReadFile(filepath.Join(srcDir, entry.Name()))
 		if err != nil {
-			return fmt.Errorf("docpost: read %s: %w", entry.Name(), err)
+			return nil, fmt.Errorf("docpost: read %s: %w", entry.Name(), err)
 		}
-
-		cmdName := filenameToCommand(entry.Name())
-		result := TransformMarkdown(string(data), cmdName)
-
-		mdxName := strings.TrimSuffix(entry.Name(), ".md") + ".mdx"
-		if err := os.WriteFile(filepath.Join(dstDir, mdxName), []byte(result), 0o600); err != nil {
-			return fmt.Errorf("docpost: write %s: %w", mdxName, err)
+		base := strings.TrimSuffix(entry.Name(), ".md")
+		if !strings.HasPrefix(base, "agh") {
+			return nil, fmt.Errorf("docpost: unexpected filename %q (must start with 'agh')", entry.Name())
 		}
-
-		commandNames = append(commandNames, strings.TrimSuffix(entry.Name(), ".md"))
+		var segs []string
+		if base != "agh" {
+			parts := strings.Split(base, "_")
+			segs = parts[1:]
+		}
+		inputs = append(inputs, input{
+			fileName: entry.Name(),
+			baseName: base,
+			segments: segs,
+			raw:      string(data),
+		})
 	}
+	return inputs, nil
+}
 
-	if err := writeMetaJSON(dstDir, commandNames); err != nil {
-		return fmt.Errorf("docpost: write meta.json: %w", err)
+// computeHasChildren marks a baseName as a "parent" when any other input's
+// baseName starts with baseName + "_". Parents render as index.mdx in their
+// own directory; leaves render as <segment>.mdx under the parent directory.
+func computeHasChildren(inputs []input) map[string]bool {
+	result := make(map[string]bool, len(inputs))
+	for _, a := range inputs {
+		prefix := a.baseName + "_"
+		for _, b := range inputs {
+			if a.baseName != b.baseName && strings.HasPrefix(b.baseName, prefix) {
+				result[a.baseName] = true
+				break
+			}
+		}
 	}
+	return result
+}
 
+// outPath returns the output file path for an input, relative to dstDir, using
+// forward slashes.
+func outPath(in input, hasChildren map[string]bool) string {
+	if len(in.segments) == 0 {
+		return "index.mdx"
+	}
+	if hasChildren[in.baseName] {
+		return path.Join(in.segments...) + "/index.mdx"
+	}
+	if len(in.segments) == 1 {
+		return in.segments[0] + ".mdx"
+	}
+	parent := path.Join(in.segments[:len(in.segments)-1]...)
+	return parent + "/" + in.segments[len(in.segments)-1] + ".mdx"
+}
+
+// buildTargetMap builds a baseName -> absolute URL map used by remapLinks.
+// The root command maps to linkBasePath itself; every other command maps to
+// linkBasePath + its segment path.
+func buildTargetMap(inputs []input, _ map[string]bool) map[string]string {
+	targets := make(map[string]string, len(inputs))
+	for _, in := range inputs {
+		if len(in.segments) == 0 {
+			targets[in.baseName] = linkBasePath
+			continue
+		}
+		targets[in.baseName] = linkBasePath + "/" + strings.Join(in.segments, "/")
+	}
+	return targets
+}
+
+// remapLinks rewrites any `](agh_xxx)` link target in the body to its
+// absolute URL under linkBasePath. Runs after TransformMarkdown has already
+// stripped `.md` extensions via rewriteLinks.
+func remapLinks(body string, targets map[string]string) string {
+	return strippedLink.ReplaceAllStringFunc(body, func(match string) string {
+		m := strippedLink.FindStringSubmatch(match)
+		if m == nil {
+			return match
+		}
+		target, ok := targets[m[1]]
+		if !ok {
+			return match
+		}
+		return "](" + target + ")"
+	})
+}
+
+// cleanOutput removes everything in dstDir except the root meta.json so the
+// hand-maintained sidebar grouping survives regeneration.
+func cleanOutput(dstDir string) error {
+	entries, err := os.ReadDir(dstDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, e := range entries {
+		if e.Name() == "meta.json" {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(dstDir, e.Name())); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// writeSubdirMetas walks dstDir and emits a meta.json in every subdirectory
+// (never the root) listing its direct children alphabetically, with an
+// optional leading "index" when an index.mdx is present.
+func writeSubdirMetas(dstDir string) error {
+	return filepath.WalkDir(dstDir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(dstDir, p)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil // root is hand-maintained
+		}
+		return writeDirMeta(p)
+	})
+}
+
+func writeDirMeta(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	var files, subdirs []string
+	hasIndex := false
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() {
+			subdirs = append(subdirs, name)
+			continue
+		}
+		if !strings.HasSuffix(name, ".mdx") {
+			continue
+		}
+		base := strings.TrimSuffix(name, ".mdx")
+		if base == "index" {
+			hasIndex = true
+			continue
+		}
+		files = append(files, base)
+	}
+	sort.Strings(files)
+	sort.Strings(subdirs)
+
+	pages := make([]string, 0, 1+len(files)+len(subdirs))
+	if hasIndex {
+		pages = append(pages, "index")
+	}
+	pages = append(pages, files...)
+	pages = append(pages, subdirs...)
+
+	meta := struct {
+		Title string   `json:"title"`
+		Pages []string `json:"pages"`
+	}{
+		Title: titleCase(filepath.Base(dir)),
+		Pages: pages,
+	}
+	data, err := json.MarshalIndent(meta, "", "    ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "meta.json"), append(data, '\n'), 0o600)
+}
+
+// titleCase renders a lowercase command segment as a display title.
+// Replaces dashes with spaces and capitalises each word.
+func titleCase(seg string) string {
+	parts := strings.FieldsFunc(seg, func(r rune) bool { return r == '-' || r == '_' })
+	for i, w := range parts {
+		if w == "" {
+			continue
+		}
+		parts[i] = strings.ToUpper(w[:1]) + w[1:]
+	}
+	return strings.Join(parts, " ")
 }
 
 // TransformMarkdown converts raw Cobra markdown to Fumadocs MDX format.
@@ -255,30 +473,9 @@ func escapeLineJSX(line string) string {
 	return b.String()
 }
 
-// rewriteLinks converts .md links to .mdx-compatible relative links.
-// Cobra generates links like [agh session](agh_session.md) — we strip the
-// .md extension since Fumadocs uses slug-based routing.
+// rewriteLinks strips the `.md` extension from Cobra-generated cross-command
+// links. The stripped form is then remapped to an absolute URL by remapLinks
+// during Process.
 func rewriteLinks(raw string) string {
-	re := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\.md\)`)
-	return re.ReplaceAllString(raw, "[$1]($2)")
-}
-
-// writeMetaJSON generates a Fumadocs meta.json for sidebar ordering.
-func writeMetaJSON(dir string, commandNames []string) error {
-	sort.Strings(commandNames)
-
-	meta := struct {
-		Title string   `json:"title"`
-		Pages []string `json:"pages"`
-	}{
-		Title: "CLI Reference",
-		Pages: commandNames,
-	}
-
-	data, err := json.MarshalIndent(meta, "", "    ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(filepath.Join(dir, "meta.json"), append(data, '\n'), 0o600)
+	return crossLinkRe.ReplaceAllString(raw, "[$1]($2)")
 }

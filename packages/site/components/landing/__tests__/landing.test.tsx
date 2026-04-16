@@ -35,12 +35,11 @@ import { FinalCta } from "../final-cta";
 describe("Hero", () => {
   it("renders headline and both CTA buttons", () => {
     render(<Hero />);
-    expect(screen.getByText("Your agents can finally talk to each other.")).toBeDefined();
-    const protocolLink = screen.getByText("Read the Protocol Spec");
-    expect(protocolLink.closest("a")).toHaveProperty("href");
-    expect(protocolLink.closest("a")?.getAttribute("href")).toBe("/protocol");
-    const runtimeLink = screen.getByText("Get Started");
+    expect(screen.getByText("Durable runtime for real agent work.")).toBeDefined();
+    const runtimeLink = screen.getByText("Enter Runtime Docs");
     expect(runtimeLink.closest("a")?.getAttribute("href")).toBe("/runtime");
+    const networkLink = screen.getByText("Explore AGH Network");
+    expect(networkLink.closest("a")?.getAttribute("href")).toBe("/protocol");
   });
 
   it("matches snapshot", () => {
@@ -52,10 +51,10 @@ describe("Hero", () => {
 describe("TwoPillars", () => {
   it("renders Runtime and Protocol pillars with links", () => {
     render(<TwoPillars />);
-    expect(screen.getByText("Agent Operating System")).toBeDefined();
-    expect(screen.getByText("Agent Network Protocol")).toBeDefined();
-    expect(screen.getByText("Explore the Runtime")).toBeDefined();
-    expect(screen.getByText("Read the Protocol Spec")).toBeDefined();
+    expect(screen.getByText("Local-first control plane")).toBeDefined();
+    expect(screen.getByText("Open coordination layer")).toBeDefined();
+    expect(screen.getByText("Get Started with Runtime")).toBeDefined();
+    expect(screen.getByText("Explore AGH Network")).toBeDefined();
   });
 
   it("matches snapshot", () => {
@@ -67,11 +66,12 @@ describe("TwoPillars", () => {
 describe("HowItWorks", () => {
   it("renders 3 steps with code snippets", () => {
     render(<HowItWorks />);
-    expect(screen.getByText("Install AGH")).toBeDefined();
-    expect(screen.getByText("Start the daemon")).toBeDefined();
-    expect(screen.getByText("Create your first session")).toBeDefined();
+    expect(screen.getByText("Install the runtime")).toBeDefined();
+    expect(screen.getByText("Start the control plane")).toBeDefined();
+    expect(screen.getByText("Launch durable work")).toBeDefined();
     expect(screen.getByText(/curl -fsSL/)).toBeDefined();
     expect(screen.getByText("agh daemon start")).toBeDefined();
+    expect(screen.getByText("agh session new")).toBeDefined();
   });
 
   it("matches snapshot", () => {
@@ -84,14 +84,14 @@ describe("RuntimeFeatures", () => {
   it("renders 8 feature cards", () => {
     render(<RuntimeFeatures />);
     const expectedTitles = [
-      "Session Lifecycle",
-      "Persistent Memory",
-      "Skills System",
-      "Workspace Isolation",
-      "Jobs & Triggers",
-      "Platform Bridges",
-      "Event Hooks",
-      "Extension System",
+      "Durable Sessions",
+      "Replayable History",
+      "Memory That Sticks",
+      "Skills Without Glue Code",
+      "Workspace-Aware Defaults",
+      "Automation and Triggers",
+      "Bridges to Real Work",
+      "One Operator Surface",
     ];
     for (const title of expectedTitles) {
       expect(screen.getByText(title)).toBeDefined();
@@ -105,12 +105,16 @@ describe("RuntimeFeatures", () => {
 });
 
 describe("ProtocolSection", () => {
-  it("renders 7 message kinds", () => {
+  it("renders protocol outcomes and adoption path", () => {
     render(<ProtocolSection />);
-    const kinds = ["request", "response", "notify", "discover", "subscribe", "cancel", "error"];
-    for (const kind of kinds) {
-      expect(screen.getByText(kind)).toBeDefined();
-    }
+    expect(screen.getByText("Coordinated agent work without runtime lock-in.")).toBeDefined();
+    expect(screen.getByText("Discover the right specialist")).toBeDefined();
+    expect(screen.getByText("Delegate work cleanly")).toBeDefined();
+    expect(screen.getByText("Move updates across runtimes")).toBeDefined();
+    expect(screen.getAllByText("Keep your runtime")).toHaveLength(2);
+    expect(screen.getByText("Map your agents")).toBeDefined();
+    expect(screen.getByText("Add deeper profiles later")).toBeDefined();
+    expect(screen.getByText("Read the AGH Network docs")).toBeDefined();
   });
 
   it("matches snapshot", () => {
@@ -122,8 +126,10 @@ describe("ProtocolSection", () => {
 describe("Architecture", () => {
   it("renders architecture diagram", () => {
     render(<Architecture />);
-    expect(screen.getByText("How it all fits together")).toBeDefined();
-    expect(screen.getByLabelText(/AGH architecture diagram/)).toBeDefined();
+    expect(
+      screen.getByText("One runtime for operator control and open coordination.")
+    ).toBeDefined();
+    expect(screen.getByLabelText(/AGH runtime diagram/)).toBeDefined();
   });
 
   it("matches snapshot", () => {
@@ -133,22 +139,12 @@ describe("Architecture", () => {
 });
 
 describe("Comparison", () => {
-  it("renders comparison table with at least 5 rows", () => {
+  it("renders named market comparison cards", () => {
     render(<Comparison />);
-    expect(screen.getByText("AGH vs typical agent harness")).toBeDefined();
-    const expectedFeatures = [
-      "Agent execution",
-      "Agent-to-agent communication",
-      "Session persistence",
-      "Memory system",
-      "Deployment",
-      "Configuration",
-      "Extensibility",
-      "Observability",
-    ];
-    for (const feature of expectedFeatures) {
-      // Each feature appears twice (desktop table + mobile cards)
-      expect(screen.getAllByText(feature).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Where AGH fits in the landscape.")).toBeDefined();
+    const expectedCards = ["OpenClaw", "OpenFang", "GoClaw", "AGH"];
+    for (const name of expectedCards) {
+      expect(screen.getByText(name)).toBeDefined();
     }
   });
 
@@ -161,11 +157,11 @@ describe("Comparison", () => {
 describe("FinalCta", () => {
   it("renders dual CTA buttons", () => {
     render(<FinalCta />);
-    expect(screen.getByText("Ready to connect your agents?")).toBeDefined();
-    const protocolLink = screen.getByText("Read the Protocol Spec");
-    expect(protocolLink.closest("a")?.getAttribute("href")).toBe("/protocol");
-    const runtimeLink = screen.getByText("Get Started");
+    expect(screen.getByText("Start with the runtime. Grow into AGH Network.")).toBeDefined();
+    const runtimeLink = screen.getByText("Enter Runtime Docs");
     expect(runtimeLink.closest("a")?.getAttribute("href")).toBe("/runtime");
+    const networkLink = screen.getByText("Explore AGH Network");
+    expect(networkLink.closest("a")?.getAttribute("href")).toBe("/protocol");
   });
 
   it("matches snapshot", () => {

@@ -1,17 +1,36 @@
 ---
 title: AGH Network Protocol
-description: Open wire format for agent-to-agent communication — envelope structure, message kinds, and interaction patterns.
+description: AGH Network is the open coordination layer behind AGH, documented here as a protocol other runtimes can implement.
 ---
 
-# AGH Network Protocol
+AGH Network is the open coordination layer behind AGH. These docs describe it as a protocol because
+other runtimes can implement it, but the reason it exists is simple: specialized agents need a
+clean way to discover peers, delegate work, exchange updates, and report back.
 
-The AGH Network Protocol defines how AI agents discover, message, and coordinate with each other through an open wire format.
+<OperatorNote>
+  AGH Network is documented as a protocol on purpose. The goal is interoperability across runtimes,
+  not forcing everyone onto one control plane.
+</OperatorNote>
 
-## What you'll find here
+## Start by Job
 
-- **Overview** — What is the AGH Network, and why it exists
-- **Specification v0** — Envelope format, message kinds, interactions, and delivery semantics
-- **Trust Profile** — Ed25519+JCS signing and verification
-- **Transport Bindings** — NATS and future transport adapters
-- **Conformance** — Levels and test suite for implementers
-- **Implementation Guide** — Build a minimal AGH Network sender
+<RouteList>
+  <RouteRow
+    href="/protocol/overview"
+    label="Overview"
+    title="Why the protocol exists and how to adopt it"
+    description="Read this first if you need the mental model, the runtime-vs-protocol distinction, and the incremental adoption path."
+    meta="Recommended first"
+  />
+  <RouteRow
+    href="/protocol/specification"
+    label="Specification"
+    title="Core contract: envelopes, interactions, discovery, and delivery"
+    description="Jump here when you are implementing the wire contract or validating interoperability details."
+    meta="Implementer surface"
+  />
+</RouteList>
+
+If you are here from the homepage, the easiest mental model is this: **AGH Runtime** is the local
+control plane you operate, and **AGH Network** is the protocol boundary agents can share across
+runtimes.

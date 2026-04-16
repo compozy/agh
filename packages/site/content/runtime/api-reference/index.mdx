@@ -1,0 +1,17 @@
+---
+title: API Reference
+description: HTTP and SSE endpoints exposed by the AGH daemon.
+---
+
+The daemon already exposes a `/api` surface consumed by the Web UI and bridges. This section will
+be expanded into the full route and schema reference as the OpenAPI surface is finalized.
+
+## What will be covered
+
+- **HTTP endpoints** — Session CRUD, agent spawn, permission decisions, workspace management.
+- **SSE streams** — Live event subscriptions per session and workspace.
+- **Authentication** — Local-first auth via the UDS socket, bearer tokens for remote access.
+- **Schemas** — Request/response shapes for every route, generated from the OpenAPI spec.
+
+For now, see the [CLI Reference](/runtime/cli-reference) for the equivalent operations via
+`agh` subcommands — every REST route has a matching CLI command.

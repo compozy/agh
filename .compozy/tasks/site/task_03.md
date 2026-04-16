@@ -1,5 +1,5 @@
 ---
-status: done
+status: completed
 title: "Scaffold packages/site with Fumadocs"
 type: infra
 complexity: medium
@@ -19,6 +19,7 @@ Create the Fumadocs-based documentation site at `packages/site/` with two conten
 - MINIMIZE CODE — show code only to illustrate current structure or problem areas
 - TESTS REQUIRED — every task MUST include tests in deliverables
 - **IMPECCABLE (non-blocking, Compozy-safe)** — For root layout, nav, Fumadocs theme overrides, and placeholder home: read and apply the **impeccable** skill (`/impeccable` — already in Claude Code; no installs). Use `.impeccable.md` when it exists; **never** run `/impeccable teach` during automated runs. Map DESIGN.md/TechSpec tokens into Fumadocs/CSS variables; respect OKLCH, typography, spatial rhythm, and **absolute_bans**. Full landing belongs to task_05; avoid generic template chrome here.
+- **MANDATORY DOCS QA (agent-browser)** — Before marking this task complete, use the **agent-browser** skill to exercise the documentation in a real browser: run the site locally (e.g. `make site-dev` from the repo root per Makefile), open every route touched by this task, follow representative internal links, and confirm MDX renders without runtime errors, broken navigation, or blank sections; fix issues before finishing. Required for all documentation tasks.
 </critical>
 
 <requirements>
