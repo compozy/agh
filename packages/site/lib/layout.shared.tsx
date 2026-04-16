@@ -6,7 +6,7 @@ export const baseOptions: BaseLayoutProps = {
     title: <Logo />,
     url: "/",
   },
-  githubUrl: "https://github.com/pedronauck/agh",
+  githubUrl: "https://github.com/compozy/agh",
   themeSwitch: { enabled: false },
   links: [
     { text: "Home", url: "/", active: "url" },

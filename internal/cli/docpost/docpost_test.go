@@ -2,7 +2,9 @@ package docpost
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -283,6 +285,18 @@ Print version info.
 	}
 }
 
+func TestFenceIndentedBlocks_PreservesBlankLinesInsideBlock(t *testing.T) {
+	t.Parallel()
+
+	raw := "Before\n\n    agh daemon start\n\n    agh session new\nAfter"
+	want := "Before\n\n```\nagh daemon start\n\nagh session new\n```\nAfter"
+
+	got := fenceIndentedBlocks(raw)
+	if got != want {
+		t.Fatalf("fenceIndentedBlocks() = %q, want %q", got, want)
+	}
+}
+
 func TestComputeHasChildren(t *testing.T) {
 	t.Parallel()
 
@@ -481,7 +495,7 @@ func TestCleanOutput_PreservesRootEditorialFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := cleanOutput(dstDir); err != nil {
+	if err := cleanOutput(context.Background(), dstDir); err != nil {
 		t.Fatalf("cleanOutput() error: %v", err)
 	}
 
@@ -507,6 +521,23 @@ func TestCleanOutput_PreservesRootEditorialFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dstDir, "agent")); !os.IsNotExist(err) {
 		t.Error("agent/ subdir should have been removed")
+	}
+}
+
+func TestWriteDirMeta_ErrorIncludesTargetPath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "meta.json"), 0o755); err != nil {
+		t.Fatalf("mkdir meta.json dir: %v", err)
+	}
+
+	err := writeDirMeta(context.Background(), dir)
+	if err == nil {
+		t.Fatal("writeDirMeta() should fail when meta.json is a directory")
+	}
+	if !strings.Contains(err.Error(), filepath.Join(dir, "meta.json")) {
+		t.Fatalf("writeDirMeta() error should include target path, got: %v", err)
 	}
 }
 
@@ -616,7 +647,7 @@ Print the version.
 		}
 	}
 
-	if err := Process(srcDir, dstDir); err != nil {
+	if err := Process(context.Background(), srcDir, dstDir); err != nil {
 		t.Fatalf("Process() error: %v", err)
 	}
 
@@ -745,7 +776,7 @@ func TestProcess_CreatesOutputDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := Process(srcDir, dstDir); err != nil {
+	if err := Process(context.Background(), srcDir, dstDir); err != nil {
 		t.Fatalf("Process() should create output dir: %v", err)
 	}
 
@@ -756,5 +787,26 @@ func TestProcess_CreatesOutputDir(t *testing.T) {
 		t.Error("agh.mdx should have been written (from agh.md)")
 	} else if err != nil {
 		t.Fatalf("stat agh.mdx: %v", err)
+	}
+}
+
+func TestProcess_StopsWhenContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	srcDir := t.TempDir()
+	dstDir := filepath.Join(t.TempDir(), "output")
+	if err := os.WriteFile(filepath.Join(srcDir, "agh.md"), []byte("## agh\n\nAGH agent OS\n"), 0o644); err != nil {
+		t.Fatalf("write source file: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := Process(ctx, srcDir, dstDir)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Process() error = %v, want context.Canceled", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(dstDir, "agh.mdx")); !os.IsNotExist(statErr) {
+		t.Fatalf("Process() should not write output after cancellation, stat err = %v", statErr)
 	}
 }

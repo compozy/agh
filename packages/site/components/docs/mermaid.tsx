@@ -6,14 +6,19 @@ let mermaidLoader: Promise<typeof import("mermaid").default> | null = null;
 
 function loadMermaid() {
   if (!mermaidLoader) {
-    mermaidLoader = import("mermaid").then(({ default: mermaid }) => {
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: "strict",
-        theme: "dark",
+    mermaidLoader = import("mermaid")
+      .then(({ default: mermaid }) => {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: "dark",
+        });
+        return mermaid;
+      })
+      .catch(error => {
+        mermaidLoader = null;
+        throw error;
       });
-      return mermaid;
-    });
   }
 
   return mermaidLoader;

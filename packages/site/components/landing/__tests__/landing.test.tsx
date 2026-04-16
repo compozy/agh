@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { baseOptions } from "@/lib/layout.shared";
 
 // Mock next/link to render as a plain anchor
 vi.mock("next/link", () => ({
@@ -158,6 +159,32 @@ describe("InstallSection", () => {
     expect(screen.getByText("Launch a session")).toBeDefined();
     expect(screen.getByText("Discover peers")).toBeDefined();
   });
+
+  it("wires tab roles, panels, and keyboard navigation", () => {
+    render(<InstallSection />);
+
+    const homebrew = screen.getByRole("tab", { name: "Homebrew" });
+    const goInstall = screen.getByRole("tab", { name: "go install" });
+    const binary = screen.getByRole("tab", { name: "Binary" });
+
+    expect(homebrew.getAttribute("id")).toBe("install-tab-brew");
+    expect(homebrew.getAttribute("aria-controls")).toBe("install-panel-brew");
+    expect(homebrew.getAttribute("tabindex")).toBe("0");
+    expect(goInstall.getAttribute("tabindex")).toBe("-1");
+
+    fireEvent.keyDown(homebrew, { key: "ArrowRight" });
+
+    expect(goInstall.getAttribute("aria-selected")).toBe("true");
+    let panel = screen.getByRole("tabpanel");
+    expect(panel.getAttribute("id")).toBe("install-panel-go");
+    expect(panel.getAttribute("aria-labelledby")).toBe("install-tab-go");
+
+    fireEvent.keyDown(goInstall, { key: "End" });
+
+    expect(binary.getAttribute("aria-selected")).toBe("true");
+    panel = screen.getByRole("tabpanel");
+    expect(panel.getAttribute("id")).toBe("install-panel-binary");
+  });
 });
 
 describe("Comparison", () => {
@@ -187,7 +214,7 @@ describe("FinalCta", () => {
     const spec = screen.getByText("Read agh-network/v0 spec");
     expect(spec.closest("a")?.getAttribute("href")).toBe("/protocol");
     const star = screen.getByText("Star on GitHub");
-    expect(star.closest("a")?.getAttribute("href")).toBe("https://github.com/compozy/agh");
+    expect(star.closest("a")?.getAttribute("href")).toBe(baseOptions.githubUrl);
   });
 });
 

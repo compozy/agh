@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestNewDocCommand_NotInHelp(t *testing.T) {
 
 	root := newRootCommand(commandDeps{})
 	help := root.UsageString()
-	if strings.Contains(help, "doc") {
+	if regexp.MustCompile(`(?m)^\s*doc\s+`).MatchString(help) {
 		t.Error("doc command should not appear in root help output")
 	}
 }
@@ -37,6 +38,20 @@ func TestNewDocCommand_DefaultOutputDir(t *testing.T) {
 	}
 	if flag.DefValue != defaultCLIDocsDir {
 		t.Errorf("default output-dir = %q, want %q", flag.DefValue, defaultCLIDocsDir)
+	}
+}
+
+func TestNewDocCommand_RejectsUnexpectedArgs(t *testing.T) {
+	t.Parallel()
+
+	cmd := newDocCommand()
+
+	err := cmd.ValidateArgs([]string{"unexpected"})
+	if err == nil {
+		t.Fatal("doc command should reject unexpected positional args")
+	}
+	if !strings.Contains(err.Error(), `unknown command "unexpected" for "doc"`) {
+		t.Fatalf("unexpected error for extra args: %v", err)
 	}
 }
 
@@ -111,7 +126,10 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 		if d.Name() != "meta.json" {
 			return nil
 		}
-		rel, _ := filepath.Rel(outputDir, p)
+		rel, relErr := filepath.Rel(outputDir, p)
+		if relErr != nil {
+			return relErr
+		}
 		if filepath.Dir(rel) == "." {
 			t.Errorf("doc command must not write root meta.json (hand-maintained)")
 			return nil
@@ -136,11 +154,14 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 		}
 		fileData, readErr := os.ReadFile(p)
 		if readErr != nil {
-			return nil
+			return readErr
 		}
 		fileContent := string(fileData)
 		if strings.Contains(fileContent, "/Users/") || strings.Contains(fileContent, "/home/") {
-			rel, _ := filepath.Rel(outputDir, p)
+			rel, relErr := filepath.Rel(outputDir, p)
+			if relErr != nil {
+				return relErr
+			}
 			t.Errorf("file %s contains absolute paths", rel)
 		}
 		return nil

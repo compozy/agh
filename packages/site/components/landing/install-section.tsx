@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { buttonVariants } from "@agh/ui";
 import { cn } from "@agh/ui/utils";
 import { CodeBlock } from "./primitives/code-block";
@@ -53,9 +53,53 @@ const STEPS = [
   },
 ];
 
+function getTabId(id: TabId) {
+  return `install-tab-${id}`;
+}
+
+function getPanelId(id: TabId) {
+  return `install-panel-${id}`;
+}
+
 export function InstallSection() {
   const [tab, setTab] = useState<TabId>("brew");
-  const active = INSTALL_TABS.find(t => t.id === tab) ?? INSTALL_TABS[0];
+
+  function selectTab(next: TabId) {
+    setTab(next);
+    document.getElementById(getTabId(next))?.focus();
+  }
+
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: TabId) {
+    const index = INSTALL_TABS.findIndex(item => item.id === current);
+    if (index === -1) {
+      return;
+    }
+
+    switch (event.key) {
+      case "ArrowRight": {
+        event.preventDefault();
+        const next = INSTALL_TABS[(index + 1) % INSTALL_TABS.length];
+        selectTab(next.id);
+        return;
+      }
+      case "ArrowLeft": {
+        event.preventDefault();
+        const next = INSTALL_TABS[(index - 1 + INSTALL_TABS.length) % INSTALL_TABS.length];
+        selectTab(next.id);
+        return;
+      }
+      case "Home":
+        event.preventDefault();
+        selectTab(INSTALL_TABS[0].id);
+        return;
+      case "End":
+        event.preventDefault();
+        selectTab(INSTALL_TABS[INSTALL_TABS.length - 1].id);
+        return;
+      default:
+        return;
+    }
+  }
 
   return (
     <SectionFrame background="surface" padY="lg">
@@ -77,8 +121,12 @@ export function InstallSection() {
               key={t.id}
               type="button"
               role="tab"
+              id={getTabId(t.id)}
+              aria-controls={getPanelId(t.id)}
               aria-selected={t.id === tab}
+              tabIndex={t.id === tab ? 0 : -1}
               onClick={() => setTab(t.id)}
+              onKeyDown={event => handleTabKeyDown(event, t.id)}
               className={cn(
                 buttonVariants({
                   variant: t.id === tab ? "secondary" : "ghost",
@@ -94,9 +142,18 @@ export function InstallSection() {
           ))}
         </div>
 
-        <div className="mt-4">
-          <CodeBlock code={active.command} caption={active.note} shell />
-        </div>
+        {INSTALL_TABS.map(t => (
+          <div
+            key={t.id}
+            id={getPanelId(t.id)}
+            role="tabpanel"
+            aria-labelledby={getTabId(t.id)}
+            hidden={t.id !== tab}
+            className="mt-4"
+          >
+            <CodeBlock code={t.command} caption={t.note} shell />
+          </div>
+        ))}
       </div>
 
       <div className="mx-auto mt-14 max-w-[760px]">

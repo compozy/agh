@@ -47,4 +47,18 @@ describe("DocPageMasthead", () => {
 
     expect(screen.getByText("Runtime Overview")).toBeTruthy();
   });
+
+  it("skips empty slug parts when building labels", () => {
+    render(
+      <DocPageMasthead
+        kind="runtime"
+        slug={["cli-reference", "agent--info"]}
+        title="agh agent info"
+        description="Inspect one agent."
+      />
+    );
+
+    expect(screen.getByText("Agent Info")).toBeTruthy();
+    expect(screen.queryByText(/undefined/i)).toBeNull();
+  });
 });

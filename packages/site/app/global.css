@@ -26,7 +26,7 @@
  */
 @theme inline {
   --font-sans: var(--font-inter), "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display: var(--font-display), "Playfair Display", serif;
+  --font-display: var(--font-playfair), "Playfair Display", serif;
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", "Courier New", monospace;
 }
 
@@ -245,11 +245,4 @@ a {
     transition-duration: 0ms !important;
     animation-duration: 0ms !important;
   }
-}
-
-/* Flat depth model — DESIGN.md §6 — no shadows anywhere. */
-*,
-*::before,
-*::after {
-  box-shadow: none !important;
 }

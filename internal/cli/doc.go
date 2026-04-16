@@ -19,6 +19,7 @@ func newDocCommand() *cobra.Command {
 		Use:    "doc",
 		Short:  "Generate CLI reference documentation",
 		Hidden: true,
+		Args:   cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			root := cmd.Root()
 
@@ -37,7 +38,7 @@ func newDocCommand() *cobra.Command {
 				return fmt.Errorf("doc: resolve output path: %w", err)
 			}
 
-			if err := docpost.Process(tmpDir, absOutput); err != nil {
+			if err := docpost.Process(cmd.Context(), tmpDir, absOutput); err != nil {
 				return fmt.Errorf("doc: post-process: %w", err)
 			}
 

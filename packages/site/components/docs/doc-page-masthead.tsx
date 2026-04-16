@@ -12,7 +12,8 @@ function toLabel(value?: string) {
 
   return value
     .split("-")
-    .map(part => part[0]?.toUpperCase() + part.slice(1))
+    .filter(part => part.length > 0)
+    .map(part => part[0].toUpperCase() + part.slice(1))
     .join(" ");
 }
 

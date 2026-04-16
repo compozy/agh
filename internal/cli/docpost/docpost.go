@@ -6,6 +6,7 @@
 package docpost
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -38,15 +39,18 @@ var (
 // never touched by Process. Subdirectory meta.json files are regenerated on
 // each run.
 // Stale files from prior runs are removed before writing.
-func Process(srcDir, dstDir string) error {
+func Process(ctx context.Context, srcDir, dstDir string) error {
+	if err := ensureContext(ctx, "start doc post-processing"); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dstDir, 0o755); err != nil {
 		return fmt.Errorf("docpost: create output dir: %w", err)
 	}
-	if err := cleanOutput(dstDir); err != nil {
-		return fmt.Errorf("docpost: clean output: %w", err)
+	if err := cleanOutput(ctx, dstDir); err != nil {
+		return err
 	}
 
-	inputs, err := readInputs(srcDir)
+	inputs, err := readInputs(ctx, srcDir)
 	if err != nil {
 		return err
 	}
@@ -55,6 +59,9 @@ func Process(srcDir, dstDir string) error {
 	targets := buildTargetMap(inputs, hasChildren)
 
 	for _, in := range inputs {
+		if err := ensureContext(ctx, fmt.Sprintf("write %s", in.fileName)); err != nil {
+			return err
+		}
 		cmdName := strings.ReplaceAll(in.baseName, "_", " ")
 		body := TransformMarkdown(in.raw, cmdName)
 		body = remapLinks(body, targets)
@@ -69,7 +76,7 @@ func Process(srcDir, dstDir string) error {
 		}
 	}
 
-	return writeSubdirMetas(dstDir)
+	return writeSubdirMetas(ctx, dstDir)
 }
 
 type input struct {
@@ -79,20 +86,27 @@ type input struct {
 	raw      string
 }
 
-func readInputs(srcDir string) ([]input, error) {
+func readInputs(ctx context.Context, srcDir string) ([]input, error) {
+	if err := ensureContext(ctx, fmt.Sprintf("read source dir %s", srcDir)); err != nil {
+		return nil, err
+	}
 	entries, err := os.ReadDir(srcDir)
 	if err != nil {
-		return nil, fmt.Errorf("docpost: read source dir: %w", err)
+		return nil, fmt.Errorf("docpost: read source dir %s: %w", srcDir, err)
 	}
 
 	var inputs []input
 	for _, entry := range entries {
+		fullPath := filepath.Join(srcDir, entry.Name())
+		if err := ensureContext(ctx, fmt.Sprintf("read %s", fullPath)); err != nil {
+			return nil, err
+		}
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(srcDir, entry.Name()))
+		data, err := os.ReadFile(fullPath)
 		if err != nil {
-			return nil, fmt.Errorf("docpost: read %s: %w", entry.Name(), err)
+			return nil, fmt.Errorf("docpost: read %s: %w", fullPath, err)
 		}
 		base := strings.TrimSuffix(entry.Name(), ".md")
 		if !strings.HasPrefix(base, "agh") {
@@ -180,20 +194,27 @@ func remapLinks(body string, targets map[string]string) string {
 
 // cleanOutput removes generated files in dstDir while preserving the root
 // hand-maintained index.mdx and meta.json.
-func cleanOutput(dstDir string) error {
+func cleanOutput(ctx context.Context, dstDir string) error {
+	if err := ensureContext(ctx, fmt.Sprintf("clean output dir %s", dstDir)); err != nil {
+		return err
+	}
 	entries, err := os.ReadDir(dstDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return err
+		return fmt.Errorf("docpost: read output dir %s: %w", dstDir, err)
 	}
 	for _, e := range entries {
 		if e.Name() == "index.mdx" || e.Name() == "meta.json" {
 			continue
 		}
-		if err := os.RemoveAll(filepath.Join(dstDir, e.Name())); err != nil {
+		target := filepath.Join(dstDir, e.Name())
+		if err := ensureContext(ctx, fmt.Sprintf("remove stale entry %s", target)); err != nil {
 			return err
+		}
+		if err := os.RemoveAll(target); err != nil {
+			return fmt.Errorf("docpost: remove stale entry %s: %w", target, err)
 		}
 	}
 	return nil
@@ -202,9 +223,12 @@ func cleanOutput(dstDir string) error {
 // writeSubdirMetas walks dstDir and emits a meta.json in every subdirectory
 // (never the root) listing its direct children alphabetically, with an
 // optional leading "index" when an index.mdx is present.
-func writeSubdirMetas(dstDir string) error {
+func writeSubdirMetas(ctx context.Context, dstDir string) error {
 	return filepath.WalkDir(dstDir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
+			return fmt.Errorf("docpost: walk %s: %w", p, err)
+		}
+		if err := ensureContext(ctx, fmt.Sprintf("write meta for %s", p)); err != nil {
 			return err
 		}
 		if !d.IsDir() {
@@ -212,19 +236,22 @@ func writeSubdirMetas(dstDir string) error {
 		}
 		rel, err := filepath.Rel(dstDir, p)
 		if err != nil {
-			return err
+			return fmt.Errorf("docpost: relative path from %s to %s: %w", dstDir, p, err)
 		}
 		if rel == "." {
 			return nil // root is hand-maintained
 		}
-		return writeDirMeta(p)
+		return writeDirMeta(ctx, p)
 	})
 }
 
-func writeDirMeta(dir string) error {
+func writeDirMeta(ctx context.Context, dir string) error {
+	if err := ensureContext(ctx, fmt.Sprintf("write meta for %s", dir)); err != nil {
+		return err
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("docpost: read dir %s: %w", dir, err)
 	}
 	var files, subdirs []string
 	hasIndex := false
@@ -263,9 +290,13 @@ func writeDirMeta(dir string) error {
 	}
 	data, err := json.MarshalIndent(meta, "", "    ")
 	if err != nil {
-		return err
+		return fmt.Errorf("docpost: marshal meta for %s: %w", dir, err)
 	}
-	return os.WriteFile(filepath.Join(dir, "meta.json"), append(data, '\n'), 0o600)
+	metaPath := filepath.Join(dir, "meta.json")
+	if err := os.WriteFile(metaPath, append(data, '\n'), 0o600); err != nil {
+		return fmt.Errorf("docpost: write %s: %w", metaPath, err)
+	}
+	return nil
 }
 
 // titleCase renders a lowercase command segment as a display title.
@@ -386,8 +417,7 @@ func fenceIndentedBlocks(raw string) string {
 		case inIndent && isIndented:
 			result = append(result, stripIndent(line))
 		case inIndent && isEmpty:
-			inIndent = false
-			result = append(result, "```", line)
+			result = append(result, line)
 		default:
 			if inIndent {
 				inIndent = false
@@ -480,4 +510,14 @@ func escapeLineJSX(line string) string {
 // during Process.
 func rewriteLinks(raw string) string {
 	return crossLinkRe.ReplaceAllString(raw, "[$1]($2)")
+}
+
+func ensureContext(ctx context.Context, action string) error {
+	if ctx == nil {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("docpost: %s: %w", action, err)
+	}
+	return nil
 }

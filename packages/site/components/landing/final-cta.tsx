@@ -1,4 +1,5 @@
 import { Star } from "lucide-react";
+import { baseOptions } from "@/lib/layout.shared";
 import { CtaButton } from "./primitives/cta-button";
 import { SectionFrame } from "./primitives/section-frame";
 
@@ -30,7 +31,7 @@ export function FinalCta() {
             Read agh-network/v0 spec
           </CtaButton>
           <a
-            href="https://github.com/compozy/agh"
+            href={baseOptions.githubUrl}
             target="_blank"
             rel="noreferrer"
             className="mt-1 inline-flex items-center gap-2 font-mono text-[12px] uppercase tracking-(--tracking-mono) text-(--color-text-secondary) transition-colors hover:text-(--color-accent)"
