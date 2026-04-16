@@ -973,9 +973,9 @@ func (p *githubProvider) handleWebhookRequest(
 	case "ping":
 		return writeWebhookText(w, "pong")
 	case "issue_comment":
-		return p.handleIssueCommentWebhook(w, candidates, request)
+		return p.handleIssueCommentWebhook(w, r, candidates, request)
 	case "pull_request_review_comment":
-		return p.handleReviewCommentWebhook(w, candidates, request)
+		return p.handleReviewCommentWebhook(w, r, candidates, request)
 	default:
 		return writeWebhookText(w, "ok")
 	}
@@ -983,6 +983,7 @@ func (p *githubProvider) handleWebhookRequest(
 
 func (p *githubProvider) handleIssueCommentWebhook(
 	w http.ResponseWriter,
+	r *http.Request,
 	candidates []resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 ) error {
@@ -996,6 +997,9 @@ func (p *githubProvider) handleIssueCommentWebhook(
 	}
 	if !ok {
 		return writeWebhookText(w, "ignored")
+	}
+	if err := verifyGitHubWebhookSignature(r.Context(), r, request.Body, []resolvedInstanceConfig{cfg}); err != nil {
+		return &bridgesdk.HTTPError{StatusCode: http.StatusUnauthorized, Message: "invalid github webhook signature"}
 	}
 	if strings.TrimSpace(payload.Action) != "created" {
 		return writeWebhookText(w, "ok")
@@ -1018,6 +1022,7 @@ func (p *githubProvider) handleIssueCommentWebhook(
 
 func (p *githubProvider) handleReviewCommentWebhook(
 	w http.ResponseWriter,
+	r *http.Request,
 	candidates []resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 ) error {
@@ -1031,6 +1036,9 @@ func (p *githubProvider) handleReviewCommentWebhook(
 	}
 	if !ok {
 		return writeWebhookText(w, "ignored")
+	}
+	if err := verifyGitHubWebhookSignature(r.Context(), r, request.Body, []resolvedInstanceConfig{cfg}); err != nil {
+		return &bridgesdk.HTTPError{StatusCode: http.StatusUnauthorized, Message: "invalid github webhook signature"}
 	}
 	if strings.TrimSpace(payload.Action) != "created" {
 		return writeWebhookText(w, "ok")

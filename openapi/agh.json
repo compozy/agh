@@ -11249,7 +11249,7 @@
                 },
                 "summary": "List desired-state resources on the local operator control plane",
                 "tags": ["resources"],
-                "x-agh-transports": ["uds"]
+                "x-agh-transports": ["http", "uds"]
             }
         },
         "/api/resources/{kind}": {
@@ -11467,7 +11467,7 @@
                 },
                 "summary": "List one desired-state resource kind on the local operator control plane",
                 "tags": ["resources"],
-                "x-agh-transports": ["uds"]
+                "x-agh-transports": ["http", "uds"]
             }
         },
         "/api/resources/{kind}/{id}": {
@@ -11617,7 +11617,7 @@
                 },
                 "summary": "Delete one desired-state resource on the local operator control plane",
                 "tags": ["resources"],
-                "x-agh-transports": ["uds"]
+                "x-agh-transports": ["http", "uds"]
             },
             "get": {
                 "operationId": "getResource",
@@ -11797,7 +11797,7 @@
                 },
                 "summary": "Read one desired-state resource on the local operator control plane",
                 "tags": ["resources"],
-                "x-agh-transports": ["uds"]
+                "x-agh-transports": ["http", "uds"]
             },
             "put": {
                 "operationId": "putResource",
@@ -12126,7 +12126,7 @@
                 },
                 "summary": "Create or replace one desired-state resource on the local operator control plane",
                 "tags": ["resources"],
-                "x-agh-transports": ["uds"]
+                "x-agh-transports": ["http", "uds"]
             }
         },
         "/api/sessions": {

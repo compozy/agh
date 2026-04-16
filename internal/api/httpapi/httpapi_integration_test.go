@@ -204,9 +204,9 @@ func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testi
 		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
 		nil,
 	)
+	defer func() { _ = putResp.Body.Close() }()
 	if putResp.StatusCode != http.StatusNotFound {
 		body, _ := io.ReadAll(putResp.Body)
-		_ = putResp.Body.Close()
 		t.Fatalf("PUT status = %d, want %d; body=%s", putResp.StatusCode, http.StatusNotFound, string(body))
 	}
 
@@ -218,9 +218,9 @@ func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testi
 		[]byte(`{"expected_version":1}`),
 		nil,
 	)
+	defer func() { _ = deleteResp.Body.Close() }()
 	if deleteResp.StatusCode != http.StatusNotFound {
 		body, _ := io.ReadAll(deleteResp.Body)
-		_ = deleteResp.Body.Close()
 		t.Fatalf("DELETE status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusNotFound, string(body))
 	}
 }

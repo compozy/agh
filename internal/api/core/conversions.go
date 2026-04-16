@@ -57,13 +57,12 @@ func SessionEnvironmentPayloadFromMeta(meta *store.SessionEnvironmentMeta) *cont
 		return nil
 	}
 	return &contract.SessionEnvironmentPayload{
-		EnvironmentID:     strings.TrimSpace(meta.EnvironmentID),
-		Backend:           strings.TrimSpace(meta.Backend),
-		Profile:           strings.TrimSpace(meta.Profile),
-		State:             strings.TrimSpace(meta.State),
-		InstanceID:        strings.TrimSpace(meta.InstanceID),
-		LastSyncError:     strings.TrimSpace(meta.LastSyncError),
-		ProviderStateJSON: append(json.RawMessage(nil), meta.ProviderState...),
+		EnvironmentID: strings.TrimSpace(meta.EnvironmentID),
+		Backend:       strings.TrimSpace(meta.Backend),
+		Profile:       strings.TrimSpace(meta.Profile),
+		State:         strings.TrimSpace(meta.State),
+		InstanceID:    strings.TrimSpace(meta.InstanceID),
+		LastSyncError: strings.TrimSpace(meta.LastSyncError),
 	}
 }
 

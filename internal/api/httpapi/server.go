@@ -328,6 +328,8 @@ func (s *Server) applyDefaults() {
 
 func (s *Server) validateRequired() error {
 	switch {
+	case len(s.resourceAuth) > 0 && s.resources == nil:
+		return errors.New("httpapi: resource service is required when resource operator auth is configured")
 	case s.sessions == nil:
 		return errors.New("httpapi: session manager is required")
 	case s.tasks == nil:

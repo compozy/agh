@@ -1255,7 +1255,9 @@ func TestHandleBridgesDeliverCoverageAndRunCommand(t *testing.T) {
 	states := waitForJSONLinesFile[stateMarker](
 		t,
 		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 1 },
+		func(items []stateMarker) bool {
+			return len(items) >= 1 && items[len(items)-1].Status.Normalize() == bridgepkg.BridgeStatusReady
+		},
 	)
 	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("states[last].Status = %q, want %q", got, want)

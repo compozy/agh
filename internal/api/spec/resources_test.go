@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestResourceOperationsRemainUDSOnly(t *testing.T) {
+func TestResourceOperationsSupportHTTPAndUDS(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
@@ -32,8 +32,8 @@ func TestResourceOperationsRemainUDSOnly(t *testing.T) {
 		if op.OperationID != want[key] {
 			t.Fatalf("%s operation_id = %q, want %q", key, op.OperationID, want[key])
 		}
-		if !slices.Equal(op.Transports, []Transport{TransportUDS}) {
-			t.Fatalf("%s transports = %#v, want [uds]", key, op.Transports)
+		if !slices.Equal(op.Transports, []Transport{TransportHTTP, TransportUDS}) {
+			t.Fatalf("%s transports = %#v, want [http uds]", key, op.Transports)
 		}
 	}
 }

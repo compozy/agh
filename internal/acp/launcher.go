@@ -54,15 +54,18 @@ func newLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) *localLaun
 }
 
 func (l *localLauncher) Launch(
-	_ context.Context,
+	ctx context.Context,
 	spec environment.LaunchSpec,
 ) (environment.Handle, error) {
 	command, args, err := parseCommandString(spec.Command)
 	if err != nil {
 		return nil, err
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
-	managed, err := subprocess.Launch(context.Background(), subprocess.LaunchConfig{
+	managed, err := subprocess.Launch(ctx, subprocess.LaunchConfig{
 		Command:          command,
 		Args:             args,
 		Dir:              spec.Cwd,

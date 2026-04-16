@@ -948,8 +948,6 @@ func TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads(t *testing.T)
 		ID:            "brg-ingest-invalid",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	ctx := env.bridgeContext(t, instance)
-
 	tests := []struct {
 		name       string
 		params     map[string]any
@@ -993,6 +991,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads(t *testing.T)
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := env.bridgeContext(t, instance)
 			_, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", tt.params)
 			assertRPCErrorCode(t, err, tt.wantCode)
 			assertErrorContains(t, err, tt.wantText)

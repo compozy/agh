@@ -101,6 +101,22 @@ func TestLocalLauncherLaunchInvalidCommandReturnsError(t *testing.T) {
 	}
 }
 
+func TestLocalLauncherLaunchHonorsCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := launcher.Launch(ctx, environment.LaunchSpec{
+		Command: "sh -c 'sleep 1'",
+		Cwd:     t.TempDir(),
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Launch(canceled context) error = %v, want context canceled", err)
+	}
+}
+
 func TestLocalProcessHandleStopTerminatesProcess(t *testing.T) {
 	t.Parallel()
 
@@ -296,9 +312,32 @@ func TestDriverStartUsesInjectedLauncher(t *testing.T) {
 	}
 }
 
+func TestDriverLaunchAgentProcessWrapsLauncherErrors(t *testing.T) {
+	t.Parallel()
+
+	launchErr := errors.New("launch failed")
+	driver := New(WithLogger(testDiscardLogger()), WithLauncher(&recordingLauncher{err: launchErr}))
+	_, err := driver.launchAgentProcess(testutil.Context(t), StartOpts{
+		AgentName:   "helper",
+		Command:     "sh -c 'cat'",
+		Cwd:         t.TempDir(),
+		Permissions: aghconfig.PermissionModeApproveAll,
+	})
+	if err == nil {
+		t.Fatal("launchAgentProcess() error = nil, want non-nil")
+	}
+	if !errors.Is(err, launchErr) {
+		t.Fatalf("launchAgentProcess() error = %v, want wrapped launch error", err)
+	}
+	if !strings.Contains(err.Error(), `helper`) || !strings.Contains(err.Error(), `sh -c 'cat'`) {
+		t.Fatalf("launchAgentProcess() error = %v, want agent and command context", err)
+	}
+}
+
 type recordingLauncher struct {
 	delegate environment.Launcher
 	handle   environment.Handle
+	err      error
 
 	mu     sync.Mutex
 	called bool
@@ -315,6 +354,9 @@ func (l *recordingLauncher) Launch(
 	l.mu.Unlock()
 	if l.handle != nil {
 		return l.handle, nil
+	}
+	if l.err != nil {
+		return nil, l.err
 	}
 	return l.delegate.Launch(ctx, spec)
 }

@@ -402,6 +402,10 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 	if h.AgentCatalog != nil {
 		agentDefs, err := h.AgentCatalog.ListAgents(c.Request.Context())
 		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				c.JSON(http.StatusOK, contract.AgentsResponse{Agents: []contract.AgentPayload{}})
+				return
+			}
 			h.respondError(c, http.StatusInternalServerError, err)
 			return
 		}

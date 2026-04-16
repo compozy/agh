@@ -39,6 +39,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			Profile:       "local",
 			State:         "prepared",
 			InstanceID:    "instance-1",
+			ProviderState: json.RawMessage(`{"sandbox_id":"sb-123","token":"secret"}`),
 			LastSyncError: "sync failed",
 		},
 		CreatedAt: now,
@@ -64,8 +65,15 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		t.Fatalf("caps = %#v", payload.ACPCaps)
 	}
 	if payload.Environment == nil || payload.Environment.EnvironmentID != "env-1" ||
-		payload.Environment.Backend != "local" || payload.Environment.LastSyncError != "sync failed" {
+		payload.Environment.Backend != "local" ||
+		payload.Environment.Profile != "local" ||
+		payload.Environment.State != "prepared" ||
+		payload.Environment.InstanceID != "instance-1" ||
+		payload.Environment.LastSyncError != "sync failed" {
 		t.Fatalf("environment = %#v", payload.Environment)
+	}
+	if payload.Environment.ProviderStateJSON != nil {
+		t.Fatalf("environment provider state = %s, want omitted", string(payload.Environment.ProviderStateJSON))
 	}
 }
 

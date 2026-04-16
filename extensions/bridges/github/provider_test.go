@@ -339,6 +339,114 @@ func TestVerifyGitHubWebhookSignatureAndRouteSelection(t *testing.T) {
 	}
 }
 
+func TestGitHubProviderRejectsSharedPathWebhookSignedForDifferentInstance(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 15, 21, 0, 0, 0, time.UTC)
+	managed := []subprocess.InitializeBridgeManagedInstance{
+		{Instance: bridgepkg.BridgeInstance{ID: "brg-github-1", Scope: bridgepkg.ScopeWorkspace, WorkspaceID: "ws-1"}},
+		{Instance: bridgepkg.BridgeInstance{ID: "brg-github-2", Scope: bridgepkg.ScopeWorkspace, WorkspaceID: "ws-1"}},
+	}
+	ingested := make([]bridgepkg.InboundMessageEnvelope, 0)
+	session := newGitHubTestSession(t, managed, func(_ context.Context, method string, params any, result any) error {
+		switch method {
+		case "bridges/messages/ingest":
+			ingested = append(ingested, params.(bridgepkg.InboundMessageEnvelope))
+			*(result.(*extensioncontract.BridgesMessagesIngestResult)) = extensioncontract.BridgesMessagesIngestResult{}
+			return nil
+		case "bridges/instances/report_state":
+			report := params.(extensioncontract.BridgesInstancesReportStateParams)
+			*(result.(*bridgepkg.BridgeInstance)) = bridgepkg.BridgeInstance{
+				ID:     report.BridgeInstanceID,
+				Status: report.Status,
+			}
+			return nil
+		default:
+			return errors.New("unexpected method: " + method)
+		}
+	})
+
+	provider := &githubProvider{
+		stderr:  io.Discard,
+		env:     markerEnv{},
+		now:     func() time.Time { return now },
+		session: session,
+		routes: map[string]resolvedInstanceConfig{
+			"brg-github-1": {
+				managed:       managed[0],
+				instanceID:    "brg-github-1",
+				repoOwner:     "acme",
+				repoName:      "app-one",
+				repoFullName:  "acme/app-one",
+				webhookPath:   "/github/shared",
+				webhookSecret: "secret-one",
+				botLogin:      "bridge-bot",
+				dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
+			},
+			"brg-github-2": {
+				managed:       managed[1],
+				instanceID:    "brg-github-2",
+				repoOwner:     "acme",
+				repoName:      "app-two",
+				repoFullName:  "acme/app-two",
+				webhookPath:   "/github/shared",
+				webhookSecret: "secret-two",
+				botLogin:      "bridge-bot",
+				dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
+			},
+		},
+		deliveries:        make(map[string]deliveryState),
+		reportedStatus:    make(map[string]bridgepkg.BridgeStatus),
+		installationCache: make(map[string]int64),
+		rateLimiter:       bridgesdk.NewFixedWindowRateLimiter(20, time.Minute),
+		inFlightLimiter:   bridgesdk.NewInFlightLimiter(4),
+		stopCh:            make(chan struct{}),
+	}
+
+	body := mustJSON(t, githubIssuePayload{
+		Action: "created",
+		Comment: githubIssueComment{
+			ID:        101,
+			Body:      "Need a summary",
+			CreatedAt: now.Format(time.RFC3339),
+			User:      githubUser{ID: 1, Login: "alice", Type: "User"},
+		},
+		Issue: struct {
+			Number      int64 `json:"number,omitempty"`
+			PullRequest *struct {
+				URL string `json:"url,omitempty"`
+			} `json:"pull_request,omitempty"`
+		}{
+			Number: 42,
+			PullRequest: &struct {
+				URL string `json:"url,omitempty"`
+			}{URL: "https://api.github.com/repos/acme/app-two/pulls/42"},
+		},
+		Repository:   githubRepository{Name: "app-two", FullName: "acme/app-two", Owner: githubUser{Login: "acme"}},
+		Installation: &githubInstallation{ID: 9002},
+		Sender:       githubUser{ID: 1, Login: "alice", Type: "User"},
+	})
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"http://example.test/github/shared",
+		strings.NewReader(string(body)),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-GitHub-Event", "issue_comment")
+	req.Header.Set("X-Hub-Signature-256", signGitHubTestBody("secret-one", body))
+	provider.serveWebhookHTTP(recorder, req)
+
+	if got, want := recorder.Code, http.StatusUnauthorized; got != want {
+		t.Fatalf("shared path webhook status = %d, want %d", got, want)
+	}
+	if got := len(ingested); got != 0 {
+		t.Fatalf("len(ingested) = %d, want 0", got)
+	}
+}
+
 func TestExecuteGitHubDeliveryIssueReviewDeleteAndResume(t *testing.T) {
 	t.Parallel()
 
@@ -963,7 +1071,7 @@ func TestGitHubProviderDefaultAPIFactoryReusesClientPerInstance(t *testing.T) {
 	}
 }
 
-func TestGitHubProviderReconcileRejectsSharedWebhookPaths(t *testing.T) {
+func TestGitHubProviderReconcileAllowsSharedWebhookPaths(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv(githubListenAddrEnv, "127.0.0.1:0")
 	t.Setenv(adapterStartsEnv, filepath.Join(tmpDir, "starts.log"))
@@ -1620,6 +1728,7 @@ func TestGitHubProviderResolveDeliveryInstallationAndWebhookBranches(t *testing.
 			strings.NewReader(string(body)),
 		)
 		req.Header.Set("X-GitHub-Event", event)
+		req.Header.Set("X-Hub-Signature-256", signGitHubTestBody(provider.routes["brg-github"].webhookSecret, body))
 		err = provider.handleWebhookRequest(
 			recorder,
 			req,

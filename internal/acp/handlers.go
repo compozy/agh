@@ -145,10 +145,10 @@ func (p *AgentProcess) handleInbound(
 			return handleInboundRequest(ctx, params, p.handleRequestPermission)
 		},
 		acpsdk.ClientMethodTerminalCreate: func(
-			_ context.Context,
+			ctx context.Context,
 			params json.RawMessage,
 		) (any, *acpsdk.RequestError) {
-			return handleInboundRequestNoContext(params, p.handleCreateTerminal)
+			return handleInboundRequest(ctx, params, p.handleCreateTerminal)
 		},
 		acpsdk.ClientMethodTerminalKill: func(
 			_ context.Context,
@@ -361,6 +361,7 @@ func (p *AgentProcess) emitPermissionEvent(
 }
 
 func (p *AgentProcess) handleCreateTerminal(
+	ctx context.Context,
 	request acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalResponse, error) {
 	ownership := terminalOwnership{}
@@ -380,9 +381,9 @@ func (p *AgentProcess) handleCreateTerminal(
 
 	host := p.toolHostOrDefault()
 	if localHost, ok := host.(*localToolHost); ok {
-		return localHost.createTerminal(context.Background(), request, ownership)
+		return localHost.createTerminal(ctx, request, ownership)
 	}
-	response, err := host.CreateTerminal(context.Background(), request)
+	response, err := host.CreateTerminal(ctx, request)
 	if err != nil {
 		return acpsdk.CreateTerminalResponse{}, err
 	}
@@ -491,7 +492,11 @@ func (p *AgentProcess) toolHostOrDefault() ToolHost {
 	if p.toolHost != nil {
 		return p.toolHost
 	}
-	host := newLocalToolHostFromPolicy(context.Background(), p.Cwd, p.permissions, slog.Default())
+	procCtx := p.processCtx
+	if procCtx == nil {
+		procCtx = context.Background()
+	}
+	host := newLocalToolHostFromPolicy(procCtx, p.Cwd, p.permissions, slog.Default())
 	if p.terminals != nil {
 		host.terminals = p.terminals
 	} else {

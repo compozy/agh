@@ -209,6 +209,7 @@ type AgentProcess struct {
 	cmd           *exec.Cmd
 	conn          *acpsdk.Connection
 	stderr        *lockedBuffer
+	processCtx    context.Context
 	cancelProcess context.CancelFunc
 	permissions   permissionPolicy
 	terminals     *terminalManager

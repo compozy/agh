@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/api/contract"
+	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/network"
@@ -354,6 +355,19 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 		t.Fatalf("get missing catalog agent status = %d, want %d", missingResp.Code, http.StatusNotFound)
 	}
 
+	fixture.Handlers.AgentCatalog = stubAgentCatalog{listErr: os.ErrNotExist}
+	missingListResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
+	if missingListResp.Code != http.StatusOK {
+		t.Fatalf("list missing catalog status = %d, want %d", missingListResp.Code, http.StatusOK)
+	}
+	var missingList contract.AgentsResponse
+	if err := json.Unmarshal(missingListResp.Body.Bytes(), &missingList); err != nil {
+		t.Fatalf("json.Unmarshal(missing list agents) error = %v", err)
+	}
+	if len(missingList.Agents) != 0 {
+		t.Fatalf("missing catalog agents = %#v, want empty list", missingList.Agents)
+	}
+
 	fixture.Handlers.AgentCatalog = stubAgentCatalog{listErr: errors.New("catalog unavailable")}
 	errorResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
 	if errorResp.Code != http.StatusInternalServerError {
@@ -367,6 +381,8 @@ type stubAgentCatalog struct {
 	listErr error
 	getErr  error
 }
+
+var _ core.AgentCatalog = stubAgentCatalog{}
 
 func (s stubAgentCatalog) ListAgents(context.Context) ([]aghconfig.AgentDef, error) {
 	if s.listErr != nil {

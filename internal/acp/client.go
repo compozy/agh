@@ -186,9 +186,10 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 	})
 	if err != nil {
 		return nil, fmt.Errorf(
-			"acp: start agent %q subprocess %q: %w",
+			"acp: start agent %q subprocess %q in %q: %w",
 			normalized.AgentName,
 			normalized.Command,
+			normalized.Cwd,
 			err,
 		)
 	}
@@ -211,6 +212,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		StartedAt:          timeNowUTC(),
 		handle:             handle,
 		toolHost:           toolHost,
+		processCtx:         procCtx,
 		cancelProcess:      cancelProcess,
 		permissions:        policy,
 		done:               make(chan struct{}),

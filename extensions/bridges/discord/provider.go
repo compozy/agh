@@ -2344,11 +2344,7 @@ func isNotInitializedRPCError(err error) bool {
 		return true
 	}
 	var rpcErr *subprocess.RPCError
-	if !errors.As(err, &rpcErr) {
-		return false
-	}
-	return rpcErr.Code == rpcCodeNotInitialized ||
-		strings.EqualFold(strings.TrimSpace(rpcErr.Message), "Not initialized")
+	return errors.As(err, &rpcErr) && rpcErr.Code == rpcCodeNotInitialized
 }
 
 func cloneDegradation(degradation *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {

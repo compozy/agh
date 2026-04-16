@@ -1113,6 +1113,12 @@ func TestAdditionalDiscordProviderBranches(t *testing.T) {
 	if !isNotInitializedRPCError(rpcCodeErr{}) {
 		t.Fatal("isNotInitializedRPCError(rpc code) = false, want true")
 	}
+	if isNotInitializedRPCError(&subprocess.RPCError{
+		Code:    -32001,
+		Message: "Not initialized",
+	}) {
+		t.Fatal("isNotInitializedRPCError(rpc message only) = true, want false")
+	}
 
 	if got := parseDiscordReceivedAt(
 		time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC).Format(time.RFC3339),

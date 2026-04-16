@@ -172,7 +172,7 @@ var operationRegistry = []OperationSpec{
 		OperationID: "listResources",
 		Summary:     "List desired-state resources on the local operator control plane",
 		Tags:        []string{"resources"},
-		Transports:  []Transport{TransportUDS},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			queryParam("kind", "Filter by resource kind", false),
 			enumQueryParam("scope_kind", "Filter by resource scope kind", resourceScopeKindValues()),
@@ -196,7 +196,7 @@ var operationRegistry = []OperationSpec{
 		OperationID: "listResourcesByKind",
 		Summary:     "List one desired-state resource kind on the local operator control plane",
 		Tags:        []string{"resources"},
-		Transports:  []Transport{TransportUDS},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("kind", "Resource kind"),
 			enumQueryParam("scope_kind", "Filter by resource scope kind", resourceScopeKindValues()),
@@ -220,7 +220,7 @@ var operationRegistry = []OperationSpec{
 		OperationID: "getResource",
 		Summary:     "Read one desired-state resource on the local operator control plane",
 		Tags:        []string{"resources"},
-		Transports:  []Transport{TransportUDS},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("kind", "Resource kind"),
 			pathParam("id", "Resource id"),
@@ -239,7 +239,7 @@ var operationRegistry = []OperationSpec{
 		OperationID: "putResource",
 		Summary:     "Create or replace one desired-state resource on the local operator control plane",
 		Tags:        []string{"resources"},
-		Transports:  []Transport{TransportUDS},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("kind", "Resource kind"),
 			pathParam("id", "Resource id"),
@@ -262,7 +262,7 @@ var operationRegistry = []OperationSpec{
 		OperationID: "deleteResource",
 		Summary:     "Delete one desired-state resource on the local operator control plane",
 		Tags:        []string{"resources"},
-		Transports:  []Transport{TransportUDS},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("kind", "Resource kind"),
 			pathParam("id", "Resource id"),
