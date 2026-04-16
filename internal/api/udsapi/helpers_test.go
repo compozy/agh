@@ -28,6 +28,7 @@ type stubObserver = testutil.StubObserver
 type stubTaskManager = testutil.StubTaskManager
 type stubBridgeService = testutil.StubBridgeService
 type stubNetworkService = testutil.StubNetworkService
+type stubResourceService = testutil.StubResourceService
 type stubWorkspaceService = testutil.StubWorkspaceService
 type stubSkillsRegistry = testutil.StubSkillsRegistry
 type sseRecord = testutil.SSERecord
@@ -126,6 +127,31 @@ func newTestHandlersWithWorkspace(
 	t.Helper()
 
 	return newTestHandlersWithBridges(t, manager, observer, nil, workspaces, homePaths)
+}
+
+func newTestHandlersWithResources(
+	t *testing.T,
+	manager core.SessionManager,
+	observer core.Observer,
+	resources core.ResourceService,
+	homePaths aghconfig.HomePaths,
+) *Handlers {
+	t.Helper()
+
+	return newHandlers(&handlerConfig{
+		sessions:     manager,
+		tasks:        stubTaskManager{},
+		observer:     observer,
+		resources:    resources,
+		workspaces:   stubWorkspaceService{},
+		homePaths:    homePaths,
+		config:       aghconfig.DefaultWithHome(homePaths),
+		logger:       discardLogger(),
+		startedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
+		pollInterval: 5 * time.Millisecond,
+		agentLoader:  aghconfig.LoadAgentDef,
+	})
 }
 
 func newTestRouter(t *testing.T, handlers *Handlers) *gin.Engine {

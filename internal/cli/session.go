@@ -417,21 +417,34 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				{Label: "Age", Value: stringOrDash(formatAge(now, info.CreatedAt))},
 			})
 
+			blocks := []string{base}
+			if info.Environment != nil {
+				blocks = append(blocks, renderHumanSection("Environment", []keyValue{
+					{Label: "Backend", Value: stringOrDash(info.Environment.Backend)},
+					{Label: "Profile", Value: stringOrDash(info.Environment.Profile)},
+					{Label: "Environment ID", Value: stringOrDash(info.Environment.EnvironmentID)},
+					{Label: "Instance ID", Value: stringOrDash(info.Environment.InstanceID)},
+					{Label: "State", Value: stringOrDash(info.Environment.State)},
+					{Label: "Last Sync Error", Value: stringOrDash(info.Environment.LastSyncError)},
+				}))
+			}
 			if info.ACPCaps == nil {
-				return base, nil
+				return renderHumanBlocks(blocks...), nil
 			}
 			caps := renderHumanSection("Capabilities", []keyValue{
 				{Label: "Supports Load", Value: strconv.FormatBool(info.ACPCaps.SupportsLoadSession)},
 				{Label: "Modes", Value: stringOrDash(strings.Join(info.ACPCaps.SupportedModes, ", "))},
 				{Label: "Models", Value: stringOrDash(strings.Join(info.ACPCaps.SupportedModels, ", "))},
 			})
-			return renderHumanBlocks(base, caps), nil
+			blocks = append(blocks, caps)
+			return renderHumanBlocks(blocks...), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("session", []string{
 				"id",
 				"name",
 				"agent_name",
+				"environment_backend",
 				"workspace",
 				"channel",
 				"state",
@@ -442,6 +455,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				info.ID,
 				info.Name,
 				info.AgentName,
+				sessionEnvironmentBackend(info),
 				displaySessionWorkspace(info),
 				info.Channel,
 				string(info.State),
@@ -458,14 +472,15 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 		items,
 		items,
 		"Sessions",
-		[]string{"ID", "Name", "Agent", "State", "Workspace", "Channel", "Updated"},
+		[]string{"ID", "Name", "Agent", "Backend", "State", "Workspace", "Channel", "Updated"},
 		"sessions",
-		[]string{"id", "name", "agent_name", "state", "workspace", "channel", "updated_at"},
+		[]string{"id", "name", "agent_name", "environment_backend", "state", "workspace", "channel", "updated_at"},
 		func(item SessionRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
 				stringOrDash(item.Name),
 				stringOrDash(item.AgentName),
+				stringOrDash(sessionEnvironmentBackend(item)),
 				stringOrDash(string(item.State)),
 				stringOrDash(displaySessionWorkspace(item)),
 				stringOrDash(item.Channel),
@@ -477,6 +492,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 				item.ID,
 				item.Name,
 				item.AgentName,
+				sessionEnvironmentBackend(item),
 				string(item.State),
 				displaySessionWorkspace(item),
 				item.Channel,
@@ -484,6 +500,13 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 			}
 		},
 	)
+}
+
+func sessionEnvironmentBackend(info SessionRecord) string {
+	if info.Environment == nil {
+		return ""
+	}
+	return strings.TrimSpace(info.Environment.Backend)
 }
 
 func sessionEventsBundle(events []SessionEventRecord) outputBundle {

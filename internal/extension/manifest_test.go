@@ -11,6 +11,7 @@ import (
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/version"
 )
 
@@ -137,6 +138,66 @@ func TestNormalizeMCPServersDropsBlankKeysAndUsesDeterministicCollisions(t *test
 
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("normalizeMCPServers() = %#v, want %#v", got, want)
+	}
+}
+
+func TestNormalizeToolsDropsBlankKeysAndUsesDeterministicCollisions(t *testing.T) {
+	t.Parallel()
+
+	got := normalizeTools(map[string]ToolConfig{
+		" ": {
+			Description: "ignored",
+		},
+		" lookup ": {
+			Description: " first ",
+			InputSchema: json.RawMessage(`{"type":"object","title":"First"}`),
+		},
+		"lookup": {
+			Description: " second ",
+			InputSchema: json.RawMessage(`{"type":"object","title":"Second"}`),
+			ReadOnly:    true,
+		},
+	})
+
+	want := map[string]ToolConfig{
+		"lookup": {
+			Description: "second",
+			InputSchema: json.RawMessage(`{"type":"object","title":"Second"}`),
+			ReadOnly:    true,
+		},
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("normalizeTools() = %#v, want %#v", got, want)
+	}
+}
+
+func TestLoadManifest_ParsesResourcePublishRequest(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "resource-grants"
+version = "0.2.1"
+min_agh_version = "0.5.0"
+
+[resources.publish]
+families = ["tools", "mcp_servers"]
+max_scope = "workspace"
+
+[subprocess]
+command = "agh-ext-resource-grants"
+`)
+
+	manifest, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest() error = %v, want nil", err)
+	}
+	if !reflect.DeepEqual(manifest.Resources.Publish.Families, []string{"tools", "mcp_servers"}) {
+		t.Fatalf("Resources.Publish.Families = %#v, want tools+mcp_servers", manifest.Resources.Publish.Families)
+	}
+	if got, want := manifest.Resources.Publish.MaxScope, resources.ResourceScopeKindWorkspace; got != want {
+		t.Fatalf("Resources.Publish.MaxScope = %q, want %q", got, want)
 	}
 }
 
@@ -308,6 +369,52 @@ min_agh_version = "0.5.0"
 				t.Fatalf("validation field = %q, want %q", validationErr.Field, tc.wantField)
 			}
 		})
+	}
+}
+
+func TestManifestValidateRejectsDaemonOnlyResourcePublishFamily(t *testing.T) {
+	t.Parallel()
+
+	manifest := expectedManifest()
+	manifest.Resources.Publish = ResourceGrantRequest{
+		Families: []string{"bridge_instances"},
+		MaxScope: resources.ResourceScopeKindGlobal,
+	}
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+
+	var validationErr *ManifestValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("Validate() error type = %T, want *ManifestValidationError", err)
+	}
+	if got, want := validationErr.Field, "resources.publish"; got != want {
+		t.Fatalf("Validate() field = %q, want %q", got, want)
+	}
+}
+
+func TestManifestValidateRejectsInvalidResourcePublishScope(t *testing.T) {
+	t.Parallel()
+
+	manifest := expectedManifest()
+	manifest.Resources.Publish = ResourceGrantRequest{
+		Families: []string{"tools"},
+		MaxScope: resources.ResourceScopeKind("session"),
+	}
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+
+	var validationErr *ManifestValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("Validate() error type = %T, want *ManifestValidationError", err)
+	}
+	if got, want := validationErr.Field, "resources.publish"; got != want {
+		t.Fatalf("Validate() field = %q, want %q", got, want)
 	}
 }
 
@@ -800,6 +907,12 @@ func expectedManifest() Manifest {
 					},
 				},
 			},
+			Tools: map[string]ToolConfig{
+				"lookup": {
+					Description: "Search workspace content",
+					ReadOnly:    true,
+				},
+			},
 			MCPServers: map[string]MCPServerConfig{
 				"kubectl": {
 					Command: "mcp-kubectl",
@@ -840,6 +953,10 @@ min_agh_version = "0.5.0"
 [resources]
 skills = ["skills/"]
 agents = ["agents/"]
+
+[resources.tools.lookup]
+description = "Search workspace content"
+read_only = true
 
 [[resources.hooks]]
 name = "workspace-context"
@@ -893,6 +1010,12 @@ const validManifestJSON = `{
   "resources": {
     "skills": ["skills/"],
     "agents": ["agents/"],
+    "tools": {
+      "lookup": {
+        "description": "Search workspace content",
+        "read_only": true
+      }
+    },
     "hooks": [
       {
         "name": "workspace-context",

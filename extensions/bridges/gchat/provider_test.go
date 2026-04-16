@@ -444,7 +444,7 @@ func TestRuntimeInitializeWebhookAndDeliveryFlow(t *testing.T) {
 	mockAPI := newGChatProviderTestServer(t)
 	t.Setenv(gchatListenAddrEnv, listenAddr)
 	t.Setenv(gchatAPIBaseEnv, mockAPI.URL())
-	t.Setenv(gchatAuthEndpointEnv, mockAPI.TokenURL())
+	t.Setenv(gchatTokenURLEnv, mockAPI.TokenURL())
 	t.Setenv(gchatDirectCertsEnv, mockAPI.DirectCertsURL())
 	t.Setenv(gchatPubSubCertsEnv, mockAPI.PubSubCertsURL())
 
@@ -648,7 +648,7 @@ func TestRuntimePubSubMessageAndDirectDeliveryPaths(t *testing.T) {
 	mockAPI := newGChatProviderTestServer(t)
 	t.Setenv(gchatListenAddrEnv, listenAddr)
 	t.Setenv(gchatAPIBaseEnv, mockAPI.URL())
-	t.Setenv(gchatAuthEndpointEnv, mockAPI.TokenURL())
+	t.Setenv(gchatTokenURLEnv, mockAPI.TokenURL())
 	t.Setenv(gchatDirectCertsEnv, mockAPI.DirectCertsURL())
 	t.Setenv(gchatPubSubCertsEnv, mockAPI.PubSubCertsURL())
 
@@ -936,7 +936,7 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 
 	t.Setenv(gchatListenAddrEnv, reserveListenAddr(t))
 	t.Setenv(gchatAPIBaseEnv, server.URL())
-	t.Setenv(gchatAuthEndpointEnv, server.TokenURL())
+	t.Setenv(gchatTokenURLEnv, server.TokenURL())
 	t.Setenv(gchatDirectCertsEnv, server.DirectCertsURL())
 	t.Setenv(gchatPubSubCertsEnv, server.PubSubCertsURL())
 
@@ -1324,7 +1324,7 @@ func TestGChatWebhookHandlersUseRequestContext(t *testing.T) {
 
 	t.Setenv(gchatListenAddrEnv, reserveListenAddr(t))
 	t.Setenv(gchatAPIBaseEnv, server.URL())
-	t.Setenv(gchatAuthEndpointEnv, server.TokenURL())
+	t.Setenv(gchatTokenURLEnv, server.TokenURL())
 	t.Setenv(gchatDirectCertsEnv, server.DirectCertsURL())
 	t.Setenv(gchatPubSubCertsEnv, server.PubSubCertsURL())
 
@@ -2364,6 +2364,7 @@ func testInitializeRequest(
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
 		AGHVersion:               "0.5.0",
+		SessionNonce:             "nonce-test",
 		Extension: subprocess.InitializeExtension{
 			Name:       "gchat",
 			Version:    "0.1.0",

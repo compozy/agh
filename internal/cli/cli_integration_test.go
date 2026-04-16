@@ -26,6 +26,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
+	environmentlocal "github.com/pedronauck/agh/internal/environment/local"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
@@ -161,7 +162,7 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session list toon error = %v", err)
 	}
-	if !strings.Contains(toonOut, "sessions[1]{id,name,agent_name,state,workspace,channel,updated_at}:") {
+	if !strings.Contains(toonOut, "sessions[1]{id,name,agent_name,environment_backend,state,workspace,channel,updated_at}:") {
 		t.Fatalf("toon output = %q, want TOON table", toonOut)
 	}
 }
@@ -1558,6 +1559,10 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("new workspace resolver: %w", err)
 	}
+	environmentRegistry, err := environmentlocal.NewRegistry()
+	if err != nil {
+		return fmt.Errorf("new local environment registry: %w", err)
+	}
 	manager, err := session.NewManager(
 		session.WithHomePaths(d.homePaths),
 		session.WithWorkspaceResolver(resolver),
@@ -1570,6 +1575,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 			return driver
 		}()),
 		session.WithNotifier(fanout),
+		session.WithEnvironmentRegistry(environmentRegistry),
 	)
 	if err != nil {
 		return fmt.Errorf("new session manager: %w", err)

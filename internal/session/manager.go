@@ -12,6 +12,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -60,24 +61,34 @@ type Manager struct {
 	pending    map[string]struct{}
 	finalizing map[string]chan struct{}
 
-	logger          *slog.Logger
-	driver          AgentDriver
-	notifier        Notifier
-	networkPeers    NetworkPeerLifecycle
-	turnEndNotifier TurnEndNotifier
-	hooks           HookSet
-	skillRegistry   SkillRegistry
-	mcpResolver     MCPResolver
-	homePaths       aghconfig.HomePaths
-	workspace       workspacepkg.RuntimeResolver
-	openStore       StoreOpener
-	assembler       PromptAssembler
-	lifecycleCtx    context.Context
-	now             func() time.Time
-	newSessionID    IDGenerator
-	newTurnID       IDGenerator
-	maxSessions     int
-	promptBufSize   int
+	logger           *slog.Logger
+	driver           AgentDriver
+	notifier         Notifier
+	networkPeers     NetworkPeerLifecycle
+	turnEndNotifier  TurnEndNotifier
+	hooks            HookSet
+	environment      *environment.Registry
+	agentResolver    AgentResolver
+	skillRegistry    SkillRegistry
+	mcpResolver      MCPResolver
+	homePaths        aghconfig.HomePaths
+	workspace        workspacepkg.RuntimeResolver
+	openStore        StoreOpener
+	assembler        PromptAssembler
+	lifecycleCtx     context.Context
+	now              func() time.Time
+	newSessionID     IDGenerator
+	newEnvironmentID IDGenerator
+	newTurnID        IDGenerator
+	maxSessions      int
+	promptBufSize    int
+}
+
+// WithEnvironmentRegistry injects the runtime environment provider registry.
+func WithEnvironmentRegistry(registry *environment.Registry) Option {
+	return func(manager *Manager) {
+		manager.environment = registry
+	}
 }
 
 // WithDriver injects the runtime driver used for session lifecycle operations.
@@ -130,6 +141,13 @@ func WithSkillRegistry(registry SkillRegistry) Option {
 	}
 }
 
+// WithAgentResolver injects the daemon-authoritative agent definition resolver.
+func WithAgentResolver(resolver AgentResolver) Option {
+	return func(manager *Manager) {
+		manager.agentResolver = resolver
+	}
+}
+
 // WithMCPResolver injects the skill MCP resolver used during session start.
 func WithMCPResolver(resolver MCPResolver) Option {
 	return func(manager *Manager) {
@@ -169,6 +187,13 @@ func WithNow(now func() time.Time) Option {
 func WithSessionIDGenerator(generator IDGenerator) Option {
 	return func(manager *Manager) {
 		manager.newSessionID = generator
+	}
+}
+
+// WithEnvironmentIDGenerator overrides environment id allocation.
+func WithEnvironmentIDGenerator(generator IDGenerator) Option {
+	return func(manager *Manager) {
+		manager.newEnvironmentID = generator
 	}
 }
 
@@ -217,6 +242,9 @@ func NewManager(opts ...Option) (*Manager, error) {
 		newSessionID: func() string {
 			return newID("sess")
 		},
+		newEnvironmentID: func() string {
+			return newID("env")
+		},
 		newTurnID: func() string {
 			return newID("turn")
 		},
@@ -249,6 +277,11 @@ func NewManager(opts ...Option) (*Manager, error) {
 	if manager.newSessionID == nil {
 		manager.newSessionID = func() string {
 			return newID("sess")
+		}
+	}
+	if manager.newEnvironmentID == nil {
+		manager.newEnvironmentID = func() string {
+			return newID("env")
 		}
 	}
 	if manager.newTurnID == nil {

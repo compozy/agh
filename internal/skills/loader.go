@@ -59,6 +59,9 @@ func ParseSkillFileWithSource(path string, source SkillSource) (*Skill, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := mergeSkillMCPSidecarFile(filepath.Dir(absPath), skill); err != nil {
+		return nil, fmt.Errorf("skills: parse %q MCP JSON: %w", absPath, err)
+	}
 	return skill, nil
 }
 

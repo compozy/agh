@@ -111,7 +111,7 @@ func TestSessionActivateCanPreserveRecoveredStopClassification(t *testing.T) {
 		Workspace:  t.TempDir(),
 		State:      StateStarting,
 		stopReason: store.StopAgentCrashed,
-		stopDetail: "daemon crashed while session active",
+		stopDetail: resumeStopDetailAgentCrashed,
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
@@ -127,8 +127,8 @@ func TestSessionActivateCanPreserveRecoveredStopClassification(t *testing.T) {
 	if got := info.StopReason; got != store.StopAgentCrashed {
 		t.Fatalf("StopReason = %q, want %q", got, store.StopAgentCrashed)
 	}
-	if got := info.StopDetail; got != "daemon crashed while session active" {
-		t.Fatalf("StopDetail = %q, want %q", got, "daemon crashed while session active")
+	if got := info.StopDetail; got != resumeStopDetailAgentCrashed {
+		t.Fatalf("StopDetail = %q, want %q", got, resumeStopDetailAgentCrashed)
 	}
 }
 

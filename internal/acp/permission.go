@@ -26,25 +26,6 @@ var (
 	ErrPendingPermissionConflict = errors.New("acp: pending permission lookup is ambiguous")
 )
 
-type permissionOperation string
-
-const (
-	permissionReadTextFile     permissionOperation = "fs/read_text_file"
-	permissionWriteTextFile    permissionOperation = "fs/write_text_file"
-	permissionCreateTerminal   permissionOperation = "terminal/create"
-	permissionRequestToolGrant permissionOperation = "session/request_permission"
-)
-
-type permissionDecision string
-
-const (
-	decisionPending      permissionDecision = "pending"
-	decisionAllowOnce    permissionDecision = "allow-once"
-	decisionAllowAlways  permissionDecision = "allow-always"
-	decisionRejectOnce   permissionDecision = "reject-once"
-	decisionRejectAlways permissionDecision = "reject-always"
-)
-
 type permissionPolicy struct {
 	mode aghconfig.PermissionMode
 	root string

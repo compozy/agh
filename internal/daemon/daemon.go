@@ -18,18 +18,22 @@ import (
 	"github.com/pedronauck/agh/internal/api/udsapi"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/procutil"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -47,6 +51,33 @@ type ConfigLoader func() (aghconfig.Config, error)
 
 // SessionManager is the shared transport-facing session surface consumed by daemon/.
 type SessionManager = core.SessionManager
+
+type environmentExecSessionManager interface {
+	ExecEnvironment(context.Context, session.EnvironmentExecRequest) (session.EnvironmentExecResult, error)
+}
+
+type hostAPISessionManagerAdapter struct {
+	core.SessionManager
+	exec environmentExecSessionManager
+}
+
+func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPISessionManagerAdapter {
+	adapter := hostAPISessionManagerAdapter{SessionManager: sessions}
+	if exec, ok := sessions.(environmentExecSessionManager); ok {
+		adapter.exec = exec
+	}
+	return adapter
+}
+
+func (a hostAPISessionManagerAdapter) ExecEnvironment(
+	ctx context.Context,
+	req session.EnvironmentExecRequest,
+) (session.EnvironmentExecResult, error) {
+	if a.exec == nil {
+		return session.EnvironmentExecResult{}, session.ErrSessionNotActive
+	}
+	return a.exec.ExecEnvironment(ctx, req)
+}
 
 // Observer is the daemon observer surface used for transport wiring and reconciliation.
 type Observer interface {
@@ -84,10 +115,12 @@ type RuntimeDeps struct {
 	MemoryStore       *memory.Store
 	WorkspaceResolver workspacepkg.RuntimeResolver
 	WorkspaceService  core.WorkspaceService
+	AgentCatalog      core.AgentCatalog
 	SkillsRegistry    core.SkillsRegistry
 	DreamTrigger      DreamTrigger
 	Extensions        udsapi.ExtensionService
 	Bundles           core.BundleService
+	Resources         core.ResourceService
 	StartedAt         time.Time
 }
 
@@ -102,6 +135,10 @@ type sessionManagerFactory func(ctx context.Context, deps SessionManagerDeps) (S
 type observerFactory func(ctx context.Context, deps RuntimeDeps) (Observer, error)
 type extensionManagerFactory func(deps extensionManagerDeps) extensionRuntime
 type automationManagerFactory func(deps automationManagerDeps) (automationRuntime, error)
+type resourceReconcileDriverFactory func(
+	ctx context.Context,
+	deps resourceReconcileDriverDeps,
+) (resources.ReconcileDriver, error)
 
 type networkRuntime interface {
 	core.NetworkService
@@ -129,6 +166,22 @@ type extensionDBSource interface {
 	DB() *sql.DB
 }
 
+type resourceReconcileDriverDeps struct {
+	Config           aghconfig.Config
+	Logger           *slog.Logger
+	Registry         Registry
+	ResourceStore    resources.RawStore
+	CodecRegistry    *resources.CodecRegistry
+	Hooks            *hookspkg.Hooks
+	AgentCatalog     *resourceCatalog[aghconfig.AgentDef]
+	ToolCatalog      *resourceCatalog[toolspkg.Tool]
+	MCPServerCatalog *resourceCatalog[aghconfig.MCPServer]
+	SkillsRegistry   *skills.Registry
+	Automation       automationResourceProjectorTarget
+	Bridges          bridgeResourceProjectorTarget
+	Bundles          resources.BundleActivationProjector[bundlepkg.ActivationResourceSpec, bundlepkg.BundleResourceSpec]
+}
+
 type extensionRuntime interface {
 	Start(context.Context) error
 	Stop(context.Context) error
@@ -150,6 +203,7 @@ func bridgeObserveSource(service core.BridgeService) observe.BridgeSource {
 
 type extensionManagerDeps struct {
 	Registry          *extensionpkg.Registry
+	Extensions        aghconfig.ExtensionsConfig
 	Sessions          SessionManager
 	Automation        func() extensionpkg.HostAPIAutomationManager
 	Tasks             taskpkg.Manager
@@ -162,27 +216,20 @@ type extensionManagerDeps struct {
 	BridgeDedupStore  bridgeDedupStore
 	BridgeBroker      *bridgepkg.Broker
 	BridgeRuntime     extensionpkg.BridgeRuntimeResolver
+	ResourceStore     resources.RawStore
+	SourceSessions    resources.SourceSessionManager
+	ResourceCodecs    *resources.CodecRegistry
+	ResourceTrigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 }
 
 type automationRuntime interface {
 	core.AutomationManager
 	extensionpkg.HostAPIAutomationManager
-	bundleSyncAutomation
 	Start(ctx context.Context) error
 	Shutdown(ctx context.Context) error
 	SessionObserver() session.Notifier
 	HookTelemetrySink() hookspkg.TelemetrySink
 	MemoryObserver() automationpkg.MemoryConsolidationObserver
-}
-
-type bundleSyncAutomation interface {
-	SyncManagedDefinitions(
-		ctx context.Context,
-		source automationpkg.JobSource,
-		desiredJobs []automationpkg.Job,
-		desiredTriggers []automationpkg.Trigger,
-		desiredTriggerSecrets map[string]string,
-	) (automationpkg.SyncStats, error)
 }
 
 type automationManagerDeps struct {
@@ -194,18 +241,23 @@ type automationManagerDeps struct {
 	Hooks               automationpkg.HookDispatcher
 	Logger              *slog.Logger
 	GlobalWorkspacePath string
+	ResourceStore       resources.RawStore
+	ResourceCodecs      *resources.CodecRegistry
+	ResourceTrigger     func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 }
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
 type SessionManagerDeps struct {
-	HomePaths         aghconfig.HomePaths
-	Logger            *slog.Logger
-	Notifier          session.Notifier
-	Hooks             session.HookSet
-	PromptAssembler   session.PromptAssembler
-	SkillRegistry     session.SkillRegistry
-	MCPResolver       session.MCPResolver
-	WorkspaceResolver workspacepkg.RuntimeResolver
+	HomePaths           aghconfig.HomePaths
+	Logger              *slog.Logger
+	Notifier            session.Notifier
+	Hooks               session.HookSet
+	PromptAssembler     session.PromptAssembler
+	AgentResolver       session.AgentResolver
+	SkillRegistry       session.SkillRegistry
+	MCPResolver         session.MCPResolver
+	WorkspaceResolver   workspacepkg.RuntimeResolver
+	EnvironmentRegistry *environment.Registry
 }
 
 // Daemon is the sole AGH composition root.
@@ -225,6 +277,7 @@ type Daemon struct {
 	newObserver          observerFactory
 	newExtensionManager  extensionManagerFactory
 	newAutomationManager automationManagerFactory
+	newResourceReconcile resourceReconcileDriverFactory
 	httpFactory          ServerFactory
 	udsFactory           ServerFactory
 	listProcesses        func(context.Context) ([]processInfo, error)
@@ -252,33 +305,39 @@ type Daemon struct {
 	hooks                hookRuntime
 	extensions           extensionRuntime
 	observer             Observer
+	resourceReconcile    resources.ReconcileDriver
+	agentCatalog         *resourceCatalog[aghconfig.AgentDef]
+	toolCatalog          *resourceCatalog[toolspkg.Tool]
+	mcpServerCatalog     *resourceCatalog[aghconfig.MCPServer]
 	automation           automationRuntime
 	bridges              *bridgeRuntime
 	httpServer           Server
 	udsServer            Server
 	dreamRuntime         *consolidation.Runtime
 	workspaceResolver    workspacepkg.RuntimeResolver
+	environmentRegistry  *environment.Registry
 	skillsRegistry       *skills.Registry
 	skillsCancel         context.CancelFunc
 	skillsDone           chan struct{}
 }
 
 type shutdownTargets struct {
-	sessions     SessionManager
-	network      networkRuntime
-	hooks        hookRuntime
-	extensions   extensionRuntime
-	automation   automationRuntime
-	bridges      *bridgeRuntime
-	httpServer   Server
-	udsServer    Server
-	registry     Registry
-	lock         *Lock
-	closeLogger  func() error
-	infoPath     string
-	dreamRuntime *consolidation.Runtime
-	skillsCancel context.CancelFunc
-	skillsDone   chan struct{}
+	sessions          SessionManager
+	network           networkRuntime
+	hooks             hookRuntime
+	extensions        extensionRuntime
+	automation        automationRuntime
+	resourceReconcile resources.ReconcileDriver
+	bridges           *bridgeRuntime
+	httpServer        Server
+	udsServer         Server
+	registry          Registry
+	lock              *Lock
+	closeLogger       func() error
+	infoPath          string
+	dreamRuntime      *consolidation.Runtime
+	skillsCancel      context.CancelFunc
+	skillsDone        chan struct{}
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -420,6 +479,7 @@ func (d *Daemon) applyRuntimeFactoryDefaults() {
 	d.applyObserverFactoryDefault()
 	d.applyExtensionManagerFactoryDefault()
 	d.applyAutomationManagerFactoryDefault()
+	d.applyResourceReconcileDriverFactoryDefault()
 }
 
 func (d *Daemon) applySessionManagerFactoryDefault() {
@@ -434,9 +494,11 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithNotifier(deps.Notifier),
 			session.WithHookSet(deps.Hooks),
 			session.WithPromptAssembler(deps.PromptAssembler),
+			session.WithAgentResolver(deps.AgentResolver),
 			session.WithSkillRegistry(deps.SkillRegistry),
 			session.WithMCPResolver(deps.MCPResolver),
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
+			session.WithEnvironmentRegistry(deps.EnvironmentRegistry),
 		)
 	}
 }
@@ -468,32 +530,40 @@ func (d *Daemon) applyExtensionManagerFactoryDefault() {
 		return
 	}
 	d.newExtensionManager = func(deps extensionManagerDeps) extensionRuntime {
-		if deps.Registry == nil {
+		if deps.Registry == nil || deps.ResourceStore == nil || deps.SourceSessions == nil {
 			return nil
 		}
 
 		capChecker := &extensionpkg.CapabilityChecker{}
+		capChecker.SetResourcePolicy(deps.Extensions.Resources)
 		hostAPI := extensionpkg.NewHostAPIHandler(
-			deps.Sessions,
+			newHostAPISessionManagerAdapter(deps.Sessions),
 			deps.MemoryStore,
 			deps.Observer,
 			deps.SkillsRegistry,
-			buildHostAPIOptions(deps, capChecker)...,
+			buildHostAPIOptions(deps, capChecker, deps.ResourceStore)...,
 		)
 
-		return extensionpkg.NewManager(deps.Registry, buildExtensionManagerOptions(deps, capChecker, hostAPI)...)
+		return extensionpkg.NewManager(
+			deps.Registry,
+			buildExtensionManagerOptions(deps, capChecker, hostAPI, deps.SourceSessions)...,
+		)
 	}
 }
 
 func buildHostAPIOptions(
 	deps extensionManagerDeps,
 	capChecker *extensionpkg.CapabilityChecker,
+	resourceStore resources.RawStore,
 ) []extensionpkg.HostAPIOption {
 	opts := []extensionpkg.HostAPIOption{
 		extensionpkg.WithHostAPIAutomationGetter(deps.Automation),
 		extensionpkg.WithHostAPITaskManager(deps.Tasks),
 		extensionpkg.WithHostAPICapabilityChecker(capChecker),
 		extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
+		extensionpkg.WithHostAPIResourceStore(resourceStore),
+		extensionpkg.WithHostAPIResourceCodecRegistry(deps.ResourceCodecs),
+		extensionpkg.WithHostAPIResourceTrigger(deps.ResourceTrigger),
 	}
 	if deps.BridgeRegistry != nil {
 		opts = append(opts, extensionpkg.WithHostAPIBridgeRegistry(deps.BridgeRegistry))
@@ -511,11 +581,12 @@ func buildExtensionManagerOptions(
 	deps extensionManagerDeps,
 	capChecker *extensionpkg.CapabilityChecker,
 	hostAPI *extensionpkg.HostAPIHandler,
+	sourceSessions resources.SourceSessionManager,
 ) []extensionpkg.Option {
 	opts := []extensionpkg.Option{
 		extensionpkg.WithCapabilityChecker(capChecker),
-		extensionpkg.WithSkillsRegistry(deps.SkillsRegistry),
 		extensionpkg.WithLogger(deps.Logger),
+		extensionpkg.WithSourceSessionManager(sourceSessions),
 	}
 	if sink, ok := deps.Observer.(extensionpkg.BridgeTelemetrySink); ok {
 		opts = append(opts, extensionpkg.WithBridgeTelemetrySink(sink))
@@ -534,7 +605,21 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 		return
 	}
 	d.newAutomationManager = func(deps automationManagerDeps) (automationRuntime, error) {
-		manager, err := automationpkg.New(
+		jobStore, triggerStore, err := automationResourceStores(deps.ResourceStore, deps.ResourceCodecs)
+		if err != nil {
+			return nil, err
+		}
+		resourceOpts := []automationpkg.Option(nil)
+		if jobStore != nil && triggerStore != nil {
+			resourceOpts = append(resourceOpts, automationpkg.WithResourceDefinitions(
+				jobStore,
+				triggerStore,
+				resourceReconcileActor(),
+				deps.ResourceTrigger,
+			))
+		}
+
+		managerOpts := []automationpkg.Option{
 			automationpkg.WithStore(deps.Store),
 			automationpkg.WithSessions(deps.Sessions),
 			automationpkg.WithTasks(deps.Tasks),
@@ -543,11 +628,187 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 			automationpkg.WithHooks(deps.Hooks),
 			automationpkg.WithLogger(deps.Logger),
 			automationpkg.WithGlobalWorkspacePath(deps.GlobalWorkspacePath),
-		)
+		}
+		managerOpts = append(managerOpts, resourceOpts...)
+
+		manager, err := automationpkg.New(managerOpts...)
 		if err != nil {
 			return nil, err
 		}
 		return manager, nil
+	}
+}
+
+func (d *Daemon) applyResourceReconcileDriverFactoryDefault() {
+	if d.newResourceReconcile != nil {
+		return
+	}
+	d.newResourceReconcile = func(
+		_ context.Context,
+		deps resourceReconcileDriverDeps,
+	) (resources.ReconcileDriver, error) {
+		if deps.ResourceStore == nil || deps.CodecRegistry == nil {
+			return resources.NewReconcileDriver(
+				nil,
+				resources.MutationActor{},
+				nil,
+				resources.WithReconcileLogger(deps.Logger),
+			)
+		}
+
+		registrations, err := buildResourceProjectorRegistrations(&deps)
+		if err != nil {
+			return nil, err
+		}
+
+		return resources.NewReconcileDriver(
+			deps.ResourceStore,
+			resourceReconcileActor(),
+			registrations,
+			resources.WithReconcileLogger(deps.Logger),
+		)
+	}
+}
+
+func buildResourceProjectorRegistrations(
+	deps *resourceReconcileDriverDeps,
+) ([]resources.ProjectorRegistration, error) {
+	var registrations []resources.ProjectorRegistration
+	var err error
+	registrations, err = appendCoreProjectorRegistrations(registrations, deps)
+	if err != nil {
+		return nil, err
+	}
+	if deps.Automation != nil {
+		registrations, err = appendAutomationProjectorRegistrations(registrations, deps)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if deps.Bridges != nil {
+		registrations, err = appendBridgeProjectorRegistration(registrations, deps)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if deps.Bundles != nil {
+		registrations, err = appendBundleProjectorRegistrations(registrations, deps)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return registrations, nil
+}
+
+func appendCoreProjectorRegistrations(
+	registrations []resources.ProjectorRegistration,
+	deps *resourceReconcileDriverDeps,
+) ([]resources.ProjectorRegistration, error) {
+	if deps.Hooks != nil {
+		codec, err := resources.ResolveCodec[hookspkg.HookDecl](deps.CodecRegistry, hookBindingResourceKind)
+		if err != nil {
+			return nil, err
+		}
+		registration, err := resources.NewTypedProjectorRegistration(codec, newHookBindingProjector(deps.Hooks))
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, registration)
+	}
+	if deps.AgentCatalog != nil {
+		codec, err := resources.ResolveCodec[aghconfig.AgentDef](deps.CodecRegistry, aghconfig.AgentResourceKind)
+		if err != nil {
+			return nil, err
+		}
+		registration, err := resources.NewTypedProjectorRegistration(codec, newAgentProjector(deps.AgentCatalog))
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, registration)
+	}
+	if deps.ToolCatalog != nil {
+		codec, err := resources.ResolveCodec[toolspkg.Tool](deps.CodecRegistry, toolspkg.ToolResourceKind)
+		if err != nil {
+			return nil, err
+		}
+		registration, err := resources.NewTypedProjectorRegistration(codec, newToolProjector(deps.ToolCatalog))
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, registration)
+	}
+	if deps.MCPServerCatalog != nil {
+		codec, err := resources.ResolveCodec[aghconfig.MCPServer](
+			deps.CodecRegistry,
+			aghconfig.MCPServerResourceKind,
+		)
+		if err != nil {
+			return nil, err
+		}
+		registration, err := resources.NewTypedProjectorRegistration(
+			codec,
+			newMCPServerProjector(deps.MCPServerCatalog),
+		)
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, registration)
+	}
+	if deps.SkillsRegistry != nil {
+		codec, err := resources.ResolveCodec[skills.SkillResourceSpec](deps.CodecRegistry, skills.SkillResourceKind)
+		if err != nil {
+			return nil, err
+		}
+		registration, err := resources.NewTypedProjectorRegistration(codec, newSkillProjector(deps.SkillsRegistry))
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, registration)
+	}
+	return registrations, nil
+}
+
+func appendAutomationProjectorRegistrations(
+	registrations []resources.ProjectorRegistration,
+	deps *resourceReconcileDriverDeps,
+) ([]resources.ProjectorRegistration, error) {
+	jobCodec, err := resources.ResolveCodec[automationpkg.Job](deps.CodecRegistry, automationpkg.JobResourceKind)
+	if err != nil {
+		return nil, err
+	}
+	jobRegistration, err := resources.NewTypedProjectorRegistration(
+		jobCodec,
+		newAutomationJobProjector(deps.Automation),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	triggerCodec, err := resources.ResolveCodec[automationpkg.Trigger](
+		deps.CodecRegistry,
+		automationpkg.TriggerResourceKind,
+	)
+	if err != nil {
+		return nil, err
+	}
+	triggerRegistration, err := resources.NewTypedProjectorRegistration(
+		triggerCodec,
+		newAutomationTriggerProjector(deps.Automation),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	registrations = append(registrations, jobRegistration, triggerRegistration)
+	return registrations, nil
+}
+
+func resourceReconcileActor() resources.MutationActor {
+	return resources.MutationActor{
+		Kind:     resources.MutationActorKindDaemon,
+		ID:       "daemon-control",
+		Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "system"},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 	}
 }
 
@@ -567,7 +828,9 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				httpapi.WithAutomation(deps.Automation),
 				httpapi.WithBridgeService(deps.Bridges),
 				httpapi.WithBundleService(deps.Bundles),
+				httpapi.WithResourceService(deps.Resources),
 				httpapi.WithWorkspaceResolver(deps.WorkspaceService),
+				httpapi.WithAgentCatalog(deps.AgentCatalog),
 				httpapi.WithSkillsRegistry(deps.SkillsRegistry),
 				httpapi.WithMemoryStore(deps.MemoryStore),
 				httpapi.WithDreamTrigger(deps.DreamTrigger),
@@ -589,7 +852,9 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				udsapi.WithAutomation(deps.Automation),
 				udsapi.WithBridgeService(deps.Bridges),
 				udsapi.WithBundleService(deps.Bundles),
+				udsapi.WithResourceService(deps.Resources),
 				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
+				udsapi.WithAgentCatalog(deps.AgentCatalog),
 				udsapi.WithSkillsRegistry(deps.SkillsRegistry),
 				udsapi.WithMemoryStore(deps.MemoryStore),
 				udsapi.WithDreamTrigger(deps.DreamTrigger),
@@ -676,21 +941,22 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 	defer d.mu.Unlock()
 
 	targets := shutdownTargets{
-		sessions:     d.sessions,
-		network:      d.network,
-		hooks:        d.hooks,
-		extensions:   d.extensions,
-		automation:   d.automation,
-		bridges:      d.bridges,
-		httpServer:   d.httpServer,
-		udsServer:    d.udsServer,
-		registry:     d.registry,
-		lock:         d.lock,
-		closeLogger:  d.closeLogger,
-		infoPath:     d.homePaths.DaemonInfo,
-		dreamRuntime: d.dreamRuntime,
-		skillsCancel: d.skillsCancel,
-		skillsDone:   d.skillsDone,
+		sessions:          d.sessions,
+		network:           d.network,
+		hooks:             d.hooks,
+		extensions:        d.extensions,
+		automation:        d.automation,
+		resourceReconcile: d.resourceReconcile,
+		bridges:           d.bridges,
+		httpServer:        d.httpServer,
+		udsServer:         d.udsServer,
+		registry:          d.registry,
+		lock:              d.lock,
+		closeLogger:       d.closeLogger,
+		infoPath:          d.homePaths.DaemonInfo,
+		dreamRuntime:      d.dreamRuntime,
+		skillsCancel:      d.skillsCancel,
+		skillsDone:        d.skillsDone,
 	}
 
 	d.resetRuntimeStateLocked()
@@ -703,6 +969,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.hooks = nil
 	d.extensions = nil
 	d.automation = nil
+	d.resourceReconcile = nil
 	d.httpServer = nil
 	d.udsServer = nil
 	d.observer = nil
@@ -716,6 +983,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.closeLogger = func() error { return nil }
 	d.dreamRuntime = nil
 	d.workspaceResolver = nil
+	d.environmentRegistry = nil
 	d.skillsCancel = nil
 	d.skillsDone = nil
 	d.bridges = nil
@@ -735,6 +1003,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 		targets.dreamRuntime.Shutdown()
 	}
 	stopSkillsWatcher(targets.skillsCancel, targets.skillsDone)
+	if targets.resourceReconcile != nil {
+		appendWrappedError(errs, "daemon: close resource reconcile driver", targets.resourceReconcile.Close(ctx))
+	}
 	if targets.extensions != nil {
 		appendWrappedError(errs, "daemon: stop extensions", targets.extensions.Stop(ctx))
 	}

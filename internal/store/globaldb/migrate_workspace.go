@@ -63,10 +63,9 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 	if err := migrateBridgeInstanceColumns(ctx, db); err != nil {
 		return err
 	}
-	if err := migrateBundleActivationColumns(ctx, db); err != nil {
+	if err := migrateWorkspaceColumns(ctx, db); err != nil {
 		return err
 	}
-
 	hasSessions, err := tableExists(ctx, db, "sessions")
 	if err != nil {
 		return err
@@ -92,6 +91,32 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	return migrateNetworkAuditTable(ctx, db)
+}
+
+func migrateWorkspaceColumns(ctx context.Context, db *sql.DB) error {
+	exists, err := tableExists(ctx, db, "workspaces")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, db, "workspaces")
+	if err != nil {
+		return err
+	}
+	if _, ok := columns["environment_ref"]; ok {
+		return nil
+	}
+
+	if _, err := db.ExecContext(
+		ctx,
+		`ALTER TABLE workspaces ADD COLUMN environment_ref TEXT NOT NULL DEFAULT ''`,
+	); err != nil {
+		return fmt.Errorf("store: add workspaces.environment_ref column: %w", err)
+	}
+	return nil
 }
 
 func migrateLegacyGlobalSessions(ctx context.Context, db *sql.DB) (err error) {
@@ -299,6 +324,42 @@ func migrateSessionColumns(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("store: add sessions.channel column: %w", err)
 		}
 	}
+	sessionEnvironmentColumns := []struct {
+		name string
+		sql  string
+	}{
+		{name: "environment_id", sql: `ALTER TABLE sessions ADD COLUMN environment_id TEXT NOT NULL DEFAULT ''`},
+		{
+			name: "environment_backend",
+			sql:  `ALTER TABLE sessions ADD COLUMN environment_backend TEXT NOT NULL DEFAULT 'local'`,
+		},
+		{
+			name: "environment_profile",
+			sql:  `ALTER TABLE sessions ADD COLUMN environment_profile TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: "environment_instance_id",
+			sql:  `ALTER TABLE sessions ADD COLUMN environment_instance_id TEXT NOT NULL DEFAULT ''`,
+		},
+		{name: "environment_state", sql: `ALTER TABLE sessions ADD COLUMN environment_state TEXT NOT NULL DEFAULT ''`},
+		{
+			name: "environment_provider_state_json",
+			sql:  `ALTER TABLE sessions ADD COLUMN environment_provider_state_json TEXT NOT NULL DEFAULT ''`,
+		},
+		{name: "environment_last_sync_at", sql: `ALTER TABLE sessions ADD COLUMN environment_last_sync_at TEXT`},
+		{
+			name: "environment_last_sync_error",
+			sql:  `ALTER TABLE sessions ADD COLUMN environment_last_sync_error TEXT NOT NULL DEFAULT ''`,
+		},
+	}
+	for _, column := range sessionEnvironmentColumns {
+		if _, ok := columns[column.name]; ok {
+			continue
+		}
+		if _, err := db.ExecContext(ctx, column.sql); err != nil {
+			return fmt.Errorf("store: add sessions.%s column: %w", column.name, err)
+		}
+	}
 
 	return nil
 }
@@ -325,29 +386,6 @@ func migrateBridgeColumns(ctx context.Context, db *sql.DB) error {
 		`ALTER TABLE bridge_instances ADD COLUMN source TEXT NOT NULL DEFAULT 'dynamic'`,
 	); err != nil {
 		return fmt.Errorf("store: add bridge_instances.source column: %w", err)
-	}
-	return nil
-}
-
-func migrateBundleActivationColumns(ctx context.Context, db *sql.DB) error {
-	exists, err := tableExists(ctx, db, "bundle_activations")
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return nil
-	}
-
-	columns, err := tableColumns(ctx, db, "bundle_activations")
-	if err != nil {
-		return err
-	}
-	if _, ok := columns["spec_content_hash"]; ok {
-		return nil
-	}
-
-	if _, err := db.ExecContext(ctx, `ALTER TABLE bundle_activations ADD COLUMN spec_content_hash TEXT`); err != nil {
-		return fmt.Errorf("store: add bundle_activations.spec_content_hash column: %w", err)
 	}
 	return nil
 }
@@ -525,8 +563,8 @@ func ensureMigratedWorkspaces(
 		workspaceID := store.NewID("ws")
 		if _, err := tx.ExecContext(
 			ctx,
-			`INSERT INTO workspaces (id, root_dir, add_dirs, name, default_agent, created_at, updated_at)
-			 VALUES (?, ?, '[]', ?, '', ?, ?)`,
+			`INSERT INTO workspaces (id, root_dir, add_dirs, name, default_agent, environment_ref, created_at, updated_at)
+			 VALUES (?, ?, '[]', ?, '', '', ?, ?)`,
 			workspaceID,
 			rootDir,
 			name,
@@ -556,6 +594,14 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 			acp_session_id TEXT,
 			stop_reason    TEXT,
 			stop_detail    TEXT,
+			environment_id TEXT NOT NULL DEFAULT '',
+			environment_backend TEXT NOT NULL DEFAULT 'local',
+			environment_profile TEXT NOT NULL DEFAULT '',
+			environment_instance_id TEXT NOT NULL DEFAULT '',
+			environment_state TEXT NOT NULL DEFAULT '',
+			environment_provider_state_json TEXT NOT NULL DEFAULT '',
+			environment_last_sync_at TEXT,
+			environment_last_sync_error TEXT NOT NULL DEFAULT '',
 			created_at     TEXT NOT NULL,
 			updated_at     TEXT NOT NULL
 		);`,
@@ -615,8 +661,9 @@ func copyMigratedSessions(
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO sessions_new (
-				id, name, agent_name, workspace_id, session_type, channel, state, acp_session_id, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				id, name, agent_name, workspace_id, session_type, channel, state, acp_session_id,
+				environment_backend, environment_profile, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			row.ID,
 			nullStringValue(row.Name),
 			row.AgentName,
@@ -625,6 +672,8 @@ func copyMigratedSessions(
 			"",
 			row.State,
 			nullStringValue(row.ACPSessionID),
+			"local",
+			"local",
 			row.CreatedAt,
 			row.UpdatedAt,
 		); err != nil {

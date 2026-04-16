@@ -45,7 +45,26 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 	if caps := ACPCapsPayloadFromInfo(info.ACPCaps); caps != nil {
 		payload.ACPCaps = caps
 	}
+	if environment := SessionEnvironmentPayloadFromMeta(info.Environment); environment != nil {
+		payload.Environment = environment
+	}
 	return payload
+}
+
+// SessionEnvironmentPayloadFromMeta converts session environment metadata into the shared payload.
+func SessionEnvironmentPayloadFromMeta(meta *store.SessionEnvironmentMeta) *contract.SessionEnvironmentPayload {
+	if meta == nil {
+		return nil
+	}
+	return &contract.SessionEnvironmentPayload{
+		EnvironmentID:     strings.TrimSpace(meta.EnvironmentID),
+		Backend:           strings.TrimSpace(meta.Backend),
+		Profile:           strings.TrimSpace(meta.Profile),
+		State:             strings.TrimSpace(meta.State),
+		InstanceID:        strings.TrimSpace(meta.InstanceID),
+		LastSyncError:     strings.TrimSpace(meta.LastSyncError),
+		ProviderStateJSON: append(json.RawMessage(nil), meta.ProviderState...),
+	}
 }
 
 // SessionPayloadsFromInfos converts a session list into response payloads.
@@ -437,13 +456,14 @@ func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) contract.Wo
 	addDirs = append(addDirs, workspace.AdditionalDirs...)
 
 	return contract.WorkspacePayload{
-		ID:           workspace.ID,
-		RootDir:      workspace.RootDir,
-		AddDirs:      addDirs,
-		Name:         workspace.Name,
-		DefaultAgent: workspace.DefaultAgent,
-		CreatedAt:    workspace.CreatedAt,
-		UpdatedAt:    workspace.UpdatedAt,
+		ID:             workspace.ID,
+		RootDir:        workspace.RootDir,
+		AddDirs:        addDirs,
+		Name:           workspace.Name,
+		DefaultAgent:   workspace.DefaultAgent,
+		EnvironmentRef: workspace.EnvironmentRef,
+		CreatedAt:      workspace.CreatedAt,
+		UpdatedAt:      workspace.UpdatedAt,
 	}
 }
 

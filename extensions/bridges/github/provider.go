@@ -642,13 +642,11 @@ func (p *githubProvider) collectGitHubConfigs(
 	configs := make([]resolvedInstanceConfig, 0, len(managed))
 	requestedListen := strings.TrimSpace(os.Getenv(githubListenAddrEnv))
 	seenRepos := make(map[string]string, len(managed))
-	seenWebhookPaths := make(map[string]string, len(managed))
 
 	for _, item := range managed {
 		cfg := p.resolveInstanceConfig(session, item)
 		requestedListen = applyGitHubListenConstraint(&cfg, requestedListen)
 		applyGitHubRepoConflict(&cfg, seenRepos)
-		applyGitHubWebhookPathConflict(&cfg, seenWebhookPaths)
 		configs = append(configs, cfg)
 	}
 
@@ -686,21 +684,6 @@ func applyGitHubRepoConflict(cfg *resolvedInstanceConfig, seenRepos map[string]s
 		)
 	}
 	seenRepos[cfg.repoFullName] = cfg.instanceID
-}
-
-func applyGitHubWebhookPathConflict(cfg *resolvedInstanceConfig, seenWebhookPaths map[string]string) {
-	if cfg == nil || cfg.webhookPath == "" {
-		return
-	}
-	if owner, ok := seenWebhookPaths[cfg.webhookPath]; ok && cfg.configError == nil {
-		cfg.configError = fmt.Errorf(
-			"github: webhook path %q is already owned by %q and cannot also belong to %q",
-			cfg.webhookPath,
-			owner,
-			cfg.instanceID,
-		)
-	}
-	seenWebhookPaths[cfg.webhookPath] = cfg.instanceID
 }
 
 func (p *githubProvider) applyGitHubListenErrors(configs []resolvedInstanceConfig, requestedListen string) {

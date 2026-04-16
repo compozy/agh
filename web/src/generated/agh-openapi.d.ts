@@ -731,6 +731,59 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/resources": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List desired-state resources on the local operator control plane */
+    get: operations["listResources"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/resources/{kind}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List one desired-state resource kind on the local operator control plane */
+    get: operations["listResourcesByKind"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/resources/{kind}/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one desired-state resource on the local operator control plane */
+    get: operations["getResource"];
+    /** Create or replace one desired-state resource on the local operator control plane */
+    put: operations["putResource"];
+    post?: never;
+    /** Delete one desired-state resource on the local operator control plane */
+    delete: operations["deleteResource"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions": {
     parameters: {
       query?: never;
@@ -5140,6 +5193,11 @@ export interface operations {
           | "session.post_resume"
           | "session.pre_stop"
           | "session.post_stop"
+          | "environment.prepare"
+          | "environment.ready"
+          | "environment.sync.before"
+          | "environment.sync.after"
+          | "environment.stop"
           | "input.pre_submit"
           | "prompt.post_assemble"
           | "event.pre_record"
@@ -5195,10 +5253,14 @@ export interface operations {
                 compaction_reason?: string;
                 compaction_strategy?: string;
                 decision_class?: string;
+                environment_backend?: string;
+                environment_id?: string;
+                environment_profile?: string;
                 input_class?: string;
                 message_delta_type?: string;
                 message_role?: string;
                 session_type?: string;
+                sync_direction?: string;
                 tool_name?: string;
                 tool_namespace?: string;
                 tool_read_only?: boolean | null;
@@ -5347,6 +5409,11 @@ export interface operations {
           | "session.post_resume"
           | "session.pre_stop"
           | "session.post_stop"
+          | "environment.prepare"
+          | "environment.ready"
+          | "environment.sync.before"
+          | "environment.sync.after"
+          | "environment.stop"
           | "input.pre_submit"
           | "prompt.post_assemble"
           | "event.pre_record"
@@ -5934,6 +6001,15 @@ export interface operations {
                 channel?: string;
                 /** Format: date-time */
                 created_at: string;
+                environment?: {
+                  backend?: string;
+                  environment_id?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  state?: string;
+                } | null;
                 id: string;
                 name?: string;
                 /** @enum {string} */
@@ -6075,6 +6151,15 @@ export interface operations {
                 channel?: string;
                 /** Format: date-time */
                 created_at: string;
+                environment?: {
+                  backend?: string;
+                  environment_id?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  state?: string;
+                } | null;
                 id: string;
                 name?: string;
                 /** @enum {string} */
@@ -6874,6 +6959,582 @@ export interface operations {
       };
     };
   };
+  listResources: {
+    parameters: {
+      query?: {
+        /** @description Filter by resource kind */
+        kind?: string;
+        /** @description Filter by resource scope kind */
+        scope_kind?: "global" | "workspace";
+        /** @description Filter by workspace scope id */
+        scope_id?: string;
+        /** @description Filter by stamped owner kind */
+        owner_kind?: string;
+        /** @description Filter by stamped owner id */
+        owner_id?: string;
+        /** @description Filter by stamped source kind */
+        source_kind?: string;
+        /** @description Filter by stamped source id */
+        source_id?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            records: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              kind: string;
+              owner: {
+                id: string;
+                kind: string;
+              };
+              scope: {
+                id?: string;
+                /** @enum {string} */
+                kind: "global" | "workspace";
+              };
+              source: {
+                id: string;
+                kind: string;
+              };
+              spec: unknown;
+              /** Format: date-time */
+              updated_at: string;
+              /** Format: int64 */
+              version: number;
+            }[];
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid resource filter */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listResourcesByKind: {
+    parameters: {
+      query?: {
+        /** @description Filter by resource scope kind */
+        scope_kind?: "global" | "workspace";
+        /** @description Filter by workspace scope id */
+        scope_id?: string;
+        /** @description Filter by stamped owner kind */
+        owner_kind?: string;
+        /** @description Filter by stamped owner id */
+        owner_id?: string;
+        /** @description Filter by stamped source kind */
+        source_kind?: string;
+        /** @description Filter by stamped source id */
+        source_id?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Resource kind */
+        kind: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            records: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              kind: string;
+              owner: {
+                id: string;
+                kind: string;
+              };
+              scope: {
+                id?: string;
+                /** @enum {string} */
+                kind: "global" | "workspace";
+              };
+              source: {
+                id: string;
+                kind: string;
+              };
+              spec: unknown;
+              /** Format: date-time */
+              updated_at: string;
+              /** Format: int64 */
+              version: number;
+            }[];
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid resource filter */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getResource: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Resource kind */
+        kind: string;
+        /** @description Resource id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            record: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              kind: string;
+              owner: {
+                id: string;
+                kind: string;
+              };
+              scope: {
+                id?: string;
+                /** @enum {string} */
+                kind: "global" | "workspace";
+              };
+              source: {
+                id: string;
+                kind: string;
+              };
+              spec: unknown;
+              /** Format: date-time */
+              updated_at: string;
+              /** Format: int64 */
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid resource identifier */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  putResource: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Resource kind */
+        kind: string;
+        /** @description Resource id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: int64 */
+          expected_version?: number;
+          scope: {
+            id?: string;
+            /** @enum {string} */
+            kind: "global" | "workspace";
+          };
+          spec: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            record: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              kind: string;
+              owner: {
+                id: string;
+                kind: string;
+              };
+              scope: {
+                id?: string;
+                /** @enum {string} */
+                kind: "global" | "workspace";
+              };
+              source: {
+                id: string;
+                kind: string;
+              };
+              spec: unknown;
+              /** Format: date-time */
+              updated_at: string;
+              /** Format: int64 */
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            record: {
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              kind: string;
+              owner: {
+                id: string;
+                kind: string;
+              };
+              scope: {
+                id?: string;
+                /** @enum {string} */
+                kind: "global" | "workspace";
+              };
+              source: {
+                id: string;
+                kind: string;
+              };
+              spec: unknown;
+              /** Format: date-time */
+              updated_at: string;
+              /** Format: int64 */
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid resource payload */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteResource: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Resource kind */
+        kind: string;
+        /** @description Resource id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: int64 */
+          expected_version: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid delete request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Rate limited */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   listSessions: {
     parameters: {
       query?: {
@@ -6904,6 +7565,15 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
+              environment?: {
+                backend?: string;
+                environment_id?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                state?: string;
+              } | null;
               id: string;
               name?: string;
               /** @enum {string} */
@@ -6997,6 +7667,15 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
+              environment?: {
+                backend?: string;
+                environment_id?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                state?: string;
+              } | null;
               id: string;
               name?: string;
               /** @enum {string} */
@@ -7104,6 +7783,15 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
+              environment?: {
+                backend?: string;
+                environment_id?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                state?: string;
+              } | null;
               id: string;
               name?: string;
               /** @enum {string} */
@@ -7494,6 +8182,15 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
+              environment?: {
+                backend?: string;
+                environment_id?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                state?: string;
+              } | null;
               id: string;
               name?: string;
               /** @enum {string} */
@@ -11168,6 +11865,7 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
+              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
@@ -11209,6 +11907,7 @@ export interface operations {
         "application/json": {
           add_dirs?: string[];
           default_agent?: string;
+          environment_ref?: string;
           name?: string;
           root_dir: string;
         };
@@ -11227,6 +11926,7 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
+              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
@@ -11305,6 +12005,7 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
+              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
@@ -11402,6 +12103,15 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
+              environment?: {
+                backend?: string;
+                environment_id?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                state?: string;
+              } | null;
               id: string;
               name?: string;
               /** @enum {string} */
@@ -11434,6 +12144,7 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
+              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
@@ -11538,6 +12249,7 @@ export interface operations {
         "application/json": {
           add_dirs: string[] | null;
           default_agent: string | null;
+          environment_ref: string | null;
           name: string | null;
         };
       };
@@ -11555,6 +12267,7 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
+              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;

@@ -17,6 +17,7 @@ function initializeFor(extension: Extension): InitializeRequest {
     protocol_version: "1",
     supported_protocol_versions: ["1"],
     agh_version: "0.5.0",
+    session_nonce: "session-nonce-test",
     extension: {
       name: extension.definition.name,
       version: extension.definition.version,
@@ -26,13 +27,15 @@ function initializeFor(extension: Extension): InitializeRequest {
       provides: extension.definition.capabilities?.provides ?? [],
       granted_actions: extension.definition.actions?.requires ?? [],
       granted_security: extension.definition.security?.capabilities ?? [],
+      granted_resource_kinds: [],
+      granted_resource_scopes: [],
     },
     methods: {
       daemon_requests: methods.filter(method =>
-        ["execute_hook", "health_check", "shutdown", "provide_tools"].includes(method)
+        ["execute_hook", "health_check", "shutdown"].includes(method)
       ),
       extension_services: methods.filter(
-        method => !["execute_hook", "health_check", "shutdown", "provide_tools"].includes(method)
+        method => !["execute_hook", "health_check", "shutdown"].includes(method)
       ),
     },
     runtime: {
@@ -127,37 +130,24 @@ describe("Extension", () => {
           provides: [],
           granted_actions: [],
           granted_security: [],
+          granted_resource_kinds: [],
+          granted_resource_scopes: [],
         },
       })
     ).rejects.toBeInstanceOf(CapabilityDeniedError);
   });
 
-  it("serves provide_tools and default health checks", async () => {
+  it("serves default health checks", async () => {
     const harness = new TestHarness();
     const extension = new Extension({
       name: "tools",
       version: "0.1.0",
     });
 
-    extension.handle("provide_tools", async () => ({
-      tools: [
-        {
-          name: "lookup",
-          description: "finds things",
-          input_schema: { type: "object" },
-          read_only: true,
-          source: "extension",
-        },
-      ],
-    }));
-
     await harness.loadExtension(extension, {
-      daemonRequests: ["health_check", "shutdown", "provide_tools"],
+      daemonRequests: ["health_check", "shutdown"],
     });
     await expect(harness.call("health_check", {})).resolves.toMatchObject({ healthy: true });
-    await expect(harness.call("provide_tools", {})).resolves.toMatchObject({
-      tools: [expect.objectContaining({ name: "lookup" })],
-    });
   });
 
   it("negotiates bridges/deliver for bridge adapters and exposes scoped runtime data", async () => {
@@ -212,9 +202,43 @@ describe("Extension", () => {
     });
 
     expect(harness.getLastInitializeRequest()).toMatchObject({
+      session_nonce: "session-nonce-test",
+      capabilities: {
+        granted_resource_kinds: [],
+        granted_resource_scopes: [],
+      },
       methods: { extension_services: ["bridges/deliver"] },
     });
     expect(ready).toHaveBeenCalledWith("chan-1");
+  });
+
+  it("captures session nonce and resource grants during initialize", async () => {
+    const ready = vi.fn();
+    const harness = new TestHarness();
+    const extension = new Extension({
+      name: "resource-ext",
+      version: "0.1.0",
+    });
+
+    extension.onReady((_host, session) => {
+      ready({
+        session_nonce: session.initializeRequest.session_nonce,
+        granted_resource_kinds: session.initializeRequest.capabilities.granted_resource_kinds,
+        granted_resource_scopes: session.initializeRequest.capabilities.granted_resource_scopes,
+      });
+    });
+
+    await harness.loadExtension(extension, {
+      sessionNonce: "nonce-resource",
+      grantedResourceKinds: ["tool", "skill"],
+      grantedResourceScopes: ["workspace"],
+    });
+
+    expect(ready).toHaveBeenCalledWith({
+      session_nonce: "nonce-resource",
+      granted_resource_kinds: ["tool", "skill"],
+      granted_resource_scopes: ["workspace"],
+    });
   });
 
   it("rejects bridge.adapter initialize when bridges/deliver is not implemented", async () => {

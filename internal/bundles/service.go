@@ -21,6 +21,7 @@ import (
 	modelpkg "github.com/pedronauck/agh/internal/bundles/model"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/resources"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -78,26 +79,9 @@ type Store interface {
 	DeleteBundleActivation(ctx context.Context, id string) error
 	GetBundleActivation(ctx context.Context, id string) (Activation, error)
 	ListBundleActivations(ctx context.Context) ([]Activation, error)
-	ReplaceBundleActivationInventory(ctx context.Context, activationID string, items []InventoryItem) error
 	ListBundleActivationInventory(ctx context.Context, activationID string) ([]InventoryItem, error)
-}
-
-type AutomationSyncer interface {
-	SyncManagedDefinitions(
-		ctx context.Context,
-		source automationpkg.JobSource,
-		desiredJobs []automationpkg.Job,
-		desiredTriggers []automationpkg.Trigger,
-		desiredTriggerSecrets map[string]string,
-	) (automationpkg.SyncStats, error)
-}
-
-type BridgeManagedSyncer interface {
-	SyncManagedInstances(
-		ctx context.Context,
-		source bridgepkg.BridgeInstanceSource,
-		desired []bridgepkg.BridgeInstance,
-	) (bridgepkg.ManagedSyncStats, error)
+	ListBundleResources(ctx context.Context) ([]resources.Record[BundleResourceSpec], error)
+	ApplyBundleActivationResources(ctx context.Context, plan BundleActivationResourcePlan) error
 }
 
 type ExtensionInfoLister interface {
@@ -108,8 +92,6 @@ type ExtensionLoader func(name string) (*extensionpkg.Extension, error)
 
 type Service struct {
 	store             Store
-	automation        AutomationSyncer
-	bridges           BridgeManagedSyncer
 	extensions        ExtensionInfoLister
 	loadExtension     ExtensionLoader
 	workspaceResolver workspacepkg.RuntimeResolver
@@ -123,18 +105,6 @@ type Service struct {
 }
 
 type Option func(*Service)
-
-func WithAutomation(syncer AutomationSyncer) Option {
-	return func(s *Service) {
-		s.automation = syncer
-	}
-}
-
-func WithBridges(syncer BridgeManagedSyncer) Option {
-	return func(s *Service) {
-		s.bridges = syncer
-	}
-}
 
 func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
 	return func(s *Service) {
@@ -204,23 +174,17 @@ func (s *Service) Catalog(ctx context.Context) ([]CatalogEntry, error) {
 		return nil, err
 	}
 
-	infos, err := s.extensions.List()
+	records, err := s.store.ListBundleResources(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	entries := make([]CatalogEntry, 0)
-	for _, info := range infos {
-		ext, loadErr := s.loadExtension(strings.TrimSpace(info.Name))
-		if loadErr != nil || ext == nil {
-			continue
-		}
-		for _, bundle := range ext.Bundles {
-			entries = append(entries, CatalogEntry{
-				ExtensionName: strings.TrimSpace(info.Name),
-				Bundle:        cloneBundleSpec(bundle),
-			})
-		}
+	entries := make([]CatalogEntry, 0, len(records))
+	for _, record := range records {
+		entries = append(entries, CatalogEntry{
+			ExtensionName: strings.TrimSpace(record.Spec.ExtensionName),
+			Bundle:        cloneBundleSpec(record.Spec.Bundle),
+		})
 	}
 	slices.SortFunc(entries, func(left, right CatalogEntry) int {
 		if cmp := strings.Compare(left.ExtensionName, right.ExtensionName); cmp != 0 {
@@ -350,9 +314,16 @@ func (s *Service) GetActivation(ctx context.Context, id string) (ActivationPrevi
 	if err != nil {
 		return ActivationPreview{}, err
 	}
-	resolved, err := s.resolveActivation(activation)
+	resolved, err := s.resolveActivation(ctx, activation)
 	if err != nil {
 		return ActivationPreview{}, err
+	}
+	inventory, err := s.store.ListBundleActivationInventory(ctx, activation.ID)
+	if err != nil {
+		return ActivationPreview{}, err
+	}
+	if len(inventory) > 0 {
+		resolved.inventory = inventory
 	}
 	return ActivationPreview{
 		Activation: cloneActivation(resolved.activation),
@@ -473,11 +444,17 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 	}
 
 	errs := make([]error, 0)
-	if syncErr := s.syncDesiredResources(ctx, state); syncErr != nil {
+	jobOwners, triggerOwners, bridgeOwners := ownedResourceMaps(state.inventoryByActivation)
+	if syncErr := s.store.ApplyBundleActivationResources(ctx, BundleActivationResourcePlan{
+		activeActivationIDs: cloneStringSet(state.activeActivationIDs),
+		desiredJobs:         cloneJobsForBundle(state.desiredJobs),
+		desiredTriggers:     cloneTriggersForBundle(state.desiredTriggers),
+		desiredBridges:      cloneBridgeInstancesForBundle(state.desiredBridges),
+		jobOwners:           jobOwners,
+		triggerOwners:       triggerOwners,
+		bridgeOwners:        bridgeOwners,
+	}); syncErr != nil {
 		errs = append(errs, syncErr)
-	}
-	if inventoryErr := s.recordActivationInventory(ctx, activations, state.inventoryByActivation); inventoryErr != nil {
-		errs = append(errs, inventoryErr)
 	}
 	s.applyNetworkSettings(state.effectiveDefault, state.effectiveSource, state.declaredChannels)
 	return errors.Join(errs...)
@@ -485,7 +462,7 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 
 type resolvedActivation struct {
 	activation      Activation
-	extension       *extensionpkg.Extension
+	bundleRecord    resources.Record[BundleResourceSpec]
 	bundle          extensionpkg.BundleSpec
 	profile         extensionpkg.BundleProfile
 	specContentHash string
@@ -496,7 +473,15 @@ type resolvedActivation struct {
 	inventory       []InventoryItem
 }
 
+type activationDefinition struct {
+	bundleRecord    resources.Record[BundleResourceSpec]
+	bundle          extensionpkg.BundleSpec
+	profile         extensionpkg.BundleProfile
+	specContentHash string
+}
+
 type reconcileState struct {
+	activeActivationIDs   map[string]struct{}
 	desiredJobs           []automationpkg.Job
 	desiredTriggers       []automationpkg.Trigger
 	desiredBridges        []bridgepkg.BridgeInstance
@@ -533,7 +518,7 @@ func (s *Service) resolveRequest(ctx context.Context, req ActivateRequest) (reso
 		WorkspaceID:                 workspaceID,
 		BindPrimaryChannelAsDefault: req.BindPrimaryChannelAsDefault,
 	}
-	resolved, err := s.resolveActivation(activation)
+	resolved, err := s.resolveActivation(ctx, activation)
 	if err != nil {
 		return resolvedActivation{}, err
 	}
@@ -541,29 +526,29 @@ func (s *Service) resolveRequest(ctx context.Context, req ActivateRequest) (reso
 	return resolved, nil
 }
 
-func (s *Service) resolveActivation(activation Activation) (resolvedActivation, error) {
+func (s *Service) resolveActivation(ctx context.Context, activation Activation) (resolvedActivation, error) {
 	if err := activation.Validate(); err != nil {
 		return resolvedActivation{}, err
 	}
 
-	ext, bundle, profile, specContentHash, err := s.resolveActivationDefinition(activation)
+	definition, err := s.resolveActivationDefinition(ctx, activation)
 	if err != nil {
 		return resolvedActivation{}, err
 	}
 	resolved := resolvedActivation{
 		activation:      activation,
-		extension:       ext,
-		bundle:          cloneBundleSpec(bundle),
-		profile:         cloneBundleProfile(profile),
-		specContentHash: specContentHash,
+		bundleRecord:    definition.bundleRecord,
+		bundle:          cloneBundleSpec(definition.bundle),
+		profile:         cloneBundleProfile(definition.profile),
+		specContentHash: definition.specContentHash,
 	}
 
-	resolved.channels = declaredChannelsForProfile(activation, bundle, profile)
+	resolved.channels = declaredChannelsForProfile(activation, definition.bundle, definition.profile)
 	resolved.jobs, resolved.triggers, resolved.bridges, resolved.inventory, err = s.materializeActivationResources(
 		activation,
-		ext,
-		bundle,
-		profile,
+		definition.bundleRecord,
+		definition.bundle,
+		definition.profile,
 	)
 	if err != nil {
 		return resolvedActivation{}, err
@@ -573,6 +558,7 @@ func (s *Service) resolveActivation(activation Activation) (resolvedActivation, 
 
 func (s *Service) collectDesiredState(ctx context.Context, activations []Activation) (reconcileState, error) {
 	state := reconcileState{
+		activeActivationIDs:   make(map[string]struct{}, len(activations)),
 		desiredJobs:           make([]automationpkg.Job, 0),
 		desiredTriggers:       make([]automationpkg.Trigger, 0),
 		desiredBridges:        make([]bridgepkg.BridgeInstance, 0),
@@ -585,7 +571,8 @@ func (s *Service) collectDesiredState(ctx context.Context, activations []Activat
 	claimedActivation := ""
 	errs := make([]error, 0)
 	for _, activation := range activations {
-		resolved, resolveErr := s.resolveActivation(activation)
+		state.activeActivationIDs[strings.TrimSpace(activation.ID)] = struct{}{}
+		resolved, resolveErr := s.resolveActivation(ctx, activation)
 		if resolveErr != nil {
 			errs = append(errs, resolveErr)
 			state.inventoryByActivation[activation.ID] = nil
@@ -647,63 +634,6 @@ func resolveActivationDefaultChannel(
 	}
 }
 
-func (s *Service) syncDesiredResources(ctx context.Context, state reconcileState) error {
-	errs := make([]error, 0)
-	if s.automation == nil {
-		if len(state.desiredJobs) > 0 || len(state.desiredTriggers) > 0 {
-			errs = append(errs, errors.New("bundles: automation syncer is required for bundle automations"))
-		}
-	} else if _, err := s.automation.SyncManagedDefinitions(
-		ctx,
-		automationpkg.JobSourcePackage,
-		state.desiredJobs,
-		state.desiredTriggers,
-		nil,
-	); err != nil {
-		errs = append(errs, err)
-	}
-
-	if len(state.desiredBridges) > 0 {
-		if s.bridges == nil {
-			errs = append(errs, errors.New("bundles: bridge syncer is required for bundle bridges"))
-		} else if _, err := s.bridges.SyncManagedInstances(
-			ctx,
-			bridgepkg.BridgeInstanceSourcePackage,
-			state.desiredBridges,
-		); err != nil {
-			errs = append(errs, err)
-		}
-	} else if s.bridges != nil {
-		if _, err := s.bridges.SyncManagedInstances(
-			ctx,
-			bridgepkg.BridgeInstanceSourcePackage,
-			nil,
-		); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
-func (s *Service) recordActivationInventory(
-	ctx context.Context,
-	activations []Activation,
-	inventoryByActivation map[string][]InventoryItem,
-) error {
-	recordedAt := s.now().UTC()
-	errs := make([]error, 0)
-	for _, activation := range activations {
-		items := cloneInventoryItems(inventoryByActivation[activation.ID])
-		for idx := range items {
-			items[idx].RecordedAtUTC = recordedAt
-		}
-		if err := s.store.ReplaceBundleActivationInventory(ctx, activation.ID, items); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
 func (s *Service) applyNetworkSettings(
 	effectiveDefault string,
 	effectiveSource string,
@@ -733,28 +663,25 @@ func (s *Service) applyNetworkSettings(
 }
 
 func (s *Service) resolveActivationDefinition(
+	ctx context.Context,
 	activation Activation,
-) (*extensionpkg.Extension, extensionpkg.BundleSpec, extensionpkg.BundleProfile, string, error) {
-	ext, err := s.loadExtension(activation.ExtensionName)
+) (activationDefinition, error) {
+	bundleRecord, ok, err := s.findBundleResource(ctx, activation.ExtensionName, activation.BundleName)
 	if err != nil {
-		return nil, extensionpkg.BundleSpec{}, extensionpkg.BundleProfile{}, "", err
+		return activationDefinition{}, err
 	}
-	if ext == nil {
-		return nil, extensionpkg.BundleSpec{}, extensionpkg.BundleProfile{}, "", extensionpkg.ErrExtensionNotFound
-	}
-
-	bundle, ok := findBundle(ext.Bundles, activation.BundleName)
 	if !ok {
-		return nil, extensionpkg.BundleSpec{}, extensionpkg.BundleProfile{}, "", fmt.Errorf(
+		return activationDefinition{}, fmt.Errorf(
 			"%w: %s/%s",
 			ErrBundleNotFound,
 			activation.ExtensionName,
 			activation.BundleName,
 		)
 	}
+	bundle := cloneBundleSpec(bundleRecord.Spec.Bundle)
 	profile, ok := findProfile(bundle.Profiles, activation.ProfileName)
 	if !ok {
-		return nil, extensionpkg.BundleSpec{}, extensionpkg.BundleProfile{}, "", fmt.Errorf(
+		return activationDefinition{}, fmt.Errorf(
 			"%w: %s/%s/%s",
 			ErrProfileNotFound,
 			activation.ExtensionName,
@@ -764,9 +691,42 @@ func (s *Service) resolveActivationDefinition(
 	}
 	specContentHash, err := bundleProfileSpecContentHash(bundle, profile)
 	if err != nil {
-		return nil, extensionpkg.BundleSpec{}, extensionpkg.BundleProfile{}, "", err
+		return activationDefinition{}, err
 	}
-	return ext, bundle, profile, specContentHash, nil
+	return activationDefinition{
+		bundleRecord:    bundleRecord,
+		bundle:          bundle,
+		profile:         profile,
+		specContentHash: specContentHash,
+	}, nil
+}
+
+func (s *Service) findBundleResource(
+	ctx context.Context,
+	extensionName string,
+	bundleName string,
+) (resources.Record[BundleResourceSpec], bool, error) {
+	records, err := s.store.ListBundleResources(ctx)
+	if err != nil {
+		return resources.Record[BundleResourceSpec]{}, false, err
+	}
+	return findBundleResourceRecord(records, extensionName, bundleName)
+}
+
+func findBundleResourceRecord(
+	records []resources.Record[BundleResourceSpec],
+	extensionName string,
+	bundleName string,
+) (resources.Record[BundleResourceSpec], bool, error) {
+	trimmedExtension := strings.TrimSpace(extensionName)
+	trimmedBundle := strings.TrimSpace(bundleName)
+	for _, record := range records {
+		if strings.EqualFold(strings.TrimSpace(record.Spec.ExtensionName), trimmedExtension) &&
+			strings.EqualFold(strings.TrimSpace(record.Spec.Bundle.Name), trimmedBundle) {
+			return record, true, nil
+		}
+	}
+	return resources.Record[BundleResourceSpec]{}, false, nil
 }
 
 func declaredChannelsForProfile(
@@ -792,7 +752,7 @@ func declaredChannelsForProfile(
 
 func (s *Service) materializeActivationResources(
 	activation Activation,
-	ext *extensionpkg.Extension,
+	bundleRecord resources.Record[BundleResourceSpec],
 	bundle extensionpkg.BundleSpec,
 	profile extensionpkg.BundleProfile,
 ) ([]automationpkg.Job, []automationpkg.Trigger, []bridgepkg.BridgeInstance, []InventoryItem, error) {
@@ -809,7 +769,7 @@ func (s *Service) materializeActivationResources(
 		jobs = append(jobs, job)
 		inventory = append(inventory, InventoryItem{
 			ActivationID: activation.ID,
-			ResourceKind: "automation_job",
+			ResourceKind: string(automationpkg.JobResourceKind),
 			ResourceID:   job.ID,
 			ResourceName: job.Name,
 		})
@@ -822,20 +782,20 @@ func (s *Service) materializeActivationResources(
 		triggers = append(triggers, trigger)
 		inventory = append(inventory, InventoryItem{
 			ActivationID: activation.ID,
-			ResourceKind: "automation_trigger",
+			ResourceKind: string(automationpkg.TriggerResourceKind),
 			ResourceID:   trigger.ID,
 			ResourceName: trigger.Name,
 		})
 	}
 	for _, bridgeDef := range profile.Bridges {
-		instance, err := s.materializeBridge(activation, ext, bundle, profile, bridgeDef)
+		instance, err := s.materializeBridge(activation, bundleRecord, bundle, profile, bridgeDef)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
 		bridges = append(bridges, instance)
 		inventory = append(inventory, InventoryItem{
 			ActivationID: activation.ID,
-			ResourceKind: "bridge_instance",
+			ResourceKind: string(bridgepkg.BridgeInstanceResourceKind),
 			ResourceID:   instance.ID,
 			ResourceName: instance.DisplayName,
 		})
@@ -845,7 +805,7 @@ func (s *Service) materializeActivationResources(
 
 func (s *Service) materializeBridge(
 	activation Activation,
-	owner *extensionpkg.Extension,
+	bundleRecord resources.Record[BundleResourceSpec],
 	bundle extensionpkg.BundleSpec,
 	profile extensionpkg.BundleProfile,
 	preset extensionpkg.BundleBridgePreset,
@@ -858,8 +818,17 @@ func (s *Service) materializeBridge(
 	platform := strings.TrimSpace(preset.Platform)
 	if platform == "" {
 		switch {
-		case strings.EqualFold(extensionName, activation.ExtensionName) && owner != nil && owner.Manifest != nil:
-			platform = strings.TrimSpace(owner.Manifest.Bridge.Platform)
+		case strings.EqualFold(extensionName, activation.ExtensionName):
+			platform = strings.TrimSpace(bundleRecord.Spec.OwnerBridgePlatform)
+			if platform == "" {
+				provider, err := s.loadExtension(extensionName)
+				if err != nil {
+					return bridgepkg.BridgeInstance{}, err
+				}
+				if provider != nil && provider.Manifest != nil {
+					platform = strings.TrimSpace(provider.Manifest.Bridge.Platform)
+				}
+			}
 		default:
 			provider, err := s.loadExtension(extensionName)
 			if err != nil {
@@ -1079,15 +1048,6 @@ func stableID(prefix string, parts ...string) string {
 	}
 	sum := sha256.Sum256([]byte(strings.Join(normalized, "\n")))
 	return prefix + "_" + hex.EncodeToString(sum[:8])
-}
-
-func findBundle(items []extensionpkg.BundleSpec, name string) (extensionpkg.BundleSpec, bool) {
-	for _, item := range items {
-		if strings.EqualFold(strings.TrimSpace(item.Name), strings.TrimSpace(name)) {
-			return item, true
-		}
-	}
-	return extensionpkg.BundleSpec{}, false
 }
 
 func findProfile(items []extensionpkg.BundleProfile, name string) (extensionpkg.BundleProfile, bool) {

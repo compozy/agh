@@ -62,10 +62,12 @@ type Server struct {
 	network        core.NetworkService
 	networkStore   core.NetworkStore
 	observer       core.Observer
+	resources      core.ResourceService
 	automation     core.AutomationManager
 	bridges        core.BridgeService
 	bundles        core.BundleService
 	workspaces     core.WorkspaceService
+	agentCatalog   core.AgentCatalog
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
 	dreamTrigger   core.DreamTrigger
@@ -88,10 +90,12 @@ type handlerConfig struct {
 	network        core.NetworkService
 	networkStore   core.NetworkStore
 	observer       core.Observer
+	resources      core.ResourceService
 	automation     core.AutomationManager
 	bridges        core.BridgeService
 	bundles        core.BundleService
 	workspaces     core.WorkspaceService
+	agentCatalog   core.AgentCatalog
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
 	dreamTrigger   core.DreamTrigger
@@ -197,6 +201,13 @@ func WithObserver(observer core.Observer) Option {
 	}
 }
 
+// WithResourceService injects the shared operator-facing desired-state resource service.
+func WithResourceService(service core.ResourceService) Option {
+	return func(server *Server) {
+		server.resources = service
+	}
+}
+
 // WithAutomation injects the daemon-owned automation manager.
 func WithAutomation(manager core.AutomationManager) Option {
 	return func(server *Server) {
@@ -236,6 +247,13 @@ func WithMemoryStore(store *memory.Store) Option {
 func WithSkillsRegistry(registry core.SkillsRegistry) Option {
 	return func(server *Server) {
 		server.skillsRegistry = registry
+	}
+}
+
+// WithAgentCatalog injects the projected resource-backed agent catalog.
+func WithAgentCatalog(catalog core.AgentCatalog) Option {
+	return func(server *Server) {
+		server.agentCatalog = catalog
 	}
 }
 
@@ -380,10 +398,12 @@ func (s *Server) handlerConfig() *handlerConfig {
 		network:        s.network,
 		networkStore:   s.networkStore,
 		observer:       s.observer,
+		resources:      s.resources,
 		automation:     s.automation,
 		bridges:        s.bridges,
 		bundles:        s.bundles,
 		workspaces:     s.workspaces,
+		agentCatalog:   s.agentCatalog,
 		skillsRegistry: s.skillsRegistry,
 		memoryStore:    s.memoryStore,
 		dreamTrigger:   s.dreamTrigger,
@@ -598,10 +618,12 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Network:                      cfg.network,
 			NetworkStore:                 cfg.networkStore,
 			Observer:                     cfg.observer,
+			Resources:                    cfg.resources,
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,
 			Bundles:                      cfg.bundles,
 			Workspaces:                   cfg.workspaces,
+			AgentCatalog:                 cfg.agentCatalog,
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,
 			DreamTrigger:                 cfg.dreamTrigger,

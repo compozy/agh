@@ -4,6 +4,9 @@ import (
 	"errors"
 	"slices"
 	"testing"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/resources"
 )
 
 func TestCapabilityCheckerCheckShouldAllowGrantedCapability(t *testing.T) {
@@ -83,6 +86,31 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates(t *testing.T) {
 			actions:  []string{"bridges/instances/get"},
 			security: []string{"bridge.read"},
 			method:   "bridges/instances/get",
+		},
+		{
+			name:    "allows environment list with action grant only",
+			actions: []string{"environment/list"},
+			method:  "environment/list",
+		},
+		{
+			name:    "allows environment info with action grant only",
+			actions: []string{"environment/info"},
+			method:  "environment/info",
+		},
+		{
+			name:     "allows environment exec with action and exec capability",
+			actions:  []string{"environment/exec"},
+			security: []string{"environment.exec"},
+			method:   "environment/exec",
+		},
+		{
+			name:         "rejects environment exec without exec capability",
+			actions:      []string{"environment/exec"},
+			security:     []string{"session.read"},
+			method:       "environment/exec",
+			wantRequired: []string{"environment.exec"},
+			wantGranted:  []string{"session.read"},
+			wantErr:      true,
 		},
 		{
 			name:     "ShouldAllowBridgeStateReportWithWriteGrant",
@@ -369,6 +397,221 @@ func TestCapabilityCheckerCheckShouldHonorFamilyWildcardGrant(t *testing.T) {
 
 	if err := checker.Check("ext", "memory.read"); err == nil {
 		t.Fatal("Check(memory.read) error = nil, want capability denied")
+	}
+}
+
+func TestCapabilityCheckerResolveShouldApplyOperatorResourcePolicy(t *testing.T) {
+	t.Parallel()
+
+	checker := &CapabilityChecker{}
+	checker.SetResourcePolicy(aghconfig.ExtensionsResourcesConfig{
+		AllowedKinds: []resources.ResourceKind{resources.ResourceKind("tool")},
+		MaxScope:     resources.ResourceScopeKindWorkspace,
+	})
+
+	grant, err := checker.Resolve(SourceUser, &Manifest{
+		Resources: ResourcesConfig{
+			Publish: ResourceGrantRequest{
+				Families: []string{"tools", "mcp_servers"},
+				MaxScope: resources.ResourceScopeKindGlobal,
+			},
+		},
+	}, resources.ResourceScopeKindGlobal)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if !slices.Equal(grant.ResourceKinds, []resources.ResourceKind{resources.ResourceKind("tool")}) {
+		t.Fatalf("Resolve().ResourceKinds = %#v, want [tool]", grant.ResourceKinds)
+	}
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
+		t.Fatalf("Resolve().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	}
+}
+
+func TestCapabilityCheckerResolveShouldApplySourceTierScopeCeiling(t *testing.T) {
+	t.Parallel()
+
+	checker := &CapabilityChecker{}
+	grant, err := checker.Resolve(SourceWorkspace, &Manifest{
+		Resources: ResourcesConfig{
+			Publish: ResourceGrantRequest{
+				Families: []string{"tools"},
+				MaxScope: resources.ResourceScopeKindGlobal,
+			},
+		},
+	}, resources.ResourceScopeKindGlobal)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
+		t.Fatalf("Resolve().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	}
+}
+
+func TestCapabilityCheckerResolveShouldApplySessionModeScopeNarrowing(t *testing.T) {
+	t.Parallel()
+
+	checker := &CapabilityChecker{}
+	grant, err := checker.Resolve(SourceUser, &Manifest{
+		Resources: ResourcesConfig{
+			Publish: ResourceGrantRequest{
+				Families: []string{"tools"},
+				MaxScope: resources.ResourceScopeKindGlobal,
+			},
+		},
+	}, resources.ResourceScopeKindWorkspace)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
+		t.Fatalf("Resolve().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	}
+}
+
+func TestCapabilityCheckerRegisterForSessionStoresGrantSnapshot(t *testing.T) {
+	t.Parallel()
+
+	checker := &CapabilityChecker{}
+	grant, err := checker.RegisterForSession("ext", SourceUser, &Manifest{
+		Resources: ResourcesConfig{
+			Publish: ResourceGrantRequest{
+				Families: []string{"tools"},
+				MaxScope: resources.ResourceScopeKindGlobal,
+			},
+		},
+	}, resources.ResourceScopeKindWorkspace)
+	if err != nil {
+		t.Fatalf("RegisterForSession() error = %v", err)
+	}
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
+		t.Fatalf("RegisterForSession().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	}
+
+	stored := checker.Grant("ext")
+	if !slices.Equal(stored.ResourceKinds, []resources.ResourceKind{resources.ResourceKind("tool")}) {
+		t.Fatalf("Grant().ResourceKinds = %#v, want [tool]", stored.ResourceKinds)
+	}
+
+	grant.ResourceKinds[0] = resources.ResourceKind("mutated")
+	if got := checker.Grant("ext").ResourceKinds[0]; got != resources.ResourceKind("tool") {
+		t.Fatalf("Grant() leaked caller mutation, got %q", got)
+	}
+}
+
+func TestCapabilityCheckerRegisterForSessionRejectsInvalidManifestResourceRequest(t *testing.T) {
+	t.Parallel()
+
+	checker := &CapabilityChecker{}
+	_, err := checker.RegisterForSession("ext", SourceUser, &Manifest{
+		Resources: ResourcesConfig{
+			Publish: ResourceGrantRequest{
+				Families: []string{"bridge_instances"},
+				MaxScope: resources.ResourceScopeKindGlobal,
+			},
+		},
+	}, resources.ResourceScopeKindGlobal)
+	if err == nil {
+		t.Fatal("RegisterForSession() error = nil, want invalid manifest request")
+	}
+}
+
+func TestCapabilityCheckerNilResolveReturnsEmptyGrant(t *testing.T) {
+	t.Parallel()
+
+	var checker *CapabilityChecker
+	grant, err := checker.Resolve(SourceUser, nil, resources.ResourceScopeKindGlobal)
+	if err != nil {
+		t.Fatalf("Resolve(nil) error = %v, want nil", err)
+	}
+	if len(grant.Actions) != 0 ||
+		len(grant.Security) != 0 ||
+		len(grant.ResourceKinds) != 0 ||
+		len(grant.ResourceScopes) != 0 {
+		t.Fatalf("Resolve(nil) = %#v, want zero value", grant)
+	}
+}
+
+func TestSourceTierResourceHelpers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		source    ExtensionSource
+		wantScope resources.ResourceScopeKind
+	}{
+		{source: SourceBundled, wantScope: resources.ResourceScopeKindGlobal},
+		{source: SourceUser, wantScope: resources.ResourceScopeKindGlobal},
+		{source: SourceWorkspace, wantScope: resources.ResourceScopeKindWorkspace},
+		{source: SourceMarketplace, wantScope: resources.ResourceScopeKindWorkspace},
+		{source: ExtensionSource(99), wantScope: ""},
+	}
+
+	for _, tt := range tests {
+		if got := sourceTierMaxScope(tt.source); got != tt.wantScope {
+			t.Fatalf("sourceTierMaxScope(%v) = %q, want %q", tt.source, got, tt.wantScope)
+		}
+	}
+	if !slices.Equal(scopesThrough(resources.ResourceScopeKindGlobal), []resources.ResourceScopeKind{
+		resources.ResourceScopeKindGlobal,
+		resources.ResourceScopeKindWorkspace,
+	}) {
+		t.Fatalf("scopesThrough(global) = %#v, want global+workspace", scopesThrough(resources.ResourceScopeKindGlobal))
+	}
+	if !slices.Equal(scopesThrough(resources.ResourceScopeKindWorkspace), []resources.ResourceScopeKind{
+		resources.ResourceScopeKindWorkspace,
+	}) {
+		t.Fatalf(
+			"scopesThrough(workspace) = %#v, want [workspace]",
+			scopesThrough(resources.ResourceScopeKindWorkspace),
+		)
+	}
+	if got, want := scopeRank(resources.ResourceScopeKindWorkspace), 0; got != want {
+		t.Fatalf("scopeRank(workspace) = %d, want %d", got, want)
+	}
+	if got, want := scopeRank(resources.ResourceScopeKindGlobal), 1; got != want {
+		t.Fatalf("scopeRank(global) = %d, want %d", got, want)
+	}
+	if got, want := scopeRank(resources.ResourceScopeKind("")), 2; got != want {
+		t.Fatalf("scopeRank(unknown) = %d, want %d", got, want)
+	}
+	if got := scopesThrough(resources.ResourceScopeKind("invalid")); got != nil {
+		t.Fatalf("scopesThrough(invalid) = %#v, want nil", got)
+	}
+}
+
+func TestCapabilityHelperPoliciesAndCeilings(t *testing.T) {
+	t.Parallel()
+
+	if !ceilingAllowsRequestedGrant([]string{"network.*"}, "network.http") {
+		t.Fatalf("ceilingAllowsRequestedGrant() = false, want true for wildcard superset")
+	}
+	if ceilingAllowsRequestedGrant([]string{"network.http"}, "network.*") {
+		t.Fatalf("ceilingAllowsRequestedGrant() = true, want false when request exceeds ceiling")
+	}
+
+	marketplace := sourcePolicy(SourceMarketplace)
+	if marketplace.allowAllActions || marketplace.allowAllSecurity {
+		t.Fatalf("marketplace policy = %#v, want narrowed actions and security", marketplace)
+	}
+	if marketplace.maxResourceScope != resources.ResourceScopeKindWorkspace {
+		t.Fatalf("marketplace maxResourceScope = %q, want workspace", marketplace.maxResourceScope)
+	}
+	if len(marketplace.allowedActions) == 0 || len(marketplace.allowedSecurity) == 0 {
+		t.Fatalf("marketplace policy = %#v, want populated ceilings", marketplace)
+	}
+
+	bundled := sourcePolicy(SourceBundled)
+	if !bundled.allowAllActions || !bundled.allowAllSecurity {
+		t.Fatalf("bundled policy = %#v, want full action and security grants", bundled)
+	}
+	if bundled.maxResourceScope != resources.ResourceScopeKindGlobal {
+		t.Fatalf("bundled maxResourceScope = %q, want global", bundled.maxResourceScope)
+	}
+
+	if got, err := narrowScopeCeiling("", "", "", ""); err != nil || got != "" {
+		t.Fatalf("narrowScopeCeiling(empty) = (%q, %v), want empty nil", got, err)
+	}
+	if _, err := narrowScopeCeiling(resources.ResourceScopeKind("invalid"), "", "", ""); err == nil {
+		t.Fatalf("narrowScopeCeiling(invalid) error = nil, want validation error")
 	}
 }
 

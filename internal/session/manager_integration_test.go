@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/environment"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
@@ -284,6 +285,143 @@ func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {
 	mu.Unlock()
 	if !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("hook order = %#v, want %#v", got, want)
+	}
+}
+
+func TestManagerIntegrationEnvironmentNativeHooksLifecycleOrder(t *testing.T) {
+	var (
+		mu        sync.Mutex
+		order     []string
+		afterTo   = make(chan struct{})
+		ready     = make(chan struct{})
+		afterFrom = make(chan struct{})
+	)
+	record := func(event string) {
+		mu.Lock()
+		defer mu.Unlock()
+		order = append(order, event)
+	}
+	waitFor := func(ctx context.Context, ch <-chan struct{}, label string) error {
+		select {
+		case <-ch:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+			return errors.New("timed out waiting for " + label)
+		}
+	}
+
+	hooks := newNativeHookDispatcher(t,
+		[]hookspkg.HookDecl{
+			{
+				Name:         "env-prepare",
+				Event:        hookspkg.HookEnvironmentPrepare,
+				Mode:         hookspkg.HookModeSync,
+				ExecutorKind: hookspkg.HookExecutorNative,
+			},
+			{
+				Name:         "env-sync-before",
+				Event:        hookspkg.HookEnvironmentSyncBefore,
+				Mode:         hookspkg.HookModeSync,
+				ExecutorKind: hookspkg.HookExecutorNative,
+			},
+			{
+				Name:         "env-sync-after",
+				Event:        hookspkg.HookEnvironmentSyncAfter,
+				Mode:         hookspkg.HookModeAsync,
+				ExecutorKind: hookspkg.HookExecutorNative,
+			},
+			{
+				Name:         "env-ready",
+				Event:        hookspkg.HookEnvironmentReady,
+				Mode:         hookspkg.HookModeAsync,
+				ExecutorKind: hookspkg.HookExecutorNative,
+			},
+			{
+				Name:         "env-stop",
+				Event:        hookspkg.HookEnvironmentStop,
+				Mode:         hookspkg.HookModeSync,
+				ExecutorKind: hookspkg.HookExecutorNative,
+			},
+		},
+		map[string]hookspkg.Executor{
+			"env-prepare": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.EnvironmentPreparePayload) (hookspkg.EnvironmentPreparePatch, error) {
+				if payload.EnvironmentID == "" || payload.WorkspaceID == "" {
+					return hookspkg.EnvironmentPreparePatch{}, errors.New("environment.prepare missing identity fields")
+				}
+				record("environment.prepare")
+				return hookspkg.EnvironmentPreparePatch{}, nil
+			}),
+			"env-sync-before": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.EnvironmentSyncBeforePayload) (hookspkg.EnvironmentSyncBeforePatch, error) {
+				if payload.EnvironmentID == "" || payload.Direction == "" || payload.Reason == "" {
+					return hookspkg.EnvironmentSyncBeforePatch{}, errors.New("environment.sync.before missing lifecycle fields")
+				}
+				record("environment.sync.before:" + payload.Direction)
+				return hookspkg.EnvironmentSyncBeforePatch{}, nil
+			}),
+			"env-sync-after": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.EnvironmentSyncAfterPayload) (hookspkg.EnvironmentSyncAfterPatch, error) {
+				if payload.EnvironmentID == "" || payload.Direction == "" || payload.DurationMS < 0 {
+					return hookspkg.EnvironmentSyncAfterPatch{}, errors.New("environment.sync.after missing lifecycle fields")
+				}
+				record("environment.sync.after:" + payload.Direction)
+				switch payload.Direction {
+				case string(environment.SyncDirectionToRuntime):
+					close(afterTo)
+				case string(environment.SyncDirectionFromRuntime):
+					close(afterFrom)
+				default:
+					return hookspkg.EnvironmentSyncAfterPatch{}, errors.New("unexpected sync direction " + payload.Direction)
+				}
+				return hookspkg.EnvironmentSyncAfterPatch{}, nil
+			}),
+			"env-ready": hookspkg.NewTypedNativeExecutor(func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.EnvironmentReadyPayload) (hookspkg.EnvironmentReadyPatch, error) {
+				if err := waitFor(ctx, afterTo, "environment.sync.after:to_runtime"); err != nil {
+					return hookspkg.EnvironmentReadyPatch{}, err
+				}
+				if payload.EnvironmentID == "" || payload.RuntimeRootDir == "" {
+					return hookspkg.EnvironmentReadyPatch{}, errors.New("environment.ready missing runtime fields")
+				}
+				record("environment.ready")
+				close(ready)
+				return hookspkg.EnvironmentReadyPatch{}, nil
+			}),
+			"env-stop": hookspkg.NewTypedNativeExecutor(func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.EnvironmentStopPayload) (hookspkg.EnvironmentStopPatch, error) {
+				if err := waitFor(ctx, afterFrom, "environment.sync.after:from_runtime"); err != nil {
+					return hookspkg.EnvironmentStopPatch{}, err
+				}
+				if payload.EnvironmentID == "" || payload.StopReason == "" {
+					return hookspkg.EnvironmentStopPatch{}, errors.New("environment.stop missing stop fields")
+				}
+				record("environment.stop")
+				return hookspkg.EnvironmentStopPatch{}, nil
+			}),
+		},
+	)
+
+	h := newHarness(t, WithHookSet(HookSet{Environment: hooks}))
+	session := createSession(t, h)
+	if err := waitFor(testutil.Context(t), ready, "environment.ready"); err != nil {
+		t.Fatalf("waiting for environment.ready: %v", err)
+	}
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	want := []string{
+		"environment.prepare",
+		"environment.sync.before:to_runtime",
+		"environment.sync.after:to_runtime",
+		"environment.ready",
+		"environment.sync.before:from_runtime",
+		"environment.sync.after:from_runtime",
+		"environment.stop",
+	}
+	mu.Lock()
+	got := append([]string(nil), order...)
+	mu.Unlock()
+	if !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("environment hook order = %#v, want %#v", got, want)
 	}
 }
 

@@ -72,7 +72,11 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 	}
 
 	sqlQuery := `SELECT id, name, agent_name, workspace_id, channel, session_type,
-		state, acp_session_id, stop_reason, stop_detail, created_at, updated_at
+		state, acp_session_id, stop_reason, stop_detail,
+		environment_id, environment_backend, environment_profile, environment_instance_id,
+		environment_state, environment_provider_state_json,
+		environment_last_sync_at, environment_last_sync_error,
+		created_at, updated_at
 	FROM sessions`
 	where, args := store.BuildClauses(
 		store.StringClause("state", query.State),
@@ -185,8 +189,11 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		ctx,
 		`INSERT INTO sessions (
 			id, name, agent_name, workspace_id, session_type, channel, state,
-			acp_session_id, stop_reason, stop_detail, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			acp_session_id, stop_reason, stop_detail,
+			environment_id, environment_backend, environment_profile, environment_instance_id,
+			environment_state, environment_provider_state_json,
+			environment_last_sync_at, environment_last_sync_error, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			agent_name = excluded.agent_name,
@@ -197,6 +204,14 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			acp_session_id = excluded.acp_session_id,
 			stop_reason = excluded.stop_reason,
 			stop_detail = excluded.stop_detail,
+			environment_id = excluded.environment_id,
+			environment_backend = excluded.environment_backend,
+			environment_profile = excluded.environment_profile,
+			environment_instance_id = excluded.environment_instance_id,
+			environment_state = excluded.environment_state,
+			environment_provider_state_json = excluded.environment_provider_state_json,
+			environment_last_sync_at = excluded.environment_last_sync_at,
+			environment_last_sync_error = excluded.environment_last_sync_error,
 			updated_at = excluded.updated_at`,
 		session.ID,
 		store.NullableString(session.Name),
@@ -208,6 +223,14 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		store.NullableStringPointer(session.ACPSessionID),
 		store.NullableString(string(session.StopReason)),
 		store.NullableString(session.StopDetail),
+		sessionEnvironmentID(session.Environment),
+		sessionEnvironmentBackend(session.Environment),
+		sessionEnvironmentProfile(session.Environment),
+		sessionEnvironmentInstanceID(session.Environment),
+		sessionEnvironmentState(session.Environment),
+		sessionEnvironmentProviderStateJSON(session.Environment),
+		sessionEnvironmentLastSyncAt(session.Environment),
+		sessionEnvironmentLastSyncError(session.Environment),
 		store.FormatTimestamp(session.CreatedAt),
 		store.FormatTimestamp(session.UpdatedAt),
 	)
@@ -243,61 +266,66 @@ type sqlExecutor interface {
 }
 
 func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt time.Time) (string, []any) {
+	assignments := []string{"state = ?"}
 	args := []any{update.State}
 
-	switch {
-	case update.ACPSessionID != nil && update.StopReasonSet:
-		args = append(
-			args,
-			store.NullableStringPointer(update.ACPSessionID),
-			store.NullableStringPointer(update.StopReason),
-			store.NullableString(update.StopDetail),
-			store.FormatTimestamp(updatedAt),
-			update.ID,
-		)
-		return `UPDATE sessions
-			SET state = ?, acp_session_id = ?, stop_reason = ?, stop_detail = ?, updated_at = ?
-			WHERE id = ?`, args
-	case update.ACPSessionID != nil:
-		args = append(
-			args,
-			store.NullableStringPointer(update.ACPSessionID),
-			store.FormatTimestamp(updatedAt),
-			update.ID,
-		)
-		return `UPDATE sessions
-			SET state = ?, acp_session_id = ?, updated_at = ?
-			WHERE id = ?`, args
-	case update.StopReasonSet:
-		args = append(
-			args,
-			store.NullableStringPointer(update.StopReason),
-			store.NullableString(update.StopDetail),
-			store.FormatTimestamp(updatedAt),
-			update.ID,
-		)
-		return `UPDATE sessions
-			SET state = ?, stop_reason = ?, stop_detail = ?, updated_at = ?
-			WHERE id = ?`, args
-	default:
-		args = append(args, store.FormatTimestamp(updatedAt), update.ID)
-		return `UPDATE sessions
-			SET state = ?, updated_at = ?
-			WHERE id = ?`, args
+	if update.ACPSessionID != nil {
+		assignments = append(assignments, "acp_session_id = ?")
+		args = append(args, store.NullableStringPointer(update.ACPSessionID))
 	}
+	if update.StopReasonSet {
+		assignments = append(assignments, "stop_reason = ?", "stop_detail = ?")
+		args = append(args, store.NullableStringPointer(update.StopReason), store.NullableString(update.StopDetail))
+	}
+	if update.Environment != nil {
+		assignments = append(
+			assignments,
+			"environment_id = ?",
+			"environment_backend = ?",
+			"environment_profile = ?",
+			"environment_instance_id = ?",
+			"environment_state = ?",
+			"environment_provider_state_json = ?",
+			"environment_last_sync_at = ?",
+			"environment_last_sync_error = ?",
+		)
+		args = append(
+			args,
+			sessionEnvironmentID(update.Environment),
+			sessionEnvironmentBackend(update.Environment),
+			sessionEnvironmentProfile(update.Environment),
+			sessionEnvironmentInstanceID(update.Environment),
+			sessionEnvironmentState(update.Environment),
+			sessionEnvironmentProviderStateJSON(update.Environment),
+			sessionEnvironmentLastSyncAt(update.Environment),
+			sessionEnvironmentLastSyncError(update.Environment),
+		)
+	}
+
+	assignments = append(assignments, "updated_at = ?")
+	args = append(args, store.FormatTimestamp(updatedAt), update.ID)
+	return fmt.Sprintf("UPDATE sessions SET %s WHERE id = ?", strings.Join(assignments, ", ")), args
 }
 
 func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	var (
-		session      store.SessionInfo
-		name         sql.NullString
-		channel      string
-		sessionType  string
-		acpSessionID sql.NullString
-		stopReason   sql.NullString
-		stopDetail   sql.NullString
-		createdAtRaw string
-		updatedAtRaw string
+		session              store.SessionInfo
+		name                 sql.NullString
+		channel              string
+		sessionType          string
+		acpSessionID         sql.NullString
+		stopReason           sql.NullString
+		stopDetail           sql.NullString
+		envID                string
+		envBackend           string
+		envProfile           string
+		envInstance          string
+		envState             string
+		envProviderStateJSON string
+		envLastSyncAt        sql.NullString
+		envLastSyncError     string
+		createdAtRaw         string
+		updatedAtRaw         string
 	)
 	if err := scanner.Scan(
 		&session.ID,
@@ -310,6 +338,14 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		&acpSessionID,
 		&stopReason,
 		&stopDetail,
+		&envID,
+		&envBackend,
+		&envProfile,
+		&envInstance,
+		&envState,
+		&envProviderStateJSON,
+		&envLastSyncAt,
+		&envLastSyncError,
 		&createdAtRaw,
 		&updatedAtRaw,
 	); err != nil {
@@ -328,6 +364,16 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	if detail := store.NullString(stopDetail); detail != nil {
 		session.StopDetail = *detail
 	}
+	session.Environment = scanSessionEnvironment(
+		envID,
+		envBackend,
+		envProfile,
+		envInstance,
+		envState,
+		envProviderStateJSON,
+		envLastSyncAt,
+		envLastSyncError,
+	)
 
 	createdAt, err := store.ParseTimestamp(createdAtRaw)
 	if err != nil {
@@ -341,6 +387,110 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	session.UpdatedAt = updatedAt
 
 	return session, nil
+}
+
+func scanSessionEnvironment(
+	environmentID string,
+	backend string,
+	profile string,
+	instanceID string,
+	state string,
+	providerStateJSON string,
+	lastSyncAt sql.NullString,
+	lastSyncError string,
+) *store.SessionEnvironmentMeta {
+	environmentID = strings.TrimSpace(environmentID)
+	backend = strings.TrimSpace(backend)
+	profile = strings.TrimSpace(profile)
+	instanceID = strings.TrimSpace(instanceID)
+	state = strings.TrimSpace(state)
+	providerStateJSON = strings.TrimSpace(providerStateJSON)
+	if environmentID == "" &&
+		backend == "" &&
+		profile == "" &&
+		instanceID == "" &&
+		state == "" &&
+		providerStateJSON == "" {
+		return nil
+	}
+
+	meta := &store.SessionEnvironmentMeta{
+		EnvironmentID: environmentID,
+		Backend:       backend,
+		Profile:       profile,
+		InstanceID:    instanceID,
+		State:         state,
+	}
+	if providerStateJSON != "" {
+		meta.ProviderState = []byte(providerStateJSON)
+	}
+	if lastSyncAt.Valid && strings.TrimSpace(lastSyncAt.String) != "" {
+		if parsed, err := store.ParseTimestamp(lastSyncAt.String); err == nil {
+			meta.LastSyncAt = &parsed
+		}
+	}
+	meta.LastSyncError = strings.TrimSpace(lastSyncError)
+	return meta
+}
+
+func sessionEnvironmentID(meta *store.SessionEnvironmentMeta) string {
+	if meta == nil {
+		return ""
+	}
+	return strings.TrimSpace(meta.EnvironmentID)
+}
+
+func sessionEnvironmentBackend(meta *store.SessionEnvironmentMeta) string {
+	if meta == nil {
+		return "local"
+	}
+	backend := strings.TrimSpace(meta.Backend)
+	if backend == "" {
+		return "local"
+	}
+	return backend
+}
+
+func sessionEnvironmentProfile(meta *store.SessionEnvironmentMeta) string {
+	if meta == nil {
+		return ""
+	}
+	return strings.TrimSpace(meta.Profile)
+}
+
+func sessionEnvironmentInstanceID(meta *store.SessionEnvironmentMeta) string {
+	if meta == nil {
+		return ""
+	}
+	return strings.TrimSpace(meta.InstanceID)
+}
+
+func sessionEnvironmentState(meta *store.SessionEnvironmentMeta) string {
+	if meta == nil {
+		return ""
+	}
+	return strings.TrimSpace(meta.State)
+}
+
+func sessionEnvironmentProviderStateJSON(meta *store.SessionEnvironmentMeta) string {
+	if meta == nil || len(meta.ProviderState) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(string(meta.ProviderState))
+}
+
+func sessionEnvironmentLastSyncAt(meta *store.SessionEnvironmentMeta) any {
+	if meta == nil || meta.LastSyncAt == nil || meta.LastSyncAt.IsZero() {
+		return nil
+	}
+	return store.FormatTimestamp(*meta.LastSyncAt)
+}
+
+func sessionEnvironmentLastSyncError(meta *store.SessionEnvironmentMeta) string {
+	if meta == nil {
+		return ""
+	}
+	return strings.TrimSpace(meta.LastSyncError)
 }
 
 type rowScanner interface {

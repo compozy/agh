@@ -6,6 +6,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/tools"
 )
@@ -29,6 +30,18 @@ var sdkRootTypes = []NamedType{
 	{Name: "InitializeExtensionInfo", Value: subprocess.InitializeExtensionInfo{}},
 	{Name: "AcceptedCapabilities", Value: subprocess.AcceptedCapabilities{}},
 	{Name: "InitializeSupports", Value: subprocess.InitializeSupports{}},
+	{Name: "ResourceKind", Value: resources.ResourceKind("")},
+	{Name: "ResourceScopeKind", Value: resources.ResourceScopeKind("")},
+	{Name: "ResourceScope", Value: resources.ResourceScope{}},
+	{Name: "ResourceSourceKind", Value: resources.ResourceSourceKind("")},
+	{Name: "ResourceSource", Value: resources.ResourceSource{}},
+	{Name: "ResourceOwnerKind", Value: resources.ResourceOwnerKind("")},
+	{Name: "ResourceOwner", Value: resources.ResourceOwner{}},
+	{Name: "ResourceRecord", Value: ResourceRecord{}},
+	{Name: "ResourceGetParams", Value: ResourceGetParams{}},
+	{Name: "ResourcesListParams", Value: ResourcesListParams{}},
+	{Name: "ResourceSnapshotRecord", Value: ResourceSnapshotRecord{}},
+	{Name: "ResourcesSnapshotParams", Value: ResourcesSnapshotParams{}},
 	{Name: "ShutdownRequest", Value: subprocess.ShutdownRequest{}},
 	{Name: "ShutdownResponse", Value: subprocess.ShutdownResponse{}},
 	{Name: "BridgeInstance", Value: bridgepkg.BridgeInstance{}},
@@ -70,6 +83,16 @@ var sdkRootTypes = []NamedType{
 	{Name: "ControlPatch", Value: hooks.ControlPatch{}},
 	{Name: "SessionLifecyclePayload", Value: hooks.SessionLifecyclePayload{}},
 	{Name: "SessionCreatePatch", Value: hooks.SessionCreatePatch{}},
+	{Name: "EnvironmentProfilePayload", Value: hooks.EnvironmentProfilePayload{}},
+	{Name: "EnvironmentPreparePayload", Value: hooks.EnvironmentPreparePayload{}},
+	{Name: "EnvironmentReadyPayload", Value: hooks.EnvironmentReadyPayload{}},
+	{Name: "EnvironmentSyncBeforePayload", Value: hooks.EnvironmentSyncBeforePayload{}},
+	{Name: "EnvironmentSyncAfterPayload", Value: hooks.EnvironmentSyncAfterPayload{}},
+	{Name: "EnvironmentStopPayload", Value: hooks.EnvironmentStopPayload{}},
+	{Name: "EnvironmentPreparePatch", Value: hooks.EnvironmentPreparePatch{}},
+	{Name: "EnvironmentSyncBeforePatch", Value: hooks.EnvironmentSyncBeforePatch{}},
+	{Name: "EnvironmentObservationPatch", Value: hooks.EnvironmentObservationPatch{}},
+	{Name: "EnvironmentStopPatch", Value: hooks.EnvironmentStopPatch{}},
 	{Name: "InputPreSubmitPayload", Value: hooks.InputPreSubmitPayload{}},
 	{Name: "InputPreSubmitPatch", Value: hooks.InputPreSubmitPatch{}},
 	{Name: "PromptPayload", Value: hooks.PromptPayload{}},
@@ -157,6 +180,30 @@ var namedHookTypes = map[string]NamedType{
 	"SessionPostResumePatch":    {Name: "SessionPostResumePatch", Value: hooks.SessionPostResumePatch{}},
 	"SessionPreStopPatch":       {Name: "SessionPreStopPatch", Value: hooks.SessionPreStopPatch{}},
 	"SessionPostStopPatch":      {Name: "SessionPostStopPatch", Value: hooks.SessionPostStopPatch{}},
+	"EnvironmentProfilePayload": {Name: "EnvironmentProfilePayload", Value: hooks.EnvironmentProfilePayload{}},
+	"EnvironmentPreparePayload": {Name: "EnvironmentPreparePayload", Value: hooks.EnvironmentPreparePayload{}},
+	"EnvironmentReadyPayload":   {Name: "EnvironmentReadyPayload", Value: hooks.EnvironmentReadyPayload{}},
+	"EnvironmentSyncBeforePayload": {
+		Name:  "EnvironmentSyncBeforePayload",
+		Value: hooks.EnvironmentSyncBeforePayload{},
+	},
+	"EnvironmentSyncAfterPayload": {
+		Name:  "EnvironmentSyncAfterPayload",
+		Value: hooks.EnvironmentSyncAfterPayload{},
+	},
+	"EnvironmentStopPayload":  {Name: "EnvironmentStopPayload", Value: hooks.EnvironmentStopPayload{}},
+	"EnvironmentPreparePatch": {Name: "EnvironmentPreparePatch", Value: hooks.EnvironmentPreparePatch{}},
+	"EnvironmentSyncBeforePatch": {
+		Name:  "EnvironmentSyncBeforePatch",
+		Value: hooks.EnvironmentSyncBeforePatch{},
+	},
+	"EnvironmentObservationPatch": {
+		Name:  "EnvironmentObservationPatch",
+		Value: hooks.EnvironmentObservationPatch{},
+	},
+	"EnvironmentReadyPatch":     {Name: "EnvironmentReadyPatch", Value: hooks.EnvironmentReadyPatch{}},
+	"EnvironmentSyncAfterPatch": {Name: "EnvironmentSyncAfterPatch", Value: hooks.EnvironmentSyncAfterPatch{}},
+	"EnvironmentStopPatch":      {Name: "EnvironmentStopPatch", Value: hooks.EnvironmentStopPatch{}},
 	"InputPreSubmitPayload":     {Name: "InputPreSubmitPayload", Value: hooks.InputPreSubmitPayload{}},
 	"InputPreSubmitPatch":       {Name: "InputPreSubmitPatch", Value: hooks.InputPreSubmitPatch{}},
 	"PromptPayload":             {Name: "PromptPayload", Value: hooks.PromptPayload{}},

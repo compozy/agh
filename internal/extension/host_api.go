@@ -21,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/frontmatter"
 	"github.com/pedronauck/agh/internal/memory"
 	observepkg "github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
@@ -57,6 +58,7 @@ type hostAPIContextKey string
 
 const hostAPIExtensionNameContextKey hostAPIContextKey = "extension.host_api.extension_name"
 const hostAPIBridgeRuntimeContextKey hostAPIContextKey = "extension.host_api.bridge_runtime"
+const hostAPIResourceSessionContextKey hostAPIContextKey = "extension.host_api.resource_session"
 
 // HostAPIOption customizes a HostAPIHandler.
 type HostAPIOption func(*HostAPIHandler)
@@ -73,9 +75,12 @@ type HostAPIHandler struct {
 	bridges          hostAPIBridgeRegistry
 	dedupStore       hostAPIBridgeDedupStore
 	deliveryBroker   hostAPIDeliveryBroker
+	resourceStore    resources.RawStore
+	resourceCodecs   *resources.CodecRegistry
 	capChecker       *CapabilityChecker
 	limiter          *hostAPIRateLimiter
 	automationGetter func() HostAPIAutomationManager
+	resourceTrigger  func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 	now              func() time.Time
 	rateLimit        int
 	rateBurst        int
@@ -98,6 +103,7 @@ type hostAPISessionManager interface {
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	Stop(ctx context.Context, id string) error
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
+	ExecEnvironment(ctx context.Context, req session.EnvironmentExecRequest) (session.EnvironmentExecResult, error)
 }
 
 type hostAPIObserver interface {
@@ -265,6 +271,32 @@ func WithHostAPIDeliveryBroker(broker hostAPIDeliveryBroker) HostAPIOption {
 	}
 }
 
+// WithHostAPIResourceStore injects the canonical raw resource store used by
+// the extension resource Host API methods.
+func WithHostAPIResourceStore(store resources.RawStore) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.resourceStore = store
+	}
+}
+
+// WithHostAPIResourceCodecRegistry injects resource codecs used to validate
+// and canonicalize snapshot specs before persistence.
+func WithHostAPIResourceCodecRegistry(registry *resources.CodecRegistry) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.resourceCodecs = registry
+	}
+}
+
+// WithHostAPIResourceTrigger injects the reconcile trigger used after
+// successful snapshot writes.
+func WithHostAPIResourceTrigger(
+	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
+) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.resourceTrigger = trigger
+	}
+}
+
 // WithHostAPIBridgeIngressConfig overrides dedup TTL and cleanup cadence for bridge ingest.
 func WithHostAPIBridgeIngressConfig(dedupTTL time.Duration, cleanupInterval time.Duration) HostAPIOption {
 	return func(handler *HostAPIHandler) {
@@ -387,10 +419,16 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		"tasks/runs/complete":            handler.handleTasksRunsComplete,
 		"tasks/runs/fail":                handler.handleTasksRunsFail,
 		"tasks/runs/cancel":              handler.handleTasksRunsCancel,
+		"resources/list":                 handler.handleResourcesList,
+		"resources/get":                  handler.handleResourcesGet,
+		"resources/snapshot":             handler.handleResourcesSnapshot,
 		"bridges/instances/list":         handler.handleBridgesInstancesList,
 		"bridges/instances/get":          handler.handleBridgesInstancesGet,
 		"bridges/instances/report_state": handler.handleBridgesInstancesReportState,
 		"bridges/messages/ingest":        handler.handleBridgesMessagesIngest,
+		"environment/exec":               handler.handleEnvironmentExec,
+		"environment/info":               handler.handleEnvironmentInfo,
+		"environment/list":               handler.handleEnvironmentList,
 		"memory/forget":                  handler.handleMemoryForget,
 		"memory/recall":                  handler.handleMemoryRecall,
 		"memory/store":                   handler.handleMemoryStore,
@@ -430,10 +468,14 @@ func (h *HostAPIHandler) Handle(
 		return nil, rpcCapabilityDenied(err)
 	}
 	if err := h.limiter.Allow(extName, method); err != nil {
-		return nil, err
+		return nil, normalizeHostAPIRPCError(method, err)
 	}
 
-	return handler(withHostAPIExtensionName(ctx, extName), params)
+	result, err := handler(withHostAPIExtensionName(ctx, extName), params)
+	if err != nil {
+		return nil, normalizeHostAPIRPCError(method, err)
+	}
+	return result, nil
 }
 
 // HandleMethod returns a subprocess-compatible handler for one Host API method.
@@ -464,6 +506,41 @@ func withHostAPIBridgeRuntime(ctx context.Context, bridgeRuntime *subprocess.Ini
 	)
 }
 
+type hostAPIResourceSession struct {
+	Actor resources.MutationActor
+}
+
+func withHostAPIResourceSession(ctx context.Context, session *hostAPIResourceSession) context.Context {
+	if ctx == nil || session == nil {
+		return ctx
+	}
+	cloned := &hostAPIResourceSession{Actor: cloneResourceMutationActor(session.Actor)}
+	return context.WithValue(ctx, hostAPIResourceSessionContextKey, cloned)
+}
+
+func hostAPIResourceSessionFromContext(ctx context.Context) (*hostAPIResourceSession, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	value, ok := ctx.Value(hostAPIResourceSessionContextKey).(*hostAPIResourceSession)
+	if !ok || value == nil {
+		return nil, false
+	}
+	return &hostAPIResourceSession{Actor: cloneResourceMutationActor(value.Actor)}, true
+}
+
+func cloneResourceMutationActor(actor resources.MutationActor) resources.MutationActor {
+	return resources.MutationActor{
+		Kind:          actor.Kind,
+		ID:            actor.ID,
+		SessionNonce:  actor.SessionNonce,
+		Source:        actor.Source,
+		MaxScope:      actor.MaxScope,
+		GrantedKinds:  append([]resources.ResourceKind(nil), actor.GrantedKinds...),
+		GrantedScopes: append([]resources.ResourceScopeKind(nil), actor.GrantedScopes...),
+	}
+}
+
 type hostAPISessionsListParams = extensioncontract.SessionsListParams
 
 type hostAPISessionCreateParams = extensioncontract.SessionsCreateParams
@@ -473,6 +550,12 @@ type hostAPISessionPromptParams = extensioncontract.SessionsPromptParams
 type hostAPISessionTargetParams = extensioncontract.SessionTargetParams
 
 type hostAPISessionEventsParams = extensioncontract.SessionEventsParams
+
+type hostAPIEnvironmentListParams = extensioncontract.EnvironmentListParams
+
+type hostAPIEnvironmentInfoParams = extensioncontract.EnvironmentInfoParams
+
+type hostAPIEnvironmentExecParams = extensioncontract.EnvironmentExecParams
 
 type hostAPIMemoryStoreParams = extensioncontract.MemoryStoreParams
 
@@ -493,6 +576,14 @@ type hostAPISessionEvent = extensioncontract.SessionEvent
 type hostAPISessionCreateResult = extensioncontract.SessionCreateResult
 
 type hostAPISessionPromptResult = extensioncontract.SessionPromptResult
+
+type hostAPIEnvironmentListResult = extensioncontract.EnvironmentListResult
+
+type hostAPIEnvironmentSummary = extensioncontract.EnvironmentSummary
+
+type hostAPIEnvironmentInfoResult = extensioncontract.EnvironmentInfoResult
+
+type hostAPIEnvironmentExecResult = extensioncontract.EnvironmentExecResult
 
 type hostAPIMemoryRecallEntry = extensioncontract.MemoryRecallEntry
 
@@ -548,6 +639,12 @@ type hostAPITaskRunFailParams = extensioncontract.TaskRunFailParams
 
 type hostAPITaskRunCancelParams = extensioncontract.TaskRunCancelParams
 
+type hostAPIResourcesListParams = extensioncontract.ResourcesListParams
+
+type hostAPIResourceGetParams = extensioncontract.ResourceGetParams
+
+type hostAPIResourcesSnapshotParams = extensioncontract.ResourcesSnapshotParams
+
 type hostAPIBridgesMessagesIngestParams = extensioncontract.BridgesMessagesIngestParams
 
 type hostAPIBridgesMessagesIngestResult = extensioncontract.BridgesMessagesIngestResult
@@ -557,6 +654,8 @@ type hostAPIBridgeInstanceTargetParams = extensioncontract.BridgeInstanceTargetP
 type hostAPIBridgesInstancesReportStateParams = extensioncontract.BridgesInstancesReportStateParams
 
 type hostAPIBridgeInstance = bridgepkg.BridgeInstance
+
+type hostAPIResourceRecord = extensioncontract.ResourceRecord
 
 func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMessage) (any, error) {
 	if h.sessions == nil {
@@ -732,6 +831,155 @@ func (h *HostAPIHandler) handleSessionsEvents(ctx context.Context, raw json.RawM
 		})
 	}
 	return result, nil
+}
+
+func (h *HostAPIHandler) handleEnvironmentList(ctx context.Context, raw json.RawMessage) (any, error) {
+	if h.sessions == nil {
+		return nil, errors.New("extension: session manager is not configured")
+	}
+
+	var params hostAPIEnvironmentListParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	filterWorkspaceID, filterWorkspaceRoot, err := h.resolveEnvironmentWorkspaceFilter(ctx, params.Workspace)
+	if err != nil {
+		return nil, err
+	}
+
+	infos, err := h.sessions.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := hostAPIEnvironmentListResult{
+		Environments: make([]hostAPIEnvironmentSummary, 0, len(infos)),
+	}
+	for _, info := range infos {
+		if info == nil || info.Environment == nil || info.State == session.StateStopped {
+			continue
+		}
+		if filterWorkspaceID != "" || filterWorkspaceRoot != "" {
+			if info.WorkspaceID != filterWorkspaceID && info.Workspace != filterWorkspaceRoot {
+				continue
+			}
+		}
+		result.Environments = append(result.Environments, hostAPIEnvironmentSummary{
+			SessionID:     info.ID,
+			EnvironmentID: strings.TrimSpace(info.Environment.EnvironmentID),
+			Backend:       strings.TrimSpace(info.Environment.Backend),
+			Profile:       strings.TrimSpace(info.Environment.Profile),
+			InstanceID:    strings.TrimSpace(info.Environment.InstanceID),
+			State:         strings.TrimSpace(info.Environment.State),
+			SyncState:     hostAPIEnvironmentSyncState(info.Environment),
+		})
+	}
+	return result, nil
+}
+
+func (h *HostAPIHandler) handleEnvironmentInfo(ctx context.Context, raw json.RawMessage) (any, error) {
+	if h.sessions == nil {
+		return nil, errors.New("extension: session manager is not configured")
+	}
+	var params hostAPIEnvironmentInfoParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	sessionID := strings.TrimSpace(params.SessionID)
+	if sessionID == "" {
+		return nil, invalidParamsRPCError(errors.New("session_id is required"))
+	}
+	info, err := h.sessions.Status(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, session.ErrSessionNotFound) {
+			return nil, notFoundRPCError("session", sessionID, err)
+		}
+		return nil, err
+	}
+	if info == nil || info.Environment == nil {
+		return nil, notFoundRPCError("environment", sessionID, errors.New("environment is not configured"))
+	}
+	return hostAPIEnvironmentInfoResult{
+		EnvironmentID: strings.TrimSpace(info.Environment.EnvironmentID),
+		Backend:       strings.TrimSpace(info.Environment.Backend),
+		Profile:       strings.TrimSpace(info.Environment.Profile),
+		InstanceID:    strings.TrimSpace(info.Environment.InstanceID),
+		RuntimeRoot:   strings.TrimSpace(info.Environment.RuntimeRootDir),
+		SyncState:     hostAPIEnvironmentSyncState(info.Environment),
+		CreatedAt:     info.CreatedAt,
+		LastSyncError: strings.TrimSpace(info.Environment.LastSyncError),
+	}, nil
+}
+
+func (h *HostAPIHandler) handleEnvironmentExec(ctx context.Context, raw json.RawMessage) (any, error) {
+	if h.sessions == nil {
+		return nil, errors.New("extension: session manager is not configured")
+	}
+	var params hostAPIEnvironmentExecParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	sessionID := strings.TrimSpace(params.SessionID)
+	if sessionID == "" {
+		return nil, invalidParamsRPCError(errors.New("session_id is required"))
+	}
+	command := strings.TrimSpace(params.Command)
+	if command == "" {
+		return nil, invalidParamsRPCError(errors.New("command is required"))
+	}
+	if params.Timeout < 0 {
+		return nil, invalidParamsRPCError(errors.New("timeout must be non-negative"))
+	}
+	result, err := h.sessions.ExecEnvironment(ctx, session.EnvironmentExecRequest{
+		SessionID: sessionID,
+		Command:   command,
+		Timeout:   time.Duration(params.Timeout) * time.Second,
+	})
+	if err != nil {
+		if errors.Is(err, session.ErrSessionNotFound) {
+			return nil, notFoundRPCError("session", sessionID, err)
+		}
+		if errors.Is(err, session.ErrSessionNotActive) {
+			return nil, unavailableRPCError(err)
+		}
+		return nil, err
+	}
+	return hostAPIEnvironmentExecResult{
+		ExitCode: result.ExitCode,
+		Stdout:   result.Stdout,
+		Stderr:   result.Stderr,
+	}, nil
+}
+
+func (h *HostAPIHandler) resolveEnvironmentWorkspaceFilter(
+	ctx context.Context,
+	workspace string,
+) (string, string, error) {
+	workspace = strings.TrimSpace(workspace)
+	if workspace == "" {
+		return "", "", nil
+	}
+	if h.workspaces == nil {
+		return workspace, workspace, nil
+	}
+	resolved, err := h.workspaces.Resolve(ctx, workspace)
+	if err != nil {
+		return "", "", err
+	}
+	return strings.TrimSpace(resolved.ID), strings.TrimSpace(resolved.RootDir), nil
+}
+
+func hostAPIEnvironmentSyncState(meta *store.SessionEnvironmentMeta) string {
+	if meta == nil {
+		return ""
+	}
+	if strings.TrimSpace(meta.LastSyncError) != "" {
+		return extensionStateError
+	}
+	if meta.LastSyncAt != nil {
+		return "synced"
+	}
+	return "pending"
 }
 
 func (h *HostAPIHandler) handleMemoryStore(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -2006,7 +2254,63 @@ func rpcCapabilityDenied(err error) error {
 	if !errors.As(err, &denied) {
 		return err
 	}
+	if isResourceHostAPIMethod(denied.Data.Method) {
+		return hostAPIStatusRPCError(403, "Forbidden", map[string]any{
+			"error":    denied.Error(),
+			"method":   strings.TrimSpace(denied.Data.Method),
+			"required": append([]string(nil), denied.Data.Required...),
+			"granted":  append([]string(nil), denied.Data.Granted...),
+		})
+	}
 	return subprocess.NewRPCError(denied.Code(), "Capability denied", denied.Data)
+}
+
+func normalizeHostAPIRPCError(method string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if !isResourceHostAPIMethod(method) {
+		return err
+	}
+
+	var rpcErr *subprocess.RPCError
+	if errors.As(err, &rpcErr) {
+		if rpcErr.Code == HostAPIRateLimitedCode {
+			return hostAPIStatusRPCError(429, "Rate limited", rpcErr.Data)
+		}
+		return err
+	}
+
+	switch {
+	case errors.Is(err, resources.ErrPermissionDenied), errors.Is(err, resources.ErrDirectMutationNotAllowed):
+		return hostAPIStatusRPCError(403, "Forbidden", map[string]any{"error": err.Error()})
+	case errors.Is(err, resources.ErrConflict), errors.Is(err, resources.ErrSessionNotActive),
+		errors.Is(err, resources.ErrStaleSourceVersion):
+		return hostAPIStatusRPCError(409, "Conflict", map[string]any{"error": err.Error()})
+	case errors.Is(err, resources.ErrPayloadTooLarge):
+		return hostAPIStatusRPCError(413, "Payload too large", map[string]any{"error": err.Error()})
+	case errors.Is(err, resources.ErrNotFound):
+		return notFoundRPCError("resource", "", err)
+	case errors.Is(err, resources.ErrValidation), errors.Is(err, resources.ErrInvalidScopeBinding):
+		return invalidParamsRPCError(err)
+	default:
+		return err
+	}
+}
+
+func hostAPIStatusRPCError(code int, message string, data any) error {
+	return subprocess.NewRPCError(code, strings.TrimSpace(message), data)
+}
+
+func isResourceHostAPIMethod(method string) bool {
+	switch strings.TrimSpace(method) {
+	case string(extensioncontract.HostAPIMethodResourcesList),
+		string(extensioncontract.HostAPIMethodResourcesGet),
+		string(extensioncontract.HostAPIMethodResourcesSnapshot):
+		return true
+	default:
+		return false
+	}
 }
 
 func withHostAPIExtensionName(ctx context.Context, extName string) context.Context {

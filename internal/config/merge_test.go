@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pedronauck/agh/internal/resources"
 )
 
 func TestApplyConfigOverlayFileAppliesSkillsOverlay(t *testing.T) {
@@ -152,6 +154,137 @@ max_queue_depth = 12
 			t.Fatalf("ApplyConfigOverlayFile() Network.MaxQueueDepth = %d, want %d", got, want)
 		}
 	})
+}
+
+func TestApplyConfigOverlayFileMergesEnvironmentProfiles(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg := DefaultWithHome(homePaths)
+	cfg.Environments["daytona-dev"] = EnvironmentProfile{
+		Backend:     "daytona",
+		SyncMode:    "session-bidirectional",
+		Persistence: "reuse",
+		RuntimeRoot: "/workspace",
+		Env: map[string]string{
+			"GLOBAL_ONLY": "true",
+			"SHARED":      "global",
+		},
+		Network: NetworkProfile{
+			AllowOutbound: true,
+			AllowList:     []string{"api.example.test"},
+		},
+		Daytona: DaytonaProfile{
+			APIURL: "https://app.daytona.io/api",
+			Target: "team-default",
+			Image:  "ubuntu:24.04",
+			Class:  "cpu-2",
+		},
+	}
+
+	overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+	writeFile(t, overlayPath, `
+[defaults]
+environment = "daytona-dev"
+
+[environments.daytona-dev]
+sync_mode = "none"
+
+[environments.daytona-dev.env]
+SHARED = "workspace"
+WORKSPACE_ONLY = "true"
+
+[environments.daytona-dev.daytona]
+snapshot = "snap-workspace"
+`)
+
+	if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+		t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+	}
+
+	profile := cfg.Environments["daytona-dev"]
+	if got, want := cfg.Defaults.Environment, "daytona-dev"; got != want {
+		t.Fatalf("Defaults.Environment = %q, want %q", got, want)
+	}
+	if profile.Backend != "daytona" || profile.Persistence != "reuse" || profile.RuntimeRoot != "/workspace" {
+		t.Fatalf("environment profile base fields not preserved: %#v", profile)
+	}
+	if profile.SyncMode != "none" {
+		t.Fatalf("environment SyncMode = %q, want none", profile.SyncMode)
+	}
+	if profile.Daytona.APIURL != "https://app.daytona.io/api" ||
+		profile.Daytona.Image != "ubuntu:24.04" ||
+		profile.Daytona.Snapshot != "snap-workspace" {
+		t.Fatalf("Daytona overlay did not preserve provider fields: %#v", profile.Daytona)
+	}
+	if got, want := profile.Env["GLOBAL_ONLY"], "true"; got != want {
+		t.Fatalf("Env[GLOBAL_ONLY] = %q, want %q", got, want)
+	}
+	if got, want := profile.Env["SHARED"], "workspace"; got != want {
+		t.Fatalf("Env[SHARED] = %q, want %q", got, want)
+	}
+	if got, want := profile.Env["WORKSPACE_ONLY"], "true"; got != want {
+		t.Fatalf("Env[WORKSPACE_ONLY] = %q, want %q", got, want)
+	}
+}
+
+func TestApplyConfigOverlayFileAppliesExtensionsResourceOverlay(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg := DefaultWithHome(homePaths)
+	cfg.Extensions.Resources.OperatorWriteRateLimit = ExtensionsResourceRateLimitConfig{
+		Requests: 12,
+		Window:   time.Minute,
+		Queue:    0,
+	}
+
+	overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+	writeFile(t, overlayPath, `
+[extensions.resources]
+allowed_kinds = ["tool"]
+max_scope = "workspace"
+
+[extensions.resources.snapshot_rate_limit]
+requests = 2
+window = "8s"
+queue = 1
+`)
+
+	if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+		t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+	}
+	if got, want := cfg.Extensions.Resources.AllowedKinds, []resources.ResourceKind{
+		resources.ResourceKind("tool"),
+	}; !slices.Equal(
+		got,
+		want,
+	) {
+		t.Fatalf("ApplyConfigOverlayFile() AllowedKinds = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.MaxScope, resources.ResourceScopeKindWorkspace; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() MaxScope = %q, want %q", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.SnapshotRateLimit.Requests, 2; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() SnapshotRateLimit.Requests = %d, want %d", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.SnapshotRateLimit.Window, 8*time.Second; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() SnapshotRateLimit.Window = %s, want %s", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.OperatorWriteRateLimit.Requests, 12; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() OperatorWriteRateLimit.Requests = %d, want %d", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.OperatorWriteRateLimit.Window, time.Minute; got != want {
+		t.Fatalf("ApplyConfigOverlayFile() OperatorWriteRateLimit.Window = %s, want %s", got, want)
+	}
 }
 
 func TestValidateWrapsNetworkErrorsWithConfigContext(t *testing.T) {

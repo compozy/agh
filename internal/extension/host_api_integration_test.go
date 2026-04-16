@@ -14,6 +14,7 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -113,6 +114,254 @@ func TestHostAPIIntegrationStoresAndRecallsMemory(t *testing.T) {
 	decodeResult(t, result, &entries)
 	if len(entries) == 0 {
 		t.Fatal("memory/recall len = 0, want stored memory")
+	}
+}
+
+func TestHostAPIIntegrationResourcesSnapshotPublishesAndReadsBack(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grantWithResources(
+		t,
+		"ext-resources",
+		[]string{"resources/list", "resources/get", "resources/snapshot"},
+		[]string{"resource.read", "resource.write"},
+		[]string{"tools"},
+		resources.ResourceScopeKindWorkspace,
+	)
+
+	sessionNonce := "nonce-integration"
+	env.activateResourceSession(t, "ext-resources", sessionNonce)
+
+	if _, err := env.callResource(t, "ext-resources", sessionNonce, "resources/snapshot", map[string]any{
+		"source_version": 1,
+		"records": []map[string]any{
+			{
+				"kind":  "tool",
+				"id":    "grep",
+				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+				"spec":  hostAPITestToolSpec("grep", "search workspace", "extension"),
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Handle(resources/snapshot) error = %v", err)
+	}
+
+	listResult, err := env.callResource(t, "ext-resources", sessionNonce, "resources/list", map[string]any{
+		"kind": "tool",
+	})
+	if err != nil {
+		t.Fatalf("Handle(resources/list) error = %v", err)
+	}
+
+	var listed []hostAPIResourceRecord
+	decodeResult(t, listResult, &listed)
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(resources/list) = %d, want %d", got, want)
+	}
+	if got, want := listed[0].ID, "grep"; got != want {
+		t.Fatalf("resources/list[0].ID = %q, want %q", got, want)
+	}
+
+	getResult, err := env.callResource(t, "ext-resources", sessionNonce, "resources/get", map[string]any{
+		"kind": "tool",
+		"id":   "grep",
+	})
+	if err != nil {
+		t.Fatalf("Handle(resources/get) error = %v", err)
+	}
+
+	var record hostAPIResourceRecord
+	decodeResult(t, getResult, &record)
+	if got, want := record.Version, int64(1); got != want {
+		t.Fatalf("resources/get version = %d, want %d", got, want)
+	}
+}
+
+func TestHostAPIIntegrationBridgeProviderKeepsOperationalMethodsAlongsideGenericResourceReads(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grantWithResources(
+		t,
+		"telegram-adapter",
+		[]string{"resources/list", "resources/get", "bridges/instances/list", "bridges/instances/get"},
+		[]string{"resource.read", "bridge.read"},
+		[]string{"tools"},
+		resources.ResourceScopeKindWorkspace,
+	)
+
+	sessionNonce := "nonce-bridge-provider"
+	env.activateResourceSession(t, "telegram-adapter", sessionNonce)
+
+	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ID:            "brg-resource-coexist",
+		ExtensionName: "telegram-adapter",
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	})
+	ctx := env.bridgeContext(t, instance)
+
+	listResult, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/list", nil)
+	if err != nil {
+		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
+	}
+
+	var listed []hostAPIBridgeInstance
+	decodeResult(t, listResult, &listed)
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(bridges/instances/list) = %d, want %d", got, want)
+	}
+	if got, want := listed[0].ID, instance.ID; got != want {
+		t.Fatalf("bridges/instances/list[0].ID = %q, want %q", got, want)
+	}
+
+	getResult, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/get", map[string]any{
+		"bridge_instance_id": instance.ID,
+	})
+	if err != nil {
+		t.Fatalf("Handle(bridges/instances/get) error = %v", err)
+	}
+
+	var loaded hostAPIBridgeInstance
+	decodeResult(t, getResult, &loaded)
+	if got, want := loaded.ID, instance.ID; got != want {
+		t.Fatalf("bridges/instances/get id = %q, want %q", got, want)
+	}
+
+	resourceListResult, err := env.callResource(
+		t,
+		"telegram-adapter",
+		sessionNonce,
+		"resources/list",
+		map[string]any{"kind": "tool"},
+	)
+	if err != nil {
+		t.Fatalf("Handle(resources/list) error = %v", err)
+	}
+
+	var resourcesListed []hostAPIResourceRecord
+	decodeResult(t, resourceListResult, &resourcesListed)
+	if got := len(resourcesListed); got != 0 {
+		t.Fatalf("len(resources/list tool) = %d, want 0", got)
+	}
+
+	_, err = env.callResource(t, "telegram-adapter", sessionNonce, "resources/get", map[string]any{
+		"kind": "bridge.instance",
+		"id":   instance.ID,
+	})
+	assertRPCErrorCode(t, err, 403)
+}
+
+func TestHostAPIIntegrationSecondResourceSessionInvalidatesOlderNonce(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grantWithResources(
+		t,
+		"ext-resources",
+		[]string{"resources/snapshot"},
+		[]string{"resource.write"},
+		[]string{"tools"},
+		resources.ResourceScopeKindWorkspace,
+	)
+
+	firstNonce := "nonce-first"
+	env.activateResourceSession(t, "ext-resources", firstNonce)
+	if _, err := env.callResource(t, "ext-resources", firstNonce, "resources/snapshot", map[string]any{
+		"source_version": 1,
+		"records": []map[string]any{
+			{
+				"kind":  "tool",
+				"id":    "grep",
+				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+				"spec":  hostAPITestToolSpec("grep", "search workspace", "extension"),
+			},
+		},
+	}); err != nil {
+		t.Fatalf("first Handle(resources/snapshot) error = %v", err)
+	}
+
+	secondNonce := "nonce-second"
+	env.activateResourceSession(t, "ext-resources", secondNonce)
+
+	if _, err := env.callResource(t, "ext-resources", secondNonce, "resources/snapshot", map[string]any{
+		"source_version": 1,
+		"records": []map[string]any{
+			{
+				"kind":  "tool",
+				"id":    "grep",
+				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+				"spec":  hostAPITestToolSpec("grep", "search workspace v2", "extension"),
+			},
+		},
+	}); err != nil {
+		t.Fatalf("second Handle(resources/snapshot) error = %v", err)
+	}
+
+	_, err := env.callResource(t, "ext-resources", firstNonce, "resources/snapshot", map[string]any{
+		"source_version": 2,
+		"records": []map[string]any{
+			{
+				"kind":  "tool",
+				"id":    "grep",
+				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+				"spec":  hostAPITestToolSpec("grep", "stale workspace search", "extension"),
+			},
+		},
+	})
+	assertRPCErrorCode(t, err, 409)
+}
+
+func TestHostAPIIntegrationResourceSnapshotReplacesToolSetAndRemovesStaleTools(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grantWithResources(
+		t,
+		"ext-resources",
+		[]string{"resources/list", "resources/snapshot"},
+		[]string{"resource.read", "resource.write"},
+		[]string{"tools"},
+		resources.ResourceScopeKindWorkspace,
+	)
+
+	sessionNonce := "nonce-replace"
+	env.activateResourceSession(t, "ext-resources", sessionNonce)
+
+	if _, err := env.callResource(t, "ext-resources", sessionNonce, "resources/snapshot", map[string]any{
+		"source_version": 1,
+		"records": []map[string]any{
+			{
+				"kind":  "tool",
+				"id":    "grep",
+				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+				"spec":  hostAPITestToolSpec("grep", "search workspace", "extension"),
+			},
+		},
+	}); err != nil {
+		t.Fatalf("first Handle(resources/snapshot) error = %v", err)
+	}
+
+	if _, err := env.callResource(t, "ext-resources", sessionNonce, "resources/snapshot", map[string]any{
+		"source_version": 2,
+		"records": []map[string]any{
+			{
+				"kind":  "tool",
+				"id":    "lookup",
+				"scope": map[string]any{"kind": "workspace", "id": env.workspaceID},
+				"spec":  hostAPITestToolSpec("lookup", "lookup workspace", "extension"),
+			},
+		},
+	}); err != nil {
+		t.Fatalf("second Handle(resources/snapshot) error = %v", err)
+	}
+
+	listResult, err := env.callResource(t, "ext-resources", sessionNonce, "resources/list", map[string]any{
+		"kind": "tool",
+	})
+	if err != nil {
+		t.Fatalf("Handle(resources/list) error = %v", err)
+	}
+
+	var listed []hostAPIResourceRecord
+	decodeResult(t, listResult, &listed)
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(resources/list) = %d, want %d", got, want)
+	}
+	if got, want := listed[0].ID, "lookup"; got != want {
+		t.Fatalf("resources/list[0].ID = %q, want %q", got, want)
 	}
 }
 
@@ -280,7 +529,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestCreatesRouteAndSession(t *testin
 	})
 	ctx := env.bridgeContext(t, instance)
 
-	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+	result, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
 		"bridge_instance_id":  instance.ID,
 		"scope":               instance.Scope,
 		"workspace_id":        instance.WorkspaceID,
@@ -327,7 +576,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestSupportsSiblingInstancesInOneRun
 	})
 	ctx := env.bridgeContextForInstances(t, first, second)
 
-	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+	result, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
 		"bridge_instance_id":  second.ID,
 		"scope":               second.Scope,
 		"workspace_id":        second.WorkspaceID,
@@ -384,7 +633,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed(t *te
 		"content":             map[string]any{"text": "retry me"},
 	}
 
-	first, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", params)
+	first, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", params)
 	if err != nil {
 		t.Fatalf("first Handle(bridges/messages/ingest) error = %v", err)
 	}
@@ -393,7 +642,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed(t *te
 
 	env.advanceTime(2 * time.Minute)
 
-	second, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", params)
+	second, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", params)
 	if err != nil {
 		t.Fatalf("retry Handle(bridges/messages/ingest) error = %v", err)
 	}
@@ -430,7 +679,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestRejectsNonOwnedInstance(t *testi
 	})
 	ctx := env.bridgeContext(t, owned)
 
-	_, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+	_, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
 		"bridge_instance_id":  foreign.ID,
 		"scope":               foreign.Scope,
 		"workspace_id":        foreign.WorkspaceID,
@@ -454,7 +703,7 @@ func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *t
 	})
 	ctx := env.bridgeContext(t, instance)
 
-	result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/report_state", map[string]any{
+	result, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/report_state", map[string]any{
 		"bridge_instance_id": instance.ID,
 		"status":             "auth_required",
 		"degradation": map[string]any{
@@ -475,7 +724,7 @@ func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *t
 		t.Fatalf("bridges/instances/report_state degradation = %#v, want auth_failed", updated.Degradation)
 	}
 
-	fetched, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", map[string]any{
+	fetched, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/get", map[string]any{
 		"bridge_instance_id": instance.ID,
 	})
 	if err != nil {
@@ -511,7 +760,7 @@ func TestHostAPIIntegrationBridgesInstancesListAndGetReturnOwnedInstances(t *tes
 
 	ctx := env.bridgeContextForInstances(t, first, second)
 
-	listedResult, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/list", nil)
+	listedResult, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/list", nil)
 	if err != nil {
 		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
 	}
@@ -525,7 +774,7 @@ func TestHostAPIIntegrationBridgesInstancesListAndGetReturnOwnedInstances(t *tes
 		t.Fatalf("bridges/instances/list ids = %#v, want %#v", got, want)
 	}
 
-	fetchedResult, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/instances/get", map[string]any{
+	fetchedResult, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/instances/get", map[string]any{
 		"bridge_instance_id": second.ID,
 	})
 	if err != nil {
@@ -561,7 +810,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestConcurrentSameRoutingKeyUsesOneR
 		idx := idx
 		go func() {
 			defer func() { done <- struct{}{} }()
-			result, err := env.callWithContext(t, ctx, "telegram-adapter", "bridges/messages/ingest", map[string]any{
+			result, err := env.callWithContext(ctx, t, "telegram-adapter", "bridges/messages/ingest", map[string]any{
 				"bridge_instance_id":  instance.ID,
 				"scope":               instance.Scope,
 				"workspace_id":        instance.WorkspaceID,

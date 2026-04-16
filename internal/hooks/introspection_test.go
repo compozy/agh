@@ -105,6 +105,18 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		descriptor.PatchSchema != "AutomationObservationPatch" {
 		t.Fatalf("automation.run.failed descriptor = %#v, want automation async observation schema", descriptor)
 	}
+	if descriptor := byEvent[HookEnvironmentPrepare]; descriptor.Family != HookEventFamilyEnvironment ||
+		!descriptor.SyncEligible ||
+		descriptor.PayloadSchema != "EnvironmentPreparePayload" ||
+		descriptor.PatchSchema != "EnvironmentPreparePatch" {
+		t.Fatalf("environment.prepare descriptor = %#v, want sync environment prepare descriptor", descriptor)
+	}
+	if descriptor := byEvent[HookEnvironmentSyncAfter]; descriptor.Family != HookEventFamilyEnvironment ||
+		descriptor.SyncEligible ||
+		descriptor.PayloadSchema != "EnvironmentSyncAfterPayload" ||
+		descriptor.PatchSchema != "EnvironmentSyncAfterPatch" {
+		t.Fatalf("environment.sync.after descriptor = %#v, want async sync-after descriptor", descriptor)
+	}
 }
 
 func TestHooksCatalogFiltersByEventSourceModeAndExposesExecutorKind(t *testing.T) {

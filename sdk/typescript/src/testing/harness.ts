@@ -18,6 +18,9 @@ export interface HarnessLoadOptions {
   provides?: string[];
   grantedActions?: string[];
   grantedSecurity?: string[];
+  grantedResourceKinds?: string[];
+  grantedResourceScopes?: ("global" | "workspace")[];
+  sessionNonce?: string;
   capabilities?: string[];
   daemonRequests?: string[];
   extensionServices?: string[];
@@ -47,7 +50,7 @@ const DEFAULT_RUNTIME: InitializeRuntime = {
   default_hook_timeout_ms: 5_000,
 };
 
-const DAEMON_METHODS = new Set(["execute_hook", "health_check", "shutdown", "provide_tools"]);
+const DAEMON_METHODS = new Set(["execute_hook", "health_check", "shutdown"]);
 
 export class TestHarness {
   private readonly mockedHostHandlers = new Map<
@@ -188,6 +191,7 @@ export class TestHarness {
       protocol_version: "1",
       supported_protocol_versions: ["1" satisfies ProtocolVersion],
       agh_version: options.aghVersion ?? "0.5.0",
+      session_nonce: options.sessionNonce ?? "session-nonce-test",
       extension: {
         name: definition.name,
         version: definition.version,
@@ -197,6 +201,8 @@ export class TestHarness {
         provides: options.provides ?? [...requestedProvides],
         granted_actions: (options.grantedActions ?? [...requestedActions]) as HostAPIMethod[],
         granted_security: options.grantedSecurity ?? options.capabilities ?? [...requestedSecurity],
+        granted_resource_kinds: options.grantedResourceKinds ?? [],
+        granted_resource_scopes: options.grantedResourceScopes ?? [],
       },
       methods: {
         daemon_requests: daemonRequests,

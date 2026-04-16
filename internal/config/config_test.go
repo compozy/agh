@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/environment"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 )
 
 func TestLoadValidTOMLConfigWithAllSections(t *testing.T) {
@@ -233,6 +235,180 @@ max_queue_depth = 250
 	}
 	if len(claude.MCPServers) != 1 || claude.MCPServers[0].Name != "github" {
 		t.Fatalf("ResolveProvider() MCPServers = %#v", claude.MCPServers)
+	}
+}
+
+func TestLoadEnvironmentProfilesFromTOML(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[defaults]
+environment = "daytona-dev"
+
+[environments.local]
+backend = "local"
+
+[environments.daytona-dev]
+backend = "daytona"
+sync_mode = "session-bidirectional"
+persistence = "reuse"
+runtime_root = "/home/daytona/workspace"
+
+[environments.daytona-dev.env]
+NODE_ENV = "development"
+AGH_PROFILE = "daytona"
+
+[environments.daytona-dev.network]
+allow_public_ingress = false
+allow_outbound = true
+allow_list = ["api.example.test"]
+deny_list = ["metadata.google.internal"]
+
+[environments.daytona-dev.daytona]
+api_url = "https://app.daytona.io/api"
+target = "team-default"
+image = "ubuntu:24.04"
+snapshot = "snap-agent-base"
+class = "cpu-2"
+auto_stop = "30m"
+auto_archive = "24h"
+`)
+
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got, want := cfg.Defaults.Environment, "daytona-dev"; got != want {
+		t.Fatalf("Defaults.Environment = %q, want %q", got, want)
+	}
+	profile := cfg.Environments["daytona-dev"]
+	if profile.Backend != "daytona" || profile.Daytona.Snapshot != "snap-agent-base" {
+		t.Fatalf("daytona profile = %#v, want parsed profile", profile)
+	}
+	if got, want := profile.Env["NODE_ENV"], "development"; got != want {
+		t.Fatalf("profile Env[NODE_ENV] = %q, want %q", got, want)
+	}
+
+	resolved, err := cfg.ResolveEnvironment(cfg.Defaults.Environment)
+	if err != nil {
+		t.Fatalf("ResolveEnvironment() error = %v", err)
+	}
+	if resolved.Backend != environment.BackendDaytona {
+		t.Fatalf("resolved.Backend = %q, want %q", resolved.Backend, environment.BackendDaytona)
+	}
+	if resolved.SyncMode != environment.SyncModeSessionBidirectional ||
+		resolved.Persistence != environment.PersistenceReuse {
+		t.Fatalf("resolved sync/persistence = %q/%q", resolved.SyncMode, resolved.Persistence)
+	}
+	if resolved.Daytona == nil {
+		t.Fatal("resolved.Daytona = nil, want profile")
+	}
+	if got, want := resolved.Daytona.StartupSource, environment.DaytonaStartupSourceSnapshot; got != want {
+		t.Fatalf("resolved Daytona startup source = %q, want %q", got, want)
+	}
+	if got, want := resolved.Daytona.StartupRef, "snap-agent-base"; got != want {
+		t.Fatalf("resolved Daytona startup ref = %q, want %q", got, want)
+	}
+}
+
+func TestDaytonaSnapshotWinsOverImageInResolvedProfile(t *testing.T) {
+	t.Parallel()
+
+	resolved, err := (EnvironmentProfile{
+		Backend: "daytona",
+		Daytona: DaytonaProfile{
+			Image:    "ubuntu:24.04",
+			Snapshot: "snap-prebuilt",
+		},
+	}).Resolve("daytona-dev")
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if resolved.Daytona == nil {
+		t.Fatal("resolved.Daytona = nil, want profile")
+	}
+	if got, want := resolved.Daytona.StartupSource, environment.DaytonaStartupSourceSnapshot; got != want {
+		t.Fatalf("StartupSource = %q, want %q", got, want)
+	}
+	if got, want := resolved.Daytona.StartupRef, "snap-prebuilt"; got != want {
+		t.Fatalf("StartupRef = %q, want %q", got, want)
+	}
+	if got, want := resolved.Daytona.Image, "ubuntu:24.04"; got != want {
+		t.Fatalf("Image = %q, want preserved fallback %q", got, want)
+	}
+}
+
+func TestEnvironmentProfileValidationRejectsInvalidBackend(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := DefaultWithHome(homePaths)
+	cfg.Environments["bad"] = EnvironmentProfile{Backend: "docker"}
+
+	err = cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want invalid backend")
+	}
+	if !strings.Contains(err.Error(), "environments.bad.backend") {
+		t.Fatalf("Validate() error = %v, want environments.bad.backend", err)
+	}
+}
+
+func TestEnvironmentProfileValidationRejectsInvalidSyncMode(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := DefaultWithHome(homePaths)
+	cfg.Environments["bad"] = EnvironmentProfile{
+		Backend:  "daytona",
+		SyncMode: "continuous",
+	}
+
+	err = cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want invalid sync_mode")
+	}
+	if !strings.Contains(err.Error(), "environments.bad.sync_mode") {
+		t.Fatalf("Validate() error = %v, want environments.bad.sync_mode", err)
+	}
+}
+
+func TestEnvironmentProfileValidationRejectsInvalidPersistence(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := DefaultWithHome(homePaths)
+	cfg.Environments["bad"] = EnvironmentProfile{
+		Backend:     "daytona",
+		Persistence: "forever",
+	}
+
+	err = cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want invalid persistence")
+	}
+	if !strings.Contains(err.Error(), "environments.bad.persistence") {
+		t.Fatalf("Validate() error = %v, want environments.bad.persistence", err)
 	}
 }
 
@@ -695,6 +871,12 @@ func TestDefaultWithHomeLeavesMarketplaceConfigEmpty(t *testing.T) {
 	if cfg.Extensions.Marketplace != (ExtensionsMarketplaceConfig{}) {
 		t.Fatalf("DefaultWithHome() Extensions.Marketplace = %#v, want zero value", cfg.Extensions.Marketplace)
 	}
+	if len(cfg.Extensions.Resources.AllowedKinds) != 0 ||
+		cfg.Extensions.Resources.MaxScope != "" ||
+		cfg.Extensions.Resources.SnapshotRateLimit != (ExtensionsResourceRateLimitConfig{}) ||
+		cfg.Extensions.Resources.OperatorWriteRateLimit != (ExtensionsResourceRateLimitConfig{}) {
+		t.Fatalf("DefaultWithHome() Extensions.Resources = %#v, want zero value", cfg.Extensions.Resources)
+	}
 }
 
 func TestSkillsConfigValidateMarketplaceConfig(t *testing.T) {
@@ -830,6 +1012,156 @@ func TestExtensionsConfigValidateMarketplaceConfig(t *testing.T) {
 			t.Fatalf("ExtensionsConfig.Validate(http) logs = %q, want insecure http scheme warning", logs.String())
 		}
 	})
+}
+
+func TestExtensionsConfigValidateResourcesConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		cfg         ExtensionsConfig
+		wantErrPath string
+	}{
+		{
+			name: "ShouldAcceptValidResourcePolicy",
+			cfg: ExtensionsConfig{
+				Resources: ExtensionsResourcesConfig{
+					AllowedKinds: []resources.ResourceKind{
+						resources.ResourceKind("tool"),
+						resources.ResourceKind("mcp_server"),
+					},
+					MaxScope: resources.ResourceScopeKindWorkspace,
+					SnapshotRateLimit: ExtensionsResourceRateLimitConfig{
+						Requests: 2,
+						Window:   5 * time.Second,
+						Queue:    1,
+					},
+					OperatorWriteRateLimit: ExtensionsResourceRateLimitConfig{
+						Requests: 10,
+						Window:   time.Minute,
+						Queue:    0,
+					},
+				},
+			},
+		},
+		{
+			name: "ShouldRejectDaemonOnlyAllowedKind",
+			cfg: ExtensionsConfig{
+				Resources: ExtensionsResourcesConfig{
+					AllowedKinds: []resources.ResourceKind{resources.ResourceKind("bridge.instance")},
+				},
+			},
+			wantErrPath: "extensions.resources.allowed_kinds",
+		},
+		{
+			name: "ShouldRejectInvalidResourceMaxScope",
+			cfg: ExtensionsConfig{
+				Resources: ExtensionsResourcesConfig{
+					MaxScope: resources.ResourceScopeKind("session"),
+				},
+			},
+			wantErrPath: "extensions.resources.max_scope",
+		},
+		{
+			name: "ShouldRejectInvalidSnapshotRateLimit",
+			cfg: ExtensionsConfig{
+				Resources: ExtensionsResourcesConfig{
+					SnapshotRateLimit: ExtensionsResourceRateLimitConfig{
+						Requests: 0,
+						Window:   time.Second,
+					},
+				},
+			},
+			wantErrPath: "extensions.resources.snapshot_rate_limit",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+			if tt.wantErrPath == "" {
+				if err != nil {
+					t.Fatalf("ExtensionsConfig.Validate() error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("ExtensionsConfig.Validate() error = nil, want validation failure")
+			}
+			if !strings.Contains(err.Error(), tt.wantErrPath) {
+				t.Fatalf("ExtensionsConfig.Validate() error = %v, want %s context", err, tt.wantErrPath)
+			}
+		})
+	}
+}
+
+func TestLoadRoundTripsExtensionsResourcePolicy(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[extensions.resources]
+allowed_kinds = ["tool", "mcp_server"]
+max_scope = "global"
+
+[extensions.resources.snapshot_rate_limit]
+requests = 3
+window = "15s"
+queue = 1
+
+[extensions.resources.operator_write_rate_limit]
+requests = 12
+window = "1m"
+queue = 0
+`)
+
+	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[extensions.resources]
+allowed_kinds = ["tool"]
+max_scope = "workspace"
+
+[extensions.resources.snapshot_rate_limit]
+requests = 1
+window = "5s"
+queue = 1
+`)
+
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got, want := cfg.Extensions.Resources.AllowedKinds, []resources.ResourceKind{
+		resources.ResourceKind("tool"),
+	}; !slices.Equal(
+		got,
+		want,
+	) {
+		t.Fatalf("Load() AllowedKinds = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.MaxScope, resources.ResourceScopeKindWorkspace; got != want {
+		t.Fatalf("Load() MaxScope = %q, want %q", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.SnapshotRateLimit.Requests, 1; got != want {
+		t.Fatalf("Load() SnapshotRateLimit.Requests = %d, want %d", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.SnapshotRateLimit.Window, 5*time.Second; got != want {
+		t.Fatalf("Load() SnapshotRateLimit.Window = %s, want %s", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.OperatorWriteRateLimit.Requests, 12; got != want {
+		t.Fatalf("Load() OperatorWriteRateLimit.Requests = %d, want %d", got, want)
+	}
+	if got, want := cfg.Extensions.Resources.OperatorWriteRateLimit.Window, time.Minute; got != want {
+		t.Fatalf("Load() OperatorWriteRateLimit.Window = %s, want %s", got, want)
+	}
 }
 
 func TestValidateRejectsInvalidPorts(t *testing.T) {

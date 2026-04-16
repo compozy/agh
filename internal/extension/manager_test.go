@@ -14,9 +14,11 @@ import (
 	"testing"
 	"time"
 
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -37,6 +39,25 @@ func (noopBridgeTelemetrySink) RecordBridgeAuthFailure(string) {}
 func (noopBridgeTelemetrySink) RecordBridgeRuntimeIssue(string, bridgepkg.BridgeStatus, string) {}
 
 func (noopBridgeTelemetrySink) ClearBridgeRuntimeIssue(string) {}
+
+type recordingBridgeTelemetrySink struct {
+	issues []string
+	clears []string
+}
+
+func (r *recordingBridgeTelemetrySink) RecordBridgeAuthFailure(string) {}
+
+func (r *recordingBridgeTelemetrySink) RecordBridgeRuntimeIssue(
+	bridgeInstanceID string,
+	status bridgepkg.BridgeStatus,
+	message string,
+) {
+	r.issues = append(r.issues, fmt.Sprintf("%s:%s:%s", bridgeInstanceID, status, message))
+}
+
+func (r *recordingBridgeTelemetrySink) ClearBridgeRuntimeIssue(bridgeInstanceID string) {
+	r.clears = append(r.clears, bridgeInstanceID)
+}
 
 func TestExtensionManagerHelperProcess(_ *testing.T) {
 	if os.Getenv(extensionHelperEnvKey) != "1" {
@@ -72,11 +93,9 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 
 	fakeProc := newFakeProcess(101)
 	launcher := &fakeLauncher{queue: []*fakeProcess{fakeProc}}
-	skillsRegistry := skillspkg.NewRegistry(skillspkg.RegistryConfig{})
 
 	manager := NewManager(
 		env.registry,
-		WithSkillsRegistry(skillsRegistry),
 		WithHostMethodHandler("sessions/list", func(_ context.Context, _ json.RawMessage) (any, error) {
 			return []map[string]string{{"id": "sess-1"}}, nil
 		}),
@@ -105,6 +124,9 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	request := fakeProc.initRequests()[0]
 	if request.ProtocolVersion != defaultProtocolVersion {
 		t.Fatalf("initialize protocol version = %q, want %q", request.ProtocolVersion, defaultProtocolVersion)
+	}
+	if strings.TrimSpace(request.SessionNonce) == "" {
+		t.Fatal("initialize session nonce = empty, want daemon-issued nonce")
 	}
 	if !slices.Equal(request.Capabilities.GrantedActions, []extensionprotocol.HostAPIMethod{
 		extensionprotocol.HostAPIMethodSessionsList,
@@ -137,22 +159,21 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 		t.Fatalf("AgentDefinitions() = %#v, want ext-agent", agents)
 	}
 
-	servers := manager.MCPServers()
-	if len(servers) != 1 || servers[0].Name != "kubectl" {
-		t.Fatalf("MCPServers() = %#v, want kubectl server", servers)
-	}
-
-	skills := skillsRegistry.List()
-	if len(skills) != 1 || skills[0].Meta.Name != "ext-review" {
-		t.Fatalf("skills registry List() = %#v, want ext-review", skills)
-	}
-
 	loaded, err := manager.Get("ext-runtime")
 	if err != nil {
 		t.Fatalf("Get(ext-runtime) error = %v", err)
 	}
+	if len(loaded.Skills) != 1 || loaded.Skills[0].Meta.Name != "ext-review" {
+		t.Fatalf("Get(ext-runtime).Skills = %#v, want ext-review extension snapshot", loaded.Skills)
+	}
 	if !loaded.Status.Active {
 		t.Fatalf("Get(ext-runtime).Status.Active = false, want true")
+	}
+	if loaded.Manifest == nil || loaded.Manifest.Resources.MCPServers["kubectl"].Command == "" {
+		t.Fatalf(
+			"Get(ext-runtime).Manifest.Resources.MCPServers = %#v, want kubectl manifest declaration",
+			loaded.Manifest,
+		)
 	}
 	if got, want := loaded.Status.Phase, ExtensionPhaseActivate; got != want {
 		t.Fatalf("Get(ext-runtime).Status.Phase = %q, want %q", got, want)
@@ -970,6 +991,11 @@ func TestManagerHelperPathsAndAccessors(t *testing.T) {
 	if !requiresSubprocess(&Manifest{Actions: ActionsConfig{Requires: []string{"sessions/list"}}}) {
 		t.Fatal("requiresSubprocess(actions-only) = false, want true")
 	}
+	if !requiresSubprocess(
+		&Manifest{Resources: ResourcesConfig{Publish: ResourceGrantRequest{Families: []string{"tools"}}}},
+	) {
+		t.Fatal("requiresSubprocess(resource-publish) = false, want true")
+	}
 	if requiresSubprocess(&Manifest{}) {
 		t.Fatal("requiresSubprocess(empty manifest) = true, want false")
 	}
@@ -1107,6 +1133,10 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 			Version: "1.0.0",
 			Resources: ResourcesConfig{
 				Skills: []string{"skills/"},
+				Publish: ResourceGrantRequest{
+					Families: []string{"tools"},
+					MaxScope: resources.ResourceScopeKindWorkspace,
+				},
 			},
 			Capabilities: CapabilitiesConfig{
 				Provides: []string{"memory.backend"},
@@ -1131,6 +1161,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 				Description: "Snapshot skill",
 				Metadata: map[string]any{
 					"nested": map[string]any{"value": "original"},
+					"list":   []any{"original", map[string]any{"child": "value"}},
 				},
 			},
 			Hooks: []hookspkg.HookDecl{{
@@ -1148,6 +1179,36 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 				Hash: "hash-original",
 			},
 		}},
+		bundles: []BundleSpec{{
+			Name:        "bundle-one",
+			Description: "Original bundle",
+			Profiles: []BundleProfile{{
+				Name:        "default",
+				Description: "Default profile",
+				Channels: BundleChannelsConfig{
+					Primary: "primary",
+					Items:   []BundleChannel{{Name: "primary", Description: "Primary"}},
+				},
+				Jobs: []BundleJob{{
+					Name:      "job-one",
+					AgentName: "coder",
+					Prompt:    "do work",
+					Task: &automationpkg.JobTaskConfig{
+						Title: "Job task",
+					},
+					Enabled: true,
+				}},
+				Bridges: []BundleBridgePreset{{
+					Name:        "bridge-one",
+					DisplayName: "Bridge",
+					RoutingPolicy: bridgepkg.RoutingPolicy{
+						IncludePeer: true,
+					},
+				}},
+			}},
+		}},
+		grantedResourceKinds:  []resources.ResourceKind{resources.ResourceKind("tool")},
+		grantedResourceScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace},
 		initialize: &subprocess.InitializeResponse{
 			ImplementedMethods:  []string{"shutdown"},
 			SupportedHookEvents: []string{"turn.start"},
@@ -1168,11 +1229,18 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	clone.Info.Actions.Requires[0] = "changed"
 	clone.Manifest.Resources.Skills[0] = "changed"
 	clone.Manifest.Subprocess.Env["TOKEN"] = "changed"
+	clone.Manifest.Resources.Publish.Families[0] = "changed"
 	clone.Skills[0].Meta.Name = "changed"
 	clone.Skills[0].Meta.Metadata["nested"].(map[string]any)["value"] = "changed"
+	clone.Skills[0].Meta.Metadata["list"].([]any)[0] = "changed"
+	clone.Skills[0].Meta.Metadata["list"].([]any)[1].(map[string]any)["child"] = "changed"
 	clone.Skills[0].Hooks[0].Args[0] = "changed"
 	clone.Skills[0].MCPServers[0].Env["ROOT"] = "/tmp/changed"
 	clone.Skills[0].Provenance.Hash = "hash-changed"
+	clone.Bundles[0].Profiles[0].Jobs[0].Task.Title = "changed"
+	clone.Bundles[0].Profiles[0].Bridges[0].DisplayName = "changed"
+	clone.GrantedResourceKinds[0] = resources.ResourceKind("changed")
+	clone.GrantedResourceScopes[0] = resources.ResourceScopeKindGlobal
 	clone.InitializeResult.ImplementedMethods[0] = "changed"
 	clone.InitializeResult.AcceptedCapabilities.Provides[0] = "changed"
 
@@ -1185,6 +1253,9 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	if ext.manifest.Resources.Skills[0] != "skills/" {
 		t.Fatalf("original manifest resources mutated to %#v", ext.manifest.Resources.Skills)
 	}
+	if ext.manifest.Resources.Publish.Families[0] != "tools" {
+		t.Fatalf("original manifest publish request mutated to %#v", ext.manifest.Resources.Publish)
+	}
 	if ext.manifest.Subprocess.Env["TOKEN"] != "value" {
 		t.Fatalf("original manifest env mutated to %#v", ext.manifest.Subprocess.Env)
 	}
@@ -1193,6 +1264,9 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	}
 	if ext.skills[0].Meta.Metadata["nested"].(map[string]any)["value"] != "original" {
 		t.Fatalf("original skill metadata mutated to %#v", ext.skills[0].Meta.Metadata)
+	}
+	if ext.skills[0].Meta.Metadata["list"].([]any)[0] != "original" {
+		t.Fatalf("original skill metadata list mutated to %#v", ext.skills[0].Meta.Metadata["list"])
 	}
 	if ext.skills[0].Hooks[0].Args[0] != "cleanup" {
 		t.Fatalf("original skill hook args mutated to %#v", ext.skills[0].Hooks[0].Args)
@@ -1203,11 +1277,50 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	if ext.skills[0].Provenance.Hash != "hash-original" {
 		t.Fatalf("original skill provenance mutated to %#v", ext.skills[0].Provenance)
 	}
+	if ext.bundles[0].Profiles[0].Jobs[0].Task.Title != "Job task" {
+		t.Fatalf("original bundle job task mutated to %#v", ext.bundles[0].Profiles[0].Jobs[0].Task)
+	}
+	if ext.bundles[0].Profiles[0].Bridges[0].DisplayName != "Bridge" {
+		t.Fatalf("original bundle bridge mutated to %#v", ext.bundles[0].Profiles[0].Bridges[0])
+	}
+	if ext.grantedResourceKinds[0] != resources.ResourceKind("tool") {
+		t.Fatalf("original granted resource kinds mutated to %#v", ext.grantedResourceKinds)
+	}
+	if ext.grantedResourceScopes[0] != resources.ResourceScopeKindWorkspace {
+		t.Fatalf("original granted resource scopes mutated to %#v", ext.grantedResourceScopes)
+	}
 	if ext.initialize.ImplementedMethods[0] != "shutdown" {
 		t.Fatalf("original initialize methods mutated to %#v", ext.initialize.ImplementedMethods)
 	}
 	if ext.initialize.AcceptedCapabilities.Provides[0] != "memory.backend" {
 		t.Fatalf("original initialize provides mutated to %#v", ext.initialize.AcceptedCapabilities.Provides)
+	}
+}
+
+func TestManagerBridgeRuntimeIssueHelpers(t *testing.T) {
+	t.Parallel()
+
+	sink := &recordingBridgeTelemetrySink{}
+	manager := NewManager(nil, WithBridgeTelemetrySink(sink))
+
+	manager.reportBridgeRuntimeIssue("  bridge-1  ", bridgepkg.BridgeStatusDegraded, errors.New("boom"))
+	manager.reportBridgeRuntimeIssue("", bridgepkg.BridgeStatusReady, errors.New("ignored"))
+	manager.reportBridgeRuntimeIssues(
+		[]string{"bridge-2", "bridge-3"},
+		bridgepkg.BridgeStatusError,
+		errors.New("failed"),
+	)
+	manager.clearBridgeRuntimeIssue("  bridge-1  ")
+	manager.clearBridgeRuntimeIssues([]string{"bridge-2", "bridge-3"})
+
+	if len(sink.issues) != 3 {
+		t.Fatalf("len(issues) = %d, want 3", len(sink.issues))
+	}
+	if len(sink.clears) != 3 {
+		t.Fatalf("len(clears) = %d, want 3", len(sink.clears))
+	}
+	if sink.issues[0] != "bridge-1:degraded:boom" {
+		t.Fatalf("issues[0] = %q, want bridge-1 degraded entry", sink.issues[0])
 	}
 }
 
@@ -1303,8 +1416,11 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			},
 		},
 	}
-	if err := manager.registerExtension(context.Background(), skillExt); err == nil {
-		t.Fatal("registerExtension(skills without registry) error = nil, want registry-required error")
+	if err := manager.registerExtension(context.Background(), skillExt); err != nil {
+		t.Fatalf("registerExtension(skills) error = %v", err)
+	}
+	if len(skillExt.skills) != 1 || skillExt.skills[0].Meta.Name != "missing-registry" {
+		t.Fatalf("registerExtension(skills).skills = %#v, want loaded extension skill snapshot", skillExt.skills)
 	}
 
 	manager.capChecker.Register("ext-host", SourceUser, &Manifest{
@@ -1315,6 +1431,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 		"ext-host",
 		"sessions/list",
 		nil,
+		nil,
 		func(_ context.Context, _ json.RawMessage) (any, error) {
 			return "ok", nil
 		},
@@ -1323,9 +1440,66 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	if err != nil || result != "ok" {
 		t.Fatalf("wrapHostHandler allowed call = (%v, %v), want (ok, nil)", result, err)
 	}
+
+	resourceSession := &hostAPIResourceSession{
+		Actor: resources.MutationActor{
+			Kind:         resources.MutationActorKindExtension,
+			ID:           "ext-host",
+			SessionNonce: "nonce-wrap",
+			Source: resources.ResourceSource{
+				Kind: resources.ResourceSourceKind("extension"),
+				ID:   "ext-host",
+			},
+			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			GrantedKinds:  []resources.ResourceKind{"tool.definition"},
+			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindGlobal},
+		},
+	}
+	bridgeRuntime := &subprocess.InitializeBridgeRuntime{
+		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
+			{
+				Instance: bridgepkg.BridgeInstance{
+					ID:            "brg-wrap",
+					ExtensionName: "ext-host",
+				},
+			},
+		},
+	}
+	injected := manager.wrapHostHandler(
+		"ext-host",
+		"sessions/list",
+		bridgeRuntime,
+		resourceSession,
+		func(ctx context.Context, _ json.RawMessage) (any, error) {
+			if got := hostAPIExtensionNameFromContext(ctx); got != "ext-host" {
+				t.Fatalf("hostAPIExtensionNameFromContext(ctx) = %q, want ext-host", got)
+			}
+			runtime := hostAPIBridgeRuntimeFromContext(ctx)
+			if runtime == nil {
+				t.Fatal("hostAPIBridgeRuntimeFromContext(ctx) = nil, want runtime")
+			}
+			if got := runtime.ManagedInstances[0].Instance.ID; got != "brg-wrap" {
+				t.Fatalf("runtime.ManagedInstances[0].Instance.ID = %q, want brg-wrap", got)
+			}
+			session, ok := hostAPIResourceSessionFromContext(ctx)
+			if !ok {
+				t.Fatal("hostAPIResourceSessionFromContext(ctx) = false, want true")
+			}
+			if got := session.Actor.SessionNonce; got != "nonce-wrap" {
+				t.Fatalf("session.Actor.SessionNonce = %q, want nonce-wrap", got)
+			}
+			return "injected", nil
+		},
+	)
+	result, err = injected(context.Background(), json.RawMessage(`{}`))
+	if err != nil || result != "injected" {
+		t.Fatalf("wrapHostHandler injected call = (%v, %v), want (injected, nil)", result, err)
+	}
+
 	denied := manager.wrapHostHandler(
 		"ext-denied",
 		"sessions/list",
+		nil,
 		nil,
 		func(_ context.Context, _ json.RawMessage) (any, error) {
 			return "never", nil
@@ -1382,6 +1556,8 @@ type managerManifestOptions struct {
 	withAgents        bool
 	withHooks         bool
 	withMCP           bool
+	resourceFamilies  []string
+	resourceMaxScope  string
 	minVersion        string
 	capabilities      []string
 	actions           []string
@@ -1966,6 +2142,18 @@ executor.args = ["--hook"]
 command = "mcp-kubectl"
 args = ["--context", "prod"]
 `)
+	}
+	if len(opts.resourceFamilies) > 0 || strings.TrimSpace(opts.resourceMaxScope) != "" {
+		builder.WriteString(`
+[resources.publish]
+`)
+		if len(opts.resourceFamilies) > 0 {
+			builder.WriteString("families = " + tomlStringArray(opts.resourceFamilies) + "\n")
+		}
+		if scope := strings.TrimSpace(opts.resourceMaxScope); scope != "" {
+			builder.WriteString(`max_scope = "` + scope + `"
+`)
+		}
 	}
 
 	builder.WriteString(`

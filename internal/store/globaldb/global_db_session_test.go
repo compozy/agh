@@ -25,8 +25,17 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'acp-123',
 			'timeout',
 			'deadline exceeded',
+			'env-scan',
+			'local',
+			'local',
+			'instance-scan',
+			'prepared',
+			'{"local":true}',
+			?,
+			'sync failed',
 			?,
 			?`,
+		formatTimestamp(time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)),
 		formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
 		formatTimestamp(time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)),
 	)
@@ -47,6 +56,15 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 	if info.ACPSessionID == nil || *info.ACPSessionID != "acp-123" {
 		t.Fatalf("info.ACPSessionID = %#v, want acp-123", info.ACPSessionID)
 	}
+	if info.Environment == nil {
+		t.Fatal("info.Environment = nil, want environment metadata")
+	}
+	if got, want := info.Environment.EnvironmentID, "env-scan"; got != want {
+		t.Fatalf("info.Environment.EnvironmentID = %q, want %q", got, want)
+	}
+	if got, want := info.Environment.LastSyncError, "sync failed"; got != want {
+		t.Fatalf("info.Environment.LastSyncError = %q, want %q", got, want)
+	}
 }
 
 func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
@@ -65,6 +83,14 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			NULL,
 			NULL,
 			NULL,
+			'',
+			'local',
+			'',
+			'',
+			'',
+			'',
+			NULL,
+			'',
 			?,
 			?`,
 		formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),

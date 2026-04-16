@@ -10,25 +10,27 @@ import (
 
 	"github.com/BurntSushi/toml"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 )
 
 type configOverlay struct {
-	Daemon        daemonOverlay              `toml:"daemon"`
-	HTTP          httpOverlay                `toml:"http"`
-	Defaults      defaultsOverlay            `toml:"defaults"`
-	Limits        limitsOverlay              `toml:"limits"`
-	Session       sessionOverlay             `toml:"session"`
-	Permissions   permissionsOverlay         `toml:"permissions"`
-	MCPServers    []mcpServerOverlay         `toml:"mcp_servers"`
-	Providers     map[string]providerOverlay `toml:"providers"`
-	Observability observabilityOverlay       `toml:"observability"`
-	Log           logOverlay                 `toml:"log"`
-	Memory        memoryOverlay              `toml:"memory"`
-	Skills        skillsOverlay              `toml:"skills"`
-	Extensions    extensionsOverlay          `toml:"extensions"`
-	Automation    automationOverlay          `toml:"automation"`
-	Hooks         hooksOverlay               `toml:"hooks"`
-	Network       networkOverlay             `toml:"network"`
+	Daemon        daemonOverlay                 `toml:"daemon"`
+	HTTP          httpOverlay                   `toml:"http"`
+	Defaults      defaultsOverlay               `toml:"defaults"`
+	Limits        limitsOverlay                 `toml:"limits"`
+	Session       sessionOverlay                `toml:"session"`
+	Permissions   permissionsOverlay            `toml:"permissions"`
+	MCPServers    []mcpServerOverlay            `toml:"mcp_servers"`
+	Providers     map[string]providerOverlay    `toml:"providers"`
+	Environments  map[string]environmentOverlay `toml:"environments"`
+	Observability observabilityOverlay          `toml:"observability"`
+	Log           logOverlay                    `toml:"log"`
+	Memory        memoryOverlay                 `toml:"memory"`
+	Skills        skillsOverlay                 `toml:"skills"`
+	Extensions    extensionsOverlay             `toml:"extensions"`
+	Automation    automationOverlay             `toml:"automation"`
+	Hooks         hooksOverlay                  `toml:"hooks"`
+	Network       networkOverlay                `toml:"network"`
 }
 
 type daemonOverlay struct {
@@ -41,8 +43,9 @@ type httpOverlay struct {
 }
 
 type defaultsOverlay struct {
-	Agent    *string `toml:"agent"`
-	Provider *string `toml:"provider"`
+	Agent       *string `toml:"agent"`
+	Provider    *string `toml:"provider"`
+	Environment *string `toml:"environment"`
 }
 
 type limitsOverlay struct {
@@ -67,6 +70,34 @@ type providerOverlay struct {
 	DefaultModel *string            `toml:"default_model"`
 	APIKeyEnv    *string            `toml:"api_key_env"`
 	MCPServers   []mcpServerOverlay `toml:"mcp_servers"`
+}
+
+type environmentOverlay struct {
+	Backend     *string               `toml:"backend"`
+	SyncMode    *string               `toml:"sync_mode"`
+	Persistence *string               `toml:"persistence"`
+	RuntimeRoot *string               `toml:"runtime_root"`
+	Env         *map[string]string    `toml:"env"`
+	Network     networkProfileOverlay `toml:"network"`
+	Daytona     daytonaProfileOverlay `toml:"daytona"`
+}
+
+type networkProfileOverlay struct {
+	AllowPublicIngress *bool     `toml:"allow_public_ingress"`
+	AllowOutbound      *bool     `toml:"allow_outbound"`
+	AllowList          *[]string `toml:"allow_list"`
+	DenyList           *[]string `toml:"deny_list"`
+	Required           *bool     `toml:"required"`
+}
+
+type daytonaProfileOverlay struct {
+	APIURL      *string `toml:"api_url"`
+	Target      *string `toml:"target"`
+	Image       *string `toml:"image"`
+	Snapshot    *string `toml:"snapshot"`
+	Class       *string `toml:"class"`
+	AutoStop    *string `toml:"auto_stop"`
+	AutoArchive *string `toml:"auto_archive"`
 }
 
 type observabilityOverlay struct {
@@ -111,6 +142,20 @@ type skillsOverlay struct {
 
 type extensionsOverlay struct {
 	Marketplace extensionsMarketplaceOverlay `toml:"marketplace"`
+	Resources   extensionsResourcesOverlay   `toml:"resources"`
+}
+
+type extensionsResourcesOverlay struct {
+	AllowedKinds           *[]resources.ResourceKind    `toml:"allowed_kinds"`
+	MaxScope               *resources.ResourceScopeKind `toml:"max_scope"`
+	SnapshotRateLimit      extensionsRateLimitOverlay   `toml:"snapshot_rate_limit"`
+	OperatorWriteRateLimit extensionsRateLimitOverlay   `toml:"operator_write_rate_limit"`
+}
+
+type extensionsRateLimitOverlay struct {
+	Requests *int           `toml:"requests"`
+	Window   *time.Duration `toml:"window"`
+	Queue    *int           `toml:"queue"`
 }
 
 type networkOverlay struct {
@@ -181,7 +226,7 @@ func loadConfigOverlayFile(path string) (configOverlay, error) {
 	return overlay, nil
 }
 
-func (o configOverlay) Apply(dst *Config) error {
+func (o *configOverlay) Apply(dst *Config) error {
 	o.Daemon.Apply(&dst.Daemon)
 	o.HTTP.Apply(&dst.HTTP)
 	o.Defaults.Apply(&dst.Defaults)
@@ -192,6 +237,7 @@ func (o configOverlay) Apply(dst *Config) error {
 		dst.MCPServers = applyMCPServerOverlays(dst.MCPServers, o.MCPServers)
 	}
 	applyProviderOverlays(dst, o.Providers)
+	applyEnvironmentOverlays(dst, o.Environments)
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)
 	o.Memory.Apply(&dst.Memory)
@@ -225,6 +271,9 @@ func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 	}
 	if o.Provider != nil {
 		dst.Provider = *o.Provider
+	}
+	if o.Environment != nil {
+		dst.Environment = *o.Environment
 	}
 }
 
@@ -265,6 +314,68 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	}
 	if len(o.MCPServers) > 0 {
 		dst.MCPServers = applyMCPServerOverlays(dst.MCPServers, o.MCPServers)
+	}
+}
+
+func (o environmentOverlay) Apply(dst *EnvironmentProfile) {
+	if o.Backend != nil {
+		dst.Backend = *o.Backend
+	}
+	if o.SyncMode != nil {
+		dst.SyncMode = *o.SyncMode
+	}
+	if o.Persistence != nil {
+		dst.Persistence = *o.Persistence
+	}
+	if o.RuntimeRoot != nil {
+		dst.RuntimeRoot = *o.RuntimeRoot
+	}
+	if o.Env != nil {
+		dst.Env = mergeStringMaps(dst.Env, *o.Env)
+	}
+	o.Network.Apply(&dst.Network)
+	o.Daytona.Apply(&dst.Daytona)
+}
+
+func (o networkProfileOverlay) Apply(dst *NetworkProfile) {
+	if o.AllowPublicIngress != nil {
+		dst.AllowPublicIngress = *o.AllowPublicIngress
+	}
+	if o.AllowOutbound != nil {
+		dst.AllowOutbound = *o.AllowOutbound
+	}
+	if o.AllowList != nil {
+		dst.AllowList = append([]string(nil), (*o.AllowList)...)
+	}
+	if o.DenyList != nil {
+		dst.DenyList = append([]string(nil), (*o.DenyList)...)
+	}
+	if o.Required != nil {
+		dst.Required = *o.Required
+	}
+}
+
+func (o daytonaProfileOverlay) Apply(dst *DaytonaProfile) {
+	if o.APIURL != nil {
+		dst.APIURL = *o.APIURL
+	}
+	if o.Target != nil {
+		dst.Target = *o.Target
+	}
+	if o.Image != nil {
+		dst.Image = *o.Image
+	}
+	if o.Snapshot != nil {
+		dst.Snapshot = *o.Snapshot
+	}
+	if o.Class != nil {
+		dst.Class = *o.Class
+	}
+	if o.AutoStop != nil {
+		dst.AutoStop = *o.AutoStop
+	}
+	if o.AutoArchive != nil {
+		dst.AutoArchive = *o.AutoArchive
 	}
 }
 
@@ -348,6 +459,30 @@ func (o skillsOverlay) Apply(dst *SkillsConfig) {
 
 func (o extensionsOverlay) Apply(dst *ExtensionsConfig) {
 	o.Marketplace.Apply(&dst.Marketplace)
+	o.Resources.Apply(&dst.Resources)
+}
+
+func (o extensionsResourcesOverlay) Apply(dst *ExtensionsResourcesConfig) {
+	if o.AllowedKinds != nil {
+		dst.AllowedKinds = append([]resources.ResourceKind(nil), (*o.AllowedKinds)...)
+	}
+	if o.MaxScope != nil {
+		dst.MaxScope = *o.MaxScope
+	}
+	o.SnapshotRateLimit.Apply(&dst.SnapshotRateLimit)
+	o.OperatorWriteRateLimit.Apply(&dst.OperatorWriteRateLimit)
+}
+
+func (o extensionsRateLimitOverlay) Apply(dst *ExtensionsResourceRateLimitConfig) {
+	if o.Requests != nil {
+		dst.Requests = *o.Requests
+	}
+	if o.Window != nil {
+		dst.Window = *o.Window
+	}
+	if o.Queue != nil {
+		dst.Queue = *o.Queue
+	}
 }
 
 func (o networkOverlay) Apply(dst *NetworkConfig) {
@@ -454,6 +589,21 @@ func applyProviderOverlays(dst *Config, overlays map[string]providerOverlay) {
 		provider := dst.Providers[name]
 		overlay.Apply(&provider)
 		dst.Providers[name] = provider
+	}
+}
+
+func applyEnvironmentOverlays(dst *Config, overlays map[string]environmentOverlay) {
+	if len(overlays) == 0 {
+		return
+	}
+	if dst.Environments == nil {
+		dst.Environments = make(map[string]EnvironmentProfile, len(overlays))
+	}
+
+	for name, overlay := range overlays {
+		profile := dst.Environments[name]
+		overlay.Apply(&profile)
+		dst.Environments[name] = profile
 	}
 }
 

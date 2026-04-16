@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sync"
@@ -23,8 +24,21 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 		State:       "stopped",
 		StopReason:  &stopReason,
 		StopDetail:  "hook denied continuation",
-		CreatedAt:   time.Date(2026, 4, 3, 17, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 4, 3, 17, 1, 0, 0, time.UTC),
+		Environment: &SessionEnvironmentMeta{
+			EnvironmentID:         "env-123",
+			Backend:               "daytona",
+			Profile:               "daytona-dev",
+			State:                 "ready",
+			InstanceID:            "sandbox-123",
+			RuntimeRootDir:        "/home/daytona/workspace",
+			RuntimeAdditionalDirs: []string{"/home/daytona/shared"},
+			ProviderState:         json.RawMessage(`{"sandbox_id":"sandbox-123"}`),
+			SSHAccessExpiresAt:    timePtr(time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC)),
+			LastSyncAt:            timePtr(time.Date(2026, 4, 3, 17, 59, 0, 0, time.UTC)),
+			LastSyncError:         "sync warning",
+		},
+		CreatedAt: time.Date(2026, 4, 3, 17, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 3, 17, 1, 0, 0, time.UTC),
 	}
 
 	if err := WriteSessionMeta(path, meta); err != nil {
@@ -49,6 +63,38 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	}
 	if *readBack.StopReason != *meta.StopReason {
 		t.Fatalf("ReadSessionMeta().StopReason = %q, want %q", *readBack.StopReason, *meta.StopReason)
+	}
+	if readBack.Environment == nil {
+		t.Fatal("ReadSessionMeta().Environment = nil, want metadata")
+	}
+	if readBack.Environment.EnvironmentID != "env-123" ||
+		readBack.Environment.State != "ready" ||
+		readBack.Environment.InstanceID != "sandbox-123" ||
+		readBack.Environment.LastSyncError != "sync warning" {
+		t.Fatalf("ReadSessionMeta().Environment = %#v, want persisted environment metadata", readBack.Environment)
+	}
+	var providerState struct {
+		SandboxID string `json:"sandbox_id"`
+	}
+	if err := json.Unmarshal(readBack.Environment.ProviderState, &providerState); err != nil {
+		t.Fatalf("json.Unmarshal(ProviderState) error = %v", err)
+	}
+	if providerState.SandboxID != "sandbox-123" {
+		t.Fatalf("ProviderState sandbox_id = %q, want sandbox-123", providerState.SandboxID)
+	}
+	if readBack.Environment.SSHAccessExpiresAt == nil ||
+		!readBack.Environment.SSHAccessExpiresAt.Equal(*meta.Environment.SSHAccessExpiresAt) {
+		t.Fatalf("SSHAccessExpiresAt = %#v, want %#v",
+			readBack.Environment.SSHAccessExpiresAt,
+			meta.Environment.SSHAccessExpiresAt,
+		)
+	}
+	if readBack.Environment.LastSyncAt == nil ||
+		!readBack.Environment.LastSyncAt.Equal(*meta.Environment.LastSyncAt) {
+		t.Fatalf("LastSyncAt = %#v, want %#v",
+			readBack.Environment.LastSyncAt,
+			meta.Environment.LastSyncAt,
+		)
 	}
 }
 
@@ -137,4 +183,8 @@ func TestReadSessionMetaLegacyStopFieldsOmitted(t *testing.T) {
 			t.Fatalf("ReadSessionMeta().StopDetail = %q, want empty", meta.StopDetail)
 		}
 	})
+}
+
+func timePtr(value time.Time) *time.Time {
+	return &value
 }

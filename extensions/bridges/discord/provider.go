@@ -519,7 +519,7 @@ func (p *discordProvider) handleShutdown(
 func (p *discordProvider) stop() {
 	p.stopOnce.Do(func() {
 		close(p.stopCh)
-		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{}, len(p.routes))
+		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
 		p.mu.Lock()
 		for instanceID := range p.routes {
 			cfg := p.routes[instanceID]
@@ -2333,11 +2333,22 @@ func normalizeDeliveryEventType(value string) string {
 }
 
 func isNotInitializedRPCError(err error) bool {
-	var rpcErr interface{ Code() int }
-	if errors.As(err, &rpcErr) {
-		return rpcErr.Code() == rpcCodeNotInitialized
+	if err == nil {
+		return false
 	}
-	return false
+	type rpcCodeError interface {
+		Code() int
+	}
+	var codeErr rpcCodeError
+	if errors.As(err, &codeErr) && codeErr.Code() == rpcCodeNotInitialized {
+		return true
+	}
+	var rpcErr *subprocess.RPCError
+	if !errors.As(err, &rpcErr) {
+		return false
+	}
+	return rpcErr.Code == rpcCodeNotInitialized ||
+		strings.EqualFold(strings.TrimSpace(rpcErr.Message), "Not initialized")
 }
 
 func cloneDegradation(degradation *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {

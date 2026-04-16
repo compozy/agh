@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -238,6 +239,9 @@ func newDeliveryIntegrationEnv(
 	}
 
 	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", workspaceRoot, err)
+	}
 	baseNow := time.Date(2026, 4, 11, 3, 0, 0, 0, time.UTC)
 	resolvedWorkspace := workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
@@ -319,6 +323,7 @@ func newDeliveryIntegrationEnv(
 		session.WithStore(func(ctx context.Context, sessionID string, path string) (session.EventRecorder, error) {
 			return storeSessionDB(ctx, sessionID, path)
 		}),
+		session.WithEnvironmentRegistry(mustLocalEnvironmentRegistry(t)),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		session.WithNow(func() time.Time { return baseNow }),
 		session.WithSessionIDGenerator(sequentialSessionIDGenerator("sess")),

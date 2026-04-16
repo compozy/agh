@@ -15,7 +15,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/subprocess"
+	"github.com/pedronauck/agh/internal/environment"
 )
 
 const (
@@ -46,6 +46,8 @@ type Driver struct {
 	promptBufferCap int
 	promptDrainWait time.Duration
 	permissionWait  time.Duration
+	launcher        environment.Launcher
+	toolHost        environment.ToolHost
 }
 
 // WithLogger directs driver diagnostics to the provided logger.
@@ -83,6 +85,20 @@ func WithPermissionTimeout(timeout time.Duration) Option {
 	}
 }
 
+// WithLauncher overrides the environment launcher used by default for new ACP sessions.
+func WithLauncher(launcher environment.Launcher) Option {
+	return func(driver *Driver) {
+		driver.launcher = launcher
+	}
+}
+
+// WithToolHost overrides the environment tool host used by default for new ACP sessions.
+func WithToolHost(toolHost environment.ToolHost) Option {
+	return func(driver *Driver) {
+		driver.toolHost = toolHost
+	}
+}
+
 // New constructs an ACP driver with sensible defaults.
 func New(opts ...Option) *Driver {
 	driver := &Driver{
@@ -112,6 +128,9 @@ func New(opts ...Option) *Driver {
 	if driver.permissionWait <= 0 {
 		driver.permissionWait = defaultPermissionWait
 	}
+	if driver.launcher == nil {
+		driver.launcher = newLocalLauncher(driver.logger, driver.stopTimeout)
+	}
 	return driver
 }
 
@@ -126,7 +145,7 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 		return nil, err
 	}
 
-	process, err := d.spawnProcess(normalized)
+	process, err := d.launchAgentProcess(ctx, normalized)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +159,7 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 	return process, nil
 }
 
-func (d *Driver) spawnProcess(normalized StartOpts) (*AgentProcess, error) {
+func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (*AgentProcess, error) {
 	command, args, err := parseCommandString(normalized.Command)
 	if err != nil {
 		return nil, err
@@ -151,16 +170,19 @@ func (d *Driver) spawnProcess(normalized StartOpts) (*AgentProcess, error) {
 		return nil, err
 	}
 
-	processEnv := daemonMatchedEnv(normalized.Env)
+	launcher := normalized.Launcher
+	if launcher == nil {
+		launcher = d.launcher
+	}
+	if launcher == nil {
+		launcher = newLocalLauncher(d.logger, d.stopTimeout)
+	}
 
-	managed, err := subprocess.Launch(context.Background(), subprocess.LaunchConfig{
-		Command:          command,
-		Args:             args,
-		Dir:              normalized.Cwd,
-		Env:              processEnv,
-		Logger:           d.logger,
-		DisableTransport: true,
-		ShutdownTimeout:  d.stopTimeout,
+	handle, err := launcher.Launch(ctx, environment.LaunchSpec{
+		Command:        normalized.Command,
+		Cwd:            normalized.Cwd,
+		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
+		Env:            append([]string(nil), normalized.Env...),
 	})
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -172,14 +194,23 @@ func (d *Driver) spawnProcess(normalized StartOpts) (*AgentProcess, error) {
 	}
 	procCtx, cancelProcess := context.WithCancel(context.Background())
 
+	toolHost := normalized.ToolHost
+	if toolHost == nil {
+		toolHost = d.toolHost
+	}
+	if toolHost == nil {
+		toolHost = newLocalToolHostFromPolicy(procCtx, normalized.Cwd, policy, d.logger)
+	}
+
 	process := &AgentProcess{
-		PID:                managed.PID(),
+		PID:                handle.PID(),
 		AgentName:          normalized.AgentName,
 		Command:            command,
 		Args:               append([]string(nil), args...),
 		Cwd:                normalized.Cwd,
 		StartedAt:          timeNowUTC(),
-		managed:            managed,
+		handle:             handle,
+		toolHost:           toolHost,
 		cancelProcess:      cancelProcess,
 		permissions:        policy,
 		done:               make(chan struct{}),
@@ -187,8 +218,13 @@ func (d *Driver) spawnProcess(normalized StartOpts) (*AgentProcess, error) {
 		permissionTimeout:  d.permissionWait,
 		systemPrompt:       normalized.SystemPrompt,
 	}
-	process.terminals = newTerminalManager(procCtx, d.logger)
-	process.conn = acpsdk.NewConnection(process.handleInbound, managed.Stdin(), managed.Stdout())
+	if localHost, ok := toolHost.(*localToolHost); ok {
+		process.terminals = localHost.terminals
+	}
+	if localHandle, ok := handle.(*localProcessHandle); ok {
+		process.managed = localHandle.process
+	}
+	process.conn = acpsdk.NewConnection(process.handleInbound, handle.Stdin(), handle.Stdout())
 	process.conn.SetLogger(d.logger)
 
 	go process.waitForExit()
@@ -473,26 +509,48 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 	}
 
 	proc.markStopRequested()
-	var errs []error
-	if strings.TrimSpace(proc.SessionID) != "" {
-		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
-		if err := d.Cancel(cancelCtx, proc); err != nil && !errors.Is(err, context.Canceled) {
-			errs = append(errs, fmt.Errorf("acp: cancel session prompt: %w", err))
-		}
-		cancel()
+	errs := d.cancelSessionForStop(ctx, proc)
+	if proc.handle != nil {
+		return stopAgentProcessAndWait(ctx, proc, errs, proc.handle.Stop)
 	}
 	if proc.managed != nil {
-		if err := proc.managed.Shutdown(ctx); err != nil {
-			errs = append(errs, err)
-		}
-		select {
-		case <-proc.Done():
-			return errors.Join(append(errs, proc.Wait())...)
-		case <-ctx.Done():
-			return errors.Join(append(errs, ctx.Err())...)
-		}
+		return stopAgentProcessAndWait(ctx, proc, errs, proc.managed.Shutdown)
 	}
 
+	return d.stopExecCommand(ctx, proc, errs)
+}
+
+func (d *Driver) cancelSessionForStop(ctx context.Context, proc *AgentProcess) []error {
+	if strings.TrimSpace(proc.SessionID) == "" {
+		return nil
+	}
+	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer cancel()
+
+	if err := d.Cancel(cancelCtx, proc); err != nil && !errors.Is(err, context.Canceled) {
+		return []error{fmt.Errorf("acp: cancel session prompt: %w", err)}
+	}
+	return nil
+}
+
+func stopAgentProcessAndWait(
+	ctx context.Context,
+	proc *AgentProcess,
+	errs []error,
+	stopFn func(context.Context) error,
+) error {
+	if err := stopFn(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	select {
+	case <-proc.Done():
+		return errors.Join(append(errs, proc.Wait())...)
+	case <-ctx.Done():
+		return errors.Join(append(errs, ctx.Err())...)
+	}
+}
+
+func (d *Driver) stopExecCommand(ctx context.Context, proc *AgentProcess, errs []error) error {
 	if err := terminateManagedProcess(proc.cmd); err != nil {
 		errs = append(errs, fmt.Errorf("acp: terminate subprocess tree: %w", err))
 	}
@@ -596,6 +654,8 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 func (p *AgentProcess) waitForExit() {
 	var waitErr error
 	switch {
+	case p.handle != nil:
+		waitErr = p.handle.Wait()
 	case p.managed != nil:
 		waitErr = p.managed.Wait()
 	case p.cmd != nil:

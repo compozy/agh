@@ -14,6 +14,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
@@ -53,6 +54,8 @@ type StartOpts struct {
 	Permissions     aghconfig.PermissionMode
 	SystemPrompt    string
 	ResumeSessionID string
+	Launcher        environment.Launcher
+	ToolHost        environment.ToolHost
 }
 
 // Validate ensures the start options are minimally usable.
@@ -200,12 +203,18 @@ type AgentProcess struct {
 	StartedAt time.Time
 
 	managed       *subprocess.Process
+	handle        environment.Handle
+	toolHostMu    sync.Mutex
+	toolHost      environment.ToolHost
 	cmd           *exec.Cmd
 	conn          *acpsdk.Connection
 	stderr        *lockedBuffer
 	cancelProcess context.CancelFunc
 	permissions   permissionPolicy
 	terminals     *terminalManager
+
+	terminalOwnershipMu sync.RWMutex
+	terminalOwnership   map[string]terminalOwnership
 
 	waitMu        sync.RWMutex
 	waitErr       error
@@ -267,6 +276,9 @@ func (p *AgentProcess) Wait() error {
 
 // Stderr returns the currently captured stderr output for the subprocess.
 func (p *AgentProcess) Stderr() string {
+	if p.handle != nil {
+		return p.handle.Stderr()
+	}
 	if p.managed != nil {
 		return p.managed.Stderr()
 	}
@@ -274,6 +286,16 @@ func (p *AgentProcess) Stderr() string {
 		return ""
 	}
 	return p.stderr.String()
+}
+
+// ToolHost returns the environment-owned tool host used by this process.
+func (p *AgentProcess) ToolHost() environment.ToolHost {
+	if p == nil {
+		return nil
+	}
+	p.toolHostMu.Lock()
+	defer p.toolHostMu.Unlock()
+	return p.toolHost
 }
 
 func (p *AgentProcess) setWaitError(err error) {

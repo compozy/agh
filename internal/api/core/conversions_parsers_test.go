@@ -33,8 +33,16 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		StopReason:   store.StopTimeout,
 		StopDetail:   "deadline exceeded",
 		ACPSessionID: "acp-123",
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		Environment: &store.SessionEnvironmentMeta{
+			EnvironmentID: "env-1",
+			Backend:       "local",
+			Profile:       "local",
+			State:         "prepared",
+			InstanceID:    "instance-1",
+			LastSyncError: "sync failed",
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
 		ACPCaps: acp.Caps{
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat"},
@@ -54,6 +62,10 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	}
 	if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession || len(payload.ACPCaps.SupportedModels) != 1 {
 		t.Fatalf("caps = %#v", payload.ACPCaps)
+	}
+	if payload.Environment == nil || payload.Environment.EnvironmentID != "env-1" ||
+		payload.Environment.Backend != "local" || payload.Environment.LastSyncError != "sync failed" {
+		t.Fatalf("environment = %#v", payload.Environment)
 	}
 }
 

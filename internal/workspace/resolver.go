@@ -11,6 +11,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/filesnap"
 )
 
@@ -20,6 +21,7 @@ type RegisterOptions struct {
 	Name           string
 	AdditionalDirs []string
 	DefaultAgent   string
+	EnvironmentRef string
 }
 
 // UpdateOptions describes mutable workspace registration fields.
@@ -27,6 +29,7 @@ type UpdateOptions struct {
 	Name           *string
 	AdditionalDirs *[]string
 	DefaultAgent   *string
+	EnvironmentRef *string
 }
 
 // Resolver resolves persisted workspaces into runtime workspace snapshots.
@@ -236,6 +239,10 @@ func (r *Resolver) buildResolvedWorkspace(
 		return ResolvedWorkspace{}, fmt.Errorf("workspace: load config for %q: %w", ws.RootDir, err)
 	}
 	applyDefaultAgentOverride(&cfg, ws.DefaultAgent)
+	resolvedEnvironment, err := resolveWorkspaceEnvironment(ws, &cfg)
+	if err != nil {
+		return ResolvedWorkspace{}, fmt.Errorf("workspace: resolve environment for %q: %w", ws.ID, err)
+	}
 
 	agents, err := loadAgents(ctx, scan.agents)
 	if err != nil {
@@ -245,12 +252,21 @@ func (r *Resolver) buildResolvedWorkspace(
 	skills := mergeSkillPaths(scan.skills)
 
 	return ResolvedWorkspace{
-		Workspace:  cloneWorkspace(ws),
-		Config:     cloneConfig(&cfg),
-		Agents:     cloneAgentDefs(agents),
-		Skills:     cloneSkillPaths(skills),
-		ResolvedAt: r.now(),
+		Workspace:   cloneWorkspace(ws),
+		Config:      cloneConfig(&cfg),
+		Agents:      cloneAgentDefs(agents),
+		Skills:      cloneSkillPaths(skills),
+		Environment: cloneEnvironmentResolved(resolvedEnvironment),
+		ResolvedAt:  r.now(),
 	}, nil
+}
+
+func resolveWorkspaceEnvironment(ws Workspace, cfg *aghconfig.Config) (environment.Resolved, error) {
+	ref := strings.TrimSpace(ws.EnvironmentRef)
+	if ref == "" {
+		ref = strings.TrimSpace(cfg.Defaults.Environment)
+	}
+	return cfg.ResolveEnvironment(ref)
 }
 
 func (c *cachedEntry) canReuse(ws Workspace, snapshots map[string]filesnap.Snapshot) bool {
@@ -261,6 +277,9 @@ func (c *cachedEntry) canReuse(ws Workspace, snapshots map[string]filesnap.Snaps
 		return false
 	}
 	if strings.TrimSpace(c.workspace.DefaultAgent) != strings.TrimSpace(ws.DefaultAgent) {
+		return false
+	}
+	if strings.TrimSpace(c.workspace.EnvironmentRef) != strings.TrimSpace(ws.EnvironmentRef) {
 		return false
 	}
 	if strings.TrimSpace(c.workspace.RootDir) != strings.TrimSpace(ws.RootDir) {

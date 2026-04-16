@@ -22,8 +22,10 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	environmentlocal "github.com/pedronauck/agh/internal/environment/local"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
@@ -188,6 +190,38 @@ func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 	}
 	if got := payload.Messages[3].Role; got != transcript.RoleToolResult {
 		t.Fatalf("messages[3].Role = %q, want %q", got, transcript.RoleToolResult)
+	}
+}
+
+func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	putResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPut,
+		mustURL(runtime.host, runtime.port, "/api/resources/bundle.activation/demo"),
+		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+		nil,
+	)
+	if putResp.StatusCode != http.StatusNotFound {
+		body, _ := io.ReadAll(putResp.Body)
+		_ = putResp.Body.Close()
+		t.Fatalf("PUT status = %d, want %d; body=%s", putResp.StatusCode, http.StatusNotFound, string(body))
+	}
+
+	deleteResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodDelete,
+		mustURL(runtime.host, runtime.port, "/api/resources/bundle.activation/demo"),
+		[]byte(`{"expected_version":1}`),
+		nil,
+	)
+	if deleteResp.StatusCode != http.StatusNotFound {
+		body, _ := io.ReadAll(deleteResp.Body)
+		_ = deleteResp.Body.Close()
+		t.Fatalf("DELETE status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusNotFound, string(body))
 	}
 }
 
@@ -1686,12 +1720,17 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		t.Fatalf("workspace.NewResolver() error = %v", err)
 	}
 	driver := newIntegrationDriver(permissionWait)
+	environmentRegistry, err := environmentlocal.NewRegistry()
+	if err != nil {
+		t.Fatalf("local.NewRegistry() error = %v", err)
+	}
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithWorkspaceResolver(resolver),
 		session.WithLogger(discardLogger()),
 		session.WithDriver(driver),
 		session.WithNotifier(fanout),
+		session.WithEnvironmentRegistry(environmentRegistry),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
@@ -1758,6 +1797,15 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
 
+	resourceKernel, err := resources.NewKernel(registry.DB())
+	if err != nil {
+		t.Fatalf("resources.NewKernel() error = %v", err)
+	}
+	resourceService, err := core.NewOperatorResourceService(&core.ResourceServiceConfig{RawStore: resourceKernel})
+	if err != nil {
+		t.Fatalf("core.NewOperatorResourceService() error = %v", err)
+	}
+
 	server, err := New(
 		WithHomePaths(homePaths),
 		WithConfig(&cfg),
@@ -1767,6 +1815,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		WithSessionManager(manager),
 		WithTaskService(taskManager),
 		WithObserver(observer),
+		WithResourceService(resourceService),
 		WithAutomation(automationManager),
 		WithBridgeService(bridgeService),
 		WithWorkspaceResolver(resolver),

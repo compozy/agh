@@ -99,3 +99,13 @@ func resolveWorkspaceAgent(
 
 	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }
+
+func (m *Manager) resolveWorkspaceAgent(
+	agentName string,
+	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
+) (aghconfig.AgentDef, error) {
+	if m != nil && m.agentResolver != nil {
+		return m.agentResolver.ResolveAgent(agentName, resolvedWorkspace)
+	}
+	return resolveWorkspaceAgent(agentName, resolvedWorkspace)
+}

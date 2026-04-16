@@ -38,11 +38,23 @@ type SessionPayload struct {
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
-	StopDetail   string          `json:"stop_detail,omitempty"`
-	ACPSessionID string          `json:"acp_session_id,omitempty"`
-	ACPCaps      *ACPCapsPayload `json:"acp_caps,omitempty"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
+	StopDetail   string                     `json:"stop_detail,omitempty"`
+	ACPSessionID string                     `json:"acp_session_id,omitempty"`
+	ACPCaps      *ACPCapsPayload            `json:"acp_caps,omitempty"`
+	Environment  *SessionEnvironmentPayload `json:"environment,omitempty"`
+	CreatedAt    time.Time                  `json:"created_at"`
+	UpdatedAt    time.Time                  `json:"updated_at"`
+}
+
+// SessionEnvironmentPayload is the shared session environment response payload.
+type SessionEnvironmentPayload struct {
+	EnvironmentID     string          `json:"environment_id,omitempty"`
+	Backend           string          `json:"backend,omitempty"`
+	Profile           string          `json:"profile,omitempty"`
+	State             string          `json:"state,omitempty"`
+	InstanceID        string          `json:"instance_id,omitempty"`
+	LastSyncError     string          `json:"last_sync_error,omitempty"`
+	ProviderStateJSON json.RawMessage `json:"provider_state_json,omitempty"`
 }
 
 // ACPCapsPayload is the JSON representation of ACP capabilities.
@@ -480,17 +492,19 @@ type MemoryHealthPayload struct {
 
 // CreateWorkspaceRequest is the shared workspace creation request payload.
 type CreateWorkspaceRequest struct {
-	RootDir      string   `json:"root_dir"`
-	Name         string   `json:"name,omitempty"`
-	AddDirs      []string `json:"add_dirs,omitempty"`
-	DefaultAgent string   `json:"default_agent,omitempty"`
+	RootDir        string   `json:"root_dir"`
+	Name           string   `json:"name,omitempty"`
+	AddDirs        []string `json:"add_dirs,omitempty"`
+	DefaultAgent   string   `json:"default_agent,omitempty"`
+	EnvironmentRef string   `json:"environment_ref,omitempty"`
 }
 
 // UpdateWorkspaceRequest is the shared workspace update request payload.
 type UpdateWorkspaceRequest struct {
-	Name         *string   `json:"name"`
-	AddDirs      *[]string `json:"add_dirs"`
-	DefaultAgent *string   `json:"default_agent"`
+	Name           *string   `json:"name"`
+	AddDirs        *[]string `json:"add_dirs"`
+	DefaultAgent   *string   `json:"default_agent"`
+	EnvironmentRef *string   `json:"environment_ref"`
 }
 
 // ResolveWorkspaceRequest is the shared workspace resolve request payload.
@@ -500,13 +514,14 @@ type ResolveWorkspaceRequest struct {
 
 // WorkspacePayload is the shared workspace response payload.
 type WorkspacePayload struct {
-	ID           string    `json:"id"`
-	RootDir      string    `json:"root_dir"`
-	AddDirs      []string  `json:"add_dirs"`
-	Name         string    `json:"name"`
-	DefaultAgent string    `json:"default_agent,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID             string    `json:"id"`
+	RootDir        string    `json:"root_dir"`
+	AddDirs        []string  `json:"add_dirs"`
+	Name           string    `json:"name"`
+	DefaultAgent   string    `json:"default_agent,omitempty"`
+	EnvironmentRef string    `json:"environment_ref,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // WorkspaceSkillPayload is the shared workspace skill response payload.

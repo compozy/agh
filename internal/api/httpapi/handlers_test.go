@@ -309,7 +309,8 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 		RegisterFn: func(_ context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
 			if opts.RootDir != rootDir || opts.Name != "alpha" || len(opts.AdditionalDirs) != 1 ||
 				opts.AdditionalDirs[0] != addDir ||
-				opts.DefaultAgent != "coder" {
+				opts.DefaultAgent != "coder" ||
+				opts.EnvironmentRef != "daytona-dev" {
 				t.Fatalf("Register() opts = %#v", opts)
 			}
 			return workspacepkg.Workspace{
@@ -318,6 +319,7 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 				AdditionalDirs: []string{addDir},
 				Name:           "alpha",
 				DefaultAgent:   "coder",
+				EnvironmentRef: "daytona-dev",
 				CreatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 				UpdatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 			}, nil
@@ -329,10 +331,11 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 	)
 
 	body, err := json.Marshal(map[string]any{
-		"root_dir":      rootDir,
-		"name":          "alpha",
-		"add_dirs":      []string{addDir},
-		"default_agent": "coder",
+		"root_dir":        rootDir,
+		"name":            "alpha",
+		"add_dirs":        []string{addDir},
+		"default_agent":   "coder",
+		"environment_ref": "daytona-dev",
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(create workspace request) error = %v", err)
@@ -511,6 +514,7 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 				Name:           "beta",
 				AdditionalDirs: []string{addDir},
 				DefaultAgent:   "reviewer",
+				EnvironmentRef: "local-dev",
 			}, nil
 		},
 		UpdateFn: func(_ context.Context, id string, opts workspacepkg.UpdateOptions) error {
@@ -518,7 +522,9 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 				len(*opts.AdditionalDirs) != 1 ||
 				(*opts.AdditionalDirs)[0] != addDir ||
 				opts.DefaultAgent == nil ||
-				*opts.DefaultAgent != "reviewer" {
+				*opts.DefaultAgent != "reviewer" ||
+				opts.EnvironmentRef == nil ||
+				*opts.EnvironmentRef != "local-dev" {
 				t.Fatalf("Update() id=%q opts=%#v", id, opts)
 			}
 			updated = true
@@ -531,9 +537,10 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 	)
 
 	body, err := json.Marshal(map[string]any{
-		"name":          "beta",
-		"add_dirs":      []string{addDir},
-		"default_agent": "reviewer",
+		"name":            "beta",
+		"add_dirs":        []string{addDir},
+		"default_agent":   "reviewer",
+		"environment_ref": "local-dev",
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(update workspace request) error = %v", err)

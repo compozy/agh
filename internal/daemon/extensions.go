@@ -15,13 +15,15 @@ import (
 )
 
 type daemonExtensionService struct {
-	registry  *extensionpkg.Registry
-	runtime   extensionRuntime
-	hooks     hookRuntime
-	bundles   interface{ Reconcile(context.Context) error }
-	homePaths aghconfig.HomePaths
-	logger    *slog.Logger
-	now       func() time.Time
+	registry   *extensionpkg.Registry
+	runtime    extensionRuntime
+	hookBinds  hookBindingPublisher
+	agentSkill agentSkillPublisher
+	toolMCP    toolMCPPublisher
+	bundles    bundleResourcePublisher
+	homePaths  aghconfig.HomePaths
+	logger     *slog.Logger
+	now        func() time.Time
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
@@ -29,8 +31,10 @@ var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
 func newDaemonExtensionService(
 	registry *extensionpkg.Registry,
 	runtime extensionRuntime,
-	hooks hookRuntime,
-	bundles interface{ Reconcile(context.Context) error },
+	hookBinds hookBindingPublisher,
+	agentSkill agentSkillPublisher,
+	toolMCP toolMCPPublisher,
+	bundles bundleResourcePublisher,
 	homePaths aghconfig.HomePaths,
 	logger *slog.Logger,
 	now func() time.Time,
@@ -47,18 +51,20 @@ func newDaemonExtensionService(
 		}
 	}
 	return &daemonExtensionService{
-		registry:  registry,
-		runtime:   runtime,
-		hooks:     hooks,
-		bundles:   bundles,
-		homePaths: homePaths,
-		logger:    logger,
-		now:       now,
+		registry:   registry,
+		runtime:    runtime,
+		hookBinds:  hookBinds,
+		agentSkill: agentSkill,
+		toolMCP:    toolMCP,
+		bundles:    bundles,
+		homePaths:  homePaths,
+		logger:     logger,
+		now:        now,
 	}
 }
 
 func (s *daemonExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
-	if err := s.checkReady(ctx); err != nil {
+	if err := s.checkReady(); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +88,7 @@ func (s *daemonExtensionService) Install(
 	ctx context.Context,
 	req contract.InstallExtensionRequest,
 ) (contract.ExtensionPayload, error) {
-	if err := s.checkReady(ctx); err != nil {
+	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 
@@ -100,7 +106,7 @@ func (s *daemonExtensionService) Install(
 }
 
 func (s *daemonExtensionService) Enable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
-	if err := s.checkReady(ctx); err != nil {
+	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.registry.Enable(name); err != nil {
@@ -113,7 +119,7 @@ func (s *daemonExtensionService) Enable(ctx context.Context, name string) (contr
 }
 
 func (s *daemonExtensionService) Disable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
-	if err := s.checkReady(ctx); err != nil {
+	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.registry.Disable(name); err != nil {
@@ -125,8 +131,8 @@ func (s *daemonExtensionService) Disable(ctx context.Context, name string) (cont
 	return s.Status(ctx, name)
 }
 
-func (s *daemonExtensionService) Status(ctx context.Context, name string) (contract.ExtensionPayload, error) {
-	if err := s.checkReady(ctx); err != nil {
+func (s *daemonExtensionService) Status(_ context.Context, name string) (contract.ExtensionPayload, error) {
+	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 
@@ -143,18 +149,20 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 	}
 
 	reloadErr := s.runtime.Reload(ctx)
-	if s.hooks == nil {
-		if s.bundles == nil {
-			return reloadErr
-		}
-		return errors.Join(reloadErr, s.bundles.Reconcile(ctx))
+	var syncErr error
+	if s.agentSkill != nil {
+		syncErr = errors.Join(syncErr, s.agentSkill.Sync(ctx))
 	}
-
-	rebuildErr := s.hooks.Rebuild(ctx)
-	if s.bundles == nil {
-		return errors.Join(reloadErr, rebuildErr)
+	if s.hookBinds != nil {
+		syncErr = errors.Join(syncErr, s.hookBinds.Sync(ctx))
 	}
-	return errors.Join(reloadErr, rebuildErr, s.bundles.Reconcile(ctx))
+	if s.toolMCP != nil {
+		syncErr = errors.Join(syncErr, s.toolMCP.Sync(ctx))
+	}
+	if s.bundles != nil {
+		syncErr = errors.Join(syncErr, s.bundles.Sync(ctx))
+	}
+	return errors.Join(reloadErr, syncErr)
 }
 
 func (s *daemonExtensionService) lookup(name string) (*extensionpkg.Extension, error) {
@@ -235,12 +243,9 @@ func (s *daemonExtensionService) payloadFromExtension(ext *extensionpkg.Extensio
 	return extensionpkg.DescribeExtension(ext, s.runtime != nil, s.now())
 }
 
-func (s *daemonExtensionService) checkReady(ctx context.Context) error {
+func (s *daemonExtensionService) checkReady() error {
 	if s == nil {
 		return errors.New("daemon: extension service is required")
-	}
-	if ctx == nil {
-		return errors.New("daemon: extension service context is required")
 	}
 	if s.registry == nil {
 		return errors.New("daemon: extension registry is required")
