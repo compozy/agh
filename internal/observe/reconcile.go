@@ -78,6 +78,7 @@ func (o *Observer) loadSessionMetadata() ([]store.SessionInfo, error) {
 			ACPSessionID: normalized.ACPSessionID,
 			StopReason:   stopReason,
 			StopDetail:   normalized.StopDetail,
+			Environment:  cloneSessionEnvironmentMeta(normalized.Environment),
 			CreatedAt:    normalized.CreatedAt,
 			UpdatedAt:    normalized.UpdatedAt,
 		})

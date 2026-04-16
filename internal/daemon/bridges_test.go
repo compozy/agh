@@ -15,6 +15,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -519,6 +520,53 @@ func TestBridgeRuntimeCreateInstance(t *testing.T) {
 		}
 		if got, want := managed.Instance.ID, created.ID; got != want {
 			t.Fatalf("resolved managed instance id = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestBridgeRuntimeCreateInstanceResourceBacked(t *testing.T) {
+	t.Run("ShouldRollBackCreatedResourceWhenReconcileFails", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 16, 12, 40, 0, 0, time.UTC)
+		triggerErr := errors.New("reconcile boom")
+		runtime, resourceStore := newResourceBackedBridgeRuntime(t, now, func(
+			context.Context,
+			resources.ResourceKind,
+			resources.ReconcileReason,
+		) error {
+			return triggerErr
+		})
+
+		_, err := runtime.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+			ID:            "brg-resource-create",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-resource-create",
+			DisplayName:   "Resource Create",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusStarting,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		if !errors.Is(err, triggerErr) {
+			t.Fatalf("CreateInstance() error = %v, want wrapped reconcile failure", err)
+		}
+
+		if _, getErr := resourceStore.Get(
+			testutil.Context(t),
+			resourceReconcileActor(),
+			"brg-resource-create",
+		); !errors.Is(
+			getErr,
+			resources.ErrNotFound,
+		) {
+			t.Fatalf("resourceStore.Get(after failed create) error = %v, want ErrNotFound", getErr)
+		}
+		if _, getErr := runtime.GetInstance(testutil.Context(t), "brg-resource-create"); !errors.Is(
+			getErr,
+			bridgepkg.ErrBridgeInstanceNotFound,
+		) {
+			t.Fatalf("GetInstance(after failed create) error = %v, want ErrBridgeInstanceNotFound", getErr)
 		}
 	})
 }
@@ -1213,6 +1261,70 @@ func TestBridgeRuntimeRestartInstance(t *testing.T) {
 }
 
 func TestBridgeRuntimeTransition(t *testing.T) {
+	t.Run("ShouldRollBackResourceProjectionWhenReloadFails", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+		previous := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-resource-rollback",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-resource-rollback",
+			DisplayName:   "Before",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			DMPolicy:      bridgepkg.BridgeDMPolicyOpen,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+
+		reloadErr := errors.New("reload boom")
+		extensions := &fakeExtensionRuntime{reloadErr: reloadErr}
+		runtime.setExtensionRuntime(extensions)
+		plan, err := runtime.BuildBridgeResourceState(
+			testutil.Context(t),
+			[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
+				ID:      previous.ID,
+				Version: 2,
+				Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Spec: bridgepkg.BridgeInstanceSpec{
+					Scope:         bridgepkg.ScopeGlobal,
+					Platform:      "slack",
+					ExtensionName: "ext-resource-rollback",
+					DisplayName:   "After",
+					Source:        bridgepkg.BridgeInstanceSourceDynamic,
+					Enabled:       true,
+					DMPolicy:      bridgepkg.BridgeDMPolicyOpen,
+					RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+				},
+				CreatedAt: previous.CreatedAt,
+				UpdatedAt: now,
+			}},
+		)
+		if err != nil {
+			t.Fatalf("BuildBridgeResourceState() error = %v", err)
+		}
+
+		err = runtime.ApplyBridgeResourceState(testutil.Context(t), plan)
+		if !errors.Is(err, reloadErr) {
+			t.Fatalf("ApplyBridgeResourceState() error = %v, want reload failure", err)
+		}
+		if got, want := extensions.reloadCount, 1; got != want {
+			t.Fatalf("extension reload count = %d, want %d", got, want)
+		}
+		current, err := runtime.GetInstance(testutil.Context(t), previous.ID)
+		if err != nil {
+			t.Fatalf("GetInstance() error = %v", err)
+		}
+		if got, want := current.DisplayName, "Before"; got != want {
+			t.Fatalf("GetInstance().DisplayName = %q, want %q", got, want)
+		}
+		if got, want := current.Status, bridgepkg.BridgeStatusReady; got != want {
+			t.Fatalf("GetInstance().Status = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("ShouldRestorePreviousStateWhenReloadFails", func(t *testing.T) {
 		t.Parallel()
 
@@ -1451,6 +1563,122 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 	})
 }
 
+func TestBridgeRuntimeUpdateInstanceResourceBacked(t *testing.T) {
+	t.Run("ShouldRestorePreviousStateWhenReconcileFails", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 16, 12, 50, 0, 0, time.UTC)
+		runtime, resourceStore := newResourceBackedBridgeRuntime(t, now, nil)
+		created := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-resource-update",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-resource-update",
+			DisplayName:   "Before",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		if _, err := runtime.UpdateInstanceState(testutil.Context(t), bridgepkg.UpdateInstanceStateRequest{
+			ID:        created.ID,
+			Enabled:   true,
+			Status:    bridgepkg.BridgeStatusReady,
+			UpdatedAt: now.Add(time.Minute),
+		}); err != nil {
+			t.Fatalf("UpdateInstanceState(setup) error = %v", err)
+		}
+
+		triggerErr := errors.New("reconcile boom")
+		runtime.resourceTrigger = func(context.Context, resources.ResourceKind, resources.ReconcileReason) error {
+			return triggerErr
+		}
+		updatedName := "After"
+		degradation := &bridgepkg.BridgeDegradation{
+			Reason:  bridgepkg.BridgeDegradationReasonAuthFailed,
+			Message: "token expired",
+		}
+
+		_, err := runtime.UpdateInstance(testutil.Context(t), bridgepkg.UpdateInstanceRequest{
+			ID:          created.ID,
+			DisplayName: &updatedName,
+			Degradation: degradation,
+		})
+		if !errors.Is(err, triggerErr) {
+			t.Fatalf("UpdateInstance() error = %v, want wrapped reconcile failure", err)
+		}
+
+		record, getErr := resourceStore.Get(testutil.Context(t), resourceReconcileActor(), created.ID)
+		if getErr != nil {
+			t.Fatalf("resourceStore.Get() error = %v", getErr)
+		}
+		if got, want := record.Spec.DisplayName, "Before"; got != want {
+			t.Fatalf("resourceStore.Get().Spec.DisplayName = %q, want %q", got, want)
+		}
+
+		current, getErr := runtime.GetInstance(testutil.Context(t), created.ID)
+		if getErr != nil {
+			t.Fatalf("GetInstance() error = %v", getErr)
+		}
+		if got, want := current.DisplayName, "Before"; got != want {
+			t.Fatalf("GetInstance().DisplayName = %q, want %q", got, want)
+		}
+		if got, want := current.Status, bridgepkg.BridgeStatusReady; got != want {
+			t.Fatalf("GetInstance().Status = %q, want %q", got, want)
+		}
+		if current.Degradation != nil {
+			t.Fatalf("GetInstance().Degradation = %#v, want nil", current.Degradation)
+		}
+	})
+}
+
+func TestBridgeRuntimeTransitionResourceBacked(t *testing.T) {
+	t.Run("ShouldRestorePreviousStateWhenReconcileFails", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 16, 13, 0, 0, 0, time.UTC)
+		runtime, resourceStore := newResourceBackedBridgeRuntime(t, now, nil)
+		created := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-resource-transition",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-resource-transition",
+			DisplayName:   "Resource Transition",
+			Enabled:       false,
+			Status:        bridgepkg.BridgeStatusDisabled,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+
+		triggerErr := errors.New("reconcile boom")
+		runtime.resourceTrigger = func(context.Context, resources.ResourceKind, resources.ReconcileReason) error {
+			return triggerErr
+		}
+
+		_, err := runtime.StartInstance(testutil.Context(t), created.ID)
+		if !errors.Is(err, triggerErr) {
+			t.Fatalf("StartInstance() error = %v, want wrapped reconcile failure", err)
+		}
+
+		record, getErr := resourceStore.Get(testutil.Context(t), resourceReconcileActor(), created.ID)
+		if getErr != nil {
+			t.Fatalf("resourceStore.Get() error = %v", getErr)
+		}
+		if record.Spec.Enabled {
+			t.Fatal("resourceStore.Get().Spec.Enabled = true, want disabled rollback")
+		}
+
+		current, getErr := runtime.GetInstance(testutil.Context(t), created.ID)
+		if getErr != nil {
+			t.Fatalf("GetInstance() error = %v", getErr)
+		}
+		if current.Enabled {
+			t.Fatal("GetInstance().Enabled = true, want disabled rollback")
+		}
+		if got, want := current.Status, bridgepkg.BridgeStatusDisabled; got != want {
+			t.Fatalf("GetInstance().Status = %q, want %q", got, want)
+		}
+	})
+}
+
 func mustCreateDaemonBridgeInstance(
 	t *testing.T,
 	runtime *bridgeRuntime,
@@ -1463,6 +1691,35 @@ func mustCreateDaemonBridgeInstance(
 		t.Fatalf("CreateInstance() error = %v", err)
 	}
 	return instance
+}
+
+func newResourceBackedBridgeRuntime(
+	t *testing.T,
+	now time.Time,
+	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
+) (*bridgeRuntime, resources.Store[bridgepkg.BridgeInstanceSpec]) {
+	t.Helper()
+
+	db := openDaemonTestGlobalDB(t)
+	runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+	kernel, err := resources.NewKernel(db.DB())
+	if err != nil {
+		t.Fatalf("resources.NewKernel() error = %v", err)
+	}
+	codecs := resources.NewCodecRegistry()
+	codec, err := bridgepkg.NewBridgeInstanceResourceCodec(nil)
+	if err != nil {
+		t.Fatalf("NewBridgeInstanceResourceCodec() error = %v", err)
+	}
+	if err := resources.RegisterCodec(codecs, codec); err != nil {
+		t.Fatalf("RegisterCodec() error = %v", err)
+	}
+	resourceStore, err := bridgeInstanceResourceStore(kernel, codecs)
+	if err != nil {
+		t.Fatalf("bridgeInstanceResourceStore() error = %v", err)
+	}
+	runtime.setResourceDefinitions(resourceStore, resourceReconcileActor(), trigger)
+	return runtime, resourceStore
 }
 
 func mustUpsertDaemonBridgeRoute(

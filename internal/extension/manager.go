@@ -2,6 +2,8 @@ package extensionpkg
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +20,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/version"
@@ -92,11 +95,6 @@ type processHandle interface {
 
 type processLauncher func(context.Context, subprocess.LaunchConfig) (processHandle, error)
 
-type skillRegistry interface {
-	RegisterExternal(owner string, skills []*skillspkg.Skill) error
-	RemoveExternal(owner string)
-}
-
 // BridgeRuntimeResolver resolves one provider-scoped bridge launch payload
 // for a bridge-capable extension session.
 type BridgeRuntimeResolver interface {
@@ -147,36 +145,39 @@ type ExtensionStatus struct {
 
 // Extension is the manager-visible snapshot for one installed extension.
 type Extension struct {
-	Info             ExtensionInfo
-	Manifest         *Manifest
-	RootDir          string
-	Hooks            []hookspkg.HookDecl
-	Agents           []aghconfig.AgentDef
-	Bundles          []BundleSpec
-	MCPServers       []aghconfig.MCPServer
-	Skills           []*skillspkg.Skill
-	GrantedActions   []string
-	GrantedSecurity  []string
-	InitializeResult *subprocess.InitializeResponse
-	Status           ExtensionStatus
+	Info                  ExtensionInfo
+	Manifest              *Manifest
+	RootDir               string
+	Hooks                 []hookspkg.HookDecl
+	Agents                []aghconfig.AgentDef
+	Bundles               []BundleSpec
+	Skills                []*skillspkg.Skill
+	GrantedActions        []string
+	GrantedSecurity       []string
+	GrantedResourceKinds  []resources.ResourceKind
+	GrantedResourceScopes []resources.ResourceScopeKind
+	InitializeResult      *subprocess.InitializeResponse
+	Status                ExtensionStatus
 }
 
 type managedExtension struct {
-	info            ExtensionInfo
-	rootDir         string
-	manifest        *Manifest
-	hooks           []hookspkg.HookDecl
-	agents          []aghconfig.AgentDef
-	bundles         []BundleSpec
-	mcpServers      []aghconfig.MCPServer
-	skills          []*skillspkg.Skill
-	grantedActions  []string
-	grantedSecurity []string
-	initialize      *subprocess.InitializeResponse
-	process         processHandle
-	runtime         subprocess.InitializeRuntime
-	healthInterval  time.Duration
-	generation      int64
+	info                  ExtensionInfo
+	rootDir               string
+	manifest              *Manifest
+	hooks                 []hookspkg.HookDecl
+	agents                []aghconfig.AgentDef
+	bundles               []BundleSpec
+	skills                []*skillspkg.Skill
+	grantedActions        []string
+	grantedSecurity       []string
+	grantedResourceKinds  []resources.ResourceKind
+	grantedResourceScopes []resources.ResourceScopeKind
+	initialize            *subprocess.InitializeResponse
+	process               processHandle
+	runtime               subprocess.InitializeRuntime
+	healthInterval        time.Duration
+	generation            int64
+	sessionNonce          string
 
 	phase               ExtensionPhase
 	registered          bool
@@ -199,7 +200,7 @@ type Manager struct {
 	capChecker            *CapabilityChecker
 	bridgeRuntimeResolver BridgeRuntimeResolver
 	bridgeTelemetrySink   BridgeTelemetrySink
-	skillsRegistry        skillRegistry
+	sourceSessions        resources.SourceSessionManager
 	logger                *slog.Logger
 	now                   func() time.Time
 	getenv                func(string) string
@@ -251,10 +252,11 @@ func WithBridgeTelemetrySink(sink BridgeTelemetrySink) Option {
 	}
 }
 
-// WithSkillsRegistry injects the skills registry used for extension skill registration.
-func WithSkillsRegistry(registry skillRegistry) Option {
-	return func(manager *Manager) {
-		manager.skillsRegistry = registry
+// WithSourceSessionManager injects the resource source-session manager used to
+// activate extension nonces for snapshot publication.
+func WithSourceSessionManager(manager resources.SourceSessionManager) Option {
+	return func(mgr *Manager) {
+		mgr.sourceSessions = manager
 	}
 }
 
@@ -780,33 +782,6 @@ func (m *Manager) AgentDefinitions() []aghconfig.AgentDef {
 	return agents
 }
 
-// MCPServers returns the currently registered extension MCP server declarations.
-func (m *Manager) MCPServers() []aghconfig.MCPServer {
-	if m == nil {
-		return nil
-	}
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var servers []aghconfig.MCPServer
-	names := make([]string, 0, len(m.extensions))
-	for name := range m.extensions {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	for _, name := range names {
-		ext := m.extensions[name]
-		if !ext.registered {
-			continue
-		}
-		for _, server := range ext.mcpServers {
-			servers = append(servers, cloneMCPServer(server))
-		}
-	}
-	return servers
-}
-
 func (m *Manager) startOne(ctx context.Context, ext *managedExtension) error {
 	if err := m.discoverExtension(ext); err != nil {
 		return err
@@ -885,9 +860,20 @@ func (m *Manager) validateExtension(ext *managedExtension) error {
 		return phaseError(ext.info.Name, ExtensionPhaseValidate, err)
 	}
 
-	ext.grantedActions = effectiveActionGrants(ext.info.Source, ext.manifest.Actions.Requires)
-	ext.grantedSecurity = effectiveSecurityGrants(ext.info.Source, ext.manifest.Security.Capabilities)
-	m.capChecker.Register(ext.info.Name, ext.info.Source, ext.manifest)
+	grant, err := m.capChecker.RegisterForSession(
+		ext.info.Name,
+		ext.info.Source,
+		ext.manifest,
+		resources.ResourceScopeKindGlobal,
+	)
+	if err != nil {
+		m.setFailure(ext, ExtensionPhaseValidate, err)
+		return phaseError(ext.info.Name, ExtensionPhaseValidate, err)
+	}
+	ext.grantedActions = grant.Actions
+	ext.grantedSecurity = grant.Security
+	ext.grantedResourceKinds = grant.ResourceKinds
+	ext.grantedResourceScopes = grant.ResourceScopes
 	ext.phase = ExtensionPhaseValidate
 	return nil
 }
@@ -918,30 +904,11 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 		m.setFailure(ext, ExtensionPhaseRegister, err)
 		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
 	}
-	mcpServers, err := m.loadMCPResources(ext)
-	if err != nil {
-		m.setFailure(ext, ExtensionPhaseRegister, err)
-		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-	}
-
-	if len(skills) > 0 {
-		if m.skillsRegistry == nil {
-			err := errors.New("skills registry is required for extension skill resources")
-			m.setFailure(ext, ExtensionPhaseRegister, err)
-			return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-		}
-		if err := m.skillsRegistry.RegisterExternal(ext.info.Name, skills); err != nil {
-			m.setFailure(ext, ExtensionPhaseRegister, err)
-			return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-		}
-	}
-
 	m.mu.Lock()
 	ext.skills = skills
 	ext.agents = agents
 	ext.hooks = hooks
 	ext.bundles = bundles
-	ext.mcpServers = mcpServers
 	ext.registered = true
 	ext.phase = ExtensionPhaseRegister
 	m.mu.Unlock()
@@ -1011,7 +978,6 @@ func (m *Manager) activateExtension(ext *managedExtension) {
 	skillCount := len(ext.skills)
 	agentCount := len(ext.agents)
 	hookCount := len(ext.hooks)
-	mcpServerCount := len(ext.mcpServers)
 	m.mu.Unlock()
 
 	m.logger.Info(
@@ -1022,7 +988,6 @@ func (m *Manager) activateExtension(ext *managedExtension) {
 		"skill_count", skillCount,
 		"agent_count", agentCount,
 		"hook_count", hookCount,
-		"mcp_server_count", mcpServerCount,
 	)
 }
 
@@ -1174,35 +1139,118 @@ func (m *Manager) launchRuntime(
 		)
 	}
 
+	resourceSession, err := m.prepareExtensionResourceSession(ctx, ext)
+	if err != nil {
+		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			process,
+			err,
+		)
+	}
+	if err := m.registerRuntimeHostMethods(process, ext, runtime, resourceSession); err != nil {
+		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			process,
+			err,
+		)
+	}
+
+	response, err := m.initializeRuntimeProcess(ctx, process, ext, runtime, resourceSession)
+	if err != nil {
+		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			process,
+			err,
+		)
+	}
+	if err := validateSupportedHookEvents(response.SupportedHookEvents); err != nil {
+		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
+			process,
+			err,
+		)
+	}
+
+	ext.sessionNonce = resourceSession.Actor.SessionNonce
+
+	return process, response, runtime, healthInterval, nil
+}
+
+func (m *Manager) cleanupLaunchedProcess(process processHandle, err error) error {
+	if process == nil {
+		return err
+	}
+	if shutdownErr := shutdownProcessWithTimeout(process, m.defaultShutdownTimeout); shutdownErr != nil {
+		return errors.Join(err, shutdownErr)
+	}
+	return err
+}
+
+func (m *Manager) prepareExtensionResourceSession(
+	ctx context.Context,
+	ext *managedExtension,
+) (*hostAPIResourceSession, error) {
+	resourceSession, err := m.newHostAPIResourceSession(ext)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.activateExtensionSourceSession(ctx, resourceSession.Actor); err != nil {
+		return nil, err
+	}
+	return resourceSession, nil
+}
+
+func (m *Manager) registerRuntimeHostMethods(
+	process processHandle,
+	ext *managedExtension,
+	runtime subprocess.InitializeRuntime,
+	resourceSession *hostAPIResourceSession,
+) error {
 	for method, handler := range m.hostMethods {
 		if err := process.HandleMethod(
 			method,
-			m.wrapHostHandler(ext.info.Name, method, runtime.Bridge, handler),
+			m.wrapHostHandler(ext.info.Name, method, runtime.Bridge, resourceSession, handler),
 		); err != nil {
-			if shutdownErr := shutdownProcessWithTimeout(process, m.defaultShutdownTimeout); shutdownErr != nil {
-				err = errors.Join(err, shutdownErr)
-			}
-			return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, fmt.Errorf(
-				"register host method %q: %w",
-				method,
-				err,
-			)
+			return fmt.Errorf("register host method %q: %w", method, err)
 		}
 	}
+	return nil
+}
 
-	request := subprocess.InitializeRequest{
+func (m *Manager) initializeRuntimeProcess(
+	ctx context.Context,
+	process processHandle,
+	ext *managedExtension,
+	runtime subprocess.InitializeRuntime,
+	resourceSession *hostAPIResourceSession,
+) (subprocess.InitializeResponse, error) {
+	initCtx, cancel := context.WithTimeout(ctx, m.initializeTimeout)
+	defer cancel()
+
+	response, err := process.Initialize(initCtx, m.initializeRuntimeRequest(ext, runtime, resourceSession))
+	if err != nil {
+		return subprocess.InitializeResponse{}, fmt.Errorf("initialize subprocess: %w", err)
+	}
+	return response, nil
+}
+
+func (m *Manager) initializeRuntimeRequest(
+	ext *managedExtension,
+	runtime subprocess.InitializeRuntime,
+	resourceSession *hostAPIResourceSession,
+) subprocess.InitializeRequest {
+	return subprocess.InitializeRequest{
 		ProtocolVersion:          m.protocolVersion,
 		SupportedProtocolVersion: slices.Clone(m.supportedProtocolVersions),
 		AGHVersion:               version.Current().Version,
+		SessionNonce:             resourceSession.Actor.SessionNonce,
 		Extension: subprocess.InitializeExtension{
 			Name:       ext.manifest.Name,
 			Version:    ext.manifest.Version,
 			SourceTier: ext.info.Source.String(),
 		},
 		Capabilities: subprocess.InitializeCapabilities{
-			Provides:        normalizeUniqueStrings(ext.manifest.Capabilities.Provides),
-			GrantedActions:  hostAPIMethodsFromStrings(ext.grantedActions),
-			GrantedSecurity: normalizeUniqueStrings(ext.grantedSecurity),
+			Provides:              normalizeUniqueStrings(ext.manifest.Capabilities.Provides),
+			GrantedActions:        hostAPIMethodsFromStrings(ext.grantedActions),
+			GrantedSecurity:       normalizeUniqueStrings(ext.grantedSecurity),
+			GrantedResourceKinds:  append([]resources.ResourceKind{}, ext.grantedResourceKinds...),
+			GrantedResourceScopes: append([]resources.ResourceScopeKind{}, ext.grantedResourceScopes...),
 		},
 		Methods: subprocess.InitializeMethods{
 			DaemonRequests:    daemonRequestMethods(),
@@ -1210,28 +1258,6 @@ func (m *Manager) launchRuntime(
 		},
 		Runtime: runtime,
 	}
-
-	initCtx, cancel := context.WithTimeout(ctx, m.initializeTimeout)
-	defer cancel()
-
-	response, err := process.Initialize(initCtx, request)
-	if err != nil {
-		if shutdownErr := shutdownProcessWithTimeout(process, m.defaultShutdownTimeout); shutdownErr != nil {
-			err = errors.Join(err, shutdownErr)
-		}
-		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, fmt.Errorf(
-			"initialize subprocess: %w",
-			err,
-		)
-	}
-	if err := validateSupportedHookEvents(response.SupportedHookEvents); err != nil {
-		if shutdownErr := shutdownProcessWithTimeout(process, m.defaultShutdownTimeout); shutdownErr != nil {
-			err = errors.Join(err, shutdownErr)
-		}
-		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, err
-	}
-
-	return process, response, runtime, healthInterval, nil
 }
 
 func (m *Manager) launchConfigFor(
@@ -1285,6 +1311,7 @@ func (m *Manager) wrapHostHandler(
 	extName string,
 	method string,
 	bridgeRuntime *subprocess.InitializeBridgeRuntime,
+	resourceSession *hostAPIResourceSession,
 	handler subprocess.HandlerFunc,
 ) subprocess.HandlerFunc {
 	return func(ctx context.Context, params json.RawMessage) (any, error) {
@@ -1296,8 +1323,73 @@ func (m *Manager) wrapHostHandler(
 		if bridgeRuntime != nil {
 			hostCtx = withHostAPIBridgeRuntime(hostCtx, bridgeRuntime)
 		}
+		if resourceSession != nil {
+			hostCtx = withHostAPIResourceSession(hostCtx, resourceSession)
+		}
 		return handler(hostCtx, params)
 	}
+}
+
+func (m *Manager) newHostAPIResourceSession(ext *managedExtension) (*hostAPIResourceSession, error) {
+	if ext == nil {
+		return nil, errors.New("extension: managed extension is required")
+	}
+
+	sessionNonce, err := newExtensionSessionNonce()
+	if err != nil {
+		return nil, fmt.Errorf("extension: generate session nonce for %q: %w", ext.info.Name, err)
+	}
+
+	return &hostAPIResourceSession{
+		Actor: resources.MutationActor{
+			Kind:         resources.MutationActorKindExtension,
+			ID:           ext.info.Name,
+			SessionNonce: sessionNonce,
+			Source: resources.ResourceSource{
+				Kind: resources.ResourceSourceKind("extension"),
+				ID:   ext.info.Name,
+			},
+			// Workspace binding is not yet carried on extension sessions, so v1
+			// relies on granted scope kinds for narrowing and keeps the max scope
+			// ceiling global here.
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			GrantedKinds: append(
+				[]resources.ResourceKind(nil),
+				ext.grantedResourceKinds...,
+			),
+			GrantedScopes: append(
+				[]resources.ResourceScopeKind(nil),
+				ext.grantedResourceScopes...,
+			),
+		},
+	}, nil
+}
+
+func (m *Manager) activateExtensionSourceSession(ctx context.Context, actor resources.MutationActor) error {
+	if m == nil || m.sourceSessions == nil {
+		return nil
+	}
+
+	if err := m.sourceSessions.ActivateSourceSession(ctx, resources.MutationActor{
+		Kind: resources.MutationActorKindDaemon,
+		ID:   "extension-manager",
+		Source: resources.ResourceSource{
+			Kind: resources.ResourceSourceKind("daemon"),
+			ID:   "extension-manager",
+		},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+	}, actor.Source, actor.SessionNonce); err != nil {
+		return fmt.Errorf("extension: activate source session for %q: %w", actor.Source.ID, err)
+	}
+	return nil
+}
+
+func newExtensionSessionNonce() (string, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw[:]), nil
 }
 
 func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill, error) {
@@ -1386,46 +1478,6 @@ func (m *Manager) loadBundleResources(ext *managedExtension) ([]BundleSpec, erro
 	return LoadBundleSpecs(ext.rootDir, ext.manifest)
 }
 
-func (m *Manager) loadMCPResources(ext *managedExtension) ([]aghconfig.MCPServer, error) {
-	if ext.manifest == nil || len(ext.manifest.Resources.MCPServers) == 0 {
-		return nil, nil
-	}
-
-	names := make([]string, 0, len(ext.manifest.Resources.MCPServers))
-	for name := range ext.manifest.Resources.MCPServers {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-
-	servers := make([]aghconfig.MCPServer, 0, len(names))
-	for _, name := range names {
-		decl := ext.manifest.Resources.MCPServers[name]
-		command, err := m.resolveCommand(ext.rootDir, decl.Command)
-		if err != nil {
-			return nil, err
-		}
-		args, err := m.resolveStringSlice(ext.rootDir, decl.Args)
-		if err != nil {
-			return nil, err
-		}
-		env, err := m.resolveStringMap(ext.rootDir, decl.Env)
-		if err != nil {
-			return nil, err
-		}
-		server := aghconfig.MCPServer{
-			Name:    strings.TrimSpace(name),
-			Command: command,
-			Args:    args,
-			Env:     env,
-		}
-		if err := server.Validate("extension.resources.mcp_servers[" + name + "]"); err != nil {
-			return nil, err
-		}
-		servers = append(servers, server)
-	}
-	return servers, nil
-}
-
 func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg HookConfig) (hookspkg.HookDecl, error) {
 	command := strings.TrimSpace(cfg.Command)
 	args := slices.Clone(cfg.Args)
@@ -1510,52 +1562,15 @@ func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg HookConfig) (hooks
 }
 
 func (m *Manager) resolveCommand(rootDir string, value string) (string, error) {
-	resolved, err := m.resolveString(rootDir, value)
-	if err != nil {
-		return "", err
-	}
-	if resolved == "" {
-		return "", nil
-	}
-	if filepath.IsAbs(resolved) {
-		return filepath.Clean(resolved), nil
-	}
-	if strings.ContainsRune(resolved, filepath.Separator) || strings.HasPrefix(resolved, ".") {
-		return resolvePathWithinRoot(rootDir, resolved)
-	}
-	return resolved, nil
+	return resolveManifestCommand(rootDir, value, m.getenv)
 }
 
 func (m *Manager) resolveStringSlice(rootDir string, values []string) ([]string, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-
-	resolved := make([]string, 0, len(values))
-	for _, value := range values {
-		item, err := m.resolveString(rootDir, value)
-		if err != nil {
-			return nil, err
-		}
-		resolved = append(resolved, item)
-	}
-	return resolved, nil
+	return resolveManifestStringSlice(rootDir, values, m.getenv)
 }
 
 func (m *Manager) resolveStringMap(rootDir string, env map[string]string) (map[string]string, error) {
-	if len(env) == 0 {
-		return nil, nil
-	}
-
-	resolved := make(map[string]string, len(env))
-	for key, value := range env {
-		item, err := m.resolveString(rootDir, value)
-		if err != nil {
-			return nil, err
-		}
-		resolved[key] = item
-	}
-	return resolved, nil
+	return resolveManifestStringMap(rootDir, env, m.getenv)
 }
 
 func (m *Manager) resolveEnvMap(rootDir string, env map[string]string) ([]string, error) {
@@ -1595,26 +1610,7 @@ func (m *Manager) resolveEnvMap(rootDir string, env map[string]string) ([]string
 }
 
 func (m *Manager) resolveString(rootDir string, value string) (string, error) {
-	resolved := strings.TrimSpace(value)
-	if resolved == "" {
-		return "", nil
-	}
-
-	resolved = strings.ReplaceAll(resolved, "{{config_dir}}", rootDir)
-	for {
-		start := strings.Index(resolved, "{{env:")
-		if start < 0 {
-			break
-		}
-		end := strings.Index(resolved[start:], "}}")
-		if end < 0 {
-			return "", fmt.Errorf("invalid env template %q", value)
-		}
-		end += start
-		key := strings.TrimSpace(strings.TrimPrefix(resolved[start:end], "{{env:"))
-		resolved = resolved[:start] + m.getenv(key) + resolved[end+2:]
-	}
-	return resolved, nil
+	return resolveManifestString(rootDir, value, m.getenv)
 }
 
 func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err error) {
@@ -1738,9 +1734,6 @@ func (m *Manager) unregisterResources(ext *managedExtension) {
 	if ext == nil {
 		return
 	}
-	if len(ext.skills) > 0 && m.skillsRegistry != nil {
-		m.skillsRegistry.RemoveExternal(ext.info.Name)
-	}
 	m.capChecker.Unregister(ext.info.Name)
 
 	m.mu.Lock()
@@ -1799,11 +1792,13 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 	defer m.mu.RUnlock()
 
 	clone := &Extension{
-		Info:            cloneExtensionInfo(ext.info),
-		RootDir:         ext.rootDir,
-		GrantedActions:  slices.Clone(ext.grantedActions),
-		GrantedSecurity: slices.Clone(ext.grantedSecurity),
-		Status:          m.statusLocked(ext),
+		Info:                  cloneExtensionInfo(ext.info),
+		RootDir:               ext.rootDir,
+		GrantedActions:        slices.Clone(ext.grantedActions),
+		GrantedSecurity:       slices.Clone(ext.grantedSecurity),
+		GrantedResourceKinds:  slices.Clone(ext.grantedResourceKinds),
+		GrantedResourceScopes: slices.Clone(ext.grantedResourceScopes),
+		Status:                m.statusLocked(ext),
 	}
 	if ext.manifest != nil {
 		clone.Manifest = cloneManifest(ext.manifest)
@@ -1815,9 +1810,6 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 		clone.Agents = append(clone.Agents, cloneAgentDef(agent))
 	}
 	clone.Bundles = cloneBundleSpecs(ext.bundles)
-	for _, server := range ext.mcpServers {
-		clone.MCPServers = append(clone.MCPServers, cloneMCPServer(server))
-	}
 	if len(ext.skills) > 0 {
 		clone.Skills = make([]*skillspkg.Skill, 0, len(ext.skills))
 		for _, skill := range ext.skills {
@@ -2009,7 +2001,9 @@ func requiresSubprocess(manifest *Manifest) bool {
 	if strings.TrimSpace(manifest.Subprocess.Command) != "" {
 		return true
 	}
-	return len(manifest.Capabilities.Provides) > 0 || len(manifest.Actions.Requires) > 0
+	return len(manifest.Capabilities.Provides) > 0 ||
+		len(manifest.Actions.Requires) > 0 ||
+		len(manifest.Resources.Publish.Families) > 0
 }
 
 func durationOr(value Duration, fallback time.Duration) time.Duration {

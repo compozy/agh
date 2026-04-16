@@ -63,6 +63,41 @@ func TestACPIntegrationReadTextFileRequest(t *testing.T) {
 	}
 }
 
+func TestACPIntegrationToolHostFileWriteReadAndTerminal(t *testing.T) {
+	driver := New()
+
+	root := t.TempDir()
+	target := filepath.Join(root, "created.txt")
+	proc := startHelperProcess(t, driver, "fs_write_terminal", target, StartOpts{
+		Cwd:         root,
+		Permissions: aghconfig.PermissionModeApproveAll,
+	})
+	defer stopProcess(t, driver, proc)
+
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+		TurnID:  "turn-integration-toolhost",
+		Message: "exercise tool host",
+	})
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+
+	events := collectEvents(t, eventsCh)
+	if !containsEventText(events, "from-write") {
+		t.Fatalf("Prompt() events = %#v, want written file content", events)
+	}
+	if !containsEventText(events, "terminal-ok") {
+		t.Fatalf("Prompt() events = %#v, want terminal output", events)
+	}
+	content, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", target, err)
+	}
+	if string(content) != "from-write" {
+		t.Fatalf("written file content = %q, want %q", content, "from-write")
+	}
+}
+
 func TestACPIntegrationRequestPermissionPolicy(t *testing.T) {
 	driver := New()
 

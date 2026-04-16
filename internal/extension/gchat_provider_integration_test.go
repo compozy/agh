@@ -34,9 +34,11 @@ import (
 )
 
 const (
-	gchatProviderListenAddrEnv = "AGH_BRIDGE_GCHAT_LISTEN_ADDR"
-	gchatProviderAPIBaseEnv    = "AGH_BRIDGE_GCHAT_API_BASE_URL"
-	gchatProviderTokenURLEnv   = "AGH_BRIDGE_GCHAT_TOKEN_URL"
+	gchatProviderListenAddrEnv  = "AGH_BRIDGE_GCHAT_LISTEN_ADDR"
+	gchatProviderAPIBaseEnv     = "AGH_BRIDGE_GCHAT_API_BASE_URL"
+	gchatProviderTokenURLEnv    = "AGH_BRIDGE_GCHAT_TOKEN_URL"
+	gchatProviderDirectCertsEnv = "AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL"
+	gchatProviderPubSubCertsEnv = "AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL"
 
 	gchatProviderDirectIssuer = "chat@system.gserviceaccount.com"
 	gchatProviderPubSubIssuer = "https://accounts.google.com"
@@ -64,9 +66,7 @@ func TestGChatProviderLaunchNegotiatesBridgeRuntime(t *testing.T) {
 			ProviderConfig: map[string]any{
 				"mode": "hybrid",
 				"verification": map[string]any{
-					"direct_certs_url":             mockAPI.DirectCertsURL(),
 					"pubsub_audience":              "https://example.test/pubsub",
-					"pubsub_certs_url":             mockAPI.PubSubCertsURL(),
 					"pubsub_service_account_email": "push@example.iam.gserviceaccount.com",
 				},
 			},
@@ -76,9 +76,11 @@ func TestGChatProviderLaunchNegotiatesBridgeRuntime(t *testing.T) {
 			},
 		}},
 		ExtraEnv: map[string]string{
-			gchatProviderListenAddrEnv: listenAddr,
-			gchatProviderAPIBaseEnv:    mockAPI.URL(),
-			gchatProviderTokenURLEnv:   mockAPI.TokenURL(),
+			gchatProviderListenAddrEnv:  listenAddr,
+			gchatProviderAPIBaseEnv:     mockAPI.URL(),
+			gchatProviderTokenURLEnv:    mockAPI.TokenURL(),
+			gchatProviderDirectCertsEnv: mockAPI.DirectCertsURL(),
+			gchatProviderPubSubCertsEnv: mockAPI.PubSubCertsURL(),
 		},
 		StartTime: time.Date(2026, 4, 15, 20, 30, 0, 0, time.UTC),
 	})
@@ -134,9 +136,7 @@ func TestGChatProviderIngressAndDeliveryConformance(t *testing.T) {
 			ProviderConfig: map[string]any{
 				"mode": "hybrid",
 				"verification": map[string]any{
-					"direct_certs_url":             mockAPI.DirectCertsURL(),
 					"pubsub_audience":              "https://example.test/pubsub",
-					"pubsub_certs_url":             mockAPI.PubSubCertsURL(),
 					"pubsub_service_account_email": "push@example.iam.gserviceaccount.com",
 				},
 			},
@@ -151,9 +151,11 @@ func TestGChatProviderIngressAndDeliveryConformance(t *testing.T) {
 			{Type: acp.EventTypeDone},
 		}),
 		ExtraEnv: map[string]string{
-			gchatProviderListenAddrEnv: listenAddr,
-			gchatProviderAPIBaseEnv:    mockAPI.URL(),
-			gchatProviderTokenURLEnv:   mockAPI.TokenURL(),
+			gchatProviderListenAddrEnv:  listenAddr,
+			gchatProviderAPIBaseEnv:     mockAPI.URL(),
+			gchatProviderTokenURLEnv:    mockAPI.TokenURL(),
+			gchatProviderDirectCertsEnv: mockAPI.DirectCertsURL(),
+			gchatProviderPubSubCertsEnv: mockAPI.PubSubCertsURL(),
 		},
 		StartTime: startTime,
 	})

@@ -307,7 +307,7 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 	logger := slog.New(slog.NewTextHandler(harness.logBuffer, nil))
 	daemon, err := daemonpkg.New(
 		daemonpkg.WithHomePaths(homePaths),
-		daemonpkg.WithConfig(cfg),
+		daemonpkg.WithConfig(&cfg),
 		daemonpkg.WithLogger(logger),
 	)
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
@@ -28,6 +29,7 @@ type bridgeDedupStore interface {
 
 type bridgeRuntimeStore interface {
 	bridgepkg.RegistryStore
+	bridgepkg.ResourceProjectionStore
 	bridgeDedupStore
 	PutBridgeSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error
 	ListBridgeSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error)
@@ -45,12 +47,15 @@ type BridgeSecretResolver interface {
 type bridgeRuntime struct {
 	*bridgepkg.Service
 
-	store          bridgeRuntimeStore
-	registry       *extensionpkg.Registry
-	secretResolver BridgeSecretResolver
-	broker         *bridgepkg.Broker
-	logger         *slog.Logger
-	now            func() time.Time
+	store           bridgeRuntimeStore
+	registry        *extensionpkg.Registry
+	secretResolver  BridgeSecretResolver
+	broker          *bridgepkg.Broker
+	logger          *slog.Logger
+	now             func() time.Time
+	resourceStore   resources.Store[bridgepkg.BridgeInstanceSpec]
+	resourceActor   resources.MutationActor
+	resourceTrigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
 
 	lifecycleMu             sync.Mutex
 	lifecycleLocks          map[string]*bridgeLifecycleLock
@@ -105,6 +110,23 @@ func newBridgeRuntime(
 	}
 }
 
+func (r *bridgeRuntime) setResourceDefinitions(
+	store resources.Store[bridgepkg.BridgeInstanceSpec],
+	actor resources.MutationActor,
+	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
+) {
+	if r == nil {
+		return
+	}
+	r.resourceStore = store
+	r.resourceActor = actor
+	r.resourceTrigger = trigger
+}
+
+func (r *bridgeRuntime) resourceDefinitionsEnabled() bool {
+	return r != nil && r.resourceStore != nil
+}
+
 func (r *bridgeRuntime) Broker() *bridgepkg.Broker {
 	if r == nil {
 		return nil
@@ -121,6 +143,9 @@ func (r *bridgeRuntime) CreateInstance(
 ) (*bridgepkg.BridgeInstance, error) {
 	if r == nil {
 		return nil, errors.New("daemon: bridge runtime is required")
+	}
+	if r.resourceDefinitionsEnabled() {
+		return r.createInstanceResource(ctx, req)
 	}
 
 	ctx, unlockExtension := r.lockExtensionLifecycleContext(ctx, req.ExtensionName)
@@ -159,11 +184,313 @@ func (r *bridgeRuntime) CreateInstance(
 	return created, nil
 }
 
+func (r *bridgeRuntime) createInstanceResource(
+	ctx context.Context,
+	req bridgepkg.CreateInstanceRequest,
+) (*bridgepkg.BridgeInstance, error) {
+	id, spec, err := bridgepkg.BridgeInstanceSpecFromCreateRequest(req, r.now)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create bridge instance resource: %w", err)
+	}
+
+	ctx, unlockExtension := r.lockExtensionLifecycleContext(ctx, spec.ExtensionName)
+	defer unlockExtension()
+	ctx, unlockInstance := r.lockInstanceLifecycleContext(ctx, id)
+	defer unlockInstance()
+
+	createdRecord, err := r.resourceStore.Put(
+		ctx,
+		r.resourceActorForSource(spec.Source),
+		resources.Draft[bridgepkg.BridgeInstanceSpec]{
+			ID:              id,
+			Scope:           bridgepkg.ResourceScopeForBridge(spec.Scope, spec.WorkspaceID),
+			ExpectedVersion: 0,
+			Spec:            spec,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create bridge instance resource %q: %w", id, err)
+	}
+	if err := r.applyBridgeResourcesFromStore(ctx); err != nil {
+		return nil, r.rollbackCreatedBridgeResource(ctx, createdRecord, "create", err)
+	}
+	if err := r.triggerBridgeResourceReconcile(ctx); err != nil {
+		return nil, r.rollbackCreatedBridgeResource(ctx, createdRecord, "create", err)
+	}
+
+	created, err := r.GetInstance(ctx, id)
+	if err != nil {
+		return nil, r.rollbackCreatedBridgeResource(ctx, createdRecord, "create", err)
+	}
+	return created, nil
+}
+
+// UpdateInstance writes mutable bridge desired state through canonical resources when enabled.
+func (r *bridgeRuntime) UpdateInstance(
+	ctx context.Context,
+	req bridgepkg.UpdateInstanceRequest,
+) (*bridgepkg.BridgeInstance, error) {
+	if r == nil {
+		return nil, errors.New("daemon: bridge runtime is required")
+	}
+	if !r.resourceDefinitionsEnabled() {
+		return r.Service.UpdateInstance(ctx, req)
+	}
+	return r.updateInstanceResource(ctx, req)
+}
+
+func (r *bridgeRuntime) updateInstanceResource(
+	ctx context.Context,
+	req bridgepkg.UpdateInstanceRequest,
+) (*bridgepkg.BridgeInstance, error) {
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("daemon: update bridge instance resource %q: %w", strings.TrimSpace(req.ID), err)
+	}
+
+	current, err := r.loadMutableBridgeInstanceResource(ctx, strings.TrimSpace(req.ID))
+	if err != nil {
+		return nil, err
+	}
+	next := updatedBridgeInstanceSpec(current.Spec, req)
+
+	ctx, unlockExtension := r.lockExtensionLifecycleContext(ctx, next.ExtensionName)
+	defer unlockExtension()
+	ctx, unlockInstance := r.lockInstanceLifecycleContext(ctx, current.ID)
+	defer unlockInstance()
+
+	previous, err := r.GetInstance(ctx, current.ID)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: update bridge instance resource %q: load current state: %w", current.ID, err)
+	}
+
+	updatedRecord, err := r.putBridgeInstanceResource(ctx, current, next)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.applyBridgeResourcesFromStore(ctx); err != nil {
+		return nil, r.rollbackBridgeResourceState(ctx, current, updatedRecord.Version, previous, "update", err)
+	}
+	if err := r.applyBridgeUpdateOperationalState(ctx, current.ID, next.Enabled, req); err != nil {
+		return nil, r.rollbackBridgeResourceState(ctx, current, updatedRecord.Version, previous, "update", err)
+	}
+	if err := r.triggerBridgeResourceReconcile(ctx); err != nil {
+		return nil, r.rollbackBridgeResourceState(ctx, current, updatedRecord.Version, previous, "update", err)
+	}
+
+	updated, err := r.GetInstance(ctx, current.ID)
+	if err != nil {
+		return nil, r.rollbackBridgeResourceState(ctx, current, updatedRecord.Version, previous, "update", err)
+	}
+	return updated, nil
+}
+
+func (r *bridgeRuntime) loadMutableBridgeInstanceResource(
+	ctx context.Context,
+	id string,
+) (resources.Record[bridgepkg.BridgeInstanceSpec], error) {
+	current, err := r.resourceStore.Get(ctx, r.resourceActor, id)
+	if err != nil {
+		return resources.Record[bridgepkg.BridgeInstanceSpec]{}, fmt.Errorf(
+			"daemon: update bridge instance resource %q: %w",
+			id,
+			err,
+		)
+	}
+	if current.Spec.Source == bridgepkg.BridgeInstanceSourcePackage {
+		return resources.Record[bridgepkg.BridgeInstanceSpec]{}, fmt.Errorf(
+			"daemon: update bridge instance resource %q: %w",
+			current.ID,
+			bridgepkg.ErrBridgeInstanceReadOnly,
+		)
+	}
+	return current, nil
+}
+
+func updatedBridgeInstanceSpec(
+	current bridgepkg.BridgeInstanceSpec,
+	req bridgepkg.UpdateInstanceRequest,
+) bridgepkg.BridgeInstanceSpec {
+	next := current
+	if req.DisplayName != nil {
+		next.DisplayName = strings.TrimSpace(*req.DisplayName)
+	}
+	if req.DMPolicy != nil {
+		next.DMPolicy = req.DMPolicy.Normalize()
+	}
+	if req.RoutingPolicy != nil {
+		next.RoutingPolicy = *req.RoutingPolicy
+	}
+	if req.ProviderConfig != nil {
+		next.ProviderConfig = append([]byte(nil), (*req.ProviderConfig)...)
+	}
+	if req.DeliveryDefaults != nil {
+		next.DeliveryDefaults = append([]byte(nil), (*req.DeliveryDefaults)...)
+	}
+	return next
+}
+
+func (r *bridgeRuntime) putBridgeInstanceResource(
+	ctx context.Context,
+	current resources.Record[bridgepkg.BridgeInstanceSpec],
+	next bridgepkg.BridgeInstanceSpec,
+) (resources.Record[bridgepkg.BridgeInstanceSpec], error) {
+	record, err := r.resourceStore.Put(
+		ctx,
+		r.resourceActorForRecordSource(current.Source),
+		resources.Draft[bridgepkg.BridgeInstanceSpec]{
+			ID:              current.ID,
+			Scope:           bridgepkg.ResourceScopeForBridge(next.Scope, next.WorkspaceID),
+			ExpectedVersion: current.Version,
+			Spec:            next,
+		},
+	)
+	if err != nil {
+		return resources.Record[bridgepkg.BridgeInstanceSpec]{}, fmt.Errorf(
+			"daemon: update bridge instance resource %q: %w",
+			current.ID,
+			err,
+		)
+	}
+	return record, nil
+}
+
+func (r *bridgeRuntime) applyBridgeUpdateOperationalState(
+	ctx context.Context,
+	id string,
+	enabled bool,
+	req bridgepkg.UpdateInstanceRequest,
+) error {
+	if !req.ClearDegradation && req.Degradation == nil {
+		return nil
+	}
+	currentInstance, err := r.GetInstance(ctx, id)
+	if err != nil {
+		return err
+	}
+	_, err = r.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
+		ID:               id,
+		Enabled:          enabled,
+		Status:           bridgeStatusForBridgeUpdate(currentInstance.Status, req),
+		Degradation:      req.Degradation,
+		ClearDegradation: req.ClearDegradation,
+		UpdatedAt:        r.now().UTC(),
+	})
+	return err
+}
+
+func bridgeStatusForBridgeUpdate(
+	current bridgepkg.BridgeStatus,
+	req bridgepkg.UpdateInstanceRequest,
+) bridgepkg.BridgeStatus {
+	status := current.Normalize()
+	if req.Degradation == nil || req.Degradation.IsZero() {
+		return status
+	}
+	switch status {
+	case bridgepkg.BridgeStatusDegraded,
+		bridgepkg.BridgeStatusAuthRequired,
+		bridgepkg.BridgeStatusError:
+		return status
+	default:
+		return bridgepkg.BridgeStatusDegraded
+	}
+}
+
 func (r *bridgeRuntime) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
 	if r == nil || r.broker == nil {
 		return nil
 	}
 	return r.broker.DeliveryMetrics()
+}
+
+func (r *bridgeRuntime) BuildBridgeResourceState(
+	ctx context.Context,
+	records []resources.Record[bridgepkg.BridgeInstanceSpec],
+) (resources.ProjectionPlan, error) {
+	if r == nil {
+		return nil, errors.New("daemon: bridge runtime is required")
+	}
+	return bridgepkg.BuildResourceState(ctx, r.store, records, r.now)
+}
+
+func (r *bridgeRuntime) ApplyBridgeResourceState(ctx context.Context, plan resources.ProjectionPlan) error {
+	if r == nil {
+		return errors.New("daemon: bridge runtime is required")
+	}
+	typed, ok := plan.(*bridgepkg.ResourceProjectionPlan)
+	if !ok {
+		return fmt.Errorf("daemon: bridge resource plan has type %T", plan)
+	}
+	if err := bridgepkg.ApplyResourceState(ctx, r.store, typed); err != nil {
+		return err
+	}
+	if typed.OperationCount() == 0 || len(typed.ChangedExtensions()) == 0 {
+		return nil
+	}
+	if err := r.reloadExtensions(ctx, "bridge.resource"); err != nil {
+		rollbackCtx := context.WithoutCancel(ctx)
+		rollbackPlan := typed.RollbackPlan()
+		if rollbackErr := bridgepkg.ApplyResourceState(rollbackCtx, r.store, rollbackPlan); rollbackErr != nil {
+			return fmt.Errorf(
+				"daemon: apply bridge resource state: reload failed and rollback also failed: %w",
+				errors.Join(err, rollbackErr),
+			)
+		}
+		return fmt.Errorf("daemon: apply bridge resource state: rolled back after reload failure: %w", err)
+	}
+	return nil
+}
+
+func (r *bridgeRuntime) applyBridgeResourcesFromStore(ctx context.Context) error {
+	records, err := r.resourceStore.List(ctx, r.resourceActor, resources.ResourceFilter{
+		Kind: bridgepkg.BridgeInstanceResourceKind,
+	})
+	if err != nil {
+		return fmt.Errorf("daemon: list bridge instance resources: %w", err)
+	}
+	plan, err := r.BuildBridgeResourceState(ctx, records)
+	if err != nil {
+		return err
+	}
+	return r.ApplyBridgeResourceState(ctx, plan)
+}
+
+func (r *bridgeRuntime) triggerBridgeResourceReconcile(ctx context.Context) error {
+	if r == nil || r.resourceTrigger == nil {
+		return nil
+	}
+	return r.resourceTrigger(ctx, bridgepkg.BridgeInstanceResourceKind, resources.ReconcileReasonWrite)
+}
+
+func (r *bridgeRuntime) resourceActorForSource(source bridgepkg.BridgeInstanceSource) resources.MutationActor {
+	actor := r.resourceActor
+	if actor.Kind == "" {
+		actor = resourceReconcileActor()
+	}
+	normalized := source.Normalize()
+	if normalized == "" {
+		normalized = bridgepkg.BridgeInstanceSourceDynamic
+	}
+	actor.ID = "bridge." + strings.TrimSpace(string(normalized))
+	actor.Source = resources.ResourceSource{
+		Kind: resources.ResourceSourceKind("daemon"),
+		ID:   actor.ID,
+	}
+	return actor
+}
+
+func (r *bridgeRuntime) resourceActorForRecordSource(source resources.ResourceSource) resources.MutationActor {
+	actor := r.resourceActor
+	if actor.Kind == "" {
+		actor = resourceReconcileActor()
+	}
+	normalized := source.Normalize()
+	if normalized.Kind == "" || strings.TrimSpace(normalized.ID) == "" {
+		return actor
+	}
+	actor.ID = normalized.ID
+	actor.Source = normalized
+	return actor
 }
 
 func (r *bridgeRuntime) ListSecretBindings(
@@ -464,6 +791,9 @@ func (r *bridgeRuntime) transitionInstance(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if r.resourceDefinitionsEnabled() {
+		return r.transitionResourceInstance(ctx, id, enabled, status, reload, action)
+	}
 
 	trimmedID := strings.TrimSpace(id)
 	if trimmedID == "" {
@@ -494,6 +824,210 @@ func (r *bridgeRuntime) transitionInstance(
 	}
 
 	return updated, nil
+}
+
+func (r *bridgeRuntime) transitionResourceInstance(
+	ctx context.Context,
+	id string,
+	enabled bool,
+	status bridgepkg.BridgeStatus,
+	reload bool,
+	action string,
+) (*bridgepkg.BridgeInstance, error) {
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return nil, fmt.Errorf("daemon: %s bridge instance id is required", action)
+	}
+
+	currentRecord, err := r.resourceStore.Get(ctx, r.resourceActor, trimmedID)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: %s bridge instance %q: load resource: %w", action, trimmedID, err)
+	}
+
+	ctx, unlockExtension := r.lockExtensionLifecycleContext(ctx, currentRecord.Spec.ExtensionName)
+	defer unlockExtension()
+	ctx, unlockInstance := r.lockInstanceLifecycleContext(ctx, trimmedID)
+	defer unlockInstance()
+
+	previous, err := r.GetInstance(ctx, trimmedID)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: %s bridge instance %q: load current state: %w", action, trimmedID, err)
+	}
+
+	nextSpec := currentRecord.Spec
+	nextSpec.Enabled = enabled
+	updatedRecord, err := r.resourceStore.Put(
+		ctx,
+		r.resourceActorForRecordSource(currentRecord.Source),
+		resources.Draft[bridgepkg.BridgeInstanceSpec]{
+			ID:              currentRecord.ID,
+			Scope:           bridgepkg.ResourceScopeForBridge(nextSpec.Scope, nextSpec.WorkspaceID),
+			ExpectedVersion: currentRecord.Version,
+			Spec:            nextSpec,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: %s bridge instance %q: write resource: %w", action, trimmedID, err)
+	}
+	if err := r.applyBridgeResourcesFromStore(ctx); err != nil {
+		return nil, err
+	}
+	return r.finalizeTransitionResourceInstance(
+		ctx,
+		currentRecord,
+		updatedRecord,
+		previous,
+		trimmedID,
+		enabled,
+		status,
+		reload,
+		action,
+	)
+}
+
+func (r *bridgeRuntime) finalizeTransitionResourceInstance(
+	ctx context.Context,
+	currentRecord resources.Record[bridgepkg.BridgeInstanceSpec],
+	updatedRecord resources.Record[bridgepkg.BridgeInstanceSpec],
+	previous *bridgepkg.BridgeInstance,
+	trimmedID string,
+	enabled bool,
+	status bridgepkg.BridgeStatus,
+	reload bool,
+	action string,
+) (*bridgepkg.BridgeInstance, error) {
+	updated, err := r.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
+		ID:        trimmedID,
+		Enabled:   enabled,
+		Status:    status,
+		UpdatedAt: r.now().UTC(),
+	})
+	if err != nil {
+		return nil, r.rollbackBridgeResourceState(
+			ctx,
+			currentRecord,
+			updatedRecord.Version,
+			previous,
+			action,
+			fmt.Errorf("daemon: %s bridge instance %q: set runtime state: %w", action, trimmedID, err),
+		)
+	}
+
+	if reload {
+		if err := r.reloadExtensions(ctx, trimmedID); err != nil {
+			return nil, r.rollbackBridgeResourceState(
+				ctx,
+				currentRecord,
+				updatedRecord.Version,
+				previous,
+				action,
+				err,
+			)
+		}
+	}
+	if err := r.triggerBridgeResourceReconcile(ctx); err != nil {
+		return nil, r.rollbackBridgeResourceState(
+			ctx,
+			currentRecord,
+			updatedRecord.Version,
+			previous,
+			action,
+			err,
+		)
+	}
+	return updated, nil
+}
+
+func (r *bridgeRuntime) rollbackCreatedBridgeResource(
+	ctx context.Context,
+	createdRecord resources.Record[bridgepkg.BridgeInstanceSpec],
+	action string,
+	cause error,
+) error {
+	rollbackCtx := context.WithoutCancel(ctx)
+	if err := r.resourceStore.Delete(
+		rollbackCtx,
+		r.resourceActorForRecordSource(createdRecord.Source),
+		createdRecord.ID,
+		createdRecord.Version,
+	); err != nil {
+		return fmt.Errorf(
+			"daemon: %s bridge instance %q: follow-up failed and resource rollback also failed: %w",
+			action,
+			createdRecord.ID,
+			errors.Join(cause, err),
+		)
+	}
+	if err := r.applyBridgeResourcesFromStore(rollbackCtx); err != nil {
+		return fmt.Errorf(
+			"daemon: %s bridge instance %q: follow-up failed and resource rollback apply also failed: %w",
+			action,
+			createdRecord.ID,
+			errors.Join(cause, err),
+		)
+	}
+	return fmt.Errorf(
+		"daemon: %s bridge instance %q: removed created resource after follow-up failure: %w",
+		action,
+		createdRecord.ID,
+		cause,
+	)
+}
+
+func (r *bridgeRuntime) rollbackBridgeResourceState(
+	ctx context.Context,
+	previousRecord resources.Record[bridgepkg.BridgeInstanceSpec],
+	currentVersion int64,
+	previousInstance *bridgepkg.BridgeInstance,
+	action string,
+	cause error,
+) error {
+	rollbackCtx := context.WithoutCancel(ctx)
+	if _, err := r.resourceStore.Put(
+		rollbackCtx,
+		r.resourceActorForRecordSource(previousRecord.Source),
+		resources.Draft[bridgepkg.BridgeInstanceSpec]{
+			ID:              previousRecord.ID,
+			Scope:           previousRecord.Scope,
+			ExpectedVersion: currentVersion,
+			Spec:            previousRecord.Spec,
+		},
+	); err != nil {
+		return fmt.Errorf(
+			"daemon: %s bridge instance %q: follow-up failed and resource rollback also failed: %w",
+			action,
+			previousRecord.ID,
+			errors.Join(cause, err),
+		)
+	}
+	if err := r.applyBridgeResourcesFromStore(rollbackCtx); err != nil {
+		return fmt.Errorf(
+			"daemon: %s bridge instance %q: follow-up failed and resource rollback apply also failed: %w",
+			action,
+			previousRecord.ID,
+			errors.Join(cause, err),
+		)
+	}
+	if previousInstance != nil {
+		if err := r.persistCompensatingInstance(
+			rollbackCtx,
+			*previousInstance,
+			"restore bridge instance after resource lifecycle failure",
+		); err != nil {
+			return fmt.Errorf(
+				"daemon: %s bridge instance %q: follow-up failed and state rollback also failed: %w",
+				action,
+				previousRecord.ID,
+				errors.Join(cause, err),
+			)
+		}
+	}
+	return fmt.Errorf(
+		"daemon: %s bridge instance %q: restored persisted state after follow-up failure: %w",
+		action,
+		previousRecord.ID,
+		cause,
+	)
 }
 
 func (r *bridgeRuntime) transitionExtensionName(

@@ -238,6 +238,66 @@ func TestHookMatcherMatchesAutomation(t *testing.T) {
 	}
 }
 
+func TestHookMatcherMatchesEnvironment(t *testing.T) {
+	t.Parallel()
+
+	prepareMatcher := HookMatcher{
+		AgentName:          "codex",
+		WorkspaceID:        "ws-1",
+		EnvironmentID:      "env-1",
+		EnvironmentBackend: "daytona",
+		EnvironmentProfile: "daytona-dev",
+	}
+	if !prepareMatcher.MatchesEnvironmentPrepare(EnvironmentPreparePayload{
+		SessionContext: SessionContext{
+			AgentName:   "codex",
+			WorkspaceID: "ws-1",
+		},
+		EnvironmentID: "env-1",
+		Backend:       "daytona",
+		Profile:       EnvironmentProfilePayload{Profile: "daytona-dev"},
+	}) {
+		t.Fatal("MatchesEnvironmentPrepare() = false, want true")
+	}
+	syncMatcher := prepareMatcher
+	syncMatcher.SyncDirection = "to_runtime"
+	if !syncMatcher.MatchesEnvironmentSyncBefore(EnvironmentSyncBeforePayload{
+		SessionContext: SessionContext{
+			AgentName:   "codex",
+			WorkspaceID: "ws-1",
+		},
+		EnvironmentID: "env-1",
+		Backend:       "daytona",
+		Profile:       "daytona-dev",
+		Direction:     "to_runtime",
+	}) {
+		t.Fatal("MatchesEnvironmentSyncBefore() = false, want true")
+	}
+	if syncMatcher.MatchesEnvironmentSyncAfter(EnvironmentSyncAfterPayload{
+		SessionContext: SessionContext{
+			AgentName:   "codex",
+			WorkspaceID: "ws-1",
+		},
+		EnvironmentID: "env-1",
+		Backend:       "daytona",
+		Profile:       "daytona-dev",
+		Direction:     "from_runtime",
+	}) {
+		t.Fatal("MatchesEnvironmentSyncAfter() = true, want false for direction mismatch")
+	}
+	if prepareMatcher.MatchesEnvironmentStop(EnvironmentStopPayload{
+		SessionContext: SessionContext{
+			AgentName:   "codex",
+			WorkspaceID: "ws-1",
+		},
+		EnvironmentID: "env-2",
+		Backend:       "daytona",
+		Profile:       "daytona-dev",
+	}) {
+		t.Fatal("MatchesEnvironmentStop() = true, want false for environment id mismatch")
+	}
+}
+
 func TestHookMatcherMatchesToolResponses(t *testing.T) {
 	t.Parallel()
 

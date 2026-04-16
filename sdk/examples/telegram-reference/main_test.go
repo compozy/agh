@@ -803,6 +803,7 @@ func testInitializeRequest(
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
 		AGHVersion:               "0.5.0",
+		SessionNonce:             "nonce-test",
 		Extension: subprocess.InitializeExtension{
 			Name:       "telegram-reference",
 			Version:    "0.1.0",

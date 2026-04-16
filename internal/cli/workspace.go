@@ -25,9 +25,10 @@ func newWorkspaceCommand(deps commandDeps) *cobra.Command {
 
 func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
 	var (
-		name         string
-		addDirs      []string
-		defaultAgent string
+		name           string
+		addDirs        []string
+		defaultAgent   string
+		environmentRef string
 	)
 
 	cmd := &cobra.Command{
@@ -46,10 +47,11 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
 			}
 
 			workspace, err := client.CreateWorkspace(cmd.Context(), WorkspaceCreateRequest{
-				RootDir:      strings.TrimSpace(args[0]),
-				Name:         strings.TrimSpace(name),
-				AddDirs:      trimmedUniqueStrings(addDirs),
-				DefaultAgent: strings.TrimSpace(defaultAgent),
+				RootDir:        strings.TrimSpace(args[0]),
+				Name:           strings.TrimSpace(name),
+				AddDirs:        trimmedUniqueStrings(addDirs),
+				DefaultAgent:   strings.TrimSpace(defaultAgent),
+				EnvironmentRef: strings.TrimSpace(environmentRef),
 			})
 			if err != nil {
 				return err
@@ -63,6 +65,8 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
 		StringArrayVar(&addDirs, "add-dir", nil, "Additional directory to include (repeatable)")
 	cmd.Flags().
 		StringVar(&defaultAgent, "default-agent", "", "Default agent override for this workspace")
+	cmd.Flags().
+		StringVar(&environmentRef, "environment", "", "Environment profile override for this workspace")
 	return cmd
 }
 
@@ -115,12 +119,21 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
+func workspaceEditFlagsChanged(cmd *cobra.Command) bool {
+	return cmd.Flags().Changed("name") ||
+		cmd.Flags().Changed("add-dir") ||
+		cmd.Flags().Changed("remove-dir") ||
+		cmd.Flags().Changed("default-agent") ||
+		cmd.Flags().Changed("environment")
+}
+
 func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 	var (
-		name         string
-		addDirs      []string
-		removeDirs   []string
-		defaultAgent string
+		name           string
+		addDirs        []string
+		removeDirs     []string
+		defaultAgent   string
+		environmentRef string
 	)
 
 	cmd := &cobra.Command{
@@ -138,11 +151,7 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			nameChanged := cmd.Flags().Changed("name")
-			addChanged := cmd.Flags().Changed("add-dir")
-			removeChanged := cmd.Flags().Changed("remove-dir")
-			defaultAgentChanged := cmd.Flags().Changed("default-agent")
-			if !nameChanged && !addChanged && !removeChanged && !defaultAgentChanged {
+			if !workspaceEditFlagsChanged(cmd) {
 				return errors.New("cli: at least one edit flag is required")
 			}
 
@@ -152,14 +161,14 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 			}
 
 			request := WorkspaceUpdateRequest{}
-			if nameChanged {
+			if cmd.Flags().Changed("name") {
 				trimmedName := strings.TrimSpace(name)
 				if trimmedName == "" {
 					return errors.New("cli: --name cannot be empty")
 				}
 				request.Name = &trimmedName
 			}
-			if addChanged || removeChanged {
+			if cmd.Flags().Changed("add-dir") || cmd.Flags().Changed("remove-dir") {
 				mergedDirs, err := mergeWorkspaceAddDirs(
 					detail.Workspace.AddDirs,
 					addDirs,
@@ -170,9 +179,13 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 				}
 				request.AddDirs = &mergedDirs
 			}
-			if defaultAgentChanged {
+			if cmd.Flags().Changed("default-agent") {
 				trimmedDefaultAgent := strings.TrimSpace(defaultAgent)
 				request.DefaultAgent = &trimmedDefaultAgent
+			}
+			if cmd.Flags().Changed("environment") {
+				trimmedEnvironment := strings.TrimSpace(environmentRef)
+				request.EnvironmentRef = &trimmedEnvironment
 			}
 
 			updated, err := client.UpdateWorkspace(cmd.Context(), detail.Workspace.ID, request)
@@ -190,6 +203,8 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 		StringArrayVar(&removeDirs, "remove-dir", nil, "Additional directory to remove (repeatable)")
 	cmd.Flags().
 		StringVar(&defaultAgent, "default-agent", "", "Override the workspace default agent (set empty to clear)")
+	cmd.Flags().
+		StringVar(&environmentRef, "environment", "", "Override the workspace environment profile (set empty to clear)")
 	return cmd
 }
 
@@ -229,19 +244,21 @@ func workspaceRecordBundle(item WorkspaceRecord) outputBundle {
 				{Label: "Root", Value: stringOrDash(item.RootDir)},
 				{Label: "Additional Dirs", Value: stringOrDash(strings.Join(item.AddDirs, ", "))},
 				{Label: "Default Agent", Value: stringOrDash(item.DefaultAgent)},
+				{Label: "Environment", Value: stringOrDash(item.EnvironmentRef)},
 				{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
 				{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("workspace", []string{
-				"id", "name", "root_dir", "add_dirs", "default_agent", "created_at", "updated_at",
+				"id", "name", "root_dir", "add_dirs", "default_agent", "environment_ref", "created_at", "updated_at",
 			}, []string{
 				item.ID,
 				item.Name,
 				item.RootDir,
 				strings.Join(item.AddDirs, "|"),
 				item.DefaultAgent,
+				item.EnvironmentRef,
 				formatTime(item.CreatedAt),
 				formatTime(item.UpdatedAt),
 			}), nil
@@ -254,9 +271,9 @@ func workspaceListBundle(items []WorkspaceRecord) outputBundle {
 		items,
 		items,
 		"Workspaces",
-		[]string{"ID", "Name", "Root", "Add Dirs", "Default Agent", "Updated"},
+		[]string{"ID", "Name", "Root", "Add Dirs", "Default Agent", "Environment", "Updated"},
 		"workspaces",
-		[]string{"id", "name", "root_dir", "add_dir_count", "default_agent", "updated_at"},
+		[]string{"id", "name", "root_dir", "add_dir_count", "default_agent", "environment_ref", "updated_at"},
 		func(item WorkspaceRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
@@ -264,6 +281,7 @@ func workspaceListBundle(items []WorkspaceRecord) outputBundle {
 				stringOrDash(item.RootDir),
 				strconv.Itoa(len(item.AddDirs)),
 				stringOrDash(item.DefaultAgent),
+				stringOrDash(item.EnvironmentRef),
 				stringOrDash(formatTime(item.UpdatedAt)),
 			}
 		},
@@ -274,6 +292,7 @@ func workspaceListBundle(items []WorkspaceRecord) outputBundle {
 				item.RootDir,
 				strconv.Itoa(len(item.AddDirs)),
 				item.DefaultAgent,
+				item.EnvironmentRef,
 				formatTime(item.UpdatedAt),
 			}
 		},

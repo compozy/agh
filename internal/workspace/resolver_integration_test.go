@@ -14,6 +14,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
@@ -138,6 +139,70 @@ func TestResolverIntegrationResolveUpdatesStaleSymlinkRegistration(t *testing.T)
 	}
 	if stored.RootDir != canonicalTargetTwo {
 		t.Fatalf("stored RootDir = %q, want %q", stored.RootDir, canonicalTargetTwo)
+	}
+}
+
+func TestResolverIntegrationEnvironmentConfigRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	homePaths := newIntegrationHomePaths(t)
+	t.Setenv("AGH_HOME", homePaths.HomeDir)
+
+	db := openTestGlobalDB(t, ctx)
+	defer closeTestGlobalDB(t, ctx, db)
+
+	root := t.TempDir()
+	writeFile(t, homePaths.ConfigFile, `
+[defaults]
+environment = "daytona-dev"
+
+[environments.daytona-dev]
+backend = "daytona"
+sync_mode = "session-bidirectional"
+persistence = "reuse"
+runtime_root = "/home/daytona/workspace"
+
+[environments.daytona-dev.env]
+NODE_ENV = "development"
+
+[environments.daytona-dev.daytona]
+image = "ubuntu:24.04"
+snapshot = "snap-integration"
+`)
+
+	resolver := newIntegrationResolver(t, db, homePaths)
+	registered, err := resolver.Register(ctx, aghworkspace.RegisterOptions{
+		RootDir:        root,
+		Name:           "repo-env",
+		EnvironmentRef: "daytona-dev",
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+
+	stored, err := db.GetWorkspace(ctx, registered.ID)
+	if err != nil {
+		t.Fatalf("GetWorkspace() error = %v", err)
+	}
+	if got, want := stored.EnvironmentRef, "daytona-dev"; got != want {
+		t.Fatalf("stored EnvironmentRef = %q, want %q", got, want)
+	}
+
+	resolved, err := resolver.Resolve(ctx, registered.ID)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if resolved.Environment.Profile != "daytona-dev" ||
+		resolved.Environment.Backend != environment.BackendDaytona ||
+		resolved.Environment.Persistence != environment.PersistenceReuse {
+		t.Fatalf("resolved Environment = %#v, want Daytona profile", resolved.Environment)
+	}
+	if resolved.Environment.Daytona == nil ||
+		resolved.Environment.Daytona.StartupSource != environment.DaytonaStartupSourceSnapshot ||
+		resolved.Environment.Daytona.StartupRef != "snap-integration" {
+		t.Fatalf("resolved Daytona config = %#v, want snapshot startup", resolved.Environment.Daytona)
+	}
+	if got, want := resolved.Environment.Env["NODE_ENV"], "development"; got != want {
+		t.Fatalf("resolved Env[NODE_ENV] = %q, want %q", got, want)
 	}
 }
 

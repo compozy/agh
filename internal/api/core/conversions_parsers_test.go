@@ -33,8 +33,17 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		StopReason:   store.StopTimeout,
 		StopDetail:   "deadline exceeded",
 		ACPSessionID: "acp-123",
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		Environment: &store.SessionEnvironmentMeta{
+			EnvironmentID: "env-1",
+			Backend:       "local",
+			Profile:       "local",
+			State:         "prepared",
+			InstanceID:    "instance-1",
+			ProviderState: json.RawMessage(`{"sandbox_id":"sb-123","token":"secret"}`),
+			LastSyncError: "sync failed",
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
 		ACPCaps: acp.Caps{
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat"},
@@ -54,6 +63,17 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	}
 	if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession || len(payload.ACPCaps.SupportedModels) != 1 {
 		t.Fatalf("caps = %#v", payload.ACPCaps)
+	}
+	if payload.Environment == nil || payload.Environment.EnvironmentID != "env-1" ||
+		payload.Environment.Backend != "local" ||
+		payload.Environment.Profile != "local" ||
+		payload.Environment.State != "prepared" ||
+		payload.Environment.InstanceID != "instance-1" ||
+		payload.Environment.LastSyncError != "sync failed" {
+		t.Fatalf("environment = %#v", payload.Environment)
+	}
+	if payload.Environment.ProviderStateJSON != nil {
+		t.Fatalf("environment provider state = %s, want omitted", string(payload.Environment.ProviderStateJSON))
 	}
 }
 

@@ -21,6 +21,12 @@ func ValidateHookDecl(decl HookDecl) error {
 	return err
 }
 
+// CanonicalizeHookDecl validates one declaration and applies defaults without
+// binding an executor.
+func CanonicalizeHookDecl(decl HookDecl) (HookDecl, error) {
+	return sanitizedHookDecl(decl)
+}
+
 // ValidateHookDecls validates a declaration slice and stops at the first error.
 func ValidateHookDecls(decls []HookDecl) error {
 	for idx, decl := range decls {

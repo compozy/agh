@@ -111,6 +111,81 @@ func TestManagedSyncerReconcilesCreateUpdateDelete(t *testing.T) {
 	}
 }
 
+func TestManagedSyncerIgnoresSemanticallyEquivalentJSON(t *testing.T) {
+	t.Parallel()
+
+	store := stubRegistryStore{
+		listBridgeInstancesFn: func(_ context.Context) ([]bridgepkg.BridgeInstance, error) {
+			return []bridgepkg.BridgeInstance{{
+				ID:               "brg-json",
+				Scope:            bridgepkg.ScopeGlobal,
+				Platform:         "telegram",
+				ExtensionName:    "telegram-adapter",
+				DisplayName:      "JSON Bridge",
+				Source:           bridgepkg.BridgeInstanceSourcePackage,
+				Enabled:          false,
+				Status:           bridgepkg.BridgeStatusDisabled,
+				RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+				ProviderConfig:   []byte(`{"tenant":"acme","features":{"beta":true}}`),
+				DeliveryDefaults: []byte(`{"peer_id":"peer-1","mode":"reply"}`),
+				CreatedAt:        time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+				UpdatedAt:        time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+			}}, nil
+		},
+	}
+
+	var (
+		inserted []bridgepkg.BridgeInstance
+		updated  []bridgepkg.BridgeInstance
+		deleted  []string
+	)
+	store.insertBridgeInstanceFn = func(_ context.Context, instance bridgepkg.BridgeInstance) error {
+		inserted = append(inserted, instance)
+		return nil
+	}
+	store.updateBridgeInstanceFn = func(_ context.Context, instance bridgepkg.BridgeInstance) error {
+		updated = append(updated, instance)
+		return nil
+	}
+	store.deleteBridgeInstanceFn = func(_ context.Context, id string) error {
+		deleted = append(deleted, id)
+		return nil
+	}
+
+	syncer := bridgepkg.NewManagedSyncer(store)
+	stats, err := syncer.SyncManagedInstances(
+		testutil.Context(t),
+		bridgepkg.BridgeInstanceSourcePackage,
+		[]bridgepkg.BridgeInstance{{
+			ID:               "brg-json",
+			Scope:            bridgepkg.ScopeGlobal,
+			Platform:         "telegram",
+			ExtensionName:    "telegram-adapter",
+			DisplayName:      "JSON Bridge",
+			Enabled:          false,
+			Status:           bridgepkg.BridgeStatusDisabled,
+			RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+			ProviderConfig:   []byte("{\n  \"features\": {\"beta\": true},\n  \"tenant\": \"acme\"\n}"),
+			DeliveryDefaults: []byte(`{"mode":"reply","peer_id":"peer-1"}`),
+		}},
+	)
+	if err != nil {
+		t.Fatalf("SyncManagedInstances() error = %v", err)
+	}
+	if got, want := stats.InstancesSynced, 1; got != want {
+		t.Fatalf("InstancesSynced = %d, want %d", got, want)
+	}
+	if got := len(inserted); got != 0 {
+		t.Fatalf("len(inserted) = %d, want 0", got)
+	}
+	if got := len(updated); got != 0 {
+		t.Fatalf("len(updated) = %d, want 0", got)
+	}
+	if got := len(deleted); got != 0 {
+		t.Fatalf("len(deleted) = %d, want 0", got)
+	}
+}
+
 func TestManagedSyncerWrapsStoreErrors(t *testing.T) {
 	t.Parallel()
 

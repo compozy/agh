@@ -34,6 +34,7 @@ import (
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/procutil"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
@@ -194,6 +195,149 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	}
 	if got, want := d.info.Network.Status, network.StatusDisabled; got != want {
 		t.Fatalf("boot() daemon info network status = %q, want %q", got, want)
+	}
+}
+
+func TestBootWithRegistryMissingResourceDBLeavesResourceServiceUnavailable(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = false
+
+	var httpSawNilResources bool
+	var udsSawNilResources bool
+
+	d := newTestDaemon(t, homePaths, &cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+		httpSawNilResources = deps.Resources == nil
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+		udsSawNilResources = deps.Resources == nil
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if !httpSawNilResources {
+		t.Fatal("httpFactory() received non-nil resource service, want nil when registry has no SQL handle")
+	}
+	if !udsSawNilResources {
+		t.Fatal("udsFactory() received non-nil resource service, want nil when registry has no SQL handle")
+	}
+}
+
+func TestBootRunsResourceReconcileBeforeObserverReconcile(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = false
+
+	var mu sync.Mutex
+	var order []string
+	appendOrder := func(step string) {
+		mu.Lock()
+		defer mu.Unlock()
+		order = append(order, step)
+	}
+
+	driver := &fakeResourceReconcileDriver{
+		onRunBoot: func() {
+			appendOrder("driver")
+		},
+	}
+
+	d := newTestDaemon(t, homePaths, &cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{
+			onReconcile: func() {
+				appendOrder("observer")
+			},
+		}, nil
+	}
+	d.newResourceReconcile = func(context.Context, resourceReconcileDriverDeps) (resources.ReconcileDriver, error) {
+		return driver, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	mu.Lock()
+	gotOrder := append([]string(nil), order...)
+	mu.Unlock()
+	wantOrder := []string{"driver", "observer"}
+	if !slices.Equal(gotOrder, wantOrder) {
+		t.Fatalf("boot order = %#v, want %#v", gotOrder, wantOrder)
+	}
+}
+
+func TestShutdownClosesResourceReconcileDriver(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Network.Enabled = false
+
+	driver := &fakeResourceReconcileDriver{}
+	d := newTestDaemon(t, homePaths, &cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.newResourceReconcile = func(context.Context, resourceReconcileDriverDeps) (resources.ReconcileDriver, error) {
+		return driver, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if got, want := driver.closeCalls, 1; got != want {
+		t.Fatalf("resource reconcile Close() calls = %d, want %d", got, want)
 	}
 }
 
@@ -641,6 +785,283 @@ func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
 	}
 }
 
+func TestExtensionManagerDepsIncludeResourceHandlesAndTrigger(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	kernel, err := resources.NewKernel(db.DB())
+	if err != nil {
+		t.Fatalf("resources.NewKernel() error = %v", err)
+	}
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	logger := discardLogger()
+	memStore := memory.NewStore(t.TempDir())
+	skillsRegistry := skills.NewRegistry(skills.RegistryConfig{})
+	sessions := &fakeSessionManager{}
+	observer := &fakeObserver{}
+	automation := &fakeAutomationManager{}
+	reconcile := &fakeResourceReconcileDriver{}
+	bridges := &bridgeRuntime{broker: bridgepkg.NewBroker(nil)}
+	codecs := resources.NewCodecRegistry()
+	extRegistry := extensionpkg.NewRegistry(db.DB())
+
+	d := newTestDaemon(t, homePaths, &cfg)
+	deps := d.extensionManagerDeps(&bootState{
+		cfg:               cfg,
+		logger:            logger,
+		sessions:          sessions,
+		deps:              RuntimeDeps{},
+		memoryStore:       memStore,
+		observer:          observer,
+		skillsRegistry:    skillsRegistry,
+		bridges:           bridges,
+		resourceKernel:    kernel,
+		resourceCodecs:    codecs,
+		resourceReconcile: reconcile,
+		automation:        automation,
+	}, extRegistry)
+
+	if deps.Registry != extRegistry {
+		t.Fatal("deps.Registry mismatch")
+	}
+	if deps.Sessions != sessions {
+		t.Fatal("deps.Sessions mismatch")
+	}
+	if deps.MemoryStore != memStore {
+		t.Fatal("deps.MemoryStore mismatch")
+	}
+	if deps.Observer != observer {
+		t.Fatal("deps.Observer mismatch")
+	}
+	if deps.SkillsRegistry != skillsRegistry {
+		t.Fatal("deps.SkillsRegistry mismatch")
+	}
+	if deps.Logger != logger {
+		t.Fatal("deps.Logger mismatch")
+	}
+	if deps.ResourceCodecs != codecs {
+		t.Fatal("deps.ResourceCodecs mismatch")
+	}
+	if got, ok := deps.ResourceStore.(*resources.Kernel); !ok || got != kernel {
+		t.Fatalf("deps.ResourceStore = %#v, want kernel-backed raw store", deps.ResourceStore)
+	}
+	if got, ok := deps.SourceSessions.(*resources.Kernel); !ok || got != kernel {
+		t.Fatalf("deps.SourceSessions = %#v, want kernel-backed source sessions", deps.SourceSessions)
+	}
+	if got := deps.Automation(); got != automation {
+		t.Fatalf("deps.Automation() = %#v, want automation runtime", got)
+	}
+	if err := deps.ResourceTrigger(
+		testutil.Context(t),
+		hookBindingResourceKind,
+		resources.ReconcileReasonWrite,
+	); err != nil {
+		t.Fatalf("deps.ResourceTrigger() error = %v", err)
+	}
+	if reconcile.triggerCalls != 1 {
+		t.Fatalf("resource trigger calls = %d, want 1", reconcile.triggerCalls)
+	}
+	if reconcile.lastKind != hookBindingResourceKind || reconcile.lastReason != resources.ReconcileReasonWrite {
+		t.Fatalf(
+			"resource trigger = (%q, %q), want (%q, %q)",
+			reconcile.lastKind,
+			reconcile.lastReason,
+			hookBindingResourceKind,
+			resources.ReconcileReasonWrite,
+		)
+	}
+}
+
+func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	kernel, err := resources.NewKernel(db.DB())
+	if err != nil {
+		t.Fatalf("resources.NewKernel() error = %v", err)
+	}
+	codec, err := newHookBindingCodec()
+	if err != nil {
+		t.Fatalf("newHookBindingCodec() error = %v", err)
+	}
+	codecs := resources.NewCodecRegistry()
+	if err := resources.RegisterCodec(codecs, codec); err != nil {
+		t.Fatalf("RegisterCodec() error = %v", err)
+	}
+	store, err := newHookBindingStore(kernel, codec)
+	if err != nil {
+		t.Fatalf("newHookBindingStore() error = %v", err)
+	}
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	observer := &hookAwareTestObserver{}
+	reconcile := &fakeResourceReconcileDriver{}
+	d := newTestDaemon(t, homePaths, &cfg)
+	state := &bootState{
+		cfg:    cfg,
+		logger: discardLogger(),
+		notifier: newHooksNotifier(
+			discardLogger(),
+			func() time.Time { return time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC) },
+		),
+		observer:          observer,
+		skillsRegistry:    skills.NewRegistry(skills.RegistryConfig{}),
+		resourceKernel:    kernel,
+		resourceCodecs:    codecs,
+		resourceReconcile: reconcile,
+	}
+	cleanup := &bootCleanup{}
+
+	if err := d.bootHooks(testutil.Context(t), state, cleanup); err != nil {
+		t.Fatalf("bootHooks() error = %v", err)
+	}
+	t.Cleanup(func() {
+		for i := len(cleanup.fns) - 1; i >= 0; i-- {
+			if err := cleanup.fns[i](testutil.Context(t)); err != nil {
+				t.Fatalf("cleanup[%d]() error = %v", i, err)
+			}
+		}
+	})
+
+	if observer.attached == nil {
+		t.Fatal("observer attached hooks = nil, want runtime source")
+	}
+	if state.hooks == nil || state.hookDispatcher == nil || state.hookBindings == nil {
+		t.Fatalf("hook state = %#v, want populated runtime, dispatcher, and bindings", state)
+	}
+	if len(cleanup.fns) < 2 {
+		t.Fatalf("cleanup fns = %d, want hook close plus skills watcher stop", len(cleanup.fns))
+	}
+	if reconcile.triggerCalls == 0 {
+		t.Fatal("resource reconcile trigger calls = 0, want resource-backed hook sync")
+	}
+
+	records, err := store.List(testutil.Context(t), resources.MutationActor{
+		Kind:     resources.MutationActorKindDaemon,
+		ID:       "reader",
+		Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "reader"},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+	}, resources.ResourceFilter{})
+	if err != nil {
+		t.Fatalf("store.List() error = %v", err)
+	}
+	if len(records) == 0 {
+		t.Fatal("store.List() count = 0, want native hook bindings")
+	}
+}
+
+func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	extRegistry := extensionpkg.NewRegistry(db.DB())
+	homePaths := testHomePaths(t)
+	d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
+	manager := &fakeExtensionRuntime{}
+
+	t.Run("syncs hook bindings when available", func(t *testing.T) {
+		t.Parallel()
+
+		syncCalls := 0
+		rebuilds := 0
+		state := &bootState{
+			logger:       discardLogger(),
+			hookBindings: hookBindingPublisherFunc(func(context.Context) error { syncCalls++; return nil }),
+			hooks: &fakeHookRuntime{onRebuild: func(context.Context) error {
+				rebuilds++
+				return nil
+			}},
+		}
+
+		d.attachExtensionRuntime(testutil.Context(t), state, extRegistry, manager)
+
+		if syncCalls != 1 {
+			t.Fatalf("hook binding sync calls = %d, want 1", syncCalls)
+		}
+		if rebuilds != 0 {
+			t.Fatalf("hook rebuild count = %d, want 0", rebuilds)
+		}
+		if state.deps.Extensions == nil {
+			t.Fatal("state.deps.Extensions = nil, want extension service")
+		}
+	})
+
+	t.Run("falls back to rebuild without hook bindings", func(t *testing.T) {
+		t.Parallel()
+
+		rebuilds := 0
+		state := &bootState{
+			logger: discardLogger(),
+			hooks: &fakeHookRuntime{onRebuild: func(context.Context) error {
+				rebuilds++
+				return nil
+			}},
+		}
+
+		d.attachExtensionRuntime(testutil.Context(t), state, extRegistry, manager)
+
+		if rebuilds != 1 {
+			t.Fatalf("hook rebuild count = %d, want 1", rebuilds)
+		}
+		if state.deps.Extensions == nil {
+			t.Fatal("state.deps.Extensions = nil, want extension service")
+		}
+	})
+
+	t.Run("logs sync failures without rebuilding", func(t *testing.T) {
+		t.Parallel()
+
+		syncCalls := 0
+		rebuilds := 0
+		state := &bootState{
+			logger: discardLogger(),
+			hookBindings: hookBindingPublisherFunc(func(context.Context) error {
+				syncCalls++
+				return errors.New("boom")
+			}),
+			hooks: &fakeHookRuntime{onRebuild: func(context.Context) error {
+				rebuilds++
+				return nil
+			}},
+		}
+
+		d.attachExtensionRuntime(testutil.Context(t), state, extRegistry, manager)
+
+		if syncCalls != 1 {
+			t.Fatalf("hook binding sync calls = %d, want 1", syncCalls)
+		}
+		if rebuilds != 0 {
+			t.Fatalf("hook rebuild count = %d, want 0", rebuilds)
+		}
+	})
+}
+
+func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
+	t.Parallel()
+
+	if svc := newDaemonExtensionService(nil, nil, nil, nil, nil, nil, aghconfig.HomePaths{}, nil, nil); svc != nil {
+		t.Fatalf("newDaemonExtensionService(nil) = %#v, want nil", svc)
+	}
+
+	db := openDaemonTestGlobalDB(t)
+	registry := extensionpkg.NewRegistry(db.DB())
+	if svc := newDaemonExtensionService(
+		registry,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		aghconfig.HomePaths{},
+		nil,
+		nil,
+	); svc == nil {
+		t.Fatal("newDaemonExtensionService(defaults) = nil, want service")
+	}
+}
+
 func TestBootExtensionsLogsStartFailureAndKeepsPartialRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -1046,17 +1467,17 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		}
 	})
 
-	rebuilds := 0
+	syncs := 0
 	fixedNow := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	service := newDaemonExtensionService(
 		registry,
 		manager,
-		&fakeHookRuntime{
-			onRebuild: func(context.Context) error {
-				rebuilds++
-				return nil
-			},
-		},
+		fakeHookBindingPublisher(func(context.Context) error {
+			syncs++
+			return nil
+		}),
+		nil,
+		nil,
 		nil,
 		homePaths,
 		discardLogger(),
@@ -1122,6 +1543,22 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		t.Fatalf("disabled extension = %#v, want disabled extension", disabled)
 	}
 
+	enabled, err := service.Enable(testutil.Context(t), "service-ext")
+	if err != nil {
+		t.Fatalf("service.Enable() error = %v", err)
+	}
+	if enabled.State != "active" || !enabled.Enabled {
+		t.Fatalf("enabled extension = %#v, want active enabled extension", enabled)
+	}
+
+	disabled, err = service.Disable(testutil.Context(t), "service-ext")
+	if err != nil {
+		t.Fatalf("service.Disable(second) error = %v", err)
+	}
+	if disabled.State != "disabled" || disabled.Enabled {
+		t.Fatalf("disabled extension after second disable = %#v, want disabled extension", disabled)
+	}
+
 	listed, err := service.List(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("service.List() error = %v", err)
@@ -1129,8 +1566,22 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 	if len(listed) != 1 || listed[0].State != "disabled" {
 		t.Fatalf("listed extensions = %#v, want one disabled extension", listed)
 	}
-	if rebuilds != 2 {
-		t.Fatalf("hook rebuild count = %d, want 2", rebuilds)
+	if syncs != 4 {
+		t.Fatalf("hook binding sync count = %d, want 4", syncs)
+	}
+}
+
+func TestDaemonExtensionServiceCheckReadyErrors(t *testing.T) {
+	t.Parallel()
+
+	var nilService *daemonExtensionService
+	if err := nilService.checkReady(); err == nil {
+		t.Fatal("nil service checkReady() error = nil, want error")
+	}
+
+	service := &daemonExtensionService{homePaths: testHomePaths(t), logger: discardLogger(), now: time.Now}
+	if _, err := service.List(testutil.Context(t)); err == nil {
+		t.Fatal("List() without registry error = nil, want error")
 	}
 }
 
@@ -2051,6 +2502,12 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	}
 	if capturedDeps.WorkspaceResolver == nil {
 		t.Fatal("boot() did not inject the session manager workspace resolver")
+	}
+	if capturedDeps.EnvironmentRegistry == nil {
+		t.Fatal("boot() did not inject the session manager environment registry")
+	}
+	if d.environmentRegistry == nil {
+		t.Fatal("boot() did not retain the daemon environment registry")
 	}
 	if capturedUDSDeps.WorkspaceService == nil {
 		t.Fatal("boot() did not inject the uds workspace service")
@@ -3230,9 +3687,10 @@ func (f *fakeNetworkRuntime) Shutdown(context.Context) error {
 }
 
 type fakeObserver struct {
-	reconciled bool
-	result     store.ReconcileResult
-	err        error
+	reconciled  bool
+	result      store.ReconcileResult
+	err         error
+	onReconcile func()
 }
 
 func (f *fakeObserver) QueryEvents(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
@@ -3260,6 +3718,9 @@ func (f *fakeObserver) Health(context.Context) (observe.Health, error) {
 }
 
 func (f *fakeObserver) Reconcile(context.Context) (store.ReconcileResult, error) {
+	if f.onReconcile != nil {
+		f.onReconcile()
+	}
 	f.reconciled = true
 	return f.result, f.err
 }
@@ -3269,6 +3730,15 @@ func (f *fakeObserver) OnSessionCreated(context.Context, *session.Session) {}
 func (f *fakeObserver) OnSessionStopped(context.Context, *session.Session) {}
 
 func (f *fakeObserver) OnAgentEvent(context.Context, string, any) {}
+
+type hookAwareTestObserver struct {
+	fakeObserver
+	attached observe.HookCatalogSource
+}
+
+func (o *hookAwareTestObserver) AttachHooks(source observe.HookCatalogSource) {
+	o.attached = source
+}
 
 type fakeServer struct {
 	name       string
@@ -3282,6 +3752,44 @@ func (f *fakeServer) Start(context.Context) error {
 func (f *fakeServer) Shutdown(context.Context) error {
 	if f.onShutdown != nil {
 		f.onShutdown()
+	}
+	return nil
+}
+
+type fakeResourceReconcileDriver struct {
+	runBootCalls int
+	closeCalls   int
+	triggerCalls int
+	lastKind     resources.ResourceKind
+	lastReason   resources.ReconcileReason
+	triggerErr   error
+	onRunBoot    func()
+	onClose      func()
+}
+
+func (f *fakeResourceReconcileDriver) Trigger(
+	_ context.Context,
+	kind resources.ResourceKind,
+	reason resources.ReconcileReason,
+) error {
+	f.triggerCalls++
+	f.lastKind = kind
+	f.lastReason = reason
+	return f.triggerErr
+}
+
+func (f *fakeResourceReconcileDriver) RunBoot(context.Context) error {
+	f.runBootCalls++
+	if f.onRunBoot != nil {
+		f.onRunBoot()
+	}
+	return nil
+}
+
+func (f *fakeResourceReconcileDriver) Close(context.Context) error {
+	f.closeCalls++
+	if f.onClose != nil {
+		f.onClose()
 	}
 	return nil
 }
@@ -3819,9 +4327,14 @@ type fakeHookRuntime struct {
 	onMessageStart   func(context.Context, hookspkg.MessageStartPayload) error
 	onMessageDelta   func(context.Context, hookspkg.MessageDeltaPayload) error
 	onMessageEnd     func(context.Context, hookspkg.MessageEndPayload) error
+	onToolPreCall    func(context.Context, hookspkg.ToolPreCallPayload) error
+	onToolPostCall   func(context.Context, hookspkg.ToolPostCallPayload) error
+	onToolPostError  func(context.Context, hookspkg.ToolPostErrorPayload) error
+	onPermRequest    func(context.Context, hookspkg.PermissionRequestPayload) error
+	onPermResolved   func(context.Context, hookspkg.PermissionResolvedPayload) error
+	onPermDenied     func(context.Context, hookspkg.PermissionDeniedPayload) error
 	onPreCompact     func(context.Context, hookspkg.ContextPreCompactPayload) error
 	onPostCompact    func(context.Context, hookspkg.ContextPostCompactPayload) error
-	onAgentEvent     func(context.Context, string, any)
 }
 
 func (f *fakeHookRuntime) Rebuild(ctx context.Context) error {
@@ -4037,6 +4550,66 @@ func (f *fakeHookRuntime) DispatchMessageEnd(
 	return payload, nil
 }
 
+func (f *fakeHookRuntime) DispatchToolPreCall(
+	ctx context.Context,
+	payload hookspkg.ToolPreCallPayload,
+) (hookspkg.ToolPreCallPayload, error) {
+	if f.onToolPreCall != nil {
+		return payload, f.onToolPreCall(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchToolPostCall(
+	ctx context.Context,
+	payload hookspkg.ToolPostCallPayload,
+) (hookspkg.ToolPostCallPayload, error) {
+	if f.onToolPostCall != nil {
+		return payload, f.onToolPostCall(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchToolPostError(
+	ctx context.Context,
+	payload hookspkg.ToolPostErrorPayload,
+) (hookspkg.ToolPostErrorPayload, error) {
+	if f.onToolPostError != nil {
+		return payload, f.onToolPostError(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchPermissionRequest(
+	ctx context.Context,
+	payload hookspkg.PermissionRequestPayload,
+) (hookspkg.PermissionRequestPayload, error) {
+	if f.onPermRequest != nil {
+		return payload, f.onPermRequest(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchPermissionResolved(
+	ctx context.Context,
+	payload hookspkg.PermissionResolvedPayload,
+) (hookspkg.PermissionResolvedPayload, error) {
+	if f.onPermResolved != nil {
+		return payload, f.onPermResolved(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchPermissionDenied(
+	ctx context.Context,
+	payload hookspkg.PermissionDeniedPayload,
+) (hookspkg.PermissionDeniedPayload, error) {
+	if f.onPermDenied != nil {
+		return payload, f.onPermDenied(ctx, payload)
+	}
+	return payload, nil
+}
+
 func (f *fakeHookRuntime) DispatchContextPreCompact(
 	ctx context.Context,
 	payload hookspkg.ContextPreCompactPayload,
@@ -4057,10 +4630,39 @@ func (f *fakeHookRuntime) DispatchContextPostCompact(
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) OnAgentEvent(ctx context.Context, sessionID string, event any) {
-	if f.onAgentEvent != nil {
-		f.onAgentEvent(ctx, sessionID, event)
-	}
+func (f *fakeHookRuntime) DispatchEnvironmentPrepare(
+	_ context.Context,
+	payload hookspkg.EnvironmentPreparePayload,
+) (hookspkg.EnvironmentPreparePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchEnvironmentReady(
+	_ context.Context,
+	payload hookspkg.EnvironmentReadyPayload,
+) (hookspkg.EnvironmentReadyPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchEnvironmentSyncBefore(
+	_ context.Context,
+	payload hookspkg.EnvironmentSyncBeforePayload,
+) (hookspkg.EnvironmentSyncBeforePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchEnvironmentSyncAfter(
+	_ context.Context,
+	payload hookspkg.EnvironmentSyncAfterPayload,
+) (hookspkg.EnvironmentSyncAfterPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchEnvironmentStop(
+	_ context.Context,
+	payload hookspkg.EnvironmentStopPayload,
+) (hookspkg.EnvironmentStopPayload, error) {
+	return payload, nil
 }
 
 func testHookExecutorResolver(native map[string]hookspkg.Executor) hookspkg.ExecutorResolver {
@@ -4084,6 +4686,15 @@ type fakeDreamService struct {
 	shouldRunCalls int
 	runCalls       int
 	runHook        func(context.Context, memory.SessionSpawner, string) error
+}
+
+type fakeHookBindingPublisher func(context.Context) error
+
+func (f fakeHookBindingPublisher) Sync(ctx context.Context) error {
+	if f == nil {
+		return nil
+	}
+	return f(ctx)
 }
 
 func (f *fakeDreamService) ShouldRun() (bool, error) {

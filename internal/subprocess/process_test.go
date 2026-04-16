@@ -451,6 +451,13 @@ func TestInitializeRequestValidateRejectsMissingFields(t *testing.T) {
 			wantSub: "protocol_version",
 		},
 		{
+			name: "missing-session-nonce",
+			mutate: func(request *InitializeRequest) {
+				request.SessionNonce = ""
+			},
+			wantSub: "session_nonce",
+		},
+		{
 			name: "missing-supported-versions",
 			mutate: func(request *InitializeRequest) {
 				request.SupportedProtocolVersion = nil
@@ -722,6 +729,7 @@ func newInitializeRequest(runtimeCfg InitializeRuntime) InitializeRequest {
 		ProtocolVersion:          defaultProtocolVersion,
 		SupportedProtocolVersion: []string{defaultProtocolVersion},
 		AGHVersion:               "dev",
+		SessionNonce:             "session-nonce-test",
 		Extension: InitializeExtension{
 			Name:       "test-extension",
 			Version:    "0.1.0",

@@ -9,6 +9,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -65,6 +66,8 @@ type AgentProcess struct {
 	stderrFn            func() string
 	approvePermissionFn func(context.Context, acp.ApproveRequest) error
 	configureRuntimeFn  func(func() TurnSource)
+	toolHostFn          func() environment.ToolHost
+	toolHost            environment.ToolHost
 	native              any
 }
 
@@ -83,6 +86,7 @@ type AgentProcessOptions struct {
 	Stderr            func() string
 	ApprovePermission func(context.Context, acp.ApproveRequest) error
 	ConfigureRuntime  func(func() TurnSource)
+	ToolHost          environment.ToolHost
 }
 
 // NewAgentProcess constructs an AgentProcess for custom AgentDriver implementations.
@@ -121,6 +125,7 @@ func NewAgentProcess(opts AgentProcessOptions) *AgentProcess {
 		stderrFn:            stderrFn,
 		approvePermissionFn: opts.ApprovePermission,
 		configureRuntimeFn:  opts.ConfigureRuntime,
+		toolHost:            opts.ToolHost,
 	}
 }
 
@@ -138,6 +143,17 @@ func (p *AgentProcess) Wait() error {
 // Stderr returns any captured stderr output for the runtime process.
 func (p *AgentProcess) Stderr() string {
 	return p.stderrFn()
+}
+
+// ToolHost returns the environment-owned tool host when the process exposes one.
+func (p *AgentProcess) ToolHost() environment.ToolHost {
+	if p == nil {
+		return nil
+	}
+	if p.toolHostFn != nil {
+		return p.toolHostFn()
+	}
+	return p.toolHost
 }
 
 // ApprovePermission resolves one pending interactive permission request.
@@ -186,7 +202,8 @@ func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 				return string(currentTurnSource())
 			})
 		},
-		native: proc,
+		toolHostFn: proc.ToolHost,
+		native:     proc,
 	}
 }
 
@@ -208,9 +225,20 @@ type Notifier interface {
 	OnAgentEvent(ctx context.Context, sessionID string, event any)
 }
 
+// AgentEventNotifier is an optional notifier extension that receives the
+// active session alongside streamed agent events.
+type AgentEventNotifier interface {
+	OnAgentEventForSession(ctx context.Context, session *Session, event any)
+}
+
 // PromptAssembler assembles the prompt context for a new session start.
 type PromptAssembler interface {
 	Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error)
+}
+
+// AgentResolver resolves agent definitions from the daemon-authoritative catalog.
+type AgentResolver interface {
+	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error)
 }
 
 // SkillRegistry resolves the active skill set for a workspace during session start.

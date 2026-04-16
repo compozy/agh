@@ -126,8 +126,9 @@ func TestLinearProviderSharedWebhookIngressAndDeliveryConformance(t *testing.T) 
 	waitForLinearReadyStates(t, harness, []string{"brg-linear-comments", "brg-linear-agent"})
 
 	webhookURL := fmt.Sprintf("http://%s/linear", listenAddr)
-	postLinearProviderWebhook(t, webhookURL, linearCommentWebhookBody(startTime))
-	postLinearProviderWebhook(t, webhookURL, linearAgentSessionWebhookBody(startTime))
+	webhookTime := time.Now().UTC()
+	postLinearProviderWebhook(t, webhookURL, linearCommentWebhookBody(webhookTime))
+	postLinearProviderWebhook(t, webhookURL, linearAgentSessionWebhookBody(webhookTime))
 
 	ingests := harness.WaitForIngests(t, 10*time.Second, func(records []extensiontest.IngestRecord) bool {
 		if len(records) < 2 {

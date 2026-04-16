@@ -8,6 +8,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
 )
 
 var (
@@ -32,6 +33,7 @@ type Workspace struct {
 	AdditionalDirs []string
 	Name           string
 	DefaultAgent   string
+	EnvironmentRef string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -39,10 +41,11 @@ type Workspace struct {
 // ResolvedWorkspace is the computed workspace snapshot returned by a resolver.
 type ResolvedWorkspace struct {
 	Workspace
-	Config     aghconfig.Config
-	Agents     []aghconfig.AgentDef
-	Skills     []SkillPath
-	ResolvedAt time.Time
+	Config      aghconfig.Config
+	Agents      []aghconfig.AgentDef
+	Skills      []SkillPath
+	Environment environment.Resolved
+	ResolvedAt  time.Time
 }
 
 // SkillPath identifies a discovered skill directory and its origin.

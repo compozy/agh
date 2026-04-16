@@ -12,6 +12,7 @@ import (
 const (
 	networkTaskWriteCapability       = "task.write"
 	taskIngressReasonChannelMismatch = "channel_mismatch"
+	taskIngressReasonStaleChannel    = "stale_channel"
 
 	networkTaskActionCreate  = "task.create"
 	networkTaskActionUpdate  = "task.update"
@@ -436,7 +437,7 @@ func taskIngressReason(err error) string {
 	case errors.Is(err, ErrTaskChannelMismatch):
 		return taskIngressReasonChannelMismatch
 	case errors.Is(err, ErrTaskChannelStale):
-		return "stale_channel"
+		return taskIngressReasonStaleChannel
 	case errors.Is(err, ErrTaskIngressCapabilityDenied):
 		return "capability_denied"
 	case errors.Is(err, ErrTaskIngressPeerNotFound):
@@ -450,7 +451,7 @@ func taskIngressReason(err error) string {
 	case errors.Is(err, taskpkg.ErrPermissionDenied):
 		return "permission_denied"
 	case errors.Is(err, taskpkg.ErrStaleNetworkChannel):
-		return "stale_channel"
+		return taskIngressReasonStaleChannel
 	case errors.Is(err, ErrMissingField), errors.Is(err, ErrInvalidField):
 		return "invalid_request"
 	default:

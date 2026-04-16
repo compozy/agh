@@ -210,3 +210,13 @@ type ExtensionsResponse struct {
 type ExtensionResponse struct {
 	Extension ExtensionPayload `json:"extension"`
 }
+
+// ResourcesResponse wraps the shared desired-state resource list payload.
+type ResourcesResponse struct {
+	Records []ResourceRecordPayload `json:"records"`
+}
+
+// ResourceResponse wraps one desired-state resource payload.
+type ResourceResponse struct {
+	Record ResourceRecordPayload `json:"record"`
+}

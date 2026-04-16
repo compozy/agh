@@ -235,7 +235,13 @@ func TestHandleCreateTerminalBlocksNonAllowlistedCommandsForNetworkTurn(t *testi
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := proc.handleCreateTerminal(tt.request); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
+			if _, err := proc.handleCreateTerminal(
+				context.Background(),
+				tt.request,
+			); !errors.Is(
+				err,
+				ErrToolBlockedForNetworkTurn,
+			) {
 				t.Fatalf("handleCreateTerminal(%s) error = %v, want ErrToolBlockedForNetworkTurn", tt.name, err)
 			}
 		})
@@ -698,7 +704,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		t.Fatalf("beginPrompt(first network) error = %v", err)
 	}
 
-	networkCreate, err := proc.handleCreateTerminal(acpsdk.CreateTerminalRequest{
+	networkCreate, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
 		SessionId: "sess-direct",
 		Command:   "agh",
 		Args:      []string{"network", "status"},
@@ -745,7 +751,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		t.Fatalf("beginPrompt(user) error = %v", err)
 	}
 
-	userCreate, err := proc.handleCreateTerminal(acpsdk.CreateTerminalRequest{
+	userCreate, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
 		SessionId: "sess-direct",
 		Command:   "sh",
 		Args:      []string{"-c", "sleep 5"},
@@ -1121,6 +1127,81 @@ func TestPermissionHelperBranches(t *testing.T) {
 	}
 }
 
+func TestHandleInboundCreateTerminalUsesRequestContext(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	type contextKey string
+	const ctxKey contextKey = "terminal-create"
+	proc.toolHost = contextAwareToolHost{
+		createTerminalFn: func(ctx context.Context, _ acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error) {
+			if got, want := ctx.Value(ctxKey), "present"; got != want {
+				return acpsdk.CreateTerminalResponse{}, fmt.Errorf("ctx value = %v, want %q", got, want)
+			}
+			return acpsdk.CreateTerminalResponse{TerminalId: "term-ctx"}, nil
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), ctxKey, "present")
+	result, reqErr := proc.handleInbound(
+		ctx,
+		acpsdk.ClientMethodTerminalCreate,
+		mustMarshalJSON(acpsdk.CreateTerminalRequest{
+			SessionId: "sess-direct",
+			Command:   "sh",
+			Args:      []string{"-c", "printf ready"},
+			Cwd:       acpsdk.Ptr(proc.Cwd),
+		}),
+	)
+	if reqErr != nil {
+		t.Fatalf("handleInbound(create terminal) error = %v", reqErr)
+	}
+	response, ok := result.(acpsdk.CreateTerminalResponse)
+	if !ok {
+		t.Fatalf("handleInbound(create terminal) type = %T, want CreateTerminalResponse", result)
+	}
+	if response.TerminalId != "term-ctx" {
+		t.Fatalf("terminal id = %q, want %q", response.TerminalId, "term-ctx")
+	}
+}
+
+func TestToolHostOrDefaultUsesProcessLifecycleContext(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	policy, err := newPermissionPolicy(aghconfig.PermissionModeApproveAll, root)
+	if err != nil {
+		t.Fatalf("newPermissionPolicy() error = %v", err)
+	}
+
+	proc := &AgentProcess{
+		Cwd:           root,
+		processCtx:    ctx,
+		cancelProcess: cancel,
+		permissions:   policy,
+		stderr:        &lockedBuffer{},
+		done:          make(chan struct{}),
+		StartedAt:     timeNowUTC(),
+		SessionID:     "sess-direct",
+		AgentName:     "direct",
+	}
+
+	host, ok := proc.toolHostOrDefault().(*localToolHost)
+	if !ok {
+		t.Fatalf("toolHostOrDefault() type = %T, want *localToolHost", proc.toolHostOrDefault())
+	}
+
+	cancel()
+	select {
+	case <-host.terminals.ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("terminal manager context did not close with process lifecycle")
+	}
+}
+
 func newDirectProcess(t *testing.T, mode aghconfig.PermissionMode) *AgentProcess {
 	t.Helper()
 
@@ -1138,6 +1219,7 @@ func newDirectProcess(t *testing.T, mode aghconfig.PermissionMode) *AgentProcess
 		Cwd:               root,
 		SessionID:         "sess-direct",
 		StartedAt:         timeNowUTC(),
+		processCtx:        ctx,
 		permissions:       policy,
 		terminals:         newTerminalManager(ctx, slog.Default()),
 		done:              make(chan struct{}),
@@ -1147,6 +1229,56 @@ func newDirectProcess(t *testing.T, mode aghconfig.PermissionMode) *AgentProcess
 	}
 	t.Cleanup(proc.terminals.closeAll)
 	return proc
+}
+
+type contextAwareToolHost struct {
+	createTerminalFn func(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error)
+}
+
+func (h contextAwareToolHost) ReadTextFile(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (h contextAwareToolHost) WriteTextFile(context.Context, string, string) error {
+	return nil
+}
+
+func (h contextAwareToolHost) ResolvePath(path string) (string, error) {
+	return path, nil
+}
+
+func (h contextAwareToolHost) Authorize(permissionOperation) error {
+	return nil
+}
+
+func (h contextAwareToolHost) PermissionDecision(acpsdk.RequestPermissionRequest) (permissionDecision, bool) {
+	return decisionAllowOnce, false
+}
+
+func (h contextAwareToolHost) CreateTerminal(
+	ctx context.Context,
+	req acpsdk.CreateTerminalRequest,
+) (acpsdk.CreateTerminalResponse, error) {
+	if h.createTerminalFn == nil {
+		return acpsdk.CreateTerminalResponse{}, nil
+	}
+	return h.createTerminalFn(ctx, req)
+}
+
+func (h contextAwareToolHost) KillTerminal(string) error {
+	return nil
+}
+
+func (h contextAwareToolHost) TerminalOutput(string) (string, error) {
+	return "", nil
+}
+
+func (h contextAwareToolHost) WaitForTerminalExit(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (h contextAwareToolHost) ReleaseTerminal(string) error {
+	return nil
 }
 
 func writeFakeAGHBinary(t *testing.T, dir string, body string) {

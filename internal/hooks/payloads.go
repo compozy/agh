@@ -133,6 +133,122 @@ type SessionPreStopPatch = SessionCreatePatch
 // SessionPostStopPatch is the post-stop patch surface.
 type SessionPostStopPatch = SessionCreatePatch
 
+// EnvironmentProfilePayload is the environment profile snapshot exposed to environment hooks.
+type EnvironmentProfilePayload struct {
+	Profile        string            `json:"profile,omitempty"`
+	Backend        string            `json:"backend,omitempty"`
+	SyncMode       string            `json:"sync_mode,omitempty"`
+	Persistence    string            `json:"persistence,omitempty"`
+	RuntimeRootDir string            `json:"runtime_root,omitempty"`
+	DestroyOnStop  bool              `json:"destroy_on_stop,omitempty"`
+	Env            map[string]string `json:"env,omitempty"`
+}
+
+// EnvironmentPreparePayload is delivered before a session environment is prepared.
+type EnvironmentPreparePayload struct {
+	PayloadBase
+	SessionContext
+	EnvironmentID       string                    `json:"environment_id,omitempty"`
+	Backend             string                    `json:"backend,omitempty"`
+	Profile             EnvironmentProfilePayload `json:"profile"`
+	LocalRootDir        string                    `json:"local_root,omitempty"`
+	LocalAdditionalDirs []string                  `json:"local_additional_dirs,omitempty"`
+	AgentCommand        string                    `json:"agent_command,omitempty"`
+	AgentEnv            []string                  `json:"agent_env,omitempty"`
+	Permissions         string                    `json:"permissions,omitempty"`
+	ResumeACPState      string                    `json:"resume_acp_state,omitempty"`
+	EnvOverrides        map[string]string         `json:"env_overrides,omitempty"`
+	Denied              bool                      `json:"denied,omitempty"`
+	DenyReason          string                    `json:"deny_reason,omitempty"`
+}
+
+// EnvironmentReadyPayload is delivered after an environment has been prepared and synchronized.
+type EnvironmentReadyPayload struct {
+	PayloadBase
+	SessionContext
+	EnvironmentID         string   `json:"environment_id,omitempty"`
+	Backend               string   `json:"backend,omitempty"`
+	Profile               string   `json:"profile,omitempty"`
+	InstanceID            string   `json:"instance_id,omitempty"`
+	RuntimeRootDir        string   `json:"runtime_root,omitempty"`
+	RuntimeAdditionalDirs []string `json:"runtime_additional_dirs,omitempty"`
+}
+
+// EnvironmentSyncBeforePayload is delivered before an environment sync operation runs.
+type EnvironmentSyncBeforePayload struct {
+	PayloadBase
+	SessionContext
+	EnvironmentID   string   `json:"environment_id,omitempty"`
+	Backend         string   `json:"backend,omitempty"`
+	Profile         string   `json:"profile,omitempty"`
+	InstanceID      string   `json:"instance_id,omitempty"`
+	RuntimeRootDir  string   `json:"runtime_root,omitempty"`
+	Direction       string   `json:"direction,omitempty"`
+	Reason          string   `json:"reason,omitempty"`
+	FileCount       int      `json:"file_count,omitempty"`
+	ExcludePatterns []string `json:"exclude_patterns,omitempty"`
+	Denied          bool     `json:"denied,omitempty"`
+	DenyReason      string   `json:"deny_reason,omitempty"`
+}
+
+// EnvironmentSyncAfterPayload is delivered after an environment sync operation finishes.
+type EnvironmentSyncAfterPayload struct {
+	PayloadBase
+	SessionContext
+	EnvironmentID    string   `json:"environment_id,omitempty"`
+	Backend          string   `json:"backend,omitempty"`
+	Profile          string   `json:"profile,omitempty"`
+	InstanceID       string   `json:"instance_id,omitempty"`
+	RuntimeRootDir   string   `json:"runtime_root,omitempty"`
+	Direction        string   `json:"direction,omitempty"`
+	Reason           string   `json:"reason,omitempty"`
+	FilesSynced      int      `json:"files_synced,omitempty"`
+	BytesTransferred int64    `json:"bytes_transferred,omitempty"`
+	DurationMS       int64    `json:"duration_ms,omitempty"`
+	Errors           []string `json:"errors,omitempty"`
+}
+
+// EnvironmentStopPayload is delivered before environment teardown.
+type EnvironmentStopPayload struct {
+	PayloadBase
+	SessionContext
+	EnvironmentID  string `json:"environment_id,omitempty"`
+	Backend        string `json:"backend,omitempty"`
+	Profile        string `json:"profile,omitempty"`
+	InstanceID     string `json:"instance_id,omitempty"`
+	RuntimeRootDir string `json:"runtime_root,omitempty"`
+	StopReason     string `json:"stop_reason,omitempty"`
+	WillDestroy    bool   `json:"will_destroy,omitempty"`
+	Denied         bool   `json:"denied,omitempty"`
+	DenyReason     string `json:"deny_reason,omitempty"`
+}
+
+// EnvironmentPreparePatch mutates or denies environment preparation.
+type EnvironmentPreparePatch struct {
+	ControlPatch
+	EnvOverrides map[string]string `json:"env_overrides,omitempty"`
+}
+
+// EnvironmentSyncBeforePatch mutates or denies environment sync.
+type EnvironmentSyncBeforePatch struct {
+	ControlPatch
+	ExcludePatterns []string `json:"exclude_patterns,omitempty"`
+}
+
+// EnvironmentObservationPatch is the no-op patch surface for environment observation hooks.
+type EnvironmentObservationPatch struct{}
+
+// EnvironmentReadyPatch is the ready patch surface.
+type EnvironmentReadyPatch = EnvironmentObservationPatch
+
+// EnvironmentSyncAfterPatch is the sync-after patch surface.
+type EnvironmentSyncAfterPatch = EnvironmentObservationPatch
+
+// EnvironmentStopPatch mutates or denies environment teardown.
+type EnvironmentStopPatch struct {
+	ControlPatch
+}
+
 // InputPreSubmitPayload is delivered before prompt submission.
 type InputPreSubmitPayload struct {
 	PayloadBase
@@ -536,6 +652,26 @@ func (p SessionPreCreatePayload) hookSessionContext() SessionContext {
 }
 
 func (p SessionLifecyclePayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p EnvironmentPreparePayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p EnvironmentReadyPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p EnvironmentSyncBeforePayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p EnvironmentSyncAfterPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p EnvironmentStopPayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 

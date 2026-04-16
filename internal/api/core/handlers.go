@@ -36,11 +36,13 @@ type BaseHandlerConfig struct {
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
 	Observer                     Observer
+	Resources                    ResourceService
 	Automation                   AutomationManager
 	Tasks                        TaskService
 	Bridges                      BridgeService
 	Bundles                      BundleService
 	Workspaces                   WorkspaceService
+	AgentCatalog                 AgentCatalog
 	SkillsRegistry               SkillsRegistry
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
@@ -66,11 +68,13 @@ type BaseHandlers struct {
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
 	Observer                     Observer
+	Resources                    ResourceService
 	Automation                   AutomationManager
 	Tasks                        TaskService
 	Bridges                      BridgeService
 	Bundles                      BundleService
 	Workspaces                   WorkspaceService
+	AgentCatalog                 AgentCatalog
 	SkillsRegistry               SkillsRegistry
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
@@ -136,11 +140,13 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Network:                      cfg.Network,
 		NetworkStore:                 cfg.NetworkStore,
 		Observer:                     cfg.Observer,
+		Resources:                    cfg.Resources,
 		Automation:                   cfg.Automation,
 		Tasks:                        cfg.Tasks,
 		Bridges:                      cfg.Bridges,
 		Bundles:                      cfg.Bundles,
 		Workspaces:                   cfg.Workspaces,
+		AgentCatalog:                 cfg.AgentCatalog,
 		SkillsRegistry:               cfg.SkillsRegistry,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
 		MemoryStore:                  cfg.MemoryStore,
@@ -393,6 +399,27 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 
 // ListAgents returns all readable agent definitions in home paths.
 func (h *BaseHandlers) ListAgents(c *gin.Context) {
+	if h.AgentCatalog != nil {
+		agentDefs, err := h.AgentCatalog.ListAgents(c.Request.Context())
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				c.JSON(http.StatusOK, contract.AgentsResponse{Agents: []contract.AgentPayload{}})
+				return
+			}
+			h.respondError(c, http.StatusInternalServerError, err)
+			return
+		}
+		agents := make([]contract.AgentPayload, 0, len(agentDefs))
+		for _, agent := range agentDefs {
+			agents = append(agents, AgentPayloadFromDef(agent))
+		}
+		sort.Slice(agents, func(i, j int) bool {
+			return agents[i].Name < agents[j].Name
+		})
+		c.JSON(http.StatusOK, contract.AgentsResponse{Agents: agents})
+		return
+	}
+
 	entries, err := os.ReadDir(h.HomePaths.AgentsDir)
 	switch {
 	case err == nil:
@@ -436,6 +463,20 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 
 // GetAgent returns one agent definition by name.
 func (h *BaseHandlers) GetAgent(c *gin.Context) {
+	if h.AgentCatalog != nil {
+		agent, err := h.AgentCatalog.GetAgent(c.Request.Context(), c.Param("name"))
+		if err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, os.ErrNotExist) {
+				status = http.StatusNotFound
+			}
+			h.respondError(c, status, err)
+			return
+		}
+		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromDef(agent)})
+		return
+	}
+
 	agent, err := h.AgentLoader(c.Param("name"), h.HomePaths)
 	if err != nil {
 		status := http.StatusInternalServerError

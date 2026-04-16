@@ -7,7 +7,6 @@ import type {
   HookPatchByEvent,
   HookPayloadByEvent,
   HostAPIMethod,
-  Tool,
 } from "./generated/contracts.js";
 
 export * from "./base-types.js";
@@ -42,10 +41,17 @@ export interface MCPServerConfig {
   env?: Record<string, string>;
 }
 
+export interface ToolConfig {
+  description?: string;
+  input_schema?: JSONValue;
+  read_only?: boolean;
+}
+
 export interface ResourcesConfig {
   skills?: string[];
   agents?: string[];
   hooks?: HookConfig[];
+  tools?: Record<string, ToolConfig>;
   mcp_servers?: Record<string, MCPServerConfig>;
 }
 
@@ -92,10 +98,6 @@ export interface HealthCheckResult {
   healthy: boolean;
   message?: string;
   details?: Record<string, JSONValue>;
-}
-
-export interface ProvideToolsResult {
-  tools: Tool[];
 }
 
 export interface HookInvocation<TEvent extends HookEvent = HookEvent> {

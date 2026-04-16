@@ -27,6 +27,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
@@ -565,12 +566,33 @@ func TestBootPreservesAutomationEnabledOverlaysAcrossRestart(t *testing.T) {
 		}
 	}()
 
-	storedJob, err := db.GetJob(testutil.Context(t), job.ID)
+	kernel, err := resources.NewKernel(db.DB())
 	if err != nil {
-		t.Fatalf("GetJob() error = %v", err)
+		t.Fatalf("NewKernel() error = %v", err)
 	}
-	if !storedJob.Enabled {
-		t.Fatal("stored config job enabled default = false, want true")
+	jobCodec, err := automationpkg.NewJobResourceCodec()
+	if err != nil {
+		t.Fatalf("NewJobResourceCodec() error = %v", err)
+	}
+	jobStore, err := resources.NewStore(kernel, jobCodec)
+	if err != nil {
+		t.Fatalf("NewStore(job) error = %v", err)
+	}
+	triggerCodec, err := automationpkg.NewTriggerResourceCodec()
+	if err != nil {
+		t.Fatalf("NewTriggerResourceCodec() error = %v", err)
+	}
+	triggerStore, err := resources.NewStore(kernel, triggerCodec)
+	if err != nil {
+		t.Fatalf("NewStore(trigger) error = %v", err)
+	}
+
+	storedJob, err := jobStore.Get(testutil.Context(t), resourceReconcileActor(), job.ID)
+	if err != nil {
+		t.Fatalf("jobStore.Get() error = %v", err)
+	}
+	if !storedJob.Spec.Enabled {
+		t.Fatal("stored resource job enabled default = false, want true")
 	}
 	jobOverlay, err := db.GetJobEnabledOverlay(testutil.Context(t), job.ID)
 	if err != nil {
@@ -580,12 +602,12 @@ func TestBootPreservesAutomationEnabledOverlaysAcrossRestart(t *testing.T) {
 		t.Fatal("job overlay enabled_override = true, want false")
 	}
 
-	storedTrigger, err := db.GetTrigger(testutil.Context(t), trigger.ID)
+	storedTrigger, err := triggerStore.Get(testutil.Context(t), resourceReconcileActor(), trigger.ID)
 	if err != nil {
-		t.Fatalf("GetTrigger() error = %v", err)
+		t.Fatalf("triggerStore.Get() error = %v", err)
 	}
-	if !storedTrigger.Enabled {
-		t.Fatal("stored config trigger enabled default = false, want true")
+	if !storedTrigger.Spec.Enabled {
+		t.Fatal("stored resource trigger enabled default = false, want true")
 	}
 	triggerOverlay, err := db.GetTriggerEnabledOverlay(testutil.Context(t), trigger.ID)
 	if err != nil {
@@ -594,6 +616,154 @@ func TestBootPreservesAutomationEnabledOverlaysAcrossRestart(t *testing.T) {
 	if triggerOverlay.EnabledOverride {
 		t.Fatal("trigger overlay enabled_override = true, want false")
 	}
+}
+
+func TestBridgeResourceProjectionReconcilesWritesAndBootRebuild(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Automation.Enabled = false
+	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, "ext-bridge", daemonTestExtensionOptions{
+		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		bridgePlatform:    "telegram",
+		bridgeDisplayName: "Telegram",
+	}, true)
+
+	newDaemon := func() *Daemon {
+		d, err := New(
+			WithHomePaths(homePaths),
+			WithConfig(&cfg),
+			WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+			return nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+		return d
+	}
+
+	first := newDaemon()
+	if err := first.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("first boot() error = %v", err)
+	}
+	dbSource, ok := first.registry.(extensionDBSource)
+	if !ok || dbSource.DB() == nil {
+		t.Fatal("first registry does not expose database handle")
+	}
+	kernel, err := resources.NewKernel(dbSource.DB())
+	if err != nil {
+		t.Fatalf("resources.NewKernel() error = %v", err)
+	}
+	bridgeCodec, err := bridgepkg.NewBridgeInstanceResourceCodec(bridgeProviderLookup(first.bridges))
+	if err != nil {
+		t.Fatalf("NewBridgeInstanceResourceCodec() error = %v", err)
+	}
+	bridgeStore, err := resources.NewStore(kernel, bridgeCodec)
+	if err != nil {
+		t.Fatalf("resources.NewStore(bridge.instance) error = %v", err)
+	}
+
+	operator := resourceReconcileActor()
+	spec := bridgeResourceIntegrationSpec("Projected Bridge", true)
+	record, err := bridgeStore.Put(testutil.Context(t), operator, resources.Draft[bridgepkg.BridgeInstanceSpec]{
+		ID:              "brg-resource",
+		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		ExpectedVersion: 0,
+		Spec:            spec,
+	})
+	if err != nil {
+		t.Fatalf("bridgeStore.Put(create) error = %v", err)
+	}
+	if err := first.resourceReconcile.Trigger(
+		testutil.Context(t),
+		bridgepkg.BridgeInstanceResourceKind,
+		resources.ReconcileReasonWrite,
+	); err != nil {
+		t.Fatalf("resourceReconcile.Trigger(create) error = %v", err)
+	}
+	waitForDaemonBridgeInstance(t, first.bridges, "brg-resource", "Projected Bridge")
+
+	spec.DisplayName = "Updated Bridge"
+	record, err = bridgeStore.Put(testutil.Context(t), operator, resources.Draft[bridgepkg.BridgeInstanceSpec]{
+		ID:              record.ID,
+		Scope:           record.Scope,
+		ExpectedVersion: record.Version,
+		Spec:            spec,
+	})
+	if err != nil {
+		t.Fatalf("bridgeStore.Put(update) error = %v", err)
+	}
+	if err := first.resourceReconcile.Trigger(
+		testutil.Context(t),
+		bridgepkg.BridgeInstanceResourceKind,
+		resources.ReconcileReasonWrite,
+	); err != nil {
+		t.Fatalf("resourceReconcile.Trigger(update) error = %v", err)
+	}
+	waitForDaemonBridgeInstance(t, first.bridges, "brg-resource", "Updated Bridge")
+
+	if err := bridgeStore.Delete(testutil.Context(t), operator, record.ID, record.Version); err != nil {
+		t.Fatalf("bridgeStore.Delete() error = %v", err)
+	}
+	if err := first.resourceReconcile.Trigger(
+		testutil.Context(t),
+		bridgepkg.BridgeInstanceResourceKind,
+		resources.ReconcileReasonWrite,
+	); err != nil {
+		t.Fatalf("resourceReconcile.Trigger(delete) error = %v", err)
+	}
+	waitForDaemonBridgeMissing(t, first.bridges, "brg-resource")
+
+	bootRecord, err := bridgeStore.Put(testutil.Context(t), operator, resources.Draft[bridgepkg.BridgeInstanceSpec]{
+		ID:              "brg-boot",
+		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		ExpectedVersion: 0,
+		Spec:            bridgeResourceIntegrationSpec("Boot Bridge", true),
+	})
+	if err != nil {
+		t.Fatalf("bridgeStore.Put(boot) error = %v", err)
+	}
+	if err := first.resourceReconcile.Trigger(
+		testutil.Context(t),
+		bridgepkg.BridgeInstanceResourceKind,
+		resources.ReconcileReasonWrite,
+	); err != nil {
+		t.Fatalf("resourceReconcile.Trigger(boot) error = %v", err)
+	}
+	waitForDaemonBridgeInstance(t, first.bridges, bootRecord.ID, "Boot Bridge")
+	if err := first.registry.(interface {
+		DeleteBridgeInstance(context.Context, string) error
+	}).DeleteBridgeInstance(testutil.Context(t), bootRecord.ID); err != nil {
+		t.Fatalf("DeleteBridgeInstance(cache) error = %v", err)
+	}
+	waitForDaemonBridgeMissing(t, first.bridges, bootRecord.ID)
+	if err := first.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("first Shutdown() error = %v", err)
+	}
+
+	second := newDaemon()
+	if err := second.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("second boot() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := second.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("second Shutdown() error = %v", err)
+		}
+	})
+	waitForDaemonBridgeInstance(t, second.bridges, bootRecord.ID, "Boot Bridge")
 }
 
 func TestShutdownCancelsActiveAutomationPrompt(t *testing.T) {
@@ -1640,10 +1810,12 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 	extensionName := "ext-bridge-daemon"
 	instanceID := "brg-daemon-init"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
-		runtimeCommand: daemonExtensionHelperCommand(t),
-		runtimeArgs:    daemonExtensionHelperArgs(),
-		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
-		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		runtimeCommand:    daemonExtensionHelperCommand(t),
+		runtimeArgs:       daemonExtensionHelperArgs(),
+		runtimeEnv:        daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
+		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		bridgePlatform:    "slack",
+		bridgeDisplayName: "Slack",
 		actions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
@@ -1653,8 +1825,7 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
-	bridgeRegistry := bridgepkg.NewRegistry(registry)
-	instance, err := bridgeRegistry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+	instance := seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -1664,9 +1835,6 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 		Status:        bridgepkg.BridgeStatusReady,
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	if err != nil {
-		t.Fatalf("CreateInstance() error = %v", err)
-	}
 	if err := registry.PutBridgeSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
 		BridgeInstanceID: instance.ID,
 		BindingName:      "bot_token",
@@ -1746,10 +1914,12 @@ func TestBootStartsBridgeExtensionWithDefaultEnvSecretResolver(t *testing.T) {
 	extensionName := "ext-bridge-daemon-default-env"
 	instanceID := "brg-daemon-default-env"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
-		runtimeCommand: daemonExtensionHelperCommand(t),
-		runtimeArgs:    daemonExtensionHelperArgs(),
-		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
-		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		runtimeCommand:    daemonExtensionHelperCommand(t),
+		runtimeArgs:       daemonExtensionHelperArgs(),
+		runtimeEnv:        daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
+		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		bridgePlatform:    "slack",
+		bridgeDisplayName: "Slack",
 		actions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
@@ -1759,8 +1929,7 @@ func TestBootStartsBridgeExtensionWithDefaultEnvSecretResolver(t *testing.T) {
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
-	bridgeRegistry := bridgepkg.NewRegistry(registry)
-	instance, err := bridgeRegistry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+	instance := seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -1770,9 +1939,6 @@ func TestBootStartsBridgeExtensionWithDefaultEnvSecretResolver(t *testing.T) {
 		Status:        bridgepkg.BridgeStatusReady,
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	if err != nil {
-		t.Fatalf("CreateInstance() error = %v", err)
-	}
 	if err := registry.PutBridgeSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
 		BridgeInstanceID: instance.ID,
 		BindingName:      "bot_token",
@@ -1831,10 +1997,12 @@ func TestBootFailsWhenDefaultBridgeSecretEnvIsMissing(t *testing.T) {
 	extensionName := "ext-bridge-daemon-missing-env"
 	instanceID := "brg-daemon-missing-env"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
-		runtimeCommand: daemonExtensionHelperCommand(t),
-		runtimeArgs:    daemonExtensionHelperArgs(),
-		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
-		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		runtimeCommand:    daemonExtensionHelperCommand(t),
+		runtimeArgs:       daemonExtensionHelperArgs(),
+		runtimeEnv:        daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
+		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		bridgePlatform:    "slack",
+		bridgeDisplayName: "Slack",
 		actions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
@@ -1844,8 +2012,7 @@ func TestBootFailsWhenDefaultBridgeSecretEnvIsMissing(t *testing.T) {
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
-	bridgeRegistry := bridgepkg.NewRegistry(registry)
-	instance, err := bridgeRegistry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+	instance := seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -1855,9 +2022,6 @@ func TestBootFailsWhenDefaultBridgeSecretEnvIsMissing(t *testing.T) {
 		Status:        bridgepkg.BridgeStatusReady,
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
-	if err != nil {
-		t.Fatalf("CreateInstance() error = %v", err)
-	}
 	if err := registry.PutBridgeSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
 		BridgeInstanceID: instance.ID,
 		BindingName:      "bot_token",
@@ -1914,10 +2078,12 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 	firstID := "brg-daemon-init-a"
 	secondID := "brg-daemon-init-b"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
-		runtimeCommand: daemonExtensionHelperCommand(t),
-		runtimeArgs:    daemonExtensionHelperArgs(),
-		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
-		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		runtimeCommand:    daemonExtensionHelperCommand(t),
+		runtimeArgs:       daemonExtensionHelperArgs(),
+		runtimeEnv:        daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
+		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		bridgePlatform:    "slack",
+		bridgeDisplayName: "Slack",
 		actions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
@@ -1927,7 +2093,6 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
-	bridgeRegistry := bridgepkg.NewRegistry(registry)
 	for _, req := range []bridgepkg.CreateInstanceRequest{
 		{
 			ID:            firstID,
@@ -1950,9 +2115,7 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 		},
 	} {
-		if _, err := bridgeRegistry.CreateInstance(testutil.Context(t), req); err != nil {
-			t.Fatalf("CreateInstance(%q) error = %v", req.ID, err)
-		}
+		seedDaemonBridgeInstanceFixture(t, registry, req)
 	}
 	for _, binding := range []bridgepkg.BridgeSecretBinding{
 		{
@@ -2053,10 +2216,12 @@ func TestCreateEnabledBridgeAfterBootReloadsErroredExtension(t *testing.T) {
 	extensionName := "ext-bridge-create"
 	instanceID := "brg-daemon-create"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
-		runtimeCommand: daemonExtensionHelperCommand(t),
-		runtimeArgs:    daemonExtensionHelperArgs(),
-		runtimeEnv:     daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
-		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		runtimeCommand:    daemonExtensionHelperCommand(t),
+		runtimeArgs:       daemonExtensionHelperArgs(),
+		runtimeEnv:        daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
+		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		bridgePlatform:    "slack",
+		bridgeDisplayName: "Slack",
 		actions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
@@ -2140,10 +2305,12 @@ func TestBridgeRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 	extensionName := "ext-bridge-restart"
 	instanceID := "brg-daemon-restart"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
-		runtimeCommand: daemonExtensionHelperCommand(t),
-		runtimeArgs:    daemonExtensionHelperArgs(),
-		runtimeEnv:     daemonExtensionHelperScenarioEnv("exit_once_record_deliveries", markerPath),
-		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		runtimeCommand:    daemonExtensionHelperCommand(t),
+		runtimeArgs:       daemonExtensionHelperArgs(),
+		runtimeEnv:        daemonExtensionHelperScenarioEnv("exit_once_record_deliveries", markerPath),
+		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		bridgePlatform:    "slack",
+		bridgeDisplayName: "Slack",
 		actions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
@@ -2153,8 +2320,7 @@ func TestBridgeRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
-	bridgeRegistry := bridgepkg.NewRegistry(registry)
-	if _, err := bridgeRegistry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+	seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -2163,9 +2329,7 @@ func TestBridgeRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 		Enabled:       true,
 		Status:        bridgepkg.BridgeStatusReady,
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	}); err != nil {
-		t.Fatalf("CreateInstance() error = %v", err)
-	}
+	})
 
 	d, err := New(
 		WithHomePaths(homePaths),
@@ -2288,10 +2452,12 @@ func TestDaemonShutdownClosesBridgeRuntimeCleanly(t *testing.T) {
 	extensionName := "ext-bridge-shutdown"
 	instanceID := "brg-daemon-shutdown"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
-		runtimeCommand: daemonExtensionHelperCommand(t),
-		runtimeArgs:    daemonExtensionHelperArgs(),
-		runtimeEnv:     daemonExtensionHelperScenarioEnv("slow_record_deliveries", markerPath),
-		capabilities:   []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		runtimeCommand:    daemonExtensionHelperCommand(t),
+		runtimeArgs:       daemonExtensionHelperArgs(),
+		runtimeEnv:        daemonExtensionHelperScenarioEnv("slow_record_deliveries", markerPath),
+		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+		bridgePlatform:    "slack",
+		bridgeDisplayName: "Slack",
 		actions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
@@ -2301,8 +2467,7 @@ func TestDaemonShutdownClosesBridgeRuntimeCleanly(t *testing.T) {
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
-	bridgeRegistry := bridgepkg.NewRegistry(registry)
-	if _, err := bridgeRegistry.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+	seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -2311,9 +2476,7 @@ func TestDaemonShutdownClosesBridgeRuntimeCleanly(t *testing.T) {
 		Enabled:       true,
 		Status:        bridgepkg.BridgeStatusReady,
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	}); err != nil {
-		t.Fatalf("CreateInstance() error = %v", err)
-	}
+	})
 
 	d, err := New(
 		WithHomePaths(homePaths),
@@ -2471,6 +2634,58 @@ func findAutomationTriggerByName(triggers []automationpkg.Trigger, name string) 
 	return nil
 }
 
+func bridgeResourceIntegrationSpec(displayName string, enabled bool) bridgepkg.BridgeInstanceSpec {
+	return bridgepkg.BridgeInstanceSpec{
+		Scope:            bridgepkg.ScopeGlobal,
+		Platform:         "telegram",
+		ExtensionName:    "ext-bridge",
+		DisplayName:      displayName,
+		Source:           bridgepkg.BridgeInstanceSourceDynamic,
+		Enabled:          enabled,
+		DMPolicy:         bridgepkg.BridgeDMPolicyPairing,
+		RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+		ProviderConfig:   []byte(`{"tenant":"acme"}`),
+		DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
+	}
+}
+
+func waitForDaemonBridgeInstance(t *testing.T, runtime *bridgeRuntime, id string, displayName string) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		instance, err := runtime.GetInstance(testutil.Context(t), id)
+		if err == nil && instance.DisplayName == displayName {
+			return
+		}
+		if time.Now().After(deadline) {
+			if err != nil {
+				t.Fatalf("GetInstance(%q) did not become available: %v", id, err)
+			}
+			t.Fatalf("GetInstance(%q).DisplayName did not become %q", id, displayName)
+		}
+		timer := time.NewTimer(10 * time.Millisecond)
+		<-timer.C
+	}
+}
+
+func waitForDaemonBridgeMissing(t *testing.T, runtime *bridgeRuntime, id string) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		_, err := runtime.GetInstance(testutil.Context(t), id)
+		if errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("GetInstance(%q) still exists or failed unexpectedly: %v", id, err)
+		}
+		timer := time.NewTimer(10 * time.Millisecond)
+		<-timer.C
+	}
+}
+
 func writeDaemonHookScript(t *testing.T, dir string, name string, contents string) string {
 	t.Helper()
 
@@ -2534,6 +2749,53 @@ func openDaemonIntegrationGlobalDB(t *testing.T, databasePath string) *globaldb.
 	return db
 }
 
+func seedDaemonBridgeInstanceFixture(
+	t *testing.T,
+	registry *globaldb.GlobalDB,
+	req bridgepkg.CreateInstanceRequest,
+) *bridgepkg.BridgeInstance {
+	t.Helper()
+
+	if registry == nil {
+		t.Fatal("seedDaemonBridgeInstanceFixture() registry = nil")
+	}
+
+	instance, err := bridgepkg.NewRegistry(registry).CreateInstance(testutil.Context(t), req)
+	if err != nil {
+		t.Fatalf("CreateInstance(%q) error = %v", strings.TrimSpace(req.ID), err)
+	}
+
+	kernel, err := resources.NewKernel(registry.DB())
+	if err != nil {
+		t.Fatalf("resources.NewKernel() error = %v", err)
+	}
+	codec, err := bridgepkg.NewBridgeInstanceResourceCodec(
+		bridgeProviderLookup(newBridgeRuntime(registry, discardLogger(), nil, nil)),
+	)
+	if err != nil {
+		t.Fatalf("NewBridgeInstanceResourceCodec() error = %v", err)
+	}
+	resourceStore, err := resources.NewStore(kernel, codec)
+	if err != nil {
+		t.Fatalf("resources.NewStore(bridge.instance) error = %v", err)
+	}
+
+	if _, err := resourceStore.Put(
+		testutil.Context(t),
+		resourceReconcileActor(),
+		resources.Draft[bridgepkg.BridgeInstanceSpec]{
+			ID:              instance.ID,
+			Scope:           bridgepkg.ResourceScopeForBridge(instance.Scope, instance.WorkspaceID),
+			ExpectedVersion: 0,
+			Spec:            bridgepkg.BridgeInstanceSpecFromInstance(*instance),
+		},
+	); err != nil {
+		t.Fatalf("bridge resource put(%q) error = %v", instance.ID, err)
+	}
+
+	return instance
+}
+
 func readDaemonInitializeMarkers(t *testing.T, path string) []daemonInitializeMarker {
 	t.Helper()
 
@@ -2544,6 +2806,9 @@ func readDaemonInitializeMarkers(t *testing.T, path string) []daemonInitializeMa
 
 	markers := make([]daemonInitializeMarker, 0, len(lines))
 	for _, line := range lines {
+		if strings.TrimSpace(line) == "shutdown" {
+			continue
+		}
 		var marker daemonInitializeMarker
 		if err := json.Unmarshal([]byte(line), &marker); err != nil {
 			t.Fatalf("json.Unmarshal(initialize marker) error = %v; line=%q", err, line)
@@ -2563,6 +2828,9 @@ func readDaemonDeliveryMarkers(t *testing.T, path string) []daemonDeliveryMarker
 
 	markers := make([]daemonDeliveryMarker, 0, len(lines))
 	for _, line := range lines {
+		if strings.TrimSpace(line) == "shutdown" {
+			continue
+		}
 		var marker daemonDeliveryMarker
 		if err := json.Unmarshal([]byte(line), &marker); err != nil {
 			t.Fatalf("json.Unmarshal(delivery marker) error = %v; line=%q", err, line)

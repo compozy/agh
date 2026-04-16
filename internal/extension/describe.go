@@ -8,6 +8,7 @@ import (
 
 const (
 	extensionStateEnabled    = "enabled"
+	extensionStateError      = "error"
 	extensionHealthUnknown   = hostAPIUnknownExtensionName
 	extensionHealthHealthy   = "healthy"
 	extensionHealthUnhealthy = "unhealthy"
@@ -61,7 +62,7 @@ func extensionState(info ExtensionInfo, status ExtensionStatus, daemonRunning bo
 		return "active"
 	}
 	if status.LastError != "" {
-		return "error"
+		return extensionStateError
 	}
 	if status.Registered {
 		return "registered"

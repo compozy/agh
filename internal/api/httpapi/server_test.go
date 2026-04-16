@@ -109,6 +109,23 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 	}
 }
 
+func TestNewRejectsResourceAuthWithoutResourceService(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	_, err := New(
+		WithHomePaths(homePaths),
+		WithSessionManager(stubSessionManager{}),
+		WithTaskService(stubTaskManager{}),
+		WithObserver(stubObserver{}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
+		WithResourceOperatorAuth(func(*gin.Context) {}),
+	)
+	if err == nil {
+		t.Fatal("New() with resource auth and no resource service error = nil, want non-nil")
+	}
+}
+
 func TestServerStartAndShutdownServeRequests(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	cfg := aghconfig.DefaultWithHome(homePaths)

@@ -14,7 +14,9 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/filesnap"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
 func TestResolveRoutesByIdentifierType(t *testing.T) {
@@ -107,6 +109,161 @@ func TestResolveRoutesByIdentifierType(t *testing.T) {
 
 			tt.assertCalls(t, store)
 		})
+	}
+}
+
+func TestResolveWorkspaceEnvironmentCascade(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	homePaths := newTestHomePaths(t)
+	baseConfig := validConfig(homePaths)
+	baseConfig.Defaults.Environment = "default-env"
+	baseConfig.Environments["default-env"] = aghconfig.EnvironmentProfile{
+		Backend:     "daytona",
+		Persistence: "reuse",
+		Daytona: aghconfig.DaytonaProfile{
+			Snapshot: "snap-default",
+		},
+	}
+	baseConfig.Environments["explicit-env"] = aghconfig.EnvironmentProfile{
+		Backend:  "daytona",
+		SyncMode: "none",
+		Daytona: aghconfig.DaytonaProfile{
+			Snapshot: "snap-explicit",
+		},
+	}
+
+	tests := []struct {
+		name        string
+		workspace   Workspace
+		cfg         aghconfig.Config
+		wantProfile string
+		wantBackend environment.Backend
+		wantSync    environment.SyncMode
+	}{
+		{
+			name: "workspace ref wins over default",
+			workspace: Workspace{
+				ID:             "ws_explicit",
+				RootDir:        mustCanonicalRoot(t, t.TempDir()),
+				Name:           "explicit",
+				EnvironmentRef: "explicit-env",
+			},
+			cfg:         baseConfig,
+			wantProfile: "explicit-env",
+			wantBackend: environment.BackendDaytona,
+			wantSync:    environment.SyncModeNone,
+		},
+		{
+			name: "defaults environment applies when workspace omits ref",
+			workspace: Workspace{
+				ID:      "ws_default",
+				RootDir: mustCanonicalRoot(t, t.TempDir()),
+				Name:    "default",
+			},
+			cfg:         baseConfig,
+			wantProfile: "default-env",
+			wantBackend: environment.BackendDaytona,
+			wantSync:    environment.SyncModeSessionBidirectional,
+		},
+		{
+			name: "implicit local applies with no workspace or default ref",
+			workspace: Workspace{
+				ID:      "ws_local",
+				RootDir: mustCanonicalRoot(t, t.TempDir()),
+				Name:    "local",
+			},
+			cfg: func() aghconfig.Config {
+				cfg := validConfig(homePaths)
+				cfg.Defaults.Environment = ""
+				return cfg
+			}(),
+			wantProfile: "local",
+			wantBackend: environment.BackendLocal,
+			wantSync:    environment.SyncModeNone,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newMockWorkspaceStore(tt.workspace)
+			loader := &countingConfigLoader{cfg: tt.cfg}
+			resolver := newTestResolver(t, store,
+				WithHomePaths(homePaths),
+				WithConfigLoader(loader.Load),
+			)
+
+			resolved, err := resolver.Resolve(ctx, tt.workspace.ID)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v", err)
+			}
+			if resolved.Environment.Profile != tt.wantProfile ||
+				resolved.Environment.Backend != tt.wantBackend ||
+				resolved.Environment.SyncMode != tt.wantSync {
+				t.Fatalf("resolved environment = %#v, want profile=%q backend=%q sync=%q",
+					resolved.Environment,
+					tt.wantProfile,
+					tt.wantBackend,
+					tt.wantSync,
+				)
+			}
+		})
+	}
+}
+
+func TestRegisterUpdateAndLoadWorkspaceEnvironmentRef(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	homePaths := newTestHomePaths(t)
+	cfg := validConfig(homePaths)
+	cfg.Environments["daytona-dev"] = aghconfig.EnvironmentProfile{
+		Backend: "daytona",
+		Daytona: aghconfig.DaytonaProfile{Snapshot: "snap-dev"},
+	}
+	cfg.Environments["local-dev"] = aghconfig.EnvironmentProfile{Backend: "local"}
+
+	store := newMockWorkspaceStore()
+	resolver := newTestResolver(t, store,
+		WithHomePaths(homePaths),
+		WithConfigLoader((&countingConfigLoader{cfg: cfg}).Load),
+		WithIDGenerator(func(string) string { return "ws_env" }),
+	)
+
+	root := t.TempDir()
+	registered, err := resolver.Register(ctx, RegisterOptions{
+		RootDir:        root,
+		Name:           "env-workspace",
+		EnvironmentRef: "daytona-dev",
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if got, want := registered.EnvironmentRef, "daytona-dev"; got != want {
+		t.Fatalf("registered EnvironmentRef = %q, want %q", got, want)
+	}
+
+	loaded, err := resolver.Get(ctx, registered.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got, want := loaded.EnvironmentRef, "daytona-dev"; got != want {
+		t.Fatalf("loaded EnvironmentRef = %q, want %q", got, want)
+	}
+
+	nextEnvironment := "local-dev"
+	if err := resolver.Update(ctx, registered.ID, UpdateOptions{EnvironmentRef: &nextEnvironment}); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	updated, err := resolver.Get(ctx, registered.ID)
+	if err != nil {
+		t.Fatalf("Get(updated) error = %v", err)
+	}
+	if got, want := updated.EnvironmentRef, "local-dev"; got != want {
+		t.Fatalf("updated EnvironmentRef = %q, want %q", got, want)
 	}
 }
 
@@ -660,6 +817,7 @@ func TestListReturnsClonedWorkspaces(t *testing.T) {
 func TestCloneConfigProducesDeepCopy(t *testing.T) {
 	t.Parallel()
 
+	toolReadOnly := true
 	original := aghconfig.Config{
 		Session: aghconfig.SessionConfig{
 			Limits: aghconfig.SessionLimitsConfig{
@@ -686,12 +844,29 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 			DisabledSkills: []string{"alpha"},
 			PollInterval:   time.Second,
 		},
+		Hooks: aghconfig.HooksConfig{
+			Declarations: []hookspkg.HookDecl{{
+				Name: "test-hook",
+				Args: []string{"one"},
+				Env:  map[string]string{"TOKEN": "one"},
+				Metadata: map[string]string{
+					"origin": "test",
+				},
+				Matcher: hookspkg.HookMatcher{
+					ToolReadOnly: &toolReadOnly,
+				},
+			}},
+		},
 	}
 
 	cloned := cloneConfig(&original)
 	cloned.Session.Limits.Timeout = 2 * time.Minute
 	cloned.Providers["claude"] = aghconfig.ProviderConfig{}
 	cloned.Skills.DisabledSkills[0] = "beta"
+	cloned.Hooks.Declarations[0].Args[0] = "two"
+	cloned.Hooks.Declarations[0].Env["TOKEN"] = "two"
+	cloned.Hooks.Declarations[0].Metadata["origin"] = "mutated"
+	*cloned.Hooks.Declarations[0].Matcher.ToolReadOnly = false
 
 	if got, want := original.Session.Limits.Timeout, time.Minute; got != want {
 		t.Fatalf("original Session.Limits.Timeout = %s, want %s", got, want)
@@ -702,6 +877,12 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 	}
 	if got, want := original.Skills.DisabledSkills, []string{"alpha"}; !slices.Equal(got, want) {
 		t.Fatalf("original Skills.DisabledSkills = %#v, want %#v", got, want)
+	}
+	hook := original.Hooks.Declarations[0]
+	if hook.Args[0] != "one" || hook.Env["TOKEN"] != "one" ||
+		hook.Metadata["origin"] != "test" || hook.Matcher.ToolReadOnly == nil ||
+		!*hook.Matcher.ToolReadOnly {
+		t.Fatalf("original hook mutated: %#v", hook)
 	}
 }
 

@@ -19,7 +19,6 @@ import (
 )
 
 type hookRuntime interface {
-	Rebuild(context.Context) error
 	Close()
 	Version() int64
 	DispatchSessionPreCreate(
@@ -40,6 +39,23 @@ type hookRuntime interface {
 	) (hookspkg.SessionPostResumePayload, error)
 	DispatchSessionPreStop(context.Context, hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error)
 	DispatchSessionPostStop(context.Context, hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error)
+	DispatchEnvironmentPrepare(
+		context.Context,
+		hookspkg.EnvironmentPreparePayload,
+	) (hookspkg.EnvironmentPreparePayload, error)
+	DispatchEnvironmentReady(
+		context.Context,
+		hookspkg.EnvironmentReadyPayload,
+	) (hookspkg.EnvironmentReadyPayload, error)
+	DispatchEnvironmentSyncBefore(
+		context.Context,
+		hookspkg.EnvironmentSyncBeforePayload,
+	) (hookspkg.EnvironmentSyncBeforePayload, error)
+	DispatchEnvironmentSyncAfter(
+		context.Context,
+		hookspkg.EnvironmentSyncAfterPayload,
+	) (hookspkg.EnvironmentSyncAfterPayload, error)
+	DispatchEnvironmentStop(context.Context, hookspkg.EnvironmentStopPayload) (hookspkg.EnvironmentStopPayload, error)
 	DispatchInputPreSubmit(context.Context, hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error)
 	DispatchPromptPostAssemble(context.Context, hookspkg.PromptPayload) (hookspkg.PromptPayload, error)
 	DispatchEventPreRecord(context.Context, hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error)
@@ -77,6 +93,21 @@ type hookRuntime interface {
 	DispatchMessageStart(context.Context, hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error)
 	DispatchMessageDelta(context.Context, hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error)
 	DispatchMessageEnd(context.Context, hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error)
+	DispatchToolPreCall(context.Context, hookspkg.ToolPreCallPayload) (hookspkg.ToolPreCallPayload, error)
+	DispatchToolPostCall(context.Context, hookspkg.ToolPostCallPayload) (hookspkg.ToolPostCallPayload, error)
+	DispatchToolPostError(context.Context, hookspkg.ToolPostErrorPayload) (hookspkg.ToolPostErrorPayload, error)
+	DispatchPermissionRequest(
+		context.Context,
+		hookspkg.PermissionRequestPayload,
+	) (hookspkg.PermissionRequestPayload, error)
+	DispatchPermissionResolved(
+		context.Context,
+		hookspkg.PermissionResolvedPayload,
+	) (hookspkg.PermissionResolvedPayload, error)
+	DispatchPermissionDenied(
+		context.Context,
+		hookspkg.PermissionDeniedPayload,
+	) (hookspkg.PermissionDeniedPayload, error)
 	DispatchContextPreCompact(
 		context.Context,
 		hookspkg.ContextPreCompactPayload,
@@ -85,7 +116,6 @@ type hookRuntime interface {
 		context.Context,
 		hookspkg.ContextPostCompactPayload,
 	) (hookspkg.ContextPostCompactPayload, error)
-	OnAgentEvent(context.Context, string, any)
 }
 
 type sessionLifecycleObserver interface {
@@ -196,11 +226,14 @@ type hooksNotifier struct {
 
 var _ session.Notifier = (*hooksNotifier)(nil)
 var _ session.LifecycleHooks = (*hooksNotifier)(nil)
+var _ session.EnvironmentHooks = (*hooksNotifier)(nil)
 var _ session.PromptHooks = (*hooksNotifier)(nil)
 var _ session.EventHooks = (*hooksNotifier)(nil)
 var _ session.AgentHooks = (*hooksNotifier)(nil)
 var _ session.ConversationHooks = (*hooksNotifier)(nil)
 var _ session.CompactionHooks = (*hooksNotifier)(nil)
+var _ session.AgentEventNotifier = (*hooksNotifier)(nil)
+var _ session.EnvironmentLifecycleNotifier = (*hooksNotifier)(nil)
 
 func newHooksNotifier(logger *slog.Logger, now func() time.Time) *hooksNotifier {
 	if logger == nil {
@@ -241,7 +274,6 @@ func (n *hooksNotifier) DispatchSessionPreCreate(
 		n,
 		hookspkg.HookSessionPreCreate,
 		payload,
-		true,
 		hookRuntime.DispatchSessionPreCreate,
 	)
 }
@@ -255,7 +287,6 @@ func (n *hooksNotifier) DispatchSessionPostCreate(
 		n,
 		hookspkg.HookSessionPostCreate,
 		payload,
-		true,
 		hookRuntime.DispatchSessionPostCreate,
 	)
 }
@@ -269,7 +300,6 @@ func (n *hooksNotifier) DispatchSessionPreResume(
 		n,
 		hookspkg.HookSessionPreResume,
 		payload,
-		true,
 		hookRuntime.DispatchSessionPreResume,
 	)
 }
@@ -283,7 +313,6 @@ func (n *hooksNotifier) DispatchSessionPostResume(
 		n,
 		hookspkg.HookSessionPostResume,
 		payload,
-		true,
 		hookRuntime.DispatchSessionPostResume,
 	)
 }
@@ -297,7 +326,6 @@ func (n *hooksNotifier) DispatchSessionPreStop(
 		n,
 		hookspkg.HookSessionPreStop,
 		payload,
-		true,
 		hookRuntime.DispatchSessionPreStop,
 	)
 }
@@ -311,8 +339,72 @@ func (n *hooksNotifier) DispatchSessionPostStop(
 		n,
 		hookspkg.HookSessionPostStop,
 		payload,
-		true,
 		hookRuntime.DispatchSessionPostStop,
+	)
+}
+
+func (n *hooksNotifier) DispatchEnvironmentPrepare(
+	ctx context.Context,
+	payload hookspkg.EnvironmentPreparePayload,
+) (hookspkg.EnvironmentPreparePayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookEnvironmentPrepare,
+		payload,
+		hookRuntime.DispatchEnvironmentPrepare,
+	)
+}
+
+func (n *hooksNotifier) DispatchEnvironmentReady(
+	ctx context.Context,
+	payload hookspkg.EnvironmentReadyPayload,
+) (hookspkg.EnvironmentReadyPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookEnvironmentReady,
+		payload,
+		hookRuntime.DispatchEnvironmentReady,
+	)
+}
+
+func (n *hooksNotifier) DispatchEnvironmentSyncBefore(
+	ctx context.Context,
+	payload hookspkg.EnvironmentSyncBeforePayload,
+) (hookspkg.EnvironmentSyncBeforePayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookEnvironmentSyncBefore,
+		payload,
+		hookRuntime.DispatchEnvironmentSyncBefore,
+	)
+}
+
+func (n *hooksNotifier) DispatchEnvironmentSyncAfter(
+	ctx context.Context,
+	payload hookspkg.EnvironmentSyncAfterPayload,
+) (hookspkg.EnvironmentSyncAfterPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookEnvironmentSyncAfter,
+		payload,
+		hookRuntime.DispatchEnvironmentSyncAfter,
+	)
+}
+
+func (n *hooksNotifier) DispatchEnvironmentStop(
+	ctx context.Context,
+	payload hookspkg.EnvironmentStopPayload,
+) (hookspkg.EnvironmentStopPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookEnvironmentStop,
+		payload,
+		hookRuntime.DispatchEnvironmentStop,
 	)
 }
 
@@ -325,7 +417,6 @@ func (n *hooksNotifier) DispatchInputPreSubmit(
 		n,
 		hookspkg.HookInputPreSubmit,
 		payload,
-		false,
 		hookRuntime.DispatchInputPreSubmit,
 	)
 }
@@ -339,7 +430,6 @@ func (n *hooksNotifier) DispatchPromptPostAssemble(
 		n,
 		hookspkg.HookPromptPostAssemble,
 		payload,
-		false,
 		hookRuntime.DispatchPromptPostAssemble,
 	)
 }
@@ -353,7 +443,6 @@ func (n *hooksNotifier) DispatchEventPreRecord(
 		n,
 		hookspkg.HookEventPreRecord,
 		payload,
-		false,
 		hookRuntime.DispatchEventPreRecord,
 	)
 }
@@ -367,7 +456,6 @@ func (n *hooksNotifier) DispatchEventPostRecord(
 		n,
 		hookspkg.HookEventPostRecord,
 		payload,
-		false,
 		hookRuntime.DispatchEventPostRecord,
 	)
 }
@@ -381,7 +469,6 @@ func (n *hooksNotifier) DispatchAgentPreStart(
 		n,
 		hookspkg.HookAgentPreStart,
 		payload,
-		true,
 		hookRuntime.DispatchAgentPreStart,
 	)
 }
@@ -395,7 +482,6 @@ func (n *hooksNotifier) DispatchAgentSpawned(
 		n,
 		hookspkg.HookAgentSpawned,
 		payload,
-		true,
 		hookRuntime.DispatchAgentSpawned,
 	)
 }
@@ -409,7 +495,6 @@ func (n *hooksNotifier) DispatchAgentCrashed(
 		n,
 		hookspkg.HookAgentCrashed,
 		payload,
-		true,
 		hookRuntime.DispatchAgentCrashed,
 	)
 }
@@ -423,7 +508,6 @@ func (n *hooksNotifier) DispatchAgentStopped(
 		n,
 		hookspkg.HookAgentStopped,
 		payload,
-		true,
 		hookRuntime.DispatchAgentStopped,
 	)
 }
@@ -437,7 +521,6 @@ func (n *hooksNotifier) DispatchTurnStart(
 		n,
 		hookspkg.HookTurnStart,
 		payload,
-		false,
 		hookRuntime.DispatchTurnStart,
 	)
 }
@@ -451,7 +534,6 @@ func (n *hooksNotifier) DispatchTurnEnd(
 		n,
 		hookspkg.HookTurnEnd,
 		payload,
-		false,
 		hookRuntime.DispatchTurnEnd,
 	)
 }
@@ -465,7 +547,6 @@ func (n *hooksNotifier) DispatchMessageStart(
 		n,
 		hookspkg.HookMessageStart,
 		payload,
-		false,
 		hookRuntime.DispatchMessageStart,
 	)
 }
@@ -479,7 +560,6 @@ func (n *hooksNotifier) DispatchMessageDelta(
 		n,
 		hookspkg.HookMessageDelta,
 		payload,
-		false,
 		hookRuntime.DispatchMessageDelta,
 	)
 }
@@ -493,7 +573,6 @@ func (n *hooksNotifier) DispatchMessageEnd(
 		n,
 		hookspkg.HookMessageEnd,
 		payload,
-		false,
 		hookRuntime.DispatchMessageEnd,
 	)
 }
@@ -507,7 +586,6 @@ func (n *hooksNotifier) DispatchContextPreCompact(
 		n,
 		hookspkg.HookContextPreCompact,
 		payload,
-		false,
 		hookRuntime.DispatchContextPreCompact,
 	)
 }
@@ -521,18 +599,32 @@ func (n *hooksNotifier) DispatchContextPostCompact(
 		n,
 		hookspkg.HookContextPostCompact,
 		payload,
-		false,
 		hookRuntime.DispatchContextPostCompact,
 	)
 }
 
 func (n *hooksNotifier) OnAgentEvent(ctx context.Context, sessionID string, event any) {
+	n.dispatchAgentEvent(ctx, hookspkg.SessionContext{SessionID: strings.TrimSpace(sessionID)}, event)
+}
+
+func (n *hooksNotifier) OnAgentEventForSession(ctx context.Context, sess *session.Session, event any) {
+	n.dispatchAgentEvent(ctx, hookSessionContext(sess), event)
+}
+
+func (n *hooksNotifier) OnEnvironmentLifecycleEvent(ctx context.Context, event session.EnvironmentLifecycleEvent) {
+	_, agentEventNotify := n.runtime()
+	if notifier, ok := agentEventNotify.(session.EnvironmentLifecycleNotifier); ok {
+		notifier.OnEnvironmentLifecycleEvent(ctx, event)
+	}
+}
+
+func (n *hooksNotifier) dispatchAgentEvent(ctx context.Context, sessionCtx hookspkg.SessionContext, event any) {
 	hooks, agentEventNotify := n.runtime()
 	if agentEventNotify != nil {
-		agentEventNotify.OnAgentEvent(ctx, sessionID, event)
+		agentEventNotify.OnAgentEvent(ctx, sessionCtx.SessionID, event)
 	}
 	if hooks != nil {
-		hooks.OnAgentEvent(ctx, sessionID, event)
+		dispatchACPAgentHookEvent(ctx, n.logger, hooks, sessionCtx, event, n.timestamp())
 	}
 }
 
@@ -557,7 +649,6 @@ func dispatchRuntime[P any](
 	n *hooksNotifier,
 	event hookspkg.HookEvent,
 	payload P,
-	rebuild bool,
 	dispatch runtimeDispatchFunc[P],
 ) (P, error) {
 	hooks, _ := n.runtime()
@@ -566,16 +657,6 @@ func dispatchRuntime[P any](
 	}
 	if ctx == nil {
 		return payload, fmt.Errorf("daemon: dispatch %s requires a non-nil context", event)
-	}
-	if rebuild {
-		if err := hooks.Rebuild(ctx); err != nil {
-			n.logger.WarnContext(
-				ctx,
-				"daemon: rebuild hooks before dispatch failed",
-				"event", event.String(),
-				"error", err,
-			)
-		}
 	}
 	return dispatch(hooks, ctx, payload)
 }

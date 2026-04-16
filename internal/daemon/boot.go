@@ -15,6 +15,9 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/environment/daytona"
+	"github.com/pedronauck/agh/internal/environment/local"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	aghlogger "github.com/pedronauck/agh/internal/logger"
@@ -22,47 +25,61 @@ import (
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 type bootState struct {
-	cfg                aghconfig.Config
-	logger             *slog.Logger
-	closeLogger        func() error
-	lock               *Lock
-	memoryStore        *memory.Store
-	skillsRegistry     *skills.Registry
-	mcpResolver        *skills.MCPResolver
-	dreamSvc           consolidation.Service
-	dreamRuntime       *consolidation.Runtime
-	globalMemoryDir    string
-	promptAssembler    session.PromptAssembler
-	notifier           *hooksNotifier
-	registry           Registry
-	workspaceResolver  *workspacepkg.Resolver
-	sessions           SessionManager
-	tasks              *taskRuntime
-	network            networkRuntime
-	observer           Observer
-	lifecycleObservers *sessionLifecycleFanout
-	hookTelemetrySinks *hookTelemetryFanout
-	hooks              hookRuntime
-	extMu              sync.RWMutex
-	extensions         extensionRuntime
-	automation         automationRuntime
-	bridges            *bridgeRuntime
-	bundles            *bundlepkg.Service
-	httpServer         Server
-	udsServer          Server
-	skillsCancel       context.CancelFunc
-	skillsDone         chan struct{}
-	startedAt          time.Time
-	info               Info
-	deps               RuntimeDeps
+	cfg                 aghconfig.Config
+	logger              *slog.Logger
+	closeLogger         func() error
+	lock                *Lock
+	memoryStore         *memory.Store
+	skillsRegistry      *skills.Registry
+	mcpResolver         *skills.MCPResolver
+	dreamSvc            consolidation.Service
+	dreamRuntime        *consolidation.Runtime
+	globalMemoryDir     string
+	promptAssembler     session.PromptAssembler
+	notifier            *hooksNotifier
+	registry            Registry
+	environmentRegistry *environment.Registry
+	workspaceResolver   *workspacepkg.Resolver
+	sessions            SessionManager
+	tasks               *taskRuntime
+	network             networkRuntime
+	observer            Observer
+	lifecycleObservers  *sessionLifecycleFanout
+	hookTelemetrySinks  *hookTelemetryFanout
+	hooks               hookRuntime
+	hookDispatcher      *hookspkg.Hooks
+	hookBindings        hookBindingPublisher
+	resourceKernel      *resources.Kernel
+	resourceCodecs      *resources.CodecRegistry
+	agentCatalog        *resourceCatalog[aghconfig.AgentDef]
+	toolCatalog         *resourceCatalog[toolspkg.Tool]
+	mcpServerCatalog    *resourceCatalog[aghconfig.MCPServer]
+	agentSkillResources agentSkillPublisher
+	toolMCPResources    toolMCPPublisher
+	bundleResources     bundleResourcePublisher
+	extMu               sync.RWMutex
+	extensions          extensionRuntime
+	resourceReconcile   resources.ReconcileDriver
+	automation          automationRuntime
+	bridges             *bridgeRuntime
+	bundles             *bundlepkg.Service
+	httpServer          Server
+	udsServer           Server
+	skillsCancel        context.CancelFunc
+	skillsDone          chan struct{}
+	startedAt           time.Time
+	info                Info
+	deps                RuntimeDeps
 }
 
 func (s *bootState) currentExtensionRuntime() extensionRuntime {
@@ -140,13 +157,16 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	if err := d.bootHooks(ctx, state, cleanup); err != nil {
 		return err
 	}
-	if err := d.bootExtensions(ctx, state, cleanup); err != nil {
-		return err
-	}
 	if err := d.bootAutomation(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootBundles(ctx, state); err != nil {
+		return err
+	}
+	if err := d.bootResourceReconcile(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootExtensions(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootServers(ctx, state, cleanup); err != nil {
@@ -170,6 +190,7 @@ func (d *Daemon) beginBoot() error {
 		d.sessions != nil ||
 		d.network != nil ||
 		d.observer != nil ||
+		d.resourceReconcile != nil ||
 		d.automation != nil ||
 		d.bridges != nil {
 		return errors.New("daemon: already booted")
@@ -223,7 +244,7 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 	return nil
 }
 
-func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error {
 	var prependProviders []session.PromptProvider
 	var appendProviders []session.PromptProvider
 
@@ -246,9 +267,6 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		}
 
 		state.skillsRegistry = skills.NewRegistry(skillsCfg, skills.WithLogger(state.logger))
-		if err := state.skillsRegistry.LoadAll(ctx); err != nil {
-			return fmt.Errorf("daemon: load skills registry: %w", err)
-		}
 		state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
 		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))
 	}
@@ -270,7 +288,10 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 	if err := d.bootRuntimeServices(ctx, state, cleanup); err != nil {
 		return err
 	}
-	return d.attachRuntimeObserver(ctx, state)
+	if err := d.attachRuntimeObserver(ctx, state); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d *Daemon) bootLockAndSocket(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -361,13 +382,51 @@ func (d *Daemon) bootRuntimeServices(
 
 	state.startedAt = d.now().UTC()
 	state.notifier = newHooksNotifier(state.logger, d.now)
+	environmentRegistry, err := d.buildEnvironmentRegistry(state)
+	if err != nil {
+		return err
+	}
+	state.environmentRegistry = environmentRegistry
 	state.bridges = d.composeBridgeRuntime(state, cleanup)
+
+	resourceKernel, err := d.buildResourceKernel(state.registry)
+	if err != nil {
+		return err
+	}
+	state.resourceKernel = resourceKernel
+	state.resourceCodecs, err = d.buildResourceCodecs(state.bridges)
+	if err != nil {
+		return err
+	}
+	bridgeResources, err := bridgeInstanceResourceStore(resourceRawStore(resourceKernel), state.resourceCodecs)
+	if err != nil {
+		return err
+	}
+	if state.bridges != nil && bridgeResources != nil {
+		state.bridges.setResourceDefinitions(
+			bridgeResources,
+			resourceReconcileActor(),
+			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+				if state.resourceReconcile == nil {
+					return nil
+				}
+				return state.resourceReconcile.Trigger(ctx, kind, reason)
+			},
+		)
+	}
+	state.agentCatalog = newResourceCatalog(cloneAgentDef)
+
 	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))
 	if err != nil {
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 	state.sessions = sessions
 	state.deps = d.runtimeDeps(state, sessions)
+	resourceService, err := d.buildResourceService(state)
+	if err != nil {
+		return err
+	}
+	state.deps.Resources = resourceService
 	return nil
 }
 
@@ -378,17 +437,34 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		Notifier:  d.sessionNotifier(state),
 		Hooks: session.HookSet{
 			Session:      state.notifier,
+			Environment:  state.notifier,
 			Prompt:       state.notifier,
 			Events:       state.notifier,
 			Agent:        state.notifier,
 			Conversation: state.notifier,
 			Compaction:   state.notifier,
 		},
-		PromptAssembler:   state.promptAssembler,
-		SkillRegistry:     skillRegistryDependency(state.skillsRegistry),
-		MCPResolver:       mcpResolverDependency(state.mcpResolver),
-		WorkspaceResolver: state.workspaceResolver,
+		PromptAssembler:     state.promptAssembler,
+		AgentResolver:       agentCatalogDependency(state.agentCatalog),
+		SkillRegistry:       skillRegistryDependency(state.skillsRegistry),
+		MCPResolver:         mcpResolverDependency(state.mcpResolver),
+		WorkspaceResolver:   state.workspaceResolver,
+		EnvironmentRegistry: state.environmentRegistry,
 	}
+}
+
+func (d *Daemon) buildEnvironmentRegistry(state *bootState) (*environment.Registry, error) {
+	if state == nil {
+		return nil, errors.New("daemon: environment registry state is required")
+	}
+	registry, err := local.NewRegistry(local.WithLogger(state.logger))
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create environment registry: %w", err)
+	}
+	if err := registry.Register(daytona.NewProvider(daytona.WithLogger(state.logger))); err != nil {
+		return nil, fmt.Errorf("daemon: register daytona environment provider: %w", err)
+	}
+	return registry, nil
 }
 
 func (d *Daemon) sessionNotifier(state *bootState) session.Notifier {
@@ -447,6 +523,7 @@ func (d *Daemon) runtimeDeps(state *bootState, sessions SessionManager) RuntimeD
 		MemoryStore:       state.memoryStore,
 		WorkspaceResolver: state.workspaceResolver,
 		WorkspaceService:  state.workspaceResolver,
+		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
 		SkillsRegistry:    skillsRegistryAPI(state.skillsRegistry),
 		DreamTrigger:      dreamTriggerFromRuntime(state.dreamRuntime),
 		StartedAt:         state.startedAt,
@@ -467,6 +544,115 @@ func dreamTriggerFromRuntime(runtime *consolidation.Runtime) DreamTrigger {
 	return runtime
 }
 
+func (d *Daemon) buildResourceKernel(registry Registry) (*resources.Kernel, error) {
+	if registry == nil {
+		return nil, errors.New("daemon: resource service registry is required")
+	}
+
+	dbSource, ok := registry.(extensionDBSource)
+	if !ok || dbSource.DB() == nil {
+		return nil, nil
+	}
+
+	kernel, err := resources.NewKernel(dbSource.DB())
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create resource kernel: %w", err)
+	}
+	return kernel, nil
+}
+
+func (d *Daemon) buildResourceCodecs(bridges *bridgeRuntime) (*resources.CodecRegistry, error) {
+	registry := resources.NewCodecRegistry()
+	if err := registerDaemonResourceCodecs(registry, bridges); err != nil {
+		return nil, err
+	}
+	return registry, nil
+}
+
+func registerDaemonResourceCodecs(registry *resources.CodecRegistry, bridges *bridgeRuntime) error {
+	if err := registerDaemonResourceCodec(registry, "hook binding", newHookBindingCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "tool", toolspkg.NewResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "mcp server", aghconfig.NewMCPServerResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "agent", aghconfig.NewAgentResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "skill", skills.NewResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "automation job", automationpkg.NewJobResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(
+		registry,
+		"automation trigger",
+		automationpkg.NewTriggerResourceCodec,
+	); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "bridge instance", func() (
+		resources.KindCodec[bridgepkg.BridgeInstanceSpec],
+		error,
+	) {
+		return bridgepkg.NewBridgeInstanceResourceCodec(bridgeProviderLookup(bridges))
+	}); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "bundle", bundlepkg.NewBundleResourceCodec); err != nil {
+		return err
+	}
+	return registerDaemonResourceCodec(
+		registry,
+		"bundle activation",
+		bundlepkg.NewActivationResourceCodec,
+	)
+}
+
+func registerDaemonResourceCodec[T any](
+	registry *resources.CodecRegistry,
+	label string,
+	build func() (resources.KindCodec[T], error),
+) error {
+	codec, err := build()
+	if err != nil {
+		return fmt.Errorf("daemon: build %s codec: %w", label, err)
+	}
+	if err := resources.RegisterCodec(registry, codec); err != nil {
+		return fmt.Errorf("daemon: register %s codec: %w", label, err)
+	}
+	return nil
+}
+
+func (d *Daemon) buildResourceService(state *bootState) (core.ResourceService, error) {
+	if state == nil {
+		return nil, nil
+	}
+	rawStore := resourceRawStore(state.resourceKernel)
+	if rawStore == nil {
+		return nil, nil
+	}
+
+	service, err := core.NewOperatorResourceService(&core.ResourceServiceConfig{
+		RawStore:      rawStore,
+		CodecRegistry: state.resourceCodecs,
+		Trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+			if state == nil || state.resourceReconcile == nil {
+				return nil
+			}
+			return state.resourceReconcile.Trigger(ctx, kind, reason)
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create resource service: %w", err)
+	}
+	return service, nil
+}
+
 func (d *Daemon) attachRuntimeObserver(ctx context.Context, state *bootState) error {
 	observer, err := d.newObserver(ctx, state.deps)
 	if err != nil {
@@ -474,6 +660,52 @@ func (d *Daemon) attachRuntimeObserver(ctx context.Context, state *bootState) er
 	}
 	state.observer = observer
 	state.deps.Observer = observer
+	return nil
+}
+
+func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	if state == nil {
+		return errors.New("daemon: reconcile boot state is required")
+	}
+	if d.newResourceReconcile == nil {
+		return errors.New("daemon: resource reconcile driver factory is required")
+	}
+	if state.agentCatalog == nil {
+		state.agentCatalog = newResourceCatalog(cloneAgentDef)
+	}
+	if state.toolCatalog == nil {
+		state.toolCatalog = newResourceCatalog(cloneToolSpec)
+	}
+	if state.mcpServerCatalog == nil {
+		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
+	}
+
+	driver, err := d.newResourceReconcile(ctx, resourceReconcileDriverDeps{
+		Config:           state.cfg,
+		Logger:           state.logger,
+		Registry:         state.registry,
+		ResourceStore:    resourceRawStore(state.resourceKernel),
+		CodecRegistry:    state.resourceCodecs,
+		Hooks:            state.hookDispatcher,
+		AgentCatalog:     state.agentCatalog,
+		ToolCatalog:      state.toolCatalog,
+		MCPServerCatalog: state.mcpServerCatalog,
+		SkillsRegistry:   state.skillsRegistry,
+		Automation:       automationResourceTarget(state.automation),
+		Bridges:          bridgeResourceTarget(state.bridges),
+		Bundles:          state.bundles,
+	})
+	if err != nil {
+		return fmt.Errorf("daemon: create resource reconcile driver: %w", err)
+	}
+	if driver == nil {
+		return errors.New("daemon: resource reconcile driver factory returned nil")
+	}
+
+	state.resourceReconcile = driver
+	cleanup.add(func(ctx context.Context) error {
+		return driver.Close(ctx)
+	})
 	return nil
 }
 
@@ -518,45 +750,21 @@ func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *boo
 }
 
 func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
-	state.lifecycleObservers = newSessionLifecycleFanout()
-	if state.observer != nil {
-		state.lifecycleObservers.Add(state.observer)
-	}
-	state.hookTelemetrySinks = newHookTelemetryFanout()
-	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {
-		state.hookTelemetrySinks.Add(sink)
+	if state == nil {
+		return errors.New("daemon: hook boot state is required")
 	}
 
-	nativeDecls, nativeExecutors := daemonNativeHooks(state.lifecycleObservers, state.dreamRuntime)
-	hookOptions := []hookspkg.Option{
-		hookspkg.WithLogger(state.logger),
-		hookspkg.WithNow(d.now),
-		hookspkg.WithDebugPatchAudit(strings.EqualFold(state.cfg.Log.Level, "debug")),
-		hookspkg.WithExecutorResolver(daemonExecutorResolver(nativeExecutors)),
-		hookspkg.WithNativeDeclarations(nativeDecls),
-		hookspkg.WithConfigDeclarationProvider(chainDeclarationProviders(
-			configDeclarationProvider(state.registry, state.workspaceResolver, state.logger),
-			extensionDeclarationProvider(state.currentExtensionRuntime),
-		)),
-		hookspkg.WithAgentDeclarationProvider(
-			agentDeclarationProvider(state.registry, state.workspaceResolver, state.logger),
-		),
-		hookspkg.WithSkillDeclarationProvider(
-			skillDeclarationProvider(
-				state.skillsRegistry,
-				state.registry,
-				state.workspaceResolver,
-				state.cfg.Skills.AllowedMarketplaceHooks,
-				state.logger,
-			),
-		),
-		hookspkg.WithTelemetrySink(state.hookTelemetrySinks),
-	}
-
-	hooks := hookspkg.NewHooks(hookOptions...)
-	if err := hooks.Rebuild(ctx); err != nil {
+	nativeDecls, nativeExecutors := d.initializeHookObservers(state)
+	providers := d.hookBindingProviders(state, nativeDecls)
+	hooks := hookspkg.NewHooks(d.hookRuntimeOptions(state, nativeExecutors)...)
+	hookBindings, err := d.newHookBindingPublisher(state, hooks, providers)
+	if err != nil {
 		hooks.Close()
-		return fmt.Errorf("daemon: rebuild hooks: %w", err)
+		return err
+	}
+	if err := hookBindings.Sync(ctx); err != nil {
+		hooks.Close()
+		return fmt.Errorf("daemon: sync hook bindings: %w", err)
 	}
 	if hookAwareObserver, ok := state.observer.(interface {
 		AttachHooks(observe.HookCatalogSource)
@@ -575,7 +783,12 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 			state.skillsRegistry,
 			state.cfg.Skills.PollInterval,
 			func(refreshCtx context.Context) error {
-				return hooks.Rebuild(refreshCtx)
+				if state.agentSkillResources != nil {
+					if err := state.agentSkillResources.Sync(refreshCtx); err != nil {
+						return err
+					}
+				}
+				return hookBindings.Sync(refreshCtx)
 			},
 		)
 		cleanup.add(func(context.Context) error {
@@ -585,7 +798,98 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	}
 
 	state.hooks = hooks
+	state.hookDispatcher = hooks
+	state.hookBindings = hookBindings
 	return nil
+}
+
+func (d *Daemon) initializeHookObservers(state *bootState) ([]hookspkg.HookDecl, map[string]hookspkg.Executor) {
+	state.lifecycleObservers = newSessionLifecycleFanout()
+	if state.observer != nil {
+		state.lifecycleObservers.Add(state.observer)
+	}
+	state.hookTelemetrySinks = newHookTelemetryFanout()
+	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {
+		state.hookTelemetrySinks.Add(sink)
+	}
+	return daemonNativeHooks(state.lifecycleObservers, state.dreamRuntime)
+}
+
+func (d *Daemon) hookBindingProviders(
+	state *bootState,
+	nativeDecls []hookspkg.HookDecl,
+) []hookBindingDeclarationProvider {
+	return []hookBindingDeclarationProvider{
+		func(context.Context) ([]hookspkg.HookDecl, error) {
+			return hookCloneDeclarations(nativeDecls), nil
+		},
+		configDeclarationProvider(state.registry, state.workspaceResolver, state.logger),
+		agentDeclarationProvider(state.registry, state.workspaceResolver, state.logger),
+		skillDeclarationProvider(
+			state.skillsRegistry,
+			state.registry,
+			state.workspaceResolver,
+			state.cfg.Skills.AllowedMarketplaceHooks,
+			state.logger,
+		),
+		extensionDeclarationProvider(state.currentExtensionRuntime),
+	}
+}
+
+func (d *Daemon) hookRuntimeOptions(
+	state *bootState,
+	nativeExecutors map[string]hookspkg.Executor,
+) []hookspkg.Option {
+	return []hookspkg.Option{
+		hookspkg.WithLogger(state.logger),
+		hookspkg.WithNow(d.now),
+		hookspkg.WithDebugPatchAudit(strings.EqualFold(state.cfg.Log.Level, "debug")),
+		hookspkg.WithExecutorResolver(daemonExecutorResolver(nativeExecutors)),
+		hookspkg.WithTelemetrySink(state.hookTelemetrySinks),
+	}
+}
+
+func (d *Daemon) newHookBindingPublisher(
+	state *bootState,
+	hooks *hookspkg.Hooks,
+	providers []hookBindingDeclarationProvider,
+) (hookBindingPublisher, error) {
+	hookBindings := hookBindingPublisher(hookBindingPublisherFunc(func(reloadCtx context.Context) error {
+		decls, err := chainDeclarationProviders(providers...)(reloadCtx)
+		if err != nil {
+			return err
+		}
+		nextState, err := hooks.BuildBindingState(decls)
+		if err != nil {
+			return err
+		}
+		return hooks.ApplyBindingState(nextState, 0)
+	}))
+	if state.resourceKernel == nil || state.resourceCodecs == nil {
+		return hookBindings, nil
+	}
+
+	hookCodec, err := resources.ResolveCodec[hookspkg.HookDecl](state.resourceCodecs, hookBindingResourceKind)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: resolve hook binding codec: %w", err)
+	}
+	hookStore, err := newHookBindingStore(state.resourceKernel, hookCodec)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create hook binding store: %w", err)
+	}
+	return newHookBindingSourceSyncer(
+		hookStore,
+		hookCodec,
+		hookBindingSyncActor(),
+		state.logger,
+		func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+			if state.resourceReconcile == nil {
+				return nil
+			}
+			return state.resourceReconcile.Trigger(ctx, kind, reason)
+		},
+		providers...,
+	), nil
 }
 
 func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -619,6 +923,14 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 		Hooks:               state.hooks,
 		Logger:              state.logger.With("component", "automation"),
 		GlobalWorkspacePath: d.homePaths.HomeDir,
+		ResourceStore:       resourceRawStore(state.resourceKernel),
+		ResourceCodecs:      state.resourceCodecs,
+		ResourceTrigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+			if state.resourceReconcile == nil {
+				return nil
+			}
+			return state.resourceReconcile.Trigger(ctx, kind, reason)
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create automation manager: %w", err)
@@ -645,14 +957,12 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 	return nil
 }
 
-func (d *Daemon) bootBundles(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootBundles(_ context.Context, state *bootState) error {
 	if state == nil {
 		return errors.New("daemon: boot bundle state is required")
 	}
 
 	dbSource, ok := state.registry.(interface {
-		bundlepkg.Store
-		bridgepkg.ManagedSyncStore
 		extensionDBSource
 	})
 	if !ok {
@@ -660,15 +970,19 @@ func (d *Daemon) bootBundles(ctx context.Context, state *bootState) error {
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
-	bridgeSyncer := bridgepkg.NewManagedSyncer(dbSource, bridgepkg.WithManagedSyncNow(d.now))
+	resourceStore, err := newBundleResourceStore(state, d.now)
+	if err != nil {
+		return err
+	}
+	if resourceStore == nil {
+		return nil
+	}
 	service := bundlepkg.NewService(
-		dbSource,
+		resourceStore,
 		extRegistry,
 		func(name string) (*extensionpkg.Extension, error) {
 			return loadExtensionSnapshot(extRegistry, state.currentExtensionRuntime(), state.logger, name)
 		},
-		bundlepkg.WithAutomation(state.automation),
-		bundlepkg.WithBridges(bridgeSyncer),
 		bundlepkg.WithWorkspaceResolver(state.workspaceResolver),
 		bundlepkg.WithConfiguredDefaultChannel(state.cfg.Network.DefaultChannel),
 		bundlepkg.WithLogger(state.logger),
@@ -677,14 +991,8 @@ func (d *Daemon) bootBundles(ctx context.Context, state *bootState) error {
 	if service == nil {
 		return nil
 	}
-	if err := service.Reconcile(ctx); err != nil {
-		return fmt.Errorf("daemon: reconcile bundle activations: %w", err)
-	}
 	state.bundles = service
 	state.deps.Bundles = service
-	if extRegistry, ok := state.deps.Extensions.(*daemonExtensionService); ok {
-		extRegistry.bundles = service
-	}
 	return nil
 }
 
@@ -700,26 +1008,13 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
-	manager := d.newExtensionManager(extensionManagerDeps{
-		Registry: extRegistry,
-		Sessions: state.sessions,
-		Automation: func() extensionpkg.HostAPIAutomationManager {
-			return state.automation
-		},
-		Tasks:             state.deps.Tasks,
-		MemoryStore:       state.memoryStore,
-		Observer:          state.observer,
-		SkillsRegistry:    state.skillsRegistry,
-		WorkspaceResolver: state.workspaceResolver,
-		Logger:            state.logger,
-		BridgeRegistry:    state.bridges,
-		BridgeDedupStore:  bridgeRuntimeDedupStore(state.bridges),
-		BridgeBroker:      bridgeRuntimeBroker(state.bridges),
-		BridgeRuntime:     state.bridges,
-	})
+	if err := d.configureExtensionResourcePublishers(state, extRegistry); err != nil {
+		return err
+	}
+	manager := d.newExtensionManager(d.extensionManagerDeps(state, extRegistry))
 	if manager == nil {
 		state.logger.Warn("daemon: extension manager factory returned nil; skipping extensions")
-		return nil
+		return syncExtensionResourcePublishers(ctx, state)
 	}
 
 	cleanup.add(func(ctx context.Context) error {
@@ -745,26 +1040,151 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		state.bridges.setExtensionRuntime(manager)
 	}
 	state.setExtensionRuntime(manager)
+	d.attachExtensionRuntime(ctx, state, extRegistry, manager)
+
+	return nil
+}
+
+func (d *Daemon) configureExtensionResourcePublishers(
+	state *bootState,
+	extRegistry *extensionpkg.Registry,
+) error {
+	agentSkillResources, err := d.newAgentSkillPublisher(state, extRegistry)
+	if err != nil {
+		return err
+	}
+	state.agentSkillResources = agentSkillResources
+	toolMCPResources, err := d.newToolMCPPublisher(state, extRegistry)
+	if err != nil {
+		return err
+	}
+	state.toolMCPResources = toolMCPResources
+	bundleResources, err := d.newBundlePublisher(state, extRegistry)
+	if err != nil {
+		return err
+	}
+	state.bundleResources = bundleResources
+	return nil
+}
+
+func syncExtensionResourcePublishers(ctx context.Context, state *bootState) error {
+	if state.agentSkillResources != nil {
+		if err := state.agentSkillResources.Sync(ctx); err != nil {
+			return err
+		}
+	}
+	if state.hookBindings != nil {
+		if err := state.hookBindings.Sync(ctx); err != nil {
+			return err
+		}
+	}
+	if state.toolMCPResources != nil {
+		if err := state.toolMCPResources.Sync(ctx); err != nil {
+			return err
+		}
+	}
+	if state.bundleResources != nil {
+		if err := state.bundleResources.Sync(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (d *Daemon) extensionManagerDeps(
+	state *bootState,
+	extRegistry *extensionpkg.Registry,
+) extensionManagerDeps {
+	return extensionManagerDeps{
+		Registry:   extRegistry,
+		Extensions: state.cfg.Extensions,
+		Sessions:   state.sessions,
+		Automation: func() extensionpkg.HostAPIAutomationManager {
+			return state.automation
+		},
+		Tasks:             state.deps.Tasks,
+		MemoryStore:       state.memoryStore,
+		Observer:          state.observer,
+		SkillsRegistry:    state.skillsRegistry,
+		WorkspaceResolver: state.workspaceResolver,
+		Logger:            state.logger,
+		BridgeRegistry:    state.bridges,
+		BridgeDedupStore:  bridgeRuntimeDedupStore(state.bridges),
+		BridgeBroker:      bridgeRuntimeBroker(state.bridges),
+		BridgeRuntime:     state.bridges,
+		ResourceStore:     resourceRawStore(state.resourceKernel),
+		SourceSessions:    resourceSourceSessions(state.resourceKernel),
+		ResourceCodecs:    state.resourceCodecs,
+		ResourceTrigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+			if state.resourceReconcile == nil {
+				return nil
+			}
+			return state.resourceReconcile.Trigger(ctx, kind, reason)
+		},
+	}
+}
+
+func (d *Daemon) attachExtensionRuntime(
+	ctx context.Context,
+	state *bootState,
+	extRegistry *extensionpkg.Registry,
+	manager extensionRuntime,
+) {
 	state.deps.Extensions = newDaemonExtensionService(
 		extRegistry,
 		manager,
-		state.hooks,
-		state.bundles,
+		state.hookBindings,
+		state.agentSkillResources,
+		state.toolMCPResources,
+		state.bundleResources,
 		d.homePaths,
 		state.logger,
 		d.now,
 	)
-	if state.hooks != nil {
-		if err := state.hooks.Rebuild(ctx); err != nil {
-			state.logger.Error(
-				"daemon: rebuild hooks after extension boot failed; continuing without extension hooks",
-				"error",
-				err,
-			)
+	if state.agentSkillResources != nil {
+		if err := state.agentSkillResources.Sync(ctx); err != nil {
+			state.logger.Error("daemon: sync agent/skill resources after extension boot failed", "error", err)
 		}
 	}
+	if state.hookBindings != nil {
+		if err := state.hookBindings.Sync(ctx); err != nil {
+			state.logger.Error("daemon: sync hook bindings after extension boot failed", "error", err)
+		}
+	}
+	if state.toolMCPResources != nil {
+		if err := state.toolMCPResources.Sync(ctx); err != nil {
+			state.logger.Error("daemon: sync tool/mcp resources after extension boot failed", "error", err)
+		}
+	}
+	if state.bundleResources != nil {
+		if err := state.bundleResources.Sync(ctx); err != nil {
+			state.logger.Error("daemon: sync bundle resources after extension boot failed", "error", err)
+		}
+	}
+	if state.hookBindings != nil {
+		return
+	}
+	if rebuildable, ok := state.hooks.(interface {
+		Rebuild(context.Context) error
+	}); ok {
+		if err := rebuildable.Rebuild(ctx); err != nil {
+			state.logger.Error("daemon: rebuild hooks after extension boot failed", "error", err)
+		}
+	}
+}
 
-	return nil
+func resourceRawStore(kernel *resources.Kernel) resources.RawStore {
+	if kernel == nil {
+		return nil
+	}
+	return kernel
+}
+
+func resourceSourceSessions(kernel *resources.Kernel) resources.SourceSessionManager {
+	if kernel == nil {
+		return nil
+	}
+	return kernel
 }
 
 func extensionRuntimeHasRegisteredEntries(
@@ -879,6 +1299,14 @@ func daemonNetworkInfo(
 }
 
 func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
+	if state.resourceReconcile != nil {
+		if err := state.resourceReconcile.RunBoot(ctx); err != nil {
+			return fmt.Errorf("daemon: boot resource reconcile: %w", err)
+		}
+	}
+
+	d.reconcileDaemonEnvironments(ctx, state)
+
 	reconcileResult, err := state.observer.Reconcile(ctx)
 	if err != nil {
 		return fmt.Errorf("daemon: reconcile sessions: %w", err)
@@ -915,11 +1343,16 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.extensions = state.currentExtensionRuntime()
 	d.bridges = state.bridges
 	d.observer = state.observer
+	d.resourceReconcile = state.resourceReconcile
+	d.agentCatalog = state.agentCatalog
+	d.toolCatalog = state.toolCatalog
+	d.mcpServerCatalog = state.mcpServerCatalog
 	d.automation = state.automation
 	d.httpServer = state.httpServer
 	d.udsServer = state.udsServer
 	d.dreamRuntime = state.dreamRuntime
 	d.workspaceResolver = state.workspaceResolver
+	d.environmentRegistry = state.environmentRegistry
 	d.skillsRegistry = state.skillsRegistry
 	d.skillsCancel = state.skillsCancel
 	d.skillsDone = state.skillsDone

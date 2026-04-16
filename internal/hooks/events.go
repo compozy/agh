@@ -6,23 +6,25 @@ import "fmt"
 type HookEventFamily string
 
 const (
-	HookEventFamilySession    HookEventFamily = "session"
-	HookEventFamilyInput      HookEventFamily = "input"
-	HookEventFamilyPrompt     HookEventFamily = "prompt"
-	HookEventFamilyEvent      HookEventFamily = "event"
-	HookEventFamilyAutomation HookEventFamily = "automation"
-	HookEventFamilyAgent      HookEventFamily = "agent"
-	HookEventFamilyTurn       HookEventFamily = "turn"
-	HookEventFamilyMessage    HookEventFamily = "message"
-	HookEventFamilyTool       HookEventFamily = "tool"
-	HookEventFamilyPermission HookEventFamily = "permission"
-	HookEventFamilyContext    HookEventFamily = "context"
+	HookEventFamilySession     HookEventFamily = "session"
+	HookEventFamilyEnvironment HookEventFamily = "environment"
+	HookEventFamilyInput       HookEventFamily = "input"
+	HookEventFamilyPrompt      HookEventFamily = "prompt"
+	HookEventFamilyEvent       HookEventFamily = "event"
+	HookEventFamilyAutomation  HookEventFamily = "automation"
+	HookEventFamilyAgent       HookEventFamily = "agent"
+	HookEventFamilyTurn        HookEventFamily = "turn"
+	HookEventFamilyMessage     HookEventFamily = "message"
+	HookEventFamilyTool        HookEventFamily = "tool"
+	HookEventFamilyPermission  HookEventFamily = "permission"
+	HookEventFamilyContext     HookEventFamily = "context"
 )
 
 // Validate ensures the event family is part of the supported taxonomy.
 func (f HookEventFamily) Validate() error {
 	switch f {
 	case HookEventFamilySession,
+		HookEventFamilyEnvironment,
 		HookEventFamilyInput,
 		HookEventFamilyPrompt,
 		HookEventFamilyEvent,
@@ -49,6 +51,12 @@ const (
 	HookSessionPostResume HookEvent = "session.post_resume"
 	HookSessionPreStop    HookEvent = "session.pre_stop"
 	HookSessionPostStop   HookEvent = "session.post_stop"
+
+	HookEnvironmentPrepare    HookEvent = "environment.prepare"
+	HookEnvironmentReady      HookEvent = "environment.ready"
+	HookEnvironmentSyncBefore HookEvent = "environment.sync.before"
+	HookEnvironmentSyncAfter  HookEvent = "environment.sync.after"
+	HookEnvironmentStop       HookEvent = "environment.stop"
 
 	HookInputPreSubmit HookEvent = "input.pre_submit"
 
@@ -100,7 +108,27 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 	HookSessionPostResume: {family: HookEventFamilySession, syncEligible: true},
 	HookSessionPreStop:    {family: HookEventFamilySession, syncEligible: true},
 	HookSessionPostStop:   {family: HookEventFamilySession, syncEligible: true},
-	HookInputPreSubmit:    {family: HookEventFamilyInput, syncEligible: true},
+	HookEnvironmentPrepare: {
+		family:       HookEventFamilyEnvironment,
+		syncEligible: true,
+	},
+	HookEnvironmentReady: {
+		family:       HookEventFamilyEnvironment,
+		syncEligible: false,
+	},
+	HookEnvironmentSyncBefore: {
+		family:       HookEventFamilyEnvironment,
+		syncEligible: true,
+	},
+	HookEnvironmentSyncAfter: {
+		family:       HookEventFamilyEnvironment,
+		syncEligible: false,
+	},
+	HookEnvironmentStop: {
+		family:       HookEventFamilyEnvironment,
+		syncEligible: true,
+	},
+	HookInputPreSubmit: {family: HookEventFamilyInput, syncEligible: true},
 	HookPromptPostAssemble: {
 		family:       HookEventFamilyPrompt,
 		syncEligible: true,
@@ -166,6 +194,11 @@ var allHookEvents = []HookEvent{
 	HookSessionPostResume,
 	HookSessionPreStop,
 	HookSessionPostStop,
+	HookEnvironmentPrepare,
+	HookEnvironmentReady,
+	HookEnvironmentSyncBefore,
+	HookEnvironmentSyncAfter,
+	HookEnvironmentStop,
 	HookInputPreSubmit,
 	HookPromptPostAssemble,
 	HookEventPreRecord,

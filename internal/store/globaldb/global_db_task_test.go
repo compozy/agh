@@ -174,6 +174,21 @@ func TestGlobalDBTaskRoundTripPreservesNullableFields(t *testing.T) {
 	}
 	assertTaskEqual(t, gotChild, child)
 
+	child.Title = "Updated child"
+	child.Description = "Updated description"
+	child.Status = taskpkg.TaskStatusInProgress
+	child.Owner = ownershipForTest(taskpkg.OwnerKindAgentSession, "sess-1")
+	child.Metadata = json.RawMessage(`{"kind":"updated"}`)
+	child.UpdatedAt = child.UpdatedAt.Add(2 * time.Minute)
+	if err := globalDB.UpdateTask(testutil.Context(t), child); err != nil {
+		t.Fatalf("UpdateTask(child) error = %v", err)
+	}
+	gotChild, err = globalDB.GetTask(testutil.Context(t), child.ID)
+	if err != nil {
+		t.Fatalf("GetTask(updated child) error = %v", err)
+	}
+	assertTaskEqual(t, gotChild, child)
+
 	summaries, err := globalDB.ListTasks(testutil.Context(t), taskpkg.Query{ParentTaskID: parent.ID})
 	if err != nil {
 		t.Fatalf("ListTasks(parent filter) error = %v", err)

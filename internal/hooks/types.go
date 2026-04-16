@@ -142,6 +142,10 @@ type HookMatcher struct {
 	WorkspaceID        string `json:"workspace_id,omitempty"        yaml:"workspace_id,omitempty"`
 	WorkspaceRoot      string `json:"workspace_root,omitempty"      yaml:"workspace_root,omitempty"`
 	SessionType        string `json:"session_type,omitempty"        yaml:"session_type,omitempty"`
+	EnvironmentID      string `json:"environment_id,omitempty"      yaml:"environment_id,omitempty"`
+	EnvironmentBackend string `json:"environment_backend,omitempty" yaml:"environment_backend,omitempty"`
+	EnvironmentProfile string `json:"environment_profile,omitempty" yaml:"environment_profile,omitempty"`
+	SyncDirection      string `json:"sync_direction,omitempty"      yaml:"sync_direction,omitempty"`
 	InputClass         string `json:"input_class,omitempty"         yaml:"input_class,omitempty"`
 	ACPEventType       string `json:"acp_event_type,omitempty"      yaml:"acp_event_type,omitempty"`
 	TurnID             string `json:"turn_id,omitempty"             yaml:"turn_id,omitempty"`

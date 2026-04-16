@@ -14,8 +14,11 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
+	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -246,6 +249,298 @@ func TestMemoryWrapperExports(t *testing.T) {
 	if err != nil || len(workspacesOut) != 1 {
 		t.Fatalf("MemoryHealthWorkspaces() = %#v, %v", workspacesOut, err)
 	}
+}
+
+func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
+	t.Parallel()
+
+	t.Run("health observer failure", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{
+				HealthFn: func(context.Context) (observe.Health, error) {
+					return observe.Health{}, errors.New("boom")
+				},
+			},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/health", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"health status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusInternalServerError,
+				resp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("health memory failure", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{
+				HealthFn: func(context.Context) (observe.Health, error) {
+					return observe.Health{Status: "ok", Version: "dev"}, nil
+				},
+			},
+			testutil.StubWorkspaceService{},
+			nil,
+			&stubDreamTrigger{EnabledFn: true, LastErr: errors.New("dream status failed")},
+		)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/health", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"health status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusInternalServerError,
+				resp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("health automation failure", func(t *testing.T) {
+		fixture := newHandlerFixtureWithAutomation(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{
+				HealthFn: func(context.Context) (observe.Health, error) {
+					return observe.Health{Status: "ok", Version: "dev"}, nil
+				},
+			},
+			testutil.StubAutomationManager{
+				StatusFn: func(context.Context) (automationpkg.ManagerStatus, error) {
+					return automationpkg.ManagerStatus{}, errors.New("automation status failed")
+				},
+			},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/health", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"health status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusInternalServerError,
+				resp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("daemon status session list failure", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return nil, errors.New("list failed")
+				},
+			},
+			testutil.StubObserver{
+				HealthFn: func(context.Context) (observe.Health, error) {
+					return observe.Health{Status: "ok", Version: "dev"}, nil
+				},
+			},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"daemon status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusInternalServerError,
+				resp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("daemon status observer failure", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{
+				HealthFn: func(context.Context) (observe.Health, error) {
+					return observe.Health{}, errors.New("observer failed")
+				},
+			},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"daemon status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusInternalServerError,
+				resp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("daemon status network enabled without service", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return []*session.Info{}, nil
+				},
+			},
+			testutil.StubObserver{
+				HealthFn: func(context.Context) (observe.Health, error) {
+					return observe.Health{Status: "ok", Version: "dev"}, nil
+				},
+			},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = nil
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"daemon status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusInternalServerError,
+				resp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("daemon status network missing payload", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return []*session.Info{}, nil
+				},
+			},
+			testutil.StubObserver{
+				HealthFn: func(context.Context) (observe.Health, error) {
+					return observe.Health{Status: "ok", Version: "dev"}, nil
+				},
+			},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			StatusFn: func(context.Context) (*network.Status, error) {
+				return nil, nil
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"daemon status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusInternalServerError,
+				resp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("daemon status network failure", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return []*session.Info{}, nil
+				},
+			},
+			testutil.StubObserver{
+				HealthFn: func(context.Context) (observe.Health, error) {
+					return observe.Health{Status: "ok", Version: "dev"}, nil
+				},
+			},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			StatusFn: func(context.Context) (*network.Status, error) {
+				return nil, errors.New("network failed")
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"daemon status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusInternalServerError,
+				resp.Body.String(),
+			)
+		}
+	})
+}
+
+func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
+	t.Parallel()
+
+	t.Run("list all failure", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return nil, errors.New("list failed")
+				},
+			},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"list sessions status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusInternalServerError,
+				resp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("workspace lookup failure", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return []*session.Info{{ID: "sess-1", WorkspaceID: "ws_alpha"}}, nil
+				},
+			},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+				},
+			},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace=alpha", nil)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("list sessions status = %d, want %d; body=%s", resp.Code, http.StatusNotFound, resp.Body.String())
+		}
+	})
 }
 
 func TestObserveStreamAndParseObserveQuery(t *testing.T) {

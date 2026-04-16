@@ -13,23 +13,29 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/filesnap"
+	"github.com/pedronauck/agh/internal/resources"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
-const workspaceCacheTTL = 10 * time.Minute
+const (
+	workspaceCacheTTL          = 10 * time.Minute
+	skillSourceMarketplaceName = "marketplace"
+)
 
 // Option customizes a Registry instance.
 type Option func(*Registry)
 
 // Registry manages global skills loaded at boot and lazily cached workspace skills.
 type Registry struct {
-	mu                sync.RWMutex
-	globalSkills      map[string]*Skill
-	externalSkills    map[string]map[string]*Skill
-	globalLoaded      bool
-	globalSnapshots   map[string]filesnap.Snapshot
-	workspaceDisabled map[string][]string
-	wsCache           map[string]*wsCache
+	mu                 sync.RWMutex
+	globalSkills       map[string]*Skill
+	resourceAuthority  bool
+	resourceRevision   int64
+	resourceWorkspaces map[string]map[string]*Skill
+	globalLoaded       bool
+	globalSnapshots    map[string]filesnap.Snapshot
+	workspaceDisabled  map[string][]string
+	wsCache            map[string]*wsCache
 
 	globalVersion atomic.Int64
 
@@ -55,14 +61,14 @@ func WithNow(now func() time.Time) Option {
 // NewRegistry constructs a Registry with the provided configuration.
 func NewRegistry(cfg RegistryConfig, opts ...Option) *Registry {
 	registry := &Registry{
-		globalSkills:      make(map[string]*Skill),
-		externalSkills:    make(map[string]map[string]*Skill),
-		globalSnapshots:   make(map[string]filesnap.Snapshot),
-		workspaceDisabled: make(map[string][]string),
-		wsCache:           make(map[string]*wsCache),
-		cfg:               cfg,
-		logger:            slog.Default(),
-		now:               time.Now,
+		globalSkills:       make(map[string]*Skill),
+		resourceWorkspaces: make(map[string]map[string]*Skill),
+		globalSnapshots:    make(map[string]filesnap.Snapshot),
+		workspaceDisabled:  make(map[string][]string),
+		wsCache:            make(map[string]*wsCache),
+		cfg:                cfg,
+		logger:             slog.Default(),
+		now:                time.Now,
 	}
 
 	for _, opt := range opts {
@@ -112,10 +118,9 @@ func (r *Registry) Get(name string) (*Skill, bool) {
 func (r *Registry) List() []*Skill {
 	r.mu.RLock()
 	globalSkills := r.globalSkills
-	externalSkills := r.externalSkillSetLocked()
 	r.mu.RUnlock()
 
-	return mergedSkillList(globalSkills, externalSkills)
+	return mergedSkillList(globalSkills, nil)
 }
 
 // LoadContent loads the full markdown body for one resolved skill.
@@ -144,6 +149,10 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 		return nil, err
 	}
 
+	if skills, ok := r.resourceBackedWorkspaceSkills(resolved); ok {
+		return skills, nil
+	}
+
 	load, err := r.workspaceLoadFromResolved(ctx, resolved)
 	if err != nil {
 		return nil, err
@@ -165,10 +174,9 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 	if cached := r.wsCache[cacheKey]; cached != nil && filesnap.Equal(cached.snapshots, load.snapshots) {
 		cached.lastAccess = now
 		globalSkills := r.globalSkills
-		externalSkills := r.externalSkillSetLocked()
 		workspaceSkills := cached.skills
 		r.mu.Unlock()
-		return mergedSkillList(mergeSkillMaps(globalSkills, externalSkills), workspaceSkills), nil
+		return mergedSkillList(globalSkills, workspaceSkills), nil
 	}
 	r.mu.Unlock()
 
@@ -186,10 +194,9 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 		lastAccess: now,
 	}
 	globalSkills := r.globalSkills
-	externalSkills := r.externalSkillSetLocked()
 	r.mu.Unlock()
 
-	return mergedSkillList(mergeSkillMaps(globalSkills, externalSkills), workspaceSkills), nil
+	return mergedSkillList(globalSkills, workspaceSkills), nil
 }
 
 // SetEnabled updates the runtime enabled state for a named skill and keeps the
@@ -202,6 +209,15 @@ func (r *Registry) SetEnabled(name string, resolved *workspacepkg.ResolvedWorksp
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	if r.resourceAuthority {
+		if skill := r.resourceSkillTargetLocked(trimmedName, resolved); skill != nil {
+			skill.Enabled = enabled
+			r.globalVersion.Add(1)
+			return nil
+		}
+		return fmt.Errorf("skills: skill %q not found", trimmedName)
+	}
 
 	if cacheKey, workspaceSkill := r.workspaceSkillTargetLocked(trimmedName, resolved); workspaceSkill != nil {
 		workspaceSkill.Enabled = enabled
@@ -226,6 +242,9 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	if err := checkRegistryContext(ctx); err != nil {
 		return err
 	}
+	if r.usesResourceAuthority() {
+		return nil
+	}
 
 	disabledSkills := r.globalDisabledSkillsSnapshot()
 	loaded, snapshots, err := r.loadGlobalSkills(ctx, disabledSkills)
@@ -246,6 +265,96 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	r.globalSkills = loaded
 	r.globalVersion.Add(1)
 
+	return nil
+}
+
+// DiscoverGlobal loads global skill definitions for resource publication without
+// making the file-system scan authoritative in the registry.
+func (r *Registry) DiscoverGlobal(ctx context.Context) ([]*Skill, map[string]filesnap.Snapshot, error) {
+	if err := checkRegistryContext(ctx); err != nil {
+		return nil, nil, err
+	}
+	disabledSkills := r.globalDisabledSkillsSnapshot()
+	loaded, snapshots, err := r.loadGlobalSkills(ctx, disabledSkills)
+	if err != nil {
+		return nil, nil, err
+	}
+	return mergedSkillList(loaded, nil), filesnap.Clone(snapshots), nil
+}
+
+// DiscoverWorkspace loads workspace-visible skill definitions for resource publication.
+func (r *Registry) DiscoverWorkspace(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+) ([]*Skill, map[string]filesnap.Snapshot, error) {
+	if err := checkRegistryContext(ctx); err != nil {
+		return nil, nil, err
+	}
+	load, err := r.workspaceLoadFromResolved(ctx, resolved)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(load.paths) == 0 {
+		return nil, load.snapshots, nil
+	}
+	workspaceDisabled := r.workspaceDisabledSkillsSnapshot(
+		workspaceCacheKey(resolved, load.paths),
+		resolved.Config.Skills.DisabledSkills,
+	)
+	loaded, err := r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
+	if err != nil {
+		return nil, nil, err
+	}
+	return mergedSkillList(nil, loaded), load.snapshots, nil
+}
+
+// ApplyResourceRecords atomically replaces the runtime skill catalog with the
+// canonical resource projection.
+func (r *Registry) ApplyResourceRecords(revision int64, records []resources.Record[SkillResourceSpec]) error {
+	if r == nil {
+		return errors.New("skills: registry is required")
+	}
+	globalSkills := make(map[string]*Skill)
+	workspaceSkills := make(map[string]map[string]*Skill)
+
+	ordered := append([]resources.Record[SkillResourceSpec](nil), records...)
+	slices.SortFunc(ordered, func(left, right resources.Record[SkillResourceSpec]) int {
+		return strings.Compare(skillRecordSortKey(left), skillRecordSortKey(right))
+	})
+
+	for _, record := range ordered {
+		skill, err := SkillFromResourceSpec(record.Spec)
+		if err != nil {
+			return fmt.Errorf("skills: convert resource %q: %w", record.ID, err)
+		}
+		name := strings.TrimSpace(skill.Meta.Name)
+		if name == "" {
+			continue
+		}
+		switch record.Scope.Kind.Normalize() {
+		case resources.ResourceScopeKindGlobal:
+			globalSkills[name] = skill
+		case resources.ResourceScopeKindWorkspace:
+			workspaceID := strings.TrimSpace(record.Scope.ID)
+			if workspaceID == "" {
+				continue
+			}
+			if workspaceSkills[workspaceID] == nil {
+				workspaceSkills[workspaceID] = make(map[string]*Skill)
+			}
+			workspaceSkills[workspaceID][name] = skill
+		}
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.resourceAuthority = true
+	r.resourceRevision = revision
+	r.resourceWorkspaces = workspaceSkills
+	r.globalSkills = globalSkills
+	r.wsCache = make(map[string]*wsCache)
+	r.globalLoaded = true
+	r.globalVersion.Add(1)
 	return nil
 }
 
@@ -524,6 +633,65 @@ func (r *Registry) globalDisabledSkillsSnapshot() []string {
 	return slices.Clone(r.cfg.DisabledSkills)
 }
 
+func (r *Registry) usesResourceAuthority() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.resourceAuthority
+}
+
+func (r *Registry) resourceBackedWorkspaceSkills(resolved *workspacepkg.ResolvedWorkspace) ([]*Skill, bool) {
+	if r == nil {
+		return nil, false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if !r.resourceAuthority {
+		return nil, false
+	}
+	workspaceSkills := r.resourceWorkspaces[resourceWorkspaceKey(resolved)]
+	return mergedSkillList(r.globalSkills, workspaceSkills), true
+}
+
+func (r *Registry) resourceSkillTargetLocked(name string, resolved *workspacepkg.ResolvedWorkspace) *Skill {
+	if r == nil || !r.resourceAuthority {
+		return nil
+	}
+	if key := resourceWorkspaceKey(resolved); key != "" {
+		if workspaceSkills := r.resourceWorkspaces[key]; workspaceSkills != nil {
+			if skill := workspaceSkills[name]; skill != nil {
+				return skill
+			}
+		}
+	}
+	return r.globalSkills[name]
+}
+
+func (r *Registry) lookupSkillLocked(name string) (*Skill, bool) {
+	if r == nil {
+		return nil, false
+	}
+	skill := r.globalSkills[strings.TrimSpace(name)]
+	return skill, skill != nil
+}
+
+func resourceWorkspaceKey(resolved *workspacepkg.ResolvedWorkspace) string {
+	if resolved == nil {
+		return ""
+	}
+	return strings.TrimSpace(resolved.ID)
+}
+
+func skillRecordSortKey(record resources.Record[SkillResourceSpec]) string {
+	return string(record.Scope.Kind.Normalize()) + "\x00" +
+		strings.TrimSpace(record.Scope.ID) + "\x00" +
+		string(record.Source.Kind.Normalize()) + "\x00" +
+		strings.TrimSpace(record.Source.ID) + "\x00" +
+		strings.TrimSpace(record.ID)
+}
+
 func mergeDisabledSkills(base []string, extra []string) []string {
 	merged := slices.Clone(base)
 	for _, name := range extra {
@@ -591,7 +759,7 @@ func skillSourceName(source SkillSource) string {
 	case SourceBundled:
 		return "bundled"
 	case SourceMarketplace:
-		return "marketplace"
+		return skillSourceMarketplaceName
 	case SourceUser:
 		return "user"
 	case SourceAdditional:
@@ -609,7 +777,7 @@ func skillSourceFromWorkspacePath(source string) (SkillSource, bool, error) {
 		return SourceWorkspace, true, nil
 	case "additional":
 		return SourceAdditional, true, nil
-	case "marketplace":
+	case skillSourceMarketplaceName:
 		return SourceMarketplace, false, nil
 	case "global":
 		return SourceUser, false, nil

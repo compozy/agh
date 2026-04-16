@@ -27,8 +27,15 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			Workspace:    "/workspace",
 			State:        session.StateActive,
 			ACPSessionID: "acp-123",
-			CreatedAt:    now,
-			UpdatedAt:    now,
+			Environment: &store.SessionEnvironmentMeta{
+				EnvironmentID: "env-json",
+				Backend:       "local",
+				Profile:       "local",
+				State:         "prepared",
+				InstanceID:    "instance-json",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
 			ACPCaps: acp.Caps{
 				SupportsLoadSession: true,
 				SupportedModes:      []string{"chat"},
@@ -57,6 +64,15 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		}
 		if acpCaps["supports_load_session"] != true {
 			t.Fatalf("acp_caps JSON = %#v", acpCaps)
+		}
+		environmentPayload, ok := got["environment"].(map[string]any)
+		if !ok {
+			t.Fatalf("environment type = %T, want object", got["environment"])
+		}
+		if environmentPayload["environment_id"] != "env-json" ||
+			environmentPayload["backend"] != "local" ||
+			environmentPayload["instance_id"] != "instance-json" {
+			t.Fatalf("environment JSON = %#v", environmentPayload)
 		}
 	})
 }
@@ -116,6 +132,47 @@ func TestWorkspacePayloadPreservesOmitEmptyBehavior(t *testing.T) {
 		}
 		if len(addDirs) != 0 {
 			t.Fatalf("add_dirs length = %d, want 0", len(addDirs))
+		}
+	})
+}
+
+func TestWorkspaceEnvironmentRefJSONFields(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should serialize create workspace environment_ref", func(t *testing.T) {
+		t.Parallel()
+
+		payload := contract.CreateWorkspaceRequest{
+			RootDir:        "/workspace",
+			EnvironmentRef: "daytona-dev",
+		}
+
+		var got map[string]any
+		marshalJSON(t, payload, &got)
+
+		if got["environment_ref"] != "daytona-dev" {
+			t.Fatalf("environment_ref = %#v, want daytona-dev", got["environment_ref"])
+		}
+	})
+
+	t.Run("Should include workspace payload environment_ref", func(t *testing.T) {
+		t.Parallel()
+
+		payload := contract.WorkspacePayload{
+			ID:             "ws_alpha",
+			RootDir:        "/workspace",
+			AddDirs:        []string{},
+			Name:           "alpha",
+			EnvironmentRef: "daytona-dev",
+			CreatedAt:      time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
+			UpdatedAt:      time.Date(2026, 4, 7, 11, 30, 0, 0, time.UTC),
+		}
+
+		var got map[string]any
+		marshalJSON(t, payload, &got)
+
+		if got["environment_ref"] != "daytona-dev" {
+			t.Fatalf("environment_ref = %#v, want daytona-dev", got["environment_ref"])
 		}
 	})
 }

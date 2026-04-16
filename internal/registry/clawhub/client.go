@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	sourceName            = "clawhub"
 	defaultBaseURL        = "https://clawhub.ai/api/v1"
 	defaultRequestTimeout = 30 * time.Second
 	defaultInitialBackoff = time.Second
@@ -112,7 +113,7 @@ func WithRetryPolicy(initial, maxDelay time.Duration, retries int) Option {
 
 // Name reports the registry source name.
 func (c *Client) Name() string {
-	return "clawhub"
+	return sourceName
 }
 
 // Capabilities reports which registry operations ClawHub supports.

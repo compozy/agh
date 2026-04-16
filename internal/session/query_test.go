@@ -197,8 +197,8 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 	if got := info.StopReason; got != store.StopError {
 		t.Fatalf("Status(repaired).StopReason = %q, want %q", got, store.StopError)
 	}
-	if got := info.StopDetail; got != "start did not complete" {
-		t.Fatalf("Status(repaired).StopDetail = %q, want %q", got, "start did not complete")
+	if got := info.StopDetail; got != resumeStopDetailStartIncomplete {
+		t.Fatalf("Status(repaired).StopDetail = %q, want %q", got, resumeStopDetailStartIncomplete)
 	}
 	if got := info.ACPSessionID; got != "" {
 		t.Fatalf("Status(repaired).ACPSessionID = %q, want empty", got)
@@ -214,8 +214,8 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 	if repairedMeta.StopReason == nil || *repairedMeta.StopReason != store.StopError {
 		t.Fatalf("repaired meta stop reason = %#v, want %q", repairedMeta.StopReason, store.StopError)
 	}
-	if got := repairedMeta.StopDetail; got != "start did not complete" {
-		t.Fatalf("repaired meta stop detail = %q, want %q", got, "start did not complete")
+	if got := repairedMeta.StopDetail; got != resumeStopDetailStartIncomplete {
+		t.Fatalf("repaired meta stop detail = %q, want %q", got, resumeStopDetailStartIncomplete)
 	}
 	if repairedMeta.ACPSessionID != nil {
 		t.Fatalf("repaired meta ACPSessionID = %#v, want nil", repairedMeta.ACPSessionID)

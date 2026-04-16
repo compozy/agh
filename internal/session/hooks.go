@@ -28,6 +28,30 @@ type LifecycleHooks interface {
 	DispatchSessionPostStop(context.Context, hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error)
 }
 
+// EnvironmentHooks groups execution-environment lifecycle hook dispatch.
+type EnvironmentHooks interface {
+	DispatchEnvironmentPrepare(
+		context.Context,
+		hookspkg.EnvironmentPreparePayload,
+	) (hookspkg.EnvironmentPreparePayload, error)
+	DispatchEnvironmentReady(
+		context.Context,
+		hookspkg.EnvironmentReadyPayload,
+	) (hookspkg.EnvironmentReadyPayload, error)
+	DispatchEnvironmentSyncBefore(
+		context.Context,
+		hookspkg.EnvironmentSyncBeforePayload,
+	) (hookspkg.EnvironmentSyncBeforePayload, error)
+	DispatchEnvironmentSyncAfter(
+		context.Context,
+		hookspkg.EnvironmentSyncAfterPayload,
+	) (hookspkg.EnvironmentSyncAfterPayload, error)
+	DispatchEnvironmentStop(
+		context.Context,
+		hookspkg.EnvironmentStopPayload,
+	) (hookspkg.EnvironmentStopPayload, error)
+}
+
 // PromptHooks groups prompt assembly and user-input hook dispatch.
 type PromptHooks interface {
 	DispatchInputPreSubmit(context.Context, hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error)
@@ -73,6 +97,7 @@ type CompactionHooks interface {
 // no-op implementations so callers only provide the domains they exercise.
 type HookSet struct {
 	Session      LifecycleHooks
+	Environment  EnvironmentHooks
 	Prompt       PromptHooks
 	Events       EventHooks
 	Agent        AgentHooks
@@ -81,6 +106,7 @@ type HookSet struct {
 }
 
 var _ LifecycleHooks = noopSessionLifecycleHooks{}
+var _ EnvironmentHooks = noopEnvironmentHooks{}
 var _ PromptHooks = noopPromptHooks{}
 var _ EventHooks = noopEventHooks{}
 var _ AgentHooks = noopAgentHooks{}
@@ -92,6 +118,13 @@ func (h HookSet) session() LifecycleHooks {
 		return h.Session
 	}
 	return noopSessionLifecycleHooks{}
+}
+
+func (h HookSet) environment() EnvironmentHooks {
+	if h.Environment != nil {
+		return h.Environment
+	}
+	return noopEnvironmentHooks{}
 }
 
 func (h HookSet) prompt() PromptHooks {
@@ -170,6 +203,43 @@ func (noopSessionLifecycleHooks) DispatchSessionPostStop(
 	_ context.Context,
 	payload hookspkg.SessionPostStopPayload,
 ) (hookspkg.SessionPostStopPayload, error) {
+	return payload, nil
+}
+
+type noopEnvironmentHooks struct{}
+
+func (noopEnvironmentHooks) DispatchEnvironmentPrepare(
+	_ context.Context,
+	payload hookspkg.EnvironmentPreparePayload,
+) (hookspkg.EnvironmentPreparePayload, error) {
+	return payload, nil
+}
+
+func (noopEnvironmentHooks) DispatchEnvironmentReady(
+	_ context.Context,
+	payload hookspkg.EnvironmentReadyPayload,
+) (hookspkg.EnvironmentReadyPayload, error) {
+	return payload, nil
+}
+
+func (noopEnvironmentHooks) DispatchEnvironmentSyncBefore(
+	_ context.Context,
+	payload hookspkg.EnvironmentSyncBeforePayload,
+) (hookspkg.EnvironmentSyncBeforePayload, error) {
+	return payload, nil
+}
+
+func (noopEnvironmentHooks) DispatchEnvironmentSyncAfter(
+	_ context.Context,
+	payload hookspkg.EnvironmentSyncAfterPayload,
+) (hookspkg.EnvironmentSyncAfterPayload, error) {
+	return payload, nil
+}
+
+func (noopEnvironmentHooks) DispatchEnvironmentStop(
+	_ context.Context,
+	payload hookspkg.EnvironmentStopPayload,
+) (hookspkg.EnvironmentStopPayload, error) {
 	return payload, nil
 }
 

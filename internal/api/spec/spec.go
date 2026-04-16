@@ -20,6 +20,7 @@ import (
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -55,6 +56,7 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[hooks.HookSource]():                  hookSourceValues(),
 	reflect.TypeFor[memory.Type]():                       memoryTypeValues(),
 	reflect.TypeFor[memory.Scope]():                      memoryScopeValues(),
+	reflect.TypeFor[resources.ResourceScopeKind]():       resourceScopeKindValues(),
 	reflect.TypeFor[bridgepkg.Scope]():                   bridgeScopeValues(),
 	reflect.TypeFor[bridgepkg.BridgeInstanceSource]():    bridgeInstanceSourceValues(),
 	reflect.TypeFor[bridgepkg.BridgeStatus]():            bridgeStatusValues(),
@@ -140,6 +142,7 @@ func Document() (*openapi3.T, error) {
 			{Name: "hooks"},
 			{Name: "memory"},
 			{Name: "observe"},
+			{Name: "resources"},
 			{Name: "sessions"},
 			{Name: "skills"},
 			{Name: "tasks"},
@@ -163,6 +166,118 @@ func Document() (*openapi3.T, error) {
 }
 
 var operationRegistry = []OperationSpec{
+	{
+		Method:      "GET",
+		Path:        "/api/resources",
+		OperationID: "listResources",
+		Summary:     "List desired-state resources on the local operator control plane",
+		Tags:        []string{"resources"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("kind", "Filter by resource kind", false),
+			enumQueryParam("scope_kind", "Filter by resource scope kind", resourceScopeKindValues()),
+			queryParam("scope_id", "Filter by workspace scope id", false),
+			queryParam("owner_kind", "Filter by stamped owner kind", false),
+			queryParam("owner_id", "Filter by stamped owner id", false),
+			queryParam("source_kind", "Filter by stamped source kind", false),
+			queryParam("source_id", "Filter by stamped source id", false),
+			intQueryParam("limit", "Maximum number of records to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ResourcesResponse{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid resource filter", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/resources/{kind}",
+		OperationID: "listResourcesByKind",
+		Summary:     "List one desired-state resource kind on the local operator control plane",
+		Tags:        []string{"resources"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("kind", "Resource kind"),
+			enumQueryParam("scope_kind", "Filter by resource scope kind", resourceScopeKindValues()),
+			queryParam("scope_id", "Filter by workspace scope id", false),
+			queryParam("owner_kind", "Filter by stamped owner kind", false),
+			queryParam("owner_id", "Filter by stamped owner id", false),
+			queryParam("source_kind", "Filter by stamped source kind", false),
+			queryParam("source_id", "Filter by stamped source id", false),
+			intQueryParam("limit", "Maximum number of records to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ResourcesResponse{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid resource filter", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/resources/{kind}/{id}",
+		OperationID: "getResource",
+		Summary:     "Read one desired-state resource on the local operator control plane",
+		Tags:        []string{"resources"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("kind", "Resource kind"),
+			pathParam("id", "Resource id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ResourceResponse{}},
+			{Status: 404, Description: "Resource not found", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid resource identifier", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PUT",
+		Path:        "/api/resources/{kind}/{id}",
+		OperationID: "putResource",
+		Summary:     "Create or replace one desired-state resource on the local operator control plane",
+		Tags:        []string{"resources"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("kind", "Resource kind"),
+			pathParam("id", "Resource id"),
+		},
+		RequestBody: contract.PutResourceRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Updated", Body: contract.ResourceResponse{}},
+			{Status: 201, Description: "Created", Body: contract.ResourceResponse{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflict", Body: contract.ErrorPayload{}},
+			{Status: 413, Description: "Payload too large", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid resource payload", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: "Rate limited", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "DELETE",
+		Path:        "/api/resources/{kind}/{id}",
+		OperationID: "deleteResource",
+		Summary:     "Delete one desired-state resource on the local operator control plane",
+		Tags:        []string{"resources"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("kind", "Resource kind"),
+			pathParam("id", "Resource id"),
+		},
+		RequestBody: contract.DeleteResourceRequest{},
+		Responses: []ResponseSpec{
+			{Status: 204, Description: "Deleted"},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Resource not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid delete request", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: "Rate limited", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
 	{
 		Method:      "GET",
 		Path:        "/api/agents",
@@ -1905,6 +2020,13 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 	}
 
 	return operation, nil
+}
+
+func resourceScopeKindValues() []string {
+	return []string{
+		string(resources.ResourceScopeKindGlobal),
+		string(resources.ResourceScopeKindWorkspace),
+	}
 }
 
 func schemaRefForValue(value any, schemas openapi3.Schemas) (*openapi3.SchemaRef, error) {

@@ -39,6 +39,70 @@ func TestGlobalDBPathAndCloseVariants(t *testing.T) {
 	}
 }
 
+func TestGlobalDBTransactionCleanupHelpers(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db, err := store.OpenSQLiteDatabase(ctx, filepath.Join(t.TempDir(), "cleanup.db"), nil)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	if err := rollbackTx(nil, "nil"); err != nil {
+		t.Fatalf("rollbackTx(nil) error = %v", err)
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("BeginTx() error = %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("Commit() error = %v", err)
+	}
+	if err := rollbackTx(tx, "committed"); err != nil {
+		t.Fatalf("rollbackTx(committed) error = %v", err)
+	}
+
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatalf("Conn() error = %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	if err := rollbackImmediate(ctx, nil, "nil"); err != nil {
+		t.Fatalf("rollbackImmediate(nil) error = %v", err)
+	}
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		t.Fatalf("BEGIN IMMEDIATE error = %v", err)
+	}
+	if err := rollbackImmediate(ctx, conn, "cleanup"); err != nil {
+		t.Fatalf("rollbackImmediate(active) error = %v", err)
+	}
+	if err := restoreForeignKeys(ctx, nil); err != nil {
+		t.Fatalf("restoreForeignKeys(nil) error = %v", err)
+	}
+	if err := restoreForeignKeys(ctx, conn); err != nil {
+		t.Fatalf("restoreForeignKeys(conn) error = %v", err)
+	}
+
+	primaryErr := errors.New("primary")
+	cleanupErr := errors.New("cleanup")
+	joinCleanupError(nil, cleanupErr)
+	var target error
+	joinCleanupError(&target, nil)
+	if target != nil {
+		t.Fatalf("joinCleanupError(nil cleanup) = %v, want nil", target)
+	}
+	joinCleanupError(&target, cleanupErr)
+	if !errors.Is(target, cleanupErr) {
+		t.Fatalf("joinCleanupError(cleanup only) = %v, want cleanup", target)
+	}
+	target = primaryErr
+	joinCleanupError(&target, cleanupErr)
+	if !errors.Is(target, primaryErr) || !errors.Is(target, cleanupErr) {
+		t.Fatalf("joinCleanupError(joined) = %v, want primary and cleanup", target)
+	}
+}
+
 func TestGlobalDBGuardClauses(t *testing.T) {
 	t.Parallel()
 
@@ -93,6 +157,98 @@ func TestGlobalDBGuardClauses(t *testing.T) {
 	if _, err := globalDB.ListPermissionLog(nilGlobalContext(), PermissionLogQuery{}); err == nil {
 		t.Fatal("ListPermissionLog(nil ctx) error = nil, want non-nil")
 	}
+}
+
+func TestGlobalDBWorkspaceAndAutomationGuardClauses(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	assertErr := func(name string, err error) {
+		t.Helper()
+		if err == nil {
+			t.Fatalf("%s error = nil, want non-nil", name)
+		}
+	}
+
+	var nilDB *GlobalDB
+	assertErr("InsertWorkspace(nil receiver)", nilDB.InsertWorkspace(ctx, aghworkspace.Workspace{}))
+	assertErr("UpdateWorkspace(nil receiver)", nilDB.UpdateWorkspace(ctx, aghworkspace.Workspace{}))
+	assertErr("DeleteWorkspace(nil receiver)", nilDB.DeleteWorkspace(ctx, "ws-1"))
+	_, err := nilDB.GetWorkspace(ctx, "ws-1")
+	assertErr("GetWorkspace(nil receiver)", err)
+	_, err = nilDB.GetWorkspaceByPath(ctx, "/tmp/ws-1")
+	assertErr("GetWorkspaceByPath(nil receiver)", err)
+	_, err = nilDB.GetWorkspaceByName(ctx, "ws-1")
+	assertErr("GetWorkspaceByName(nil receiver)", err)
+	_, err = nilDB.ListWorkspaces(ctx)
+	assertErr("ListWorkspaces(nil receiver)", err)
+
+	_, err = nilDB.CreateJob(ctx, Job{})
+	assertErr("CreateJob(nil receiver)", err)
+	_, err = nilDB.UpdateJob(ctx, Job{})
+	assertErr("UpdateJob(nil receiver)", err)
+	assertErr("DeleteJob(nil receiver)", nilDB.DeleteJob(ctx, "job-1"))
+	_, err = nilDB.GetJob(ctx, "job-1")
+	assertErr("GetJob(nil receiver)", err)
+	_, err = nilDB.ListJobs(ctx, JobListQuery{})
+	assertErr("ListJobs(nil receiver)", err)
+	_, err = nilDB.CreateTrigger(ctx, Trigger{})
+	assertErr("CreateTrigger(nil receiver)", err)
+	_, err = nilDB.UpdateTrigger(ctx, Trigger{})
+	assertErr("UpdateTrigger(nil receiver)", err)
+	assertErr("DeleteTrigger(nil receiver)", nilDB.DeleteTrigger(ctx, "trigger-1"))
+	_, err = nilDB.GetTrigger(ctx, "trigger-1")
+	assertErr("GetTrigger(nil receiver)", err)
+	_, err = nilDB.GetTriggerByWebhookID(ctx, "webhook-1")
+	assertErr("GetTriggerByWebhookID(nil receiver)", err)
+	_, err = nilDB.ListTriggers(ctx, TriggerListQuery{})
+	assertErr("ListTriggers(nil receiver)", err)
+	_, err = nilDB.CreateRun(ctx, Run{})
+	assertErr("CreateRun(nil receiver)", err)
+	_, err = nilDB.UpdateRun(ctx, Run{})
+	assertErr("UpdateRun(nil receiver)", err)
+	assertErr("DeleteRun(nil receiver)", nilDB.DeleteRun(ctx, "run-1"))
+	_, err = nilDB.GetRun(ctx, "run-1")
+	assertErr("GetRun(nil receiver)", err)
+	_, err = nilDB.ListRuns(ctx, RunQuery{})
+	assertErr("ListRuns(nil receiver)", err)
+	_, err = nilDB.CountRuns(ctx, RunQuery{})
+	assertErr("CountRuns(nil receiver)", err)
+	_, err = nilDB.SetJobEnabledOverlay(ctx, JobEnabledOverlay{})
+	assertErr("SetJobEnabledOverlay(nil receiver)", err)
+	_, err = nilDB.GetJobEnabledOverlay(ctx, "job-1")
+	assertErr("GetJobEnabledOverlay(nil receiver)", err)
+	_, err = nilDB.ListJobEnabledOverlays(ctx)
+	assertErr("ListJobEnabledOverlays(nil receiver)", err)
+	assertErr("DeleteJobEnabledOverlay(nil receiver)", nilDB.DeleteJobEnabledOverlay(ctx, "job-1"))
+	_, err = nilDB.SetTriggerEnabledOverlay(ctx, TriggerEnabledOverlay{})
+	assertErr("SetTriggerEnabledOverlay(nil receiver)", err)
+	_, err = nilDB.GetTriggerEnabledOverlay(ctx, "trigger-1")
+	assertErr("GetTriggerEnabledOverlay(nil receiver)", err)
+	_, err = nilDB.ListTriggerEnabledOverlays(ctx)
+	assertErr("ListTriggerEnabledOverlays(nil receiver)", err)
+	assertErr("DeleteTriggerEnabledOverlay(nil receiver)", nilDB.DeleteTriggerEnabledOverlay(ctx, "trigger-1"))
+	assertErr("SetTriggerWebhookSecret(nil receiver)", nilDB.SetTriggerWebhookSecret(ctx, "trigger-1", "secret"))
+	_, err = nilDB.GetTriggerWebhookSecret(ctx, "trigger-1")
+	assertErr("GetTriggerWebhookSecret(nil receiver)", err)
+	assertErr("DeleteTriggerWebhookSecret(nil receiver)", nilDB.DeleteTriggerWebhookSecret(ctx, "trigger-1"))
+
+	globalDB := openTestGlobalDB(t)
+	assertErr("InsertWorkspace(nil ctx)", globalDB.InsertWorkspace(nilGlobalContext(), aghworkspace.Workspace{}))
+	assertErr("UpdateWorkspace(nil ctx)", globalDB.UpdateWorkspace(nilGlobalContext(), aghworkspace.Workspace{}))
+	assertErr("DeleteWorkspace(nil ctx)", globalDB.DeleteWorkspace(nilGlobalContext(), "ws-1"))
+	_, err = globalDB.GetWorkspace(nilGlobalContext(), "ws-1")
+	assertErr("GetWorkspace(nil ctx)", err)
+	_, err = globalDB.ListWorkspaces(nilGlobalContext())
+	assertErr("ListWorkspaces(nil ctx)", err)
+	_, err = globalDB.CreateJob(nilGlobalContext(), Job{})
+	assertErr("CreateJob(nil ctx)", err)
+	_, err = globalDB.CreateTrigger(nilGlobalContext(), Trigger{})
+	assertErr("CreateTrigger(nil ctx)", err)
+	_, err = globalDB.CreateRun(nilGlobalContext(), Run{})
+	assertErr("CreateRun(nil ctx)", err)
+	_, err = globalDB.CountRuns(nilGlobalContext(), RunQuery{})
+	assertErr("CountRuns(nil ctx)", err)
 }
 
 func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
@@ -443,6 +599,47 @@ func TestMigrateBridgeInstanceColumnsNoopAndIdempotent(t *testing.T) {
 	}
 }
 
+func TestMigrateWorkspaceColumnsAddsEnvironmentRef(t *testing.T) {
+	t.Parallel()
+
+	db, err := store.OpenSQLiteDatabase(testutil.Context(t), filepath.Join(t.TempDir(), "workspace-columns.db"), nil)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	if err := migrateWorkspaceColumns(testutil.Context(t), db); err != nil {
+		t.Fatalf("migrateWorkspaceColumns(no table) error = %v", err)
+	}
+
+	if _, err := db.ExecContext(testutil.Context(t), `CREATE TABLE workspaces (
+		id TEXT PRIMARY KEY,
+		root_dir TEXT NOT NULL UNIQUE,
+		add_dirs TEXT NOT NULL DEFAULT '[]',
+		name TEXT NOT NULL UNIQUE,
+		default_agent TEXT DEFAULT '',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create workspaces error = %v", err)
+	}
+
+	if err := migrateWorkspaceColumns(testutil.Context(t), db); err != nil {
+		t.Fatalf("migrateWorkspaceColumns(add column) error = %v", err)
+	}
+	if err := migrateWorkspaceColumns(testutil.Context(t), db); err != nil {
+		t.Fatalf("migrateWorkspaceColumns(idempotent) error = %v", err)
+	}
+
+	columns, err := tableColumns(testutil.Context(t), db, "workspaces")
+	if err != nil {
+		t.Fatalf("tableColumns(workspaces) error = %v", err)
+	}
+	if _, ok := columns["environment_ref"]; !ok {
+		t.Fatalf("tableColumns(workspaces) missing environment_ref in %#v", columns)
+	}
+}
+
 func TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables(t *testing.T) {
 	t.Parallel()
 
@@ -461,6 +658,15 @@ func TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables(t *testing.T)
 			session_type TEXT NOT NULL DEFAULT 'user',
 			state TEXT NOT NULL,
 			acp_session_id TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE workspaces (
+			id TEXT PRIMARY KEY,
+			root_dir TEXT NOT NULL UNIQUE,
+			add_dirs TEXT NOT NULL DEFAULT '[]',
+			name TEXT NOT NULL UNIQUE,
+			default_agent TEXT DEFAULT '',
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
 		)`,
@@ -489,15 +695,6 @@ func TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables(t *testing.T)
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
 		)`,
-		`CREATE TABLE bundle_activations (
-			scope TEXT NOT NULL,
-			workspace_id TEXT,
-			bundle_name TEXT NOT NULL,
-			profile_name TEXT NOT NULL,
-			manifest_path TEXT NOT NULL,
-			installed_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		)`,
 		`CREATE TABLE network_audit_log (
 			id TEXT PRIMARY KEY,
 			session_id TEXT NOT NULL,
@@ -522,10 +719,10 @@ func TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables(t *testing.T)
 	}
 
 	for table, expected := range map[string][]string{
-		"sessions":           {"stop_reason", "stop_detail", "channel"},
-		"extensions":         {"registry_slug", "registry_name", "remote_version"},
-		"bridge_instances":   {"source", "dm_policy", "provider_config", "degradation_reason", "degradation_message"},
-		"bundle_activations": {"spec_content_hash"},
+		"sessions":         {"stop_reason", "stop_detail", "channel"},
+		"workspaces":       {"environment_ref"},
+		"extensions":       {"registry_slug", "registry_name", "remote_version"},
+		"bridge_instances": {"source", "dm_policy", "provider_config", "degradation_reason", "degradation_message"},
 	} {
 		columns, err := tableColumns(testutil.Context(t), db, table)
 		if err != nil {

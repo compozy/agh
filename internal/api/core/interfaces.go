@@ -13,6 +13,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
@@ -23,6 +24,12 @@ import (
 
 // AgentLoader loads one parsed AGENT.md definition.
 type AgentLoader func(name string, homePaths aghconfig.HomePaths) (aghconfig.AgentDef, error)
+
+// AgentCatalog exposes projected resource-backed agent definitions.
+type AgentCatalog interface {
+	ListAgents(ctx context.Context) ([]aghconfig.AgentDef, error)
+	GetAgent(ctx context.Context, name string) (aghconfig.AgentDef, error)
+}
 
 // SessionManager is the runtime session surface exposed by API transports.
 // List returns the current in-memory session snapshot without performing I/O.
@@ -98,6 +105,14 @@ type DreamTrigger interface {
 	Trigger(ctx context.Context, workspace string) (bool, string, error)
 	LastConsolidatedAt() (time.Time, error)
 	Enabled() bool
+}
+
+// ResourceService exposes the operator-facing desired-state CRUD surface to API transports.
+type ResourceService interface {
+	List(ctx context.Context, filter resources.ResourceFilter) ([]resources.RawRecord, error)
+	Get(ctx context.Context, kind resources.ResourceKind, id string) (resources.RawRecord, error)
+	Put(ctx context.Context, draft resources.RawDraft) (resources.RawRecord, error)
+	Delete(ctx context.Context, kind resources.ResourceKind, id string, expectedVersion int64) error
 }
 
 // AutomationManager exposes automation state and control surfaces to the API layer.

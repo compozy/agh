@@ -169,3 +169,187 @@ func TestCloneInitializeBridgeRuntimeDoesNotAliasManagedInstanceState(t *testing
 		t.Fatalf("len(cloned.ManagedInstances) = %d, want %d", got, want)
 	}
 }
+
+func TestInitializeBridgeRuntimeManagedInstanceHelpers(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 15, 12, 10, 0, 0, time.UTC)
+	singleRuntime := InitializeBridgeRuntime{
+		RuntimeVersion: InitializeBridgeRuntimeVersion1,
+		Provider:       "telegram-reference",
+		Platform:       "telegram",
+		ManagedInstances: []InitializeBridgeManagedInstance{{
+			Instance: bridges.BridgeInstance{
+				ID:            " brg-1 ",
+				Scope:         bridges.ScopeGlobal,
+				Platform:      "telegram",
+				ExtensionName: "telegram-reference",
+				DisplayName:   "Telegram",
+				Enabled:       true,
+				Status:        bridges.BridgeStatusReady,
+				RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			},
+		}},
+	}
+
+	managed, err := singleRuntime.SingleManagedInstance()
+	if err != nil {
+		t.Fatalf("SingleManagedInstance() error = %v", err)
+	}
+	if got, want := managed.Instance.ID, " brg-1 "; got != want {
+		t.Fatalf("SingleManagedInstance().Instance.ID = %q, want %q", got, want)
+	}
+
+	managed.Instance.ID = "mutated"
+	reloaded, ok := singleRuntime.ManagedInstance("brg-1")
+	if !ok {
+		t.Fatal("ManagedInstance(brg-1) = missing, want managed instance")
+	}
+	if got, want := reloaded.Instance.ID, " brg-1 "; got != want {
+		t.Fatalf("ManagedInstance(brg-1).Instance.ID = %q, want %q", got, want)
+	}
+	if _, ok := singleRuntime.ManagedInstance(" "); ok {
+		t.Fatal("ManagedInstance(blank) = found, want false")
+	}
+	if _, ok := singleRuntime.ManagedInstance("missing"); ok {
+		t.Fatal("ManagedInstance(missing) = found, want false")
+	}
+	if got, want := singleRuntime.ManagedBridgeInstanceIDs(), []string{
+		"brg-1",
+	}; len(got) != len(want) ||
+		got[0] != want[0] {
+		t.Fatalf("ManagedBridgeInstanceIDs() = %#v, want %#v", got, want)
+	}
+
+	if _, err := (InitializeBridgeRuntime{}).SingleManagedInstance(); err == nil ||
+		!strings.Contains(err.Error(), "is required") {
+		t.Fatalf("SingleManagedInstance() empty error = %v, want required error", err)
+	}
+
+	multiRuntime := singleRuntime
+	multiRuntime.ManagedInstances = append(multiRuntime.ManagedInstances, InitializeBridgeManagedInstance{
+		Instance: bridges.BridgeInstance{
+			ID:            " brg-2 ",
+			Scope:         bridges.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "telegram-reference",
+			DisplayName:   "Telegram 2",
+			Enabled:       true,
+			Status:        bridges.BridgeStatusReady,
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		},
+	})
+	if _, err := multiRuntime.SingleManagedInstance(); err == nil ||
+		!strings.Contains(err.Error(), "explicit managed instance selection") {
+		t.Fatalf("SingleManagedInstance() multi error = %v, want explicit selection error", err)
+	}
+	if got, want := multiRuntime.ManagedBridgeInstanceIDs(), []string{
+		"brg-1",
+		"brg-2",
+	}; len(got) != len(want) || got[0] != want[0] ||
+		got[1] != want[1] {
+		t.Fatalf("ManagedBridgeInstanceIDs() multi = %#v, want %#v", got, want)
+	}
+}
+
+func TestInitializeBridgeManagedInstanceValidateRejectsDuplicateSecretBindings(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 15, 12, 15, 0, 0, time.UTC)
+	managed := InitializeBridgeManagedInstance{
+		Instance: bridges.BridgeInstance{
+			ID:            "brg-dup",
+			Scope:         bridges.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "telegram-reference",
+			DisplayName:   "Telegram",
+			Enabled:       true,
+			Status:        bridges.BridgeStatusReady,
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		},
+		BoundSecrets: []InitializeBridgeBoundSecret{
+			{BindingName: "bot_token", Kind: "token", Value: "secret-1"},
+			{BindingName: " bot_token ", Kind: "token", Value: "secret-2"},
+		},
+	}
+
+	err := managed.Validate()
+	if err == nil || !strings.Contains(err.Error(), "duplicated") {
+		t.Fatalf("managed.Validate() error = %v, want duplicated secret error", err)
+	}
+}
+
+func TestInitializeBridgeRuntimeValidateRejectsDuplicateManagedInstances(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 15, 12, 20, 0, 0, time.UTC)
+	managed := InitializeBridgeManagedInstance{
+		Instance: bridges.BridgeInstance{
+			ID:            "brg-dup",
+			Scope:         bridges.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "telegram-reference",
+			DisplayName:   "Telegram",
+			Enabled:       true,
+			Status:        bridges.BridgeStatusReady,
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		},
+	}
+
+	runtime := InitializeBridgeRuntime{
+		RuntimeVersion:   InitializeBridgeRuntimeVersion1,
+		Provider:         "telegram-reference",
+		Platform:         "telegram",
+		ManagedInstances: []InitializeBridgeManagedInstance{managed, managed},
+	}
+
+	err := runtime.Validate()
+	if err == nil || !strings.Contains(err.Error(), "duplicated") {
+		t.Fatalf("runtime.Validate() error = %v, want duplicated managed instance error", err)
+	}
+}
+
+func TestInitializeBridgeBoundSecretValidateRejectsMissingFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		secret InitializeBridgeBoundSecret
+		want   string
+	}{
+		{
+			name:   "missing binding name",
+			secret: InitializeBridgeBoundSecret{Kind: "token", Value: "secret"},
+			want:   "binding_name",
+		},
+		{
+			name:   "missing kind",
+			secret: InitializeBridgeBoundSecret{BindingName: "bot_token", Value: "secret"},
+			want:   "kind",
+		},
+		{
+			name:   "missing value",
+			secret: InitializeBridgeBoundSecret{BindingName: "bot_token", Kind: "token"},
+			want:   "value",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.secret.Validate()
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("secret.Validate() error = %v, want substring %q", err, tc.want)
+			}
+		})
+	}
+}

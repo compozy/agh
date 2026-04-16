@@ -248,6 +248,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		StopReason:   sessionMetaStopReason(meta),
 		StopDetail:   meta.StopDetail,
 		ACPSessionID: stringValue(meta.ACPSessionID),
+		Environment:  cloneSessionEnvironmentMeta(meta.Environment),
 		CreatedAt:    meta.CreatedAt,
 		UpdatedAt:    meta.UpdatedAt,
 	}

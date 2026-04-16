@@ -10,6 +10,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -25,17 +26,20 @@ func TestRegistryBlocksDisableAndUninstallWithActiveBundles(t *testing.T) {
 
 	if _, err := env.db.ExecContext(
 		testutil.Context(t),
-		`INSERT INTO bundle_activations (
-			id, extension_name, bundle_name, profile_name, scope, workspace_id, spec_content_hash, bind_primary_channel_default, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO resource_records (
+			kind, id, version, scope_kind, scope_id, owner_kind, owner_id,
+			source_kind, source_id, spec_json, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"bundle.activation",
 		"act_guard",
-		manifest.Name,
-		"bundle",
-		"default",
+		1,
 		"global",
 		nil,
-		"hash",
-		false,
+		"daemon",
+		"bundle-test",
+		"daemon",
+		"bundle-test",
+		`{"extension_name":"`+manifest.Name+`","bundle_name":"bundle","profile_name":"default"}`,
 		store.FormatTimestamp(env.installedAt),
 		store.FormatTimestamp(env.installedAt),
 	); err != nil {
@@ -55,21 +59,10 @@ func newRegistryTestEnvWithBundleActivations(t *testing.T) registryTestEnv {
 
 	dbPath := t.TempDir() + "/agh-registry.db"
 	db, err := store.OpenSQLiteDatabase(testutil.Context(t), dbPath, func(ctx context.Context, db *sql.DB) error {
-		return store.EnsureSchema(ctx, db, []string{
+		statements := append([]string{
 			registryTestExtensionsTableSchema,
-			`CREATE TABLE IF NOT EXISTS bundle_activations (
-				id                           TEXT PRIMARY KEY,
-				extension_name               TEXT NOT NULL,
-				bundle_name                  TEXT NOT NULL,
-				profile_name                 TEXT NOT NULL,
-				scope                        TEXT NOT NULL,
-				workspace_id                 TEXT,
-				spec_content_hash            TEXT,
-				bind_primary_channel_default BOOLEAN NOT NULL DEFAULT 0,
-				created_at                   TEXT NOT NULL,
-				updated_at                   TEXT NOT NULL
-			);`,
-		})
+		}, resources.SchemaStatements()...)
+		return store.EnsureSchema(ctx, db, statements)
 	})
 	if err != nil {
 		t.Fatalf("OpenSQLiteDatabase() error = %v", err)

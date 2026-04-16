@@ -132,6 +132,97 @@ func (h *Hooks) DispatchSessionPostStop(
 	)
 }
 
+// DispatchEnvironmentPrepare runs the environment.prepare hook pipeline.
+func (h *Hooks) DispatchEnvironmentPrepare(
+	ctx context.Context,
+	payload EnvironmentPreparePayload,
+) (EnvironmentPreparePayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookEnvironmentPrepare,
+		payload,
+		dispatchConfig[EnvironmentPreparePayload, EnvironmentPreparePatch]{
+			match:  matchEnvironmentPrepare,
+			apply:  applyEnvironmentPreparePatch,
+			denied: environmentPreparePatchDenied,
+			denyErr: func(EnvironmentPreparePayload) error {
+				return fmt.Errorf("hooks: event %q denied", HookEnvironmentPrepare)
+			},
+		},
+	)
+}
+
+// DispatchEnvironmentReady runs the environment.ready hook dispatch.
+func (h *Hooks) DispatchEnvironmentReady(
+	ctx context.Context,
+	payload EnvironmentReadyPayload,
+) (EnvironmentReadyPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookEnvironmentReady,
+		payload,
+		dispatchConfig[EnvironmentReadyPayload, EnvironmentReadyPatch]{
+			match: matchEnvironmentReady,
+			apply: applyNoop[EnvironmentReadyPayload, EnvironmentReadyPatch],
+		},
+	)
+}
+
+// DispatchEnvironmentSyncBefore runs the environment.sync.before hook pipeline.
+func (h *Hooks) DispatchEnvironmentSyncBefore(
+	ctx context.Context,
+	payload EnvironmentSyncBeforePayload,
+) (EnvironmentSyncBeforePayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookEnvironmentSyncBefore,
+		payload,
+		dispatchConfig[EnvironmentSyncBeforePayload, EnvironmentSyncBeforePatch]{
+			match:  matchEnvironmentSyncBefore,
+			apply:  applyEnvironmentSyncBeforePatch,
+			denied: environmentSyncBeforePatchDenied,
+		},
+	)
+}
+
+// DispatchEnvironmentSyncAfter runs the environment.sync.after hook dispatch.
+func (h *Hooks) DispatchEnvironmentSyncAfter(
+	ctx context.Context,
+	payload EnvironmentSyncAfterPayload,
+) (EnvironmentSyncAfterPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookEnvironmentSyncAfter,
+		payload,
+		dispatchConfig[EnvironmentSyncAfterPayload, EnvironmentSyncAfterPatch]{
+			match: matchEnvironmentSyncAfter,
+			apply: applyNoop[EnvironmentSyncAfterPayload, EnvironmentSyncAfterPatch],
+		},
+	)
+}
+
+// DispatchEnvironmentStop runs the environment.stop hook pipeline.
+func (h *Hooks) DispatchEnvironmentStop(
+	ctx context.Context,
+	payload EnvironmentStopPayload,
+) (EnvironmentStopPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookEnvironmentStop,
+		payload,
+		dispatchConfig[EnvironmentStopPayload, EnvironmentStopPatch]{
+			match:  matchEnvironmentStop,
+			apply:  applyEnvironmentStopPatch,
+			denied: environmentStopPatchDenied,
+		},
+	)
+}
+
 // DispatchInputPreSubmit runs the input.pre_submit hook pipeline.
 func (h *Hooks) DispatchInputPreSubmit(
 	ctx context.Context,
@@ -762,6 +853,42 @@ func applySessionLifecyclePatch(payload SessionLifecyclePayload, patch SessionCr
 	return payload
 }
 
+func applyEnvironmentPreparePatch(
+	payload EnvironmentPreparePayload,
+	patch EnvironmentPreparePatch,
+) EnvironmentPreparePayload {
+	if patch.Deny {
+		payload.Denied = true
+		payload.DenyReason = patch.DenyReason
+	}
+	if patch.EnvOverrides != nil {
+		payload.EnvOverrides = cloneStringMap(patch.EnvOverrides)
+	}
+	return payload
+}
+
+func applyEnvironmentSyncBeforePatch(
+	payload EnvironmentSyncBeforePayload,
+	patch EnvironmentSyncBeforePatch,
+) EnvironmentSyncBeforePayload {
+	if patch.Deny {
+		payload.Denied = true
+		payload.DenyReason = patch.DenyReason
+	}
+	if patch.ExcludePatterns != nil {
+		payload.ExcludePatterns = append([]string(nil), patch.ExcludePatterns...)
+	}
+	return payload
+}
+
+func applyEnvironmentStopPatch(payload EnvironmentStopPayload, patch EnvironmentStopPatch) EnvironmentStopPayload {
+	if patch.Deny {
+		payload.Denied = true
+		payload.DenyReason = patch.DenyReason
+	}
+	return payload
+}
+
 func applyInputPreSubmitPatch(payload InputPreSubmitPayload, patch InputPreSubmitPatch) InputPreSubmitPayload {
 	if patch.Message != nil {
 		payload.Message = *patch.Message
@@ -898,6 +1025,18 @@ func cloneRawMessage(payload []byte) []byte {
 }
 
 func sessionCreatePatchDenied(patch SessionCreatePatch) bool {
+	return patch.Deny
+}
+
+func environmentPreparePatchDenied(patch EnvironmentPreparePatch) bool {
+	return patch.Deny
+}
+
+func environmentSyncBeforePatchDenied(patch EnvironmentSyncBeforePatch) bool {
+	return patch.Deny
+}
+
+func environmentStopPatchDenied(patch EnvironmentStopPatch) bool {
 	return patch.Deny
 }
 

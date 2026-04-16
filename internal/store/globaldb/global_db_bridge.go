@@ -227,6 +227,157 @@ func (g *GlobalDB) ListBridgeInstances(ctx context.Context) ([]bridges.BridgeIns
 	return instances, nil
 }
 
+// ReplaceBridgeInstances atomically swaps the daemon-visible bridge instance projection.
+func (g *GlobalDB) ReplaceBridgeInstances(ctx context.Context, instances []bridges.BridgeInstance) (err error) {
+	if err := g.checkReady(ctx, "replace bridge instances"); err != nil {
+		return err
+	}
+
+	prepared := make([]bridges.BridgeInstance, 0, len(instances))
+	seen := make(map[string]struct{}, len(instances))
+	for _, instance := range instances {
+		normalized,
+			_,
+			_,
+			_,
+			_,
+			_,
+			normalizeErr := normalizeBridgeInstanceRecord(instance)
+		if normalizeErr != nil {
+			return normalizeErr
+		}
+		if _, exists := seen[normalized.ID]; exists {
+			return fmt.Errorf("store: duplicate bridge instance %q in replacement set", normalized.ID)
+		}
+		seen[normalized.ID] = struct{}{}
+		prepared = append(prepared, normalized)
+	}
+
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: begin bridge instance replacement transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, rollbackTx(tx, "bridge instance replacement"))
+		}
+	}()
+
+	for _, instance := range prepared {
+		if err := upsertBridgeInstance(ctx, tx, instance, g.now); err != nil {
+			return err
+		}
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM bridge_instances`)
+	if err != nil {
+		return fmt.Errorf("store: query stale bridge instances during replacement: %w", err)
+	}
+	var staleIDs []string
+	for rows.Next() {
+		var id string
+		if scanErr := rows.Scan(&id); scanErr != nil {
+			closeErr := rows.Close()
+			return errors.Join(fmt.Errorf("store: scan stale bridge instance id: %w", scanErr), closeErr)
+		}
+		if _, keep := seen[id]; !keep {
+			staleIDs = append(staleIDs, id)
+		}
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		closeErr := rows.Close()
+		return errors.Join(fmt.Errorf("store: iterate stale bridge instance ids: %w", rowsErr), closeErr)
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return fmt.Errorf("store: close stale bridge instance rows: %w", closeErr)
+	}
+	for _, id := range staleIDs {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM bridge_instances WHERE id = ?`, id); err != nil {
+			return fmt.Errorf("store: delete stale bridge instance %q during replacement: %w", id, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: commit bridge instance replacement transaction: %w", err)
+	}
+	return nil
+}
+
+func upsertBridgeInstance(
+	ctx context.Context,
+	execer interface {
+		ExecContext(context.Context, string, ...any) (sql.Result, error)
+	},
+	instance bridges.BridgeInstance,
+	now func() time.Time,
+) error {
+	normalized,
+		routingPolicyJSON,
+		providerConfig,
+		deliveryDefaults,
+		degradationReason,
+		degradationMessage,
+		err := normalizeBridgeInstanceRecord(instance)
+	if err != nil {
+		return err
+	}
+	clock := now
+	if clock == nil {
+		clock = time.Now
+	}
+	if normalized.CreatedAt.IsZero() {
+		normalized.CreatedAt = clock().UTC()
+	}
+	if normalized.UpdatedAt.IsZero() {
+		normalized.UpdatedAt = normalized.CreatedAt
+	}
+
+	if _, err := execer.ExecContext(
+		ctx,
+		`INSERT INTO bridge_instances (
+			id, scope, workspace_id, platform, extension_name, display_name,
+			source, enabled, status, dm_policy, routing_policy, provider_config,
+			delivery_defaults, degradation_reason, degradation_message,
+			created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			scope = excluded.scope,
+			workspace_id = excluded.workspace_id,
+			platform = excluded.platform,
+			extension_name = excluded.extension_name,
+			display_name = excluded.display_name,
+			source = excluded.source,
+			enabled = excluded.enabled,
+			status = excluded.status,
+			dm_policy = excluded.dm_policy,
+			routing_policy = excluded.routing_policy,
+			provider_config = excluded.provider_config,
+			delivery_defaults = excluded.delivery_defaults,
+			degradation_reason = excluded.degradation_reason,
+			degradation_message = excluded.degradation_message,
+			updated_at = excluded.updated_at`,
+		normalized.ID,
+		string(normalized.Scope),
+		store.NullableString(normalized.WorkspaceID),
+		normalized.Platform,
+		normalized.ExtensionName,
+		normalized.DisplayName,
+		string(normalized.Source),
+		normalized.Enabled,
+		string(normalized.Status),
+		string(normalized.DMPolicy),
+		routingPolicyJSON,
+		providerConfig,
+		deliveryDefaults,
+		degradationReason,
+		degradationMessage,
+		store.FormatTimestamp(normalized.CreatedAt),
+		store.FormatTimestamp(normalized.UpdatedAt),
+	); err != nil {
+		return fmt.Errorf("store: replace bridge instance %q: %w", normalized.ID, mapBridgeInstanceConstraintError(err))
+	}
+	return nil
+}
+
 // PutBridgeSecretBinding inserts or refreshes a persisted secret binding row.
 func (g *GlobalDB) PutBridgeSecretBinding(ctx context.Context, binding bridges.BridgeSecretBinding) error {
 	if err := g.checkReady(ctx, "put bridge secret binding"); err != nil {

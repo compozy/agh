@@ -9,17 +9,19 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/store"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
-var globalSchemaStatements = []string{
+var globalSchemaStatements = append([]string{
 	`CREATE TABLE IF NOT EXISTS workspaces (
 		id            TEXT PRIMARY KEY,
 		root_dir      TEXT NOT NULL UNIQUE,
 		add_dirs      TEXT NOT NULL DEFAULT '[]',
 		name          TEXT NOT NULL UNIQUE,
 		default_agent TEXT DEFAULT '',
+		environment_ref TEXT NOT NULL DEFAULT '',
 		created_at    TEXT NOT NULL,
 		updated_at    TEXT NOT NULL
 	);`,
@@ -35,6 +37,14 @@ var globalSchemaStatements = []string{
 		acp_session_id TEXT,
 		stop_reason    TEXT,
 		stop_detail    TEXT,
+		environment_id TEXT NOT NULL DEFAULT '',
+		environment_backend TEXT NOT NULL DEFAULT 'local',
+		environment_profile TEXT NOT NULL DEFAULT '',
+		environment_instance_id TEXT NOT NULL DEFAULT '',
+		environment_state TEXT NOT NULL DEFAULT '',
+		environment_provider_state_json TEXT NOT NULL DEFAULT '',
+		environment_last_sync_at TEXT,
+		environment_last_sync_error TEXT NOT NULL DEFAULT '',
 		created_at     TEXT NOT NULL,
 		updated_at     TEXT NOT NULL
 	);`,
@@ -168,27 +178,22 @@ var globalSchemaStatements = []string{
 		attempt    INTEGER NOT NULL DEFAULT 1,
 		started_at TEXT,
 		ended_at   TEXT,
-		error      TEXT,
-		FOREIGN KEY(job_id) REFERENCES automation_jobs(id) ON DELETE SET NULL,
-		FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE SET NULL
+		error      TEXT
 	);`,
 	`CREATE TABLE IF NOT EXISTS automation_job_overlays (
 		job_id            TEXT PRIMARY KEY,
 		enabled_override  BOOLEAN NOT NULL,
-		updated_at        TEXT NOT NULL,
-		FOREIGN KEY(job_id) REFERENCES automation_jobs(id) ON DELETE CASCADE
+		updated_at        TEXT NOT NULL
 	);`,
 	`CREATE TABLE IF NOT EXISTS automation_trigger_overlays (
 		trigger_id        TEXT PRIMARY KEY,
 		enabled_override  BOOLEAN NOT NULL,
-		updated_at        TEXT NOT NULL,
-		FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE CASCADE
+		updated_at        TEXT NOT NULL
 	);`,
 	`CREATE TABLE IF NOT EXISTS automation_trigger_webhook_secrets (
 		trigger_id  TEXT PRIMARY KEY,
 		secret      TEXT NOT NULL,
-		updated_at  TEXT NOT NULL,
-		FOREIGN KEY(trigger_id) REFERENCES automation_triggers(id) ON DELETE CASCADE
+		updated_at  TEXT NOT NULL
 	);`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_global_name ON automation_jobs(name) WHERE scope = 'global';`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_workspace_name ON automation_jobs(workspace_id, name) WHERE scope = 'workspace';`,
@@ -394,34 +399,7 @@ var globalSchemaStatements = []string{
 		expires_at         TEXT NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_bridge_ingest_dedup_expires ON bridge_ingest_dedup(expires_at);`,
-	`CREATE TABLE IF NOT EXISTS bundle_activations (
-		id                           TEXT PRIMARY KEY,
-		extension_name               TEXT NOT NULL REFERENCES extensions(name) ON DELETE CASCADE,
-		bundle_name                  TEXT NOT NULL,
-		profile_name                 TEXT NOT NULL,
-		scope                        TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
-		workspace_id                 TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
-		spec_content_hash            TEXT,
-		bind_primary_channel_default BOOLEAN NOT NULL DEFAULT 0,
-		created_at                   TEXT NOT NULL,
-		updated_at                   TEXT NOT NULL,
-		CHECK (
-			(scope = 'global' AND workspace_id IS NULL) OR
-			(scope = 'workspace' AND workspace_id IS NOT NULL)
-		)
-	);`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS uq_bundle_activations_tuple ON bundle_activations(extension_name, bundle_name, profile_name, scope, IFNULL(workspace_id, ''));`,
-	`CREATE INDEX IF NOT EXISTS idx_bundle_activations_extension ON bundle_activations(extension_name, created_at);`,
-	`CREATE TABLE IF NOT EXISTS bundle_activation_inventory (
-		activation_id TEXT NOT NULL REFERENCES bundle_activations(id) ON DELETE CASCADE,
-		resource_kind TEXT NOT NULL,
-		resource_id   TEXT NOT NULL,
-		resource_name TEXT NOT NULL,
-		recorded_at   TEXT NOT NULL,
-		PRIMARY KEY (activation_id, resource_kind, resource_id)
-	);`,
-	`CREATE INDEX IF NOT EXISTS idx_bundle_activation_inventory_kind ON bundle_activation_inventory(resource_kind, recorded_at DESC);`,
-}
+}, resources.SchemaStatements()...)
 
 // GlobalDB owns the global session index and observability database.
 type GlobalDB struct {

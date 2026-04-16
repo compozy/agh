@@ -440,6 +440,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 		AdditionalDirs: []string{filepath.Join(rootDir, "a"), "", filepath.Join(rootDir, "b")},
 		Name:           "alpha",
 		DefaultAgent:   "coder",
+		EnvironmentRef: "daytona-dev",
 		CreatedAt:      createdAt,
 		UpdatedAt:      createdAt,
 	}
@@ -457,6 +458,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 		AdditionalDirs: []string{filepath.Join(rootDir, "a"), filepath.Join(rootDir, "b")},
 		Name:           "alpha",
 		DefaultAgent:   "coder",
+		EnvironmentRef: "daytona-dev",
 		CreatedAt:      createdAt,
 		UpdatedAt:      createdAt,
 	})
@@ -476,6 +478,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 	updated := byID
 	updated.Name = "beta"
 	updated.DefaultAgent = "reviewer"
+	updated.EnvironmentRef = "local-dev"
 	updated.AdditionalDirs = []string{filepath.Join(rootDir, "tools")}
 	updated.UpdatedAt = createdAt.Add(5 * time.Minute)
 	if err := globalDB.UpdateWorkspace(testutil.Context(t), updated); err != nil {
@@ -868,8 +871,17 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 		WorkspaceID: workspaceID,
 		Channel:     "builders",
 		State:       "active",
-		CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		Environment: &store.SessionEnvironmentMeta{
+			EnvironmentID: "env-workspace-id",
+			Backend:       "local",
+			Profile:       "local",
+			State:         "prepared",
+			InstanceID:    "instance-workspace-id",
+			ProviderState: []byte(`{"provider":true}`),
+			LastSyncError: "last sync failed",
+		},
+		CreatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 	}
 	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
@@ -888,6 +900,18 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	if got, want := sessions[0].Channel, "builders"; got != want {
 		t.Fatalf("sessions[0].Channel = %q, want %q", got, want)
 	}
+	if sessions[0].Environment == nil {
+		t.Fatal("sessions[0].Environment = nil, want environment metadata")
+	}
+	if got, want := sessions[0].Environment.EnvironmentID, "env-workspace-id"; got != want {
+		t.Fatalf("sessions[0].Environment.EnvironmentID = %q, want %q", got, want)
+	}
+	if got, want := sessions[0].Environment.InstanceID, "instance-workspace-id"; got != want {
+		t.Fatalf("sessions[0].Environment.InstanceID = %q, want %q", got, want)
+	}
+	if got, want := sessions[0].Environment.LastSyncError, "last sync failed"; got != want {
+		t.Fatalf("sessions[0].Environment.LastSyncError = %q, want %q", got, want)
+	}
 
 	assertTableColumns(
 		t,
@@ -904,6 +928,14 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"acp_session_id",
 			"stop_reason",
 			"stop_detail",
+			"environment_id",
+			"environment_backend",
+			"environment_profile",
+			"environment_instance_id",
+			"environment_state",
+			"environment_provider_state_json",
+			"environment_last_sync_at",
+			"environment_last_sync_error",
 			"created_at",
 			"updated_at",
 		},
@@ -1046,6 +1078,14 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"acp_session_id",
 			"stop_reason",
 			"stop_detail",
+			"environment_id",
+			"environment_backend",
+			"environment_profile",
+			"environment_instance_id",
+			"environment_state",
+			"environment_provider_state_json",
+			"environment_last_sync_at",
+			"environment_last_sync_error",
 			"created_at",
 			"updated_at",
 		},
@@ -1054,7 +1094,7 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 		t,
 		globalDB.db,
 		"workspaces",
-		[]string{"id", "root_dir", "add_dirs", "name", "default_agent", "created_at", "updated_at"},
+		[]string{"id", "root_dir", "add_dirs", "name", "default_agent", "environment_ref", "created_at", "updated_at"},
 	)
 
 	workspaces, err := globalDB.ListWorkspaces(ctx)
@@ -1669,7 +1709,21 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"stop_reason",
 			"stop_detail",
 			"channel",
+			"environment_id",
+			"environment_backend",
+			"environment_profile",
+			"environment_instance_id",
+			"environment_state",
+			"environment_provider_state_json",
+			"environment_last_sync_at",
+			"environment_last_sync_error",
 		},
+	)
+	assertTableColumns(
+		t,
+		globalDB.db,
+		"workspaces",
+		[]string{"id", "root_dir", "add_dirs", "name", "default_agent", "created_at", "updated_at", "environment_ref"},
 	)
 
 	sessions, err := globalDB.ListSessions(ctx, SessionListQuery{})
@@ -1794,6 +1848,7 @@ func assertWorkspaceEqual(t *testing.T, got aghworkspace.Workspace, want aghwork
 		got.RootDir != want.RootDir ||
 		got.Name != want.Name ||
 		got.DefaultAgent != want.DefaultAgent ||
+		got.EnvironmentRef != want.EnvironmentRef ||
 		!got.CreatedAt.Equal(want.CreatedAt) ||
 		!got.UpdatedAt.Equal(want.UpdatedAt) ||
 		!testutil.EqualStringSlices(got.AdditionalDirs, want.AdditionalDirs) {

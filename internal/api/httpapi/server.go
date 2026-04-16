@@ -50,10 +50,13 @@ type Server struct {
 	bridges        core.BridgeService
 	bundles        core.BundleService
 	workspaces     core.WorkspaceService
+	agentCatalog   core.AgentCatalog
 	skillsRegistry core.SkillsRegistry
 	memoryStore    *memory.Store
 	dreamTrigger   core.DreamTrigger
 	agentLoader    core.AgentLoader
+	resources      core.ResourceService
+	resourceAuth   []gin.HandlerFunc
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -201,6 +204,13 @@ func WithSkillsRegistry(registry core.SkillsRegistry) Option {
 	}
 }
 
+// WithAgentCatalog injects the projected resource-backed agent catalog.
+func WithAgentCatalog(catalog core.AgentCatalog) Option {
+	return func(server *Server) {
+		server.agentCatalog = catalog
+	}
+}
+
 // WithDreamTrigger injects the dream-consolidation trigger surfaced by the daemon.
 func WithDreamTrigger(trigger core.DreamTrigger) Option {
 	return func(server *Server) {
@@ -212,6 +222,20 @@ func WithDreamTrigger(trigger core.DreamTrigger) Option {
 func WithAgentLoader(loader core.AgentLoader) Option {
 	return func(server *Server) {
 		server.agentLoader = loader
+	}
+}
+
+// WithResourceService injects the shared operator-facing desired-state resource service.
+func WithResourceService(service core.ResourceService) Option {
+	return func(server *Server) {
+		server.resources = service
+	}
+}
+
+// WithResourceOperatorAuth gates HTTP resource routes behind explicit operator auth middleware.
+func WithResourceOperatorAuth(middleware ...gin.HandlerFunc) Option {
+	return func(server *Server) {
+		server.resourceAuth = append([]gin.HandlerFunc(nil), middleware...)
 	}
 }
 
@@ -304,6 +328,8 @@ func (s *Server) applyDefaults() {
 
 func (s *Server) validateRequired() error {
 	switch {
+	case len(s.resourceAuth) > 0 && s.resources == nil:
+		return errors.New("httpapi: resource service is required when resource operator auth is configured")
 	case s.sessions == nil:
 		return errors.New("httpapi: session manager is required")
 	case s.tasks == nil:
@@ -345,10 +371,12 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		network:        s.network,
 		networkStore:   s.networkStore,
 		observer:       s.observer,
+		resources:      s.resources,
 		automation:     s.automation,
 		bridges:        s.bridges,
 		bundles:        s.bundles,
 		workspaces:     s.workspaces,
+		agentCatalog:   s.agentCatalog,
 		skillsRegistry: s.skillsRegistry,
 		memoryStore:    s.memoryStore,
 		dreamTrigger:   s.dreamTrigger,
@@ -361,6 +389,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		pollInterval:   s.pollInterval,
 		agentLoader:    s.agentLoader,
 		httpPort:       s.port,
+		resourceAuth:   append([]gin.HandlerFunc(nil), s.resourceAuth...),
 	}
 }
 

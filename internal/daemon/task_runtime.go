@@ -17,6 +17,9 @@ const (
 	defaultTaskCancelGrace     = 5 * time.Second
 	taskRecoveryReasonBoot     = "orphaned_on_boot"
 	taskRecoverySessionMissing = "missing"
+	taskStopDetailShutdown     = "task shutdown"
+	taskStopDetailOrphaned     = "task run orphaned"
+	taskStopDetailCancellation = "task cancellation"
 )
 
 type taskStore interface {
@@ -414,10 +417,10 @@ func taskStopCause(reason taskpkg.StopReason) session.StopCause {
 func taskStopDetail(reason taskpkg.StopReason) string {
 	switch reason.Normalize() {
 	case taskpkg.StopReasonShutdown:
-		return "task shutdown"
+		return taskStopDetailShutdown
 	case taskpkg.StopReasonOrphanedRun:
-		return "task run orphaned"
+		return taskStopDetailOrphaned
 	default:
-		return "task cancellation"
+		return taskStopDetailCancellation
 	}
 }

@@ -19,6 +19,8 @@ import (
 
 type sessionStartSpec struct {
 	sessionID              string
+	environmentID          string
+	environment            *store.SessionEnvironmentMeta
 	sessionName            string
 	agentName              string
 	workspace              workspacepkg.ResolvedWorkspace
@@ -67,9 +69,14 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if sessionID == "" {
 		return sessionStartSpec{}, errors.New("session: session id generator returned empty id")
 	}
+	environmentID := strings.TrimSpace(m.newEnvironmentID())
+	if environmentID == "" {
+		return sessionStartSpec{}, errors.New("session: environment id generator returned empty id")
+	}
 
 	return sessionStartSpec{
 		sessionID:         sessionID,
+		environmentID:     environmentID,
 		sessionName:       strings.TrimSpace(opts.Name),
 		agentName:         strings.TrimSpace(agentName),
 		workspace:         resolvedWorkspace,
@@ -94,6 +101,8 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 
 	return sessionStartSpec{
 		sessionID:              meta.ID,
+		environmentID:          sessionEnvironmentID(meta.Environment),
+		environment:            cloneSessionEnvironmentMeta(meta.Environment),
 		sessionName:            meta.Name,
 		agentName:              meta.AgentName,
 		workspace:              resolvedWorkspace,
@@ -148,6 +157,10 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	session := spec.newStartingSession(runtime.agent, storage, now)
 
 	startOpts := m.sessionStartOpts(spec, session, runtime.agent, runtime.mcpServers)
+	startOpts, err = m.prepareEnvironmentForStart(ctx, spec, session, startOpts)
+	if err != nil {
+		return nil, err
+	}
 	startOpts, err = m.dispatchAgentPreStart(ctx, session, runtime.agent, startOpts)
 	if err != nil {
 		return nil, err
@@ -157,10 +170,13 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 		return nil, err
 	}
 
+	transportStarted := time.Now()
 	proc, err = m.driver.Start(ctx, startOpts)
 	if err != nil {
+		m.logEnvironmentTransport(session, environmentEventTransportError, err, time.Since(transportStarted))
 		return nil, fmt.Errorf("session: %s agent for %q: %w", spec.startAction, spec.sessionID, err)
 	}
+	m.logEnvironmentTransport(session, environmentEventTransportConnect, nil, time.Since(transportStarted))
 	proc.configureRuntime(session.CurrentTurnSource)
 
 	if err := m.activateAndWatch(
@@ -201,7 +217,7 @@ func (m *Manager) prepareSessionStartRuntime(
 	spec *sessionStartSpec,
 	updatedAt time.Time,
 ) (sessionStartRuntime, error) {
-	agentDef, err := resolveWorkspaceAgent(spec.agentName, &spec.workspace)
+	agentDef, err := m.resolveWorkspaceAgent(spec.agentName, &spec.workspace)
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}
@@ -268,23 +284,25 @@ func (s *sessionStartSpec) newStartingSession(
 	}
 
 	return &Session{
-		ID:           s.sessionID,
-		Name:         s.sessionName,
-		AgentName:    resolved.Name,
-		WorkspaceID:  s.workspace.ID,
-		Workspace:    s.workspace.RootDir,
-		Channel:      s.channel,
-		Type:         normalizeSessionType(s.sessionType),
-		State:        StateStarting,
-		stopReason:   s.stopReason,
-		stopDetail:   s.stopDetail,
-		ACPSessionID: s.acpSessionID,
-		CreatedAt:    createdAt,
-		UpdatedAt:    now,
-		sessionDir:   storage.sessionDir,
-		metaPath:     storage.metaPath,
-		dbPath:       storage.dbPath,
-		recorder:     storage.recorder,
+		ID:                       s.sessionID,
+		Name:                     s.sessionName,
+		AgentName:                resolved.Name,
+		WorkspaceID:              s.workspace.ID,
+		Workspace:                s.workspace.RootDir,
+		Channel:                  s.channel,
+		Type:                     normalizeSessionType(s.sessionType),
+		State:                    StateStarting,
+		stopReason:               s.stopReason,
+		stopDetail:               s.stopDetail,
+		ACPSessionID:             s.acpSessionID,
+		Environment:              cloneSessionEnvironmentMeta(s.environment),
+		CreatedAt:                createdAt,
+		UpdatedAt:                now,
+		sessionDir:               storage.sessionDir,
+		metaPath:                 storage.metaPath,
+		dbPath:                   storage.dbPath,
+		recorder:                 storage.recorder,
+		environmentDestroyOnStop: s.workspace.Environment.DestroyOnStop,
 	}
 }
 
