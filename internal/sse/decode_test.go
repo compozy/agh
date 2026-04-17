@@ -2,6 +2,7 @@ package sse
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -49,5 +50,100 @@ func TestDecodeRejectsNilArguments(t *testing.T) {
 				t.Fatalf("Decode() error = %v, want %q", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestDecodeStopsOnErrStop(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Join([]string{
+		"id: 1",
+		"event: done",
+		`data: {"ok":true}`,
+		"",
+		"id: 2",
+		"event: later",
+		`data: {"ok":false}`,
+		"",
+	}, "\n")
+
+	count := 0
+	err := Decode(context.Background(), strings.NewReader(body), func(event Event) error {
+		count++
+		if event.Event == "done" {
+			return ErrStop
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("Decode() count = %d, want 1", count)
+	}
+}
+
+func TestDecodePropagatesHandlerError(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("boom")
+	body := strings.Join([]string{
+		"id: 1",
+		"event: done",
+		`data: {"ok":true}`,
+		"",
+	}, "\n")
+
+	err := Decode(context.Background(), strings.NewReader(body), func(Event) error {
+		return wantErr
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Decode() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestDecodePreservesMultiLineData(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Join([]string{
+		"id: 1",
+		"event: message",
+		`data: {"first":true}`,
+		`data: {"second":true}`,
+		"",
+	}, "\n")
+
+	var seen Event
+	err := Decode(context.Background(), strings.NewReader(body), func(event Event) error {
+		seen = event
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got, want := string(seen.Data), "{\"first\":true}\n{\"second\":true}"; got != want {
+		t.Fatalf("Decode() data = %q, want %q", got, want)
+	}
+}
+
+func TestDecodeRejectsOversizedPendingEvent(t *testing.T) {
+	t.Parallel()
+
+	line := "data: " + strings.Repeat("a", maxLineBytes/2)
+	body := strings.Join([]string{
+		line,
+		line,
+		"",
+	}, "\n")
+
+	err := Decode(context.Background(), strings.NewReader(body), func(Event) error {
+		t.Fatal("Decode() handler called, want error")
+		return nil
+	})
+	if err == nil {
+		t.Fatal("Decode() error = nil, want non-nil")
+	}
+	if got, want := err.Error(), "sse: event exceeds "; !strings.Contains(got, want) {
+		t.Fatalf("Decode() error = %q, want substring %q", got, want)
 	}
 }
